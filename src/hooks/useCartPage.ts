@@ -1,0 +1,883 @@
+// @ts-nocheck
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import { PaymentMethod } from '@/types/database';
+import { fetchStatusFlow, fetchStatusTransitions, statusFlowQueryKey, statusTransitionsQueryKey } from '@/hooks/useCategoryStatusFlow';
+import { resolveTransactionType } from '@/lib/resolveTransactionType';
+import { resolvePaymentConfig } from '@/lib/resolvePaymentConfig';
+import { useCart } from '@/hooks/useCart';
+import { useAuth } from '@/contexts/AuthContext';
+import { useSubmitGuard } from '@/hooks/useSubmitGuard';
+import { useSystemSettings } from '@/hooks/useSystemSettings';
+import { usePaymentMode } from '@/hooks/usePaymentMode';
+import { useCurrency } from '@/hooks/useCurrency';
+import { useLoyaltyRedeem } from '@/hooks/useLoyaltyRedeem';
+import { useDeliveryAddresses } from '@/hooks/useDeliveryAddresses';
+import { hapticImpact, hapticNotification, hapticSelection } from '@/lib/haptics';
+import { toast } from 'sonner';
+import { friendlyError } from '@/lib/utils';
+import { usePushNotifications } from '@/contexts/PushNotificationContext';
+import { notify } from '@/lib/notify';
+// Store status validation now handled server-side in create_multi_vendor_orders RPC
+
+/** Simple deterministic hash for idempotency keys */
+function simpleHash(str: string): string {
+  let h = 0;
+  for (let i = 0; i < str.length; i++) {
+    h = ((h << 5) - h + str.charCodeAt(i)) | 0;
+  }
+  return Math.abs(h).toString(36);
+}
+
+// ── Session persistence for UPI payment state ──
+// Survives app-switch, re-renders, and component remounts
+const PAYMENT_SESSION_KEY = 'sociva_pending_payment_session';
+
+interface PaymentSession {
+  orderIds: string[];
+  paymentMethod: string;
+  amount: number;
+  createdAt: number;
+  sellerUpiId?: string;
+  sellerName?: string;
+}
+
+function savePaymentSession(session: PaymentSession) {
+  try { sessionStorage.setItem(PAYMENT_SESSION_KEY, JSON.stringify(session)); } catch {}
+}
+
+function loadPaymentSession(): PaymentSession | null {
+  try {
+    const raw = sessionStorage.getItem(PAYMENT_SESSION_KEY);
+    if (!raw) return null;
+    const session = JSON.parse(raw) as PaymentSession;
+    // Expire sessions older than 30 minutes
+    if (Date.now() - session.createdAt > 30 * 60 * 1000) {
+      clearPaymentSession();
+      return null;
+    }
+    return session;
+  } catch { return null; }
+}
+
+function clearPaymentSession() {
+  try { sessionStorage.removeItem(PAYMENT_SESSION_KEY); } catch {}
+}
+
+export function useCartPage() {
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const { user, profile, society } = useAuth();
+  const { requestFullPermission } = usePushNotifications();
+  const { items, totalAmount, sellerGroups, updateQuantity, removeItem, clearCart, refresh, addItem, isLoading, isFetching, hasHydrated, isRecoveringCart, pendingMutations, cartVerified } = useCart();
+  const idempotencyKeyRef = useRef<string | null>(null);
+
+  // RULE 3: Safe route-entry refresh — invalidate only, never overwrite cache
+  useEffect(() => {
+    queryClient.invalidateQueries({ queryKey: ['cart-items'] });
+    queryClient.invalidateQueries({ queryKey: ['cart-count'] });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Hard reset stale payment state when cart is replaced (reorder flow)
+  useEffect(() => {
+    const handler = () => {
+      clearPaymentSession();
+      idempotencyKeyRef.current = null;
+    };
+    window.addEventListener('cart-replaced', handler);
+    return () => window.removeEventListener('cart-replaced', handler);
+  }, []);
+  const [notes, setNotes] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cod');
+  const [isPlacingOrder, setIsPlacingOrder] = useState(false);
+  const [showRazorpayCheckout, setShowRazorpayCheckout] = useState(false);
+  const razorpaySuccessHandledRef = useRef(false);
+  const [showUpiDeepLink, setShowUpiDeepLink] = useState(false);
+  const paymentMode = usePaymentMode();
+  const [pendingOrderIds, setPendingOrderIds] = useState<string[]>([]);
+  const pendingOrderIdsRef = useRef<string[]>([]);
+  const [appliedCoupon, setAppliedCoupon] = useState<{ id: string; code: string; discountAmount: number; discount_type?: string; discount_value?: number; max_discount_amount?: number | null; min_order_amount?: number | null } | null>(null);
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [fulfillmentType, setFulfillmentType] = useState<'self_pickup' | 'delivery'>('self_pickup');
+  const [orderStep, setOrderStep] = useState<'validating' | 'creating' | 'confirming'>('validating');
+  const [selectedDeliveryAddress, setSelectedDeliveryAddress] = useState<any>(null);
+  const [scheduledDate, setScheduledDate] = useState<Date | null>(null);
+  const [scheduledTime, setScheduledTime] = useState<string | null>(null);
+  const [wantsScheduledDelivery, setWantsScheduledDelivery] = useState(false);
+  const [paymentFailureInfo, setPaymentFailureInfo] = useState<{ amount: number; sellerName: string } | null>(null);
+  const [priceChangeInfo, setPriceChangeInfo] = useState<{ items: string[] } | null>(null);
+  const settings = useSystemSettings();
+  const { formatPrice, currencySymbol } = useCurrency();
+  const { addresses, defaultAddress, isLoading: addressesLoading } = useDeliveryAddresses();
+  const loyalty = useLoyaltyRedeem();
+
+  // Keep ref in sync
+  useEffect(() => { pendingOrderIdsRef.current = pendingOrderIds; }, [pendingOrderIds]);
+
+  // ── Backend-verified payment session recovery on mount ──
+  useEffect(() => {
+    const session = loadPaymentSession();
+    if (!session || session.orderIds.length === 0) return;
+
+    // Verify backend state before reopening any payment UI
+    (async () => {
+      try {
+        const { data: orders } = await supabase
+          .from('orders')
+          .select('id, status, payment_status')
+          .in('id', session.orderIds);
+
+        if (!orders || orders.length === 0) {
+          // Orders don't exist — stale session
+          clearPaymentSession();
+          return;
+        }
+
+        const alreadyPaid = orders.some(o => 
+          o.payment_status === 'paid' || 
+          o.payment_status === 'buyer_confirmed' ||
+          (o.status !== 'payment_pending' && o.status !== 'cancelled')
+        );
+
+        if (alreadyPaid) {
+          // Payment already processed — navigate to order page, don't reopen payment
+          clearPaymentSession();
+          const dest = session.orderIds.length === 1 
+            ? `/orders/${session.orderIds[0]}` 
+            : '/orders';
+          navigate(dest);
+          return;
+        }
+
+        const allCancelled = orders.every(o => o.status === 'cancelled');
+        if (allCancelled) {
+          // All orders cancelled — stale session
+          clearPaymentSession();
+          return;
+        }
+
+        // Orders are genuinely unpaid and pending — allow resume
+        const unpaidIds = orders
+          .filter(o => o.status === 'payment_pending' && o.payment_status !== 'paid')
+          .map(o => o.id);
+
+        if (unpaidIds.length === 0) {
+          clearPaymentSession();
+          return;
+        }
+
+        setPendingOrderIds(unpaidIds);
+
+        if (session.paymentMethod === 'upi') {
+          setPaymentMethod('upi');
+          setTimeout(() => setShowUpiDeepLink(true), 100);
+        } else if (session.paymentMethod === 'razorpay') {
+          setPaymentMethod('upi'); // internal state for online payment
+          razorpaySuccessHandledRef.current = false;
+          setTimeout(() => setShowRazorpayCheckout(true), 100);
+        }
+      } catch (err) {
+        console.error('[Recovery] Failed to verify payment session:', err);
+        // On error, don't blindly reopen — clear stale session
+        clearPaymentSession();
+      }
+    })();
+  }, []); // Only on mount
+
+  // Bug 2 fix: Auto-remove coupon when cart drops below min_order_amount
+  useEffect(() => {
+    if (!appliedCoupon || !appliedCoupon.min_order_amount) return;
+    if (totalAmount < appliedCoupon.min_order_amount) {
+      setAppliedCoupon(null);
+      toast.info(`Coupon "${appliedCoupon.code}" removed — minimum order of ${formatPrice(appliedCoupon.min_order_amount)} not met.`, { id: 'coupon-below-min' });
+    }
+  }, [totalAmount, appliedCoupon?.min_order_amount]);
+
+  const effectiveCouponDiscount = (() => {
+    if (!appliedCoupon) return 0;
+    if (appliedCoupon.discount_type === 'percentage' && appliedCoupon.discount_value) {
+      let d = (totalAmount * appliedCoupon.discount_value) / 100;
+      if (appliedCoupon.max_discount_amount) d = Math.min(d, appliedCoupon.max_discount_amount);
+      return Math.round(d * 100) / 100;
+    }
+    // Bug 5 fix: Recalculate fixed-amount coupons dynamically (never exceed cart total)
+    const fixedValue = appliedCoupon.discount_value ?? appliedCoupon.discountAmount;
+    return Math.min(fixedValue, totalAmount);
+  })();
+
+  const effectiveDeliveryFee = fulfillmentType === 'delivery' ? (totalAmount >= settings.freeDeliveryThreshold ? 0 : settings.baseDeliveryFee) : 0;
+  const amountAfterCoupon = appliedCoupon ? Math.max(0, totalAmount - effectiveCouponDiscount) : totalAmount;
+  const effectiveLoyaltyDiscount = Math.min(loyalty.appliedPoints, amountAfterCoupon);
+  const finalAmount = Math.max(0, amountAfterCoupon - effectiveLoyaltyDiscount) + effectiveDeliveryFee;
+
+  const firstSeller = sellerGroups[0]?.items[0]?.product?.seller;
+  const firstSellerFulfillmentMode = (firstSeller as any)?.fulfillment_mode as 'self_pickup' | 'seller_delivery' | 'platform_delivery' | 'pickup_and_seller_delivery' | 'pickup_and_platform_delivery' | undefined;
+  // Per-seller, per-fulfillment payment resolution
+  const resolvedFulfillment = fulfillmentType === 'delivery' ? 'delivery' : 'self_pickup';
+  const acceptsCod = sellerGroups.every(g => {
+    const s = g.items[0]?.product?.seller as any;
+    return resolvePaymentConfig(s, resolvedFulfillment, paymentMode).acceptsCod;
+  });
+  const acceptsUpi = sellerGroups.every(g => {
+    const s = g.items[0]?.product?.seller as any;
+    return resolvePaymentConfig(s, resolvedFulfillment, paymentMode).acceptsOnline;
+  });
+  const hasFulfillmentConflict = sellerGroups.length > 1 && sellerGroups.some(g => {
+    const mode = (g.items[0]?.product?.seller as any)?.fulfillment_mode;
+    return mode && mode !== 'self_pickup' && !mode.startsWith('pickup_and_') && mode !== fulfillmentType;
+  });
+  const hasBelowMinimumOrder = sellerGroups.some(g => {
+    const minOrder = (g.items[0]?.product?.seller as any)?.minimum_order_amount;
+    return minOrder && g.subtotal < minOrder;
+  });
+  const noPaymentMethodAvailable = !acceptsCod && !acceptsUpi;
+
+  useEffect(() => {
+    if (!acceptsCod && acceptsUpi) setPaymentMethod('upi');
+    else if (acceptsCod && !acceptsUpi) setPaymentMethod('cod');
+  }, [acceptsCod, acceptsUpi]);
+
+  // Track which seller the default was computed for — reset when seller changes
+  const defaultFulfillmentSellerId = useRef<string | null>(null);
+  useEffect(() => {
+    if (sellerGroups.length === 0) return;
+    const sellerId = sellerGroups[0]?.sellerId || null;
+    // Only compute default once per unique seller (not on every re-render)
+    if (defaultFulfillmentSellerId.current === sellerId) return;
+    const firstMode = (firstSeller as any)?.fulfillment_mode;
+    if (firstMode === 'seller_delivery' || firstMode === 'platform_delivery') setFulfillmentType('delivery');
+    else if (firstMode?.startsWith('pickup_and_')) setFulfillmentType('delivery');
+    else setFulfillmentType('self_pickup');
+    defaultFulfillmentSellerId.current = sellerId;
+  }, [sellerGroups.length, firstSeller]);
+
+  // Clear coupon when seller composition changes (multi-vendor or different seller)
+  const currentSellerId = sellerGroups.length === 1 ? sellerGroups[0].sellerId : null;
+  useEffect(() => {
+    if (sellerGroups.length > 1 && appliedCoupon) setAppliedCoupon(null);
+  }, [sellerGroups.length]);
+  const prevSellerIdRef = useRef(currentSellerId);
+  useEffect(() => {
+    // Only clear coupon when seller genuinely changes (not on initial mount or same-seller re-derive)
+    if (prevSellerIdRef.current && currentSellerId && prevSellerIdRef.current !== currentSellerId && appliedCoupon) {
+      setAppliedCoupon(null);
+    }
+    prevSellerIdRef.current = currentSellerId;
+  }, [currentSellerId]);
+
+  // Auto-select default delivery address
+  useEffect(() => {
+    if (!selectedDeliveryAddress && defaultAddress) {
+      setSelectedDeliveryAddress(defaultAddress);
+    }
+  }, [defaultAddress, selectedDeliveryAddress]);
+
+  const hasUrgentItem = items.some((item) => (item.product as any)?.is_urgent);
+  const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
+  const maxPrepTime = items.reduce((max, item) => {
+    const pt = (item.product as any)?.prep_time_minutes;
+    return pt && pt > max ? pt : max;
+  }, 0);
+
+  // Pre-order detection: check if any cart item requires pre-ordering
+  const hasPreorderItems = items.some(item => (item.product as any)?.accepts_preorders === true);
+  const maxLeadTimeHours = items.reduce((max, item) => {
+    const lt = (item.product as any)?.lead_time_hours;
+    return (item.product as any)?.accepts_preorders && lt && lt > max ? lt : max;
+  }, 0);
+  const preorderMissingSchedule = hasPreorderItems && (!scheduledDate || !scheduledTime);
+
+  // Derive cutoff time from pre-order items (use the earliest cutoff across all pre-order products)
+  const preorderCutoffTime = useMemo(() => {
+    let earliest: string | null = null;
+    for (const item of items) {
+      const p = item.product as any;
+      if (!p?.accepts_preorders) continue;
+      const cutoff = p.preorder_cutoff_time;
+      if (cutoff && (!earliest || cutoff < earliest)) earliest = cutoff;
+    }
+    return earliest;
+  }, [items]);
+
+  // Track which sellers have pre-order items (for mixed-cart handling - Gap 7)
+  const preorderSellerIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const item of items) {
+      if ((item.product as any)?.accepts_preorders) {
+        ids.add(item.product?.seller_id || '');
+      }
+    }
+    return ids;
+  }, [items]);
+
+  const createOrdersForAllSellers = async (paymentStatus: 'pending' | 'paid', transactionRef?: string) => {
+    if (!user || !profile || sellerGroups.length === 0) return [];
+
+    const sellerGroupsPayload = sellerGroups.map((group) => ({
+      seller_id: group.sellerId, subtotal: group.subtotal,
+      items: group.items.map((item) => ({ product_id: item.product_id, product_name: item.product?.name || 'Unknown', quantity: item.quantity, unit_price: item.product?.price || 0 })),
+    }));
+
+    // Price + availability validation is now handled server-side in the RPC
+
+    const deliveryAddressText = fulfillmentType === 'delivery' && selectedDeliveryAddress
+      ? [selectedDeliveryAddress.flat_number && `Flat ${selectedDeliveryAddress.flat_number}`, selectedDeliveryAddress.block && `Block ${selectedDeliveryAddress.block}`, selectedDeliveryAddress.building_name, selectedDeliveryAddress.landmark].filter(Boolean).join(', ')
+      : [profile.block && `Block ${profile.block}`, profile.flat_number].filter(Boolean).join(', ') || profile?.name || 'Self Pickup';
+
+    // Generate idempotency key if not already set for this attempt
+    if (!idempotencyKeyRef.current) {
+      const cartHash = items.map(i => `${i.product_id}:${i.quantity}`).sort().join('|');
+      idempotencyKeyRef.current = `${user.id}_${Date.now()}_${simpleHash(cartHash)}`;
+    }
+
+    // Bug 2 fix: Use 'card' for Razorpay payments instead of misleading 'upi'
+    const effectivePaymentMethod = paymentMode.isRazorpay && paymentMethod === 'upi' ? 'online' : paymentMethod;
+    // Format scheduled date/time for pre-order items
+    const scheduledDateStr = scheduledDate ? scheduledDate.toISOString().split('T')[0] : null;
+    const scheduledTimeStr = scheduledTime ? `${scheduledTime}:00` : null;
+    const { data, error } = await supabase.rpc('create_multi_vendor_orders', {
+      _buyer_id: user.id, _delivery_address: deliveryAddressText,
+      _notes: notes || null, _payment_method: effectivePaymentMethod, _payment_status: paymentStatus,
+      _coupon_id: appliedCoupon?.id || null, _coupon_code: appliedCoupon?.code || null,
+      _coupon_discount: effectiveCouponDiscount, _cart_total: totalAmount, _has_urgent: hasUrgentItem,
+      _seller_groups: sellerGroupsPayload, _fulfillment_type: fulfillmentType, _delivery_fee: effectiveDeliveryFee,
+      _delivery_address_id: selectedDeliveryAddress?.id || null,
+      _delivery_lat: selectedDeliveryAddress?.latitude || null,
+      _delivery_lng: selectedDeliveryAddress?.longitude || null,
+      _idempotency_key: idempotencyKeyRef.current,
+      _scheduled_date: scheduledDateStr,
+      _scheduled_time_start: scheduledTimeStr,
+      _preorder_seller_ids: preorderSellerIds.size > 0 ? Array.from(preorderSellerIds) : null,
+    } as any);
+    if (error) {
+      // Do NOT reset idempotency key — retry must use the same key
+      // so the DB advisory lock + dedup check can detect the duplicate.
+      // Key is only reset on confirmed success or business-logic rejection.
+      throw error;
+    }
+
+    const result = data as { success: boolean; order_ids?: string[]; order_count?: number; error?: string; unavailable_items?: string[]; price_changed_items?: string[]; stock_insufficient?: string[]; closed_sellers?: string[]; out_of_range_sellers?: string[]; deduplicated?: boolean };
+    if (!result?.success) {
+      idempotencyKeyRef.current = null;
+      if (result?.error === 'unavailable_items' && result?.unavailable_items) { await refresh(); throw new Error(`Some items are unavailable:\n• ${result.unavailable_items.join('\n• ')}`); }
+      if (result?.error === 'price_changed' && result?.price_changed_items) { await refresh(); throw new Error(`Prices have changed:\n• ${result.price_changed_items.join('\n• ')}\nYour cart has been refreshed.`); }
+      if (result?.error === 'insufficient_stock' && result?.stock_insufficient) { await refresh(); throw new Error(`Insufficient stock:\n• ${result.stock_insufficient.join('\n• ')}`); }
+      if (result?.error === 'stock_validation_failed' && result?.unavailable_items) throw new Error(`Some items are unavailable:\n• ${result.unavailable_items.join('\n• ')}`);
+      if (result?.error === 'store_closed') { const sellers = result.closed_sellers?.join(', '); throw new Error(sellers ? `Store closed: ${sellers}` : 'Store is currently closed. Please try again later.'); }
+      if (result?.error === 'delivery_out_of_range') { const sellers = result.out_of_range_sellers?.join('\n• '); throw new Error(sellers ? `Delivery not possible:\n• ${sellers}` : 'Delivery address is out of range for one or more sellers.'); }
+      throw new Error('Failed to create orders');
+    }
+    // Reset idempotency key after successful (non-deduplicated) creation
+    if (!result.deduplicated) idempotencyKeyRef.current = null;
+    return result.order_ids || [];
+  };
+
+  /** Force-clear cart from both DB and query cache */
+  const clearCartAndCache = useCallback(async () => {
+    await clearCart();
+    if (user) {
+      queryClient.setQueryData(['cart-items', user.id], []);
+      queryClient.setQueryData(['cart-count', user.id], 0);
+    }
+  }, [clearCart, queryClient, user]);
+
+  /** Prefetch status flow + transitions so order detail page loads instantly */
+  const prefetchFlowData = useCallback(() => {
+    try {
+      const seller = sellerGroups[0]?.items[0]?.product?.seller as any;
+      const parentGroup = seller?.primary_group || 'default';
+      const ft = fulfillmentType === 'delivery' ? (seller?.fulfillment_mode === 'platform_delivery' ? 'delivery' : 'seller_delivery') : 'self_pickup';
+      const dhb = fulfillmentType === 'delivery' ? (seller?.fulfillment_mode === 'platform_delivery' ? 'platform' : 'seller') : null;
+      const txnType = resolveTransactionType(parentGroup, 'purchase', ft, dhb);
+
+      queryClient.prefetchQuery({
+        queryKey: statusFlowQueryKey(parentGroup, txnType),
+        queryFn: () => fetchStatusFlow(parentGroup, txnType),
+        staleTime: 5 * 60 * 1000,
+      });
+      queryClient.prefetchQuery({
+        queryKey: statusTransitionsQueryKey(parentGroup, txnType),
+        queryFn: () => fetchStatusTransitions(parentGroup, txnType),
+        staleTime: 5 * 60 * 1000,
+      });
+    } catch { /* best-effort prefetch */ }
+  }, [sellerGroups, fulfillmentType, queryClient]);
+
+  const handlePlaceOrderInner = async () => {
+    if (!user || !profile || sellerGroups.length === 0) return;
+
+    // GUARD: Check for existing pending unpaid orders to prevent duplicates
+    const existingSession = loadPaymentSession();
+    const pendingIds = pendingOrderIdsRef.current.length > 0 ? pendingOrderIdsRef.current : (existingSession?.orderIds || []);
+
+    if (pendingIds.length > 0) {
+      const { data: existingOrders } = await supabase
+        .from('orders')
+        .select('id, status, payment_status')
+        .in('id', pendingIds)
+        .eq('buyer_id', user.id);
+
+      const stillPending = existingOrders?.filter(o => o.status !== 'cancelled' && o.payment_status !== 'paid' && o.payment_status !== 'buyer_confirmed') as any[];
+      if (stillPending && stillPending.length > 0) {
+        toast.error('You have a pending payment. Please complete or cancel it first.', {
+          id: 'checkout-pending',
+          action: {
+            label: 'Cancel Payment',
+            onClick: async () => {
+              try {
+                await supabase.rpc('buyer_cancel_pending_orders', { _order_ids: stillPending.map((o: any) => o.id) });
+              } catch (err) { console.error('Failed to cancel pending orders:', err); }
+              setPendingOrderIds([]);
+              clearPaymentSession();
+              toast.success('Pending payment cancelled. You can place a new order.', { id: 'checkout-pending-cancelled' });
+            },
+          },
+        });
+        // Re-open the correct payment UI
+        setPendingOrderIds(stillPending.map(o => o.id));
+        if (paymentMethod === 'upi' && paymentMode.isUpiDeepLink) {
+          setShowUpiDeepLink(true);
+        } else if (paymentMode.isRazorpay) {
+          razorpaySuccessHandledRef.current = false;
+          setShowRazorpayCheckout(true);
+        }
+        return;
+      }
+      // All pending orders were cancelled or paid — clear session
+      setPendingOrderIds([]);
+      clearPaymentSession();
+    }
+
+    const selfSellerGroup = sellerGroups.find(g => { const sellerUserId = (g.items[0]?.product?.seller as any)?.user_id; return sellerUserId && sellerUserId === user.id; });
+    if (selfSellerGroup) { notify.block("You cannot place an order from your own store."); return; }
+    if (!navigator.onLine) { toast.error("You're offline. Please check your connection and try again.", { id: 'checkout-offline' }); return; }
+    if (fulfillmentType === 'delivery' && !selectedDeliveryAddress) { notify.block('Please add a delivery address to continue.'); return; }
+    if (fulfillmentType === 'delivery' && selectedDeliveryAddress && !selectedDeliveryAddress.latitude) { notify.block('Your selected address has no location coordinates. Please update it with a precise location.'); return; }
+
+    // GUARD: Pre-order items MUST have a scheduled date/time — cannot bypass via race condition
+    if (hasPreorderItems && (!scheduledDate || !scheduledTime)) {
+      notify.block('Please select a delivery date & time for pre-order items.');
+      return;
+    }
+
+    // GUARD: Server-side fulfillment validation — prevent sending self_pickup when seller only does delivery (and vice versa)
+    for (const group of sellerGroups) {
+      const sellerMode = (group.items[0]?.product?.seller as any)?.fulfillment_mode;
+      if (sellerMode) {
+        const sellerSupportsPickup = sellerMode === 'self_pickup' || sellerMode.startsWith('pickup_and_');
+        const sellerSupportsDelivery = sellerMode !== 'self_pickup';
+        if (fulfillmentType === 'self_pickup' && !sellerSupportsPickup) {
+          toast.error(`${group.sellerName} only supports delivery. Switching to delivery.`, { id: 'checkout-fulfillment-mismatch' });
+          setFulfillmentType('delivery');
+          return;
+        }
+        if (fulfillmentType === 'delivery' && !sellerSupportsDelivery) {
+          toast.error(`${group.sellerName} only supports self-pickup. Switching to pickup.`, { id: 'checkout-fulfillment-mismatch' });
+          setFulfillmentType('self_pickup');
+          return;
+        }
+      }
+    }
+
+    // Daily order limit enforcement
+    for (const group of sellerGroups) {
+      const dailyLimit = (group.items[0]?.product?.seller as any)?.daily_order_limit;
+      if (dailyLimit && dailyLimit > 0) {
+        const now = new Date();
+        const istOffset = 5.5 * 60 * 60 * 1000;
+        const istNow = new Date(now.getTime() + istOffset);
+        const todayStart = new Date(Date.UTC(istNow.getUTCFullYear(), istNow.getUTCMonth(), istNow.getUTCDate()) - istOffset).toISOString();
+        const { count } = await supabase.from('orders').select('id', { count: 'exact', head: true }).eq('seller_id', group.sellerId).gte('created_at', todayStart).not('status', 'in', '("cancelled","payment_pending")');
+        if ((count || 0) >= dailyLimit) {
+          toast.error(`${group.sellerName} has reached their daily order limit. Please try again tomorrow.`, { id: 'checkout-daily-limit' });
+          return;
+        }
+      }
+    }
+
+    for (const group of sellerGroups) {
+      const minOrder = (group.items[0]?.product?.seller as any)?.minimum_order_amount;
+      if (minOrder && group.subtotal < minOrder) { toast.error(`${group.sellerName} requires a minimum order of ${formatPrice(minOrder)}. Your current total is ${formatPrice(group.subtotal)}.`, { id: 'checkout-min-order' }); return; }
+    }
+
+    setPriceChangeInfo(null);
+    setPaymentFailureInfo(null);
+    setIsPlacingOrder(true);
+    hapticImpact('medium');
+
+    // All product availability, price, store status, and delivery range checks
+    // are now handled server-side in the RPC for atomicity and speed.
+
+    if (paymentMethod === 'cod' && !acceptsCod) { toast.error('This seller does not accept Cash on Delivery. Please select UPI.', { id: 'checkout-no-cod' }); setIsPlacingOrder(false); return; }
+
+    if (paymentMethod === 'upi') {
+      if (!acceptsUpi) { toast.error('Online payment not available', { id: 'upi-unavailable' }); setIsPlacingOrder(false); return; }
+      if (!paymentMode.isRazorpay) {
+        const firstSeller = sellerGroups[0]?.items[0]?.product?.seller as any;
+        if (!firstSeller?.upi_id) { toast.error('This seller is not accepting UPI payments right now', { id: 'upi-no-id' }); setIsPlacingOrder(false); return; }
+      }
+      setOrderStep('creating');
+      try {
+        const orderIds = await createOrdersForAllSellers('pending');
+        if (orderIds.length === 0) throw new Error('Failed to create orders');
+        setPendingOrderIds(orderIds);
+        // CRITICAL: Persist payment session so it survives app-switch
+        // Bug 3 fix: Save correct payment method for session restore
+        const sellerForSession = sellerGroups[0]?.items[0]?.product?.seller as any;
+        savePaymentSession({
+          orderIds,
+          paymentMethod: paymentMode.isRazorpay ? 'razorpay' : 'upi',
+          amount: finalAmount,
+          createdAt: Date.now(),
+          sellerUpiId: sellerForSession?.upi_id || undefined,
+          sellerName: sellerGroups[0]?.sellerName || undefined,
+        });
+        // Do NOT clear cart — cart stays until payment is confirmed
+        upiCompletionRef.current = false; // Reset guard for new payment session
+        if (paymentMode.isUpiDeepLink) {
+          setShowUpiDeepLink(true);
+        } else {
+          razorpaySuccessHandledRef.current = false;
+          setShowRazorpayCheckout(true);
+        }
+      } catch (error: any) {
+        console.error('Error creating orders:', error);
+        if (error?.code !== 'PRICE_CHANGED') {
+          toast.error(friendlyError(error), { id: 'checkout-create-error' });
+        }
+      }
+      finally { setIsPlacingOrder(false); }
+      return;
+    }
+
+    // COD flow — order is confirmed immediately, no overlay needed
+    try {
+      const orderIds = await createOrdersForAllSellers('pending');
+      if (orderIds.length === 0) throw new Error('Failed to create orders');
+      hapticNotification('success');
+      prefetchFlowData();
+      // Redeem loyalty points if applied (best-effort, non-blocking)
+      if (effectiveLoyaltyDiscount > 0 && orderIds.length > 0) {
+        loyalty.redeemPoints(effectiveLoyaltyDiscount, orderIds[0]).catch(() => {});
+      }
+      // Optimistically clear cart cache BEFORE navigation to prevent back-button duplicates
+      queryClient.setQueryData(['cart-items', user.id], []);
+      queryClient.setQueryData(['cart-count', user.id], 0);
+      if (orderIds.length === 1) { toast.success('Order placed successfully!', { id: 'order-placed' }); navigate(`/orders/${orderIds[0]}`, { state: { fromCheckout: true, orderCount: 1 } }); }
+      else { toast.success(`${orderIds.length} orders placed successfully!`, { id: 'order-placed' }); navigate(`/orders/${orderIds[0]}`, { state: { fromCheckout: true, orderCount: orderIds.length } }); }
+      // Background: DB cleanup + trigger notifications (non-blocking)
+      clearCartAndCache().catch(() => {});
+      requestFullPermission().catch(() => {});
+      supabase.functions.invoke('process-notification-queue').catch(() => {});
+    } catch (error: any) {
+      console.error('Error placing order:', error);
+      if (error?.code !== 'PRICE_CHANGED') {
+        toast.error(friendlyError(error), { id: 'checkout-error' });
+      }
+    }
+    finally { setIsPlacingOrder(false); }
+  };
+
+  const handlePlaceOrder = useSubmitGuard(handlePlaceOrderInner, 3000, 0);
+
+  const handleRazorpaySuccess = async (paymentId: string) => {
+    // Double-invocation guard — Razorpay SDK can fire success twice in rare cases
+    if (razorpaySuccessHandledRef.current) return;
+    razorpaySuccessHandledRef.current = true;
+
+    setShowRazorpayCheckout(false);
+    const orderIds = [...pendingOrderIds];
+
+    // Empty orderIds guard — fallback to orders list
+    if (!orderIds.length) {
+      navigate('/orders');
+      return;
+    }
+
+    // Instant overlay — user sees "Confirming payment…" immediately
+    setIsPlacingOrder(true);
+    setOrderStep('confirming');
+
+    // CRITICAL: Call backend to verify payment with Razorpay API and advance order state
+    // This is the PRIMARY confirmation path — webhook is now just a fallback
+    // Retrieve razorpay_order_id from orders for reconciliation
+    let razorpayOrderId: string | null = null;
+    try {
+      const { data: orderRow } = await supabase
+        .from('orders')
+        .select('razorpay_order_id')
+        .eq('id', orderIds[0])
+        .single();
+      razorpayOrderId = orderRow?.razorpay_order_id || null;
+    } catch { /* best effort */ }
+
+    console.log(`[Payment][client_confirm] order_ids=${orderIds.join(',')}, razorpay_payment_id=${paymentId}, razorpay_order_id=${razorpayOrderId}`);
+
+    let confirmOk = false;
+    try {
+      const { data: confirmData, error: confirmErr } = await supabase.functions.invoke('confirm-razorpay-payment', {
+        body: {
+          razorpay_payment_id: paymentId,
+          razorpay_order_id: razorpayOrderId,
+          order_ids: orderIds,
+        },
+      });
+      if (confirmErr) {
+        console.warn('[Payment][client_confirm] result=failed', confirmErr);
+      } else if (confirmData?.success === false) {
+        console.warn('[Payment][client_confirm] result=rejected', confirmData);
+      } else {
+        confirmOk = true;
+        console.log('[Payment][client_confirm] result=success');
+      }
+    } catch (err) {
+      console.warn('[Payment][client_confirm] result=call_failed, webhook fallback:', err);
+    }
+
+    // Navigate on next animation frame (deterministic, no magic delays)
+    const dest = orderIds.length === 1 ? `/orders/${orderIds[0]}` : '/orders';
+    await new Promise(r => requestAnimationFrame(r));
+    navigate(dest);
+
+    // Cleanup AFTER navigation — never claim success or clear cart unless confirm OK
+    setTimeout(() => {
+      if (confirmOk) {
+        toast.success('Payment successful! Your order is confirmed.', { id: 'razorpay-success' });
+        clearPaymentSession();
+        if (effectiveLoyaltyDiscount > 0 && orderIds.length > 0) {
+          loyalty.redeemPoints(effectiveLoyaltyDiscount, orderIds[0]).catch(() => {});
+        }
+        setPendingOrderIds([]);
+        clearCartAndCache().catch(() => {});
+      } else {
+        toast.error(
+          'Payment received but confirmation is still pending. Check Orders — do not pay again until status updates.',
+          { id: 'razorpay-pending', duration: 8000 },
+        );
+        // Keep pending session so buyer can retry confirm / see payment_pending orders
+        setPendingOrderIds(orderIds);
+      }
+      setIsPlacingOrder(false);
+    }, 0);
+  };
+
+  const handleRazorpayFailed = async () => {
+    // CRITICAL: If success already handled, never cancel orders
+    if (razorpaySuccessHandledRef.current) {
+      console.log('[Payment] handleRazorpayFailed suppressed — success already handled');
+      setShowRazorpayCheckout(false);
+      return;
+    }
+    setShowRazorpayCheckout(false);
+    if (!user?.id) { toast.error('Session expired. Please sign in again.', { id: 'checkout-session' }); setPendingOrderIds([]); clearPaymentSession(); return; }
+    if (pendingOrderIds.length > 0) {
+      // Poll multiple times before cancelling — webhook may be delayed
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const { data: recheckOrder } = await supabase.from('orders').select('payment_status').eq('id', pendingOrderIds[0]).single();
+        if (recheckOrder?.payment_status === 'paid') { toast.success('Payment verified! Your order is confirmed.', { id: 'razorpay-verified' }); await clearCartAndCache(); clearPaymentSession(); navigate(`/orders/${pendingOrderIds[0]}`); setPendingOrderIds([]); return; }
+        if (attempt < 2) await new Promise(r => setTimeout(r, 2000));
+      }
+      // Cancel only unpaid orders via RPC — respects workflow engine, RLS, and sends notifications
+      try {
+        await supabase.rpc('buyer_cancel_pending_orders', { _order_ids: pendingOrderIds });
+      } catch (err) { console.error('Failed to cancel pending orders:', err); }
+    }
+    setPendingOrderIds([]);
+    clearPaymentSession();
+    idempotencyKeyRef.current = null; // Bug 8 fix: Reset so retry creates fresh orders
+    // Show payment failure recovery sheet instead of a toast
+    setPaymentFailureInfo({
+      amount: finalAmount || sessionAmount || 0,
+      sellerName: sellerGroups[0]?.sellerName || sessionSellerName || 'Seller',
+    });
+  };
+
+  // Dismiss handler — recheck paid (webhook may have won) before cancelling
+  const handleRazorpayDismiss = async () => {
+    // CRITICAL: If success already handled, never cancel orders on dismiss
+    if (razorpaySuccessHandledRef.current) {
+      console.log('[Payment] handleRazorpayDismiss suppressed — success already handled');
+      setShowRazorpayCheckout(false);
+      return;
+    }
+    setShowRazorpayCheckout(false);
+    if (pendingOrderIds.length > 0) {
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const { data: recheckOrder } = await supabase
+          .from('orders')
+          .select('payment_status')
+          .eq('id', pendingOrderIds[0])
+          .single();
+        if (recheckOrder?.payment_status === 'paid') {
+          toast.success('Payment verified! Your order is confirmed.', { id: 'razorpay-verified' });
+          await clearCartAndCache();
+          clearPaymentSession();
+          navigate(`/orders/${pendingOrderIds[0]}`);
+          setPendingOrderIds([]);
+          return;
+        }
+        if (attempt < 2) await new Promise(r => setTimeout(r, 1500));
+      }
+      try {
+        await supabase.rpc('buyer_cancel_pending_orders', { _order_ids: pendingOrderIds });
+        supabase.functions.invoke('process-notification-queue').catch(() => {});
+      } catch (err) { console.error('Failed to cancel pending orders on dismiss:', err); }
+    }
+    setPendingOrderIds([]);
+    clearPaymentSession();
+    idempotencyKeyRef.current = null;
+    // Cart is preserved — user can retry with a fresh order
+  };
+
+  // ── UPI completion guard: only ONE of success/failed can execute per session ──
+  const upiCompletionRef = useRef(false);
+
+  const handleUpiDeepLinkSuccess = async () => {
+    if (upiCompletionRef.current) return;
+    upiCompletionRef.current = true;
+    setShowUpiDeepLink(false);
+
+    // Bug 2 fix: The confirm_upi_payment RPC is called inside UpiDeepLinkCheckout
+    // which handles payment_pending → placed transitions with proper validation.
+    // No direct .update() needed here — the RPC already ran before this callback fires.
+
+    toast.success('Payment submitted! Seller will verify shortly.', { id: 'upi-confirmed' });
+    clearPaymentSession();
+    // Navigate FIRST — don't block on cart clear
+    navigate(pendingOrderIds.length === 1 ? `/orders/${pendingOrderIds[0]}` : '/orders');
+    setPendingOrderIds([]);
+    // Background: clear cart + trigger notifications (non-blocking)
+    clearCartAndCache().catch(() => {});
+    supabase.functions.invoke('process-notification-queue').catch(() => {});
+  };
+
+  const handleUpiDeepLinkFailed = async () => {
+    if (upiCompletionRef.current) return;
+    upiCompletionRef.current = true;
+    setShowUpiDeepLink(false);
+    if (!user?.id) { toast.error('Session expired.', { id: 'checkout-session' }); setPendingOrderIds([]); clearPaymentSession(); return; }
+    if (pendingOrderIds.length > 0) {
+      // Check if payment was actually completed before cancelling
+      const { data: recheckOrder } = await supabase.from('orders').select('payment_status').eq('id', pendingOrderIds[0]).single();
+      if (recheckOrder?.payment_status === 'paid' || recheckOrder?.payment_status === 'buyer_confirmed') {
+        toast.success('Payment was already confirmed! Your order is active.', { id: 'upi-confirmed' });
+        await clearCartAndCache();
+        clearPaymentSession();
+        navigate(`/orders/${pendingOrderIds[0]}`);
+        setPendingOrderIds([]);
+        return;
+      }
+      try { await supabase.rpc('buyer_cancel_pending_orders', { _order_ids: pendingOrderIds }); } catch (err) { console.error('Failed to cancel unpaid orders:', err); }
+    }
+    setPendingOrderIds([]);
+    clearPaymentSession();
+    // Show payment failure recovery sheet instead of a toast
+    setPaymentFailureInfo({
+      amount: finalAmount || sessionAmount || 0,
+      sellerName: sellerGroups[0]?.sellerName || sessionSellerName || 'Seller',
+    });
+  };
+
+  // Compute whether we have an active payment session (for rendering payment UI even if cart is empty)
+  const activeSession = loadPaymentSession();
+  const hasActivePaymentSession = pendingOrderIds.length > 0 || !!activeSession;
+  // Fallback seller details from session for app-resume when cart is empty
+  const sessionSellerUpiId = activeSession?.sellerUpiId || '';
+  const sessionSellerName = activeSession?.sellerName || 'Seller';
+  const sessionAmount = activeSession?.amount || 0;
+
+  // Bug 9 fix: Cancel orders in DB before clearing local state
+  const clearPendingPayment = useCallback(async () => {
+    const ids = pendingOrderIdsRef.current;
+    if (ids.length > 0) {
+      try {
+        await supabase.rpc('buyer_cancel_pending_orders', { _order_ids: ids });
+      } catch (err) {
+        console.error('Failed to cancel pending orders:', err);
+        toast.error('Could not cancel pending orders. Please try again.', { id: 'clear-pending-fail' });
+        return; // Don't clear local state if DB cancel failed
+      }
+    }
+    setPendingOrderIds([]);
+    clearPaymentSession();
+    idempotencyKeyRef.current = null;
+  }, []);
+
+  const retryPendingPayment = useCallback(async () => {
+    // Backend-verify before reopening payment UI
+    const ids = pendingOrderIdsRef.current;
+    if (ids.length > 0) {
+      try {
+        const { data: orders } = await supabase
+          .from('orders')
+          .select('id, status, payment_status')
+          .in('id', ids);
+
+        const alreadyPaid = orders?.some(o =>
+          o.payment_status === 'paid' ||
+          o.payment_status === 'buyer_confirmed' ||
+          (o.status !== 'payment_pending' && o.status !== 'cancelled')
+        );
+
+        if (alreadyPaid) {
+          clearPaymentSession();
+          setPendingOrderIds([]);
+          const dest = ids.length === 1 ? `/orders/${ids[0]}` : '/orders';
+          toast.success('Payment already confirmed!', { id: 'retry-already-paid' });
+          navigate(dest);
+          return;
+        }
+      } catch (err) {
+        console.error('[Retry] Failed to verify order status:', err);
+      }
+    }
+
+    if (paymentMode.isRazorpay) {
+      razorpaySuccessHandledRef.current = false;
+      setShowRazorpayCheckout(true);
+    } else if (paymentMode.isUpiDeepLink) {
+      setShowUpiDeepLink(true);
+    }
+  }, [paymentMode, navigate]);
+
+  const retryPaymentAfterFailure = async () => {
+    setPaymentFailureInfo(null);
+    await handlePlaceOrderInner();
+  };
+
+  const dismissPriceChangeInfo = () => setPriceChangeInfo(null);
+
+  const continueWithUpdatedPrices = async () => {
+    setPriceChangeInfo(null);
+    setShowConfirmDialog(false);
+    await handlePlaceOrderInner();
+  };
+
+  return {
+    user, profile, society, items, totalAmount, sellerGroups, updateQuantity, removeItem, clearCart, addItem, isLoading, isFetching, hasHydrated, isRecoveringCart, pendingMutations, cartVerified,
+    notes, setNotes, paymentMethod, setPaymentMethod,
+    isPlacingOrder, showRazorpayCheckout, showUpiDeepLink, setShowUpiDeepLink, pendingOrderIds, paymentMode,
+    appliedCoupon, setAppliedCoupon, showConfirmDialog, setShowConfirmDialog,
+    fulfillmentType, setFulfillmentType, orderStep,
+    settings, formatPrice, currencySymbol,
+    effectiveDeliveryFee, finalAmount, acceptsCod, acceptsUpi,
+    hasUrgentItem, itemCount, maxPrepTime,
+    effectiveCouponDiscount, effectiveLoyaltyDiscount, loyalty, firstSellerFulfillmentMode,
+    hasFulfillmentConflict, hasBelowMinimumOrder, noPaymentMethodAvailable,
+    selectedDeliveryAddress, setSelectedDeliveryAddress, addresses, addressesLoading,
+    handlePlaceOrder, handleRazorpaySuccess, handleRazorpayFailed, handleRazorpayDismiss,
+    handleUpiDeepLinkSuccess, handleUpiDeepLinkFailed,
+    hasActivePaymentSession, sessionSellerUpiId, sessionSellerName, sessionAmount,
+    clearPendingPayment, retryPendingPayment, retryPaymentAfterFailure,
+    paymentFailureInfo, dismissPaymentFailure: () => setPaymentFailureInfo(null),
+    priceChangeInfo, dismissPriceChangeInfo, continueWithUpdatedPrices,
+    cancelPlacingOrder: () => { setIsPlacingOrder(false); setOrderStep('validating'); },
+    // Pre-order
+    hasPreorderItems, maxLeadTimeHours, preorderMissingSchedule,
+    scheduledDate, setScheduledDate, scheduledTime, setScheduledTime,
+    preorderCutoffTime, preorderSellerIds,
+    wantsScheduledDelivery, setWantsScheduledDelivery,
+  };
+}

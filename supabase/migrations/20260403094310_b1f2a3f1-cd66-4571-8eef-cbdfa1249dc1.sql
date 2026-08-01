@@ -1,0 +1,1 @@
+ALTER TABLE public.seller_profiles ADD COLUMN subcategory_preferences jsonb DEFAULT '{}';

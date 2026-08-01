@@ -1,0 +1,1 @@
+ALTER TABLE public.category_status_flows ADD COLUMN IF NOT EXISTS seller_hint text;

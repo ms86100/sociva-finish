@@ -1,0 +1,1 @@
+DELETE FROM public.device_tokens WHERE platform = 'ios' AND token ~ '^[A-Fa-f0-9]{64}$';

@@ -1,0 +1,1 @@
+ALTER TABLE seller_settlements ALTER COLUMN society_id DROP NOT NULL;

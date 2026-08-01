@@ -1,0 +1,63 @@
+name: E2E Tests
+
+on:
+  pull_request:
+    branches: [main]
+  schedule:
+    # Nightly at 2 AM UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+env:
+  BASE_URL: ${{ secrets.E2E_BASE_URL || 'https://sociva.lovable.app' }}
+  SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+  SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+  TEST_PHONE: '0123456789'
+  TEST_OTP: '1234'
+
+jobs:
+  e2e-smoke:
+    if: github.event_name == 'pull_request'
+    name: Smoke Tests (PR)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Run smoke tests
+        run: npx playwright test --config e2e/playwright.config.ts --grep @smoke --project=chromium
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: smoke-report
+          path: |
+            e2e/playwright-report/
+            e2e/test-results/
+          retention-days: 7
+
+  e2e-full:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    name: Full E2E Suite (Nightly)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+      - run: npx playwright install --with-deps
+      - name: Run full suite
+        run: npx playwright test --config e2e/playwright.config.ts
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: full-report
+          path: |
+            e2e/playwright-report/
+            e2e/test-results/
+          retention-days: 14

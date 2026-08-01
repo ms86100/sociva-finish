@@ -1,0 +1,1 @@
+ALTER TABLE public.banner_sections ADD COLUMN icon_color text DEFAULT NULL;

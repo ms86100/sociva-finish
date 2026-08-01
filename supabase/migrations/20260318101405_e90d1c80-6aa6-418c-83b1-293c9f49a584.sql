@@ -1,0 +1,26 @@
+
+-- Fix 1: Re-create trigger function with EXCEPTION handler to prevent notification loss
+CREATE OR REPLACE FUNCTION public.trigger_process_notification_queue()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $$
+BEGIN
+  PERFORM net.http_post(
+    url := 'https://ywhlqsgvbkvcvqlsniad.supabase.co/functions/v1/process-notification-queue',
+    headers := jsonb_build_object(
+      'Content-Type', 'application/json',
+      'Authorization', 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl3aGxxc2d2Ymt2Y3ZxbHNuaWFkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI3OTY1NDEsImV4cCI6MjA4ODM3MjU0MX0.uBtwDdGBgdb3KRYPptfBV1plydCnnRq1KNLH5xVlkjI'
+    ),
+    body := jsonb_build_object('trigger', true, 'time', now())
+  );
+  RETURN NEW;
+EXCEPTION WHEN OTHERS THEN
+  RAISE WARNING 'trigger_process_notification_queue failed: %', SQLERRM;
+  RETURN NEW;
+END;
+$$;
+
+-- Fix 2: Remove dead cron job that points to wrong project
+SELECT cron.unschedule('process-notification-queue');

@@ -1,0 +1,1770 @@
+# Codemagic CI/CD Configuration for Sociva
+# Builds iOS and Android apps in the cloud - no Mac required!
+#
+# Setup Instructions:
+# 1. Connect this repo to Codemagic (codemagic.io)
+# 2. Add required environment variables (see below)
+# 3. Trigger a build!
+
+workflows:
+  ios-release:
+    name: iOS Release
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+
+    integrations:
+      app_store_connect: App Store Connect
+
+    environment:
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: app.sociva.community
+      vars:
+        BUNDLE_ID: "app.sociva.community"
+        WIDGET_BUNDLE_ID: "app.sociva.community.LiveDeliveryWidget"
+        APP_NAME: "Sociva"
+        CAPACITOR_ENV: "production"
+      node: 22
+      xcode: latest
+      cocoapods: 1.16.2
+
+    scripts:
+      - name: Install dependencies
+        script: |
+          npm install --legacy-peer-deps
+
+      - name: Pin CocoaPods for linker stability
+        script: |
+          gem install cocoapods -v 1.16.2 --no-document
+          pod --version
+
+      - name: Build web app
+        script: npm run build
+
+      - name: Add iOS platform and set up CocoaPods
+        script: |
+          npx cap add ios || true
+          npx cap sync ios
+          cd ios/App
+          # Capacitor 8 defaults to SPM — remove ALL SPM artifacts before switching to CocoaPods
+          rm -f Package.swift .package.resolved
+          rm -rf .build
+          rm -rf App.xcodeproj/project.xcworkspace/xcshareddata/swiftpm
+          # HARD FIX: also remove Swift Package refs from project.pbxproj itself
+          # so Firebase is not linked through both SPM and CocoaPods.
+          ruby - << 'RUBY'
+          require 'xcodeproj'
+          project = Xcodeproj::Project.open('App.xcodeproj')
+
+          project.targets.each do |target|
+            if target.respond_to?(:package_product_dependencies)
+              target.package_product_dependencies.to_a.each { |dep| dep.remove_from_project }
+            end
+          end
+
+          project.root_object.package_references.to_a.each { |ref| ref.remove_from_project }
+          project.save
+          RUBY
+          # Generate Podfile with all Capacitor plugins + Firebase
+          # CRITICAL: Capacitor 8 requires iOS 16.0 minimum
+          cat > Podfile << 'PODFILE'
+          require_relative '../../node_modules/@capacitor/ios/scripts/pods_helpers'
+
+          platform :ios, '16.1'
+          use_frameworks! :linkage => :static
+
+          # workaround to avoid Xcode caching of Pods that requires
+          # temporary clearing of the project's build directory
+          install! 'cocoapods', :disable_input_output_paths => true
+
+          def capacitor_pods
+            pod 'Capacitor', :path => '../../node_modules/@capacitor/ios'
+            pod 'CapacitorCordova', :path => '../../node_modules/@capacitor/ios'
+            pod 'CapacitorCommunityFcm', :path => '../../node_modules/@capacitor-community/fcm'
+            pod 'CapacitorApp', :path => '../../node_modules/@capacitor/app'
+            pod 'CapacitorCamera', :path => '../../node_modules/@capacitor/camera'
+            pod 'CapacitorGeolocation', :path => '../../node_modules/@capacitor/geolocation'
+            pod 'CapacitorHaptics', :path => '../../node_modules/@capacitor/haptics'
+            pod 'CapacitorKeyboard', :path => '../../node_modules/@capacitor/keyboard'
+            pod 'CapacitorPreferences', :path => '../../node_modules/@capacitor/preferences'
+            pod 'CapacitorPushNotifications', :path => '../../node_modules/@capacitor/push-notifications'
+            pod 'CapacitorSplashScreen', :path => '../../node_modules/@capacitor/splash-screen'
+            pod 'CapacitorStatusBar', :path => '../../node_modules/@capacitor/status-bar'
+          end
+
+          target 'App' do
+            capacitor_pods
+            pod 'FirebaseCore'
+            pod 'FirebaseMessaging'
+            pod 'FirebaseCrashlytics'
+          end
+
+          post_install do |installer|
+            assertDeploymentTarget(installer)
+            installer.pods_project.targets.each do |target|
+              target.build_configurations.each do |config|
+                config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '16.1'
+                config.build_settings['SWIFT_ENABLE_EXPLICIT_MODULES'] = 'NO'
+                # Prevent pod targets from conflicting with main app's install
+                config.build_settings['SKIP_INSTALL'] = 'YES'
+              end
+              # Xcode 16 creates duplicate ExtractAppIntentsMetadata phases
+              # for Firebase pods — remove all but the first to fix
+              # "Multiple commands produce … Metadata.appintents" error.
+              dupes = target.build_phases.select { |p|
+                p.respond_to?(:name) && p.name&.include?("AppIntents")
+              }
+              dupes.drop(1).each { |p| p.remove_from_project }
+            end
+          end
+          PODFILE
+          echo "=== Final Podfile ==="
+          # deterministic resolver on clean CI nodes
+          pod install --repo-update
+
+      - name: Generate App Icon from source
+        script: |
+          ICON_SRC="$(pwd)/public/app-icon-1024x1024.png"
+          ICON_DIR="ios/App/App/Assets.xcassets/AppIcon.appiconset"
+          rm -rf "$ICON_DIR"
+          mkdir -p "$ICON_DIR"
+          sips -z 40 40 "$ICON_SRC" --out "$ICON_DIR/icon-20@2x.png"
+          sips -z 60 60 "$ICON_SRC" --out "$ICON_DIR/icon-20@3x.png"
+          sips -z 58 58 "$ICON_SRC" --out "$ICON_DIR/icon-29@2x.png"
+          sips -z 87 87 "$ICON_SRC" --out "$ICON_DIR/icon-29@3x.png"
+          sips -z 80 80 "$ICON_SRC" --out "$ICON_DIR/icon-40@2x.png"
+          sips -z 120 120 "$ICON_SRC" --out "$ICON_DIR/icon-40@3x.png"
+          sips -z 120 120 "$ICON_SRC" --out "$ICON_DIR/icon-60@2x.png"
+          sips -z 180 180 "$ICON_SRC" --out "$ICON_DIR/icon-60@3x.png"
+          sips -z 1024 1024 "$ICON_SRC" --out "$ICON_DIR/icon-1024.png"
+          cat > "$ICON_DIR/Contents.json" << 'ICONJSON'
+          {
+            "images": [
+              {"idiom":"iphone","scale":"2x","size":"20x20","filename":"icon-20@2x.png"},
+              {"idiom":"iphone","scale":"3x","size":"20x20","filename":"icon-20@3x.png"},
+              {"idiom":"iphone","scale":"2x","size":"29x29","filename":"icon-29@2x.png"},
+              {"idiom":"iphone","scale":"3x","size":"29x29","filename":"icon-29@3x.png"},
+              {"idiom":"iphone","scale":"2x","size":"40x40","filename":"icon-40@2x.png"},
+              {"idiom":"iphone","scale":"3x","size":"40x40","filename":"icon-40@3x.png"},
+              {"idiom":"iphone","scale":"2x","size":"60x60","filename":"icon-60@2x.png"},
+              {"idiom":"iphone","scale":"3x","size":"60x60","filename":"icon-60@3x.png"},
+              {"idiom":"ios-marketing","scale":"1x","size":"1024x1024","filename":"icon-1024.png"}
+            ],
+            "info":{"version":1,"author":"xcode"}
+          }
+          ICONJSON
+
+      - name: Install robust branded LaunchScreen
+        script: |
+          STORYBOARD="ios/App/App/Base.lproj/LaunchScreen.storyboard"
+
+          if [ -f "$STORYBOARD" ]; then
+            # 1. Delete the Capacitor splash image asset so Xcode can't reference it
+            rm -rf ios/App/App/Assets.xcassets/Splash.imageset/
+            echo "=== Splash.imageset removed ==="
+
+            # 2. Create SplashLogo imageset from committed PNG
+            ASSETS_DIR="ios/App/App/Assets.xcassets"
+            SPLASH_IMAGESET="$ASSETS_DIR/SplashLogo.imageset"
+            mkdir -p "$SPLASH_IMAGESET"
+
+            # Resize the committed splash-logo.png to 1x/2x/3x
+            LOGO_SRC="ios-config/splash-logo.png"
+            if [ -f "$LOGO_SRC" ]; then
+              sips -z 171 341 "$LOGO_SRC" --out "$SPLASH_IMAGESET/splash-logo@1x.png"
+              sips -z 341 682 "$LOGO_SRC" --out "$SPLASH_IMAGESET/splash-logo@2x.png"
+              cp "$LOGO_SRC" "$SPLASH_IMAGESET/splash-logo@3x.png"
+              sips -z 512 1024 "$SPLASH_IMAGESET/splash-logo@3x.png"
+
+              cat > "$SPLASH_IMAGESET/Contents.json" << 'LOGOJSON'
+          {
+            "images": [
+              {"idiom":"universal","scale":"1x","filename":"splash-logo@1x.png"},
+              {"idiom":"universal","scale":"2x","filename":"splash-logo@2x.png"},
+              {"idiom":"universal","scale":"3x","filename":"splash-logo@3x.png"}
+            ],
+            "info":{"version":1,"author":"xcode"}
+          }
+          LOGOJSON
+              echo "=== SplashLogo imageset created ==="
+            else
+              echo "WARNING: ios-config/splash-logo.png not found, skipping splash logo"
+            fi
+
+            # 3. Install a committed storyboard template instead of generating XML inline.
+            cp ios-config/LaunchScreen.storyboard "$STORYBOARD"
+
+            # 4. Validate the storyboard before the archive step.
+            xmllint --noout "$STORYBOARD"
+            xcrun ibtool --errors --warnings --notices --compile /tmp/LaunchScreen.storyboardc "$STORYBOARD"
+
+            echo "=== LaunchScreen storyboard installed and validated ==="
+          else
+            echo "WARNING: LaunchScreen.storyboard not found at $STORYBOARD"
+          fi
+
+      - name: Patch AppDelegate for Firebase + Capacitor + LiveActivity
+        script: |
+          APPDELEGATE="ios/App/App/AppDelegate.swift"
+          cat > "$APPDELEGATE" << 'SWIFT'
+          import UIKit
+          import Capacitor
+          import FirebaseCore
+          import FirebaseCrashlytics
+
+          @UIApplicationMain
+          class AppDelegate: UIResponder, UIApplicationDelegate {
+              var window: UIWindow?
+
+              func application(_ application: UIApplication,
+                               didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
+                  FirebaseApp.configure()
+
+                   // Deterministic: create window + use custom bridge VC
+                   let vc = SocivaBridgeViewController()
+                   let win = UIWindow(frame: UIScreen.main.bounds)
+                   win.rootViewController = vc
+                   win.makeKeyAndVisible()
+                   self.window = win
+                   print("✅ rootViewController = \(type(of: self.window?.rootViewController))")
+
+                  return true
+              }
+
+              // Capacitor URL handling (deep links, OAuth redirects)
+              func application(_ app: UIApplication, open url: URL,
+                               options: [UIApplication.OpenURLOptionsKey: Any] = [:]) -> Bool {
+                  return ApplicationDelegateProxy.shared.application(app, open: url, options: options)
+              }
+
+              // Capacitor Universal Links handling
+              func application(_ application: UIApplication,
+                               continue userActivity: NSUserActivity,
+                               restorationHandler: @escaping ([UIUserActivityRestoring]?) -> Void) -> Bool {
+                  return ApplicationDelegateProxy.shared.application(application,
+                               continue: userActivity, restorationHandler: restorationHandler)
+              }
+
+              // APNs token forwarding to Capacitor
+              func application(_ application: UIApplication,
+                               didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+                  NotificationCenter.default.post(name: .capacitorDidRegisterForRemoteNotifications, object: deviceToken)
+              }
+
+              func application(_ application: UIApplication,
+                               didFailToRegisterForRemoteNotificationsWithError error: Error) {
+                  NotificationCenter.default.post(name: .capacitorDidFailToRegisterForRemoteNotifications, object: error)
+              }
+
+              // Forward background/data notifications to Firebase Messaging plugin
+              func application(_ application: UIApplication,
+                               didReceiveRemoteNotification userInfo: [AnyHashable : Any],
+                               fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void) {
+                  NotificationCenter.default.post(name: Notification.Name.init("didReceiveRemoteNotification"), object: completionHandler, userInfo: userInfo)
+              }
+          }
+          SWIFT
+
+          # Create custom CAPBridgeViewController subclass to register app-local plugins
+          BRIDGEVC="ios/App/App/SocivaBridgeViewController.swift"
+          cat > "$BRIDGEVC" << 'SWIFT'
+          import UIKit
+          import Capacitor
+
+          /// Custom bridge view controller that registers app-local plugins
+          /// not discoverable via CocoaPods/SPM metadata (Capacitor 6+ requirement).
+          class SocivaBridgeViewController: CAPBridgeViewController {
+              override open func capacitorDidLoad() {
+                  bridge?.registerPluginInstance(LiveActivityPlugin())
+                  print("✅ SocivaBridgeViewController: LiveActivityPlugin registered with bridge")
+              }
+          }
+          SWIFT
+
+          # Add the bridge VC file to the App target
+          cd ios/App
+          ruby - << 'RUBY'
+          require 'xcodeproj'
+          project = Xcodeproj::Project.open('App.xcodeproj')
+          target = project.targets.find { |t| t.name == 'App' }
+          abort('App target not found') unless target
+          group = project.main_group.find_subpath('App', true)
+
+          filename = 'SocivaBridgeViewController.swift'
+          ref = group.files.find { |f| f.path == filename } || group.new_file(filename)
+          unless target.source_build_phase.files_references.any? { |f| f.path == filename }
+            target.source_build_phase.add_file_reference(ref, true)
+          end
+
+          project.save
+          puts "=== SocivaBridgeViewController.swift added to App target ==="
+          RUBY
+
+          # Return to project root before verification
+          cd ../..
+
+          # Verification — no storyboard patching needed, AppDelegate sets root VC programmatically
+          echo "=== Build verification ==="
+          grep -q "registerPluginInstance" ios/App/App/SocivaBridgeViewController.swift && echo "✅ Plugin registration in BridgeVC" || { echo "❌ FATAL: Missing plugin registration"; exit 1; }
+          grep -q "SocivaBridgeViewController()" ios/App/App/AppDelegate.swift && echo "✅ Programmatic VC override in AppDelegate" || { echo "❌ FATAL: Missing programmatic VC override"; exit 1; }
+
+      - name: Add Push Notification & Live Activity Entitlements
+        script: |
+          cd ios/App
+          # Create entitlements file with push + ActivityKit
+          cat > App/App.entitlements << 'ENTITLEMENTS'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>aps-environment</key>
+              <string>production</string>
+              <key>com.apple.developer.associated-domains</key>
+              <array>
+                  <string>applinks:www.sociva.in</string>
+              </array>
+          </dict>
+          </plist>
+          ENTITLEMENTS
+
+          # Link entitlements to Xcode project
+          ruby - << 'RUBY'
+          require 'xcodeproj'
+          project = Xcodeproj::Project.open('App.xcodeproj')
+          project.targets.each do |target|
+            next unless target.name == 'App'
+            target.build_configurations.each do |config|
+              config.build_settings['CODE_SIGN_ENTITLEMENTS'] = 'App/App.entitlements'
+            end
+          end
+          project.save
+          RUBY
+
+      - name: Enable Push Notification & Background Modes capabilities
+        script: |
+          cd ios/App
+          # Add UIBackgroundModes to Info.plist
+          /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes array" App/Info.plist 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes:0 string remote-notification" App/Info.plist 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes:1 string fetch" App/Info.plist 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes:2 string location" App/Info.plist 2>/dev/null || true
+          # CRITICAL: Disable Firebase method swizzling so our manual APNs token
+          # forwarding in AppDelegate.swift doesn't conflict with Firebase's auto-swizzling.
+          # Without this, the permission prompt can silently fail to appear.
+          /usr/libexec/PlistBuddy -c "Add :FirebaseAppDelegateProxyEnabled bool false" App/Info.plist 2>/dev/null || \
+            /usr/libexec/PlistBuddy -c "Set :FirebaseAppDelegateProxyEnabled false" App/Info.plist
+          echo "=== FirebaseAppDelegateProxyEnabled set to false ==="
+          # Enable Supports Live Activities in Info.plist
+          /usr/libexec/PlistBuddy -c "Add :NSSupportsLiveActivities bool true" App/Info.plist 2>/dev/null || \
+            /usr/libexec/PlistBuddy -c "Set :NSSupportsLiveActivities true" App/Info.plist
+          echo "=== NSSupportsLiveActivities enabled ==="
+
+      - name: Inject iOS privacy usage strings
+        script: |
+          cd ios/App
+          # ITMS-90683: Guarantee all required NSUsageDescription keys exist
+          /usr/libexec/PlistBuddy -c "Set :NSPhotoLibraryUsageDescription 'Sociva needs photo library access to let you select images for product listings and your profile.'" App/Info.plist 2>/dev/null || \
+            /usr/libexec/PlistBuddy -c "Add :NSPhotoLibraryUsageDescription string 'Sociva needs photo library access to let you select images for product listings and your profile.'" App/Info.plist
+          /usr/libexec/PlistBuddy -c "Set :NSPhotoLibraryAddUsageDescription 'Sociva needs permission to save images to your photo library.'" App/Info.plist 2>/dev/null || \
+            /usr/libexec/PlistBuddy -c "Add :NSPhotoLibraryAddUsageDescription string 'Sociva needs permission to save images to your photo library.'" App/Info.plist
+          /usr/libexec/PlistBuddy -c "Set :NSCameraUsageDescription 'Sociva needs camera access to let you photograph products for listing and upload profile pictures.'" App/Info.plist 2>/dev/null || \
+            /usr/libexec/PlistBuddy -c "Add :NSCameraUsageDescription string 'Sociva needs camera access to let you photograph products for listing and upload profile pictures.'" App/Info.plist
+          /usr/libexec/PlistBuddy -c "Set :NSLocationWhenInUseUsageDescription 'Sociva uses your location to verify your residential society membership and show nearby sellers.'" App/Info.plist 2>/dev/null || \
+            /usr/libexec/PlistBuddy -c "Add :NSLocationWhenInUseUsageDescription string 'Sociva uses your location to verify your residential society membership and show nearby sellers.'" App/Info.plist
+          /usr/libexec/PlistBuddy -c "Set :NSLocationAlwaysAndWhenInUseUsageDescription 'Sociva uses your location in the background to provide real-time delivery tracking when you are making deliveries as a seller.'" App/Info.plist 2>/dev/null || \
+            /usr/libexec/PlistBuddy -c "Add :NSLocationAlwaysAndWhenInUseUsageDescription string 'Sociva uses your location in the background to provide real-time delivery tracking when you are making deliveries as a seller.'" App/Info.plist
+          echo "=== Privacy strings injected ==="
+
+      - name: Copy GoogleService-Info.plist
+        script: |
+          # If you have GoogleService-Info.plist in your repo root or ios-config folder
+          if [ -f "ios-config/GoogleService-Info.plist" ]; then
+            cp ios-config/GoogleService-Info.plist ios/App/App/GoogleService-Info.plist
+          elif [ -f "GoogleService-Info.plist" ]; then
+            cp GoogleService-Info.plist ios/App/App/GoogleService-Info.plist
+          fi
+
+          # Link to Xcode project if it exists
+          if [ -f "ios/App/App/GoogleService-Info.plist" ]; then
+            cd ios/App
+            ruby -e "require 'xcodeproj'; project = Xcodeproj::Project.open('App.xcodeproj'); target = project.targets.find { |t| t.name == 'App' }; abort('App target not found') unless target; group = project.main_group.find_subpath('App', true); ref = group.files.find { |f| f.path == 'GoogleService-Info.plist' } || group.new_file('GoogleService-Info.plist'); unless target.resources_build_phase.files_references.any? { |f| f.path == 'GoogleService-Info.plist' }; target.resources_build_phase.add_file_reference(ref, true); end; project.save"
+          fi
+
+      - name: Copy custom notification sound
+        script: |
+          if [ -f "ios-config/gate_bell.mp3" ]; then
+            cp ios-config/gate_bell.mp3 ios/App/App/gate_bell.mp3
+            echo "=== gate_bell.mp3 copied to ios/App/App/ ==="
+          fi
+          if [ -f "ios/App/App/gate_bell.mp3" ]; then
+            cd ios/App
+            ruby -e "require 'xcodeproj'; project = Xcodeproj::Project.open('App.xcodeproj'); target = project.targets.find { |t| t.name == 'App' }; abort('App target not found') unless target; group = project.main_group.find_subpath('App', true); ref = group.files.find { |f| f.path == 'gate_bell.mp3' } || group.new_file('gate_bell.mp3'); unless target.resources_build_phase.files_references.any? { |f| f.path == 'gate_bell.mp3' }; target.resources_build_phase.add_file_reference(ref, true); end; project.save"
+            echo "=== gate_bell.mp3 linked to Xcode project ==="
+          fi
+
+      - name: Copy Live Activity native plugin files + Privacy Manifest
+        script: |
+          echo "=== Copying Live Activity Swift files ==="
+          cp native/ios/LiveActivityPlugin.swift ios/App/App/
+          cp native/ios/LiveDeliveryActivity.swift ios/App/App/
+          # Copy Privacy Manifest (required since May 2024)
+          cp native/ios/PrivacyInfo.xcprivacy ios/App/App/PrivacyInfo.xcprivacy
+          echo "=== Adding Swift files + PrivacyInfo to App target ==="
+          cd ios/App
+          ruby - << 'RUBY'
+          require 'xcodeproj'
+          project = Xcodeproj::Project.open('App.xcodeproj')
+          target = project.targets.find { |t| t.name == 'App' }
+          abort('App target not found') unless target
+          group = project.main_group.find_subpath('App', true)
+
+          %w[LiveActivityPlugin.swift LiveDeliveryActivity.swift].each do |filename|
+            ref = group.files.find { |f| f.path == filename } || group.new_file(filename)
+            unless target.source_build_phase.files_references.any? { |f| f.path == filename }
+              target.source_build_phase.add_file_reference(ref, true)
+            end
+          end
+
+          # Add PrivacyInfo.xcprivacy to resources
+          privacy_ref = group.files.find { |f| f.path == 'PrivacyInfo.xcprivacy' } || group.new_file('PrivacyInfo.xcprivacy')
+          unless target.resources_build_phase.files_references.any? { |f| f.path == 'PrivacyInfo.xcprivacy' }
+            target.resources_build_phase.add_file_reference(privacy_ref, true)
+          end
+
+          project.save
+          puts "=== Live Activity plugin files + PrivacyInfo added to App target ==="
+          RUBY
+
+      - name: Create Live Activity Widget Extension
+        script: |
+          cd ios/App
+          echo "=== Creating LiveDeliveryWidgetExtension target ==="
+
+          # Copy widget Swift files
+          mkdir -p LiveDeliveryWidgetExtension
+          cp ../../native/ios/LiveDeliveryWidget.swift LiveDeliveryWidgetExtension/
+          cp ../../native/ios/LiveDeliveryActivity.swift LiveDeliveryWidgetExtension/
+
+          # Create widget Assets.xcassets with Sociva icon
+          mkdir -p LiveDeliveryWidgetExtension/Assets.xcassets/SocivaIcon.imageset
+          sips -z 80 80 ../../public/app-icon-1024x1024.png --out LiveDeliveryWidgetExtension/Assets.xcassets/SocivaIcon.imageset/SocivaIcon@2x.png
+          sips -z 120 120 ../../public/app-icon-1024x1024.png --out LiveDeliveryWidgetExtension/Assets.xcassets/SocivaIcon.imageset/SocivaIcon@3x.png
+
+          cat > LiveDeliveryWidgetExtension/Assets.xcassets/Contents.json << 'ASSETJSON'
+          {"info":{"version":1,"author":"xcode"}}
+          ASSETJSON
+
+          cat > LiveDeliveryWidgetExtension/Assets.xcassets/SocivaIcon.imageset/Contents.json << 'ASSETJSON'
+          {
+            "images": [
+              {"idiom":"universal","scale":"2x","filename":"SocivaIcon@2x.png"},
+              {"idiom":"universal","scale":"3x","filename":"SocivaIcon@3x.png"}
+            ],
+            "info":{"version":1,"author":"xcode"}
+          }
+          ASSETJSON
+
+          # Create widget extension Info.plist
+          cat > LiveDeliveryWidgetExtension/Info.plist << 'PLIST'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>CFBundleDevelopmentRegion</key>
+              <string>$(DEVELOPMENT_LANGUAGE)</string>
+              <key>CFBundleDisplayName</key>
+              <string>Sociva Live Delivery</string>
+              <key>CFBundleExecutable</key>
+              <string>$(EXECUTABLE_NAME)</string>
+              <key>CFBundleIdentifier</key>
+              <string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+              <key>CFBundleInfoDictionaryVersion</key>
+              <string>6.0</string>
+              <key>CFBundleName</key>
+              <string>$(PRODUCT_NAME)</string>
+              <key>CFBundlePackageType</key>
+              <string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
+              <key>CFBundleShortVersionString</key>
+              <string>1.0.0</string>
+              <key>CFBundleVersion</key>
+              <string>1</string>
+              <key>NSExtension</key>
+              <dict>
+                  <key>NSExtensionPointIdentifier</key>
+                  <string>com.apple.widgetkit-extension</string>
+              </dict>
+          </dict>
+          </plist>
+          PLIST
+
+          # Create widget extension entitlements (empty — Live Activities need only NSSupportsLiveActivities in Info.plist)
+          cat > LiveDeliveryWidgetExtension/LiveDeliveryWidgetExtension.entitlements << 'ENTITLEMENTS'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+          </dict>
+          </plist>
+          ENTITLEMENTS
+
+          # Use Ruby xcodeproj gem to create the widget extension target
+          ruby - << 'RUBY'
+          require 'xcodeproj'
+
+          TEAM_ID = '6HBR38JB8Z'
+          default_marketing_version = Time.now.utc.strftime('%Y.%-m%d.%-H%M')
+          marketing_version = ENV['IOS_MARKETING_VERSION'].to_s.strip
+          marketing_version = default_marketing_version if marketing_version.empty?
+
+          project = Xcodeproj::Project.open('App.xcodeproj')
+          app_target = project.targets.find { |t| t.name == 'App' }
+          abort('App target not found') unless app_target
+
+          widget_targets = project.targets.select { |t| t.name.start_with?('LiveDeliveryWidgetExtension') }
+          existing = project.targets.find { |t| t.name == 'LiveDeliveryWidgetExtension' }
+
+          if existing
+            puts '=== Widget extension already exists ==='
+            widget_target = existing
+          else
+            puts '=== Creating LiveDeliveryWidgetExtension target ==='
+            widget_target = project.new_target(:app_extension, 'LiveDeliveryWidgetExtension', :ios, '16.1')
+          end
+
+          (widget_targets - [widget_target]).each do |duplicate|
+            puts "=== Removing duplicate target: #{duplicate.name} ==="
+            duplicate.remove_from_project
+          end
+
+          widget_group = project.main_group.find_subpath('LiveDeliveryWidgetExtension', true)
+          widget_group.path = 'LiveDeliveryWidgetExtension'
+          widget_group.source_tree = '<group>'
+
+          %w[LiveDeliveryWidget.swift LiveDeliveryActivity.swift].each do |filename|
+            ref = widget_group.files.find { |f| f.path == filename } || widget_group.new_file(filename)
+            unless widget_target.source_build_phase.files_references.any? { |f| f.path == filename }
+              widget_target.source_build_phase.add_file_reference(ref, true)
+            end
+          end
+
+          widget_group.files.find { |f| f.path == 'Info.plist' } || widget_group.new_file('Info.plist')
+          widget_group.files.find { |f| f.path == 'LiveDeliveryWidgetExtension.entitlements' } || widget_group.new_file('LiveDeliveryWidgetExtension.entitlements')
+
+          # Add Assets.xcassets to widget target resources
+          assets_ref = widget_group.files.find { |f| f.path == 'Assets.xcassets' } || widget_group.new_file('Assets.xcassets')
+          unless widget_target.resources_build_phase.files_references.any? { |f| f.path.to_s == 'Assets.xcassets' }
+            widget_target.resources_build_phase.add_file_reference(assets_ref, true)
+          end
+
+          widget_target.build_configurations.each do |config|
+            settings = config.build_settings
+            settings['PRODUCT_NAME'] = 'LiveDeliveryWidgetExtension'
+            settings['PRODUCT_BUNDLE_IDENTIFIER'] = 'app.sociva.community.LiveDeliveryWidget'
+            settings['INFOPLIST_FILE'] = 'LiveDeliveryWidgetExtension/Info.plist'
+            settings['CODE_SIGN_ENTITLEMENTS'] = 'LiveDeliveryWidgetExtension/LiveDeliveryWidgetExtension.entitlements'
+            settings['IPHONEOS_DEPLOYMENT_TARGET'] = '16.1'
+            settings['SWIFT_VERSION'] = '5.0'
+            settings['SWIFT_OPTIMIZATION_LEVEL'] = '-Onone' if config.name == 'Debug'
+            settings['SWIFT_OPTIMIZATION_LEVEL'] = '-O' if config.name == 'Release'
+            settings['MACH_O_TYPE'] = 'mh_execute'
+            settings['EXECUTABLE_NAME'] = 'LiveDeliveryWidgetExtension'
+            settings['TARGETED_DEVICE_FAMILY'] = '1'
+            settings['GENERATE_INFOPLIST_FILE'] = 'NO'
+            settings['CURRENT_PROJECT_VERSION'] = Time.now.to_i.to_s
+            settings['MARKETING_VERSION'] = marketing_version
+            settings['SKIP_INSTALL'] = 'YES'
+            settings['APPLICATION_EXTENSION_API_ONLY'] = 'YES'
+            settings['DEFINES_MODULE'] = 'YES'
+            settings['CLANG_ENABLE_MODULES'] = 'YES'
+            settings['ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES'] = 'NO'
+            settings['ASSETCATALOG_COMPILER_GENERATE_ASSET_SYMBOLS'] = 'YES'
+            settings['DEVELOPMENT_TEAM'] = TEAM_ID
+            settings['LD_RUNPATH_SEARCH_PATHS'] = ['$(inherited)', '@executable_path/Frameworks', '@executable_path/../../Frameworks']
+          end
+
+          embed_phase = app_target.build_phases.find { |p| p.is_a?(Xcodeproj::Project::Object::PBXCopyFilesBuildPhase) && p.name == 'Embed App Extensions' }
+          unless embed_phase
+            embed_phase = app_target.new_copy_files_build_phase('Embed App Extensions')
+            embed_phase.dst_subfolder_spec = '13'
+          end
+
+          embed_phase.files.to_a.each do |build_file|
+            path = build_file.file_ref&.path.to_s
+            next unless path.end_with?('.appex')
+            next unless path.include?('LiveDeliveryWidgetExtension') || path == '.appex'
+            build_file.remove_from_project
+          end
+
+          product_ref = widget_target.product_reference
+          abort('Widget product reference missing') unless product_ref
+          product_ref.path = 'LiveDeliveryWidgetExtension.appex'
+          product_ref.name = 'LiveDeliveryWidgetExtension.appex'
+          product_ref.explicit_file_type = 'wrapper.app-extension'
+
+          build_file = embed_phase.add_file_reference(product_ref, true)
+          build_file.settings = { 'ATTRIBUTES' => ['RemoveHeadersOnCopy'] }
+
+          unless app_target.dependencies.any? { |d| d.target == widget_target }
+            app_target.add_dependency(widget_target)
+          end
+
+          target_names = project.targets.map(&:name)
+          puts "=== Xcode targets: #{target_names.join(', ')} ==="
+          expected_targets = ['App', 'LiveDeliveryWidgetExtension']
+          missing_targets = expected_targets - target_names
+          unexpected_targets = target_names - expected_targets
+          abort("Missing expected targets: #{missing_targets.join(', ')}") unless missing_targets.empty?
+          abort("Unexpected targets present: #{unexpected_targets.join(', ')}") unless unexpected_targets.empty?
+
+          project.save
+          puts '=== LiveDeliveryWidgetExtension target reconciled and embedded ==='
+          RUBY
+
+      - name: Update iOS project settings
+        script: |
+          cd ios/App
+          ruby - << 'RUBY'
+          require 'xcodeproj'
+          TEAM_ID = '6HBR38JB8Z'
+
+          project = Xcodeproj::Project.open('App.xcodeproj')
+          project.targets.each do |target|
+            target.build_configurations.each do |config|
+              settings = config.build_settings
+              settings['IPHONEOS_DEPLOYMENT_TARGET'] = '16.1'
+              settings['DEVELOPMENT_TEAM'] = TEAM_ID
+
+              settings['TARGETED_DEVICE_FAMILY'] = '1'
+
+              case target.name
+              when 'App'
+                settings['PRODUCT_BUNDLE_IDENTIFIER'] = 'app.sociva.community'
+              when 'LiveDeliveryWidgetExtension'
+                settings['PRODUCT_BUNDLE_IDENTIFIER'] = 'app.sociva.community.LiveDeliveryWidget'
+                settings['PRODUCT_NAME'] = 'LiveDeliveryWidgetExtension'
+              end
+            end
+          end
+          project.save
+          puts '=== Project settings updated (Ruby-only, no sed) ==='
+          RUBY
+
+      - name: Preflight signing check
+        script: |
+          cd ios/App
+          ruby - << 'RUBY'
+          require 'xcodeproj'
+          project = Xcodeproj::Project.open('App.xcodeproj')
+          errors = []
+
+          %w[App LiveDeliveryWidgetExtension].each do |name|
+            t = project.targets.find { |t| t.name == name }
+            unless t
+              errors << "Target '#{name}' NOT FOUND"
+              next
+            end
+            t.build_configurations.each do |config|
+              s = config.build_settings
+              bid = s['PRODUCT_BUNDLE_IDENTIFIER']
+              team = s['DEVELOPMENT_TEAM']
+              dep = s['IPHONEOS_DEPLOYMENT_TARGET']
+              ent = s['CODE_SIGN_ENTITLEMENTS']
+              mach_o = s['MACH_O_TYPE']
+              exec_name = s['EXECUTABLE_NAME']
+              puts "#{name} [#{config.name}]: bundle=#{bid} team=#{team} deploy=#{dep} entitlements=#{ent} mach_o=#{mach_o} executable=#{exec_name}"
+              errors << "#{name} missing DEVELOPMENT_TEAM" unless team && !team.empty?
+              errors << "#{name} deployment target #{dep} < 16.1" if dep && dep.to_f < 16.1
+              errors << "#{name} MACH_O_TYPE is #{mach_o.inspect}, expected mh_execute" if name == 'LiveDeliveryWidgetExtension' && mach_o != 'mh_execute'
+              errors << "#{name} EXECUTABLE_NAME is #{exec_name.inspect}, expected LiveDeliveryWidgetExtension" if name == 'LiveDeliveryWidgetExtension' && exec_name != 'LiveDeliveryWidgetExtension'
+            end
+          end
+
+          widget_source = File.read('LiveDeliveryWidgetExtension/LiveDeliveryWidget.swift')
+          errors << 'Widget source is missing @main entry point' unless widget_source.match?(/^@main\s*$/)
+
+          app = project.targets.find { |t| t.name == 'App' }
+          if app
+            embed_phases = app.build_phases.select { |p|
+              p.is_a?(Xcodeproj::Project::Object::PBXCopyFilesBuildPhase) && p.name == 'Embed App Extensions'
+            }
+            appex_count = embed_phases.flat_map { |p| p.files.to_a }.count { |f| f.file_ref&.path.to_s.include?('LiveDeliveryWidgetExtension') }
+            errors << "Widget embedded #{appex_count} times (expected 1)" unless appex_count == 1
+          end
+
+          unless errors.empty?
+            errors.each { |e| puts "PREFLIGHT ERROR: #{e}" }
+            abort("Preflight failed with #{errors.size} error(s)")
+          end
+          puts '=== Preflight passed ==='
+          RUBY
+
+      - name: Set up code signing
+        script: |
+          xcode-project use-profiles
+
+      - name: Verify widget signing settings
+        script: |
+          cd ios/App
+          ruby - << 'RUBY'
+          require 'xcodeproj'
+          project = Xcodeproj::Project.open('App.xcodeproj')
+          widget = project.targets.find { |t| t.name == 'LiveDeliveryWidgetExtension' }
+          abort('Widget target not found') unless widget
+          widget.build_configurations.each do |config|
+            s = config.build_settings
+            puts "=== #{config.name} ==="
+            puts "  BUNDLE_ID: #{s['PRODUCT_BUNDLE_IDENTIFIER']}"
+            puts "  TEAM: #{s['DEVELOPMENT_TEAM']}"
+            puts "  SIGN_STYLE: #{s['CODE_SIGN_STYLE']}"
+            puts "  SIGN_IDENTITY: #{s['CODE_SIGN_IDENTITY']}"
+            puts "  PROFILE_SPECIFIER: #{s['PROVISIONING_PROFILE_SPECIFIER']}"
+            puts "  PROFILE: #{s['PROVISIONING_PROFILE']}"
+          end
+          RUBY
+
+      - name: Set export compliance & stamp iOS version metadata
+        script: |
+          cd ios/App
+          /usr/libexec/PlistBuddy -c "Set :ITSAppUsesNonExemptEncryption false" App/Info.plist || \
+            /usr/libexec/PlistBuddy -c "Add :ITSAppUsesNonExemptEncryption bool false" App/Info.plist
+          BUILD_NUMBER=$(date +%s)
+          DEFAULT_MARKETING_VERSION="$(date -u +%Y).$((10#$(date -u +%m%d))).$((10#$(date -u +%H%M)))"
+          MARKETING_VERSION="${IOS_MARKETING_VERSION:-$DEFAULT_MARKETING_VERSION}"
+          echo "Stamping iOS version metadata: marketing=$MARKETING_VERSION build=$BUILD_NUMBER"
+
+          ruby - << 'RUBY'
+          require 'xcodeproj'
+
+          marketing_version = ENV.fetch('MARKETING_VERSION')
+          build_number = ENV.fetch('BUILD_NUMBER')
+
+          project = Xcodeproj::Project.open('App.xcodeproj')
+          project.targets.each do |target|
+            next unless %w[App LiveDeliveryWidgetExtension].include?(target.name)
+
+            target.build_configurations.each do |config|
+              settings = config.build_settings
+              settings['MARKETING_VERSION'] = marketing_version
+              settings['CURRENT_PROJECT_VERSION'] = build_number
+            end
+          end
+
+          project.save
+          puts "=== Xcode project stamped: marketing=#{marketing_version} build=#{build_number} ==="
+          RUBY
+
+          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $MARKETING_VERSION" App/Info.plist || \
+            /usr/libexec/PlistBuddy -c "Add :CFBundleShortVersionString string $MARKETING_VERSION" App/Info.plist
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_NUMBER" App/Info.plist || \
+            /usr/libexec/PlistBuddy -c "Add :CFBundleVersion string $BUILD_NUMBER" App/Info.plist
+          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $MARKETING_VERSION" LiveDeliveryWidgetExtension/Info.plist || \
+            /usr/libexec/PlistBuddy -c "Add :CFBundleShortVersionString string $MARKETING_VERSION" LiveDeliveryWidgetExtension/Info.plist
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_NUMBER" LiveDeliveryWidgetExtension/Info.plist || \
+            /usr/libexec/PlistBuddy -c "Add :CFBundleVersion string $BUILD_NUMBER" LiveDeliveryWidgetExtension/Info.plist
+
+          APP_MARKETING=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" App/Info.plist)
+          APP_BUILD=$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" App/Info.plist)
+          WIDGET_MARKETING=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" LiveDeliveryWidgetExtension/Info.plist)
+          WIDGET_BUILD=$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" LiveDeliveryWidgetExtension/Info.plist)
+
+          echo "App version: $APP_MARKETING ($APP_BUILD)"
+          echo "Widget version: $WIDGET_MARKETING ($WIDGET_BUILD)"
+
+          [[ "$APP_MARKETING" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "ERROR: Invalid marketing version format '$APP_MARKETING'"; exit 1; }
+          [ "$APP_MARKETING" != "1.0" ] || { echo "ERROR: Marketing version is still 1.0"; exit 1; }
+          [ "$APP_MARKETING" = "$WIDGET_MARKETING" ] || { echo "ERROR: App/widget marketing versions differ"; exit 1; }
+          [ "$APP_BUILD" = "$WIDGET_BUILD" ] || { echo "ERROR: App/widget build numbers differ"; exit 1; }
+
+      - name: Verify push entitlement exists
+        script: |
+          if ! grep -q "aps-environment" ios/App/App/App.entitlements; then
+            echo "ERROR: Push Notifications entitlement missing from App.entitlements"
+            exit 1
+          fi
+
+      - name: Verify NSSupportsLiveActivities in Info.plist
+        script: |
+          if ! grep -q "NSSupportsLiveActivities" ios/App/App/Info.plist; then
+            echo "ERROR: NSSupportsLiveActivities missing from Info.plist"
+            exit 1
+          fi
+          echo "NSSupportsLiveActivities confirmed in Info.plist"
+
+      - name: Verify AppDelegate push registration
+        script: |
+          if ! grep -q "didRegisterForRemoteNotificationsWithDeviceToken" ios/App/App/AppDelegate.swift; then
+            echo "ERROR: AppDelegate missing APNs token forwarding"
+            exit 1
+          fi
+
+      - name: Add Crashlytics dSYM upload build phase
+        script: |
+          cd ios/App
+          ruby - << 'RUBY'
+          require 'xcodeproj'
+          project = Xcodeproj::Project.open('App.xcodeproj')
+          target = project.targets.find { |t| t.name == 'App' }
+          abort('App target not found') unless target
+
+          phase_name = 'Firebase Crashlytics dSYM Upload'
+          existing = target.build_phases.find { |p| p.respond_to?(:name) && p.name == phase_name }
+          unless existing
+            phase = project.new(Xcodeproj::Project::Object::PBXShellScriptBuildPhase)
+            phase.name = phase_name
+            phase.shell_script = '"${PODS_ROOT}/FirebaseCrashlytics/run"'
+            phase.input_paths = ['$(DWARF_DSYM_FOLDER_PATH)/$(DWARF_DSYM_FILE_NAME)', '$(DWARF_DSYM_FOLDER_PATH)/$(DWARF_DSYM_FILE_NAME)/Contents/Resources/DWARF/$(PRODUCT_NAME)', '$(DWARF_DSYM_FOLDER_PATH)/$(DWARF_DSYM_FILE_NAME)/Contents/Info.plist', '$(TARGET_BUILD_DIR)/$(INFOPLIST_PATH)']
+            target.build_phases << phase
+            project.save
+            puts "=== Crashlytics dSYM upload build phase added ==="
+          else
+            puts "=== Crashlytics build phase already exists ==="
+          end
+          RUBY
+
+      - name: Build iOS app
+        script: |
+          cd ios/App
+          xcode-project build-ipa \
+            --workspace "App.xcworkspace" \
+            --scheme "App" \
+            --config "Release"
+
+      - name: Validate IPA push entitlement
+        script: |
+          cd ios/App/build/ios/ipa
+          IPA=$(ls *.ipa | head -n 1)
+          mkdir -p /tmp/ipa-check && cd /tmp/ipa-check
+          unzip -qo "$(find /Users -path '*/build/ios/ipa/*.ipa' | head -1)" 2>/dev/null || true
+          if ! grep -r "aps-environment" Payload/ 2>/dev/null; then
+            echo "ERROR: Final IPA missing aps-environment entitlement"
+            exit 1
+          fi
+          echo "=== IPA push entitlement verified ==="
+
+      - name: Validate IPA contains a single widget extension
+        script: |
+          cd /tmp/ipa-check
+          COUNT=$(find Payload/App.app/PlugIns -maxdepth 1 -name "*.appex" | wc -l | tr -d ' ')
+          if [ "$COUNT" -ne 1 ]; then
+            echo "ERROR: Expected exactly one widget extension .appex, found $COUNT"
+            find Payload/App.app/PlugIns -maxdepth 1 -name "*.appex" -print
+            exit 1
+          fi
+          if [ ! -d "Payload/App.app/PlugIns/LiveDeliveryWidgetExtension.appex" ]; then
+            echo "ERROR: LiveDeliveryWidgetExtension.appex not found"
+            exit 1
+          fi
+          echo "=== Single LiveDeliveryWidgetExtension.appex verified ==="
+
+    artifacts:
+      - ios/App/build/ios/ipa/*.ipa
+      - ios/App/build/ios/ipa/*.dSYM.zip
+
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true
+
+  android-release:
+    name: Android Release
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+
+    environment:
+      android_signing:
+        - sociva_keystore
+      vars:
+        BUNDLE_ID: "app.sociva.community"
+        APP_NAME: "Sociva"
+        CAPACITOR_ENV: "production"
+      node: 22
+      java: 21
+
+    scripts:
+      - name: Install dependencies
+        script: |
+          npm install --legacy-peer-deps
+          node scripts/patch-android-builds.cjs
+
+      - name: Build web app
+        script: npm run build
+
+      - name: Add Android platform
+        script: |
+          npx cap add android || true
+          npx cap sync android
+          node scripts/patch-android-builds.cjs
+
+      - name: Verify native Android dependency patch
+        script: |
+          node scripts/patch-android-builds.cjs --verify
+          if ! grep -q "project(':transistorsoft-capacitor-background-geolocation').projectDir}/libs" android/build.gradle; then
+            echo "ERROR: Root Android Gradle config is missing the Transistorsoft local Maven repo"
+            exit 1
+          fi
+          if ! grep -q "transistorsoft-capacitor-background-geolocation" android/capacitor.settings.gradle; then
+            echo "ERROR: Capacitor sync did not register the background geolocation plugin"
+            exit 1
+          fi
+          echo "=== Android dependency and Kotlin patches verified ==="
+
+      - name: Copy custom notification sound (Android)
+        script: |
+          mkdir -p android/app/src/main/res/raw
+          if [ -f "ios-config/gate_bell.mp3" ]; then
+            cp ios-config/gate_bell.mp3 android/app/src/main/res/raw/gate_bell.mp3
+            echo "=== gate_bell.mp3 copied to Android res/raw/ ==="
+          fi
+
+      - name: Copy google-services.json
+        script: |
+          if [ -f "android-config/google-services.json" ]; then
+            cp android-config/google-services.json android/app/google-services.json
+            echo "=== google-services.json copied from android-config/ ==="
+          else
+            echo "WARNING: android-config/google-services.json not found — Firebase will not work"
+          fi
+
+      - name: Set Android SDK location
+        script: echo "sdk.dir=$ANDROID_SDK_ROOT" > android/local.properties
+
+      - name: Inject release signing config
+        script: |
+          GRADLE_FILE="android/app/build.gradle"
+          if [ -n "$CM_KEYSTORE" ] && [ -f "$CM_KEYSTORE" ]; then
+            echo "=== Injecting signing config into build.gradle ==="
+            python3 - "$GRADLE_FILE" <<'PYEOF'
+          import sys
+          f = sys.argv[1]
+          with open(f) as fh:
+              content = fh.read()
+          signing_block = '    signingConfigs {\n        release {\n            storeFile file(System.getenv("CM_KEYSTORE"))\n            storePassword System.getenv("CM_KEYSTORE_PASSWORD")\n            keyAlias System.getenv("CM_KEY_ALIAS")\n            keyPassword System.getenv("CM_KEY_PASSWORD")\n        }\n    }\n'
+          content = content.replace('    buildTypes {', signing_block + '    buildTypes {')
+          content = content.replace('            minifyEnabled false', '            signingConfig signingConfigs.release\n            minifyEnabled false')
+          with open(f, 'w') as fh:
+              fh.write(content)
+          print("=== Signing config injected successfully ===")
+          PYEOF
+            head -40 "$GRADLE_FILE"
+          else
+            echo "WARNING: CM_KEYSTORE not set or file not found. Build will be unsigned."
+          fi
+
+      - name: Build Android release bundle
+        script: cd android && ./gradlew clean bundleRelease --warning-mode all
+
+    artifacts:
+      - android/app/build/outputs/**/*.aab
+      - android/app/build/outputs/**/*.apk
+
+    publishing:
+      email:
+        recipients:
+          - support@sociva.in
+        notify:
+          success: true
+          failure: true
+
+  release-all:
+    name: Release All Platforms
+    max_build_duration: 90
+    instance_type: mac_mini_m2
+
+    integrations:
+      app_store_connect: App Store Connect
+
+    environment:
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: app.sociva.community
+      android_signing:
+        - sociva_keystore
+      vars:
+        BUNDLE_ID: "app.sociva.community"
+        WIDGET_BUNDLE_ID: "app.sociva.community.LiveDeliveryWidget"
+        APP_NAME: "Sociva"
+        CAPACITOR_ENV: "production"
+      node: 22
+      xcode: latest
+      cocoapods: 1.16.2
+      java: 21
+
+    scripts:
+      - name: Install dependencies
+        script: |
+          npm install --legacy-peer-deps
+          node scripts/patch-android-builds.cjs
+
+      - name: Pin CocoaPods for linker stability
+        script: |
+          gem install cocoapods -v 1.16.2 --no-document
+          pod --version
+
+      - name: Build web app
+        script: npm run build
+
+      - name: Add iOS platform and set up CocoaPods
+        script: |
+          npx cap add ios || true
+          npx cap sync ios
+          cd ios/App
+          rm -f Package.swift .package.resolved
+          rm -rf .build
+          rm -rf App.xcodeproj/project.xcworkspace/xcshareddata/swiftpm
+          # HARD FIX: also remove Swift Package refs from project.pbxproj itself
+          # so Firebase is not linked through both SPM and CocoaPods.
+          ruby - << 'RUBY'
+          require 'xcodeproj'
+          project = Xcodeproj::Project.open('App.xcodeproj')
+
+          project.targets.each do |target|
+            if target.respond_to?(:package_product_dependencies)
+              target.package_product_dependencies.to_a.each { |dep| dep.remove_from_project }
+            end
+          end
+
+          project.root_object.package_references.to_a.each { |ref| ref.remove_from_project }
+          project.save
+          RUBY
+          cat > Podfile << 'PODFILE'
+          require_relative '../../node_modules/@capacitor/ios/scripts/pods_helpers'
+
+          platform :ios, '16.1'
+          use_frameworks! :linkage => :static
+
+          install! 'cocoapods', :disable_input_output_paths => true
+
+          def capacitor_pods
+            pod 'Capacitor', :path => '../../node_modules/@capacitor/ios'
+            pod 'CapacitorCordova', :path => '../../node_modules/@capacitor/ios'
+            pod 'CapacitorCommunityFcm', :path => '../../node_modules/@capacitor-community/fcm'
+            pod 'CapacitorApp', :path => '../../node_modules/@capacitor/app'
+            pod 'CapacitorCamera', :path => '../../node_modules/@capacitor/camera'
+            pod 'CapacitorGeolocation', :path => '../../node_modules/@capacitor/geolocation'
+            pod 'CapacitorHaptics', :path => '../../node_modules/@capacitor/haptics'
+            pod 'CapacitorKeyboard', :path => '../../node_modules/@capacitor/keyboard'
+            pod 'CapacitorPreferences', :path => '../../node_modules/@capacitor/preferences'
+            pod 'CapacitorPushNotifications', :path => '../../node_modules/@capacitor/push-notifications'
+            pod 'CapacitorSplashScreen', :path => '../../node_modules/@capacitor/splash-screen'
+            pod 'CapacitorStatusBar', :path => '../../node_modules/@capacitor/status-bar'
+          end
+
+          target 'App' do
+            capacitor_pods
+            pod 'FirebaseCore'
+            pod 'FirebaseMessaging'
+          end
+
+          post_install do |installer|
+            assertDeploymentTarget(installer)
+            installer.pods_project.targets.each do |target|
+              target.build_configurations.each do |config|
+                config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '16.1'
+                config.build_settings['SWIFT_ENABLE_EXPLICIT_MODULES'] = 'NO'
+                config.build_settings['SKIP_INSTALL'] = 'YES'
+              end
+              dupes = target.build_phases.select { |p|
+                p.respond_to?(:name) && p.name&.include?("AppIntents")
+              }
+              dupes.drop(1).each { |p| p.remove_from_project }
+            end
+          end
+          PODFILE
+          echo "=== Final Podfile ==="
+          cat Podfile
+          pod install --repo-update
+
+      - name: Generate App Icon from source
+        script: |
+          ICON_SRC="$(pwd)/public/app-icon-1024x1024.png"
+          ICON_DIR="ios/App/App/Assets.xcassets/AppIcon.appiconset"
+          rm -rf "$ICON_DIR"
+          mkdir -p "$ICON_DIR"
+          sips -z 40 40 "$ICON_SRC" --out "$ICON_DIR/icon-20@2x.png"
+          sips -z 60 60 "$ICON_SRC" --out "$ICON_DIR/icon-20@3x.png"
+          sips -z 58 58 "$ICON_SRC" --out "$ICON_DIR/icon-29@2x.png"
+          sips -z 87 87 "$ICON_SRC" --out "$ICON_DIR/icon-29@3x.png"
+          sips -z 80 80 "$ICON_SRC" --out "$ICON_DIR/icon-40@2x.png"
+          sips -z 120 120 "$ICON_SRC" --out "$ICON_DIR/icon-40@3x.png"
+          sips -z 120 120 "$ICON_SRC" --out "$ICON_DIR/icon-60@2x.png"
+          sips -z 180 180 "$ICON_SRC" --out "$ICON_DIR/icon-60@3x.png"
+          sips -z 1024 1024 "$ICON_SRC" --out "$ICON_DIR/icon-1024.png"
+          cat > "$ICON_DIR/Contents.json" << 'ICONJSON'
+          {
+            "images": [
+              {"idiom":"iphone","scale":"2x","size":"20x20","filename":"icon-20@2x.png"},
+              {"idiom":"iphone","scale":"3x","size":"20x20","filename":"icon-20@3x.png"},
+              {"idiom":"iphone","scale":"2x","size":"29x29","filename":"icon-29@2x.png"},
+              {"idiom":"iphone","scale":"3x","size":"29x29","filename":"icon-29@3x.png"},
+              {"idiom":"iphone","scale":"2x","size":"40x40","filename":"icon-40@2x.png"},
+              {"idiom":"iphone","scale":"3x","size":"40x40","filename":"icon-40@3x.png"},
+              {"idiom":"iphone","scale":"2x","size":"60x60","filename":"icon-60@2x.png"},
+              {"idiom":"iphone","scale":"3x","size":"60x60","filename":"icon-60@3x.png"},
+              {"idiom":"ios-marketing","scale":"1x","size":"1024x1024","filename":"icon-1024.png"}
+            ],
+            "info":{"version":1,"author":"xcode"}
+          }
+          ICONJSON
+
+      - name: Patch AppDelegate for Firebase + Capacitor + LiveActivity
+        script: |
+          APPDELEGATE="ios/App/App/AppDelegate.swift"
+          cat > "$APPDELEGATE" << 'SWIFT'
+          import UIKit
+          import Capacitor
+          import FirebaseCore
+
+          @UIApplicationMain
+          class AppDelegate: UIResponder, UIApplicationDelegate {
+              var window: UIWindow?
+
+              func application(_ application: UIApplication,
+                               didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
+                  FirebaseApp.configure()
+
+                   // Deterministic: create window + use custom bridge VC
+                   let vc = SocivaBridgeViewController()
+                   let win = UIWindow(frame: UIScreen.main.bounds)
+                   win.rootViewController = vc
+                   win.makeKeyAndVisible()
+                   self.window = win
+                   print("✅ rootViewController = \(type(of: self.window?.rootViewController))")
+
+                  return true
+              }
+
+              func application(_ app: UIApplication, open url: URL,
+                               options: [UIApplication.OpenURLOptionsKey: Any] = [:]) -> Bool {
+                  return ApplicationDelegateProxy.shared.application(app, open: url, options: options)
+              }
+
+              func application(_ application: UIApplication,
+                               continue userActivity: NSUserActivity,
+                               restorationHandler: @escaping ([UIUserActivityRestoring]?) -> Void) -> Bool {
+                  return ApplicationDelegateProxy.shared.application(application,
+                               continue: userActivity, restorationHandler: restorationHandler)
+              }
+
+              func application(_ application: UIApplication,
+                               didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+                  NotificationCenter.default.post(name: .capacitorDidRegisterForRemoteNotifications, object: deviceToken)
+              }
+
+              func application(_ application: UIApplication,
+                               didFailToRegisterForRemoteNotificationsWithError error: Error) {
+                  NotificationCenter.default.post(name: .capacitorDidFailToRegisterForRemoteNotifications, object: error)
+              }
+
+              // Forward background/data notifications to Firebase Messaging plugin
+              func application(_ application: UIApplication,
+                               didReceiveRemoteNotification userInfo: [AnyHashable : Any],
+                               fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void) {
+                  NotificationCenter.default.post(name: Notification.Name.init("didReceiveRemoteNotification"), object: completionHandler, userInfo: userInfo)
+              }
+          }
+          SWIFT
+
+          # Create SocivaBridgeViewController
+          BRIDGEVC="ios/App/App/SocivaBridgeViewController.swift"
+          cat > "$BRIDGEVC" << 'SWIFT'
+          import UIKit
+          import Capacitor
+
+          class SocivaBridgeViewController: CAPBridgeViewController {
+              override open func capacitorDidLoad() {
+                  bridge?.registerPluginInstance(LiveActivityPlugin())
+                  print("✅ SocivaBridgeViewController: LiveActivityPlugin registered with bridge")
+              }
+          }
+          SWIFT
+
+          # Add the bridge VC file to the App target
+          cd ios/App
+          ruby - << 'RUBY'
+          require 'xcodeproj'
+          project = Xcodeproj::Project.open('App.xcodeproj')
+          target = project.targets.find { |t| t.name == 'App' }
+          abort('App target not found') unless target
+          group = project.main_group.find_subpath('App', true)
+          filename = 'SocivaBridgeViewController.swift'
+          ref = group.files.find { |f| f.path == filename } || group.new_file(filename)
+          unless target.source_build_phase.files_references.any? { |f| f.path == filename }
+            target.source_build_phase.add_file_reference(ref, true)
+          end
+          project.save
+          puts "=== SocivaBridgeViewController.swift added to App target ==="
+          RUBY
+
+          # Return to project root before verification
+          cd ../..
+
+          # Verification — no storyboard patching needed, AppDelegate sets root VC programmatically
+          echo "=== Build verification ==="
+          grep -q "registerPluginInstance" ios/App/App/SocivaBridgeViewController.swift && echo "✅ Plugin registration in BridgeVC" || { echo "❌ FATAL: Missing plugin registration"; exit 1; }
+          grep -q "SocivaBridgeViewController()" ios/App/App/AppDelegate.swift && echo "✅ Programmatic VC override in AppDelegate" || { echo "❌ FATAL: Missing programmatic VC override"; exit 1; }
+
+      - name: Add Push Notification & Live Activity Entitlements
+        script: |
+          cd ios/App
+          cat > App/App.entitlements << 'ENTITLEMENTS'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>aps-environment</key>
+              <string>production</string>
+              <key>com.apple.developer.associated-domains</key>
+              <array>
+                  <string>applinks:www.sociva.in</string>
+              </array>
+          </dict>
+          </plist>
+          ENTITLEMENTS
+
+          ruby - << 'RUBY'
+          require 'xcodeproj'
+          project = Xcodeproj::Project.open('App.xcodeproj')
+          project.targets.each do |target|
+            next unless target.name == 'App'
+            target.build_configurations.each do |config|
+              config.build_settings['CODE_SIGN_ENTITLEMENTS'] = 'App/App.entitlements'
+            end
+          end
+          project.save
+          RUBY
+
+      - name: Enable Push Notification & Background Modes capabilities
+        script: |
+          cd ios/App
+          /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes array" App/Info.plist 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes:0 string remote-notification" App/Info.plist 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes:1 string fetch" App/Info.plist 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes:2 string location" App/Info.plist 2>/dev/null || true
+          # CRITICAL: Disable Firebase method swizzling (same as ios-release workflow)
+          /usr/libexec/PlistBuddy -c "Add :FirebaseAppDelegateProxyEnabled bool false" App/Info.plist 2>/dev/null || \
+            /usr/libexec/PlistBuddy -c "Set :FirebaseAppDelegateProxyEnabled false" App/Info.plist
+          echo "=== FirebaseAppDelegateProxyEnabled set to false ==="
+          # Enable Supports Live Activities in Info.plist
+          /usr/libexec/PlistBuddy -c "Add :NSSupportsLiveActivities bool true" App/Info.plist 2>/dev/null || \
+            /usr/libexec/PlistBuddy -c "Set :NSSupportsLiveActivities true" App/Info.plist
+          echo "=== NSSupportsLiveActivities enabled ==="
+
+      - name: Inject iOS privacy usage strings
+        script: |
+          cd ios/App
+          /usr/libexec/PlistBuddy -c "Set :NSPhotoLibraryUsageDescription 'Sociva needs photo library access to let you select images for product listings and your profile.'" App/Info.plist 2>/dev/null || \
+            /usr/libexec/PlistBuddy -c "Add :NSPhotoLibraryUsageDescription string 'Sociva needs photo library access to let you select images for product listings and your profile.'" App/Info.plist
+          /usr/libexec/PlistBuddy -c "Set :NSPhotoLibraryAddUsageDescription 'Sociva needs permission to save images to your photo library.'" App/Info.plist 2>/dev/null || \
+            /usr/libexec/PlistBuddy -c "Add :NSPhotoLibraryAddUsageDescription string 'Sociva needs permission to save images to your photo library.'" App/Info.plist
+          /usr/libexec/PlistBuddy -c "Set :NSCameraUsageDescription 'Sociva needs camera access to let you photograph products for listing and upload profile pictures.'" App/Info.plist 2>/dev/null || \
+            /usr/libexec/PlistBuddy -c "Add :NSCameraUsageDescription string 'Sociva needs camera access to let you photograph products for listing and upload profile pictures.'" App/Info.plist
+          /usr/libexec/PlistBuddy -c "Set :NSLocationWhenInUseUsageDescription 'Sociva uses your location to verify your residential society membership and show nearby sellers.'" App/Info.plist 2>/dev/null || \
+            /usr/libexec/PlistBuddy -c "Add :NSLocationWhenInUseUsageDescription string 'Sociva uses your location to verify your residential society membership and show nearby sellers.'" App/Info.plist
+          /usr/libexec/PlistBuddy -c "Set :NSLocationAlwaysAndWhenInUseUsageDescription 'Sociva uses your location to verify your residential society membership and show nearby sellers, even in the background.'" App/Info.plist 2>/dev/null || \
+            /usr/libexec/PlistBuddy -c "Add :NSLocationAlwaysAndWhenInUseUsageDescription string 'Sociva uses your location to verify your residential society membership and show nearby sellers, even in the background.'" App/Info.plist
+          echo "=== Privacy strings injected ==="
+
+      - name: Copy GoogleService-Info.plist
+        script: |
+          if [ -f "ios-config/GoogleService-Info.plist" ]; then
+            cp ios-config/GoogleService-Info.plist ios/App/App/GoogleService-Info.plist
+          elif [ -f "GoogleService-Info.plist" ]; then
+            cp GoogleService-Info.plist ios/App/App/GoogleService-Info.plist
+          fi
+
+          if [ -f "ios/App/App/GoogleService-Info.plist" ]; then
+            cd ios/App
+            ruby -e "require 'xcodeproj'; project = Xcodeproj::Project.open('App.xcodeproj'); target = project.targets.find { |t| t.name == 'App' }; abort('App target not found') unless target; group = project.main_group.find_subpath('App', true); ref = group.files.find { |f| f.path == 'GoogleService-Info.plist' } || group.new_file('GoogleService-Info.plist'); unless target.resources_build_phase.files_references.any? { |f| f.path == 'GoogleService-Info.plist' }; target.resources_build_phase.add_file_reference(ref, true); end; project.save"
+          fi
+
+      - name: Copy custom notification sound
+        script: |
+          if [ -f "ios-config/gate_bell.mp3" ]; then
+            cp ios-config/gate_bell.mp3 ios/App/App/gate_bell.mp3
+          fi
+          if [ -f "ios/App/App/gate_bell.mp3" ]; then
+            cd ios/App
+            ruby -e "require 'xcodeproj'; project = Xcodeproj::Project.open('App.xcodeproj'); target = project.targets.find { |t| t.name == 'App' }; abort('App target not found') unless target; group = project.main_group.find_subpath('App', true); ref = group.files.find { |f| f.path == 'gate_bell.mp3' } || group.new_file('gate_bell.mp3'); unless target.resources_build_phase.files_references.any? { |f| f.path == 'gate_bell.mp3' }; target.resources_build_phase.add_file_reference(ref, true); end; project.save"
+          fi
+
+      - name: Copy Live Activity native plugin files
+        script: |
+          echo "=== Copying Live Activity Swift files ==="
+          cp native/ios/LiveActivityPlugin.swift ios/App/App/
+          cp native/ios/LiveDeliveryActivity.swift ios/App/App/
+          echo "=== Adding Swift files to App target ==="
+          cd ios/App
+          ruby - << 'RUBY'
+          require 'xcodeproj'
+          project = Xcodeproj::Project.open('App.xcodeproj')
+          target = project.targets.find { |t| t.name == 'App' }
+          abort('App target not found') unless target
+          group = project.main_group.find_subpath('App', true)
+
+          %w[LiveActivityPlugin.swift LiveDeliveryActivity.swift].each do |filename|
+            ref = group.files.find { |f| f.path == filename } || group.new_file(filename)
+            unless target.source_build_phase.files_references.any? { |f| f.path == filename }
+              target.source_build_phase.add_file_reference(ref, true)
+            end
+          end
+
+          project.save
+          puts "=== Live Activity plugin files added to App target ==="
+          RUBY
+
+      - name: Create Live Activity Widget Extension
+        script: |
+          cd ios/App
+          echo "=== Creating LiveDeliveryWidgetExtension target ==="
+
+          mkdir -p LiveDeliveryWidgetExtension
+          cp ../../native/ios/LiveDeliveryWidget.swift LiveDeliveryWidgetExtension/
+          cp ../../native/ios/LiveDeliveryActivity.swift LiveDeliveryWidgetExtension/
+
+          # Create widget Assets.xcassets with Sociva icon
+          mkdir -p LiveDeliveryWidgetExtension/Assets.xcassets/SocivaIcon.imageset
+          sips -z 80 80 ../../public/app-icon-1024x1024.png --out LiveDeliveryWidgetExtension/Assets.xcassets/SocivaIcon.imageset/SocivaIcon@2x.png
+          sips -z 120 120 ../../public/app-icon-1024x1024.png --out LiveDeliveryWidgetExtension/Assets.xcassets/SocivaIcon.imageset/SocivaIcon@3x.png
+
+          cat > LiveDeliveryWidgetExtension/Assets.xcassets/Contents.json << 'ASSETJSON'
+          {"info":{"version":1,"author":"xcode"}}
+          ASSETJSON
+
+          cat > LiveDeliveryWidgetExtension/Assets.xcassets/SocivaIcon.imageset/Contents.json << 'ASSETJSON'
+          {
+            "images": [
+              {"idiom":"universal","scale":"2x","filename":"SocivaIcon@2x.png"},
+              {"idiom":"universal","scale":"3x","filename":"SocivaIcon@3x.png"}
+            ],
+            "info":{"version":1,"author":"xcode"}
+          }
+          ASSETJSON
+
+          cat > LiveDeliveryWidgetExtension/Info.plist << 'PLIST'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>CFBundleDevelopmentRegion</key>
+              <string>$(DEVELOPMENT_LANGUAGE)</string>
+              <key>CFBundleDisplayName</key>
+              <string>Sociva Live Delivery</string>
+              <key>CFBundleExecutable</key>
+              <string>$(EXECUTABLE_NAME)</string>
+              <key>CFBundleIdentifier</key>
+              <string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+              <key>CFBundleInfoDictionaryVersion</key>
+              <string>6.0</string>
+              <key>CFBundleName</key>
+              <string>$(PRODUCT_NAME)</string>
+              <key>CFBundlePackageType</key>
+              <string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
+              <key>CFBundleShortVersionString</key>
+              <string>1.0.0</string>
+              <key>CFBundleVersion</key>
+              <string>1</string>
+              <key>NSExtension</key>
+              <dict>
+                  <key>NSExtensionPointIdentifier</key>
+                  <string>com.apple.widgetkit-extension</string>
+              </dict>
+          </dict>
+          </plist>
+          PLIST
+
+          cat > LiveDeliveryWidgetExtension/LiveDeliveryWidgetExtension.entitlements << 'ENTITLEMENTS'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+          </dict>
+          </plist>
+          ENTITLEMENTS
+
+          ruby - << 'RUBY'
+          require 'xcodeproj'
+
+          TEAM_ID = '6HBR38JB8Z'
+          default_marketing_version = Time.now.utc.strftime('%Y.%-m%d.%-H%M')
+          marketing_version = ENV['IOS_MARKETING_VERSION'].to_s.strip
+          marketing_version = default_marketing_version if marketing_version.empty?
+
+          project = Xcodeproj::Project.open('App.xcodeproj')
+          app_target = project.targets.find { |t| t.name == 'App' }
+          abort('App target not found') unless app_target
+
+          widget_targets = project.targets.select { |t| t.name.start_with?('LiveDeliveryWidgetExtension') }
+          existing = project.targets.find { |t| t.name == 'LiveDeliveryWidgetExtension' }
+
+          if existing
+            puts '=== Widget extension already exists ==='
+            widget_target = existing
+          else
+            puts '=== Creating LiveDeliveryWidgetExtension target ==='
+            widget_target = project.new_target(:app_extension, 'LiveDeliveryWidgetExtension', :ios, '16.1')
+          end
+
+          (widget_targets - [widget_target]).each do |duplicate|
+            puts "=== Removing duplicate target: #{duplicate.name} ==="
+            duplicate.remove_from_project
+          end
+
+          widget_group = project.main_group.find_subpath('LiveDeliveryWidgetExtension', true)
+          widget_group.path = 'LiveDeliveryWidgetExtension'
+          widget_group.source_tree = '<group>'
+
+          %w[LiveDeliveryWidget.swift LiveDeliveryActivity.swift].each do |filename|
+            ref = widget_group.files.find { |f| f.path == filename } || widget_group.new_file(filename)
+            unless widget_target.source_build_phase.files_references.any? { |f| f.path == filename }
+              widget_target.source_build_phase.add_file_reference(ref, true)
+            end
+          end
+
+          widget_group.files.find { |f| f.path == 'Info.plist' } || widget_group.new_file('Info.plist')
+          widget_group.files.find { |f| f.path == 'LiveDeliveryWidgetExtension.entitlements' } || widget_group.new_file('LiveDeliveryWidgetExtension.entitlements')
+
+          # Add Assets.xcassets to widget target resources
+          assets_ref = widget_group.files.find { |f| f.path == 'Assets.xcassets' } || widget_group.new_file('Assets.xcassets')
+          unless widget_target.resources_build_phase.files_references.any? { |f| f.path.to_s == 'Assets.xcassets' }
+            widget_target.resources_build_phase.add_file_reference(assets_ref, true)
+          end
+
+          widget_target.build_configurations.each do |config|
+            settings = config.build_settings
+            settings['PRODUCT_NAME'] = 'LiveDeliveryWidgetExtension'
+            settings['PRODUCT_BUNDLE_IDENTIFIER'] = 'app.sociva.community.LiveDeliveryWidget'
+            settings['INFOPLIST_FILE'] = 'LiveDeliveryWidgetExtension/Info.plist'
+            settings['CODE_SIGN_ENTITLEMENTS'] = 'LiveDeliveryWidgetExtension/LiveDeliveryWidgetExtension.entitlements'
+            settings['IPHONEOS_DEPLOYMENT_TARGET'] = '16.1'
+            settings['SWIFT_VERSION'] = '5.0'
+            settings['TARGETED_DEVICE_FAMILY'] = '1'
+            settings['GENERATE_INFOPLIST_FILE'] = 'NO'
+            settings['CURRENT_PROJECT_VERSION'] = Time.now.to_i.to_s
+            settings['MARKETING_VERSION'] = marketing_version
+            settings['SKIP_INSTALL'] = 'YES'
+            settings['APPLICATION_EXTENSION_API_ONLY'] = 'YES'
+            settings['ASSETCATALOG_COMPILER_GENERATE_ASSET_SYMBOLS'] = 'YES'
+            settings['DEVELOPMENT_TEAM'] = TEAM_ID
+            settings['LD_RUNPATH_SEARCH_PATHS'] = ['$(inherited)', '@executable_path/Frameworks', '@executable_path/../../Frameworks']
+          end
+
+          embed_phase = app_target.build_phases.find { |p| p.is_a?(Xcodeproj::Project::Object::PBXCopyFilesBuildPhase) && p.name == 'Embed App Extensions' }
+          unless embed_phase
+            embed_phase = app_target.new_copy_files_build_phase('Embed App Extensions')
+            embed_phase.dst_subfolder_spec = '13'
+          end
+
+          embed_phase.files.to_a.each do |build_file|
+            path = build_file.file_ref&.path.to_s
+            next unless path.end_with?('.appex')
+            next unless path.include?('LiveDeliveryWidgetExtension') || path == '.appex'
+            build_file.remove_from_project
+          end
+
+          product_ref = widget_target.product_reference
+          abort('Widget product reference missing') unless product_ref
+          product_ref.path = 'LiveDeliveryWidgetExtension.appex'
+          product_ref.name = 'LiveDeliveryWidgetExtension.appex'
+          product_ref.explicit_file_type = 'wrapper.app-extension'
+
+          build_file = embed_phase.add_file_reference(product_ref, true)
+          build_file.settings = { 'ATTRIBUTES' => ['RemoveHeadersOnCopy'] }
+
+          unless app_target.dependencies.any? { |d| d.target == widget_target }
+            app_target.add_dependency(widget_target)
+          end
+
+          target_names = project.targets.map(&:name)
+          puts "=== Xcode targets: #{target_names.join(', ')} ==="
+          expected_targets = ['App', 'LiveDeliveryWidgetExtension']
+          missing_targets = expected_targets - target_names
+          unexpected_targets = target_names - expected_targets
+          abort("Missing expected targets: #{missing_targets.join(', ')}") unless missing_targets.empty?
+          abort("Unexpected targets present: #{unexpected_targets.join(', ')}") unless unexpected_targets.empty?
+
+          project.save
+          puts '=== LiveDeliveryWidgetExtension target reconciled and embedded ==='
+          RUBY
+
+      - name: Update iOS project settings
+        script: |
+          cd ios/App
+          ruby - << 'RUBY'
+          require 'xcodeproj'
+          TEAM_ID = '6HBR38JB8Z'
+
+          project = Xcodeproj::Project.open('App.xcodeproj')
+          project.targets.each do |target|
+            target.build_configurations.each do |config|
+              settings = config.build_settings
+              settings['IPHONEOS_DEPLOYMENT_TARGET'] = '16.1'
+              settings['DEVELOPMENT_TEAM'] = TEAM_ID
+
+              settings['TARGETED_DEVICE_FAMILY'] = '1'
+
+              case target.name
+              when 'App'
+                settings['PRODUCT_BUNDLE_IDENTIFIER'] = 'app.sociva.community'
+              when 'LiveDeliveryWidgetExtension'
+                settings['PRODUCT_BUNDLE_IDENTIFIER'] = 'app.sociva.community.LiveDeliveryWidget'
+                settings['PRODUCT_NAME'] = 'LiveDeliveryWidgetExtension'
+              end
+            end
+          end
+          project.save
+          puts '=== Project settings updated (Ruby-only, no sed) ==='
+          RUBY
+
+      - name: Preflight signing check (release-all)
+        script: |
+          cd ios/App
+          ruby - << 'RUBY'
+          require 'xcodeproj'
+          project = Xcodeproj::Project.open('App.xcodeproj')
+          errors = []
+
+          %w[App LiveDeliveryWidgetExtension].each do |name|
+            t = project.targets.find { |t| t.name == name }
+            unless t
+              errors << "Target '#{name}' NOT FOUND"
+              next
+            end
+            t.build_configurations.each do |config|
+              s = config.build_settings
+              bid = s['PRODUCT_BUNDLE_IDENTIFIER']
+              team = s['DEVELOPMENT_TEAM']
+              dep = s['IPHONEOS_DEPLOYMENT_TARGET']
+              ent = s['CODE_SIGN_ENTITLEMENTS']
+              puts "#{name} [#{config.name}]: bundle=#{bid} team=#{team} deploy=#{dep} entitlements=#{ent}"
+              errors << "#{name} missing DEVELOPMENT_TEAM" unless team && !team.empty?
+              errors << "#{name} deployment target #{dep} < 16.1" if dep && dep.to_f < 16.1
+            end
+          end
+
+          app = project.targets.find { |t| t.name == 'App' }
+          if app
+            embed_phases = app.build_phases.select { |p|
+              p.is_a?(Xcodeproj::Project::Object::PBXCopyFilesBuildPhase) && p.name == 'Embed App Extensions'
+            }
+            appex_count = embed_phases.flat_map { |p| p.files.to_a }.count { |f| f.file_ref&.path.to_s.include?('LiveDeliveryWidgetExtension') }
+            errors << "Widget embedded #{appex_count} times (expected 1)" unless appex_count == 1
+          end
+
+          unless errors.empty?
+            errors.each { |e| puts "PREFLIGHT ERROR: #{e}" }
+            abort("Preflight failed with #{errors.size} error(s)")
+          end
+          puts '=== Preflight passed ==='
+          RUBY
+
+      - name: Set up iOS code signing
+        script: |
+          xcode-project use-profiles
+
+      - name: Verify widget signing settings (release-all)
+        script: |
+          cd ios/App
+          ruby - << 'RUBY'
+          require 'xcodeproj'
+          project = Xcodeproj::Project.open('App.xcodeproj')
+          widget = project.targets.find { |t| t.name == 'LiveDeliveryWidgetExtension' }
+          abort('Widget target not found') unless widget
+          widget.build_configurations.each do |config|
+            s = config.build_settings
+            puts "=== #{config.name} ==="
+            puts "  BUNDLE_ID: #{s['PRODUCT_BUNDLE_IDENTIFIER']}"
+            puts "  TEAM: #{s['DEVELOPMENT_TEAM']}"
+            puts "  SIGN_STYLE: #{s['CODE_SIGN_STYLE']}"
+            puts "  SIGN_IDENTITY: #{s['CODE_SIGN_IDENTITY']}"
+            puts "  PROFILE_SPECIFIER: #{s['PROVISIONING_PROFILE_SPECIFIER']}"
+            puts "  PROFILE: #{s['PROVISIONING_PROFILE']}"
+          end
+          RUBY
+
+      - name: Set export compliance & stamp iOS version metadata
+        script: |
+          cd ios/App
+          /usr/libexec/PlistBuddy -c "Set :ITSAppUsesNonExemptEncryption false" App/Info.plist || \
+            /usr/libexec/PlistBuddy -c "Add :ITSAppUsesNonExemptEncryption bool false" App/Info.plist
+          BUILD_NUMBER=$(date +%s)
+          DEFAULT_MARKETING_VERSION="$(date -u +%Y).$((10#$(date -u +%m%d))).$((10#$(date -u +%H%M)))"
+          MARKETING_VERSION="${IOS_MARKETING_VERSION:-$DEFAULT_MARKETING_VERSION}"
+          echo "Stamping iOS version metadata: marketing=$MARKETING_VERSION build=$BUILD_NUMBER"
+
+          ruby - << 'RUBY'
+          require 'xcodeproj'
+
+          marketing_version = ENV.fetch('MARKETING_VERSION')
+          build_number = ENV.fetch('BUILD_NUMBER')
+
+          project = Xcodeproj::Project.open('App.xcodeproj')
+          project.targets.each do |target|
+            next unless %w[App LiveDeliveryWidgetExtension].include?(target.name)
+
+            target.build_configurations.each do |config|
+              settings = config.build_settings
+              settings['MARKETING_VERSION'] = marketing_version
+              settings['CURRENT_PROJECT_VERSION'] = build_number
+            end
+          end
+
+          project.save
+          puts "=== Xcode project stamped: marketing=#{marketing_version} build=#{build_number} ==="
+          RUBY
+
+          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $MARKETING_VERSION" App/Info.plist || \
+            /usr/libexec/PlistBuddy -c "Add :CFBundleShortVersionString string $MARKETING_VERSION" App/Info.plist
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_NUMBER" App/Info.plist || \
+            /usr/libexec/PlistBuddy -c "Add :CFBundleVersion string $BUILD_NUMBER" App/Info.plist
+          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $MARKETING_VERSION" LiveDeliveryWidgetExtension/Info.plist || \
+            /usr/libexec/PlistBuddy -c "Add :CFBundleShortVersionString string $MARKETING_VERSION" LiveDeliveryWidgetExtension/Info.plist
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_NUMBER" LiveDeliveryWidgetExtension/Info.plist || \
+            /usr/libexec/PlistBuddy -c "Add :CFBundleVersion string $BUILD_NUMBER" LiveDeliveryWidgetExtension/Info.plist
+
+          APP_MARKETING=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" App/Info.plist)
+          APP_BUILD=$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" App/Info.plist)
+          WIDGET_MARKETING=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" LiveDeliveryWidgetExtension/Info.plist)
+          WIDGET_BUILD=$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" LiveDeliveryWidgetExtension/Info.plist)
+
+          echo "App version: $APP_MARKETING ($APP_BUILD)"
+          echo "Widget version: $WIDGET_MARKETING ($WIDGET_BUILD)"
+
+          [[ "$APP_MARKETING" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "ERROR: Invalid marketing version format '$APP_MARKETING'"; exit 1; }
+          [ "$APP_MARKETING" != "1.0" ] || { echo "ERROR: Marketing version is still 1.0"; exit 1; }
+          [ "$APP_MARKETING" = "$WIDGET_MARKETING" ] || { echo "ERROR: App/widget marketing versions differ"; exit 1; }
+          [ "$APP_BUILD" = "$WIDGET_BUILD" ] || { echo "ERROR: App/widget build numbers differ"; exit 1; }
+
+      - name: Verify push entitlement exists (release-all)
+        script: |
+          if ! grep -q "aps-environment" ios/App/App/App.entitlements; then
+            echo "ERROR: Push Notifications entitlement missing from App.entitlements"
+            exit 1
+          fi
+
+      - name: Verify NSSupportsLiveActivities in Info.plist (release-all)
+        script: |
+          if ! grep -q "NSSupportsLiveActivities" ios/App/App/Info.plist; then
+            echo "ERROR: NSSupportsLiveActivities missing from Info.plist"
+            exit 1
+          fi
+          echo "NSSupportsLiveActivities confirmed in Info.plist"
+
+      - name: Verify AppDelegate push registration (release-all)
+        script: |
+          if ! grep -q "didRegisterForRemoteNotificationsWithDeviceToken" ios/App/App/AppDelegate.swift; then
+            echo "ERROR: AppDelegate missing APNs token forwarding"
+            exit 1
+          fi
+
+      - name: Build iOS IPA
+        script: |
+          cd ios/App
+          xcode-project build-ipa \
+            --workspace "App.xcworkspace" \
+            --scheme "App" \
+            --config "Release"
+
+      - name: Validate IPA push entitlement (release-all)
+        script: |
+          cd /tmp && mkdir -p ipa-check-all && cd ipa-check-all
+          IPA=$(find /Users -path '*/build/ios/ipa/*.ipa' | head -1)
+          unzip -qo "$IPA" 2>/dev/null || true
+          if ! grep -r "aps-environment" Payload/ 2>/dev/null; then
+            echo "ERROR: Final IPA missing aps-environment entitlement"
+            exit 1
+          fi
+          echo "=== IPA push entitlement verified ==="
+
+      - name: Validate IPA contains a single widget extension (release-all)
+        script: |
+          cd /tmp/ipa-check-all
+          COUNT=$(find Payload/App.app/PlugIns -maxdepth 1 -name "*.appex" | wc -l | tr -d ' ')
+          if [ "$COUNT" -ne 1 ]; then
+            echo "ERROR: Expected exactly one widget extension .appex, found $COUNT"
+            find Payload/App.app/PlugIns -maxdepth 1 -name "*.appex" -print
+            exit 1
+          fi
+          if [ ! -d "Payload/App.app/PlugIns/LiveDeliveryWidgetExtension.appex" ]; then
+            echo "ERROR: LiveDeliveryWidgetExtension.appex not found"
+            exit 1
+          fi
+          echo "=== Single LiveDeliveryWidgetExtension.appex verified ==="
+
+      - name: Add Android platform
+        script: |
+          npx cap add android || true
+          npx cap sync android
+          node scripts/patch-android-builds.cjs
+
+      - name: Verify native Android dependency patch
+        script: |
+          node scripts/patch-android-builds.cjs --verify
+          if ! grep -q "project(':transistorsoft-capacitor-background-geolocation').projectDir}/libs" android/build.gradle; then
+            echo "ERROR: Root Android Gradle config is missing the Transistorsoft local Maven repo"
+            exit 1
+          fi
+          if ! grep -q "transistorsoft-capacitor-background-geolocation" android/capacitor.settings.gradle; then
+            echo "ERROR: Capacitor sync did not register the background geolocation plugin"
+            exit 1
+          fi
+          echo "=== Android dependency and Kotlin patches verified ==="
+
+      - name: Copy custom notification sound (Android)
+        script: |
+          mkdir -p android/app/src/main/res/raw
+          if [ -f "ios-config/gate_bell.mp3" ]; then
+            cp ios-config/gate_bell.mp3 android/app/src/main/res/raw/gate_bell.mp3
+            echo "=== gate_bell.mp3 copied to Android res/raw/ ==="
+          fi
+
+      - name: Copy google-services.json
+        script: |
+          if [ -f "android-config/google-services.json" ]; then
+            cp android-config/google-services.json android/app/google-services.json
+            echo "=== google-services.json copied from android-config/ ==="
+          else
+            echo "WARNING: android-config/google-services.json not found — Firebase will not work"
+          fi
+
+      - name: Set Android SDK
+        script: echo "sdk.dir=$ANDROID_SDK_ROOT" > android/local.properties
+
+      - name: Inject release signing config (release-all)
+        script: |
+          GRADLE_FILE="android/app/build.gradle"
+          if [ -n "$CM_KEYSTORE" ] && [ -f "$CM_KEYSTORE" ]; then
+            echo "=== Injecting signing config into build.gradle ==="
+            python3 - "$GRADLE_FILE" <<'PYEOF'
+          import sys
+          f = sys.argv[1]
+          with open(f) as fh:
+              content = fh.read()
+          signing_block = '    signingConfigs {\n        release {\n            storeFile file(System.getenv("CM_KEYSTORE"))\n            storePassword System.getenv("CM_KEYSTORE_PASSWORD")\n            keyAlias System.getenv("CM_KEY_ALIAS")\n            keyPassword System.getenv("CM_KEY_PASSWORD")\n        }\n    }\n'
+          content = content.replace('    buildTypes {', signing_block + '    buildTypes {')
+          content = content.replace('            minifyEnabled false', '            signingConfig signingConfigs.release\n            minifyEnabled false')
+          with open(f, 'w') as fh:
+              fh.write(content)
+          print("=== Signing config injected successfully ===")
+          PYEOF
+            head -40 "$GRADLE_FILE"
+          else
+            echo "WARNING: CM_KEYSTORE not set or file not found. Build will be unsigned."
+          fi
+
+      - name: Build Android AAB
+        script: cd android && ./gradlew clean bundleRelease --warning-mode all
+
+    artifacts:
+      - ios/App/build/ios/ipa/*.ipa
+      - android/app/build/outputs/**/*.aab
+
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true
+      email:
+        recipients:
+          - support@sociva.in
+        notify:
+          success: true
+          failure: true

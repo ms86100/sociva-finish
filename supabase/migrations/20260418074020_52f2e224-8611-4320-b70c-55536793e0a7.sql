@@ -1,0 +1,3 @@
+-- Backfill: ensure new orders also enqueue a notification for the BUYER (order placed confirmation) so buyer-side flow has parity with seller. The existing seller trigger is fine; we don't change it. This is a no-op safety insert that won't fire if a row already exists in last 60s (handled by edge function dedup).
+-- Actually no schema change needed for the immediate diagnosis below. Skipping.
+SELECT 1;

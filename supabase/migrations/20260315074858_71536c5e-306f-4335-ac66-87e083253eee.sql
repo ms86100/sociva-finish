@@ -1,0 +1,1 @@
+ALTER TABLE public.user_notifications ADD COLUMN IF NOT EXISTS payload jsonb DEFAULT NULL;

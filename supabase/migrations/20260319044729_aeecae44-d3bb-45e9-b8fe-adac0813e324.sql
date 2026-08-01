@@ -1,0 +1,1 @@
+UPDATE system_settings SET value = '["en_route","on_the_way","picked_up","at_gate"]' WHERE key = 'transit_statuses_la';

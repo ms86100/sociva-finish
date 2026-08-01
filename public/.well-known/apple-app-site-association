@@ -1,0 +1,16 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appID": "6HBR38JB8Z.app.sociva.community",
+        "paths": ["/*"]
+      }
+    ]
+  },
+  "webcredentials": {
+    "apps": [
+      "6HBR38JB8Z.app.sociva.community"
+    ]
+  }
+}

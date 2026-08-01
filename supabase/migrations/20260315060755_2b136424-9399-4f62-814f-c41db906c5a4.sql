@@ -1,0 +1,1 @@
+CREATE INDEX IF NOT EXISTS idx_flows_lookup ON public.category_status_flows (parent_group, transaction_type, sort_order);

@@ -1,0 +1,1 @@
+ALTER TABLE public.service_bookings ADD COLUMN IF NOT EXISTS notes text;

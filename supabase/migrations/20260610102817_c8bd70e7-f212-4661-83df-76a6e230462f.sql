@@ -1,0 +1,1 @@
+ALTER VIEW public.society_admin_roles SET (security_invoker = true);

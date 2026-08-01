@@ -1,0 +1,1 @@
+ALTER TABLE public.featured_items ADD COLUMN IF NOT EXISTS auto_rotate_seconds integer NOT NULL DEFAULT 4;

@@ -1,0 +1,1 @@
+ALTER TABLE public.delivery_addresses ADD COLUMN IF NOT EXISTS phase text;

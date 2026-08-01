@@ -1,0 +1,1 @@
+UPDATE public.notification_queue SET status = 'pending', last_error = NULL WHERE status IN ('failed', 'retrying');

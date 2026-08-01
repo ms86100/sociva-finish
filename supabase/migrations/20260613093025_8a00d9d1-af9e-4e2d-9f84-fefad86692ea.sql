@@ -1,0 +1,1 @@
+ALTER TABLE public.seller_licenses ALTER COLUMN license_number DROP NOT NULL;

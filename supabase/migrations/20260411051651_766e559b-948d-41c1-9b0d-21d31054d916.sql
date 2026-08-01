@@ -1,0 +1,1 @@
+ALTER TABLE public.delivery_assignments ALTER COLUMN society_id DROP NOT NULL;

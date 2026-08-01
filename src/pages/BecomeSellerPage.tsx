@@ -1,0 +1,980 @@
+// @ts-nocheck
+import { useState, useCallback, useEffect } from 'react';
+import { Link } from 'react-router-dom';
+import { supabase } from '@/integrations/supabase/client';
+import { AppLayout } from '@/components/layout/AppLayout';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Checkbox } from '@/components/ui/checkbox';
+import { useCategoryConfigs } from '@/hooks/useCategoryBehavior';
+import { ServiceCategory } from '@/types/categories';
+import { DraftProductManager } from '@/components/seller/DraftProductManager';
+import { DynamicIcon } from '@/components/ui/DynamicIcon';
+import { LicenseUpload } from '@/components/seller/LicenseUpload';
+import { CroppableImageUpload } from '@/components/ui/croppable-image-upload';
+import { ServiceAvailabilityManager } from '@/components/seller/ServiceAvailabilityManager';
+import { Slider } from '@/components/ui/slider';
+import { Switch } from '@/components/ui/switch';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Badge } from '@/components/ui/badge';
+import { DAYS_OF_WEEK } from '@/types/database';
+import { ArrowLeft, Store, Loader2, ChevronRight, Settings, Shield, Save, Send, Globe, LayoutGrid, Tags, FileText, Package, CheckCircle2, ArrowRight, Truck, Smartphone, Banknote, Clock, ImageIcon, MapPin, Navigation, CheckCircle, Star, X, Search, ShoppingCart, Calendar, MessageCircle, Phone } from 'lucide-react';
+import { useActionTypeMap, useCategoryAllowedActions } from '@/hooks/useActionTypeMap';
+import { OnboardingLocationSheet } from '@/components/seller/OnboardingLocationSheet';
+import { cn } from '@/lib/utils';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useAuth } from '@/contexts/AuthContext';
+import { useSellerApplication } from '@/hooks/useSellerApplication';
+import { useSubcategories } from '@/hooks/useSubcategories';
+import { SubcategoryPickerDialog, SubcategorySelection } from '@/components/seller/SubcategoryPickerDialog';
+import { CategorySearchPicker } from '@/components/seller/CategorySearchPicker';
+import { PendingCategoryRequestsBanner } from '@/components/seller/PendingCategoryRequestsBanner';
+import { UpiVpaInput } from '@/components/payment/UpiVpaInput';
+
+// ─── Store Location Picker ──────────────────────────────────────────────────
+function StoreLocationPicker({ latitude, longitude, label, onLocationSet, hasSociety, existingStoreLocations = [] }: {
+  latitude: number | null;
+  longitude: number | null;
+  label?: string | null;
+  onLocationSet: (lat: number, lng: number, name?: string, formattedAddress?: string) => void;
+  hasSociety: boolean;
+  existingStoreLocations?: { id: string; business_name: string; latitude: number; longitude: number; store_location_label?: string | null }[];
+}) {
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [locationName, setLocationName] = useState<string | null>(label ?? null);
+  const [locationAddress, setLocationAddress] = useState<string | null>(null);
+  useEffect(() => { if (label) setLocationName(label); }, [label]);
+  const hasCoords = !!(latitude && longitude);
+
+  return (
+    <div className="border rounded-lg p-4 space-y-3">
+      <div className="flex items-center gap-2">
+        <MapPin size={16} className="text-primary" />
+        <h3 className="font-semibold text-sm">Store Location {!hasSociety && <span className="text-destructive">*</span>}</h3>
+      </div>
+      {hasCoords ? (
+        <div className="flex items-center gap-2 p-3 bg-success/10 rounded-lg">
+          <CheckCircle size={16} className="text-success shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-success truncate">{locationName || 'Location set'}</p>
+            {locationAddress && locationAddress !== locationName && (
+              <p className="text-xs text-muted-foreground truncate">{locationAddress}</p>
+            )}
+            {!locationName && !locationAddress && (
+              <p className="text-xs text-muted-foreground">{latitude?.toFixed(5)}, {longitude?.toFixed(5)}</p>
+            )}
+          </div>
+          <Button variant="outline" size="sm" className="text-xs h-7 shrink-0" onClick={() => setSheetOpen(true)}>Change</Button>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {existingStoreLocations.length > 0 && (
+            <>
+              <p className="text-xs font-medium text-muted-foreground">Use location from another store</p>
+              <div className="space-y-2">
+                {existingStoreLocations.map((store) => (
+                  <button
+                    key={store.id}
+                    onClick={() => {
+                      setLocationName(store.business_name);
+                      setLocationAddress(store.store_location_label || null);
+                      onLocationSet(store.latitude, store.longitude, store.business_name);
+                    }}
+                    className="w-full flex items-center gap-3 p-3 rounded-lg border border-border hover:bg-accent/50 active:bg-accent/70 transition-colors text-left"
+                  >
+                    <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                      <MapPin size={14} className="text-primary" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium truncate">{store.business_name}</p>
+                      <p className="text-[10px] text-muted-foreground truncate">{store.store_location_label || `${store.latitude.toFixed(4)}, ${store.longitude.toFixed(4)}`}</p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="flex-1 h-px bg-border" />
+                <span className="text-[10px] text-muted-foreground uppercase tracking-wider">or</span>
+                <div className="flex-1 h-px bg-border" />
+              </div>
+            </>
+          )}
+          <p className="text-xs text-muted-foreground">
+            {hasSociety
+              ? 'Set a precise location for your store (recommended for better discovery)'
+              : 'Set your store location so buyers can find you'}
+          </p>
+          <Button variant="outline" className="w-full h-10" onClick={() => setSheetOpen(true)}>
+            <Navigation size={14} className="mr-2" />
+            Set Store Location
+          </Button>
+          {!hasSociety && (
+            <p className="text-[10px] text-destructive">Required — your store won't be visible without a location</p>
+          )}
+        </div>
+      )}
+      <OnboardingLocationSheet
+        open={sheetOpen}
+        onOpenChange={setSheetOpen}
+        onConfirm={(lat, lng, name, formattedAddress) => {
+          // Primary label = resolved POI/place name (e.g. "Aarti Special Kitchen").
+          // Address goes on the secondary line.
+          setLocationName(name || formattedAddress || null);
+          setLocationAddress(formattedAddress || null);
+          onLocationSet(lat, lng, name, formattedAddress);
+          setSheetOpen(false);
+        }}
+      />
+    </div>
+  );
+}
+
+// ─── Category License Prompt (checks DB for requires_license) ───────────────
+function CategoryLicensePrompt({ categoryConfigId, categoryName, draftSellerId, isOnboarding, onStatusChange }: {
+  categoryConfigId: string;
+  categoryName: string;
+  draftSellerId: string | null;
+  isOnboarding: boolean;
+  onStatusChange: (status: string | null) => void;
+}) {
+  const [requiresLicense, setRequiresLicense] = useState<boolean | null>(null);
+  const [licenseConfig, setLicenseConfig] = useState<{ license_type_name: string | null; license_mandatory: boolean } | null>(null);
+
+  useEffect(() => {
+    supabase.from('category_config')
+      .select('requires_license, license_type_name, license_mandatory')
+      .eq('id', categoryConfigId)
+      .single()
+      .then(({ data }) => {
+        if (data) {
+          setRequiresLicense((data as any).requires_license);
+          setLicenseConfig(data as any);
+        } else {
+          setRequiresLicense(false);
+        }
+      });
+  }, [categoryConfigId]);
+
+  if (requiresLicense === null || requiresLicense === false) return null;
+
+  return (
+    <div className="border rounded-lg p-4 space-y-3">
+      <div className="flex items-center gap-2"><Shield size={16} className="text-primary" /><h3 className="font-semibold text-sm">License Required: {categoryName}</h3></div>
+      <p className="text-xs text-muted-foreground">This category requires a verified license before you can sell.</p>
+      {draftSellerId ? (
+        <LicenseUpload sellerId={draftSellerId} categoryConfigId={categoryConfigId} isOnboarding={isOnboarding} onStatusChange={onStatusChange} />
+      ) : (
+        <p className="text-xs text-muted-foreground italic">Fill in your business name above — license upload will appear once your draft is saved.</p>
+      )}
+    </div>
+  );
+}
+
+const TOTAL_STEPS = 5;
+const STEP_META = [
+  { label: 'What to Sell', icon: Search, title: 'What do you want to sell?', helper: 'Search or browse to find the right category for your business.' },
+  { label: 'Store Details', icon: FileText, title: 'Set up your store', helper: 'These details help buyers find and trust your business.' },
+  { label: 'Configure', icon: Settings, title: 'Configure your store', helper: 'A few quick decisions to get you up and running.' },
+  { label: 'Products', icon: Package, title: 'Add your first products', helper: 'Buyers will see these once your store is approved. Start with 1-2 items.' },
+  { label: 'Review', icon: CheckCircle2, title: 'Review and submit', helper: 'Double-check everything. You can edit your store after approval too.' },
+];
+
+const CONFIG_SUB_STEPS = [
+  { key: 'interaction', title: 'How will buyers interact?', helper: 'This sets the default — you can customize per product later.' },
+  { key: 'delivery', title: 'Delivery & Payments', helper: 'How do you get products to buyers, and how do they pay?' },
+  { key: 'schedule', title: 'When are you open?', helper: 'Select your operating days and availability.' },
+  { key: 'images', title: 'Make your store shine ✨', helper: 'Add photos to build trust — you can skip this for now.' },
+];
+
+function SubStepDots({ current, total }: { current: number; total: number }) {
+  return (
+    <div className="flex items-center justify-center gap-2 mb-4">
+      {Array.from({ length: total }).map((_, i) => (
+        <div
+          key={i}
+          className={cn(
+            'h-1.5 rounded-full transition-all duration-300',
+            i + 1 === current ? 'w-6 bg-primary' : i + 1 < current ? 'w-1.5 bg-primary/60' : 'w-1.5 bg-muted-foreground/20'
+          )}
+        />
+      ))}
+    </div>
+  );
+}
+const FULFILLMENT_OPTIONS = [
+  { value: 'self_pickup', label: 'Self Pickup Only', description: 'Customers pick up from your location', icon: Store, disabled: false },
+  { value: 'seller_delivery', label: 'I Deliver', description: 'You deliver to customers', icon: Truck, disabled: false },
+  { value: 'pickup_and_seller_delivery', label: 'Pickup + I Deliver', description: 'Buyer can choose pickup or you deliver', icon: Truck, disabled: false },
+  { value: 'platform_delivery', label: 'Delivery Partner', description: 'Platform delivery partner delivers — available in future plans', icon: Truck, disabled: true },
+  { value: 'pickup_and_platform_delivery', label: 'Pickup + Delivery Partner', description: 'Buyer can choose pickup or delivery partner — available in future plans', icon: Truck, disabled: true },
+];
+
+// ─── Guided Step 2: Subcategory Picker ─────────────────────────────────────
+import type { SellerFormData, SubcategoryPreferences } from '@/hooks/useSellerApplication';
+import type { CategoryConfig } from '@/types/categories';
+
+function GuidedStep2({
+  selectedGroup, selectedGroupInfo, formData, setFormData,
+  groupedConfigs, handleCategoryChange, onBack, onContinue, onSkip,
+}: {
+  selectedGroup: string;
+  selectedGroupInfo: { label: string; icon: string; color: string; description?: string } | undefined;
+  formData: SellerFormData;
+  setFormData: React.Dispatch<React.SetStateAction<SellerFormData>>;
+  groupedConfigs: Record<string, CategoryConfig[]>;
+  handleCategoryChange: (cat: ServiceCategory, checked: boolean) => void;
+  onBack: () => void;
+  onContinue: () => void;
+  onSkip: () => void;
+}) {
+  const { groupedConfigs: _, isLoading } = useCategoryConfigs();
+  const categories = groupedConfigs[selectedGroup as keyof typeof groupedConfigs] || [];
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerCategoryId, setPickerCategoryId] = useState<string | null>(null);
+
+  const pickerCategory = categories.find(c => c.id === pickerCategoryId);
+
+  // Fetch subcategories for each category to know which have subs
+  const allSubsQuery = useSubcategories(); // fetch all active subcategories
+
+  const getSubCount = (configId: string) => {
+    return allSubsQuery.data?.filter(s => s.category_config_id === configId).length || 0;
+  };
+
+  const getSelectionCount = (configId: string): number => {
+    const pref = formData.subcategory_preferences.data[configId];
+    if (!pref) return 0;
+    return (pref.primary ? 1 : 0) + pref.others.length;
+  };
+
+  const handleCardTap = (config: CategoryConfig) => {
+    const subCount = getSubCount(config.id);
+    if (subCount === 0) {
+      // No subcategories → direct toggle
+      handleCategoryChange(config.category, !formData.categories.includes(config.category));
+    } else {
+      // Open picker dialog
+      setPickerCategoryId(config.id);
+      setPickerOpen(true);
+    }
+  };
+
+  const handlePickerSave = (configId: string, category: string, selection: SubcategorySelection) => {
+    setFormData(f => {
+      const newPrefsData = { ...f.subcategory_preferences.data };
+      if (selection.primary || selection.others.length > 0) {
+        newPrefsData[configId] = selection;
+      } else {
+        delete newPrefsData[configId];
+      }
+      // Auto-sync categories from preferences
+      const prefsCategories = Object.keys(newPrefsData);
+      const categorySlugMap = categories.reduce((acc, c) => { acc[c.id] = c.category; return acc; }, {} as Record<string, string>);
+      const catsFromPrefs = prefsCategories.map(id => categorySlugMap[id]).filter(Boolean);
+      // Merge with directly toggled categories (those without subcategories)
+      const directToggles = f.categories.filter(cat => {
+        const cfg = categories.find(c => c.category === cat);
+        return cfg && getSubCount(cfg.id) === 0;
+      });
+      const mergedCats = [...new Set([...catsFromPrefs, ...directToggles])];
+      // Add/remove the current category based on selection
+      if (selection.primary || selection.others.length > 0) {
+        if (!mergedCats.includes(category)) mergedCats.push(category);
+      } else {
+        const idx = mergedCats.indexOf(category);
+        if (idx >= 0) mergedCats.splice(idx, 1);
+      }
+      return {
+        ...f,
+        categories: mergedCats,
+        subcategory_preferences: { v: 1, data: newPrefsData },
+      };
+    });
+  };
+
+  const removeSubcategory = (configId: string, subId: string) => {
+    setFormData(f => {
+      const pref = f.subcategory_preferences.data[configId];
+      if (!pref) return f;
+      let newPref: SubcategorySelection;
+      if (pref.primary === subId) {
+        const [newPrimary, ...rest] = pref.others;
+        newPref = { primary: newPrimary || null, others: rest };
+      } else {
+        newPref = { ...pref, others: pref.others.filter(o => o !== subId) };
+      }
+      const newData = { ...f.subcategory_preferences.data };
+      if (!newPref.primary && newPref.others.length === 0) {
+        delete newData[configId];
+        // Also remove category
+        const cfg = categories.find(c => c.id === configId);
+        return {
+          ...f,
+          categories: cfg ? f.categories.filter(c => c !== cfg.category) : f.categories,
+          subcategory_preferences: { v: 1, data: newData },
+        };
+      }
+      newData[configId] = newPref;
+      return { ...f, subcategory_preferences: { v: 1, data: newData } };
+    });
+  };
+
+  // Collect all selected subcategory chips for display
+  const allSelectedChips: { configId: string; subId: string; isPrimary: boolean; displayName: string; categoryName: string }[] = [];
+  Object.entries(formData.subcategory_preferences.data).forEach(([configId, pref]) => {
+    const cfg = categories.find(c => c.id === configId);
+    const catName = cfg?.displayName || '';
+    if (pref.primary) {
+      const sub = allSubsQuery.data?.find(s => s.id === pref.primary);
+      allSelectedChips.push({ configId, subId: pref.primary, isPrimary: true, displayName: sub?.display_name || 'Selected', categoryName: catName });
+    }
+    pref.others.forEach(id => {
+      const sub = allSubsQuery.data?.find(s => s.id === id);
+      allSelectedChips.push({ configId, subId: id, isPrimary: false, displayName: sub?.display_name || 'Selected', categoryName: catName });
+    });
+  });
+
+  const hasAnySelection = formData.categories.length > 0;
+
+  return (
+    <div className="space-y-5">
+      <button onClick={onBack} className="flex items-center gap-1 text-sm text-muted-foreground">
+        <ArrowLeft size={16} />Change category
+      </button>
+
+      {/* Group header */}
+      <div className="flex items-center gap-3 p-3 bg-muted rounded-lg">
+        <div className={cn('w-12 h-12 rounded-xl flex items-center justify-center', selectedGroupInfo?.color)}>
+          <DynamicIcon name={selectedGroupInfo?.icon || ''} size={24} />
+        </div>
+        <div>
+          <h3 className="font-semibold">{selectedGroupInfo?.label}</h3>
+          <p className="text-xs text-muted-foreground">{selectedGroupInfo?.description}</p>
+        </div>
+      </div>
+
+      <p className="text-sm font-medium text-muted-foreground">What are you looking to sell?</p>
+
+      {/* Category cards grid */}
+      {isLoading ? (
+        <div className="text-center py-4 text-muted-foreground">Loading categories...</div>
+      ) : categories.length === 0 ? (
+        <div className="text-center py-4 text-muted-foreground">No categories available</div>
+      ) : (
+        <div className="grid grid-cols-2 gap-2">
+          {categories.map((config) => {
+            const isSelected = formData.categories.includes(config.category);
+            const selCount = getSelectionCount(config.id);
+            const subCount = getSubCount(config.id);
+            return (
+              <button
+                key={config.category}
+                onClick={() => handleCardTap(config)}
+                className={cn(
+                  'flex items-center gap-2 p-3 rounded-xl border-2 transition-all text-left relative',
+                  isSelected ? 'border-primary bg-primary/5' : 'border-border hover:border-muted-foreground/30'
+                )}
+              >
+                <DynamicIcon name={config.icon} size={18} />
+                <span className="text-sm font-medium flex-1">{config.displayName}</span>
+                {selCount > 0 && (
+                  <Badge variant="default" className="text-[10px] px-1.5 py-0 h-5 min-w-[20px] justify-center">
+                    {selCount}
+                  </Badge>
+                )}
+                {isSelected && subCount === 0 && (
+                  <CheckCircle size={16} className="text-primary shrink-0" />
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Selected subcategory chips */}
+      {allSelectedChips.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-xs font-medium text-muted-foreground">Your selections:</p>
+          <div className="flex flex-wrap gap-1.5">
+            {allSelectedChips.map((chip) => (
+              <Badge
+                key={`${chip.configId}-${chip.subId}`}
+                variant={chip.isPrimary ? 'default' : 'secondary'}
+                className="text-xs py-1 px-2 gap-1"
+              >
+                {chip.isPrimary && <Star size={10} className="fill-current" />}
+                {chip.displayName}
+                <button
+                  onClick={() => removeSubcategory(chip.configId, chip.subId)}
+                  className="ml-0.5 hover:opacity-70"
+                >
+                  <X size={12} />
+                </button>
+              </Badge>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <p className="text-xs text-muted-foreground text-center flex items-center justify-center gap-1">
+        <ArrowRight size={12} />Next: You'll name your store and set operating hours
+      </p>
+
+      <Button className="w-full" onClick={onContinue} disabled={!hasAnySelection}>
+        Continue<ChevronRight size={16} className="ml-1" />
+      </Button>
+
+      {!hasAnySelection && (
+        <p className="w-full text-center text-xs text-muted-foreground py-1">
+          Select a category to continue
+        </p>
+      )}
+
+      {/* Subcategory Picker Dialog */}
+      {pickerCategory && (
+        <SubcategoryPickerDialog
+          open={pickerOpen}
+          onOpenChange={setPickerOpen}
+          categoryConfigId={pickerCategory.id}
+          categoryName={pickerCategory.displayName}
+          categoryIcon={pickerCategory.icon}
+          categorySlug={pickerCategory.category}
+          parentGroupSlug={pickerCategory.parentGroup}
+          selected={formData.subcategory_preferences.data[pickerCategory.id] || { primary: null, others: [] }}
+          onSave={(sel) => handlePickerSave(pickerCategory.id, pickerCategory.category, sel)}
+        />
+      )}
+    </div>
+  );
+}
+
+// ─── Main Page ──────────────────────────────────────────────────────────────
+export default function BecomeSellerPage() {
+  const { profile, sellerProfiles } = useAuth();
+  const app = useSellerApplication();
+  const { configs } = useCategoryConfigs();
+  const { data: allActions = [] } = useActionTypeMap();
+
+  // ─── Interaction mode state (persisted in sessionStorage) ─────────────
+  const [storeActionType, setStoreActionType] = useState<string>(() => {
+    try { return sessionStorage.getItem('onboarding_store_action_type') || ''; } catch { return ''; }
+  });
+  const handleSetStoreActionType = useCallback((val: string) => {
+    setStoreActionType(val);
+    try { sessionStorage.setItem('onboarding_store_action_type', val); } catch { /* */ }
+  }, []);
+  const {
+    user, isLoading, isCheckingExisting, groupsLoading, existingSeller, draftSellerId,
+    step, setStep, selectedGroup, setSelectedGroup, formData, setFormData,
+    draftProducts, setDraftProducts, acceptedDeclaration, setAcceptedDeclaration,
+    licenseStatus, setLicenseStatus, parentGroupInfos, groups, groupedConfigs,
+    selectedGroupInfo, selectedGroupRow, handleCategoryChange, toggleOperatingDay,
+    handleProceedToSettings, handleProceedToProducts, handleSaveDraftAndExit, handleSubmit,
+    setExistingSeller, setDraftSellerId, handleStepBack, handleGroupSelect, submissionComplete,
+    loadSellerDataIntoForm, reloadProducts, rejectionFeedback, setRejectionFeedback,
+  } = app;
+
+  // ─── Config sub-step state (persisted in sessionStorage) ───────────────
+  const [configSubStep, setConfigSubStep] = useState<number>(() => {
+    try { return parseInt(sessionStorage.getItem('onboarding_config_substep') || '1', 10) || 1; } catch { return 1; }
+  });
+  const handleSetConfigSubStep = useCallback((val: number) => {
+    setConfigSubStep(val);
+    try { sessionStorage.setItem('onboarding_config_substep', String(val)); } catch { /* */ }
+  }, []);
+
+  // Auto-save draft before opening native image picker (survives WebView reload)
+  const beforeImagePick = useCallback(async () => {
+    if (draftSellerId) {
+      await app.saveDraft();
+    }
+  }, [draftSellerId, app]);
+
+  const fulfillmentLabel = FULFILLMENT_OPTIONS.find(o => o.value === formData.fulfillment_mode)?.label || formData.fulfillment_mode;
+  const paymentMethods = [formData.accepts_cod && 'COD', formData.accepts_upi && 'UPI'].filter(Boolean).join(', ') || 'None';
+
+  if (isCheckingExisting || groupsLoading) {
+    return <AppLayout showHeader={false} showNav={false}><div className="flex items-center justify-center min-h-[100dvh]"><Loader2 className="animate-spin" size={32} /></div></AppLayout>;
+  }
+
+  // ─── Submission Success Screen ──────────────────────────────────────────────
+  if (submissionComplete) {
+    return (
+      <AppLayout showHeader={false} showNav={false}>
+        <div className="p-4 flex flex-col items-center justify-center min-h-[80dvh] text-center safe-top">
+          <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ duration: 0.4 }}>
+            <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-success/20 flex items-center justify-center">
+              <CheckCircle2 className="text-success" size={40} />
+            </div>
+            <h1 className="text-2xl font-bold mb-2">Application Submitted!</h1>
+            <p className="text-muted-foreground mb-2 max-w-xs mx-auto">
+              Your store <strong>{formData.business_name}</strong> has been submitted for admin review.
+            </p>
+            <p className="text-sm text-muted-foreground mb-8 max-w-xs mx-auto">
+              You'll receive a notification once your store is approved. This usually takes less than 24 hours.
+            </p>
+            <Link to="/">
+              <Button size="lg" className="w-full max-w-xs">
+                <ArrowRight size={16} className="mr-2" />Go to Home
+              </Button>
+            </Link>
+          </motion.div>
+        </div>
+      </AppLayout>
+    );
+  }
+
+  if (existingSeller && selectedGroup) {
+    const isRejected = (existingSeller as any).verification_status === 'rejected';
+    const isPendingReview = (existingSeller as any).verification_status === 'pending';
+    return (
+      <AppLayout showHeader={false} showNav={false}>
+        <div className="p-4 safe-top">
+          <Link to="/" className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-muted shrink-0 mb-6"><ArrowLeft size={18} /></Link>
+          <div className="max-w-md mx-auto">
+            <PendingCategoryRequestsBanner />
+          </div>
+          <div className="text-center py-12">
+            {isRejected ? (
+              <>
+                <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-destructive/20 flex items-center justify-center"><Store className="text-destructive" size={32} /></div>
+                <h1 className="text-2xl font-bold mb-2">Application Not Approved</h1>
+                <p className="text-muted-foreground mb-2">Your seller application for <strong>{existingSeller.business_name}</strong> was not approved.</p>
+                {(existingSeller as any).rejection_note && (
+                  <div className="bg-destructive/10 border border-destructive/20 rounded-xl p-4 mb-4 text-left">
+                    <p className="text-xs font-semibold text-destructive mb-1">Admin Feedback:</p>
+                    <p className="text-sm text-foreground">{(existingSeller as any).rejection_note}</p>
+                  </div>
+                )}
+                <p className="text-sm text-muted-foreground mb-6">You can update your details and resubmit your application.</p>
+                <div className="space-y-3">
+                  <Button className="w-full" size="lg" onClick={async () => {
+                    // Save the rejection note so it persists in the edit form
+                    const note = (existingSeller as any).rejection_note || null;
+                    setRejectionFeedback(note);
+                    // Load existing data into form before navigating to edit
+                    const { data: fullSeller } = await supabase.from('seller_profiles').select('*').eq('id', (existingSeller as any).id).single();
+                    if (fullSeller) {
+                      loadSellerDataIntoForm(fullSeller);
+                      await reloadProducts(fullSeller.id);
+                    }
+                    setExistingSeller(null);
+                    setDraftSellerId((existingSeller as any).id);
+                    setStep(2);
+                  }}>Update & Resubmit</Button>
+                  <Button variant="outline" className="w-full" onClick={() => { setSelectedGroup(null); setExistingSeller(null); setStep(1); }}>Choose Different Category</Button>
+                </div>
+              </>
+            ) : isPendingReview ? (
+              <>
+                <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-warning/20 flex items-center justify-center"><Clock className="text-warning" size={32} /></div>
+                <h1 className="text-2xl font-bold mb-2">Under Review</h1>
+                <p className="text-muted-foreground mb-2">Your store <strong>{existingSeller.business_name}</strong> is currently being reviewed by our admin team.</p>
+                <p className="text-sm text-muted-foreground mb-6">You'll be notified once it's approved. This usually takes less than 24 hours.</p>
+                <div className="space-y-3">
+                  <Link to="/"><Button className="w-full" size="lg"><ArrowRight size={16} className="mr-2" />Go to Home</Button></Link>
+                  <Button variant="outline" className="w-full" onClick={() => { setSelectedGroup(null); setExistingSeller(null); setStep(1); }}>Register Another Category</Button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-success/20 flex items-center justify-center"><Store className="text-success" size={32} /></div>
+                <h1 className="text-2xl font-bold mb-2">Store Approved! 🎉</h1>
+                <p className="text-muted-foreground mb-6">Your store <strong>{existingSeller.business_name}</strong> is live. Go to your seller dashboard to manage it.</p>
+                <div className="space-y-3">
+                  <Link to="/seller"><Button className="w-full" size="lg"><Store size={18} className="mr-2" />Go to Seller Dashboard</Button></Link>
+                  <Link to="/seller/category-requests"><Button variant="outline" className="w-full">My Category Requests</Button></Link>
+                  <Button variant="ghost" className="w-full" onClick={() => { setSelectedGroup(null); setExistingSeller(null); setStep(1); }}>Register Another Category</Button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      </AppLayout>
+    );
+  }
+
+  return (
+    <AppLayout showHeader={false} showNav={false}>
+      <div className="p-4 pb-24">
+        {/* Top Bar */}
+        <div className="flex items-center justify-between mb-6">
+          <Link to="/" className="flex items-center gap-2 text-muted-foreground"><span className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-muted shrink-0"><ArrowLeft size={18} /></span><span>Back</span></Link>
+          {step >= 2 && <Button variant="ghost" size="sm" onClick={handleSaveDraftAndExit} disabled={isLoading}><Save size={14} className="mr-1" />Save Draft</Button>}
+        </div>
+
+        {/* Step Header */}
+        <div className="text-center mb-4">
+          <h1 className="text-2xl font-bold">
+            {step === 3 ? CONFIG_SUB_STEPS[configSubStep - 1].title : STEP_META[step - 1].title}
+          </h1>
+          <p className="text-muted-foreground text-sm mt-1">
+            {step === 3 ? CONFIG_SUB_STEPS[configSubStep - 1].helper : STEP_META[step - 1].helper}
+          </p>
+        </div>
+
+        {/* Progress Stepper */}
+        <div className="flex items-center justify-between mb-6 px-1 overflow-x-auto scrollbar-hide gap-1">
+          {STEP_META.map((meta, i) => {
+            const stepNum = i + 1; const Icon = meta.icon;
+            const isCompleted = step > stepNum; const isActive = step === stepNum;
+            return (
+              <div key={meta.label} className="flex flex-col items-center gap-1 min-w-[3rem] flex-1">
+                <div className="p-0.5">
+                  <div className={cn('w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center transition-all text-xs', isCompleted && 'bg-primary text-primary-foreground', isActive && 'bg-primary/20 text-primary ring-2 ring-primary', !isCompleted && !isActive && 'bg-muted text-muted-foreground')}>
+                    {isCompleted ? <CheckCircle2 size={14} /> : <Icon size={12} />}
+                  </div>
+                </div>
+                <span className={cn('text-[9px] sm:text-[10px] font-medium text-center leading-tight truncate w-full', isActive ? 'text-primary' : 'text-muted-foreground')}>{meta.label}</span>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Context Breadcrumb */}
+        {step >= 2 && selectedGroupInfo && (
+          <div className="flex items-center gap-2 px-3 py-2 mb-4 rounded-lg bg-muted/60 text-xs">
+            <div className={cn('w-6 h-6 rounded flex items-center justify-center', selectedGroupInfo.color)}><DynamicIcon name={selectedGroupInfo.icon} size={14} /></div>
+            <span className="font-medium">{selectedGroupInfo.label}</span>
+            {formData.categories.length > 0 && (
+              <><ChevronRight size={12} className="text-muted-foreground" /><span className="text-muted-foreground truncate">{formData.categories.map(cat => { const config = configs.find(c => c.category === cat); return config?.displayName || cat; }).join(', ')}</span></>
+            )}
+            {formData.business_name.trim() && step >= 3 && <><span className="text-muted-foreground">|</span><span className="font-medium truncate">"{formData.business_name}"</span></>}
+          </div>
+        )}
+
+        {/* Step 1: What do you want to sell? (Unified search + browse) */}
+        {step === 1 && (
+          <>
+            <PendingCategoryRequestsBanner variant="inline" />
+            <CategorySearchPicker
+              formData={formData}
+              setFormData={setFormData}
+              groupedConfigs={groupedConfigs}
+              configs={configs}
+              handleCategoryChange={handleCategoryChange}
+              onContinue={() => {
+                if (formData.categories.length === 0) return;
+                setStep(2);
+              }}
+              onGroupResolved={(group) => {
+                if (!selectedGroup) setSelectedGroup(group);
+              }}
+              parentGroupInfos={parentGroupInfos}
+              sellerId={draftSellerId}
+              onboardingMode
+            />
+          </>
+        )}
+
+        {/* Step 2: Business Details */}
+        {step === 2 && (
+          <div className="space-y-5">
+            <button onClick={() => handleStepBack(1)} className="flex items-center gap-1 text-sm text-muted-foreground"><ArrowLeft size={16} />Change categories</button>
+            {rejectionFeedback && (
+              <div className="bg-destructive/10 border border-destructive/20 rounded-xl p-4 text-left">
+                <p className="text-xs font-semibold text-destructive mb-1">⚠️ Admin Feedback — Please address before resubmitting:</p>
+                <p className="text-sm text-foreground">{rejectionFeedback}</p>
+              </div>
+            )}
+            <div className="space-y-2"><Label htmlFor="business_name">Business Name *</Label><Input id="business_name" placeholder={groups.find(g => g.slug === selectedGroup)?.placeholder_hint || "e.g., Your Store Name"} value={formData.business_name} onChange={(e) => setFormData({ ...formData, business_name: e.target.value })} /></div>
+            <div className="space-y-2"><Label htmlFor="description">Description</Label><Textarea id="description" placeholder="Tell customers about what you offer..." value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} rows={3} /></div>
+            <div className="space-y-2"><Label>Availability Hours</Label><div className="grid grid-cols-2 gap-3"><div><Label htmlFor="start" className="text-xs text-muted-foreground">Opens at</Label><Input id="start" type="time" value={formData.availability_start} onChange={(e) => setFormData({ ...formData, availability_start: e.target.value })} /></div><div><Label htmlFor="end" className="text-xs text-muted-foreground">Closes at</Label><Input id="end" type="time" value={formData.availability_end} onChange={(e) => setFormData({ ...formData, availability_end: e.target.value })} /></div></div></div>
+            <div className="border rounded-lg p-4 space-y-4">
+              <div className="flex items-center justify-between"><div className="flex items-center gap-3"><Globe className="text-primary" size={20} /><div><p className="font-medium text-sm">Sell beyond my community</p><p className="text-xs text-muted-foreground">Allow buyers from nearby societies to order</p></div></div><Switch checked={formData.sell_beyond_community} onCheckedChange={(checked) => setFormData({ ...formData, sell_beyond_community: checked })} /></div>
+              {formData.sell_beyond_community && <div className="space-y-2 pt-2 border-t"><div className="flex items-center justify-between"><Label className="text-xs text-muted-foreground">Delivery Radius</Label><span className="text-sm font-medium text-primary">{formData.delivery_radius_km} km</span></div><Slider value={[formData.delivery_radius_km]} onValueChange={([v]) => setFormData({ ...formData, delivery_radius_km: v })} min={1} max={10} step={1} /><p className="text-[10px] text-muted-foreground">Buyers within {formData.delivery_radius_km} km of your society can order</p></div>}
+            </div>
+            {/* Per-category license requirements */}
+            {(() => {
+              const licenseCats = configs.filter(c => c.behavior && formData.categories.includes(c.category) && (c as any).requiresLicense);
+              // Also check raw DB data via category_config
+              const selectedCatConfigs = configs.filter(c => formData.categories.includes(c.category));
+              return selectedCatConfigs.map(catCfg => {
+                // We need to check requires_license from DB — fetch dynamically
+                return <CategoryLicensePrompt key={catCfg.id} categoryConfigId={catCfg.id} categoryName={catCfg.displayName} draftSellerId={draftSellerId} isOnboarding={true} onStatusChange={setLicenseStatus} />;
+              });
+            })()}
+            {/* Store Location */}
+            <StoreLocationPicker
+              latitude={formData.latitude}
+              longitude={formData.longitude}
+              label={formData.store_location_label}
+              onLocationSet={(lat, lng, _name, formattedAddress) => setFormData({ ...formData, latitude: lat, longitude: lng, store_location_label: formattedAddress || _name || formData.store_location_label || null })}
+              hasSociety={!!profile?.society_id}
+              existingStoreLocations={
+                (sellerProfiles || [])
+                  .filter((sp: any) => sp.latitude && sp.longitude && sp.id !== draftSellerId)
+                  .map((sp: any) => ({ id: sp.id, business_name: sp.business_name || 'Store', latitude: sp.latitude, longitude: sp.longitude, store_location_label: sp.store_location_label || null }))
+              }
+            />
+            <p className="text-xs text-muted-foreground text-center flex items-center justify-center gap-1"><ArrowRight size={12} />Next: Choose how buyers will interact with your store</p>
+            <Button className="w-full" onClick={() => { handleSetConfigSubStep(1); handleProceedToSettings(); }} disabled={isLoading || !formData.business_name.trim() || ((selectedGroupRow as any)?.license_mandatory && (!licenseStatus || licenseStatus === 'rejected'))}>{isLoading && <Loader2 className="animate-spin mr-2" size={18} />}Continue<ChevronRight size={16} className="ml-1" /></Button>
+          </div>
+        )}
+
+        {/* Step 3: Configure (Guided Sub-Steps) */}
+        {step === 3 && (
+          <div className="space-y-5">
+            <button onClick={() => {
+              if (configSubStep > 1) {
+                handleSetConfigSubStep(configSubStep - 1);
+              } else {
+                handleStepBack(2);
+              }
+            }} className="flex items-center gap-1 text-sm text-muted-foreground">
+              <ArrowLeft size={16} />{configSubStep > 1 ? 'Back' : 'Edit store details'}
+            </button>
+
+            <SubStepDots current={configSubStep} total={4} />
+
+            <AnimatePresence mode="wait">
+              {/* Sub-step 3a: How buyers interact */}
+              {configSubStep === 1 && (
+                <motion.div
+                  key="interaction"
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  transition={{ duration: 0.25 }}
+                  className="space-y-5"
+                >
+                  {(() => {
+                    const INTERACTION_ICONS: Record<string, typeof ShoppingCart> = { cart: ShoppingCart, booking: Calendar, inquiry: MessageCircle, contact: Phone };
+                    const INTERACTION_DESCRIPTIONS: Record<string, string> = {
+                      cart: 'Buyers purchase products directly with quantity',
+                      booking: 'Buyers select date & time slots to book',
+                      inquiry: 'Buyers send a request, you respond with details',
+                      contact: 'Buyers contact you directly — no transaction',
+                    };
+                    const primaryCat = formData.categories[0];
+                    const primaryConfig = configs.find((c: any) => c.category === primaryCat);
+                    const filteredActions = allActions;
+                    const uniqueModes = Array.from(new Set(filteredActions.map(a => a.checkout_mode)));
+                    const effectiveDefault = storeActionType || (primaryConfig as any)?.default_action_type || allActions.find(a => a.checkout_mode === 'cart')?.action_type || '';
+                    return (
+                      <>
+                        <div className="grid grid-cols-2 gap-3">
+                          {uniqueModes.map(mode => {
+                            const Icon = INTERACTION_ICONS[mode] || ShoppingCart;
+                            const modeActions = filteredActions.filter(a => a.checkout_mode === mode);
+                            const isSelected = modeActions.some(a => a.action_type === (storeActionType || effectiveDefault));
+                            return (
+                              <button
+                                key={mode}
+                                type="button"
+                                onClick={() => handleSetStoreActionType(modeActions[0]?.action_type || '')}
+                                className={cn(
+                                  'flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all text-center',
+                                  isSelected ? 'border-primary bg-primary/5 shadow-sm' : 'border-border hover:border-muted-foreground/30'
+                                )}
+                              >
+                                <div className={cn('w-10 h-10 rounded-full flex items-center justify-center', isSelected ? 'bg-primary/10' : 'bg-muted')}>
+                                  <Icon size={20} className={isSelected ? 'text-primary' : 'text-muted-foreground'} />
+                                </div>
+                                <span className="text-sm font-medium">{modeActions[0]?.cta_label || mode}</span>
+                                <span className="text-[10px] text-muted-foreground leading-tight">{INTERACTION_DESCRIPTIONS[mode]}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                        {primaryConfig && (
+                          <p className="text-xs text-muted-foreground text-center">💡 Suggested for {primaryConfig.displayName}. You can set different types per product later.</p>
+                        )}
+                      </>
+                    );
+                  })()}
+                  <Button className="w-full" onClick={() => {
+                    // Ensure a choice is persisted even if the seller didn't tap a tile —
+                    // the highlighted default tile is the value they accept by continuing.
+                    if (!storeActionType) {
+                      const primaryCat = formData.categories[0];
+                      const primaryConfig = configs.find((c: any) => c.category === primaryCat);
+                      const fallback = (primaryConfig as any)?.default_action_type || allActions.find(a => a.checkout_mode === 'cart')?.action_type || '';
+                      if (fallback) handleSetStoreActionType(fallback);
+                    }
+                    handleSetConfigSubStep(2);
+                  }}>
+                    Continue<ChevronRight size={16} className="ml-1" />
+                  </Button>
+                </motion.div>
+              )}
+
+              {/* Sub-step 3b: Delivery & Payments */}
+              {configSubStep === 2 && (
+                <motion.div
+                  key="delivery"
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  transition={{ duration: 0.25 }}
+                  className="space-y-5"
+                >
+                  <div className="border rounded-lg p-4 space-y-3">
+                    <div className="flex items-center gap-2"><Truck size={16} className="text-primary" /><h3 className="font-semibold text-sm">Fulfillment Mode</h3></div>
+                    <RadioGroup value={formData.fulfillment_mode} onValueChange={(value) => setFormData({ ...formData, fulfillment_mode: value })} className="space-y-2">
+                      {FULFILLMENT_OPTIONS.map((option) => { const Icon = option.icon; return (
+                        <label key={option.value} className={cn('flex items-center gap-3 p-3 rounded-lg border transition-all', option.disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer', !option.disabled && formData.fulfillment_mode === option.value ? 'border-primary bg-primary/5' : 'border-border hover:border-muted-foreground/30')}>
+                          <RadioGroupItem value={option.value} disabled={option.disabled} /><div className="flex-1"><span className="text-sm font-medium">{option.label}</span><p className="text-xs text-muted-foreground">{option.description}</p></div>
+                        </label>
+                      ); })}
+                    </RadioGroup>
+                    {formData.fulfillment_mode !== 'self_pickup' && (
+                      <p className="text-xs text-primary/80 bg-primary/5 rounded-lg p-2">💡 Delivery fee is managed by the platform admin</p>
+                    )}
+                    {(formData.fulfillment_mode === 'platform_delivery' || formData.fulfillment_mode === 'pickup_and_platform_delivery') && (
+                      <p className="text-xs text-muted-foreground bg-muted rounded-lg p-2">🚴 A delivery partner will be auto-assigned when the order is ready</p>
+                    )}
+                    {(formData.fulfillment_mode === 'seller_delivery' || formData.fulfillment_mode === 'pickup_and_seller_delivery') && <div className="space-y-2 pt-2 border-t"><Label htmlFor="delivery_note" className="text-xs text-muted-foreground">Delivery Note (optional)</Label><Input id="delivery_note" placeholder="e.g., Delivery available within 2 km, after 5 PM only" value={formData.delivery_note} onChange={(e) => setFormData({ ...formData, delivery_note: e.target.value })} /></div>}
+                  </div>
+                  <div className="border rounded-lg p-4 space-y-3">
+                    <div className="flex items-center gap-2"><Banknote size={16} className="text-primary" /><h3 className="font-semibold text-sm">Payment Methods</h3></div>
+                    <label className="flex items-center justify-between p-3 rounded-lg border cursor-pointer"><div className="flex items-center gap-3"><Banknote size={18} className="text-muted-foreground" /><div><span className="text-sm font-medium">Cash on Delivery</span><p className="text-xs text-muted-foreground">Accept cash payments</p></div></div><Switch checked={formData.accepts_cod} onCheckedChange={(checked) => setFormData({ ...formData, accepts_cod: checked })} /></label>
+                    <label className="flex items-center justify-between p-3 rounded-lg border cursor-pointer"><div className="flex items-center gap-3"><Smartphone size={18} className="text-muted-foreground" /><div><span className="text-sm font-medium">UPI Payment</span><p className="text-xs text-muted-foreground">Accept UPI / digital payments</p></div></div><Switch checked={formData.accepts_upi} onCheckedChange={(checked) => setFormData({ ...formData, accepts_upi: checked })} /></label>
+                    {formData.accepts_upi && <div className="space-y-2 pt-2 border-t"><Label htmlFor="upi_id" className="text-xs text-muted-foreground">UPI ID <span className="text-destructive">*</span></Label><UpiVpaInput value={formData.upi_id} onChange={(v) => setFormData({ ...formData, upi_id: v, upi_validation_status: undefined } as any)} businessName={formData.business_name} placeholder="e.g., yourname@upi" onStatusChange={(status, name) => setFormData({ ...formData, upi_validation_status: status, upi_holder_name: name } as any)} />{formData.accepts_upi && !formData.upi_id.trim() && <p className="text-xs text-destructive">Required when UPI is enabled</p>}</div>}
+                  </div>
+                  <Button className="w-full" onClick={() => handleSetConfigSubStep(3)} disabled={formData.accepts_upi && !formData.upi_id.trim()}>
+                    Continue<ChevronRight size={16} className="ml-1" />
+                  </Button>
+                </motion.div>
+              )}
+
+              {/* Sub-step 3c: Schedule & Availability */}
+              {configSubStep === 3 && (
+                <motion.div
+                  key="schedule"
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  transition={{ duration: 0.25 }}
+                  className="space-y-5"
+                >
+                  <div className="border rounded-lg p-4 space-y-3">
+                    <div className="flex items-center gap-2"><Clock size={16} className="text-primary" /><h3 className="font-semibold text-sm">Operating Days</h3></div>
+                    <p className="text-xs text-muted-foreground">Select the days your store is open</p>
+                    <div className="flex gap-1.5 flex-wrap">{DAYS_OF_WEEK.map((day) => <button key={day} type="button" onClick={() => toggleOperatingDay(day)} className={cn('px-3 py-2 rounded-lg text-xs font-medium transition-all border', formData.operating_days.includes(day) ? 'bg-primary text-primary-foreground border-primary' : 'bg-muted text-muted-foreground border-border hover:border-muted-foreground/30')}>{day}</button>)}</div>
+                    <p className="text-[10px] text-muted-foreground">{formData.operating_days.length === 7 ? 'Open every day' : formData.operating_days.length === 0 ? 'No days selected' : `Open ${formData.operating_days.length} day(s) a week`}</p>
+                  </div>
+                  {/* Service Availability — only when interaction requires it */}
+                  {(() => {
+                    const effectiveAction = storeActionType || (configs.find((c: any) => c.category === formData.categories[0]) as any)?.default_action_type || '';
+                    const actionConfig = allActions.find(a => a.action_type === effectiveAction);
+                    return actionConfig?.requires_availability && draftSellerId;
+                  })() && (
+                    <ServiceAvailabilityManager sellerId={draftSellerId!} onComplete={() => {}} />
+                  )}
+                  <Button className="w-full" onClick={() => handleSetConfigSubStep(4)} disabled={formData.operating_days.length === 0}>
+                    Continue<ChevronRight size={16} className="ml-1" />
+                  </Button>
+                </motion.div>
+              )}
+
+              {/* Sub-step 3d: Store Images */}
+              {configSubStep === 4 && (
+                <motion.div
+                  key="images"
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  transition={{ duration: 0.25 }}
+                  className="space-y-5"
+                >
+                  <div className="border rounded-lg p-4 space-y-3">
+                    <p className="text-xs text-muted-foreground">Add a profile photo and cover image to make your store stand out</p>
+                    {user && <div className="grid grid-cols-2 gap-3"><div className="space-y-1.5"><Label className="text-xs text-muted-foreground">Profile Photo</Label><CroppableImageUpload value={formData.profile_image_url} onChange={(url) => setFormData({ ...formData, profile_image_url: url })} folder="sellers" userId={user.id} aspectRatio="square" placeholder="Profile" cropAspect={1} beforePick={beforeImagePick} /></div><div className="space-y-1.5"><Label className="text-xs text-muted-foreground">Cover Image</Label><CroppableImageUpload value={formData.cover_image_url} onChange={(url) => setFormData({ ...formData, cover_image_url: url })} folder="sellers" userId={user.id} aspectRatio="video" placeholder="Cover" cropAspect={16 / 9} beforePick={beforeImagePick} /></div></div>}
+                  </div>
+                  <p className="text-xs text-muted-foreground text-center flex items-center justify-center gap-1"><ArrowRight size={12} />Next: Add at least one product or service to your catalog</p>
+                  <Button data-continue-products className="w-full" onClick={() => { handleSetConfigSubStep(1); handleProceedToProducts(storeActionType || undefined); }} disabled={isLoading}>
+                    {isLoading && <Loader2 className="animate-spin mr-2" size={18} />}Continue to Add Products<ChevronRight size={16} className="ml-1" />
+                  </Button>
+                  <button
+                    onClick={() => { handleSetConfigSubStep(1); handleProceedToProducts(storeActionType || undefined); }}
+                    className="w-full text-center text-sm text-muted-foreground hover:text-foreground transition-colors py-1"
+                  >
+                    Skip for now
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        )}
+
+        {/* Step 4: Add Products */}
+        {step === 4 && !draftSellerId && (
+          <div className="space-y-5 text-center py-8">
+            <div className="w-16 h-16 mx-auto rounded-full bg-destructive/10 flex items-center justify-center"><Package size={24} className="text-destructive" /></div>
+            <h3 className="text-lg font-semibold">Unable to load your store</h3>
+            <p className="text-sm text-muted-foreground">Your store draft could not be found. Please go back and try again.</p>
+            <Button variant="outline" onClick={() => setStep(2)}><ArrowLeft size={16} className="mr-1" />Go Back</Button>
+          </div>
+        )}
+        {step === 4 && draftSellerId && (
+          <div className="space-y-5">
+            <button onClick={() => handleStepBack(3)} className="flex items-center gap-1 text-sm text-muted-foreground"><ArrowLeft size={16} />Edit store settings</button>
+            <DraftProductManager sellerId={draftSellerId} categories={formData.categories} products={draftProducts} onProductsChange={setDraftProducts} beforePick={beforeImagePick} defaultActionType={storeActionType || undefined} />
+            <p className="text-xs text-muted-foreground text-center flex items-center justify-center gap-1"><ArrowRight size={12} />Next: Review everything and submit for approval</p>
+            <Button className="w-full" onClick={() => setStep(5)} disabled={draftProducts.length === 0}>Review & Submit<ChevronRight size={16} className="ml-1" /></Button>
+          </div>
+        )}
+
+        {/* Step 5: Review & Submit */}
+        {step === 5 && (() => {
+          const validationErrors: { key: string; message: string; step: number }[] = [];
+          if (draftProducts.length === 0) validationErrors.push({ key: 'products', message: 'Add at least one product before submitting', step: 4 });
+          if (formData.operating_days.length === 0) validationErrors.push({ key: 'days', message: 'Select at least one operating day', step: 3 });
+          if (formData.accepts_upi && !formData.upi_id?.trim()) validationErrors.push({ key: 'upi', message: 'Enter your UPI ID or disable UPI payments', step: 3 });
+          if (!formData.latitude && !profile?.society_id) validationErrors.push({ key: 'location', message: 'Set your store location', step: 2 });
+          if (formData.categories.length === 0) validationErrors.push({ key: 'categories', message: 'Select at least one category', step: 1 });
+          return (
+          <div className="space-y-5">
+            <button onClick={() => handleStepBack(4)} className="flex items-center gap-1 text-sm text-muted-foreground"><ArrowLeft size={16} />Edit products</button>
+
+            {validationErrors.length > 0 && (
+              <div className="rounded-lg border border-destructive/50 bg-destructive/5 p-4 space-y-3">
+                <h4 className="font-semibold text-destructive text-sm flex items-center gap-2"><X size={16} />Please fix the following before submitting</h4>
+                {validationErrors.map((err) => (
+                  <div key={err.key} className="flex items-center justify-between gap-2 text-sm">
+                    <span className="text-destructive">{err.message}</span>
+                    <Button variant="outline" size="sm" className="shrink-0 text-xs h-7 border-destructive/30 text-destructive hover:bg-destructive/10" onClick={() => handleStepBack(err.step)}>Fix this</Button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="bg-muted rounded-lg p-4 space-y-3">
+              <h4 className="font-semibold">Application Summary</h4>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between"><span className="text-muted-foreground">Business</span><span className="font-medium">{formData.business_name}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">Category</span><span className="font-medium">{selectedGroupInfo?.label}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">Products</span><span className="font-medium">{draftProducts.length} item(s)</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">Hours</span><span className="font-medium">{formData.availability_start} – {formData.availability_end}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">Location</span><span className="font-medium">{formData.latitude ? '📍 Set' : profile?.society_id ? 'Society default' : '⚠️ Not set'}</span></div>
+                <div className="border-t pt-2 mt-2 space-y-2">
+                  <div className="flex justify-between"><span className="text-muted-foreground">Fulfillment</span><span className="font-medium">{fulfillmentLabel}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Payments</span><span className="font-medium">{paymentMethods}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Operating Days</span><span className="font-medium">{formData.operating_days.length === 7 ? 'Every day' : `${formData.operating_days.length} day(s)`}</span></div>
+                  {(formData.profile_image_url || formData.cover_image_url) && <div className="flex justify-between"><span className="text-muted-foreground">Store Images</span><span className="font-medium">{[formData.profile_image_url && 'Profile', formData.cover_image_url && 'Cover'].filter(Boolean).join(' + ')}</span></div>}
+                </div>
+                <div className="border-t pt-2 mt-2"><div className="flex justify-between"><span className="text-muted-foreground">Cross-Society</span><span className="font-medium">{formData.sell_beyond_community ? `Yes (${formData.delivery_radius_km} km)` : 'No'}</span></div></div>
+              </div>
+            </div>
+            {draftSellerId && selectedGroupRow && (selectedGroupRow as any).requires_license && licenseStatus && (
+              <div className={cn('rounded-lg p-3 text-sm flex items-center gap-2', licenseStatus === 'approved' ? 'bg-success/10 text-success' : licenseStatus === 'pending' ? 'bg-warning/10 text-warning' : 'bg-muted/50 text-muted-foreground')}>
+                <Shield size={16} className="flex-shrink-0" /><span>{(selectedGroupRow as any).license_type_name || 'Business License'}: {licenseStatus === 'approved' ? 'Verified ✓' : licenseStatus === 'pending' ? 'Uploaded — awaiting admin verification' : 'Status: ' + licenseStatus}</span>
+              </div>
+            )}
+            <div className="bg-muted rounded-lg p-4 text-sm"><h4 className="font-semibold mb-2">What happens next?</h4><ul className="space-y-1 text-muted-foreground"><li>• Your full application will be reviewed by admin</li><li>• Once approved, your store goes live immediately</li><li>• Start receiving orders from neighbors!</li></ul></div>
+            <div className="border rounded-lg p-4 space-y-3">
+              <h4 className="font-semibold text-sm flex items-center gap-2"><Shield size={16} className="text-primary" />Seller Declaration</h4>
+              <div className="text-xs text-muted-foreground space-y-1"><p>By submitting this application, I declare that:</p><ul className="space-y-0.5 ml-3"><li>• I hold all necessary licenses and registrations</li><li>• I am solely responsible for product/service quality and safety</li><li>• I will comply with all applicable laws and regulations</li><li>• I will handle customer complaints professionally</li><li>• I understand that violations may lead to account suspension</li></ul></div>
+              <label className="flex items-start gap-3 cursor-pointer"><Checkbox checked={acceptedDeclaration} onCheckedChange={(checked) => setAcceptedDeclaration(checked as boolean)} className="mt-0.5" /><span className="text-sm font-medium">I agree to the seller declaration and community guidelines</span></label>
+            </div>
+            <Button className="w-full" size="lg" onClick={handleSubmit} disabled={isLoading || !acceptedDeclaration || validationErrors.length > 0}>{isLoading ? <Loader2 className="animate-spin mr-2" size={18} /> : <Send size={18} className="mr-2" />}Submit Application</Button>
+          </div>
+          );
+        })()}
+      </div>
+    </AppLayout>
+  );
+}
