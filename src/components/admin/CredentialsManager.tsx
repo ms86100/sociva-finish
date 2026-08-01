@@ -38,6 +38,7 @@ const CREDENTIAL_TABS = [
       { key: 'razorpay_key_id', label: 'Razorpay Key ID', description: 'Public key for UPI/card payments via Razorpay', placeholder: 'rzp_live_...' },
       { key: 'razorpay_key_secret', label: 'Razorpay Key Secret', description: 'Secret key for payment verification (keep private)', placeholder: 'Your secret key' },
       { key: 'razorpay_webhook_secret', label: 'Razorpay Webhook Secret', description: 'HMAC secret from Razorpay Dashboard → Webhooks (not the API key secret)', placeholder: 'whsec_...' },
+      { key: 'razorpay_route_enabled', label: 'Razorpay Route Payouts', description: 'Enable only after seller linked accounts exist. When false, settlements stay Eligible (owed) — never auto-marked paid out.', placeholder: 'false', isToggle: true },
     ] as (CredentialConfig & { isToggle?: boolean })[],
   },
   {
@@ -164,9 +165,16 @@ export function CredentialsManager() {
       const currentMode = setting?.value || 'upi_deep_link';
       const isRazorpay = currentMode === 'razorpay';
       const razorpayKeySet = !!settings.find(s => s.key === 'razorpay_key_id')?.value;
+      const webhookSecretRow = settings.find(s => s.key === 'razorpay_webhook_secret');
+      const webhookSecretSet = !!(webhookSecretRow?.value && webhookSecretRow?.is_active);
 
       return (
         <div key={config.key} className="space-y-3 p-4 rounded-xl bg-primary/5 border border-primary/20">
+          {!webhookSecretSet && (
+            <div className="rounded-lg px-3 py-2 text-xs bg-amber-500/10 text-amber-800 border border-amber-500/30">
+              Razorpay webhook secret is empty. Paste the signing secret from Razorpay Dashboard → Webhooks before enabling gateway mode. Do not reuse the API key secret.
+            </div>
+          )}
           <div className="flex items-center justify-between">
             <Label className="font-semibold text-sm">{config.label}</Label>
             <div className="flex items-center gap-2">
@@ -176,6 +184,10 @@ export function CredentialsManager() {
                 onCheckedChange={async (checked) => {
                   if (checked && !razorpayKeySet) {
                     toast.error('Configure Razorpay keys first before switching to gateway mode');
+                    return;
+                  }
+                  if (checked && !webhookSecretSet) {
+                    toast.error('Add and activate Razorpay webhook secret before switching to Razorpay mode');
                     return;
                   }
                   const newMode = checked ? 'razorpay' : 'upi_deep_link';
@@ -211,6 +223,59 @@ export function CredentialsManager() {
       );
     }
 
+    // Razorpay Route payouts gate (default off — no fake settled status)
+    if (config.isToggle && config.key === 'razorpay_route_enabled') {
+      const routeOn = setting?.is_active === true && String(setting?.value || '').toLowerCase() === 'true';
+      return (
+        <div key={config.key} className="space-y-3 p-4 rounded-xl bg-muted/30 border border-border/40">
+          <div className="flex items-center justify-between">
+            <Label className="font-semibold text-sm">{config.label}</Label>
+            <div className="flex items-center gap-2">
+              <span className={`text-xs font-medium ${!routeOn ? 'text-primary' : 'text-muted-foreground'}`}>Off</span>
+              <Switch
+                checked={routeOn}
+                onCheckedChange={async (checked) => {
+                  if (checked) {
+                    toast.error('Route transfers are not implemented yet. Create seller linked accounts first, then ask engineering to wire transfers.');
+                    return;
+                  }
+                  const newVal = 'false';
+                  setEditValues({ ...editValues, [config.key]: newVal });
+                  try {
+                    if (setting) {
+                      const { error } = await supabase.from('admin_settings').update({
+                        value: newVal,
+                        is_active: false,
+                        updated_at: new Date().toISOString(),
+                      }).eq('key', config.key);
+                      if (error) throw error;
+                    } else {
+                      const { error } = await supabase.from('admin_settings').insert({
+                        key: config.key,
+                        value: newVal,
+                        is_active: false,
+                        description: config.description,
+                      });
+                      if (error) throw error;
+                    }
+                    toast.success('Razorpay Route payouts remain off');
+                    await fetchSettings();
+                  } catch {
+                    toast.error('Failed to update Route setting');
+                  }
+                }}
+              />
+              <span className={`text-xs font-medium ${routeOn ? 'text-primary' : 'text-muted-foreground'}`}>On</span>
+            </div>
+          </div>
+          <p className="text-[11px] text-muted-foreground">{config.description}</p>
+          <div className="rounded-lg px-3 py-2 text-xs bg-warning/10 text-foreground border border-warning/30">
+            Settlements stay Eligible (owed). process-settlements will not mark Paid out without a real Route transfer.
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div key={config.key} className="space-y-2.5 p-3.5 rounded-xl bg-muted/30 border border-border/40">
         <div className="flex items-center justify-between">
@@ -229,6 +294,11 @@ export function CredentialsManager() {
           )}
         </div>
         <p className="text-[11px] text-muted-foreground">{config.description}</p>
+        {config.key === 'razorpay_webhook_secret' && !(editValues[config.key] || setting?.value) && (
+          <div className="rounded-lg px-3 py-2 text-xs bg-amber-500/10 text-amber-800 border border-amber-500/30">
+            Required for Razorpay mode. Copy the Webhook Secret from Razorpay Dashboard → Settings → Webhooks. Never paste the API key secret here.
+          </div>
+        )}
         <div className="flex gap-2">
           <div className="relative flex-1">
             {config.multiline ? (

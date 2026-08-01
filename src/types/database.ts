@@ -35,7 +35,7 @@ export interface BuilderMember {
   created_at: string;
 }
 export type VerificationStatus = 'pending' | 'approved' | 'rejected' | 'suspended' | 'draft';
-export type OrderStatus = 'placed' | 'accepted' | 'preparing' | 'ready' | 'picked_up' | 'delivered' | 'completed' | 'cancelled' | 'enquired' | 'quoted' | 'scheduled' | 'in_progress' | 'returned' | 'on_the_way' | 'arrived' | 'assigned' | 'requested' | 'confirmed' | 'rescheduled' | 'no_show' | 'at_gate' | 'payment_pending';
+export type OrderStatus = 'placed' | 'accepted' | 'preparing' | 'ready' | 'picked_up' | 'delivered' | 'completed' | 'cancelled' | 'enquired' | 'quoted' | 'scheduled' | 'in_progress' | 'returned' | 'on_the_way' | 'arrived' | 'assigned' | 'requested' | 'confirmed' | 'rescheduled' | 'no_show' | 'at_gate' | 'payment_pending' | 'awaiting_cod_confirmation';
 // ProductCategory is now an alias to ServiceCategory for backward compatibility
 export type ProductCategory = ServiceCategory;
 export type PaymentMethod = 'cod' | 'upi';
@@ -343,7 +343,8 @@ const ORDER_STATUS_MAP: Record<string, { label: string; color: string }> = {
   rescheduled: { label: 'Rescheduled', color: 'bg-orange-100 text-orange-800' },
   no_show: { label: 'No Show', color: 'bg-red-100 text-red-800' },
   at_gate: { label: 'At Gate', color: 'bg-cyan-100 text-cyan-800' },
-  payment_pending: { label: 'Confirming Payment…', color: 'bg-amber-100 text-amber-800' },
+  payment_pending: { label: 'Complete payment', color: 'bg-amber-100 text-amber-800' },
+  awaiting_cod_confirmation: { label: 'Confirm cash payment', color: 'bg-amber-100 text-amber-800' },
 };
 
 const UNKNOWN_STATUS = { label: 'Unknown', color: 'bg-gray-100 text-gray-600' };
@@ -357,7 +358,7 @@ const PAYMENT_STATUS_MAP: Record<string, { label: string; color: string }> = {
   paid: { label: 'Paid', color: 'bg-green-100 text-green-800' },
   failed: { label: 'Failed', color: 'bg-red-100 text-red-800' },
   refunded: { label: 'Refunded', color: 'bg-purple-100 text-purple-800' },
-  buyer_confirmed: { label: 'Buyer Confirmed', color: 'bg-blue-100 text-blue-800' },
+  buyer_confirmed: { label: 'Awaiting seller verification', color: 'bg-blue-100 text-blue-800' },
   disputed: { label: 'Disputed', color: 'bg-orange-100 text-orange-800' },
 };
 

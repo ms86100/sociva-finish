@@ -12130,6 +12130,7 @@ export type Database = {
         | "picked_up"
         | "delivered"
         | "payment_pending"
+        | "awaiting_cod_confirmation"
         | "on_the_way"
         | "arrived"
         | "assigned"
@@ -12301,6 +12302,7 @@ export const Constants = {
         "picked_up",
         "delivered",
         "payment_pending",
+        "awaiting_cod_confirmation",
         "on_the_way",
         "arrived",
         "assigned",

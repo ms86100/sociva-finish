@@ -138,8 +138,23 @@ export function useSellerSettings() {
       notify.block('Your store must be approved before you can go live');
       return;
     }
-    togglePauseRef.current = true;
     const newAvailability = !formData.is_available;
+    // Gate new go-live when online payments enabled without verified UPI (deep-link mode)
+    if (newAvailability) {
+      const wantsOnline =
+        formData.pickup_payment_config?.accepts_online ||
+        formData.delivery_payment_config?.accepts_online ||
+        formData.accepts_upi;
+      const upiValid =
+        (sellerProfile as any).upi_verification_status === 'valid' &&
+        !!(formData.upi_id || (sellerProfile as any).upi_id);
+      if (wantsOnline && !upiValid) {
+        // Allow go-live only if online is turned off — otherwise block
+        notify.block('Verify your UPI ID before going live with online payments, or turn off online payments and use COD only');
+        return;
+      }
+    }
+    togglePauseRef.current = true;
     setFormData(prev => ({ ...prev, is_available: newAvailability }));
     try {
       const { error } = await supabase.from('seller_profiles').update({ is_available: newAvailability }).eq('id', sellerProfile.id);

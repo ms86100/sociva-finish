@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import {
   Sheet,
   SheetContent,
@@ -25,7 +26,7 @@ interface UpiDeepLinkCheckoutProps {
   onPaymentFailed: () => void;
 }
 
-type CheckoutStep = 'pay' | 'confirm' | 'done' | 'failed';
+type CheckoutStep = 'pay' | 'confirm' | 'done' | 'failed' | 'blocked';
 
 const UPI_STEP_KEY = 'sociva_upi_checkout_step';
 const UPI_OPENED_APP_KEY = 'sociva_upi_opened_app';
@@ -42,10 +43,16 @@ export function UpiDeepLinkCheckout({
 }: UpiDeepLinkCheckoutProps) {
   const { formatPrice } = useCurrency();
   const [verification, setVerification] = useState<{ status?: string; holder?: string | null; verifiedAt?: string | null }>({});
+  const [verificationLoaded, setVerificationLoaded] = useState(false);
 
   useEffect(() => {
-    if (!sellerUpiId) return;
+    if (!sellerUpiId) {
+      setVerification({});
+      setVerificationLoaded(true);
+      return;
+    }
     let cancelled = false;
+    setVerificationLoaded(false);
     (async () => {
       const { data } = await supabase
         .from('seller_profiles')
@@ -53,16 +60,19 @@ export function UpiDeepLinkCheckout({
         .eq('upi_id', sellerUpiId)
         .maybeSingle();
       if (!cancelled && data) setVerification({ status: (data as any).upi_verification_status, holder: (data as any).upi_holder_name, verifiedAt: (data as any).upi_verified_at });
+      if (!cancelled) setVerificationLoaded(true);
     })();
     return () => { cancelled = true; };
   }, [sellerUpiId]);
+
+  const sellerUpiReady = verification.status === 'valid';
 
   const trustBadge = (() => {
     const s = verification.status;
     const stale = s === 'valid' && verification.verifiedAt && (Date.now() - new Date(verification.verifiedAt).getTime() > 30 * 24 * 3600 * 1000);
     if (s === 'valid' && !stale) return { tone: 'ok' as const, icon: ShieldCheck, text: verification.holder ? `Paying to: ${verification.holder}` : 'Verified seller UPI' };
-    if (s === 'stale' || stale) return { tone: 'warn' as const, icon: ShieldAlert, text: 'Seller UPI verification expired — proceed with caution.' };
-    if (s === 'unavailable' || s === 'unverified' || !s) return { tone: 'danger' as const, icon: ShieldX, text: 'Seller UPI is not verified. We cannot guarantee the recipient. Proceed at your own risk.' };
+    if (s === 'stale' || stale) return { tone: 'warn' as const, icon: ShieldAlert, text: 'Seller UPI verification expired. Payout is not available until the seller re-verifies.' };
+    if (s === 'unavailable' || s === 'unverified' || s === 'invalid' || !s) return { tone: 'danger' as const, icon: ShieldX, text: 'Seller payout / UPI is not set up. You cannot pay via UPI for this order.' };
     return null;
   })();
 
@@ -75,6 +85,7 @@ export function UpiDeepLinkCheckout({
   });
   const [screenshotFile, setScreenshotFile] = useState<File | null>(null);
   const [screenshotPreview, setScreenshotPreview] = useState<string | null>(null);
+  const [utrRef, setUtrRef] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const hasOpenedApp = useRef<boolean>(
     (() => { try { return sessionStorage.getItem(UPI_OPENED_APP_KEY) === 'true'; } catch { return false; } })()
@@ -124,6 +135,11 @@ export function UpiDeepLinkCheckout({
     }
   }, [isOpen]);
 
+  useEffect(() => {
+    if (!isOpen || !verificationLoaded) return;
+    if (!sellerUpiReady) setStep('blocked');
+  }, [isOpen, verificationLoaded, sellerUpiReady, setStep]);
+
   const completeFlow = useCallback(() => {
     if (completionTriggeredRef.current) return;
     completionTriggeredRef.current = true;
@@ -152,6 +168,10 @@ export function UpiDeepLinkCheckout({
   }, [isOpen, orderId, completeFlow]);
 
   const handlePayWithApp = (scheme: string) => {
+    if (!sellerUpiReady) {
+      toast.error('Seller payout / UPI is not set up', { id: 'upi-payout-not-ready' });
+      return;
+    }
     hasOpenedApp.current = true;
     try { sessionStorage.setItem(UPI_OPENED_APP_KEY, 'true'); } catch {}
     setStep('confirm');
@@ -178,8 +198,14 @@ export function UpiDeepLinkCheckout({
   };
 
   const confirmSubmittedRef = useRef(false);
+  const trimmedUtr = utrRef.trim();
+  const canSubmitProof = !!screenshotFile && trimmedUtr.length > 0;
 
   const handleSubmitConfirmation = async () => {
+    if (!canSubmitProof) {
+      toast.error('Upload a screenshot and enter the UTR / transaction ID', { id: 'upi-proof-required' });
+      return;
+    }
     // Idempotency guard: prevent double-submission on app-switch
     if (confirmSubmittedRef.current) return;
     confirmSubmittedRef.current = true;
@@ -187,28 +213,27 @@ export function UpiDeepLinkCheckout({
     try {
       let screenshotUrl: string | null = null;
 
-      if (screenshotFile) {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) throw new Error('Not authenticated');
-        const ext = screenshotFile.name.split('.').pop() || 'jpg';
-        const path = `${user.id}/${orderId}.${ext}`;
-        const { error: uploadErr } = await supabase.storage
-          .from('payment-proofs')
-          .upload(path, screenshotFile, { upsert: true });
-        if (uploadErr) throw uploadErr;
-        const { data: signedData } = await supabase.storage
-          .from('payment-proofs')
-          .createSignedUrl(path, 60 * 60 * 24 * 30);
-        const { data: urlData } = supabase.storage
-          .from('payment-proofs')
-          .getPublicUrl(path);
-        screenshotUrl = signedData?.signedUrl || urlData?.publicUrl || null;
-      }
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+      const ext = screenshotFile!.name.split('.').pop() || 'jpg';
+      const path = `${user.id}/${orderId}.${ext}`;
+      const { error: uploadErr } = await supabase.storage
+        .from('payment-proofs')
+        .upload(path, screenshotFile!, { upsert: true });
+      if (uploadErr) throw uploadErr;
+      const { data: signedData } = await supabase.storage
+        .from('payment-proofs')
+        .createSignedUrl(path, 60 * 60 * 24 * 30);
+      const { data: urlData } = supabase.storage
+        .from('payment-proofs')
+        .getPublicUrl(path);
+      screenshotUrl = signedData?.signedUrl || urlData?.publicUrl || null;
+      if (!screenshotUrl) throw new Error('Failed to get screenshot URL');
 
       const { error } = await supabase.rpc('confirm_upi_payment', {
         _order_id: orderId,
-        _upi_transaction_ref: '',
-        _payment_screenshot_url: screenshotUrl ?? undefined,
+        _upi_transaction_ref: trimmedUtr,
+        _payment_screenshot_url: screenshotUrl,
       });
       if (error) throw error;
 
@@ -227,12 +252,11 @@ export function UpiDeepLinkCheckout({
           .single();
 
         if (sellerProfile) {
-          const evidenceText = screenshotUrl ? 'Screenshot attached.' : 'No evidence provided.';
           await supabase.from('notification_queue').insert({
             user_id: sellerProfile.user_id,
             type: 'order',
             title: '💳 Payment Confirmation Needed',
-            body: `Buyer claims UPI payment for Order #${shortOrderId}. ${evidenceText} Please verify and confirm.`,
+            body: `Buyer claims UPI payment for Order #${shortOrderId}. Screenshot + UTR attached. Please verify and confirm.`,
             reference_path: `/orders/${orderId}`,
             payload: { orderId, status: 'buyer_confirmed', type: 'order' },
           } as any);
@@ -259,7 +283,7 @@ export function UpiDeepLinkCheckout({
       onClose();
       return;
     }
-    if (step === 'pay' && !hasOpenedApp.current) {
+    if ((step === 'pay' || step === 'blocked') && !hasOpenedApp.current) {
       try { sessionStorage.removeItem(UPI_STEP_KEY); sessionStorage.removeItem(UPI_OPENED_APP_KEY); } catch {}
       onPaymentFailed();
     }
@@ -286,9 +310,28 @@ export function UpiDeepLinkCheckout({
         </SheetHeader>
 
         <div className="py-4">
+          {step === 'blocked' && (
+            <div className="text-center space-y-5 py-4">
+              <div className="w-16 h-16 mx-auto rounded-full bg-destructive/10 flex items-center justify-center">
+                <ShieldX className="text-destructive" size={32} />
+              </div>
+              <div>
+                <p className="font-semibold text-lg">Seller payout not ready</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  This seller has not set up a verified UPI for payouts. Choose Cash on Delivery or try another seller.
+                </p>
+              </div>
+              <Button variant="outline" className="w-full" onClick={handleCancelOrder}>Close</Button>
+            </div>
+          )}
+
           {/* Step 1: Pay */}
           {step === 'pay' && (
             <div className="text-center space-y-5">
+              {!verificationLoaded ? (
+                <div className="flex justify-center py-8"><Loader2 className="animate-spin text-muted-foreground" size={24} /></div>
+              ) : (
+                <>
               <QRCodeDisplay value={upiLink} size={180} />
               <div>
                 <p className="font-semibold text-2xl">{formatPrice(amount)}</p>
@@ -324,13 +367,16 @@ export function UpiDeepLinkCheckout({
                   <button
                     key={app.scheme}
                     onClick={() => handlePayWithApp(app.scheme)}
-                    className={`${app.bg} ${app.text} rounded-xl py-3 px-2 text-sm font-semibold transition-transform active:scale-95`}
+                    disabled={!sellerUpiReady}
+                    className={`${app.bg} ${app.text} rounded-xl py-3 px-2 text-sm font-semibold transition-transform active:scale-95 disabled:opacity-50`}
                   >
                     {app.name}
                   </button>
                 ))}
               </div>
               <Button variant="outline" className="w-full" onClick={handleCancelOrder}>Cancel</Button>
+                </>
+              )}
             </div>
           )}
 
@@ -349,11 +395,25 @@ export function UpiDeepLinkCheckout({
 
               <div className="bg-muted/50 rounded-xl p-3.5">
                 <p className="text-xs text-muted-foreground leading-relaxed">
-                  Complete the payment using your UPI app. Once done, <span className="font-medium text-foreground">upload a screenshot of your payment</span> and tap <span className="font-medium text-foreground">"Confirm Payment"</span> to notify the seller.
+                  Complete the payment using your UPI app. Then upload a <span className="font-medium text-foreground">screenshot</span> and enter the <span className="font-medium text-foreground">UTR / transaction ID</span> before confirming.
                 </p>
               </div>
 
-              {/* Optional screenshot upload */}
+              <div className="space-y-2">
+                <label className="text-xs font-medium text-foreground">UTR / Transaction ID</label>
+                <Input
+                  value={utrRef}
+                  onChange={(e) => setUtrRef(e.target.value)}
+                  placeholder="Enter UTR from your UPI app"
+                  className="font-mono"
+                  autoComplete="off"
+                />
+                {!trimmedUtr && (
+                  <p className="text-xs text-destructive font-medium">UTR is required</p>
+                )}
+              </div>
+
+              {/* Required screenshot upload */}
               <div className="space-y-2">
                 {screenshotPreview ? (
                   <div className="relative rounded-xl overflow-hidden border border-border">
@@ -383,7 +443,7 @@ export function UpiDeepLinkCheckout({
                 <Button
                   className="w-full gap-2"
                   onClick={handleSubmitConfirmation}
-                  disabled={isSubmitting || !screenshotFile}
+                  disabled={isSubmitting || !canSubmitProof}
                 >
                   {isSubmitting ? (
                     <><Loader2 className="animate-spin" size={16} />Submitting...</>
@@ -401,7 +461,7 @@ export function UpiDeepLinkCheckout({
             </div>
           )}
 
-          {/* Done */}
+          {/* Done — claim submitted, not yet paid */}
           {step === 'done' && (
             <div className="text-center space-y-4 py-8">
               <div className="w-20 h-20 mx-auto rounded-full bg-accent/10 flex items-center justify-center">
@@ -409,7 +469,7 @@ export function UpiDeepLinkCheckout({
               </div>
               <div>
                 <p className="font-semibold text-accent">Payment Submitted!</p>
-                <p className="text-sm text-muted-foreground mt-1">Seller will verify and confirm your payment</p>
+                <p className="text-sm text-muted-foreground mt-1">Waiting for seller confirmation — your order is not placed yet</p>
               </div>
             </div>
           )}

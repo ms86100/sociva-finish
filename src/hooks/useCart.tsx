@@ -129,7 +129,7 @@ const CART_QUERY_KEY = ['cart-items'] as const;
 async function fetchCartItems(userId: string) {
   const { data, error } = await supabase
     .from('cart_items')
-    .select(`*, product:products(*, seller:seller_profiles(id, business_name, user_id, is_available, availability_start, availability_end, operating_days, profile_image_url, cover_image_url, primary_group, accepts_cod, accepts_upi, upi_id, fulfillment_mode, minimum_order_amount, daily_order_limit, pickup_payment_config, delivery_payment_config))`)
+    .select(`*, product:products(*, seller:seller_profiles(id, business_name, user_id, is_available, availability_start, availability_end, operating_days, profile_image_url, cover_image_url, primary_group, accepts_cod, accepts_upi, upi_id, upi_verification_status, fulfillment_mode, minimum_order_amount, daily_order_limit, pickup_payment_config, delivery_payment_config))`)
     .eq('user_id', userId);
   if (error) throw error;
   const items = (data as any as (CartItem & { product: Product })[]) || [];

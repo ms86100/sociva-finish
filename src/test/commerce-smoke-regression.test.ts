@@ -14,14 +14,17 @@ import { pickNotificationRoute } from '@/lib/notification-routes';
 
 /** Buyer→seller happy path (must stay in sync with order workflow) */
 const BUYER_SELLER_ACCEPT_FLOW: Record<string, string[]> = {
+  // UPI deep-link: stay payment_pending until seller verifies (verify_seller_payment → placed)
   payment_pending: ['placed', 'cancelled'],
+  // COD mid-flow cash confirm (distinct from unpaid checkout hold)
+  awaiting_cod_confirmation: ['completed'],
   placed: ['accepted', 'cancelled'],
   accepted: ['preparing', 'ready', 'cancelled'],
   preparing: ['ready', 'cancelled'],
   ready: ['picked_up', 'delivered', 'completed', 'cancelled'],
 };
 
-/** Seller alert hook only buzzes on actionable statuses — never payment_pending phantoms */
+/** Seller alert hook only buzzes on actionable statuses — never unpaid payment_pending phantoms */
 const SELLER_ACTIONABLE = ['placed', 'enquired', 'quoted', 'requested', 'scheduled', 'preparing'] as const;
 
 /** Listing-type → journey contracts (cart / book / enquire / contact) */
@@ -62,10 +65,16 @@ describe('OTP → order → seller accept smoke (status contract)', () => {
     expect(BUYER_SELLER_ACCEPT_FLOW.placed).toContain('accepted');
   });
 
-  it('payment_pending clears to placed before seller sees alert', () => {
+  it('payment_pending advances to placed only after seller payment verify (not buyer self-attest)', () => {
     expect(BUYER_SELLER_ACCEPT_FLOW.payment_pending).toContain('placed');
     expect(SELLER_ACTIONABLE).not.toContain('payment_pending' as any);
     expect(SELLER_ACTIONABLE).toContain('placed');
+  });
+
+  it('awaiting_cod_confirmation is distinct from unpaid payment_pending', () => {
+    expect(BUYER_SELLER_ACCEPT_FLOW.awaiting_cod_confirmation).toContain('completed');
+    expect(BUYER_SELLER_ACCEPT_FLOW.awaiting_cod_confirmation).not.toContain('placed');
+    expect(BUYER_SELLER_ACCEPT_FLOW.payment_pending).not.toContain('completed');
   });
 
   it('accepted continues the fulfillment path', () => {

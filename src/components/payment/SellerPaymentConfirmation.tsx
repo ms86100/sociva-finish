@@ -50,18 +50,18 @@ export function SellerPaymentConfirmation({
         await supabase.from('notification_queue').insert({
           user_id: order.buyer_id,
           type: 'order',
-          title: received ? '✅ Payment Verified' : '⚠️ Payment Dispute',
+          title: received ? '✅ Payment Verified' : '⚠️ Payment Not Received',
           body: received
             ? `Your UPI payment for Order #${shortId} has been confirmed by the seller.`
-            : `The seller could not verify your payment for Order #${shortId}. Please contact them.`,
+            : `The seller could not verify your payment for Order #${shortId}. The order was cancelled.`,
           reference_path: `/orders/${orderId}`,
-          payload: { orderId, status: received ? 'paid' : 'disputed', type: 'order' },
+          payload: { orderId, status: received ? 'paid' : 'cancelled', type: 'order' },
         } as any);
 
         supabase.functions.invoke('process-notification-queue').catch(() => {});
       }
 
-      toast.success(received ? 'Payment confirmed' : 'Payment marked as not received');
+      toast.success(received ? 'Payment confirmed' : 'Marked not received — order cancelled');
       onConfirmed();
     } catch (err) {
       console.error('Failed to update payment confirmation:', err);

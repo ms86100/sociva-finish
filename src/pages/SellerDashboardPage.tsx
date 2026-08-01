@@ -97,7 +97,7 @@ export default function SellerDashboardPage() {
     try {
       const { data: profile, error } = await supabase
         .from('seller_profiles')
-        .select('id, user_id, business_name, description, verification_status, is_available, rating, total_reviews, avg_response_minutes, completed_order_count, cancellation_rate, last_active_at, society_id, primary_group, latitude, longitude, rejection_note, operating_days, sell_beyond_community, delivery_radius_km, cover_image_url, profile_image_url, categories, is_featured, availability_start, availability_end, accepts_cod, accepts_upi, upi_id, created_at, updated_at, fulfillment_mode, minimum_order_amount, daily_order_limit')
+        .select('id, user_id, business_name, description, verification_status, is_available, rating, total_reviews, avg_response_minutes, completed_order_count, cancellation_rate, last_active_at, society_id, primary_group, latitude, longitude, rejection_note, operating_days, sell_beyond_community, delivery_radius_km, cover_image_url, profile_image_url, categories, is_featured, availability_start, availability_end, accepts_cod, accepts_upi, upi_id, upi_verification_status, pickup_payment_config, delivery_payment_config, created_at, updated_at, fulfillment_mode, minimum_order_amount, daily_order_limit')
         .eq('id', sellerId)
         .single();
 
@@ -173,6 +173,19 @@ export default function SellerDashboardPage() {
 
     try {
       const newVal = !sellerProfile.is_available;
+      if (newVal) {
+        const wantsOnline =
+          !!(sellerProfile as any).accepts_upi ||
+          !!(sellerProfile as any).pickup_payment_config?.accepts_online ||
+          !!(sellerProfile as any).delivery_payment_config?.accepts_online;
+        const upiValid =
+          (sellerProfile as any).upi_verification_status === 'valid' &&
+          !!(sellerProfile as any).upi_id;
+        if (wantsOnline && !upiValid) {
+          notify.block('Verify your UPI ID before going live with online payments, or disable online payments in Settings');
+          return;
+        }
+      }
       const { error } = await supabase
         .from('seller_profiles')
         .update({ is_available: newVal })

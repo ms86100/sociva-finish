@@ -55,7 +55,10 @@ interface DeriveOptions {
 // Internal status → phase mapping
 const STATUS_PHASE_MAP: Record<string, DisplayStatusResult['phase']> = {
   placed: 'placed',
+  // Unpaid checkout hold — not "order placed"
   payment_pending: 'placed',
+  // COD mid-flow cash confirm — not unpaid checkout
+  awaiting_cod_confirmation: 'delivered',
   enquired: 'placed',
   quoted: 'placed',
   accepted: 'preparing',
@@ -160,6 +163,32 @@ export function deriveDisplayStatus(options: DeriveOptions): DisplayStatusResult
     remainingDistance,
     hasRiderLocation,
   } = options;
+
+  // Honest labels for payment holds (before phase copy)
+  if (orderStatus === 'payment_pending') {
+    return {
+      text: isBuyerView ? 'Complete your payment' : 'Awaiting buyer payment',
+      etaText: null,
+      etaFlag: null,
+      progressPercent: 5,
+      phase: 'placed',
+      icon: 'CreditCard',
+      iconColor: 'text-amber-500 bg-amber-500/15',
+      emoji: '',
+    };
+  }
+  if (orderStatus === 'awaiting_cod_confirmation') {
+    return {
+      text: isBuyerView ? 'Waiting for cash confirmation' : 'Confirm cash received',
+      etaText: null,
+      etaFlag: null,
+      progressPercent: 90,
+      phase: 'delivered',
+      icon: 'Banknote',
+      iconColor: 'text-amber-500 bg-amber-500/15',
+      emoji: '',
+    };
+  }
 
   const phase = getPhase(orderStatus, flow);
   const progressPercent = computeProgressPercent(phase, orderStatus, flow, totalRouteDistance, remainingDistance);

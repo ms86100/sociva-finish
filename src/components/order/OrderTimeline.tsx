@@ -22,7 +22,8 @@ const ACTION_LABELS: Record<string, string> = {
 
 /** Buyer-facing copy — who did what, what happens next */
 const STATUS_LABELS: Record<string, string> = {
-  payment_pending: 'Confirming payment…',
+  payment_pending: 'Complete payment',
+  awaiting_cod_confirmation: 'Awaiting cash confirmation',
   pending: 'Order received — waiting for seller',
   placed: 'Order placed — waiting for seller to accept',
   accepted: 'Seller accepted — they are getting it ready',

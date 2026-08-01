@@ -13,10 +13,10 @@ import { ArrowLeft, Banknote, TrendingUp, Clock, CheckCircle2, AlertCircle } fro
 import { format } from 'date-fns';
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: typeof CheckCircle2 }> = {
-  eligible: { label: 'Eligible', color: 'bg-primary/10 text-primary border-primary/20', icon: Clock },
-  settled: { label: 'Settled', color: 'bg-success/10 text-success border-success/20', icon: CheckCircle2 },
-  processing: { label: 'Processing', color: 'bg-primary/10 text-primary border-primary/20', icon: Clock },
-  pending: { label: 'Pending', color: 'bg-warning/10 text-warning border-warning/20', icon: Clock },
+  eligible: { label: 'Eligible — payout pending Route setup', color: 'bg-primary/10 text-primary border-primary/20', icon: Clock },
+  settled: { label: 'Paid out', color: 'bg-success/10 text-success border-success/20', icon: CheckCircle2 },
+  processing: { label: 'Transfer in progress', color: 'bg-primary/10 text-primary border-primary/20', icon: Clock },
+  pending: { label: 'Pending eligibility', color: 'bg-warning/10 text-warning border-warning/20', icon: Clock },
   on_hold: { label: 'On Hold', color: 'bg-destructive/10 text-destructive border-destructive/20', icon: AlertCircle },
 };
 
@@ -88,9 +88,9 @@ export default function SellerPayoutsPage() {
 
       <div className="p-4 space-y-4">
         <div className="rounded-xl border border-warning/30 bg-warning/10 px-3 py-3 text-sm">
-          <p className="font-medium text-foreground">Payout ledger only</p>
+          <p className="font-medium text-foreground">Ledger only — not a bank payout</p>
           <p className="text-xs text-muted-foreground mt-1">
-            Rows below track amounts owed after delivery. Automatic bank settlement (Razorpay Route) is not enabled — “Settled” will not appear from cron until a real transfer is wired.
+            These rows track amounts owed after delivery. Razorpay Route automatic transfers are not enabled, so “Eligible” means payout is pending platform Route setup — money has not been transferred.
           </p>
         </div>
 
@@ -99,14 +99,14 @@ export default function SellerPayoutsPage() {
           <Card>
             <CardContent className="p-4 text-center">
               <TrendingUp size={20} className="mx-auto text-success mb-1" />
-              <p className="text-xs text-muted-foreground">Total Settled</p>
+              <p className="text-xs text-muted-foreground">Actually paid out</p>
               <p className="text-lg font-bold text-success tabular-nums">{formatPrice(totalSettled)}</p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-4 text-center">
               <Clock size={20} className="mx-auto text-warning mb-1" />
-              <p className="text-xs text-muted-foreground">Pending / Eligible</p>
+              <p className="text-xs text-muted-foreground">Owed (pending / eligible)</p>
               <p className="text-lg font-bold text-warning tabular-nums">{formatPrice(totalPending)}</p>
             </CardContent>
           </Card>

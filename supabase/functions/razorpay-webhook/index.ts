@@ -8,28 +8,23 @@ const corsHeaders = {
 };
 
 async function getRazorpayWebhookSecret(supabase: any): Promise<string | null> {
-  // Prefer dedicated webhook secret — API key secret is NOT the webhook HMAC secret
+  // Prefer dedicated webhook secret — API key secret is NOT the webhook HMAC secret.
+  // Fail closed: do not fall back to razorpay_key_secret (wrong secret → false accepts / rejects).
   const { data: settings } = await supabase
     .from('admin_settings')
     .select('key, value, is_active')
-    .in('key', ['razorpay_webhook_secret', 'razorpay_key_secret']);
+    .eq('key', 'razorpay_webhook_secret');
 
-  const map: Record<string, string> = {};
-  for (const r of settings || []) {
-    if (r.value && r.is_active) map[r.key] = r.value;
-  }
-
-  if (map.razorpay_webhook_secret) return map.razorpay_webhook_secret;
+  const row = (settings || []).find((r: any) => r.value && r.is_active);
+  if (row?.value) return row.value;
 
   const envWebhook = Deno.env.get('RAZORPAY_WEBHOOK_SECRET');
   if (envWebhook) return envWebhook;
 
-  // Fallback with warning — wrong secret will fail verification in production
-  if (map.razorpay_key_secret) {
-    console.warn('[razorpay-webhook] Using razorpay_key_secret as HMAC fallback — set razorpay_webhook_secret');
-    return map.razorpay_key_secret;
-  }
-  return Deno.env.get('RAZORPAY_KEY_SECRET') || null;
+  console.error(
+    '[razorpay-webhook] razorpay_webhook_secret missing or inactive — paste Webhook Secret from Razorpay Dashboard → Webhooks. Refusing to verify with API key secret.',
+  );
+  return null;
 }
 
 async function verifySignature(body: string, signature: string, secret: string): Promise<boolean> {

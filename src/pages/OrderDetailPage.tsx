@@ -73,12 +73,13 @@ const DeliveryMapView = lazy(() => import('@/components/delivery/DeliveryMapView
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function PaymentConfirmingBanner() {
+function PaymentConfirmingBanner({ paymentStatus }: { paymentStatus?: string | null }) {
   const [dots, setDots] = useState('');
   useEffect(() => {
     const i = setInterval(() => setDots(d => d.length >= 3 ? '' : d + '.'), 500);
     return () => clearInterval(i);
   }, []);
+  const awaitingSeller = paymentStatus === 'buyer_confirmed';
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.96 }}
@@ -87,9 +88,13 @@ function PaymentConfirmingBanner() {
       className="bg-warning/10 border border-warning/20 rounded-xl p-4 text-center"
     >
       <span className="text-2xl">💳</span>
-      <p className="text-sm font-semibold text-warning mt-1">Confirming payment{dots}</p>
+      <p className="text-sm font-semibold text-warning mt-1">
+        {awaitingSeller ? `Awaiting seller confirmation${dots}` : `Confirming payment${dots}`}
+      </p>
       <p className="text-xs text-muted-foreground mt-0.5">
-        Don’t close this screen — we’ll move your order to the seller as soon as payment clears.
+        {awaitingSeller
+          ? 'Your payment claim was submitted. The seller must verify before the order is placed.'
+          : 'Don’t close this screen — complete UPI confirmation with screenshot and UTR.'}
       </p>
       <Button variant="outline" size="sm" className="mt-3 text-xs font-semibold border-warning/40 text-warning" onClick={() => window.location.reload()}>
         <RefreshCw size={12} className="mr-1" />
@@ -731,7 +736,7 @@ export default function OrderDetailPage() {
           )}
 
           {o.isBuyerView && order.status === 'payment_pending' && (
-            <PaymentConfirmingBanner />
+            <PaymentConfirmingBanner paymentStatus={(order as any).payment_status} />
           )}
 
           {o.isSellerView && order.auto_cancel_at && !isTerminalStatus(o.flow, order.status) && <UrgentOrderTimer autoCancelAt={order.auto_cancel_at} onTimeout={o.handleTimeout} variant="seller" />}
@@ -1016,8 +1021,8 @@ export default function OrderDetailPage() {
             />
           )}
 
-          {/* COD Payment Confirmation */}
-          {o.isSellerView && (order as any).payment_type === 'cod' && (order as any).payment_status !== 'paid' && isSuccessfulTerminal(o.flow, order.status) && (
+          {/* COD Payment Confirmation — mid-flow awaiting_cod_confirmation or successful terminal */}
+          {o.isSellerView && (order as any).payment_type === 'cod' && (order as any).payment_status !== 'paid' && (order.status === 'awaiting_cod_confirmation' || isSuccessfulTerminal(o.flow, order.status)) && (
             <SellerCodConfirmation
               orderId={order.id}
               amount={order.total_amount}

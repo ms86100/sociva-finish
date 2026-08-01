@@ -27,10 +27,10 @@ export function useSellerHealth(sellerId: string | null) {
     queryFn: async (): Promise<SellerHealthData> => {
       if (!sellerId) return { checks: [], passCount: 0, totalChecks: 0, isFullyVisible: false, criticalBlockers: 0 };
 
-      const [profileRes, productRes, licenseRes, categoryRes, groupRes] = await Promise.all([
+      const [profileRes, productRes, licenseRes, categoryRes, groupRes, gatewayRes] = await Promise.all([
         supabase
           .from('seller_profiles')
-          .select('verification_status, is_available, sell_beyond_community, delivery_radius_km, primary_group, categories, society_id, description, profile_image_url, cover_image_url, availability_start, availability_end, operating_days, latitude, longitude, societies:societies!seller_profiles_society_id_fkey(latitude, longitude)')
+          .select('verification_status, is_available, sell_beyond_community, delivery_radius_km, primary_group, categories, society_id, description, profile_image_url, cover_image_url, availability_start, availability_end, operating_days, latitude, longitude, upi_id, upi_verification_status, accepts_upi, pickup_payment_config, delivery_payment_config, societies:societies!seller_profiles_society_id_fkey(latitude, longitude)')
           .eq('id', sellerId)
           .single(),
         supabase
@@ -47,6 +47,11 @@ export function useSellerHealth(sellerId: string | null) {
         supabase
           .from('parent_groups')
           .select('slug, is_active, name'),
+        supabase
+          .from('admin_settings')
+          .select('value')
+          .eq('key', 'payment_gateway_mode')
+          .maybeSingle(),
       ]);
 
       const profile = profileRes.data as any;
@@ -123,6 +128,34 @@ export function useSellerHealth(sellerId: string | null) {
             // We don't have requires_license on the groups query above, so check licenses array
             // If no license record and there are products stuck, warn
           }
+        }
+      }
+
+      // C6: UPI verification required for online payments (UPI deep-link mode)
+      const gatewayMode = (gatewayRes.data as any)?.value || 'upi_deep_link';
+      const wantsOnline =
+        !!(profile.accepts_upi) ||
+        !!(profile.pickup_payment_config?.accepts_online) ||
+        !!(profile.delivery_payment_config?.accepts_online);
+      if (gatewayMode !== 'razorpay' && wantsOnline) {
+        if (profile.upi_verification_status === 'valid' && profile.upi_id) {
+          checks.push({
+            key: 'upi_verified',
+            label: 'UPI verified for online payments',
+            status: 'pass',
+            message: 'Buyers can pay you online via UPI.',
+            group: 'critical',
+          });
+        } else {
+          checks.push({
+            key: 'upi_verified',
+            label: 'UPI verification required',
+            status: 'fail',
+            message: 'Verify your UPI ID before accepting online payments. COD can still work.',
+            actionLabel: 'Verify UPI',
+            actionRoute: '/seller/settings',
+            group: 'critical',
+          });
         }
       }
 

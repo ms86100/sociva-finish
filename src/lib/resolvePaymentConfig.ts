@@ -16,6 +16,8 @@ interface SellerPaymentInfo {
   accepts_cod?: boolean;
   accepts_upi?: boolean;
   upi_id?: string | null;
+  /** Required to be 'valid' for UPI deep-link checkout */
+  upi_verification_status?: string | null;
 }
 
 interface PaymentModeInfo {
@@ -53,15 +55,22 @@ export function resolvePaymentConfig(
       // Razorpay is infra-level — if config says online, it's available
       acceptsOnline = configOnline;
     } else {
-      // UPI deep link mode — requires seller to have UPI ID configured
-      acceptsOnline = configOnline && !!(seller.accepts_upi) && !!(seller.upi_id);
+      // UPI deep link — requires accepts_upi, UPI ID, and verified payout VPA
+      acceptsOnline =
+        configOnline &&
+        !!(seller.accepts_upi) &&
+        !!(seller.upi_id) &&
+        seller.upi_verification_status === 'valid';
     }
   } else {
     // Legacy fallback
     if (paymentMode.isRazorpay) {
       acceptsOnline = true;
     } else {
-      acceptsOnline = !!(seller.accepts_upi) && !!(seller.upi_id);
+      acceptsOnline =
+        !!(seller.accepts_upi) &&
+        !!(seller.upi_id) &&
+        seller.upi_verification_status === 'valid';
     }
   }
 

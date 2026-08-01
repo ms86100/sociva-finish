@@ -513,10 +513,29 @@ export function useCartPage() {
     if (paymentMethod === 'cod' && !acceptsCod) { toast.error('This seller does not accept Cash on Delivery. Please select UPI.', { id: 'checkout-no-cod' }); setIsPlacingOrder(false); return; }
 
     if (paymentMethod === 'upi') {
-      if (!acceptsUpi) { toast.error('Online payment not available', { id: 'upi-unavailable' }); setIsPlacingOrder(false); return; }
+      if (!acceptsUpi) {
+        const unmetPayout = sellerGroups.some(g => {
+          const s = g.items[0]?.product?.seller as any;
+          return !s?.upi_id || s?.upi_verification_status !== 'valid';
+        });
+        toast.error(
+          unmetPayout
+            ? 'Seller payout / UPI is not set up. Choose Cash on Delivery or try another seller.'
+            : 'Online payment not available',
+          { id: unmetPayout ? 'upi-payout-not-ready' : 'upi-unavailable' },
+        );
+        setIsPlacingOrder(false);
+        return;
+      }
       if (!paymentMode.isRazorpay) {
-        const firstSeller = sellerGroups[0]?.items[0]?.product?.seller as any;
-        if (!firstSeller?.upi_id) { toast.error('This seller is not accepting UPI payments right now', { id: 'upi-no-id' }); setIsPlacingOrder(false); return; }
+        for (const group of sellerGroups) {
+          const seller = group.items[0]?.product?.seller as any;
+          if (!seller?.upi_id || seller?.upi_verification_status !== 'valid') {
+            toast.error('Seller payout / UPI is not set up. Choose Cash on Delivery or try another seller.', { id: 'upi-payout-not-ready' });
+            setIsPlacingOrder(false);
+            return;
+          }
+        }
       }
       setOrderStep('creating');
       try {
@@ -739,17 +758,13 @@ export function useCartPage() {
     upiCompletionRef.current = true;
     setShowUpiDeepLink(false);
 
-    // Bug 2 fix: The confirm_upi_payment RPC is called inside UpiDeepLinkCheckout
-    // which handles payment_pending → placed transitions with proper validation.
-    // No direct .update() needed here — the RPC already ran before this callback fires.
-
-    toast.success('Payment submitted! Seller will verify shortly.', { id: 'upi-confirmed' });
+    // Buyer self-attest only — order stays payment_pending until seller verifies.
+    // Do not clear cart or treat this as a paid / placed success.
+    toast.message('Payment submitted — waiting for seller confirmation', { id: 'upi-awaiting-seller' });
     clearPaymentSession();
-    // Navigate FIRST — don't block on cart clear
-    navigate(pendingOrderIds.length === 1 ? `/orders/${pendingOrderIds[0]}` : '/orders');
+    const dest = pendingOrderIds.length === 1 ? `/orders/${pendingOrderIds[0]}` : '/orders';
     setPendingOrderIds([]);
-    // Background: clear cart + trigger notifications (non-blocking)
-    clearCartAndCache().catch(() => {});
+    navigate(dest);
     supabase.functions.invoke('process-notification-queue').catch(() => {});
   };
 
@@ -762,11 +777,18 @@ export function useCartPage() {
       // Check if payment was actually completed before cancelling
       const { data: recheckOrder } = await supabase.from('orders').select('payment_status').eq('id', pendingOrderIds[0]).single();
       if (recheckOrder?.payment_status === 'paid' || recheckOrder?.payment_status === 'buyer_confirmed') {
-        toast.success('Payment was already confirmed! Your order is active.', { id: 'upi-confirmed' });
-        await clearCartAndCache();
+        toast.message(
+          recheckOrder.payment_status === 'paid'
+            ? 'Payment already confirmed!'
+            : 'Payment already submitted — waiting for seller confirmation',
+          { id: 'upi-awaiting-seller' },
+        );
         clearPaymentSession();
         navigate(`/orders/${pendingOrderIds[0]}`);
         setPendingOrderIds([]);
+        if (recheckOrder.payment_status === 'paid') {
+          await clearCartAndCache();
+        }
         return;
       }
       try { await supabase.rpc('buyer_cancel_pending_orders', { _order_ids: pendingOrderIds }); } catch (err) { console.error('Failed to cancel unpaid orders:', err); }
@@ -825,7 +847,13 @@ export function useCartPage() {
           clearPaymentSession();
           setPendingOrderIds([]);
           const dest = ids.length === 1 ? `/orders/${ids[0]}` : '/orders';
-          toast.success('Payment already confirmed!', { id: 'retry-already-paid' });
+          const awaitingSeller = orders?.some(o => o.payment_status === 'buyer_confirmed');
+          toast.message(
+            awaitingSeller
+              ? 'Payment submitted — waiting for seller confirmation'
+              : 'Payment already confirmed!',
+            { id: awaitingSeller ? 'upi-awaiting-seller' : 'retry-already-paid' },
+          );
           navigate(dest);
           return;
         }

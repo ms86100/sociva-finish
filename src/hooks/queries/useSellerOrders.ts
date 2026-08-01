@@ -88,7 +88,8 @@ export function useSellerOrderStats(sellerId: string | null) {
           case 'returned':
           case 'no_show':
           case 'payment_pending':
-            // Terminal / non-actionable statuses — exclude from counts
+            // Unpaid phantoms stay hidden from counts; buyer claims need seller attention
+            if (row.payment_status === 'buyer_confirmed') pendingOrders++;
             break;
           case 'on_the_way':
           case 'at_gate':
@@ -157,7 +158,8 @@ export function useSellerOrdersInfinite(sellerId: string | null, filter: string 
         .eq('seller_id', sellerId!)
         .order('created_at', { ascending: false })
         .limit(PAGE_SIZE)
-        .neq('status', 'payment_pending');
+        // Hide unpaid payment_pending phantoms; keep buyer_confirmed claims for seller verify
+        .or('status.neq.payment_pending,payment_status.eq.buyer_confirmed');
 
       // Apply filter
       const nowIST = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
@@ -171,7 +173,9 @@ export function useSellerOrdersInfinite(sellerId: string | null, filter: string 
           query = query.in('status', ['enquired', 'quoted']);
           break;
         case 'pending':
-          query = query.in('status', ['placed', 'accepted', 'confirmed', 'requested', 'scheduled']);
+          query = query.or(
+            'status.in.(placed,accepted,confirmed,requested,scheduled),and(status.eq.payment_pending,payment_status.eq.buyer_confirmed)',
+          );
           break;
         case 'preparing':
           query = query.eq('status', 'preparing');

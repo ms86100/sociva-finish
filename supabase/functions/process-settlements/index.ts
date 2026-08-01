@@ -6,6 +6,16 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+/**
+ * Settlement eligibility cron.
+ *
+ * HONESTY CONTRACT:
+ * - Without Razorpay Route linked accounts + razorpay_route_enabled=true,
+ *   this function ONLY moves pending → eligible after cooldown/delivery/payment checks.
+ * - It never marks settlement_status=settled and never calls Route transfer APIs
+ *   unless route is explicitly enabled AND transfer credentials/accounts exist.
+ * - "Eligible" means: amount is owed / ready for payout — NOT paid out.
+ */
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -52,8 +62,19 @@ Deno.serve(async (req) => {
       );
     }
 
-    // 2. Fetch eligible settlements where cooldown has passed
-    const { data: eligibleSettlements, error: fetchErr } = await supabase
+    // Route payout gate — default OFF. Do not invent transfers.
+    const { data: routeSetting } = await supabase
+      .from("admin_settings")
+      .select("value, is_active")
+      .eq("key", "razorpay_route_enabled")
+      .maybeSingle();
+
+    const routeEnabled =
+      routeSetting?.is_active === true &&
+      String(routeSetting?.value || "").toLowerCase() === "true";
+
+    // 2. Fetch pending settlements where cooldown has passed
+    const { data: pendingSettlements, error: fetchErr } = await supabase
       .from("seller_settlements")
       .select("id, order_id, seller_id, net_amount, settlement_status")
       .eq("settlement_status", "pending")
@@ -61,9 +82,13 @@ Deno.serve(async (req) => {
 
     if (fetchErr) throw fetchErr;
 
-    if (!eligibleSettlements || eligibleSettlements.length === 0) {
+    if (!pendingSettlements || pendingSettlements.length === 0) {
       return new Response(
-        JSON.stringify({ processed: 0, message: "No eligible settlements" }),
+        JSON.stringify({
+          processed: 0,
+          route_enabled: routeEnabled,
+          message: "No pending settlements past cooldown",
+        }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
@@ -72,7 +97,6 @@ Deno.serve(async (req) => {
     const errors: { id: string; error: string }[] = [];
 
     // Bug 6 fix: Pre-fetch terminal statuses ONCE, filtered by workflow type per order
-    // Cache all terminal success flows grouped by transaction_type
     const { data: allTerminalRows } = await supabase
       .from("category_status_flows")
       .select("status_key, transaction_type")
@@ -87,19 +111,18 @@ Deno.serve(async (req) => {
       terminalByWorkflow.get(r.transaction_type)!.add(r.status_key);
     }
 
-    for (const settlement of eligibleSettlements) {
+    for (const settlement of pendingSettlements) {
       const { data: orderData } = await supabase
         .from("orders")
         .select("status, fulfillment_type, delivery_handled_by, order_type")
         .eq("id", settlement.order_id)
         .single();
 
-      // Determine the correct terminal statuses for this order's workflow
-      const orderWorkflow = orderData?.order_type || 'standard';
+      const orderWorkflow = orderData?.order_type || "standard";
       const relevantTerminals = terminalByWorkflow.get(orderWorkflow) || allTerminalStatuses;
 
-      const isNonPlatformDelivery = orderData?.fulfillment_type === 'self_pickup' ||
-        (orderData?.delivery_handled_by !== 'platform');
+      const isNonPlatformDelivery = orderData?.fulfillment_type === "self_pickup" ||
+        (orderData?.delivery_handled_by !== "platform");
 
       if (isNonPlatformDelivery) {
         if (!orderData || !relevantTerminals.has(orderData.status)) {
@@ -107,7 +130,6 @@ Deno.serve(async (req) => {
           continue;
         }
       } else {
-        // For platform delivery: check delivery_assignments
         const { data: delivery } = await supabase
           .from("delivery_assignments")
           .select("status")
@@ -120,7 +142,6 @@ Deno.serve(async (req) => {
         }
       }
 
-      // 4. Verify payment is confirmed
       const { data: payment } = await supabase
         .from("payment_records")
         .select("payment_status")
@@ -133,7 +154,8 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      // Mark eligible only — do NOT mark settled without a real Razorpay Route transfer
+      // Skip Route transfer — APIs/linked accounts are not wired.
+      // Mark eligible only — never settled without a real razorpay_transfer_id.
       const { error: eligibleErr } = await supabase
         .from("seller_settlements")
         .update({ settlement_status: "eligible" })
@@ -154,7 +176,11 @@ Deno.serve(async (req) => {
           order_id: settlement.order_id,
           seller_id: settlement.seller_id,
           net_amount: settlement.net_amount,
-          note: "Awaiting real payout transfer — not auto-settled",
+          note: routeEnabled
+            ? "Eligible only — razorpay_route_enabled is true but Route transfer APIs are not implemented; no money transferred."
+            : "Eligible — payout pending platform Route setup. Not transferred.",
+          route_enabled: routeEnabled,
+          transfer_attempted: false,
         },
       });
 
@@ -165,8 +191,10 @@ Deno.serve(async (req) => {
       JSON.stringify({
         processed,
         errors,
-        total_eligible: eligibleSettlements.length,
-        message: "Settlements marked eligible only. Automatic Route payout is not enabled.",
+        total_pending: pendingSettlements.length,
+        route_enabled: routeEnabled,
+        message:
+          "Settlements marked eligible only. No money transferred — Razorpay Route payouts are not active.",
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
