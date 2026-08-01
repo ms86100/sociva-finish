@@ -174,8 +174,19 @@ export function usePushNotificationsInternal() {
       }
 
       // Permission granted → register to get the APNs/FCM token
-      await PushNotifications.register();
-      pushLog('info', 'PN_REGISTER_CALLED');
+      try {
+        await PushNotifications.register();
+        pushLog('info', 'PN_REGISTER_CALLED');
+      } catch (regErr) {
+        pushLog('error', 'PN_REGISTER_THREW', {
+          error: String(regErr),
+          hint: Capacitor.getPlatform() === 'android'
+            ? 'Missing or invalid google-services.json / Firebase — push disabled gracefully'
+            : 'Push registration failed',
+        });
+        regStateRef.current = 'failed';
+        return;
+      }
 
       // The 'registration' listener (set up in the main effect) will handle token capture
       // Set a timeout to mark as failed if no token received
@@ -361,8 +372,16 @@ export function usePushNotificationsInternal() {
       // Listen for registration errors
       const errListener = await PushNotifications.addListener('registrationError', (error: any) => {
         if (instanceId !== activeInstanceId) return;
-        pushLog('error', 'REGISTRATION_ERROR', { error: JSON.stringify(error) });
+        const errStr = JSON.stringify(error);
+        pushLog('error', 'REGISTRATION_ERROR', { error: errStr, platform });
         regStateRef.current = 'failed';
+        // Android without google-services.json / Firebase: fail closed without crashing the app
+        if (platform === 'android') {
+          pushLog('warn', 'ANDROID_FCM_UNAVAILABLE', {
+            hint: 'Ensure android/app/google-services.json is present (see android-config/README.md). Push will no-op until Firebase is configured.',
+          });
+          console.warn('[Push] Android FCM registration failed — app continues without push. Check google-services.json.');
+        }
       });
       cleanupListeners.push(() => errListener.remove());
 

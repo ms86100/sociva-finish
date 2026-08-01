@@ -167,6 +167,27 @@ export function UpiDeepLinkCheckout({
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [isOpen, orderId, completeFlow]);
 
+  const openUpiIntent = async (url: string) => {
+    // Prefer Capacitor Browser on native (package visibility + intent handoff).
+    // Fall back to location assign (works better than window.open for custom schemes in WebView).
+    try {
+      const { Capacitor } = await import('@capacitor/core');
+      if (Capacitor.isNativePlatform()) {
+        try {
+          const { Browser } = await import('@capacitor/browser');
+          await Browser.open({ url });
+          return;
+        } catch (browserErr) {
+          console.warn('[UPI] Browser.open failed, falling back:', browserErr);
+        }
+        window.location.href = url;
+        return;
+      }
+    } catch { /* web */ }
+    const opened = window.open(url, '_blank');
+    if (!opened) window.location.href = url;
+  };
+
   const handlePayWithApp = (scheme: string) => {
     if (!sellerUpiReady) {
       toast.error('Seller payout / UPI is not set up', { id: 'upi-payout-not-ready' });
@@ -175,7 +196,7 @@ export function UpiDeepLinkCheckout({
     hasOpenedApp.current = true;
     try { sessionStorage.setItem(UPI_OPENED_APP_KEY, 'true'); } catch {}
     setStep('confirm');
-    window.open(buildUpiLink(scheme), '_blank');
+    void openUpiIntent(buildUpiLink(scheme));
   };
 
   const handleCopyUpi = () => {

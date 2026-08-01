@@ -40,7 +40,7 @@ export default function PrivacyPolicyPage() {
                 <h3 className="font-semibold mb-2">2. Information We Collect</h3>
                 <ul className="list-disc list-inside text-muted-foreground space-y-1">
                   <li><strong>Personal Information:</strong> Name, phone number, email address, block number, flat number, and society membership for identity verification and delivery.</li>
-                  <li><strong>Location Data:</strong> GPS coordinates during signup for residence verification using geofencing. Location data is used solely for verification and is not continuously tracked.</li>
+                  <li><strong>Location Data:</strong> GPS coordinates during signup for residence verification using geofencing. Separately, when you act as a <strong>seller or delivery partner</strong> and start an active delivery, we collect precise location in the foreground and may continue collecting it in the <strong>background</strong> for the duration of that delivery so buyers can track progress. Background location is used only for active deliveries, stops when the delivery ends or you stop sharing, and is not used for advertising.</li>
                   <li><strong>Order Information:</strong> Order history, items purchased, delivery preferences, and coupon usage.</li>
                   <li><strong>Payment Information:</strong> UPI IDs for payment processing. We do not store sensitive payment credentials.</li>
                   <li><strong>Communication Data:</strong> Messages exchanged between buyers and sellers regarding orders.</li>
@@ -53,6 +53,7 @@ export default function PrivacyPolicyPage() {
                 <ul className="list-disc list-inside text-muted-foreground space-y-1">
                   <li>Verify your residence in your registered society</li>
                   <li>Process and fulfill orders</li>
+                  <li>Provide real-time delivery tracking to buyers during active seller/partner deliveries (including background location while a delivery is in progress)</li>
                   <li>Facilitate buyer-seller communication</li>
                   <li>Send order updates and push notifications</li>
                   <li>Enforce society-level content isolation</li>
@@ -92,7 +93,7 @@ export default function PrivacyPolicyPage() {
               <section>
                 <h3 className="font-semibold mb-2">7. Data Retention</h3>
                 <p className="text-muted-foreground">
-                  Personal information is retained while your account is active. Order history is retained for 2 years for reference and legal compliance. GPS location data used for verification is not stored after the verification process. Upon account deletion, personal data is removed within 30 days, subject to legal retention requirements.
+                  Personal information is retained while your account is active. Order history is retained for 2 years for reference and legal compliance. GPS location used for signup verification is not stored after verification. Delivery tracking points collected during an active delivery are retained only as needed to show live progress and resolve disputes, then deleted or anonymized according to operational retention settings. Upon account deletion, personal data is removed within 30 days, subject to legal retention requirements.
                 </p>
               </section>
 
@@ -117,28 +118,35 @@ export default function PrivacyPolicyPage() {
               </section>
 
               <section>
-                <h3 className="font-semibold mb-2">10. Children's Privacy</h3>
+                <h3 className="font-semibold mb-2">10. Background Location (Delivery Tracking)</h3>
+                <p className="text-muted-foreground">
+                  If you deliver orders as a seller or delivery partner, Sociva may access your precise location while the app is in use and in the background during an active delivery. This lets buyers see live progress to their society gate or flat. Tracking starts only after an in-app disclosure and your permission, applies only to that delivery assignment, and stops when the delivery completes, fails, is cancelled, or you tap Stop Sharing. We do not sell location data or use background location for ads or unrelated profiling.
+                </p>
+              </section>
+
+              <section>
+                <h3 className="font-semibold mb-2">11. Children's Privacy</h3>
                 <p className="text-muted-foreground">
                   Our platform is not intended for users under 18 years of age. We do not knowingly collect information from children.
                 </p>
               </section>
 
               <section>
-                <h3 className="font-semibold mb-2">11. Data Protection Officer</h3>
+                <h3 className="font-semibold mb-2">12. Data Protection Officer</h3>
                 <p className="text-muted-foreground">
                   For any data privacy concerns or to exercise your rights, contact our Data Protection Officer through the app's Help & Support section or email {settings.dpoEmail}.
                 </p>
               </section>
 
               <section>
-                <h3 className="font-semibold mb-2">12. Changes to This Policy</h3>
+                <h3 className="font-semibold mb-2">13. Changes to This Policy</h3>
                 <p className="text-muted-foreground">
                   We may update this Privacy Policy from time to time. We will notify you of material changes through in-app notifications and update the "Last updated" date.
                 </p>
               </section>
 
               <section>
-                <h3 className="font-semibold mb-2">13. Grievance Redressal</h3>
+                <h3 className="font-semibold mb-2">14. Grievance Redressal</h3>
                 <p className="text-muted-foreground">
                   If you have any concerns about data privacy or wish to file a complaint, contact our Grievance Officer through the Help & Support section. We will acknowledge your complaint within 48 hours and resolve it within 30 days.
                 </p>

@@ -16,6 +16,20 @@ import { useCurrency } from '@/hooks/useCurrency';
 import { useBackgroundLocationTracking } from '@/hooks/useBackgroundLocationTracking';
 import { DeliveryCompletionOtpDialog } from '@/components/delivery/DeliveryCompletionOtpDialog';
 import { DeliveryActionCard } from '@/components/delivery/DeliveryActionCard';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { Capacitor } from '@capacitor/core';
+
+const BG_LOCATION_DISCLOSURE =
+  'Sociva collects your precise location in the background while this delivery is active so the buyer can track progress. Tracking stops when the delivery ends or you stop sharing. Location is not used for ads.';
 
 export default function DeliveryPartnerDashboardPage() {
   const { user, effectiveSocietyId } = useAuth();
@@ -26,6 +40,8 @@ export default function DeliveryPartnerDashboardPage() {
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [activeTrackingId, setActiveTrackingId] = useState<string | null>(null);
   const [otpOrderId, setOtpOrderId] = useState<string | null>(null);
+  const [locationDisclosureOpen, setLocationDisclosureOpen] = useState(false);
+  const [locationDisclosureAccepted, setLocationDisclosureAccepted] = useState(false);
 
   const { isTracking, startTracking, stopTracking, permissionDenied } = useBackgroundLocationTracking(activeTrackingId);
 
@@ -132,12 +148,21 @@ export default function DeliveryPartnerDashboardPage() {
     }
   }, [activeTrackingId]);
 
-  // Auto-start when tracking ID is set
+  // Prominent disclosure before background GPS (Play policy) — do not silently start on native
   useEffect(() => {
-    if (activeTrackingId && !isTracking) {
-      startTracking();
+    if (!activeTrackingId || isTracking || permissionDenied) return;
+    if (Capacitor.isNativePlatform() && !locationDisclosureAccepted) {
+      setLocationDisclosureOpen(true);
+      return;
     }
-  }, [activeTrackingId, isTracking, startTracking]);
+    startTracking();
+  }, [activeTrackingId, isTracking, startTracking, permissionDenied, locationDisclosureAccepted]);
+
+  const acceptLocationDisclosure = () => {
+    setLocationDisclosureAccepted(true);
+    setLocationDisclosureOpen(false);
+    setTimeout(() => startTracking(), 300);
+  };
 
   const updateDeliveryStatus = async (assignmentId: string, newStatus: string) => {
     setUpdatingId(assignmentId);
@@ -233,6 +258,26 @@ export default function DeliveryPartnerDashboardPage() {
   return (
     <AppLayout headerTitle="My Deliveries" showLocation={false}>
       <FeatureGate feature="delivery_management">
+      <AlertDialog open={locationDisclosureOpen} onOpenChange={(open) => {
+        setLocationDisclosureOpen(open);
+        if (!open && !locationDisclosureAccepted) setActiveTrackingId(null);
+      }}>
+        <AlertDialogContent className="rounded-2xl max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Allow background location?</AlertDialogTitle>
+            <AlertDialogDescription className="text-left space-y-2">
+              <span className="block">{BG_LOCATION_DISCLOSURE}</span>
+              <span className="block text-xs">
+                Choose <strong>Allow all the time</strong> / <strong>Always</strong> on the system prompt for tracking while the app is minimized.
+              </span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setActiveTrackingId(null)}>Not now</AlertDialogCancel>
+            <AlertDialogAction onClick={acceptLocationDisclosure}>I understand — Start</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <div className="p-4 space-y-4">
         {/* Partner Status Card */}
         <Card className="border-primary/20 bg-primary/5">

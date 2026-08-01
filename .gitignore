@@ -26,8 +26,21 @@ dist-ssr
 # Environment secrets
 .env
 .env.*
-!.env.example`n!**/.env.example
+!.env.example
+!**/.env.example
 
+# Android signing / Firebase (never commit real credentials)
+android/keystore.properties
+android/*.keystore
+android/*.jks
+**/sociva-release.keystore
+android/app/google-services.json
+android-config/google-services.json
+!android-config/google-services.json.example
 
 tmp/
+
+
+# Local keystore password backup — never commit
+sociva-release-keystore-SECRET.txt
 

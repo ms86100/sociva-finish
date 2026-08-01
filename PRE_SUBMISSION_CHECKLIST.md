@@ -88,8 +88,17 @@ keytool -genkey -v -keystore sociva-release.keystore -alias sociva -keyalg RSA -
 keytool -list -v -keystore sociva-release.keystore -alias sociva
 ```
 
-Copy the SHA-256 fingerprint and replace `SHA256_FINGERPRINT_PLACEHOLDER` in:
+Copy the SHA-256 fingerprint and replace `TODO_REPLACE_SHA256` in:
 `public/.well-known/assetlinks.json`
+
+See also `public/.well-known/ASSETLINKS_README.md` and `docs/ANDROID_SIGNING.md`.
+
+**Build signed AAB (CLI):**
+```bash
+npm run build && npx cap sync android
+cd android && ./gradlew bundleRelease
+```
+(Requires `android/keystore.properties` — copy from `keystore.properties.example`.)
 
 ---
 

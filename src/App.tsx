@@ -63,6 +63,7 @@ import { RouteErrorBoundary } from "@/components/RouteErrorBoundary";
 import { GlobalHapticListener } from "@/components/haptics/GlobalHapticListener";
 import { initializeMedianBridge } from "@/lib/median";
 import { useDeepLinks, consumePendingDeepLink } from "@/hooks/useDeepLinks";
+import { useAndroidBackButton } from "@/hooks/useAndroidBackButton";
 import { useSecurityOfficer } from "@/hooks/useSecurityOfficer";
 import { useAppLifecycle } from "@/hooks/useAppLifecycle";
 import { useReorderInterceptor } from "@/hooks/useReorderInterceptor";
@@ -349,6 +350,7 @@ function NavigationHandler() {
   }, [navigate]);
   useDeepLinks();
   useAppLifecycle();
+  useAndroidBackButton();
 
   // Warm secondary route chunks as soon as session is ready (bottom-nav pages are eager).
   useEffect(() => {

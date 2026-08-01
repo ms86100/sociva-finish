@@ -3,6 +3,16 @@ import { useBackgroundLocationTracking } from '@/hooks/useBackgroundLocationTrac
 import { Navigation, Loader2, AlertTriangle, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { useEffect, useRef, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { useSystemSettingsRaw } from '@/hooks/useSystemSettingsRaw';
@@ -16,8 +26,14 @@ interface SellerGPSTrackerProps {
   deliveryStatus?: string;
 }
 
+const BG_LOCATION_DISCLOSURE =
+  'Sociva collects your precise location in the background while this delivery is active so the buyer can track progress. Tracking stops when the delivery ends or you tap Stop Sharing. Location is not used for ads.';
+
 export function SellerGPSTracker({ assignmentId, orderId, autoStart = true, deliveryStatus }: SellerGPSTrackerProps) {
   const [resolvedAssignmentId, setResolvedAssignmentId] = useState<string | null>(assignmentId || null);
+  const [disclosureOpen, setDisclosureOpen] = useState(false);
+  const [disclosureAccepted, setDisclosureAccepted] = useState(false);
+  const [autoPrompted, setAutoPrompted] = useState(false);
 
   // Resolve assignmentId from orderId if not directly provided
   useEffect(() => {
@@ -69,14 +85,32 @@ export function SellerGPSTracker({ assignmentId, orderId, autoStart = true, deli
 
   const isTerminal = terminalSet.has(deliveryStatus || '');
 
-  // Delay auto-start by 500ms to ensure the native bridge is fully initialized on cold start
+  // Play policy: show prominent disclosure before enabling background location (do not silently auto-start on native)
   useEffect(() => {
-    if (!autoStart || !effectiveAssignmentId || isTracking || permissionDenied || isTerminal) return;
-    const timer = setTimeout(() => {
+    if (!autoStart || !effectiveAssignmentId || isTracking || permissionDenied || isTerminal || disclosureAccepted || autoPrompted) return;
+    setAutoPrompted(true);
+    if (isNative) {
+      setDisclosureOpen(true);
+    } else {
       startTracking();
-    }, isNative ? 500 : 0);
-    return () => clearTimeout(timer);
-  }, [autoStart, effectiveAssignmentId, isTerminal, isTracking, isNative, permissionDenied, startTracking]);
+    }
+  }, [autoStart, effectiveAssignmentId, isTerminal, isTracking, permissionDenied, disclosureAccepted, autoPrompted, isNative, startTracking]);
+
+  const beginTrackingAfterDisclosure = () => {
+    setDisclosureAccepted(true);
+    setDisclosureOpen(false);
+    setTimeout(() => {
+      startTracking();
+    }, isNative ? 300 : 0);
+  };
+
+  const requestStartWithDisclosure = () => {
+    if (isNative) {
+      setDisclosureOpen(true);
+      return;
+    }
+    startTracking();
+  };
 
   useEffect(() => {
     if (isTerminal && isTracking) {
@@ -130,6 +164,24 @@ export function SellerGPSTracker({ assignmentId, orderId, autoStart = true, deli
 
   return (
     <div className="bg-card border border-border rounded-xl p-4 space-y-3">
+      <AlertDialog open={disclosureOpen} onOpenChange={setDisclosureOpen}>
+        <AlertDialogContent className="rounded-2xl max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Allow background location?</AlertDialogTitle>
+            <AlertDialogDescription className="text-left space-y-2">
+              <span className="block">{BG_LOCATION_DISCLOSURE}</span>
+              <span className="block text-xs">
+                On the next screen, choose <strong>Allow all the time</strong> / <strong>Always</strong> if you want tracking to continue when the app is minimized.
+              </span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Not now</AlertDialogCancel>
+            <AlertDialogAction onClick={beginTrackingAfterDisclosure}>I understand — Start</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Navigation size={16} className="text-primary" />
@@ -153,6 +205,12 @@ export function SellerGPSTracker({ assignmentId, orderId, autoStart = true, deli
       {!isNative && (
         <div className="bg-warning/10 border border-warning/20 rounded-lg p-2.5">
           <p className="text-xs text-foreground">{keepOpenWarning}</p>
+        </div>
+      )}
+
+      {isNative && !isTracking && !permissionDenied && (
+        <div className="bg-muted/60 border border-border rounded-lg p-2.5">
+          <p className="text-xs text-muted-foreground">{BG_LOCATION_DISCLOSURE}</p>
         </div>
       )}
 
@@ -188,7 +246,7 @@ export function SellerGPSTracker({ assignmentId, orderId, autoStart = true, deli
       )}
 
       {!isTracking ? (
-        <Button onClick={startTracking} disabled={permissionDenied || isTerminal} className="w-full bg-primary text-primary-foreground h-10 gap-2">
+        <Button onClick={requestStartWithDisclosure} disabled={permissionDenied || isTerminal} className="w-full bg-primary text-primary-foreground h-10 gap-2">
           <Navigation size={14} />
           {startSharingLabel}
         </Button>
