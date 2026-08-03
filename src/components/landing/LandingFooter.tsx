@@ -39,6 +39,7 @@ export function LandingFooter() {
               <Link to="/terms" className="block text-sm text-muted-foreground hover:text-foreground">Terms & Conditions</Link>
               <Link to="/refund-policy" className="block text-sm text-muted-foreground hover:text-foreground">Refund Policy</Link>
               <Link to="/pricing" className="block text-sm text-muted-foreground hover:text-foreground">Pricing</Link>
+              <a href="#download" className="block text-sm text-muted-foreground hover:text-foreground">Download the app</a>
             </div>
           </div>
 

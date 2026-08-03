@@ -50,7 +50,7 @@ export function ParentGroupTabs({ activeGroup, onGroupChange, activeParentGroups
 
   if (isLoading) {
     return (
-      <div className="sticky top-[max(env(safe-area-inset-top,0px),3.25rem)] z-20 bg-background/80 backdrop-blur-xl border-b border-border/30 px-4 py-2">
+      <div className="sticky top-[max(var(--app-safe-top),3.25rem)] z-20 bg-background/80 backdrop-blur-xl border-b border-border/30 px-4 py-2">
         <div className="flex gap-2.5 overflow-x-auto scrollbar-hide">
           {[1, 2, 3].map(i => (
             <Skeleton key={i} className="w-28 h-10 rounded-full shrink-0" />
@@ -68,7 +68,7 @@ export function ParentGroupTabs({ activeGroup, onGroupChange, activeParentGroups
   ];
 
   return (
-    <div className="sticky top-[max(env(safe-area-inset-top,0px),3.25rem)] z-20 bg-background/80 backdrop-blur-xl border-b border-border/30">
+    <div className="sticky top-[max(var(--app-safe-top),3.25rem)] z-20 bg-background/80 backdrop-blur-xl border-b border-border/30">
       <div className="flex gap-2 overflow-x-auto scrollbar-hide px-4 py-2">
         {tabs.map((tab, index) => {
           const isAll = tab.value === '__all__';

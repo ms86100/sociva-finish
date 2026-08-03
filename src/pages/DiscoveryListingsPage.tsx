@@ -111,7 +111,7 @@ export default function DiscoveryListingsPage() {
   }, [categoryConfigs]);
 
   return (
-    <AppLayout showHeader={false}>
+    <AppLayout showHeader={false} safeTop={false}>
       <SafeHeader bordered={false}>
         <div className="px-4 pt-2 pb-2 space-y-2.5">
           <div className="flex items-center gap-2.5">

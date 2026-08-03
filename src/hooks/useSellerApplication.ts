@@ -12,10 +12,28 @@ import { toast } from 'sonner';
 import { friendlyError } from '@/lib/utils';
 import { notifyAdminsNewStoreApplication } from '@/lib/admin-notifications';
 import { notify } from '@/lib/notify';
+import { migrateOnboardingStep, NEW_ONBOARDING_TOTAL_STEPS, commerceModelFromActionType } from '@/lib/listing-intent';
+
+const ONBOARDING_VERSION_KEY = 'seller_onboarding_version';
+const ONBOARDING_VERSION = '2';
+const INTENT_PHRASE_KEY = 'listing_intent_phrase';
+const COMMERCE_MODEL_KEY = 'commerce_model';
+const SEED_PRODUCT_KEY = 'seed_product_name';
+const SOFT_TAG_KEY = 'soft_listing_tag';
+
+function readSession(key: string): string {
+  try { return sessionStorage.getItem(key) || ''; } catch { return ''; }
+}
+function writeSession(key: string, value: string) {
+  try {
+    if (value) sessionStorage.setItem(key, value);
+    else sessionStorage.removeItem(key);
+  } catch { /* */ }
+}
 
 export interface SubcategoryPreferences {
   v: number;
-  data: Record<string, { primary: string | null; others: string[] }>;
+  data: Record<string, { primary: string | null; others: string[]; customLabel?: string | null }>;
 }
 
 export interface PaymentConfigData {
@@ -94,6 +112,7 @@ export function useSellerApplication() {
       const next = typeof s === 'function' ? s(prev) : s;
       if (next >= 2) {
         localStorage.setItem('seller_onboarding_step', String(next));
+        localStorage.setItem(ONBOARDING_VERSION_KEY, ONBOARDING_VERSION);
       }
       return next;
     });
@@ -103,6 +122,29 @@ export function useSellerApplication() {
   const [draftProducts, setDraftProducts] = useState<any[]>([]);
   const [acceptedDeclaration, setAcceptedDeclaration] = useState(false);
   const [licenseStatus, setLicenseStatus] = useState<string | null>(null);
+
+  // Intent-first draft fields (sessionStorage — survive mid-flow refresh)
+  const [listingIntentPhrase, setListingIntentPhraseState] = useState(() => readSession(INTENT_PHRASE_KEY));
+  const [commerceModel, setCommerceModelState] = useState(() => readSession(COMMERCE_MODEL_KEY));
+  const [seedProductName, setSeedProductNameState] = useState(() => readSession(SEED_PRODUCT_KEY));
+  const [softListingTag, setSoftListingTagState] = useState(() => readSession(SOFT_TAG_KEY));
+
+  const setListingIntentPhrase = useCallback((phrase: string) => {
+    setListingIntentPhraseState(phrase);
+    writeSession(INTENT_PHRASE_KEY, phrase);
+  }, []);
+  const setCommerceModel = useCallback((model: string) => {
+    setCommerceModelState(model);
+    writeSession(COMMERCE_MODEL_KEY, model);
+  }, []);
+  const setSeedProductName = useCallback((name: string) => {
+    setSeedProductNameState(name);
+    writeSession(SEED_PRODUCT_KEY, name);
+  }, []);
+  const setSoftListingTag = useCallback((tag: string) => {
+    setSoftListingTagState(tag);
+    writeSession(SOFT_TAG_KEY, tag);
+  }, []);
 
   // Reload products from DB
   const reloadProducts = useCallback(async (sellerId: string) => {
@@ -119,7 +161,7 @@ export function useSellerApplication() {
     const checkExisting = async () => {
       if (!user) { setIsCheckingExisting(false); return; }
       try {
-        const { data } = await supabase.from('seller_profiles').select('id, user_id, business_name, description, categories, primary_group, availability_start, availability_end, accepts_cod, sell_beyond_community, delivery_radius_km, fulfillment_mode, delivery_note, accepts_upi, upi_id, operating_days, profile_image_url, cover_image_url, latitude, longitude, store_location_label, subcategory_preferences, verification_status, rejection_note, society_id, pickup_payment_config, delivery_payment_config').eq('user_id', user.id);
+        const { data } = await supabase.from('seller_profiles').select('id, user_id, business_name, description, categories, primary_group, availability_start, availability_end, accepts_cod, sell_beyond_community, delivery_radius_km, fulfillment_mode, delivery_note, accepts_upi, upi_id, operating_days, profile_image_url, cover_image_url, latitude, longitude, store_location_label, subcategory_preferences, verification_status, rejection_note, society_id, pickup_payment_config, delivery_payment_config, default_action_type').eq('user_id', user.id);
         if (data && data.length > 0) {
           // Look for draft to resume directly
           const draft = data.find((s: any) => s.verification_status === 'draft');
@@ -130,7 +172,12 @@ export function useSellerApplication() {
             await reloadProducts(draft.id);
             // Restore persisted step (survives WebView reload during image picker)
             const savedStep = parseInt(localStorage.getItem('seller_onboarding_step') || '2', 10);
-            const restoredStep = Math.max(2, Math.min(savedStep, 5));
+            const version = localStorage.getItem(ONBOARDING_VERSION_KEY);
+            const restoredStep = version === ONBOARDING_VERSION
+              ? Math.max(1, Math.min(savedStep, NEW_ONBOARDING_TOTAL_STEPS))
+              : migrateOnboardingStep(Math.max(1, Math.min(savedStep, 5)));
+            localStorage.setItem(ONBOARDING_VERSION_KEY, ONBOARDING_VERSION);
+            localStorage.setItem('seller_onboarding_step', String(restoredStep));
             setStep(restoredStep);
           } else {
             // For non-draft profiles, check status
@@ -192,9 +239,21 @@ export function useSellerApplication() {
     try {
       if (seller.default_action_type) {
         sessionStorage.setItem('onboarding_store_action_type', seller.default_action_type);
+        const model = commerceModelFromActionType(seller.default_action_type);
+        if (model) {
+          writeSession(COMMERCE_MODEL_KEY, model);
+          setCommerceModelState(model);
+        }
       }
     } catch { /* */ }
   }, []);
+
+  // Rehydrate commerce model React state from session (set by loadSellerDataIntoForm or prior steps)
+  useEffect(() => {
+    const stored = readSession(COMMERCE_MODEL_KEY);
+    if (stored && stored !== commerceModel) setCommerceModelState(stored);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draftSellerId]);
 
   // Check group conflict
   useEffect(() => {
@@ -243,7 +302,7 @@ export function useSellerApplication() {
 
   // Auto-save draft for license upload
   useEffect(() => {
-    if (step !== 2 || draftSellerId || isCheckingExisting || !formData.business_name.trim() || !selectedGroup) return;
+    if (step !== 4 || draftSellerId || isCheckingExisting || !formData.business_name.trim() || !selectedGroup) return;
     const groupRow = groups.find(g => g.slug === selectedGroup);
     if (!groupRow || !(groupRow as any).requires_license) return;
 
@@ -289,6 +348,8 @@ export function useSellerApplication() {
   const saveDraft = async (): Promise<string | null> => {
     if (!user) return null;
     if (!formData.business_name.trim()) { notify.block('Please enter a business name'); return null; }
+    if (!selectedGroup) { notify.block('Please choose a category before continuing'); return null; }
+    if (!formData.categories.length) { notify.block('Please select at least one category before continuing'); return null; }
     setIsLoading(true);
     try {
       // Read the seller's chosen buyer-interaction mode from the onboarding session
@@ -333,7 +394,7 @@ export function useSellerApplication() {
     } finally { setIsLoading(false); }
   };
 
-  const handleProceedToSettings = async () => { const id = await saveDraft(); if (id) setStep(3); };
+  const handleProceedToSettings = async () => { const id = await saveDraft(); if (id) setStep(5); };
   const handleProceedToProducts = async (storeActionType?: string) => {
     const id = await saveDraft();
     if (id) {
@@ -356,9 +417,9 @@ export function useSellerApplication() {
         }
       }
 
-      // Always reload products from DB when entering step 5
+      // Always reload products from DB when entering products step
       await reloadProducts(id);
-      setStep(4);
+      setStep(6);
     }
   };
 
@@ -469,7 +530,7 @@ export function useSellerApplication() {
       setSelectedGroup(group);
       setFormData(f => ({ ...f, categories: [], subcategory_preferences: { v: 1, data: {} } }));
     }
-    setTimeout(() => setStep(2), 350);
+    setTimeout(() => setStep(4), 350);
   };
 
   const selectedGroupInfo = parentGroupInfos.find(g => g.value === selectedGroup);
@@ -484,5 +545,9 @@ export function useSellerApplication() {
     saveDraft, handleProceedToSettings, handleProceedToProducts, handleSaveDraftAndExit,
     handleSubmit, setExistingSeller, setDraftSellerId, handleStepBack, handleGroupSelect,
     reloadProducts, submissionComplete, loadSellerDataIntoForm, rejectionFeedback, setRejectionFeedback,
+    listingIntentPhrase, setListingIntentPhrase,
+    commerceModel, setCommerceModel,
+    seedProductName, setSeedProductName,
+    softListingTag, setSoftListingTag,
   };
 }

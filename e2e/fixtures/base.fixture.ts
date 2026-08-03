@@ -11,7 +11,7 @@ export type TestFixtures = {
 
 export const test = base.extend<TestFixtures>({
   db: async ({}, use) => {
-    const url = process.env.SUPABASE_URL || 'https://ywhlqsgvbkvcvqlsniad.supabase.co';
+    const url = process.env.SUPABASE_URL || 'https://kkzkuyhgdvyecmxtmkpy.supabase.co';
     const key = process.env.SUPABASE_ANON_KEY || '';
     const client = createClient(url, key);
     await use(client);

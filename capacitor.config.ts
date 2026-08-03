@@ -38,8 +38,9 @@ const config: CapacitorConfig = {
       hostname: 'www.sociva.in',
       androidScheme: 'https',
       allowNavigation: [
-        'ywhlqsgvbkvcvqlsniad.supabase.co',
+        'kkzkuyhgdvyecmxtmkpy.supabase.co',
         'www.sociva.in',
+        'sociva.in',
         '*.razorpay.com',
         '*.razorpay.in',
       ],
@@ -48,16 +49,19 @@ const config: CapacitorConfig = {
 
   plugins: {
     SplashScreen: {
-      launchShowDuration: 700,
-      launchAutoHide: false,
+      launchShowDuration: 2500,
+      // Always auto-hide — slow emulators / large bundles can delay JS boot;
+      // without this, launchAutoHide:false leaves the native splash forever.
+      launchAutoHide: true,
       backgroundColor: '#1a1a2e',
       androidSplashResourceName: 'splash',
       iosSplashResourceName: 'LaunchScreen',
       showSpinner: false,
     },
     StatusBar: {
-      style: 'light',
-      backgroundColor: '#F97316',
+      // LIGHT = dark icons for light header. Overlay + CSS --app-safe-top padding.
+      style: 'LIGHT',
+      overlaysWebView: true,
     },
     PushNotifications: {
       presentationOptions: ['badge', 'sound', 'alert'],
@@ -89,7 +93,8 @@ const config: CapacitorConfig = {
   android: {
     allowMixedContent: isDev,
     captureInput: true,
-    webContentsDebuggingEnabled: isDev,
+    // Keep true through Play internal testing so WebView console is visible in chrome://inspect
+    webContentsDebuggingEnabled: true,
     // Allow UPI intent:// and upi:// deep links from Razorpay
     allowIntentUrls: true,
   },

@@ -58,6 +58,9 @@ export async function restoreAppPreferences(): Promise<void> {
     'live_activity_diagnostics_errors',
     'status_flow_terminal_cache',
     'status_flow_start_cache',
+    'sociva_pending_payment_session',
+    'sociva_upi_checkout_step',
+    'sociva_upi_opened_app',
   ];
 
   for (const prefix of prefixes) {

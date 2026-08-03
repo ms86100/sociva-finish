@@ -9,6 +9,17 @@
 
 @layer base {
   :root {
+    /* Capacitor JS sets concrete --app-safe-top / --safe-area-inset-* on native.
+       Defaults keep iOS env() working before/without that injection. */
+    --safe-area-inset-top: env(safe-area-inset-top, 0px);
+    --safe-area-inset-right: env(safe-area-inset-right, 0px);
+    --safe-area-inset-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-area-inset-left: env(safe-area-inset-left, 0px);
+    --app-safe-top: var(--safe-area-inset-top);
+    --app-safe-right: var(--safe-area-inset-right);
+    --app-safe-bottom: var(--safe-area-inset-bottom);
+    --app-safe-left: var(--safe-area-inset-left);
+
     /* ═══ LIGHT — Warm white, punchy green ═══ */
     --background: 40 20% 99%;
     --foreground: 240 10% 8%;
@@ -262,7 +273,7 @@
     top: 0;
     left: 0;
     right: 0;
-    height: env(safe-area-inset-top, 0px);
+    height: var(--app-safe-top);
     background: hsl(var(--header-bg));
     z-index: 9999;
     pointer-events: none;
@@ -421,13 +432,20 @@
   }
 
   .safe-bottom {
-    padding-bottom: constant(safe-area-inset-bottom);
-    padding-bottom: env(safe-area-inset-bottom, 0px);
+    padding-bottom: var(--app-safe-bottom);
   }
 
   .safe-top {
-    padding-top: constant(safe-area-inset-top);
-    padding-top: env(safe-area-inset-top, 0px);
+    padding-top: var(--app-safe-top);
+  }
+
+  /* Shell reserved status-bar space — avoid double padding on page helpers */
+  .app-content-safe-top {
+    padding-top: var(--app-safe-top, 28px);
+  }
+
+  .app-content-safe-top .safe-top {
+    padding-top: 0;
   }
 
   .product-image-bg {

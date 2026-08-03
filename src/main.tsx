@@ -45,7 +45,11 @@ function showFatalFallback() {
   root.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100dvh;font-family:system-ui;padding:2rem;text-align:center"><div><h2>Something went wrong</h2><p style="color:#666;margin-top:8px">The app may still be using an old cached version. Please refresh.</p><button id="retry-boot-btn" style="margin-top:16px;padding:10px 14px;border-radius:10px;border:1px solid #ddd;background:white;cursor:pointer">Reload App</button>${showClear ? '<button id="clear-btn" style="margin-top:8px;padding:10px 14px;border-radius:10px;border:1px solid #e55;background:#fee;color:#c00;cursor:pointer;display:block;width:100%">Clear Cache &amp; Retry</button>' : ''}</div></div>`;
 
   document.getElementById("retry-boot-btn")?.addEventListener("click", () => {
-    try { localStorage.removeItem('sb-kkzkuyhgdvyecmxtmkpy-auth-token'); } catch {}
+    try {
+      Object.keys(localStorage)
+        .filter((k) => k.startsWith('sb-') && k.endsWith('-auth-token'))
+        .forEach((k) => localStorage.removeItem(k));
+    } catch {}
     root.innerHTML = "";
     window.location.reload();
   });

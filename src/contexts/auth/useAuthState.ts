@@ -232,31 +232,50 @@ export function useAuthState() {
     }
   }, [clearAuthState, setPartial, state.user?.id]);
 
-  // Boot: Preferences → setSession BEFORE marking session restored
+  // Boot: Preferences → setSession, with hard timeouts so AppShellGate never spins forever.
   useEffect(() => {
     let cancelled = false;
     let unsubscribe: (() => void) | undefined;
+    const bootMarked = { current: false };
+
+    // Unlock the boot spinner once, but always apply session/user updates.
+    // Previously bootMarked early-return dropped SIGNED_IN after failsafe —
+    // login succeeded in Supabase while React user stayed null → /landing.
+    const markBootComplete = (partial: Partial<AuthState> = {}) => {
+      if (cancelled) return;
+      if (!bootMarked.current) {
+        bootMarked.current = true;
+        setPartial({
+          isLoading: false,
+          isSessionRestored: true,
+          ...partial,
+        });
+        hideSplashScreen();
+        return;
+      }
+      if (Object.keys(partial).length > 0) {
+        setPartial(partial);
+      }
+    };
+
+    const withTimeout = <T,>(promise: Promise<T>, ms: number, label: string): Promise<T | null> =>
+      Promise.race([
+        promise,
+        new Promise<null>((resolve) => {
+          setTimeout(() => {
+            console.warn(`[Auth] ${label} timed out after ${ms}ms`);
+            resolve(null);
+          }, ms);
+        }),
+      ]);
+
+    const failsafe = setTimeout(() => {
+      console.warn('[Auth] Boot failsafe — forcing isSessionRestored');
+      markBootComplete();
+    }, 6000);
 
     (async () => {
-      try {
-        const tokens = await restoreAuthSession();
-        if (tokens && !cancelled) {
-          const { error } = await supabase.auth.setSession({
-            access_token: tokens.access_token,
-            refresh_token: tokens.refresh_token,
-          });
-          if (error) {
-            console.warn('[Auth] setSession from Preferences failed:', error.message);
-          } else {
-            console.log('[Auth] Restored session via setSession from Preferences');
-          }
-        }
-      } catch (e) {
-        console.warn('[Auth] Native restore failed:', e);
-      }
-
-      if (cancelled) return;
-
+      // Register listener first so INITIAL_SESSION is never missed after a slow restore
       const { data: { subscription } } = supabase.auth.onAuthStateChange(
         (event, session) => {
           const newUserId = session?.user?.id;
@@ -276,14 +295,11 @@ export function useAuthState() {
           prevUserIdRef.current = newUserId;
 
           if (session?.user) {
-            setPartial({
+            markBootComplete({
               session,
               user: session.user,
-              isLoading: false,
-              isSessionRestored: true,
               isSigningOut: false,
             });
-            hideSplashScreen();
             if (profileFetchedFor.current !== session.user.id) {
               profileFetchedFor.current = session.user.id;
               setTimeout(() => fetchProfile(session.user.id), 0);
@@ -297,19 +313,65 @@ export function useAuthState() {
             }
             isExplicitSignOut.current = false;
             clearAuthState();
+            bootMarked.current = true;
           } else {
-            // INITIAL_SESSION with no user — restore already attempted
-            setPartial({ isLoading: false, isSessionRestored: true });
-            hideSplashScreen();
+            markBootComplete();
           }
         }
       );
 
       unsubscribe = () => subscription.unsubscribe();
+
+      try {
+        const tokens = await withTimeout(restoreAuthSession(), 2500, 'restoreAuthSession');
+        if (tokens && !cancelled) {
+          const result = await withTimeout(
+            supabase.auth.setSession({
+              access_token: tokens.access_token,
+              refresh_token: tokens.refresh_token,
+            }),
+            4000,
+            'setSession',
+          );
+          if (result && (result as any).error) {
+            console.warn('[Auth] setSession from Preferences failed:', (result as any).error.message);
+          } else if (result) {
+            console.log('[Auth] Restored session via setSession from Preferences');
+          }
+        }
+      } catch (e) {
+        console.warn('[Auth] Native restore failed:', e);
+      }
+
+      // Backup if listener still has not unlocked the UI
+      if (!cancelled && !bootMarked.current) {
+        try {
+          const sessionResult = await withTimeout(supabase.auth.getSession(), 3000, 'getSession');
+          const session = (sessionResult as any)?.data?.session ?? null;
+          if (session?.user) {
+            prevUserIdRef.current = session.user.id;
+            markBootComplete({
+              session,
+              user: session.user,
+              isSigningOut: false,
+            });
+            if (profileFetchedFor.current !== session.user.id) {
+              profileFetchedFor.current = session.user.id;
+              setTimeout(() => fetchProfile(session.user.id), 0);
+            }
+          } else {
+            markBootComplete();
+          }
+        } catch (e) {
+          console.warn('[Auth] getSession backup failed:', e);
+          markBootComplete();
+        }
+      }
     })();
 
     return () => {
       cancelled = true;
+      clearTimeout(failsafe);
       unsubscribe?.();
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps

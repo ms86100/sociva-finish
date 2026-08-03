@@ -71,7 +71,10 @@ function HeaderInner({
           className
         )}
       >
-        <div className="px-4 pt-[max(env(safe-area-inset-top,0px),0.5rem)] pb-2.5 space-y-2.5">
+        <div
+          className="px-4 pb-2.5 space-y-2.5"
+          style={{ paddingTop: 'calc(var(--app-safe-top, 28px) + 8px)' }}
+        >
           {title ? (
             <div className="flex items-center gap-2 min-h-[44px]">
               <Button

@@ -9,6 +9,13 @@ export interface AppLayoutOptions {
   showBack?: boolean;
   headerTitle?: string;
   className?: string;
+  /**
+   * When true, shell reserves status-bar space on <main>.
+   * Default: true whenever showHeader is false.
+   * Set false when the page uses <SafeHeader> or an edge-to-edge hero
+   * that positions its own controls with --app-safe-top.
+   */
+  safeTop?: boolean;
 }
 
 export const DEFAULT_LAYOUT_OPTIONS: Required<Omit<AppLayoutOptions, 'headerTitle' | 'showBack' | 'className'>> &
@@ -20,6 +27,7 @@ export const DEFAULT_LAYOUT_OPTIONS: Required<Omit<AppLayoutOptions, 'headerTitl
   showBack: undefined,
   headerTitle: undefined,
   className: undefined,
+  safeTop: false,
 };
 
 type SetLayoutOptions = (next: AppLayoutOptions) => void;
@@ -32,14 +40,17 @@ const AppLayoutPersistentContext = createContext(false);
 const AppLayoutOptionsContext = createContext<AppLayoutOptions>(DEFAULT_LAYOUT_OPTIONS);
 
 function normalizeOptions(next: AppLayoutOptions): AppLayoutOptions {
+  const showHeader = next.showHeader ?? true;
   return {
-    showHeader: next.showHeader ?? true,
+    showHeader,
     showNav: next.showNav ?? true,
     showCart: next.showCart ?? true,
     showLocation: next.showLocation ?? true,
     showBack: next.showBack,
     headerTitle: next.headerTitle,
     className: next.className,
+    // No default header → shell must reserve status-bar space unless page opts out
+    safeTop: next.safeTop ?? !showHeader,
   };
 }
 
@@ -52,7 +63,8 @@ export function optionsEqual(a: AppLayoutOptions, b: AppLayoutOptions): boolean 
     a.showLocation === b.showLocation &&
     a.showBack === b.showBack &&
     a.headerTitle === b.headerTitle &&
-    a.className === b.className
+    a.className === b.className &&
+    a.safeTop === b.safeTop
   );
 }
 

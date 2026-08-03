@@ -8,12 +8,12 @@ export function SellerToolsDocs() {
       <DocHero
         icon={Store}
         title="Seller Tools"
-        subtitle="6-step onboarding wizard, dashboard with performance metrics, product management with AI images, earnings tracking, and comprehensive store settings."
+        subtitle="7-step intent-first onboarding wizard, dashboard with performance metrics, product management with AI images, earnings tracking, and comprehensive store settings."
       />
 
       {/* ─── BecomeSellerPage ─── */}
       <DocSection title="BecomeSellerPage — Seller Onboarding" id="become-seller">
-        <p>The /become-seller route is a 6-step wizard for residents to register as sellers. Uses useSellerApplication hook for state management.</p>
+        <p>The /become-seller route is a 7-step wizard (intent → commerce model → taxonomy suggest → store → configure → products → review). Uses useSellerApplication hook for state management.</p>
 
         <DocStep number={1} title="Category Group Selection">
           <DocList items={[

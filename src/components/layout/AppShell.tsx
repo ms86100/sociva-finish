@@ -1,4 +1,5 @@
 // @ts-nocheck
+import { useEffect, useState } from 'react';
 import { Outlet, useLocation, Navigate } from 'react-router-dom';
 import { Header } from './Header';
 import { BottomNav } from './BottomNav';
@@ -22,6 +23,7 @@ function AppShellChrome() {
   const showHeader = options.showHeader !== false;
   const showNav = options.showNav !== false;
   const showCart = options.showCart !== false;
+  const safeTop = options.safeTop ?? !showHeader;
 
   return (
     <div className="min-h-[100dvh] bg-background">
@@ -34,7 +36,13 @@ function AppShellChrome() {
         />
       </div>
 
-      <main className={cn('pb-24', options.className)}>
+      <main
+        className={cn(
+          'pb-24',
+          safeTop && 'app-content-safe-top',
+          options.className,
+        )}
+      >
         <EnableNotificationsBanner />
         <Outlet />
       </main>
@@ -67,8 +75,16 @@ export function AppShell() {
 export function AppShellGate() {
   const { user, isLoading, isSessionRestored } = useAuth();
   const location = useLocation();
+  const [bootGaveUp, setBootGaveUp] = useState(false);
 
-  if (isLoading || !isSessionRestored) {
+  // Defense in depth: never leave the green spinner forever on slow devices
+  useEffect(() => {
+    if (isSessionRestored && !isLoading) return;
+    const t = setTimeout(() => setBootGaveUp(true), 7000);
+    return () => clearTimeout(t);
+  }, [isSessionRestored, isLoading]);
+
+  if ((isLoading || !isSessionRestored) && !bootGaveUp) {
     return (
       <div className="min-h-[100dvh] flex flex-col items-center justify-center bg-background gap-3">
         <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">

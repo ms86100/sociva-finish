@@ -108,7 +108,7 @@ export default function HelpPage({ sections: customSections }: HelpPageProps) {
   }, [customSections, settings.helpSectionsJson]);
 
   return (
-    <AppLayout showHeader={false} showNav={false}>
+    <AppLayout showHeader={false} showNav={false} safeTop={false}>
       <div className="pb-8">
         <SafeHeader>
           <div className="px-4 pb-3.5 flex items-center gap-3">

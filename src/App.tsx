@@ -259,9 +259,15 @@ function PageLoadingFallback() {
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, isLoading, isSessionRestored } = useAuth();
-  // Perf: only block on session restore (fast). Profile loads in the background;
-  // pages render their own skeletons while profile hydrates.
-  if (isLoading || !isSessionRestored) {
+  const [bootGaveUp, setBootGaveUp] = useState(false);
+
+  useEffect(() => {
+    if (isSessionRestored && !isLoading) return;
+    const t = setTimeout(() => setBootGaveUp(true), 7000);
+    return () => clearTimeout(t);
+  }, [isSessionRestored, isLoading]);
+
+  if ((isLoading || !isSessionRestored) && !bootGaveUp) {
     return (
       <div className="min-h-[100dvh] flex flex-col items-center justify-center bg-background gap-3">
         <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">

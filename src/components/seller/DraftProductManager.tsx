@@ -51,6 +51,10 @@ interface DraftProductManagerProps {
   onProductsChange: (products: DraftProduct[]) => void;
   beforePick?: () => void | Promise<void>;
   defaultActionType?: string;
+  /** Prefill first draft product name from listing intent */
+  seedProductName?: string;
+  /** Prefill subcategory from onboarding taxonomy suggestion */
+  seedSubcategoryId?: string | null;
 }
 
 // Action-type-driven check: does this product's action_type require availability?
@@ -67,6 +71,8 @@ export function DraftProductManager({
   onProductsChange,
   beforePick,
   defaultActionType,
+  seedProductName,
+  seedSubcategoryId,
 }: DraftProductManagerProps) {
   const { user } = useAuth();
   const { data: allActions = [] } = useActionTypeMap();
@@ -128,7 +134,7 @@ export function DraftProductManager({
   const { configs } = useCategoryConfigs();
   const { formatPrice, currencySymbol } = useCurrency();
   const [newProduct, setNewProduct] = useState<DraftProduct>(restoredDraft?.newProduct ?? {
-    name: '',
+    name: seedProductName || '',
     price: 0,
     mrp: null,
     discount_percentage: null,
@@ -137,7 +143,34 @@ export function DraftProductManager({
     is_veg: true,
     image_url: '',
     prep_time_minutes: null,
+    action_type: effectiveDefaultActionType || 'add_to_cart',
+    subcategory_id: seedSubcategoryId || null,
   });
+
+  // Keep category in sync if categories arrive after mount (common on draft resume)
+  useEffect(() => {
+    if (!newProduct.category && categories[0]) {
+      setNewProduct((prev) => ({ ...prev, category: categories[0] }));
+    }
+  }, [categories, newProduct.category]);
+
+  // Seed name + subcategory once from intent when starting a fresh add form
+  const seededRef = useRef(false);
+  useEffect(() => {
+    if (seededRef.current) return;
+    if (!seedProductName?.trim() && !seedSubcategoryId) return;
+    if (restoredDraft?.newProduct?.name) return;
+    if (products.length > 0 && !isAdding) return;
+    seededRef.current = true;
+    setNewProduct((prev) => ({
+      ...prev,
+      name: prev.name.trim() ? prev.name : (seedProductName?.trim() || prev.name),
+      subcategory_id: prev.subcategory_id || seedSubcategoryId || null,
+      action_type: prev.action_type || effectiveDefaultActionType || 'add_to_cart',
+      category: prev.category || categories[0] || '',
+    }));
+    if (!isAdding && products.length === 0) setIsAdding(true);
+  }, [seedProductName, seedSubcategoryId, restoredDraft, products.length, isAdding, effectiveDefaultActionType, categories]);
 
   // Auto-persist product form draft to localStorage with debounce
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
@@ -407,12 +440,12 @@ export function DraftProductManager({
       stock_quantity: null,
       low_stock_threshold: null,
       action_type: effectiveDefaultActionType || 'add_to_cart',
+      subcategory_id: seedSubcategoryId || null,
     });
     setIsAdding(false);
     setFieldErrors({});
     setEditingIndex(null);
     setAttributeBlocks([]);
-    setServiceFields(INITIAL_SERVICE_FIELDS);
     setServiceFields(INITIAL_SERVICE_FIELDS);
     localStorage.removeItem(DRAFT_KEY);
     sessionStorage.removeItem(DRAFT_KEY);

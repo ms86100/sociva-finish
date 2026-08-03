@@ -10,6 +10,7 @@ import { useParentGroups } from '@/hooks/useParentGroups';
 import { useResolvedCategoryAliases } from '@/hooks/useResolvedCategoryAliases';
 import { SubcategoryPickerDialog, SubcategorySelection } from '@/components/seller/SubcategoryPickerDialog';
 import { RequestCategoryDialog } from '@/components/seller/RequestCategoryDialog';
+import { CATEGORY_ALIAS_MAP, findBestSubcategoryMatch } from '@/lib/listing-intent';
 import { Search, Sparkles, X, Star, ChevronRight, ArrowRight, CheckCircle, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -17,88 +18,7 @@ import { useTypewriterPlaceholder } from '@/hooks/useTypewriterPlaceholder';
 import type { SellerFormData, SubcategoryPreferences } from '@/hooks/useSellerApplication';
 import type { CategoryConfig } from '@/types/categories';
 
-const ALIAS_MAP: Record<string, string[]> = {
-  daily_tiffin: ['home food', 'dabba', 'meal service', 'lunch delivery', 'tiffin', 'food delivery', 'home cooked'],
-  one_time_meals: ['special meals', 'party food', 'bulk food', 'catering food'],
-  breakfast_items: ['breakfast', 'morning food', 'idli', 'dosa', 'paratha', 'poha'],
-  cakes: ['cake', 'birthday cake', 'baking', 'pastry', 'bakery'],
-  cookies_biscuits: ['cookies', 'biscuits', 'baked snacks'],
-  traditional_sweets: ['sweets', 'mithai', 'laddu', 'barfi', 'halwa'],
-  fresh_juices: ['juice', 'fresh juice', 'fruit juice'],
-  pickles: ['pickle', 'achar', 'homemade pickle'],
-  party_catering: ['catering', 'party food', 'event food', 'bulk order'],
-  party_snacks: ['snacks', 'party snacks', 'finger food'],
-  organic_food: ['organic', 'natural food', 'health food'],
-  regional_cuisine: ['regional food', 'south indian', 'north indian', 'bengali food'],
-  healthy_diet: ['diet food', 'healthy meals', 'low calorie', 'keto'],
-  kids_meals: ['kids food', 'baby food', 'children meals'],
-  namkeen_chips: ['namkeen', 'chips', 'mixture', 'chivda'],
-  street_food: ['chaat', 'pani puri', 'vada pav', 'samosa'],
-  tea_coffee: ['tea', 'chai', 'coffee', 'beverages'],
-  smoothies: ['smoothie', 'protein shake', 'health drink'],
-  milkshakes: ['milkshake', 'cold coffee', 'lassi'],
-  homemade_chocolates: ['chocolate', 'homemade chocolate', 'truffle'],
-  jams_preserves: ['jam', 'preserve', 'marmalade'],
-  masala_spices: ['masala', 'spice', 'spices', 'garam masala'],
-  papad_fryums: ['papad', 'fryums', 'appalam'],
-  yoga: ['meditation', 'wellness', 'mindfulness', 'pranayama', 'fitness class', 'yoga therapy', 'mind body', 'stress relief', 'hatha', 'power yoga', 'prenatal yoga'],
-  ayurveda: ['panchakarma', 'ayurvedic therapy', 'ayurveda treatment', 'detox therapy', 'oil massage', 'shirodhara', 'naturopathy', 'holistic healing', 'body detox', 'wellness retreat', 'ayurvedic massage', 'herbal therapy', 'stress relief therapy', 'therapy', 'ayurveda', 'rejuvenation therapy', 'steam therapy'],
-  panchakarma_detox: ['panchakarma', 'detox program', 'body detox', 'cleansing therapy', 'detox'],
-  abhyanga: ['oil massage', 'body massage', 'ayurvedic massage', 'full body massage'],
-  shirodhara: ['head oil therapy', 'forehead oil', 'stress therapy', 'oil pouring'],
-  nasya_therapy: ['nasal therapy', 'sinus treatment', 'nasya', 'therapy'],
-  panchakarma_rejuvenation: ['rejuvenation', 'therapy', 'rejuvenation therapy'],
-  basti_therapy: ['basti', 'enema therapy', 'therapy'],
-  swedana: ['steam therapy', 'steam bath', 'herbal steam'],
-  facial: ['face treatment', 'face cleanup', 'glow facial', 'gold facial'],
-  bridal_makeup: ['wedding makeup', 'bridal', 'dulhan makeup', 'party makeup'],
-  haircut: ['hair cut', 'hair cutting', 'trim', 'hair trim'],
-  hatha_yoga: ['hatha', 'basic yoga', 'beginner yoga'],
-  power_yoga: ['intense yoga', 'fitness yoga', 'hot yoga'],
-  meditation_class: ['meditation', 'guided meditation', 'mindfulness class'],
-  dance: ['dance class', 'dancing', 'zumba', 'bharatnatyam', 'salsa'],
-  music: ['music class', 'guitar', 'piano', 'singing', 'vocal training'],
-  art_craft: ['art class', 'craft', 'painting', 'drawing', 'pottery'],
-  tuition: ['tuition', 'tutor', 'coaching', 'home tuition', 'maths tuition'],
-  language: ['language class', 'english class', 'spoken english', 'french class'],
-  fitness: ['gym', 'personal trainer', 'workout', 'exercise', 'crossfit'],
-  coaching: ['coaching', 'entrance exam', 'competitive exam'],
-  daycare: ['daycare', 'creche', 'childcare', 'babysitting'],
-  electrician: ['wiring', 'electrical repair', 'electrical', 'switch repair', 'fan repair'],
-  plumber: ['plumbing', 'pipe repair', 'tap repair', 'water leak', 'plumber'],
-  carpenter: ['carpentry', 'furniture repair', 'wood work', 'door repair'],
-  ac_service: ['ac repair', 'ac service', 'air conditioner', 'ac installation'],
-  pest_control: ['pest control', 'cockroach', 'termite', 'mosquito control'],
-  appliance_repair: ['appliance repair', 'washing machine', 'fridge repair', 'microwave repair'],
-  maid: ['cleaning', 'house cleaning', 'home cleaning', 'maid', 'domestic help', 'housekeeping'],
-  cook: ['cook', 'home cook', 'chef', 'cooking service'],
-  driver: ['driver', 'personal driver', 'chauffeur'],
-  nanny: ['nanny', 'babysitter', 'child care'],
-  beauty: ['parlour', 'parlor', 'makeup', 'facial', 'beauty service', 'bridal makeup', 'skin care', 'spa', 'massage', 'body massage', 'ayurvedic massage'],
-  salon: ['salon', 'haircut', 'hair styling', 'grooming', 'beard trim', 'hair spa'],
-  tailoring: ['tailor', 'stitching', 'alteration', 'blouse stitching', 'kurta stitching'],
-  laundry: ['laundry', 'dry cleaning', 'ironing', 'washing clothes'],
-  mehendi: ['mehendi', 'henna', 'mehndi'],
-  tax_consultant: ['tax', 'gst', 'income tax', 'tax filing', 'ca service'],
-  it_support: ['computer repair', 'laptop repair', 'it support', 'tech support'],
-  tutoring: ['private tutor', 'home tutor', 'online tutor'],
-  resume_writing: ['resume editing', 'cv writing', 'resume help', 'resume', 'job application'],
-  equipment_rental: ['equipment rent', 'tool rental', 'generator rental'],
-  vehicle_rental: ['car rental', 'bike rental', 'vehicle rent', 'scooter rent'],
-  party_supplies: ['tent', 'chair rental', 'table rental', 'party decoration rental'],
-  baby_gear: ['stroller rental', 'baby gear', 'baby equipment'],
-  furniture: ['used furniture', 'sofa', 'bed', 'table', 'chair'],
-  electronics: ['used phone', 'second hand laptop', 'old electronics'],
-  books: ['used books', 'second hand books', 'old books', 'textbooks'],
-  clothing: ['used clothes', 'second hand clothing', 'pre-owned clothes', 't-shirt', 'tshirt', 't shirt', 'shirts', 'jeans', 'dress', 'saree', 'kurti', 'fashion', 'garments', 'apparel', 'western wear', 'ethnic wear'],
-  decoration: ['event decoration', 'birthday decoration', 'balloon decoration', 'party decoration'],
-  photography: ['photographer', 'photo shoot', 'event photography', 'wedding photography'],
-  dj_music: ['dj', 'music system', 'event music', 'sound system'],
-  pet_food: ['pet food', 'dog food', 'cat food'],
-  pet_grooming: ['pet grooming', 'dog grooming', 'pet salon'],
-  pet_sitting: ['pet sitting', 'pet boarding', 'dog boarding'],
-  dog_walking: ['dog walking', 'pet walking'],
-};
+const ALIAS_MAP: Record<string, string[]> = CATEGORY_ALIAS_MAP;
 
 const POPULAR_SLUGS = [
   'daily_tiffin', 'cakes', 'yoga', 'ayurveda', 'maid', 'electrician', 'beauty', 'tuition',
@@ -356,26 +276,69 @@ export function CategorySearchPicker({
       onGroupResolved(item.parentGroupSlug);
     }
 
+    const phrase = search.trim();
+
     if (item.type === 'subcategory') {
-      setPickerCategoryId(item.categoryConfigId);
-      setPickerOpen(true);
-    } else if (item.hasSubcategories) {
-      // Category with subcategories → open subcategory picker
-      setPickerCategoryId(item.categoryConfigId);
-      setPickerOpen(true);
-    } else {
-      const isSelected = formData.categories.includes(item.slug);
-      handleCategoryChange(item.slug, !isSelected);
-      if (!isSelected) {
+      // Direct subcategory hit — commit immediately when possible
+      handlePickerSave(item.categoryConfigId, configs.find(c => c.id === item.categoryConfigId)?.category || item.slug, {
+        primary: item.id,
+        others: [],
+        customLabel: null,
+      });
+      setLastFallback({ slug: item.slug, label: `${item.categoryName} → ${item.name}` });
+      setSearch('');
+      onGroupResolved(item.parentGroupSlug);
+      return;
+    }
+
+    if (item.hasSubcategories) {
+      const catalogSubs = allSubs
+        .filter((s) => s.category_config_id === item.categoryConfigId)
+        .map((s) => ({
+          id: s.id,
+          slug: s.slug,
+          displayName: s.display_name,
+          categoryConfigId: s.category_config_id,
+          categorySlug: item.slug,
+        }));
+      const hit = phrase
+        ? findBestSubcategoryMatch(phrase, catalogSubs, { categoryConfigId: item.categoryConfigId })
+        : null;
+
+      if (hit && hit.score >= 1) {
+        handlePickerSave(item.categoryConfigId, item.slug, {
+          primary: hit.sub.id,
+          others: [],
+          customLabel: null,
+        });
+        setLastFallback({
+          slug: item.slug,
+          label: `${item.categoryName} → ${hit.sub.displayName}`,
+        });
+        setSearch('');
         onGroupResolved(item.parentGroupSlug);
+        return;
       }
+
+      // Open picker; dialog auto-clears stuck search and offers Other
+      setPickerCategoryId(item.categoryConfigId);
+      setPickerOpen(true);
+      return;
+    }
+
+    const isSelected = formData.categories.includes(item.slug);
+    handleCategoryChange(item.slug, !isSelected);
+    if (!isSelected) {
+      onGroupResolved(item.parentGroupSlug);
+      setSearch('');
     }
   };
 
   const handlePickerSave = (configId: string, category: string, selection: SubcategorySelection) => {
     setFormData(f => {
       const newPrefsData = { ...f.subcategory_preferences.data };
-      if (selection.primary || selection.others.length > 0) {
+      const hasSelection = !!(selection.primary || selection.others.length > 0 || selection.customLabel);
+      if (hasSelection) {
         newPrefsData[configId] = selection;
       } else {
         delete newPrefsData[configId];
@@ -389,7 +352,7 @@ export function CategorySearchPicker({
       });
       const mergedCats = [...new Set([...catsFromPrefs, ...directToggles])];
 
-      if (selection.primary || selection.others.length > 0) {
+      if (hasSelection) {
         if (!mergedCats.includes(category)) mergedCats.push(category);
       } else {
         const idx = mergedCats.indexOf(category);
@@ -446,6 +409,17 @@ export function CategorySearchPicker({
       const sub = allSubs.find(s => s.id === id);
       allSelectedChips.push({ configId, subId: id, isPrimary: false, displayName: sub?.display_name || 'Selected', categoryName: catName, parentGroup: pg, isDirect: false });
     });
+    if (!pref.primary && pref.others.length === 0 && (pref as any).customLabel) {
+      allSelectedChips.push({
+        configId,
+        subId: null,
+        isPrimary: true,
+        displayName: (pref as any).customLabel,
+        categoryName: catName,
+        parentGroup: pg,
+        isDirect: true,
+      });
+    }
   });
 
   formData.categories.forEach(cat => {

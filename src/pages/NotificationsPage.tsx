@@ -155,7 +155,7 @@ export default function NotificationsPage() {
   ];
 
   return (
-    <AppLayout showHeader={false} showNav={true}>
+    <AppLayout showHeader={false} showNav={true} safeTop={false}>
       <div>
         <SafeHeader>
           <div className="px-4 pb-3.5 flex items-center gap-3">

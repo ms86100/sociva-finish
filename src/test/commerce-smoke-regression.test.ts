@@ -58,6 +58,15 @@ describe('AppLayout shell options (post-login regression)', () => {
     const onboarding = normalizeLayoutOptions({ showNav: false, showHeader: false, showCart: false });
     expect(optionsEqual(open, onboarding)).toBe(false);
   });
+
+  it('safeTop defaults on when header is hidden', () => {
+    const hidden = normalizeLayoutOptions({ showHeader: false });
+    expect(hidden.safeTop).toBe(true);
+    const withSafeHeader = normalizeLayoutOptions({ showHeader: false, safeTop: false });
+    expect(withSafeHeader.safeTop).toBe(false);
+    const defaultHeader = normalizeLayoutOptions({});
+    expect(defaultHeader.safeTop).toBe(false);
+  });
 });
 
 describe('OTP → order → seller accept smoke (status contract)', () => {

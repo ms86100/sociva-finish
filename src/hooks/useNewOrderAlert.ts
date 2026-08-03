@@ -140,12 +140,20 @@ export function useNewOrderAlert(sellerIds: string[]) {
     hapticNotification('warning');
     const loopBell = () => {
       if (!isBuzzingRef.current) return;
+      // Audio / haptics while backgrounded drains battery and is blocked on many OEMs.
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+        bellLoopTimerRef.current = setTimeout(loopBell, 3000);
+        return;
+      }
       void playBellOnce();
       const duration = audioBufferRef.current?.duration ?? 2;
       bellLoopTimerRef.current = setTimeout(loopBell, (duration * 1000) + BELL_LOOP_GAP_MS);
     };
     loopBell();
-    intervalRef.current = setInterval(() => { hapticVibrate(500); }, 3000);
+    intervalRef.current = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+      hapticVibrate(500);
+    }, 3000);
   }, [playBellOnce]);
 
   const dismiss = useCallback(() => {

@@ -4,10 +4,16 @@ import path from "path";
 import { componentTagger } from "lovable-tagger";
 import { VitePWA } from "vite-plugin-pwa";
 
-const isNativeProdBuild = process.env.CAPACITOR_ENV === "production";
+// Drop Workbox for native shell builds. Use `npm run build:native` (mode=capacitor)
+// or CAPACITOR_ENV=production — matches Codemagic android-release.
+const isNativeProdBuild =
+  process.env.CAPACITOR_ENV === "production" || process.env.CAPACITOR_BUILD === "1";
 
 // https://vitejs.dev/config/
-export default defineConfig(({ mode }) => ({
+export default defineConfig(({ mode }) => {
+  const skipPwa = isNativeProdBuild || mode === "capacitor";
+
+  return {
   server: {
     host: "::",
     port: 8080,
@@ -18,7 +24,7 @@ export default defineConfig(({ mode }) => ({
   plugins: [
     react(),
     mode === "development" && componentTagger(),
-    !isNativeProdBuild &&
+    !skipPwa &&
       VitePWA({
         registerType: "autoUpdate",
         injectRegister: "auto",
@@ -98,4 +104,5 @@ export default defineConfig(({ mode }) => ({
       },
     },
   },
-}));
+};
+});

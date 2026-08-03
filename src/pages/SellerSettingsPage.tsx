@@ -135,7 +135,7 @@ export default function SellerSettingsPage() {
 
   if (isLoading) {
     return (
-      <AppLayout showHeader={false}>
+      <AppLayout showHeader={false} safeTop={false}>
         <div className="p-4 safe-top"><Skeleton className="h-8 w-32 mb-4" /><Skeleton className="h-48 w-full rounded-xl" /></div>
       </AppLayout>
     );
@@ -143,7 +143,7 @@ export default function SellerSettingsPage() {
 
   if (!sellerProfile) {
     return (
-      <AppLayout showHeader={false}>
+      <AppLayout showHeader={false} safeTop={false}>
         <div className="p-4 text-center py-12 safe-top">
           <p className="text-muted-foreground">Seller profile not found</p>
           <Link to="/become-seller"><Button className="mt-4">Become a Seller</Button></Link>
@@ -153,7 +153,7 @@ export default function SellerSettingsPage() {
   }
 
   return (
-    <AppLayout showHeader={false} showNav={false}>
+    <AppLayout showHeader={false} showNav={false} safeTop={false}>
       <SafeHeader>
         <div className="px-4 pb-3 flex items-center gap-3">
           <Link to="/seller" className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-muted shrink-0"><ArrowLeft size={18} /></Link>

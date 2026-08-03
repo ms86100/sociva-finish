@@ -20,7 +20,7 @@ interface SafeHeaderProps {
  * Every page that opts out of `<Header>` via `showHeader={false}`
  * should wrap its custom sticky header in `<SafeHeader>`.
  *
- * Structural padding:  pt-[max(env(safe-area-inset-top,0px),0.75rem)]
+ * Structural padding:  pt-[max(var(--app-safe-top),0.75rem)]
  * Sticky positioning:  sticky top-0
  * Background:          bg-background (or bg-background/95 with blur)
  */
@@ -38,9 +38,9 @@ export function SafeHeader({
         zIndex,
         blur ? 'bg-background/95 backdrop-blur-sm' : 'bg-background',
         bordered && 'border-b border-border',
-        'pt-[max(env(safe-area-inset-top,0px),0.75rem)]',
         className,
       )}
+      style={{ paddingTop: 'calc(var(--app-safe-top, 28px) + 12px)' }}
     >
       {children}
     </div>

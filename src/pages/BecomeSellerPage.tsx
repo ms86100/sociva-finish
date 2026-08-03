@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -27,12 +27,26 @@ import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSellerApplication } from '@/hooks/useSellerApplication';
+import type { SellerFormData } from '@/hooks/useSellerApplication';
 import { useSubcategories } from '@/hooks/useSubcategories';
 import { SubcategoryPickerDialog, SubcategorySelection } from '@/components/seller/SubcategoryPickerDialog';
 import { CategorySearchPicker } from '@/components/seller/CategorySearchPicker';
 import { PendingCategoryRequestsBanner } from '@/components/seller/PendingCategoryRequestsBanner';
+import { ListingIntentStep } from '@/components/seller/ListingIntentStep';
+import { CommerceModelStep } from '@/components/seller/CommerceModelStep';
+import { TaxonomySuggestCard } from '@/components/seller/TaxonomySuggestCard';
+import { RequestCategoryDialog } from '@/components/seller/RequestCategoryDialog';
 import { UpiVpaInput } from '@/components/payment/UpiVpaInput';
-
+import {
+  resolveListingIntent,
+  commerceModelToDefaultAction,
+  softTagToCommerceModel,
+  NEW_ONBOARDING_TOTAL_STEPS,
+  type SoftListingTag,
+  type CommerceModel,
+} from '@/lib/listing-intent';
+import type { BuyerJourneyId } from '@/lib/buyer-journey';
+import { notify } from '@/lib/notify';
 // ─── Store Location Picker ──────────────────────────────────────────────────
 function StoreLocationPicker({ latitude, longitude, label, onLocationSet, hasSociety, existingStoreLocations = [] }: {
   latitude: number | null;
@@ -172,17 +186,18 @@ function CategoryLicensePrompt({ categoryConfigId, categoryName, draftSellerId, 
   );
 }
 
-const TOTAL_STEPS = 5;
+const TOTAL_STEPS = NEW_ONBOARDING_TOTAL_STEPS;
 const STEP_META = [
-  { label: 'What to Sell', icon: Search, title: 'What do you want to sell?', helper: 'Search or browse to find the right category for your business.' },
-  { label: 'Store Details', icon: FileText, title: 'Set up your store', helper: 'These details help buyers find and trust your business.' },
+  { label: 'Intent', icon: Search, title: 'What are you selling?', helper: 'Describe it in your words — category comes after.' },
+  { label: 'Buyers', icon: ShoppingCart, title: 'How should buyers get it?', helper: 'This sets your store default — you can customize per product later.' },
+  { label: 'Category', icon: Tags, title: 'We found a home for it', helper: 'Confirm or adjust — taxonomy never blocks you.' },
+  { label: 'Store', icon: FileText, title: 'Set up your store', helper: 'These details help buyers find and trust your business.' },
   { label: 'Configure', icon: Settings, title: 'Configure your store', helper: 'A few quick decisions to get you up and running.' },
   { label: 'Products', icon: Package, title: 'Add your first products', helper: 'Buyers will see these once your store is approved. Start with 1-2 items.' },
   { label: 'Review', icon: CheckCircle2, title: 'Review and submit', helper: 'Double-check everything. You can edit your store after approval too.' },
 ];
 
 const CONFIG_SUB_STEPS = [
-  { key: 'interaction', title: 'How will buyers interact?', helper: 'This sets the default — you can customize per product later.' },
   { key: 'delivery', title: 'Delivery & Payments', helper: 'How do you get products to buyers, and how do they pay?' },
   { key: 'schedule', title: 'When are you open?', helper: 'Select your operating days and availability.' },
   { key: 'images', title: 'Make your store shine ✨', helper: 'Add photos to build trust — you can skip this for now.' },
@@ -212,7 +227,7 @@ const FULFILLMENT_OPTIONS = [
 ];
 
 // ─── Guided Step 2: Subcategory Picker ─────────────────────────────────────
-import type { SellerFormData, SubcategoryPreferences } from '@/hooks/useSellerApplication';
+import type { SubcategoryPreferences } from '@/hooks/useSellerApplication';
 import type { CategoryConfig } from '@/types/categories';
 
 function GuidedStep2({
@@ -474,11 +489,119 @@ export default function BecomeSellerPage() {
     handleProceedToSettings, handleProceedToProducts, handleSaveDraftAndExit, handleSubmit,
     setExistingSeller, setDraftSellerId, handleStepBack, handleGroupSelect, submissionComplete,
     loadSellerDataIntoForm, reloadProducts, rejectionFeedback, setRejectionFeedback,
+    listingIntentPhrase, setListingIntentPhrase,
+    commerceModel, setCommerceModel,
+    seedProductName, setSeedProductName,
+    softListingTag, setSoftListingTag,
   } = app;
+
+  const allSubsQuery = useSubcategories();
+  const allSubs = allSubsQuery.data || [];
+  const [browseTaxonomy, setBrowseTaxonomy] = useState(false);
+  const [requestCategoryOpen, setRequestCategoryOpen] = useState(false);
+
+  const intentCatalogCategories = useMemo(() => (
+    configs.map((c: any) => ({
+      slug: c.category,
+      id: c.id,
+      displayName: c.displayName,
+      parentGroup: c.parentGroup,
+      transactionType: c.transactionType,
+      hasDateRange: c.behavior?.hasDateRange,
+      requiresTimeSlot: c.behavior?.requiresTimeSlot,
+      enquiryOnly: c.behavior?.enquiryOnly,
+      supportsCart: c.behavior?.supportsCart,
+    }))
+  ), [configs]);
+
+  const intentCatalogSubs = useMemo(() => (
+    allSubs.map((s: any) => {
+      const cfg = configs.find((c: any) => c.id === s.category_config_id);
+      return {
+        id: s.id,
+        slug: s.slug,
+        displayName: s.display_name,
+        categoryConfigId: s.category_config_id,
+        categorySlug: cfg?.category || '',
+      };
+    })
+  ), [allSubs, configs]);
+
+  const softTag = (softListingTag || null) as SoftListingTag;
+  const resolvedIntent = useMemo(() => resolveListingIntent({
+    phrase: listingIntentPhrase,
+    commerceModel: (commerceModel as CommerceModel) || null,
+    softTag,
+    categories: intentCatalogCategories,
+    subcategories: intentCatalogSubs,
+  }), [listingIntentPhrase, commerceModel, softTag, intentCatalogCategories, intentCatalogSubs]);
+
+  const suggestedConfig = useMemo(() => {
+    if (!resolvedIntent.suggestedCategorySlug && !resolvedIntent.suggestedCategoryConfigId) return null;
+    return configs.find((c: any) =>
+      c.id === resolvedIntent.suggestedCategoryConfigId ||
+      c.category === resolvedIntent.suggestedCategorySlug
+    ) || null;
+  }, [configs, resolvedIntent]);
+
+  const persistCommerceChoice = useCallback((model: BuyerJourneyId) => {
+    setCommerceModel(model);
+    const action = commerceModelToDefaultAction(model);
+    handleSetStoreActionType(action);
+  }, [setCommerceModel, handleSetStoreActionType]);
+
+  // Resume: keep React storeActionType synced with session/DB after async draft load
+  useEffect(() => {
+    try {
+      const stored = sessionStorage.getItem('onboarding_store_action_type') || '';
+      if (stored && stored !== storeActionType) {
+        setStoreActionType(stored);
+      } else if (!stored && commerceModel) {
+        handleSetStoreActionType(commerceModelToDefaultAction(commerceModel as BuyerJourneyId));
+      }
+    } catch { /* */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draftSellerId, commerceModel]);
+
+  const applyTaxonomySuggestion = useCallback((resolved = resolvedIntent) => {
+    const cfg = configs.find((c: any) =>
+      c.id === resolved.suggestedCategoryConfigId ||
+      c.category === resolved.suggestedCategorySlug
+    );
+    if (!cfg) return false;
+    setSelectedGroup(cfg.parentGroup);
+    setFormData((f) => {
+      // Replace prefs for this suggestion — avoid orphan keys from earlier browse attempts
+      const prefs: SellerFormData['subcategory_preferences']['data'] = {};
+      if (resolved.suggestedSubcategoryId) {
+        prefs[cfg.id] = {
+          primary: resolved.suggestedSubcategoryId,
+          others: [],
+          customLabel: null,
+        };
+      } else if (resolved.needsOtherSubcategory || resolved.useCustomSubcategoryLabel) {
+        prefs[cfg.id] = {
+          primary: null,
+          others: [],
+          customLabel: resolved.useCustomSubcategoryLabel || resolved.seedProductName || 'Other',
+        };
+      }
+      return {
+        ...f,
+        categories: [cfg.category],
+        subcategory_preferences: { v: 1, data: prefs },
+      };
+    });
+    if (resolved.seedProductName) setSeedProductName(resolved.seedProductName);
+    return true;
+  }, [configs, resolvedIntent, setFormData, setSelectedGroup, setSeedProductName]);
 
   // ─── Config sub-step state (persisted in sessionStorage) ───────────────
   const [configSubStep, setConfigSubStep] = useState<number>(() => {
-    try { return parseInt(sessionStorage.getItem('onboarding_config_substep') || '1', 10) || 1; } catch { return 1; }
+    try {
+      const raw = parseInt(sessionStorage.getItem('onboarding_config_substep') || '1', 10) || 1;
+      return Math.max(1, Math.min(raw, 3));
+    } catch { return 1; }
   });
   const handleSetConfigSubStep = useCallback((val: number) => {
     setConfigSubStep(val);
@@ -608,10 +731,10 @@ export default function BecomeSellerPage() {
         {/* Step Header */}
         <div className="text-center mb-4">
           <h1 className="text-2xl font-bold">
-            {step === 3 ? CONFIG_SUB_STEPS[configSubStep - 1].title : STEP_META[step - 1].title}
+            {step === 5 ? CONFIG_SUB_STEPS[configSubStep - 1].title : STEP_META[step - 1].title}
           </h1>
           <p className="text-muted-foreground text-sm mt-1">
-            {step === 3 ? CONFIG_SUB_STEPS[configSubStep - 1].helper : STEP_META[step - 1].helper}
+            {step === 5 ? CONFIG_SUB_STEPS[configSubStep - 1].helper : STEP_META[step - 1].helper}
           </p>
         </div>
 
@@ -634,45 +757,145 @@ export default function BecomeSellerPage() {
         </div>
 
         {/* Context Breadcrumb */}
-        {step >= 2 && selectedGroupInfo && (
+        {step >= 4 && selectedGroupInfo && (
           <div className="flex items-center gap-2 px-3 py-2 mb-4 rounded-lg bg-muted/60 text-xs">
             <div className={cn('w-6 h-6 rounded flex items-center justify-center', selectedGroupInfo.color)}><DynamicIcon name={selectedGroupInfo.icon} size={14} /></div>
             <span className="font-medium">{selectedGroupInfo.label}</span>
             {formData.categories.length > 0 && (
               <><ChevronRight size={12} className="text-muted-foreground" /><span className="text-muted-foreground truncate">{formData.categories.map(cat => { const config = configs.find(c => c.category === cat); return config?.displayName || cat; }).join(', ')}</span></>
             )}
-            {formData.business_name.trim() && step >= 3 && <><span className="text-muted-foreground">|</span><span className="font-medium truncate">"{formData.business_name}"</span></>}
+            {formData.business_name.trim() && step >= 5 && <><span className="text-muted-foreground">|</span><span className="font-medium truncate">"{formData.business_name}"</span></>}
           </div>
         )}
 
-        {/* Step 1: What do you want to sell? (Unified search + browse) */}
+        {/* Step 1: What are you selling? */}
         {step === 1 && (
           <>
             <PendingCategoryRequestsBanner variant="inline" />
-            <CategorySearchPicker
-              formData={formData}
-              setFormData={setFormData}
-              groupedConfigs={groupedConfigs}
-              configs={configs}
-              handleCategoryChange={handleCategoryChange}
+            <ListingIntentStep
+              value={listingIntentPhrase}
+              onChange={(phrase) => {
+                setListingIntentPhrase(phrase);
+                setSeedProductName(phrase.trim() ? phrase.trim().charAt(0).toUpperCase() + phrase.trim().slice(1) : '');
+              }}
               onContinue={() => {
-                if (formData.categories.length === 0) return;
+                setSeedProductName(
+                  listingIntentPhrase.trim()
+                    ? listingIntentPhrase.trim().charAt(0).toUpperCase() + listingIntentPhrase.trim().slice(1)
+                    : '',
+                );
                 setStep(2);
               }}
-              onGroupResolved={(group) => {
-                if (!selectedGroup) setSelectedGroup(group);
-              }}
-              parentGroupInfos={parentGroupInfos}
-              sellerId={draftSellerId}
-              onboardingMode
             />
           </>
         )}
 
-        {/* Step 2: Business Details */}
+        {/* Step 2: Commerce model */}
         {step === 2 && (
+          <CommerceModelStep
+            value={(commerceModel as BuyerJourneyId) || null}
+            softTag={softTag}
+            onChange={persistCommerceChoice}
+            onSoftTagChange={(tag) => {
+              setSoftListingTag(tag || '');
+              const inferred = softTagToCommerceModel(tag);
+              if (inferred && !commerceModel) persistCommerceChoice(inferred);
+              else if (inferred && tag) persistCommerceChoice(inferred);
+            }}
+            onBack={() => handleStepBack(1)}
+            onContinue={() => {
+              if (!commerceModel && resolvedIntent.commerceModel) {
+                persistCommerceChoice(resolvedIntent.commerceModel);
+              }
+              setBrowseTaxonomy(false);
+              setStep(3);
+            }}
+          />
+        )}
+
+        {/* Step 3: Soft taxonomy suggest */}
+        {step === 3 && (
+          <div className="space-y-4">
+            <button onClick={() => handleStepBack(2)} className="flex items-center gap-1 text-sm text-muted-foreground">
+              <ArrowLeft size={16} />Edit buyer interaction
+            </button>
+            <PendingCategoryRequestsBanner variant="inline" />
+            <TaxonomySuggestCard
+              intentPhrase={listingIntentPhrase}
+              resolved={resolvedIntent}
+              categoryDisplayName={suggestedConfig?.displayName || null}
+              categoryIcon={suggestedConfig?.icon || null}
+              showBrowse={browseTaxonomy}
+              onConfirm={() => {
+                if (applyTaxonomySuggestion()) setStep(4);
+                else notify.block('Category data is still loading — try again in a moment, or browse categories.');
+              }}
+              onContinueClosest={() => {
+                if (applyTaxonomySuggestion()) setStep(4);
+                else {
+                  setBrowseTaxonomy(true);
+                  notify.block('No exact match yet — pick the closest category to continue.');
+                }
+              }}
+              onChangeTaxonomy={() => setBrowseTaxonomy(true)}
+              onRequestCategory={() => setRequestCategoryOpen(true)}
+              browseSlot={
+                <div className="space-y-3">
+                  <button
+                    type="button"
+                    onClick={() => setBrowseTaxonomy(false)}
+                    className="flex items-center gap-1 text-sm text-muted-foreground"
+                  >
+                    <ArrowLeft size={16} />Back to suggestion
+                  </button>
+                  <CategorySearchPicker
+                    formData={formData}
+                    setFormData={setFormData}
+                    groupedConfigs={groupedConfigs}
+                    configs={configs}
+                    handleCategoryChange={handleCategoryChange}
+                    onContinue={() => {
+                      if (formData.categories.length === 0) {
+                        notify.block('Select a category (or request one) to continue');
+                        return;
+                      }
+                      if (!selectedGroup && formData.categories[0]) {
+                        const cfg = configs.find((c: any) => c.category === formData.categories[0]);
+                        if (cfg) setSelectedGroup(cfg.parentGroup);
+                      }
+                      if (resolvedIntent.seedProductName) setSeedProductName(resolvedIntent.seedProductName);
+                      setBrowseTaxonomy(false);
+                      setStep(4);
+                    }}
+                    onGroupResolved={(group) => {
+                      if (!selectedGroup) setSelectedGroup(group);
+                    }}
+                    parentGroupInfos={parentGroupInfos}
+                    sellerId={draftSellerId}
+                    onboardingMode
+                  />
+                </div>
+              }
+            />
+            <RequestCategoryDialog
+              open={requestCategoryOpen}
+              onOpenChange={setRequestCategoryOpen}
+              initialName={listingIntentPhrase.trim()}
+              parentGroupInfos={parentGroupInfos}
+              sellerId={draftSellerId}
+              onboardingMode
+              onSubmitted={(groupSlug) => {
+                if (groupSlug && !selectedGroup) setSelectedGroup(groupSlug);
+                setRequestCategoryOpen(false);
+              }}
+            />
+          </div>
+        )}
+
+        {/* Step 4: Business Details */}
+        {step === 4 && (
           <div className="space-y-5">
-            <button onClick={() => handleStepBack(1)} className="flex items-center gap-1 text-sm text-muted-foreground"><ArrowLeft size={16} />Change categories</button>
+            <button onClick={() => handleStepBack(3)} className="flex items-center gap-1 text-sm text-muted-foreground"><ArrowLeft size={16} />Change categories</button>
             {rejectionFeedback && (
               <div className="bg-destructive/10 border border-destructive/20 rounded-xl p-4 text-left">
                 <p className="text-xs font-semibold text-destructive mb-1">⚠️ Admin Feedback — Please address before resubmitting:</p>
@@ -686,17 +909,12 @@ export default function BecomeSellerPage() {
               <div className="flex items-center justify-between"><div className="flex items-center gap-3"><Globe className="text-primary" size={20} /><div><p className="font-medium text-sm">Sell beyond my community</p><p className="text-xs text-muted-foreground">Allow buyers from nearby societies to order</p></div></div><Switch checked={formData.sell_beyond_community} onCheckedChange={(checked) => setFormData({ ...formData, sell_beyond_community: checked })} /></div>
               {formData.sell_beyond_community && <div className="space-y-2 pt-2 border-t"><div className="flex items-center justify-between"><Label className="text-xs text-muted-foreground">Delivery Radius</Label><span className="text-sm font-medium text-primary">{formData.delivery_radius_km} km</span></div><Slider value={[formData.delivery_radius_km]} onValueChange={([v]) => setFormData({ ...formData, delivery_radius_km: v })} min={1} max={10} step={1} /><p className="text-[10px] text-muted-foreground">Buyers within {formData.delivery_radius_km} km of your society can order</p></div>}
             </div>
-            {/* Per-category license requirements */}
             {(() => {
-              const licenseCats = configs.filter(c => c.behavior && formData.categories.includes(c.category) && (c as any).requiresLicense);
-              // Also check raw DB data via category_config
               const selectedCatConfigs = configs.filter(c => formData.categories.includes(c.category));
               return selectedCatConfigs.map(catCfg => {
-                // We need to check requires_license from DB — fetch dynamically
                 return <CategoryLicensePrompt key={catCfg.id} categoryConfigId={catCfg.id} categoryName={catCfg.displayName} draftSellerId={draftSellerId} isOnboarding={true} onStatusChange={setLicenseStatus} />;
               });
             })()}
-            {/* Store Location */}
             <StoreLocationPicker
               latitude={formData.latitude}
               longitude={formData.longitude}
@@ -709,100 +927,39 @@ export default function BecomeSellerPage() {
                   .map((sp: any) => ({ id: sp.id, business_name: sp.business_name || 'Store', latitude: sp.latitude, longitude: sp.longitude, store_location_label: sp.store_location_label || null }))
               }
             />
-            <p className="text-xs text-muted-foreground text-center flex items-center justify-center gap-1"><ArrowRight size={12} />Next: Choose how buyers will interact with your store</p>
-            <Button className="w-full" onClick={() => { handleSetConfigSubStep(1); handleProceedToSettings(); }} disabled={isLoading || !formData.business_name.trim() || ((selectedGroupRow as any)?.license_mandatory && (!licenseStatus || licenseStatus === 'rejected'))}>{isLoading && <Loader2 className="animate-spin mr-2" size={18} />}Continue<ChevronRight size={16} className="ml-1" /></Button>
+            <p className="text-xs text-muted-foreground text-center flex items-center justify-center gap-1"><ArrowRight size={12} />Next: Delivery, schedule, and store images</p>
+            <Button className="w-full" onClick={() => {
+              if (!selectedGroup || formData.categories.length === 0) {
+                notify.block('Please confirm a category before continuing');
+                handleStepBack(3);
+                return;
+              }
+              if (!storeActionType && commerceModel) {
+                handleSetStoreActionType(commerceModelToDefaultAction(commerceModel as BuyerJourneyId));
+              }
+              handleSetConfigSubStep(1);
+              handleProceedToSettings();
+            }} disabled={isLoading || !formData.business_name.trim() || ((selectedGroupRow as any)?.license_mandatory && (!licenseStatus || licenseStatus === 'rejected'))}>{isLoading && <Loader2 className="animate-spin mr-2" size={18} />}Continue<ChevronRight size={16} className="ml-1" /></Button>
           </div>
         )}
 
-        {/* Step 3: Configure (Guided Sub-Steps) */}
-        {step === 3 && (
+        {/* Step 5: Configure (delivery → schedule → images; interaction already chosen) */}
+        {step === 5 && (
           <div className="space-y-5">
             <button onClick={() => {
               if (configSubStep > 1) {
                 handleSetConfigSubStep(configSubStep - 1);
               } else {
-                handleStepBack(2);
+                handleStepBack(4);
               }
             }} className="flex items-center gap-1 text-sm text-muted-foreground">
               <ArrowLeft size={16} />{configSubStep > 1 ? 'Back' : 'Edit store details'}
             </button>
 
-            <SubStepDots current={configSubStep} total={4} />
+            <SubStepDots current={configSubStep} total={3} />
 
             <AnimatePresence mode="wait">
-              {/* Sub-step 3a: How buyers interact */}
               {configSubStep === 1 && (
-                <motion.div
-                  key="interaction"
-                  initial={{ opacity: 0, x: 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -20 }}
-                  transition={{ duration: 0.25 }}
-                  className="space-y-5"
-                >
-                  {(() => {
-                    const INTERACTION_ICONS: Record<string, typeof ShoppingCart> = { cart: ShoppingCart, booking: Calendar, inquiry: MessageCircle, contact: Phone };
-                    const INTERACTION_DESCRIPTIONS: Record<string, string> = {
-                      cart: 'Buyers purchase products directly with quantity',
-                      booking: 'Buyers select date & time slots to book',
-                      inquiry: 'Buyers send a request, you respond with details',
-                      contact: 'Buyers contact you directly — no transaction',
-                    };
-                    const primaryCat = formData.categories[0];
-                    const primaryConfig = configs.find((c: any) => c.category === primaryCat);
-                    const filteredActions = allActions;
-                    const uniqueModes = Array.from(new Set(filteredActions.map(a => a.checkout_mode)));
-                    const effectiveDefault = storeActionType || (primaryConfig as any)?.default_action_type || allActions.find(a => a.checkout_mode === 'cart')?.action_type || '';
-                    return (
-                      <>
-                        <div className="grid grid-cols-2 gap-3">
-                          {uniqueModes.map(mode => {
-                            const Icon = INTERACTION_ICONS[mode] || ShoppingCart;
-                            const modeActions = filteredActions.filter(a => a.checkout_mode === mode);
-                            const isSelected = modeActions.some(a => a.action_type === (storeActionType || effectiveDefault));
-                            return (
-                              <button
-                                key={mode}
-                                type="button"
-                                onClick={() => handleSetStoreActionType(modeActions[0]?.action_type || '')}
-                                className={cn(
-                                  'flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all text-center',
-                                  isSelected ? 'border-primary bg-primary/5 shadow-sm' : 'border-border hover:border-muted-foreground/30'
-                                )}
-                              >
-                                <div className={cn('w-10 h-10 rounded-full flex items-center justify-center', isSelected ? 'bg-primary/10' : 'bg-muted')}>
-                                  <Icon size={20} className={isSelected ? 'text-primary' : 'text-muted-foreground'} />
-                                </div>
-                                <span className="text-sm font-medium">{modeActions[0]?.cta_label || mode}</span>
-                                <span className="text-[10px] text-muted-foreground leading-tight">{INTERACTION_DESCRIPTIONS[mode]}</span>
-                              </button>
-                            );
-                          })}
-                        </div>
-                        {primaryConfig && (
-                          <p className="text-xs text-muted-foreground text-center">💡 Suggested for {primaryConfig.displayName}. You can set different types per product later.</p>
-                        )}
-                      </>
-                    );
-                  })()}
-                  <Button className="w-full" onClick={() => {
-                    // Ensure a choice is persisted even if the seller didn't tap a tile —
-                    // the highlighted default tile is the value they accept by continuing.
-                    if (!storeActionType) {
-                      const primaryCat = formData.categories[0];
-                      const primaryConfig = configs.find((c: any) => c.category === primaryCat);
-                      const fallback = (primaryConfig as any)?.default_action_type || allActions.find(a => a.checkout_mode === 'cart')?.action_type || '';
-                      if (fallback) handleSetStoreActionType(fallback);
-                    }
-                    handleSetConfigSubStep(2);
-                  }}>
-                    Continue<ChevronRight size={16} className="ml-1" />
-                  </Button>
-                </motion.div>
-              )}
-
-              {/* Sub-step 3b: Delivery & Payments */}
-              {configSubStep === 2 && (
                 <motion.div
                   key="delivery"
                   initial={{ opacity: 0, x: 20 }}
@@ -834,14 +991,13 @@ export default function BecomeSellerPage() {
                     <label className="flex items-center justify-between p-3 rounded-lg border cursor-pointer"><div className="flex items-center gap-3"><Smartphone size={18} className="text-muted-foreground" /><div><span className="text-sm font-medium">UPI Payment</span><p className="text-xs text-muted-foreground">Accept UPI / digital payments</p></div></div><Switch checked={formData.accepts_upi} onCheckedChange={(checked) => setFormData({ ...formData, accepts_upi: checked })} /></label>
                     {formData.accepts_upi && <div className="space-y-2 pt-2 border-t"><Label htmlFor="upi_id" className="text-xs text-muted-foreground">UPI ID <span className="text-destructive">*</span></Label><UpiVpaInput value={formData.upi_id} onChange={(v) => setFormData({ ...formData, upi_id: v, upi_validation_status: undefined } as any)} businessName={formData.business_name} placeholder="e.g., yourname@upi" onStatusChange={(status, name) => setFormData({ ...formData, upi_validation_status: status, upi_holder_name: name } as any)} />{formData.accepts_upi && !formData.upi_id.trim() && <p className="text-xs text-destructive">Required when UPI is enabled</p>}</div>}
                   </div>
-                  <Button className="w-full" onClick={() => handleSetConfigSubStep(3)} disabled={formData.accepts_upi && !formData.upi_id.trim()}>
+                  <Button className="w-full" onClick={() => handleSetConfigSubStep(2)} disabled={formData.accepts_upi && !formData.upi_id.trim()}>
                     Continue<ChevronRight size={16} className="ml-1" />
                   </Button>
                 </motion.div>
               )}
 
-              {/* Sub-step 3c: Schedule & Availability */}
-              {configSubStep === 3 && (
+              {configSubStep === 2 && (
                 <motion.div
                   key="schedule"
                   initial={{ opacity: 0, x: 20 }}
@@ -856,7 +1012,6 @@ export default function BecomeSellerPage() {
                     <div className="flex gap-1.5 flex-wrap">{DAYS_OF_WEEK.map((day) => <button key={day} type="button" onClick={() => toggleOperatingDay(day)} className={cn('px-3 py-2 rounded-lg text-xs font-medium transition-all border', formData.operating_days.includes(day) ? 'bg-primary text-primary-foreground border-primary' : 'bg-muted text-muted-foreground border-border hover:border-muted-foreground/30')}>{day}</button>)}</div>
                     <p className="text-[10px] text-muted-foreground">{formData.operating_days.length === 7 ? 'Open every day' : formData.operating_days.length === 0 ? 'No days selected' : `Open ${formData.operating_days.length} day(s) a week`}</p>
                   </div>
-                  {/* Service Availability — only when interaction requires it */}
                   {(() => {
                     const effectiveAction = storeActionType || (configs.find((c: any) => c.category === formData.categories[0]) as any)?.default_action_type || '';
                     const actionConfig = allActions.find(a => a.action_type === effectiveAction);
@@ -864,14 +1019,13 @@ export default function BecomeSellerPage() {
                   })() && (
                     <ServiceAvailabilityManager sellerId={draftSellerId!} onComplete={() => {}} />
                   )}
-                  <Button className="w-full" onClick={() => handleSetConfigSubStep(4)} disabled={formData.operating_days.length === 0}>
+                  <Button className="w-full" onClick={() => handleSetConfigSubStep(3)} disabled={formData.operating_days.length === 0}>
                     Continue<ChevronRight size={16} className="ml-1" />
                   </Button>
                 </motion.div>
               )}
 
-              {/* Sub-step 3d: Store Images */}
-              {configSubStep === 4 && (
+              {configSubStep === 3 && (
                 <motion.div
                   key="images"
                   initial={{ opacity: 0, x: 20 }}
@@ -900,35 +1054,50 @@ export default function BecomeSellerPage() {
           </div>
         )}
 
-        {/* Step 4: Add Products */}
-        {step === 4 && !draftSellerId && (
+        {/* Step 6: Add Products */}
+        {step === 6 && !draftSellerId && (
           <div className="space-y-5 text-center py-8">
             <div className="w-16 h-16 mx-auto rounded-full bg-destructive/10 flex items-center justify-center"><Package size={24} className="text-destructive" /></div>
             <h3 className="text-lg font-semibold">Unable to load your store</h3>
             <p className="text-sm text-muted-foreground">Your store draft could not be found. Please go back and try again.</p>
-            <Button variant="outline" onClick={() => setStep(2)}><ArrowLeft size={16} className="mr-1" />Go Back</Button>
+            <Button variant="outline" onClick={() => setStep(4)}><ArrowLeft size={16} className="mr-1" />Go Back</Button>
           </div>
         )}
-        {step === 4 && draftSellerId && (
+        {step === 6 && draftSellerId && (
           <div className="space-y-5">
-            <button onClick={() => handleStepBack(3)} className="flex items-center gap-1 text-sm text-muted-foreground"><ArrowLeft size={16} />Edit store settings</button>
-            <DraftProductManager sellerId={draftSellerId} categories={formData.categories} products={draftProducts} onProductsChange={setDraftProducts} beforePick={beforeImagePick} defaultActionType={storeActionType || undefined} />
+            <button onClick={() => handleStepBack(5)} className="flex items-center gap-1 text-sm text-muted-foreground"><ArrowLeft size={16} />Edit store settings</button>
+            <DraftProductManager
+              sellerId={draftSellerId}
+              categories={formData.categories}
+              products={draftProducts}
+              onProductsChange={setDraftProducts}
+              beforePick={beforeImagePick}
+              defaultActionType={storeActionType || undefined}
+              seedProductName={seedProductName || undefined}
+              seedSubcategoryId={(() => {
+                const cat = formData.categories[0];
+                if (!cat) return null;
+                const cfg = configs.find((c: any) => c.category === cat);
+                if (!cfg) return null;
+                return formData.subcategory_preferences.data[cfg.id]?.primary || null;
+              })()}
+            />
             <p className="text-xs text-muted-foreground text-center flex items-center justify-center gap-1"><ArrowRight size={12} />Next: Review everything and submit for approval</p>
-            <Button className="w-full" onClick={() => setStep(5)} disabled={draftProducts.length === 0}>Review & Submit<ChevronRight size={16} className="ml-1" /></Button>
+            <Button className="w-full" onClick={() => setStep(7)} disabled={draftProducts.length === 0}>Review & Submit<ChevronRight size={16} className="ml-1" /></Button>
           </div>
         )}
 
-        {/* Step 5: Review & Submit */}
-        {step === 5 && (() => {
+        {/* Step 7: Review & Submit */}
+        {step === 7 && (() => {
           const validationErrors: { key: string; message: string; step: number }[] = [];
-          if (draftProducts.length === 0) validationErrors.push({ key: 'products', message: 'Add at least one product before submitting', step: 4 });
-          if (formData.operating_days.length === 0) validationErrors.push({ key: 'days', message: 'Select at least one operating day', step: 3 });
-          if (formData.accepts_upi && !formData.upi_id?.trim()) validationErrors.push({ key: 'upi', message: 'Enter your UPI ID or disable UPI payments', step: 3 });
-          if (!formData.latitude && !profile?.society_id) validationErrors.push({ key: 'location', message: 'Set your store location', step: 2 });
-          if (formData.categories.length === 0) validationErrors.push({ key: 'categories', message: 'Select at least one category', step: 1 });
+          if (draftProducts.length === 0) validationErrors.push({ key: 'products', message: 'Add at least one product before submitting', step: 6 });
+          if (formData.operating_days.length === 0) validationErrors.push({ key: 'days', message: 'Select at least one operating day', step: 5 });
+          if (formData.accepts_upi && !formData.upi_id?.trim()) validationErrors.push({ key: 'upi', message: 'Enter your UPI ID or disable UPI payments', step: 5 });
+          if (!formData.latitude && !profile?.society_id) validationErrors.push({ key: 'location', message: 'Set your store location', step: 4 });
+          if (formData.categories.length === 0) validationErrors.push({ key: 'categories', message: 'Select at least one category', step: 3 });
           return (
           <div className="space-y-5">
-            <button onClick={() => handleStepBack(4)} className="flex items-center gap-1 text-sm text-muted-foreground"><ArrowLeft size={16} />Edit products</button>
+            <button onClick={() => handleStepBack(6)} className="flex items-center gap-1 text-sm text-muted-foreground"><ArrowLeft size={16} />Edit products</button>
 
             {validationErrors.length > 0 && (
               <div className="rounded-lg border border-destructive/50 bg-destructive/5 p-4 space-y-3">

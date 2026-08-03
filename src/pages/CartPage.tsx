@@ -25,6 +25,7 @@ import { AlertCircle } from 'lucide-react';
 import { CartClearedAnimation } from '@/components/cart/CartClearedAnimation';
 import { AddressPicker } from '@/components/profile/AddressPicker';
 import { Switch } from '@/components/ui/switch';
+import { toast } from 'sonner';
 
 export default function CartPage() {
   const c = useCartPage();
@@ -46,7 +47,7 @@ export default function CartPage() {
 
   if (shouldBlockCheckoutShell) {
     return (
-      <AppLayout showHeader={false} showCart={false}>
+      <AppLayout showHeader={false} showCart={false} safeTop={false}>
         <div className="p-4 safe-top">
           <button onClick={() => navigate(-1)} className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-muted mb-6"><ArrowLeft size={18} /></button>
           <div className="text-center py-16">
@@ -60,7 +61,7 @@ export default function CartPage() {
 
   if (c.items.length === 0 && !c.hasActivePaymentSession && c.pendingMutations === 0 && !c.isFetching && !c.isRecoveringCart && c.cartVerified) {
     return (
-      <AppLayout showHeader={false} showCart={false}>
+      <AppLayout showHeader={false} showCart={false} safeTop={false}>
          <div className="p-4 safe-top">
           <button onClick={() => navigate(-1)} className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-muted mb-6"><ArrowLeft size={18} /></button>
           <AnimatePresence mode="wait">
@@ -92,7 +93,7 @@ export default function CartPage() {
   // Bug 9: Cart empty but pending payment session — show a clear escape hatch
   if (c.items.length === 0 && c.hasActivePaymentSession && c.pendingMutations === 0 && !c.isFetching && !c.isRecoveringCart) {
     return (
-      <AppLayout showHeader={false} showCart={false}>
+      <AppLayout showHeader={false} showCart={false} safeTop={false}>
         <div className="p-4 safe-top">
           <button onClick={() => navigate(-1)} className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-muted mb-6"><ArrowLeft size={18} /></button>
           <div className="text-center py-16">
@@ -122,7 +123,7 @@ export default function CartPage() {
     .replace('{suffix}', c.sellerGroups.length !== 1 ? 'es' : '');
 
   return (
-    <AppLayout showHeader={false} showNav={false} showCart={false}>
+    <AppLayout showHeader={false} showNav={false} showCart={false} safeTop={false}>
       <div className="pb-[26rem]">
         {/* Sticky Header */}
         <SafeHeader>
@@ -195,13 +196,25 @@ export default function CartPage() {
           );
         })}
 
-        {/* #5: Multi-seller cart explanation — prominent */}
+        {/* Multi-seller cart — Phase 0/1 copy + per-store checkout */}
         {c.sellerGroups.length > 1 && (
           <div className="mx-4 mt-3 flex items-start gap-3 bg-muted border border-border rounded-xl p-3">
             <AlertCircle size={16} className="text-muted-foreground shrink-0 mt-0.5" />
-            <div>
-              <p className="text-sm font-medium">Your cart has items from {c.sellerGroups.length} sellers</p>
-              <p className="text-xs text-muted-foreground mt-0.5">Separate orders will be created for each. Each seller will receive and fulfill their order independently.</p>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium">{c.multiStoreCopy?.title || `Your cart has items from ${c.sellerGroups.length} sellers`}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {c.multiStoreCopy?.body || 'Separate orders will be created for each. Each seller will receive and fulfill their order independently.'}
+              </p>
+              {c.blocksOnlineMultiSeller && (
+                <p className="text-xs text-destructive font-medium mt-2">
+                  Online / UPI checkout needs one store at a time — use the button on each store card below.
+                </p>
+              )}
+              {c.multiStoreRequiresSplit && (
+                <p className="text-xs text-destructive font-medium mt-2">
+                  These stores don’t all accept Cash on Delivery. Tap “Checkout this store” on one store to pay online.
+                </p>
+              )}
             </div>
           </div>
         )}
@@ -261,12 +274,23 @@ export default function CartPage() {
                 ))}
               </AnimatePresence>
               {/* #12: Add more from this seller */}
-              <Link
-                to={`/seller/${group.sellerId}`}
-                className="flex items-center justify-center gap-1.5 px-3 py-2 border-t border-border text-xs font-semibold text-primary hover:bg-primary/5 transition-colors"
-              >
-                <Plus size={12} /> Add more from {group.sellerName}
-              </Link>
+              <div className="flex border-t border-border">
+                {c.sellerGroups.length > 1 && (
+                  <button
+                    type="button"
+                    className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold text-primary hover:bg-primary/5 transition-colors border-r border-border"
+                    onClick={() => c.checkoutThisStoreOnly(group.sellerId)}
+                  >
+                    Checkout this store
+                  </button>
+                )}
+                <Link
+                  to={`/seller/${group.sellerId}`}
+                  className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold text-primary hover:bg-primary/5 transition-colors"
+                >
+                  <Plus size={12} /> Add more from {group.sellerName}
+                </Link>
+              </div>
             </div>
           ))}
         </div>
@@ -280,7 +304,13 @@ export default function CartPage() {
         {/* Payment Method */}
         <div className="mt-5 px-4">
           <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Payment Method</h3>
-          <PaymentMethodSelector acceptsCod={c.acceptsCod} acceptsUpi={c.acceptsUpi} selectedMethod={c.paymentMethod} onSelect={c.setPaymentMethod} />
+          <PaymentMethodSelector
+            acceptsCod={c.acceptsCod}
+            acceptsUpi={c.acceptsUpi}
+            selectedMethod={c.paymentMethod}
+            onSelect={c.setPaymentMethod}
+            multiSellerOnlineBlocked={c.isMultiSeller}
+          />
         </div>
 
         {/* Fulfillment */}
@@ -478,7 +508,37 @@ export default function CartPage() {
             )}
             <div className="flex items-center gap-3">
               <div className="flex-1"><p className="text-xs text-muted-foreground">Total</p><motion.p className="text-lg font-bold tabular-nums" key={c.finalAmount} initial={{ scale: 0.9, opacity: 0.5 }} animate={{ scale: 1, opacity: 1 }} transition={{ duration: 0.2 }}>{c.formatPrice(c.finalAmount)}</motion.p></div>
-              <Button className="px-8 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 font-bold" size="lg" onClick={() => c.setShowConfirmDialog(true)} disabled={c.isPlacingOrder || c.hasBelowMinimumOrder || c.noPaymentMethodAvailable || c.hasFulfillmentConflict || (c.fulfillmentType === 'delivery' && !c.selectedDeliveryAddress) || c.preorderMissingSchedule}>{c.isPlacingOrder ? 'Placing...' : 'Place Order'}<ChevronRight size={18} className="ml-1" /></Button>
+              <Button
+                className="px-8 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 font-bold"
+                size="lg"
+                onClick={() => {
+                  if (c.blocksOnlineMultiSeller || c.multiStoreRequiresSplit) {
+                    toast.error(
+                      c.multiStoreRequiresSplit
+                        ? 'Checkout one store at a time — tap “Checkout this store” on a seller card.'
+                        : c.paymentMode?.isRazorpay
+                          ? 'Pay online for one store at a time. Tap “Checkout this store”, or switch to Cash on Delivery.'
+                          : 'UPI pays one seller only. Tap “Checkout this store”, or switch to Cash on Delivery.',
+                      { id: 'online-multi-seller-blocked', duration: 7000 },
+                    );
+                    return;
+                  }
+                  c.setShowConfirmDialog(true);
+                }}
+                disabled={
+                  c.isPlacingOrder ||
+                  c.hasBelowMinimumOrder ||
+                  c.noPaymentMethodAvailable ||
+                  c.blocksOnlineMultiSeller ||
+                  c.multiStoreRequiresSplit ||
+                  c.hasFulfillmentConflict ||
+                  (c.fulfillmentType === 'delivery' && !c.selectedDeliveryAddress) ||
+                  c.preorderMissingSchedule
+                }
+              >
+                {c.isPlacingOrder ? 'Placing...' : 'Place Order'}
+                <ChevronRight size={18} className="ml-1" />
+              </Button>
             </div>
         </div>
       </div>
@@ -509,14 +569,37 @@ export default function CartPage() {
                 ) : (
                   <div className="flex justify-between"><span className="text-muted-foreground">Deliver to</span><span className="font-medium text-right text-warning">Not set</span></div>
                 )}
-                {c.sellerGroups.length > 1 && <p className="text-xs text-muted-foreground">{c.sellerGroups.length} separate orders will be created.</p>}
+                {c.sellerGroups.length > 1 && (
+                  <p className="text-xs text-muted-foreground">
+                    {c.paymentMethod === 'cod'
+                      ? `${c.sellerGroups.length} separate orders will be created — pay each store when you receive.`
+                      : (c.multiOrderConfirmHint || `${c.sellerGroups.length} separate orders will be created.`)}
+                  </p>
+                )}
+                {c.paymentMethod !== 'cod' && c.paymentMode?.isRazorpay && c.sellerGroups.length === 1 && (
+                  <p className="text-xs text-muted-foreground">One payment to Sociva via Razorpay. Seller payout follows settlement after delivery.</p>
+                )}
                 <div className="flex justify-between border-t border-border pt-2 font-bold"><span>Total</span><span>{c.formatPrice(c.finalAmount || c.sessionAmount)}</span></div>
               </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <Button variant="outline" onClick={() => { c.setShowConfirmDialog(false); setShowReviewSheet(true); }}>Review Cart</Button>
-            <AlertDialogAction onClick={c.handlePlaceOrder}>Confirm Order</AlertDialogAction>
+            <AlertDialogAction
+              onClick={() => {
+                if (c.blocksOnlineMultiSeller || c.multiStoreRequiresSplit) {
+                  toast.error(
+                    'Checkout one store at a time — tap “Checkout this store” on a seller card.',
+                    { id: 'online-multi-seller-blocked', duration: 7000 },
+                  );
+                  c.setShowConfirmDialog(false);
+                  return;
+                }
+                c.handlePlaceOrder();
+              }}
+            >
+              Confirm Order
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -608,7 +691,18 @@ export default function CartPage() {
             <Button
               className="w-full rounded-xl font-bold"
               size="lg"
-              onClick={() => { setShowReviewSheet(false); c.setShowConfirmDialog(true); }}
+              onClick={() => {
+                if (c.blocksOnlineMultiSeller || c.multiStoreRequiresSplit) {
+                  toast.error(
+                    'Checkout one store at a time — tap “Checkout this store” on a seller card.',
+                    { id: 'online-multi-seller-blocked', duration: 7000 },
+                  );
+                  setShowReviewSheet(false);
+                  return;
+                }
+                setShowReviewSheet(false);
+                c.setShowConfirmDialog(true);
+              }}
             >
               Looks Good, Confirm
               <ChevronRight size={18} className="ml-1" />
@@ -664,10 +758,18 @@ export default function CartPage() {
         <RazorpayCheckout isOpen={c.showRazorpayCheckout} onClose={() => {}} orderId={c.pendingOrderIds[0]} orderIds={c.pendingOrderIds} amount={c.finalAmount || c.sessionAmount} sellerId={c.sellerGroups[0]?.sellerId || ''} sellerName={c.sellerGroups[0]?.sellerName || c.sessionSellerName} customerName={c.profile?.name || ''} customerEmail={c.user?.email || ''} customerPhone={c.profile?.phone || ''} onPaymentSuccess={c.handleRazorpaySuccess} onPaymentFailed={c.handleRazorpayFailed} onDismiss={c.handleRazorpayDismiss} />
       )}
 
-      {/* CRITICAL: Render UPI sheet whenever pendingOrderIds exist — independent of cart state.
-          This prevents the sheet from unmounting when cart items refetch as empty during app-switch. */}
-      {c.pendingOrderIds.length > 0 && (
-        <UpiDeepLinkCheckout isOpen={c.showUpiDeepLink} onClose={() => c.setShowUpiDeepLink(false)} orderId={c.pendingOrderIds[0]} amount={(c.sellerGroups.length > 0 ? c.finalAmount : c.sessionAmount) || c.finalAmount} sellerUpiId={(c.sellerGroups[0]?.items[0]?.product?.seller as any)?.upi_id || c.sessionSellerUpiId} sellerName={c.sellerGroups[0]?.sellerName || c.sessionSellerName} onPaymentConfirmed={c.handleUpiDeepLinkSuccess} onPaymentFailed={c.handleUpiDeepLinkFailed} />
+      {/* UPI deep-link is single-VPA only — never open for multi-order pending sessions */}
+      {c.pendingOrderIds.length === 1 && c.paymentMode.isUpiDeepLink && (
+        <UpiDeepLinkCheckout
+          isOpen={c.showUpiDeepLink}
+          onClose={() => c.setShowUpiDeepLink(false)}
+          orderId={c.pendingOrderIds[0]}
+          amount={c.sessionAmount || c.finalAmount}
+          sellerUpiId={(c.sellerGroups[0]?.items[0]?.product?.seller as any)?.upi_id || c.sessionSellerUpiId}
+          sellerName={c.sellerGroups[0]?.sellerName || c.sessionSellerName}
+          onPaymentConfirmed={c.handleUpiDeepLinkSuccess}
+          onPaymentFailed={c.handleUpiDeepLinkFailed}
+        />
       )}
     </AppLayout>
   );

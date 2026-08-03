@@ -319,7 +319,7 @@ export default function WelcomeCarousel() {
   ];
 
   return (
-    <div className="min-h-[100dvh] bg-background">
+    <div className="min-h-[100dvh] bg-background safe-top">
       {/* Carousel */}
       <div className="relative overflow-hidden" ref={emblaRef}>
         <div className="flex">

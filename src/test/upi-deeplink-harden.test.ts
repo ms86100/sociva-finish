@@ -58,13 +58,34 @@ describe('UPI deep-link Phase 1 harden', () => {
       expect(checkoutSrc).not.toMatch(/_upi_transaction_ref:\s*''/);
     });
 
-    it('does not clear cart on UPI claim success', () => {
+    it('clears cart after UPI claim so buyer cannot double-order while awaiting seller', () => {
       expect(cartSrc).toMatch(/Payment submitted — waiting for seller confirmation/);
       const successFn = cartSrc.slice(
         cartSrc.indexOf('handleUpiDeepLinkSuccess'),
         cartSrc.indexOf('handleUpiDeepLinkFailed'),
       );
-      expect(successFn).not.toMatch(/clearCartAndCache/);
+      expect(successFn).toMatch(/clearCartAndCache/);
+    });
+
+    it('blocks multi-seller UPI deep-link checkout (C2 money-path)', () => {
+      expect(cartSrc).toMatch(/isUpiDeepLink && sellerGroups\.length > 1/);
+      expect(cartSrc).toMatch(/UPI pay works for one seller at a time|requiresSingleSellerForOnline/);
+    });
+
+    it('does not auto-cancel on Razorpay dismiss (C3 race)', () => {
+      const start = cartSrc.indexOf('const handleRazorpayDismiss');
+      const end = cartSrc.indexOf('const upiCompletionRef');
+      expect(start).toBeGreaterThan(-1);
+      expect(end).toBeGreaterThan(start);
+      const dismissFn = cartSrc.slice(start, end);
+      expect(dismissFn).not.toMatch(/buyer_cancel_pending_orders/);
+      expect(dismissFn).toMatch(/will not cancel automatically|Checkout closed/);
+    });
+
+    it('persists payment session via durable Preferences key (C4)', () => {
+      expect(cartSrc).toMatch(/setString\(PAYMENT_SESSION_KEY/);
+      expect(cartSrc).toMatch(/getString\(PAYMENT_SESSION_KEY/);
+      expect(cartSrc).not.toMatch(/sessionStorage\.setItem\(PAYMENT_SESSION_KEY/);
     });
   });
 

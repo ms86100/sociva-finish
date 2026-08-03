@@ -66,7 +66,7 @@ export default function FavoritesPage() {
   };
 
   return (
-    <AppLayout showHeader={false}>
+    <AppLayout showHeader={false} safeTop={false}>
       <SafeHeader>
         <div className="px-4 pb-3.5 flex items-center gap-3">
         <button onClick={() => window.history.length > 1 ? navigate(-1) : navigate('/')} className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-muted shrink-0">

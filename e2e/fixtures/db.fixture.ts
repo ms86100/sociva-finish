@@ -5,7 +5,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
  * Uses anon key to also validate RLS policies.
  */
 export function createDbClient(): SupabaseClient {
-  const url = process.env.SUPABASE_URL || 'https://ywhlqsgvbkvcvqlsniad.supabase.co';
+  const url = process.env.SUPABASE_URL || 'https://kkzkuyhgdvyecmxtmkpy.supabase.co';
   const key = process.env.SUPABASE_ANON_KEY || '';
   return createClient(url, key);
 }

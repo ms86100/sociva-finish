@@ -187,7 +187,7 @@ export default function CategoriesPage() {
   const searchPlaceholder = useSearchPlaceholder();
 
   return (
-    <AppLayout showHeader={false}>
+    <AppLayout showHeader={false} safeTop={false}>
       {/* Header */}
       <SafeHeader zIndex="z-40" blur bordered={false}>
         <div className="px-4 pt-3 pb-1">

@@ -95,7 +95,7 @@ export default function TestResultsPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-[100dvh] bg-background p-4 space-y-4">
+      <div className="min-h-[100dvh] bg-background p-4 space-y-4 safe-top">
         <Skeleton className="h-10 w-48" />
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-24 rounded-xl" />)}

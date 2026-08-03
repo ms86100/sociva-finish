@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -8,7 +8,8 @@ import { DynamicIcon } from '@/components/ui/DynamicIcon';
 import { useSubcategories, Subcategory } from '@/hooks/useSubcategories';
 import { useResolvedCategoryAliases } from '@/hooks/useResolvedCategoryAliases';
 import { RequestSubcategoryDialog } from '@/components/seller/RequestSubcategoryDialog';
-import { Search, Star, Check, AlertTriangle, Loader2, Plus, Pencil, RotateCcw } from 'lucide-react';
+import { findBestSubcategoryMatch } from '@/lib/listing-intent';
+import { Search, Star, Check, AlertTriangle, Loader2, Plus, Pencil, RotateCcw, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 // ─── Identity Map ────────────────────────────────────────────────────────────
@@ -103,20 +104,72 @@ export function SubcategoryPickerDialog({
   const [search, setSearch] = useState('');
   const [localSelection, setLocalSelection] = useState<SubcategorySelection>(selected);
   const [requestOpen, setRequestOpen] = useState(false);
+  const [detectedChip, setDetectedChip] = useState<string | null>(null);
+  const [otherHint, setOtherHint] = useState<string | null>(null);
+  const autoResolvedRef = useRef<string | null>(null);
 
   // Only re-seed local state when the dialog actually opens or the target
   // category changes. Depending on `selected` would reset the user's in-progress
   // selection on every parent re-render (the parent passes a fresh default
   // object literal each time), causing checkboxes to immediately uncheck.
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      autoResolvedRef.current = null;
+      return;
+    }
     setLocalSelection(selected);
+    setDetectedChip(null);
+    setOtherHint(null);
+    // Seed search briefly; auto-resolve effect clears stuck empty filters.
     setSearch(initialSearch?.trim() || '');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, categoryConfigId]);
 
+  // Auto-select best subcategory from intent phrase; never leave stuck empty search.
+  useEffect(() => {
+    if (!open || !subcategories?.length) return;
+    const phrase = (initialSearch || '').trim();
+    if (!phrase) return;
+    const resolveKey = `${categoryConfigId}:${phrase}`;
+    if (autoResolvedRef.current === resolveKey) return;
+    autoResolvedRef.current = resolveKey;
+
+    if (selected.primary) {
+      setSearch('');
+      return;
+    }
+
+    const catalog = subcategories.map((s) => ({
+      id: s.id,
+      slug: s.slug,
+      displayName: s.display_name,
+      categoryConfigId: s.category_config_id,
+      categorySlug: categorySlug || '',
+    }));
+    const hit = findBestSubcategoryMatch(phrase, catalog, { categoryConfigId });
+    if (hit && hit.score >= 1) {
+      setLocalSelection({ primary: hit.sub.id, others: [], customLabel: null });
+      setDetectedChip(`${categoryName} → ${hit.sub.displayName}`);
+      setOtherHint(null);
+      setSearch('');
+    } else {
+      // Clear stuck query so the full list remains usable; offer Other path.
+      setSearch('');
+      setDetectedChip(null);
+      setOtherHint(phrase);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, categoryConfigId, subcategories]);
+
   const handleOpenChange = (nextOpen: boolean) => {
     onOpenChange(nextOpen);
+  };
+
+  const continueAsOther = () => {
+    const label = (otherHint || initialSearch || 'Other').trim() || 'Other';
+    setLocalSelection({ primary: null, others: [], customLabel: label });
+    setDetectedChip(`${categoryName} → Other`);
+    setOtherHint(null);
   };
 
 
@@ -214,6 +267,31 @@ export function SubcategoryPickerDialog({
             className="pl-9"
           />
         </div>
+
+        {detectedChip && (
+          <div className="mb-3 flex items-center gap-2 px-3 py-2 rounded-xl bg-primary/10 text-xs text-primary">
+            <Sparkles size={14} className="shrink-0" />
+            <span>Detected: <span className="font-semibold">{detectedChip}</span></span>
+          </div>
+        )}
+
+        {otherHint && !localSelection.primary && (
+          <div className="mb-3 p-3 rounded-xl border border-dashed border-border space-y-2">
+            <p className="text-xs text-muted-foreground">
+              No exact subcategory for &quot;{otherHint}&quot;. Pick the closest below, request a new one, or continue as Other.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" size="sm" variant="secondary" className="rounded-xl h-8 text-xs" onClick={continueAsOther}>
+                Continue as Other
+              </Button>
+              {categorySlug && (
+                <Button type="button" size="sm" variant="outline" className="rounded-xl h-8 text-xs" onClick={() => setRequestOpen(true)}>
+                  <Plus size={12} className="mr-1" />Request subcategory
+                </Button>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Guidance */}
         <p className="text-xs text-muted-foreground mb-2">
@@ -361,14 +439,14 @@ export function SubcategoryPickerDialog({
         )}
 
         {/* Identity feedback (editable) */}
-        {localSelection.primary && (
+        {(localSelection.primary || localSelection.customLabel) && (
           <EditableIdentityLabel
-            defaultLabel={identityLabel}
+            defaultLabel={localSelection.customLabel || identityLabel}
             value={localSelection.customLabel ?? ''}
             onChange={(next) =>
               setLocalSelection(prev => ({
                 ...prev,
-                customLabel: next.trim() && next.trim() !== identityLabel ? next.trim() : null,
+                customLabel: next.trim() && next.trim() !== identityLabel ? next.trim() : (prev.primary ? null : (next.trim() || 'Other')),
               }))
             }
           />
@@ -377,9 +455,15 @@ export function SubcategoryPickerDialog({
         {/* Footer */}
         <div className="mt-3 flex items-center gap-3">
           <span className="text-xs text-muted-foreground flex-1">
-            {totalSelected === 0 ? 'No selections' : `${totalSelected} selected`}
+            {totalSelected === 0
+              ? (localSelection.customLabel ? `Other: ${localSelection.customLabel}` : 'No selections')
+              : `${totalSelected} selected`}
           </span>
-          <Button onClick={handleDone} className="min-w-[100px]">
+          <Button
+            onClick={handleDone}
+            className="min-w-[100px]"
+            disabled={totalSelected === 0 && !localSelection.customLabel}
+          >
             Done {totalSelected > 0 && `(${totalSelected})`}
           </Button>
         </div>

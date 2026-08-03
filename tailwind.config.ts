@@ -115,8 +115,8 @@ export default {
         pulse: "pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite",
       },
       spacing: {
-        "safe-bottom": "env(safe-area-inset-bottom)",
-        "safe-top": "env(safe-area-inset-top)",
+        "safe-bottom": "var(--app-safe-bottom)",
+        "safe-top": "var(--app-safe-top)",
       },
     },
   },

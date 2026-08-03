@@ -886,8 +886,8 @@ workflows:
           npm install --legacy-peer-deps
           node scripts/patch-android-builds.cjs
 
-      - name: Build web app
-        script: npm run build
+      - name: Build web app (native — no PWA/Workbox in WebView)
+        script: npm run build:native
 
       - name: Add Android platform
         script: |

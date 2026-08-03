@@ -333,7 +333,7 @@ export default function SellerDetailPage() {
 
   if (sellerNotFound || !seller) {
     return (
-      <AppLayout showHeader={false} showNav={true} showCart={false}>
+      <AppLayout showHeader={false} showNav={true} showCart={false} safeTop={false}>
         <div className="p-4 text-center safe-top">
           <p>Seller not found</p>
           <Link to="/">
@@ -347,7 +347,7 @@ export default function SellerDetailPage() {
   const operatingDays = seller.operating_days || DAYS_OF_WEEK;
 
   return (
-    <AppLayout showHeader={false} showNav={true} showCart={true}>
+    <AppLayout showHeader={false} showNav={true} showCart={true} safeTop={false}>
       {/* Cover Image */}
       <motion.div
         className="relative h-56"
@@ -366,7 +366,10 @@ export default function SellerDetailPage() {
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-foreground/70 via-foreground/30 to-transparent" />
         
-        <div className="absolute top-[max(1rem,env(safe-area-inset-top))] left-3 right-3 flex justify-between">
+        <div
+          className="absolute left-3 right-3 flex justify-between"
+          style={{ top: 'max(1rem, var(--app-safe-top, 28px))' }}
+        >
           <button
             onClick={() => navigate(-1)}
             className="w-11 h-11 rounded-full bg-foreground/50 backdrop-blur-sm flex items-center justify-center shadow-md border border-primary-foreground/20"

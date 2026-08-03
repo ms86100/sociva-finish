@@ -88,26 +88,28 @@ export default function HomePage() {
           );
         })()}
 
-        {/* Below-fold only — each section mounts after scroll, cutting home query fan-out */}
-        <LazySection className="reveal-on-scroll">
+        {/* Below-fold — mount on scroll to cut home query fan-out.
+            Do not use reveal-on-scroll: nothing adds .revealed, so sections
+            stayed opacity:0 and left a huge blank band above BottomNav. */}
+        <LazySection>
           <WelcomeBackStrip />
         </LazySection>
-        <LazySection className="reveal-on-scroll">
+        <LazySection>
           <ForYouSection />
         </LazySection>
-        <LazySection className="reveal-on-scroll">
+        <LazySection>
           <RecentlyViewedRow />
         </LazySection>
-        <LazySection className="reveal-on-scroll">
+        <LazySection>
           <WhatsNewSection />
         </LazySection>
-        <LazySection className="reveal-on-scroll">
+        <LazySection>
           <SocietyQuickLinks />
         </LazySection>
-        <LazySection className="mt-2 reveal-on-scroll">
+        <LazySection className="mt-2">
           <SocietyLeaderboard />
         </LazySection>
-        <LazySection className="reveal-on-scroll">
+        <LazySection>
           <CommunityTeaser />
         </LazySection>
       </div>

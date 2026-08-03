@@ -94,7 +94,7 @@ serve(async (req) => {
     // Load orders from DB — amount and ownership come from DB only
     const { data: orders, error: ordersErr } = await supabase
       .from("orders")
-      .select("id, buyer_id, seller_id, total_amount, society_id, status, payment_status, razorpay_order_id")
+      .select("id, buyer_id, seller_id, total_amount, society_id, status, payment_status, razorpay_order_id, platform_fee, net_amount")
       .in("id", order_ids);
 
     if (ordersErr || !orders || orders.length !== order_ids.length) {
@@ -216,9 +216,16 @@ serve(async (req) => {
         {
           order_id: orderId,
           buyer_id: orderData.buyer_id,
+          // Per-order seller_id — critical for multi-store platform-collect so each
+          // settlement row (created on delivery) attributes the right seller.
           seller_id: orderData.seller_id,
           amount: orderData.total_amount,
-          net_amount: orderData.total_amount,
+          platform_fee: Number(orderData.platform_fee || 0),
+          net_amount: Number(
+            orderData.net_amount != null
+              ? orderData.net_amount
+              : Number(orderData.total_amount || 0) - Number(orderData.platform_fee || 0),
+          ),
           razorpay_payment_id: verifiedPaymentId,
           payment_status: "paid",
           payment_method: "online",

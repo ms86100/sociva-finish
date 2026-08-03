@@ -65,7 +65,7 @@ export default function SellerPayoutsPage() {
 
   if (isLoading) {
     return (
-      <AppLayout showHeader={false}>
+      <AppLayout showHeader={false} safeTop={false}>
         <div className="p-4 safe-top">
           <Skeleton className="h-8 w-32 mb-4" />
           <Skeleton className="h-32 w-full rounded-xl mb-4" />
@@ -76,7 +76,7 @@ export default function SellerPayoutsPage() {
   }
 
   return (
-    <AppLayout showHeader={false}>
+    <AppLayout showHeader={false} safeTop={false}>
       <SafeHeader>
         <div className="px-4 pb-3 flex items-center gap-3">
           <Link to="/seller/earnings" className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-muted shrink-0">

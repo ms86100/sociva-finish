@@ -66,7 +66,7 @@ function BottomNavInner() {
   return (
     <nav
       className="fixed inset-x-0 bottom-0 z-50 border-t border-border/20"
-      style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+      style={{ paddingBottom: 'var(--app-safe-bottom)' }}
     >
       {/* Solid fill on native — backdrop-blur tanks Android WebView scroll/nav FPS */}
       <div className={cn(

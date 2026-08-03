@@ -225,7 +225,7 @@ export default function SocietyDashboardPage() {
   const societyPlaceholder = useSearchPlaceholder('society');
 
   return (
-    <AppLayout showHeader={false}>
+    <AppLayout showHeader={false} safeTop={false}>
       {/* Custom Society Header */}
       <SafeHeader zIndex="z-40">
         <div className="px-3 pt-2.5 pb-2">

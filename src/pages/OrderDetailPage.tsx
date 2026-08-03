@@ -472,7 +472,7 @@ export default function OrderDetailPage() {
   };
 
   return (
-    <AppLayout showHeader={false} showNav={!hasSellerActionBar || !o.isSellerView}>
+    <AppLayout showHeader={false} showNav={!hasSellerActionBar || !o.isSellerView} safeTop={false}>
       {showSuccessOverlay && (
         <OrderSuccessOverlay
           show={showSuccessOverlay}

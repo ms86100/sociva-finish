@@ -12,6 +12,8 @@ interface PaymentMethodSelectorProps {
   acceptsUpi: boolean;
   selectedMethod: PaymentMethod;
   onSelect: (method: PaymentMethod) => void;
+  /** Phase 1: disable online/UPI when cart has multiple sellers */
+  multiSellerOnlineBlocked?: boolean;
 }
 
 export function PaymentMethodSelector({
@@ -19,25 +21,37 @@ export function PaymentMethodSelector({
   acceptsUpi,
   selectedMethod,
   onSelect,
+  multiSellerOnlineBlocked = false,
 }: PaymentMethodSelectorProps) {
   const { upiProviderLabel } = useSystemSettings();
   const { isUpiDeepLink, isRazorpay } = usePaymentMode();
+
+  const onlineEnabled = isRazorpay
+    ? !multiSellerOnlineBlocked
+    : acceptsUpi && !multiSellerOnlineBlocked;
 
   const methods = isRazorpay
     ? [
         {
           id: 'upi' as PaymentMethod,
           label: 'Pay Online',
-          description: 'Pay securely via Razorpay (UPI, Cards, Wallets)',
+          description: multiSellerOnlineBlocked
+            ? 'One store at a time — use “Checkout this store” or COD for all'
+            : 'One payment to Sociva via Razorpay (UPI, Cards, Wallets)',
           icon: CreditCard,
-          enabled: true,
+          enabled: onlineEnabled,
           color: 'text-info',
           bgColor: 'bg-info/10',
+          disabledReason: multiSellerOnlineBlocked
+            ? 'Online pay is limited to one store per checkout'
+            : undefined,
         },
         {
           id: 'cod' as PaymentMethod,
           label: 'Cash on Delivery',
-          description: 'Pay when you receive',
+          description: multiSellerOnlineBlocked
+            ? 'Pay each store when you receive — separate orders per seller'
+            : 'Pay when you receive',
           icon: Banknote,
           enabled: acceptsCod,
           color: 'text-success',
@@ -48,16 +62,25 @@ export function PaymentMethodSelector({
         {
           id: 'upi' as PaymentMethod,
           label: 'UPI Payment',
-          description: isUpiDeepLink ? 'Pay directly via UPI app' : `Pay via ${upiProviderLabel}`,
+          description: multiSellerOnlineBlocked
+            ? 'Pays one seller’s UPI ID only — checkout one store at a time'
+            : isUpiDeepLink
+              ? 'Pay directly via UPI app to this seller'
+              : `Pay via ${upiProviderLabel}`,
           icon: Smartphone,
-          enabled: acceptsUpi,
+          enabled: onlineEnabled,
           color: 'text-info',
           bgColor: 'bg-info/10',
+          disabledReason: multiSellerOnlineBlocked
+            ? 'UPI cannot split one payment across multiple sellers'
+            : undefined,
         },
         {
           id: 'cod' as PaymentMethod,
           label: 'Cash on Delivery',
-          description: 'Pay when you receive',
+          description: multiSellerOnlineBlocked
+            ? 'Pay each store when you receive — separate orders per seller'
+            : 'Pay when you receive',
           icon: Banknote,
           enabled: acceptsCod,
           color: 'text-success',
@@ -67,7 +90,7 @@ export function PaymentMethodSelector({
 
   return (
     <div className="space-y-3">
-      {methods.map(({ id, label, description, icon: Icon, enabled, color, bgColor }) => (
+      {methods.map(({ id, label, description, icon: Icon, enabled, color, bgColor, disabledReason }) => (
         <button
           key={id}
           onClick={() => enabled && onSelect(id)}
@@ -89,7 +112,9 @@ export function PaymentMethodSelector({
                 <p className="font-semibold">{label}</p>
                 <p className="text-sm text-muted-foreground">{description}</p>
                 {!enabled && (
-                  <p className="text-xs text-destructive mt-1">Not available for this seller</p>
+                  <p className="text-xs text-destructive mt-1">
+                    {disabledReason || 'Not available for this seller'}
+                  </p>
                 )}
               </div>
               <AnimatePresence>

@@ -14,6 +14,7 @@ import { useCurrency } from '@/hooks/useCurrency';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import QRCodeDisplay from '@/components/security/QRCodeDisplay';
+import { getString, setString, removeKey } from '@/lib/persistent-kv';
 
 interface UpiDeepLinkCheckoutProps {
   isOpen: boolean;
@@ -78,7 +79,7 @@ export function UpiDeepLinkCheckout({
 
   const [step, setStepRaw] = useState<CheckoutStep>(() => {
     try {
-      const saved = sessionStorage.getItem(UPI_STEP_KEY);
+      const saved = getString(UPI_STEP_KEY);
       if (saved && ['pay', 'confirm'].includes(saved)) return saved as CheckoutStep;
     } catch {}
     return 'pay';
@@ -87,15 +88,13 @@ export function UpiDeepLinkCheckout({
   const [screenshotPreview, setScreenshotPreview] = useState<string | null>(null);
   const [utrRef, setUtrRef] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const hasOpenedApp = useRef<boolean>(
-    (() => { try { return sessionStorage.getItem(UPI_OPENED_APP_KEY) === 'true'; } catch { return false; } })()
-  );
+  const hasOpenedApp = useRef<boolean>(getString(UPI_OPENED_APP_KEY) === 'true');
   const completionTriggeredRef = useRef(false);
 
   const setStep = useCallback((nextStep: CheckoutStep | ((prev: CheckoutStep) => CheckoutStep)) => {
     setStepRaw(prev => {
       const resolved = typeof nextStep === 'function' ? nextStep(prev) : nextStep;
-      try { sessionStorage.setItem(UPI_STEP_KEY, resolved); } catch {}
+      try { setString(UPI_STEP_KEY, resolved); } catch {}
       return resolved;
     });
   }, []);
@@ -117,8 +116,8 @@ export function UpiDeepLinkCheckout({
   const isRestoredRef = useRef(false);
   useEffect(() => {
     if (isOpen) {
-      const savedStep = (() => { try { return sessionStorage.getItem(UPI_STEP_KEY); } catch { return null; } })();
-      const savedOpened = (() => { try { return sessionStorage.getItem(UPI_OPENED_APP_KEY) === 'true'; } catch { return false; } })();
+      const savedStep = (() => { try { return getString(UPI_STEP_KEY); } catch { return null; } })();
+      const savedOpened = (() => { try { return getString(UPI_OPENED_APP_KEY) === 'true'; } catch { return false; } })();
 
       if (savedOpened && savedStep === 'confirm') {
         isRestoredRef.current = true;
@@ -127,7 +126,7 @@ export function UpiDeepLinkCheckout({
       } else if (!isRestoredRef.current) {
         setStep('pay');
         hasOpenedApp.current = false;
-        try { sessionStorage.removeItem(UPI_OPENED_APP_KEY); } catch {}
+        try { removeKey(UPI_OPENED_APP_KEY); } catch {}
         completionTriggeredRef.current = false;
       }
     } else {
@@ -144,7 +143,7 @@ export function UpiDeepLinkCheckout({
     if (completionTriggeredRef.current) return;
     completionTriggeredRef.current = true;
     setStep('done');
-    try { sessionStorage.removeItem(UPI_STEP_KEY); sessionStorage.removeItem(UPI_OPENED_APP_KEY); } catch {}
+    try { removeKey(UPI_STEP_KEY); removeKey(UPI_OPENED_APP_KEY); } catch {}
     setTimeout(() => onPaymentConfirmed(), 1500);
   }, [onPaymentConfirmed]);
 
@@ -194,7 +193,7 @@ export function UpiDeepLinkCheckout({
       return;
     }
     hasOpenedApp.current = true;
-    try { sessionStorage.setItem(UPI_OPENED_APP_KEY, 'true'); } catch {}
+    try { setString(UPI_OPENED_APP_KEY, 'true'); } catch {}
     setStep('confirm');
     void openUpiIntent(buildUpiLink(scheme));
   };
@@ -305,14 +304,14 @@ export function UpiDeepLinkCheckout({
       return;
     }
     if ((step === 'pay' || step === 'blocked') && !hasOpenedApp.current) {
-      try { sessionStorage.removeItem(UPI_STEP_KEY); sessionStorage.removeItem(UPI_OPENED_APP_KEY); } catch {}
+      try { removeKey(UPI_STEP_KEY); removeKey(UPI_OPENED_APP_KEY); } catch {}
       onPaymentFailed();
     }
     onClose();
   };
 
   const handleCancelOrder = () => {
-    try { sessionStorage.removeItem(UPI_STEP_KEY); sessionStorage.removeItem(UPI_OPENED_APP_KEY); } catch {}
+    try { removeKey(UPI_STEP_KEY); removeKey(UPI_OPENED_APP_KEY); } catch {}
     onPaymentFailed();
     onClose();
   };

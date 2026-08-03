@@ -216,7 +216,7 @@ export default function CategoryGroupPage() {
   if (!parentGroup) return null;
 
   return (
-    <AppLayout showHeader={false}>
+    <AppLayout showHeader={false} safeTop={false}>
       {/* Sticky Header */}
       <SafeHeader bordered={false}>
         <div className="px-4 pt-1 pb-2">

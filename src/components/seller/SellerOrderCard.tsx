@@ -83,12 +83,31 @@ export function SellerOrderCard({ order }: SellerOrderCardProps) {
     slaExpiredRef.current = false;
     const calc = () => Math.max(0, Math.floor((new Date(autoCancelAt).getTime() - Date.now()) / 1000));
     setSlaSeconds(calc());
-    const t = setInterval(() => {
-      const v = calc();
-      setSlaSeconds(v);
-      if (v <= 0) slaExpiredRef.current = true;
-    }, 1000);
-    return () => clearInterval(t);
+    let t: ReturnType<typeof setInterval> | null = null;
+    const start = () => {
+      if (t) return;
+      t = setInterval(() => {
+        const v = calc();
+        setSlaSeconds(v);
+        if (v <= 0) slaExpiredRef.current = true;
+      }, 1000);
+    };
+    const stop = () => {
+      if (t) { clearInterval(t); t = null; }
+    };
+    const onVis = () => {
+      if (document.visibilityState === 'hidden') stop();
+      else {
+        setSlaSeconds(calc());
+        start();
+      }
+    };
+    if (document.visibilityState !== 'hidden') start();
+    document.addEventListener('visibilitychange', onVis);
+    return () => {
+      stop();
+      document.removeEventListener('visibilitychange', onVis);
+    };
   }, [autoCancelAt, isPending]);
 
   const slaIsLow = slaSeconds >= 0 && slaSeconds <= 60;

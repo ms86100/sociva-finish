@@ -84,7 +84,7 @@ serve(async (req) => {
     // Validate ALL orders belong to buyer, are not cancelled, and have payment_status: 'pending'
     const { data: orders, error: orderError } = await supabase
       .from('orders')
-      .select('id, buyer_id, status, payment_status, razorpay_order_id, total_amount')
+      .select('id, buyer_id, seller_id, status, payment_status, razorpay_order_id, total_amount')
       .in('id', allOrderIds)
       .eq('buyer_id', user.id)
       .neq('status', 'cancelled')
@@ -97,6 +97,19 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ error: 'One or more orders not found, already cancelled, or already paid' }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const uniqueSellers = new Set(orders.map((o: any) => o.seller_id).filter(Boolean));
+    if (uniqueSellers.size > 1) {
+      // Phase 1 product rule: online checkout is one seller at a time.
+      // Refuse multi-seller Razorpay create so money cannot land ambiguously.
+      return new Response(
+        JSON.stringify({
+          error: 'Multi-store online checkout is not supported. Checkout one store at a time or use Cash on Delivery.',
+          code: 'MULTI_SELLER_ONLINE_BLOCKED',
+        }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -113,6 +126,9 @@ serve(async (req) => {
     }
 
     console.log('Creating Razorpay order for orders:', allOrderIds, 'amount:', dbAmount, 'sellerId:', sellerId);
+
+    // Multi-order checkout = platform collect once (merchant of record).
+    // Route `transfers` only for a single order with linked seller account below.
 
     // Idempotency: reuse existing Razorpay order if still valid
     const existingRzpId = orders[0]?.razorpay_order_id;

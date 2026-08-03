@@ -3,7 +3,10 @@
   "outputDirectory": "dist",
   "framework": "vite",
   "rewrites": [
-    { "source": "/((?!\\.well-known/).*)", "destination": "/index.html" }
+    {
+      "source": "/((?!\\.well-known/|downloads/).*)",
+      "destination": "/index.html"
+    }
   ],
   "headers": [
     {
@@ -35,6 +38,14 @@
       "headers": [
         { "key": "Content-Type", "value": "application/json" },
         { "key": "Cache-Control", "value": "public, max-age=300" }
+      ]
+    },
+    {
+      "source": "/downloads/(.*).apk",
+      "headers": [
+        { "key": "Content-Type", "value": "application/vnd.android.package-archive" },
+        { "key": "Content-Disposition", "value": "attachment; filename=\"sociva-android.apk\"" },
+        { "key": "Cache-Control", "value": "public, max-age=3600" }
       ]
     },
     {

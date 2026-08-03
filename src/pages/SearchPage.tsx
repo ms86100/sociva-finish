@@ -72,7 +72,7 @@ export default function SearchPage() {
   };
 
   return (
-    <AppLayout showHeader={false}>
+    <AppLayout showHeader={false} safeTop={false}>
       <div className="pb-24">
         {/* Sticky search header */}
         <SafeHeader zIndex="z-40" bordered={false} className="overflow-visible">

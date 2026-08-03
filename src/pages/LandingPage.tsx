@@ -7,6 +7,7 @@ import { LandingFeatures } from '@/components/landing/LandingFeatures';
 import { LandingHowItWorks } from '@/components/landing/LandingHowItWorks';
 import { LandingTestimonials } from '@/components/landing/LandingTestimonials';
 import { LandingPricing } from '@/components/landing/LandingPricing';
+import { LandingDownload } from '@/components/landing/LandingDownload';
 import { LandingFinalCTA } from '@/components/landing/LandingFinalCTA';
 import { LandingFooter } from '@/components/landing/LandingFooter';
 
@@ -21,6 +22,7 @@ export default function LandingPage() {
       <LandingHowItWorks />
       <LandingTestimonials />
       <LandingPricing />
+      <LandingDownload />
       <LandingFinalCTA />
       <LandingFooter />
     </div>
