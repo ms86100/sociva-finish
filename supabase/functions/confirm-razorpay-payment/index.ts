@@ -212,7 +212,7 @@ serve(async (req) => {
         continue;
       }
 
-      await supabase.from("payment_records").upsert(
+      const { error: payRecErr } = await supabase.from("payment_records").upsert(
         {
           order_id: orderId,
           buyer_id: orderData.buyer_id,
@@ -236,6 +236,11 @@ serve(async (req) => {
         },
         { onConflict: "order_id", ignoreDuplicates: false }
       );
+      if (payRecErr) {
+        console.error("payment_records upsert failed for order", orderId, payRecErr);
+        results.push({ id: orderId, success: false });
+        continue;
+      }
 
       const { data: updated, error: updateErr } = await supabase
         .from("orders")

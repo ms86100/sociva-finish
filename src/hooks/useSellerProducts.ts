@@ -383,10 +383,15 @@ export function useSellerProducts() {
           subcategory_id: productData.subcategory_id,
         });
         if (anyContentChanged && ['approved', 'rejected'].includes(ep.approval_status)) {
-          await supabase.from('product_edit_snapshots').insert({
+          const { error: snapErr } = await supabase.from('product_edit_snapshots').insert({
             product_id: editingProduct.id,
             snapshot: snapshotFields,
           } as any);
+          if (snapErr) {
+            console.error('Failed to save edit snapshot:', snapErr);
+            toast.error('Could not save version history — product not updated. Try again.');
+            return;
+          }
         }
         const { error } = await (supabase as any).rpc('update_product_with_service', {
           p_product_id: editingProduct.id,
@@ -418,7 +423,8 @@ export function useSellerProducts() {
   const confirmDelete = async () => {
     if (!deleteTarget) return;
     try {
-      const { data: activeBookings } = await supabase.from('service_bookings').select('id').eq('product_id', deleteTarget.id).not('status', 'in', '(cancelled,completed,no_show)').limit(1);
+      const { data: activeBookings, error: bookingCheckErr } = await supabase.from('service_bookings').select('id').eq('product_id', deleteTarget.id).not('status', 'in', '(cancelled,completed,no_show)').limit(1);
+      if (bookingCheckErr) throw bookingCheckErr;
       if (activeBookings && activeBookings.length > 0) { notify.block('Cannot delete: this product has active bookings. Cancel or complete them first.'); setDeleteTarget(null); return; }
       const { error } = await supabase.from('products').delete().eq('id', deleteTarget.id);
       if (error) throw error;

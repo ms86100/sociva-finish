@@ -156,20 +156,23 @@ export function CouponManager() {
 
   const toggleCoupon = async (id: string, isActive: boolean) => {
     if (!currentSellerId) return;
-    await supabase.from('coupons').update({ is_active: !isActive }).eq('id', id).eq('seller_id', currentSellerId);
+    const { error } = await supabase.from('coupons').update({ is_active: !isActive }).eq('id', id).eq('seller_id', currentSellerId);
+    if (error) { toast.error('Failed to update coupon'); return; }
     setCoupons(coupons.map(c => c.id === id ? { ...c, is_active: !isActive } : c));
   };
 
   const toggleVisibility = async (id: string, current: boolean) => {
     if (!currentSellerId) return;
-    await supabase.from('coupons').update({ show_to_buyers: !current }).eq('id', id).eq('seller_id', currentSellerId);
+    const { error } = await supabase.from('coupons').update({ show_to_buyers: !current }).eq('id', id).eq('seller_id', currentSellerId);
+    if (error) { toast.error('Failed to update coupon visibility'); return; }
     setCoupons(coupons.map(c => c.id === id ? { ...c, show_to_buyers: !current } : c));
     toast.success(!current ? 'Coupon now visible to buyers at checkout' : 'Coupon hidden — buyers must enter code manually');
   };
 
   const deleteCoupon = async (id: string) => {
     if (!currentSellerId) return;
-    await supabase.from('coupons').delete().eq('id', id).eq('seller_id', currentSellerId);
+    const { error } = await supabase.from('coupons').delete().eq('id', id).eq('seller_id', currentSellerId);
+    if (error) { toast.error('Failed to delete coupon'); return; }
     setCoupons(coupons.filter(c => c.id !== id));
     toast.success('Coupon deleted');
   };

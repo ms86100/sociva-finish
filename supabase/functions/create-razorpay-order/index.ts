@@ -113,6 +113,18 @@ serve(async (req) => {
       );
     }
 
+    // Bind Route transfer to DB seller — never trust client-supplied sellerId alone
+    const resolvedSellerId = [...uniqueSellers][0] as string | undefined;
+    if (!resolvedSellerId) {
+      return new Response(
+        JSON.stringify({ error: 'Order is missing seller_id' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    if (sellerId && sellerId !== resolvedSellerId) {
+      console.warn('Client sellerId mismatch; using order seller_id', { sellerId, resolvedSellerId });
+    }
+
     // Amount from DB only — never trust client-supplied amount
     const dbAmount = orders.reduce((sum: number, o: any) => sum + Number(o.total_amount || 0), 0);
     if (dbAmount <= 0) {
@@ -125,7 +137,7 @@ serve(async (req) => {
       console.warn('[create-razorpay-order] client amount ignored', { client: clientAmount, db: dbAmount });
     }
 
-    console.log('Creating Razorpay order for orders:', allOrderIds, 'amount:', dbAmount, 'sellerId:', sellerId);
+    console.log('Creating Razorpay order for orders:', allOrderIds, 'amount:', dbAmount, 'sellerId:', resolvedSellerId);
 
     // Multi-order checkout = platform collect once (merchant of record).
     // Route `transfers` only for a single order with linked seller account below.
@@ -170,7 +182,7 @@ serve(async (req) => {
     const { data: seller } = await supabase
       .from('seller_profiles')
       .select('razorpay_account_id, business_name')
-      .eq('id', sellerId)
+      .eq('id', resolvedSellerId)
       .single();
 
     const amountPaise = Math.round(dbAmount * 100);
@@ -181,7 +193,7 @@ serve(async (req) => {
       notes: {
         order_id: allOrderIds[0],
         order_ids: JSON.stringify(allOrderIds),
-        seller_id: sellerId,
+        seller_id: resolvedSellerId,
         buyer_id: user.id,
       },
     };
@@ -222,10 +234,17 @@ serve(async (req) => {
     console.log('Razorpay order created:', razorpayOrder.id, 'for', allOrderIds.length, 'orders');
 
     for (const oid of allOrderIds) {
-      await supabase
+      const { error: linkErr } = await supabase
         .from('orders')
         .update({ razorpay_order_id: razorpayOrder.id })
         .eq('id', oid);
+      if (linkErr) {
+        console.error('Failed to link razorpay_order_id on order', oid, linkErr);
+        return new Response(
+          JSON.stringify({ error: 'Payment order created but failed to link to Sociva order', details: linkErr.message }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
     }
 
     return new Response(

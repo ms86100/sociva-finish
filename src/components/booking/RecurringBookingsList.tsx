@@ -38,12 +38,14 @@ export function RecurringBookingsList() {
   const cancelRecurring = async (configId: string) => {
     setCancelling(configId);
     try {
-      const { error } = await supabase
+      const { data: updated, error } = await supabase
         .from('service_recurring_configs')
         .update({ is_active: false })
         .eq('id', configId)
-        .eq('buyer_id', user?.id);
+        .eq('buyer_id', user?.id)
+        .select('id');
       if (error) throw error;
+      if (!updated?.length) throw new Error('Recurring booking not found');
       refetch();
       toast.success('Recurring booking cancelled');
     } catch {

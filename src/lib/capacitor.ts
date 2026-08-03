@@ -55,9 +55,12 @@ export async function initializeCapacitorPlugins() {
   );
 
   try {
-    // Dark icons on light header. Keep overlay true so one padding model works
-    // everywhere (Android 15+ forces overlay anyway). CSS reads --app-safe-top.
-    await StatusBar.setStyle({ style: Style.Light });
+    // Default app theme is dark → light status-bar icons. Keep overlay true so
+    // one padding model works everywhere (Android 15+ forces overlay anyway).
+    // CSS reads --app-safe-top. Theme changes re-sync via syncStatusBarForTheme().
+    const storedTheme = localStorage.getItem('theme');
+    const isDark = storedTheme !== 'light';
+    await StatusBar.setStyle({ style: isDark ? Style.Light : Style.Dark });
     await StatusBar.setOverlaysWebView({ overlay: true });
     await syncSafeAreaCssVars();
     watchSafeAreaResync();
@@ -76,6 +79,17 @@ export async function initializeCapacitorPlugins() {
   // Schedule a hard timeout to force-hide splash if auth layer never calls hideSplashScreen()
   // This prevents permanent black screen if session restore hangs
   scheduleSplashTimeout();
+}
+
+/** Keep native status-bar icon contrast in sync with next-themes. */
+export async function syncStatusBarForTheme(theme: string | undefined) {
+  if (!Capacitor.isNativePlatform()) return;
+  try {
+    const isDark = theme !== 'light';
+    await StatusBar.setStyle({ style: isDark ? Style.Light : Style.Dark });
+  } catch (e) {
+    console.warn('[Capacitor] syncStatusBarForTheme failed:', e);
+  }
 }
 
 export function isNativePlatform(): boolean {

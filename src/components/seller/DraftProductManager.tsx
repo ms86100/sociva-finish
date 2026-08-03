@@ -364,10 +364,11 @@ export function DraftProductManager({
   const handleRemoveProduct = async (index: number) => {
     const product = products[index];
     if (product.id) {
-      try {
-        await supabase.from('products').delete().eq('id', product.id);
-      } catch (e) {
-        console.error('Error deleting product:', e);
+      const { error } = await supabase.from('products').delete().eq('id', product.id);
+      if (error) {
+        console.error('Error deleting product:', error);
+        toast.error(friendlyError(error) || 'Failed to delete product');
+        return;
       }
     }
     const updated = products.filter((_, i) => i !== index);

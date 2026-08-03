@@ -186,7 +186,7 @@ app.post("/", async (c) => {
     const { data: slaRefunds, error: slaErr } = await supabase
       .from("refund_requests")
       .select("id, order_id, buyer_id, seller_id, amount")
-      .eq("status", "requested")
+      .eq("refund_state", "requested")
       .lt("created_at", fortyEightHoursAgo);
 
     if (slaErr) {
@@ -195,19 +195,32 @@ app.post("/", async (c) => {
 
     let slaApprovedCount = 0;
     for (const refund of slaRefunds || []) {
-      const { error: approveErr } = await supabase
-        .from("refund_requests")
-        .update({
-          status: "approved",
-          auto_approved: true,
-          approved_at: now,
-          notes: "Auto-approved: seller did not respond within 48 hours (Buyer Protection SLA)",
-          updated_at: now,
-        })
-        .eq("id", refund.id)
-        .eq("status", "requested"); // guard against race
+      // Prefer RPC so refund_state + audit stay consistent with money truth path
+      const { error: approveErr } = await supabase.rpc("approve_refund", {
+        p_refund_id: refund.id,
+      });
 
-      if (!approveErr) {
+      if (approveErr) {
+        // Fallback: update both legacy status and refund_state together
+        const { error: fallbackErr } = await supabase
+          .from("refund_requests")
+          .update({
+            status: "approved",
+            refund_state: "approved",
+            auto_approved: true,
+            approved_at: now,
+            notes: "Auto-approved: seller did not respond within 48 hours (Buyer Protection SLA)",
+            updated_at: now,
+          })
+          .eq("id", refund.id)
+          .eq("refund_state", "requested");
+        if (fallbackErr) {
+          console.error(`[SLA] Failed to auto-approve refund ${refund.id}:`, approveErr, fallbackErr);
+          continue;
+        }
+      }
+
+      {
         slaApprovedCount++;
         console.log(`[SLA] Auto-approved refund ${refund.id} for order ${refund.order_id}`);
 

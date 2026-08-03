@@ -97,10 +97,11 @@ export function SetStoreLocationSheet({ open, onOpenChange, sellerId, onSuccess 
       // Save label separately if available
       const locationLabel = label || selectedPlaceName || null;
       if (locationLabel) {
-        await supabase
+        const { error: labelErr } = await supabase
           .from('seller_profiles')
           .update({ store_location_label: locationLabel } as any)
           .eq('id', sellerId);
+        if (labelErr) throw labelErr;
       }
 
       toast.success('Store location set successfully!');

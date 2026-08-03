@@ -13,6 +13,7 @@ import { cn } from '@/lib/utils';
 import { Json } from '@/integrations/supabase/types';
 import { useChatViewport } from '@/hooks/useChatViewport';
 import { setActiveChat, clearActiveChat, silenceChatBell } from '@/lib/activeChatRegistry';
+import { toast } from 'sonner';
 
 interface OrderChatProps {
   orderId: string;
@@ -234,6 +235,7 @@ export function OrderChat({
       // Remove the optimistic message on failure and restore input.
       setMessages((prev) => prev.filter((m) => m.id !== tempId));
       setNewMessage(trimmed);
+      toast.error('Failed to send message');
     } finally {
       setIsSending(false);
     }

@@ -59,7 +59,8 @@ const config: CapacitorConfig = {
       showSpinner: false,
     },
     StatusBar: {
-      // LIGHT = dark icons for light header. Overlay + CSS --app-safe-top padding.
+      // LIGHT = light icons for dark chrome (app default theme is dark).
+      // Overlay + CSS --app-safe-top padding.
       style: 'LIGHT',
       overlaysWebView: true,
     },

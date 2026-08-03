@@ -384,11 +384,15 @@ async function handleUpdateStatus(req: Request, db: any, userId: string) {
     updateData.attempt_count = (assignment as any).attempt_count + 1;
     updateData.failure_owner = body.failure_owner || null;
     // Bug 18 fix: Don't resurrect cancelled/completed orders
-    await db.from('orders').update({ status: 'returned' })
+    const { error: orderSyncErr } = await db.from('orders').update({ status: 'returned' })
       .eq('id', assignment.order_id)
       .neq('status', 'cancelled')
       .neq('status', 'completed')
       .neq('status', 'refunded');
+    if (orderSyncErr) {
+      console.error('Failed to sync order status to returned:', orderSyncErr);
+      return jsonResponse({ error: 'Failed to sync order status' }, 500);
+    }
   }
 
   if (status === 'at_gate') {
@@ -632,7 +636,11 @@ async function handleWebhook(req: Request, db: any) {
   }
 
   if (Object.keys(updateData).length > 0) {
-    await db.from('delivery_assignments').update(updateData).eq('id', assignment.id);
+    const { error: asgnErr } = await db.from('delivery_assignments').update(updateData).eq('id', assignment.id);
+    if (asgnErr) {
+      console.error('3PL webhook assignment update failed:', asgnErr);
+      return jsonResponse({ error: 'Failed to update assignment' }, 500);
+    }
   }
 
   await db.from('delivery_tracking_logs').insert({

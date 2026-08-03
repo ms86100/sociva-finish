@@ -69,10 +69,17 @@ Deno.serve(async (req) => {
   }
 
   if (seller.upi_verification_status === "valid") {
-    await admin
+    const { error: staleErr } = await admin
       .from("seller_profiles")
       .update({ upi_verification_status: "stale" })
       .eq("id", sellerId);
+    if (staleErr) {
+      console.error("Failed to mark UPI stale:", staleErr);
+      return new Response(JSON.stringify({ error: "Failed to mark UPI stale", details: staleErr.message }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
   }
 
   console.log(`UPI marked stale for seller ${sellerId}, reason: ${reason}`);

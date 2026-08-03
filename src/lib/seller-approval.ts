@@ -67,12 +67,13 @@ export async function approveSeller({ sellerId, userId, businessName, societyId 
     .eq('id', sellerId);
   if (updateErr) throw updateErr;
 
+  try {
   // 2. Ensure seller role exists (ignore duplicate)
   const { error: roleErr } = await supabase
     .from('user_roles')
     .insert({ user_id: userId, role: 'seller' });
-  if (roleErr && !roleErr.message?.includes('duplicate')) {
-    console.error('[SellerApproval] Failed to add seller role:', roleErr);
+  if (roleErr && !roleErr.message?.includes('duplicate') && !roleErr.message?.includes('unique')) {
+    throw new Error(`Failed to grant seller role: ${roleErr.message}`);
   }
 
   // 3. Auto-approve pending/draft products created before this moment
@@ -83,12 +84,13 @@ export async function approveSeller({ sellerId, userId, businessName, societyId 
     .eq('seller_id', sellerId)
     .in('approval_status', ['pending', 'draft'])
     .lte('created_at', cutoff);
-  if (prodErr) console.error('[SellerApproval] Failed to approve products:', prodErr);
+  if (prodErr) throw new Error(`Failed to approve products: ${prodErr.message}`);
 
   // Clear edit snapshots for all approved products so admin only sees future diffs
   const { data: approvedProds } = await supabase.from('products').select('id').eq('seller_id', sellerId).eq('approval_status', 'approved');
   if (approvedProds?.length) {
-    await supabase.from('product_edit_snapshots').delete().in('product_id', approvedProds.map(p => p.id));
+    const { error: snapErr } = await supabase.from('product_edit_snapshots').delete().in('product_id', approvedProds.map(p => p.id));
+    if (snapErr) console.warn('[SellerApproval] Snapshot cleanup failed:', snapErr);
   }
 
   // 4. Auto-approve pending licenses
@@ -97,7 +99,15 @@ export async function approveSeller({ sellerId, userId, businessName, societyId 
     .update({ status: 'approved', reviewed_at: new Date().toISOString() } as any)
     .eq('seller_id', sellerId)
     .eq('status', 'pending');
-  if (licErr) console.error('[SellerApproval] Failed to approve licenses:', licErr);
+  if (licErr) throw new Error(`Failed to approve licenses: ${licErr.message}`);
+  } catch (err) {
+    // Best-effort rollback so admin isn't told "approved" while products stay pending
+    await supabase
+      .from('seller_profiles')
+      .update({ verification_status: 'pending', is_available: false } as any)
+      .eq('id', sellerId);
+    throw err;
+  }
 
   // 5. Audit
   await logAudit('seller_approved', 'seller_profile', sellerId, societyId || '', { status: 'approved' });
@@ -135,8 +145,23 @@ export async function rejectOrSuspendSeller(
     .eq('id', sellerId);
   if (error) throw error;
 
-  // Remove seller role
-  await supabase.from('user_roles').delete().eq('user_id', userId).eq('role', 'seller');
+  // Remove seller role only when no other active stores remain for this user
+  const { data: otherActive } = await supabase
+    .from('seller_profiles')
+    .select('id')
+    .eq('user_id', userId)
+    .neq('id', sellerId)
+    .in('verification_status', ['approved', 'pending', 'draft'] as any)
+    .limit(1);
+
+  if (!otherActive?.length) {
+    const { error: roleDelErr } = await supabase
+      .from('user_roles')
+      .delete()
+      .eq('user_id', userId)
+      .eq('role', 'seller');
+    if (roleDelErr) console.warn('[SellerApproval] Role removal failed:', roleDelErr);
+  }
 
   await logAudit(`seller_${status}`, 'seller_profile', sellerId, societyId || '', {
     status,

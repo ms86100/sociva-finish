@@ -193,11 +193,12 @@ export function useSellerApplicationReview() {
 
   const updateLicenseStatus = async (licenseId: string, status: 'approved' | 'rejected') => {
     try {
-      await supabase.from('seller_licenses').update({
+      const { error } = await supabase.from('seller_licenses').update({
         status,
         reviewed_at: new Date().toISOString(),
         admin_notes: licenseAdminNotes.trim() || null,
       } as any).eq('id', licenseId);
+      if (error) throw error;
 
       const license = applications.flatMap(a => a.licenses).find(l => l.id === licenseId);
       const seller = applications.find(a => a.licenses.some(l => l.id === licenseId));
@@ -217,23 +218,26 @@ export function useSellerApplicationReview() {
 
   const toggleRequiresLicense = async (group: GroupConfig, checked: boolean) => {
     // Now updates category_config instead of parent_groups
-    await supabase.from('category_config').update({ requires_license: checked } as any).eq('id', group.id);
+    const { error } = await supabase.from('category_config').update({ requires_license: checked } as any).eq('id', group.id);
+    if (error) { toast.error('Failed to update license requirement'); return; }
     toast.success(checked ? `License enabled for ${group.name}` : `License disabled for ${group.name}`);
     fetchData();
   };
 
   const toggleMandatory = async (group: GroupConfig, checked: boolean) => {
-    await supabase.from('category_config').update({ license_mandatory: checked } as any).eq('id', group.id);
+    const { error } = await supabase.from('category_config').update({ license_mandatory: checked } as any).eq('id', group.id);
+    if (error) { toast.error('Failed to update license mandatory flag'); return; }
     toast.success(checked ? 'License now mandatory' : 'License now optional');
     fetchData();
   };
 
   const saveGroupConfig = async () => {
     if (!editingGroup) return;
-    await supabase.from('category_config').update({
+    const { error } = await supabase.from('category_config').update({
       license_type_name: editForm.license_type_name.trim() || null,
       license_description: editForm.license_description.trim() || null,
     } as any).eq('id', editingGroup.id);
+    if (error) { toast.error('Failed to update license config'); return; }
     toast.success('License config updated');
     setEditingGroup(null);
     fetchData();

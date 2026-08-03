@@ -259,7 +259,13 @@ serve(async (req) => {
         latitude, longitude, speed_kmh, heading, accuracy_meters,
       });
 
-    if (locErr) console.error('Error inserting location:', locErr);
+    if (locErr) {
+      console.error('Error inserting location:', locErr);
+      return new Response(JSON.stringify({ error: 'Failed to save location' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
 
     // Get destination coordinates and seller info
     const { data: orderForDest } = await supabase

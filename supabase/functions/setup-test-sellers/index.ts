@@ -56,6 +56,14 @@ Deno.serve(async (req) => {
   const start = Date.now();
 
   try {
+    // Destructive wipe — disabled unless explicitly allowed (same gate as seed-test-data)
+    if (!Deno.env.get("ALLOW_TEST_FUNCTIONS")) {
+      return new Response(
+        JSON.stringify({ error: "Test functions are disabled in this environment" }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,

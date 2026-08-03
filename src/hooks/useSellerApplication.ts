@@ -444,7 +444,13 @@ export function useSellerApplication() {
   };
 
   const handleSaveDraftAndExit = async () => {
-    if (step >= 2) await saveDraft();
+    if (step >= 2) {
+      const savedId = await saveDraft();
+      if (!savedId) {
+        toast.error('Could not save draft. Please fix any errors and try again.', { id: 'seller-app-draft-error' });
+        return;
+      }
+    }
     localStorage.removeItem('seller_onboarding_step');
     toast.success('Draft saved! You can resume later.', { id: 'seller-app-draft-saved' });
     navigate('/profile');
@@ -494,7 +500,11 @@ export function useSellerApplication() {
       const { error } = await supabase.from('seller_profiles').update(submitPayload).eq('id', draftSellerId);
       if (error) throw error;
       const { error: prodError } = await supabase.from('products').update({ approval_status: 'pending' } as any).eq('seller_id', draftSellerId).eq('approval_status', 'draft');
-      if (prodError) console.error('Failed to transition products:', prodError);
+      if (prodError) {
+        // Roll profile back so seller is not told "submitted" with products still draft
+        await supabase.from('seller_profiles').update({ verification_status: 'draft' } as any).eq('id', draftSellerId);
+        throw prodError;
+      }
       await refreshProfile();
       localStorage.setItem('seller_onboarding_completed', 'true');
     localStorage.removeItem('seller_onboarding_step');
@@ -519,7 +529,8 @@ export function useSellerApplication() {
         if (!confirmed) return;
         // Delete orphaned products from DB
         try {
-          await supabase.from('products').delete().eq('seller_id', draftSellerId).eq('approval_status', 'draft');
+          const { error: delErr } = await supabase.from('products').delete().eq('seller_id', draftSellerId).eq('approval_status', 'draft');
+          if (delErr) throw delErr;
           setDraftProducts([]);
         } catch (err) {
           console.error('Failed to delete orphaned draft products:', err);

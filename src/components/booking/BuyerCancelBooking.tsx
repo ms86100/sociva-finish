@@ -90,7 +90,7 @@ export function BuyerCancelBooking({ bookingId, orderId, slotId, status }: Buyer
       if (rpcError) throw rpcError;
 
       // Update booking status (the order is already cancelled by the RPC)
-      await supabase
+      const { error: bookingErr } = await supabase
         .from('service_bookings')
         .update({
           status: 'cancelled',
@@ -99,10 +99,15 @@ export function BuyerCancelBooking({ bookingId, orderId, slotId, status }: Buyer
         })
         .eq('id', bookingId)
         .eq('buyer_id', user.id);
+      if (bookingErr) {
+        console.error('Order cancelled but booking status update failed:', bookingErr);
+        toast.error('Order cancelled, but booking status may still show active. Contact support if needed.');
+      }
 
       // Release the slot
       if (slotId) {
-        await supabase.rpc('release_service_slot', { _slot_id: slotId });
+        const { error: slotErr } = await supabase.rpc('release_service_slot', { _slot_id: slotId });
+        if (slotErr) console.error('Failed to release service slot:', slotErr);
       }
 
       // Send notification to seller

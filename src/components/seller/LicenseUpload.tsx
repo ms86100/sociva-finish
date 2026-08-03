@@ -145,10 +145,11 @@ export function LicenseUpload({ sellerId, groupId, categoryConfigId, onStatusCha
   const handleUpdateLicenseNumber = async () => {
     if (!license) return;
     try {
-      await supabase
+      const { error } = await supabase
         .from('seller_licenses')
         .update({ license_number: licenseNumber.trim() || null } as any)
         .eq('id', license.id);
+      if (error) throw error;
       toast.success('License number updated');
     } catch (error) {
       toast.error('Failed to update license number');

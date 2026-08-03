@@ -121,10 +121,11 @@ export function ServiceAvailabilityManager({ sellerId, onComplete }: ServiceAvai
       if (profileErr) throw profileErr;
 
       // 2) Replace store-level schedule (triggers slot regen)
-      await (supabase.from('service_availability_schedules') as any)
+      const { error: deleteErr } = await (supabase.from('service_availability_schedules') as any)
         .delete()
         .eq('seller_id', sellerId)
         .is('product_id', null);
+      if (deleteErr) throw deleteErr;
 
       const scheduleRows = schedule.map(s => ({
         seller_id: sellerId,

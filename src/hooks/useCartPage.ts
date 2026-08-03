@@ -504,11 +504,15 @@ export function useCartPage() {
             label: 'Cancel Payment',
             onClick: async () => {
               try {
-                await supabase.rpc('buyer_cancel_pending_orders', { _order_ids: stillPending.map((o: any) => o.id) });
-              } catch (err) { console.error('Failed to cancel pending orders:', err); }
-              setPendingOrderIds([]);
-              clearPaymentSession();
-              toast.success('Pending payment cancelled. You can place a new order.', { id: 'checkout-pending-cancelled' });
+                const { error: cancelErr } = await supabase.rpc('buyer_cancel_pending_orders', { _order_ids: stillPending.map((o: any) => o.id) });
+                if (cancelErr) throw cancelErr;
+                setPendingOrderIds([]);
+                clearPaymentSession();
+                toast.success('Pending payment cancelled. You can place a new order.', { id: 'checkout-pending-cancelled' });
+              } catch (err) {
+                console.error('Failed to cancel pending orders:', err);
+                toast.error('Could not cancel pending payment. Please try again.', { id: 'checkout-pending-cancel-error' });
+              }
             },
           },
         });

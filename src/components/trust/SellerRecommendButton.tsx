@@ -53,11 +53,12 @@ export function SellerRecommendButton({ sellerId, sellerUserId }: Props) {
     setLoading(true);
     try {
       if (recommended) {
-        await supabase
+        const { error } = await supabase
           .from('seller_recommendations')
           .delete()
           .eq('seller_id', sellerId)
           .eq('recommender_id', user.id);
+        if (error) throw error;
         setRecommended(false);
         setCount((c) => Math.max(0, c - 1));
         toast.success('Recommendation removed');

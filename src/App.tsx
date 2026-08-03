@@ -45,7 +45,7 @@ function lazyWithRetry<T extends ComponentType<any>>(
 import { supabase } from "@/integrations/supabase/client";
 import { IdentityContext as IdentityCtx, SellerContext as SellerCtx } from "@/contexts/auth/contexts";
 
-import { ThemeProvider } from "next-themes";
+import { ThemeProvider, useTheme } from "next-themes";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -53,6 +53,16 @@ import { ActionBlockedDialog } from "@/components/feedback/ActionBlockedDialog";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider, QueryCache, MutationCache } from "@tanstack/react-query";
 import { HashRouter, Routes, Route, Navigate, useNavigate } from "react-router-dom";
+import { syncStatusBarForTheme } from "@/lib/capacitor";
+
+/** Keeps native status-bar icon contrast aligned with app theme. */
+function ThemeStatusBarSync() {
+  const { resolvedTheme, theme } = useTheme();
+  useEffect(() => {
+    syncStatusBarForTheme(resolvedTheme || theme || 'dark');
+  }, [resolvedTheme, theme]);
+  return null;
+}
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { CartProvider } from "@/hooks/useCart";
 import { BrowsingLocationProvider } from "@/contexts/BrowsingLocationContext";
@@ -587,7 +597,8 @@ function App() {
 
   return (
     <ErrorBoundary>
-      <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} themes={['light', 'dark']}>
+      <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false} themes={['light', 'dark']}>
+        <ThemeStatusBarSync />
         <QueryClientProvider client={queryClient}>
           <TooltipProvider>
             <OfflineBanner />

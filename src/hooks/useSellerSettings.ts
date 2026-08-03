@@ -85,7 +85,7 @@ export function useSellerSettings() {
     try {
       const { data } = await supabase
         .from('seller_profiles')
-        .select('id, user_id, business_name, description, categories, availability_start, availability_end, operating_days, accepts_cod, accepts_upi, upi_id, is_available, cover_image_url, profile_image_url, bank_account_number, bank_ifsc_code, bank_account_holder, sell_beyond_community, delivery_radius_km, fulfillment_mode, delivery_note, minimum_order_amount, daily_order_limit, vacation_mode, vacation_until, pickup_payment_config, delivery_payment_config, verification_status, society_id, primary_group, auto_accept_enabled, latitude, longitude, store_location_label')
+        .select('id, user_id, business_name, description, categories, availability_start, availability_end, operating_days, accepts_cod, accepts_upi, upi_id, upi_verification_status, is_available, cover_image_url, profile_image_url, bank_account_number, bank_ifsc_code, bank_account_holder, sell_beyond_community, delivery_radius_km, fulfillment_mode, delivery_note, minimum_order_amount, daily_order_limit, vacation_mode, vacation_until, pickup_payment_config, delivery_payment_config, verification_status, society_id, primary_group, auto_accept_enabled, latitude, longitude, store_location_label')
         .eq('id', sellerId)
         .maybeSingle();
       if (data) {

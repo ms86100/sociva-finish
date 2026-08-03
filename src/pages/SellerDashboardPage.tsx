@@ -164,13 +164,15 @@ export default function SellerDashboardPage() {
     });
   }, [allOrders]);
 
+  const toggleBusyRef = useRef(false);
   const toggleAvailability = async () => {
-    if (!sellerProfile) return;
+    if (!sellerProfile || toggleBusyRef.current) return;
     if (sellerProfile.verification_status !== 'approved') {
       notify.block('Your store must be approved before you can go live');
       return;
     }
 
+    toggleBusyRef.current = true;
     try {
       const newVal = !sellerProfile.is_available;
       if (newVal) {
@@ -211,6 +213,8 @@ export default function SellerDashboardPage() {
     } catch (error) {
       console.error('Error toggling availability:', error);
       toast.error(friendlyError(error));
+    } finally {
+      toggleBusyRef.current = false;
     }
   };
 

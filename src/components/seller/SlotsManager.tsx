@@ -93,7 +93,8 @@ export function SlotsManager({ sellerId }: SlotsManagerProps) {
     const { error } = await supabase
       .from('service_slots')
       .update({ is_blocked: !slot.is_blocked })
-      .eq('id', slot.id);
+      .eq('id', slot.id)
+      .eq('seller_id', sellerId);
     setBusyId(null);
     if (error) { toast.error(error.message); return; }
     toast.success(slot.is_blocked ? 'Slot enabled' : 'Slot blocked');
@@ -114,7 +115,8 @@ export function SlotsManager({ sellerId }: SlotsManagerProps) {
       const { error } = await supabase
         .from('service_slots')
         .update({ is_blocked: mode === 'block' })
-        .in('id', ids.slice(i, i + batch));
+        .in('id', ids.slice(i, i + batch))
+        .eq('seller_id', sellerId);
       if (error) failed += Math.min(batch, ids.length - i);
     }
     setBulkBusy(null);
