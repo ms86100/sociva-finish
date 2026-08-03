@@ -3,6 +3,13 @@ import { Link } from 'react-router-dom';
 import { useSystemSettings } from '@/hooks/useSystemSettings';
 import { Mail, MapPin } from 'lucide-react';
 
+function scrollToSection(id: string) {
+  const el = document.getElementById(id);
+  if (el) {
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+}
+
 export function LandingFooter() {
   const { platformName } = useSystemSettings();
   const year = new Date().getFullYear();
@@ -39,7 +46,14 @@ export function LandingFooter() {
               <Link to="/terms" className="block text-sm text-muted-foreground hover:text-foreground">Terms & Conditions</Link>
               <Link to="/refund-policy" className="block text-sm text-muted-foreground hover:text-foreground">Refund Policy</Link>
               <Link to="/pricing" className="block text-sm text-muted-foreground hover:text-foreground">Pricing</Link>
-              <a href="#download" className="block text-sm text-muted-foreground hover:text-foreground">Download the app</a>
+              {/* HashRouter: #download is a route (/download), not a page anchor — scroll instead */}
+              <button
+                type="button"
+                onClick={() => scrollToSection('download')}
+                className="block text-sm text-muted-foreground hover:text-foreground text-left"
+              >
+                Download the app
+              </button>
             </div>
           </div>
 
