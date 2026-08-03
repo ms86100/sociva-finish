@@ -33,6 +33,27 @@ export interface ParentGroupInfo {
   layoutType: 'ecommerce' | 'food' | 'service';
 }
 
+/** Legacy aliases superseded by canonical slugs — hide from seller/buyer pickers. */
+export const LEGACY_PARENT_GROUP_SLUGS = new Set([
+  'food',
+  'classes',
+  'personal',
+  'services',
+]);
+
+/** Non-production / junk groups that must never appear in browse pickers. */
+export const HIDDEN_PARENT_GROUP_SLUGS = new Set([
+  'test',
+  'hello_section',
+]);
+
+function isPickerVisibleGroup(g: ParentGroupRow): boolean {
+  if (!g.is_active) return false;
+  if (HIDDEN_PARENT_GROUP_SLUGS.has(g.slug)) return false;
+  if (LEGACY_PARENT_GROUP_SLUGS.has(g.slug)) return false;
+  return true;
+}
+
 export function useParentGroups() {
   const queryClient = useQueryClient();
   const { data: groups = [], isLoading, refetch } = useQuery({
@@ -54,8 +75,9 @@ export function useParentGroups() {
 
 
   // Map to the same shape as the old PARENT_GROUPS constant for easy migration
+  // Picker-facing list: active + non-legacy + non-junk only (DEF-001 / DEF-002)
   const parentGroupInfos: ParentGroupInfo[] = useMemo(() => {
-    return groups.map((g) => ({
+    return groups.filter(isPickerVisibleGroup).map((g) => ({
       value: g.slug,
       label: g.name,
       icon: g.icon,
@@ -66,10 +88,22 @@ export function useParentGroups() {
   }, [groups]);
 
   // Fix #20: Memoize lookup functions to prevent consumer re-renders
+  // Resolve against full catalog so existing stores on legacy slugs still label correctly
   const getGroupBySlug = useCallback((slug: string | null): ParentGroupInfo | undefined => {
     if (!slug) return undefined;
-    return parentGroupInfos.find((g) => g.value === slug);
-  }, [parentGroupInfos]);
+    const fromPicker = parentGroupInfos.find((g) => g.value === slug);
+    if (fromPicker) return fromPicker;
+    const raw = groups.find((g) => g.slug === slug);
+    if (!raw) return undefined;
+    return {
+      value: raw.slug,
+      label: raw.name,
+      icon: raw.icon,
+      color: raw.color,
+      description: raw.description,
+      layoutType: (raw.layout_type as 'ecommerce' | 'food' | 'service') || 'ecommerce',
+    };
+  }, [parentGroupInfos, groups]);
 
   const getLayoutType = useCallback((slug: string | null): 'ecommerce' | 'food' | 'service' => {
     if (!slug) return 'ecommerce';

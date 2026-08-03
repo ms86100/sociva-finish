@@ -139,12 +139,12 @@ export function useSellerSettings() {
       return;
     }
     const newAvailability = !formData.is_available;
-    // Gate new go-live when online payments enabled without verified UPI (deep-link mode)
+    // Gate new go-live when online payments enabled without verified UPI (deep-link mode).
+    // Use payment configs only — formData.accepts_upi can lag behind Online Payment toggles.
     if (newAvailability) {
       const wantsOnline =
         formData.pickup_payment_config?.accepts_online ||
-        formData.delivery_payment_config?.accepts_online ||
-        formData.accepts_upi;
+        formData.delivery_payment_config?.accepts_online;
       const upiValid =
         (sellerProfile as any).upi_verification_status === 'valid' &&
         !!(formData.upi_id || (sellerProfile as any).upi_id);
@@ -169,7 +169,9 @@ export function useSellerSettings() {
     if (!sellerProfile) return;
     if (!formData.business_name.trim()) { notify.block('Please enter a business name'); return; }
     if (formData.categories.length === 0) { notify.block('Please select at least one category'); return; }
-    if (formData.accepts_upi && !formData.upi_id.trim()) { notify.block('Please enter your UPI ID'); return; }
+    const wantsOnlinePay =
+      formData.pickup_payment_config.accepts_online || formData.delivery_payment_config.accepts_online;
+    if (wantsOnlinePay && !formData.upi_id.trim()) { notify.block('Please enter your UPI ID'); return; }
     if (formData.operating_days.length === 0) { notify.block('Select at least one operating day, or use "Pause Shop" to temporarily close', { id: 'settings-days-error' }); return; }
 
     // UPI verification gate

@@ -258,6 +258,8 @@
   }
 
   #root {
+    display: block !important;
+    visibility: visible !important;
     height: 100dvh;
     min-height: 100dvh;
     overflow-y: auto;

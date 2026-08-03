@@ -176,8 +176,8 @@ export default function SellerDashboardPage() {
     try {
       const newVal = !sellerProfile.is_available;
       if (newVal) {
+        // Prefer payment configs — accepts_upi can be stale relative to Online Payment toggles.
         const wantsOnline =
-          !!(sellerProfile as any).accepts_upi ||
           !!(sellerProfile as any).pickup_payment_config?.accepts_online ||
           !!(sellerProfile as any).delivery_payment_config?.accepts_online;
         const upiValid =

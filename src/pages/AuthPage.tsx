@@ -66,7 +66,15 @@ function OtpStep({ auth }: { auth: ReturnType<typeof useAuthPage> }) {
         )}
       </div>
       <div ref={otpContainerRef} className="flex justify-center" style={{ scrollMarginBottom: '280px' }}>
-        <InputOTP maxLength={4} value={auth.otp} onChange={(value) => auth.setOtp(value)} autoFocus>
+        <InputOTP
+          maxLength={4}
+          value={auth.otp}
+          onChange={(value) => {
+            auth.setOtpError(null);
+            auth.setOtp(value);
+          }}
+          autoFocus
+        >
           <InputOTPGroup className="gap-3">
             <InputOTPSlot index={0} className="w-14 h-14 text-2xl font-semibold rounded-xl border-2" />
             <InputOTPSlot index={1} className="w-14 h-14 text-2xl font-semibold rounded-xl border-2" />
@@ -75,12 +83,17 @@ function OtpStep({ auth }: { auth: ReturnType<typeof useAuthPage> }) {
           </InputOTPGroup>
         </InputOTP>
       </div>
+      {auth.otpError && (
+        <p role="alert" className="text-sm text-destructive text-center font-medium px-2">
+          {auth.otpError}
+        </p>
+      )}
       <Button onClick={auth.handleVerifyOtp} disabled={verifyDisabled} className="w-full h-12 rounded-xl text-base font-semibold">
         {auth.isVerifyingOtp ? <Loader2 className="animate-spin mr-2" size={18} /> : <CheckCircle2 className="mr-2" size={18} />}
         {auth.isSendingOtp && !auth.otpReqId ? 'Waiting for OTP…' : 'Verify & Continue'}
       </Button>
       <div className="flex items-center justify-between">
-        <button type="button" onClick={() => { auth.setStep('phone'); auth.setOtp(''); auth.setOtpReqId(null); }} className="text-xs text-muted-foreground hover:text-foreground transition-colors inline-flex items-center gap-1">
+        <button type="button" onClick={() => { auth.setStep('phone'); auth.setOtp(''); auth.setOtpReqId(null); auth.setOtpError(null); }} className="text-xs text-muted-foreground hover:text-foreground transition-colors inline-flex items-center gap-1">
           <ArrowLeft size={12} /> Change number
         </button>
         <div>

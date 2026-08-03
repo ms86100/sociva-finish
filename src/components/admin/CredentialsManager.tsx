@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
-import { Loader2, Eye, EyeOff, Check, X, CreditCard, MessageSquare, Bell, MapPin, KeyRound } from 'lucide-react';
+import { Loader2, Eye, EyeOff, Check, X, CreditCard, MessageSquare, Bell, MapPin, KeyRound, MessageCircle } from 'lucide-react';
 
 interface CredentialConfig {
   key: string;
@@ -70,6 +70,17 @@ const CREDENTIAL_TABS = [
     icon: MapPin,
     credentials: [
       { key: 'google_maps_api_key', label: 'Google Maps API Key', description: 'Required for location features and address autocomplete', placeholder: 'AIza...' },
+    ] as CredentialConfig[],
+  },
+  {
+    id: 'whatsapp',
+    label: 'WhatsApp',
+    icon: MessageCircle,
+    credentials: [
+      { key: 'whatsapp_access_token', label: 'Access Token', description: 'Meta WhatsApp Cloud API permanent token (or set WHATSAPP_ACCESS_TOKEN secret)', placeholder: 'EAAG...' },
+      { key: 'whatsapp_phone_number_id', label: 'Phone Number ID', description: 'WhatsApp Phone Number ID from Meta Developer Console', placeholder: '1234567890' },
+      { key: 'whatsapp_verify_token', label: 'Webhook Verify Token', description: 'Custom string Meta will echo on webhook GET verification', placeholder: 'sociva-wa-verify-...' },
+      { key: 'whatsapp_business_account_id', label: 'Business Account ID', description: 'Optional WABA ID for template management', placeholder: '1234567890' },
     ] as CredentialConfig[],
   },
 ];

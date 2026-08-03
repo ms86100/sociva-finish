@@ -14,6 +14,15 @@ export function AppSplashScreen({ ready, onComplete }: AppSplashScreenProps) {
   const [minElapsed, setMinElapsed] = useState(false);
   const [exiting, setExiting] = useState(false);
   const mountTime = useRef(Date.now());
+  const completedRef = useRef(false);
+
+  const finish = useCallback(() => {
+    if (completedRef.current) return;
+    completedRef.current = true;
+    const bootTime = Date.now() - mountTime.current;
+    console.log(`[Splash] Total display time: ${bootTime}ms`);
+    onComplete();
+  }, [onComplete]);
 
   // Hide native splash as soon as web splash mounts
   useEffect(() => {
@@ -26,13 +35,15 @@ export function AppSplashScreen({ ready, onComplete }: AppSplashScreenProps) {
     return () => clearTimeout(timer);
   }, []);
 
-  // Hard cap timer — force exit regardless
+  // Hard cap — force exit + complete so a stuck overlay can't block the app (DEF-008)
   useEffect(() => {
-    const timer = setTimeout(() => {
-      if (!exiting) setExiting(true);
-    }, MAX_DISPLAY_MS);
-    return () => clearTimeout(timer);
-  }, [exiting]);
+    const exitTimer = setTimeout(() => setExiting(true), MAX_DISPLAY_MS);
+    const forceTimer = setTimeout(finish, MAX_DISPLAY_MS + 500);
+    return () => {
+      clearTimeout(exitTimer);
+      clearTimeout(forceTimer);
+    };
+  }, [finish]);
 
   // Begin exit when ready + min elapsed
   useEffect(() => {
@@ -41,14 +52,8 @@ export function AppSplashScreen({ ready, onComplete }: AppSplashScreenProps) {
     }
   }, [ready, minElapsed, exiting]);
 
-  const handleExitComplete = useCallback(() => {
-    const bootTime = Date.now() - mountTime.current;
-    console.log(`[Splash] Total display time: ${bootTime}ms`);
-    onComplete();
-  }, [onComplete]);
-
   return (
-    <AnimatePresence onExitComplete={handleExitComplete}>
+    <AnimatePresence onExitComplete={finish}>
       {!exiting && (
         <motion.div
           key="splash"

@@ -544,6 +544,23 @@ function SplashGate({ children }: { children: React.ReactNode }) {
     if (splashDone) splashShown = true;
   }, [splashDone]);
 
+  // DEF-011: never leave #root display:none after splash / navigation
+  useEffect(() => {
+    const root = document.getElementById('root');
+    if (!root) return;
+    const ensureVisible = () => {
+      if (root.style.display === 'none' || root.style.visibility === 'hidden') {
+        root.style.display = '';
+        root.style.visibility = '';
+        root.style.opacity = '';
+      }
+    };
+    ensureVisible();
+    const obs = new MutationObserver(ensureVisible);
+    obs.observe(root, { attributes: true, attributeFilter: ['style', 'class', 'hidden'] });
+    return () => obs.disconnect();
+  }, []);
+
   // Perf: render children IMMEDIATELY behind the splash overlay so the React
   // tree hydrates in parallel with the splash animation. The overlay sits on
   // top via z-index until ready + min-display elapsed.
@@ -553,7 +570,15 @@ function SplashGate({ children }: { children: React.ReactNode }) {
       {!splashDone && (
         <AppSplashScreen
           ready={isSessionRestored}
-          onComplete={() => setSplashDone(true)}
+          onComplete={() => {
+            const root = document.getElementById('root');
+            if (root) {
+              root.style.display = '';
+              root.style.visibility = '';
+              root.style.opacity = '';
+            }
+            setSplashDone(true);
+          }}
         />
       )}
     </>

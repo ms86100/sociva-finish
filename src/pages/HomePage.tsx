@@ -68,12 +68,13 @@ export default function HomePage() {
         <MarketplaceSection />
 
         {profile && (() => {
+          // Require name + flat for delivery; block/tower is optional enrichment (DEF-003)
           const missing: string[] = [];
           if (!profile.name) missing.push('name');
           if (!profile.flat_number) missing.push('flat number');
-          if (!profile.block) missing.push('block/tower');
           if (missing.length === 0) return null;
-          const pct = Math.round(((3 - missing.length) / 3) * 100);
+          const total = 2;
+          const pct = Math.round(((total - missing.length) / total) * 100);
           return (
             <div className="mx-4 mt-5 rounded-2xl bg-card border border-border p-4 shadow-card">
               <div className="flex items-center justify-between mb-2">
@@ -83,7 +84,9 @@ export default function HomePage() {
               <div className="h-1.5 rounded-full bg-secondary overflow-hidden">
                 <div className="h-full rounded-full bg-primary" style={{ width: `${pct}%` }} />
               </div>
-              <p className="text-[11px] text-muted-foreground mt-1.5">Complete your profile so sellers can deliver to the right door</p>
+              <p className="text-[11px] text-muted-foreground mt-1.5">
+                Add your {missing.join(' and ')} so sellers can deliver to the right door
+              </p>
             </div>
           );
         })()}

@@ -28,6 +28,7 @@ export function useAuthPage() {
   // OTP cooldown
   const [resendCooldown, setResendCooldown] = useState(0);
   const [otpReqId, setOtpReqId] = useState<string | null>(null);
+  const [otpError, setOtpError] = useState<string | null>(null);
   const OTP_SEND_TIMEOUT_MS = 28_000;
   const OTP_VERIFY_TIMEOUT_MS = 25_000;
 
@@ -173,16 +174,19 @@ export function useAuthPage() {
 
   const handleVerifyOtp = async () => {
     if (!otp || otp.length < 4) {
+      setOtpError('Please enter the 4-digit OTP');
       notify.block('Please enter the 4-digit OTP');
       return;
     }
     if (!otpReqId) {
+      setOtpError('Still sending OTP. Please wait a moment.');
       notify.block('Still sending OTP. Please wait a moment.');
       return;
     }
     if (isVerifyingOtp) return;
 
     setIsVerifyingOtp(true);
+    setOtpError(null);
     const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), OTP_VERIFY_TIMEOUT_MS);
@@ -206,12 +210,16 @@ export function useAuthPage() {
       try {
         data = await response.json();
       } catch {
-        toast.error('Something went wrong. Please try again.');
+        const msg = 'Something went wrong. Please try again.';
+        setOtpError(msg);
+        toast.error(msg);
         return;
       }
 
       if (!response.ok || data.error) {
-        toast.error(data.error || 'Verification failed. Please try again.');
+        const msg = data.error || 'Verification failed. Please try again.';
+        setOtpError(msg);
+        toast.error(msg);
         return;
       }
 
@@ -243,7 +251,9 @@ export function useAuthPage() {
       }
 
       if (verifyError) {
-        toast.error('Session could not be created. Please try again.');
+        const msg = 'Session could not be created. Please try again.';
+        setOtpError(msg);
+        toast.error(msg);
         return;
       }
 
@@ -281,11 +291,11 @@ export function useAuthPage() {
 
     } catch (error: any) {
       const timedOut = error?.name === 'AbortError';
-      toast.error(
-        timedOut
-          ? 'Verification is taking too long. Please try again.'
-          : 'Connection error. Please check your internet and try again.',
-      );
+      const msg = timedOut
+        ? 'Verification is taking too long. Please try again.'
+        : 'Connection error. Please check your internet and try again.';
+      setOtpError(msg);
+      toast.error(msg);
     } finally {
       clearTimeout(timeoutId);
       setIsVerifyingOtp(false);
@@ -506,7 +516,7 @@ export function useAuthPage() {
     // Step
     step, setStep, societySubStep, setSocietySubStep,
     // Phone/OTP
-    phone, setPhone, otp, setOtp, otpReqId, setOtpReqId,
+    phone, setPhone, otp, setOtp, otpReqId, setOtpReqId, otpError, setOtpError,
     isLoading, isSendingOtp, isVerifyingOtp,
     isNewUser, ageConfirmed, setAgeConfirmed,
     resendCooldown,

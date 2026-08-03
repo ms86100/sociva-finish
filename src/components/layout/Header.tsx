@@ -60,7 +60,13 @@ function HeaderInner({
     ? profile.name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)
     : null;
 
-  const locationLabel = browsingLocation?.label || displaySociety?.name || 'Set location';
+  const locationLabel =
+    browsingLocation?.label ||
+    displaySociety?.name ||
+    (profile?.flat_number
+      ? [profile.block, profile.flat_number].filter(Boolean).join(' · ')
+      : null) ||
+    'Set location';
 
   return (
     <>

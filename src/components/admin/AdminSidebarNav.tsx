@@ -8,7 +8,7 @@ import {
   Store, Users, Building2, AlertCircle, LayoutGrid, Flag,
   CreditCard, Star, Megaphone, Layers, Settings2, Bot,
   Menu, ChevronRight, FileCode, Send, Package, Wrench, MessageSquare, KeyRound,
-  BarChart3, GitBranch, FlaskConical,
+  BarChart3, GitBranch,   FlaskConical, MessageCircle,
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -53,6 +53,7 @@ const NAV_GROUPS = [
       { value: 'ai-review', label: 'AI Review', icon: Bot },
       { value: 'feedback', label: 'Feedback', icon: MessageSquare },
       { value: 'credentials', label: 'Credentials', icon: KeyRound },
+      { value: 'developer-tools', label: 'Developer Tools', icon: MessageCircle },
       { value: 'test-scenarios', label: 'Test Runner', icon: FlaskConical },
       { value: 'settings', label: 'Settings', icon: Settings2 },
       { value: 'api-docs', label: 'API Docs', icon: FileCode },

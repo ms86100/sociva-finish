@@ -16,6 +16,7 @@ import {
 import { format } from 'date-fns';
 import { Textarea } from '@/components/ui/textarea';
 import { CredentialsManager } from '@/components/admin/CredentialsManager';
+import { WhatsAppTestPanel } from '@/components/admin/WhatsAppTestPanel';
 import { AppNavigator } from '@/components/admin/AppNavigator';
 import { AdminAIReviewLog } from '@/components/admin/AdminAIReviewLog';
 import { CampaignSender } from '@/components/admin/CampaignSender';
@@ -392,6 +393,17 @@ export default function AdminPage() {
           )}
 
           {admin.activeTab === 'credentials' && <CredentialsManager />}
+          {admin.activeTab === 'developer-tools' && (
+            <div className="space-y-5 max-w-xl">
+              <div>
+                <h2 className="text-lg font-bold">Developer Tools</h2>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Internal test utilities for notifications and integrations.
+                </p>
+              </div>
+              <WhatsAppTestPanel />
+            </div>
+          )}
           {admin.activeTab === 'campaigns' && <CampaignSender />}
           {admin.activeTab === 'ai-review' && <AdminAIReviewLog />}
           {admin.activeTab === 'feedback' && <AdminFeedbackViewer />}

@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -608,6 +608,19 @@ export default function BecomeSellerPage() {
     try { sessionStorage.setItem('onboarding_config_substep', String(val)); } catch { /* */ }
   }, []);
 
+  // Reset configure substep when entering Configure from Store, or starting a new journey (DEF-009)
+  const prevStepRef = useRef(step);
+  useEffect(() => {
+    const prev = prevStepRef.current;
+    prevStepRef.current = step;
+    if (step === 5 && prev === 4) {
+      handleSetConfigSubStep(1);
+    }
+    if (step === 1) {
+      handleSetConfigSubStep(1);
+    }
+  }, [step, handleSetConfigSubStep]);
+
   // Auto-save draft before opening native image picker (survives WebView reload)
   const beforeImagePick = useCallback(async () => {
     if (draftSellerId) {
@@ -1010,7 +1023,23 @@ export default function BecomeSellerPage() {
                     <div className="flex items-center gap-2"><Clock size={16} className="text-primary" /><h3 className="font-semibold text-sm">Operating Days</h3></div>
                     <p className="text-xs text-muted-foreground">Select the days your store is open</p>
                     <div className="flex gap-1.5 flex-wrap">{DAYS_OF_WEEK.map((day) => <button key={day} type="button" onClick={() => toggleOperatingDay(day)} className={cn('px-3 py-2 rounded-lg text-xs font-medium transition-all border', formData.operating_days.includes(day) ? 'bg-primary text-primary-foreground border-primary' : 'bg-muted text-muted-foreground border-border hover:border-muted-foreground/30')}>{day}</button>)}</div>
-                    <p className="text-[10px] text-muted-foreground">{formData.operating_days.length === 7 ? 'Open every day' : formData.operating_days.length === 0 ? 'No days selected' : `Open ${formData.operating_days.length} day(s) a week`}</p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const allSelected = formData.operating_days.length === DAYS_OF_WEEK.length;
+                        setFormData({
+                          ...formData,
+                          operating_days: allSelected ? [] : [...DAYS_OF_WEEK],
+                        });
+                      }}
+                      className="text-[10px] font-medium text-primary hover:underline"
+                    >
+                      {formData.operating_days.length === 7
+                        ? 'Open every day · tap to clear'
+                        : formData.operating_days.length === 0
+                          ? 'No days selected · tap to open every day'
+                          : `Open ${formData.operating_days.length} day(s) a week · tap for every day`}
+                    </button>
                   </div>
                   {(() => {
                     const effectiveAction = storeActionType || (configs.find((c: any) => c.category === formData.categories[0]) as any)?.default_action_type || '';
