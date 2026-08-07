@@ -71,6 +71,10 @@ import { OrderSuccessOverlay } from '@/components/checkout/OrderSuccessOverlay';
 import { OrderTotalsCard } from '@/components/order/OrderTotalsCard';
 import { OrderTerminalHero } from '@/components/order/OrderTerminalHero';
 import { WhatsAppUpdatesCta } from '@/components/notifications/WhatsAppUpdatesCta';
+import { CheckoutSiblingsStrip } from '@/components/order/CheckoutSiblingsStrip';
+import { useCheckoutSiblings } from '@/hooks/useCheckoutGroup';
+import { checkoutKeyPrefix } from '@/lib/checkout-groups';
+import { useAuth } from '@/contexts/AuthContext';
 
 const DeliveryMapView = lazy(() => import('@/components/delivery/DeliveryMapView').then(m => ({ default: m.DeliveryMapView })));
 
@@ -209,6 +213,7 @@ export default function OrderDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
+  const { user } = useAuth();
   const o = useOrderDetail(id);
   const { dismissById } = useNewOrderAlertContext();
   const [deliveryAssignmentId, setDeliveryAssignmentId] = useState<string | null>(null);
@@ -229,6 +234,15 @@ export default function OrderDetailPage() {
   // Notification → Action deep-link continuity: scroll to + pulse the Accept Order hero.
   const acceptHeroRef = useRef<HTMLDivElement | null>(null);
   const [pulseAcceptHero, setPulseAcceptHero] = useState(false);
+
+  const siblingsQuery = useCheckoutSiblings({
+    orderId: o.order?.id,
+    checkoutGroupId: (o.order as any)?.checkout_group_id,
+    idempotencyKey: (o.order as any)?.idempotency_key,
+    buyerId: user?.id,
+    enabled: !!o.isBuyerView && !!o.order?.id,
+  });
+  const siblingOrders = siblingsQuery.data || [];
 
   // Honor ?chat=1 deep-link to auto-open the chat sheet (from notifications/toasts).
   useEffect(() => {
@@ -518,6 +532,21 @@ export default function OrderDetailPage() {
           initial="hidden"
           animate="show"
         >
+          {o.isBuyerView && siblingOrders.length > 1 && (
+            <motion.div variants={cardEntrance}>
+              <CheckoutSiblingsStrip
+                siblings={siblingOrders}
+                currentOrderId={order.id}
+                checkoutGroupId={
+                  (order as any).checkout_group_id ||
+                  (checkoutKeyPrefix((order as any).idempotency_key)
+                    ? `soft:${checkoutKeyPrefix((order as any).idempotency_key)}`
+                    : null)
+                }
+              />
+            </motion.div>
+          )}
+
           {/* ═══ Seller: Prominent Accept Order hero (above the fold) ═══ */}
           {showAcceptHero && (
             <motion.div

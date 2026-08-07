@@ -425,7 +425,37 @@ Deno.serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-    // Auth: verify_jwt=false in config.toml — only cron/triggers call this function
+    // Auth gate (audit P0): service_role, cron secret, or admin JWT — mirror process-wallet-expiry
+    const authHeader = req.headers.get("Authorization") || "";
+    const isService = authHeader === `Bearer ${supabaseServiceKey}`;
+    const isCron = req.headers.get("x-cron-secret") === Deno.env.get("CRON_SECRET");
+    let isAdmin = false;
+    if (!isService && !isCron && authHeader.startsWith("Bearer ")) {
+      try {
+        const userClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!, {
+          global: { headers: { Authorization: authHeader } },
+        });
+        const { data: { user } } = await userClient.auth.getUser();
+        if (user) {
+          const adminClient = createClient(supabaseUrl, supabaseServiceKey);
+          const { data: role } = await adminClient
+            .from("user_roles")
+            .select("role")
+            .eq("user_id", user.id)
+            .eq("role", "admin")
+            .maybeSingle();
+          isAdmin = !!role;
+        }
+      } catch (e) {
+        console.warn("[PNQ] admin auth check failed:", e);
+      }
+    }
+    if (!isService && !isCron && !isAdmin) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 

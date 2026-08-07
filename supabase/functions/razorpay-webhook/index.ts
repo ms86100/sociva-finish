@@ -136,6 +136,7 @@ serve(async (req) => {
 
       console.log(`Payment ${razorpayPaymentId} captured for ${allOrderIds.length} order(s):`, allOrderIds);
 
+      const confirmFailures: { orderId: string; status: number; body: string }[] = [];
       for (const orderId of allOrderIds) {
         // Prefer confirm-razorpay-payment for amount/notes binding + cancelled resurrection
         const confirmRes = await fetch(`${supabaseUrl}/functions/v1/confirm-razorpay-payment`, {
@@ -154,9 +155,22 @@ serve(async (req) => {
         if (!confirmRes.ok) {
           const errText = await confirmRes.text();
           console.error(`[razorpay-webhook] confirm failed for ${orderId}:`, errText);
+          confirmFailures.push({ orderId, status: confirmRes.status, body: errText.slice(0, 500) });
           continue;
         }
         console.log(`[razorpay-webhook] ✅ order=${orderId} result=confirmed razorpay_payment_id=${razorpayPaymentId}`);
+      }
+
+      // Audit P1 #11: do NOT ACK success when confirm fails — Razorpay must retry
+      if (confirmFailures.length > 0) {
+        return new Response(
+          JSON.stringify({
+            error: 'confirm_failed',
+            failures: confirmFailures,
+            confirmed: allOrderIds.length - confirmFailures.length,
+          }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        );
       }
     } else if (event === 'payment.failed') {
       const allOrderIds = resolveOrderIds(paymentEntity.notes);

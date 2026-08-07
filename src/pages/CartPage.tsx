@@ -161,7 +161,7 @@ export default function CartPage() {
         {c.hasUrgentItem && (
           <div className="mx-4 mt-3 bg-warning/10 border border-warning/30 rounded-xl p-3 flex items-start gap-3">
             <Bell className="text-warning shrink-0 mt-0.5" size={16} />
-            <div className="text-xs"><p className="font-medium text-warning-foreground">Time-sensitive order</p><p className="text-muted-foreground mt-0.5">Seller must respond within 3 min or auto-cancelled</p></div>
+            <div className="text-xs"><p className="font-medium text-warning-foreground">Time-sensitive order</p><p className="text-muted-foreground mt-0.5">Seller must respond within 5 min or auto-cancelled</p></div>
           </div>
         )}
 
@@ -309,7 +309,7 @@ export default function CartPage() {
             acceptsUpi={c.acceptsUpi}
             selectedMethod={c.paymentMethod}
             onSelect={c.setPaymentMethod}
-            multiSellerOnlineBlocked={c.isMultiSeller}
+            multiSellerOnlineBlocked={c.blocksOnlineMultiSeller}
           />
         </div>
 

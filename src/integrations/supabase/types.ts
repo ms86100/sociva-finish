@@ -14,6 +14,21 @@ export type Database = {
   }
   public: {
     Tables: {
+      _pnq_wakeup_gate: {
+        Row: {
+          id: number
+          last_wakeup_at: string
+        }
+        Insert: {
+          id?: number
+          last_wakeup_at?: string
+        }
+        Update: {
+          id?: number
+          last_wakeup_at?: string
+        }
+        Relationships: []
+      }
       action_type_workflow_map: {
         Row: {
           action_type: string
@@ -1806,6 +1821,84 @@ export type Database = {
             columns: ["order_id"]
             isOneToOne: false
             referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      checkout_groups: {
+        Row: {
+          buyer_id: string
+          coupon_discount: number
+          created_at: string
+          delivery_fee: number
+          fulfillment_type: string | null
+          id: string
+          idempotency_key: string | null
+          loyalty_discount_amount: number
+          order_count: number
+          payment_method: string | null
+          payment_status: string
+          razorpay_order_id: string | null
+          razorpay_payment_id: string | null
+          society_id: string | null
+          total_amount: number
+          updated_at: string
+          wallet_cash_amount: number
+          wallet_promo_amount: number
+        }
+        Insert: {
+          buyer_id: string
+          coupon_discount?: number
+          created_at?: string
+          delivery_fee?: number
+          fulfillment_type?: string | null
+          id?: string
+          idempotency_key?: string | null
+          loyalty_discount_amount?: number
+          order_count?: number
+          payment_method?: string | null
+          payment_status?: string
+          razorpay_order_id?: string | null
+          razorpay_payment_id?: string | null
+          society_id?: string | null
+          total_amount?: number
+          updated_at?: string
+          wallet_cash_amount?: number
+          wallet_promo_amount?: number
+        }
+        Update: {
+          buyer_id?: string
+          coupon_discount?: number
+          created_at?: string
+          delivery_fee?: number
+          fulfillment_type?: string | null
+          id?: string
+          idempotency_key?: string | null
+          loyalty_discount_amount?: number
+          order_count?: number
+          payment_method?: string | null
+          payment_status?: string
+          razorpay_order_id?: string | null
+          razorpay_payment_id?: string | null
+          society_id?: string | null
+          total_amount?: number
+          updated_at?: string
+          wallet_cash_amount?: number
+          wallet_promo_amount?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "checkout_groups_buyer_id_fkey"
+            columns: ["buyer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "checkout_groups_society_id_fkey"
+            columns: ["society_id"]
+            isOneToOne: false
+            referencedRelation: "societies"
             referencedColumns: ["id"]
           },
         ]
@@ -5033,6 +5126,7 @@ export type Database = {
           buyer_confirmed_at: string | null
           buyer_id: string | null
           buyer_society_id: string | null
+          checkout_group_id: string | null
           coupon_discount: number | null
           coupon_id: string | null
           created_at: string | null
@@ -5109,6 +5203,7 @@ export type Database = {
           buyer_confirmed_at?: string | null
           buyer_id?: string | null
           buyer_society_id?: string | null
+          checkout_group_id?: string | null
           coupon_discount?: number | null
           coupon_id?: string | null
           created_at?: string | null
@@ -5185,6 +5280,7 @@ export type Database = {
           buyer_confirmed_at?: string | null
           buyer_id?: string | null
           buyer_society_id?: string | null
+          checkout_group_id?: string | null
           coupon_discount?: number | null
           coupon_id?: string | null
           created_at?: string | null
@@ -5266,6 +5362,13 @@ export type Database = {
             columns: ["buyer_society_id"]
             isOneToOne: false
             referencedRelation: "societies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_checkout_group_id_fkey"
+            columns: ["checkout_group_id"]
+            isOneToOne: false
+            referencedRelation: "checkout_groups"
             referencedColumns: ["id"]
           },
           {
@@ -11227,6 +11330,7 @@ export type Database = {
           buyer_confirmed_at: string | null
           buyer_id: string | null
           buyer_society_id: string | null
+          checkout_group_id: string | null
           coupon_discount: number | null
           coupon_id: string | null
           created_at: string | null
@@ -11320,6 +11424,7 @@ export type Database = {
           buyer_confirmed_at: string | null
           buyer_id: string | null
           buyer_society_id: string | null
+          checkout_group_id: string | null
           coupon_discount: number | null
           coupon_id: string | null
           created_at: string | null
@@ -11843,6 +11948,10 @@ export type Database = {
         Args: { _entity_id: string; _rule_id: string }
         Returns: boolean
       }
+      fn_wakeup_notification_queue_if_pending: {
+        Args: never
+        Returns: undefined
+      }
       generate_delivery_code_impl: {
         Args: {
           p_new: Database["public"]["Tables"]["orders"]["Row"]
@@ -11905,6 +12014,10 @@ export type Database = {
       get_buyer_wallet: { Args: { _user_id?: string }; Returns: Json }
       get_category_parent_group: {
         Args: { _category: string }
+        Returns: string
+      }
+      get_checkout_group_id_for_orders: {
+        Args: { _order_ids: string[] }
         Returns: string
       }
       get_cron_job_runs: {
@@ -12070,7 +12183,11 @@ export type Database = {
         Args: { p_seller_id: string }
         Returns: Json
       }
-      get_seller_settlement_totals: {
+      get_seller_portfolio_board_counts: {
+        Args: { p_seller_ids: string[] }
+        Returns: Json
+      }
+      get_seller_portfolio_kpis: {
         Args: { p_seller_ids: string[] }
         Returns: Json
       }
@@ -12094,6 +12211,10 @@ export type Database = {
           retention_score: number
           total_orders: number
         }[]
+      }
+      get_seller_settlement_totals: {
+        Args: { p_seller_ids: string[] }
+        Returns: Json
       }
       get_seller_trust_snapshot: {
         Args: { _seller_id: string }
@@ -12401,6 +12522,10 @@ export type Database = {
         Returns: Json
       }
       refresh_all_trust_scores: { Args: never; Returns: undefined }
+      refresh_checkout_group_totals: {
+        Args: { _group_id: string }
+        Returns: undefined
+      }
       refresh_seller_reliability_scores: { Args: never; Returns: undefined }
       reject_refund: {
         Args: { p_reason: string; p_refund_id: string }
@@ -12735,6 +12860,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      seller_has_order_with_buyer: {
+        Args: { _buyer_id: string }
+        Returns: boolean
+      }
       service_complete_delivery: {
         Args: { _assignment_id: string; _order_id: string }
         Returns: undefined
@@ -12810,6 +12939,7 @@ export type Database = {
           buyer_confirmed_at: string | null
           buyer_id: string | null
           buyer_society_id: string | null
+          checkout_group_id: string | null
           coupon_discount: number | null
           coupon_id: string | null
           created_at: string | null

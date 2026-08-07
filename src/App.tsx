@@ -109,6 +109,7 @@ const RefundPolicyPage = lazyWithRetry(() => import("./pages/RefundPolicyPage"))
 
 const SellerDetailPage = lazyWithRetry(() => import("./pages/SellerDetailPage"));
 const OrderDetailPage = lazyWithRetry(() => import("./pages/OrderDetailPage"));
+const CheckoutDetailPage = lazyWithRetry(() => import("./pages/CheckoutDetailPage"));
 const ProfileEditPage = lazyWithRetry(() => import("./pages/ProfileEditPage"));
 const FavoritesPage = lazyWithRetry(() => import("./pages/FavoritesPage"));
 const BecomeSellerPage = lazyWithRetry(() => import("./pages/BecomeSellerPage"));
@@ -470,6 +471,7 @@ function AppRoutes() {
           <Route path="/festival-collection/:bannerId/:sectionId" element={<RouteErrorBoundary sectionName="Festival Collection"><FestivalCollectionPage /></RouteErrorBoundary>} />
           <Route path="/cart" element={<RouteErrorBoundary sectionName="Cart"><CartPage /></RouteErrorBoundary>} />
           <Route path="/orders" element={<RouteErrorBoundary sectionName="Orders"><OrdersPage /></RouteErrorBoundary>} />
+          <Route path="/checkouts/:groupId" element={<RouteErrorBoundary sectionName="Checkout Details"><CheckoutDetailPage /></RouteErrorBoundary>} />
           <Route path="/orders/:id" element={<RouteErrorBoundary sectionName="Order Details"><OrderDetailPage /></RouteErrorBoundary>} />
           <Route path="/seller/orders" element={<Navigate to="/orders" replace />} />
           <Route path="/seller/orders/:id" element={<RouteErrorBoundary sectionName="Order Details"><OrderDetailPage /></RouteErrorBoundary>} />

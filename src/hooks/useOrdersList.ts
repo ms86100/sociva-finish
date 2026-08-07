@@ -21,7 +21,7 @@ async function fetchOrdersPage(
   if (type === 'buyer') {
     query = supabase
       .from('orders')
-      .select(`id, created_at, status, payment_status, total_amount, order_type, fulfillment_type, delivery_handled_by, transaction_type, auto_cancel_at, seller_id, buyer_id, seller:seller_profiles(business_name, cover_image_url), items:order_items(id, product_name, quantity, unit_price, subtotal, status, product_image)`)
+      .select(`id, created_at, status, payment_status, payment_type, total_amount, order_type, fulfillment_type, delivery_handled_by, transaction_type, auto_cancel_at, seller_id, buyer_id, checkout_group_id, idempotency_key, failure_owner, rejection_reason, seller:seller_profiles(business_name, cover_image_url), items:order_items(id, product_name, quantity, unit_price, subtotal, status, product_image)`)
       .eq('buyer_id', userId)
       .order('created_at', { ascending: false })
       .limit(PAGE_SIZE);

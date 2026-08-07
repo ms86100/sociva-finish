@@ -28,7 +28,23 @@ import {
   multiStoreBannerCopy,
   razorpayMultiStoreConfirmHint,
 } from '@/lib/multi-store-checkout';
+import { postCheckoutPath } from '@/lib/checkout-groups';
+import { resolveCheckoutGroupId } from '@/hooks/useCheckoutGroup';
 // Store status validation now handled server-side in create_multi_vendor_orders RPC
+
+async function navigateAfterCheckout(
+  navigate: ReturnType<typeof useNavigate>,
+  orderIds: string[],
+) {
+  let groupId: string | null = null;
+  try {
+    groupId = await resolveCheckoutGroupId(orderIds);
+  } catch {
+    groupId = null;
+  }
+  const target = postCheckoutPath(orderIds, groupId);
+  navigate(target.path, { state: target.state });
+}
 
 /** Simple deterministic hash for idempotency keys */
 function simpleHash(str: string): string {
@@ -213,7 +229,9 @@ export function useCartPage() {
           sellerIds.size > 1 ||
           (session.paymentMethod === 'upi' && unpaidIds.length > 1);
 
-        if (isMultiStoreOnlineSession) {
+        // P5: Razorpay multi-store sessions are valid — reopen checkout.
+        // Only clear deep-link UPI multi sessions (cannot pay multiple VPAs).
+        if (isMultiStoreOnlineSession && session.paymentMethod !== 'razorpay') {
           try {
             await supabase.rpc('buyer_cancel_pending_orders', { _order_ids: unpaidIds });
           } catch (cancelErr) {
@@ -222,7 +240,7 @@ export function useCartPage() {
           clearPaymentSession();
           setPendingOrderIds([]);
           toast.message(
-            'A previous multi-store online payment was cancelled. Checkout one store at a time, or use Cash on Delivery.',
+            'A previous multi-store UPI payment was cancelled. Checkout one store at a time, or use Cash on Delivery / Pay Online.',
             { id: 'multi-store-session-cleared', duration: 7000 },
           );
           return;
@@ -298,28 +316,36 @@ export function useCartPage() {
   const noPaymentMethodAvailable = !acceptsCod && !acceptsUpi;
 
   const isMultiSeller = sellerGroups.length > 1;
-  const blocksOnlineMultiSeller = requiresSingleSellerForOnline(sellerGroups.length, paymentMethod);
-  const multiStoreCopy = multiStoreBannerCopy(sellerGroups.length, paymentMethod);
+  const blocksOnlineMultiSeller = requiresSingleSellerForOnline(
+    sellerGroups.length,
+    paymentMethod,
+    { isRazorpay: paymentMode.isRazorpay, isUpiDeepLink: paymentMode.isUpiDeepLink },
+  );
+  const multiStoreCopy = multiStoreBannerCopy(sellerGroups.length, paymentMethod, {
+    isRazorpay: paymentMode.isRazorpay,
+    isUpiDeepLink: paymentMode.isUpiDeepLink,
+  });
   const multiOrderConfirmHint = razorpayMultiStoreConfirmHint(sellerGroups.length);
 
   useEffect(() => {
-    // Never force online pay on a multi-store cart (Phase 1 — one store at a time).
+    // Never force online pay on a multi-store cart for deep-link UPI.
     if (isMultiSeller) return;
     if (!acceptsCod && acceptsUpi) setPaymentMethod('upi');
     else if (acceptsCod && !acceptsUpi) setPaymentMethod('cod');
   }, [acceptsCod, acceptsUpi, isMultiSeller]);
 
-  // Phase 1: multi-store + online → prefer COD (cash splits naturally per order)
+  // Deep-link UPI multi-store → prefer COD (cannot split one VPA). Razorpay multi stays online (P5).
   useEffect(() => {
     if (!isMultiSeller) return;
     if (paymentMethod !== 'upi') return;
+    if (paymentMode.isRazorpay) return;
     if (!acceptsCod) return;
     setPaymentMethod('cod');
-    toast.message('Switched to Cash on Delivery — online pay is one store at a time.', {
+    toast.message('Switched to Cash on Delivery — UPI pays one seller at a time.', {
       id: 'multi-store-switch-cod',
       duration: 5000,
     });
-  }, [isMultiSeller, paymentMethod, acceptsCod]);
+  }, [isMultiSeller, paymentMethod, acceptsCod, paymentMode.isRazorpay]);
 
   // Track which seller the default was computed for — reset when seller changes
   const defaultFulfillmentSellerId = useRef<string | null>(null);
@@ -710,7 +736,7 @@ export function useCartPage() {
         queryClient.setQueryData(['cart-items', user.id], []);
         queryClient.setQueryData(['cart-count', user.id], 0);
         toast.success('Order placed with Sociva Credit!', { id: 'order-placed-wallet' });
-        navigate(`/orders/${orderIds[0]}`, { state: { fromCheckout: true, orderCount: orderIds.length } });
+        await navigateAfterCheckout(navigate, orderIds);
         clearCartAndCache().catch(() => {});
         requestFullPermission().catch(() => {});
         supabase.functions.invoke('process-notification-queue').catch(() => {});
@@ -738,8 +764,11 @@ export function useCartPage() {
         setIsPlacingOrder(false);
         return;
       }
-      // Phase 1: online (UPI or Razorpay) = one seller per checkout — never multi-VPA / ambiguous splits
-      if (requiresSingleSellerForOnline(sellerGroups.length, paymentMethod)) {
+      // P5: Razorpay multi-seller unlocked; deep-link UPI still single-seller
+      if (requiresSingleSellerForOnline(sellerGroups.length, paymentMethod, {
+        isRazorpay: paymentMode.isRazorpay,
+        isUpiDeepLink: paymentMode.isUpiDeepLink,
+      })) {
         toast.error(onlineMultiSellerBlockedMessage(paymentMode.isRazorpay), {
           id: 'online-multi-seller-blocked',
           duration: 7000,
@@ -820,8 +849,9 @@ export function useCartPage() {
       // Optimistically clear cart cache BEFORE navigation to prevent back-button duplicates
       queryClient.setQueryData(['cart-items', user.id], []);
       queryClient.setQueryData(['cart-count', user.id], 0);
-      if (orderIds.length === 1) { toast.success('Order placed successfully!', { id: 'order-placed' }); navigate(`/orders/${orderIds[0]}`, { state: { fromCheckout: true, orderCount: 1 } }); }
-      else { toast.success(`${orderIds.length} orders placed successfully!`, { id: 'order-placed' }); navigate(`/orders/${orderIds[0]}`, { state: { fromCheckout: true, orderCount: orderIds.length } }); }
+      if (orderIds.length === 1) { toast.success('Order placed successfully!', { id: 'order-placed' }); }
+      else { toast.success(`${orderIds.length} orders placed successfully!`, { id: 'order-placed' }); }
+      await navigateAfterCheckout(navigate, orderIds);
       // Background: DB cleanup + trigger notifications (non-blocking)
       clearCartAndCache().catch(() => {});
       requestFullPermission().catch(() => {});
@@ -892,9 +922,8 @@ export function useCartPage() {
     }
 
     // Navigate on next animation frame (deterministic, no magic delays)
-    const dest = orderIds.length === 1 ? `/orders/${orderIds[0]}` : '/orders';
     await new Promise(r => requestAnimationFrame(r));
-    navigate(dest);
+    await navigateAfterCheckout(navigate, orderIds);
 
     // Cleanup AFTER navigation — never claim success or clear cart unless confirm OK
     setTimeout(() => {
@@ -1127,7 +1156,7 @@ export function useCartPage() {
     await handlePlaceOrderInner();
   };
 
-  /** Phase 1: keep only one seller's items so online checkout is safe. */
+  /** Keep only one seller's items — useful for deep-link UPI or split checkout. */
   const checkoutThisStoreOnly = useCallback(async (sellerId: string) => {
     const group = sellerGroups.find((g) => g.sellerId === sellerId);
     if (!group) return;
@@ -1162,8 +1191,8 @@ export function useCartPage() {
     firstSellerFulfillmentMode,
     hasFulfillmentConflict, hasBelowMinimumOrder, noPaymentMethodAvailable,
     isMultiSeller, blocksOnlineMultiSeller, multiStoreCopy, multiOrderConfirmHint,
-    /** Multi-store cart with no COD — full-cart Place Order must not proceed online */
-    multiStoreRequiresSplit: isMultiSeller && !acceptsCod,
+    /** Multi-store cart with no COD and online blocked (deep-link) — must split */
+    multiStoreRequiresSplit: isMultiSeller && !acceptsCod && blocksOnlineMultiSeller,
     checkoutThisStoreOnly,
     selectedDeliveryAddress, setSelectedDeliveryAddress, addresses, addressesLoading,
     handlePlaceOrder, handleRazorpaySuccess, handleRazorpayFailed, handleRazorpayDismiss,

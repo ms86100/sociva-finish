@@ -39,12 +39,12 @@ function watchSafeAreaResync() {
 }
 
 export async function initializeCapacitorPlugins() {
-  // Fire-and-forget haptics preload (no-op on web)
-  preloadHaptics();
-
   if (!Capacitor.isNativePlatform()) {
     return;
   }
+
+  // Warm haptic generators before first paint interactions (no-op if plugin missing)
+  await preloadHaptics();
 
   // Non-blocking storage migration — don't await, don't block boot
   migrateLocalStorageToPreferences().catch(e =>

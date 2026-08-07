@@ -14,6 +14,14 @@ Deno.serve(async (req) => {
   const start = Date.now();
 
   try {
+    // Break-glass: hard-block unless explicitly enabled (mirrors reset-and-seed)
+    if (!Deno.env.get("ALLOW_TEST_FUNCTIONS")) {
+      return new Response(
+        JSON.stringify({ error: "Purge is disabled in this environment. Set ALLOW_TEST_FUNCTIONS to enable." }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      );
+    }
+
     // Auth: must be logged-in admin
     const authResult = await withAuth(req, corsHeaders);
     if (authResult instanceof Response) return authResult;
@@ -58,6 +66,7 @@ Deno.serve(async (req) => {
     console.log(`Found ${nonAdminIds.length} non-admin users to delete`);
 
     // Step 3: Delete transactional data (order matters for FK constraints)
+    // NEVER delete audit_log / audit_log_archive — forensic trail must survive purge.
     const transactionalTables = [
       // Chat & notifications
       { table: 'chat_messages', filter: null },
@@ -131,9 +140,6 @@ Deno.serve(async (req) => {
       { table: 'delivery_partner_pool', filter: null },
       // Device tokens
       { table: 'device_tokens', filter: null },
-      // Audit log (transactional, not config)
-      { table: 'audit_log', filter: null },
-      { table: 'audit_log_archive', filter: null },
       // Maintenance
       { table: 'maintenance_dues', filter: null },
       // Parcels & vehicles
@@ -210,6 +216,7 @@ Deno.serve(async (req) => {
         users_deleted: nonAdminIds.length,
         tables_cleaned: Object.keys(deletedCounts).length,
         details: deletedCounts,
+        audit_preserved: true,
       },
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

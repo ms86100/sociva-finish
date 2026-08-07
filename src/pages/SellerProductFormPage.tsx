@@ -539,7 +539,7 @@ function StepVisibility({ sp }: { sp: ReturnType<typeof useSellerProducts> }) {
           <Bell size={16} className="text-amber-500" />
           <div>
             <span className="text-sm font-medium block">Urgent Order Alert</span>
-            <span className="text-xs text-muted-foreground">3-min timer, auto-cancel if not responded</span>
+            <span className="text-xs text-muted-foreground">5-min timer, auto-cancel if not responded</span>
           </div>
         </div>
         <Switch checked={sp.formData.is_urgent} onCheckedChange={(checked) => sp.setFormData({ ...sp.formData, is_urgent: checked })} />

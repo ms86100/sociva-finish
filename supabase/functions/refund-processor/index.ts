@@ -1,5 +1,6 @@
 // Refund Processor Edge Function
 // Executes real Razorpay refunds — never simulates success.
+// P4: partial refunds against shared checkout-group captures.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.93.3";
 
 const corsHeaders = {
@@ -29,14 +30,44 @@ async function getRazorpayKeys(supabase: any): Promise<{ keyId: string; keySecre
   return { keyId, keySecret };
 }
 
+async function fetchPaymentRefundable(
+  keys: { keyId: string; keySecret: string },
+  paymentId: string,
+): Promise<{ amountPaise: number; amountRefundedPaise: number; status: string } | null> {
+  const auth = "Basic " + btoa(`${keys.keyId}:${keys.keySecret}`);
+  const res = await fetch(`https://api.razorpay.com/v1/payments/${paymentId}`, {
+    headers: { Authorization: auth },
+  });
+  const raw = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    console.error("[refund-processor] payment fetch failed", paymentId, raw);
+    return null;
+  }
+  return {
+    amountPaise: Number(raw.amount || 0),
+    amountRefundedPaise: Number(raw.amount_refunded || 0),
+    status: String(raw.status || ""),
+  };
+}
+
 async function callRazorpayRefund(
   keys: { keyId: string; keySecret: string },
   paymentId: string,
   amountRupees: number,
   refundId: string,
+  opts?: { reverseAll?: boolean },
 ): Promise<{ ok: boolean; reference: string; status: string; raw: any; error?: string }> {
   const amountPaise = Math.round(Number(amountRupees) * 100);
   const auth = "Basic " + btoa(`${keys.keyId}:${keys.keySecret}`);
+
+  const body: Record<string, unknown> = {
+    amount: amountPaise,
+    notes: { refund_request_id: refundId, sociva_partial: true },
+  };
+  // Route: reverse linked transfers when this refund covers the full remaining capture
+  if (opts?.reverseAll) {
+    body.reverse_all = 1;
+  }
 
   const res = await fetch(`https://api.razorpay.com/v1/payments/${paymentId}/refund`, {
     method: "POST",
@@ -45,10 +76,7 @@ async function callRazorpayRefund(
       "Content-Type": "application/json",
       "X-Razorpay-Idempotency-Key": `refund-${refundId}`,
     },
-    body: JSON.stringify({
-      amount: amountPaise,
-      notes: { refund_request_id: refundId },
-    }),
+    body: JSON.stringify(body),
   });
 
   const raw = await res.json().catch(() => ({}));
@@ -147,6 +175,18 @@ Deno.serve(async (req) => {
       }
     }
 
+    if (refund.refund_state === "refund_completed" || refund.refund_state === "settled") {
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          skipped: true,
+          state: refund.refund_state,
+          message: `Refund already completed`,
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
     if (refund.refund_state !== "approved") {
       return new Response(
         JSON.stringify({
@@ -199,13 +239,39 @@ Deno.serve(async (req) => {
       );
     }
 
-    const { data: orderPay } = await supabase
-      .from("orders")
-      .select("razorpay_payment_id, payment_status, payment_method")
-      .eq("id", refund.order_id)
-      .single();
+    // P4: resolve payment from order OR checkout_group; amount = child share
+    const { data: gwCtx, error: ctxErr } = await supabase.rpc("resolve_refund_gateway_context", {
+      p_refund_id: refund.id,
+    });
+    if (ctxErr) {
+      console.error("[refund-processor] resolve context failed", ctxErr);
+    }
+    const ctx = (gwCtx || {}) as {
+      ok?: boolean;
+      razorpay_payment_id?: string;
+      amount?: number;
+      is_partial?: boolean;
+      checkout_group_id?: string;
+    };
 
-    const paymentId = orderPay?.razorpay_payment_id;
+    let paymentId = ctx.razorpay_payment_id || null;
+    if (!paymentId) {
+      const { data: orderPay } = await supabase
+        .from("orders")
+        .select("razorpay_payment_id, checkout_group_id")
+        .eq("id", refund.order_id)
+        .single();
+      paymentId = orderPay?.razorpay_payment_id || null;
+      if (!paymentId && orderPay?.checkout_group_id) {
+        const { data: group } = await supabase
+          .from("checkout_groups")
+          .select("razorpay_payment_id")
+          .eq("id", orderPay.checkout_group_id)
+          .maybeSingle();
+        paymentId = group?.razorpay_payment_id || null;
+      }
+    }
+
     if (!paymentId) {
       return new Response(
         JSON.stringify({
@@ -229,18 +295,64 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Gateway refund only the residual (order.total_amount), not wallet-applied portion
-    const { data: orderAmounts } = await supabase
-      .from("orders")
-      .select("total_amount, wallet_cash_amount, wallet_promo_amount")
-      .eq("id", refund.order_id)
-      .single();
-    const gatewayRefundAmount = Math.min(
-      Number(refund.amount),
-      Number(orderAmounts?.total_amount ?? refund.amount),
-    );
+    let gatewayRefundAmount = Number(ctx.amount ?? refund.amount);
+    if (!Number.isFinite(gatewayRefundAmount) || gatewayRefundAmount <= 0) {
+      gatewayRefundAmount = Number(refund.amount);
+    }
 
-    const gw = await callRazorpayRefund(keys, paymentId, gatewayRefundAmount, refund.id);
+    // Cap against live Razorpay remaining (partial refunds must not overshoot)
+    const live = await fetchPaymentRefundable(keys, paymentId);
+    if (live) {
+      const remainingRupees = Math.max(0, (live.amountPaise - live.amountRefundedPaise) / 100);
+      if (remainingRupees <= 0) {
+        // Already fully refunded at gateway — complete locally idempotently
+        const { error: doneErr } = await supabase.rpc("complete_refund", {
+          p_refund_id: refund.id,
+          p_gateway_ref: `already-refunded-${paymentId}`,
+          p_gateway_status: "already_refunded",
+        });
+        if (doneErr) {
+          console.error("[refund-processor] complete after already-refunded failed", doneErr);
+          return new Response(JSON.stringify({ error: doneErr.message }), {
+            status: 500,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            state: "refund_completed",
+            gateway_ref: `already-refunded-${paymentId}`,
+            simulated: false,
+            note: "payment already fully refunded at gateway",
+          }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+      gatewayRefundAmount = Math.min(gatewayRefundAmount, remainingRupees);
+    }
+
+    // Round to paise-safe 2dp
+    gatewayRefundAmount = Math.round(gatewayRefundAmount * 100) / 100;
+    if (gatewayRefundAmount < 0.01) {
+      await supabase.rpc("fail_refund", {
+        p_refund_id: refund.id,
+        p_reason: "Computed gateway refund amount is zero",
+      });
+      return new Response(
+        JSON.stringify({ ok: false, state: "refund_failed", error: "zero_refund_amount" }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    const remainingAfter = live
+      ? (live.amountPaise - live.amountRefundedPaise) / 100 - gatewayRefundAmount
+      : null;
+    const reverseAll = remainingAfter !== null && remainingAfter < 0.01;
+
+    const gw = await callRazorpayRefund(keys, paymentId, gatewayRefundAmount, refund.id, {
+      reverseAll,
+    });
 
     if (gw.ok) {
       const { error: doneErr } = await supabase.rpc("complete_refund", {
@@ -255,9 +367,19 @@ Deno.serve(async (req) => {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      console.log(`[refund-processor] completed refund ${refund.id} ref=${gw.reference}`);
+      console.log(
+        `[refund-processor] completed refund ${refund.id} ref=${gw.reference} amount=${gatewayRefundAmount} partial=${ctx.is_partial} reverse_all=${reverseAll}`,
+      );
       return new Response(
-        JSON.stringify({ ok: true, state: "refund_completed", gateway_ref: gw.reference, simulated: false }),
+        JSON.stringify({
+          ok: true,
+          state: "refund_completed",
+          gateway_ref: gw.reference,
+          amount: gatewayRefundAmount,
+          partial: !!ctx.is_partial,
+          reverse_all: reverseAll,
+          simulated: false,
+        }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }

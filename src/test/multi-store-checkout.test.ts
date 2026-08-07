@@ -1,5 +1,5 @@
 /**
- * Multi-store checkout architecture guards (Phase 0/1).
+ * Multi-store checkout architecture guards (P5: Razorpay multi unlocked).
  */
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
@@ -21,8 +21,9 @@ describe('multi-store checkout rules', () => {
     expect(isOnlinePaymentMethod('cod')).toBe(false);
   });
 
-  it('requires single seller for online when cart has 2+ stores', () => {
-    expect(requiresSingleSellerForOnline(2, 'upi')).toBe(true);
+  it('allows Razorpay multi-seller online (P5) but blocks deep-link UPI multi', () => {
+    expect(requiresSingleSellerForOnline(2, 'upi', { isRazorpay: true })).toBe(false);
+    expect(requiresSingleSellerForOnline(2, 'upi', { isRazorpay: false })).toBe(true);
     expect(requiresSingleSellerForOnline(2, 'cod')).toBe(false);
     expect(requiresSingleSellerForOnline(1, 'upi')).toBe(false);
   });
@@ -33,10 +34,13 @@ describe('multi-store checkout rules', () => {
     expect(blocksUpiDeepLinkMultiSeller(1, true)).toBe(false);
   });
 
-  it('uses online-specific banner copy for multi-store UPI', () => {
-    const online = multiStoreBannerCopy(3, 'upi');
+  it('uses Razorpay multi banner when platform collect', () => {
+    const online = multiStoreBannerCopy(3, 'upi', { isRazorpay: true });
     expect(online.title).toMatch(/3 stores/);
-    expect(online.body.toLowerCase()).toMatch(/one store/);
+    expect(online.body.toLowerCase()).toMatch(/one online payment|refunded/);
+
+    const deepLink = multiStoreBannerCopy(3, 'upi', { isRazorpay: false });
+    expect(deepLink.body.toLowerCase()).toMatch(/upi|vpa|one seller/);
 
     const cod = multiStoreBannerCopy(3, 'cod');
     expect(cod.body.toLowerCase()).toMatch(/cash on delivery/);
@@ -47,9 +51,10 @@ describe('multi-store checkout rules', () => {
     expect(onlineMultiSellerBlockedMessage(false)).toMatch(/UPI/i);
   });
 
-  it('hints separate orders for multi COD confirm', () => {
+  it('hints separate orders for multi Razorpay confirm', () => {
     expect(razorpayMultiStoreConfirmHint(1)).toBeNull();
     expect(razorpayMultiStoreConfirmHint(2)).toMatch(/2 separate orders/);
+    expect(razorpayMultiStoreConfirmHint(2)).toMatch(/One payment/i);
   });
 });
 
@@ -64,42 +69,56 @@ describe('multi-store source contracts', () => {
     resolve(__dirname, '../../supabase/functions/confirm-razorpay-payment/index.ts'),
     'utf8',
   );
+  const refundProcessor = readFileSync(
+    resolve(__dirname, '../../supabase/functions/refund-processor/index.ts'),
+    'utf8',
+  );
 
-  it('blocks online multi-seller at place-order (Phase 1)', () => {
-    expect(cartSrc).toMatch(/requiresSingleSellerForOnline\(sellerGroups\.length, paymentMethod\)/);
-    expect(cartSrc).toMatch(/onlineMultiSellerBlockedMessage/);
+  it('gates online multi with Razorpay opts (P5 unlock)', () => {
+    expect(cartSrc).toMatch(/requiresSingleSellerForOnline\(sellerGroups\.length, paymentMethod/);
+    expect(cartSrc).toMatch(/isRazorpay:\s*paymentMode\.isRazorpay/);
     expect(cartSrc).toMatch(/checkoutThisStoreOnly/);
   });
 
   it('exposes Checkout this store on multi-seller cart UI', () => {
     expect(cartPageSrc).toMatch(/Checkout this store/);
     expect(cartPageSrc).toMatch(/checkoutThisStoreOnly/);
-    expect(cartPageSrc).toMatch(/multiSellerOnlineBlocked=\{c\.isMultiSeller\}/);
+    expect(cartPageSrc).toMatch(/multiSellerOnlineBlocked=\{c\.blocksOnlineMultiSeller\}/);
   });
 
   it('never mounts UPI deep-link for multi pending orders', () => {
     expect(cartPageSrc).toMatch(/pendingOrderIds\.length === 1 && c\.paymentMode\.isUpiDeepLink/);
   });
 
-  it('cancels multi-store online sessions on recovery instead of reopening broken pay UI', () => {
+  it('clears only non-Razorpay multi-store sessions on recovery', () => {
     expect(cartSrc).toMatch(/isMultiStoreOnlineSession/);
+    expect(cartSrc).toMatch(/session\.paymentMethod !== 'razorpay'/);
     expect(cartSrc).toMatch(/buyer_cancel_pending_orders/);
     expect(cartSrc).toMatch(/multi-store-session-cleared/);
   });
 
-  it('disables full-cart place when multi-store has no COD path', () => {
+  it('disables full-cart place when multi-store requires split', () => {
     expect(cartSrc).toMatch(/multiStoreRequiresSplit/);
     expect(cartPageSrc).toMatch(/multiStoreRequiresSplit/);
   });
 
-  it('rejects multi-seller Razorpay order create server-side', () => {
-    expect(razorpayCreate).toMatch(/MULTI_SELLER_ONLINE_BLOCKED/);
-    expect(razorpayCreate).toMatch(/uniqueSellers\.size > 1/);
+  it('allows multi-seller Razorpay create (no MULTI_SELLER_ONLINE_BLOCKED)', () => {
+    expect(razorpayCreate).not.toMatch(/MULTI_SELLER_ONLINE_BLOCKED/);
+    expect(razorpayCreate).toMatch(/isMultiSeller/);
+    expect(razorpayCreate).toMatch(/platform_collect/);
+    expect(razorpayCreate).toMatch(/checkout_group_id/);
   });
 
-  it('writes per-order seller_id and platform_fee on Razorpay confirm (settlement audit)', () => {
+  it('writes per-order seller_id and stamps group capture on confirm', () => {
     expect(razorpayConfirm).toMatch(/seller_id: orderData\.seller_id/);
     expect(razorpayConfirm).toMatch(/platform_fee: Number\(orderData\.platform_fee/);
     expect(razorpayConfirm).toMatch(/for \(const orderData of orders\)/);
+    expect(razorpayConfirm).toMatch(/stamp_checkout_group_capture/);
+  });
+
+  it('refund-processor resolves partial group gateway context', () => {
+    expect(refundProcessor).toMatch(/resolve_refund_gateway_context/);
+    expect(refundProcessor).toMatch(/amount_refunded/);
+    expect(refundProcessor).toMatch(/reverse_all|reverseAll/);
   });
 });

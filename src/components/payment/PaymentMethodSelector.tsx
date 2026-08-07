@@ -37,7 +37,7 @@ export function PaymentMethodSelector({
           label: 'Pay Online',
           description: multiSellerOnlineBlocked
             ? 'One store at a time — use “Checkout this store” or COD for all'
-            : 'One payment to Sociva via Razorpay (UPI, Cards, Wallets)',
+            : 'One payment to Sociva via Razorpay (UPI, Cards, Wallets). Multi-store carts are charged once; each store fulfills separately.',
           icon: CreditCard,
           enabled: onlineEnabled,
           color: 'text-info',

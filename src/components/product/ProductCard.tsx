@@ -2,7 +2,7 @@
 import { useMemo, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Minus, Star, Award, Clock, Check } from 'lucide-react';
-import { hapticSelection } from '@/lib/haptics';
+import { hapticSelection, hapticImpact } from '@/lib/haptics';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { VegBadge } from '@/components/ui/veg-badge';
@@ -57,11 +57,12 @@ export function ProductCard({ product, variant = 'horizontal', onTap }: ProductC
       setJustAdded(true);
       setTimeout(() => setJustAdded(false), 600);
     }
+    hapticImpact('medium');
     addItem(product);
   }, [isCartAction, onTap, product, addItem, quantity]);
 
-  const handleIncrement = () => { updateQuantity(product.id, quantity + 1); };
-  const handleDecrement = () => { updateQuantity(product.id, quantity - 1); };
+  const handleIncrement = () => { hapticImpact('light'); updateQuantity(product.id, quantity + 1); };
+  const handleDecrement = () => { hapticImpact('light'); updateQuantity(product.id, quantity - 1); };
 
   if (variant === 'vertical') {
     return (

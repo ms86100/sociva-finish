@@ -6,6 +6,8 @@
 // Operational failures (network errors, "Failed to save", etc.) should
 // continue to use toasts — they're informational, not blocking.
 
+import { hapticNotification } from '@/lib/haptics';
+
 export type NotifyVariant = 'block' | 'warn' | 'info';
 
 export interface NotifyOptions {
@@ -68,6 +70,8 @@ export function closeNotify() {
 function show(variant: NotifyVariant, message: string, opts: NotifyOptions = {}) {
   // Dedupe: if the same message+variant is already open, do nothing.
   if (state.open && state.message === message && state.variant === variant) return;
+  if (variant === 'block') hapticNotification('error');
+  else if (variant === 'warn') hapticNotification('warning');
   state = {
     open: true,
     variant,

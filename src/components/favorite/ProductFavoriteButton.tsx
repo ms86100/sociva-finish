@@ -5,7 +5,7 @@ import { motion, useAnimation } from 'framer-motion';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
-import { hapticImpact } from '@/lib/haptics';
+import { hapticImpact, hapticNotification } from '@/lib/haptics';
 import { toast } from 'sonner';
 import { notify } from '@/lib/notify';
 
@@ -48,6 +48,7 @@ export function ProductFavoriteButton({ productId, initialFavorite = false, size
         toast.success('Saved to favorites');
       }
     } catch {
+      hapticNotification('error');
       toast.error('Failed to update favorites');
     } finally {
       setIsLoading(false);

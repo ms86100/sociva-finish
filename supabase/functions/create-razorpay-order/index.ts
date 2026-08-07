@@ -84,7 +84,7 @@ serve(async (req) => {
     // Validate ALL orders belong to buyer, are not cancelled, and have payment_status: 'pending'
     const { data: orders, error: orderError } = await supabase
       .from('orders')
-      .select('id, buyer_id, seller_id, status, payment_status, razorpay_order_id, total_amount')
+      .select('id, buyer_id, seller_id, status, payment_status, razorpay_order_id, total_amount, checkout_group_id')
       .in('id', allOrderIds)
       .eq('buyer_id', user.id)
       .neq('status', 'cancelled')
@@ -101,19 +101,10 @@ serve(async (req) => {
     }
 
     const uniqueSellers = new Set(orders.map((o: any) => o.seller_id).filter(Boolean));
-    if (uniqueSellers.size > 1) {
-      // Phase 1 product rule: online checkout is one seller at a time.
-      // Refuse multi-seller Razorpay create so money cannot land ambiguously.
-      return new Response(
-        JSON.stringify({
-          error: 'Multi-store online checkout is not supported. Checkout one store at a time or use Cash on Delivery.',
-          code: 'MULTI_SELLER_ONLINE_BLOCKED',
-        }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
+    const isMultiSeller = uniqueSellers.size > 1;
 
-    // Bind Route transfer to DB seller — never trust client-supplied sellerId alone
+    // P5: multi-seller online is platform-collect (one Razorpay payment → N child orders).
+    // Route transfers only for single-seller + linked account (below).
     const resolvedSellerId = [...uniqueSellers][0] as string | undefined;
     if (!resolvedSellerId) {
       return new Response(
@@ -121,7 +112,7 @@ serve(async (req) => {
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
-    if (sellerId && sellerId !== resolvedSellerId) {
+    if (!isMultiSeller && sellerId && sellerId !== resolvedSellerId) {
       console.warn('Client sellerId mismatch; using order seller_id', { sellerId, resolvedSellerId });
     }
 
@@ -179,26 +170,36 @@ serve(async (req) => {
       }
     }
 
-    const { data: seller } = await supabase
-      .from('seller_profiles')
-      .select('razorpay_account_id, business_name')
-      .eq('id', resolvedSellerId)
-      .single();
+    const checkoutGroupId =
+      orders.map((o: any) => o.checkout_group_id).find((id: string | null) => !!id) || null;
+
+    const { data: seller } = !isMultiSeller
+      ? await supabase
+          .from('seller_profiles')
+          .select('razorpay_account_id, business_name')
+          .eq('id', resolvedSellerId)
+          .single()
+      : { data: null };
 
     const amountPaise = Math.round(dbAmount * 100);
     const orderPayload: any = {
       amount: amountPaise,
       currency: 'INR',
-      receipt: allOrderIds[0],
+      receipt: allOrderIds[0].slice(0, 40),
       notes: {
         order_id: allOrderIds[0],
         order_ids: JSON.stringify(allOrderIds),
-        seller_id: resolvedSellerId,
+        seller_id: isMultiSeller ? 'multi' : resolvedSellerId,
+        seller_ids: JSON.stringify([...uniqueSellers]),
         buyer_id: user.id,
+        checkout_group_id: checkoutGroupId || '',
+        platform_collect: isMultiSeller || allOrderIds.length > 1 ? '1' : '0',
       },
     };
 
-    if (allOrderIds.length === 1 && seller?.razorpay_account_id) {
+    // Route transfers only for single-order single-seller with linked account.
+    // Multi-seller / multi-order = platform collect (partial refunds per child in P4).
+    if (!isMultiSeller && allOrderIds.length === 1 && seller?.razorpay_account_id) {
       orderPayload.transfers = [
         {
           account: seller.razorpay_account_id,
@@ -244,6 +245,20 @@ serve(async (req) => {
           JSON.stringify({ error: 'Payment order created but failed to link to Sociva order', details: linkErr.message }),
           { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
+      }
+    }
+
+    if (checkoutGroupId) {
+      const { error: groupLinkErr } = await supabase
+        .from('checkout_groups')
+        .update({
+          razorpay_order_id: razorpayOrder.id,
+          payment_method: 'online',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', checkoutGroupId);
+      if (groupLinkErr) {
+        console.warn('Failed to link razorpay_order_id on checkout_group', checkoutGroupId, groupLinkErr);
       }
     }
 

@@ -1,24 +1,39 @@
 /**
- * Multi-store checkout rules (Swiggy-aligned).
+ * Multi-store checkout rules (Swiggy-aligned + P5 platform collect).
  *
- * Online pay (UPI deep-link or Razorpay) = one seller per checkout.
+ * Razorpay (platform collect) may cover N sellers in one payment → checkout_group.
+ * Deep-link UPI remains single-VPA / single-seller only.
  * COD may keep multi-seller carts (N independent cash/order flows).
- * Never deep-link UPI across multiple VPAs in one payment.
  */
 
 export type CartPaymentMethod = 'cod' | 'upi' | 'online' | 'card' | string;
+
+export type OnlineGateOptions = {
+  /** Platform Razorpay Checkout.js collect — multi-seller allowed (P5). */
+  isRazorpay?: boolean;
+  /** Direct VPA deep-link — always single-seller. */
+  isUpiDeepLink?: boolean;
+};
 
 /** True for any method that collects money online in one shot. */
 export function isOnlinePaymentMethod(method: CartPaymentMethod): boolean {
   return method === 'upi' || method === 'online' || method === 'card';
 }
 
-/** Online checkout with 2+ sellers is not allowed (Phase 1). */
+/**
+ * Online checkout with 2+ sellers is blocked only for non-platform (deep-link UPI).
+ * Razorpay platform collect is unlocked (P5) once partial refunds (P4) ship.
+ */
 export function requiresSingleSellerForOnline(
   sellerCount: number,
   paymentMethod: CartPaymentMethod,
+  opts?: OnlineGateOptions,
 ): boolean {
-  return sellerCount > 1 && isOnlinePaymentMethod(paymentMethod);
+  if (sellerCount <= 1) return false;
+  if (!isOnlinePaymentMethod(paymentMethod)) return false;
+  if (opts?.isRazorpay) return false;
+  // Deep-link or legacy UPI path: one VPA only
+  return true;
 }
 
 /** Deep-link UPI is always single-VPA — never multi-seller. */
@@ -29,17 +44,27 @@ export function blocksUpiDeepLinkMultiSeller(
   return isUpiDeepLink && sellerCount > 1;
 }
 
-export function multiStoreBannerCopy(sellerCount: number, paymentMethod: CartPaymentMethod): {
+export function multiStoreBannerCopy(
+  sellerCount: number,
+  paymentMethod: CartPaymentMethod,
+  opts?: OnlineGateOptions,
+): {
   title: string;
   body: string;
 } {
   if (sellerCount <= 1) {
     return { title: '', body: '' };
   }
+  if (isOnlinePaymentMethod(paymentMethod) && opts?.isRazorpay) {
+    return {
+      title: `Items from ${sellerCount} stores`,
+      body: 'One online payment covers all stores. Each seller accepts and fulfills their portion independently — if one store cancels, only that store’s amount is refunded.',
+    };
+  }
   if (isOnlinePaymentMethod(paymentMethod)) {
     return {
       title: `Items from ${sellerCount} stores`,
-      body: 'Online payment works for one store at a time (same as Swiggy). Checkout each store separately, or switch to Cash on Delivery to place all orders together.',
+      body: 'UPI pays one seller’s VPA only. Checkout each store separately, or switch to Cash on Delivery to place all orders together.',
     };
   }
   return {
@@ -55,7 +80,6 @@ export function onlineMultiSellerBlockedMessage(isRazorpay: boolean): string {
 }
 
 export function razorpayMultiStoreConfirmHint(sellerCount: number): string | null {
-  // After Phase 1, online multi is blocked — hint kept for COD / future platform-collect.
   if (sellerCount <= 1) return null;
-  return `${sellerCount} separate orders will be created — one per store.`;
+  return `${sellerCount} separate orders will be created — one per store. One payment covers the full amount.`;
 }

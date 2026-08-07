@@ -33,6 +33,7 @@ export function feedbackAddItem(productName: string) {
 }
 
 export function feedbackAddItemFailed(productName: string) {
+  hapticNotification('error');
   toast.error(`${truncate(productName)} couldn't be added — please try again`, {
     id: 'cart-add-fail',
     duration: 2500,
@@ -50,6 +51,7 @@ export function feedbackRemoveItem(productName: string, undoFn?: () => void) {
 }
 
 export function feedbackRemoveItemFailed() {
+  hapticNotification('error');
   toast.error("Couldn't remove item — please try again", {
     id: 'cart-remove-fail',
     duration: 2500,
@@ -62,6 +64,7 @@ export function feedbackQuantityChanged() {
 }
 
 export function feedbackQuantityFailed() {
+  hapticNotification('error');
   toast.error("Couldn't update quantity — please try again", {
     id: 'cart-qty-fail',
     duration: 2500,
@@ -110,6 +113,7 @@ export function feedbackCouponApplied(savings: string) {
 }
 
 export function feedbackCouponFailed(reason: string) {
+  hapticNotification('warning');
   toast.error(reason, {
     id: 'coupon-failed',
     duration: 2500,

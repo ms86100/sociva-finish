@@ -274,13 +274,16 @@ export function useOrderDetail(id: string | undefined) {
     if (!order || !user) return;
     setIsUpdating(true);
     try {
+      let confirmedStatus: OrderStatus = newStatus;
       if (isSellerView) {
-        const { error } = await supabase.rpc('seller_advance_order', {
+        const { data, error } = await supabase.rpc('seller_advance_order', {
           _order_id: order.id,
           _new_status: newStatus,
           _rejection_reason: rejectionReason || null,
         });
         if (error) throw error;
+        // Prefer server-confirmed status — do not optimistic-succeed without RPC confirmation
+        if (data) confirmedStatus = data as OrderStatus;
       } else {
         const { error } = await supabase.rpc('buyer_advance_order', {
           _order_id: order.id,
@@ -289,17 +292,14 @@ export function useOrderDetail(id: string | undefined) {
         if (error) throw error;
       }
 
-      // Optimistic update — immediately reflect in UI
       queryClient.setQueryData(['order-detail', id], (old: any) =>
-        old ? { ...old, order: { ...old.order, status: newStatus, rejection_reason: rejectionReason || old.order?.rejection_reason } } : old
+        old ? { ...old, order: { ...old.order, status: confirmedStatus, rejection_reason: rejectionReason || old.order?.rejection_reason } } : old
       );
-      // Release button BEFORE background refetch
       setIsUpdating(false);
-      // Background refetch to reconcile with server state
       queryClient.invalidateQueries({ queryKey: ['order-detail', id] });
       if (isSellerView) invalidateSellerDashboardCaches(order.seller_id);
       supabase.functions.invoke('process-notification-queue').catch(() => {});
-      if (order.society_id) logAudit(`order_${newStatus}`, 'order', order.id, order.society_id, { old_status: order.status, new_status: newStatus, rejection_reason: rejectionReason });
+      if (order.society_id) logAudit(`order_${confirmedStatus}`, 'order', order.id, order.society_id, { old_status: order.status, new_status: confirmedStatus, rejection_reason: rejectionReason });
     } catch (error: any) {
       console.error('Error updating order:', error, JSON.stringify(error));
       const errMsg = error?.message || error?.details || '';
@@ -313,9 +313,11 @@ export function useOrderDetail(id: string | undefined) {
             ? 'Invalid status transition — you cannot skip steps'
             : errMsg.includes('Not authorized')
               ? 'You are not authorized to perform this action'
-              : errMsg.includes('notification_queue')
-                ? 'Order updated, but notification delivery failed. Retrying in the background.'
-                : `Failed to update order: ${errMsg || 'Unknown error'}`,
+              : errMsg.includes('concurrently') || errMsg.includes('40001')
+                ? 'Order changed — refresh and try again'
+                : errMsg.includes('notification_queue')
+                  ? 'Order updated, but notification delivery failed. Retrying in the background.'
+                  : `Failed to update order: ${errMsg || 'Unknown error'}`,
           { id: `order-${order.id}-error` }
         );
       }
@@ -326,10 +328,12 @@ export function useOrderDetail(id: string | undefined) {
 
   const handleReject = async (reason: string) => { await updateOrderStatus('cancelled', reason); };
   const handleTimeout = () => {
-    // auto-cancel-orders runs on a 2-min pg_cron and rejects non-service-role
-    // callers, so the client invocation is a no-op. Just refresh the order to
-    // pick up the cron's cancellation.
-    setTimeout(() => invalidateOrder(), 2000);
+    // Server expires the order by id at auto_cancel_at (edge waitUntil +
+    // one-shot cron). Client cannot cancel; refresh until status updates.
+    invalidateOrder();
+    setTimeout(() => invalidateOrder(), 1500);
+    setTimeout(() => invalidateOrder(), 4000);
+    setTimeout(() => invalidateOrder(), 8000);
   };
 
   const isBuyerView = order ? order.buyer_id === user?.id : false;

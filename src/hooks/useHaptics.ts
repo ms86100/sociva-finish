@@ -1,23 +1,24 @@
-// @ts-nocheck
 import { useCallback, useMemo } from 'react';
-import { hapticSelection, hapticImpact, hapticNotification, hapticVibrate } from '@/lib/haptics';
-
-type ImpactStyle = 'light' | 'medium' | 'heavy';
-type NotificationType = 'success' | 'warning' | 'error';
+import {
+  hapticSelection,
+  hapticImpact,
+  hapticNotification,
+  hapticVibrate,
+  hapticSelectionSession,
+  type HapticImpactStyle,
+  type HapticNotificationType,
+} from '@/lib/haptics';
 
 /**
  * React hook wrapper around the centralized haptics engine.
  * Returns stable references — safe to use in deps arrays.
- * 
- * All heavy lifting (plugin loading, platform checks) is handled
- * by lib/haptics.ts at app startup. This hook is pure wiring.
  */
 export function useHaptics() {
-  const impact = useCallback((style: ImpactStyle = 'medium') => {
+  const impact = useCallback((style: HapticImpactStyle = 'medium') => {
     hapticImpact(style);
   }, []);
 
-  const notification = useCallback((type: NotificationType = 'success') => {
+  const notification = useCallback((type: HapticNotificationType = 'success') => {
     hapticNotification(type);
   }, []);
 
@@ -29,5 +30,12 @@ export function useHaptics() {
     hapticSelection();
   }, []);
 
-  return useMemo(() => ({ impact, notification, vibrate, selectionChanged }), [impact, notification, vibrate, selectionChanged]);
+  const selectionSession = useCallback((phase: 'start' | 'changed' | 'end') => {
+    hapticSelectionSession(phase);
+  }, []);
+
+  return useMemo(
+    () => ({ impact, notification, vibrate, selectionChanged, selectionSession }),
+    [impact, notification, vibrate, selectionChanged, selectionSession],
+  );
 }

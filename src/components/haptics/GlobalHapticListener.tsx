@@ -1,33 +1,64 @@
-// @ts-nocheck
 import { useEffect } from 'react';
 import { Capacitor } from '@capacitor/core';
-import { hapticSelection } from '@/lib/haptics';
+import { hapticImpact, hapticSelection } from '@/lib/haptics';
 
 /**
- * Global click listener that triggers a subtle haptic "tick" on every
- * interactive element tap (links, buttons, inputs, etc.) — mimicking
- * the tactile feedback found in apps like Blinkit.
+ * Global listener: subtle tick on meaningful interactive controls.
+ * Engine throttle collapses double-fires with explicit haptic callers.
  *
- * The haptics module is pre-loaded at app startup (lib/haptics.ts),
- * so calls here are instant — no dynamic import latency.
+ * data-haptic values:
+ *   off | selection (default) | light | medium | confirm | heavy | destructive
  */
+const INTERACTIVE =
+  'a, button, [role="button"], [role="tab"], [role="menuitem"], [role="link"], [role="switch"], [role="checkbox"], [role="radio"], [role="option"], input[type="button"], input[type="submit"], input[type="checkbox"], input[type="radio"], select, summary, [data-haptic]:not([data-haptic="off"])';
+
+function isDisabledControl(el: HTMLElement): boolean {
+  return !!el.closest('[disabled], [aria-disabled="true"], [data-disabled], [data-haptic="off"]');
+}
+
+function fireForControl(control: HTMLElement): void {
+  const raw = (
+    control.getAttribute('data-haptic') ||
+    control.closest('[data-haptic]')?.getAttribute('data-haptic') ||
+    'selection'
+  )?.toLowerCase();
+
+  if (raw === 'off') return;
+  if (raw === 'medium' || raw === 'confirm') {
+    hapticImpact('medium');
+    return;
+  }
+  if (raw === 'heavy' || raw === 'destructive') {
+    hapticImpact('heavy');
+    return;
+  }
+  // selection | light | true | empty
+  hapticSelection();
+}
+
 export function GlobalHapticListener() {
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
 
-    const INTERACTIVE = 'a, button, [role="button"], [role="tab"], [role="menuitem"], [role="link"], input, select, textarea, [data-haptic]';
-
-    const handleClick = (e: Event) => {
-      const target = e.target as HTMLElement;
-      if (!target) return;
-      if (target.closest(INTERACTIVE)) {
-        hapticSelection();
-      }
+    const handleActivate = (e: Event) => {
+      const target = e.target as HTMLElement | null;
+      if (!target || typeof target.closest !== 'function') return;
+      const control = target.closest(INTERACTIVE) as HTMLElement | null;
+      if (!control || isDisabledControl(control)) return;
+      fireForControl(control);
     };
 
-    document.addEventListener('click', handleClick, { capture: true, passive: true });
+    const onPointerDown = (e: PointerEvent) => {
+      if (e.button !== 0) return;
+      handleActivate(e);
+    };
+
+    document.addEventListener('pointerdown', onPointerDown, { capture: true, passive: true });
+    document.addEventListener('click', handleActivate, { capture: true, passive: true });
+
     return () => {
-      document.removeEventListener('click', handleClick, { capture: true } as EventListenerOptions);
+      document.removeEventListener('pointerdown', onPointerDown, { capture: true } as EventListenerOptions);
+      document.removeEventListener('click', handleActivate, { capture: true } as EventListenerOptions);
     };
   }, []);
 

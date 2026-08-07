@@ -27,6 +27,8 @@ import { format, formatDistanceToNow, isToday, isYesterday, differenceInDays } f
 import { staggerContainer, cardEntrance, emptyState, fadeSlideUp } from '@/lib/motion-variants';
 import { isPortfolioSellerId, resolveOperationalSellerId } from '@/lib/seller-order-board';
 import { resolveOrderProgress } from '@/lib/orderProgressStages';
+import { groupBuyerOrdersForList } from '@/lib/checkout-groups';
+import { CheckoutGroupCard } from '@/components/order/CheckoutGroupCard';
 
 function humanizeTime(iso: string): string {
   const d = new Date(iso);
@@ -276,11 +278,34 @@ function OrderList({ type, userId, sellerId }: { type: 'buyer' | 'seller'; userI
           animate="show"
           key={buyerFilter}
         >
-          {orders.map(order => (
-            <motion.div key={order.id} variants={cardEntrance}>
-              <OrderCard order={order} type={type} successTerminals={successSet} unreadCounts={unreadCounts} />
-            </motion.div>
-          ))}
+          {type === 'buyer'
+            ? groupBuyerOrdersForList(orders as any).map((item) => (
+                <motion.div
+                  key={item.kind === 'group' ? item.groupId : item.order.id}
+                  variants={cardEntrance}
+                >
+                  {item.kind === 'group' ? (
+                    <CheckoutGroupCard groupId={item.groupId} orders={item.orders} />
+                  ) : (
+                    <OrderCard
+                      order={item.order as any}
+                      type={type}
+                      successTerminals={successSet}
+                      unreadCounts={unreadCounts}
+                    />
+                  )}
+                </motion.div>
+              ))
+            : orders.map((order) => (
+                <motion.div key={order.id} variants={cardEntrance}>
+                  <OrderCard
+                    order={order}
+                    type={type}
+                    successTerminals={successSet}
+                    unreadCounts={unreadCounts}
+                  />
+                </motion.div>
+              ))}
         </motion.div>
       )}
       {hasMore && (

@@ -94,7 +94,7 @@ serve(async (req) => {
     // Load orders from DB — amount and ownership come from DB only
     const { data: orders, error: ordersErr } = await supabase
       .from("orders")
-      .select("id, buyer_id, seller_id, total_amount, society_id, status, payment_status, razorpay_order_id, platform_fee, net_amount, loyalty_reservation_id, loyalty_discount_amount, loyalty_points_redeemed")
+      .select("id, buyer_id, seller_id, total_amount, society_id, status, payment_status, razorpay_order_id, platform_fee, net_amount, loyalty_reservation_id, loyalty_discount_amount, loyalty_points_redeemed, checkout_group_id")
       .in("id", order_ids);
 
     if (ordersErr || !orders || orders.length !== order_ids.length) {
@@ -242,13 +242,14 @@ serve(async (req) => {
         continue;
       }
 
+      // Leave auto_cancel_at alone — DB trigger stamps the 5-minute
+      // seller-acceptance deadline when status becomes `placed`.
       const { data: updated, error: updateErr } = await supabase
         .from("orders")
         .update({
           status: "placed",
           payment_status: "paid",
           razorpay_payment_id: verifiedPaymentId,
-          auto_cancel_at: null,
           updated_at: now,
         })
         .eq("id", orderId)
@@ -278,7 +279,6 @@ serve(async (req) => {
               payment_status: "paid",
               razorpay_payment_id: verifiedPaymentId,
               rejection_reason: null,
-              auto_cancel_at: null,
               updated_at: now,
             })
             .eq("id", orderId)
@@ -297,6 +297,46 @@ serve(async (req) => {
 
     const successCount = results.filter((r) => r.success && !r.skipped).length;
     const allOk = results.every((r) => r.success);
+
+    // Stamp checkout_group payment header when children share a group
+    const groupIds = Array.from(
+      new Set(
+        (orders || [])
+          .map((o: any) => o.checkout_group_id)
+          .filter((id: string | null | undefined) => !!id),
+      ),
+    );
+    if (groupIds.length > 0 && (allOk || successCount > 0)) {
+      for (const groupId of groupIds) {
+        const { error: stampErr } = await supabase.rpc("stamp_checkout_group_capture", {
+          _group_id: groupId,
+          _razorpay_payment_id: verifiedPaymentId,
+          _razorpay_order_id: expectedRzpOrderId || razorpay_order_id || null,
+        });
+        if (stampErr) {
+          console.error("[confirm] stamp_checkout_group_capture failed", groupId, stampErr);
+          // Fallback: direct update if RPC not yet deployed
+          const { error: groupErr } = await supabase
+            .from("checkout_groups")
+            .update({
+              payment_status: "paid",
+              razorpay_order_id: expectedRzpOrderId || razorpay_order_id || null,
+              razorpay_payment_id: verifiedPaymentId,
+              updated_at: now,
+            })
+            .eq("id", groupId);
+          if (groupErr) {
+            console.error("[confirm] checkout_groups stamp failed", groupId, groupErr);
+          } else {
+            try {
+              await supabase.rpc("refresh_checkout_group_totals", { _group_id: groupId });
+            } catch (refreshErr) {
+              console.warn("[confirm] refresh_checkout_group_totals failed", refreshErr);
+            }
+          }
+        }
+      }
+    }
 
     // Platform-funded loyalty + Sociva Credit: commit held reservations after payment confirms
     let loyaltyCommit: unknown = null;
