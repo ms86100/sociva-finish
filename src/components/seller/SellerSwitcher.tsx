@@ -1,7 +1,6 @@
 // @ts-nocheck
 import { useAuth } from '@/contexts/AuthContext';
-import { SellerProfile } from '@/types/database';
-import { ChevronDown, Store, Plus, Check } from 'lucide-react';
+import { ChevronDown, Store, Plus, Check, LayoutGrid } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import {
   DropdownMenu,
@@ -10,8 +9,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { ALL_STORES_ID, isPortfolioSellerId } from '@/lib/seller-order-board';
 
 export function SellerSwitcher({ compact = false }: { compact?: boolean }) {
   const { sellerProfiles, currentSellerId, setCurrentSellerId } = useAuth();
@@ -20,6 +19,7 @@ export function SellerSwitcher({ compact = false }: { compact?: boolean }) {
     return null;
   }
 
+  const portfolio = isPortfolioSellerId(currentSellerId);
   const currentSeller = sellerProfiles.find((s) => s.id === currentSellerId);
 
   // If only one seller, show a clean banner
@@ -40,19 +40,27 @@ export function SellerSwitcher({ compact = false }: { compact?: boolean }) {
     );
   }
 
-  // Multi-store: prominent switcher with active store highlighted
+  const label = portfolio
+    ? 'All stores'
+    : currentSeller?.business_name || 'Select Business';
+
+  // Multi-store: prominent switcher with active store / portfolio highlighted
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button className="w-full flex items-center gap-3 px-3 py-2.5 bg-primary/10 border border-primary/20 rounded-xl hover:bg-primary/15 transition-colors text-left">
           <div className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center shrink-0">
-            <Store size={16} className="text-primary" />
+            {portfolio ? (
+              <LayoutGrid size={16} className="text-primary" />
+            ) : (
+              <Store size={16} className="text-primary" />
+            )}
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-xs text-muted-foreground leading-none mb-0.5">Viewing orders for</p>
-            <p className="font-semibold text-sm truncate text-foreground">
-              {currentSeller?.business_name || 'Select Business'}
+            <p className="text-xs text-muted-foreground leading-none mb-0.5">
+              {portfolio ? 'Portfolio view' : 'Viewing orders for'}
             </p>
+            <p className="font-semibold text-sm truncate text-foreground">{label}</p>
           </div>
           <ChevronDown size={16} className="text-muted-foreground shrink-0" />
         </button>
@@ -61,13 +69,30 @@ export function SellerSwitcher({ compact = false }: { compact?: boolean }) {
         <div className="px-2 py-1.5">
           <p className="text-xs font-medium text-muted-foreground">Switch Store</p>
         </div>
+        <DropdownMenuItem
+          onClick={() => setCurrentSellerId(ALL_STORES_ID)}
+          className={cn(
+            'flex items-center gap-3 cursor-pointer py-2.5 px-2 rounded-lg mx-1',
+            portfolio && 'bg-primary/10',
+          )}
+        >
+          <LayoutGrid size={14} className="text-primary shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="font-medium text-sm">All stores</p>
+            <p className="text-xs text-muted-foreground">
+              Summed settled GMV &amp; action-needed · {sellerProfiles.length} stores
+            </p>
+          </div>
+          {portfolio && <Check size={16} className="text-primary shrink-0" />}
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
         {sellerProfiles.map((seller) => (
           <DropdownMenuItem
             key={seller.id}
             onClick={() => setCurrentSellerId(seller.id)}
             className={cn(
               'flex items-center gap-3 cursor-pointer py-2.5 px-2 rounded-lg mx-1',
-              seller.id === currentSellerId && 'bg-primary/10'
+              !portfolio && seller.id === currentSellerId && 'bg-primary/10',
             )}
           >
             <div
@@ -76,8 +101,8 @@ export function SellerSwitcher({ compact = false }: { compact?: boolean }) {
                 seller.verification_status === 'approved'
                   ? 'bg-accent'
                   : seller.verification_status === 'pending'
-                  ? 'bg-warning'
-                  : 'bg-destructive'
+                    ? 'bg-warning'
+                    : 'bg-destructive',
               )}
             />
             <div className="flex-1 min-w-0">
@@ -86,7 +111,7 @@ export function SellerSwitcher({ compact = false }: { compact?: boolean }) {
                 {seller.primary_group?.replace('_', ' ') || 'General'}
               </p>
             </div>
-            {seller.id === currentSellerId && (
+            {!portfolio && seller.id === currentSellerId && (
               <Check size={16} className="text-primary shrink-0" />
             )}
           </DropdownMenuItem>

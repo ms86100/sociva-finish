@@ -56,8 +56,10 @@ import { useNewOrderAlertContext } from '@/contexts/NewOrderAlertContext';
 
 // ─── Zomato-level experience imports ─────────────────────────────────────────
 import { deriveDisplayStatus } from '@/lib/deriveDisplayStatus';
+import { resolveOrderProgress } from '@/lib/orderProgressStages';
 import { ExperienceHeader } from '@/components/order/ExperienceHeader';
 import { LiveActivityCard } from '@/components/order/LiveActivityCard';
+import { OrderProgressRail } from '@/components/order/OrderProgressRail';
 import { OrderTimeline } from '@/components/order/OrderTimeline';
 import { PaymentStatusCard } from '@/components/order/PaymentStatusCard';
 import { OrderFailureRecovery } from '@/components/order/OrderFailureRecovery';
@@ -424,12 +426,19 @@ export default function OrderDetailPage() {
     orderStatus: order.status,
     flow: o.flow,
     isBuyerView: o.isBuyerView,
+    fulfillmentType: fulfillmentType,
     roadEtaMinutes,
     estimatedDeliveryAt: (order as any).estimated_delivery_at,
     sellerName: seller?.business_name,
     totalRouteDistance: routeInfo?.totalDistance,
     remainingDistance: routeInfo?.remainingDistance,
     hasRiderLocation: !!deliveryTracking.riderLocation,
+  });
+
+  const orderProgress = resolveOrderProgress({
+    status: order.status,
+    fulfillmentType,
+    flowIsTransit: o.flow.find((s: any) => s.status_key === order.status)?.is_transit === true,
   });
 
   const showArrivalOverlay = o.isBuyerView && !isTerminalStatus(o.flow, order.status) && deliveryAssignmentId && deliveryTracking.riderLocation && deliveryTracking.distance != null && deliveryTracking.distance < trackingConfig.arrival_overlay_distance_meters;
@@ -461,11 +470,11 @@ export default function OrderDetailPage() {
     if (!o.isSellerView) return null;
     const step = o.flow.find(s => s.status_key === order.status);
     if (step?.seller_hint) return step.seller_hint;
-    
+
     switch (displayStatus.phase) {
       case 'placed': return 'New order — review and accept';
       case 'preparing': return 'Prepare the items and mark ready when done';
-      case 'ready': return 'Waiting for delivery partner to pick up';
+      case 'ready': return 'Waiting for customer pickup';
       case 'transit': return 'Order is on the way to the customer';
       case 'delivered': return 'Order completed successfully';
       default: return null;
@@ -556,97 +565,24 @@ export default function OrderDetailPage() {
             </motion.div>
           )}
 
-          {/* ═══ Seller: Swiggy-style horizontal rail stepper ═══ */}
-          {o.isSellerView && !isTerminalStatus(o.flow, order.status) && order.status !== 'cancelled' && o.displayStatuses.length > 0 && (() => {
-            const currentIdx = o.displayStatuses.indexOf(order.status);
-            const firstTerminalIdx = o.displayStatuses.findIndex((sk: string) => {
-              const step = o.flow.find((s: any) => s.status_key === sk);
-              return step?.is_terminal;
-            });
-            const visibleStatuses = firstTerminalIdx >= 0
-              ? o.displayStatuses.slice(0, firstTerminalIdx + 1)
-              : o.displayStatuses;
-
-            return (
-              <motion.div variants={cardEntrance} className="bg-card/80 backdrop-blur-lg border border-border/50 rounded-xl p-4 space-y-2 shadow-sm">
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Order Progress</p>
-
-                {/* Horizontal rail */}
-                <div className="flex items-center gap-0">
-                  {visibleStatuses.map((statusKey: string, i: number) => {
-                    const isComplete = i < currentIdx;
-                    const isCurrent = i === currentIdx;
-                    const isLast = i === visibleStatuses.length - 1;
-
-                    return (
-                      <div key={statusKey} className="flex items-center" style={{ flex: isLast ? '0 0 auto' : '1 1 0' }}>
-                        <div className="relative flex flex-col items-center" style={{ zIndex: 2 }}>
-                          <div className={cn(
-                            'rounded-full flex items-center justify-center shrink-0',
-                            isComplete ? 'w-5 h-5 bg-primary' :
-                            isCurrent ? 'w-6 h-6 bg-primary/20 ring-[2.5px] ring-primary/50' :
-                            'w-4 h-4 bg-muted'
-                          )}>
-                            {isComplete ? (
-                              <Check size={10} className="text-primary-foreground" />
-                            ) : isCurrent ? (
-                              <div className="w-2.5 h-2.5 rounded-full bg-primary animate-pulse" />
-                            ) : (
-                              <div className="w-1.5 h-1.5 rounded-full bg-muted-foreground/30" />
-                            )}
-                          </div>
-                        </div>
-                        {!isLast && (
-                          <div className="flex-1 h-[2px] mx-0.5 relative overflow-hidden rounded-full">
-                            <div className="absolute inset-0 bg-muted" />
-                            {isComplete && <div className="absolute inset-0 bg-primary rounded-full" />}
-                            {isCurrent && <div className="absolute inset-y-0 left-0 w-[40%] bg-primary/40 rounded-full" />}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {/* Labels */}
-                <div className="flex items-start gap-0">
-                  {visibleStatuses.map((statusKey: string, i: number) => {
-                    const isComplete = i < currentIdx;
-                    const isCurrent = i === currentIdx;
-                    const isLast = i === visibleStatuses.length - 1;
-                    const stepInfo = o.getFlowStepLabel(statusKey, 'seller');
-                    const label = stepInfo.label;
-                    const shortLabel = label.length > 12 ? label.split(' ').slice(0, 2).join(' ') : label;
-
-                    return (
-                      <div key={statusKey} className={cn('flex flex-col items-center text-center', isLast ? 'flex-none' : 'flex-1')} style={{ minWidth: 0 }}>
-                        <p className={cn(
-                          'text-[9px] leading-tight mt-1 px-0.5',
-                          isCurrent ? 'font-bold text-foreground' :
-                          isComplete ? 'font-medium text-primary' :
-                          'text-muted-foreground/50'
-                        )}>
-                          {isCurrent ? label : shortLabel}
-                        </p>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {/* Current step hint */}
-                {currentIdx >= 0 && (() => {
-                  const stepData = o.flow.find((s: any) => s.status_key === visibleStatuses[currentIdx]);
-                  const hint = stepData?.seller_hint;
-                  return hint ? (
-                    <p className="text-[10px] text-muted-foreground text-center">{hint}</p>
-                  ) : null;
-                })()}
-              </motion.div>
-            );
-          })()}
+          {/* ═══ Seller: shared 4-stage progress rail (same as buyer) ═══ */}
+          {o.isSellerView && orderProgress.kind === 'stages' && !isTerminalStatus(o.flow, order.status) && order.status !== 'cancelled' && (
+            <motion.div variants={cardEntrance} className="bg-card/80 backdrop-blur-lg border border-border/50 rounded-xl p-4 shadow-sm">
+              <OrderProgressRail
+                stages={orderProgress.stages}
+                currentIndex={orderProgress.stageIndex}
+                title="Order Progress"
+                hint={
+                  o.getSellerHint(order.status) ||
+                  orderProgress.subtext ||
+                  null
+                }
+              />
+            </motion.div>
+          )}
 
           {/* ═══ Buyer: Live Activity Card (simplified) ═══ */}
-          {o.isBuyerView && !isTerminalStatus(o.flow, order.status) && order.status !== 'cancelled' && (
+          {o.isBuyerView && orderProgress.kind === 'stages' && !isTerminalStatus(o.flow, order.status) && order.status !== 'cancelled' && (
             <motion.div variants={cardEntrance}><LiveActivityCard
               displayStatus={displayStatus}
               sellerName={seller?.business_name || 'Seller'}
@@ -656,17 +592,10 @@ export default function OrderDetailPage() {
               isLocationStale={deliveryTracking.isLocationStale}
               lastUpdateAt={deliveryTracking.lastLocationAt}
               distanceMeters={deliveryTracking.distance}
-              flow={o.flow.map((s: any) => ({
-                status_key: s.status_key,
-                display_label: s.display_label,
-                buyer_display_label: s.buyer_display_label,
-                buyer_hint: s.buyer_hint,
-                icon: s.icon,
-                is_terminal: s.is_terminal,
-                is_transit: s.is_transit,
-                sort_order: s.sort_order,
-              }))}
               currentStatus={order.status}
+              fulfillmentType={fulfillmentType}
+              flowIsTransit={o.flow.find((s: any) => s.status_key === order.status)?.is_transit === true}
+              stageHint={o.getBuyerHint(order.status)}
             /></motion.div>
           )}
 
@@ -1162,7 +1091,7 @@ export default function OrderDetailPage() {
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">{o.isSellerView ? 'Customer' : 'Seller'}</p>
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-semibold">{o.isSellerView ? buyer?.name : seller?.business_name}</p>
+                <p className="text-sm font-semibold">{o.isSellerView ? (buyer?.name || 'Customer') : (seller?.business_name || 'Seller')}</p>
                 {(() => {
                    const block = o.isSellerView ? buyer?.block : sellerProfile?.block;
                    const flat = o.isSellerView ? buyer?.flat_number : sellerProfile?.flat_number;

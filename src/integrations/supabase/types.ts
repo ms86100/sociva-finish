@@ -12070,6 +12070,10 @@ export type Database = {
         Args: { p_seller_id: string }
         Returns: Json
       }
+      get_seller_settlement_totals: {
+        Args: { p_seller_ids: string[] }
+        Returns: Json
+      }
       get_seller_recommendations: {
         Args: { _seller_id: string }
         Returns: {

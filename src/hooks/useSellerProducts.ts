@@ -15,6 +15,7 @@ import { friendlyError } from '@/lib/utils';
 import { buildDraftKey, readDraft, useAutoSaveDraft } from '@/hooks/useProductFormDraft';
 import { deriveActionFromCategoryFlags } from '@/lib/marketplace-constants';
 import { notify } from '@/lib/notify';
+import { isPortfolioSellerId } from '@/lib/seller-order-board';
 
 export interface ProductFormData {
   name: string;
@@ -170,8 +171,15 @@ export function useSellerProducts() {
   }, [sellerProfile, products, configs, draftRestored]);
 
   useEffect(() => {
-    if (user && currentSellerId) fetchData(currentSellerId);
-    else if (user && sellerProfiles.length > 0) fetchData(sellerProfiles[0].id);
+    if (user && currentSellerId && !isPortfolioSellerId(currentSellerId)) {
+      fetchData(currentSellerId);
+    } else if (user && !currentSellerId && sellerProfiles.length > 0) {
+      fetchData(sellerProfiles[0].id);
+    } else if (user && isPortfolioSellerId(currentSellerId)) {
+      setSellerProfile(null);
+      setProducts([]);
+      setIsLoading(false);
+    }
   }, [user, currentSellerId, sellerProfiles]);
 
   const fetchData = async (sellerId: string) => {

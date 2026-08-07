@@ -6,7 +6,10 @@ import {
   emptyBoardCounts,
   emptyDashboardKpis,
   getIstPeriodBounds,
+  isPortfolioSellerId,
   statusesForFilter,
+  sumBoardCounts,
+  sumDashboardKpis,
   type SellerBoardCounts,
   type SellerDashboardKpis,
   type SellerOrderFilter,
@@ -105,22 +108,46 @@ async function fetchCountsClientFallback(sellerId: string): Promise<SellerBoardC
   return counts;
 }
 
+async function fetchOneSellerKpis(sellerId: string): Promise<SellerDashboardKpis> {
+  const { data, error } = await supabase.rpc('get_seller_dashboard_kpis', {
+    p_seller_id: sellerId,
+  });
+  if (!error && data) return mapKpiRpc(data as Record<string, unknown>);
+  console.warn('[useSellerOrderStats] RPC fallback:', error?.message);
+  return fetchKpisClientFallback(sellerId);
+}
+
+async function fetchOneSellerCounts(sellerId: string): Promise<SellerBoardCounts> {
+  const { data, error } = await supabase.rpc('get_seller_order_board_counts', {
+    p_seller_id: sellerId,
+  });
+  if (!error && data) return mapCountsRpc(data as Record<string, unknown>);
+  console.warn('[useSellerOrderFilterCounts] RPC fallback:', error?.message);
+  return fetchCountsClientFallback(sellerId);
+}
+
 /**
  * Consolidated seller dashboard KPIs via get_seller_dashboard_kpis RPC
  * (client aggregate fallback if RPC not deployed yet).
+ * Pass `portfolioSellerIds` when sellerId is ALL_STORES_ID for labeled rollup.
  */
-export function useSellerOrderStats(sellerId: string | null) {
+export function useSellerOrderStats(
+  sellerId: string | null,
+  portfolioSellerIds?: string[] | null,
+) {
+  const isPortfolio = isPortfolioSellerId(sellerId);
+  const ids = isPortfolio ? (portfolioSellerIds || []) : sellerId ? [sellerId] : [];
+  const cacheKey = isPortfolio ? ['portfolio', ...ids].join(',') : sellerId;
+
   return useQuery({
-    queryKey: ['seller-dashboard-stats', sellerId],
+    queryKey: ['seller-dashboard-stats', cacheKey],
     queryFn: async (): Promise<SellerDashboardKpis> => {
-      const { data, error } = await supabase.rpc('get_seller_dashboard_kpis', {
-        p_seller_id: sellerId!,
-      });
-      if (!error && data) return mapKpiRpc(data as Record<string, unknown>);
-      console.warn('[useSellerOrderStats] RPC fallback:', error?.message);
-      return fetchKpisClientFallback(sellerId!);
+      if (ids.length === 0) return emptyDashboardKpis();
+      if (ids.length === 1) return fetchOneSellerKpis(ids[0]);
+      const parts = await Promise.all(ids.map(fetchOneSellerKpis));
+      return sumDashboardKpis(parts);
     },
-    enabled: !!sellerId,
+    enabled: ids.length > 0,
     staleTime: 15_000,
   });
 }
@@ -128,35 +155,55 @@ export function useSellerOrderStats(sellerId: string | null) {
 /**
  * Filter counts via get_seller_order_board_counts — must match list filter semantics.
  */
-export function useSellerOrderFilterCounts(sellerId: string | null) {
+export function useSellerOrderFilterCounts(
+  sellerId: string | null,
+  portfolioSellerIds?: string[] | null,
+) {
+  const isPortfolio = isPortfolioSellerId(sellerId);
+  const ids = isPortfolio ? (portfolioSellerIds || []) : sellerId ? [sellerId] : [];
+  const cacheKey = isPortfolio ? ['portfolio', ...ids].join(',') : sellerId;
+
   return useQuery({
-    queryKey: ['seller-order-filter-counts', sellerId],
+    queryKey: ['seller-order-filter-counts', cacheKey],
     queryFn: async (): Promise<SellerBoardCounts> => {
-      const { data, error } = await supabase.rpc('get_seller_order_board_counts', {
-        p_seller_id: sellerId!,
-      });
-      if (!error && data) return mapCountsRpc(data as Record<string, unknown>);
-      console.warn('[useSellerOrderFilterCounts] RPC fallback:', error?.message);
-      return fetchCountsClientFallback(sellerId!);
+      if (ids.length === 0) return emptyBoardCounts();
+      if (ids.length === 1) return fetchOneSellerCounts(ids[0]);
+      const parts = await Promise.all(ids.map(fetchOneSellerCounts));
+      return sumBoardCounts(parts);
     },
-    enabled: !!sellerId,
+    enabled: ids.length > 0,
     staleTime: 15_000,
   });
 }
 
-export function useSellerOrdersInfinite(sellerId: string | null, filter: string = 'all') {
+export function useSellerOrdersInfinite(
+  sellerId: string | null,
+  filter: string = 'all',
+  portfolioSellerIds?: string[] | null,
+) {
+  const isPortfolio = isPortfolioSellerId(sellerId);
+  const ids = isPortfolio ? (portfolioSellerIds || []) : sellerId ? [sellerId] : [];
+  const cacheKey = isPortfolio ? ['portfolio', ...ids].join(',') : sellerId;
+
   return useInfiniteQuery({
-    queryKey: ['seller-orders', sellerId, filter],
+    queryKey: ['seller-orders', cacheKey, filter],
     queryFn: async ({ pageParam }) => {
+      if (ids.length === 0) return [];
+
       let query = supabase
         .from('orders')
         .select(
           `id, created_at, status, payment_status, total_amount, order_type, fulfillment_type, delivery_handled_by, transaction_type, auto_cancel_at, auto_accepted, seller_id, buyer_id, rejection_reason, buyer:profiles!orders_buyer_id_fkey(name, block, flat_number, phone), items:order_items(id, product_name, quantity, unit_price, status)`,
         )
-        .eq('seller_id', sellerId!)
         .order('created_at', { ascending: false })
         .limit(PAGE_SIZE)
         .or('status.neq.payment_pending,payment_status.eq.buyer_confirmed');
+
+      if (ids.length === 1) {
+        query = query.eq('seller_id', ids[0]);
+      } else {
+        query = query.in('seller_id', ids);
+      }
 
       const { todayISO } = getIstPeriodBounds();
       const typedFilter = filter as SellerOrderFilter;
@@ -171,11 +218,16 @@ export function useSellerOrdersInfinite(sellerId: string | null, filter: string 
           );
           break;
         case 'refunded': {
-          const { data: refundRows } = await supabase
+          let refundQ = supabase
             .from('refund_requests')
             .select('order_id, orders!inner(seller_id)')
-            .eq('orders.seller_id', sellerId!)
             .in('status', ['requested', 'approved', 'settled', 'processing', 'auto_approved', 'completed']);
+          if (ids.length === 1) {
+            refundQ = refundQ.eq('orders.seller_id', ids[0]);
+          } else {
+            refundQ = refundQ.in('orders.seller_id', ids);
+          }
+          const { data: refundRows } = await refundQ;
           const refundOrderIds = [...new Set((refundRows || []).map((r: any) => r.order_id))];
           if (refundOrderIds.length === 0) {
             query = query.eq('payment_status', 'refunded');
@@ -207,7 +259,7 @@ export function useSellerOrdersInfinite(sellerId: string | null, filter: string 
       if (lastPage.length < PAGE_SIZE) return undefined;
       return lastPage[lastPage.length - 1]?.created_at;
     },
-    enabled: !!sellerId,
+    enabled: ids.length > 0,
     staleTime: 30_000,
   });
 }

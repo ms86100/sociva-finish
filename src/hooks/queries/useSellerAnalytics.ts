@@ -1,12 +1,10 @@
 // @ts-nocheck
 /**
- * @deprecated Use `@/hooks/useSellerAnalytics` (charts + settled GMV) as the single analytics source.
- * This file only retains demand-stats + a thin re-export for legacy SellerAnalytics.tsx.
+ * Demand-stats RPC hook. Chart analytics live in `@/hooks/useSellerAnalytics`
+ * (settled GMV only — single money source with dashboard KPIs).
  */
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-
-export { useSellerAnalytics } from '@/hooks/useSellerAnalytics';
 
 interface DemandStats {
   active_buyers_in_society: number;

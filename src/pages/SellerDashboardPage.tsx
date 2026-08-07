@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/contexts/AuthContext';
 import { SellerProfile } from '@/types/database';
-import { Package, Loader2, CalendarDays, Wrench, BarChart3, ShoppingBag, HeadphonesIcon, Receipt, MessageCircle, ChevronRight } from 'lucide-react';
+import { Package, Loader2, CalendarDays, Wrench, BarChart3, ShoppingBag, HeadphonesIcon, Receipt, MessageCircle, ChevronRight, Clock, XCircle, LayoutGrid } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { friendlyError, cn } from '@/lib/utils';
@@ -16,10 +16,10 @@ import { logAudit } from '@/lib/audit';
 import { useSystemSettings } from '@/hooks/useSystemSettings';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
-import { Clock, XCircle } from 'lucide-react';
 
 // Import refactored components
 import { StoreStatusCard } from '@/components/seller/StoreStatusCard';
+import { PortfolioRollupStrip } from '@/components/seller/PortfolioRollupStrip';
 import { SellerVisibilityChecklist } from '@/components/seller/SellerVisibilityChecklist';
 import { EarningsSummary } from '@/components/seller/EarningsSummary';
 import { DashboardStats } from '@/components/seller/DashboardStats';
@@ -40,9 +40,15 @@ import { AvailabilityPromptBanner } from '@/components/seller/AvailabilityPrompt
 import { MissingLocationBanner } from '@/components/seller/MissingLocationBanner';
 import { useSellerOrderStats, useSellerOrdersInfinite, useSellerOrderFilterCounts } from '@/hooks/queries/useSellerOrders';
 import { useSellerHasBookableServices } from '@/hooks/useSellerHasBookableServices';
-import { emptyBoardCounts, FILTER_LABELS } from '@/lib/seller-order-board';
+import {
+  emptyBoardCounts,
+  FILTER_LABELS,
+  isPortfolioSellerId,
+  resolveOperationalSellerId,
+} from '@/lib/seller-order-board';
 import { motion, AnimatePresence } from 'framer-motion';
 import { emptyState, listItem, staggerContainer } from '@/lib/motion-variants';
+import { SellerSwitcher } from '@/components/seller/SellerSwitcher';
 
 // Lazy import for reliability score and low stock (used in Stats tab)
 import { SellerReliabilityScore } from '@/components/seller/SellerReliabilityScore';
@@ -61,25 +67,29 @@ export default function SellerDashboardPage() {
   const [renderError, setRenderError] = useState<string | null>(null);
   const [healthSheetOpen, setHealthSheetOpen] = useState(false);
 
-  const activeSellerId = currentSellerId || (Array.isArray(sellerProfiles) && sellerProfiles.length > 0 ? sellerProfiles[0].id : null);
+  const isPortfolio = isPortfolioSellerId(currentSellerId);
+  const portfolioSellerIds = sellerProfiles.map((s) => s.id);
+  const activeSellerId = isPortfolio
+    ? currentSellerId
+    : resolveOperationalSellerId(currentSellerId, sellerProfiles);
 
-  // Health checks for StoreStatusCard badge
-  const { data: healthData } = useSellerHealth(activeSellerId);
+  // Health checks for StoreStatusCard badge (single-store only)
+  const { data: healthData } = useSellerHealth(isPortfolio ? null : activeSellerId);
   const healthTotal = healthData?.totalChecks || 0;
   const healthPassed = healthData?.passCount || 0;
 
   // Service bookings for schedule tab
-  const { data: serviceBookings = [] } = useSellerServiceBookings(activeSellerId);
+  const { data: serviceBookings = [] } = useSellerServiceBookings(isPortfolio ? null : activeSellerId);
 
   // Support tickets — keyed off seller's profiles.id (user_id), NOT seller_profiles.id.
   const activeSellerUserId = sellerProfile?.user_id || user?.id || '';
   const { data: supportTickets = [] } = useSellerTickets(activeSellerUserId);
   useSellerSupportRealtime(activeSellerUserId);
-  const { data: hasBookableServices = false } = useSellerHasBookableServices(activeSellerId);
+  const { data: hasBookableServices = false } = useSellerHasBookableServices(isPortfolio ? null : activeSellerId);
 
   useEffect(() => {
-    console.log('[SellerDashboard] Auth state:', { userId: user?.id, sellerProfilesCount: sellerProfiles?.length, activeSellerId, currentSellerId });
-  }, [user, sellerProfiles, activeSellerId, currentSellerId]);
+    console.log('[SellerDashboard] Auth state:', { userId: user?.id, sellerProfilesCount: sellerProfiles?.length, activeSellerId, currentSellerId, isPortfolio });
+  }, [user, sellerProfiles, activeSellerId, currentSellerId, isPortfolio]);
 
   useEffect(() => {
     setSellerProfile(null);
@@ -89,12 +99,16 @@ export default function SellerDashboardPage() {
     queryClient.removeQueries({ queryKey: ['seller-order-filter-counts'] });
     queryClient.removeQueries({ queryKey: ['seller-analytics-charts'] });
     queryClient.removeQueries({ queryKey: ['seller-refund-requests'] });
-    if (user && activeSellerId) {
+    if (user && isPortfolio) {
+      // Portfolio: no single store profile — still leave loading false quickly
+      setIsLoadingProfile(false);
+      setRenderError(null);
+    } else if (user && activeSellerId) {
       fetchSellerProfile(activeSellerId);
     } else {
       setIsLoadingProfile(false);
     }
-  }, [user, activeSellerId]);
+  }, [user, activeSellerId, isPortfolio]);
 
   const fetchSellerProfile = async (sellerId: string) => {
     setIsLoadingProfile(true);
@@ -129,14 +143,24 @@ export default function SellerDashboardPage() {
     }
   };
 
-  const { data: stats, isFetching: statsFetching } = useSellerOrderStats(activeSellerId);
-  const { data: filterCounts } = useSellerOrderFilterCounts(activeSellerId);
+  const { data: stats, isFetching: statsFetching } = useSellerOrderStats(
+    activeSellerId,
+    isPortfolio ? portfolioSellerIds : null,
+  );
+  const { data: filterCounts } = useSellerOrderFilterCounts(
+    activeSellerId,
+    isPortfolio ? portfolioSellerIds : null,
+  );
   const {
     data: ordersPages,
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
-  } = useSellerOrdersInfinite(activeSellerId, orderFilter);
+  } = useSellerOrdersInfinite(
+    activeSellerId,
+    orderFilter,
+    isPortfolio ? portfolioSellerIds : null,
+  );
 
   const allOrders = ordersPages?.pages.flat() || [];
   const slaToastShownRef = useRef<string>('');
@@ -248,7 +272,7 @@ export default function SellerDashboardPage() {
     );
   }
 
-  if (!sellerProfile) {
+  if (!isPortfolio && !sellerProfile) {
     return (
       <AppLayout headerTitle="Seller Dashboard" showLocation={false}>
         <div className="p-4 text-center py-12">
@@ -268,6 +292,19 @@ export default function SellerDashboardPage() {
 
   const pendingOrders = stats?.pendingOrders || 0;
   const pendingRefunds = stats?.pendingRefunds || 0;
+
+  const pickStoreBanner = (
+    <div className="rounded-xl border border-border bg-muted/40 px-3 py-3 flex items-start gap-2.5">
+      <LayoutGrid size={16} className="text-muted-foreground shrink-0 mt-0.5" />
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-medium">Select a store for this tab</p>
+        <p className="text-[11px] text-muted-foreground mb-2">
+          Portfolio mode sums orders &amp; settled GMV. Store tools, refunds, and stats need one store.
+        </p>
+        <SellerSwitcher />
+      </div>
+    </div>
+  );
 
   const activeSupportCount = supportTickets.filter((t: any) => ['open', 'seller_pending'].includes(t.status)).length;
 
@@ -310,78 +347,96 @@ export default function SellerDashboardPage() {
   return (
     <AppLayout headerTitle="Seller Dashboard" showLocation={false}>
       <div className="p-4 space-y-4">
-        {/* Rejection / Pending banner */}
-        {sellerProfile.verification_status !== 'approved' && (
-          <div className={cn(
-            'rounded-xl border p-4 space-y-2',
-            sellerProfile.verification_status === 'rejected'
-              ? 'bg-destructive/10 border-destructive/20'
-              : 'bg-warning/10 border-warning/20',
-          )}>
-            <div className="flex items-start gap-2">
-              {sellerProfile.verification_status === 'rejected' ? (
-                <XCircle size={18} className="text-destructive shrink-0 mt-0.5" />
-              ) : (
-                <Clock size={18} className="text-warning shrink-0 mt-0.5" />
-              )}
-              <div className="min-w-0">
-                <p className="text-sm font-semibold">
-                  {sellerProfile.verification_status === 'rejected'
-                    ? 'Your store application was rejected'
-                    : 'Your store is pending review'}
-                </p>
-                {(sellerProfile as any).rejection_note && (
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Reason: {(sellerProfile as any).rejection_note}
-                  </p>
-                )}
-                <Link to="/become-seller">
-                  <Button size="sm" variant={sellerProfile.verification_status === 'rejected' ? 'destructive' : 'outline'} className="mt-2 h-8 text-xs">
-                    {sellerProfile.verification_status === 'rejected' ? 'Update & Resubmit' : 'View Application'}
-                  </Button>
-                </Link>
+        {isPortfolio ? (
+          <PortfolioRollupStrip
+            storeCount={portfolioSellerIds.length}
+            actionNeeded={pendingOrders}
+            settledTotal={stats?.totalEarnings || 0}
+            settledToday={stats?.todayEarnings || 0}
+          />
+        ) : (
+          <>
+            {/* Rejection / Pending banner */}
+            {sellerProfile.verification_status !== 'approved' && (
+              <div className={cn(
+                'rounded-xl border p-4 space-y-2',
+                sellerProfile.verification_status === 'rejected'
+                  ? 'bg-destructive/10 border-destructive/20'
+                  : 'bg-warning/10 border-warning/20',
+              )}>
+                <div className="flex items-start gap-2">
+                  {sellerProfile.verification_status === 'rejected' ? (
+                    <XCircle size={18} className="text-destructive shrink-0 mt-0.5" />
+                  ) : (
+                    <Clock size={18} className="text-warning shrink-0 mt-0.5" />
+                  )}
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold">
+                      {sellerProfile.verification_status === 'rejected'
+                        ? 'Your store application was rejected'
+                        : 'Your store is pending review'}
+                    </p>
+                    {(sellerProfile as any).rejection_note && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Reason: {(sellerProfile as any).rejection_note}
+                      </p>
+                    )}
+                    <Link to="/become-seller">
+                      <Button size="sm" variant={sellerProfile.verification_status === 'rejected' ? 'destructive' : 'outline'} className="mt-2 h-8 text-xs">
+                        {sellerProfile.verification_status === 'rejected' ? 'Update & Resubmit' : 'View Application'}
+                      </Button>
+                    </Link>
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
+            )}
+
+            <StoreStatusCard
+              sellerProfile={sellerProfile}
+              sellerProfiles={sellerProfiles}
+              onToggleAvailability={toggleAvailability}
+              healthPassed={healthPassed}
+              healthTotal={healthTotal}
+              onHealthClick={() => setHealthSheetOpen(true)}
+            />
+
+            {sellerProfile.verification_status === 'approved' && (
+              <EarningsSummary
+                todayEarnings={stats?.todayEarnings || 0}
+                weekEarnings={stats?.weekEarnings || 0}
+                totalEarnings={stats?.totalEarnings || 0}
+                compact
+              />
+            )}
+
+            <MissingLocationBanner
+              sellerId={sellerProfile.id}
+              hasCoordinates={!!(sellerProfile as any).latitude && !!(sellerProfile as any).longitude}
+              hasSocietyId={!!sellerProfile.society_id}
+            />
+
+            <Sheet open={healthSheetOpen} onOpenChange={setHealthSheetOpen}>
+              <SheetContent side="bottom" className="max-h-[70vh] overflow-y-auto">
+                <SheetHeader>
+                  <SheetTitle>Store Health Checklist</SheetTitle>
+                </SheetHeader>
+                <div className="mt-4">
+                  <SellerVisibilityChecklist sellerId={sellerProfile.id} />
+                </div>
+              </SheetContent>
+            </Sheet>
+          </>
         )}
 
-        {/* Store Status Card — with health badge + preview button merged in */}
-        <StoreStatusCard
-          sellerProfile={sellerProfile}
-          sellerProfiles={sellerProfiles}
-          onToggleAvailability={toggleAvailability}
-          healthPassed={healthPassed}
-          healthTotal={healthTotal}
-          onHealthClick={() => setHealthSheetOpen(true)}
-        />
-
-        {/* Compact Earnings Bar — always visible */}
-        {sellerProfile.verification_status === 'approved' && (
+        {isPortfolio && (
           <EarningsSummary
             todayEarnings={stats?.todayEarnings || 0}
             weekEarnings={stats?.weekEarnings || 0}
             totalEarnings={stats?.totalEarnings || 0}
             compact
+            allStores
           />
         )}
-
-        <MissingLocationBanner
-          sellerId={sellerProfile.id}
-          hasCoordinates={!!(sellerProfile as any).latitude && !!(sellerProfile as any).longitude}
-          hasSocietyId={!!sellerProfile.society_id}
-        />
-
-        {/* Health checklist in a drawer */}
-        <Sheet open={healthSheetOpen} onOpenChange={setHealthSheetOpen}>
-          <SheetContent side="bottom" className="max-h-[70vh] overflow-y-auto">
-            <SheetHeader>
-              <SheetTitle>Store Health Checklist</SheetTitle>
-            </SheetHeader>
-            <div className="mt-4">
-              <SellerVisibilityChecklist sellerId={sellerProfile.id} />
-            </div>
-          </SheetContent>
-        </Sheet>
 
         {/* Tab navigation */}
         <Tabs defaultValue="orders" className="w-full">
@@ -431,7 +486,14 @@ export default function SellerDashboardPage() {
 
           {/* ── Orders Tab ── */}
           <TabsContent value="orders" className="space-y-4 mt-3">
-            <AvailabilityPromptBanner sellerId={sellerProfile.id} />
+            {!isPortfolio && sellerProfile && (
+              <AvailabilityPromptBanner sellerId={sellerProfile.id} />
+            )}
+            {isPortfolio && (
+              <p className="text-[11px] text-muted-foreground -mt-1">
+                Showing orders from all stores — labeled portfolio totals above.
+              </p>
+            )}
 
             <DashboardStats
               pendingOrders={pendingOrders}
@@ -445,7 +507,9 @@ export default function SellerDashboardPage() {
 
             <div>
               <div className="flex items-center justify-between mb-2">
-                <h3 className="font-semibold text-sm">Orders</h3>
+                <h3 className="font-semibold text-sm">
+                  {isPortfolio ? 'Orders · All stores' : 'Orders'}
+                </h3>
                 {statsFetching && (
                   <span className="text-[10px] text-muted-foreground flex items-center gap-1">
                     <Loader2 size={10} className="animate-spin" /> Updating
@@ -510,53 +574,75 @@ export default function SellerDashboardPage() {
 
           {/* ── Support Tab ── */}
           <TabsContent value="support" className="space-y-4 mt-3">
-            <SellerSupportTab sellerUserId={activeSellerUserId} sellerProfileId={sellerProfile.id} />
+            {isPortfolio || !sellerProfile ? (
+              pickStoreBanner
+            ) : (
+              <SellerSupportTab sellerUserId={activeSellerUserId} sellerProfileId={sellerProfile.id} />
+            )}
           </TabsContent>
 
           {/* ── Refunds Tab ── */}
           <TabsContent value="refunds" className="space-y-4 mt-3">
-            <div className="flex items-center justify-between mb-1">
-              <h3 className="font-semibold text-sm">Disputes & Refunds</h3>
-            </div>
-            <SellerRefundList sellerId={sellerProfile.id} forceExpanded />
+            {isPortfolio || !sellerProfile ? (
+              pickStoreBanner
+            ) : (
+              <>
+                <div className="flex items-center justify-between mb-1">
+                  <h3 className="font-semibold text-sm">Disputes & Refunds</h3>
+                </div>
+                <SellerRefundList sellerId={sellerProfile.id} forceExpanded />
+              </>
+            )}
           </TabsContent>
 
           {/* ── Schedule Tab (unified Bookings hub) ── */}
           {hasBookableServices && (
             <TabsContent value="schedule" className="space-y-4 mt-3">
-              <BookingsHub sellerId={sellerProfile.id} />
+              {isPortfolio || !sellerProfile ? pickStoreBanner : <BookingsHub sellerId={sellerProfile.id} />}
             </TabsContent>
           )}
 
           {/* ── Tools Tab ── */}
           <TabsContent value="tools" className="space-y-4 mt-3">
-            <QuickActions />
-            <Link to="/seller/messages" className="flex items-center justify-between px-4 py-3 bg-card border border-border rounded-xl shadow-sm hover:bg-accent/5 mt-2">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center">
-                  <MessageCircle size={16} className="text-primary" />
+            {isPortfolio ? (
+              pickStoreBanner
+            ) : (
+              <>
+                <QuickActions />
+                <Link to="/seller/messages" className="flex items-center justify-between px-4 py-3 bg-card border border-border rounded-xl shadow-sm hover:bg-accent/5 mt-2">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center">
+                      <MessageCircle size={16} className="text-primary" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold">Messages</p>
+                      <p className="text-[11px] text-muted-foreground">Customer conversations</p>
+                    </div>
+                  </div>
+                  <ChevronRight size={16} className="text-muted-foreground" />
+                </Link>
+                <div id="coupon-section">
+                  <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Coupon Management</p>
+                  <CouponManager />
                 </div>
-                <div>
-                  <p className="text-sm font-semibold">Messages</p>
-                  <p className="text-[11px] text-muted-foreground">Customer conversations</p>
-                </div>
-              </div>
-              <ChevronRight size={16} className="text-muted-foreground" />
-            </Link>
-            <div id="coupon-section">
-              <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Coupon Management</p>
-              <CouponManager />
-            </div>
+              </>
+            )}
           </TabsContent>
 
           {/* ── Stats Tab — Deduplicated ── */}
           <TabsContent value="stats" className="space-y-4 mt-3">
-            <SellerReliabilityScore sellerId={sellerProfile.id} />
-            <LowStockAlerts sellerId={sellerProfile.id} />
+            {isPortfolio || !sellerProfile ? (
+              pickStoreBanner
+            ) : (
+              <>
+                <SellerReliabilityScore sellerId={sellerProfile.id} />
+                <LowStockAlerts sellerId={sellerProfile.id} />
 
-            <SellerAnalyticsTab sellerId={sellerProfile.id} />
-            <SellerCustomerDirectory sellerId={sellerProfile.id} />
-            <DemandInsights societyId={sellerProfile.society_id} sellerId={sellerProfile.id} />
+                <SellerAnalyticsTab sellerId={sellerProfile.id} />
+                <SellerCustomerDirectory sellerId={sellerProfile.id} />
+                <DemandInsights societyId={sellerProfile.society_id} sellerId={sellerProfile.id} />
+              </>
+            )}
           </TabsContent>
         </Tabs>
       </div>

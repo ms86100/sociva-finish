@@ -25,6 +25,8 @@ import { Order } from '@/types/database';
 import { Package, ChevronRight, Loader2, CheckCircle, Truck, MessageCircle } from 'lucide-react';
 import { format, formatDistanceToNow, isToday, isYesterday, differenceInDays } from 'date-fns';
 import { staggerContainer, cardEntrance, emptyState, fadeSlideUp } from '@/lib/motion-variants';
+import { isPortfolioSellerId, resolveOperationalSellerId } from '@/lib/seller-order-board';
+import { resolveOrderProgress } from '@/lib/orderProgressStages';
 
 function humanizeTime(iso: string): string {
   const d = new Date(iso);
@@ -34,13 +36,6 @@ function humanizeTime(iso: string): string {
   if (days < 7) return format(d, 'EEEE');
   return format(d, 'MMM d');
 }
-
-// Quick progress estimate by status (presentation-only)
-const STATUS_PROGRESS: Record<string, number> = {
-  placed: 15, accepted: 30, preparing: 45, ready: 60,
-  picked_up: 75, on_the_way: 85, at_gate: 95,
-  delivered: 100, completed: 100, cancelled: 0, rejected: 0,
-};
 
 function OrderCard({ order, type, successTerminals, unreadCounts }: { order: Order; type: 'buyer' | 'seller'; successTerminals: Set<string>; unreadCounts?: Map<string, number> }) {
   const { getFlowLabel } = useFlowStepLabels();
@@ -53,7 +48,10 @@ function OrderCard({ order, type, successTerminals, unreadCounts }: { order: Ord
   const isCompleted = successTerminals.has(order.status);
   const unread = unreadCounts?.get(order.id) || 0;
   const isActive = !isCompleted && !['cancelled', 'rejected'].includes(order.status);
-  const progress = STATUS_PROGRESS[order.status] ?? (isActive ? 30 : 0);
+  const progress = resolveOrderProgress({
+    status: order.status,
+    fulfillmentType: (order as any).fulfillment_type,
+  }).progressPercent || (isActive ? 30 : 0);
   const firstItem = items[0];
   const itemImage = (firstItem as any)?.product_image || seller?.cover_image_url;
   // Pull dot color from statusInfo.color (e.g. "bg-yellow-100 text-yellow-700")
@@ -83,7 +81,7 @@ function OrderCard({ order, type, successTerminals, unreadCounts }: { order: Ord
             <div className="flex items-center justify-between gap-2">
               <div className="min-w-0">
                 <h3 className="text-sm font-semibold truncate">
-                  {type === 'buyer' ? seller?.business_name : buyer?.name}
+                  {type === 'buyer' ? (seller?.business_name || 'Seller') : (buyer?.name || 'Customer')}
                 </h3>
                 <p className="text-[10px] text-muted-foreground font-mono truncate">
                   #{order.id.slice(0, 8)}
@@ -298,10 +296,12 @@ function OrderList({ type, userId, sellerId }: { type: 'buyer' | 'seller'; userI
 
 export default function OrdersPage() {
   useBuyerRealtimeShell();
-  const { user, isSeller, currentSellerId } = useAuth();
+  const { user, isSeller, currentSellerId, sellerProfiles } = useAuth();
   const location = useLocation();
   const fromSellerNotification = (location.state as any)?.tab === 'selling';
   const defaultTab = isSeller && fromSellerNotification ? 'selling' : 'buying';
+  const operationalSellerId = resolveOperationalSellerId(currentSellerId, sellerProfiles || []);
+  const portfolioMode = isPortfolioSellerId(currentSellerId);
 
   if (!user) return null;
 
@@ -327,7 +327,20 @@ export default function OrdersPage() {
                 <div className="mb-3">
                   <SellerSwitcher />
                 </div>
-                <OrderList type="seller" userId={user.id} sellerId={currentSellerId || undefined} />
+                {portfolioMode ? (
+                  <div className="rounded-xl border border-border bg-muted/40 p-4 text-sm space-y-2 mb-3">
+                    <p className="font-medium">All stores selected</p>
+                    <p className="text-xs text-muted-foreground">
+                      Pick a store here for this list, or open the{' '}
+                      <Link to="/seller" className="text-primary underline underline-offset-2">
+                        Seller Dashboard
+                      </Link>{' '}
+                      portfolio board for summed action-needed &amp; settled GMV.
+                    </p>
+                  </div>
+                ) : (
+                  <OrderList type="seller" userId={user.id} sellerId={operationalSellerId || undefined} />
+                )}
               </TabsContent>
             </Tabs>
           ) : (

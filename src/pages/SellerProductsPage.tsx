@@ -87,6 +87,14 @@ export default function SellerProductsPage() {
           <div className="mb-4 p-3 bg-card rounded-xl shadow-sm border"><div className="flex items-center justify-between"><div className="flex items-center gap-3"><div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center"><Store size={18} className="text-primary" /></div><div><h2 className="font-semibold text-sm">{sp.sellerProfile.business_name}</h2><p className="text-xs text-muted-foreground capitalize">{sp.primaryGroup?.replace('_', ' ')} • {sp.products.length} products</p></div></div>{sp.sellerProfiles.length > 1 && <SellerSwitcher />}</div></div>
         )}
 
+        {!sp.sellerProfile && sp.sellerProfiles.length > 1 && (
+          <div className="mb-4 p-4 bg-card rounded-xl shadow-sm border space-y-3">
+            <p className="text-sm font-medium">Select a store to manage products</p>
+            <p className="text-xs text-muted-foreground">Portfolio / All stores is for order &amp; earnings rollups only.</p>
+            <SellerSwitcher />
+          </div>
+        )}
+
         {sp.licenseBlocked?.blocked && (
           <div className={`mb-4 p-3 rounded-xl border flex items-start gap-3 ${sp.licenseBlocked.status === 'rejected' ? 'bg-destructive/10 border-destructive/30' : 'bg-warning/10 border-warning/30'}`}>
             <ShieldAlert size={20} className={sp.licenseBlocked.status === 'rejected' ? 'text-destructive mt-0.5' : 'text-warning mt-0.5'} />

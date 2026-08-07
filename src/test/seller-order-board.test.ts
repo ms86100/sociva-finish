@@ -8,6 +8,13 @@ import {
   sellerDisplayStatusLabel,
   computeFulfillMinutes,
   resolveFulfillEndAt,
+  sumDashboardKpis,
+  sumBoardCounts,
+  emptyDashboardKpis,
+  emptyBoardCounts,
+  isPortfolioSellerId,
+  ALL_STORES_ID,
+  resolveOperationalSellerId,
 } from '@/lib/seller-order-board';
 
 const ENUM_STATUSES = [
@@ -131,5 +138,45 @@ describe('seller-order-board taxonomy', () => {
       { now: new Date('2099-01-01T12:00:00+05:30') },
     );
     expect(kpis.avgFulfillMinutes).toBe(40);
+  });
+
+  it('portfolio helpers sum KPIs and counts without silent blending', () => {
+    expect(isPortfolioSellerId(ALL_STORES_ID)).toBe(true);
+    expect(isPortfolioSellerId('uuid')).toBe(false);
+    expect(resolveOperationalSellerId(ALL_STORES_ID, [{ id: 'a' }, { id: 'b' }])).toBeNull();
+    expect(resolveOperationalSellerId('a', [{ id: 'a' }, { id: 'b' }])).toBe('a');
+
+    const a = {
+      ...emptyDashboardKpis(),
+      pendingOrders: 2,
+      totalEarnings: 100,
+      todayEarnings: 40,
+      completedOrders: 3,
+      avgFulfillMinutes: 20,
+      cancelRate30d: 10,
+      totalOrders: 10,
+    };
+    const b = {
+      ...emptyDashboardKpis(),
+      pendingOrders: 1,
+      totalEarnings: 50,
+      todayEarnings: 10,
+      completedOrders: 1,
+      avgFulfillMinutes: 40,
+      cancelRate30d: 0,
+      totalOrders: 5,
+    };
+    const summed = sumDashboardKpis([a, b]);
+    expect(summed.pendingOrders).toBe(3);
+    expect(summed.totalEarnings).toBe(150);
+    expect(summed.todayEarnings).toBe(50);
+    expect(summed.avgFulfillMinutes).toBe(25); // (20*3 + 40*1) / 4
+
+    const counts = sumBoardCounts([
+      { ...emptyBoardCounts(), pending: 2, all: 5 },
+      { ...emptyBoardCounts(), pending: 1, all: 3 },
+    ]);
+    expect(counts.pending).toBe(3);
+    expect(counts.all).toBe(8);
   });
 });

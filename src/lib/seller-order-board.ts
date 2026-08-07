@@ -448,3 +448,92 @@ export const KPI_TO_FILTER: Record<string, SellerOrderFilter> = {
   cod_confirm: 'cod_confirm',
   cancelled: 'cancelled',
 };
+
+/**
+ * Sentinel for multi-store portfolio mode (SellerSwitcher “All stores”).
+ * Never pass this to PostgREST `.eq('seller_id', …)` — resolve real UUIDs first.
+ */
+export const ALL_STORES_ID = '__all_stores__';
+
+export function isPortfolioSellerId(sellerId: string | null | undefined): boolean {
+  return sellerId === ALL_STORES_ID;
+}
+
+/** Real store UUID for ops pages, or null when portfolio / unset. */
+export function resolveOperationalSellerId(
+  currentSellerId: string | null | undefined,
+  sellerProfiles: { id: string }[],
+): string | null {
+  if (isPortfolioSellerId(currentSellerId)) return null;
+  if (currentSellerId) return currentSellerId;
+  return sellerProfiles[0]?.id ?? null;
+}
+
+export function sumDashboardKpis(parts: SellerDashboardKpis[]): SellerDashboardKpis {
+  const out = emptyDashboardKpis();
+  if (parts.length === 0) return out;
+
+  let fulfillWeighted = 0;
+  let fulfillWeight = 0;
+  let cancelWeighted = 0;
+  let refundWeighted = 0;
+  let rateWeight = 0;
+
+  for (const p of parts) {
+    out.totalOrders += p.totalOrders;
+    out.pendingOrders += p.pendingOrders;
+    out.preparingOrders += p.preparingOrders;
+    out.readyOrders += p.readyOrders;
+    out.inTransitOrders += p.inTransitOrders;
+    out.codConfirmOrders += p.codConfirmOrders;
+    out.completedOrders += p.completedOrders;
+    out.doneToday += p.doneToday;
+    out.cancelledOrders += p.cancelledOrders;
+    out.noShowOrders += p.noShowOrders;
+    out.terminalFailOrders += p.terminalFailOrders;
+    out.enquiryOrders += p.enquiryOrders;
+    out.todayOrders += p.todayOrders;
+    out.pendingRefunds += p.pendingRefunds;
+    out.totalEarnings += p.totalEarnings;
+    out.todayEarnings += p.todayEarnings;
+    out.weekEarnings += p.weekEarnings;
+    out.monthEarnings += p.monthEarnings;
+
+    if (p.avgFulfillMinutes != null && p.completedOrders > 0) {
+      fulfillWeighted += p.avgFulfillMinutes * p.completedOrders;
+      fulfillWeight += p.completedOrders;
+    }
+    // Weight rates by totalOrders as proxy for 30d considered volume
+    if (p.totalOrders > 0) {
+      cancelWeighted += p.cancelRate30d * p.totalOrders;
+      refundWeighted += p.refundRate30d * p.totalOrders;
+      rateWeight += p.totalOrders;
+    }
+  }
+
+  out.avgFulfillMinutes =
+    fulfillWeight > 0 ? Math.round(fulfillWeighted / fulfillWeight) : null;
+  out.cancelRate30d = rateWeight > 0 ? Math.round(cancelWeighted / rateWeight) : 0;
+  out.refundRate30d = rateWeight > 0 ? Math.round(refundWeighted / rateWeight) : 0;
+  return out;
+}
+
+export function sumBoardCounts(parts: SellerBoardCounts[]): SellerBoardCounts {
+  const out = emptyBoardCounts();
+  for (const p of parts) {
+    out.all += p.all;
+    out.today += p.today;
+    out.enquiries += p.enquiries;
+    out.pending += p.pending;
+    out.preparing += p.preparing;
+    out.ready += p.ready;
+    out.in_transit += p.in_transit;
+    out.cod_confirm += p.cod_confirm;
+    out.completed += p.completed;
+    out.cancelled += p.cancelled;
+    out.refunded += p.refunded;
+    out.no_show += p.no_show;
+    out.terminal_fail += p.terminal_fail;
+  }
+  return out;
+}

@@ -1,5 +1,6 @@
-import { defineConfig } from "vite";
+import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react-swc";
+import fs from "fs";
 import path from "path";
 import { componentTagger } from "lovable-tagger";
 import { VitePWA } from "vite-plugin-pwa";
@@ -9,9 +10,25 @@ import { VitePWA } from "vite-plugin-pwa";
 const isNativeProdBuild =
   process.env.CAPACITOR_ENV === "production" || process.env.CAPACITOR_BUILD === "1";
 
+/** Keep website APK downloads out of Capacitor bundles (self-nesting blows past GitHub's 100MB limit). */
+function omitApkFromNativeDist(enabled: boolean): Plugin {
+  return {
+    name: "omit-apk-from-native-dist",
+    apply: "build",
+    closeBundle() {
+      if (!enabled) return;
+      const apkPath = path.resolve(__dirname, "dist/downloads/sociva-android.apk");
+      if (fs.existsSync(apkPath)) {
+        fs.unlinkSync(apkPath);
+      }
+    },
+  };
+}
+
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
   const skipPwa = isNativeProdBuild || mode === "capacitor";
+  const isCapacitorBuild = mode === "capacitor" || isNativeProdBuild;
 
   return {
     server: {
@@ -24,6 +41,7 @@ export default defineConfig(({ mode }) => {
     plugins: [
       react(),
       mode === "development" && componentTagger(),
+      omitApkFromNativeDist(isCapacitorBuild),
       !skipPwa &&
         VitePWA({
           registerType: "autoUpdate",

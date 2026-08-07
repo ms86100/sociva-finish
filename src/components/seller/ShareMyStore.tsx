@@ -5,12 +5,13 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Share2, Copy, Check } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
+import { resolveOperationalSellerId } from '@/lib/seller-order-board';
 
 export function ShareMyStore() {
   const { currentSellerId, sellerProfiles } = useAuth();
   const [copied, setCopied] = useState(false);
 
-  const activeSellerId = currentSellerId || sellerProfiles?.[0]?.id;
+  const activeSellerId = resolveOperationalSellerId(currentSellerId, sellerProfiles || []);
   const activeProfile = sellerProfiles?.find(p => p.id === activeSellerId);
 
   if (!activeSellerId || !activeProfile) return null;

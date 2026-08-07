@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 import { friendlyError } from '@/lib/utils';
 import { logAudit } from '@/lib/audit';
 import { notify } from '@/lib/notify';
+import { isPortfolioSellerId } from '@/lib/seller-order-board';
 
 export interface PaymentConfigData {
   accepts_cod: boolean;
@@ -76,9 +77,14 @@ export function useSellerSettings() {
   const [formData, setFormData] = useState<SellerSettingsFormData>(DEFAULT_FORM);
 
   useEffect(() => {
-    if (currentSellerId) fetchProfileById(currentSellerId);
-    else if (sellerProfiles.length > 0) fetchProfileById(sellerProfiles[0].id);
-    else setIsLoading(false);
+    if (currentSellerId && !isPortfolioSellerId(currentSellerId)) {
+      fetchProfileById(currentSellerId);
+    } else if (!currentSellerId && sellerProfiles.length > 0) {
+      fetchProfileById(sellerProfiles[0].id);
+    } else {
+      setSellerProfile(null);
+      setIsLoading(false);
+    }
   }, [currentSellerId, sellerProfiles]);
 
   const fetchProfileById = async (sellerId: string) => {

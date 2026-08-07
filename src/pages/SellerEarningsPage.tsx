@@ -10,11 +10,16 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/contexts/AuthContext';
 import { PaymentRecord, Order, PaymentStatus } from '@/types/database';
 import { useStatusLabels } from '@/hooks/useStatusLabels';
-import { ArrowLeft, TrendingUp, DollarSign, CreditCard, Loader2 } from 'lucide-react';
+import { ArrowLeft, TrendingUp, DollarSign, CreditCard, Loader2, LayoutGrid } from 'lucide-react';
 import { format } from 'date-fns';
 import { useCurrency } from '@/hooks/useCurrency';
 import { useSellerOrderStats } from '@/hooks/queries/useSellerOrders';
-import { emptyDashboardKpis } from '@/lib/seller-order-board';
+import {
+  emptyDashboardKpis,
+  isPortfolioSellerId,
+  resolveOperationalSellerId,
+} from '@/lib/seller-order-board';
+import { SellerSwitcher } from '@/components/seller/SellerSwitcher';
 
 const PAGE_SIZE = 50;
 
@@ -32,32 +37,41 @@ export default function SellerEarningsPage() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(false);
 
-  const activeSellerId = currentSellerId || (sellerProfiles.length > 0 ? sellerProfiles[0].id : null);
-  const { data: kpis, isLoading: kpiLoading } = useSellerOrderStats(activeSellerId);
+  const isPortfolio = isPortfolioSellerId(currentSellerId);
+  const portfolioIds = sellerProfiles.map((s) => s.id);
+  const activeSellerId = resolveOperationalSellerId(currentSellerId, sellerProfiles);
+  const statsSellerKey = isPortfolio ? currentSellerId : activeSellerId;
+  const { data: kpis, isLoading: kpiLoading } = useSellerOrderStats(
+    statsSellerKey,
+    isPortfolio ? portfolioIds : null,
+  );
   const stats = kpis || emptyDashboardKpis();
 
-  const fetchPaymentPage = useCallback(async (sellerId: string, before?: string) => {
+  const fetchPaymentPage = useCallback(async (sellerIds: string[], before?: string) => {
     let query = supabase
       .from('payment_records')
       .select(`
         id, order_id, seller_id, amount, net_amount, payment_method, payment_status, created_at,
         order:orders(id, status, created_at, buyer:profiles!orders_buyer_id_fkey(name))
       `)
-      .eq('seller_id', sellerId)
       .order('created_at', { ascending: false })
       .limit(PAGE_SIZE);
+    if (sellerIds.length === 1) query = query.eq('seller_id', sellerIds[0]);
+    else query = query.in('seller_id', sellerIds);
     if (before) query = query.lt('created_at', before);
     const { data: paymentList, error: fetchErr } = await query;
     if (fetchErr) throw fetchErr;
     return paymentList || [];
   }, []);
 
+  const scopeIds = isPortfolio ? portfolioIds : activeSellerId ? [activeSellerId] : [];
+
   useEffect(() => {
     setPayments([]);
     setHasMore(false);
     setListLoading(true);
-    if (user && activeSellerId) {
-      fetchPaymentPage(activeSellerId)
+    if (user && scopeIds.length > 0) {
+      fetchPaymentPage(scopeIds)
         .then((rows) => {
           setPayments(rows);
           setHasMore(rows.length >= PAGE_SIZE);
@@ -69,14 +83,14 @@ export default function SellerEarningsPage() {
     } else {
       setListLoading(false);
     }
-  }, [user, activeSellerId, fetchPaymentPage]);
+  }, [user, isPortfolio, activeSellerId, portfolioIds.join(','), fetchPaymentPage]);
 
   const loadMore = async () => {
-    if (!activeSellerId || loadingMore || !hasMore || payments.length === 0) return;
+    if (scopeIds.length === 0 || loadingMore || !hasMore || payments.length === 0) return;
     setLoadingMore(true);
     try {
       const cursor = payments[payments.length - 1]?.created_at;
-      const rows = await fetchPaymentPage(activeSellerId, cursor);
+      const rows = await fetchPaymentPage(scopeIds, cursor);
       setPayments((prev) => [...prev, ...rows]);
       setHasMore(rows.length >= PAGE_SIZE);
     } catch (error) {
@@ -105,10 +119,24 @@ export default function SellerEarningsPage() {
           <Link to="/seller" className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-muted shrink-0">
             <ArrowLeft size={18} className="text-foreground" />
           </Link>
-          <h1 className="text-xl font-bold">Earnings & Payouts</h1>
+          <h1 className="text-xl font-bold">
+            {isPortfolio ? 'Earnings & Payouts · All stores' : 'Earnings & Payouts'}
+          </h1>
         </div>
       </SafeHeader>
       <div className="p-4">
+        {sellerProfiles.length > 1 && (
+          <div className="mb-4 space-y-2">
+            <SellerSwitcher />
+            {isPortfolio && (
+              <p className="text-[11px] text-muted-foreground flex items-center gap-1.5">
+                <LayoutGrid size={12} />
+                Settled GMV summed across all stores you own
+              </p>
+            )}
+          </div>
+        )}
+
         <Link to="/seller/payouts">
           <Card className="mb-4 border-primary/20 bg-primary/5 hover:bg-primary/10 transition-colors cursor-pointer">
             <CardContent className="p-3 flex items-center justify-between">
@@ -124,7 +152,9 @@ export default function SellerEarningsPage() {
         <div className="bg-gradient-to-r from-success/10 to-success/5 rounded-2xl p-4 mb-2">
           <div className="flex items-center gap-2 mb-1">
             <TrendingUp className="text-success" size={20} />
-            <h3 className="font-semibold">Settled earnings</h3>
+            <h3 className="font-semibold">
+              {isPortfolio ? 'Settled earnings · All stores' : 'Settled earnings'}
+            </h3>
           </div>
           <p className="text-[10px] text-muted-foreground mb-3">
             Completed / delivered orders · excludes refunded payments (same as dashboard)

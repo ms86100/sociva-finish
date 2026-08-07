@@ -118,7 +118,7 @@ export function SellerToolsDocs() {
 
         <DocSubSection title="Analytics Section">
           <DocList items={[
-            'SellerAnalytics component — revenue charts, order trends, top products',
+            'SellerAnalyticsTab — settled revenue charts, cancel/refund rates, top products by sales',
             'DemandInsights component — shows what buyers are searching for in the seller\'s society (from search_demand_log table, via get_unmet_demand function)',
           ]} />
         </DocSubSection>

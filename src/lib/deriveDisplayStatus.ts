@@ -2,7 +2,13 @@
 /**
  * Derives a single human-readable display status from internal workflow state.
  * This is the presentation layer — no DB changes, purely computed.
+ * Progress phases align with the shared 4-stage rail in orderProgressStages.
  */
+
+import {
+  progressStageToPhase,
+  resolveOrderProgress,
+} from '@/lib/orderProgressStages';
 
 export interface DisplayStatusResult {
   /** Single sentence to show the user */
@@ -38,6 +44,8 @@ interface DeriveOptions {
   orderStatus: string;
   flow: FlowStep[];
   isBuyerView: boolean;
+  /** Order fulfillment_type — drives delivery vs pickup stage mapping */
+  fulfillmentType?: string | null;
   /** OSRM-based road ETA in minutes */
   roadEtaMinutes?: number | null;
   /** DB estimated_delivery_at ISO string */
@@ -52,50 +60,23 @@ interface DeriveOptions {
   hasRiderLocation?: boolean;
 }
 
-// Internal status → phase mapping
-const STATUS_PHASE_MAP: Record<string, DisplayStatusResult['phase']> = {
-  placed: 'placed',
-  // Unpaid checkout hold — not "order placed"
-  payment_pending: 'placed',
-  // COD mid-flow cash confirm — not unpaid checkout
-  awaiting_cod_confirmation: 'delivered',
-  enquired: 'placed',
-  quoted: 'placed',
-  accepted: 'preparing',
-  confirmed: 'preparing',
-  preparing: 'preparing',
-  processing: 'preparing',
-  ready: 'ready',
-  ready_for_delivery: 'ready',
-  ready_for_pickup: 'ready',
-  picked_up: 'transit',
-  on_the_way: 'transit',
-  in_transit: 'transit',
-  at_gate: 'transit',
-  en_route: 'transit',
-  delivered: 'delivered',
-  completed: 'delivered',
-  cancelled: 'cancelled',
-  rejected: 'cancelled',
-  expired: 'cancelled',
-};
-
-function getPhase(status: string, flow: FlowStep[]): DisplayStatusResult['phase'] {
+function getPhase(
+  status: string,
+  flow: FlowStep[],
+  fulfillmentType?: string | null,
+): DisplayStatusResult['phase'] {
   const step = flow.find(s => s.status_key === status);
   if (step?.is_terminal && step?.is_success) return 'delivered';
   if (step?.is_terminal && !step?.is_success) return 'cancelled';
-  if (step?.is_transit) return 'transit';
 
-  // Prefer flow position over hardcoded names when we have steps
-  if (flow.length > 0 && step) {
-    const active = flow.filter(s => !s.is_terminal).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
-    const idx = active.findIndex(s => s.status_key === status);
-    if (idx === 0) return 'placed';
-    if (idx === active.length - 1 && idx > 0) return 'ready';
-    if (idx > 0) return 'preparing';
-  }
-
-  return STATUS_PHASE_MAP[status] || 'preparing';
+  // Shared 4-stage presentation (buyer + seller identical)
+  const progress = resolveOrderProgress({
+    status,
+    fulfillmentType,
+    flowIsTransit: step?.is_transit === true,
+  });
+  if (progress.kind === 'end_state') return 'cancelled';
+  return progressStageToPhase(progress);
 }
 
 function computeProgressPercent(
@@ -156,6 +137,7 @@ export function deriveDisplayStatus(options: DeriveOptions): DisplayStatusResult
     orderStatus,
     flow,
     isBuyerView,
+    fulfillmentType,
     roadEtaMinutes,
     estimatedDeliveryAt,
     sellerName,
@@ -190,7 +172,7 @@ export function deriveDisplayStatus(options: DeriveOptions): DisplayStatusResult
     };
   }
 
-  const phase = getPhase(orderStatus, flow);
+  const phase = getPhase(orderStatus, flow, fulfillmentType);
   const progressPercent = computeProgressPercent(phase, orderStatus, flow, totalRouteDistance, remainingDistance);
   const etaFlag = phase === 'transit' ? computeEtaFlag(roadEtaMinutes, estimatedDeliveryAt) : null;
 
@@ -231,20 +213,22 @@ export function deriveDisplayStatus(options: DeriveOptions): DisplayStatusResult
       break;
     case 'ready':
       text = isBuyerView
-        ? 'Your order is ready'
+        ? 'Ready for pickup'
         : 'Ready for pickup';
       break;
     case 'transit':
       if (roadEtaMinutes && hasRiderLocation) {
         text = isBuyerView
           ? `Arriving in ${roadEtaMinutes > 3 ? `${roadEtaMinutes - 1}–${roadEtaMinutes + 1}` : roadEtaMinutes} min`
-          : 'Out for delivery';
+          : 'On the way';
       } else {
-        text = isBuyerView ? 'Picked up · On the way' : 'Out for delivery';
+        text = isBuyerView ? 'On the way' : 'On the way';
       }
       break;
     case 'delivered':
-      text = isBuyerView ? 'Delivered' : 'Order completed';
+      text = isBuyerView
+        ? (fulfillmentType === 'self_pickup' || fulfillmentType === 'pickup' ? 'Picked up' : 'Delivered')
+        : 'Order completed';
       break;
     case 'cancelled':
       text = 'Cancelled';

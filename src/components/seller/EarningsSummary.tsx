@@ -9,10 +9,19 @@ interface EarningsSummaryProps {
   weekEarnings: number;
   totalEarnings: number;
   compact?: boolean;
+  /** When true, numbers are portfolio-summed — must stay labeled. */
+  allStores?: boolean;
 }
 
-export function EarningsSummary({ todayEarnings, weekEarnings, totalEarnings, compact = false }: EarningsSummaryProps) {
+export function EarningsSummary({
+  todayEarnings,
+  weekEarnings,
+  totalEarnings,
+  compact = false,
+  allStores = false,
+}: EarningsSummaryProps) {
   const { formatPrice } = useCurrency();
+  const title = allStores ? 'Settled earnings · All stores' : 'Settled earnings';
 
   if (compact) {
     return (
@@ -20,7 +29,7 @@ export function EarningsSummary({ todayEarnings, weekEarnings, totalEarnings, co
         <div className="bg-gradient-to-r from-success/10 to-success/5 rounded-lg px-3 py-2 flex items-center justify-between mt-2">
           <div className="flex items-center gap-2">
             <TrendingUp className="text-success shrink-0" size={14} />
-            <span className="text-xs text-muted-foreground">Settled earnings</span>
+            <span className="text-xs text-muted-foreground">{title}</span>
           </div>
           <div className="flex items-center gap-3 text-xs tabular-nums">
             <span>Today <strong className="text-success">{formatPrice(todayEarnings)}</strong></span>
@@ -41,7 +50,7 @@ export function EarningsSummary({ todayEarnings, weekEarnings, totalEarnings, co
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <TrendingUp className="text-success" size={20} />
-            <h3 className="font-semibold">Earnings Summary</h3>
+            <h3 className="font-semibold">{allStores ? 'Earnings Summary · All stores' : 'Earnings Summary'}</h3>
           </div>
           <ChevronRight className="text-muted-foreground" size={18} />
         </div>

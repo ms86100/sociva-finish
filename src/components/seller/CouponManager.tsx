@@ -14,6 +14,7 @@ import { Ticket, Plus, Trash2, Copy, Eye, EyeOff, Users, TrendingUp, ChevronDown
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { useCurrency } from '@/hooks/useCurrency';
+import { isPortfolioSellerId } from '@/lib/seller-order-board';
 
 interface CouponPerformance {
   coupon_id: string;
@@ -61,30 +62,36 @@ export function CouponManager() {
     show_to_buyers: true,
   });
 
+  const operationalSellerId =
+    currentSellerId && !isPortfolioSellerId(currentSellerId) ? currentSellerId : null;
+
   useEffect(() => {
-    if (currentSellerId) {
+    if (operationalSellerId) {
       fetchCoupons();
       fetchPerformance();
+    } else {
+      setCoupons([]);
+      setIsLoading(false);
     }
-  }, [currentSellerId]);
+  }, [operationalSellerId]);
 
   const fetchCoupons = async () => {
-    if (!currentSellerId) return;
+    if (!operationalSellerId) return;
     const { data, error } = await supabase
       .from('coupons')
       .select('id, code, description, discount_type, discount_value, min_order_amount, max_discount_amount, usage_limit, times_used, per_user_limit, is_active, show_to_buyers, starts_at, expires_at, created_at')
-      .eq('seller_id', currentSellerId)
+      .eq('seller_id', operationalSellerId)
       .order('created_at', { ascending: false });
     if (!error) setCoupons((data as Coupon[]) || []);
     setIsLoading(false);
   };
 
   const fetchPerformance = async () => {
-    if (!currentSellerId) return;
+    if (!operationalSellerId) return;
     const { data } = await supabase
       .from('coupon_redemptions')
       .select('coupon_id, discount_applied, order_id, orders!inner(total_amount)')
-      .eq('orders.seller_id', currentSellerId);
+      .eq('orders.seller_id', operationalSellerId);
     if (!data) return;
     const map = new Map<string, CouponPerformance>();
     for (const r of data as any[]) {
@@ -106,7 +113,7 @@ export function CouponManager() {
   };
 
   const handleCreate = async () => {
-    if (!currentSellerId) {
+    if (!operationalSellerId) {
       toast.error('Missing seller information');
       return;
     }
@@ -128,7 +135,7 @@ export function CouponManager() {
     }
 
     const { error } = await supabase.from('coupons').insert({
-      seller_id: currentSellerId,
+      seller_id: operationalSellerId,
       society_id: profile?.society_id || null,
       code: formData.code.toUpperCase().trim(),
       description: formData.description.trim() || null,
@@ -155,23 +162,23 @@ export function CouponManager() {
   };
 
   const toggleCoupon = async (id: string, isActive: boolean) => {
-    if (!currentSellerId) return;
-    const { error } = await supabase.from('coupons').update({ is_active: !isActive }).eq('id', id).eq('seller_id', currentSellerId);
+    if (!operationalSellerId) return;
+    const { error } = await supabase.from('coupons').update({ is_active: !isActive }).eq('id', id).eq('seller_id', operationalSellerId);
     if (error) { toast.error('Failed to update coupon'); return; }
     setCoupons(coupons.map(c => c.id === id ? { ...c, is_active: !isActive } : c));
   };
 
   const toggleVisibility = async (id: string, current: boolean) => {
-    if (!currentSellerId) return;
-    const { error } = await supabase.from('coupons').update({ show_to_buyers: !current }).eq('id', id).eq('seller_id', currentSellerId);
+    if (!operationalSellerId) return;
+    const { error } = await supabase.from('coupons').update({ show_to_buyers: !current }).eq('id', id).eq('seller_id', operationalSellerId);
     if (error) { toast.error('Failed to update coupon visibility'); return; }
     setCoupons(coupons.map(c => c.id === id ? { ...c, show_to_buyers: !current } : c));
     toast.success(!current ? 'Coupon now visible to buyers at checkout' : 'Coupon hidden — buyers must enter code manually');
   };
 
   const deleteCoupon = async (id: string) => {
-    if (!currentSellerId) return;
-    const { error } = await supabase.from('coupons').delete().eq('id', id).eq('seller_id', currentSellerId);
+    if (!operationalSellerId) return;
+    const { error } = await supabase.from('coupons').delete().eq('id', id).eq('seller_id', operationalSellerId);
     if (error) { toast.error('Failed to delete coupon'); return; }
     setCoupons(coupons.filter(c => c.id !== id));
     toast.success('Coupon deleted');

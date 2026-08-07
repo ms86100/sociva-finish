@@ -7,6 +7,7 @@ import { useStatusLabels } from '@/hooks/useStatusLabels';
 import { useUrgentOrderSound } from '@/hooks/useUrgentOrderSound';
 import { useCurrency } from '@/hooks/useCurrency';
 import { useCategoryStatusFlow, getNextStatusForActor, getNextStatusForActors, getTimelineSteps, isTerminalStatus, isSuccessfulTerminal, isFirstFlowStep, canActorCancel, useStatusTransitions } from '@/hooks/useCategoryStatusFlow';
+import { isDeliveryMapEligible } from '@/lib/orderProgressStages';
 import { logAudit } from '@/lib/audit';
 import { resolveTransactionType } from '@/lib/resolveTransactionType';
 import { Order, OrderStatus } from '@/types/database';
@@ -383,7 +384,8 @@ export function useOrderDetail(id: string | undefined) {
   const isInTransit = useMemo(() => {
     if (!order) return false;
     const step = flow.find(s => s.status_key === order.status);
-    return step?.is_transit === true;
+    // Align with shared progress stage 3: true transit only (never ready/assigned)
+    return isDeliveryMapEligible(order.status, step?.is_transit === true);
   }, [order?.status, flow]);
 
   const currentStepActor = useMemo(() => {
