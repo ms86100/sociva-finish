@@ -101,22 +101,44 @@ export function CredentialsManager() {
 
   const fetchSettings = async () => {
     try {
+      let rows: CredentialSetting[] = [];
+      const configured: Record<string, boolean> = {};
+
       const { data, error } = await supabase.rpc('get_admin_credential_meta', {
         p_keys: ALL_KEYS,
       });
-      if (error) throw error;
 
-      const configured: Record<string, boolean> = {};
-      const rows: CredentialSetting[] = (data || []).map((s: any) => {
-        configured[s.key] = !!s.is_configured;
-        return {
-          id: s.id,
-          key: s.key,
-          value: s.public_value || null,
-          is_active: s.is_active,
-          description: s.description,
-        };
-      });
+      if (!error && data) {
+        rows = (data || []).map((s: any) => {
+          configured[s.key] = !!s.is_configured;
+          return {
+            id: s.id,
+            key: s.key,
+            value: s.public_value || null,
+            is_active: s.is_active,
+            description: s.description,
+          };
+        });
+      } else {
+        // Fallback before migration applied: never put raw secrets into editable fields
+        const { data: raw, error: rawErr } = await supabase
+          .from('admin_settings')
+          .select('id, key, value, is_active, description')
+          .in('key', ALL_KEYS);
+        if (rawErr) throw rawErr;
+        rows = (raw || []).map((s: any) => {
+          const isToggle = TOGGLE_KEYS.has(s.key);
+          configured[s.key] = !!(s.value && String(s.value).length > 0);
+          return {
+            id: s.id,
+            key: s.key,
+            value: isToggle ? (s.value || null) : null,
+            is_active: s.is_active,
+            description: s.description,
+          };
+        });
+      }
+
       setSettings(rows);
       setConfiguredKeys(configured);
       const values: Record<string, string> = {};
