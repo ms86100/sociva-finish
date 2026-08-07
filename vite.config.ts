@@ -14,95 +14,99 @@ export default defineConfig(({ mode }) => {
   const skipPwa = isNativeProdBuild || mode === "capacitor";
 
   return {
-  server: {
-    host: "::",
-    port: 8080,
-    hmr: {
-      overlay: false,
-    },
-  },
-  plugins: [
-    react(),
-    mode === "development" && componentTagger(),
-    !skipPwa &&
-      VitePWA({
-        registerType: "autoUpdate",
-        injectRegister: "auto",
-        includeAssets: ["favicon.ico", "apple-touch-icon.png", "android-chrome-192x192.png"],
-        manifest: false,
-        workbox: {
-          cleanupOutdatedCaches: true,
-          clientsClaim: true,
-          skipWaiting: true,
-          navigateFallbackDenylist: [/^\/~oauth/, /^\/\.well-known\//],
-          globPatterns: ["**/*.{js,css,html,ico,png,svg,woff,woff2}"],
-          runtimeCaching: [
-            {
-              urlPattern: /^https:\/\/kkzkuyhgdvyecmxtmkpy\.supabase\.co\/.*/i,
-              handler: "NetworkFirst",
-              options: {
-                cacheName: "supabase-api-cache-v2",
-                networkTimeoutSeconds: 8,
-                expiration: {
-                  maxEntries: 100,
-                  maxAgeSeconds: 60 * 10,
-                },
-                cacheableResponse: {
-                  statuses: [0, 200],
-                },
-              },
-            },
-            {
-              urlPattern: /\.(?:png|jpg|jpeg|svg|gif|webp)$/,
-              handler: "CacheFirst",
-              options: {
-                cacheName: "image-cache",
-                expiration: {
-                  maxEntries: 100,
-                  maxAgeSeconds: 60 * 60 * 24 * 30,
-                },
-              },
-            },
-          ],
-        },
-      }),
-  ].filter(Boolean),
-  resolve: {
-    alias: {
-      "@": path.resolve(__dirname, "./src"),
-    },
-    dedupe: ["react", "react-dom", "react/jsx-runtime"],
-  },
-  build: {
-    // Production optimizations
-    minify: "terser",
-    terserOptions: {
-      compress: {
-        // Keep console.error and console.warn in production for debugging
-        pure_funcs: mode === "production" ? ["console.log", "console.debug", "console.info"] : [],
-        drop_debugger: true,
+    server: {
+      host: "::",
+      port: 8080,
+      hmr: {
+        overlay: false,
       },
     },
-    rollupOptions: {
-      output: {
-        manualChunks(id) {
-          if (!id.includes("node_modules")) return;
-          if (id.includes("/react-dom/") || id.match(/\/react\/(?!jsx)/) || id.includes("/react-router") || id.includes("/react/jsx-runtime")) {
-            return "react";
-          }
-          if (id.includes("@radix-ui")) return "ui-radix";
-          if (id.includes("@supabase")) return "supabase";
-          if (id.includes("framer-motion")) return "motion";
-          if (id.includes("lucide-react")) return "icons";
-          if (id.includes("react-hook-form") || id.includes("@hookform") || id.includes("/zod/")) return "forms";
-          if (id.includes("@vis.gl/react-google-maps") || id.includes("/google.maps")) return "maps";
-          if (id.includes("recharts") || id.includes("d3-")) return "charts";
-          if (id.includes("date-fns")) return "date";
-          if (id.includes("@capacitor")) return "capacitor";
-          if (id.includes("@tanstack/react-query")) return "query";
+    plugins: [
+      react(),
+      mode === "development" && componentTagger(),
+      !skipPwa &&
+        VitePWA({
+          registerType: "autoUpdate",
+          injectRegister: "auto",
+          includeAssets: ["favicon.ico", "apple-touch-icon.png", "android-chrome-192x192.png"],
+          manifest: false,
+          workbox: {
+            cleanupOutdatedCaches: true,
+            clientsClaim: true,
+            skipWaiting: true,
+            navigateFallbackDenylist: [/^\/~oauth/, /^\/\.well-known\//],
+            globPatterns: ["**/*.{js,css,html,ico,png,svg,woff,woff2}"],
+            runtimeCaching: [
+              // Never cache Auth/REST/RPC through Workbox — NetworkFirst + status 0
+              // previously prolonged cold starts and could stick empty/error responses.
+              {
+                urlPattern: /^https:\/\/kkzkuyhgdvyecmxtmkpy\.supabase\.co\/.*/i,
+                handler: "NetworkOnly",
+              },
+              {
+                urlPattern: /\.(?:png|jpg|jpeg|svg|gif|webp)$/,
+                handler: "CacheFirst",
+                options: {
+                  cacheName: "image-cache",
+                  expiration: {
+                    maxEntries: 100,
+                    maxAgeSeconds: 60 * 60 * 24 * 30,
+                  },
+                  cacheableResponse: {
+                    statuses: [200],
+                  },
+                },
+              },
+            ],
+          },
+        }),
+    ].filter(Boolean),
+    resolve: {
+      alias: {
+        "@": path.resolve(__dirname, "./src"),
+      },
+      dedupe: ["react", "react-dom", "react/jsx-runtime"],
+    },
+    build: {
+      // Production optimizations
+      minify: "terser",
+      terserOptions: {
+        compress: {
+          // Keep console.error and console.warn in production for debugging
+          pure_funcs: mode === "production" ? ["console.log", "console.debug", "console.info"] : [],
+          drop_debugger: true,
+        },
+      },
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            if (!id.includes("node_modules")) return;
+            const p = id.replace(/\\/g, "/");
+            // Keep the entire React family together. Splitting jsx-runtime into
+            // another vendor chunk (e.g. motion) caused entry to side-effect
+            // import a huge "charts" shared chunk before first paint.
+            if (
+              p.includes("/react-dom/") ||
+              p.includes("/react-router") ||
+              p.includes("/react/") ||
+              p.includes("/scheduler/")
+            ) {
+              return "react";
+            }
+            if (p.includes("@radix-ui")) return "ui-radix";
+            if (p.includes("@supabase")) return "supabase";
+            if (p.includes("framer-motion")) return "motion";
+            if (p.includes("lucide-react")) return "icons";
+            if (p.includes("react-hook-form") || p.includes("@hookform") || p.includes("/zod/")) return "forms";
+            if (p.includes("@vis.gl/react-google-maps") || p.includes("/google.maps")) return "maps";
+            // Do NOT force a shared "charts" chunk — recharts must stay with
+            // lazy product/analytics routes so Home cold start does not download it.
+            if (p.includes("date-fns")) return "date";
+            if (p.includes("@capacitor")) return "capacitor";
+            if (p.includes("@tanstack/react-query")) return "query";
+          },
         },
       },
     },
-  },
-};
+  };
 });

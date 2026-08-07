@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { useMemo, useState } from 'react';
+import { useMemo, useState, lazy, Suspense } from 'react';
 import { motion } from 'framer-motion';
 import { staggerGrid, cardEntrance } from '@/lib/motion-variants';
 import { Link, useNavigate } from 'react-router-dom';
@@ -19,10 +19,13 @@ import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { TypewriterPlaceholder } from '@/components/search/TypewriterPlaceholder';
 import { useCurrency } from '@/hooks/useCurrency';
 import { useSearchPage, ProductSearchResult } from '@/hooks/useSearchPage';
-import { ProductDetailSheet } from '@/components/product/ProductDetailSheet';
 import { CommunitySuggestions } from '@/components/search/CommunitySuggestions';
 import { SearchAutocomplete } from '@/components/search/SearchAutocomplete';
 import { type ProductDetail } from '@/hooks/useProductDetail';
+
+const ProductDetailSheet = lazy(() =>
+  import('@/components/product/ProductDetailSheet').then((m) => ({ default: m.ProductDetailSheet })),
+);
 
 function toProductWithSeller(p: ProductSearchResult): ProductWithSeller {
   return {
@@ -152,27 +155,31 @@ export default function SearchPage() {
         </div>
       </div>
 
-        <ProductDetailSheet
-          product={selectedProduct}
-          open={detailOpen}
-          onOpenChange={setDetailOpen}
-          onSelectProduct={(sp) => {
-            setSelectedProduct({
-              product_id: sp.id,
-              product_name: sp.name,
-              price: sp.price,
-              image_url: sp.image_url,
-              is_veg: sp.is_veg ?? true,
-              category: sp.category,
-              description: sp.description || null,
-              seller_id: sp.seller_id,
-              seller_name: sp.seller?.business_name || '',
-              seller_rating: 0,
-              seller_reviews: 0,
-              action_type: sp.action_type,
-            });
-          }}
-        />
+        {detailOpen && (
+          <Suspense fallback={null}>
+            <ProductDetailSheet
+              product={selectedProduct}
+              open={detailOpen}
+              onOpenChange={setDetailOpen}
+              onSelectProduct={(sp) => {
+                setSelectedProduct({
+                  product_id: sp.id,
+                  product_name: sp.name,
+                  price: sp.price,
+                  image_url: sp.image_url,
+                  is_veg: sp.is_veg ?? true,
+                  category: sp.category,
+                  description: sp.description || null,
+                  seller_id: sp.seller_id,
+                  seller_name: sp.seller?.business_name || '',
+                  seller_rating: 0,
+                  seller_reviews: 0,
+                  action_type: sp.action_type,
+                });
+              }}
+            />
+          </Suspense>
+        )}
     </AppLayout>
   );
 }

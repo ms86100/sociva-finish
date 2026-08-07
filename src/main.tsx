@@ -2,7 +2,9 @@
 import "./index.css";
 import { initializeCapacitorPlugins } from "./lib/capacitor";
 
-const BUILD_CACHE_VERSION = "2026-04-18-notification-queue-schema-fix-v4";
+// Bump when shipping bootstrap/critical-path fixes so returning users drop
+// stale Workbox caches that competed with first paint (e.g. splash-video).
+const BUILD_CACHE_VERSION = "2026-08-07-fast-first-paint-v1";
 
 async function clearAppCaches() {
   try {
@@ -23,8 +25,9 @@ async function ensureFreshBuild() {
   const appliedVersion = localStorage.getItem("app-build-cache-version");
   if (appliedVersion === BUILD_CACHE_VERSION) return;
 
-  await clearAppCaches();
+  // Mark version first so a failed clear cannot loop forever on every boot.
   localStorage.setItem("app-build-cache-version", BUILD_CACHE_VERSION);
+  await clearAppCaches();
 
   const reloadFlag = sessionStorage.getItem("build-cache-version-reloaded");
   if (!reloadFlag) {
@@ -122,6 +125,9 @@ async function bootstrap() {
 
   createRoot(rootElement).render(<App />);
   rootElement.setAttribute('data-app-mounted', 'true');
+  // Clear any leftover HTML bootstrap splash (React replaces children, this is belt-and-suspenders)
+  const bootSplash = document.getElementById('boot-splash');
+  bootSplash?.remove();
   sessionStorage.removeItem('boot-fails');
 
   window.setTimeout(() => {

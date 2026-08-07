@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, lazy, Suspense } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -15,7 +15,6 @@ import { ProductEnquirySheet } from './ProductEnquirySheet';
 import { ReportSheet } from '@/components/report/ReportSheet';
 import { ServiceBookingFlow } from '@/components/booking/ServiceBookingFlow';
 import { ProductAttributeBlocks } from './ProductAttributeBlocks';
-import { PriceHistoryChart } from './PriceHistoryChart';
 import { PriceStabilityBadge } from '@/components/trust/PriceStabilityBadge';
 import { RefundTierBadge } from '@/components/trust/RefundTierBadge';
 import { Plus, Minus, Store, MapPin, Clock, Truck, Users, Zap, RotateCcw, ChevronRight, ChevronDown, Shield, Flag, X, Share2, Heart } from 'lucide-react';
@@ -28,6 +27,10 @@ import { useMarketplaceLabels } from '@/hooks/useMarketplaceLabels';
 import { computeStoreStatus, formatStoreClosedMessage, type StoreAvailability } from '@/lib/store-availability';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCountUp } from '@/hooks/useCountUp';
+
+const PriceHistoryChart = lazy(() =>
+  import('./PriceHistoryChart').then((m) => ({ default: m.PriceHistoryChart })),
+);
 
 function formatSellerLastActive(lastActiveAt: string, ml: ReturnType<typeof useMarketplaceLabels>): string {
   try {
@@ -212,7 +215,9 @@ export function ProductDetailSheet({ product, open, onOpenChange, onSelectProduc
                     {product.delivery_note && <p className="text-xs text-muted-foreground italic">— {product.delivery_note}</p>}
                     {product.description && <div><h4 className="text-xs font-bold text-foreground mb-1">Highlights</h4><p className={`text-xs text-muted-foreground leading-relaxed ${!d.descExpanded ? 'line-clamp-3' : ''}`}>{product.description}</p>{product.description.length > 120 && <button onClick={() => d.setDescExpanded(!d.descExpanded)} className="text-[10px] font-medium text-primary mt-0.5">{d.descExpanded ? 'Show less' : 'Read more'}</button>}</div>}
                     <ProductAttributeBlocks specifications={d.loadedSpecs ?? product.specifications} />
-                    <PriceHistoryChart productId={product.product_id} priceStableSince={(product as any).price_stable_since} />
+                    <Suspense fallback={null}>
+                      <PriceHistoryChart productId={product.product_id} priceStableSince={(product as any).price_stable_since} />
+                    </Suspense>
                     {d.trustSnapshot && (d.trustSnapshot.completed_orders > 0 || d.trustSnapshot.avg_response_min > 0) && (
                       <div className="grid grid-cols-3 gap-2">
                         {d.trustSnapshot.completed_orders > 0 && <div className="bg-muted rounded-xl p-2.5 text-center"><Users size={14} className="mx-auto text-primary mb-1" /><p className="text-sm font-bold text-foreground">{d.trustSnapshot.completed_orders}</p><p className="text-[9px] text-muted-foreground">Orders</p></div>}

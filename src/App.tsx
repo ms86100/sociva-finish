@@ -20,27 +20,29 @@ function lazyWithRetry<T extends ComponentType<any>>(
   factory: () => Promise<{ default: T }>,
   retries = 2,
 ): React.LazyExoticComponent<T> {
-  return lazy(() =>
-    factory()
-      .then((mod) => {
+  return lazy(async () => {
+    let lastError: unknown;
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      try {
+        const mod = await factory();
         // Guard against React error #306: module loaded but default export is undefined/null
         if (!mod || typeof mod.default !== 'function') {
           console.error('[lazyWithRetry] Module loaded but default export is invalid:', mod);
           return { default: LazyLoadFailed as unknown as T };
         }
         return mod;
-      })
-      .catch((err) => {
-        if (retries > 0 && String(err).includes('Failed to fetch dynamically imported module')) {
-          return new Promise<{ default: T }>((resolve) => {
-            setTimeout(() => resolve(lazyWithRetry(factory, retries - 1) as any), 500);
-          });
-        }
-        // Any other import error — show fallback instead of crashing
-        console.error('[lazyWithRetry] Import failed:', err);
-        return { default: LazyLoadFailed as unknown as T };
-      }),
-  );
+      } catch (err) {
+        lastError = err;
+        const canRetry =
+          attempt < retries &&
+          String(err).includes('Failed to fetch dynamically imported module');
+        if (!canRetry) break;
+        await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
+      }
+    }
+    console.error('[lazyWithRetry] Import failed:', lastError);
+    return { default: LazyLoadFailed as unknown as T };
+  });
 }
 import { supabase } from "@/integrations/supabase/client";
 import { IdentityContext as IdentityCtx, SellerContext as SellerCtx } from "@/contexts/auth/contexts";

@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback, useEffect, lazy, Suspense } from 'react';
 import { toast } from 'sonner';
 import { useBrowsingLocation } from '@/contexts/BrowsingLocationContext';
 import { useNavigate } from 'react-router-dom';
@@ -16,7 +16,6 @@ import { NearbySellersSection } from '@/components/marketplace/NearbySellersSect
 import { LazySection } from '@/components/home/LazySection';
 import { ProductWithSeller } from '@/components/product/ProductListingCard';
 import { GroupedSellerRow } from '@/components/home/GroupedSellerRow';
-import { ProductDetailSheet } from '@/components/product/ProductDetailSheet';
 import { ProductCardSkeleton } from '@/components/product/ProductCardSkeleton';
 import { ShoppingBag, Sparkles, Flame, UtensilsCrossed, Wrench, Heart, Users } from 'lucide-react';
 import { useCategoryConfigs } from '@/hooks/useCategoryBehavior';
@@ -25,6 +24,10 @@ import { useBadgeConfig } from '@/hooks/useBadgeConfig';
 import { useMarketplaceLabels } from '@/hooks/useMarketplaceLabels';
 import { cn } from '@/lib/utils';
 
+// Keep recharts / booking / enquiry sheets off the Home critical path
+const ProductDetailSheet = lazy(() =>
+  import('@/components/product/ProductDetailSheet').then((m) => ({ default: m.ProductDetailSheet })),
+);
 function SectionDivider() {
   return <div className="my-1" />;
 }
@@ -261,32 +264,36 @@ export function MarketplaceSection() {
         <NearbySellersSection />
       </LazySection>
 
-      <ProductDetailSheet
-        product={selectedProduct}
-        open={detailOpen}
-        onOpenChange={setDetailOpen}
-        onSelectProduct={(sp) => {
-          const catConfig = categoryConfigs.find(c => c.category === sp.category);
-          setSelectedProduct({
-            product_id: sp.id,
-            product_name: sp.name,
-            price: sp.price,
-            image_url: sp.image_url,
-            is_veg: sp.is_veg ?? true,
-            category: sp.category,
-            description: sp.description || null,
-            seller_id: sp.seller_id,
-            seller_name: sp.seller?.business_name || '',
-            seller_rating: 0,
-            seller_reviews: 0,
-            action_type: sp.action_type,
-            _catIcon: catConfig?.icon || '🛍️',
-            _catName: catConfig?.displayName || sp.category,
-          });
-        }}
-        categoryIcon={selectedProduct?._catIcon}
-        categoryName={selectedProduct?._catName}
-      />
+      {detailOpen && (
+        <Suspense fallback={null}>
+          <ProductDetailSheet
+            product={selectedProduct}
+            open={detailOpen}
+            onOpenChange={setDetailOpen}
+            onSelectProduct={(sp) => {
+              const catConfig = categoryConfigs.find(c => c.category === sp.category);
+              setSelectedProduct({
+                product_id: sp.id,
+                product_name: sp.name,
+                price: sp.price,
+                image_url: sp.image_url,
+                is_veg: sp.is_veg ?? true,
+                category: sp.category,
+                description: sp.description || null,
+                seller_id: sp.seller_id,
+                seller_name: sp.seller?.business_name || '',
+                seller_rating: 0,
+                seller_reviews: 0,
+                action_type: sp.action_type,
+                _catIcon: catConfig?.icon || '🛍️',
+                _catName: catConfig?.displayName || sp.category,
+              });
+            }}
+            categoryIcon={selectedProduct?._catIcon}
+            categoryName={selectedProduct?._catName}
+          />
+        </Suspense>
+      )}
     </div>
   );
 }
