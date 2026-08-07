@@ -68,11 +68,13 @@ async function verifySignature(body: string, signature: string, secret: string):
 function resolveOrderIds(notes: any): string[] {
   if (notes?.order_ids) {
     try {
-      const parsed = JSON.parse(notes.order_ids);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      const parsed = typeof notes.order_ids === 'string'
+        ? JSON.parse(notes.order_ids)
+        : notes.order_ids;
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed.map(String);
     } catch { /* fall through */ }
   }
-  if (notes?.order_id) return [notes.order_id];
+  if (notes?.order_id) return [String(notes.order_id)];
   return [];
 }
 
@@ -118,9 +120,10 @@ serve(async (req) => {
     const payload = JSON.parse(body);
     const event = payload.event;
     const paymentEntity = payload.payload?.payment?.entity;
+    const refundEntity = payload.payload?.refund?.entity;
 
-    const webhookOrderIds = resolveOrderIds(paymentEntity?.notes);
-    console.log(`[razorpay-webhook] event=${event}, razorpay_payment_id=${paymentEntity?.id}, order_ids=${JSON.stringify(webhookOrderIds)}, razorpay_order_id=${paymentEntity?.order_id || 'none'}`);
+    const webhookOrderIds = resolveOrderIds(paymentEntity?.notes || refundEntity?.notes);
+    console.log(`[razorpay-webhook] event=${event}, razorpay_payment_id=${paymentEntity?.id || refundEntity?.payment_id}, order_ids=${JSON.stringify(webhookOrderIds)}, razorpay_order_id=${paymentEntity?.order_id || 'none'}`);
 
     if (event === 'payment.captured') {
       const razorpayPaymentId = paymentEntity.id;
@@ -134,44 +137,48 @@ serve(async (req) => {
         );
       }
 
-      console.log(`Payment ${razorpayPaymentId} captured for ${allOrderIds.length} order(s):`, allOrderIds);
+      console.log(`Payment ${razorpayPaymentId} captured for ${allOrderIds.length} order(s) — confirming as ONE group:`, allOrderIds);
 
-      const confirmFailures: { orderId: string; status: number; body: string }[] = [];
-      for (const orderId of allOrderIds) {
-        // Prefer confirm-razorpay-payment for amount/notes binding + cancelled resurrection
-        const confirmRes = await fetch(`${supabaseUrl}/functions/v1/confirm-razorpay-payment`, {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${supabaseServiceKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            razorpay_payment_id: razorpayPaymentId,
-            razorpay_order_id: paymentEntity.order_id || null,
-            order_ids: [orderId],
-            source: 'webhook',
-          }),
-        });
-        if (!confirmRes.ok) {
-          const errText = await confirmRes.text();
-          console.error(`[razorpay-webhook] confirm failed for ${orderId}:`, errText);
-          confirmFailures.push({ orderId, status: confirmRes.status, body: errText.slice(0, 500) });
-          continue;
-        }
-        console.log(`[razorpay-webhook] ✅ order=${orderId} result=confirmed razorpay_payment_id=${razorpayPaymentId}`);
-      }
+      // P0: ONE confirm call with FULL order_ids — never one-at-a-time amount binding
+      const confirmRes = await fetch(`${supabaseUrl}/functions/v1/confirm-razorpay-payment`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${supabaseServiceKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          razorpay_payment_id: razorpayPaymentId,
+          razorpay_order_id: paymentEntity.order_id || null,
+          order_ids: allOrderIds,
+          source: 'webhook',
+        }),
+      });
 
-      // Audit P1 #11: do NOT ACK success when confirm fails — Razorpay must retry
-      if (confirmFailures.length > 0) {
+      if (!confirmRes.ok) {
+        const errText = await confirmRes.text();
+        console.error(`[razorpay-webhook] confirm failed for group:`, errText);
         return new Response(
           JSON.stringify({
             error: 'confirm_failed',
-            failures: confirmFailures,
-            confirmed: allOrderIds.length - confirmFailures.length,
+            status: confirmRes.status,
+            body: errText.slice(0, 800),
+            order_ids: allOrderIds,
           }),
           { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
         );
       }
+
+      const confirmBody = await confirmRes.json().catch(() => ({}));
+      // Fail closed: confirm may return 200 with success:false
+      if (confirmBody?.success === false) {
+        console.error('[razorpay-webhook] confirm returned success:false', confirmBody);
+        return new Response(
+          JSON.stringify({ error: 'confirm_incomplete', result: confirmBody }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        );
+      }
+
+      console.log(`[razorpay-webhook] ✅ group confirmed razorpay_payment_id=${razorpayPaymentId} orders=${allOrderIds.length}`);
     } else if (event === 'payment.failed') {
       const allOrderIds = resolveOrderIds(paymentEntity.notes);
 
@@ -191,25 +198,40 @@ serve(async (req) => {
           .eq('order_id', orderId)
           .neq('payment_status', 'paid');
       }
-    } else if (event === 'refund.created') {
-      const allOrderIds = resolveOrderIds(paymentEntity.notes);
+    } else if (event === 'refund.created' || event === 'refund.processed') {
+      // P0: NEVER raw-update orders.payment_status='refunded'.
+      // Drive idempotent complete_refund / reconcile by gateway_refund_id only.
+      const gatewayRefundId = refundEntity?.id as string | undefined;
+      const gatewayStatus = refundEntity?.status || event;
+      const paymentId = refundEntity?.payment_id || paymentEntity?.id;
 
-      for (const orderId of allOrderIds) {
-        console.log(`Refund created for order ${orderId}`);
-        
-        // Guard: only refund orders that were actually paid
-        await supabase
-          .from('orders')
-          .update({ payment_status: 'refunded' })
-          .eq('id', orderId)
-          .eq('payment_status', 'paid');
-
-        await supabase
-          .from('payment_records')
-          .update({ payment_status: 'refunded' })
-          .eq('order_id', orderId)
-          .eq('payment_status', 'paid');
+      if (!gatewayRefundId) {
+        console.warn('[razorpay-webhook] refund event missing refund.id — ack without mutating orders');
+        return new Response(
+          JSON.stringify({ acknowledged: true, skipped: 'no_gateway_refund_id' }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        );
       }
+
+      const { data: reconcileResult, error: reconcileErr } = await supabase.rpc(
+        'complete_refund_by_gateway_id',
+        {
+          p_gateway_refund_id: gatewayRefundId,
+          p_gateway_status: gatewayStatus,
+          p_razorpay_payment_id: paymentId || null,
+        },
+      );
+
+      if (reconcileErr) {
+        console.error('[razorpay-webhook] complete_refund_by_gateway_id failed', reconcileErr);
+        // Do not ACK success — Razorpay should retry; never leave money state via raw UPDATE
+        return new Response(
+          JSON.stringify({ error: 'refund_reconcile_failed', detail: reconcileErr.message }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        );
+      }
+
+      console.log('[razorpay-webhook] refund reconciled', gatewayRefundId, reconcileResult);
     }
 
     return new Response(

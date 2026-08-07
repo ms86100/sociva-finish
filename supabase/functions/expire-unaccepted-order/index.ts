@@ -20,13 +20,12 @@ Deno.serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const anonKey = Deno.env.get("SUPABASE_ANON_KEY") || "";
 
+    // P0: service_role (or CRON_SECRET) only — never accept anon JWT
     const authHeader = req.headers.get("Authorization") || "";
     const token = authHeader.replace(/^Bearer\s+/i, "");
     const allowed =
       token === serviceKey ||
-      (anonKey && token === anonKey) ||
       req.headers.get("x-cron-secret") === Deno.env.get("CRON_SECRET");
 
     if (!allowed) {

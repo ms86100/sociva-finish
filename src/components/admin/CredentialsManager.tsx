@@ -120,23 +120,10 @@ export function CredentialsManager() {
           };
         });
       } else {
-        // Fallback before migration applied: never put raw secrets into editable fields
-        const { data: raw, error: rawErr } = await supabase
-          .from('admin_settings')
-          .select('id, key, value, is_active, description')
-          .in('key', ALL_KEYS);
-        if (rawErr) throw rawErr;
-        rows = (raw || []).map((s: any) => {
-          const isToggle = TOGGLE_KEYS.has(s.key);
-          configured[s.key] = !!(s.value && String(s.value).length > 0);
-          return {
-            id: s.id,
-            key: s.key,
-            value: isToggle ? (s.value || null) : null,
-            is_active: s.is_active,
-            description: s.description,
-          };
-        });
+        // P0: never SELECT raw admin_settings.value — meta RPC is required
+        console.error('get_admin_credential_meta failed', error);
+        toast.error('Credential meta RPC unavailable — secrets are not loaded into the browser');
+        rows = [];
       }
 
       setSettings(rows);
@@ -170,15 +157,20 @@ export function CredentialsManager() {
       const config = CREDENTIAL_TABS.flatMap(t => t.credentials).find(c => c.key === key);
 
       if (existingSetting) {
-        const { error } = await supabase
-          .from('admin_settings')
-          .update({ value, is_active: true, updated_at: new Date().toISOString() })
-          .eq('key', key);
+        const { error } = await supabase.rpc('upsert_admin_credential', {
+          p_key: key,
+          p_value: value,
+          p_description: config?.description || null,
+          p_is_active: true,
+        });
         if (error) throw error;
       } else {
-        const { error } = await supabase
-          .from('admin_settings')
-          .insert({ key, value, is_active: true, description: config?.description || null });
+        const { error } = await supabase.rpc('upsert_admin_credential', {
+          p_key: key,
+          p_value: value,
+          p_description: config?.description || null,
+          p_is_active: true,
+        });
         if (error) throw error;
       }
       toast.success('Credential saved');
@@ -282,7 +274,7 @@ export function CredentialsManager() {
       );
     }
 
-    // Razorpay Route payouts gate (default off — no fake settled status)
+    // Razorpay Route payouts gate (default off — settled only after real transfer id)
     if (config.isToggle && config.key === 'razorpay_route_enabled') {
       const routeOn = setting?.is_active === true && String(setting?.value || '').toLowerCase() === 'true';
       return (
@@ -294,30 +286,21 @@ export function CredentialsManager() {
               <Switch
                 checked={routeOn}
                 onCheckedChange={async (checked) => {
-                  if (checked) {
-                    toast.error('Route transfers are not implemented yet. Create seller linked accounts first, then ask engineering to wire transfers.');
-                    return;
-                  }
-                  const newVal = 'false';
+                  const newVal = checked ? 'true' : 'false';
                   setEditValues({ ...editValues, [config.key]: newVal });
                   try {
-                    if (setting) {
-                      const { error } = await supabase.from('admin_settings').update({
-                        value: newVal,
-                        is_active: false,
-                        updated_at: new Date().toISOString(),
-                      }).eq('key', config.key);
-                      if (error) throw error;
-                    } else {
-                      const { error } = await supabase.from('admin_settings').insert({
-                        key: config.key,
-                        value: newVal,
-                        is_active: false,
-                        description: config.description,
-                      });
-                      if (error) throw error;
-                    }
-                    toast.success('Razorpay Route payouts remain off');
+                    const { error } = await supabase.rpc('upsert_admin_credential', {
+                      p_key: config.key,
+                      p_value: newVal,
+                      p_description: config.description || null,
+                      p_is_active: checked,
+                    });
+                    if (error) throw error;
+                    toast.success(
+                      checked
+                        ? 'Route payouts ON — process-settlements will transfer only when sellers have razorpay_account_id'
+                        : 'Razorpay Route payouts off — settlements stay Eligible (owed)',
+                    );
                     await fetchSettings();
                   } catch {
                     toast.error('Failed to update Route setting');
@@ -329,7 +312,7 @@ export function CredentialsManager() {
           </div>
           <p className="text-[11px] text-muted-foreground">{config.description}</p>
           <div className="rounded-lg px-3 py-2 text-xs bg-warning/10 text-foreground border border-warning/30">
-            Settlements stay Eligible (owed). process-settlements will not mark Paid out without a real Route transfer.
+            Settled requires a real razorpay_transfer_id. Sellers without linked accounts stay Eligible.
           </div>
         </div>
       );

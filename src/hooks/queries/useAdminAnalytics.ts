@@ -95,7 +95,19 @@ export function useAdminAnalytics() {
         .sort((a, b) => b.count - a.count);
 
       const totalOrders = allOrders.length;
-      const totalRevenue = allOrders.reduce((s, o) => s + (o.total_amount || 0), 0);
+      // Settled GMV from server aggregate (paid − refunded) — no silent truncation
+      let totalRevenue = 0;
+      try {
+        const { data: gmv } = await supabase.rpc('get_admin_settled_gmv', {
+          p_from: dateFrom || null,
+          p_to: null,
+        });
+        totalRevenue = Number((gmv as any)?.settled_gmv ?? 0);
+      } catch {
+        totalRevenue = allOrders
+          .filter(o => !CANCELLED_STATUSES.includes(o.status))
+          .reduce((s, o) => s + (o.total_amount || 0), 0);
+      }
       const deliveredRevenue = allOrders
         .filter(o => DELIVERED_STATUSES.includes(o.status))
         .reduce((s, o) => s + (o.total_amount || 0), 0);

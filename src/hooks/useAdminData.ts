@@ -91,7 +91,7 @@ export function useAdminData() {
           supabase.from('seller_profiles').select('id', { count: 'exact', head: true }).eq('verification_status', 'approved'),
           supabase.from('orders').select('id', { count: 'exact', head: true }),
           supabase.from('reviews').select('id', { count: 'exact', head: true }),
-          supabase.from('payment_records').select('amount').eq('payment_status', 'paid'),
+          supabase.rpc('get_admin_settled_gmv'),
           supabase.from('reports').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
           supabase.from('societies').select('id', { count: 'exact', head: true }),
         ]),
@@ -100,7 +100,8 @@ export function useAdminData() {
       setPendingUsers((usersRes.data as any) || []);
       setPendingSellers((sellersRes.data as any) || []);
       setAllSellers((allSellersRes.data as any) || []);
-      const totalRevenue = (statsRes[4].data || []).reduce((sum: number, p: any) => sum + Number(p.amount), 0);
+      const gmvPayload = statsRes[4].data as { settled_gmv?: number } | null;
+      const totalRevenue = Number(gmvPayload?.settled_gmv ?? 0);
       setStats({ users: statsRes[0].count || 0, sellers: statsRes[1].count || 0, orders: statsRes[2].count || 0, reviews: statsRes[3].count || 0, revenue: totalRevenue, pendingReports: statsRes[5].count || 0, societies: statsRes[6].count || 0 });
     } catch (error) { console.error('Error:', error); }
     finally { setIsLoading(false); }

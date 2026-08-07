@@ -324,9 +324,23 @@ Deno.serve(async (req) => {
       });
     }
 
-    let gatewayRefundAmount = Number(ctx.amount ?? refund.amount);
+    // P0: ignore client-stored refund.amount — recompute from order server-side only
+    let gatewayRefundAmount = Number(ctx.amount);
     if (!Number.isFinite(gatewayRefundAmount) || gatewayRefundAmount <= 0) {
-      gatewayRefundAmount = Number(refund.amount);
+      const { data: recomputed } = await supabase.rpc("compute_child_gateway_refund_amount", {
+        _order_id: refund.order_id,
+      });
+      gatewayRefundAmount = Number(recomputed);
+    }
+    if (!Number.isFinite(gatewayRefundAmount) || gatewayRefundAmount <= 0) {
+      await supabase.rpc("fail_refund", {
+        p_refund_id: refund.id,
+        p_reason: "Server could not compute refund amount from order",
+      });
+      return new Response(
+        JSON.stringify({ ok: false, state: "refund_failed", error: "uncomputable_refund_amount" }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
     }
 
     // Cap against live Razorpay remaining (partial refunds must not overshoot)

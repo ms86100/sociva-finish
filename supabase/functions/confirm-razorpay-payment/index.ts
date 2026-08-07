@@ -8,6 +8,13 @@ const corsHeaders = {
 };
 
 async function getRazorpayCredentials(supabase: any) {
+  // Prefer Deno secrets; fall back to admin_settings for edge service_role reads
+  const envKeyId = Deno.env.get("RAZORPAY_KEY_ID") || "";
+  const envKeySecret = Deno.env.get("RAZORPAY_KEY_SECRET") || "";
+  if (envKeyId && envKeySecret) {
+    return { keyId: envKeyId, keySecret: envKeySecret };
+  }
+
   const { data: rows } = await supabase
     .from("admin_settings")
     .select("key, value, is_active")
@@ -19,8 +26,8 @@ async function getRazorpayCredentials(supabase: any) {
   }
 
   return {
-    keyId: map.razorpay_key_id || Deno.env.get("RAZORPAY_KEY_ID") || "",
-    keySecret: map.razorpay_key_secret || Deno.env.get("RAZORPAY_KEY_SECRET") || "",
+    keyId: map.razorpay_key_id || envKeyId,
+    keySecret: map.razorpay_key_secret || envKeySecret,
   };
 }
 
@@ -66,13 +73,13 @@ serve(async (req) => {
       });
     }
 
-    const { razorpay_payment_id, razorpay_order_id, order_ids } = body;
+    const { razorpay_payment_id, razorpay_order_id } = body;
+    let order_ids: string[] = Array.isArray(body.order_ids) ? body.order_ids.map(String) : [];
     const source = body.source || (isService ? "service" : "client_confirm");
 
     if (
       (!razorpay_payment_id && !razorpay_order_id) ||
       !order_ids ||
-      !Array.isArray(order_ids) ||
       order_ids.length === 0
     ) {
       return new Response(
@@ -91,13 +98,44 @@ serve(async (req) => {
 
     const authBasic = "Basic " + btoa(`${creds.keyId}:${creds.keySecret}`);
 
-    // Load orders from DB — amount and ownership come from DB only
-    const { data: orders, error: ordersErr } = await supabase
+    // Load seed orders, then expand ALL siblings via checkout_group_id BEFORE amount check
+    const { data: seedOrders, error: seedErr } = await supabase
       .from("orders")
       .select("id, buyer_id, seller_id, total_amount, society_id, status, payment_status, razorpay_order_id, platform_fee, net_amount, loyalty_reservation_id, loyalty_discount_amount, loyalty_points_redeemed, checkout_group_id")
       .in("id", order_ids);
 
-    if (ordersErr || !orders || orders.length !== order_ids.length) {
+    if (seedErr || !seedOrders || seedOrders.length === 0) {
+      return new Response(JSON.stringify({ error: "One or more orders not found" }), {
+        status: 404,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const groupIds = Array.from(
+      new Set(
+        seedOrders
+          .map((o: any) => o.checkout_group_id)
+          .filter((id: string | null | undefined) => !!id),
+      ),
+    ) as string[];
+
+    let orders = seedOrders as any[];
+    if (groupIds.length > 0) {
+      const { data: siblings, error: sibErr } = await supabase
+        .from("orders")
+        .select("id, buyer_id, seller_id, total_amount, society_id, status, payment_status, razorpay_order_id, platform_fee, net_amount, loyalty_reservation_id, loyalty_discount_amount, loyalty_points_redeemed, checkout_group_id")
+        .in("checkout_group_id", groupIds);
+
+      if (sibErr || !siblings?.length) {
+        return new Response(JSON.stringify({ error: "Failed to resolve checkout group siblings" }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      orders = siblings;
+      order_ids = siblings.map((o: any) => o.id);
+      console.log(`[confirm] expanded checkout_group siblings → ${order_ids.length} orders`, groupIds);
+    } else if (seedOrders.length !== order_ids.length) {
       return new Response(JSON.stringify({ error: "One or more orders not found" }), {
         status: 404,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -170,10 +208,10 @@ serve(async (req) => {
       });
     }
 
-    // Amount binding (allow 1 paise rounding)
+    // Amount binding against FULL sibling set (allow 1 paise rounding)
     const paidPaise = Number(paymentEntity.amount || 0);
     if (Math.abs(paidPaise - expectedPaise) > 1) {
-      console.error(`[confirm] amount mismatch paid=${paidPaise} expected=${expectedPaise}`);
+      console.error(`[confirm] amount mismatch paid=${paidPaise} expected=${expectedPaise} orders=${order_ids.length}`);
       return new Response(
         JSON.stringify({ error: "Payment amount does not match order total" }),
         { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -189,20 +227,29 @@ serve(async (req) => {
       );
     }
 
-    // Bind notes order_ids when present
+    // Bind notes order_ids when present — every DB sibling must appear in notes (or notes subset of siblings)
     const noteIds = parseNotesOrderIds(paymentEntity.notes);
     if (noteIds.length > 0) {
-      const missing = order_ids.filter((id: string) => !noteIds.includes(id));
-      if (missing.length > 0) {
-        return new Response(
-          JSON.stringify({ error: "Payment notes do not include these orders" }),
-          { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+      const missingFromNotes = order_ids.filter((id: string) => !noteIds.includes(id));
+      const extraInNotes = noteIds.filter((id: string) => !order_ids.includes(id));
+      if (missingFromNotes.length > 0 || extraInNotes.length > 0) {
+        // Allow notes to be a subset only if we expanded from a partial client list;
+        // after expansion, notes and siblings should match.
+        if (missingFromNotes.length > 0) {
+          return new Response(
+            JSON.stringify({
+              error: "Payment notes do not include all checkout group orders",
+              missing: missingFromNotes,
+            }),
+            { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
       }
     }
 
-    const results: { id: string; success: boolean; skipped?: boolean }[] = [];
+    const results: { id: string; success: boolean; skipped?: boolean; resurrected?: boolean; error?: string }[] = [];
     const now = new Date().toISOString();
+    let hardFailure = false;
 
     for (const orderData of orders) {
       const orderId = orderData.id;
@@ -216,8 +263,6 @@ serve(async (req) => {
         {
           order_id: orderId,
           buyer_id: orderData.buyer_id,
-          // Per-order seller_id — critical for multi-store platform-collect so each
-          // settlement row (created on delivery) attributes the right seller.
           seller_id: orderData.seller_id,
           amount: orderData.total_amount,
           platform_fee: Number(orderData.platform_fee || 0),
@@ -238,7 +283,8 @@ serve(async (req) => {
       );
       if (payRecErr) {
         console.error("payment_records upsert failed for order", orderId, payRecErr);
-        results.push({ id: orderId, success: false });
+        results.push({ id: orderId, success: false, error: payRecErr.message });
+        hardFailure = true;
         continue;
       }
 
@@ -258,11 +304,14 @@ serve(async (req) => {
         .select("id");
 
       if (updateErr) {
-        results.push({ id: orderId, success: false });
+        results.push({ id: orderId, success: false, error: updateErr.message });
+        hardFailure = true;
         continue;
       }
 
       if (!updated || updated.length === 0) {
+        // Paid-after-cancel resurrection: only if still pending pay + cancelled.
+        // MUST re-hold stock atomically via RPC — never paid with free stock.
         const { data: cancelledOrder } = await supabase
           .from("orders")
           .select("id")
@@ -272,19 +321,26 @@ serve(async (req) => {
           .maybeSingle();
 
         if (cancelledOrder) {
-          const { error: resurrectErr } = await supabase
-            .from("orders")
-            .update({
-              status: "placed",
-              payment_status: "paid",
-              razorpay_payment_id: verifiedPaymentId,
-              rejection_reason: null,
-              updated_at: now,
-            })
-            .eq("id", orderId)
-            .eq("status", "cancelled");
+          const { data: resurrectData, error: resurrectErr } = await supabase.rpc(
+            "resurrect_cancelled_order_after_payment",
+            {
+              p_order_id: orderId,
+              p_razorpay_payment_id: verifiedPaymentId,
+            },
+          );
 
-          results.push({ id: orderId, success: !resurrectErr });
+          if (resurrectErr || resurrectData?.success === false) {
+            console.error("[confirm] resurrection failed — leave for refund path", orderId, resurrectErr || resurrectData);
+            results.push({
+              id: orderId,
+              success: false,
+              error: resurrectErr?.message || resurrectData?.error || "resurrect_failed",
+            });
+            hardFailure = true;
+            continue;
+          }
+
+          results.push({ id: orderId, success: true, resurrected: true });
           continue;
         }
 
@@ -295,17 +351,11 @@ serve(async (req) => {
       results.push({ id: orderId, success: true });
     }
 
+    // After any child failure post-capture: do NOT return silent success
     const successCount = results.filter((r) => r.success && !r.skipped).length;
-    const allOk = results.every((r) => r.success);
+    let allOk = results.every((r) => r.success) && !hardFailure;
 
     // Stamp checkout_group payment header when children share a group
-    const groupIds = Array.from(
-      new Set(
-        (orders || [])
-          .map((o: any) => o.checkout_group_id)
-          .filter((id: string | null | undefined) => !!id),
-      ),
-    );
     if (groupIds.length > 0 && (allOk || successCount > 0)) {
       for (const groupId of groupIds) {
         const { error: stampErr } = await supabase.rpc("stamp_checkout_group_capture", {
@@ -315,7 +365,6 @@ serve(async (req) => {
         });
         if (stampErr) {
           console.error("[confirm] stamp_checkout_group_capture failed", groupId, stampErr);
-          // Fallback: direct update if RPC not yet deployed
           const { error: groupErr } = await supabase
             .from("checkout_groups")
             .update({
@@ -338,9 +387,11 @@ serve(async (req) => {
       }
     }
 
-    // Platform-funded loyalty + Sociva Credit: commit held reservations after payment confirms
+    // Fail-closed: never success:true if wallet/loyalty commit fails
     let loyaltyCommit: unknown = null;
     let walletCommit: unknown = null;
+    let commitFailed = false;
+
     if (allOk || successCount > 0) {
       try {
         const { data: commitData, error: commitErr } = await supabase.rpc(
@@ -349,11 +400,13 @@ serve(async (req) => {
         );
         if (commitErr) {
           console.error("[confirm] loyalty commit failed", commitErr);
+          commitFailed = true;
         } else {
           loyaltyCommit = commitData;
         }
       } catch (loyaltyErr) {
         console.error("[confirm] loyalty commit exception", loyaltyErr);
+        commitFailed = true;
       }
 
       try {
@@ -363,15 +416,21 @@ serve(async (req) => {
         );
         if (walletErr) {
           console.error("[confirm] wallet commit failed", walletErr);
+          commitFailed = true;
         } else {
           walletCommit = walletData;
         }
       } catch (walletEx) {
         console.error("[confirm] wallet commit exception", walletEx);
+        commitFailed = true;
       }
     }
 
-    if (successCount > 0) {
+    if (commitFailed) {
+      allOk = false;
+    }
+
+    if (allOk && successCount > 0) {
       setTimeout(() => {
         fetch(`${supabaseUrl}/functions/v1/process-notification-queue`, {
           method: "POST",
@@ -391,6 +450,9 @@ serve(async (req) => {
         results,
         loyalty: loyaltyCommit,
         wallet: walletCommit,
+        commit_failed: commitFailed,
+        source,
+        order_ids,
       }),
       { status: allOk ? 200 : 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
