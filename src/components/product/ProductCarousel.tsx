@@ -61,20 +61,20 @@ export function ProductCarousel({
 
   return (
     <div className={cn('', className)}>
-      {/* Header — Amazon/Blinkit-style: bold title left, "see all" right */}
+      {/* Header — bold title left, "see all" right */}
       <div className="flex items-center justify-between px-4 mb-3">
-        <h3 className="font-bold text-base text-foreground flex items-center gap-2">
-          {emoji && <span className="text-lg">{emoji}</span>}
-          {title}
+        <h3 className="font-extrabold text-base text-foreground flex items-center gap-2 tracking-tight min-w-0">
+          {emoji && <span className="text-lg shrink-0">{emoji}</span>}
+          <span className="truncate">{title}</span>
           {itemCount !== undefined && (
-            <span className="text-xs font-normal text-muted-foreground">({itemCount})</span>
+            <span className="text-xs font-normal text-muted-foreground shrink-0">({itemCount})</span>
           )}
-          <span className="text-xs font-semibold text-success ml-1">Starting {formatPrice(minPrice)}</span>
+          <span className="text-xs font-semibold text-success ml-1 shrink-0 whitespace-nowrap">From {formatPrice(minPrice)}</span>
         </h3>
         {onSeeAll && (
           <button
             onClick={onSeeAll}
-            className="text-sm text-primary font-semibold flex items-center gap-0.5 hover:underline"
+            className="text-sm text-primary font-semibold flex items-center gap-0.5 hover:underline shrink-0 ml-2 min-h-[36px] touch-manipulation"
           >
             see all <ChevronRight size={16} />
           </button>
@@ -84,12 +84,13 @@ export function ProductCarousel({
       {/* Carousel with nav arrows */}
       <div className="relative group">
         <div ref={emblaRef} className="overflow-hidden">
-          <div className="flex gap-3 pl-4 pr-2 items-stretch">
+          <div className="flex gap-2.5 sm:gap-3 pl-4 pr-2 items-stretch">
             {products.map((product) => (
               <div key={product.id} className={cn('shrink-0 flex', cardWidth)}>
                 <ProductListingCard
                   product={product}
                   onTap={onProductTap}
+                  compact
                 />
               </div>
             ))}

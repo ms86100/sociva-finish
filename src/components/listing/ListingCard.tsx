@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { Plus, Minus, Clock, Star, Zap, MapPin } from 'lucide-react';
 import { useCurrency } from '@/hooks/useCurrency';
+import { optimizedImageUrl, handleImageError } from '@/utils/imageHelpers';
 
 export interface Listing {
   id: string;
@@ -219,17 +220,20 @@ export function ListingCard({
 
   if (compact) {
     return (
-      <div className="flex items-center gap-3 p-3 bg-card rounded-lg">
+      <div className="flex items-center gap-3 p-3 bg-card rounded-2xl border border-border/60 shadow-card">
         {listing.image_url && (
           <img
-            src={listing.image_url}
+            src={optimizedImageUrl(listing.image_url, { width: 128, quality: 78 })}
             alt={listing.name}
-            className="w-16 h-16 rounded-lg object-cover"
+            className="w-16 h-16 rounded-xl object-cover product-image-bg shrink-0"
+            loading="lazy"
+            decoding="async"
+            onError={handleImageError}
           />
         )}
         <div className="flex-1 min-w-0">
-          <p className="font-medium truncate">{listing.name}</p>
-          <p className="text-sm font-semibold text-primary tabular-nums">{formatPrice(listing.price)}</p>
+          <p className="font-semibold truncate text-sm">{listing.name}</p>
+          <p className="text-sm font-extrabold text-foreground tabular-nums mt-0.5">{formatPrice(listing.price)}</p>
         </div>
         {renderActionButton()}
       </div>
@@ -237,14 +241,13 @@ export function ListingCard({
   }
 
   return (
-    <div className="flex gap-3 p-3 border-b border-border last:border-0">
-      {/* Content */}
+    <div className="flex gap-3 p-3.5 border-b border-border/70 last:border-0">
       <div className="flex-1 min-w-0">
         <div className="flex items-start gap-2">
           {listing.is_veg !== undefined && <VegBadge isVeg={listing.is_veg} size="sm" />}
           <div className="flex-1 min-w-0">
             {renderBadges()}
-            <h4 className="font-medium leading-tight">{listing.name}</h4>
+            <h4 className="font-semibold leading-snug line-clamp-2 text-[14px]">{listing.name}</h4>
             {listing.description && (
               <p className="text-sm text-muted-foreground line-clamp-2 mt-0.5">
                 {listing.description}
@@ -253,26 +256,27 @@ export function ListingCard({
           </div>
         </div>
 
-        <div className="flex items-end justify-between mt-2">
+        <div className="flex items-end justify-between mt-2 gap-2">
           {renderPriceInfo()}
           {renderActionButton()}
         </div>
       </div>
 
-      {/* Image */}
-      {/* Image + Location */}
-      <div className="relative w-24 h-24 rounded-lg overflow-hidden shrink-0">
+      <div className="relative w-[96px] h-[96px] rounded-xl overflow-hidden shrink-0 product-image-bg shadow-sm">
         {listing.image_url && (
           <img
-            src={listing.image_url}
+            src={optimizedImageUrl(listing.image_url, { width: 200, quality: 78 })}
             alt={listing.name}
             className="w-full h-full object-cover"
+            loading="lazy"
+            decoding="async"
+            onError={handleImageError}
           />
         )}
         {listing.accepts_preorders && (
-          <div className="absolute top-1 left-1 px-1.5 py-0.5 rounded bg-accent/90 backdrop-blur-sm">
-            <span className="text-[9px] font-semibold text-accent-foreground flex items-center gap-0.5">
-              <Clock size={8} /> Pre-order
+          <div className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded-md bg-card/90 backdrop-blur-sm border border-border/50 shadow-sm">
+            <span className="text-[9px] font-semibold text-foreground flex items-center gap-0.5">
+              <Clock size={8} className="text-primary" /> Pre-order
             </span>
           </div>
         )}
@@ -286,8 +290,9 @@ export function ListingCard({
                 '_blank'
               );
             }}
-            className="absolute bottom-1 right-1 p-1 rounded-full bg-background/80 backdrop-blur-sm shadow-sm hover:bg-background transition-colors"
+            className="absolute bottom-1.5 right-1.5 p-1.5 rounded-full bg-card/90 backdrop-blur-sm shadow-sm border border-border/40 hover:bg-card transition-colors min-w-[32px] min-h-[32px] flex items-center justify-center touch-manipulation"
             title="View seller location"
+            aria-label="View seller location"
           >
             <MapPin size={14} className="text-primary" />
           </button>

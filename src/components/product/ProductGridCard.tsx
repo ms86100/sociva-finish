@@ -1,8 +1,9 @@
 // @ts-nocheck
 import { useNavigate } from 'react-router-dom';
-import { useMemo } from 'react';
-import { Plus, Minus, Store, Clock } from 'lucide-react';
-import { hapticSelection } from '@/lib/haptics';
+import { useMemo, useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Plus, Minus, Store, Clock, Check } from 'lucide-react';
+import { hapticSelection, hapticImpact } from '@/lib/haptics';
 import { Badge } from '@/components/ui/badge';
 import { VegBadge } from '@/components/ui/veg-badge';
 import { useCart } from '@/hooks/useCart';
@@ -12,7 +13,7 @@ import { cn } from '@/lib/utils';
 import { useCurrency } from '@/hooks/useCurrency';
 import { computeStoreStatus, formatStoreClosedMessage } from '@/lib/store-availability';
 import { useCategoryConfig } from '@/hooks/queries/useCategoryConfig';
-import { optimizedImageUrl, handleImageError } from '@/utils/imageHelpers';
+import { optimizedImageUrl, imageSrcSet, handleImageError } from '@/utils/imageHelpers';
 
 export interface ProductWithSeller extends Product {
   seller_name?: string;
@@ -38,6 +39,8 @@ export function ProductGridCard({ product, behavior, onTap, className, viewOnly 
   const navigate = useNavigate();
   const { items, addItem, updateQuantity } = useCart();
   const { formatPrice } = useCurrency();
+  const [imgLoaded, setImgLoaded] = useState(false);
+  const [justAdded, setJustAdded] = useState(false);
 
   const { data: categoryConfigs } = useCategoryConfig();
   const catCfg = categoryConfigs?.find(c => c.category === product.category);
@@ -62,47 +65,159 @@ export function ProductGridCard({ product, behavior, onTap, className, viewOnly 
   const isStoreClosed = storeAvailability.status !== 'open';
   const storeClosedMessage = isStoreClosed ? formatStoreClosedMessage(storeAvailability) : '';
 
-  const handleAdd = (e: React.MouseEvent) => { e.stopPropagation(); e.preventDefault(); if (!isCartAction) { if (onTap) onTap(product); return; } addItem(product); };
-  const handleIncrement = (e: React.MouseEvent) => { e.stopPropagation(); e.preventDefault(); updateQuantity(product.id, quantity + 1); };
-  const handleDecrement = (e: React.MouseEvent) => { e.stopPropagation(); e.preventDefault(); updateQuantity(product.id, quantity - 1); };
+  const handleAdd = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    if (!isCartAction) { if (onTap) onTap(product); return; }
+    hapticImpact('medium');
+    if (quantity === 0) {
+      setJustAdded(true);
+      setTimeout(() => setJustAdded(false), 600);
+    }
+    addItem(product);
+  };
+  const handleIncrement = (e: React.MouseEvent) => { e.stopPropagation(); e.preventDefault(); hapticImpact('light'); updateQuantity(product.id, quantity + 1); };
+  const handleDecrement = (e: React.MouseEvent) => { e.stopPropagation(); e.preventDefault(); hapticImpact('light'); updateQuantity(product.id, quantity - 1); };
   const handleCardClick = () => { hapticSelection(); if (onTap) { onTap(product); } else { navigate(`/seller/${product.seller_id}`); } };
 
   const isOutOfStock = !product.is_available;
+  const hasDiscount = (product as any).mrp && (product as any).mrp > product.price;
+  const discountPct = (product as any).discount_percentage || (hasDiscount ? Math.round((((product as any).mrp - product.price) / (product as any).mrp) * 100) : 0);
 
   return (
-    <div onClick={handleCardClick} className={cn('bg-card rounded-xl border border-border cursor-pointer flex flex-col h-full relative', 'transition-all duration-150 ease-out active:scale-[0.97]', isOutOfStock && 'opacity-50 grayscale-[40%]', isStoreClosed && !isOutOfStock && 'opacity-60 grayscale-[30%]', className)}>
+    <div
+      onClick={handleCardClick}
+      className={cn(
+        'group/grid bg-card rounded-2xl border border-border/60 shadow-card cursor-pointer flex flex-col h-full relative overflow-hidden',
+        'transition-[box-shadow,border-color,transform] duration-200 ease-out active:scale-[0.985]',
+        'hover:shadow-elevated hover:border-border',
+        isOutOfStock && 'opacity-50 grayscale-[40%]',
+        isStoreClosed && !isOutOfStock && 'opacity-60 grayscale-[30%]',
+        className
+      )}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleCardClick(); } }}
+    >
       <div className="relative p-2 pb-0">
-        <div className="relative aspect-[4/3] rounded-[10px] overflow-hidden product-image-bg">
-          {product.image_url ? (
-            <img src={optimizedImageUrl(product.image_url, { width: 300, quality: 70 })} alt={product.name} className="w-full h-full object-contain" loading="lazy" decoding="async" onError={handleImageError} />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center bg-muted"><span className="text-3xl">📦</span></div>
+        <div className="relative aspect-[4/3] rounded-xl overflow-hidden product-image-bg">
+          {product.image_url && !imgLoaded && (
+            <div className="absolute inset-0 product-image-shimmer" aria-hidden />
           )}
-          {isOutOfStock && (<div className="absolute inset-0 bg-background/60 flex items-center justify-center rounded-[10px]"><span className="text-[9px] font-bold text-muted-foreground uppercase">Out of stock</span></div>)}
-          {isStoreClosed && !isOutOfStock && (<div className="absolute inset-0 bg-background/40 flex items-center justify-center rounded-[10px]"><span className="text-[8px] font-bold text-muted-foreground bg-muted/90 px-1.5 py-0.5 rounded-full uppercase tracking-wider flex items-center gap-1"><Clock size={8} />{storeClosedMessage || 'Closed'}</span></div>)}
-          {product.is_bestseller && (<Badge className="absolute top-1 left-1 bg-badge-new text-primary-foreground text-[8px] px-1.5 py-0.5 font-bold shadow-sm rounded border-0">Bestseller</Badge>)}
-          {(product as any).accepts_preorders && !product.is_bestseller && (<Badge className="absolute top-1 left-1 bg-accent/90 text-accent-foreground text-[8px] px-1.5 py-0.5 font-bold shadow-sm rounded border-0">Pre-order{(product as any).lead_time_hours ? ` • ${(product as any).lead_time_hours}hr` : ''}</Badge>)}
-          <div className="absolute top-1 right-1"><VegBadge isVeg={product.is_veg} size="sm" /></div>
+          {product.image_url ? (
+            <img
+              src={optimizedImageUrl(product.image_url, { width: 400, quality: 78 })}
+              srcSet={imageSrcSet(product.image_url, 78) || undefined}
+              sizes="(max-width: 640px) 46vw, 220px"
+              alt={product.name}
+              className={cn(
+                'w-full h-full object-cover transition-[opacity,transform] duration-500',
+                'group-hover/grid:scale-[1.03]',
+                imgLoaded ? 'opacity-100' : 'opacity-0'
+              )}
+              loading="lazy"
+              decoding="async"
+              onLoad={() => setImgLoaded(true)}
+              onError={handleImageError}
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center bg-muted">
+              <span className="text-3xl" aria-hidden>📦</span>
+            </div>
+          )}
+
+          <AnimatePresence>
+            {justAdded && (
+              <motion.div
+                className="absolute inset-0 bg-success/20 flex items-center justify-center z-10"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+              >
+                <Check size={22} className="text-success" strokeWidth={3} />
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {isOutOfStock && (
+            <div className="absolute inset-0 bg-background/60 flex items-center justify-center rounded-xl">
+              <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider bg-card/90 px-2 py-1 rounded-full">Out of stock</span>
+            </div>
+          )}
+          {isStoreClosed && !isOutOfStock && (
+            <div className="absolute inset-0 bg-background/40 flex items-center justify-center rounded-xl">
+              <span className="text-[8px] font-bold text-muted-foreground bg-card/90 px-1.5 py-0.5 rounded-full uppercase tracking-wider flex items-center gap-1 max-w-[90%] truncate">
+                <Clock size={8} className="shrink-0" />{storeClosedMessage || 'Closed'}
+              </span>
+            </div>
+          )}
+          {product.is_bestseller && (
+            <Badge className="absolute top-1.5 left-1.5 bg-badge-new text-primary-foreground text-[8px] px-1.5 py-0.5 font-bold shadow-sm rounded-md border-0">
+              Bestseller
+            </Badge>
+          )}
+          {hasDiscount && discountPct > 0 && (
+            <span className="absolute top-1.5 right-8 bg-badge-discount text-primary-foreground text-[8px] font-extrabold px-1.5 py-0.5 rounded-md shadow-sm">
+              {discountPct}% OFF
+            </span>
+          )}
+          {(product as any).accepts_preorders && !product.is_bestseller && (
+            <Badge className="absolute top-1.5 left-1.5 bg-card/90 text-foreground text-[8px] px-1.5 py-0.5 font-bold shadow-sm rounded-md border border-border/50">
+              Pre-order{(product as any).lead_time_hours ? ` · ${(product as any).lead_time_hours}hr` : ''}
+            </Badge>
+          )}
+          <div className="absolute top-1.5 right-1.5"><VegBadge isVeg={product.is_veg} size="sm" /></div>
         </div>
+
         {!viewOnly && !isOutOfStock && !isStoreClosed && (
           <div className="absolute -bottom-3.5 left-1/2 -translate-x-1/2 z-10">
             {isCartAction && quantity > 0 ? (
-              <div className="flex items-center bg-primary rounded-lg overflow-hidden shadow-cta animate-stepper-pop">
-                <button onClick={handleDecrement} className="px-3 py-2 text-primary-foreground min-w-[44px] min-h-[44px] flex items-center justify-center"><Minus size={14} strokeWidth={3} /></button>
-                <span className="font-bold text-sm text-primary-foreground min-w-[24px] text-center">{quantity}</span>
-                <button onClick={handleIncrement} disabled={!canIncrement} className={cn("px-3 py-2 text-primary-foreground min-w-[44px] min-h-[44px] flex items-center justify-center", !canIncrement && "opacity-40")}><Plus size={14} strokeWidth={3} /></button>
+              <div className="flex items-center bg-primary rounded-xl overflow-hidden shadow-cta animate-stepper-pop">
+                <button
+                  onClick={handleDecrement}
+                  aria-label="Decrease quantity"
+                  className="px-3 py-2 text-primary-foreground min-w-[44px] min-h-[40px] flex items-center justify-center touch-manipulation"
+                >
+                  <Minus size={14} strokeWidth={3} />
+                </button>
+                <span className="font-bold text-sm text-primary-foreground min-w-[24px] text-center tabular-nums">{quantity}</span>
+                <button
+                  onClick={handleIncrement}
+                  disabled={!canIncrement}
+                  aria-label="Increase quantity"
+                  className={cn('px-3 py-2 text-primary-foreground min-w-[44px] min-h-[40px] flex items-center justify-center touch-manipulation', !canIncrement && 'opacity-40')}
+                >
+                  <Plus size={14} strokeWidth={3} />
+                </button>
               </div>
             ) : (
-              <button onClick={handleAdd} className="bg-card/80 backdrop-blur-md backdrop-saturate-150 text-primary font-bold text-xs px-6 py-2 rounded-lg border border-primary/15 shadow-elevated hover:bg-primary hover:text-primary-foreground transition-all uppercase tracking-wide active:scale-95 min-h-[44px]">{actionConfig.shortLabel}</button>
+              <button
+                onClick={handleAdd}
+                aria-label={isCartAction ? 'Add to cart' : actionConfig.shortLabel}
+                className="bg-card text-primary font-extrabold text-[11px] px-5 py-2 rounded-xl border-[1.5px] border-primary shadow-sm hover:bg-primary hover:text-primary-foreground transition-colors uppercase tracking-wide active:scale-95 min-h-[40px] touch-manipulation"
+              >
+                {justAdded ? 'ADDED' : (isCartAction ? 'ADD' : actionConfig.shortLabel)}
+              </button>
             )}
           </div>
         )}
       </div>
-      <div className="px-2.5 pb-2.5 pt-5 flex flex-col flex-1">
-        <h4 className="font-semibold text-[12px] leading-tight line-clamp-2 text-foreground mb-0.5">{product.name}</h4>
-        {product.seller_name && (<div className="flex items-center gap-1 mt-0.5"><Store size={9} className="text-muted-foreground shrink-0" /><span className="text-[10px] text-muted-foreground truncate">{product.seller_name}</span></div>)}
+
+      <div className="px-2.5 pb-2.5 pt-5 flex flex-col flex-1 min-w-0">
+        <h4 className="font-semibold text-[12px] leading-snug line-clamp-2 text-foreground mb-0.5">{product.name}</h4>
+        {product.seller_name && (
+          <div className="flex items-center gap-1 mt-0.5 min-w-0">
+            <Store size={9} className="text-muted-foreground shrink-0" />
+            <span className="text-[10px] text-muted-foreground truncate">{product.seller_name}</span>
+          </div>
+        )}
         <div className="flex-1 min-h-0.5" />
-        <div className="flex items-end gap-1 mt-auto"><span className="font-bold text-sm text-foreground leading-none tabular-nums">{formatPrice(product.price)}</span></div>
+        <div className="flex items-baseline gap-1.5 mt-auto pt-1">
+          <span className="font-extrabold text-sm text-foreground leading-none tabular-nums">{formatPrice(product.price)}</span>
+          {hasDiscount && (
+            <span className="text-[10px] text-muted-foreground/80 line-through tabular-nums">{formatPrice((product as any).mrp)}</span>
+          )}
+        </div>
       </div>
     </div>
   );

@@ -13,7 +13,7 @@ import { useCart } from '@/hooks/useCart';
 import { cn } from '@/lib/utils';
 import { useCurrency } from '@/hooks/useCurrency';
 import { computeStoreStatus, formatStoreClosedMessage } from '@/lib/store-availability';
-import { optimizedImageUrl, handleImageError } from '@/utils/imageHelpers';
+import { optimizedImageUrl, imageSrcSet, handleImageError } from '@/utils/imageHelpers';
 
 interface ProductCardProps {
   product: Product;
@@ -25,6 +25,7 @@ export function ProductCard({ product, variant = 'horizontal', onTap }: ProductC
   const { items, addItem, updateQuantity } = useCart();
   const { formatPrice } = useCurrency();
   const [justAdded, setJustAdded] = useState(false);
+  const [imgLoaded, setImgLoaded] = useState(false);
 
   const actionType: ProductActionType = (product.action_type as ProductActionType) || 'add_to_cart';
   const actionConfig = ACTION_CONFIG[actionType] || ACTION_CONFIG.add_to_cart;
@@ -50,6 +51,7 @@ export function ProductCard({ product, variant = 'horizontal', onTap }: ProductC
   const isStockEmpty = stockLimit <= 0 && (product as any).stock_quantity != null;
   const isDisabled = !product.is_available || isStoreClosed || isStockEmpty;
   const canIncrement = quantity < stockLimit && !isStoreClosed;
+  const hasDiscount = (product as any).mrp && (product as any).mrp > product.price;
 
   const handleAdd = useCallback(() => {
     if (!isCartAction) { hapticSelection(); if (onTap) onTap(product); return; }
@@ -64,28 +66,51 @@ export function ProductCard({ product, variant = 'horizontal', onTap }: ProductC
   const handleIncrement = () => { hapticImpact('light'); updateQuantity(product.id, quantity + 1); };
   const handleDecrement = () => { hapticImpact('light'); updateQuantity(product.id, quantity - 1); };
 
+  const imageEl = (width: number, className?: string) => (
+    <>
+      {product.image_url && !imgLoaded && (
+        <div className="absolute inset-0 product-image-shimmer" aria-hidden />
+      )}
+      {product.image_url ? (
+        <img
+          src={optimizedImageUrl(product.image_url, { width, quality: 78 })}
+          srcSet={imageSrcSet(product.image_url, 78) || undefined}
+          sizes={`${width}px`}
+          alt={product.name}
+          className={cn('w-full h-full object-cover transition-opacity duration-400', imgLoaded ? 'opacity-100' : 'opacity-0', className)}
+          loading="lazy"
+          decoding="async"
+          onLoad={() => setImgLoaded(true)}
+          onError={handleImageError}
+        />
+      ) : (
+        <div className="w-full h-full bg-muted flex items-center justify-center"><span className="text-3xl" aria-hidden>🛍️</span></div>
+      )}
+    </>
+  );
+
   if (variant === 'vertical') {
     return (
-      <Card className={cn('overflow-hidden', isStoreClosed && !product.is_available ? '' : isStoreClosed ? 'opacity-60 grayscale-[30%]' : '')}>
-        <div className="relative aspect-[4/3]">
-          {product.image_url ? (
-            <img src={optimizedImageUrl(product.image_url, { width: 400, quality: 70 })} alt={product.name} className="w-full h-full object-cover" loading="lazy" decoding="async" onError={handleImageError} />
-          ) : (
-            <div className="w-full h-full bg-muted flex items-center justify-center"><span className="text-3xl">🛍️</span></div>
-          )}
+      <Card className={cn(
+        'overflow-hidden rounded-2xl border-border/60 shadow-card',
+        isStoreClosed && !product.is_available ? '' : isStoreClosed ? 'opacity-60 grayscale-[30%]' : ''
+      )}>
+        <div className="relative aspect-[4/3] product-image-bg">
+          {imageEl(400)}
           {(!product.is_available || isStockEmpty) && (
-            <div className="absolute inset-0 bg-foreground/50 flex items-center justify-center">
-              <span className="text-background text-sm font-medium">{isStockEmpty && product.is_available ? 'Out of Stock' : 'Unavailable'}</span>
+            <div className="absolute inset-0 bg-foreground/45 flex items-center justify-center backdrop-blur-[1px]">
+              <span className="text-background text-sm font-medium bg-foreground/80 px-3 py-1.5 rounded-full">
+                {isStockEmpty && product.is_available ? 'Out of Stock' : 'Unavailable'}
+              </span>
             </div>
           )}
           {isStoreClosed && product.is_available && (
             <div className="absolute inset-0 bg-background/40 flex items-center justify-center">
-              <span className="text-[9px] font-bold text-muted-foreground bg-muted/90 px-2 py-1 rounded-full uppercase tracking-wider flex items-center gap-1">
+              <span className="text-[9px] font-bold text-muted-foreground bg-card/90 px-2 py-1 rounded-full uppercase tracking-wider flex items-center gap-1 border border-border/50">
                 <Clock size={9} />{storeClosedMessage || 'Closed'}
               </span>
             </div>
           )}
-          {/* Green flash on first add */}
           <AnimatePresence>
             {justAdded && (
               <motion.div
@@ -99,29 +124,40 @@ export function ProductCard({ product, variant = 'horizontal', onTap }: ProductC
                   initial={{ scale: 0 }}
                   animate={{ scale: 1 }}
                   transition={{ type: 'spring', stiffness: 400, damping: 15 }}
+                  className="w-11 h-11 rounded-full bg-card/95 shadow-md flex items-center justify-center"
                 >
-                  <Check size={28} className="text-success" strokeWidth={3} />
+                  <Check size={22} className="text-success" strokeWidth={3} />
                 </motion.div>
               </motion.div>
             )}
           </AnimatePresence>
           <div className="absolute top-2 left-2 flex flex-col gap-1">
-            {product.is_bestseller && (<Badge className="bg-warning text-warning-foreground text-[10px] px-1.5"><Star size={10} className="mr-0.5 fill-current" />Bestseller</Badge>)}
-            {product.is_recommended && (<Badge className="bg-success text-success-foreground text-[10px] px-1.5"><Award size={10} className="mr-0.5" />Recommended</Badge>)}
+            {product.is_bestseller && (<Badge className="bg-warning text-warning-foreground text-[10px] px-1.5 rounded-md"><Star size={10} className="mr-0.5 fill-current" />Bestseller</Badge>)}
+            {product.is_recommended && (<Badge className="bg-success text-success-foreground text-[10px] px-1.5 rounded-md"><Award size={10} className="mr-0.5" />Recommended</Badge>)}
           </div>
+          {hasDiscount && (
+            <span className="absolute top-2 right-2 bg-badge-discount text-primary-foreground text-[9px] font-extrabold px-2 py-1 rounded-md shadow-sm">
+              {Math.round((((product as any).mrp - product.price) / (product as any).mrp) * 100)}% OFF
+            </span>
+          )}
         </div>
         <CardContent className="p-3">
           <div className="flex items-start gap-2">
             <VegBadge isVeg={product.is_veg} size="sm" className="mt-1" />
             <div className="flex-1 min-w-0">
-              <h4 className="font-medium text-sm truncate">{product.name}</h4>
-              <p className="text-base font-bold text-primary mt-1 tabular-nums">{formatPrice(product.price)}</p>
+              <h4 className="font-semibold text-sm line-clamp-2 leading-snug">{product.name}</h4>
+              <div className="flex items-baseline gap-1.5 mt-1.5">
+                <p className="text-base font-extrabold text-foreground tabular-nums">{formatPrice(product.price)}</p>
+                {hasDiscount && (
+                  <span className="text-xs text-muted-foreground line-through tabular-nums">{formatPrice((product as any).mrp)}</span>
+                )}
+              </div>
             </div>
           </div>
           <div className="mt-3">
             {isCartAction && quantity > 0 && !isStoreClosed ? (
-              <div className="flex items-center justify-center gap-3 border border-primary rounded-md">
-                <Button size="sm" variant="ghost" className="h-10 w-10 p-0 text-primary" onClick={handleDecrement}><Minus size={16} /></Button>
+              <div className="flex items-center justify-center gap-3 border-[1.5px] border-primary rounded-xl bg-primary/5">
+                <Button size="sm" variant="ghost" className="h-11 w-11 p-0 text-primary touch-manipulation" onClick={handleDecrement} aria-label="Decrease quantity"><Minus size={16} /></Button>
                 <AnimatePresence mode="popLayout">
                   <motion.span
                     key={quantity}
@@ -134,11 +170,11 @@ export function ProductCard({ product, variant = 'horizontal', onTap }: ProductC
                     {quantity}
                   </motion.span>
                 </AnimatePresence>
-                <Button size="sm" variant="ghost" className="h-10 w-10 p-0 text-primary" onClick={handleIncrement} disabled={!canIncrement}><Plus size={16} /></Button>
+                <Button size="sm" variant="ghost" className="h-11 w-11 p-0 text-primary touch-manipulation" onClick={handleIncrement} disabled={!canIncrement} aria-label="Increase quantity"><Plus size={16} /></Button>
               </div>
             ) : (
-              <Button variant="outline" className="w-full h-10 border-primary text-primary hover:bg-primary hover:text-primary-foreground font-bold" onClick={handleAdd} disabled={isDisabled}>
-                {isStoreClosed ? (<><Clock size={14} className="mr-1" /> {storeClosedMessage || 'Closed'}</>) : (<>{isCartAction && <Plus size={14} className="mr-1" />}{actionConfig.shortLabel}</>)}
+              <Button variant="outline" className="w-full h-11 border-primary text-primary hover:bg-primary hover:text-primary-foreground font-bold rounded-xl touch-manipulation" onClick={handleAdd} disabled={isDisabled}>
+                {isStoreClosed ? (<><Clock size={14} className="mr-1" /> {storeClosedMessage || 'Closed'}</>) : (<>{isCartAction && <Plus size={14} className="mr-1" />}{justAdded ? 'ADDED' : actionConfig.shortLabel}</>)}
               </Button>
             )}
           </div>
@@ -148,29 +184,33 @@ export function ProductCard({ product, variant = 'horizontal', onTap }: ProductC
   }
 
   return (
-    <div className={cn("flex gap-3 py-4 border-b border-border last:border-0", isStoreClosed && 'opacity-60')}>
+    <div className={cn('flex gap-3 py-3.5 border-b border-border/70 last:border-0', isStoreClosed && 'opacity-60')}>
       <div className="flex-1 min-w-0">
         <div className="flex items-start gap-2">
           <VegBadge isVeg={product.is_veg} size="sm" className="mt-0.5" />
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <h4 className="font-medium">{product.name}</h4>
-              {product.is_bestseller && (<Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 bg-warning/20 text-warning-foreground"><Star size={10} className="mr-0.5 fill-warning text-warning" />Bestseller</Badge>)}
-              {product.is_recommended && (<Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 bg-success/20 text-success">Recommended</Badge>)}
+              <h4 className="font-semibold text-[14px] leading-snug line-clamp-2">{product.name}</h4>
+              {product.is_bestseller && (<Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 bg-warning/20 text-warning-foreground rounded-md"><Star size={10} className="mr-0.5 fill-warning text-warning" />Bestseller</Badge>)}
+              {product.is_recommended && (<Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 bg-success/20 text-success rounded-md">Recommended</Badge>)}
               {(product as any).avg_response_minutes != null && (product as any).avg_response_minutes > 0 && (product as any).avg_response_minutes <= 15 && (
-                <span className="text-[9px] px-1 py-0.5 rounded-full bg-success/10 text-success flex items-center gap-0.5 shrink-0">⚡~{(product as any).avg_response_minutes}m</span>
+                <span className="text-[9px] px-1 py-0.5 rounded-md bg-success/10 text-success flex items-center gap-0.5 shrink-0">⚡~{(product as any).avg_response_minutes}m</span>
               )}
             </div>
             {product.description && (<p className="text-sm text-muted-foreground line-clamp-2 mt-1">{product.description}</p>)}
-            <p className="font-bold text-base mt-2 tabular-nums">{formatPrice(product.price)}</p>
+            <div className="flex items-baseline gap-1.5 mt-2">
+              <p className="font-extrabold text-base tabular-nums">{formatPrice(product.price)}</p>
+              {hasDiscount && (
+                <span className="text-xs text-muted-foreground line-through tabular-nums">{formatPrice((product as any).mrp)}</span>
+              )}
+            </div>
             {isStoreClosed && (<p className="text-[10px] text-muted-foreground flex items-center gap-1 mt-1"><Clock size={9} /> {storeClosedMessage || 'Store closed'}</p>)}
           </div>
         </div>
       </div>
-      <div className="flex flex-col items-center gap-2">
-        <div className="relative w-20 h-20 rounded-lg overflow-hidden">
-          {product.image_url ? (<img src={optimizedImageUrl(product.image_url, { width: 160, quality: 70 })} alt={product.name} className="w-full h-full object-cover" loading="lazy" decoding="async" onError={handleImageError} />) : (<div className="w-full h-full bg-muted flex items-center justify-center"><span className="text-2xl">🛍️</span></div>)}
-          {/* Green flash on first add */}
+      <div className="flex flex-col items-center gap-2 shrink-0">
+        <div className="relative w-[88px] h-[88px] rounded-xl overflow-hidden product-image-bg shadow-sm">
+          {imageEl(176)}
           <AnimatePresence>
             {justAdded && (
               <motion.div
@@ -192,8 +232,8 @@ export function ProductCard({ product, variant = 'horizontal', onTap }: ProductC
           </AnimatePresence>
         </div>
         {isCartAction && quantity > 0 && !isStoreClosed ? (
-          <div className="flex items-center gap-2 -mt-4 relative z-10 bg-primary rounded-md px-2 shadow-sm">
-            <Button size="sm" variant="ghost" className="h-9 w-9 p-0 text-primary-foreground hover:bg-primary-foreground/20" onClick={handleDecrement}><Minus size={14} /></Button>
+          <div className="flex items-center gap-1 -mt-4 relative z-10 bg-primary rounded-xl px-1.5 shadow-cta animate-stepper-pop">
+            <Button size="sm" variant="ghost" className="h-9 w-9 p-0 text-primary-foreground hover:bg-primary-foreground/20 touch-manipulation" onClick={handleDecrement} aria-label="Decrease quantity"><Minus size={14} /></Button>
             <AnimatePresence mode="popLayout">
               <motion.span
                 key={quantity}
@@ -206,10 +246,15 @@ export function ProductCard({ product, variant = 'horizontal', onTap }: ProductC
                 {quantity}
               </motion.span>
             </AnimatePresence>
-            <Button size="sm" variant="ghost" className="h-9 w-9 p-0 text-primary-foreground hover:bg-primary-foreground/20" onClick={handleIncrement} disabled={!canIncrement}><Plus size={14} /></Button>
+            <Button size="sm" variant="ghost" className="h-9 w-9 p-0 text-primary-foreground hover:bg-primary-foreground/20 touch-manipulation" onClick={handleIncrement} disabled={!canIncrement} aria-label="Increase quantity"><Plus size={14} /></Button>
           </div>
         ) : (
-          <Button variant="outline" className="w-full h-8 border-[1.5px] border-primary text-primary hover:bg-primary hover:text-primary-foreground -mt-4 relative z-10 bg-card shadow-sm font-extrabold text-[11px] uppercase tracking-wide" onClick={handleAdd} disabled={isDisabled}>
+          <Button
+            variant="outline"
+            className="w-full h-9 border-[1.5px] border-primary text-primary hover:bg-primary hover:text-primary-foreground -mt-4 relative z-10 bg-card shadow-sm font-extrabold text-[11px] uppercase tracking-wide rounded-xl touch-manipulation"
+            onClick={handleAdd}
+            disabled={isDisabled}
+          >
             {isStoreClosed ? 'Closed' : (justAdded ? 'ADDED' : (isCartAction ? 'ADD' : actionConfig.shortLabel))}
           </Button>
         )}

@@ -1,13 +1,13 @@
 // @ts-nocheck
 import { useCallback, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Flame, Search, Sparkles, X } from 'lucide-react';
+import { ArrowLeft, Flame, Search, Sparkles, X, PackageSearch } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { SafeHeader } from '@/components/layout/SafeHeader';
 import { Input } from '@/components/ui/input';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
-import { Skeleton } from '@/components/ui/skeleton';
 import { ProductListingCard, ProductWithSeller } from '@/components/product/ProductListingCard';
+import { ProductCardSkeleton } from '@/components/product/ProductCardSkeleton';
 import { ProductDetailSheet } from '@/components/product/ProductDetailSheet';
 import { DynamicIcon } from '@/components/ui/DynamicIcon';
 import { useProductsByCategory } from '@/hooks/queries/useProductsByCategory';
@@ -166,17 +166,15 @@ export default function DiscoveryListingsPage() {
         </div>
       </SafeHeader>
 
-      <div className="p-4 pb-6">
+      <div className="p-3 sm:p-4 pb-6">
         {isLoading ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-            {[1, 2, 3, 4, 5, 6].map((i) => <Skeleton key={i} className="h-56 w-full rounded-xl" />)}
-          </div>
+          <ProductCardSkeleton count={8} />
         ) : displayProducts.length > 0 ? (
           <>
-            <p className="text-[11px] text-muted-foreground mb-3">
+            <p className="text-[11px] text-muted-foreground mb-3 px-0.5">
               {displayProducts.length} listing{displayProducts.length !== 1 ? 's' : ''}
             </p>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5 sm:gap-3">
               {displayProducts.map((product) => (
                 <ProductListingCard
                   key={product.id}
@@ -189,9 +187,14 @@ export default function DiscoveryListingsPage() {
             </div>
           </>
         ) : (
-          <div className="py-16 text-center">
-            <p className="text-sm font-medium text-foreground">No listings found</p>
-            <p className="text-xs text-muted-foreground mt-1">Try another search or go back.</p>
+          <div className="py-16 px-4 text-center flex flex-col items-center">
+            <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center mb-4">
+              <PackageSearch size={28} className="text-muted-foreground" />
+            </div>
+            <p className="text-sm font-semibold text-foreground">No listings found</p>
+            <p className="text-xs text-muted-foreground mt-1.5 max-w-[240px] leading-relaxed">
+              Try another search, sort option, or go back to browse more.
+            </p>
           </div>
         )}
       </div>

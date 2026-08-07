@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { useMemo, memo, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Minus, Clock, MapPin, AlertTriangle, Users, Check } from 'lucide-react';
+import { Plus, Minus, Clock, MapPin, AlertTriangle, Check, Star } from 'lucide-react';
 import { formatDistanceToNowStrict } from 'date-fns';
 import { useHaptics } from '@/hooks/useHaptics';
 import { Badge } from '@/components/ui/badge';
@@ -21,7 +21,7 @@ import { computeStoreStatus, formatStoreClosedMessage, type StoreAvailability } 
 import { SellerTrustBadge } from '@/components/trust/SellerTrustBadge';
 import { ProductFavoriteButton } from '@/components/favorite/ProductFavoriteButton';
 import { useAuth } from '@/contexts/AuthContext';
-import { optimizedImageUrl, handleImageError } from '@/utils/imageHelpers';
+import { optimizedImageUrl, imageSrcSet, handleImageError } from '@/utils/imageHelpers';
 
 export interface ProductWithSeller {
   id: string; seller_id: string; name: string; price: number; image_url: string | null; category: string;
@@ -146,6 +146,7 @@ function ProductListingCardInner({ product, layout = 'auto', onTap, onNavigate, 
   const onTimeBadgeMinOrders = ml.threshold('on_time_badge_min_orders');
 
   const placeholderBg = catConfig?.color ? `${catConfig.color}10` : undefined;
+  const showRating = product.seller_rating != null && product.seller_rating > 0;
 
   const [imgLoaded, setImgLoaded] = useState(false);
   const [justAdded, setJustAdded] = useState(false);
@@ -158,34 +159,54 @@ function ProductListingCardInner({ product, layout = 'auto', onTap, onNavigate, 
     }
   }, [handleAdd, isCartAction]);
 
+  const imgSrc = product.image_url ? optimizedImageUrl(product.image_url, { width: 400, quality: 78 }) : '';
+  const imgSrcSet = product.image_url ? imageSrcSet(product.image_url, 78) : '';
+
   return (
     <motion.div
       ref={cardRef}
       onClick={handleCardClick}
-      whileTap={{ scale: 0.97 }}
-      variants={{ hidden: { opacity: 0, y: 16, scale: 0.97 }, show: { opacity: 1, y: 0, scale: 1 } }}
+      whileTap={{ scale: 0.985 }}
+      variants={{ hidden: { opacity: 0, y: 12, scale: 0.98 }, show: { opacity: 1, y: 0, scale: 1 } }}
+      transition={{ type: 'spring', stiffness: 420, damping: 28 }}
       className={cn(
-        'w-full min-w-0 bg-card rounded-2xl cursor-pointer flex flex-col relative',
-        'border border-border/70 shadow-card',
-        'transition-shadow duration-150',
+        'group/card w-full min-w-0 bg-card rounded-2xl cursor-pointer flex flex-col relative overflow-hidden',
+        'border border-border/60 shadow-card',
+        'transition-[box-shadow,border-color,transform] duration-200 ease-out',
         'hover:shadow-elevated hover:border-border',
-        compact ? 'h-[252px] overflow-hidden' : 'h-full',
-        isOutOfStock && 'opacity-40 grayscale-[50%]',
-        isStoreClosed && !isOutOfStock && 'opacity-50 grayscale-[30%]',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+        compact ? 'h-[260px]' : 'h-full',
+        isOutOfStock && 'opacity-45 grayscale-[40%]',
+        isStoreClosed && !isOutOfStock && 'opacity-55 grayscale-[25%]',
         className
       )}
+      style={{ contentVisibility: 'auto', containIntrinsicSize: compact ? '160px 260px' : '160px 280px' }}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleCardClick(); } }}
     >
-      {/* Image — fixed size in compact mode so every card stays identical */}
-      <div className="relative">
+      {/* Image */}
+      <div className="relative shrink-0">
         <div className={cn(
-          "relative w-full rounded-t-2xl overflow-hidden product-image-bg",
-          compact ? "h-[142px]" : "aspect-square"
+          'relative w-full overflow-hidden product-image-bg',
+          compact ? 'h-[148px]' : 'aspect-[4/5] sm:aspect-square'
         )}>
+          {/* Shimmer placeholder until image loads */}
+          {product.image_url && !imgLoaded && (
+            <div className="absolute inset-0 product-image-shimmer" aria-hidden />
+          )}
+
           {product.image_url ? (
             <img
-              src={optimizedImageUrl(product.image_url, { width: 300, quality: 70 })}
+              src={imgSrc}
+              srcSet={imgSrcSet || undefined}
+              sizes="(max-width: 640px) 46vw, (max-width: 1024px) 30vw, 200px"
               alt={product.name}
-              className={cn("w-full h-full object-cover transition-opacity duration-300", imgLoaded ? "opacity-100" : "opacity-0")}
+              className={cn(
+                'w-full h-full object-cover transition-[opacity,transform] duration-500 ease-out',
+                'group-hover/card:scale-[1.03]',
+                imgLoaded ? 'opacity-100' : 'opacity-0'
+              )}
               loading="lazy"
               decoding="async"
               onLoad={() => setImgLoaded(true)}
@@ -196,16 +217,25 @@ function ProductListingCardInner({ product, layout = 'auto', onTap, onNavigate, 
               className="w-full h-full flex flex-col items-center justify-center gap-1.5"
               style={{
                 background: placeholderBg
-                  ? `linear-gradient(145deg, ${placeholderBg}, hsl(var(--muted)))`
-                  : 'linear-gradient(145deg, hsl(var(--muted)), hsl(var(--card)))',
+                  ? `linear-gradient(160deg, ${placeholderBg}, hsl(var(--muted)))`
+                  : 'linear-gradient(160deg, hsl(var(--muted)), hsl(var(--card)))',
               }}
             >
-              <span className={cn(compact ? "text-4xl" : "text-5xl")}>{placeholderEmoji}</span>
-              {!compact && <span className="text-[9px] text-muted-foreground font-medium max-w-[80%] text-center line-clamp-1">{product.name}</span>}
+              <span className={cn(compact ? 'text-4xl' : 'text-5xl')} aria-hidden>{placeholderEmoji}</span>
+              {!compact && (
+                <span className="text-[9px] text-muted-foreground font-medium max-w-[80%] text-center line-clamp-1 px-2">
+                  {product.name}
+                </span>
+              )}
             </div>
           )}
 
-          {/* Green flash on first add */}
+          {/* Soft bottom scrub so ADD button reads cleanly */}
+          <div
+            className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-card/80 via-card/20 to-transparent"
+            aria-hidden
+          />
+
           <AnimatePresence>
             {justAdded && (
               <motion.div
@@ -213,91 +243,153 @@ function ProductListingCardInner({ product, layout = 'auto', onTap, onNavigate, 
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                transition={{ duration: 0.3 }}
+                transition={{ duration: 0.28 }}
               >
                 <motion.div
                   initial={{ scale: 0 }}
                   animate={{ scale: 1 }}
-                  transition={{ type: 'spring', stiffness: 400, damping: 15 }}
+                  transition={{ type: 'spring', stiffness: 420, damping: 16 }}
+                  className="w-11 h-11 rounded-full bg-card/95 shadow-md flex items-center justify-center"
                 >
-                  <Check size={28} className="text-success" strokeWidth={3} />
+                  <Check size={22} className="text-success" strokeWidth={3} />
                 </motion.div>
               </motion.div>
             )}
           </AnimatePresence>
 
           {isOutOfStock && (
-            <div className="absolute inset-0 bg-background/60 flex items-center justify-center backdrop-blur-[2px]">
-              <span className="text-[10px] font-bold text-muted-foreground bg-card px-3 py-1.5 rounded-full uppercase tracking-wider shadow-sm">{mc.labels.outOfStock}</span>
+            <div className="absolute inset-0 bg-background/55 flex items-center justify-center backdrop-blur-[1.5px] z-[5]">
+              <span className="text-[10px] font-bold text-muted-foreground bg-card/95 px-3 py-1.5 rounded-full uppercase tracking-wider shadow-sm border border-border/50">
+                {mc.labels.outOfStock}
+              </span>
             </div>
           )}
 
           {isStoreClosed && !isOutOfStock && (
-            <div className="absolute inset-0 bg-background/50 flex items-center justify-center backdrop-blur-[2px]">
-              <span className="text-[10px] font-bold text-muted-foreground bg-card px-3 py-1.5 rounded-full uppercase tracking-wider shadow-sm flex items-center gap-1">
-                <Clock size={10} />{storeClosedMessage}
+            <div className="absolute inset-0 bg-background/45 flex items-center justify-center backdrop-blur-[1.5px] z-[5]">
+              <span className="text-[10px] font-bold text-muted-foreground bg-card/95 px-3 py-1.5 rounded-full uppercase tracking-wider shadow-sm border border-border/50 flex items-center gap-1 max-w-[90%] truncate">
+                <Clock size={10} className="shrink-0" />
+                <span className="truncate">{storeClosedMessage}</span>
               </span>
             </div>
           )}
 
           {/* Badges — top left */}
           {badges.length > 0 && (
-            <div className="absolute top-2 left-2 flex flex-col gap-1">
+            <div className="absolute top-2 left-2 flex flex-col gap-1 z-10 max-w-[70%]">
               {badges.map((b, i) => (
-                <Badge key={i} className={cn('text-[8px] leading-none px-2 py-0.5 font-bold rounded-full border-0 shadow-sm', b.color)}>{b.label}</Badge>
+                <Badge
+                  key={i}
+                  className={cn(
+                    'text-[8px] leading-none px-2 py-0.5 font-bold rounded-md border-0 shadow-sm truncate',
+                    b.color
+                  )}
+                >
+                  {b.label}
+                </Badge>
               ))}
             </div>
           )}
 
           {/* Discount — top right */}
           {hasDiscount && discountPct > 0 && (
-            <div className="absolute top-2 right-2">
-              <span className="bg-primary text-primary-foreground text-[9px] font-bold px-2 py-1 rounded-full shadow-sm">{discountPct}% OFF</span>
+            <div className="absolute top-2 right-2 z-10">
+              <span className="bg-badge-discount text-primary-foreground text-[9px] font-extrabold px-2 py-1 rounded-md shadow-sm tracking-wide">
+                {discountPct}% OFF
+              </span>
             </div>
           )}
 
-          {/* Favorite heart — top right (when no discount) */}
-          {user && !hasDiscount && (
-            <div className="absolute top-2 right-2" onClick={(e) => e.stopPropagation()}>
-              <ProductFavoriteButton productId={product.id} size="sm" />
+          {/* Favorite — always available; sits below discount when both present */}
+          {user && (
+            <div
+              className={cn(
+                'absolute right-1.5 z-10',
+                hasDiscount && discountPct > 0 ? 'top-9' : 'top-1.5'
+              )}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <ProductFavoriteButton
+                productId={product.id}
+                size="sm"
+                className="bg-card/90 backdrop-blur-md shadow-sm border border-border/40 text-foreground"
+              />
             </div>
           )}
 
           {showVegBadge && (
-            <div className="absolute bottom-2 right-2">
+            <div className="absolute bottom-2.5 left-2 z-10">
               <VegBadge isVeg={product.is_veg} size="sm" />
             </div>
           )}
 
           {product.accepts_preorders && (
-            <div className="absolute bottom-2 left-2">
-              <span className="bg-accent/90 text-accent-foreground text-[8px] font-bold px-2 py-0.5 rounded-full shadow-sm flex items-center gap-1">
-                <Clock size={8} />Pre-order{product.lead_time_hours ? ` · ${product.lead_time_hours}hr` : ''}
+            <div className={cn('absolute z-10', showVegBadge ? 'bottom-2.5 left-8' : 'bottom-2.5 left-2')}>
+              <span className="bg-card/90 text-foreground text-[8px] font-bold px-2 py-0.5 rounded-md shadow-sm border border-border/50 flex items-center gap-1 backdrop-blur-sm">
+                <Clock size={8} className="text-primary" />
+                Pre-order{product.lead_time_hours ? ` · ${product.lead_time_hours}hr` : ''}
               </span>
             </div>
           )}
         </div>
 
-        {/* Add button — Blinkit-style solid green ADD */}
+        {/* ADD / quantity stepper — overlapping image edge */}
         {!viewOnly && !isOutOfStock && !isStoreClosed && (
-          <div className="absolute -bottom-3.5 right-2 z-10">
+          <div className="absolute -bottom-4 right-2 z-20">
             {isCartAction && quantity > 0 ? (
-              <div className="flex items-center bg-primary rounded-lg overflow-hidden shadow-md border border-primary">
-                <motion.button whileTap={{ scale: 0.85 }} onClick={handleDecrement} className="px-2.5 py-1.5 text-primary-foreground min-w-[36px] min-h-[32px] flex items-center justify-center">
-                  <Minus size={14} strokeWidth={3} />
+              <div className="flex items-center bg-primary rounded-xl overflow-hidden shadow-cta border border-primary animate-stepper-pop">
+                <motion.button
+                  whileTap={{ scale: 0.88 }}
+                  onClick={handleDecrement}
+                  aria-label="Decrease quantity"
+                  className="px-2.5 py-2 text-primary-foreground min-w-[40px] min-h-[36px] flex items-center justify-center touch-manipulation"
+                >
+                  <Minus size={15} strokeWidth={3} />
                 </motion.button>
-                <AnimatePresence mode="popLayout"><motion.span key={quantity} initial={{ scale: 0.6, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.6, opacity: 0 }} transition={{ duration: 0.15 }} className="font-extrabold text-sm text-primary-foreground px-1.5 tabular-nums min-w-[20px] text-center">{quantity}</motion.span></AnimatePresence>
-                <motion.button whileTap={{ scale: 0.85 }} onClick={handleIncrement} disabled={!canIncrement} className={cn("px-2.5 py-1.5 text-primary-foreground min-w-[36px] min-h-[32px] flex items-center justify-center", !canIncrement && "opacity-40 cursor-not-allowed")}>
-                  <Plus size={14} strokeWidth={3} />
+                <AnimatePresence mode="popLayout">
+                  <motion.span
+                    key={quantity}
+                    initial={{ scale: 0.6, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0.6, opacity: 0 }}
+                    transition={{ duration: 0.14 }}
+                    className="font-extrabold text-sm text-primary-foreground px-1 tabular-nums min-w-[22px] text-center"
+                  >
+                    {quantity}
+                  </motion.span>
+                </AnimatePresence>
+                <motion.button
+                  whileTap={{ scale: 0.88 }}
+                  onClick={handleIncrement}
+                  disabled={!canIncrement}
+                  aria-label="Increase quantity"
+                  className={cn(
+                    'px-2.5 py-2 text-primary-foreground min-w-[40px] min-h-[36px] flex items-center justify-center touch-manipulation',
+                    !canIncrement && 'opacity-40 cursor-not-allowed'
+                  )}
+                >
+                  <Plus size={15} strokeWidth={3} />
                 </motion.button>
               </div>
             ) : (
               <motion.button
-                whileTap={{ scale: 0.92 }}
+                whileTap={{ scale: 0.94 }}
                 onClick={handleAddWithFeedback}
-                className="bg-card text-primary font-extrabold text-[11px] px-3.5 py-1.5 rounded-lg border-[1.5px] border-primary shadow-sm hover:bg-primary hover:text-primary-foreground transition-colors uppercase tracking-wide min-h-[32px] flex items-center gap-0.5"
+                aria-label={isCartAction ? 'Add to cart' : actionConfig.shortLabel}
+                className={cn(
+                  'bg-card text-primary font-extrabold text-[11px] px-3.5 py-2 rounded-xl',
+                  'border-[1.5px] border-primary shadow-sm',
+                  'hover:bg-primary hover:text-primary-foreground',
+                  'transition-colors uppercase tracking-wide',
+                  'min-h-[36px] min-w-[56px] flex items-center justify-center gap-1',
+                  'touch-manipulation'
+                )}
               >
-                {justAdded ? <><Check size={12} strokeWidth={3} /> ADDED</> : (isCartAction ? 'ADD' : actionConfig.shortLabel)}
+                {justAdded ? (
+                  <><Check size={12} strokeWidth={3} /> ADDED</>
+                ) : (
+                  isCartAction ? 'ADD' : actionConfig.shortLabel
+                )}
               </motion.button>
             )}
           </div>
@@ -306,14 +398,18 @@ function ProductListingCardInner({ product, layout = 'auto', onTap, onNavigate, 
 
       {compact ? (
         <div className={cn(
-          "h-[110px] overflow-hidden px-2.5 pb-2.5",
-          !viewOnly && !isOutOfStock ? "pt-6" : "pt-3"
+          'h-[112px] overflow-hidden px-2.5 pb-2.5',
+          !viewOnly && !isOutOfStock && !isStoreClosed ? 'pt-6' : 'pt-3'
         )}>
           <div className="flex h-full flex-col overflow-hidden">
             <div className="min-h-[20px] flex items-baseline gap-1.5 overflow-hidden">
-              <span className="font-bold text-[15px] text-foreground leading-none tracking-tight tabular-nums">{formatPrice(product.price)}</span>
+              <span className="font-extrabold text-[15px] text-foreground leading-none tracking-tight tabular-nums">
+                {formatPrice(product.price)}
+              </span>
               {hasDiscount && (
-                <span className="text-[11px] text-muted-foreground line-through leading-none tabular-nums">{formatPrice(product.mrp!)}</span>
+                <span className="text-[11px] text-muted-foreground/80 line-through leading-none tabular-nums">
+                  {formatPrice(product.mrp!)}
+                </span>
               )}
             </div>
 
@@ -330,14 +426,23 @@ function ProductListingCardInner({ product, layout = 'auto', onTap, onNavigate, 
         </div>
       ) : (
         <div className={cn(
-          "flex flex-1 flex-col justify-between overflow-hidden px-3 pb-3",
-          !viewOnly && !isOutOfStock ? "pt-6" : "pt-3"
+          'flex flex-1 flex-col min-h-0 overflow-hidden px-2.5 sm:px-3 pb-3',
+          !viewOnly && !isOutOfStock && !isStoreClosed ? 'pt-6' : 'pt-3'
         )}>
-          {/* Price row — always first for scannability */}
-          <div className="flex items-baseline gap-1.5">
-            <span className="font-bold text-[15px] text-foreground leading-none tracking-tight tabular-nums">{formatPrice(product.price)}</span>
+          {/* Price row */}
+          <div className="flex items-baseline gap-1.5 flex-wrap">
+            <span className="font-extrabold text-[15px] sm:text-base text-foreground leading-none tracking-tight tabular-nums">
+              {formatPrice(product.price)}
+            </span>
             {hasDiscount && (
-              <span className="text-[11px] text-muted-foreground line-through leading-none tabular-nums">{formatPrice(product.mrp!)}</span>
+              <span className="text-[11px] text-muted-foreground/80 line-through leading-none tabular-nums">
+                {formatPrice(product.mrp!)}
+              </span>
+            )}
+            {hasDiscount && discountPct > 0 && (
+              <span className="text-[10px] font-bold text-badge-discount leading-none">
+                {discountPct}% off
+              </span>
             )}
           </div>
 
@@ -345,41 +450,61 @@ function ProductListingCardInner({ product, layout = 'auto', onTap, onNavigate, 
             <span className="text-[10px] font-medium text-muted-foreground mt-0.5 line-clamp-1">{variantText}</span>
           )}
 
-          <h4 className="font-semibold leading-snug text-foreground text-[12px] line-clamp-2 mt-1 min-h-[2lh]">{product.name}</h4>
+          <h4 className="font-semibold leading-snug text-foreground text-[12px] sm:text-[13px] line-clamp-2 mt-1 min-h-[2lh]">
+            {product.name}
+          </h4>
 
-          {product.description && !compact && (
+          {product.description && (
             <p className="text-[10px] text-muted-foreground line-clamp-1 mt-0.5">{product.description}</p>
           )}
 
-          {product.seller_name && !compact && (
-            <div className="flex items-center gap-1 mt-1 overflow-hidden flex-wrap">
-              <span className={cn("text-[10px] truncate", product.distance_km && product.distance_km > 0 ? "text-foreground font-medium" : "text-muted-foreground")}>{product.seller_name}</span>
+          {/* Store + trust row */}
+          {product.seller_name && (
+            <div className="flex items-center gap-1 mt-1.5 overflow-hidden min-w-0">
+              <span
+                className={cn(
+                  'text-[10px] truncate min-w-0',
+                  product.distance_km && product.distance_km > 0 ? 'text-foreground font-medium' : 'text-muted-foreground'
+                )}
+              >
+                {product.seller_name}
+              </span>
+              {showRating && (
+                <span className="inline-flex items-center gap-0.5 shrink-0 text-[9px] font-bold text-foreground bg-secondary px-1.5 py-0.5 rounded-md">
+                  <Star size={8} className="text-rating-star fill-rating-star" />
+                  {Number(product.seller_rating).toFixed(1)}
+                </span>
+              )}
               {product.seller_verified && (
-                <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-full bg-primary/10 text-primary shrink-0">Verified</span>
+                <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-md bg-primary/10 text-primary shrink-0">
+                  Verified
+                </span>
               )}
               {(product as any).is_same_society && (
-                <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-full bg-success/10 text-success shrink-0">Your society</span>
+                <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-md bg-success/10 text-success shrink-0">
+                  Your society
+                </span>
               )}
               {product.seller_id && <SellerTrustBadge sellerId={product.seller_id} size="sm" />}
               {(product as any).avg_response_minutes != null && (product as any).avg_response_minutes > 0 && (product as any).avg_response_minutes <= 15 && (
-                <span className="text-[9px] px-1 py-0.5 rounded-full bg-success/10 text-success flex items-center gap-0.5 shrink-0">
+                <span className="text-[9px] px-1 py-0.5 rounded-md bg-success/10 text-success flex items-center gap-0.5 shrink-0">
                   ⚡~{(product as any).avg_response_minutes}m
                 </span>
               )}
             </div>
           )}
 
-          {!compact && deliveryText && (
-            <div className="flex items-center gap-1 mt-0.5">
-              <Clock size={9} className="text-primary shrink-0" />
-              <span className="text-[10px] font-semibold text-primary">{deliveryText}</span>
+          {deliveryText && (
+            <div className="flex items-center gap-1 mt-1">
+              <Clock size={10} className="text-primary shrink-0" />
+              <span className="text-[10px] font-semibold text-primary truncate">{deliveryText}</span>
             </div>
           )}
 
-          {!compact && (activityLabel || isSellerInactive) && (
+          {(activityLabel || isSellerInactive) && (
             <div className="flex items-center gap-1 mt-0.5">
               {isSellerInactive ? (
-                <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-destructive/10 text-destructive flex items-center gap-0.5">
+                <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-destructive/10 text-destructive flex items-center gap-0.5">
                   <AlertTriangle size={8} />Store may be unresponsive
                 </span>
               ) : activityLabel ? (
@@ -388,9 +513,12 @@ function ProductListingCardInner({ product, layout = 'auto', onTap, onNavigate, 
             </div>
           )}
 
-          {!compact && locationLabel && (
+          {locationLabel && (
             <div
-              className={cn("flex items-center gap-1 mt-1", (product as any).seller_latitude && (product as any).seller_longitude && "cursor-pointer hover:text-primary transition-colors")}
+              className={cn(
+                'flex items-center gap-1 mt-1 min-w-0',
+                (product as any).seller_latitude && (product as any).seller_longitude && 'cursor-pointer hover:text-primary transition-colors'
+              )}
               onClick={(e) => {
                 const lat = (product as any).seller_latitude;
                 const lng = (product as any).seller_longitude;
@@ -400,7 +528,7 @@ function ProductListingCardInner({ product, layout = 'auto', onTap, onNavigate, 
                   window.open(`https://www.google.com/maps/search/?api=1&query=${lat},${lng}`, '_blank');
                 }
               }}
-              title={(product as any).seller_latitude ? "Open in Google Maps" : undefined}
+              title={(product as any).seller_latitude ? 'Open in Google Maps' : undefined}
             >
               <MapPin size={9} className="shrink-0 text-muted-foreground" />
               <span className="text-[10px] font-medium text-muted-foreground leading-tight truncate">
@@ -415,7 +543,7 @@ function ProductListingCardInner({ product, layout = 'auto', onTap, onNavigate, 
         <div className="px-3 pb-3">
           <button
             onClick={(e) => { e.stopPropagation(); if (onViewClick) { onViewClick(); } else { onNavigate?.(`/seller/${product.seller_id}`); } }}
-            className="w-full border-2 border-primary text-primary font-bold text-xs py-2.5 rounded-xl hover:bg-primary hover:text-primary-foreground transition-all duration-200"
+            className="w-full border-[1.5px] border-primary text-primary font-bold text-xs py-2.5 rounded-xl hover:bg-primary hover:text-primary-foreground transition-colors duration-200 min-h-[44px] touch-manipulation"
           >
             {onViewClick ? 'View Details' : mc.labels.viewButton}
           </button>

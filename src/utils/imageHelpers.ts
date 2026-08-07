@@ -43,7 +43,7 @@ export function optimizedImageUrl(
 
 /**
  * Generates a srcSet string for responsive images.
- * Returns sizes at 150w, 300w, and 600w.
+ * Returns sizes at 150w, 300w, 400w, and 600w for crisp listing cards.
  */
 export function imageSrcSet(
   url: string | null | undefined,
@@ -54,6 +54,7 @@ export function imageSrcSet(
   return [
     `${optimizedImageUrl(url, { width: 150, quality })} 150w`,
     `${optimizedImageUrl(url, { width: 300, quality })} 300w`,
+    `${optimizedImageUrl(url, { width: 400, quality })} 400w`,
     `${optimizedImageUrl(url, { width: 600, quality })} 600w`,
   ].join(', ');
 }

@@ -454,6 +454,33 @@
     background-color: hsl(var(--product-image-bg));
   }
 
+  /* Soft shimmer while product photos decode */
+  .product-image-shimmer {
+    background: linear-gradient(
+      110deg,
+      hsl(var(--product-image-bg)) 25%,
+      hsl(var(--muted)) 45%,
+      hsl(var(--product-image-bg)) 65%
+    );
+    background-size: 200% 100%;
+    animation: productImageShimmer 1.35s ease-in-out infinite;
+  }
+
+  @keyframes productImageShimmer {
+    0% { background-position: 100% 0; }
+    100% { background-position: -100% 0; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .product-image-shimmer {
+      animation: none;
+    }
+    .group-hover\/card\:scale-\[1\.03\],
+    .group-hover\/grid\:scale-\[1\.03\] {
+      transform: none !important;
+    }
+  }
+
   /* Section header style */
   .section-header {
     @apply font-extrabold text-base text-foreground tracking-tight flex items-center gap-2;
