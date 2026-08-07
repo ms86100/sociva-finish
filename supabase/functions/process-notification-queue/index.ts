@@ -630,7 +630,9 @@ Deno.serve(async (req) => {
           const isOrderRelated = notifType === "order" || notifType === "order_status" || notifType === "order_update"
             || notifType.startsWith("delivery_") || notifType.startsWith("booking_");
           if (isOrderRelated && userPrefs.orders === false) prefAllowed = false;
-          if (notifType === "chat" && userPrefs.chat === false) prefAllowed = false;
+          if ((notifType === "chat" || notifType === "chat_message" || notifType === "message") && userPrefs.chat === false) {
+            prefAllowed = false;
+          }
           if ((notifType === "promotion" || notifType === "campaign") && userPrefs.promotions === false) {
             prefAllowed = false;
           }

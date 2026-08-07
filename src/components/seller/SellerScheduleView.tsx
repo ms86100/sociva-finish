@@ -140,14 +140,12 @@ export function SellerScheduleView({ sellerId }: SellerScheduleViewProps) {
               {dayBookings.map((booking, i) => {
                 const isLast = i === dayBookings.length - 1;
                 const isActive = booking.status === 'in_progress';
-                const isPending = booking.status === 'requested';
                 return (
-                  <div key={booking.id} className={cn('flex gap-3', isPending && 'opacity-90')}>
+                  <div key={booking.id} className="flex gap-3">
                     <div className="flex flex-col items-center">
                       <div className={cn(
                         'w-2.5 h-2.5 rounded-full mt-1.5 shrink-0 z-10',
                         isActive ? 'bg-primary ring-2 ring-primary/30' :
-                        isPending ? 'bg-blue-400 ring-2 ring-blue-200 animate-pulse' :
                         booking.status === 'completed' ? 'bg-muted-foreground' : 'bg-primary/50'
                       )} />
                       {!isLast && <div className="w-px flex-1 bg-border min-h-[40px]" />}
@@ -170,16 +168,6 @@ export function SellerScheduleView({ sellerId }: SellerScheduleViewProps) {
                         <User size={10} /> {booking.buyer_name || 'Customer'}
                       </p>
                       <div className="flex gap-1.5 mt-1.5">
-                        {isPending && (
-                          <Button
-                            variant="default"
-                            size="sm"
-                            className="h-6 text-[10px] px-2 gap-1"
-                            onClick={() => navigate(`/orders/${booking.order_id}`)}
-                          >
-                            <CalendarCheck size={10} /> Accept
-                          </Button>
-                        )}
                         <Button
                           variant="ghost"
                           size="sm"

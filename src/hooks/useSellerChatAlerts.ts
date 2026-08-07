@@ -1,21 +1,23 @@
 // @ts-nocheck
 /**
- * Seller-wide realtime listener for incoming chat messages.
+ * App-wide realtime listener for incoming order chat messages (buyers + sellers).
  * - Plays the same gate-bell sound used for new orders
  * - Shows a toast with sender name + preview + Reply CTA that deep-links to the order chat
- * - Increments a global unread counter exposed via getter
+ * - Syncs a global unread counter into React Query key ['chat-unread-count', userId]
  *
- * Mounted once at the app shell when the user is a seller.
+ * Mount once via GlobalChatAlerts for any authenticated user.
  */
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { hapticNotification } from '@/lib/haptics';
 import { isChatActive, onSilenceChatBell } from '@/lib/activeChatRegistry';
 
-export function useSellerChatAlerts(sellerUserId: string | null | undefined, enabled: boolean) {
+export function useChatAlerts(userId: string | null | undefined, enabled: boolean) {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [unreadCount, setUnreadCount] = useState(0);
 
   // Lazy-loaded audio (reuse the same gate_bell.mp3 used by useNewOrderAlert)
@@ -65,7 +67,13 @@ export function useSellerChatAlerts(sellerUserId: string | null | undefined, ena
     } catch {/* noop */}
   }, [ensureAudio]);
 
-  // Listen for explicit silence requests (seller opened/replied in chat).
+  // Keep React Query cache in sync so dashboards/headers can read without a second subscription.
+  useEffect(() => {
+    if (!userId) return;
+    queryClient.setQueryData(['chat-unread-count', userId], unreadCount);
+  }, [userId, unreadCount, queryClient]);
+
+  // Listen for explicit silence requests (user opened/replied in chat).
   useEffect(() => {
     return onSilenceChatBell((orderId) => {
       const src = activeSourcesRef.current.get(orderId);
@@ -80,38 +88,38 @@ export function useSellerChatAlerts(sellerUserId: string | null | undefined, ena
 
   // Initial unread count
   useEffect(() => {
-    if (!enabled || !sellerUserId) return;
+    if (!enabled || !userId) return;
     let cancelled = false;
     (async () => {
       const { count } = await supabase
         .from('chat_messages')
         .select('id', { count: 'exact', head: true })
-        .eq('receiver_id', sellerUserId)
+        .eq('receiver_id', userId)
         .eq('read_status', false);
       if (!cancelled && typeof count === 'number') setUnreadCount(count);
     })();
     return () => { cancelled = true; };
-  }, [enabled, sellerUserId]);
+  }, [enabled, userId]);
 
-  // Realtime: chat_messages where receiver = seller
+  // Realtime: chat_messages where receiver = this user
   useEffect(() => {
-    if (!enabled || !sellerUserId) return;
+    if (!enabled || !userId) return;
 
     const channel = supabase
-      .channel(`seller-chat-alerts-${sellerUserId}`)
+      .channel(`chat-alerts-${userId}`)
       .on(
         'postgres_changes',
         {
           event: 'INSERT',
           schema: 'public',
           table: 'chat_messages',
-          filter: `receiver_id=eq.${sellerUserId}`,
+          filter: `receiver_id=eq.${userId}`,
         },
         async (payload) => {
           const msg: any = payload.new;
           if (!msg) return;
 
-          // If the seller is currently in this chat, count silently and skip bell + toast.
+          // If the user is currently in this chat, count silently and skip bell + toast.
           const chatOpen = isChatActive(msg.order_id);
           if (chatOpen) {
             // Don't increment unread either — they'll see/auto-mark it inside the open chat.
@@ -123,7 +131,7 @@ export function useSellerChatAlerts(sellerUserId: string | null | undefined, ena
           hapticNotification('success');
 
           // Resolve sender display name (best effort)
-          let senderName = 'Customer';
+          let senderName = 'Someone';
           try {
             const { data } = await supabase
               .from('profiles')
@@ -151,7 +159,7 @@ export function useSellerChatAlerts(sellerUserId: string | null | undefined, ena
           event: 'UPDATE',
           schema: 'public',
           table: 'chat_messages',
-          filter: `receiver_id=eq.${sellerUserId}`,
+          filter: `receiver_id=eq.${userId}`,
         },
         (payload) => {
           const oldRow: any = payload.old;
@@ -165,7 +173,10 @@ export function useSellerChatAlerts(sellerUserId: string | null | undefined, ena
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [enabled, sellerUserId, playBell, navigate]);
+  }, [enabled, userId, playBell, navigate]);
 
   return { unreadCount };
 }
+
+/** @deprecated Prefer useChatAlerts — kept as alias for existing imports. */
+export const useSellerChatAlerts = useChatAlerts;

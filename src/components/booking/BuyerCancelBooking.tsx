@@ -21,9 +21,16 @@ import { XCircle, Loader2, AlertTriangle } from 'lucide-react';
 interface BuyerCancelBookingProps {
   bookingId: string;
   orderId: string;
-  slotId: string;
+  slotId?: string;
   status: string;
 }
+
+type CancelPolicyInfo = {
+  can_cancel: boolean;
+  fee_percentage?: number;
+  cancel_fee?: number;
+  reason: string;
+};
 
 /** DB-driven terminal status check — cached per session */
 let terminalBookingStatuses: Set<string> | null = null;
@@ -40,13 +47,13 @@ async function loadTerminalBookingStatuses(): Promise<Set<string>> {
   return set;
 }
 
-export function BuyerCancelBooking({ bookingId, orderId, slotId, status }: BuyerCancelBookingProps) {
+export function BuyerCancelBooking({ bookingId, orderId, status }: BuyerCancelBookingProps) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [isOpen, setIsOpen] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
   const [reason, setReason] = useState('');
-  const [policyInfo, setPolicyInfo] = useState<{ can_cancel: boolean; fee_percentage: number; reason: string } | null>(null);
+  const [policyInfo, setPolicyInfo] = useState<CancelPolicyInfo | null>(null);
   const [isChecking, setIsChecking] = useState(false);
   const [hidden, setHidden] = useState(true);
 
@@ -59,6 +66,8 @@ export function BuyerCancelBooking({ bookingId, orderId, slotId, status }: Buyer
 
   if (hidden) return null;
 
+  const cancelFeePercent = Number(policyInfo?.cancel_fee ?? policyInfo?.fee_percentage ?? 0);
+
   const checkPolicy = async () => {
     if (!user) return;
     setIsChecking(true);
@@ -69,9 +78,9 @@ export function BuyerCancelBooking({ bookingId, orderId, slotId, status }: Buyer
         _actor_id: user.id,
       });
       if (error) throw error;
-      setPolicyInfo(data as any);
+      setPolicyInfo(data as CancelPolicyInfo);
     } catch {
-      setPolicyInfo({ can_cancel: false, fee_percentage: 0, reason: 'Unable to check cancellation policy. Please try again.' });
+      setPolicyInfo({ can_cancel: false, fee_percentage: 0, cancel_fee: 0, reason: 'Unable to check cancellation policy. Please try again.' });
     } finally {
       setIsChecking(false);
     }
@@ -81,7 +90,6 @@ export function BuyerCancelBooking({ bookingId, orderId, slotId, status }: Buyer
     if (!user || isCancelling) return;
     setIsCancelling(true);
     try {
-      // Bug #19 fix: Use buyer_cancel_order RPC to respect workflow transitions
       const { error: rpcError } = await supabase.rpc('buyer_cancel_order', {
         _order_id: orderId,
         _reason: reason.trim().slice(0, 500) || 'No reason provided',
@@ -89,7 +97,8 @@ export function BuyerCancelBooking({ bookingId, orderId, slotId, status }: Buyer
 
       if (rpcError) throw rpcError;
 
-      // Update booking status (the order is already cancelled by the RPC)
+      // Update booking status if needed (order already cancelled by RPC;
+      // slot release is handled by sync_booking_status_on_order_update_impl)
       const { error: bookingErr } = await supabase
         .from('service_bookings')
         .update({
@@ -104,13 +113,7 @@ export function BuyerCancelBooking({ bookingId, orderId, slotId, status }: Buyer
         toast.error('Order cancelled, but booking status may still show active. Contact support if needed.');
       }
 
-      // Release the slot
-      if (slotId) {
-        const { error: slotErr } = await supabase.rpc('release_service_slot', { _slot_id: slotId });
-        if (slotErr) console.error('Failed to release service slot:', slotErr);
-      }
-
-      // Send notification to seller
+      // Notify seller via SECURITY DEFINER enqueue (not direct notification_queue insert)
       const { data: bookingData } = await supabase
         .from('service_bookings')
         .select('seller_id, booking_date, start_time, product_id')
@@ -131,13 +134,13 @@ export function BuyerCancelBooking({ bookingId, orderId, slotId, status }: Buyer
             .eq('id', bookingData.product_id)
             .single();
 
-          await supabase.from('notification_queue').insert({
-            user_id: sellerProfile.user_id,
-            type: 'order',
-            title: '📋 Booking Cancelled by Buyer',
-            body: `A booking for ${product?.name || 'your service'} on ${bookingData.booking_date} at ${bookingData.start_time?.slice(0, 5)} has been cancelled.`,
-            reference_path: `/orders/${orderId}`,
-            payload: { orderId, status: 'cancelled', type: 'order' },
+          await supabase.rpc('enqueue_user_notification', {
+            _user_id: sellerProfile.user_id,
+            _type: 'order',
+            _title: 'Booking Cancelled by Buyer',
+            _body: `A booking for ${product?.name || 'your service'} on ${bookingData.booking_date} at ${bookingData.start_time?.slice(0, 5)} has been cancelled.`,
+            _reference_path: `/orders/${orderId}`,
+            _payload: { orderId, status: 'cancelled', type: 'order' },
           });
           supabase.functions.invoke('process-notification-queue').catch(() => {});
         }
@@ -191,9 +194,9 @@ export function BuyerCancelBooking({ bookingId, orderId, slotId, status }: Buyer
                 ) : (
                   <>
                     <span>{policyInfo.reason}</span>
-                    {policyInfo.fee_percentage > 0 && (
+                    {cancelFeePercent > 0 && (
                       <span className="block font-medium text-destructive">
-                        ⚠️ A {policyInfo.fee_percentage}% cancellation fee will apply.
+                        ⚠️ A {cancelFeePercent}% cancellation fee will apply.
                       </span>
                     )}
                   </>

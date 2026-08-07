@@ -80,7 +80,7 @@ import { useSecurityOfficer } from "@/hooks/useSecurityOfficer";
 import { useAppLifecycle } from "@/hooks/useAppLifecycle";
 import { useReorderInterceptor } from "@/hooks/useReorderInterceptor";
 import { useNewOrderAlert } from "@/hooks/useNewOrderAlert";
-import { useSellerChatAlerts } from "@/hooks/useSellerChatAlerts";
+import { useChatAlerts } from "@/hooks/useSellerChatAlerts";
 import { NewOrderAlertProvider, useNewOrderAlertContext } from "@/contexts/NewOrderAlertContext";
 import { NewOrderAlertOverlay } from "@/components/seller/NewOrderAlertOverlay";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -376,6 +376,14 @@ function NavigationHandler() {
   return null;
 }
 
+/** Chat bell/toast for any authenticated user (buyer or seller). Single mount — avoid pairing with seller-only alerts. */
+function GlobalChatAlerts() {
+  const identity = React.useContext(IdentityCtx);
+  const userId = identity?.user?.id ?? null;
+  useChatAlerts(userId, !!userId);
+  return null;
+}
+
 function GlobalSellerAlert() {
   const identity = React.useContext(IdentityCtx);
   const seller = React.useContext(SellerCtx);
@@ -386,7 +394,6 @@ function GlobalSellerAlert() {
 }
 
 function GlobalSellerAlertActive() {
-  const identity = React.useContext(IdentityCtx);
   const seller = React.useContext(SellerCtx);
   const { registerDismissById, registerDismissAll } = useNewOrderAlertContext();
   const sellerIds = React.useMemo(
@@ -394,7 +401,6 @@ function GlobalSellerAlertActive() {
     [seller?.sellerProfiles]
   );
   const { pendingAlerts, dismiss, dismissById, dismissAll, snooze } = useNewOrderAlert(sellerIds);
-  useSellerChatAlerts(identity?.user?.id ?? null, true);
 
   React.useEffect(() => {
     registerDismissById(dismissById);
@@ -646,6 +652,7 @@ function App() {
                   <CartProvider>
                     <NewOrderAlertProvider>
                     <PushNotificationProvider>
+                      <GlobalChatAlerts />
                       <SafeSellerAlert><GlobalSellerAlert /></SafeSellerAlert>
                       <AppRoutes />
                     </PushNotificationProvider>

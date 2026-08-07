@@ -109,6 +109,7 @@ export function useAppLifecycle() {
               'seller-analytics-charts', 'seller-refund-requests',
               'seller-reliability', 'seller-customers',
               'orders', 'active-orders-strip',
+              'seller-chat', 'unread-chat-counts', 'chat-unread-count',
             ]);
             queryClient.invalidateQueries({
               predicate: (query) => {

@@ -11731,19 +11731,22 @@ export type Database = {
       }
       create_service_booking_atomic: {
         Args: {
-          _addon_ids?: string[]
+          _addons?: Json
           _booking_date: string
           _buyer_address?: string
           _end_time: string
           _fulfillment_type?: string
-          _idempotency_key?: string
+          _idempotency_key: string
           _location_type?: string
           _notes?: string
           _product_id: string
+          _product_name: string
           _recurring?: Json
           _seller_id: string
           _slot_id: string
           _start_time: string
+          _total_amount: number
+          _unit_price: number
         }
         Returns: Json
       }
@@ -11771,6 +11774,17 @@ export type Database = {
       cron_extend_all_seller_slots: { Args: never; Returns: undefined }
       disable_cron_job: { Args: { _job_name: string }; Returns: undefined }
       enable_cron_job: { Args: { _job_name: string }; Returns: undefined }
+      enqueue_user_notification: {
+        Args: {
+          _body: string
+          _payload?: Json
+          _reference_path?: string
+          _title: string
+          _type: string
+          _user_id: string
+        }
+        Returns: string
+      }
       ensure_subcategory_for_request: {
         Args: { req_id: string }
         Returns: string
@@ -12599,6 +12613,16 @@ export type Database = {
           p_refund_destination?: string
         }
         Returns: string
+      }
+      reschedule_service_booking: {
+        Args: {
+          _booking_id: string
+          _new_date: string
+          _new_end_time: string
+          _new_slot_id: string
+          _new_start_time: string
+        }
+        Returns: Json
       }
       reserve_loyalty_points: {
         Args: {

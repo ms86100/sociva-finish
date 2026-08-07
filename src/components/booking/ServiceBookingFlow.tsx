@@ -14,7 +14,7 @@ import { ServiceAddonPicker, SelectedAddon } from './ServiceAddonPicker';
 import { RecurringBookingSelector, RecurringConfig } from './RecurringBookingSelector';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCategoryBehavior } from '@/hooks/useCategoryBehavior';
-import { useServiceSlots, slotsToPickerFormat, findSlot } from '@/hooks/useServiceSlots';
+import { useServiceSlots, slotsToPickerFormat } from '@/hooks/useServiceSlots';
 import { useSubcategories } from '@/hooks/useSubcategories';
 import { supabase } from '@/integrations/supabase/client';
 import { useCurrency } from '@/hooks/useCurrency';
@@ -197,7 +197,6 @@ export function ServiceBookingFlow({
 
       const normalizedTime = selectedTime.length === 5 ? selectedTime + ':00' : selectedTime;
 
-      // Bug 7 fix: Validate product is still available before booking
       const { data: freshProduct } = await supabase
         .from('products')
         .select('is_available, approval_status')
@@ -230,152 +229,74 @@ export function ServiceBookingFlow({
       }
 
       const slot = freshSlots;
-
-      // Bug 4 fix: deterministic idempotency key prevents duplicate booking orders
+      const effectiveLocationType = resolvedLocation || locationType || 'at_seller';
       const idempotencyKey = `booking_${user.id}_${productId}_${dateStr}_${normalizedTime}`;
 
-      const { data: order, error: orderErr } = await supabase
-        .from('orders')
-        .insert({
-          buyer_id: user.id,
-          seller_id: sellerId,
-          total_amount: totalAmount,
-          order_type: 'booking',
-          status: 'confirmed',
-          payment_type: 'cod',
-          payment_status: 'pending',
-          transaction_type: 'service_booking',
-          idempotency_key: idempotencyKey,
-          notes: notes.trim().slice(0, MAX_NOTES_LENGTH) || null,
-          delivery_address: needsAddress && buyerAddress.trim() ? buyerAddress.trim().slice(0, MAX_ADDRESS_LENGTH) : null,
-          fulfillment_type: resolvedLocation || locationType || 'at_seller',
-        } as any)
-        .select('id')
-        .single();
-
-      // If duplicate key conflict, find existing order and navigate to it
-      if (orderErr && (orderErr.code === '23505' || orderErr.message?.includes('duplicate'))) {
-        const { data: existingOrder } = await (supabase
-          .from('orders')
-          .select('id')
-          .eq('buyer_id', user.id)
-          .eq('order_type', 'booking') as any)
-          .eq('idempotency_key', idempotencyKey)
-          .single();
-        if (existingOrder) {
-          toast.info('This booking already exists.');
-          onOpenChange(false);
-          navigate(`/orders/${existingOrder.id}`);
-          return;
-        }
-        throw orderErr;
-      }
-
-      if (orderErr || !order) throw orderErr || new Error('Failed to create order');
-
-      const { error: itemErr } = await supabase.from('order_items').insert({
-        order_id: order.id,
-        product_id: productId,
-        product_name: productName,
-        quantity: 1,
-        unit_price: price,
+      const { data: bookResult, error: bookErr } = await supabase.rpc('create_service_booking_atomic', {
+        _seller_id: sellerId,
+        _product_id: productId,
+        _slot_id: slot.id,
+        _booking_date: dateStr,
+        _start_time: slot.start_time,
+        _end_time: slot.end_time,
+        _total_amount: totalAmount,
+        _product_name: productName,
+        _unit_price: price,
+        _idempotency_key: idempotencyKey,
+        _notes: notes.trim().slice(0, MAX_NOTES_LENGTH) || null,
+        _buyer_address: needsAddress && buyerAddress.trim()
+          ? buyerAddress.trim().slice(0, MAX_ADDRESS_LENGTH)
+          : null,
+        _location_type: effectiveLocationType,
+        _fulfillment_type: effectiveLocationType,
+        _addons: selectedAddons.map((a) => ({
+          id: a.id,
+          name: a.name || 'Add-on',
+          price: a.price,
+        })),
+        _recurring: recurringConfig.enabled
+          ? {
+              enabled: true,
+              frequency: recurringConfig.frequency,
+              endDate: recurringConfig.endDate || null,
+              dayOfWeek: selectedDate.getDay(),
+            }
+          : null,
       });
-
-      if (itemErr) {
-        // Bug 13 fix: Use buyer_cancel_order RPC instead of client-side delete (RLS blocks DELETE)
-        try { await supabase.rpc('buyer_cancel_order', { _order_id: order.id, _reason: 'booking_setup_failed' }); } catch {}
-        throw itemErr;
-      }
-
-      const effectiveLocationType = resolvedLocation || locationType || 'at_seller';
-      const { data: bookResult, error: bookErr } = await supabase
-        .rpc('book_service_slot', {
-          _slot_id: slot.id,
-          _buyer_id: user.id,
-          _seller_id: sellerId,
-          _product_id: productId,
-          _order_id: order.id,
-          _booking_date: dateStr,
-          _start_time: slot.start_time,
-          _end_time: slot.end_time,
-          _location_type: effectiveLocationType,
-          _buyer_address: buyerAddress.trim().slice(0, MAX_ADDRESS_LENGTH) || null,
-          _notes: notes.trim().slice(0, MAX_NOTES_LENGTH) || null,
-        });
 
       if (bookErr) throw bookErr;
 
-      const result = bookResult as any;
+      const result = bookResult as {
+        success?: boolean;
+        error?: string;
+        order_id?: string;
+        booking_id?: string;
+      } | null;
       if (!result?.success) {
-        // Bug 13 fix: Use RPC for cleanup instead of client-side delete
-        try { await supabase.rpc('buyer_cancel_order', { _order_id: order.id, _reason: 'slot_booking_failed' }); } catch {}
-        toast.error(result?.error || 'Failed to book slot');
+        toast.error(result?.error || 'Failed to create booking');
         refetchSlots();
         setIsLoading(false);
         isSubmittingRef.current = false;
         return;
       }
 
-      const bookingId = result.booking_id;
-
-      if (selectedAddons.length > 0 && bookingId) {
-        const { error: addonErr } = await supabase.from('service_booking_addons').insert(
-          selectedAddons.map(a => ({
-            booking_id: bookingId,
-            addon_id: a.id,
-            addon_name: a.name || 'Add-on',
-            addon_price: a.price,
-          }))
-        );
-        if (addonErr) {
-          console.error('Failed to save addons:', addonErr);
-          toast.error('Your booking was created, but add-ons could not be saved. Please contact the seller.');
-        }
-      }
-
-      if (recurringConfig.enabled && bookingId) {
-        const dayOfWeek = selectedDate ? selectedDate.getDay() : 0;
-        const { error: recurErr } = await supabase.from('service_recurring_configs').insert({
-          booking_id: bookingId,
-          buyer_id: user.id,
-          seller_id: sellerId,
-          product_id: productId,
-          frequency: recurringConfig.frequency,
-          preferred_time: slot.start_time,
-          start_date: dateStr,
-          end_date: recurringConfig.endDate || null,
-          day_of_week: dayOfWeek,
-        });
-        if (recurErr) {
-          console.error('Failed to save recurring config:', recurErr);
-          toast.info('Booking created, but recurring schedule failed. Please set it up again.');
-        }
-      }
-
-      if (sellerProfile?.user_id) {
-        await supabase.from('notification_queue').insert({
-          user_id: sellerProfile.user_id,
-          type: 'order',
-          title: '✅ New Booking Confirmed',
-          body: `${user.user_metadata?.name || 'A customer'} booked ${productName} on ${dateStr} at ${slot.start_time.slice(0, 5)}`,
-          reference_path: `/orders/${order.id}`,
-          payload: { orderId: order.id, status: 'confirmed', type: 'order' },
-        });
-      }
+      const orderId = result.order_id;
+      if (!orderId) throw new Error('Booking succeeded but no order_id returned');
 
       supabase.functions.invoke('process-notification-queue').catch(() => {});
 
       queryClient.invalidateQueries({ queryKey: ['service-slots', productId] });
+      queryClient.invalidateQueries({ queryKey: ['service-slots-store', productId] });
       queryClient.invalidateQueries({ queryKey: ['seller-service-bookings'] });
       queryClient.invalidateQueries({ queryKey: ['buyer-service-bookings'] });
       window.dispatchEvent(new Event('booking-changed'));
 
-      toast.success('Booking request sent!');
+      toast.success('Booking confirmed!');
       onOpenChange(false);
-      navigate(`/orders/${order.id}`);
+      navigate(`/orders/${orderId}`);
     } catch (err: any) {
       console.error('Service booking error:', err);
-      toast.error('Failed to create booking. Please try again.');
+      toast.error(err?.message || 'Failed to create booking. Please try again.');
     } finally {
       setIsLoading(false);
       isSubmittingRef.current = false;

@@ -43,12 +43,12 @@ export function resolveNotificationRoute(
       return orderId ? `/orders/${orderId}` : '/orders';
     }
 
-    // Chat / messages — live in the order context
+    // Chat / messages — live in the order context (open chat sheet)
     case 'chat':
     case 'chat_message':
     case 'message': {
       const orderId = getOrderId(payload);
-      return orderId ? `/orders/${orderId}` : '/notifications/inbox';
+      return orderId ? `/orders/${orderId}?chat=1` : '/notifications/inbox';
     }
 
     // Product moderation

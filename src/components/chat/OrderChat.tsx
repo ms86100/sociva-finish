@@ -10,7 +10,6 @@ import { ReportSheet } from '@/components/report/ReportSheet';
 import { Send, MessageCircle, X, Check, CheckCheck, Flag } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
-import { Json } from '@/integrations/supabase/types';
 import { useChatViewport } from '@/hooks/useChatViewport';
 import { setActiveChat, clearActiveChat, silenceChatBell } from '@/lib/activeChatRegistry';
 import { toast } from 'sonner';
@@ -212,23 +211,7 @@ export function OrderChat({
         });
       }, 5000);
 
-      // Enqueue a chat notification for the recipient, then process
-      const { data: senderProfile } = await supabase
-        .from('profiles')
-        .select('name')
-        .eq('id', user.id)
-        .maybeSingle();
-      const senderName = senderProfile?.name || user.user_metadata?.name || 'Someone';
-      const preview = trimmed.length > 80 ? trimmed.slice(0, 77) + '...' : trimmed;
-      await supabase.from('notification_queue').insert({
-        user_id: otherUserId,
-        title: `💬 New message from ${senderName}`,
-        body: preview,
-        type: 'chat',
-        reference_path: `/orders/${orderId}?chat=1`,
-        payload: { orderId, type: 'chat', senderId: user.id } as unknown as Json,
-      });
-
+      // DB trigger fn_chat_message_notification enqueues the notify; kick the worker.
       supabase.functions.invoke('process-notification-queue').catch(() => {});
     } catch (error) {
       console.error('Error sending message:', error);

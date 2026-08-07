@@ -238,6 +238,41 @@ export function useOrderDetail(id: string | undefined) {
     if (id && user) fetchUnreadCount();
   }, [id, user?.id]);
 
+  // Keep unreadMessages fresh while chat sheet is closed (INSERT/UPDATE for this order)
+  useEffect(() => {
+    if (!id || !user?.id) return;
+    const channel = supabase
+      .channel(`order-chat-unread-${id}-${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'chat_messages',
+          filter: `order_id=eq.${id}`,
+        },
+        (payload) => {
+          const msg: any = payload.new;
+          if (msg?.receiver_id === user.id) fetchUnreadCount();
+        },
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'chat_messages',
+          filter: `order_id=eq.${id}`,
+        },
+        (payload) => {
+          const msg: any = payload.new;
+          if (msg?.receiver_id === user.id) fetchUnreadCount();
+        },
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [id, user?.id]);
+
   // Legacy fetchOrder for optimistic update reconciliation
   const fetchOrder = async () => { invalidateOrder(); };
 

@@ -13,6 +13,7 @@ interface Message {
 }
 
 const CHAT_NOTIF_THROTTLE_MS = 60_000; // 1 minute
+const MESSAGE_SELECT = 'id, conversation_id, sender_id, message_text, is_read, created_at';
 
 export function useSellerChat(buyerId: string | undefined, sellerId: string | undefined, productId: string | undefined) {
   const qc = useQueryClient();
@@ -74,7 +75,7 @@ export function useSellerChat(buyerId: string | undefined, sellerId: string | un
     queryFn: async () => {
       const { data, error } = await supabase
         .from('seller_conversation_messages')
-        .select('id, conversation_id, sender_id, content, created_at, message_type, metadata')
+        .select(MESSAGE_SELECT)
         .eq('conversation_id', conversationId!)
         .order('created_at', { ascending: true });
       if (error) throw error;
@@ -122,12 +123,11 @@ export function useSellerChat(buyerId: string | undefined, sellerId: string | un
 
       // Optimistic placeholder
       const tempId = `tmp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-      const optimistic: any = {
+      const optimistic: Message & { _optimistic?: boolean } = {
         id: tempId,
         conversation_id: cid,
         sender_id: senderId,
         message_text: text,
-        content: text,
         created_at: new Date().toISOString(),
         is_read: false,
         _optimistic: true,
@@ -137,7 +137,7 @@ export function useSellerChat(buyerId: string | undefined, sellerId: string | un
       const { data: inserted, error } = await supabase
         .from('seller_conversation_messages')
         .insert({ conversation_id: cid, sender_id: senderId, message_text: text })
-        .select('id, conversation_id, sender_id, content, created_at, message_type, metadata')
+        .select(MESSAGE_SELECT)
         .single();
       if (error) {
         // Rollback optimistic
@@ -146,25 +146,43 @@ export function useSellerChat(buyerId: string | undefined, sellerId: string | un
       }
       // Replace optimistic with real row
       qc.setQueryData<Message[]>(['seller-chat', cid], (old = []) =>
-        old.map((m) => (m.id === tempId ? (inserted as any) : m)),
+        old.map((m) => (m.id === tempId ? (inserted as Message) : m)),
       );
 
-      // Determine recipient for notification
-      const recipientId = senderId === buyerId ? sellerId : buyerId;
-      if (recipientId) {
+      // Determine recipient for notification (auth user_id, not seller profile id)
+      const recipientProfileOrUserId = senderId === buyerId ? sellerId : buyerId;
+      if (recipientProfileOrUserId) {
+        let notifyUserId = recipientProfileOrUserId;
+        // seller_id on conversations is seller_profiles.id — resolve to auth user_id
+        if (recipientProfileOrUserId === sellerId) {
+          const { data: sp } = await supabase
+            .from('seller_profiles')
+            .select('user_id')
+            .eq('id', sellerId)
+            .maybeSingle();
+          if (!sp?.user_id) return cid;
+          notifyUserId = sp.user_id;
+        }
+
         const now = Date.now();
-        const lastSent = lastNotifRef.current[recipientId] || 0;
+        const lastSent = lastNotifRef.current[notifyUserId] || 0;
 
         // Only send notification if throttle window has passed
         if (now - lastSent >= CHAT_NOTIF_THROTTLE_MS) {
-          lastNotifRef.current[recipientId] = now;
-          await supabase.from('notification_queue').insert({
-            user_id: recipientId,
-            type: 'chat',
-            title: '💬 New message',
-            body: text.slice(0, 100),
-            reference_path: `/orders`,
-            payload: { type: 'seller_chat', conversationId: cid },
+          lastNotifRef.current[notifyUserId] = now;
+          const referencePath =
+            recipientProfileOrUserId === sellerId
+              ? '/seller/messages'
+              : productId
+                ? `/product/${productId}`
+                : '/seller/messages';
+          await supabase.rpc('enqueue_user_notification', {
+            _user_id: notifyUserId,
+            _type: 'chat',
+            _title: '💬 New message',
+            _body: text.slice(0, 100),
+            _reference_path: referencePath,
+            _payload: { type: 'seller_chat', conversationId: cid },
           });
           supabase.functions.invoke('process-notification-queue').catch(() => {});
         }

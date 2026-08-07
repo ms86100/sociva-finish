@@ -8,6 +8,8 @@ import { ReviewForm } from '@/components/review/ReviewForm';
 import { OrderChat } from '@/components/chat/OrderChat';
 import { OrderCancellation } from '@/components/order/OrderCancellation';
 import { BuyerCancelBooking } from '@/components/booking/BuyerCancelBooking';
+import { BuyerRescheduleBooking } from '@/components/booking/BuyerRescheduleBooking';
+import { SessionFeedbackPrompt } from '@/components/booking/SessionFeedbackPrompt';
 import { SafeSectionWrapper } from '@/components/SafeSectionWrapper';
 import { ReorderButton } from '@/components/order/ReorderButton';
 import { UrgentOrderTimer } from '@/components/order/UrgentOrderTimer';
@@ -461,7 +463,8 @@ export default function OrderDetailPage() {
   // as long as we have a resolvable next status (via transitions-only fallback in useOrderDetail).
   const hasResolvableSellerCTA = !!o.nextStatus || o.canSellerReject;
   const hasSellerActionBar = o.isSellerView && !o.isFlowLoading && !isTerminalStatus(o.flow, order.status) && (o.flow.length > 0 || hasResolvableSellerCTA);
-  const hasBuyerActionBar = o.isBuyerView && !o.isFlowLoading && o.flow.length > 0 && !isTerminalStatus(o.flow, order.status) && (o.buyerNextStatus || o.canBuyerCancel);
+  const canRescheduleBooking = !!serviceBooking && ['confirmed', 'scheduled', 'rescheduled'].includes(serviceBooking.status);
+  const hasBuyerActionBar = o.isBuyerView && !o.isFlowLoading && o.flow.length > 0 && !isTerminalStatus(o.flow, order.status) && (o.buyerNextStatus || o.canBuyerCancel || canRescheduleBooking);
 
   // Show the prominent "Accept Order" hero card when the seller is on a fresh placed order.
   const showAcceptHero = o.isSellerView && order.status === 'placed' && !!o.nextStatus && !o.isFlowLoading;
@@ -972,6 +975,13 @@ export default function OrderDetailPage() {
             )}
           </SafeSectionWrapper>
 
+          {o.isBuyerView && serviceBooking?.status === 'completed' && (
+            <SessionFeedbackPrompt
+              bookingId={serviceBooking.id}
+              bookingStatus={serviceBooking.status}
+            />
+          )}
+
           {/* Payment */}
           <motion.div variants={cardEntrance} className="bg-card/80 backdrop-blur-lg border border-border/50 rounded-xl px-4 py-3 shadow-sm">
             <div className="flex items-center justify-between">
@@ -1258,10 +1268,28 @@ export default function OrderDetailPage() {
       {hasBuyerActionBar && (
         <div className="fixed bottom-[calc(4rem+env(safe-area-inset-bottom))] left-0 right-0 z-[60] bg-background/80 backdrop-blur-xl border-t border-border/50">
           <div className="px-4 py-3 flex gap-3">
-            {o.canBuyerCancel && (
-              serviceBooking ? (
-                <BuyerCancelBooking bookingId={serviceBooking.id} orderId={order.id} slotId={serviceBooking.slot_id} status={serviceBooking.status} />
-              ) : (
+            {serviceBooking ? (
+              <>
+                {o.canBuyerCancel && (
+                  <BuyerCancelBooking
+                    bookingId={serviceBooking.id}
+                    orderId={order.id}
+                    slotId={serviceBooking.slot_id}
+                    status={serviceBooking.status}
+                  />
+                )}
+                <BuyerRescheduleBooking
+                  bookingId={serviceBooking.id}
+                  orderId={order.id}
+                  productId={serviceBooking.product_id}
+                  sellerId={serviceBooking.seller_id}
+                  status={serviceBooking.status}
+                  currentDate={serviceBooking.booking_date}
+                  currentStartTime={serviceBooking.start_time}
+                />
+              </>
+            ) : (
+              o.canBuyerCancel && (
                 <OrderCancellation orderId={order.id} orderStatus={order.status} onCancelled={() => o.fetchOrder()} canCancel={true} />
               )
             )}

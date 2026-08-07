@@ -1,7 +1,7 @@
 // @ts-nocheck
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '@/integrations/supabase/client';
 import { ReviewPromptBanner } from '@/components/order/ReviewPromptBanner';
@@ -198,6 +198,7 @@ function EmptyState({ message, type }: { message: string; type?: 'buyer' | 'sell
 function OrderList({ type, userId, sellerId }: { type: 'buyer' | 'seller'; userId: string; sellerId?: string }) {
   const [buyerFilter, setBuyerFilter] = useState<'all' | 'active' | 'completed' | 'cancelled'>('all');
   const { orders, isLoading, hasMore, isLoadingMore, loadMore, successSet } = useOrdersList(type, userId, sellerId, buyerFilter);
+  const queryClient = useQueryClient();
 
   // Fetch unread chat message counts per order
   const orderIds = orders.map(o => o.id);
@@ -218,8 +219,41 @@ function OrderList({ type, userId, sellerId }: { type: 'buyer' | 'seller'; userI
       return counts;
     },
     enabled: orderIds.length > 0,
-    staleTime: 2 * 60_000,
+    staleTime: 15_000,
   });
+
+  // Lightweight realtime: refresh unread badges when messages arrive/are read for this user
+  useEffect(() => {
+    if (!userId) return;
+    const channel = supabase
+      .channel(`orders-unread-chat-${userId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'chat_messages',
+          filter: `receiver_id=eq.${userId}`,
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ['unread-chat-counts', userId] });
+        },
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'chat_messages',
+          filter: `receiver_id=eq.${userId}`,
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ['unread-chat-counts', userId] });
+        },
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [userId, queryClient]);
 
   if (isLoading) {
     return (

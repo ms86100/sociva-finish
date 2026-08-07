@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { useState, useEffect, useRef, lazy, Suspense } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -115,6 +115,14 @@ export default function SellerDashboardPage() {
   const { data: supportTickets = [] } = useSellerTickets(activeSellerUserId);
   useSellerSupportRealtime(activeSellerUserId);
   const { data: hasBookableServices = false } = useSellerHasBookableServices(isPortfolio ? null : activeSellerId);
+
+  // Synced by GlobalChatAlerts / useChatAlerts — no second realtime subscription
+  const { data: chatUnreadCount = 0 } = useQuery({
+    queryKey: ['chat-unread-count', user?.id],
+    queryFn: async () => 0,
+    initialData: 0,
+    staleTime: Infinity,
+  });
 
   useEffect(() => {
     console.log('[SellerDashboard] Auth state:', { userId: user?.id, sellerProfilesCount: sellerProfiles?.length, activeSellerId, currentSellerId, isPortfolio });
@@ -644,7 +652,7 @@ export default function SellerDashboardPage() {
             ) : (
               <Suspense fallback={<TabFallback />}>
                 <QuickActions />
-                <Link to="/seller/messages" className="flex items-center justify-between px-4 py-3 bg-card border border-border rounded-xl shadow-sm hover:bg-accent/5 mt-2">
+                <Link to="/seller/messages" className="relative flex items-center justify-between px-4 py-3 bg-card border border-border rounded-xl shadow-sm hover:bg-accent/5 mt-2">
                   <div className="flex items-center gap-3">
                     <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center">
                       <MessageCircle size={16} className="text-primary" />
@@ -654,7 +662,14 @@ export default function SellerDashboardPage() {
                       <p className="text-[11px] text-muted-foreground">Customer conversations</p>
                     </div>
                   </div>
-                  <ChevronRight size={16} className="text-muted-foreground" />
+                  <div className="flex items-center gap-2">
+                    {chatUnreadCount > 0 && (
+                      <Badge variant="destructive" className="h-5 min-w-5 px-1.5 text-[10px] rounded-full">
+                        {chatUnreadCount > 99 ? '99+' : chatUnreadCount}
+                      </Badge>
+                    )}
+                    <ChevronRight size={16} className="text-muted-foreground" />
+                  </div>
                 </Link>
                 <div id="coupon-section">
                   <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Coupon Management</p>
