@@ -1,12 +1,12 @@
 // @ts-nocheck
 import { useEffect, useContext } from 'react';
-import { supabase } from '@/integrations/supabase/client';
 import { IdentityContext } from '@/contexts/auth/contexts';
 import { hapticNotification } from '@/lib/haptics';
 import { useQueryClient } from '@tanstack/react-query';
+import { subscribeBuyerOrderUpdates } from '@/lib/buyer-orders-realtime-bus';
 
 /**
- * Real-time listener for buyer order status updates.
+ * Buyer order status alerts via the shared realtime bus.
  * Drives query invalidation + native haptics only — no toasts.
  */
 
@@ -32,44 +32,24 @@ export function useBuyerOrderAlerts() {
   useEffect(() => {
     if (!user?.id) return;
 
-    const channel = supabase
-      .channel(`buyer-order-updates-${user.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'orders',
-          filter: `buyer_id=eq.${user.id}`,
-        },
-        (payload) => {
-          const newStatus = (payload.new as any)?.status;
-          const oldStatus = (payload.old as any)?.status;
-          const newPayment = (payload.new as any)?.payment_status;
-          const oldPayment = (payload.old as any)?.payment_status;
-          const statusChanged = newStatus && newStatus !== 'pending' && newStatus !== oldStatus;
-          const paymentChanged = newPayment && newPayment !== oldPayment;
-          // Only react to actual status or payment_status changes
-          if (!statusChanged && !paymentChanged) return;
-          // Suppress phantom alerts for payment_pending orders (auto-cancelled, no user-facing notification)
-          if (oldStatus === 'payment_pending') return;
+    return subscribeBuyerOrderUpdates(user.id, (payload) => {
+      const newStatus = payload.new?.status as string | undefined;
+      const oldStatus = payload.old?.status as string | undefined;
+      const newPayment = payload.new?.payment_status as string | undefined;
+      const oldPayment = payload.old?.payment_status as string | undefined;
+      const statusChanged = !!newStatus && newStatus !== 'pending' && newStatus !== oldStatus;
+      const paymentChanged = !!newPayment && newPayment !== oldPayment;
+      if (!statusChanged && !paymentChanged) return;
+      if (oldStatus === 'payment_pending') return;
 
-          // Native haptic feedback
-          const hapticType = statusChanged ? (HAPTIC_MAP[newStatus] ?? 'success') : 'success';
-          hapticNotification(hapticType);
+      const hapticType = statusChanged ? (HAPTIC_MAP[newStatus] ?? 'success') : 'success';
+      hapticNotification(hapticType);
 
-          // Keep all queries fresh
-          queryClient.invalidateQueries({ queryKey: ['orders'] });
-          queryClient.invalidateQueries({ queryKey: ['unread-notifications'] });
-          queryClient.invalidateQueries({ queryKey: ['notifications'] });
-          queryClient.invalidateQueries({ queryKey: ['active-orders-strip'] });
-          queryClient.invalidateQueries({ queryKey: ['latest-action-notification'] });
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+      queryClient.invalidateQueries({ queryKey: ['unread-notifications'] });
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
+      queryClient.invalidateQueries({ queryKey: ['active-orders-strip'] });
+      queryClient.invalidateQueries({ queryKey: ['latest-action-notification'] });
+    });
   }, [user?.id, queryClient]);
 }

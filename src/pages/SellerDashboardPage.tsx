@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
@@ -17,24 +17,15 @@ import { useSystemSettings } from '@/hooks/useSystemSettings';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 
-// Import refactored components
+// Eager: default Orders tab + chrome
 import { StoreStatusCard } from '@/components/seller/StoreStatusCard';
 import { PortfolioRollupStrip } from '@/components/seller/PortfolioRollupStrip';
 import { SellerVisibilityChecklist } from '@/components/seller/SellerVisibilityChecklist';
 import { EarningsSummary } from '@/components/seller/EarningsSummary';
 import { DashboardStats } from '@/components/seller/DashboardStats';
-import { QuickActions } from '@/components/seller/QuickActions';
 import { OrderFilters, OrderFilter } from '@/components/seller/OrderFilters';
 import { SellerOrderCard } from '@/components/seller/SellerOrderCard';
-import { CouponManager } from '@/components/seller/CouponManager';
-import { SellerAnalyticsTab } from '@/components/seller/SellerAnalyticsTab';
-import { DemandInsights } from '@/components/seller/DemandInsights';
-import { SellerRefundList } from '@/components/seller/SellerRefundList';
-import { SellerCustomerDirectory } from '@/components/seller/SellerCustomerDirectory';
-import { SellerSupportTab } from '@/components/seller/SellerSupportTab';
 import { useSellerTickets, useSellerSupportRealtime } from '@/hooks/useSupportTickets';
-
-import { BookingsHub } from '@/components/seller/BookingsHub';
 import { useSellerServiceBookings } from '@/hooks/useServiceBookings';
 import { AvailabilityPromptBanner } from '@/components/seller/AvailabilityPromptBanner';
 import { MissingLocationBanner } from '@/components/seller/MissingLocationBanner';
@@ -49,13 +40,50 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { emptyState, listItem, staggerContainer } from '@/lib/motion-variants';
 import { SellerSwitcher } from '@/components/seller/SellerSwitcher';
-
-// Lazy import for reliability score and low stock (used in Stats tab)
-import { SellerReliabilityScore } from '@/components/seller/SellerReliabilityScore';
-import { LowStockAlerts } from '@/components/seller/LowStockAlerts';
 import { useSellerHealth } from '@/hooks/queries/useSellerHealth';
 import { format, addDays, startOfWeek } from 'date-fns';
 import { notify } from '@/lib/notify';
+
+// Lazy: heavy secondary tabs — keep Orders path lean
+const QuickActions = lazy(() =>
+  import('@/components/seller/QuickActions').then((m) => ({ default: m.QuickActions })),
+);
+const CouponManager = lazy(() =>
+  import('@/components/seller/CouponManager').then((m) => ({ default: m.CouponManager })),
+);
+const SellerAnalyticsTab = lazy(() =>
+  import('@/components/seller/SellerAnalyticsTab').then((m) => ({ default: m.SellerAnalyticsTab })),
+);
+const DemandInsights = lazy(() =>
+  import('@/components/seller/DemandInsights').then((m) => ({ default: m.DemandInsights })),
+);
+const SellerRefundList = lazy(() =>
+  import('@/components/seller/SellerRefundList').then((m) => ({ default: m.SellerRefundList })),
+);
+const SellerCustomerDirectory = lazy(() =>
+  import('@/components/seller/SellerCustomerDirectory').then((m) => ({ default: m.SellerCustomerDirectory })),
+);
+const SellerSupportTab = lazy(() =>
+  import('@/components/seller/SellerSupportTab').then((m) => ({ default: m.SellerSupportTab })),
+);
+const BookingsHub = lazy(() =>
+  import('@/components/seller/BookingsHub').then((m) => ({ default: m.BookingsHub })),
+);
+const SellerReliabilityScore = lazy(() =>
+  import('@/components/seller/SellerReliabilityScore').then((m) => ({ default: m.SellerReliabilityScore })),
+);
+const LowStockAlerts = lazy(() =>
+  import('@/components/seller/LowStockAlerts').then((m) => ({ default: m.LowStockAlerts })),
+);
+
+function TabFallback() {
+  return (
+    <div className="space-y-3 py-4">
+      <Skeleton className="h-20 w-full rounded-xl" />
+      <Skeleton className="h-32 w-full rounded-xl" />
+    </div>
+  );
+}
 
 export default function SellerDashboardPage() {
   const { user, sellerProfiles = [], currentSellerId } = useAuth();
@@ -66,6 +94,7 @@ export default function SellerDashboardPage() {
   const [orderFilter, setOrderFilter] = useState<OrderFilter>('all');
   const [renderError, setRenderError] = useState<string | null>(null);
   const [healthSheetOpen, setHealthSheetOpen] = useState(false);
+  const [dashboardTab, setDashboardTab] = useState('orders');
 
   const isPortfolio = isPortfolioSellerId(currentSellerId);
   const portfolioSellerIds = sellerProfiles.map((s) => s.id);
@@ -439,7 +468,7 @@ export default function SellerDashboardPage() {
         )}
 
         {/* Tab navigation */}
-        <Tabs defaultValue="orders" className="w-full">
+        <Tabs value={dashboardTab} onValueChange={setDashboardTab} className="w-full">
           <TabsList className={cn('sticky top-0 z-10 w-full h-11 bg-muted/80 backdrop-blur-sm grid', hasBookableServices ? 'grid-cols-6' : 'grid-cols-5')}>
             <TabsTrigger value="orders" className="gap-1.5 text-xs px-1 relative">
               <ShoppingBag size={14} />
@@ -577,7 +606,9 @@ export default function SellerDashboardPage() {
             {isPortfolio || !sellerProfile ? (
               pickStoreBanner
             ) : (
-              <SellerSupportTab sellerUserId={activeSellerUserId} sellerProfileId={sellerProfile.id} />
+              <Suspense fallback={<TabFallback />}>
+                <SellerSupportTab sellerUserId={activeSellerUserId} sellerProfileId={sellerProfile.id} />
+              </Suspense>
             )}
           </TabsContent>
 
@@ -586,19 +617,23 @@ export default function SellerDashboardPage() {
             {isPortfolio || !sellerProfile ? (
               pickStoreBanner
             ) : (
-              <>
+              <Suspense fallback={<TabFallback />}>
                 <div className="flex items-center justify-between mb-1">
                   <h3 className="font-semibold text-sm">Disputes & Refunds</h3>
                 </div>
                 <SellerRefundList sellerId={sellerProfile.id} forceExpanded />
-              </>
+              </Suspense>
             )}
           </TabsContent>
 
           {/* ── Schedule Tab (unified Bookings hub) ── */}
           {hasBookableServices && (
             <TabsContent value="schedule" className="space-y-4 mt-3">
-              {isPortfolio || !sellerProfile ? pickStoreBanner : <BookingsHub sellerId={sellerProfile.id} />}
+              {isPortfolio || !sellerProfile ? pickStoreBanner : (
+                <Suspense fallback={<TabFallback />}>
+                  <BookingsHub sellerId={sellerProfile.id} />
+                </Suspense>
+              )}
             </TabsContent>
           )}
 
@@ -607,7 +642,7 @@ export default function SellerDashboardPage() {
             {isPortfolio ? (
               pickStoreBanner
             ) : (
-              <>
+              <Suspense fallback={<TabFallback />}>
                 <QuickActions />
                 <Link to="/seller/messages" className="flex items-center justify-between px-4 py-3 bg-card border border-border rounded-xl shadow-sm hover:bg-accent/5 mt-2">
                   <div className="flex items-center gap-3">
@@ -625,7 +660,7 @@ export default function SellerDashboardPage() {
                   <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Coupon Management</p>
                   <CouponManager />
                 </div>
-              </>
+              </Suspense>
             )}
           </TabsContent>
 
@@ -634,14 +669,13 @@ export default function SellerDashboardPage() {
             {isPortfolio || !sellerProfile ? (
               pickStoreBanner
             ) : (
-              <>
+              <Suspense fallback={<TabFallback />}>
                 <SellerReliabilityScore sellerId={sellerProfile.id} />
                 <LowStockAlerts sellerId={sellerProfile.id} />
-
                 <SellerAnalyticsTab sellerId={sellerProfile.id} />
                 <SellerCustomerDirectory sellerId={sellerProfile.id} />
                 <DemandInsights societyId={sellerProfile.society_id} sellerId={sellerProfile.id} />
-              </>
+              </Suspense>
             )}
           </TabsContent>
         </Tabs>

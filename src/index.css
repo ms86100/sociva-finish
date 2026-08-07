@@ -533,7 +533,7 @@ html.large-font a {
   right: 0 !important;
 }
 
-/* Razorpay bottom-sheet layout — renders as a modal pinned to the bottom */
+/* Razorpay checkout layout — platform-scoped (classes set by useRazorpay) */
 
 /* Hide ALL app-level sticky/fixed elements behind Razorpay */
 body.razorpay-active header,
@@ -546,8 +546,8 @@ body.razorpay-active [style*="position: sticky"] {
   pointer-events: none !important;
 }
 
-/* Dimmed backdrop covering the full screen above the bottom sheet */
-body.razorpay-active::before {
+/* iOS: dimmed backdrop above the bottom sheet */
+body.razorpay-active.razorpay-ios::before {
   content: '';
   position: fixed;
   top: 0;
@@ -559,44 +559,104 @@ body.razorpay-active::before {
   pointer-events: none;
 }
 
-/* Razorpay wrapper — bottom-sheet style: pinned to bottom, 88vh tall, rounded top */
-body.razorpay-active > div[style*="z-index"],
-body.razorpay-active > div[style*="position: fixed"],
-body.razorpay-active > div[style*="position:fixed"],
-body.razorpay-active .razorpay-checkout-frame,
-body.razorpay-active .razorpay-container,
-body.razorpay-active > div[class*="razorpay"],
-body.razorpay-active > .razorpay-backdrop,
-body.razorpay-active > div:last-of-type:not(#root):not(#__next) {
-  top: auto !important;
-  bottom: 0 !important;
+/* Direct body overlays only — never nest safe-area padding on inner frames */
+body.razorpay-active.razorpay-android > div[style*="z-index"],
+body.razorpay-active.razorpay-android > div[style*="position: fixed"],
+body.razorpay-active.razorpay-android > div[style*="position:fixed"],
+body.razorpay-active.razorpay-android > div[class*="razorpay"],
+body.razorpay-active.razorpay-android > .razorpay-backdrop,
+body.razorpay-active.razorpay-android > div:last-of-type:not(#root):not(#__next),
+body.razorpay-active.razorpay-ios > div[style*="z-index"],
+body.razorpay-active.razorpay-ios > div[style*="position: fixed"],
+body.razorpay-active.razorpay-ios > div[style*="position:fixed"],
+body.razorpay-active.razorpay-ios > div[class*="razorpay"],
+body.razorpay-active.razorpay-ios > .razorpay-backdrop,
+body.razorpay-active.razorpay-ios > div:last-of-type:not(#root):not(#__next) {
   left: 0 !important;
   right: 0 !important;
-  height: 88vh !important;
-  max-height: 88vh !important;
   width: 100% !important;
-  border-radius: 16px 16px 0 0 !important;
   overflow: hidden !important;
   background-color: #fff !important;
   box-sizing: border-box !important;
-  padding-bottom: env(safe-area-inset-bottom, 0px) !important;
   z-index: 2147483647 !important;
   touch-action: auto !important;
   pointer-events: auto !important;
   -webkit-overflow-scrolling: touch !important;
 }
 
-/* iframe inside the wrapper — fill the bottom-sheet content area */
-body.razorpay-active iframe[src*="razorpay"],
-body.razorpay-active iframe[src*="api.razorpay"],
-body.razorpay-active iframe[src*="checkout.razorpay"] {
+/*
+ * Android: full viewport with ONE safe-area inset (--app-safe-top from StatusBar).
+ * Avoid 88vh bottom-sheet (looks like huge top gap) and avoid stacking env() + app padding.
+ */
+body.razorpay-active.razorpay-android > div[style*="z-index"],
+body.razorpay-active.razorpay-android > div[style*="position: fixed"],
+body.razorpay-active.razorpay-android > div[style*="position:fixed"],
+body.razorpay-active.razorpay-android > div[class*="razorpay"],
+body.razorpay-active.razorpay-android > .razorpay-backdrop,
+body.razorpay-active.razorpay-android > div:last-of-type:not(#root):not(#__next) {
+  top: 0 !important;
+  bottom: 0 !important;
+  height: 100% !important;
+  max-height: 100% !important;
+  border-radius: 0 !important;
+  padding-top: var(--app-safe-top, 0px) !important;
+  padding-bottom: var(--app-safe-bottom, 0px) !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+
+/* Nested Razorpay nodes must not add a second safe-area inset */
+body.razorpay-active.razorpay-android .razorpay-container,
+body.razorpay-active.razorpay-android .razorpay-checkout-frame,
+body.razorpay-active.razorpay-android iframe[src*="razorpay"],
+body.razorpay-active.razorpay-android iframe[src*="api.razorpay"],
+body.razorpay-active.razorpay-android iframe[src*="checkout.razorpay"] {
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+
+/* iOS: bottom-sheet pinned below status/notch gap */
+body.razorpay-active.razorpay-ios > div[style*="z-index"],
+body.razorpay-active.razorpay-ios > div[style*="position: fixed"],
+body.razorpay-active.razorpay-ios > div[style*="position:fixed"],
+body.razorpay-active.razorpay-ios > div[class*="razorpay"],
+body.razorpay-active.razorpay-ios > .razorpay-backdrop,
+body.razorpay-active.razorpay-ios > div:last-of-type:not(#root):not(#__next) {
+  top: auto !important;
+  bottom: 0 !important;
+  height: 88vh !important;
+  max-height: 88vh !important;
+  border-radius: 16px 16px 0 0 !important;
+  padding-bottom: env(safe-area-inset-bottom, 0px) !important;
+}
+
+/* iframe fills the patched wrapper */
+body.razorpay-active.razorpay-android iframe[src*="razorpay"],
+body.razorpay-active.razorpay-android iframe[src*="api.razorpay"],
+body.razorpay-active.razorpay-android iframe[src*="checkout.razorpay"],
+body.razorpay-active.razorpay-ios iframe[src*="razorpay"],
+body.razorpay-active.razorpay-ios iframe[src*="api.razorpay"],
+body.razorpay-active.razorpay-ios iframe[src*="checkout.razorpay"] {
   width: 100% !important;
   height: 100% !important;
   border: none !important;
-  border-radius: 16px 16px 0 0 !important;
   touch-action: auto !important;
   pointer-events: auto !important;
   -webkit-overflow-scrolling: touch !important;
+}
+
+body.razorpay-active.razorpay-android iframe[src*="razorpay"],
+body.razorpay-active.razorpay-android iframe[src*="api.razorpay"],
+body.razorpay-active.razorpay-android iframe[src*="checkout.razorpay"] {
+  border-radius: 0 !important;
+}
+
+body.razorpay-active.razorpay-ios iframe[src*="razorpay"],
+body.razorpay-active.razorpay-ios iframe[src*="api.razorpay"],
+body.razorpay-active.razorpay-ios iframe[src*="checkout.razorpay"] {
+  border-radius: 16px 16px 0 0 !important;
 }
 
 /* ═══════════════════════════════════════════════

@@ -376,7 +376,9 @@ export function useAuthState() {
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Proactive session refresh every 5 minutes — try Preferences before clearing
+  // Proactive session refresh every 5 minutes — local session only (no getUser storm).
+  // supabase-js already auto-refreshes tokens; this only recovers Preferences backup
+  // or refreshes when expiry is near.
   useEffect(() => {
     const INTERVAL = 5 * 60 * 1000;
     const interval = setInterval(async () => {
@@ -391,13 +393,9 @@ export function useAuthState() {
               return;
             }
           }
-          const { data: { user } } = await supabase.auth.getUser();
-          if (!user) {
-            console.warn('[Auth] Session truly expired (server confirmed), clearing state');
-            clearAuthState();
-          } else {
-            console.log('[Auth] Local session missing but server session valid, skipping clear');
-          }
+          // Do NOT call getUser() here — it hammers Auth while the DB pool is busy
+          // and caused /token and /user 504s. Rely on onAuthStateChange + next user action.
+          console.warn('[Auth] Local session missing during health check; waiting for auth events');
           return;
         }
         const expiresAt = session.expires_at;
@@ -416,7 +414,7 @@ export function useAuthState() {
       }
     }, INTERVAL);
     return () => clearInterval(interval);
-  }, [clearAuthState]);
+  }, []);
 
   useEffect(() => {
     const userId = state.user?.id;

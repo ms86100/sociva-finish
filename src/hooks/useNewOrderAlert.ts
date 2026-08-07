@@ -24,6 +24,8 @@ export interface NewOrder {
 
 const MIN_POLL_MS = 3000;
 const MAX_POLL_MS = 30000;
+/** When realtime is healthy, poll only as a sparse safety net (not every few seconds). */
+const HEALTHY_POLL_MS = 60_000;
 const BACKOFF_FACTOR = 1.5;
 const DEFAULT_SNOOZE_MINUTES = 5;
 const MAX_SNOOZE_CYCLES = 3; // After this many re-triggers, stop the bell loop.
@@ -80,32 +82,47 @@ export function useNewOrderAlert(sellerIds: string[]) {
 
   const enabled = sellerIds.length > 0;
 
+  const invalidateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingInvalidateSellersRef = useRef<Set<string | null>>(new Set());
+
   const invalidateSellerOrderCaches = useCallback((sellerId?: string | null) => {
-    const keys = [
-      'seller-orders',
-      'seller-dashboard-stats',
-      'seller-order-filter-counts',
-      'seller-analytics-charts',
-      'seller-analytics-summary',
-      'seller-reliability',
-      'seller-refund-requests',
-      'seller-customers',
-      'seller-settled-earnings',
-    ] as const;
+    pendingInvalidateSellersRef.current.add(sellerId ?? null);
+    if (invalidateTimerRef.current) return;
+    // Debounce stampede: one order UPDATE used to invalidate ~10 keys × every store
+    invalidateTimerRef.current = setTimeout(() => {
+      invalidateTimerRef.current = null;
+      const keys = [
+        'seller-orders',
+        'seller-dashboard-stats',
+        'seller-order-filter-counts',
+        'seller-analytics-charts',
+        'seller-analytics-summary',
+        'seller-reliability',
+        'seller-refund-requests',
+        'seller-customers',
+        'seller-settled-earnings',
+      ] as const;
 
-    const invalidateFor = (sid?: string | null) => {
-      for (const key of keys) {
-        if (sid) queryClient.invalidateQueries({ queryKey: [key, sid] });
-        else queryClient.invalidateQueries({ queryKey: [key] });
+      const targets = [...pendingInvalidateSellersRef.current];
+      pendingInvalidateSellersRef.current.clear();
+
+      const invalidateFor = (sid?: string | null) => {
+        for (const key of keys) {
+          if (sid) queryClient.invalidateQueries({ queryKey: [key, sid] });
+          else queryClient.invalidateQueries({ queryKey: [key] });
+        }
+      };
+
+      const hasNull = targets.includes(null);
+      const explicit = targets.filter((t): t is string => typeof t === 'string');
+      if (hasNull && explicit.length === 0) {
+        for (const sid of sellerIdsRef.current) invalidateFor(sid);
+        invalidateFor(null);
+        return;
       }
-    };
-
-    if (sellerId) {
-      invalidateFor(sellerId);
-      return;
-    }
-    for (const sid of sellerIdsRef.current) invalidateFor(sid);
-    invalidateFor(null);
+      for (const sid of explicit) invalidateFor(sid);
+      if (hasNull) invalidateFor(null);
+    }, 400);
   }, [queryClient]);
 
   const ensureAudioLoaded = useCallback(async () => {
@@ -320,12 +337,15 @@ export function useNewOrderAlert(sellerIds: string[]) {
     });
   }, [stopBuzzing, invalidateSellerOrderCaches]);
 
-  // ── Realtime subscription ──
+  // ── Realtime subscription (filtered to this seller's stores only) ──
+  const realtimeHealthyRef = useRef(false);
   useEffect(() => {
     if (!enabled) return;
+    const filter = `seller_id=in.(${sellerIds.join(',')})`;
+    const channelKey = sellerIds.slice().sort().join('_').slice(0, 80);
     const channel = supabase
-      .channel('seller-new-orders-multi')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'orders' }, (payload) => {
+      .channel(`seller-new-orders-${channelKey}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'orders', filter }, (payload) => {
         const n = payload.new as any;
         if (!sellerIdsRef.current.has(n.seller_id)) return;
         if (!ACTIONABLE_STATUSES_INSERT.includes(n.status)) return;
@@ -335,7 +355,7 @@ export function useNewOrderAlert(sellerIds: string[]) {
           fulfillment_type: n.fulfillment_type, delivery_handled_by: n.delivery_handled_by,
         });
       })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders' }, (payload) => {
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders', filter }, (payload) => {
         const n = payload.new as any;
         if (!sellerIdsRef.current.has(n.seller_id)) return;
         // Always refresh board/stats/analytics on any status change — even when
@@ -352,9 +372,20 @@ export function useNewOrderAlert(sellerIds: string[]) {
           handleTerminalOrder(n.id, n.seller_id);
         }
       })
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [enabled, handleNewOrder, handleTerminalOrder, invalidateSellerOrderCaches]);
+      .subscribe((status) => {
+        realtimeHealthyRef.current = status === 'SUBSCRIBED';
+        if (status === 'SUBSCRIBED') {
+          pollDelayRef.current = HEALTHY_POLL_MS;
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          realtimeHealthyRef.current = false;
+          pollDelayRef.current = MIN_POLL_MS;
+        }
+      });
+    return () => {
+      realtimeHealthyRef.current = false;
+      supabase.removeChannel(channel);
+    };
+  }, [enabled, sellerIds.join(','), handleNewOrder, handleTerminalOrder, invalidateSellerOrderCaches]);
 
   // Push-driven terminal sync (when realtime misses but FCM carries is_terminal)
   useEffect(() => {
@@ -422,9 +453,14 @@ export function useNewOrderAlert(sellerIds: string[]) {
         const { data } = await query;
         if (data && data.length > 0) {
           data.forEach(order => handleNewOrder(order as NewOrder));
-          pollDelayRef.current = MIN_POLL_MS;
+          pollDelayRef.current = realtimeHealthyRef.current ? HEALTHY_POLL_MS : MIN_POLL_MS;
         } else {
-          pollDelayRef.current = Math.min(pollDelayRef.current * BACKOFF_FACTOR, MAX_POLL_MS);
+          const ceiling = realtimeHealthyRef.current ? HEALTHY_POLL_MS : MAX_POLL_MS;
+          const floor = realtimeHealthyRef.current ? HEALTHY_POLL_MS : MIN_POLL_MS;
+          pollDelayRef.current = Math.min(
+            Math.max(pollDelayRef.current * BACKOFF_FACTOR, floor),
+            ceiling,
+          );
         }
       } catch {}
 
@@ -463,6 +499,10 @@ export function useNewOrderAlert(sellerIds: string[]) {
     stopBuzzing();
     Object.values(snoozeTimersRef.current).forEach(clearTimeout);
     snoozeTimersRef.current = {};
+    if (invalidateTimerRef.current) {
+      clearTimeout(invalidateTimerRef.current);
+      invalidateTimerRef.current = null;
+    }
   }, [stopBuzzing]);
 
   return { pendingAlerts, dismiss, dismissById, dismissAll, snooze };

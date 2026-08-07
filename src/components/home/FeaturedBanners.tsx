@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { useState, useEffect, useCallback, useMemo, forwardRef } from 'react';
 import { optimizedImageUrl, handleImageError } from '@/utils/imageHelpers';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -27,7 +27,6 @@ export function FeaturedBanners() {
   const navigate = useNavigate();
   const [activeIndex, setActiveIndex] = useState(0);
 
-  const queryClient = useQueryClient();
   const { data: productCategories = [] } = useProductsByCategory();
 
   const categoriesWithProducts = useMemo(() => {
@@ -97,21 +96,8 @@ export function FeaturedBanners() {
     return map;
   }, [allSections]);
 
-  // Realtime subscription for featured_items
-  useEffect(() => {
-    const channel = supabase
-      .channel('featured-items-realtime')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'featured_items' },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ['featured-banners'] });
-        }
-      )
-      .subscribe();
-
-    return () => { supabase.removeChannel(channel); };
-  }, [queryClient]);
+  // Featured banners change rarely — no global realtime channel (was unfiltered
+  // fan-out to every Home viewer). Query staleTime + admin refetch is enough.
 
   // Auto-scroll classic banners
   const [userInteracting, setUserInteracting] = useState(false);

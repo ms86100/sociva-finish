@@ -132,32 +132,12 @@ export function ActiveOrderStrip() {
     },
     enabled: !!user?.id,
     staleTime: jitteredStaleTime(30_000),
-    refetchInterval: 60_000,
+    // Shared buyer orders bus (via useBuyerOrderAlerts) invalidates this query
+    refetchInterval: false,
     refetchOnWindowFocus: false,
   });
 
-  // Realtime: subscribe to order updates — composite dedup key prevents duplicate processing
-  const lastEventRef = useRef<string>('');
-  useEffect(() => {
-    if (!user?.id) return;
-    const channel = supabase
-      .channel(`active-strip:${user.id}`)
-      .on('postgres_changes', {
-        event: 'UPDATE',
-        schema: 'public',
-        table: 'orders',
-        filter: `buyer_id=eq.${user.id}`,
-      }, (payload) => {
-        const row = payload.new as any;
-        const eventKey = `${row?.id}:${row?.status}:${row?.updated_at}`;
-        if (eventKey === lastEventRef.current) return;
-        lastEventRef.current = eventKey;
-        queryClient.invalidateQueries({ queryKey: ['active-orders-strip'] });
-      })
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [user?.id, queryClient]);
-
+  // Deduped strip refresh on terminal push; realtime comes from shared bus
   useEffect(() => {
     const handler = () => {
       queryClient.invalidateQueries({ queryKey: ['active-orders-strip'] });

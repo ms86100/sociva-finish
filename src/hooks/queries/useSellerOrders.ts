@@ -64,11 +64,15 @@ function mapCountsRpc(raw: Record<string, unknown> | null): SellerBoardCounts {
 }
 
 async function fetchKpisClientFallback(sellerId: string): Promise<SellerDashboardKpis> {
+  const since = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
   const [{ data: orders }, { count: pendingRefunds }] = await Promise.all([
     supabase
       .from('orders')
       .select('status, total_amount, created_at, updated_at, delivered_at, status_changed_at, payment_status')
-      .eq('seller_id', sellerId),
+      .eq('seller_id', sellerId)
+      .gte('created_at', since)
+      .order('created_at', { ascending: false })
+      .limit(2000),
     supabase
       .from('refund_requests')
       .select('id, orders!inner(seller_id)', { count: 'exact', head: true })
@@ -83,10 +87,14 @@ async function fetchKpisClientFallback(sellerId: string): Promise<SellerDashboar
 }
 
 async function fetchCountsClientFallback(sellerId: string): Promise<SellerBoardCounts> {
+  const since = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
   const { data: orders } = await supabase
     .from('orders')
     .select('id, status, created_at, payment_status')
-    .eq('seller_id', sellerId);
+    .eq('seller_id', sellerId)
+    .gte('created_at', since)
+    .order('created_at', { ascending: false })
+    .limit(2000);
 
   const ids = (orders || []).map((o: any) => o.id);
   let refundedIds = new Set<string>();
@@ -117,6 +125,16 @@ async function fetchOneSellerKpis(sellerId: string): Promise<SellerDashboardKpis
   return fetchKpisClientFallback(sellerId);
 }
 
+async function fetchPortfolioKpis(sellerIds: string[]): Promise<SellerDashboardKpis> {
+  const { data, error } = await supabase.rpc('get_seller_portfolio_kpis', {
+    p_seller_ids: sellerIds,
+  });
+  if (!error && data) return mapKpiRpc(data as Record<string, unknown>);
+  console.warn('[useSellerOrderStats] portfolio RPC fallback:', error?.message);
+  const parts = await Promise.all(sellerIds.map(fetchOneSellerKpis));
+  return sumDashboardKpis(parts);
+}
+
 async function fetchOneSellerCounts(sellerId: string): Promise<SellerBoardCounts> {
   const { data, error } = await supabase.rpc('get_seller_order_board_counts', {
     p_seller_id: sellerId,
@@ -124,6 +142,16 @@ async function fetchOneSellerCounts(sellerId: string): Promise<SellerBoardCounts
   if (!error && data) return mapCountsRpc(data as Record<string, unknown>);
   console.warn('[useSellerOrderFilterCounts] RPC fallback:', error?.message);
   return fetchCountsClientFallback(sellerId);
+}
+
+async function fetchPortfolioCounts(sellerIds: string[]): Promise<SellerBoardCounts> {
+  const { data, error } = await supabase.rpc('get_seller_portfolio_board_counts', {
+    p_seller_ids: sellerIds,
+  });
+  if (!error && data) return mapCountsRpc(data as Record<string, unknown>);
+  console.warn('[useSellerOrderFilterCounts] portfolio RPC fallback:', error?.message);
+  const parts = await Promise.all(sellerIds.map(fetchOneSellerCounts));
+  return sumBoardCounts(parts);
 }
 
 /**
@@ -144,11 +172,10 @@ export function useSellerOrderStats(
     queryFn: async (): Promise<SellerDashboardKpis> => {
       if (ids.length === 0) return emptyDashboardKpis();
       if (ids.length === 1) return fetchOneSellerKpis(ids[0]);
-      const parts = await Promise.all(ids.map(fetchOneSellerKpis));
-      return sumDashboardKpis(parts);
+      return fetchPortfolioKpis(ids);
     },
     enabled: ids.length > 0,
-    staleTime: 15_000,
+    staleTime: 30_000,
   });
 }
 
@@ -168,11 +195,10 @@ export function useSellerOrderFilterCounts(
     queryFn: async (): Promise<SellerBoardCounts> => {
       if (ids.length === 0) return emptyBoardCounts();
       if (ids.length === 1) return fetchOneSellerCounts(ids[0]);
-      const parts = await Promise.all(ids.map(fetchOneSellerCounts));
-      return sumBoardCounts(parts);
+      return fetchPortfolioCounts(ids);
     },
     enabled: ids.length > 0,
-    staleTime: 15_000,
+    staleTime: 30_000,
   });
 }
 

@@ -150,7 +150,8 @@ export function useNotifications(userId: string | undefined) {
     },
     enabled: !!userId,
     staleTime: 60_000,
-    refetchInterval: 60_000,
+    // Realtime invalidation via PushNotificationProvider — avoid 60s PostgREST churn
+    refetchInterval: false,
   });
 }
 
@@ -238,7 +239,8 @@ export function useLatestActionNotification(userId: string | undefined) {
     },
     enabled: !!userId,
     staleTime: 30_000,
-    refetchInterval: 60_000,
+    // Realtime invalidation via PushNotificationProvider
+    refetchInterval: false,
   });
 }
 

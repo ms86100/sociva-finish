@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { useState, useCallback, useEffect, useRef } from 'react';
+import { Capacitor } from '@capacitor/core';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { friendlyError } from '@/lib/utils';
@@ -15,28 +16,64 @@ declare global {
 /** MutationObserver ref — disconnected on payment end */
 let razorpayDomObserver: MutationObserver | null = null;
 
-/** Watch for Razorpay-injected overlays and push them below the iOS safe area */
+type RazorpayNativeLayout = 'android-fullscreen' | 'ios-sheet' | null;
+
+function getRazorpayNativeLayout(): RazorpayNativeLayout {
+  if (!Capacitor.isNativePlatform()) return null;
+  return Capacitor.getPlatform() === 'ios' ? 'ios-sheet' : 'android-fullscreen';
+}
+
+/**
+ * Native layout patches for Checkout.js overlays.
+ * Android: full viewport + a single --app-safe-top inset (avoids 88vh gap / double padding).
+ * iOS: bottom sheet so the modal clears the notch without fighting WKWebView safe-area.
+ * Web: no layout overrides — leave Checkout.js defaults.
+ * Only patch direct body children so nested frames do not stack a second inset.
+ */
+function applyNativeCheckoutLayout(node: HTMLElement, layout: RazorpayNativeLayout) {
+  if (!layout) return;
+  if (node.parentElement !== document.body) return;
+  if (!isLikelyRazorpayNode(node)) return;
+
+  node.style.setProperty('left', '0', 'important');
+  node.style.setProperty('right', '0', 'important');
+  node.style.setProperty('width', '100%', 'important');
+  node.style.setProperty('overflow', 'hidden', 'important');
+  node.style.setProperty('background-color', '#fff', 'important');
+  node.style.setProperty('box-sizing', 'border-box', 'important');
+
+  if (layout === 'android-fullscreen') {
+    node.style.setProperty('top', '0', 'important');
+    node.style.setProperty('bottom', '0', 'important');
+    node.style.setProperty('height', '100%', 'important');
+    node.style.setProperty('max-height', '100%', 'important');
+    node.style.setProperty('border-radius', '0', 'important');
+    // One inset only — Capacitor publishes --app-safe-* (env() is unreliable on Android).
+    node.style.setProperty('padding-top', 'var(--app-safe-top, 0px)', 'important');
+    node.style.setProperty('padding-bottom', 'var(--app-safe-bottom, 0px)', 'important');
+    node.style.setProperty('padding-left', '0', 'important');
+    node.style.setProperty('padding-right', '0', 'important');
+    return;
+  }
+
+  // iOS bottom-sheet
+  node.style.setProperty('top', 'auto', 'important');
+  node.style.setProperty('bottom', '0', 'important');
+  node.style.setProperty('height', '88vh', 'important');
+  node.style.setProperty('max-height', '88vh', 'important');
+  node.style.setProperty('border-radius', '16px 16px 0 0', 'important');
+  node.style.setProperty('padding-bottom', 'env(safe-area-inset-bottom, 0px)', 'important');
+}
+
+/** Watch for Razorpay-injected overlays and apply native layout patches */
 function startSafeAreaObserver(onDetected?: () => void) {
   stopSafeAreaObserver();
+  const layout = getRazorpayNativeLayout();
 
   const patchNode = (node: HTMLElement) => {
-    const isRazorpayContainer = isLikelyRazorpayNode(node);
-
-    if (isRazorpayContainer) {
-      onDetected?.();
-      node.style.setProperty('top', 'auto', 'important');
-      node.style.setProperty('bottom', '0', 'important');
-      node.style.setProperty('left', '0', 'important');
-      node.style.setProperty('right', '0', 'important');
-      node.style.setProperty('height', '88vh', 'important');
-      node.style.setProperty('max-height', '88vh', 'important');
-      node.style.setProperty('width', '100%', 'important');
-      node.style.setProperty('border-radius', '16px 16px 0 0', 'important');
-      node.style.setProperty('overflow', 'hidden', 'important');
-      node.style.setProperty('background-color', '#fff', 'important');
-      node.style.setProperty('box-sizing', 'border-box', 'important');
-      node.style.setProperty('padding-bottom', 'env(safe-area-inset-bottom, 0px)', 'important');
-    }
+    if (!isLikelyRazorpayNode(node)) return;
+    onDetected?.();
+    applyNativeCheckoutLayout(node, layout);
   };
 
   razorpayDomObserver = new MutationObserver((mutations) => {
@@ -88,11 +125,22 @@ interface RazorpayOptions {
 /** Restore body scroll position and remove the lock class */
 function unlockBodyScroll() {
   stopSafeAreaObserver();
-  document.body.classList.remove('razorpay-active');
+  document.body.classList.remove('razorpay-active', 'razorpay-android', 'razorpay-ios');
   document.body.style.removeProperty('top');
   const savedY = parseInt(document.body.dataset.scrollY || '0', 10);
   window.scrollTo(0, savedY);
   delete document.body.dataset.scrollY;
+}
+
+function lockBodyForCheckout() {
+  const scrollY = window.scrollY;
+  document.body.dataset.scrollY = String(scrollY);
+  document.body.style.top = `-${scrollY}px`;
+  document.body.classList.add('razorpay-active');
+  document.body.classList.remove('razorpay-android', 'razorpay-ios');
+  const layout = getRazorpayNativeLayout();
+  if (layout === 'android-fullscreen') document.body.classList.add('razorpay-android');
+  if (layout === 'ios-sheet') document.body.classList.add('razorpay-ios');
 }
 
 const SCRIPT_URL = 'https://checkout.razorpay.com/v1/checkout.js';
@@ -333,11 +381,9 @@ export function useRazorpay() {
         options.onFailure(response.error);
       });
 
-      // Save scroll position and lock body in place
-      const scrollY = window.scrollY;
-      document.body.dataset.scrollY = String(scrollY);
-      document.body.style.top = `-${scrollY}px`;
-      document.body.classList.add('razorpay-active');
+      // Save scroll position and lock body in place (platform class drives CSS layout)
+      lockBodyForCheckout();
+      const nativeLayout = getRazorpayNativeLayout();
 
       // Open Razorpay — use rAF to ensure the CSS changes are painted
       // before the SDK injects its overlay, preventing the brief
@@ -376,24 +422,18 @@ export function useRazorpay() {
           options.onFailure({ code: 'POPUP_BLOCKED', description: 'Payment window could not open. Try again from the published app.' });
         }, 3500);
 
-        // Delayed re-sweeps to catch late-injected elements
-        const sweep = () => document.body.querySelectorAll<HTMLElement>(':scope > div').forEach((el) => {
-          if (isLikelyRazorpayNode(el)) {
-            markModalDetected();
-            el.style.setProperty('top', 'auto', 'important');
-            el.style.setProperty('bottom', '0', 'important');
-            el.style.setProperty('height', '88vh', 'important');
-            el.style.setProperty('max-height', '88vh', 'important');
-            el.style.setProperty('border-radius', '16px 16px 0 0', 'important');
-            el.style.setProperty('overflow', 'hidden', 'important');
-            el.style.setProperty('background-color', '#fff', 'important');
-            el.style.setProperty('box-sizing', 'border-box', 'important');
-            el.style.setProperty('padding-bottom', 'env(safe-area-inset-bottom, 0px)', 'important');
-          }
-        });
-        setTimeout(sweep, 100);
-        setTimeout(sweep, 500);
-        setTimeout(sweep, 1000);
+        // Delayed re-sweeps to catch late-injected elements (native only)
+        if (nativeLayout) {
+          const sweep = () => document.body.querySelectorAll<HTMLElement>(':scope > div').forEach((el) => {
+            if (isLikelyRazorpayNode(el)) {
+              markModalDetected();
+              applyNativeCheckoutLayout(el, nativeLayout);
+            }
+          });
+          setTimeout(sweep, 100);
+          setTimeout(sweep, 500);
+          setTimeout(sweep, 1000);
+        }
       });
     } catch (error: any) {
       console.error('Razorpay error:', error);

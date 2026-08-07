@@ -10,6 +10,10 @@ import { getTerminalStatuses, invalidateStatusFlowCache } from '@/services/statu
 import { Capacitor } from '@capacitor/core';
 
 import { getTransitStatuses } from '@/lib/visibilityEngine';
+import {
+  subscribeBuyerOrderUpdates,
+  subscribeBuyerOrdersRealtimeHealth,
+} from '@/lib/buyer-orders-realtime-bus';
 
 const TAG = '[LiveActivityOrchestrator]';
 
@@ -51,6 +55,8 @@ export function useLiveActivityOrchestrator(): void {
   const activeOrderIdsRef = useRef<Set<string>>(new Set());
   /** Cached status flow entries */
   const flowEntriesRef = useRef<StatusFlowEntry[]>([]);
+  /** True while the buyer orders realtime channel is SUBSCRIBED */
+  const orderRealtimeHealthyRef = useRef(false);
 
   const fetchFlowEntries = useCallback(async () => {
     try {
@@ -117,22 +123,23 @@ export function useLiveActivityOrchestrator(): void {
     };
   }, [userId, doSync, fetchFlowEntries]);
 
-  // ── Realtime: order status changes (with auto-reconnect) ──
+  // ── Realtime: order status via shared buyer orders bus ──
   useEffect(() => {
     if (!userId) return;
     const isNative = Capacitor.isNativePlatform();
 
-    let retryCount = 0;
-    let channelRef: ReturnType<typeof supabase.channel> | null = null;
-    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    const unsubHealth = subscribeBuyerOrdersRealtimeHealth(userId, (healthy) => {
+      orderRealtimeHealthyRef.current = healthy;
+      console.log(TAG, `Shared order bus healthy=${healthy}`);
+      if (healthy) void doSync();
+    });
 
-    const handleOrderUpdate = async (payload: any) => {
+    const unsubOrders = subscribeBuyerOrderUpdates(userId, async (payload) => {
       const row = payload.new as any;
       const newStatus = row?.status as string | undefined;
       const orderId = row?.id as string | undefined;
       if (!newStatus || !orderId) return;
 
-      // Composite dedup: skip if we already processed this exact state
       const eventKey = `${orderId}:${newStatus}:${row?.updated_at}`;
       if (lastProcessedEvents.get(orderId)?.key === eventKey) return;
       lastProcessedEvents.set(orderId, { key: eventKey, ts: Date.now() });
@@ -146,7 +153,6 @@ export function useLiveActivityOrchestrator(): void {
         return;
       }
 
-      // Track active order
       activeOrderIdsRef.current.add(orderId);
 
       let delivery: any = null;
@@ -154,7 +160,7 @@ export function useLiveActivityOrchestrator(): void {
       let sellerLogoUrl: string | null = null;
       let itemCount: number | null = null;
       try {
-        const sellerId = (payload.new as any)?.seller_id;
+        const sellerId = row?.seller_id;
         const [deliveryRes, sellerRes, itemCountRes] = await Promise.all([
           supabase
             .from('delivery_assignments')
@@ -173,7 +179,6 @@ export function useLiveActivityOrchestrator(): void {
         itemCount = itemCountRes.count ?? null;
       } catch { /* best-effort */ }
 
-      // Fallback: if flowEntries are empty (race condition), fetch inline before building
       let flowEntries = flowEntriesRef.current;
       if (!flowEntries || flowEntries.length === 0) {
         console.warn(TAG, 'flowEntries empty on realtime event — fetching inline');
@@ -181,7 +186,6 @@ export function useLiveActivityOrchestrator(): void {
         flowEntries = flowEntriesRef.current;
       }
 
-      // ETA nullification: only pass ETA for transit statuses
       const transitSet = getTransitStatuses();
       const effectiveEta = transitSet.has(newStatus) ? (delivery?.eta_minutes ?? null) : null;
 
@@ -195,68 +199,13 @@ export function useLiveActivityOrchestrator(): void {
         effectiveEta,
       );
       if (isNative) await LiveActivityManager.push(activityData);
-    };
-
-    const subscribe = () => {
-      console.log(TAG, `Subscribing to order updates for buyer ${userId} (attempt ${retryCount + 1})`);
-
-      const channel = supabase
-        .channel(`la-order-status-${userId}`)
-        .on(
-          'postgres_changes',
-          {
-            event: 'UPDATE',
-            schema: 'public',
-            table: 'orders',
-            filter: `buyer_id=eq.${userId}`,
-          },
-          handleOrderUpdate,
-        )
-        .subscribe((status) => {
-          console.log(TAG, `Order channel status: ${status}`);
-          if (status === 'SUBSCRIBED') {
-            retryCount = 0;
-          }
-          if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
-            console.warn(TAG, `Order channel degraded (${status}), attempting reconnect...`);
-            attemptReconnect();
-          }
-        });
-
-      channelRef = channel;
-    };
-
-    const attemptReconnect = () => {
-      if (!mountedRef.current) return;
-      if (retryCount >= MAX_RECONNECT_RETRIES) {
-        console.error(TAG, `Order channel: max reconnects (${MAX_RECONNECT_RETRIES}) exceeded`);
-        return;
-      }
-      // Don't churn when the tab is hidden — wait for visibilitychange to retry.
-      if (!isTabVisible()) {
-        console.log(TAG, 'Order channel: tab hidden, deferring reconnect');
-        return;
-      }
-      retryCount++;
-      if (channelRef) {
-        supabase.removeChannel(channelRef);
-        channelRef = null;
-      }
-      const delay = Math.min(RECONNECT_BASE_DELAY_MS * 2 ** (retryCount - 1), RECONNECT_MAX_DELAY_MS);
-      retryTimer = setTimeout(() => {
-        if (!mountedRef.current) return;
-        subscribe();
-        doSync();
-      }, delay);
-    };
-
-    subscribe();
+    });
 
     return () => {
-      if (retryTimer) clearTimeout(retryTimer);
-      if (channelRef) supabase.removeChannel(channelRef);
+      unsubOrders();
+      unsubHealth();
     };
-  }, [userId, doSync]);
+  }, [userId, doSync, fetchFlowEntries]);
 
   // ── Realtime: delivery assignment INSERT + UPDATE (with order ID filtering) ──
   useEffect(() => {
@@ -389,7 +338,8 @@ export function useLiveActivityOrchestrator(): void {
     if (!userId) return;
     const isNative = Capacitor.isNativePlatform();
 
-    const POLL_INTERVAL_MS = 15_000; // 15 seconds — tighter safety net
+    const POLL_HEALTHY_MS = 60_000;
+    const POLL_DEGRADED_MS = 15_000;
     /** Last-known statuses to avoid redundant processing */
     const lastKnownRef = new Map<string, string>();
 
@@ -460,9 +410,22 @@ export function useLiveActivityOrchestrator(): void {
       } catch { /* best-effort */ }
     };
 
-    const intervalId = setInterval(poll, POLL_INTERVAL_MS);
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let cancelled = false;
+    const schedule = () => {
+      if (cancelled) return;
+      const delay = orderRealtimeHealthyRef.current ? POLL_HEALTHY_MS : POLL_DEGRADED_MS;
+      timer = setTimeout(async () => {
+        await poll();
+        schedule();
+      }, delay);
+    };
+    schedule();
 
-    return () => clearInterval(intervalId);
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
   }, [userId]);
 
   // ── Visibility change: immediate sync when user returns to tab/webview (web + native) ──
