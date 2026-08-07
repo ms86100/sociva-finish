@@ -3,8 +3,7 @@
  * Idle-time route prefetcher. Warms up dynamic-import chunks for likely-next
  * routes after the current page has painted, so navigations feel instant.
  *
- * Bottom-nav pages (Home/Orders/Cart/Society/Profile/Search) are eager-loaded
- * in App.tsx — this only warms secondary routes.
+ * Bottom-nav pages (except Home) are lazy — prefetch them first after idle.
  */
 
 const PREFETCH_KEYS = new Set<string>();
@@ -33,15 +32,22 @@ function prefetch(key: string, importer: Importer) {
 }
 
 /**
- * Prefetch high-traffic secondary routes after first paint.
+ * Prefetch high-traffic routes after first paint (Home stays eager).
  */
 export function prefetchBuyerRoutes() {
-  whenIdle(() => prefetch('order-detail', () => import('@/pages/OrderDetailPage')), 800);
-  whenIdle(() => prefetch('seller-detail', () => import('@/pages/SellerDetailPage')), 1000);
-  whenIdle(() => prefetch('product', () => import('@/pages/ProductDeepLinkPage')), 1200);
-  whenIdle(() => prefetch('notifications', () => import('@/pages/NotificationsPage')), 1400);
-  whenIdle(() => prefetch('notification-inbox', () => import('@/pages/NotificationInboxPage')), 1600);
-  whenIdle(() => prefetch('categories', () => import('@/pages/CategoriesPage')), 1800);
-  whenIdle(() => prefetch('favorites', () => import('@/pages/FavoritesPage')), 2000);
-  whenIdle(() => prefetch('become-seller', () => import('@/pages/BecomeSellerPage')), 2500);
+  // Bottom-nav tabs first — highest chance of next tap
+  whenIdle(() => prefetch('search', () => import('@/pages/SearchPage')), 400);
+  whenIdle(() => prefetch('orders', () => import('@/pages/OrdersPage')), 600);
+  whenIdle(() => prefetch('cart', () => import('@/pages/CartPage')), 800);
+  whenIdle(() => prefetch('society', () => import('@/pages/SocietyDashboardPage')), 1000);
+  whenIdle(() => prefetch('profile', () => import('@/pages/ProfilePage')), 1200);
+
+  whenIdle(() => prefetch('order-detail', () => import('@/pages/OrderDetailPage')), 1400);
+  whenIdle(() => prefetch('seller-detail', () => import('@/pages/SellerDetailPage')), 1600);
+  whenIdle(() => prefetch('product', () => import('@/pages/ProductDeepLinkPage')), 1800);
+  whenIdle(() => prefetch('notifications', () => import('@/pages/NotificationsPage')), 2000);
+  whenIdle(() => prefetch('notification-inbox', () => import('@/pages/NotificationInboxPage')), 2200);
+  whenIdle(() => prefetch('categories', () => import('@/pages/CategoriesPage')), 2400);
+  whenIdle(() => prefetch('favorites', () => import('@/pages/FavoritesPage')), 2600);
+  whenIdle(() => prefetch('become-seller', () => import('@/pages/BecomeSellerPage')), 3000);
 }

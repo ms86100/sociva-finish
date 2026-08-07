@@ -32,10 +32,29 @@ const CART_ACTIVE_PATH_PATTERNS: RegExp[] = [
 
 function useIsCartActiveRoute(): boolean {
   const location = useLocation();
-  return useMemo(
-    () => CART_ACTIVE_PATH_PATTERNS.some((re) => re.test(location.pathname)),
-    [location.pathname]
+  const [homeDeferredReady, setHomeDeferredReady] = useState(false);
+  const pathname = location.pathname;
+  const isHome = pathname === '/' || pathname === '';
+
+  const matches = useMemo(
+    () => CART_ACTIVE_PATH_PATTERNS.some((re) => re.test(pathname)),
+    [pathname]
   );
+
+  // Home needs cart for add-to-cart steppers, but the full JOIN must not race
+  // marketplace RPCs on cold start — wait ~1.2s after landing on /.
+  useEffect(() => {
+    if (!isHome) {
+      setHomeDeferredReady(true);
+      return;
+    }
+    setHomeDeferredReady(false);
+    const t = window.setTimeout(() => setHomeDeferredReady(true), 1200);
+    return () => window.clearTimeout(t);
+  }, [isHome, pathname]);
+
+  if (isHome) return homeDeferredReady;
+  return matches;
 }
 
 /**

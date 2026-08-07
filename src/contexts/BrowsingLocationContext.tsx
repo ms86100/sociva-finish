@@ -34,6 +34,8 @@ interface BrowsingLocationContextType {
 const BrowsingLocationContext = createContext<BrowsingLocationContextType | undefined>(undefined);
 
 const STORAGE_KEY = 'sociva_browsing_location';
+/** Last resolved lat/lng so marketplace can start before auth profile/society hydrates */
+const LAST_KNOWN_KEY = 'sociva_last_browsing_coords';
 const CART_CLEAR_THRESHOLD_KM = 2;
 
 function loadFromStorage(): BrowsingLocation | null {
@@ -44,6 +46,36 @@ function loadFromStorage(): BrowsingLocation | null {
     if (parsed && parsed.lat && parsed.lng && parsed.label) return parsed;
   } catch { /* ignore */ }
   return null;
+}
+
+function loadLastKnownLocation(): BrowsingLocation | null {
+  try {
+    const raw = localStorage.getItem(LAST_KNOWN_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed.lat === 'number' && typeof parsed.lng === 'number') {
+      return {
+        id: parsed.id || 'last-known',
+        label: parsed.label || 'Nearby',
+        lat: parsed.lat,
+        lng: parsed.lng,
+        source: parsed.source || 'society',
+      };
+    }
+  } catch { /* ignore */ }
+  return null;
+}
+
+function saveLastKnownLocation(loc: BrowsingLocation) {
+  try {
+    localStorage.setItem(LAST_KNOWN_KEY, JSON.stringify({
+      id: loc.id,
+      label: loc.label,
+      lat: loc.lat,
+      lng: loc.lng,
+      source: loc.source,
+    }));
+  } catch { /* ignore */ }
 }
 
 function loadStoredUserId(): string | null {
@@ -146,7 +178,7 @@ export function BrowsingLocationProvider({ children }: { children: React.ReactNo
     applyLocation(null);
   }, [applyLocation]);
 
-  // Fallback chain: override → default delivery address → society coordinates
+  // Fallback chain: override → default delivery address → society → last-known (cold start)
   const browsingLocation = useMemo<BrowsingLocation | null>(() => {
     // 1. Session/localStorage override
     if (override) return override;
@@ -173,8 +205,16 @@ export function BrowsingLocationProvider({ children }: { children: React.ReactNo
       };
     }
 
-    return null;
+    // 4. Last known — unlock marketplace while profile/society RPC is in flight
+    return loadLastKnownLocation();
   }, [override, defaultAddress, society]);
+
+  // Persist resolved location so the next cold start can skip the coords waterfall
+  useEffect(() => {
+    if (browsingLocation?.lat && browsingLocation?.lng && browsingLocation.id !== 'last-known') {
+      saveLastKnownLocation(browsingLocation);
+    }
+  }, [browsingLocation]);
 
   // Track previous location for distance comparison
   useEffect(() => {

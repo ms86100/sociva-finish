@@ -1,15 +1,20 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { hideSplashScreen } from '@/lib/capacitor';
 
-const MIN_DISPLAY_MS = 700;
-const MAX_DISPLAY_MS = 2500;
+// Keep short — HTML #boot-splash already covers JS download; this only bridges auth restore.
+const MIN_DISPLAY_MS = 280;
+const MAX_DISPLAY_MS = 1600;
+const EXIT_MS = 180;
 
 interface AppSplashScreenProps {
   ready: boolean;
   onComplete: () => void;
 }
 
+/**
+ * Lightweight CSS splash (no framer-motion). Renders over the app while session
+ * restores; children hydrate underneath via SplashGate.
+ */
 export function AppSplashScreen({ ready, onComplete }: AppSplashScreenProps) {
   const [minElapsed, setMinElapsed] = useState(false);
   const [exiting, setExiting] = useState(false);
@@ -19,118 +24,101 @@ export function AppSplashScreen({ ready, onComplete }: AppSplashScreenProps) {
   const finish = useCallback(() => {
     if (completedRef.current) return;
     completedRef.current = true;
-    const bootTime = Date.now() - mountTime.current;
-    console.log(`[Splash] Total display time: ${bootTime}ms`);
+    console.log(`[Splash] Total display time: ${Date.now() - mountTime.current}ms`);
     onComplete();
   }, [onComplete]);
 
-  // Hide native splash as soon as web splash mounts
   useEffect(() => {
     hideSplashScreen();
   }, []);
 
-  // Min display timer
   useEffect(() => {
     const timer = setTimeout(() => setMinElapsed(true), MIN_DISPLAY_MS);
     return () => clearTimeout(timer);
   }, []);
 
-  // Hard cap — force exit + complete so a stuck overlay can't block the app (DEF-008)
   useEffect(() => {
     const exitTimer = setTimeout(() => setExiting(true), MAX_DISPLAY_MS);
-    const forceTimer = setTimeout(finish, MAX_DISPLAY_MS + 500);
+    const forceTimer = setTimeout(finish, MAX_DISPLAY_MS + EXIT_MS + 50);
     return () => {
       clearTimeout(exitTimer);
       clearTimeout(forceTimer);
     };
   }, [finish]);
 
-  // Begin exit when ready + min elapsed
   useEffect(() => {
     if (ready && minElapsed && !exiting) {
       setExiting(true);
     }
   }, [ready, minElapsed, exiting]);
 
+  useEffect(() => {
+    if (!exiting) return;
+    const t = setTimeout(finish, EXIT_MS);
+    return () => clearTimeout(t);
+  }, [exiting, finish]);
+
   return (
-    <AnimatePresence onExitComplete={finish}>
-      {!exiting && (
-        <motion.div
-          key="splash"
-          initial={{ opacity: 1 }}
-          exit={{ opacity: 0, scale: 1.02 }}
-          transition={{ duration: 0.4, ease: 'easeInOut' }}
-          className="fixed z-[9999] flex flex-col items-center justify-center overflow-hidden"
-          style={{ backgroundColor: '#0a0a0f', top: -1, left: -1, right: -1, bottom: -1 }}
+    <div
+      aria-busy={!exiting}
+      aria-live="polite"
+      className="fixed z-[9999] flex flex-col items-center justify-center overflow-hidden"
+      style={{
+        backgroundColor: '#0a0a0f',
+        top: -1,
+        left: -1,
+        right: -1,
+        bottom: -1,
+        opacity: exiting ? 0 : 1,
+        transform: exiting ? 'scale(1.02)' : 'scale(1)',
+        transition: `opacity ${EXIT_MS}ms ease-out, transform ${EXIT_MS}ms ease-out`,
+        pointerEvents: exiting ? 'none' : 'auto',
+      }}
+    >
+      <div
+        className="absolute inset-0 opacity-30"
+        style={{
+          background: 'radial-gradient(circle at 50% 45%, hsl(151 65% 30% / 0.15) 0%, transparent 60%)',
+        }}
+      />
+
+      <div className="relative z-10 flex flex-col items-center gap-4">
+        <h1
+          className="text-[3.5rem] font-black tracking-[0.2em] leading-none"
+          style={{
+            fontFamily: "system-ui, -apple-system, 'Segoe UI', sans-serif",
+            background: 'linear-gradient(135deg, #ffffff 0%, hsl(151 65% 50%) 100%)',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            filter: 'drop-shadow(0 2px 24px hsl(151 65% 35% / 0.25))',
+          }}
         >
-          {/* Subtle radial glow behind text */}
-          <div 
-            className="absolute inset-0 opacity-30"
+          SOCIVA
+        </h1>
+        <p
+          className="text-[11px] font-medium tracking-[0.35em] uppercase"
+          style={{
+            color: 'hsl(151 30% 55%)',
+            textShadow: '0 0 20px hsl(151 65% 30% / 0.3)',
+          }}
+        >
+          Your Society, Your Store
+        </p>
+      </div>
+
+      <div className="absolute bottom-16 left-1/2 -translate-x-1/2 flex gap-1.5 z-10 opacity-50">
+        {[0, 1, 2].map((i) => (
+          <span
+            key={i}
+            className="w-1.5 h-1.5 rounded-full"
             style={{
-              background: 'radial-gradient(circle at 50% 45%, hsl(151 65% 30% / 0.15) 0%, transparent 60%)'
+              backgroundColor: 'hsl(151 40% 45%)',
+              animation: 'boot-pulse 1.2s ease-in-out infinite',
+              animationDelay: `${i * 0.2}s`,
             }}
           />
-
-          {/* Brand text — SOCIVA */}
-          <motion.div
-            initial={{ opacity: 0, y: 24 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1] }}
-            className="relative z-10 flex flex-col items-center gap-4"
-          >
-            {/* SOCIVA wordmark */}
-            <h1 
-              className="text-[3.5rem] font-black tracking-[0.2em] leading-none"
-              style={{
-                fontFamily: "system-ui, -apple-system, 'Segoe UI', sans-serif",
-                background: 'linear-gradient(135deg, #ffffff 0%, hsl(151 65% 50%) 100%)',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-                filter: 'drop-shadow(0 2px 24px hsl(151 65% 35% / 0.25))',
-              }}
-            >
-              SOCIVA
-            </h1>
-
-            {/* Tagline */}
-            <motion.p
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.35, duration: 0.7, ease: 'easeOut' }}
-              className="text-[11px] font-medium tracking-[0.35em] uppercase"
-              style={{ 
-                color: 'hsl(151 30% 55%)',
-                textShadow: '0 0 20px hsl(151 65% 30% / 0.3)'
-              }}
-            >
-              Your Society, Your Store
-            </motion.p>
-          </motion.div>
-
-          {/* Subtle loading indicator — positioned at bottom */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 0.5 }}
-            transition={{ delay: 0.6, duration: 0.4 }}
-            className="absolute bottom-16 left-1/2 -translate-x-1/2 flex gap-1.5 z-10"
-          >
-            {[0, 1, 2].map((i) => (
-              <motion.div
-                key={i}
-                className="w-1.5 h-1.5 rounded-full"
-                style={{ backgroundColor: 'hsl(151 40% 45%)' }}
-                animate={{ opacity: [0.3, 1, 0.3], scale: [0.8, 1.2, 0.8] }}
-                transition={{
-                  duration: 1.2,
-                  repeat: Infinity,
-                  delay: i * 0.2,
-                  ease: 'easeInOut',
-                }}
-              />
-            ))}
-          </motion.div>
-        </motion.div>
-      )}
-    </AnimatePresence>
+        ))}
+      </div>
+    </div>
   );
 }

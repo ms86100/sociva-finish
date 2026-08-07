@@ -49,7 +49,6 @@ export function FeaturedBanners() {
       return data || [];
     },
     staleTime: 60_000,
-    refetchOnMount: true,
   });
 
   // Separate classic vs festival banners

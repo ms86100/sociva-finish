@@ -4,7 +4,7 @@ import { initializeCapacitorPlugins } from "./lib/capacitor";
 
 // Bump when shipping bootstrap/critical-path fixes so returning users drop
 // stale Workbox caches that competed with first paint (e.g. splash-video).
-const BUILD_CACHE_VERSION = "2026-08-07-fast-first-paint-v1";
+const BUILD_CACHE_VERSION = "2026-08-07-fast-first-paint-v2";
 
 async function clearAppCaches() {
   try {

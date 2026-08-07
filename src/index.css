@@ -1851,3 +1851,9 @@ body.razorpay-active iframe[src*="checkout.razorpay"] {
 [data-vaul-drawer][data-vaul-drawer-direction="bottom"]::after {
   height: 0 !important;
 }
+
+/* Shared with HTML #boot-splash + React AppSplashScreen dots */
+@keyframes boot-pulse {
+  0%, 100% { opacity: 0.3; transform: scale(0.85); }
+  50% { opacity: 1; transform: scale(1.15); }
+}

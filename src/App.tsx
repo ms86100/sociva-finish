@@ -91,13 +91,14 @@ import { AppSplashScreen } from "@/components/splash/AppSplashScreen";
 // Cold-start guard: module-level flag resets only on full page reload
 let splashShown = false;
 
-// PERF: Bottom-nav + search are eager so tab switches never wait on chunk fetch/parse.
+// PERF: Only Home is eager — Cart/Orders/etc pull Razorpay, calendars, wallets into
+// the main chunk and delay first paint. Idle prefetch warms them after paint.
 import HomePage from "./pages/HomePage";
-import CartPage from "./pages/CartPage";
-import OrdersPage from "./pages/OrdersPage";
-import ProfilePage from "./pages/ProfilePage";
-import SocietyDashboardPage from "./pages/SocietyDashboardPage";
-import SearchPage from "./pages/SearchPage";
+const CartPage = lazyWithRetry(() => import("./pages/CartPage"));
+const OrdersPage = lazyWithRetry(() => import("./pages/OrdersPage"));
+const ProfilePage = lazyWithRetry(() => import("./pages/ProfilePage"));
+const SocietyDashboardPage = lazyWithRetry(() => import("./pages/SocietyDashboardPage"));
+const SearchPage = lazyWithRetry(() => import("./pages/SearchPage"));
 
 // Lazy-loaded pages for code splitting (secondary / infrequent routes)
 const AuthPage = lazyWithRetry(() => import("./pages/AuthPage"));
@@ -270,24 +271,19 @@ function PageLoadingFallback() {
 }
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { user, isLoading, isSessionRestored } = useAuth();
+  const { user, isSessionRestored } = useAuth();
   const [bootGaveUp, setBootGaveUp] = useState(false);
 
+  // Only gate on session restore — profile fetch must not blank the shell again
+  // after SplashGate (isLoading stays false after markBootComplete).
   useEffect(() => {
-    if (isSessionRestored && !isLoading) return;
+    if (isSessionRestored) return;
     const t = setTimeout(() => setBootGaveUp(true), 7000);
     return () => clearTimeout(t);
-  }, [isSessionRestored, isLoading]);
+  }, [isSessionRestored]);
 
-  if ((isLoading || !isSessionRestored) && !bootGaveUp) {
-    return (
-      <div className="min-h-[100dvh] flex flex-col items-center justify-center bg-background gap-3">
-        <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-          <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-        </div>
-        <span className="text-sm text-muted-foreground">Loading...</span>
-      </div>
-    );
+  if (!isSessionRestored && !bootGaveUp) {
+    return null; // SplashGate overlay covers boot; avoid a second spinner
   }
   if (!user) {
     return <Navigate to="/auth" replace />;
@@ -370,7 +366,7 @@ function NavigationHandler() {
   useAppLifecycle();
   useAndroidBackButton();
 
-  // Warm secondary route chunks as soon as session is ready (bottom-nav pages are eager).
+  // Warm bottom-nav + secondary chunks after session restore (idle).
   useEffect(() => {
     if (!isSessionRestored || !user) return;
     import('@/lib/route-prefetch').then(m => m.prefetchBuyerRoutes()).catch(() => {});
@@ -382,22 +378,28 @@ function NavigationHandler() {
 function GlobalSellerAlert() {
   const identity = React.useContext(IdentityCtx);
   const seller = React.useContext(SellerCtx);
-  const { registerDismissById, registerDismissAll } = useNewOrderAlertContext();
   const isSeller = seller?.isSeller ?? false;
+  // Buyers: skip order-alert polling + 600KB sound preload entirely.
+  if (!identity || !isSeller) return null;
+  return <GlobalSellerAlertActive />;
+}
+
+function GlobalSellerAlertActive() {
+  const identity = React.useContext(IdentityCtx);
+  const seller = React.useContext(SellerCtx);
+  const { registerDismissById, registerDismissAll } = useNewOrderAlertContext();
   const sellerIds = React.useMemo(
-    () => (isSeller && seller?.sellerProfiles ? seller.sellerProfiles.map(p => p.id) : []),
-    [isSeller, seller?.sellerProfiles]
+    () => (seller?.sellerProfiles ? seller.sellerProfiles.map(p => p.id) : []),
+    [seller?.sellerProfiles]
   );
   const { pendingAlerts, dismiss, dismissById, dismissAll, snooze } = useNewOrderAlert(sellerIds);
-  // Global seller-wide chat alerts: bell + toast + unread badge.
-  useSellerChatAlerts(identity?.user?.id ?? null, isSeller);
+  useSellerChatAlerts(identity?.user?.id ?? null, true);
 
   React.useEffect(() => {
     registerDismissById(dismissById);
     registerDismissAll(dismissAll);
   }, [dismissById, dismissAll, registerDismissById, registerDismissAll]);
 
-  if (!identity) return null;
   return <NewOrderAlertOverlay orders={pendingAlerts} onDismiss={dismiss} onDismissAll={dismissAll} onSnooze={snooze} sellerProfiles={seller?.sellerProfiles || []} />;
 }
 
@@ -412,7 +414,7 @@ class SafeSellerAlert extends React.Component<
 }
 
 function AppRoutes() {
-  const { user, profile, isLoading, isSessionRestored, isSigningOut } = useAuth();
+  const { user, profile, isSessionRestored, isSigningOut } = useAuth();
   const deferredNavigate = useNavigate();
   useReorderInterceptor();
 
@@ -435,9 +437,10 @@ function AppRoutes() {
     return () => clearTimeout(timer);
   }, [user, profile, deferredNavigate]);
 
-  // Gate public routes on session restoration to prevent flash of login page
-  const sessionPending = isLoading || !isSessionRestored;
-  const authedHome = !!(user && profile && !isSigningOut);
+  // Gate public routes on session restore only — waiting on profile caused
+  // auth/landing skeletons to linger after splash while get_user_auth_context ran.
+  const sessionPending = !isSessionRestored;
+  const authedHome = !!(user && !isSigningOut);
 
   return (
     <PageTransitionWrapper>

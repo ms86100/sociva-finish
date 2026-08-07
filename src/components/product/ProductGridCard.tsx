@@ -12,6 +12,7 @@ import { cn } from '@/lib/utils';
 import { useCurrency } from '@/hooks/useCurrency';
 import { computeStoreStatus, formatStoreClosedMessage } from '@/lib/store-availability';
 import { useCategoryConfig } from '@/hooks/queries/useCategoryConfig';
+import { optimizedImageUrl, handleImageError } from '@/utils/imageHelpers';
 
 export interface ProductWithSeller extends Product {
   seller_name?: string;
@@ -73,7 +74,7 @@ export function ProductGridCard({ product, behavior, onTap, className, viewOnly 
       <div className="relative p-2 pb-0">
         <div className="relative aspect-[4/3] rounded-[10px] overflow-hidden product-image-bg">
           {product.image_url ? (
-            <img src={product.image_url} alt={product.name} className="w-full h-full object-contain" loading="lazy" />
+            <img src={optimizedImageUrl(product.image_url, { width: 300, quality: 70 })} alt={product.name} className="w-full h-full object-contain" loading="lazy" decoding="async" onError={handleImageError} />
           ) : (
             <div className="w-full h-full flex items-center justify-center bg-muted"><span className="text-3xl">📦</span></div>
           )}

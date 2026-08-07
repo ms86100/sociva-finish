@@ -73,26 +73,20 @@ export function AppShell() {
  * `/` → landing when logged out; other paths → /auth.
  */
 export function AppShellGate() {
-  const { user, isLoading, isSessionRestored } = useAuth();
+  const { user, isSessionRestored } = useAuth();
   const location = useLocation();
   const [bootGaveUp, setBootGaveUp] = useState(false);
 
-  // Defense in depth: never leave the green spinner forever on slow devices
+  // Session restore only — profile/society loading must not replace Home with a spinner
+  // after SplashGate (that felt like a second black/blank screen).
   useEffect(() => {
-    if (isSessionRestored && !isLoading) return;
+    if (isSessionRestored) return;
     const t = setTimeout(() => setBootGaveUp(true), 7000);
     return () => clearTimeout(t);
-  }, [isSessionRestored, isLoading]);
+  }, [isSessionRestored]);
 
-  if ((isLoading || !isSessionRestored) && !bootGaveUp) {
-    return (
-      <div className="min-h-[100dvh] flex flex-col items-center justify-center bg-background gap-3">
-        <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-          <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-        </div>
-        <span className="text-sm text-muted-foreground">Loading...</span>
-      </div>
-    );
+  if (!isSessionRestored && !bootGaveUp) {
+    return null;
   }
 
   if (!user) {

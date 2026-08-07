@@ -21,6 +21,7 @@ import { computeStoreStatus, formatStoreClosedMessage, type StoreAvailability } 
 import { SellerTrustBadge } from '@/components/trust/SellerTrustBadge';
 import { ProductFavoriteButton } from '@/components/favorite/ProductFavoriteButton';
 import { useAuth } from '@/contexts/AuthContext';
+import { optimizedImageUrl, handleImageError } from '@/utils/imageHelpers';
 
 export interface ProductWithSeller {
   id: string; seller_id: string; name: string; price: number; image_url: string | null; category: string;
@@ -162,11 +163,13 @@ function ProductListingCardInner({ product, layout = 'auto', onTap, onNavigate, 
         )}>
           {product.image_url ? (
             <img
-              src={product.image_url}
+              src={optimizedImageUrl(product.image_url, { width: 300, quality: 70 })}
               alt={product.name}
               className={cn("w-full h-full object-cover transition-opacity duration-300", imgLoaded ? "opacity-100" : "opacity-0")}
               loading="lazy"
+              decoding="async"
               onLoad={() => setImgLoaded(true)}
+              onError={handleImageError}
             />
           ) : (
             <div

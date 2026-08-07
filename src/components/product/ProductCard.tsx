@@ -13,6 +13,7 @@ import { useCart } from '@/hooks/useCart';
 import { cn } from '@/lib/utils';
 import { useCurrency } from '@/hooks/useCurrency';
 import { computeStoreStatus, formatStoreClosedMessage } from '@/lib/store-availability';
+import { optimizedImageUrl, handleImageError } from '@/utils/imageHelpers';
 
 interface ProductCardProps {
   product: Product;
@@ -67,7 +68,7 @@ export function ProductCard({ product, variant = 'horizontal', onTap }: ProductC
       <Card className={cn('overflow-hidden', isStoreClosed && !product.is_available ? '' : isStoreClosed ? 'opacity-60 grayscale-[30%]' : '')}>
         <div className="relative aspect-[4/3]">
           {product.image_url ? (
-            <img src={product.image_url} alt={product.name} className="w-full h-full object-cover" loading="lazy" />
+            <img src={optimizedImageUrl(product.image_url, { width: 400, quality: 70 })} alt={product.name} className="w-full h-full object-cover" loading="lazy" decoding="async" onError={handleImageError} />
           ) : (
             <div className="w-full h-full bg-muted flex items-center justify-center"><span className="text-3xl">🛍️</span></div>
           )}
@@ -167,7 +168,7 @@ export function ProductCard({ product, variant = 'horizontal', onTap }: ProductC
       </div>
       <div className="flex flex-col items-center gap-2">
         <div className="relative w-20 h-20 rounded-lg overflow-hidden">
-          {product.image_url ? (<img src={product.image_url} alt={product.name} className="w-full h-full object-cover" loading="lazy" />) : (<div className="w-full h-full bg-muted flex items-center justify-center"><span className="text-2xl">🛍️</span></div>)}
+          {product.image_url ? (<img src={optimizedImageUrl(product.image_url, { width: 160, quality: 70 })} alt={product.name} className="w-full h-full object-cover" loading="lazy" decoding="async" onError={handleImageError} />) : (<div className="w-full h-full bg-muted flex items-center justify-center"><span className="text-2xl">🛍️</span></div>)}
           {/* Green flash on first add */}
           <AnimatePresence>
             {justAdded && (
