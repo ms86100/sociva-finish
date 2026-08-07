@@ -191,11 +191,29 @@ describe('Buyer journey ↔ category flags (admin single writer)', () => {
   });
 });
 
-describe('resolveTransactionType prefers stamped order key', () => {
-  it('returns stored transaction_type first', () => {
+describe('resolveTransactionType stamp + fulfillment heal', () => {
+  it('heals wrong cart_purchase stamp for self_pickup', () => {
     expect(
       resolveTransactionType('food', 'order', 'self_pickup', null, null, 'cart_purchase'),
+    ).toBe('self_fulfillment');
+  });
+
+  it('heals wrong cart_purchase stamp for seller delivery', () => {
+    expect(
+      resolveTransactionType('food', 'order', 'delivery', 'seller', null, 'cart_purchase'),
+    ).toBe('seller_delivery');
+  });
+
+  it('keeps platform delivery cart_purchase stamp', () => {
+    expect(
+      resolveTransactionType('food', 'order', 'delivery', 'platform', null, 'cart_purchase'),
     ).toBe('cart_purchase');
+  });
+
+  it('keeps correct non-cart stamps', () => {
+    expect(
+      resolveTransactionType('food', 'order', 'delivery', 'seller', null, 'seller_delivery'),
+    ).toBe('seller_delivery');
   });
 
   it('aligns contact_only with contact_enquiry', () => {

@@ -1,8 +1,8 @@
--- Fix cart order workflow stamp drift:
--- add_to_cart was always stamping cart_purchase via action_type_workflow_map,
--- ignoring fulfillment / delivery_handled_by. Seller-delivery orders then loaded
--- the platform cart_purchase machine; UI offered delivery-actor ready→picked_up
--- and seller_advance_order rejected it.
+-- Fix cart order workflow stamp drift (helpers + backfill).
+-- Companions:
+--   20260807233100 — seller/buyer advance RPCs with heal
+--   20260807233300 — create_multi_vendor_orders fulfillment-aware stamp
+--   20260807233400 — validate_order_status_transition heal
 --
 -- Intended stamp (restore 20260403164346):
 --   self_pickup              → self_fulfillment

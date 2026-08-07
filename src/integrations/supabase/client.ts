@@ -3,8 +3,15 @@ import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 import { capacitorStorage } from '@/lib/capacitor-storage';
 
-const SUPABASE_URL = "https://kkzkuyhgdvyecmxtmkpy.supabase.co";
-const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imtremt1eWhnZHZ5ZWNteHRta3B5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM4MzIyMTEsImV4cCI6MjA4OTQwODIxMX0.-dmjGjRYs7u8TkR14oPwOXWipNXgSxZRjuwc6q98VkA";
+// Prefer VITE_* when present; always fall back to project defaults.
+// Native/CI builds often lack .env (gitignored), which previously made OTP call
+// `undefined/functions/...` and immediately toast "Failed to send OTP".
+export const SUPABASE_URL =
+  (import.meta.env.VITE_SUPABASE_URL as string | undefined)?.replace(/^["']|["']$/g, "").trim() ||
+  "https://kkzkuyhgdvyecmxtmkpy.supabase.co";
+export const SUPABASE_PUBLISHABLE_KEY =
+  (import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined)?.replace(/^["']|["']$/g, "").trim() ||
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imtremt1eWhnZHZ5ZWNteHRta3B5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM4MzIyMTEsImV4cCI6MjA4OTQwODIxMX0.-dmjGjRYs7u8TkR14oPwOXWipNXgSxZRjuwc6q98VkA";
 
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";

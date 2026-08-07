@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase, SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { friendlyError } from '@/lib/utils';
 import { Society } from '@/types/database';
@@ -112,19 +112,18 @@ export function useAuthPage() {
       setResendCooldown(30);
     }
 
-    const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), OTP_SEND_TIMEOUT_MS);
 
     try {
       const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/msg91-send-otp`,
+        `${SUPABASE_URL}/functions/v1/msg91-send-otp`,
         {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            apikey: anonKey,
-            Authorization: `Bearer ${anonKey}`,
+            apikey: SUPABASE_PUBLISHABLE_KEY,
+            Authorization: `Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
           },
           body: JSON.stringify({
             phone,
@@ -142,7 +141,7 @@ export function useAuthPage() {
         throw new Error('Failed to send OTP');
       }
       if (!response.ok || data?.error) {
-        throw new Error(data?.error || 'Failed to send OTP');
+        throw new Error(data?.error || data?.message || 'Failed to send OTP');
       }
 
       if (data?.reqId) {
@@ -187,19 +186,18 @@ export function useAuthPage() {
 
     setIsVerifyingOtp(true);
     setOtpError(null);
-    const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), OTP_VERIFY_TIMEOUT_MS);
 
     try {
       const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/msg91-verify-otp`,
+        `${SUPABASE_URL}/functions/v1/msg91-verify-otp`,
         {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            apikey: anonKey,
-            Authorization: `Bearer ${anonKey}`,
+            apikey: SUPABASE_PUBLISHABLE_KEY,
+            Authorization: `Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
           },
           body: JSON.stringify({ reqId: otpReqId, otp, phone, country_code: '91' }),
           signal: controller.signal,

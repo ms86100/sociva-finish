@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { useState, useEffect, useRef } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase, SUPABASE_URL } from '@/integrations/supabase/client';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -49,7 +49,7 @@ export function GuardManualEntryTab({ societyId }: Props) {
       if (!session) { notify.block('Please log in'); return; }
 
       const rlResponse = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/gate-token?action=rate_check_manual`,
+        `${SUPABASE_URL}/functions/v1/gate-token?action=rate_check_manual`,
         { method: 'POST', headers: { 'Authorization': `Bearer ${session.access_token}`, 'Content-Type': 'application/json' }, body: '{}' }
       );
       if (rlResponse.status === 429) { toast.error('Too many requests. Please wait.'); return; }
