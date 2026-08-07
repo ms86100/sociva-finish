@@ -5,16 +5,37 @@ import { supabase } from '@/integrations/supabase/client';
 import { useLoyaltyBalance } from '@/hooks/queries/useLoyalty';
 import { toast } from 'sonner';
 
+/**
+ * Phase 1 platform-funded loyalty — client is display/quote only.
+ * Authoritative redeem happens inside create_multi_vendor_orders (_loyalty_points).
+ */
 export function useLoyaltyRedeem() {
   const { data: balance = 0, isLoading: balanceLoading } = useLoyaltyBalance();
   const queryClient = useQueryClient();
   const [appliedPoints, setAppliedPoints] = useState(0);
+  const [quotedMax, setQuotedMax] = useState<number | null>(null);
 
-  const redeemMutation = useMutation({
-    mutationFn: async ({ points, orderId }: { points: number; orderId: string }) => {
-      const { data, error } = await supabase.rpc('redeem_loyalty_points', {
-        _points: points,
-        _order_id: orderId,
+  const quoteMutation = useMutation({
+    mutationFn: async (cartAmountAfterCoupon: number) => {
+      const { data, error } = await supabase.rpc('quote_loyalty_redemption', {
+        _cart_amount_after_coupon: cartAmountAfterCoupon,
+      });
+      if (error) throw error;
+      return data as {
+        success?: boolean;
+        max_points?: number;
+        available_points?: number;
+        discount_rupees?: number;
+        error?: string;
+      };
+    },
+  });
+
+  const releaseMutation = useMutation({
+    mutationFn: async (orderIds: string[]) => {
+      if (!orderIds?.length) return null;
+      const { data, error } = await supabase.rpc('release_loyalty_for_orders', {
+        _order_ids: orderIds,
       });
       if (error) throw error;
       return data;
@@ -23,44 +44,72 @@ export function useLoyaltyRedeem() {
       queryClient.invalidateQueries({ queryKey: ['loyalty-balance'] });
       queryClient.invalidateQueries({ queryKey: ['loyalty-history'] });
     },
-    onError: (err: any) => {
-      console.error('[Loyalty] Redemption failed:', err);
-      toast.error('Could not redeem loyalty points. They will be restored.', { id: 'loyalty-redeem-fail' });
-    },
   });
 
+  const refreshQuote = useCallback(async (orderSubtotal: number) => {
+    const amount = Math.max(0, orderSubtotal);
+    try {
+      const data = await quoteMutation.mutateAsync(amount);
+      const max = Math.max(0, Number(data?.max_points ?? 0));
+      setQuotedMax(max);
+      if (appliedPoints > max) setAppliedPoints(max);
+      return max;
+    } catch (err) {
+      console.error('[Loyalty] quote failed:', err);
+      // Fallback: local cap from cached balance (server still enforces on checkout)
+      const max = Math.min(balance, Math.floor(amount));
+      setQuotedMax(max);
+      return max;
+    }
+  }, [quoteMutation, appliedPoints, balance]);
+
   const applyPoints = useCallback((maxOrderAmount: number) => {
-    const pointsToApply = Math.min(balance, Math.floor(maxOrderAmount));
-    setAppliedPoints(pointsToApply);
-  }, [balance]);
+    const cap = quotedMax != null ? quotedMax : Math.min(balance, Math.floor(maxOrderAmount));
+    setAppliedPoints(Math.min(balance, Math.floor(maxOrderAmount), cap));
+  }, [balance, quotedMax]);
 
   const clearAppliedPoints = useCallback(() => {
     setAppliedPoints(0);
   }, []);
 
-  const togglePoints = useCallback((orderSubtotal: number) => {
+  const togglePoints = useCallback(async (orderSubtotal: number) => {
     if (appliedPoints > 0) {
       setAppliedPoints(0);
-    } else {
-      const pointsToApply = Math.min(balance, Math.floor(orderSubtotal));
-      setAppliedPoints(pointsToApply);
+      return;
     }
-  }, [appliedPoints, balance]);
+    const max = await refreshQuote(orderSubtotal);
+    setAppliedPoints(max);
+  }, [appliedPoints, refreshQuote]);
 
-  const redeemPoints = useCallback(async (points: number, orderId: string) => {
-    if (points <= 0) return;
-    await redeemMutation.mutateAsync({ points, orderId });
-  }, [redeemMutation]);
+  /** @deprecated Redemption is server-side at checkout — kept as no-op for call-site safety */
+  const redeemPoints = useCallback(async (_points: number, _orderId: string) => {
+    console.warn('[Loyalty] redeemPoints is deprecated — checkout RPC applies loyalty');
+  }, []);
+
+  const releaseForOrders = useCallback(async (orderIds: string[]) => {
+    try {
+      await releaseMutation.mutateAsync(orderIds);
+    } catch (err: any) {
+      console.error('[Loyalty] release failed:', err);
+      toast.error('Could not release loyalty hold. Contact support if points stay pending.', {
+        id: 'loyalty-release-fail',
+      });
+    }
+  }, [releaseMutation]);
 
   return {
     balance,
     balanceLoading,
     appliedPoints,
-    loyaltyDiscount: appliedPoints, // 1 point = ₹1
+    loyaltyDiscount: appliedPoints, // 1 point = ₹1 (server-confirmed at checkout)
+    quotedMax,
     applyPoints,
     clearAppliedPoints,
     togglePoints,
+    refreshQuote,
     redeemPoints,
-    isRedeeming: redeemMutation.isPending,
+    releaseForOrders,
+    isRedeeming: false,
+    isQuoting: quoteMutation.isPending,
   };
 }

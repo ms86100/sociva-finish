@@ -5,8 +5,10 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useAdminAnalytics, StatusBreakdownEntry } from '@/hooks/queries/useAdminAnalytics';
 import { PeriodSelector } from './PeriodSelector';
-import { ShoppingCart, TrendingUp, Store, Package, CheckCircle, XCircle } from 'lucide-react';
+import { ShoppingCart, TrendingUp, Store, Package, CheckCircle, XCircle, Gift } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 
 function MetricCard({ icon: Icon, value, label, color }: { icon: any; value: string; label: string; color: string }) {
   return (
@@ -43,6 +45,21 @@ export function PlatformOverview() {
   const d = overview.data;
   const fmt = (n: number) => n >= 1000 ? `₹${(n / 1000).toFixed(1)}K` : `₹${n}`;
 
+  const loyaltyLiability = useQuery({
+    queryKey: ['admin-loyalty-liability'],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('admin_loyalty_liability');
+      if (error) throw error;
+      return data as {
+        outstanding_points?: number;
+        outstanding_rupees?: number;
+        pending_points?: number;
+        funding_source?: string;
+      };
+    },
+    staleTime: 60_000,
+  });
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -60,7 +77,18 @@ export function PlatformOverview() {
             <MetricCard icon={XCircle} value={fmt(d?.cancelledRevenue || 0)} label="Cancelled ₹" color="bg-red-500" />
             <MetricCard icon={Store} value={String(d?.activeSellers || 0)} label="Active Sellers" color="bg-violet-500" />
             <MetricCard icon={Package} value={String(d?.productsSold || 0)} label="Items Sold" color="bg-indigo-500" />
+            <MetricCard
+              icon={Gift}
+              value={loyaltyLiability.isLoading ? '…' : fmt(Number(loyaltyLiability.data?.outstanding_rupees || 0))}
+              label="Loyalty Liability"
+              color="bg-rose-500"
+            />
           </div>
+          {loyaltyLiability.data?.pending_points ? (
+            <p className="text-[11px] text-muted-foreground">
+              Platform-funded rewards · {loyaltyLiability.data.pending_points} pts held in checkout
+            </p>
+          ) : null}
 
           {/* Status Breakdown Table */}
           {d?.statusBreakdown && d.statusBreakdown.length > 0 && (

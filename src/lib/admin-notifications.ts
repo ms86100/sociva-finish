@@ -51,7 +51,13 @@ export async function notifySellerStatusChange(
     body: bodyMap[status],
     type: typeMap[status],
     reference_path: referencePathMap[status],
-    payload: { type: typeMap[status], action: actionMap[status] },
+    payload: {
+      type: typeMap[status],
+      action: actionMap[status],
+      status: typeMap[status],
+      target_role: 'seller',
+      wa_template: 'sociva_store_status',
+    },
   });
   if (error) console.error('Failed to enqueue seller notification:', error);
 }
@@ -78,7 +84,13 @@ export async function notifyLicenseStatusChange(
     body,
     type,
     reference_path: '/seller',
-    payload: { type, action: status === 'approved' ? 'LICENSE_APPROVED' : 'LICENSE_REJECTED' },
+    payload: {
+      type,
+      action: status === 'approved' ? 'LICENSE_APPROVED' : 'LICENSE_REJECTED',
+      status: type,
+      target_role: 'seller',
+      wa_template: 'sociva_store_status',
+    },
   });
   if (error) console.error('Failed to enqueue license notification:', error);
 }
@@ -172,7 +184,13 @@ export async function notifyProductStatusChange(
     body,
     type,
     reference_path: '/seller',
-    payload: { type, action: status === 'approved' ? 'PRODUCT_APPROVED' : 'PRODUCT_REJECTED' },
+    payload: {
+      type,
+      action: status === 'approved' ? 'PRODUCT_APPROVED' : 'PRODUCT_REJECTED',
+      status: type,
+      target_role: 'seller',
+      wa_template: 'sociva_store_status',
+    },
   });
   if (error) console.error('Failed to enqueue product notification:', error);
 }

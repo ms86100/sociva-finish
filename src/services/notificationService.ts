@@ -1,7 +1,7 @@
 /**
  * Channel-abstracted notification client for Sociva.
- * Today: WhatsApp via send-whatsapp Edge Function.
- * Later: email / push / SMS without changing booking call sites.
+ * WhatsApp via send-whatsapp Edge Function (admin) or via notification_queue → process-notification-queue.
+ * Later: email / SMS without changing booking call sites.
  */
 import { supabase } from '@/integrations/supabase/client';
 
@@ -12,7 +12,11 @@ export type NotificationTemplate =
   | 'otp'
   | 'booking_confirmation'
   | 'booking_cancelled'
-  | 'booking_reminder';
+  | 'booking_reminder'
+  | 'order_update'
+  | 'new_order_seller'
+  | 'payment_update'
+  | 'refund_update';
 
 export type NotificationRequest = {
   channel: NotificationChannel;
@@ -65,7 +69,7 @@ export const notificationService = {
         return {
           success: false,
           code: 'meta_error',
-          error: `Channel ${req.channel} is not wired yet — use whatsapp`,
+          error: `Channel ${req.channel} is not wired yet — use whatsapp or notification_queue`,
         };
       default:
         return { success: false, code: 'unexpected', error: 'Unknown channel' };

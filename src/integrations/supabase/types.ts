@@ -4283,6 +4283,8 @@ export type Database = {
           sounds: boolean
           updated_at: string
           user_id: string
+          whatsapp: boolean
+          whatsapp_opted_in_at: string | null
         }
         Insert: {
           chat?: boolean
@@ -4293,6 +4295,8 @@ export type Database = {
           sounds?: boolean
           updated_at?: string
           user_id: string
+          whatsapp?: boolean
+          whatsapp_opted_in_at?: string | null
         }
         Update: {
           chat?: boolean
@@ -4303,6 +4307,8 @@ export type Database = {
           sounds?: boolean
           updated_at?: string
           user_id?: string
+          whatsapp?: boolean
+          whatsapp_opted_in_at?: string | null
         }
         Relationships: []
       }
@@ -4783,6 +4789,9 @@ export type Database = {
           id: string
           idempotency_key: string | null
           is_cross_society: boolean
+          loyalty_discount_amount: number
+          loyalty_points_redeemed: number
+          loyalty_reservation_id: string | null
           needs_attention: boolean | null
           needs_attention_reason: string | null
           net_amount: number | null
@@ -7525,6 +7534,8 @@ export type Database = {
           period_end: string | null
           period_start: string | null
           platform_fee: number | null
+          platform_loyalty_subsidy: number
+          gross_before_loyalty: number | null
           razorpay_transfer_id: string | null
           seller_id: string
           settled_at: string | null
@@ -10951,33 +10962,7 @@ export type Database = {
         }
         Returns: undefined
       }
-      create_multi_vendor_orders:
-        | {
-            Args: {
-              _buyer_id: string
-              _cart_total?: number
-              _coupon_code?: string
-              _coupon_discount?: number
-              _coupon_id?: string
-              _delivery_address?: string
-              _delivery_address_id?: string
-              _delivery_fee?: number
-              _delivery_lat?: number
-              _delivery_lng?: number
-              _fulfillment_type?: string
-              _has_urgent?: boolean
-              _idempotency_key?: string
-              _notes?: string
-              _payment_method?: string
-              _payment_status?: string
-              _preorder_seller_ids?: string[]
-              _scheduled_date?: string
-              _scheduled_time_start?: string
-              _seller_groups: Json
-            }
-            Returns: Json
-          }
-        | {
+      create_multi_vendor_orders: {
             Args: {
               _buyer_id: string
               _coupon_discount?: number
@@ -10989,6 +10974,7 @@ export type Database = {
               _delivery_lng?: number
               _fulfillment_type?: string
               _idempotency_key?: string
+              _loyalty_points?: number
               _notes?: string
               _payment_method?: string
               _payment_status?: string
@@ -11293,6 +11279,37 @@ export type Database = {
       }
       get_location_stats: { Args: { _society_id: string }; Returns: Json }
       get_loyalty_balance: { Args: { _user_id?: string }; Returns: number }
+      get_loyalty_wallet: { Args: never; Returns: Json }
+      quote_loyalty_redemption: {
+        Args: { _cart_amount_after_coupon: number }
+        Returns: Json
+      }
+      reserve_loyalty_points: {
+        Args: {
+          _checkout_key?: string
+          _idempotency_key?: string
+          _order_ids?: string[]
+          _points: number
+        }
+        Returns: Json
+      }
+      commit_loyalty_reservation: {
+        Args: { _order_ids?: string[]; _reservation_id: string }
+        Returns: Json
+      }
+      release_loyalty_reservation: {
+        Args: { _reservation_id: string }
+        Returns: Json
+      }
+      commit_loyalty_for_orders: {
+        Args: { _order_ids: string[] }
+        Returns: Json
+      }
+      release_loyalty_for_orders: {
+        Args: { _order_ids: string[] }
+        Returns: Json
+      }
+      admin_loyalty_liability: { Args: never; Returns: Json }
       get_loyalty_history: {
         Args: { _limit?: number }
         Returns: {

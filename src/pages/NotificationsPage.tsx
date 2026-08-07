@@ -14,6 +14,7 @@ import { toast } from 'sonner';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Capacitor } from '@capacitor/core';
 import { usePushNotifications } from '@/contexts/PushNotificationContext';
+import { WhatsAppUpdatesCta } from '@/components/notifications/WhatsAppUpdatesCta';
 
 interface NotificationPreferences {
   orders: boolean;
@@ -144,7 +145,7 @@ export default function NotificationsPage() {
       key: 'promotions' as const,
       icon: Tag,
       title: 'Promotions',
-      description: 'Special offers and featured sellers',
+      description: 'Special offers and featured sellers. WhatsApp marketing is sent only when this and WhatsApp updates are both on.',
     },
     {
       key: 'sounds' as const,
@@ -248,6 +249,8 @@ export default function NotificationsPage() {
                 </CardContent>
               </Card>
             ))}
+
+            <WhatsAppUpdatesCta variant="settings" audience="generic" />
           </div>
         )}
 

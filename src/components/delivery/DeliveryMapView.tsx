@@ -1,9 +1,9 @@
 // @ts-nocheck
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
-import { useGoogleMaps, clearGoogleMapsCache } from '@/hooks/useGoogleMaps';
-import { useTrackingConfig } from '@/hooks/useTrackingConfig';
-import { Navigation, MapPin, ExternalLink, AlertTriangle, RefreshCw } from 'lucide-react';
+import { Navigation, ExternalLink, AlertTriangle, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useGoogleMaps } from '@/hooks/useGoogleMaps';
+import { useTrackingConfig } from '@/hooks/useTrackingConfig';
 
 // ─── Props ───────────────────────────────────────────────────────────────────
 
@@ -168,46 +168,112 @@ function useRouteSplit(routeCoords: { lat: number; lng: number }[], riderLat: nu
   }, [routeCoords, riderLat, riderLng]);
 }
 
-// ─── Branded SVG Icons ───────────────────────────────────────────────────────
+// ─── Geo helpers ─────────────────────────────────────────────────────────────
 
+/** Bearing in degrees clockwise from north (0–360). */
+function bearingDegrees(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const φ1 = toRad(lat1);
+  const φ2 = toRad(lat2);
+  const Δλ = toRad(lng2 - lng1);
+  const y = Math.sin(Δλ) * Math.cos(φ2);
+  const x = Math.cos(φ1) * Math.sin(φ2) - Math.sin(φ1) * Math.cos(φ2) * Math.cos(Δλ);
+  return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
+}
+
+/** Shortest signed delta between two headings (−180…180). */
+function headingDelta(from: number, to: number): number {
+  return ((to - from + 540) % 360) - 180;
+}
+
+// Brand green ≈ hsl(151 65% 38%)
+const SOCIVA_GREEN = '#22A05A';
+const PICKUP_AMBER = '#F59E0B';
+const DROP_ROSE = '#E11D48';
+
+function svgDataUrl(svg: string): string {
+  return 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg);
+}
+
+// ─── Branded SVG Icons (Uber/Swiggy-style) ───────────────────────────────────
+
+/** Delivery scooter facing north; rotate via `rotation` (GPS heading). Bag branded "SV". */
 function createRiderIconSvg(rotation: number = 0): string {
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="56" height="56" viewBox="0 0 56 56">
-    <defs>
-      <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
-        <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="rgba(0,0,0,0.3)"/>
-      </filter>
-    </defs>
-    <g filter="url(#shadow)" transform="rotate(${rotation}, 28, 28)">
-      <circle cx="28" cy="28" r="22" fill="#3b82f6" stroke="white" stroke-width="3"/>
-      <g transform="translate(14, 12) scale(0.6)">
-        <path d="M8 30c0 2.2 1.8 4 4 4s4-1.8 4-4h-8zM32 30c0 2.2 1.8 4 4 4s4-1.8 4-4h-8z" fill="white" opacity="0.9"/>
-        <path d="M12 28l4-12h8l2 4h6l4-4 2 2-5 5h-6l-2-4h-4l-3 9h-6z" fill="white"/>
-        <circle cx="24" cy="12" r="4" fill="white"/>
-      </g>
+  const r = Math.round(rotation);
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <defs>
+    <filter id="svShadow" x="-40%" y="-40%" width="180%" height="180%">
+      <feDropShadow dx="0" dy="1.5" stdDeviation="2.2" flood-color="rgba(0,0,0,0.38)"/>
+    </filter>
+    <linearGradient id="svBody" x1="0.5" y1="0" x2="0.5" y2="1">
+      <stop offset="0%" stop-color="#34C776"/>
+      <stop offset="100%" stop-color="${SOCIVA_GREEN}"/>
+    </linearGradient>
+  </defs>
+  <ellipse cx="32" cy="52" rx="12" ry="4.5" fill="rgba(0,0,0,0.14)"/>
+  <g filter="url(#svShadow)" transform="rotate(${r}, 32, 32)">
+    <!-- rear wheel -->
+    <circle cx="32" cy="44" r="6.2" fill="#111827" stroke="#fff" stroke-width="1.8"/>
+    <circle cx="32" cy="44" r="2.4" fill="#9ca3af"/>
+    <!-- body / deck -->
+    <path d="M26 40 L26 28 Q26 22 32 16 Q38 22 38 28 L38 40 Z" fill="url(#svBody)" stroke="#fff" stroke-width="2" stroke-linejoin="round"/>
+    <!-- front fairing tip -->
+    <path d="M29.5 20 Q32 13.5 34.5 20 Q32 18.5 29.5 20Z" fill="#fff" opacity="0.35"/>
+    <!-- handlebar -->
+    <rect x="24.5" y="23" width="15" height="2.6" rx="1.3" fill="#111827"/>
+    <circle cx="24.5" cy="24.3" r="1.8" fill="#374151"/>
+    <circle cx="39.5" cy="24.3" r="1.8" fill="#374151"/>
+    <!-- seat -->
+    <ellipse cx="32" cy="33.5" rx="4.2" ry="2.4" fill="#111827"/>
+    <!-- delivery bag (trails behind when facing north) -->
+    <g transform="translate(23, 35)">
+      <rect x="0" y="0" width="18" height="13" rx="3" fill="#0f766e" stroke="#fff" stroke-width="1.5"/>
+      <path d="M4 0.5 C4 -2 7 -3.2 9 -3.2 S14 -2 14 0.5" fill="none" stroke="#fff" stroke-width="1.4" stroke-linecap="round"/>
+      <rect x="2" y="2.5" width="14" height="8" rx="2" fill="#115e59"/>
+      <text x="9" y="8.6" text-anchor="middle" font-family="system-ui,-apple-system,Segoe UI,sans-serif" font-size="6.5" font-weight="800" fill="#ecfdf5" letter-spacing="0.6">SV</text>
     </g>
-    <circle cx="28" cy="28" r="26" fill="none" stroke="#3b82f6" stroke-width="2" opacity="0.3">
-      <animate attributeName="r" values="22;28;22" dur="2s" repeatCount="indefinite"/>
-      <animate attributeName="opacity" values="0.4;0;0.4" dur="2s" repeatCount="indefinite"/>
-    </circle>
-  </svg>`;
+  </g>
+</svg>`;
 }
 
+/** Drop / End pin — professional teardrop with home glyph. Anchor at tip. */
 function createDestinationIconSvg(): string {
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">
-    <circle cx="24" cy="24" r="20" fill="none" stroke="#ef4444" stroke-width="2" opacity="0.3">
-      <animate attributeName="r" values="12;20;12" dur="2s" repeatCount="indefinite"/>
-      <animate attributeName="opacity" values="0.5;0;0.5" dur="2s" repeatCount="indefinite"/>
-    </circle>
-    <circle cx="24" cy="24" r="10" fill="#ef4444" stroke="white" stroke-width="3"/>
-    <circle cx="24" cy="24" r="4" fill="white"/>
-  </svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="44" height="56" viewBox="0 0 44 56">
+  <defs>
+    <filter id="dropSh" x="-30%" y="-20%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="rgba(0,0,0,0.32)"/>
+    </filter>
+  </defs>
+  <ellipse cx="22" cy="52" rx="8" ry="2.5" fill="rgba(0,0,0,0.18)"/>
+  <g filter="url(#dropSh)">
+    <path d="M22 2C12.06 2 4 10.06 4 20c0 12.5 18 32 18 32s18-19.5 18-32C40 10.06 31.94 2 22 2z" fill="${DROP_ROSE}" stroke="#fff" stroke-width="2.5"/>
+    <circle cx="22" cy="20" r="9.5" fill="#fff"/>
+    <path d="M22 13.5l7 6.2h-2.1V26h-3.2v-3.6h-3.4V26h-3.2v-6.3H15l7-6.2z" fill="${DROP_ROSE}"/>
+  </g>
+  <rect x="8" y="0" width="28" height="12" rx="6" fill="#fff" stroke="${DROP_ROSE}" stroke-width="1.5"/>
+  <text x="22" y="9" text-anchor="middle" font-family="system-ui,Segoe UI,sans-serif" font-size="7.5" font-weight="700" fill="${DROP_ROSE}" letter-spacing="0.3">DROP</text>
+</svg>`;
 }
 
+/** Pickup / Start pin — amber teardrop with store glyph. Anchor at tip. */
 function createSellerIconSvg(): string {
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="44" height="44" viewBox="0 0 44 44">
-    <circle cx="22" cy="22" r="16" fill="#f59e0b" stroke="white" stroke-width="3"/>
-    <text x="22" y="28" text-anchor="middle" font-size="16" fill="white">🏪</text>
-  </svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="44" height="56" viewBox="0 0 44 56">
+  <defs>
+    <filter id="pickSh" x="-30%" y="-20%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="rgba(0,0,0,0.32)"/>
+    </filter>
+  </defs>
+  <ellipse cx="22" cy="52" rx="8" ry="2.5" fill="rgba(0,0,0,0.18)"/>
+  <g filter="url(#pickSh)">
+    <path d="M22 2C12.06 2 4 10.06 4 20c0 12.5 18 32 18 32s18-19.5 18-32C40 10.06 31.94 2 22 2z" fill="${PICKUP_AMBER}" stroke="#fff" stroke-width="2.5"/>
+    <circle cx="22" cy="20" r="9.5" fill="#fff"/>
+    <path d="M14.5 22.5v-4.2l7.5-5.2 7.5 5.2v4.2h-2.4v-2.8h-10.2v2.8h-2.4z" fill="${PICKUP_AMBER}"/>
+    <rect x="17.2" y="20.8" width="3.2" height="3.6" rx="0.4" fill="${PICKUP_AMBER}"/>
+    <rect x="23.6" y="20.8" width="3.2" height="3.6" rx="0.4" fill="${PICKUP_AMBER}"/>
+  </g>
+  <rect x="5" y="0" width="34" height="12" rx="6" fill="#fff" stroke="${PICKUP_AMBER}" stroke-width="1.5"/>
+  <text x="22" y="9" text-anchor="middle" font-family="system-ui,Segoe UI,sans-serif" font-size="7.5" font-weight="700" fill="#B45309" letter-spacing="0.2">PICKUP</text>
+</svg>`;
 }
 
 // ─── Map Fallback Card ───────────────────────────────────────────────────────
@@ -311,12 +377,58 @@ export function DeliveryMapView({
   const remainingAnimPolyRef = useRef<google.maps.Polyline | null>(null);
   const infoWindowRef = useRef<google.maps.InfoWindow | null>(null);
   const animFrameRef = useRef<number>(0);
+  const dashAnimRef = useRef<number>(0);
+  const riderHeadingRef = useRef<number>(heading ?? 0);
+  const lastCameraFitAt = useRef(0);
   const userPannedRef = useRef(false);
   const initialFitDone = useRef(false);
   const [showRecenter, setShowRecenter] = useState(false);
   const [mapAuthFailed, setMapAuthFailed] = useState(false);
 
   const smoothedPos = useGPSSmoothing(riderLat, riderLng);
+
+  const setRiderIcon = (marker: google.maps.Marker, rotation: number) => {
+    riderHeadingRef.current = rotation;
+    marker.setIcon({
+      url: svgDataUrl(createRiderIconSvg(rotation)),
+      scaledSize: new google.maps.Size(64, 64),
+      anchor: new google.maps.Point(32, 40),
+    });
+  };
+
+  /** Keep rider, destination, and (when relevant) pickup in view. */
+  const fitTrackingBounds = (map: google.maps.Map, force = false) => {
+    const now = Date.now();
+    if (!force && now - lastCameraFitAt.current < 2500) return;
+
+    const points: google.maps.LatLngLiteral[] = [
+      { lat: smoothedPos.lat, lng: smoothedPos.lng },
+      { lat: destinationLat, lng: destinationLng },
+    ];
+    if (sellerLat && sellerLng && !isPickedUp) {
+      points.push({ lat: sellerLat, lng: sellerLng });
+    }
+
+    // Skip re-fit when all key points are already comfortably on-screen
+    if (!force) {
+      const view = map.getBounds();
+      if (view) {
+        const allVisible = points.every((p) => view.contains(p));
+        if (allVisible) return;
+      }
+    }
+
+    lastCameraFitAt.current = now;
+    const bounds = new google.maps.LatLngBounds();
+    points.forEach((p) => bounds.extend(p));
+    map.fitBounds(bounds, { top: 56, bottom: 72, left: 48, right: 48 });
+
+    google.maps.event.addListenerOnce(map, 'idle', () => {
+      const z = map.getZoom();
+      if (z != null && z > 17) map.setZoom(17);
+      if (z != null && z < 11) map.setZoom(11);
+    });
+  };
 
   const { routeCoords, roadEtaMinutes, roadDistanceMeters, totalRouteDistance } = useOSRMRoute(
     riderLat, riderLng, destinationLat, destinationLng,
@@ -392,19 +504,20 @@ export function DeliveryMapView({
     mapRef.current = map;
     infoWindowRef.current = new google.maps.InfoWindow();
 
-    // Rider marker with branded scooter icon
-    const riderIconUrl = 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(createRiderIconSvg(heading || 0));
+    // Rider marker — branded scooter with SV bag
     const riderMarker = new google.maps.Marker({
       map,
       position: { lat: riderLat, lng: riderLng },
       title: riderName || 'Delivery Partner',
       icon: {
-        url: riderIconUrl,
-        scaledSize: new google.maps.Size(56, 56),
-        anchor: new google.maps.Point(28, 28),
+        url: svgDataUrl(createRiderIconSvg(heading || 0)),
+        scaledSize: new google.maps.Size(64, 64),
+        anchor: new google.maps.Point(32, 40),
       },
       zIndex: 100,
+      optimized: false,
     });
+    riderHeadingRef.current = heading || 0;
 
     riderMarker.addListener('click', () => {
       const distText = roadDistanceMeters
@@ -421,34 +534,34 @@ export function DeliveryMapView({
     });
     riderMarkerRef.current = riderMarker;
 
-    // Pulsing destination marker
-    const destIconUrl = 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(createDestinationIconSvg());
+    // Destination / End marker
     const destMarker = new google.maps.Marker({
       map,
       position: { lat: destinationLat, lng: destinationLng },
       title: 'Delivery Address',
       icon: {
-        url: destIconUrl,
-        scaledSize: new google.maps.Size(48, 48),
-        anchor: new google.maps.Point(24, 24),
+        url: svgDataUrl(createDestinationIconSvg()),
+        scaledSize: new google.maps.Size(44, 56),
+        anchor: new google.maps.Point(22, 52),
       },
       zIndex: 90,
+      optimized: false,
     });
     destMarkerRef.current = destMarker;
 
-    // Seller marker
+    // Pickup / Start marker
     if (sellerLat && sellerLng) {
-      const sellerIconUrl = 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(createSellerIconSvg());
       const sellerMarker = new google.maps.Marker({
         map,
         position: { lat: sellerLat, lng: sellerLng },
-        title: sellerName || 'Restaurant',
+        title: sellerName || 'Pickup',
         icon: {
-          url: sellerIconUrl,
-          scaledSize: new google.maps.Size(44, 44),
-          anchor: new google.maps.Point(22, 22),
+          url: svgDataUrl(createSellerIconSvg()),
+          scaledSize: new google.maps.Size(44, 56),
+          anchor: new google.maps.Point(22, 52),
         },
         zIndex: 80,
+        optimized: false,
       });
       sellerMarkerRef.current = sellerMarker;
     }
@@ -458,17 +571,17 @@ export function DeliveryMapView({
       map,
       path: [],
       strokeColor: '#9ca3af',
-      strokeWeight: 3,
-      strokeOpacity: 0.4,
+      strokeWeight: 4,
+      strokeOpacity: 0.45,
     });
 
-    // Remaining route (solid base)
+    // Remaining route (solid base) — Sociva green
     remainingPolyRef.current = new google.maps.Polyline({
       map,
       path: [],
-      strokeColor: '#3b82f6',
+      strokeColor: SOCIVA_GREEN,
       strokeWeight: 5,
-      strokeOpacity: 0.3,
+      strokeOpacity: 0.35,
     });
 
     // Remaining route (animated dash overlay)
@@ -480,34 +593,35 @@ export function DeliveryMapView({
         icon: {
           path: 'M 0,-1 0,1',
           strokeOpacity: 1,
-          strokeColor: '#3b82f6',
+          strokeColor: SOCIVA_GREEN,
           strokeWeight: 4,
           scale: 3,
         },
         offset: '0',
-        repeat: '20px',
+        repeat: '18px',
       }],
     });
 
     // Animate the dashes
     let dashOffset = 0;
     const animateDashes = () => {
-      dashOffset = (dashOffset + 0.5) % 200;
+      dashOffset = (dashOffset + 0.45) % 200;
       const icons = remainingAnimPolyRef.current?.get('icons');
       if (icons?.[0]) {
         icons[0].offset = dashOffset + 'px';
         remainingAnimPolyRef.current?.set('icons', icons);
       }
-      requestAnimationFrame(animateDashes);
+      dashAnimRef.current = requestAnimationFrame(animateDashes);
     };
-    requestAnimationFrame(animateDashes);
+    dashAnimRef.current = requestAnimationFrame(animateDashes);
 
     return () => {
       cancelAnimationFrame(animFrameRef.current);
+      cancelAnimationFrame(dashAnimRef.current);
     };
   }, [isLoaded, mapAuthFailed]);
 
-  // ─── Animate rider position (smooth glide) ──────────────────────────────
+  // ─── Animate rider position + rotate toward travel direction ─────────────
   useEffect(() => {
     const marker = riderMarkerRef.current;
     if (!marker) return;
@@ -522,8 +636,19 @@ export function DeliveryMapView({
     const startLng = currentPos.lng();
     const endLat = smoothedPos.lat;
     const endLng = smoothedPos.lng;
+    const moveDist = haversineMeters(startLat, startLng, endLat, endLng);
 
-    if (Math.abs(endLat - startLat) < 0.000001 && Math.abs(endLng - startLng) < 0.000001) return;
+    if (moveDist < 0.4) return;
+
+    // Prefer GPS heading when available; otherwise derive from movement
+    const targetHeading =
+      heading != null && !Number.isNaN(heading)
+        ? heading
+        : moveDist >= 1.5
+          ? bearingDegrees(startLat, startLng, endLat, endLng)
+          : riderHeadingRef.current;
+    const startHeading = riderHeadingRef.current;
+    const delta = headingDelta(startHeading, targetHeading);
 
     const duration = config.map_animation_duration_ms || 1200;
     const startTime = performance.now();
@@ -535,23 +660,26 @@ export function DeliveryMapView({
       const lat = startLat + (endLat - startLat) * ease;
       const lng = startLng + (endLng - startLng) * ease;
       marker.setPosition(new google.maps.LatLng(lat, lng));
+
+      // Smoothly rotate icon along the glide (throttle icon swaps every ~8°)
+      const nextHeading = (startHeading + delta * ease + 360) % 360;
+      if (Math.abs(headingDelta(riderHeadingRef.current, nextHeading)) >= 8 || t === 1) {
+        setRiderIcon(marker, nextHeading);
+      }
+
       if (t < 1) animFrameRef.current = requestAnimationFrame(animate);
     };
     animFrameRef.current = requestAnimationFrame(animate);
 
     return () => cancelAnimationFrame(animFrameRef.current);
-  }, [smoothedPos.lat, smoothedPos.lng]);
+  }, [smoothedPos.lat, smoothedPos.lng, heading, config.map_animation_duration_ms]);
 
-  // ─── Update rider icon rotation based on heading ─────────────────────────
+  // ─── Sync icon when GPS heading arrives without a position change ────────
   useEffect(() => {
     const marker = riderMarkerRef.current;
     if (!marker || heading == null) return;
-    const iconUrl = 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(createRiderIconSvg(heading));
-    marker.setIcon({
-      url: iconUrl,
-      scaledSize: new google.maps.Size(56, 56),
-      anchor: new google.maps.Point(28, 28),
-    });
+    if (Math.abs(headingDelta(riderHeadingRef.current, heading)) < 5) return;
+    setRiderIcon(marker, heading);
   }, [heading]);
 
   // ─── Update polylines ────────────────────────────────────────────────────
@@ -573,40 +701,22 @@ export function DeliveryMapView({
     remainingAnimPolyRef.current?.setPath(remainPath);
   }, [completed, remaining, routeCoords, smoothedPos.lat, smoothedPos.lng, destinationLat, destinationLng]);
 
-  // ─── Dynamic zoom + auto camera ─────────────────────────────────────────
+  // ─── Intelligent camera: keep rider + drop (+ pickup) in view ────────────
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
 
-    const distToDestination = haversineMeters(smoothedPos.lat, smoothedPos.lng, destinationLat, destinationLng);
-    let targetZoom = 14;
-    if (distToDestination > 5000) targetZoom = 12;
-    else if (distToDestination > 2000) targetZoom = 14;
-    else if (distToDestination > 500) targetZoom = 15;
-    else targetZoom = 16;
-
     if (!initialFitDone.current) {
-      const bounds = new google.maps.LatLngBounds();
-      bounds.extend({ lat: smoothedPos.lat, lng: smoothedPos.lng });
-      bounds.extend({ lat: destinationLat, lng: destinationLng });
-      if (sellerLat && sellerLng) bounds.extend({ lat: sellerLat, lng: sellerLng });
-      map.fitBounds(bounds, { top: 50, bottom: 50, left: 50, right: 50 });
+      fitTrackingBounds(map, true);
       initialFitDone.current = true;
-    } else if (!userPannedRef.current) {
-      if (isPickedUp) {
-        map.panTo({ lat: smoothedPos.lat, lng: smoothedPos.lng });
-        if (Math.abs(map.getZoom()! - targetZoom) > 1) {
-          map.setZoom(targetZoom);
-        }
-      } else {
-        const bounds = new google.maps.LatLngBounds();
-        bounds.extend({ lat: smoothedPos.lat, lng: smoothedPos.lng });
-        if (sellerLat && sellerLng) bounds.extend({ lat: sellerLat, lng: sellerLng });
-        else bounds.extend({ lat: destinationLat, lng: destinationLng });
-        map.fitBounds(bounds, { top: 50, bottom: 50, left: 50, right: 50 });
-      }
+      return;
     }
-  }, [smoothedPos.lat, smoothedPos.lng, destinationLat, destinationLng, isPickedUp]);
+
+    if (userPannedRef.current) return;
+
+    // Re-fit when rider moves enough that framing matters; throttle inside helper
+    fitTrackingBounds(map, false);
+  }, [smoothedPos.lat, smoothedPos.lng, destinationLat, destinationLng, isPickedUp, sellerLat, sellerLng]);
 
   // ─── Recenter handler ────────────────────────────────────────────────────
   const handleRecenter = useCallback(() => {
@@ -614,11 +724,8 @@ export function DeliveryMapView({
     if (!map) return;
     userPannedRef.current = false;
     setShowRecenter(false);
-    const bounds = new google.maps.LatLngBounds();
-    bounds.extend({ lat: smoothedPos.lat, lng: smoothedPos.lng });
-    bounds.extend({ lat: destinationLat, lng: destinationLng });
-    map.fitBounds(bounds, { top: 50, bottom: 50, left: 50, right: 50 });
-  }, [smoothedPos.lat, smoothedPos.lng, destinationLat, destinationLng]);
+    fitTrackingBounds(map, true);
+  }, [smoothedPos.lat, smoothedPos.lng, destinationLat, destinationLng, sellerLat, sellerLng, isPickedUp]);
 
   // ─── Retry handler ──────────────────────────────────────────────────────
   const handleRetry = useCallback(() => {
@@ -666,19 +773,34 @@ export function DeliveryMapView({
     <div className={`rounded-xl overflow-hidden border border-border ${mapHeight} relative shadow-sm transition-all duration-500`}>
       <div ref={mapContainerRef} className="h-full w-full" />
 
+      {/* Route legend */}
+      <div className="absolute top-2.5 left-2.5 z-10 flex items-center gap-1.5 bg-background/90 backdrop-blur-md border border-border rounded-lg px-2 py-1 shadow-sm">
+        {sellerLat && sellerLng && (
+          <>
+            <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-700 dark:text-amber-400">
+              <span className="h-2 w-2 rounded-full bg-amber-500" /> Pickup
+            </span>
+            <span className="text-[10px] text-muted-foreground">→</span>
+          </>
+        )}
+        <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-rose-700 dark:text-rose-400">
+          <span className="h-2 w-2 rounded-full bg-rose-500" /> Drop
+        </span>
+      </div>
+
       {/* ETA Overlay */}
       {roadEtaMinutes && (
         <div className="absolute bottom-2.5 right-2.5 z-10 bg-background/90 backdrop-blur-md border border-border rounded-xl px-3 py-2 shadow-md">
           <div className="flex items-center gap-2">
             <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
-              <MapPin className="h-4 w-4 text-primary" />
+              <Navigation className="h-4 w-4 text-primary" />
             </div>
             <div>
               <p className="text-sm font-bold text-foreground leading-tight">
                 {roadEtaMinutes > 3 ? `${roadEtaMinutes - 1}–${roadEtaMinutes + 1}` : roadEtaMinutes} min
               </p>
               {distanceKm && (
-                <p className="text-[10px] text-muted-foreground leading-tight">{distanceKm} km via road</p>
+                <p className="text-[10px] text-muted-foreground leading-tight">{distanceKm} km remaining</p>
               )}
             </div>
           </div>

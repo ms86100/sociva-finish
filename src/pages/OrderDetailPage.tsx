@@ -68,6 +68,7 @@ import { staggerContainer, cardEntrance } from '@/lib/motion-variants';
 import { OrderSuccessOverlay } from '@/components/checkout/OrderSuccessOverlay';
 import { OrderTotalsCard } from '@/components/order/OrderTotalsCard';
 import { OrderTerminalHero } from '@/components/order/OrderTerminalHero';
+import { WhatsAppUpdatesCta } from '@/components/notifications/WhatsAppUpdatesCta';
 
 const DeliveryMapView = lazy(() => import('@/components/delivery/DeliveryMapView').then(m => ({ default: m.DeliveryMapView })));
 
@@ -669,6 +670,13 @@ export default function OrderDetailPage() {
             /></motion.div>
           )}
 
+          {/* WhatsApp opt-in — opens 24h CSW after user sends Hi (dismissible / once opted-in) */}
+          {o.isBuyerView && !isTerminalStatus(o.flow, order.status) && order.status !== 'cancelled' && order.status !== 'payment_pending' && (
+            <motion.div variants={cardEntrance}>
+              <WhatsAppUpdatesCta variant="compact" audience="buyer" />
+            </motion.div>
+          )}
+
           {/* Seller context message (Condition #5: clear action state) */}
           {o.isSellerView && !isTerminalStatus(o.flow, order.status) && (() => {
             const msg = getSellerContextMessage();
@@ -678,6 +686,10 @@ export default function OrderDetailPage() {
               </div>
             ) : null;
           })()}
+
+          {o.isSellerView && !isTerminalStatus(o.flow, order.status) && (
+            <WhatsAppUpdatesCta variant="compact" audience="seller" />
+          )}
 
           {/* Celebration banner */}
           <CelebrationBanner order={order} isBuyerView={o.isBuyerView} flow={o.flow} />
@@ -992,7 +1004,14 @@ export default function OrderDetailPage() {
 
           {/* Appointment Details */}
           <SafeSectionWrapper name="AppointmentDetails">
-            {serviceBooking && <AppointmentDetailsCard booking={serviceBooking} />}
+            {serviceBooking && (
+              <AppointmentDetailsCard
+                booking={serviceBooking}
+                title={items[0]?.product_name || 'Service appointment'}
+                sellerName={seller?.business_name}
+                notes={(order as any).notes || (order as any).delivery_notes || null}
+              />
+            )}
           </SafeSectionWrapper>
 
           {/* Payment */}

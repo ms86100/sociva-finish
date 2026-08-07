@@ -417,8 +417,8 @@ export function useCartPage() {
     const { data, error } = await supabase.rpc('create_multi_vendor_orders', {
       _buyer_id: user.id, _delivery_address: deliveryAddressText,
       _notes: notes || null, _payment_method: effectivePaymentMethod, _payment_status: paymentStatus,
-      _coupon_id: appliedCoupon?.id || null, _coupon_code: appliedCoupon?.code || null,
-      _coupon_discount: effectiveCouponDiscount, _cart_total: totalAmount, _has_urgent: hasUrgentItem,
+      _coupon_id: appliedCoupon?.id || null,
+      _coupon_discount: effectiveCouponDiscount,
       _seller_groups: sellerGroupsPayload, _fulfillment_type: fulfillmentType, _delivery_fee: effectiveDeliveryFee,
       _delivery_address_id: selectedDeliveryAddress?.id || null,
       _delivery_lat: selectedDeliveryAddress?.latitude || null,
@@ -427,6 +427,8 @@ export function useCartPage() {
       _scheduled_date: scheduledDateStr,
       _scheduled_time_start: scheduledTimeStr,
       _preorder_seller_ids: preorderSellerIds.size > 0 ? Array.from(preorderSellerIds) : null,
+      // Platform-funded loyalty: server reserves/allocates/commits (COD) — never trust client math alone
+      _loyalty_points: effectiveLoyaltyDiscount > 0 ? Math.floor(effectiveLoyaltyDiscount) : 0,
     } as any);
     if (error) {
       // Do NOT reset idempotency key — retry must use the same key
@@ -676,9 +678,11 @@ export function useCartPage() {
       if (orderIds.length === 0) throw new Error('Failed to create orders');
       hapticNotification('success');
       prefetchFlowData();
-      // Redeem loyalty points if applied (best-effort, non-blocking)
-      if (effectiveLoyaltyDiscount > 0 && orderIds.length > 0) {
-        loyalty.redeemPoints(effectiveLoyaltyDiscount, orderIds[0]).catch(() => {});
+      // Loyalty already reserved+committed server-side for COD inside create_multi_vendor_orders
+      if (effectiveLoyaltyDiscount > 0) {
+        loyalty.clearAppliedPoints();
+        queryClient.invalidateQueries({ queryKey: ['loyalty-balance'] });
+        queryClient.invalidateQueries({ queryKey: ['loyalty-history'] });
       }
       // Optimistically clear cart cache BEFORE navigation to prevent back-button duplicates
       queryClient.setQueryData(['cart-items', user.id], []);
@@ -764,8 +768,11 @@ export function useCartPage() {
       if (confirmOk) {
         toast.success('Payment successful! Your order is confirmed.', { id: 'razorpay-success' });
         clearPaymentSession();
-        if (effectiveLoyaltyDiscount > 0 && orderIds.length > 0) {
-          loyalty.redeemPoints(effectiveLoyaltyDiscount, orderIds[0]).catch(() => {});
+        // Loyalty commit happens in confirm-razorpay-payment (server-authoritative)
+        if (effectiveLoyaltyDiscount > 0) {
+          loyalty.clearAppliedPoints();
+          queryClient.invalidateQueries({ queryKey: ['loyalty-balance'] });
+          queryClient.invalidateQueries({ queryKey: ['loyalty-history'] });
         }
         setPendingOrderIds([]);
         clearCartAndCache().catch(() => {});

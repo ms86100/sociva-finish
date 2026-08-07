@@ -51,7 +51,7 @@ export function LoyaltyCard() {
           </div>
 
           <p className="text-[10px] text-muted-foreground mt-1">
-            Earn 1 point per ₹10 spent · +10 bonus for reviews
+            Earn 1 point per ₹10 spent · +10 for reviews · Platform-funded (1 pt = ₹1)
           </p>
 
           {/* Transaction History */}
