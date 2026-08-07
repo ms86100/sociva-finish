@@ -40,10 +40,31 @@ interface SeedResult {
   };
 }
 
+const TEST_TOOLS_ENABLED =
+  import.meta.env.VITE_ALLOW_TEST_FUNCTIONS === 'true' ||
+  import.meta.env.DEV === true;
+
 export function ResetAndSeedButton() {
   const [isRunning, setIsRunning] = useState(false);
   const [result, setResult] = useState<SeedResult | null>(null);
   const navigate = useNavigate();
+
+  if (!TEST_TOOLS_ENABLED) {
+    return (
+      <Card className="border-muted">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm flex items-center gap-2 text-muted-foreground">
+            <Database className="h-4 w-4" />
+            Reset & Seed Scenario Data
+          </CardTitle>
+          <CardDescription className="text-xs">
+            Disabled in this environment. Requires <code>ALLOW_TEST_FUNCTIONS</code> on the edge function
+            and <code>VITE_ALLOW_TEST_FUNCTIONS=true</code> for the Admin UI.
+          </CardDescription>
+        </CardHeader>
+      </Card>
+    );
+  }
 
   const handleRunSeed = async () => {
     setIsRunning(true);

@@ -273,12 +273,41 @@ Deno.serve(async (req) => {
     }
 
     if (!paymentId) {
+      // Audit: no razorpay_payment_id → route to wallet destination
+      console.warn(`[refund-processor] no razorpay_payment_id for ${refund.id} — routing to wallet`);
+      await supabase
+        .from("refund_requests")
+        .update({
+          refund_destination: "wallet",
+          wallet_credit_amount: refund.amount,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", refund.id)
+        .eq("refund_state", "approved");
+
+      const { data: walletDone, error: walletErr } = await supabase.rpc("complete_wallet_refund", {
+        p_refund_id: refund.id,
+      });
+      if (walletErr) {
+        console.error("[refund-processor] wallet fallback failed", walletErr);
+        await supabase.rpc("fail_refund", {
+          p_refund_id: refund.id,
+          p_reason: walletErr.message || "Wallet credit failed (no razorpay_payment_id)",
+        });
+        return new Response(
+          JSON.stringify({ ok: false, state: "refund_failed", error: walletErr.message, destination: "wallet" }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
       return new Response(
         JSON.stringify({
-          error:
-            "No Razorpay payment on this order — cannot auto-refund to original method. Buyer should choose Sociva Credit (wallet) destination, or handle COD offline.",
+          ok: true,
+          state: "refund_completed",
+          destination: "wallet",
+          gateway_ref: walletDone?.gateway_refund_id || null,
+          routed_from: "missing_razorpay_payment_id",
         }),
-        { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 

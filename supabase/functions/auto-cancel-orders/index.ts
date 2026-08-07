@@ -97,7 +97,7 @@ app.post("/", async (c) => {
     // Query 1: Urgent orders past auto_cancel_at (skip if buyer already confirmed/paid)
     const { data: urgentExpired, error: urgentErr } = await supabase
       .from("orders")
-      .select("id, buyer_id, seller_id, total_amount, razorpay_order_id, auto_cancel_at")
+      .select("id, buyer_id, seller_id, total_amount, razorpay_order_id, auto_cancel_at, status, payment_status")
       .in("status", cancellableStatuses)
       .not("auto_cancel_at", "is", null)
       .lt("auto_cancel_at", now)
@@ -106,7 +106,7 @@ app.post("/", async (c) => {
     // Query 2: Orphaned online orders — payment_status=pending, non-COD, past DB-driven grace
     const { data: orphanedUpi, error: orphanErr } = await supabase
       .from("orders")
-      .select("id, buyer_id, seller_id, total_amount, razorpay_order_id, auto_cancel_at")
+      .select("id, buyer_id, seller_id, total_amount, razorpay_order_id, auto_cancel_at, status, payment_status")
       .in("status", cancellableStatuses)
       .eq("payment_status", "pending")
       .neq("payment_type", "cod")
@@ -169,20 +169,30 @@ app.post("/", async (c) => {
     const urgentIds = new Set((urgentExpired || []).map(o => o.id));
     const orphanIds = new Set((orphanedUpi || []).map(o => o.id));
 
-    // Unpaid orphans: no L4 gate — cancel on payment TTL
-    const orphanOk = await gateCancellation(
-      (orphanedUpi || []).map((o: any) => ({ id: o.id, auto_cancel_at: o.auto_cancel_at })),
+    const isUnpaidTtl = (o: { status?: string; payment_status?: string }) =>
+      o.payment_status === "pending" || o.status === "payment_pending";
+
+    // Unpaid TTL (orphans + unpaid urgent): no L4 — cancel releases wallet/loyalty/stock via triggers
+    const unpaidUrgent = (urgentExpired || []).filter((o: any) => isUnpaidTtl(o));
+    const slaUrgent = (urgentExpired || []).filter((o: any) => !isUnpaidTtl(o));
+
+    const unpaidOk = await gateCancellation(
+      [
+        ...unpaidUrgent.map((o: any) => ({ id: o.id, auto_cancel_at: o.auto_cancel_at })),
+        ...(orphanedUpi || []).map((o: any) => ({ id: o.id, auto_cancel_at: o.auto_cancel_at })),
+      ],
       { requireL4: false },
     );
-    // SLA / urgent: L4 gate with hard max_defer
-    const urgentOk = await gateCancellation(
-      (urgentExpired || []).map((o: any) => ({ id: o.id, auto_cancel_at: o.auto_cancel_at })),
+    // Placed/accepted SLA: L4 gate with hard max_defer
+    const slaOk = await gateCancellation(
+      slaUrgent.map((o: any) => ({ id: o.id, auto_cancel_at: o.auto_cancel_at })),
       { requireL4: true },
     );
 
     const expiredOrders = [
-      ...(urgentExpired || []).filter((o) => urgentOk.has(o.id)),
-      ...(orphanedUpi || []).filter((o) => orphanOk.has(o.id)),
+      ...slaUrgent.filter((o) => slaOk.has(o.id)),
+      ...unpaidUrgent.filter((o) => unpaidOk.has(o.id)),
+      ...(orphanedUpi || []).filter((o) => unpaidOk.has(o.id)),
     ].filter((order, idx, arr) => arr.findIndex(o => o.id === order.id) === idx);
 
     const deferredCount =
@@ -195,7 +205,7 @@ app.post("/", async (c) => {
     }
 
     if (deferredCount > 0) {
-      console.log(`[auto-cancel][gate] deferring ${deferredCount} SLA orders — L4 final warning not yet fired (orphans bypass L4)`);
+      console.log(`[auto-cancel][gate] deferring ${deferredCount} SLA orders — L4 final warning not yet fired (unpaid TTL bypasses L4)`);
     }
     if (expiredOrders.length === 0) {
       console.log("No expired orders to cancel");
@@ -362,11 +372,16 @@ app.post("/", async (c) => {
           if (completeErr) console.error(`[refund-cron] wallet fallback complete failed`, completeErr);
           else console.log(`[refund-cron] wallet-verified completed refund ${ref.id}`);
         } else {
-          const { error: failErr } = await supabase.rpc("fail_refund", {
-            p_refund_id: ref.id,
-            p_reason: "needs_manual_review: no wallet ledger proof after 72h",
-          });
-          if (failErr) console.error(`[refund-cron] escalate failed`, failErr);
+          const { error: escErr } = await supabase
+            .from("refund_requests")
+            .update({
+              refund_state: "needs_manual_review",
+              notes: "needs_manual_review: no wallet ledger proof after 72h",
+              updated_at: now,
+            })
+            .eq("id", ref.id)
+            .in("refund_state", ["refund_initiated", "refund_processing"]);
+          if (escErr) console.error(`[refund-cron] escalate failed`, escErr);
           else console.warn(`[refund-cron] escalated ${ref.id} to needs_manual_review (no wallet proof)`);
         }
         continue;
@@ -383,12 +398,74 @@ app.post("/", async (c) => {
         if (completeErr) console.error(`[refund-cron] verified fallback complete failed`, completeErr);
         else console.log(`[refund-cron] razorpay-verified completed refund ${ref.id}`);
       } else {
-        const { error: failErr } = await supabase.rpc("fail_refund", {
-          p_refund_id: ref.id,
-          p_reason: `needs_manual_review: razorpay status=${rzStatus} after 72h`,
-        });
-        if (failErr) console.error(`[refund-cron] escalate failed`, failErr);
-        else console.warn(`[refund-cron] escalated ${ref.id} to needs_manual_review (rz=${rzStatus})`);
+        // Also accept payment.amount_refunded proof when gateway_refund_id missing/unknown
+        let completedViaPayment = false;
+        if (rzStatus !== "processed") {
+          const { data: orderRow } = await supabase
+            .from("orders")
+            .select("razorpay_payment_id, checkout_group_id")
+            .eq("id", (ref as any).order_id)
+            .maybeSingle();
+          let paymentId = (orderRow as any)?.razorpay_payment_id || null;
+          if (!paymentId && (orderRow as any)?.checkout_group_id) {
+            const { data: cg } = await supabase
+              .from("checkout_groups")
+              .select("razorpay_payment_id")
+              .eq("id", (orderRow as any).checkout_group_id)
+              .maybeSingle();
+            paymentId = (cg as any)?.razorpay_payment_id || null;
+          }
+          if (paymentId) {
+            try {
+              const { data: credRows } = await supabase
+                .from("admin_settings")
+                .select("key, value, is_active")
+                .in("key", ["razorpay_key_id", "razorpay_key_secret"]);
+              const credMap: Record<string, string> = {};
+              for (const r of credRows || []) {
+                if (r.value && r.is_active) credMap[r.key] = r.value;
+              }
+              const keyId = credMap.razorpay_key_id || Deno.env.get("RAZORPAY_KEY_ID") || "";
+              const keySecret = credMap.razorpay_key_secret || Deno.env.get("RAZORPAY_KEY_SECRET") || "";
+              if (keyId && keySecret) {
+                const payRes = await fetch(`https://api.razorpay.com/v1/payments/${paymentId}`, {
+                  headers: { Authorization: "Basic " + btoa(`${keyId}:${keySecret}`) },
+                });
+                if (payRes.ok) {
+                  const pay = await payRes.json();
+                  const refundedPaise = Number(pay.amount_refunded || 0);
+                  const needPaise = Math.round(Number((ref as any).amount || 0) * 100);
+                  if (needPaise > 0 && refundedPaise >= needPaise) {
+                    const { error: completeErr } = await supabase.rpc("complete_refund", {
+                      p_refund_id: ref.id,
+                      p_gateway_ref: `${paymentId}-refunded`,
+                      p_gateway_status: "amount_refunded_verified",
+                    });
+                    if (!completeErr) {
+                      completedViaPayment = true;
+                      console.log(`[refund-cron] payment-amount verified completed refund ${ref.id}`);
+                    }
+                  }
+                }
+              }
+            } catch (e) {
+              console.warn("[refund-cron] payment amount_refunded check failed", e);
+            }
+          }
+        }
+        if (!completedViaPayment) {
+          const { error: escErr } = await supabase
+            .from("refund_requests")
+            .update({
+              refund_state: "needs_manual_review",
+              notes: `needs_manual_review: razorpay status=${rzStatus} after 72h`,
+              updated_at: now,
+            })
+            .eq("id", ref.id)
+            .in("refund_state", ["refund_initiated", "refund_processing"]);
+          if (escErr) console.error(`[refund-cron] escalate failed`, escErr);
+          else console.warn(`[refund-cron] escalated ${ref.id} to needs_manual_review (rz=${rzStatus})`);
+        }
       }
     }
 

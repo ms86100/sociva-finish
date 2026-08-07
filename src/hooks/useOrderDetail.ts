@@ -6,7 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useStatusLabels } from '@/hooks/useStatusLabels';
 import { useUrgentOrderSound } from '@/hooks/useUrgentOrderSound';
 import { useCurrency } from '@/hooks/useCurrency';
-import { useCategoryStatusFlow, getNextStatusForActor, getNextStatusForActors, getTimelineSteps, isTerminalStatus, isSuccessfulTerminal, isFirstFlowStep, canActorCancel, useStatusTransitions } from '@/hooks/useCategoryStatusFlow';
+import { useCategoryStatusFlow, getNextStatusForActor, getTimelineSteps, isTerminalStatus, isSuccessfulTerminal, isFirstFlowStep, canActorCancel, useStatusTransitions } from '@/hooks/useCategoryStatusFlow';
 import { isDeliveryMapEligible } from '@/lib/orderProgressStages';
 import { logAudit } from '@/lib/audit';
 import { resolveTransactionType } from '@/lib/resolveTransactionType';
@@ -143,11 +143,9 @@ export function useOrderDetail(id: string | undefined) {
     if (!order) return null;
     if (isTerminalStatus(flow, order.status)) return null;
     if (flow.length > 0) {
-      const actors: string[] = ['seller'];
-      if (deliveryHandledBy && deliveryHandledBy !== 'platform') {
-        actors.push('delivery');
-      }
-      const next = getNextStatusForActors(flow, order.status, actors, transitions);
+      // seller_advance_order only accepts seller-allowed edges.
+      // Seller-as-courier uses seller_delivery transitions (allowed_actor=seller), not delivery actor.
+      const next = getNextStatusForActor(flow, order.status, 'seller', transitions);
       return next as OrderStatus | null;
     }
     // Defensive fallback: flow rows missing but transitions exist (half-configured workflow).
@@ -283,7 +281,10 @@ export function useOrderDetail(id: string | undefined) {
         });
         if (error) throw error;
         // Prefer server-confirmed status — do not optimistic-succeed without RPC confirmation
-        if (data) confirmedStatus = data as OrderStatus;
+        if (!data) {
+          throw new Error('Order status was not updated — refresh and retry');
+        }
+        confirmedStatus = data as OrderStatus;
       } else {
         const { error } = await supabase.rpc('buyer_advance_order', {
           _order_id: order.id,
@@ -310,7 +311,7 @@ export function useOrderDetail(id: string | undefined) {
       } else {
         toast.error(
           errMsg.includes('Invalid seller transition') || errMsg.includes('Invalid status transition')
-            ? 'Invalid status transition — you cannot skip steps'
+            ? (errMsg || 'This status change is not allowed for your role or workflow')
             : errMsg.includes('Not authorized')
               ? 'You are not authorized to perform this action'
               : errMsg.includes('concurrently') || errMsg.includes('40001')

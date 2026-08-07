@@ -23,9 +23,31 @@ interface PurgeResult {
   };
 }
 
+/** Mirrors reset-and-seed: only show destructive purge when explicitly allowed. */
+const TEST_TOOLS_ENABLED =
+  import.meta.env.VITE_ALLOW_TEST_FUNCTIONS === 'true' ||
+  import.meta.env.DEV === true;
+
 export function PurgeDataButton() {
   const [isRunning, setIsRunning] = useState(false);
   const [result, setResult] = useState<PurgeResult | null>(null);
+
+  if (!TEST_TOOLS_ENABLED) {
+    return (
+      <Card className="border-muted">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm flex items-center gap-2 text-muted-foreground">
+            <Trash2 className="h-4 w-4" />
+            Purge All Non-Admin Data
+          </CardTitle>
+          <CardDescription className="text-xs">
+            Disabled in this environment. Requires <code>ALLOW_TEST_FUNCTIONS</code> on the edge function
+            and <code>VITE_ALLOW_TEST_FUNCTIONS=true</code> for the Admin UI.
+          </CardDescription>
+        </CardHeader>
+      </Card>
+    );
+  }
 
   const handlePurge = async () => {
     setIsRunning(true);
@@ -56,7 +78,7 @@ export function PurgeDataButton() {
           Purge All Non-Admin Data
         </CardTitle>
         <CardDescription className="text-xs">
-          Deletes all users (except admin), orders, products, sellers, and transactional data. Preserves master configuration, categories, attribute library, and admin account.
+          Deletes all users (except admin), orders, products, sellers, and transactional data. Preserves master configuration, categories, attribute library, admin account, and audit logs.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -78,7 +100,7 @@ export function PurgeDataButton() {
               </AlertDialogTitle>
               <AlertDialogDescription className="space-y-2">
                 <p>This will <strong>permanently delete</strong> all non-admin users, their profiles, seller accounts, products, orders, notifications, and all transactional data.</p>
-                <p className="font-medium">Preserved: Admin account, system settings, category config, attribute blocks, societies, feature packages.</p>
+                <p className="font-medium">Preserved: Admin account, system settings, category config, attribute blocks, societies, feature packages, audit logs.</p>
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>

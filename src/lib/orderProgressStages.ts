@@ -53,7 +53,8 @@ export const PICKUP_PROGRESS_STAGES: OrderProgressStageDef[] = [
   { id: 1, key: 'confirmed', label: 'Confirmed', shortLabel: 'Confirmed' },
   { id: 2, key: 'preparing', label: 'Preparing', shortLabel: 'Preparing' },
   { id: 3, key: 'ready', label: 'Ready for pickup', shortLabel: 'Ready' },
-  { id: 4, key: 'picked_up', label: 'Picked up', shortLabel: 'Picked up' },
+  // Align with self_fulfillment terminal (buyer_received), not delivery's picked_up
+  { id: 4, key: 'buyer_received', label: 'Picked up', shortLabel: 'Picked up' },
 ];
 
 const END_STATES = new Set<string>([
@@ -169,8 +170,15 @@ function resolveStageId(
     ) {
       return 3;
     }
-    // Unexpected transit-like keys on pickup → treat as collected
-    if (TRUE_TRANSIT_STATUSES.has(status)) return 4;
+    // Collected / completed (self_fulfillment uses buyer_received, not picked_up)
+    if (
+      status === 'buyer_received' ||
+      status === 'picked_up' ||
+      STAGE4.has(status) ||
+      TRUE_TRANSIT_STATUSES.has(status)
+    ) {
+      return 4;
+    }
     return 2;
   }
 

@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
-import { Loader2, Eye, EyeOff, Check, X, CreditCard, MessageSquare, Bell, MapPin, KeyRound, MessageCircle } from 'lucide-react';
+import { Loader2, Check, X, CreditCard, MessageSquare, Bell, MapPin, KeyRound, MessageCircle } from 'lucide-react';
 
 interface CredentialConfig {
   key: string;
@@ -86,26 +86,43 @@ const CREDENTIAL_TABS = [
 ];
 
 const ALL_KEYS = CREDENTIAL_TABS.flatMap(t => t.credentials.map(c => c.key));
+const TOGGLE_KEYS = new Set(
+  CREDENTIAL_TABS.flatMap(t => t.credentials.filter((c: any) => c.isToggle).map(c => c.key))
+);
 
 export function CredentialsManager() {
   const [settings, setSettings] = useState<CredentialSetting[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState<string | null>(null);
-  const [showValues, setShowValues] = useState<Record<string, boolean>>({});
   const [editValues, setEditValues] = useState<Record<string, string>>({});
+  const [configuredKeys, setConfiguredKeys] = useState<Record<string, boolean>>({});
 
   useEffect(() => { fetchSettings(); }, []);
 
   const fetchSettings = async () => {
     try {
-      const { data, error } = await supabase
-        .from('admin_settings')
-        .select('*')
-        .in('key', ALL_KEYS);
+      const { data, error } = await supabase.rpc('get_admin_credential_meta', {
+        p_keys: ALL_KEYS,
+      });
       if (error) throw error;
-      setSettings(data || []);
+
+      const configured: Record<string, boolean> = {};
+      const rows: CredentialSetting[] = (data || []).map((s: any) => {
+        configured[s.key] = !!s.is_configured;
+        return {
+          id: s.id,
+          key: s.key,
+          value: s.public_value || null,
+          is_active: s.is_active,
+          description: s.description,
+        };
+      });
+      setSettings(rows);
+      setConfiguredKeys(configured);
       const values: Record<string, string> = {};
-      (data || []).forEach((s: CredentialSetting) => { values[s.key] = s.value || ''; });
+      rows.forEach((s) => {
+        values[s.key] = TOGGLE_KEYS.has(s.key) ? (s.value || '') : '';
+      });
       setEditValues(values);
     } catch (error) {
       console.error('Error fetching credentials:', error);
@@ -119,22 +136,31 @@ export function CredentialsManager() {
     setIsSaving(key);
     try {
       const existingSetting = settings.find(s => s.key === key);
-      const value = editValues[key] || null;
+      const value = (editValues[key] || '').trim();
+      if (!value) {
+        toast.error('Enter a new value to update this credential');
+        return;
+      }
+      if (value.includes('•')) {
+        toast.error('Enter a new secret value');
+        return;
+      }
       const config = CREDENTIAL_TABS.flatMap(t => t.credentials).find(c => c.key === key);
 
       if (existingSetting) {
         const { error } = await supabase
           .from('admin_settings')
-          .update({ value, is_active: !!value, updated_at: new Date().toISOString() })
+          .update({ value, is_active: true, updated_at: new Date().toISOString() })
           .eq('key', key);
         if (error) throw error;
       } else {
         const { error } = await supabase
           .from('admin_settings')
-          .insert({ key, value, is_active: !!value, description: config?.description || null });
+          .insert({ key, value, is_active: true, description: config?.description || null });
         if (error) throw error;
       }
       toast.success('Credential saved');
+      setEditValues({ ...editValues, [key]: '' });
       await fetchSettings();
     } catch (error) {
       console.error('Error saving credential:', error);
@@ -168,16 +194,16 @@ export function CredentialsManager() {
 
   const renderCredentialField = (config: CredentialConfig & { isToggle?: boolean }) => {
     const setting = settings.find(s => s.key === config.key);
-    const hasValue = !!setting?.value;
+    const hasValue = !!configuredKeys[config.key] || !!(setting?.value && setting.value !== '••••••••');
     const isActive = setting?.is_active ?? false;
+    const isSecret = !config.isToggle;
 
     // Special payment mode toggle
     if (config.isToggle && config.key === 'payment_gateway_mode') {
       const currentMode = setting?.value || 'upi_deep_link';
       const isRazorpay = currentMode === 'razorpay';
-      const razorpayKeySet = !!settings.find(s => s.key === 'razorpay_key_id')?.value;
-      const webhookSecretRow = settings.find(s => s.key === 'razorpay_webhook_secret');
-      const webhookSecretSet = !!(webhookSecretRow?.value && webhookSecretRow?.is_active);
+      const razorpayKeySet = !!configuredKeys['razorpay_key_id'];
+      const webhookSecretSet = !!configuredKeys['razorpay_webhook_secret'] && !!settings.find(s => s.key === 'razorpay_webhook_secret')?.is_active;
 
       return (
         <div key={config.key} className="space-y-3 p-4 rounded-xl bg-primary/5 border border-primary/20">
@@ -305,39 +331,35 @@ export function CredentialsManager() {
           )}
         </div>
         <p className="text-[11px] text-muted-foreground">{config.description}</p>
-        {config.key === 'razorpay_webhook_secret' && !(editValues[config.key] || setting?.value) && (
+        {config.key === 'razorpay_webhook_secret' && !configuredKeys[config.key] && (
           <div className="rounded-lg px-3 py-2 text-xs bg-amber-500/10 text-amber-800 border border-amber-500/30">
             Required for Razorpay mode. Copy the Webhook Secret from Razorpay Dashboard → Settings → Webhooks. Never paste the API key secret here.
           </div>
+        )}
+        {isSecret && configuredKeys[config.key] && (
+          <p className="text-[11px] text-muted-foreground">Configured — enter a new value to rotate. Raw secrets are never shown.</p>
         )}
         <div className="flex gap-2">
           <div className="relative flex-1">
             {config.multiline ? (
               <Textarea
                 id={config.key}
-                placeholder={config.placeholder}
+                placeholder={configuredKeys[config.key] ? 'Enter new value to rotate…' : config.placeholder}
                 value={editValues[config.key] || ''}
                 onChange={e => setEditValues({ ...editValues, [config.key]: e.target.value })}
                 className="rounded-lg text-xs font-mono min-h-[80px]"
+                autoComplete="off"
               />
             ) : (
-              <>
-                <Input
-                  id={config.key}
-                  type={showValues[config.key] ? 'text' : 'password'}
-                  placeholder={config.placeholder}
-                  value={editValues[config.key] || ''}
-                  onChange={e => setEditValues({ ...editValues, [config.key]: e.target.value })}
-                  className="rounded-lg pr-9"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowValues({ ...showValues, [config.key]: !showValues[config.key] })}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  {showValues[config.key] ? <EyeOff size={14} /> : <Eye size={14} />}
-                </button>
-              </>
+              <Input
+                id={config.key}
+                type="password"
+                placeholder={configuredKeys[config.key] ? 'Enter new value to rotate…' : config.placeholder}
+                value={editValues[config.key] || ''}
+                onChange={e => setEditValues({ ...editValues, [config.key]: e.target.value })}
+                className="rounded-lg"
+                autoComplete="new-password"
+              />
             )}
           </div>
           <Button onClick={() => handleSave(config.key)} disabled={isSaving === config.key} size="sm" className="rounded-lg shrink-0">
@@ -359,7 +381,7 @@ export function CredentialsManager() {
             Credentials Manager
           </CardTitle>
           <CardDescription className="text-xs">
-            Manage API keys and secrets for all third-party integrations. Changes take effect immediately.
+            Manage API keys and secrets for all third-party integrations. Secrets are write-only in this UI — edge functions still resolve raw values from the database.
           </CardDescription>
         </CardHeader>
         <CardContent>

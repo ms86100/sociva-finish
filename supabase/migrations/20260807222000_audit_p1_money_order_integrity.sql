@@ -623,3 +623,16 @@ CREATE TRIGGER trg_log_auto_accept_activity
   FOR EACH ROW
   WHEN (NEW.auto_accepted = true)
   EXECUTE FUNCTION public.log_auto_accept_activity();
+
+-- ------------------------------------------------------------
+-- Allow needs_manual_review for 72h stuck-refund escalation (no blind complete)
+-- ------------------------------------------------------------
+ALTER TABLE public.refund_requests
+  DROP CONSTRAINT IF EXISTS refund_state_check;
+ALTER TABLE public.refund_requests
+  ADD CONSTRAINT refund_state_check CHECK (refund_state IN (
+    'requested','approved','rejected',
+    'refund_initiated','refund_processing',
+    'refund_completed','refund_failed',
+    'needs_manual_review'
+  ));

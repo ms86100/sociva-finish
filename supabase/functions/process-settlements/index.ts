@@ -114,9 +114,26 @@ Deno.serve(async (req) => {
     for (const settlement of pendingSettlements) {
       const { data: orderData } = await supabase
         .from("orders")
-        .select("status, fulfillment_type, delivery_handled_by, order_type")
+        .select("status, fulfillment_type, delivery_handled_by, order_type, payment_status")
         .eq("id", settlement.order_id)
         .single();
+
+      // Block payout eligibility for refunded / in-refund orders
+      const orderPay = String(orderData?.payment_status || "");
+      if (["refunded", "refund_initiated", "refund_processing"].includes(orderPay)) {
+        await supabase
+          .from("seller_settlements")
+          .update({
+            settlement_status: "on_hold",
+            hold_reason: `Blocked: order payment_status=${orderPay}`,
+            eligible_at: null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", settlement.id)
+          .in("settlement_status", ["pending", "eligible", "processing"]);
+        errors.push({ id: settlement.id, error: `Order ${orderPay} — settlement held` });
+        continue;
+      }
 
       const orderWorkflow = orderData?.order_type || "standard";
       const relevantTerminals = terminalByWorkflow.get(orderWorkflow) || allTerminalStatuses;

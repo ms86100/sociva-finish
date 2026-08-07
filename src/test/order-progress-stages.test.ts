@@ -82,6 +82,7 @@ describe('orderProgressStages', () => {
         'Ready for pickup',
         'Picked up',
       ]);
+      expect(PICKUP_PROGRESS_STAGES[3].key).toBe('buyer_received');
     });
 
     it('maps ready to stage 3 Ready for pickup', () => {
@@ -91,10 +92,13 @@ describe('orderProgressStages', () => {
       expect(r.isTransitStage).toBe(false);
     });
 
-    it('maps completed to stage 4 Picked up', () => {
-      const r = resolveOrderProgress({ status: 'completed', fulfillmentType: 'self_pickup' });
-      expect(r.stageId).toBe(4);
-      expect(r.label).toBe('Picked up');
+    it('maps buyer_received/completed to stage 4 Picked up', () => {
+      const received = resolveOrderProgress({ status: 'buyer_received', fulfillmentType: 'self_pickup' });
+      expect(received.stageId).toBe(4);
+      expect(received.label).toBe('Picked up');
+      const completed = resolveOrderProgress({ status: 'completed', fulfillmentType: 'self_pickup' });
+      expect(completed.stageId).toBe(4);
+      expect(completed.label).toBe('Picked up');
     });
   });
 

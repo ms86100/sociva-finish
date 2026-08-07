@@ -1832,12 +1832,14 @@ export type Database = {
           created_at: string
           delivery_fee: number
           fulfillment_type: string | null
+          gateway_captured_amount: number | null
           id: string
           idempotency_key: string | null
           loyalty_discount_amount: number
           order_count: number
           payment_method: string | null
           payment_status: string
+          amount_refunded: number
           razorpay_order_id: string | null
           razorpay_payment_id: string | null
           society_id: string | null
@@ -1847,11 +1849,13 @@ export type Database = {
           wallet_promo_amount: number
         }
         Insert: {
+          amount_refunded?: number
           buyer_id: string
           coupon_discount?: number
           created_at?: string
           delivery_fee?: number
           fulfillment_type?: string | null
+          gateway_captured_amount?: number | null
           id?: string
           idempotency_key?: string | null
           loyalty_discount_amount?: number
@@ -1867,11 +1871,13 @@ export type Database = {
           wallet_promo_amount?: number
         }
         Update: {
+          amount_refunded?: number
           buyer_id?: string
           coupon_discount?: number
           created_at?: string
           delivery_fee?: number
           fulfillment_type?: string | null
+          gateway_captured_amount?: number | null
           id?: string
           idempotency_key?: string | null
           loyalty_discount_amount?: number
@@ -12858,7 +12864,7 @@ export type Database = {
           _order_id: string
           _rejection_reason?: string
         }
-        Returns: undefined
+        Returns: Database["public"]["Enums"]["order_status"]
       }
       seller_has_order_with_buyer: {
         Args: { _buyer_id: string }

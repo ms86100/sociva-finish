@@ -27,6 +27,28 @@ function getDateFrom(period: PeriodFilter): string | null {
   }
 }
 
+/** Paginate past PostgREST default / 5k caps for admin analytics accuracy. */
+async function fetchOrdersPaged<T extends Record<string, unknown>>(
+  select: string,
+  dateFrom: string | null,
+  extra?: (q: any) => any,
+  maxRows = 20000,
+): Promise<T[]> {
+  const pageSize = 1000;
+  let all: T[] = [];
+  for (let from = 0; from < maxRows; from += pageSize) {
+    let q: any = supabase.from('orders').select(select);
+    if (dateFrom) q = q.gte('created_at', dateFrom);
+    if (extra) q = extra(q);
+    const { data, error } = await q.range(from, from + pageSize - 1);
+    if (error) throw error;
+    if (!data?.length) break;
+    all = all.concat(data as T[]);
+    if (data.length < pageSize) break;
+  }
+  return all;
+}
+
 export interface StatusBreakdownEntry {
   status: string;
   count: number;
@@ -40,12 +62,19 @@ export function useAdminAnalytics() {
   const overview = useQuery({
     queryKey: ['admin-analytics-overview', period],
     queryFn: async () => {
-      // Fetch ALL orders (including cancelled)
-      const base = supabase.from('orders').select('id, total_amount, status, seller_id, created_at');
-      const q = dateFrom ? base.gte('created_at', dateFrom) : base;
-      const { data: orders } = await q.limit(5000);
-
-      const allOrders = orders || [];
+      // Paginate past PostgREST default/5k caps so admin analytics stay accurate
+      const pageSize = 1000;
+      const maxRows = 20000;
+      let allOrders: { id: string; total_amount: number | null; status: string; seller_id: string; created_at: string }[] = [];
+      for (let from = 0; from < maxRows; from += pageSize) {
+        const page = supabase.from('orders').select('id, total_amount, status, seller_id, created_at');
+        const q = dateFrom ? page.gte('created_at', dateFrom) : page;
+        const { data: orders, error } = await q.range(from, from + pageSize - 1);
+        if (error) throw error;
+        if (!orders?.length) break;
+        allOrders = allOrders.concat(orders as any);
+        if (orders.length < pageSize) break;
+      }
 
       // Status breakdown
       const statusMap = new Map<string, { count: number; revenue: number }>();
@@ -157,9 +186,11 @@ export function useSellerPerformance(period: PeriodFilter) {
       if (!sellers?.length) return [];
 
       const sellerIds = sellers.map(s => s.id);
-      let ordersQ = supabase.from('orders').select('seller_id, total_amount, status, created_at').in('seller_id', sellerIds);
-      if (dateFrom) ordersQ = ordersQ.gte('created_at', dateFrom);
-      const { data: orders } = await ordersQ.limit(5000);
+      const orders = await fetchOrdersPaged<{ seller_id: string; total_amount: number | null; status: string; created_at: string }>(
+        'seller_id, total_amount, status, created_at',
+        dateFrom,
+        (q) => q.in('seller_id', sellerIds),
+      );
 
       const orderMap = new Map<string, {
         total: number; totalRevenue: number;
@@ -205,9 +236,9 @@ export function useBuyerActivity(period: PeriodFilter) {
   return useQuery({
     queryKey: ['admin-buyer-activity', period],
     queryFn: async () => {
-      let ordersQ = supabase.from('orders').select('buyer_id, seller_id, total_amount, status, created_at');
-      if (dateFrom) ordersQ = ordersQ.gte('created_at', dateFrom);
-      const { data: orders } = await ordersQ.limit(5000);
+      const orders = await fetchOrdersPaged<{
+        buyer_id: string; seller_id: string; total_amount: number | null; status: string; created_at: string;
+      }>('buyer_id, seller_id, total_amount, status, created_at', dateFrom);
 
       const buyerMap = new Map<string, {
         total: number; totalSpent: number; sellers: Set<string>; lastDate: string;
@@ -274,9 +305,9 @@ export function useSocietyBreakdown(period: PeriodFilter) {
 
       const { data: sellers } = await supabase.from('seller_profiles').select('id, society_id').eq('verification_status', 'approved');
 
-      let ordersQ = supabase.from('orders').select('society_id, total_amount, status');
-      if (dateFrom) ordersQ = ordersQ.gte('created_at', dateFrom);
-      const { data: orders } = await ordersQ.limit(5000);
+      const orders = await fetchOrdersPaged<{
+        society_id: string | null; total_amount: number | null; status: string;
+      }>('society_id, total_amount, status', dateFrom);
 
       const sellerCountMap = new Map<string, number>();
       (sellers || []).forEach(s => { if (s.society_id) sellerCountMap.set(s.society_id, (sellerCountMap.get(s.society_id) || 0) + 1); });
@@ -326,10 +357,8 @@ export function useCategoryAnalytics(period: PeriodFilter) {
   return useQuery({
     queryKey: ['admin-category-analytics', period],
     queryFn: async () => {
-      // Fetch orders with status first
-      let ordersQ = supabase.from('orders').select('id, status');
-      if (dateFrom) ordersQ = ordersQ.gte('created_at', dateFrom);
-      const { data: ordersRaw } = await ordersQ.limit(5000);
+      // Fetch orders with status first (paginated — no 5k hard cap)
+      const ordersRaw = await fetchOrdersPaged<{ id: string; status: string }>('id, status', dateFrom);
       if (!ordersRaw?.length) return { categories: [], topProducts: [] };
 
       const orderStatusMap = new Map<string, string>();

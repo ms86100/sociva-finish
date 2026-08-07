@@ -206,7 +206,49 @@ COMMENT ON FUNCTION public.trigger_process_notification_queue() IS
   'Debounced PNQ wake-up using vault/service_role Authorization (audit P0 — never anon).';
 
 -- ------------------------------------------------------------
--- 4. Safety cron wake — same service_role auth (not hardcoded anon JWT)
+-- 4. Credential meta RPC — never return raw secrets to the client
+-- ------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.get_admin_credential_meta(p_keys text[])
+RETURNS TABLE (
+  id uuid,
+  key text,
+  is_active boolean,
+  description text,
+  is_configured boolean,
+  public_value text
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $$
+DECLARE
+  toggle_keys text[] := ARRAY['payment_gateway_mode', 'razorpay_route_enabled'];
+BEGIN
+  IF auth.uid() IS NULL OR NOT public.is_admin(auth.uid()) THEN
+    RAISE EXCEPTION 'Admin access required' USING ERRCODE = '42501';
+  END IF;
+
+  RETURN QUERY
+  SELECT
+    s.id,
+    s.key::text,
+    s.is_active,
+    s.description,
+    (s.value IS NOT NULL AND length(trim(s.value)) > 0) AS is_configured,
+    CASE
+      WHEN s.key = ANY (toggle_keys) THEN s.value
+      ELSE NULL
+    END AS public_value
+  FROM public.admin_settings s
+  WHERE s.key = ANY (p_keys);
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.get_admin_credential_meta(text[]) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.get_admin_credential_meta(text[]) TO authenticated, service_role;
+
+-- ------------------------------------------------------------
+-- 5. Safety cron wake — same service_role auth (not hardcoded anon JWT)
 -- ------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.fn_wakeup_notification_queue_if_pending()
 RETURNS void
