@@ -9,6 +9,7 @@ import { ChevronRight, Clock, CreditCard, Package, MessageSquare, User, Truck, S
 import { useCurrency } from '@/hooks/useCurrency';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { sellerDisplayStatusLabel } from '@/lib/seller-order-board';
 
 interface OrderItemWithStatus {
   id: string;
@@ -31,6 +32,7 @@ interface SellerOrderCardOrder {
   scheduled_time_start?: string | null;
   auto_cancel_at?: string | null;
   auto_accepted?: boolean;
+  rejection_reason?: string | null;
   buyer?: { name: string; block: string; flat_number: string; phone?: string };
   items?: OrderItemWithStatus[];
 }
@@ -45,6 +47,8 @@ export function SellerOrderCard({ order }: SellerOrderCardProps) {
   const buyer = order.buyer;
   const items = order.items || [];
   const statusInfo = getFlowLabel(order.status);
+  const overrideLabel = sellerDisplayStatusLabel(order.status, order.rejection_reason);
+  const statusLabel = overrideLabel || statusInfo.label;
 
   // Calculate item-level stats
   const itemStatuses = items.map(item => item.status || 'pending');
@@ -136,8 +140,15 @@ export function SellerOrderCard({ order }: SellerOrderCardProps) {
               </div>
             </div>
             <div className="flex flex-col items-end gap-1">
-              <span className={`text-[10px] px-2 py-0.5 rounded-full ${statusInfo.color}`}>
-                {statusInfo.label}
+              <span
+                className={cn(
+                  'text-[10px] px-2 py-0.5 rounded-full',
+                  overrideLabel === 'Cancelled (Rejected)'
+                    ? 'bg-destructive/15 text-destructive'
+                    : statusInfo.color,
+                )}
+              >
+                {statusLabel}
               </span>
               {order.auto_accepted && (
                 <Badge variant="outline" className="text-[10px] border-success/40 text-success gap-0.5">

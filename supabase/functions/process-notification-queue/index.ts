@@ -1,5 +1,13 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.93.3";
 import { getCredential } from "../_shared/credentials.ts";
+import { deliverWhatsAppForQueueItem } from "../_shared/whatsapp-notify.ts";
+import { checkRateLimit } from "../_shared/rate-limiter.ts";
+import {
+  isWithinQuietHours,
+  moveToDeadLetter,
+  pnqLog,
+  updateTokenHealth,
+} from "../_shared/notification-ops.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -8,6 +16,7 @@ const corsHeaders = {
 
 const MAX_TOTAL_ATTEMPTS = 9; // 3 retry cycles of 3 attempts each
 const PUSH_TIMEOUT_MS = 5000;
+const DEFAULT_PUSH_RATE_PER_HOUR = 60;
 
 // ─── APNs Direct Delivery ───
 
@@ -60,7 +69,7 @@ async function sendApnsDirect(
   try {
     const cryptoKey = await importP8Key(p8Key);
     const jwt = await createApnsJwt(cryptoKey, keyId, teamId);
-    const apnsSound = highPriority ? "gate_bell.mp3" : "default";
+    const apnsSound = highPriority ? "order_ring.mp3" : "default";
     const apnsPayload: Record<string, unknown> = {
       aps: {
         alert: { title, body },
@@ -129,14 +138,15 @@ async function sendFcmDirect(
   title: string, body: string, data?: Record<string, string>,
   threadId?: string, imageUrl?: string, highPriority = true,
 ): Promise<{ success: boolean; error?: string }> {
-  const androidSound = highPriority ? "gate_bell" : "default";
-  const androidChannel = highPriority ? "orders_alert" : "general";
+  // New channel id required when sound changes (Android channel settings are immutable).
+  const androidSound = highPriority ? "order_ring" : "default";
+  const androidChannel = highPriority ? "orders_incoming_v1" : "general";
   const androidNotif: Record<string, unknown> = { sound: androidSound, channel_id: androidChannel, icon: "ic_stat_sociva" };
   if (threadId) androidNotif.tag = threadId;
   if (imageUrl) androidNotif.image = imageUrl;
   const fcmNotif: Record<string, unknown> = { title, body };
   if (imageUrl) fcmNotif.image = imageUrl;
-  const fcmApnsSound = highPriority ? "gate_bell.mp3" : "default";
+  const fcmApnsSound = highPriority ? "order_ring.mp3" : "default";
   const apnsAps: Record<string, unknown> = { alert: { title, body }, sound: fcmApnsSound, badge: 1 };
   if (imageUrl) apnsAps["mutable-content"] = 1;
   if (threadId) apnsAps["thread-id"] = threadId;
@@ -253,22 +263,27 @@ async function deliverPushToUser(
 ): Promise<{ successCount: number; failCount: number }> {
   const startMs = Date.now();
 
-  // Fetch valid device tokens
+  // Fetch valid device tokens (prefer healthier / recently successful)
   const { data: tokens, error: tokensErr } = await supabase
     .from("device_tokens")
-    .select("id, token, platform, apns_token, updated_at, invalid_count")
+    .select("id, token, platform, apns_token, updated_at, invalid_count, health_score, consecutive_failures, last_success_at")
     .eq("user_id", userId)
     .eq("invalid", false);
 
   if (tokensErr || !tokens || tokens.length === 0) {
-    console.log(JSON.stringify({ event: "push_no_tokens", notification_id: notificationId, user_id: userId }));
+    pnqLog("push_no_tokens", { notification_id: notificationId, user_id: userId });
     return { successCount: 0, failCount: 0 };
   }
 
-  // Deduplicate: keep latest per platform
-  const sorted = [...tokens].sort((a: any, b: any) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
+  // Deduplicate: keep highest health per platform, then latest updated
+  const sorted = [...tokens].sort((a: any, b: any) => {
+    const hs = (b.health_score ?? 100) - (a.health_score ?? 100);
+    if (hs !== 0) return hs;
+    return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
+  });
   const seenPlatform = new Set<string>();
   const deduped = sorted.filter((t: any) => {
+    if ((t.health_score ?? 100) < 10) return false;
     if (seenPlatform.has(t.platform)) return false;
     seenPlatform.add(t.platform);
     return true;
@@ -313,23 +328,16 @@ async function deliverPushToUser(
       result = { success: false, error: String(err) };
     }
 
-    // Safe token handling: mark invalid, never delete on first failure
-    if (result.error === "INVALID_TOKEN") {
-      await supabase.from("device_tokens").update({
-        invalid: true,
-        invalid_count: (tokenRecord.invalid_count || 0) + 1,
-      }).eq("id", tokenRecord.id);
-      console.log(`[Push] Marked token ${tokenRecord.id} as invalid (count: ${(tokenRecord.invalid_count || 0) + 1})`);
-    }
+    // Safe token handling: health score + prune on sustained / invalid failures
+    await updateTokenHealth(supabase, tokenRecord, result);
 
-    console.log(JSON.stringify({
-      event: "push_delivery",
+    pnqLog("push_delivery", {
       notification_id: notificationId,
       platform: tokenRecord.platform,
       success: result.success,
       duration_ms: Date.now() - tokenStartMs,
       error: result.error || null,
-    }));
+    });
 
     if (result.success) successCount++;
     else failCount++;
@@ -524,21 +532,63 @@ Deno.serve(async (req) => {
       console.log(`[PNQ] Push unavailable — delivering ${pending.length} items as in-app only`);
     }
 
-    // Batch-fetch notification preferences
+    // Batch-fetch notification preferences + profile phones for WhatsApp channel
     const userIds = [...new Set(pending.map((item: any) => item.user_id))];
     const { data: prefRows } = await supabase
       .from("notification_preferences")
-      .select("user_id, orders, chat, promotions")
+      .select("user_id, orders, chat, promotions, whatsapp, whatsapp_opted_in_at, quiet_hours_enabled, quiet_hours_start, quiet_hours_end, timezone")
       .in("user_id", userIds);
-    const prefMap = new Map<string, Record<string, boolean>>();
+    const prefMap = new Map<string, Record<string, any>>();
     for (const row of prefRows || []) {
-      prefMap.set(row.user_id, { orders: row.orders, chat: row.chat, promotions: row.promotions });
+      prefMap.set(row.user_id, {
+        orders: row.orders,
+        chat: row.chat,
+        promotions: row.promotions,
+        whatsapp: row.whatsapp !== false,
+        whatsapp_opted_in_at: row.whatsapp_opted_in_at ?? null,
+        quiet_hours_enabled: !!row.quiet_hours_enabled,
+        quiet_hours_start: row.quiet_hours_start ?? 22,
+        quiet_hours_end: row.quiet_hours_end ?? 7,
+        timezone: row.timezone || "Asia/Kolkata",
+      });
     }
+    const { data: profileRows } = await supabase
+      .from("profiles")
+      .select("id, phone, name")
+      .in("id", userIds);
+    const profileMap = new Map<string, { phone: string | null; name: string | null }>();
+    for (const row of profileRows || []) {
+      profileMap.set(row.id, { phone: row.phone ?? null, name: row.name ?? null });
+    }
+
+    // Rate-limit config (defaults if table missing / empty)
+    let maxPerHour = DEFAULT_PUSH_RATE_PER_HOUR;
+    try {
+      const { data: cfg } = await supabase
+        .from("notification_config")
+        .select("value")
+        .eq("key", "push_rate_limit")
+        .maybeSingle();
+      if (cfg?.value?.max_per_user_per_hour) {
+        maxPerHour = Number(cfg.value.max_per_user_per_hour) || DEFAULT_PUSH_RATE_PER_HOUR;
+      }
+    } catch { /* use default */ }
 
     let processed = 0;
     let deadLettered = 0;
     let skippedPrefs = 0;
+    let skippedQuiet = 0;
+    let skippedRate = 0;
     let retriedCount = 0;
+    const batchStarted = Date.now();
+    const oldestCreated = pending.reduce((min: number, it: any) => {
+      const t = new Date(it.created_at).getTime();
+      return Number.isFinite(t) ? Math.min(min, t) : min;
+    }, Date.now());
+    pnqLog("queue_lag", {
+      batch_size: pending.length,
+      oldest_age_ms: Date.now() - oldestCreated,
+    });
 
     for (const item of pending) {
       try {
@@ -551,7 +601,9 @@ Deno.serve(async (req) => {
             || notifType.startsWith("delivery_") || notifType.startsWith("booking_");
           if (isOrderRelated && userPrefs.orders === false) prefAllowed = false;
           if (notifType === "chat" && userPrefs.chat === false) prefAllowed = false;
-          if (notifType === "promotion" && userPrefs.promotions === false) prefAllowed = false;
+          if ((notifType === "promotion" || notifType === "campaign") && userPrefs.promotions === false) {
+            prefAllowed = false;
+          }
         }
         if (!prefAllowed) {
           console.log(`[Queue][${item.id}] Skipped push — user opted out of '${notifType}'`);
@@ -597,16 +649,18 @@ Deno.serve(async (req) => {
 
         // Guards: staleness + terminal-state + state-mismatch
         const isOrderNotif = ['order_status', 'order', 'order_update'].includes(item.type);
-        if (isOrderNotif && item.payload?.orderId) {
+        const payloadOrderId = item.payload?.orderId || item.payload?.order_id;
+        const payloadStatus = item.payload?.status || item.payload?.new_status;
+        if (isOrderNotif && payloadOrderId) {
           const ageMs = Date.now() - new Date(item.created_at).getTime();
           const isStale = ageMs > 5 * 60 * 1000;
           const { data: orderCheck } = await supabase
-            .from("orders").select("status").eq("id", item.payload.orderId).single();
+            .from("orders").select("status").eq("id", payloadOrderId).single();
           if (orderCheck) {
-            const terminalStatuses = ['delivered', 'completed', 'cancelled', 'no_show'];
+            const terminalStatuses = ['delivered', 'completed', 'cancelled', 'no_show', 'rejected', 'returned', 'failed'];
             const isTerminal = terminalStatuses.includes(orderCheck.status);
-            const isStateMismatch = item.payload?.status && item.payload.status !== orderCheck.status;
-            const isNewOrderNotif = ['placed', 'enquired', 'requested'].includes(item.payload?.status);
+            const isStateMismatch = payloadStatus && payloadStatus !== orderCheck.status;
+            const isNewOrderNotif = ['placed', 'enquired', 'requested'].includes(payloadStatus);
             if (((isStale && isTerminal) || isStateMismatch) && !isNewOrderNotif) {
               await supabase.from("user_notifications").insert({
                 user_id: item.user_id, title: item.title, body: item.body,
@@ -640,6 +694,37 @@ Deno.serve(async (req) => {
           throw new Error(`DB insert failed: ${insertError.message}`);
         }
 
+        // ── WhatsApp channel (best-effort; never blocks push/in-app) ──
+        try {
+          const profile = profileMap.get(item.user_id);
+          const wa = await deliverWhatsAppForQueueItem({
+            userId: item.user_id,
+            phone: profile?.phone,
+            userName: profile?.name,
+            type: item.type,
+            title: item.title,
+            body: item.body,
+            payload: item.payload || {},
+            whatsappPref: userPrefs?.whatsapp !== false,
+            whatsappOptedInAt: userPrefs?.whatsapp_opted_in_at ?? null,
+            promotionsPref: userPrefs?.promotions === true,
+            notificationId: item.id,
+          });
+          if (wa.attempted) {
+            pnqLog("whatsapp_delivery", {
+              notification_id: item.id,
+              success: !!wa.result?.success,
+              code: wa.result?.code || null,
+              used_template: wa.result?.usedTemplate ?? null,
+              error: wa.result?.error || null,
+            });
+          } else if (wa.skipReason) {
+            pnqLog("whatsapp_skip", { notification_id: item.id, reason: wa.skipReason });
+          }
+        } catch (waErr) {
+          console.warn(`[Queue][${item.id}] WhatsApp channel error:`, waErr);
+        }
+
         // Silent push: skip device delivery
         if (silentPush) {
           console.log(`[Queue][${item.id}] Silent push — skipping device delivery`);
@@ -660,6 +745,7 @@ Deno.serve(async (req) => {
               push_attempted: false, push_skip_reason: "no_credentials",
               last_error: "Push skipped — no push provider configured",
             }).eq("id", item.id);
+          pnqLog("push_skip", { notification_id: item.id, reason: "no_credentials" });
           processed++;
           continue;
         }
@@ -676,28 +762,94 @@ Deno.serve(async (req) => {
           (targetRole === 'seller' && SELLER_HIGH_PRIORITY_STATUSES.includes(notifStatus)) ||
           (targetRole === 'buyer' && BUYER_HIGH_PRIORITY_STATUSES.includes(notifStatus));
 
-        console.log(JSON.stringify({
-          event: "push_priority",
+        // Quiet hours: suppress non-urgent push (inbox + WA already handled)
+        if (
+          userPrefs &&
+          !isHighPriority &&
+          isWithinQuietHours({
+            enabled: userPrefs.quiet_hours_enabled,
+            startHour: userPrefs.quiet_hours_start,
+            endHour: userPrefs.quiet_hours_end,
+            timezone: userPrefs.timezone,
+          })
+        ) {
+          await supabase.from("notification_queue")
+            .update({
+              status: "processed", processed_at: new Date().toISOString(),
+              push_attempted: false, push_skip_reason: "quiet_hours",
+            }).eq("id", item.id);
+          pnqLog("push_skip", { notification_id: item.id, reason: "quiet_hours", user_id: item.user_id });
+          skippedQuiet++;
+          processed++;
+          continue;
+        }
+
+        // Per-user push rate limit (high-priority still counts but is allowed through if over — soft)
+        const rateKey = `notif_push:${item.user_id}`;
+        const rate = await checkRateLimit(rateKey, maxPerHour, 3600);
+        if (!rate.allowed && !isHighPriority) {
+          await supabase.from("notification_queue")
+            .update({
+              status: "processed", processed_at: new Date().toISOString(),
+              push_attempted: false, push_skip_reason: "rate_limited",
+            }).eq("id", item.id);
+          pnqLog("push_skip", { notification_id: item.id, reason: "rate_limited", user_id: item.user_id });
+          skippedRate++;
+          processed++;
+          continue;
+        }
+
+        pnqLog("push_priority", {
           notification_id: item.id,
           user_id: item.user_id,
           target_role: targetRole || 'unknown',
           status: notifStatus || 'unknown',
           isHighPriority,
-          sound: isHighPriority ? 'gate_bell' : 'default',
-        }));
+          sound: isHighPriority ? 'order_ring' : 'default',
+        });
 
         // ── INLINE PUSH DELIVERY (no function-to-function call) ──
+        const TERMINAL_PUSH_STATUSES = [
+          'cancelled', 'completed', 'delivered', 'rejected', 'no_show',
+          'returned', 'failed', 'expired',
+        ];
+        const resolvedOrderId = payloadOrderId
+          || rawPayload.orderId
+          || rawPayload.order_id
+          || rawPayload.entity_id
+          || null;
         const pushData: Record<string, string> = {};
         if (rawPayload.action) pushData.action = String(rawPayload.action);
         if (rawPayload.reference_path) pushData.reference_path = String(rawPayload.reference_path);
         else if (item.reference_path) pushData.reference_path = item.reference_path;
-        if (!pushData.route && item.reference_path) pushData.route = item.reference_path;
+        if (rawPayload.action_url) pushData.action_url = String(rawPayload.action_url);
+        else if (pushData.reference_path) pushData.action_url = pushData.reference_path;
+        else if (item.reference_path) pushData.action_url = item.reference_path;
+        if (!pushData.route && (pushData.action_url || item.reference_path)) {
+          pushData.route = pushData.action_url || item.reference_path;
+        }
         // Pass priority info to client for foreground sound decision
         pushData.high_priority = isHighPriority ? 'true' : 'false';
         if (targetRole) pushData.target_role = targetRole;
         if (notifStatus) pushData.status = notifStatus;
+        // Client sync metadata — required for order-terminal-push / overlay dismiss
+        if (resolvedOrderId) {
+          const oid = String(resolvedOrderId);
+          pushData.order_id = oid;
+          pushData.orderId = oid;
+          pushData.entity_id = oid;
+          pushData.entity_type = 'order';
+        }
+        if (notifStatus) {
+          pushData.is_terminal = TERMINAL_PUSH_STATUSES.includes(String(notifStatus)) ? 'true' : 'false';
+        }
+        if (item.type) pushData.type = String(item.type);
+        if (item.id) pushData.queue_item_id = String(item.id);
+        if (rawPayload.notif_id) pushData.notif_id = String(rawPayload.notif_id);
 
-        const threadId = rawPayload.orderId ? String(rawPayload.orderId) : undefined;
+        const threadId = resolvedOrderId
+          ? String(resolvedOrderId)
+          : (rawPayload.orderId ? String(rawPayload.orderId) : undefined);
         const imageUrl = rawPayload.image_url ? String(rawPayload.image_url) : undefined;
 
         const { successCount, failCount } = await deliverPushToUser(
@@ -709,6 +861,7 @@ Deno.serve(async (req) => {
         if (successCount > 0 || failCount === 0) {
           // At least one token succeeded OR no tokens exist — mark processed
           const skipReason = (successCount === 0 && failCount === 0) ? "no_tokens" : null;
+          if (skipReason) pnqLog("push_skip", { notification_id: item.id, reason: skipReason });
           await supabase.from("notification_queue")
             .update({
               status: "processed", processed_at: new Date().toISOString(),
@@ -726,13 +879,25 @@ Deno.serve(async (req) => {
           // All tokens failed — re-queue with 15s delay
           const retryCount = (item.retry_count || 0) + 1;
           if (retryCount >= MAX_TOTAL_ATTEMPTS) {
+            const lastError = "All push delivery attempts exhausted";
             await supabase.from("notification_queue").update({
               status: "failed", processed_at: new Date().toISOString(),
-              retry_count: retryCount, last_error: "All push delivery attempts exhausted",
+              retry_count: retryCount, last_error: lastError,
               push_attempted: true,
               push_success_count: successCount,
               push_fail_count: failCount,
             }).eq("id", item.id);
+            await moveToDeadLetter(supabase, {
+              id: item.id,
+              user_id: item.user_id,
+              type: item.type,
+              title: item.title,
+              body: item.body,
+              reference_path: item.reference_path,
+              payload: item.payload,
+              retry_count: retryCount,
+              last_error: lastError,
+            });
             deadLettered++;
             console.error(`[Queue][${item.id}] Dead-lettered after ${retryCount} attempts`);
           } else {
@@ -754,15 +919,33 @@ Deno.serve(async (req) => {
         await supabase.from("notification_queue").update({
           status: "failed", processed_at: new Date().toISOString(), last_error: errorMsg,
         }).eq("id", item.id);
+        await moveToDeadLetter(supabase, {
+          id: item.id,
+          user_id: item.user_id,
+          type: item.type,
+          title: item.title,
+          body: item.body,
+          reference_path: item.reference_path,
+          payload: item.payload,
+          retry_count: item.retry_count,
+          last_error: errorMsg,
+        });
         deadLettered++;
         console.error(`[Queue][${item.id}] Fatal error: ${errorMsg}`);
       }
     }
 
-    console.log(JSON.stringify({
-      event: "batch_summary", total: pending.length,
-      processed, dead_lettered: deadLettered, retried: retriedCount, skipped_prefs: skippedPrefs,
-    }));
+    pnqLog("batch_summary", {
+      total: pending.length,
+      processed,
+      dead_lettered: deadLettered,
+      retried: retriedCount,
+      skipped_prefs: skippedPrefs,
+      skipped_quiet: skippedQuiet,
+      skipped_rate: skippedRate,
+      duration_ms: Date.now() - batchStarted,
+      oldest_age_ms: Date.now() - oldestCreated,
+    });
 
     // Self-reschedule: replaces the cron sweep. If more items are due now,
     // re-invoke immediately; if items are scheduled for the future, queue
@@ -770,7 +953,15 @@ Deno.serve(async (req) => {
     await scheduleNextRun(supabase, supabaseUrl);
 
     return new Response(
-      JSON.stringify({ processed, dead_lettered: deadLettered, retried: retriedCount, skipped_prefs: skippedPrefs, total: pending.length }),
+      JSON.stringify({
+        processed,
+        dead_lettered: deadLettered,
+        retried: retriedCount,
+        skipped_prefs: skippedPrefs,
+        skipped_quiet: skippedQuiet,
+        skipped_rate: skippedRate,
+        total: pending.length,
+      }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {

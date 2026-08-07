@@ -192,7 +192,7 @@ async function sendFCM(
       token: deviceToken,
       notification: { title, body },
       data: data || {},
-      android: { priority: "high", notification: { sound: "default" } },
+      android: { priority: "high", notification: { sound: "default", channel_id: "general", icon: "ic_stat_sociva" } },
       apns: {
         headers: { "apns-push-type": "alert", "apns-priority": "10" },
         payload: { aps: { alert: { title, body }, sound: "default", badge: 1 } },
@@ -473,14 +473,19 @@ Deno.serve(async (req) => {
       }
     }
 
-    // ── Clean invalid tokens ──
+    // ── Mark invalid tokens (health scoring; do not hard-delete) ──
     if (invalidTokenIds.length > 0) {
-      const { error: delErr } = await adminClient
+      const { error: updErr } = await adminClient
         .from("device_tokens")
-        .delete()
+        .update({
+          invalid: true,
+          health_score: 0,
+          consecutive_failures: 5,
+          last_error_code: "INVALID_TOKEN",
+        })
         .in("id", invalidTokenIds);
-      if (!delErr) cleaned = invalidTokenIds.length;
-      console.log(`[Campaign] ${campaignId} cleaned ${cleaned} invalid tokens`);
+      if (!updErr) cleaned = invalidTokenIds.length;
+      console.log(`[Campaign] ${campaignId} marked ${cleaned} invalid tokens`);
     }
 
     // ── Update campaign record ──
@@ -497,6 +502,50 @@ Deno.serve(async (req) => {
 
     console.log(`[Campaign] ${campaignId} completed: sent=${sent}, failed=${failed}, cleaned=${cleaned}`);
 
+    // ── Opt-in WhatsApp marketing (promotions + whatsapp prefs required) ──
+    let waQueued = 0;
+    try {
+      const campaignUserIds = [...new Set(allTokens.map((t: any) => t.user_id).filter(Boolean))];
+      if (campaignUserIds.length > 0) {
+        const { data: waPrefs } = await adminClient
+          .from("notification_preferences")
+          .select("user_id")
+          .in("user_id", campaignUserIds)
+          .eq("promotions", true)
+          .eq("whatsapp", true)
+          .not("whatsapp_opted_in_at", "is", null);
+
+        const optedIn = (waPrefs || []).map((r: any) => r.user_id);
+        if (optedIn.length > 0) {
+          const rows = optedIn.map((uid: string) => ({
+            user_id: uid,
+            title,
+            body,
+            type: "promotion",
+            reference_path: data?.screen ? `/${data.screen}` : "/home",
+            payload: {
+              type: "campaign",
+              campaign_id: campaignId,
+              allow_whatsapp_marketing: true,
+              wa_template: "sociva_order_update",
+              status: "promotion",
+              skip_push: true,
+              silent_push: true,
+            },
+          }));
+          // Chunk inserts
+          for (let i = 0; i < rows.length; i += 100) {
+            const chunk = rows.slice(i, i + 100);
+            const { error: waInsErr } = await adminClient.from("notification_queue").insert(chunk);
+            if (!waInsErr) waQueued += chunk.length;
+            else console.warn("[Campaign] WA queue insert failed:", waInsErr.message);
+          }
+        }
+      }
+    } catch (waErr) {
+      console.warn("[Campaign] WhatsApp marketing enqueue skipped:", waErr);
+    }
+
     return new Response(
       JSON.stringify({
         campaign_id: campaignId,
@@ -504,6 +553,7 @@ Deno.serve(async (req) => {
         sent,
         failed,
         cleaned,
+        whatsapp_queued: waQueued,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );

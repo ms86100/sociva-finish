@@ -65,6 +65,11 @@ export function useAppLifecycle() {
       queryClient.invalidateQueries({ queryKey: ['latest-action-notification'] });
       queryClient.invalidateQueries({ queryKey: ['seller-orders'] });
       queryClient.invalidateQueries({ queryKey: ['seller-dashboard-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['seller-order-filter-counts'] });
+      queryClient.invalidateQueries({ queryKey: ['seller-analytics-charts'] });
+      queryClient.invalidateQueries({ queryKey: ['seller-refund-requests'] });
+      queryClient.invalidateQueries({ queryKey: ['seller-reliability'] });
+      queryClient.invalidateQueries({ queryKey: ['seller-customers'] });
       queryClient.invalidateQueries({ queryKey: ['cart-items'] });
       queryClient.invalidateQueries({ queryKey: ['cart-count'] });
       window.dispatchEvent(new Event('order-detail-refetch'));
@@ -95,11 +100,15 @@ export function useAppLifecycle() {
               }
             })();
 
-            // Perf: only invalidate truly lightweight badge/count queries on resume
-            // Heavy page-level data will be refreshed by staleTime when the user navigates
+            // Badge/count queries always; seller order lists too so SLA timers
+            // cannot stay stale after a cancel that arrived while backgrounded.
             const resumeKeys = new Set([
               'cart-count', 'unread-notifications',
               'latest-action-notification',
+              'seller-orders', 'seller-dashboard-stats', 'seller-order-filter-counts',
+              'seller-analytics-charts', 'seller-refund-requests',
+              'seller-reliability', 'seller-customers',
+              'orders', 'active-orders-strip',
             ]);
             queryClient.invalidateQueries({
               predicate: (query) => {

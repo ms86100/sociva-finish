@@ -20,7 +20,7 @@ export function EarningsSummary({ todayEarnings, weekEarnings, totalEarnings, co
         <div className="bg-gradient-to-r from-success/10 to-success/5 rounded-lg px-3 py-2 flex items-center justify-between mt-2">
           <div className="flex items-center gap-2">
             <TrendingUp className="text-success shrink-0" size={14} />
-            <span className="text-xs text-muted-foreground">Earnings</span>
+            <span className="text-xs text-muted-foreground">Settled earnings</span>
           </div>
           <div className="flex items-center gap-3 text-xs tabular-nums">
             <span>Today <strong className="text-success">{formatPrice(todayEarnings)}</strong></span>

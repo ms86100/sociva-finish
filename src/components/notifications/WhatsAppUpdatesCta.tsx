@@ -18,6 +18,8 @@ import { cn } from '@/lib/utils';
 
 type Variant = 'banner' | 'compact' | 'settings';
 
+const WHATSAPP_PREF_DEFAULTS = { whatsapp: true, whatsapp_opted_in_at: null as string | null };
+
 interface WhatsAppUpdatesCtaProps {
   variant?: Variant;
   /** When true, hide after user dismissed or already opted in via CTA. */
@@ -63,25 +65,35 @@ export function WhatsAppUpdatesCta({
   );
   const [opening, setOpening] = useState(false);
 
-  const { data: prefs, isLoading } = useQuery({
+  const { data: prefs } = useQuery({
     queryKey: ['notification-preferences-whatsapp', user?.id],
     queryFn: async () => {
-      if (!user?.id) return { whatsapp: true, whatsapp_opted_in_at: null as string | null };
-      const { data, error } = await (supabase.from('notification_preferences') as any)
-        .select('whatsapp, whatsapp_opted_in_at')
-        .eq('user_id', user.id)
-        .maybeSingle();
-      if (error) {
-        console.warn('[WhatsApp CTA] prefs fetch failed:', error);
-        return { whatsapp: true, whatsapp_opted_in_at: null };
+      if (!user?.id) return { ...WHATSAPP_PREF_DEFAULTS };
+      try {
+        const fetchPromise = (supabase.from('notification_preferences') as any)
+          .select('whatsapp, whatsapp_opted_in_at')
+          .eq('user_id', user.id)
+          .maybeSingle();
+        const timeoutPromise = new Promise<never>((_, reject) => {
+          setTimeout(() => reject(new Error('whatsapp prefs timed out')), 8000);
+        });
+        const { data, error } = await Promise.race([fetchPromise, timeoutPromise]);
+        if (error) {
+          console.warn('[WhatsApp CTA] prefs fetch failed:', error);
+          return { ...WHATSAPP_PREF_DEFAULTS };
+        }
+        return {
+          whatsapp: data?.whatsapp !== false,
+          whatsapp_opted_in_at: data?.whatsapp_opted_in_at ?? null,
+        };
+      } catch (e) {
+        console.warn('[WhatsApp CTA] prefs fetch failed/timed out:', e);
+        return { ...WHATSAPP_PREF_DEFAULTS };
       }
-      return {
-        whatsapp: data?.whatsapp !== false,
-        whatsapp_opted_in_at: data?.whatsapp_opted_in_at ?? null,
-      };
     },
     enabled: !!user?.id,
     staleTime: 5 * 60 * 1000,
+    placeholderData: WHATSAPP_PREF_DEFAULTS,
   });
 
   // Hide dismissible banners once user has already completed opt-in flow
@@ -165,7 +177,6 @@ export function WhatsAppUpdatesCta({
               id="whatsapp-pref"
               checked={prefs?.whatsapp !== false}
               onCheckedChange={(checked) => void handleToggle(checked)}
-              disabled={isLoading}
             />
           </div>
           <Button

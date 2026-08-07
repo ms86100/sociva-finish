@@ -1,9 +1,10 @@
 // @ts-nocheck
+import { createQueuedNotifications } from '@/lib/notification-lifecycle';
 import { supabase } from '@/integrations/supabase/client';
 
 /**
- * Enqueue push notifications for a list of user IDs via notification_queue,
- * then trigger the process-notification-queue edge function (which has service role access).
+ * Enqueue society notifications via notification_queue only (PNQ owns inbox + push).
+ * No dual-write to user_notifications — that caused duplicate inbox rows (P1-4).
  */
 async function enqueueAndProcess(
   targets: { id: string }[],
@@ -14,40 +15,20 @@ async function enqueueAndProcess(
   if (targets.length === 0) return;
 
   const type = data?.type || 'general';
+  const path = data?.path || null;
 
-  // 1. Write to notification_queue (processed by edge function with service role)
-  const queueRows = targets.map(t => ({
-    user_id: t.id,
-    title,
-    body,
-    type,
-    reference_path: data?.path || null,
-    payload: data ? (data as Record<string, unknown>) : {},
-  }));
+  await createQueuedNotifications(
+    targets.map((t) => ({
+      userId: t.id,
+      title,
+      body,
+      type,
+      path,
+      data: data ? { ...data } : {},
+      triggerProcess: false,
+    })),
+  );
 
-  const { error: queueError } = await supabase
-    .from('notification_queue')
-    .insert(queueRows as any);
-
-  if (queueError) {
-    console.error('Failed to enqueue notifications:', queueError);
-  }
-
-  // 2. Also write persistent in-app notifications
-  const notifRows = targets.map(t => ({
-    user_id: t.id,
-    title,
-    body,
-    type,
-    reference_path: data?.path || null,
-    reference_id: data?.reference_id || null,
-  }));
-
-  supabase.from('user_notifications').insert(notifRows as any).then(({ error }) => {
-    if (error) console.error('Failed to write notifications:', error);
-  });
-
-  // 3. Trigger queue processing (runs with service role internally)
   try {
     await supabase.functions.invoke('process-notification-queue');
   } catch (e) {
@@ -57,7 +38,6 @@ async function enqueueAndProcess(
 
 /**
  * Notify all society members via push notification
- * Also writes to user_notifications table for persistent inbox
  */
 export async function notifySocietyMembers(
   societyId: string,
@@ -79,7 +59,6 @@ export async function notifySocietyMembers(
 
     const { data: members } = await query;
     if (!members || members.length === 0) return;
-
 
     const targets = excludeUserId
       ? members.filter(m => m.id !== excludeUserId)

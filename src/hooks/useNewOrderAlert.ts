@@ -3,6 +3,11 @@ import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { hapticVibrate, hapticNotification } from '@/lib/haptics';
+import {
+  scheduleIncomingOrderLocalNotification,
+  cancelIncomingOrderLocalNotification,
+  cancelAllIncomingOrderLocalNotifications,
+} from '@/lib/local-order-notifications';
 
 const ACTIONABLE_STATUSES = ['placed', 'enquired', 'quoted', 'requested', 'scheduled', 'preparing'] as const;
 const ACTIONABLE_STATUSES_INSERT = ['placed', 'enquired', 'quoted', 'confirmed', 'requested', 'scheduled', 'preparing'] as const;
@@ -23,6 +28,8 @@ const BACKOFF_FACTOR = 1.5;
 const DEFAULT_SNOOZE_MINUTES = 5;
 const MAX_SNOOZE_CYCLES = 3; // After this many re-triggers, stop the bell loop.
 const BELL_LOOP_GAP_MS = 1500;
+/** Prefer order_ring (shipped with Android channel); fall back to legacy gate_bell. */
+const BELL_SOUND_CANDIDATES = ['/sounds/order_ring.mp3', '/sounds/gate_bell.mp3'];
 
 const SNOOZE_PREF_KEY = 'seller_snooze_pref_minutes';
 
@@ -43,6 +50,10 @@ export function clearSnoozePreference() {
   try { sessionStorage.removeItem(SNOOZE_PREF_KEY); } catch {}
 }
 
+function isActionableStatus(status: string | null | undefined): boolean {
+  return !!status && ACTIONABLE_STATUSES.includes(status as typeof ACTIONABLE_STATUSES[number]);
+}
+
 export function useNewOrderAlert(sellerIds: string[]) {
   const queryClient = useQueryClient();
   const [pendingAlerts, setPendingAlerts] = useState<NewOrder[]>([]);
@@ -56,6 +67,8 @@ export function useNewOrderAlert(sellerIds: string[]) {
   const dismissedIdsRef = useRef<Set<string>>(new Set());
   const snoozedUntilRef = useRef<Record<string, number>>({});
   const snoozeCyclesRef = useRef<Record<string, number>>({});
+  const snoozeTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const pendingAlertsRef = useRef<NewOrder[]>([]);
 
   const audioContextRef = useRef<AudioContext | null>(null);
   const audioBufferRef = useRef<AudioBuffer | null>(null);
@@ -67,15 +80,53 @@ export function useNewOrderAlert(sellerIds: string[]) {
 
   const enabled = sellerIds.length > 0;
 
+  const invalidateSellerOrderCaches = useCallback((sellerId?: string | null) => {
+    const keys = [
+      'seller-orders',
+      'seller-dashboard-stats',
+      'seller-order-filter-counts',
+      'seller-analytics-charts',
+      'seller-analytics-summary',
+      'seller-reliability',
+      'seller-refund-requests',
+      'seller-customers',
+      'seller-settled-earnings',
+    ] as const;
+
+    const invalidateFor = (sid?: string | null) => {
+      for (const key of keys) {
+        if (sid) queryClient.invalidateQueries({ queryKey: [key, sid] });
+        else queryClient.invalidateQueries({ queryKey: [key] });
+      }
+    };
+
+    if (sellerId) {
+      invalidateFor(sellerId);
+      return;
+    }
+    for (const sid of sellerIdsRef.current) invalidateFor(sid);
+    invalidateFor(null);
+  }, [queryClient]);
+
   const ensureAudioLoaded = useCallback(async () => {
     if (audioBufferRef.current) return true;
     try {
       const ctx = audioContextRef.current || new (window.AudioContext || (window as any).webkitAudioContext)();
       audioContextRef.current = ctx;
-      const response = await fetch('/sounds/gate_bell.mp3');
-      const arrayBuffer = await response.arrayBuffer();
-      audioBufferRef.current = await ctx.decodeAudioData(arrayBuffer);
-      return true;
+      let lastErr: unknown = null;
+      for (const url of BELL_SOUND_CANDIDATES) {
+        try {
+          const response = await fetch(url);
+          if (!response.ok) continue;
+          const arrayBuffer = await response.arrayBuffer();
+          audioBufferRef.current = await ctx.decodeAudioData(arrayBuffer);
+          return true;
+        } catch (e) {
+          lastErr = e;
+        }
+      }
+      console.warn('[OrderAlert] Web Audio load failed:', lastErr);
+      return false;
     } catch (e) {
       console.warn('[OrderAlert] Web Audio load failed:', e);
       return false;
@@ -86,7 +137,7 @@ export function useNewOrderAlert(sellerIds: string[]) {
   const handleNewOrder = useCallback((order: NewOrder) => {
     if (seenIdsRef.current.has(order.id)) return;
     if (dismissedIdsRef.current.has(order.id)) return;
-    if (!ACTIONABLE_STATUSES.includes(order.status as typeof ACTIONABLE_STATUSES[number])) return;
+    if (!isActionableStatus(order.status)) return;
     const snoozedUntil = snoozedUntilRef.current[order.id];
     if (snoozedUntil && Date.now() < snoozedUntil) return;
     seenIdsRef.current.add(order.id);
@@ -100,16 +151,13 @@ export function useNewOrderAlert(sellerIds: string[]) {
     }
     pollDelayRef.current = MIN_POLL_MS;
     setPendingAlerts(prev => [...prev, order]);
-    if (order.seller_id) {
-      queryClient.invalidateQueries({ queryKey: ['seller-orders', order.seller_id] });
-      queryClient.invalidateQueries({ queryKey: ['seller-dashboard-stats', order.seller_id] });
-    } else {
-      for (const sid of sellerIdsRef.current) {
-        queryClient.invalidateQueries({ queryKey: ['seller-orders', sid] });
-        queryClient.invalidateQueries({ queryKey: ['seller-dashboard-stats', sid] });
-      }
-    }
-  }, [queryClient]);
+    invalidateSellerOrderCaches(order.seller_id);
+    void scheduleIncomingOrderLocalNotification({
+      orderId: order.id,
+      title: 'New order',
+      amount: order.total_amount,
+    });
+  }, [invalidateSellerOrderCaches]);
 
   const playBellOnce = useCallback(async () => {
     const isLoaded = await ensureAudioLoaded();
@@ -160,6 +208,7 @@ export function useNewOrderAlert(sellerIds: string[]) {
     setPendingAlerts(prev => {
       if (prev.length === 0) return prev;
       dismissedIdsRef.current.add(prev[0].id);
+      void cancelIncomingOrderLocalNotification(prev[0].id);
       const remaining = prev.slice(1);
       if (remaining.length === 0) stopBuzzing();
       return remaining;
@@ -167,9 +216,19 @@ export function useNewOrderAlert(sellerIds: string[]) {
   }, [stopBuzzing]);
 
   const dismissById = useCallback((orderId: string) => {
+    if (snoozeTimersRef.current[orderId]) {
+      clearTimeout(snoozeTimersRef.current[orderId]);
+      delete snoozeTimersRef.current[orderId];
+    }
+    delete snoozedUntilRef.current[orderId];
+    void cancelIncomingOrderLocalNotification(orderId);
     setPendingAlerts(prev => {
       const idx = prev.findIndex(o => o.id === orderId);
-      if (idx === -1) return prev;
+      if (idx === -1) {
+        // Still mark dismissed so snooze / poll cannot resurrect a terminal order
+        dismissedIdsRef.current.add(orderId);
+        return prev;
+      }
       dismissedIdsRef.current.add(orderId);
       const remaining = prev.filter(o => o.id !== orderId);
       if (remaining.length === 0) stopBuzzing();
@@ -179,11 +238,28 @@ export function useNewOrderAlert(sellerIds: string[]) {
 
   const dismissAll = useCallback(() => {
     setPendingAlerts(prev => {
-      prev.forEach(o => dismissedIdsRef.current.add(o.id));
+      prev.forEach(o => {
+        dismissedIdsRef.current.add(o.id);
+        if (snoozeTimersRef.current[o.id]) {
+          clearTimeout(snoozeTimersRef.current[o.id]);
+          delete snoozeTimersRef.current[o.id];
+        }
+        delete snoozedUntilRef.current[o.id];
+      });
+      void cancelAllIncomingOrderLocalNotifications();
       stopBuzzing();
       return [];
     });
   }, [stopBuzzing]);
+
+  const handleTerminalOrder = useCallback((orderId: string, sellerId?: string | null) => {
+    dismissById(orderId);
+    seenIdsRef.current.delete(orderId);
+    invalidateSellerOrderCaches(sellerId);
+    queryClient.invalidateQueries({ queryKey: ['unread-notifications'] });
+    queryClient.invalidateQueries({ queryKey: ['notifications'] });
+    queryClient.invalidateQueries({ queryKey: ['latest-action-notification'] });
+  }, [dismissById, invalidateSellerOrderCaches, queryClient]);
 
   /**
    * Snooze the current top alert.
@@ -213,17 +289,36 @@ export function useNewOrderAlert(sellerIds: string[]) {
 
       seenIdsRef.current.delete(current.id);
       snoozedUntilRef.current[current.id] = Date.now() + ms;
-      setTimeout(() => {
+      if (snoozeTimersRef.current[current.id]) {
+        clearTimeout(snoozeTimersRef.current[current.id]);
+      }
+      snoozeTimersRef.current[current.id] = setTimeout(async () => {
+        delete snoozeTimersRef.current[current.id];
         if (dismissedIdsRef.current.has(current.id)) return;
         delete snoozedUntilRef.current[current.id];
-        setPendingAlerts(curr => (curr.some(o => o.id === current.id) ? curr : [...curr, current]));
-        seenIdsRef.current.add(current.id);
+        try {
+          const { data } = await supabase
+            .from('orders')
+            .select('id, status, created_at, total_amount, seller_id, fulfillment_type, delivery_handled_by')
+            .eq('id', current.id)
+            .maybeSingle();
+          if (!data || !isActionableStatus(data.status)) {
+            dismissedIdsRef.current.add(current.id);
+            invalidateSellerOrderCaches(data?.seller_id ?? current.seller_id);
+            return;
+          }
+          setPendingAlerts(curr => (curr.some(o => o.id === current.id) ? curr : [...curr, data as NewOrder]));
+          seenIdsRef.current.add(current.id);
+        } catch {
+          // Network failure: do not resurrect without status proof
+          dismissedIdsRef.current.add(current.id);
+        }
       }, ms);
       const remaining = prev.slice(1);
       if (remaining.length === 0) stopBuzzing();
       return remaining;
     });
-  }, [stopBuzzing]);
+  }, [stopBuzzing, invalidateSellerOrderCaches]);
 
   // ── Realtime subscription ──
   useEffect(() => {
@@ -243,17 +338,67 @@ export function useNewOrderAlert(sellerIds: string[]) {
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders' }, (payload) => {
         const n = payload.new as any;
         if (!sellerIdsRef.current.has(n.seller_id)) return;
-        if (ACTIONABLE_STATUSES.includes(n.status)) {
+        // Always refresh board/stats/analytics on any status change — even when
+        // handleNewOrder early-returns (seenIds) for placed→preparing etc.
+        invalidateSellerOrderCaches(n.seller_id);
+        if (isActionableStatus(n.status)) {
           handleNewOrder({
             id: n.id, status: n.status, created_at: n.created_at,
             total_amount: n.total_amount, seller_id: n.seller_id,
             fulfillment_type: n.fulfillment_type, delivery_handled_by: n.delivery_handled_by,
           });
+        } else {
+          // Cancelled / expired / accepted / rejected / completed / etc. — stop overlay
+          handleTerminalOrder(n.id, n.seller_id);
         }
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [enabled, handleNewOrder]);
+  }, [enabled, handleNewOrder, handleTerminalOrder, invalidateSellerOrderCaches]);
+
+  // Push-driven terminal sync (when realtime misses but FCM carries is_terminal)
+  useEffect(() => {
+    if (!enabled) return;
+    const onTerminalPush = (event: Event) => {
+      const detail = (event as CustomEvent)?.detail;
+      const orderId = detail?.orderId;
+      if (!orderId) return;
+      handleTerminalOrder(orderId, detail?.sellerId ?? null);
+    };
+    window.addEventListener('order-terminal-push', onTerminalPush);
+    return () => window.removeEventListener('order-terminal-push', onTerminalPush);
+  }, [enabled, handleTerminalOrder]);
+
+  // Reconcile pending overlays against live DB (resume / tab focus)
+  useEffect(() => {
+    if (!enabled) return;
+
+    const reconcile = async () => {
+      const curr = pendingAlertsRef.current;
+      if (curr.length === 0) return;
+      const ids = curr.map(o => o.id);
+      try {
+        const { data } = await supabase
+          .from('orders')
+          .select('id, status, seller_id')
+          .in('id', ids);
+        if (!data) return;
+        const byId = new Map(data.map((o: any) => [o.id, o]));
+        for (const alert of curr) {
+          const live = byId.get(alert.id);
+          if (!live || !isActionableStatus(live.status)) {
+            handleTerminalOrder(alert.id, live?.seller_id ?? alert.seller_id);
+          }
+        }
+      } catch {}
+    };
+
+    const onVis = () => {
+      if (document.visibilityState === 'visible') void reconcile();
+    };
+    document.addEventListener('visibilitychange', onVis);
+    return () => document.removeEventListener('visibilitychange', onVis);
+  }, [enabled, handleTerminalOrder]);
 
   // ── Polling fallback ──
   useEffect(() => {
@@ -308,12 +453,17 @@ export function useNewOrderAlert(sellerIds: string[]) {
   }, [enabled, sellerIds.join(','), handleNewOrder]);
 
   useEffect(() => {
+    pendingAlertsRef.current = pendingAlerts;
     if (pendingAlerts.length > 0) startBuzzing();
     else stopBuzzing();
     return () => stopBuzzing();
-  }, [pendingAlerts.length, startBuzzing, stopBuzzing]);
+  }, [pendingAlerts, startBuzzing, stopBuzzing]);
 
-  useEffect(() => () => stopBuzzing(), [stopBuzzing]);
+  useEffect(() => () => {
+    stopBuzzing();
+    Object.values(snoozeTimersRef.current).forEach(clearTimeout);
+    snoozeTimersRef.current = {};
+  }, [stopBuzzing]);
 
   return { pendingAlerts, dismiss, dismissById, dismissAll, snooze };
 }

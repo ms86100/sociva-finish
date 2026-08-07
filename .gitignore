@@ -31,12 +31,14 @@ dist-ssr
 
 # Android signing / Firebase (never commit real credentials)
 android/keystore.properties
+android/transistorsoft.properties
 android/*.keystore
 android/*.jks
 **/sociva-release.keystore
 android/app/google-services.json
 android-config/google-services.json
 !android-config/google-services.json.example
+!android/transistorsoft.properties.example
 
 tmp/
 

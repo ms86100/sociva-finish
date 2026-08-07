@@ -67,6 +67,10 @@ const config: CapacitorConfig = {
     PushNotifications: {
       presentationOptions: ['badge', 'sound', 'alert'],
     },
+    LocalNotifications: {
+      smallIcon: 'ic_stat_sociva',
+      sound: 'order_ring.mp3',
+    },
     Keyboard: {
       resize: 'body',
       resizeOnFullScreen: true,

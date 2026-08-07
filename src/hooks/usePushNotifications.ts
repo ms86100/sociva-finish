@@ -15,7 +15,7 @@ import { setPendingDeepLink } from '@/hooks/useDeepLinks';
 /**
  * BUILD FINGERPRINT — bump on every push-related update.
  */
-export const PUSH_BUILD_ID = '2026-03-07-DUAL-PLUGIN-V2-LISTENER-GATE';
+export const PUSH_BUILD_ID = '2026-08-07-LOCAL-NOTIF-PHASE234';
 
 type RegistrationState = 'idle' | 'registering' | 'registered' | 'failed';
 
@@ -273,22 +273,40 @@ export function usePushNotificationsInternal() {
 
       const platform = Capacitor.getPlatform();
 
-      // Create high-importance notification channel for order alerts (Android 8+)
+      // Create high-importance notification channels for order alerts (Android 8+).
+      // Channel settings are immutable after first create — ship a new id when sound changes.
       if (platform === 'android') {
         try {
           await PushNotifications.createChannel({
-            id: 'orders_alert',
-            name: 'Order Alerts',
-            description: 'High-priority alerts for new orders',
+            id: 'orders_incoming_v1',
+            name: 'Incoming Orders',
+            description: 'High-priority ringing alerts for new seller orders',
             importance: 5,
             visibility: 1,
-            sound: 'gate_bell',
+            sound: 'order_ring',
+            vibration: true,
+            lights: true,
+          });
+          pushLog('info', 'ANDROID_CHANNEL_CREATED', { channelId: 'orders_incoming_v1' });
+        } catch (chErr) {
+          pushLog('warn', 'ANDROID_CHANNEL_CREATE_FAILED', { channelId: 'orders_incoming_v1', error: String(chErr) });
+        }
+
+        // Keep legacy channel so older queued pushes still resolve (no sound upgrade)
+        try {
+          await PushNotifications.createChannel({
+            id: 'orders_alert',
+            name: 'Order Alerts (legacy)',
+            description: 'Legacy high-priority order alerts',
+            importance: 5,
+            visibility: 1,
+            sound: 'order_ring',
             vibration: true,
             lights: true,
           });
           pushLog('info', 'ANDROID_CHANNEL_CREATED', { channelId: 'orders_alert' });
         } catch (chErr) {
-          pushLog('warn', 'ANDROID_CHANNEL_CREATE_FAILED', { error: String(chErr) });
+          pushLog('warn', 'ANDROID_CHANNEL_CREATE_FAILED', { channelId: 'orders_alert', error: String(chErr) });
         }
 
         // General channel for standard (non-urgent) notifications
@@ -305,7 +323,25 @@ export function usePushNotificationsInternal() {
           });
           pushLog('info', 'ANDROID_CHANNEL_CREATED', { channelId: 'general' });
         } catch (chErr) {
-          pushLog('warn', 'ANDROID_CHANNEL_CREATE_FAILED', { error: String(chErr) });
+          pushLog('warn', 'ANDROID_CHANNEL_CREATE_FAILED', { channelId: 'general', error: String(chErr) });
+        }
+
+        // Mirror channel on LocalNotifications for foreground / app-open ringing
+        try {
+          const { LocalNotifications } = await import('@capacitor/local-notifications');
+          await LocalNotifications.createChannel({
+            id: 'orders_incoming_v1',
+            name: 'Incoming Orders',
+            description: 'High-priority ringing alerts for new seller orders',
+            importance: 5,
+            visibility: 1,
+            sound: 'order_ring',
+            vibration: true,
+            lights: true,
+          });
+          pushLog('info', 'LOCAL_NOTIF_CHANNEL_CREATED', { channelId: 'orders_incoming_v1' });
+        } catch (lnErr) {
+          pushLog('warn', 'LOCAL_NOTIF_CHANNEL_FAILED', { error: String(lnErr) });
         }
       }
 
@@ -419,6 +455,9 @@ export function usePushNotificationsInternal() {
           window.dispatchEvent(new CustomEvent('order-terminal-push', {
             detail: { orderId, status: pushStatus },
           }));
+          void import('@/lib/local-order-notifications').then(({ cancelIncomingOrderLocalNotification }) => {
+            void cancelIncomingOrderLocalNotification(orderId);
+          }).catch(() => {});
         }
 
         // Suppress if Live Activity is tracking
@@ -460,28 +499,50 @@ export function usePushNotificationsInternal() {
 
         hapticNotification('success');
 
-        // Play a short alert beep via Web Audio API ONLY for high-priority notifications
-        // Standard notifications rely on the OS-delivered sound from the push payload
+        // High-priority foreground: play professional ring asset (not synthetic beeps).
+        // Seller overlay owns looping buzz when pending — skip duplicate for seller incoming.
         const isHighPriority = data?.high_priority === 'true';
-        if (soundsEnabledRef.current && isHighPriority) {
-          try {
-            const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
-            const audioNow = ctx.currentTime;
-            for (let i = 0; i < 3; i++) {
-              const osc = ctx.createOscillator();
-              const gain = ctx.createGain();
-              osc.connect(gain);
-              gain.connect(ctx.destination);
-              osc.frequency.value = i % 2 === 0 ? 880 : 660;
-              osc.type = 'sine';
-              const t = audioNow + i * 0.15;
-              gain.gain.setValueAtTime(0.18, t);
-              gain.gain.exponentialRampToValueAtTime(0.01, t + 0.12);
-              osc.start(t);
-              osc.stop(t + 0.15);
-            }
-            setTimeout(() => ctx.close().catch(() => {}), 600);
-          } catch {}
+        const isSellerIncoming = data?.target_role === 'seller' && isHighPriority;
+        if (soundsEnabledRef.current && isHighPriority && !isSellerIncoming) {
+          void (async () => {
+            try {
+              const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+              const tryUrls = ['/sounds/order_ring.mp3', '/sounds/gate_bell.mp3'];
+              let played = false;
+              for (const url of tryUrls) {
+                try {
+                  const resp = await fetch(url);
+                  if (!resp.ok) continue;
+                  const buf = await ctx.decodeAudioData(await resp.arrayBuffer());
+                  if (ctx.state === 'suspended') await ctx.resume();
+                  const source = ctx.createBufferSource();
+                  source.buffer = buf;
+                  source.connect(ctx.destination);
+                  source.start(0);
+                  played = true;
+                  setTimeout(() => ctx.close().catch(() => {}), Math.ceil((buf.duration + 0.5) * 1000));
+                  break;
+                } catch { /* try next */ }
+              }
+              if (!played) {
+                const audioNow = ctx.currentTime;
+                for (let i = 0; i < 3; i++) {
+                  const osc = ctx.createOscillator();
+                  const gain = ctx.createGain();
+                  osc.connect(gain);
+                  gain.connect(ctx.destination);
+                  osc.frequency.value = i % 2 === 0 ? 880 : 660;
+                  osc.type = 'sine';
+                  const t = audioNow + i * 0.15;
+                  gain.gain.setValueAtTime(0.18, t);
+                  gain.gain.exponentialRampToValueAtTime(0.01, t + 0.12);
+                  osc.start(t);
+                  osc.stop(t + 0.15);
+                }
+                setTimeout(() => ctx.close().catch(() => {}), 600);
+              }
+            } catch {}
+          })();
         }
 
         const route = data?.route || resolveNotificationRoute(data?.type, data);
@@ -509,6 +570,25 @@ export function usePushNotificationsInternal() {
         if (instanceId !== activeInstanceId) return;
         const data = event.notification?.data as Record<string, string> | undefined;
         pushLog('info', 'NOTIFICATION_TAP', { data });
+
+        const orderId = data?.orderId ?? data?.order_id ?? data?.entity_id;
+        const pushStatus = data?.status;
+        const isTerminalPush = data?.is_terminal === 'true' || (data as any)?.is_terminal === true;
+        if (orderId && (isTerminalPush || pushStatus)) {
+          if (isTerminalPush) {
+            window.dispatchEvent(new CustomEvent('order-terminal-push', {
+              detail: { orderId, status: pushStatus },
+            }));
+          } else if (pushStatus) {
+            getTerminalStatuses().then(terminalSet => {
+              if (terminalSet.has(pushStatus)) {
+                window.dispatchEvent(new CustomEvent('order-terminal-push', {
+                  detail: { orderId, status: pushStatus },
+                }));
+              }
+            }).catch(() => {});
+          }
+        }
 
         const route = data?.route || resolveNotificationRoute(data?.type, data);
         if (route && route !== '/notifications') {

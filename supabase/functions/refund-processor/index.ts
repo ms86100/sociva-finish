@@ -109,7 +109,7 @@ Deno.serve(async (req) => {
 
     const { data: refund, error: fetchErr } = await supabase
       .from("refund_requests")
-      .select("id, refund_state, amount, order_id, buyer_id")
+      .select("id, refund_state, amount, order_id, buyer_id, refund_destination, wallet_credit_amount")
       .eq("id", body.refund_id)
       .single();
 
@@ -159,6 +159,36 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Sociva Credit path: skip Razorpay, credit wallet + complete
+    const destination = (refund as { refund_destination?: string }).refund_destination || "original_payment";
+    if (destination === "wallet") {
+      const { data: walletDone, error: walletErr } = await supabase.rpc("complete_wallet_refund", {
+        p_refund_id: refund.id,
+      });
+      if (walletErr) {
+        console.error("[refund-processor] wallet refund failed", walletErr);
+        await supabase.rpc("fail_refund", {
+          p_refund_id: refund.id,
+          p_reason: walletErr.message || "Wallet credit failed",
+        });
+        return new Response(
+          JSON.stringify({ ok: false, state: "refund_failed", error: walletErr.message, destination: "wallet" }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+      console.log(`[refund-processor] completed wallet refund ${refund.id}`);
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          state: "refund_completed",
+          destination: "wallet",
+          gateway_ref: walletDone?.gateway_refund_id || null,
+          simulated: false,
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
     const keys = await getRazorpayKeys(supabase);
     if (!keys) {
       return new Response(
@@ -179,7 +209,8 @@ Deno.serve(async (req) => {
     if (!paymentId) {
       return new Response(
         JSON.stringify({
-          error: "No Razorpay payment on this order — cannot auto-refund. Handle COD/offline manually.",
+          error:
+            "No Razorpay payment on this order — cannot auto-refund to original method. Buyer should choose Sociva Credit (wallet) destination, or handle COD offline.",
         }),
         { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
@@ -198,7 +229,18 @@ Deno.serve(async (req) => {
       });
     }
 
-    const gw = await callRazorpayRefund(keys, paymentId, Number(refund.amount), refund.id);
+    // Gateway refund only the residual (order.total_amount), not wallet-applied portion
+    const { data: orderAmounts } = await supabase
+      .from("orders")
+      .select("total_amount, wallet_cash_amount, wallet_promo_amount")
+      .eq("id", refund.order_id)
+      .single();
+    const gatewayRefundAmount = Math.min(
+      Number(refund.amount),
+      Number(orderAmounts?.total_amount ?? refund.amount),
+    );
+
+    const gw = await callRazorpayRefund(keys, paymentId, gatewayRefundAmount, refund.id);
 
     if (gw.ok) {
       const { error: doneErr } = await supabase.rpc("complete_refund", {

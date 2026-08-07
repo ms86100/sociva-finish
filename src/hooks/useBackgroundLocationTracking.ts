@@ -332,6 +332,14 @@ export function useBackgroundLocationTracking(assignmentId: string | null) {
     } catch (err: any) {
       const errMsg = err instanceof Error ? err.message : String(err);
       console.error('[LocationTracking] Native tracking setup failed:', errMsg, err);
+      // Transistorsoft already shows a native "LICENSE VALIDATION FAILURE" toast when
+      // AndroidManifest lacks com.transistorsoft.locationmanager.license — don't echo it.
+      if (/license\s*validation/i.test(errMsg)) {
+        console.warn(
+          '[LocationTracking] Transistorsoft license missing/invalid. Add key for app.sociva.community via android/transistorsoft.properties (see .example).',
+        );
+        return;
+      }
       toast.error(`Location error: ${errMsg || 'Unknown failure'}`, { duration: 8000 });
     }
   }, [sendLocation, startHealthCheck]);

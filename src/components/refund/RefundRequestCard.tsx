@@ -36,6 +36,7 @@ interface RefundRequest {
   rejection_reason: string | null;
   gateway_refund_id: string | null;
   refund_method: string;
+  refund_destination?: string;
   evidence_urls: string[] | null;
 }
 
@@ -58,6 +59,7 @@ export function RefundRequestCard({ orderId, orderStatus, paymentStatus, isBuyer
   const [showForm, setShowForm] = useState(false);
   const [reason, setReason] = useState('');
   const [category, setCategory] = useState('order_issue');
+  const [refundDestination, setRefundDestination] = useState<'original_payment' | 'wallet'>('original_payment');
   const [evidenceUrls, setEvidenceUrls] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
 
@@ -133,6 +135,7 @@ export function RefundRequestCard({ orderId, orderStatus, paymentStatus, isBuyer
         p_reason: reason.trim(),
         p_category: category,
         p_evidence_urls: evidenceUrls,
+        p_refund_destination: refundDestination,
       } as any);
 
       if (error) throw error;
@@ -174,14 +177,27 @@ export function RefundRequestCard({ orderId, orderStatus, paymentStatus, isBuyer
           <div className="flex items-start gap-2 bg-primary/5 border border-primary/10 rounded-lg px-3 py-2">
             <CreditCard size={14} className="text-primary shrink-0 mt-0.5" />
             <div className="flex-1">
-              <p className="text-[11px] font-medium">
-                {isCompleted ? 'Refunded to your original payment method' : 'Returning to your original payment method'}
-              </p>
-              <p className="text-[10px] text-muted-foreground">
-                {isCompleted
-                  ? 'Funds typically reflect in 3–5 business days depending on your bank.'
-                  : 'Auto-settled within 3–5 business days. No action needed.'}
-              </p>
+              {((existingRefund.refund_destination || existingRefund.refund_method) === 'wallet') ? (
+                <>
+                  <p className="text-[11px] font-medium">
+                    {isCompleted ? 'Credited as Sociva Credit' : 'Will credit as Sociva Credit (instant)'}
+                  </p>
+                  <p className="text-[10px] text-muted-foreground">
+                    Usable on Sociva only · Not withdrawable to bank
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="text-[11px] font-medium">
+                    {isCompleted ? 'Refunded to your original payment method' : 'Returning to your original payment method'}
+                  </p>
+                  <p className="text-[10px] text-muted-foreground">
+                    {isCompleted
+                      ? 'Funds typically reflect in 3–5 business days depending on your bank.'
+                      : 'Auto-settled within 3–5 business days. No action needed.'}
+                  </p>
+                </>
+              )}
               {existingRefund.gateway_refund_id && (
                 <p className="text-[10px] text-muted-foreground mt-1 font-mono">
                   Ref: {existingRefund.gateway_refund_id}
@@ -230,10 +246,40 @@ export function RefundRequestCard({ orderId, orderStatus, paymentStatus, isBuyer
         <p className="text-sm font-semibold">Request Refund</p>
       </div>
 
-      <div className="p-2.5 bg-muted/50 rounded-lg">
-        <p className="text-xs text-muted-foreground">Refund amount</p>
-        <p className="text-lg font-bold">₹{totalAmount}</p>
-        <p className="text-[10px] text-muted-foreground mt-0.5">Returned to your original payment method (3–5 business days)</p>
+      <div className="p-2.5 bg-muted/50 rounded-lg space-y-2">
+        <div>
+          <p className="text-xs text-muted-foreground">Refund amount</p>
+          <p className="text-lg font-bold">₹{totalAmount}</p>
+        </div>
+        <div className="space-y-1.5">
+          <p className="text-[11px] font-medium text-muted-foreground">Where should we send it?</p>
+          <label className="flex items-start gap-2 text-xs cursor-pointer">
+            <input
+              type="radio"
+              name="refund-dest"
+              className="mt-0.5"
+              checked={refundDestination === 'original_payment'}
+              onChange={() => setRefundDestination('original_payment')}
+            />
+            <span>
+              <span className="font-medium">Original payment</span>
+              <span className="block text-[10px] text-muted-foreground">3–7 business days · default</span>
+            </span>
+          </label>
+          <label className="flex items-start gap-2 text-xs cursor-pointer">
+            <input
+              type="radio"
+              name="refund-dest"
+              className="mt-0.5"
+              checked={refundDestination === 'wallet'}
+              onChange={() => setRefundDestination('wallet')}
+            />
+            <span>
+              <span className="font-medium">Instant Sociva Credit</span>
+              <span className="block text-[10px] text-muted-foreground">Usable on Sociva only · not withdrawable</span>
+            </span>
+          </label>
+        </div>
       </div>
 
       <Select value={category} onValueChange={setCategory}>

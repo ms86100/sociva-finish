@@ -1058,6 +1058,51 @@ export type Database = {
           },
         ]
       }
+      buyer_wallets: {
+        Row: {
+          cash_available: number
+          cash_pending: number
+          created_at: string
+          lifetime_credited: number
+          lifetime_expired: number
+          lifetime_spent: number
+          promo_available: number
+          promo_pending: number
+          status: string
+          updated_at: string
+          user_id: string
+          version: number
+        }
+        Insert: {
+          cash_available?: number
+          cash_pending?: number
+          created_at?: string
+          lifetime_credited?: number
+          lifetime_expired?: number
+          lifetime_spent?: number
+          promo_available?: number
+          promo_pending?: number
+          status?: string
+          updated_at?: string
+          user_id: string
+          version?: number
+        }
+        Update: {
+          cash_available?: number
+          cash_pending?: number
+          created_at?: string
+          lifetime_credited?: number
+          lifetime_expired?: number
+          lifetime_spent?: number
+          promo_available?: number
+          promo_pending?: number
+          status?: string
+          updated_at?: string
+          user_id?: string
+          version?: number
+        }
+        Relationships: []
+      }
       call_feedback: {
         Row: {
           buyer_id: string
@@ -2701,10 +2746,14 @@ export type Database = {
       device_tokens: {
         Row: {
           apns_token: string | null
+          consecutive_failures: number
           created_at: string | null
+          health_score: number
           id: string
           invalid: boolean | null
           invalid_count: number | null
+          last_error_code: string | null
+          last_success_at: string | null
           platform: string
           token: string
           updated_at: string | null
@@ -2712,10 +2761,14 @@ export type Database = {
         }
         Insert: {
           apns_token?: string | null
+          consecutive_failures?: number
           created_at?: string | null
+          health_score?: number
           id?: string
           invalid?: boolean | null
           invalid_count?: number | null
+          last_error_code?: string | null
+          last_success_at?: string | null
           platform?: string
           token: string
           updated_at?: string | null
@@ -2723,10 +2776,14 @@ export type Database = {
         }
         Update: {
           apns_token?: string | null
+          consecutive_failures?: number
           created_at?: string | null
+          health_score?: number
           id?: string
           invalid?: boolean | null
           invalid_count?: number | null
+          last_error_code?: string | null
+          last_success_at?: string | null
           platform?: string
           token?: string
           updated_at?: string | null
@@ -3910,6 +3967,54 @@ export type Database = {
           },
         ]
       }
+      loyalty_ledger: {
+        Row: {
+          created_at: string
+          description: string | null
+          entry_type: string
+          funding_source: string
+          id: string
+          idempotency_key: string | null
+          metadata: Json
+          order_id: string | null
+          points: number
+          reference_id: string | null
+          reservation_id: string | null
+          store_id: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          entry_type: string
+          funding_source?: string
+          id?: string
+          idempotency_key?: string | null
+          metadata?: Json
+          order_id?: string | null
+          points?: number
+          reference_id?: string | null
+          reservation_id?: string | null
+          store_id?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          entry_type?: string
+          funding_source?: string
+          id?: string
+          idempotency_key?: string | null
+          metadata?: Json
+          order_id?: string | null
+          points?: number
+          reference_id?: string | null
+          reservation_id?: string | null
+          store_id?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       loyalty_points: {
         Row: {
           created_at: string
@@ -3939,6 +4044,86 @@ export type Database = {
           reference_id?: string | null
           source?: string
           type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      loyalty_reservations: {
+        Row: {
+          checkout_key: string | null
+          created_at: string
+          expires_at: string
+          id: string
+          idempotency_key: string | null
+          order_ids: string[]
+          points: number
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          checkout_key?: string | null
+          created_at?: string
+          expires_at?: string
+          id?: string
+          idempotency_key?: string | null
+          order_ids?: string[]
+          points: number
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          checkout_key?: string | null
+          created_at?: string
+          expires_at?: string
+          id?: string
+          idempotency_key?: string | null
+          order_ids?: string[]
+          points?: number
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "loyalty_reservations_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "loyalty_wallets"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      loyalty_wallets: {
+        Row: {
+          available_points: number
+          created_at: string
+          funding_source: string
+          lifetime_earned: number
+          lifetime_redeemed: number
+          pending_points: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          available_points?: number
+          created_at?: string
+          funding_source?: string
+          lifetime_earned?: number
+          lifetime_redeemed?: number
+          pending_points?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          available_points?: number
+          created_at?: string
+          funding_source?: string
+          lifetime_earned?: number
+          lifetime_redeemed?: number
+          pending_points?: number
+          updated_at?: string
           user_id?: string
         }
         Relationships: []
@@ -4234,6 +4419,75 @@ export type Database = {
           },
         ]
       }
+      notification_config: {
+        Row: {
+          key: string
+          updated_at: string
+          value: Json
+        }
+        Insert: {
+          key: string
+          updated_at?: string
+          value?: Json
+        }
+        Update: {
+          key?: string
+          updated_at?: string
+          value?: Json
+        }
+        Relationships: []
+      }
+      notification_dead_letter: {
+        Row: {
+          body: string | null
+          failed_at: string
+          id: string
+          inspected_at: string | null
+          last_error: string | null
+          notes: string | null
+          payload: Json | null
+          push_skip_reason: string | null
+          queue_item_id: string | null
+          reference_path: string | null
+          retry_count: number | null
+          title: string | null
+          type: string | null
+          user_id: string | null
+        }
+        Insert: {
+          body?: string | null
+          failed_at?: string
+          id?: string
+          inspected_at?: string | null
+          last_error?: string | null
+          notes?: string | null
+          payload?: Json | null
+          push_skip_reason?: string | null
+          queue_item_id?: string | null
+          reference_path?: string | null
+          retry_count?: number | null
+          title?: string | null
+          type?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          body?: string | null
+          failed_at?: string
+          id?: string
+          inspected_at?: string | null
+          last_error?: string | null
+          notes?: string | null
+          payload?: Json | null
+          push_skip_reason?: string | null
+          queue_item_id?: string | null
+          reference_path?: string | null
+          retry_count?: number | null
+          title?: string | null
+          type?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       notification_engine_runs: {
         Row: {
           details: Json
@@ -4280,7 +4534,11 @@ export type Database = {
           id: string
           orders: boolean
           promotions: boolean
+          quiet_hours_enabled: boolean
+          quiet_hours_end: number
+          quiet_hours_start: number
           sounds: boolean
+          timezone: string
           updated_at: string
           user_id: string
           whatsapp: boolean
@@ -4292,7 +4550,11 @@ export type Database = {
           id?: string
           orders?: boolean
           promotions?: boolean
+          quiet_hours_enabled?: boolean
+          quiet_hours_end?: number
+          quiet_hours_start?: number
           sounds?: boolean
+          timezone?: string
           updated_at?: string
           user_id: string
           whatsapp?: boolean
@@ -4304,7 +4566,11 @@ export type Database = {
           id?: string
           orders?: boolean
           promotions?: boolean
+          quiet_hours_enabled?: boolean
+          quiet_hours_end?: number
+          quiet_hours_start?: number
           sounds?: boolean
+          timezone?: string
           updated_at?: string
           user_id?: string
           whatsapp?: boolean
@@ -4831,6 +5097,9 @@ export type Database = {
           transaction_type: string | null
           updated_at: string | null
           upi_transaction_ref: string | null
+          wallet_cash_amount: number
+          wallet_promo_amount: number
+          wallet_reservation_id: string | null
         }
         Insert: {
           actual_delivery_time?: string | null
@@ -4862,6 +5131,9 @@ export type Database = {
           id?: string
           idempotency_key?: string | null
           is_cross_society?: boolean
+          loyalty_discount_amount?: number
+          loyalty_points_redeemed?: number
+          loyalty_reservation_id?: string | null
           needs_attention?: boolean | null
           needs_attention_reason?: string | null
           net_amount?: number | null
@@ -4901,6 +5173,9 @@ export type Database = {
           transaction_type?: string | null
           updated_at?: string | null
           upi_transaction_ref?: string | null
+          wallet_cash_amount?: number
+          wallet_promo_amount?: number
+          wallet_reservation_id?: string | null
         }
         Update: {
           actual_delivery_time?: string | null
@@ -4932,6 +5207,9 @@ export type Database = {
           id?: string
           idempotency_key?: string | null
           is_cross_society?: boolean
+          loyalty_discount_amount?: number
+          loyalty_points_redeemed?: number
+          loyalty_reservation_id?: string | null
           needs_attention?: boolean | null
           needs_attention_reason?: string | null
           net_amount?: number | null
@@ -4971,6 +5249,9 @@ export type Database = {
           transaction_type?: string | null
           updated_at?: string | null
           upi_transaction_ref?: string | null
+          wallet_cash_amount?: number
+          wallet_promo_amount?: number
+          wallet_reservation_id?: string | null
         }
         Relationships: [
           {
@@ -6470,6 +6751,7 @@ export type Database = {
           order_id: string
           processed_at: string | null
           reason: string
+          refund_destination: string
           refund_method: string
           refund_state: string
           rejection_reason: string | null
@@ -6479,6 +6761,7 @@ export type Database = {
           society_id: string | null
           status: string
           updated_at: string
+          wallet_credit_amount: number | null
         }
         Insert: {
           amount: number
@@ -6499,6 +6782,7 @@ export type Database = {
           order_id: string
           processed_at?: string | null
           reason: string
+          refund_destination?: string
           refund_method?: string
           refund_state?: string
           rejection_reason?: string | null
@@ -6508,6 +6792,7 @@ export type Database = {
           society_id?: string | null
           status?: string
           updated_at?: string
+          wallet_credit_amount?: number | null
         }
         Update: {
           amount?: number
@@ -6528,6 +6813,7 @@ export type Database = {
           order_id?: string
           processed_at?: string | null
           reason?: string
+          refund_destination?: string
           refund_method?: string
           refund_state?: string
           rejection_reason?: string | null
@@ -6537,6 +6823,7 @@ export type Database = {
           society_id?: string | null
           status?: string
           updated_at?: string
+          wallet_credit_amount?: number | null
         }
         Relationships: [
           {
@@ -7527,6 +7814,7 @@ export type Database = {
           delivery_fees: number | null
           eligible_at: string | null
           gross_amount: number | null
+          gross_before_loyalty: number | null
           hold_reason: string | null
           id: string
           net_amount: number | null
@@ -7535,7 +7823,6 @@ export type Database = {
           period_start: string | null
           platform_fee: number | null
           platform_loyalty_subsidy: number
-          gross_before_loyalty: number | null
           razorpay_transfer_id: string | null
           seller_id: string
           settled_at: string | null
@@ -7545,6 +7832,8 @@ export type Database = {
           total_orders: number | null
           transaction_reference: string | null
           updated_at: string | null
+          wallet_cash_applied: number
+          wallet_promo_applied: number
         }
         Insert: {
           created_at?: string
@@ -7552,6 +7841,7 @@ export type Database = {
           delivery_fees?: number | null
           eligible_at?: string | null
           gross_amount?: number | null
+          gross_before_loyalty?: number | null
           hold_reason?: string | null
           id?: string
           net_amount?: number | null
@@ -7559,6 +7849,7 @@ export type Database = {
           period_end?: string | null
           period_start?: string | null
           platform_fee?: number | null
+          platform_loyalty_subsidy?: number
           razorpay_transfer_id?: string | null
           seller_id: string
           settled_at?: string | null
@@ -7568,6 +7859,8 @@ export type Database = {
           total_orders?: number | null
           transaction_reference?: string | null
           updated_at?: string | null
+          wallet_cash_applied?: number
+          wallet_promo_applied?: number
         }
         Update: {
           created_at?: string
@@ -7575,6 +7868,7 @@ export type Database = {
           delivery_fees?: number | null
           eligible_at?: string | null
           gross_amount?: number | null
+          gross_before_loyalty?: number | null
           hold_reason?: string | null
           id?: string
           net_amount?: number | null
@@ -7582,6 +7876,7 @@ export type Database = {
           period_end?: string | null
           period_start?: string | null
           platform_fee?: number | null
+          platform_loyalty_subsidy?: number
           razorpay_transfer_id?: string | null
           seller_id?: string
           settled_at?: string | null
@@ -7591,6 +7886,8 @@ export type Database = {
           total_orders?: number | null
           transaction_reference?: string | null
           updated_at?: string | null
+          wallet_cash_applied?: number
+          wallet_promo_applied?: number
         }
         Relationships: [
           {
@@ -10015,6 +10312,199 @@ export type Database = {
           },
         ]
       }
+      wallet_credit_lots: {
+        Row: {
+          bucket: string
+          campaign_id: string | null
+          created_at: string
+          expires_at: string | null
+          id: string
+          metadata: Json
+          order_id: string | null
+          original_amount: number
+          refund_id: string | null
+          remaining_amount: number
+          source: string
+          status: string
+          user_id: string
+        }
+        Insert: {
+          bucket: string
+          campaign_id?: string | null
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          metadata?: Json
+          order_id?: string | null
+          original_amount: number
+          refund_id?: string | null
+          remaining_amount: number
+          source?: string
+          status?: string
+          user_id: string
+        }
+        Update: {
+          bucket?: string
+          campaign_id?: string | null
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          metadata?: Json
+          order_id?: string | null
+          original_amount?: number
+          refund_id?: string | null
+          remaining_amount?: number
+          source?: string
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wallet_credit_lots_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "buyer_wallets"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      wallet_ledger_entries: {
+        Row: {
+          account: string
+          amount: number
+          bucket: string | null
+          created_at: string
+          direction: string
+          id: string
+          lot_id: string | null
+          txn_id: string
+        }
+        Insert: {
+          account: string
+          amount: number
+          bucket?: string | null
+          created_at?: string
+          direction: string
+          id?: string
+          lot_id?: string | null
+          txn_id: string
+        }
+        Update: {
+          account?: string
+          amount?: number
+          bucket?: string | null
+          created_at?: string
+          direction?: string
+          id?: string
+          lot_id?: string | null
+          txn_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wallet_ledger_entries_lot_id_fkey"
+            columns: ["lot_id"]
+            isOneToOne: false
+            referencedRelation: "wallet_credit_lots"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wallet_ledger_entries_txn_id_fkey"
+            columns: ["txn_id"]
+            isOneToOne: false
+            referencedRelation: "wallet_ledger_txns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wallet_ledger_txns: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          description: string | null
+          id: string
+          idempotency_key: string | null
+          metadata: Json
+          reference_id: string | null
+          reference_type: string | null
+          type: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          idempotency_key?: string | null
+          metadata?: Json
+          reference_id?: string | null
+          reference_type?: string | null
+          type: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          idempotency_key?: string | null
+          metadata?: Json
+          reference_id?: string | null
+          reference_type?: string | null
+          type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      wallet_reservations: {
+        Row: {
+          cash_amount: number
+          checkout_key: string | null
+          created_at: string
+          expires_at: string
+          id: string
+          idempotency_key: string | null
+          order_ids: string[]
+          promo_amount: number
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          cash_amount?: number
+          checkout_key?: string | null
+          created_at?: string
+          expires_at?: string
+          id?: string
+          idempotency_key?: string | null
+          order_ids?: string[]
+          promo_amount?: number
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          cash_amount?: number
+          checkout_key?: string | null
+          created_at?: string
+          expires_at?: string
+          id?: string
+          idempotency_key?: string | null
+          order_ids?: string[]
+          promo_amount?: number
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wallet_reservations_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "buyer_wallets"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
       warnings: {
         Row: {
           acknowledged_at: string | null
@@ -10052,6 +10542,51 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      whatsapp_messages: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          direction: string
+          error_code: string | null
+          error_message: string | null
+          id: string
+          message: string | null
+          meta_message_id: string | null
+          meta_payload: Json | null
+          phone: string
+          status: string
+          template_name: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          direction: string
+          error_code?: string | null
+          error_message?: string | null
+          id?: string
+          message?: string | null
+          meta_message_id?: string | null
+          meta_payload?: Json | null
+          phone: string
+          status?: string
+          template_name?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          direction?: string
+          error_code?: string | null
+          error_message?: string | null
+          id?: string
+          message?: string | null
+          meta_message_id?: string | null
+          meta_payload?: Json | null
+          phone?: string
+          status?: string
+          template_name?: string | null
+        }
+        Relationships: []
       }
       worker_attendance: {
         Row: {
@@ -10538,6 +11073,7 @@ export type Database = {
       }
     }
     Functions: {
+      _loyalty_account_wipe: { Args: { _user_id: string }; Returns: undefined }
       accept_worker_job: {
         Args: { _job_id: string; _worker_id: string }
         Returns: Json
@@ -10580,7 +11116,29 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      admin_loyalty_liability: { Args: never; Returns: Json }
+      admin_wallet_liability: { Args: never; Returns: Json }
+      apply_loyalty_to_checkout_orders: {
+        Args: {
+          _buyer_id: string
+          _checkout_key?: string
+          _loyalty_points: number
+          _order_ids: string[]
+          _payment_method: string
+        }
+        Returns: Json
+      }
       apply_maintenance_late_fees: { Args: never; Returns: undefined }
+      apply_wallet_to_checkout_orders: {
+        Args: {
+          _buyer_id: string
+          _checkout_key?: string
+          _order_ids: string[]
+          _payment_method: string
+          _wallet_amount: number
+        }
+        Returns: Json
+      }
       approve_refund: {
         Args: { p_refund_id: string }
         Returns: {
@@ -10602,6 +11160,7 @@ export type Database = {
           order_id: string
           processed_at: string | null
           reason: string
+          refund_destination: string
           refund_method: string
           refund_state: string
           rejection_reason: string | null
@@ -10611,6 +11170,7 @@ export type Database = {
           society_id: string | null
           status: string
           updated_at: string
+          wallet_credit_amount: number | null
         }
         SetofOptions: {
           from: "*"
@@ -10619,6 +11179,8 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      auto_approve_overdue_refunds: { Args: never; Returns: number }
+      auto_cancel_expired_unpaid_orders: { Args: never; Returns: Json }
       auto_checkout_visitors: { Args: never; Returns: undefined }
       auto_dismiss_delivery_notifications_impl: {
         Args: {
@@ -10687,6 +11249,9 @@ export type Database = {
           id: string
           idempotency_key: string | null
           is_cross_society: boolean
+          loyalty_discount_amount: number
+          loyalty_points_redeemed: number
+          loyalty_reservation_id: string | null
           needs_attention: boolean | null
           needs_attention_reason: string | null
           net_amount: number | null
@@ -10726,6 +11291,9 @@ export type Database = {
           transaction_type: string | null
           updated_at: string | null
           upi_transaction_ref: string | null
+          wallet_cash_amount: number
+          wallet_promo_amount: number
+          wallet_reservation_id: string | null
         }
         SetofOptions: {
           from: "*"
@@ -10774,6 +11342,9 @@ export type Database = {
           id: string
           idempotency_key: string | null
           is_cross_society: boolean
+          loyalty_discount_amount: number
+          loyalty_points_redeemed: number
+          loyalty_reservation_id: string | null
           needs_attention: boolean | null
           needs_attention_reason: string | null
           net_amount: number | null
@@ -10813,6 +11384,9 @@ export type Database = {
           transaction_type: string | null
           updated_at: string | null
           upi_transaction_ref: string | null
+          wallet_cash_amount: number
+          wallet_promo_amount: number
+          wallet_reservation_id: string | null
         }
         SetofOptions: {
           from: "*"
@@ -10886,6 +11460,22 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      commit_loyalty_for_orders: {
+        Args: { _order_ids: string[] }
+        Returns: Json
+      }
+      commit_loyalty_reservation: {
+        Args: { _order_ids?: string[]; _reservation_id: string }
+        Returns: Json
+      }
+      commit_wallet_for_orders: {
+        Args: { _order_ids: string[] }
+        Returns: Json
+      }
+      commit_wallet_reservation: {
+        Args: { _order_ids?: string[]; _reservation_id: string }
+        Returns: Json
+      }
       complete_refund: {
         Args: {
           p_gateway_ref: string
@@ -10911,6 +11501,7 @@ export type Database = {
           order_id: string
           processed_at: string | null
           reason: string
+          refund_destination: string
           refund_method: string
           refund_state: string
           rejection_reason: string | null
@@ -10920,6 +11511,47 @@ export type Database = {
           society_id: string | null
           status: string
           updated_at: string
+          wallet_credit_amount: number | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "refund_requests"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      complete_wallet_refund: {
+        Args: { p_refund_id: string }
+        Returns: {
+          amount: number
+          approved_at: string | null
+          approved_by: string | null
+          auto_approved: boolean
+          buyer_id: string
+          category: string
+          created_at: string
+          dispute_id: string | null
+          estimated_resolution_hours: number
+          evidence_urls: string[] | null
+          failure_reason: string | null
+          gateway_refund_id: string | null
+          gateway_status: string | null
+          id: string
+          notes: string | null
+          order_id: string
+          processed_at: string | null
+          reason: string
+          refund_destination: string
+          refund_method: string
+          refund_state: string
+          rejection_reason: string | null
+          seller_id: string | null
+          settled_at: string | null
+          sla_deadline: string | null
+          society_id: string | null
+          status: string
+          updated_at: string
+          wallet_credit_amount: number | null
         }
         SetofOptions: {
           from: "*"
@@ -10963,28 +11595,47 @@ export type Database = {
         Returns: undefined
       }
       create_multi_vendor_orders: {
-            Args: {
-              _buyer_id: string
-              _coupon_discount?: number
-              _coupon_id?: string
-              _delivery_address?: string
-              _delivery_address_id?: string
-              _delivery_fee?: number
-              _delivery_lat?: number
-              _delivery_lng?: number
-              _fulfillment_type?: string
-              _idempotency_key?: string
-              _loyalty_points?: number
-              _notes?: string
-              _payment_method?: string
-              _payment_status?: string
-              _preorder_seller_ids?: string[]
-              _scheduled_date?: string
-              _scheduled_time_start?: string
-              _seller_groups: Json
-            }
-            Returns: Json
-          }
+        Args: {
+          _buyer_id: string
+          _coupon_discount?: number
+          _coupon_id?: string
+          _delivery_address?: string
+          _delivery_address_id?: string
+          _delivery_fee?: number
+          _delivery_lat?: number
+          _delivery_lng?: number
+          _fulfillment_type?: string
+          _idempotency_key?: string
+          _loyalty_points?: number
+          _notes?: string
+          _payment_method?: string
+          _payment_status?: string
+          _preorder_seller_ids?: string[]
+          _scheduled_date?: string
+          _scheduled_time_start?: string
+          _seller_groups: Json
+          _wallet_amount?: number
+        }
+        Returns: Json
+      }
+      create_service_booking_atomic: {
+        Args: {
+          _addon_ids?: string[]
+          _booking_date: string
+          _buyer_address?: string
+          _end_time: string
+          _fulfillment_type?: string
+          _idempotency_key?: string
+          _location_type?: string
+          _notes?: string
+          _product_id: string
+          _recurring?: Json
+          _seller_id: string
+          _slot_id: string
+          _start_time: string
+        }
+        Returns: Json
+      }
       create_settlement_on_delivery_impl: {
         Args: {
           p_new: Database["public"]["Tables"]["orders"]["Row"]
@@ -10992,6 +11643,20 @@ export type Database = {
         }
         Returns: undefined
       }
+      credit_wallet_cash: {
+        Args: {
+          _amount: number
+          _description?: string
+          _expires_at?: string
+          _idempotency_key?: string
+          _order_id?: string
+          _refund_id?: string
+          _source?: string
+          _user_id: string
+        }
+        Returns: Json
+      }
+      credit_wallet_from_refund: { Args: { _refund_id: string }; Returns: Json }
       cron_extend_all_seller_slots: { Args: never; Returns: undefined }
       disable_cron_job: { Args: { _job_name: string }; Returns: undefined }
       enable_cron_job: { Args: { _job_name: string }; Returns: undefined }
@@ -10999,6 +11664,7 @@ export type Database = {
         Args: { req_id: string }
         Returns: string
       }
+      expire_wallet_lots: { Args: { _batch_limit?: number }; Returns: Json }
       fail_refund: {
         Args: { p_reason: string; p_refund_id: string }
         Returns: {
@@ -11020,6 +11686,7 @@ export type Database = {
           order_id: string
           processed_at: string | null
           reason: string
+          refund_destination: string
           refund_method: string
           refund_state: string
           rejection_reason: string | null
@@ -11029,6 +11696,7 @@ export type Database = {
           society_id: string | null
           status: string
           updated_at: string
+          wallet_credit_amount: number | null
         }
         SetofOptions: {
           from: "*"
@@ -11113,6 +11781,10 @@ export type Database = {
         }
         Returns: Json
       }
+      fn_expire_order_notifications: {
+        Args: { p_order_id: string; p_user_id?: string }
+        Returns: number
+      }
       fn_fire_due_reminders: { Args: { _batch?: number }; Returns: number }
       fn_get_seller_user_id: {
         Args: { p_seller_profile_id: string }
@@ -11153,6 +11825,10 @@ export type Database = {
         }[]
       }
       fn_send_review_nudges: { Args: never; Returns: number }
+      fn_supersede_order_notifications: {
+        Args: { p_order_id: string; p_user_id?: string }
+        Returns: number
+      }
       fn_upsert_seller_metrics: {
         Args: {
           _avg_response_seconds: number
@@ -11226,6 +11902,7 @@ export type Database = {
         }[]
       }
       get_builder_dashboard: { Args: { _builder_id: string }; Returns: Json }
+      get_buyer_wallet: { Args: { _user_id?: string }; Returns: Json }
       get_category_parent_group: {
         Args: { _category: string }
         Returns: string
@@ -11279,37 +11956,6 @@ export type Database = {
       }
       get_location_stats: { Args: { _society_id: string }; Returns: Json }
       get_loyalty_balance: { Args: { _user_id?: string }; Returns: number }
-      get_loyalty_wallet: { Args: never; Returns: Json }
-      quote_loyalty_redemption: {
-        Args: { _cart_amount_after_coupon: number }
-        Returns: Json
-      }
-      reserve_loyalty_points: {
-        Args: {
-          _checkout_key?: string
-          _idempotency_key?: string
-          _order_ids?: string[]
-          _points: number
-        }
-        Returns: Json
-      }
-      commit_loyalty_reservation: {
-        Args: { _order_ids?: string[]; _reservation_id: string }
-        Returns: Json
-      }
-      release_loyalty_reservation: {
-        Args: { _reservation_id: string }
-        Returns: Json
-      }
-      commit_loyalty_for_orders: {
-        Args: { _order_ids: string[] }
-        Returns: Json
-      }
-      release_loyalty_for_orders: {
-        Args: { _order_ids: string[] }
-        Returns: Json
-      }
-      admin_loyalty_liability: { Args: never; Returns: Json }
       get_loyalty_history: {
         Args: { _limit?: number }
         Returns: {
@@ -11321,6 +11967,7 @@ export type Database = {
           type: string
         }[]
       }
+      get_loyalty_wallet: { Args: never; Returns: Json }
       get_nearby_societies: {
         Args: { _lat: number; _lon: number; _radius_km?: number }
         Returns: {
@@ -11398,6 +12045,10 @@ export type Database = {
           total_spent: number
         }[]
       }
+      get_seller_dashboard_kpis: {
+        Args: { p_seller_id: string }
+        Returns: Json
+      }
       get_seller_delivery_score: {
         Args: { _seller_id: string }
         Returns: {
@@ -11414,6 +12065,10 @@ export type Database = {
           search_count: number
           search_term: string
         }[]
+      }
+      get_seller_order_board_counts: {
+        Args: { p_seller_id: string }
+        Returns: Json
       }
       get_seller_recommendations: {
         Args: { _seller_id: string }
@@ -11570,6 +12225,10 @@ export type Database = {
           type_key: string
         }[]
       }
+      get_wallet_history: {
+        Args: { _cursor?: string; _limit?: number }
+        Returns: Json
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["user_role"]
@@ -11606,6 +12265,7 @@ export type Database = {
           order_id: string
           processed_at: string | null
           reason: string
+          refund_destination: string
           refund_method: string
           refund_state: string
           rejection_reason: string | null
@@ -11615,6 +12275,7 @@ export type Database = {
           society_id: string | null
           status: string
           updated_at: string
+          wallet_credit_amount: number | null
         }
         SetofOptions: {
           from: "*"
@@ -11645,6 +12306,18 @@ export type Database = {
         Args: { _society_id: string; _user_id: string }
         Returns: boolean
       }
+      issue_wallet_promo: {
+        Args: {
+          _amount: number
+          _campaign_id?: string
+          _description?: string
+          _expires_at: string
+          _idempotency_key?: string
+          _source?: string
+          _user_id: string
+        }
+        Returns: Json
+      }
       log_order_activity_impl: {
         Args: {
           p_new: Database["public"]["Tables"]["orders"]["Row"]
@@ -11659,12 +12332,58 @@ export type Database = {
         }
         Returns: undefined
       }
+      loyalty_ensure_wallet: {
+        Args: { _user_id: string }
+        Returns: {
+          available_points: number
+          created_at: string
+          funding_source: string
+          lifetime_earned: number
+          lifetime_redeemed: number
+          pending_points: number
+          updated_at: string
+          user_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "loyalty_wallets"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      loyalty_reconcile_wallet: {
+        Args: { _user_id: string }
+        Returns: {
+          available_points: number
+          created_at: string
+          funding_source: string
+          lifetime_earned: number
+          lifetime_redeemed: number
+          pending_points: number
+          updated_at: string
+          user_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "loyalty_wallets"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       map_transaction_type_to_action_type: {
         Args: { _transaction_type: string }
         Returns: string
       }
       mark_stale_upi_verifications: { Args: never; Returns: undefined }
       notify_upcoming_maintenance_dues: { Args: never; Returns: undefined }
+      quote_loyalty_redemption: {
+        Args: { _cart_amount_after_coupon: number }
+        Returns: Json
+      }
+      quote_wallet_application: {
+        Args: { _payable_after_coupon_loyalty: number }
+        Returns: Json
+      }
       rate_worker_job: {
         Args: { _job_id: string; _rating: number; _review?: string }
         Returns: Json
@@ -11700,6 +12419,7 @@ export type Database = {
           order_id: string
           processed_at: string | null
           reason: string
+          refund_destination: string
           refund_method: string
           refund_state: string
           rejection_reason: string | null
@@ -11709,6 +12429,7 @@ export type Database = {
           society_id: string | null
           status: string
           updated_at: string
+          wallet_credit_amount: number | null
         }
         SetofOptions: {
           from: "*"
@@ -11717,14 +12438,50 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      release_loyalty_for_orders: {
+        Args: { _order_ids: string[] }
+        Returns: Json
+      }
+      release_loyalty_reservation: {
+        Args: { _reservation_id: string }
+        Returns: Json
+      }
+      release_service_slot: { Args: { _slot_id: string }; Returns: undefined }
+      release_wallet_for_orders: {
+        Args: { _order_ids: string[] }
+        Returns: Json
+      }
+      release_wallet_reservation: {
+        Args: { _reservation_id: string }
+        Returns: Json
+      }
       request_refund: {
         Args: {
           p_category?: string
           p_evidence_urls?: string[]
           p_order_id: string
           p_reason: string
+          p_refund_destination?: string
         }
         Returns: string
+      }
+      reserve_loyalty_points: {
+        Args: {
+          _checkout_key?: string
+          _idempotency_key?: string
+          _order_ids?: string[]
+          _points: number
+        }
+        Returns: Json
+      }
+      reserve_wallet_credit: {
+        Args: {
+          _amount: number
+          _checkout_key?: string
+          _idempotency_key?: string
+          _order_ids?: string[]
+        }
+        Returns: Json
       }
       resolve_banner_products:
         | {
@@ -11804,12 +12561,29 @@ export type Database = {
         Args: { _pg: string }
         Returns: string
       }
+      restore_loyalty_for_order: {
+        Args: { _order_id: string; _points?: number; _reason?: string }
+        Returns: Json
+      }
       restore_stock_on_cancel_impl: {
         Args: {
           p_new: Database["public"]["Tables"]["orders"]["Row"]
           p_old: Database["public"]["Tables"]["orders"]["Row"]
         }
         Returns: undefined
+      }
+      restore_wallet_for_order: {
+        Args: {
+          _cash_amount?: number
+          _order_id: string
+          _promo_amount?: number
+          _reason?: string
+        }
+        Returns: Json
+      }
+      reverse_loyalty_earn_for_order: {
+        Args: { _fraction?: number; _order_id: string }
+        Returns: Json
       }
       save_product_with_service: {
         Args: { p_product: Json; p_service?: Json }
@@ -12054,6 +12828,9 @@ export type Database = {
           id: string
           idempotency_key: string | null
           is_cross_society: boolean
+          loyalty_discount_amount: number
+          loyalty_points_redeemed: number
+          loyalty_reservation_id: string | null
           needs_attention: boolean | null
           needs_attention_reason: string | null
           net_amount: number | null
@@ -12093,6 +12870,9 @@ export type Database = {
           transaction_type: string | null
           updated_at: string | null
           upi_transaction_ref: string | null
+          wallet_cash_amount: number
+          wallet_promo_amount: number
+          wallet_reservation_id: string | null
         }
         SetofOptions: {
           from: "*"
@@ -12114,7 +12894,11 @@ export type Database = {
         Returns: Json
       }
       verify_delivery_otp_and_complete: {
-        Args: { _delivery_code: string; _order_id: string }
+        Args: {
+          _delivery_code: string
+          _order_id: string
+          _target_status?: string
+        }
         Returns: {
           assignment_id: string
           new_status: Database["public"]["Enums"]["order_status"]
@@ -12134,6 +12918,52 @@ export type Database = {
             Args: { _order_id: string; _upi_reference?: string }
             Returns: undefined
           }
+      wallet_consume_lots: {
+        Args: { _amount: number; _bucket: string; _user_id: string }
+        Returns: number
+      }
+      wallet_ensure_wallet: {
+        Args: { _user_id: string }
+        Returns: {
+          cash_available: number
+          cash_pending: number
+          created_at: string
+          lifetime_credited: number
+          lifetime_expired: number
+          lifetime_spent: number
+          promo_available: number
+          promo_pending: number
+          status: string
+          updated_at: string
+          user_id: string
+          version: number
+        }
+        SetofOptions: {
+          from: "*"
+          to: "buyer_wallets"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      wallet_insert_entry: {
+        Args: {
+          _account: string
+          _amount: number
+          _bucket?: string
+          _direction: string
+          _lot_id?: string
+          _txn_id: string
+        }
+        Returns: undefined
+      }
+      wallet_plan_spend: {
+        Args: {
+          _amount: number
+          _cash_available: number
+          _promo_available: number
+        }
+        Returns: Json
+      }
     }
     Enums: {
       fulfillment_mod: "draft" | "self" | "delivery" | "pickup" | "digital"
@@ -12147,7 +12977,6 @@ export type Database = {
         | "picked_up"
         | "delivered"
         | "payment_pending"
-        | "awaiting_cod_confirmation"
         | "on_the_way"
         | "arrived"
         | "assigned"
@@ -12166,6 +12995,7 @@ export type Database = {
         | "pending"
         | "rejected"
         | "en_route"
+        | "awaiting_cod_confirmation"
       product_category:
         | "home_food"
         | "bakery"
@@ -12319,7 +13149,6 @@ export const Constants = {
         "picked_up",
         "delivered",
         "payment_pending",
-        "awaiting_cod_confirmation",
         "on_the_way",
         "arrived",
         "assigned",
@@ -12338,6 +13167,7 @@ export const Constants = {
         "pending",
         "rejected",
         "en_route",
+        "awaiting_cod_confirmation",
       ],
       product_category: [
         "home_food",

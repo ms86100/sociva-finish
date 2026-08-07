@@ -6,7 +6,7 @@ import { SafeHeader } from '@/components/layout/SafeHeader';
 import { Card, CardContent } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { ArrowLeft, Bell, MessageCircle, Tag, Volume2, Loader2, AlertTriangle, ExternalLink } from 'lucide-react';
+import { ArrowLeft, Bell, MessageCircle, Tag, Volume2, Loader2, AlertTriangle, ExternalLink, Moon } from 'lucide-react';
 import { PushNotifications } from '@capacitor/push-notifications';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -15,20 +15,12 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Capacitor } from '@capacitor/core';
 import { usePushNotifications } from '@/contexts/PushNotificationContext';
 import { WhatsAppUpdatesCta } from '@/components/notifications/WhatsAppUpdatesCta';
-
-interface NotificationPreferences {
-  orders: boolean;
-  chat: boolean;
-  promotions: boolean;
-  sounds: boolean;
-}
-
-const defaultPreferences: NotificationPreferences = {
-  orders: true,
-  chat: true,
-  promotions: true,
-  sounds: true,
-};
+import { openNotificationChannelSettings, ORDERS_INCOMING_CHANNEL_ID } from '@/lib/notification-channel-settings';
+import {
+  DEFAULT_NOTIFICATION_PREFERENCES,
+  fetchNotificationPreferences,
+  type NotificationPreferences,
+} from '@/lib/notification-preferences';
 
 export default function NotificationsPage() {
   const { user } = useAuth();
@@ -71,36 +63,29 @@ export default function NotificationsPage() {
   }, []);
 
   const openAppSettings = async () => {
-    try {
-      const { App } = await import('@capacitor/app');
-      // On iOS this opens the app's settings page in Settings.app
-      // On Android it opens the app info page
-      if (Capacitor.getPlatform() === 'ios') {
-        await (App as any).openUrl({ url: 'app-settings:' });
-      } else {
-        await (App as any).openUrl({ url: 'app-settings:' });
-      }
-    } catch (e) {
+    const result = await openNotificationChannelSettings(ORDERS_INCOMING_CHANNEL_ID);
+    if (!result.opened) {
       toast.error('Could not open settings. Please go to Settings → Sociva → Notifications manually.');
     }
   };
 
-  const { data: preferences = defaultPreferences, isLoading } = useQuery({
+  // placeholderData keeps isLoading false so a hung/slow prefs fetch never blanks the screen
+  const {
+    data: preferences = DEFAULT_NOTIFICATION_PREFERENCES,
+    isFetching,
+    isError,
+    refetch,
+  } = useQuery({
     queryKey: ['notification-preferences', user?.id],
     queryFn: async () => {
-      if (!user?.id) return defaultPreferences;
-      const { data, error } = await (supabase.from('notification_preferences') as any)
-        .select('orders, chat, promotions, sounds')
-        .eq('user_id', user.id)
-        .maybeSingle();
-      if (error) {
-        console.warn('[Notifications] Failed to fetch preferences:', error);
-        return defaultPreferences;
-      }
-      return data ? { orders: data.orders, chat: data.chat, promotions: data.promotions, sounds: data.sounds } : defaultPreferences;
+      if (!user?.id) return { ...DEFAULT_NOTIFICATION_PREFERENCES };
+      return fetchNotificationPreferences(supabase as any, user.id);
     },
     enabled: !!user?.id,
     staleTime: 5 * 60 * 1000,
+    placeholderData: DEFAULT_NOTIFICATION_PREFERENCES,
+    // Prefer a single timed attempt over multi-retry spinner lag on mobile.
+    retry: false,
   });
 
   const mutation = useMutation({
@@ -123,7 +108,7 @@ export default function NotificationsPage() {
     },
   });
 
-  const updatePreference = (key: keyof NotificationPreferences, value: boolean) => {
+  const updatePreference = (key: keyof NotificationPreferences, value: boolean | number) => {
     const newPrefs = { ...preferences, [key]: value };
     mutation.mutate(newPrefs);
   };
@@ -163,10 +148,13 @@ export default function NotificationsPage() {
           <Link to="/profile" className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-muted shrink-0 active:scale-95 transition-transform">
             <ArrowLeft size={18} />
           </Link>
-          <div>
+          <div className="flex-1 min-w-0">
             <h1 className="text-lg font-bold">Notification Settings</h1>
             <p className="text-xs text-muted-foreground">Choose what notifications you want to receive</p>
           </div>
+          {isFetching && (
+            <Loader2 className="animate-spin text-muted-foreground shrink-0" size={16} aria-label="Refreshing preferences" />
+          )}
           </div>
         </SafeHeader>
 
@@ -222,37 +210,84 @@ export default function NotificationsPage() {
           </button>
         )}
 
-        {isLoading ? (
-          <div className="flex items-center justify-center py-12">
-            <Loader2 className="animate-spin text-muted-foreground" size={24} />
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {notificationItems.map(({ key, icon: Icon, title, description }) => (
-              <Card key={key}>
-                <CardContent className="p-4 flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center shrink-0">
-                    <Icon size={20} className="text-muted-foreground" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <Label htmlFor={key} className="font-medium cursor-pointer">
-                      {title}
-                    </Label>
-                    <p className="text-xs text-muted-foreground">{description}</p>
-                  </div>
-                  <Switch
-                    id={key}
-                    checked={preferences[key]}
-                    onCheckedChange={(checked) => updatePreference(key, checked)}
-                    disabled={mutation.isPending}
-                  />
-                </CardContent>
-              </Card>
-            ))}
-
-            <WhatsAppUpdatesCta variant="settings" audience="generic" />
-          </div>
+        {isError && (
+          <button
+            type="button"
+            onClick={() => void refetch()}
+            className="w-full mb-4 flex items-center gap-3 rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-left active:scale-[0.98] transition-transform"
+          >
+            <AlertTriangle size={18} className="text-destructive shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="font-medium text-sm">Couldn’t load saved preferences</p>
+              <p className="text-xs text-muted-foreground">Showing defaults — tap to retry</p>
+            </div>
+          </button>
         )}
+
+        <div className="space-y-3">
+          {notificationItems.map(({ key, icon: Icon, title, description }) => (
+            <Card key={key}>
+              <CardContent className="p-4 flex items-center gap-4">
+                <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center shrink-0">
+                  <Icon size={20} className="text-muted-foreground" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <Label htmlFor={key} className="font-medium cursor-pointer">
+                    {title}
+                  </Label>
+                  <p className="text-xs text-muted-foreground">{description}</p>
+                </div>
+                <Switch
+                  id={key}
+                  checked={preferences[key]}
+                  onCheckedChange={(checked) => updatePreference(key, checked)}
+                  disabled={mutation.isPending}
+                />
+              </CardContent>
+            </Card>
+          ))}
+
+          <WhatsAppUpdatesCta variant="settings" audience="generic" />
+
+          <Card>
+            <CardContent className="p-4 flex items-center gap-4">
+              <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center shrink-0">
+                <Moon size={20} className="text-muted-foreground" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <Label htmlFor="quiet_hours_enabled" className="font-medium cursor-pointer">
+                  Quiet hours
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Mute non-urgent push from {preferences.quiet_hours_start}:00–{preferences.quiet_hours_end}:00 (order alerts still ring)
+                </p>
+              </div>
+              <Switch
+                id="quiet_hours_enabled"
+                checked={preferences.quiet_hours_enabled}
+                onCheckedChange={(checked) => updatePreference('quiet_hours_enabled', checked)}
+                disabled={mutation.isPending}
+              />
+            </CardContent>
+          </Card>
+
+          {Capacitor.getPlatform() === 'android' && (
+            <button
+              type="button"
+              onClick={() => void openAppSettings()}
+              className="w-full flex items-center gap-3 rounded-xl border border-border bg-card p-4 text-left active:scale-[0.98] transition-transform"
+            >
+              <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center shrink-0">
+                <Bell size={20} className="text-muted-foreground" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-medium text-sm">Incoming order sound channel</p>
+                <p className="text-xs text-muted-foreground">Open Android settings for “Incoming Orders” (orders_incoming_v1)</p>
+              </div>
+              <ExternalLink size={16} className="text-muted-foreground shrink-0" />
+            </button>
+          )}
+        </div>
 
         <p className="text-center text-xs text-muted-foreground mt-8">
           Your preferences are synced across all your devices.

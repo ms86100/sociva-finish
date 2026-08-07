@@ -94,7 +94,7 @@ serve(async (req) => {
     // Load orders from DB — amount and ownership come from DB only
     const { data: orders, error: ordersErr } = await supabase
       .from("orders")
-      .select("id, buyer_id, seller_id, total_amount, society_id, status, payment_status, razorpay_order_id, platform_fee, net_amount")
+      .select("id, buyer_id, seller_id, total_amount, society_id, status, payment_status, razorpay_order_id, platform_fee, net_amount, loyalty_reservation_id, loyalty_discount_amount, loyalty_points_redeemed")
       .in("id", order_ids);
 
     if (ordersErr || !orders || orders.length !== order_ids.length) {
@@ -298,6 +298,39 @@ serve(async (req) => {
     const successCount = results.filter((r) => r.success && !r.skipped).length;
     const allOk = results.every((r) => r.success);
 
+    // Platform-funded loyalty + Sociva Credit: commit held reservations after payment confirms
+    let loyaltyCommit: unknown = null;
+    let walletCommit: unknown = null;
+    if (allOk || successCount > 0) {
+      try {
+        const { data: commitData, error: commitErr } = await supabase.rpc(
+          "commit_loyalty_for_orders",
+          { _order_ids: order_ids },
+        );
+        if (commitErr) {
+          console.error("[confirm] loyalty commit failed", commitErr);
+        } else {
+          loyaltyCommit = commitData;
+        }
+      } catch (loyaltyErr) {
+        console.error("[confirm] loyalty commit exception", loyaltyErr);
+      }
+
+      try {
+        const { data: walletData, error: walletErr } = await supabase.rpc(
+          "commit_wallet_for_orders",
+          { _order_ids: order_ids },
+        );
+        if (walletErr) {
+          console.error("[confirm] wallet commit failed", walletErr);
+        } else {
+          walletCommit = walletData;
+        }
+      } catch (walletEx) {
+        console.error("[confirm] wallet commit exception", walletEx);
+      }
+    }
+
     if (successCount > 0) {
       setTimeout(() => {
         fetch(`${supabaseUrl}/functions/v1/process-notification-queue`, {
@@ -312,7 +345,13 @@ serve(async (req) => {
     }
 
     return new Response(
-      JSON.stringify({ success: allOk, confirmed: successCount, results }),
+      JSON.stringify({
+        success: allOk,
+        confirmed: successCount,
+        results,
+        loyalty: loyaltyCommit,
+        wallet: walletCommit,
+      }),
       { status: allOk ? 200 : 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {

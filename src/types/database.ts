@@ -35,7 +35,7 @@ export interface BuilderMember {
   created_at: string;
 }
 export type VerificationStatus = 'pending' | 'approved' | 'rejected' | 'suspended' | 'draft';
-export type OrderStatus = 'placed' | 'accepted' | 'preparing' | 'ready' | 'picked_up' | 'delivered' | 'completed' | 'cancelled' | 'enquired' | 'quoted' | 'scheduled' | 'in_progress' | 'returned' | 'on_the_way' | 'arrived' | 'assigned' | 'requested' | 'confirmed' | 'rescheduled' | 'no_show' | 'at_gate' | 'payment_pending' | 'awaiting_cod_confirmation';
+export type OrderStatus = 'placed' | 'accepted' | 'preparing' | 'ready' | 'picked_up' | 'delivered' | 'completed' | 'cancelled' | 'enquired' | 'quoted' | 'scheduled' | 'in_progress' | 'returned' | 'on_the_way' | 'arrived' | 'assigned' | 'requested' | 'confirmed' | 'rescheduled' | 'no_show' | 'at_gate' | 'payment_pending' | 'awaiting_cod_confirmation' | 'failed' | 'buyer_received' | 'pending' | 'rejected' | 'en_route';
 // ProductCategory is now an alias to ServiceCategory for backward compatibility
 export type ProductCategory = ServiceCategory;
 export type PaymentMethod = 'cod' | 'upi';

@@ -40,6 +40,9 @@ import { AvailabilityPromptBanner } from '@/components/seller/AvailabilityPrompt
 import { MissingLocationBanner } from '@/components/seller/MissingLocationBanner';
 import { useSellerOrderStats, useSellerOrdersInfinite, useSellerOrderFilterCounts } from '@/hooks/queries/useSellerOrders';
 import { useSellerHasBookableServices } from '@/hooks/useSellerHasBookableServices';
+import { emptyBoardCounts, FILTER_LABELS } from '@/lib/seller-order-board';
+import { motion, AnimatePresence } from 'framer-motion';
+import { emptyState, listItem, staggerContainer } from '@/lib/motion-variants';
 
 // Lazy import for reliability score and low stock (used in Stats tab)
 import { SellerReliabilityScore } from '@/components/seller/SellerReliabilityScore';
@@ -84,6 +87,8 @@ export default function SellerDashboardPage() {
     queryClient.removeQueries({ queryKey: ['seller-dashboard-stats'] });
     queryClient.removeQueries({ queryKey: ['seller-orders'] });
     queryClient.removeQueries({ queryKey: ['seller-order-filter-counts'] });
+    queryClient.removeQueries({ queryKey: ['seller-analytics-charts'] });
+    queryClient.removeQueries({ queryKey: ['seller-refund-requests'] });
     if (user && activeSellerId) {
       fetchSellerProfile(activeSellerId);
     } else {
@@ -124,7 +129,7 @@ export default function SellerDashboardPage() {
     }
   };
 
-  const { data: stats } = useSellerOrderStats(activeSellerId);
+  const { data: stats, isFetching: statsFetching } = useSellerOrderStats(activeSellerId);
   const { data: filterCounts } = useSellerOrderFilterCounts(activeSellerId);
   const {
     data: ordersPages,
@@ -262,8 +267,45 @@ export default function SellerDashboardPage() {
   }
 
   const pendingOrders = stats?.pendingOrders || 0;
+  const pendingRefunds = stats?.pendingRefunds || 0;
 
   const activeSupportCount = supportTickets.filter((t: any) => ['open', 'seller_pending'].includes(t.status)).length;
+
+  const emptyCopy = (() => {
+    switch (orderFilter) {
+      case 'pending':
+        return {
+          title: 'All caught up',
+          body: 'No orders need your action right now. New placements will show here first.',
+        };
+      case 'preparing':
+        return { title: 'Nothing cooking', body: 'Accepted orders you are preparing appear here.' };
+      case 'ready':
+        return { title: 'No ready orders', body: 'Mark orders ready when they are packed for pickup or rider.' };
+      case 'in_transit':
+        return { title: 'Nothing in transit', body: 'Out-for-delivery orders will land in this board.' };
+      case 'cod_confirm':
+        return { title: 'No COD to confirm', body: 'Cash-on-delivery handoffs awaiting confirmation show here.' };
+      case 'cancelled':
+        return { title: 'No cancellations', body: 'Rejected and cancelled orders stay visible here for review.' };
+      case 'refunded':
+        return { title: 'No refunds', body: 'Refunded payments and settled disputes appear in this filter.' };
+      case 'no_show':
+        return { title: 'No no-shows', body: 'Booking no-shows appear here for follow-up.' };
+      case 'terminal_fail':
+        return { title: 'No failed orders', body: 'Returned or failed deliveries stay visible here.' };
+      case 'enquiries':
+        return { title: 'No enquiries', body: 'Quote requests and enquiries land in this board.' };
+      default:
+        return {
+          title: orderFilter === 'all' ? 'No orders yet' : `No ${FILTER_LABELS[orderFilter] || orderFilter} orders`,
+          body:
+            orderFilter === 'all'
+              ? 'Share your store link with neighbors to get your first order'
+              : 'Orders in this status will appear here as buyers place them',
+        };
+    }
+  })();
 
   return (
     <AppLayout headerTitle="Seller Dashboard" showLocation={false}>
@@ -362,9 +404,14 @@ export default function SellerDashboardPage() {
                 </Badge>
               )}
             </TabsTrigger>
-            <TabsTrigger value="refunds" className="gap-1.5 text-xs px-1">
+            <TabsTrigger value="refunds" className="gap-1.5 text-xs px-1 relative">
               <Receipt size={14} />
               <span className="hidden min-[420px]:inline">Refunds</span>
+              {pendingRefunds > 0 && (
+                <Badge variant="destructive" className="absolute -top-1 -right-1 h-4 min-w-4 px-1 text-[9px] rounded-full animate-pulse">
+                  {pendingRefunds}
+                </Badge>
+              )}
             </TabsTrigger>
             {hasBookableServices && (
               <TabsTrigger value="schedule" className="gap-1.5 text-xs px-1">
@@ -387,30 +434,45 @@ export default function SellerDashboardPage() {
             <AvailabilityPromptBanner sellerId={sellerProfile.id} />
 
             <DashboardStats
-              totalOrders={stats?.totalOrders || 0}
               pendingOrders={pendingOrders}
-              todayOrders={stats?.todayOrders || 0}
-              completedOrders={stats?.completedOrders || 0}
+              preparingOrders={stats?.preparingOrders || 0}
+              inTransitOrders={stats?.inTransitOrders || 0}
+              doneToday={stats?.doneToday || 0}
+              terminalFailOrders={stats?.terminalFailOrders || 0}
+              onKpiClick={setOrderFilter}
+              refreshing={statsFetching}
             />
 
             <div>
               <div className="flex items-center justify-between mb-2">
                 <h3 className="font-semibold text-sm">Orders</h3>
+                {statsFetching && (
+                  <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+                    <Loader2 size={10} className="animate-spin" /> Updating
+                  </span>
+                )}
               </div>
               <div className="mb-3">
                 <OrderFilters
                   currentFilter={orderFilter}
                   onFilterChange={setOrderFilter}
-                  counts={filterCounts || { all: 0, today: 0, enquiries: 0, pending: 0, preparing: 0, ready: 0, completed: 0 }}
+                  counts={filterCounts || emptyBoardCounts()}
                 />
               </div>
               {allOrders.length > 0 ? (
-                <div className="space-y-3">
-                  {allOrders.map((order: any) => (
-                    <div key={order.id} className="py-0.5">
-                      <SellerOrderCard order={order} />
-                    </div>
-                  ))}
+                <motion.div
+                  className="space-y-3"
+                  variants={staggerContainer}
+                  initial="hidden"
+                  animate="show"
+                >
+                  <AnimatePresence mode="popLayout">
+                    {allOrders.map((order: any) => (
+                      <motion.div key={order.id} variants={listItem} layout className="py-0.5">
+                        <SellerOrderCard order={order} />
+                      </motion.div>
+                    ))}
+                  </AnimatePresence>
                   {hasNextPage && (
                     <div className="flex justify-center py-2">
                       <Button variant="secondary" size="default" className="w-full" onClick={() => fetchNextPage()} disabled={isFetchingNextPage}>
@@ -418,19 +480,30 @@ export default function SellerDashboardPage() {
                       </Button>
                     </div>
                   )}
-                </div>
+                </motion.div>
               ) : (
-                <div className="text-center py-8 bg-muted rounded-xl">
+                <motion.div
+                  className="text-center py-10 bg-muted/60 rounded-xl border border-dashed border-border"
+                  variants={emptyState}
+                  initial="hidden"
+                  animate="show"
+                >
                   <Package className="mx-auto text-muted-foreground mb-2" size={32} />
-                  <p className="text-sm text-muted-foreground">
-                    No {orderFilter !== 'all' ? orderFilter : ''} orders
+                  <p className="text-sm font-medium text-foreground">{emptyCopy.title}</p>
+                  <p className="text-xs text-muted-foreground mt-1 max-w-[260px] mx-auto">
+                    {emptyCopy.body}
                   </p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {orderFilter === 'all'
-                      ? 'Share your store link with neighbors to get your first order'
-                      : 'Orders in this status will appear here as buyers place them'}
-                  </p>
-                </div>
+                  {orderFilter !== 'all' && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="mt-3 text-xs"
+                      onClick={() => setOrderFilter('all')}
+                    >
+                      View all orders
+                    </Button>
+                  )}
+                </motion.div>
               )}
             </div>
           </TabsContent>

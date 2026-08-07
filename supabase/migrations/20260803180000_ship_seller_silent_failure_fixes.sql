@@ -227,19 +227,25 @@ begin
   loop
     _seller_id := (_seller_group->>'seller_id')::uuid;
 
-    select sp.user_id, sp.business_name, sp.seller_status,
+    select sp.user_id, sp.business_name,
+           public.compute_store_status(sp.availability_start, sp.availability_end, sp.manual_override, sp.manual_override_until),
            sp.latitude, sp.longitude, sp.delivery_radius_km,
            sp.fulfillment_mode, sp.delivery_handled_by,
-           sp.payment_config
+           case
+             when _fulfillment_type = 'self_pickup' then sp.pickup_payment_config
+             else sp.delivery_payment_config
+           end
     into _seller_user_id, _seller_name, _seller_status,
          _seller_lat, _seller_lng, _seller_radius,
          _seller_fulfillment_mode, _delivery_handled_by,
          _seller_payment_config
     from public.seller_profiles sp where sp.id = _seller_id;
 
-    _seller_status_text := _seller_status ->> 'current';
+    _seller_status_text := _seller_status ->> 'status';
 
-    if _seller_status_text is not null and _seller_status_text not in ('open', 'accepting_preorders') then
+    if _seller_status_text is not null
+       and _seller_status_text not in ('open', 'accepting_preorders')
+       and not (_preorder_seller_ids is not null and _seller_id = ANY(_preorder_seller_ids)) then
       _closed_sellers := array_append(_closed_sellers, COALESCE(_seller_name, _seller_id::text));
       continue;
     end if;

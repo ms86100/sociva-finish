@@ -100,6 +100,16 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths"></meta-data>
         </provider>
+
+        <!--
+          Transistorsoft Background Geolocation license (required for RELEASE builds).
+          Injected from android/transistorsoft.properties or TRANSISTORSOFT_LICENSE env.
+          Without a valid key the SDK shows a native "LICENSE VALIDATION FAILURE" toast
+          whenever delivery GPS calls BackgroundGeolocation.ready()/start().
+        -->
+        <meta-data
+            android:name="com.transistorsoft.locationmanager.license"
+            android:value="${transistorsoftLicense}" />
     </application>
 
     <!--

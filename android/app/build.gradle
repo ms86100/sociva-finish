@@ -1,6 +1,23 @@
 apply plugin: 'com.android.application'
 apply plugin: 'kotlin-android'
 
+// Transistorsoft Background Geolocation — license key for applicationId app.sociva.community
+// Purchase / generate at https://www.transistorsoft.com/shop/customers then put in
+// android/transistorsoft.properties (gitignored) or set TRANSISTORSOFT_LICENSE in CI.
+def resolveTransistorsoftLicense = {
+    def fromEnv = System.getenv('TRANSISTORSOFT_LICENSE') ?: System.getenv('BGGEO_LICENSE')
+    if (fromEnv) return fromEnv.trim()
+    def propsFile = rootProject.file('transistorsoft.properties')
+    if (propsFile.exists()) {
+        def props = new Properties()
+        props.load(new FileInputStream(propsFile))
+        def key = props.getProperty('license') ?: props.getProperty('transistorsoftLicense')
+        if (key) return key.trim()
+    }
+    return ''
+}
+def transistorsoftLicense = resolveTransistorsoftLicense()
+
 android {
     namespace = "app.sociva.community"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -8,9 +25,10 @@ android {
         applicationId "app.sociva.community"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 5
-        versionName "2.0.3"
+        versionCode 6
+        versionName "2.0.4"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        manifestPlaceholders = [transistorsoftLicense: transistorsoftLicense]
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
              // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61

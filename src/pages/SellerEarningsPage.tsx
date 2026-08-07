@@ -1,102 +1,92 @@
 // @ts-nocheck
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { SafeHeader } from '@/components/layout/SafeHeader';
 import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/contexts/AuthContext';
-import { PaymentRecord, Order, PaymentStatus, SellerProfile } from '@/types/database';
+import { PaymentRecord, Order, PaymentStatus } from '@/types/database';
 import { useStatusLabels } from '@/hooks/useStatusLabels';
-import { ArrowLeft, TrendingUp, DollarSign, Calendar, CreditCard } from 'lucide-react';
-import { format, startOfDay, startOfWeek, startOfMonth, isAfter, parseISO } from 'date-fns';
+import { ArrowLeft, TrendingUp, DollarSign, CreditCard, Loader2 } from 'lucide-react';
+import { format } from 'date-fns';
 import { useCurrency } from '@/hooks/useCurrency';
+import { useSellerOrderStats } from '@/hooks/queries/useSellerOrders';
+import { emptyDashboardKpis } from '@/lib/seller-order-board';
 
+const PAGE_SIZE = 50;
+
+/**
+ * Earnings overview uses Settled GMV from get_seller_dashboard_kpis
+ * (same source as dashboard EarningsSummary). Transaction list is recent
+ * payment_records for display only — not used for all-time totals.
+ */
 export default function SellerEarningsPage() {
   const { user, currentSellerId, sellerProfiles } = useAuth();
   const { getPaymentStatus } = useStatusLabels();
   const { formatPrice } = useCurrency();
   const [payments, setPayments] = useState<(PaymentRecord & { order?: Order })[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [stats, setStats] = useState({
-    today: 0,
-    thisWeek: 0,
-    thisMonth: 0,
-    allTime: 0,
-    pendingPayout: 0,
-  });
+  const [listLoading, setListLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
 
   const activeSellerId = currentSellerId || (sellerProfiles.length > 0 ? sellerProfiles[0].id : null);
+  const { data: kpis, isLoading: kpiLoading } = useSellerOrderStats(activeSellerId);
+  const stats = kpis || emptyDashboardKpis();
+
+  const fetchPaymentPage = useCallback(async (sellerId: string, before?: string) => {
+    let query = supabase
+      .from('payment_records')
+      .select(`
+        id, order_id, seller_id, amount, net_amount, payment_method, payment_status, created_at,
+        order:orders(id, status, created_at, buyer:profiles!orders_buyer_id_fkey(name))
+      `)
+      .eq('seller_id', sellerId)
+      .order('created_at', { ascending: false })
+      .limit(PAGE_SIZE);
+    if (before) query = query.lt('created_at', before);
+    const { data: paymentList, error: fetchErr } = await query;
+    if (fetchErr) throw fetchErr;
+    return paymentList || [];
+  }, []);
 
   useEffect(() => {
-    // Reset state immediately on store switch to prevent stale data mismatch
     setPayments([]);
-    setStats({ today: 0, thisWeek: 0, thisMonth: 0, allTime: 0, pendingPayout: 0 });
-    setIsLoading(true);
+    setHasMore(false);
+    setListLoading(true);
     if (user && activeSellerId) {
-      fetchEarnings(activeSellerId);
+      fetchPaymentPage(activeSellerId)
+        .then((rows) => {
+          setPayments(rows);
+          setHasMore(rows.length >= PAGE_SIZE);
+        })
+        .catch((error) => {
+          console.error('Error fetching payment list:', error);
+        })
+        .finally(() => setListLoading(false));
     } else {
-      setIsLoading(false);
+      setListLoading(false);
     }
-  }, [user, activeSellerId]);
+  }, [user, activeSellerId, fetchPaymentPage]);
 
-  const fetchEarnings = async (sellerId: string) => {
-    if (!user) return;
-
+  const loadMore = async () => {
+    if (!activeSellerId || loadingMore || !hasMore || payments.length === 0) return;
+    setLoadingMore(true);
     try {
-      // Fetch recent 50 payment records for display (not all)
-      const { data: paymentList, error: fetchErr } = await supabase
-        .from('payment_records')
-        .select(`
-          id, order_id, seller_id, amount, net_amount, payment_method, payment_status, created_at,
-          order:orders(id, status, created_at, buyer:profiles!orders_buyer_id_fkey(name))
-        `)
-        .eq('seller_id', sellerId)
-        .order('created_at', { ascending: false })
-        .limit(50);
-      if (fetchErr) throw fetchErr;
-      setPayments(paymentList);
-
-      // Calculate stats — Bug 3: fall back to amount when net_amount is null/0
-      const getAmount = (p: PaymentRecord) => Number((p as any).net_amount || p.amount) || 0;
-      const today = startOfDay(new Date());
-      const weekStart = startOfWeek(new Date());
-      const monthStart = startOfMonth(new Date());
-
-      const excludedOrderStatuses = ['cancelled', 'returned', 'no_show'];
-      const paidPayments = paymentList.filter((p: PaymentRecord) => {
-        const orderStatus = (p as any).order?.status;
-        if (orderStatus && excludedOrderStatuses.includes(orderStatus)) return false;
-        return p.payment_status === 'paid' || (p.payment_status === 'pending' && orderStatus === 'completed');
-      });
-      const todayPayments = paidPayments.filter((p: PaymentRecord) => 
-        isAfter(parseISO(p.created_at), today)
-      );
-      const weekPayments = paidPayments.filter((p: PaymentRecord) =>
-        isAfter(parseISO(p.created_at), weekStart)
-      );
-      const monthPayments = paidPayments.filter((p: PaymentRecord) =>
-        isAfter(parseISO(p.created_at), monthStart)
-      );
-      const pendingPayments = paymentList.filter((p: PaymentRecord) => p.payment_status === 'pending');
-
-      setStats({
-        today: todayPayments.reduce((sum: number, p: PaymentRecord) => sum + getAmount(p), 0),
-        thisWeek: weekPayments.reduce((sum: number, p: PaymentRecord) => sum + getAmount(p), 0),
-        thisMonth: monthPayments.reduce((sum: number, p: PaymentRecord) => sum + getAmount(p), 0),
-        allTime: paidPayments.reduce((sum: number, p: PaymentRecord) => sum + getAmount(p), 0),
-        pendingPayout: pendingPayments.reduce((sum: number, p: PaymentRecord) => sum + getAmount(p), 0),
-      });
+      const cursor = payments[payments.length - 1]?.created_at;
+      const rows = await fetchPaymentPage(activeSellerId, cursor);
+      setPayments((prev) => [...prev, ...rows]);
+      setHasMore(rows.length >= PAGE_SIZE);
     } catch (error) {
-      console.error('Error fetching earnings:', error);
+      console.error('Error loading more payments:', error);
     } finally {
-      setIsLoading(false);
+      setLoadingMore(false);
     }
   };
 
-  if (isLoading) {
+  if (kpiLoading || listLoading) {
     return (
       <AppLayout showHeader={false} safeTop={false}>
         <div className="p-4">
@@ -119,8 +109,6 @@ export default function SellerEarningsPage() {
         </div>
       </SafeHeader>
       <div className="p-4">
-
-        {/* View Payouts Link */}
         <Link to="/seller/payouts">
           <Card className="mb-4 border-primary/20 bg-primary/5 hover:bg-primary/10 transition-colors cursor-pointer">
             <CardContent className="p-3 flex items-center justify-between">
@@ -133,58 +121,46 @@ export default function SellerEarningsPage() {
           </Card>
         </Link>
 
-        {/* Earnings Overview */}
-        <div className="bg-gradient-to-r from-success/10 to-success/5 rounded-2xl p-4 mb-6">
-          <div className="flex items-center gap-2 mb-3">
+        <div className="bg-gradient-to-r from-success/10 to-success/5 rounded-2xl p-4 mb-2">
+          <div className="flex items-center gap-2 mb-1">
             <TrendingUp className="text-success" size={20} />
-            <h3 className="font-semibold">Earnings Overview</h3>
+            <h3 className="font-semibold">Settled earnings</h3>
           </div>
+          <p className="text-[10px] text-muted-foreground mb-3">
+            Completed / delivered orders · excludes refunded payments (same as dashboard)
+          </p>
           <div className="grid grid-cols-2 gap-3">
             <div className="bg-background/50 rounded-lg p-3 text-center">
               <p className="text-xs text-muted-foreground">Today</p>
-              <p className="text-xl font-bold text-success tabular-nums">{formatPrice(stats.today)}</p>
+              <p className="text-xl font-bold text-success tabular-nums">{formatPrice(stats.todayEarnings)}</p>
             </div>
             <div className="bg-background/50 rounded-lg p-3 text-center">
               <p className="text-xs text-muted-foreground">This Week</p>
-              <p className="text-xl font-bold text-success tabular-nums">{formatPrice(stats.thisWeek)}</p>
+              <p className="text-xl font-bold text-success tabular-nums">{formatPrice(stats.weekEarnings)}</p>
             </div>
             <div className="bg-background/50 rounded-lg p-3 text-center">
               <p className="text-xs text-muted-foreground">This Month</p>
-              <p className="text-xl font-bold text-success tabular-nums">{formatPrice(stats.thisMonth)}</p>
+              <p className="text-xl font-bold text-success tabular-nums">{formatPrice(stats.monthEarnings)}</p>
             </div>
             <div className="bg-background/50 rounded-lg p-3 text-center">
               <p className="text-xs text-muted-foreground">All Time</p>
-              <p className="text-xl font-bold text-success tabular-nums">{formatPrice(stats.allTime)}</p>
+              <p className="text-xl font-bold text-success tabular-nums">{formatPrice(stats.totalEarnings)}</p>
             </div>
           </div>
         </div>
 
-        {/* Pending Payout */}
-        {stats.pendingPayout > 0 && (
-          <Card className="mb-6 border-warning/30 bg-warning/5">
-            <CardContent className="p-4 flex items-center gap-4">
-              <div className="w-12 h-12 rounded-full bg-warning/10 flex items-center justify-center">
-                <DollarSign className="text-warning" size={24} />
-              </div>
-              <div className="flex-1">
-                <p className="font-semibold">Pending Collection</p>
-                <p className="text-sm text-muted-foreground">COD payments to collect</p>
-              </div>
-              <p className="text-xl font-bold text-warning tabular-nums">{formatPrice(stats.pendingPayout)}</p>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Transaction History */}
         <div>
-          <h3 className="font-semibold mb-3">Transaction History</h3>
-          
+          <h3 className="font-semibold mb-3 mt-4">Recent transactions</h3>
+          <p className="text-[10px] text-muted-foreground mb-3">
+            Payment records for reference — totals above use Settled GMV, not this list
+          </p>
           {payments.length > 0 ? (
             <div className="space-y-3">
               {payments.map((payment) => {
                 const order = payment.order as any;
                 const statusInfo = getPaymentStatus(payment.payment_status as PaymentStatus);
-                
+                const amount = Number((payment as any).net_amount || payment.amount) || 0;
+
                 return (
                   <Card key={payment.id}>
                     <CardContent className="p-3">
@@ -198,32 +174,40 @@ export default function SellerEarningsPage() {
                               Order #{payment.order_id.slice(0, 8)}
                             </p>
                             <p className="text-xs text-muted-foreground">
-                              {order?.buyer?.name || 'Customer'}
-                            </p>
-                            <p className="text-[10px] text-muted-foreground">
-                              {format(new Date(payment.created_at), 'MMM d, h:mm a')}
+                              {order?.buyer?.name || 'Customer'} ·{' '}
+                              {format(new Date(payment.created_at), 'MMM d, yyyy')}
                             </p>
                           </div>
                         </div>
                         <div className="text-right">
-                          <p className="font-semibold tabular-nums">{formatPrice(payment.amount)}</p>
-                          <span className={`text-[10px] px-2 py-0.5 rounded-full ${statusInfo.color}`}>
-                            {statusInfo.label}
-                          </span>
-                          <p className="text-[10px] text-muted-foreground mt-1">
-                            {payment.payment_method.toUpperCase()}
-                          </p>
+                          <p className="font-semibold tabular-nums">{formatPrice(amount)}</p>
+                          <p className="text-[10px] text-muted-foreground">{statusInfo.label}</p>
                         </div>
                       </div>
                     </CardContent>
                   </Card>
                 );
               })}
+              {hasMore && (
+                <Button
+                  variant="secondary"
+                  className="w-full"
+                  onClick={loadMore}
+                  disabled={loadingMore}
+                >
+                  {loadingMore ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading...
+                    </>
+                  ) : (
+                    'Load more transactions'
+                  )}
+                </Button>
+              )}
             </div>
           ) : (
-            <div className="text-center py-12 bg-muted rounded-xl">
-              <DollarSign className="mx-auto text-muted-foreground mb-2" size={32} />
-              <p className="text-sm text-muted-foreground">No transactions yet</p>
+            <div className="text-center py-8 bg-muted rounded-xl">
+              <p className="text-sm text-muted-foreground">No payment records yet</p>
             </div>
           )}
         </div>

@@ -7,6 +7,7 @@ import {
   sendBookingConfirmation,
   sendBookingReminder,
   sendOTP,
+  sendWhatsAppTemplateOrText,
   sendWhatsAppText,
 } from "../_shared/whatsapp.ts";
 
@@ -20,7 +21,16 @@ type Body = {
   phoneNumber?: string;
   message?: string;
   /** Optional named template helpers */
-  template?: "otp" | "booking_confirmation" | "booking_cancelled" | "booking_reminder" | "raw";
+  template?:
+    | "otp"
+    | "booking_confirmation"
+    | "booking_cancelled"
+    | "booking_reminder"
+    | "order_update"
+    | "new_order_seller"
+    | "payment_update"
+    | "refund_update"
+    | "raw";
   data?: Record<string, string>;
 };
 
@@ -81,6 +91,7 @@ serve(async (req) => {
     const template = body.template || "raw";
     let result;
     let messageText = body.message || "";
+    let templateName: string | null = template === "raw" ? null : template;
 
     if (template === "otp") {
       const otp = body.data?.otp || body.message || "";
@@ -102,6 +113,7 @@ serve(async (req) => {
         serviceTime: body.data?.serviceTime || "",
       });
       messageText = body.message || "booking_confirmation";
+      templateName = "sociva_booking_confirmed";
     } else if (template === "booking_cancelled") {
       result = await sendBookingCancelled({
         phoneNumber: phone,
@@ -111,6 +123,7 @@ serve(async (req) => {
         reason: body.data?.reason,
       });
       messageText = body.message || "booking_cancelled";
+      templateName = "sociva_booking_cancelled";
     } else if (template === "booking_reminder") {
       result = await sendBookingReminder({
         phoneNumber: phone,
@@ -121,6 +134,38 @@ serve(async (req) => {
         serviceTime: body.data?.serviceTime || "",
       });
       messageText = body.message || "booking_reminder";
+      templateName = "sociva_booking_reminder";
+    } else if (
+      template === "order_update" ||
+      template === "new_order_seller" ||
+      template === "payment_update" ||
+      template === "refund_update"
+    ) {
+      const metaName =
+        template === "new_order_seller"
+          ? "sociva_new_order_seller"
+          : template === "payment_update"
+          ? "sociva_payment_update"
+          : template === "refund_update"
+          ? "sociva_refund_update"
+          : "sociva_order_update";
+      const fallback = body.message || `${body.data?.title || "Sociva update"} — open the app for details.`;
+      const params =
+        template === "new_order_seller"
+          ? [body.data?.kind || "order", body.data?.details || fallback]
+          : [
+            body.data?.customerName || "there",
+            body.data?.orderId || body.data?.bookingId || "—",
+            body.data?.status || body.data?.title || "Update",
+          ];
+      result = await sendWhatsAppTemplateOrText({
+        phoneNumber: phone,
+        templateName: metaName,
+        bodyParams: params,
+        fallbackText: fallback,
+      });
+      messageText = fallback;
+      templateName = metaName;
     } else {
       if (!messageText.trim()) {
         return new Response(
@@ -139,12 +184,20 @@ serve(async (req) => {
       status: result.success ? "sent" : "failed",
       error_code: result.success ? null : result.code,
       error_message: result.error || null,
-      template_name: template === "raw" ? null : template,
+      template_name: templateName,
       meta_payload: result.meta ?? null,
       created_by: userId,
     });
 
-    const status = result.success ? 200 : result.code === "unauthorized" || result.code === "token_expired" ? 401 : result.code === "rate_limited" ? 429 : result.code === "invalid_phone" ? 400 : 502;
+    const status = result.success
+      ? 200
+      : result.code === "unauthorized" || result.code === "token_expired"
+      ? 401
+      : result.code === "rate_limited"
+      ? 429
+      : result.code === "invalid_phone"
+      ? 400
+      : 502;
 
     return new Response(
       JSON.stringify({
@@ -155,6 +208,7 @@ serve(async (req) => {
         metaMessageId: result.metaMessageId,
         elapsedMs: result.elapsedMs,
         httpStatus: result.httpStatus,
+        usedTemplate: (result as { usedTemplate?: boolean }).usedTemplate ?? null,
       }),
       { status, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );

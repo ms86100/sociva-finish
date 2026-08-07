@@ -14,6 +14,7 @@ import { useSystemSettings } from '@/hooks/useSystemSettings';
 import { usePaymentMode } from '@/hooks/usePaymentMode';
 import { useCurrency } from '@/hooks/useCurrency';
 import { useLoyaltyRedeem } from '@/hooks/useLoyaltyRedeem';
+import { useWalletCredit } from '@/hooks/useWalletCredit';
 import { useDeliveryAddresses } from '@/hooks/useDeliveryAddresses';
 import { hapticImpact, hapticNotification, hapticSelection } from '@/lib/haptics';
 import { toast } from 'sonner';
@@ -142,6 +143,7 @@ export function useCartPage() {
   const { formatPrice, currencySymbol } = useCurrency();
   const { addresses, defaultAddress, isLoading: addressesLoading } = useDeliveryAddresses();
   const loyalty = useLoyaltyRedeem();
+  const wallet = useWalletCredit();
 
   // Keep ref in sync
   useEffect(() => { pendingOrderIdsRef.current = pendingOrderIds; }, [pendingOrderIds]);
@@ -268,7 +270,10 @@ export function useCartPage() {
   const effectiveDeliveryFee = fulfillmentType === 'delivery' ? (totalAmount >= settings.freeDeliveryThreshold ? 0 : settings.baseDeliveryFee) : 0;
   const amountAfterCoupon = appliedCoupon ? Math.max(0, totalAmount - effectiveCouponDiscount) : totalAmount;
   const effectiveLoyaltyDiscount = Math.min(loyalty.appliedPoints, amountAfterCoupon);
-  const finalAmount = Math.max(0, amountAfterCoupon - effectiveLoyaltyDiscount) + effectiveDeliveryFee;
+  // Wallet applies after loyalty to remaining payable (includes delivery) — matches server
+  const payableBeforeWallet = Math.max(0, amountAfterCoupon - effectiveLoyaltyDiscount) + effectiveDeliveryFee;
+  const effectiveWalletCredit = Math.min(wallet.appliedAmount, payableBeforeWallet);
+  const finalAmount = Math.max(0, payableBeforeWallet - effectiveWalletCredit);
 
   const firstSeller = sellerGroups[0]?.items[0]?.product?.seller;
   const firstSellerFulfillmentMode = (firstSeller as any)?.fulfillment_mode as 'self_pickup' | 'seller_delivery' | 'platform_delivery' | 'pickup_and_seller_delivery' | 'pickup_and_platform_delivery' | undefined;
@@ -429,6 +434,8 @@ export function useCartPage() {
       _preorder_seller_ids: preorderSellerIds.size > 0 ? Array.from(preorderSellerIds) : null,
       // Platform-funded loyalty: server reserves/allocates/commits (COD) — never trust client math alone
       _loyalty_points: effectiveLoyaltyDiscount > 0 ? Math.floor(effectiveLoyaltyDiscount) : 0,
+      // Sociva Credit: after loyalty; server promo-first FIFO + reserve/commit
+      _wallet_amount: effectiveWalletCredit > 0 ? Math.round(effectiveWalletCredit * 100) / 100 : 0,
     } as any);
     if (error) {
       // Do NOT reset idempotency key — retry must use the same key
@@ -437,16 +444,63 @@ export function useCartPage() {
       throw error;
     }
 
-    const result = data as { success: boolean; order_ids?: string[]; order_count?: number; error?: string; unavailable_items?: string[]; price_changed_items?: string[]; stock_insufficient?: string[]; closed_sellers?: string[]; out_of_range_sellers?: string[]; deduplicated?: boolean };
+    const result = data as {
+      success: boolean;
+      order_ids?: string[];
+      order_count?: number;
+      error?: string;
+      message?: string;
+      items?: string[];
+      sellers?: string[];
+      unavailable_items?: string[];
+      price_changed_items?: string[];
+      stock_insufficient?: string[];
+      closed_sellers?: string[];
+      out_of_range_sellers?: string[];
+      deduplicated?: boolean;
+    };
     if (!result?.success) {
       idempotencyKeyRef.current = null;
-      if (result?.error === 'unavailable_items' && result?.unavailable_items) { await refresh(); throw new Error(`Some items are unavailable:\n• ${result.unavailable_items.join('\n• ')}`); }
-      if (result?.error === 'price_changed' && result?.price_changed_items) { await refresh(); throw new Error(`Prices have changed:\n• ${result.price_changed_items.join('\n• ')}\nYour cart has been refreshed.`); }
-      if (result?.error === 'insufficient_stock' && result?.stock_insufficient) { await refresh(); throw new Error(`Insufficient stock:\n• ${result.stock_insufficient.join('\n• ')}`); }
-      if (result?.error === 'stock_validation_failed' && result?.unavailable_items) throw new Error(`Some items are unavailable:\n• ${result.unavailable_items.join('\n• ')}`);
-      if (result?.error === 'store_closed') { const sellers = result.closed_sellers?.join(', '); throw new Error(sellers ? `Store closed: ${sellers}` : 'Store is currently closed. Please try again later.'); }
-      if (result?.error === 'delivery_out_of_range') { const sellers = result.out_of_range_sellers?.join('\n• '); throw new Error(sellers ? `Delivery not possible:\n• ${sellers}` : 'Delivery address is out of range for one or more sellers.'); }
-      throw new Error('Failed to create orders');
+      const itemList = result?.unavailable_items || result?.items;
+      const priceList = result?.price_changed_items || result?.items;
+      const stockList = result?.stock_insufficient || result?.items;
+      const closedList = result?.closed_sellers || result?.sellers;
+      const oorList = result?.out_of_range_sellers || result?.sellers;
+
+      if (result?.error === 'unavailable_items' && itemList?.length) {
+        await refresh();
+        throw new Error(`Some items are unavailable:\n• ${itemList.join('\n• ')}`);
+      }
+      if (result?.error === 'price_changed' && priceList?.length) {
+        await refresh();
+        throw new Error(`Prices have changed:\n• ${priceList.join('\n• ')}\nYour cart has been refreshed.`);
+      }
+      if (result?.error === 'insufficient_stock' && stockList?.length) {
+        await refresh();
+        throw new Error(`Insufficient stock:\n• ${stockList.join('\n• ')}`);
+      }
+      if (result?.error === 'stock_validation_failed' && itemList?.length) {
+        throw new Error(`Some items are unavailable:\n• ${itemList.join('\n• ')}`);
+      }
+      if (result?.error === 'non_cart_items' && itemList?.length) {
+        throw new Error(`Some items cannot be ordered via cart:\n• ${itemList.join('\n• ')}`);
+      }
+      if (result?.error === 'store_closed' || result?.error === 'sellers_closed') {
+        throw new Error(closedList?.length ? `Store closed: ${closedList.join(', ')}` : 'Store is currently closed. Please try again later.');
+      }
+      if (result?.error === 'delivery_out_of_range' || result?.error === 'out_of_range') {
+        throw new Error(oorList?.length ? `Delivery not possible:\n• ${oorList.join('\n• ')}` : 'Delivery address is out of range for one or more sellers.');
+      }
+      if (result?.error === 'payment_method_not_accepted') {
+        const blocked = result.sellers || [];
+        throw new Error(result.message || (blocked.length
+          ? `Selected payment method is not accepted by: ${blocked.join(', ')}`
+          : 'Selected payment method is not accepted by this seller.'));
+      }
+      if (result?.error === 'unauthorized') {
+        throw new Error('Your session has expired. Please log in again.');
+      }
+      throw new Error(result?.message || result?.error || 'Failed to create orders');
     }
     // Reset idempotency key after successful (non-deduplicated) creation
     if (!result.deduplicated) idempotencyKeyRef.current = null;
@@ -595,6 +649,80 @@ export function useCartPage() {
 
     if (paymentMethod === 'cod' && !acceptsCod) { toast.error('This seller does not accept Cash on Delivery. Please select UPI.', { id: 'checkout-no-cod' }); setIsPlacingOrder(false); return; }
 
+    // Full Sociva Credit (+loyalty) cover: no gateway residual.
+    // payment_method=wallet → CMVO commits holds + marks payment_status=paid (SECURITY DEFINER).
+    // Do NOT client-update payment_status — trg_guard_order_payment_status blocks authenticated.
+    if (finalAmount <= 0 && effectiveWalletCredit > 0) {
+      try {
+        const sellerGroupsPayload = sellerGroups.map((group) => ({
+          seller_id: group.sellerId, subtotal: group.subtotal,
+          items: group.items.map((item) => ({
+            product_id: item.product_id,
+            product_name: item.product?.name || 'Unknown',
+            quantity: item.quantity,
+            unit_price: item.product?.price || 0,
+          })),
+        }));
+        const deliveryAddressText = fulfillmentType === 'delivery' && selectedDeliveryAddress
+          ? [selectedDeliveryAddress.flat_number && `Flat ${selectedDeliveryAddress.flat_number}`, selectedDeliveryAddress.block && `Block ${selectedDeliveryAddress.block}`, selectedDeliveryAddress.building_name, selectedDeliveryAddress.landmark].filter(Boolean).join(', ')
+          : [profile.block && `Block ${profile.block}`, profile.flat_number].filter(Boolean).join(', ') || profile?.name || 'Self Pickup';
+        if (!idempotencyKeyRef.current) {
+          const cartHash = items.map(i => `${i.product_id}:${i.quantity}`).sort().join('|');
+          idempotencyKeyRef.current = `${user.id}_${Date.now()}_${simpleHash(cartHash)}`;
+        }
+        const scheduledDateStr = scheduledDate ? scheduledDate.toISOString().split('T')[0] : null;
+        const scheduledTimeStr = scheduledTime ? `${scheduledTime}:00` : null;
+        const { data, error } = await supabase.rpc('create_multi_vendor_orders', {
+          _buyer_id: user.id,
+          _delivery_address: deliveryAddressText,
+          _notes: notes || null,
+          _payment_method: 'wallet',
+          _payment_status: 'pending',
+          _coupon_id: appliedCoupon?.id || null,
+          _coupon_discount: effectiveCouponDiscount,
+          _seller_groups: sellerGroupsPayload,
+          _fulfillment_type: fulfillmentType,
+          _delivery_fee: effectiveDeliveryFee,
+          _delivery_address_id: selectedDeliveryAddress?.id || null,
+          _delivery_lat: selectedDeliveryAddress?.latitude || null,
+          _delivery_lng: selectedDeliveryAddress?.longitude || null,
+          _idempotency_key: idempotencyKeyRef.current,
+          _scheduled_date: scheduledDateStr,
+          _scheduled_time_start: scheduledTimeStr,
+          _preorder_seller_ids: preorderSellerIds.size > 0 ? Array.from(preorderSellerIds) : null,
+          _loyalty_points: effectiveLoyaltyDiscount > 0 ? Math.floor(effectiveLoyaltyDiscount) : 0,
+          _wallet_amount: Math.round(effectiveWalletCredit * 100) / 100,
+        } as any);
+        if (error) throw error;
+        const result = data as { success?: boolean; order_ids?: string[]; error?: string };
+        if (!result?.success || !result.order_ids?.length) {
+          throw new Error((result as any)?.message || result?.error || 'Failed to create orders');
+        }
+        const orderIds = result.order_ids;
+
+        hapticNotification('success');
+        prefetchFlowData();
+        loyalty.clearAppliedPoints();
+        wallet.clearApplied();
+        queryClient.invalidateQueries({ queryKey: ['loyalty-balance'] });
+        queryClient.invalidateQueries({ queryKey: ['buyer-wallet'] });
+        queryClient.invalidateQueries({ queryKey: ['wallet-history'] });
+        queryClient.setQueryData(['cart-items', user.id], []);
+        queryClient.setQueryData(['cart-count', user.id], 0);
+        toast.success('Order placed with Sociva Credit!', { id: 'order-placed-wallet' });
+        navigate(`/orders/${orderIds[0]}`, { state: { fromCheckout: true, orderCount: orderIds.length } });
+        clearCartAndCache().catch(() => {});
+        requestFullPermission().catch(() => {});
+        supabase.functions.invoke('process-notification-queue').catch(() => {});
+      } catch (error: any) {
+        console.error('Error placing wallet-only order:', error);
+        toast.error(friendlyError(error), { id: 'checkout-wallet-error' });
+      } finally {
+        setIsPlacingOrder(false);
+      }
+      return;
+    }
+
     if (paymentMethod === 'upi') {
       if (!acceptsUpi) {
         const unmetPayout = sellerGroups.some(g => {
@@ -678,11 +806,16 @@ export function useCartPage() {
       if (orderIds.length === 0) throw new Error('Failed to create orders');
       hapticNotification('success');
       prefetchFlowData();
-      // Loyalty already reserved+committed server-side for COD inside create_multi_vendor_orders
+      // Loyalty + wallet already reserved+committed server-side for COD inside create_multi_vendor_orders
       if (effectiveLoyaltyDiscount > 0) {
         loyalty.clearAppliedPoints();
         queryClient.invalidateQueries({ queryKey: ['loyalty-balance'] });
         queryClient.invalidateQueries({ queryKey: ['loyalty-history'] });
+      }
+      if (effectiveWalletCredit > 0) {
+        wallet.clearApplied();
+        queryClient.invalidateQueries({ queryKey: ['buyer-wallet'] });
+        queryClient.invalidateQueries({ queryKey: ['wallet-history'] });
       }
       // Optimistically clear cart cache BEFORE navigation to prevent back-button duplicates
       queryClient.setQueryData(['cart-items', user.id], []);
@@ -768,11 +901,16 @@ export function useCartPage() {
       if (confirmOk) {
         toast.success('Payment successful! Your order is confirmed.', { id: 'razorpay-success' });
         clearPaymentSession();
-        // Loyalty commit happens in confirm-razorpay-payment (server-authoritative)
+        // Loyalty + wallet commit happens in confirm-razorpay-payment (server-authoritative)
         if (effectiveLoyaltyDiscount > 0) {
           loyalty.clearAppliedPoints();
           queryClient.invalidateQueries({ queryKey: ['loyalty-balance'] });
           queryClient.invalidateQueries({ queryKey: ['loyalty-history'] });
+        }
+        if (effectiveWalletCredit > 0) {
+          wallet.clearApplied();
+          queryClient.invalidateQueries({ queryKey: ['buyer-wallet'] });
+          queryClient.invalidateQueries({ queryKey: ['wallet-history'] });
         }
         setPendingOrderIds([]);
         clearCartAndCache().catch(() => {});
@@ -1019,7 +1157,9 @@ export function useCartPage() {
     settings, formatPrice, currencySymbol,
     effectiveDeliveryFee, finalAmount, acceptsCod, acceptsUpi,
     hasUrgentItem, itemCount, maxPrepTime,
-    effectiveCouponDiscount, effectiveLoyaltyDiscount, loyalty, firstSellerFulfillmentMode,
+    effectiveCouponDiscount, effectiveLoyaltyDiscount, loyalty,
+    effectiveWalletCredit, payableBeforeWallet, wallet,
+    firstSellerFulfillmentMode,
     hasFulfillmentConflict, hasBelowMinimumOrder, noPaymentMethodAvailable,
     isMultiSeller, blocksOnlineMultiSeller, multiStoreCopy, multiOrderConfirmHint,
     /** Multi-store cart with no COD — full-cart Place Order must not proceed online */

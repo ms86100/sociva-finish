@@ -56,13 +56,10 @@ export function EnableNotificationsBanner() {
   if (confirmedDenied) {
     const openSettings = async () => {
       try {
-        const platform = Capacitor.getPlatform();
-        if (platform === 'ios') {
-          const { Browser } = await import('@capacitor/browser');
-          await Browser.open({ url: 'app-settings:' });
-        } else {
-          const { NativeSettings, AndroidSettings, IOSSettings } = await import('capacitor-native-settings');
-          await NativeSettings.open({ optionIOS: IOSSettings.App, optionAndroid: AndroidSettings.AppNotification });
+        const { openNotificationChannelSettings } = await import('@/lib/notification-channel-settings');
+        const result = await openNotificationChannelSettings();
+        if (!result.opened) {
+          notify.block('Please go to Settings → Sociva → Notifications manually.');
         }
       } catch {
         notify.block('Please go to Settings → Sociva → Notifications manually.');

@@ -60,22 +60,8 @@ function classifyMetaError(httpStatus: number, body: any): WhatsAppSendResult["c
   return "unexpected";
 }
 
-export async function sendWhatsAppText(opts: {
-  phoneNumber: string;
-  message: string;
-  previewUrl?: boolean;
-}): Promise<WhatsAppSendResult> {
+async function postWhatsAppMessage(payload: Record<string, unknown>): Promise<WhatsAppSendResult> {
   const started = Date.now();
-  const phone = normalizeWhatsAppPhone(opts.phoneNumber);
-  if (!phone) {
-    return {
-      success: false,
-      code: "invalid_phone",
-      error: "Phone must be E.164 digits without +, e.g. 9198XXXXXXXX",
-      elapsedMs: Date.now() - started,
-    };
-  }
-
   const { accessToken, phoneNumberId } = await loadWhatsAppCredentials();
   if (!accessToken || !phoneNumberId) {
     return {
@@ -87,18 +73,7 @@ export async function sendWhatsAppText(opts: {
   }
 
   const url = `https://graph.facebook.com/${WHATSAPP_GRAPH_VERSION}/${phoneNumberId}/messages`;
-  const payload = {
-    messaging_product: "whatsapp",
-    recipient_type: "individual",
-    to: phone,
-    type: "text",
-    text: {
-      preview_url: !!opts.previewUrl,
-      body: opts.message,
-    },
-  };
-
-  console.log("[whatsapp] outbound payload", JSON.stringify({ ...payload, text: { body: opts.message.slice(0, 80) } }));
+  console.log("[whatsapp] outbound", JSON.stringify(payload).slice(0, 500));
 
   try {
     const res = await fetch(url, {
@@ -125,12 +100,11 @@ export async function sendWhatsAppText(opts: {
       };
     }
 
-    const metaMessageId = meta?.messages?.[0]?.id as string | undefined;
     return {
       success: true,
       code: "ok",
       httpStatus: res.status,
-      metaMessageId,
+      metaMessageId: meta?.messages?.[0]?.id as string | undefined,
       meta,
       elapsedMs,
     };
@@ -143,6 +117,115 @@ export async function sendWhatsAppText(opts: {
       elapsedMs: Date.now() - started,
     };
   }
+}
+
+export async function sendWhatsAppText(opts: {
+  phoneNumber: string;
+  message: string;
+  previewUrl?: boolean;
+}): Promise<WhatsAppSendResult> {
+  const started = Date.now();
+  const phone = normalizeWhatsAppPhone(opts.phoneNumber);
+  if (!phone) {
+    return {
+      success: false,
+      code: "invalid_phone",
+      error: "Phone must be E.164 digits without +, e.g. 9198XXXXXXXX",
+      elapsedMs: Date.now() - started,
+    };
+  }
+
+  return postWhatsAppMessage({
+    messaging_product: "whatsapp",
+    recipient_type: "individual",
+    to: phone,
+    type: "text",
+    text: {
+      preview_url: !!opts.previewUrl,
+      body: opts.message,
+    },
+  });
+}
+
+export type WhatsAppTemplateComponent = {
+  type: "header" | "body" | "button";
+  parameters?: Array<{ type: "text" | "currency" | "date_time" | "image" | "document" | "video"; text?: string }>;
+  sub_type?: string;
+  index?: string;
+};
+
+/** Send an approved Meta message template (required outside the 24h customer service window). */
+export async function sendWhatsAppTemplate(opts: {
+  phoneNumber: string;
+  templateName: string;
+  languageCode?: string;
+  components?: WhatsAppTemplateComponent[];
+}): Promise<WhatsAppSendResult> {
+  const started = Date.now();
+  const phone = normalizeWhatsAppPhone(opts.phoneNumber);
+  if (!phone) {
+    return {
+      success: false,
+      code: "invalid_phone",
+      error: "Phone must be E.164 digits without +, e.g. 9198XXXXXXXX",
+      elapsedMs: Date.now() - started,
+    };
+  }
+  if (!opts.templateName?.trim()) {
+    return {
+      success: false,
+      code: "meta_error",
+      error: "templateName is required",
+      elapsedMs: Date.now() - started,
+    };
+  }
+
+  const template: Record<string, unknown> = {
+    name: opts.templateName.trim(),
+    language: { code: opts.languageCode || "en" },
+  };
+  if (opts.components?.length) {
+    template.components = opts.components;
+  }
+
+  return postWhatsAppMessage({
+    messaging_product: "whatsapp",
+    recipient_type: "individual",
+    to: phone,
+    type: "template",
+    template,
+  });
+}
+
+/** Prefer Meta template; fall back to free-form text when template is unavailable/unapproved. */
+export async function sendWhatsAppTemplateOrText(opts: {
+  phoneNumber: string;
+  templateName: string;
+  languageCode?: string;
+  bodyParams?: string[];
+  fallbackText: string;
+}): Promise<WhatsAppSendResult & { usedTemplate: boolean }> {
+  const components: WhatsAppTemplateComponent[] | undefined = opts.bodyParams?.length
+    ? [{
+      type: "body",
+      parameters: opts.bodyParams.map((text) => ({ type: "text" as const, text: String(text || "—").slice(0, 600) })),
+    }]
+    : undefined;
+
+  const tpl = await sendWhatsAppTemplate({
+    phoneNumber: opts.phoneNumber,
+    templateName: opts.templateName,
+    languageCode: opts.languageCode,
+    components,
+  });
+  if (tpl.success) return { ...tpl, usedTemplate: true };
+
+  // Pending/rejected template or outside eligibility → try session free-form (works inside 24h CSW)
+  const text = await sendWhatsAppText({
+    phoneNumber: opts.phoneNumber,
+    message: opts.fallbackText,
+  });
+  return { ...text, usedTemplate: false };
 }
 
 export async function logWhatsAppMessage(row: {
@@ -173,12 +256,11 @@ export async function logWhatsAppMessage(row: {
   if (error) console.error("[whatsapp] log insert failed", error);
 }
 
-/** High-level templates reusing the same client */
+/** High-level templates — prefer approved Meta templates, fall back to free-form. */
 export async function sendOTP(phoneNumber: string, otp: string) {
-  return sendWhatsAppText({
-    phoneNumber,
-    message: `Your Sociva verification code is ${otp}. Do not share this code.`,
-  });
+  const message = `Your Sociva verification code is ${otp}. Do not share this code.`;
+  // Auth templates require Meta authentication category; until approved, session text only.
+  return sendWhatsAppText({ phoneNumber, message });
 }
 
 export async function sendBookingConfirmation(opts: {
@@ -189,12 +271,23 @@ export async function sendBookingConfirmation(opts: {
   serviceDate: string;
   serviceTime: string;
 }) {
-  const msg =
+  const fallback =
     `Hi ${opts.customerName}, your booking with ${opts.providerName} is confirmed.\n` +
     `Booking: ${opts.bookingId}\n` +
     `When: ${opts.serviceDate} at ${opts.serviceTime}\n` +
     `— Sociva`;
-  return sendWhatsAppText({ phoneNumber: opts.phoneNumber, message: msg });
+  return sendWhatsAppTemplateOrText({
+    phoneNumber: opts.phoneNumber,
+    templateName: "sociva_booking_confirmed",
+    bodyParams: [
+      opts.customerName || "there",
+      opts.providerName || "your provider",
+      opts.bookingId || "—",
+      opts.serviceDate || "—",
+      opts.serviceTime || "—",
+    ],
+    fallbackText: fallback,
+  });
 }
 
 export async function sendBookingCancelled(opts: {
@@ -204,11 +297,21 @@ export async function sendBookingCancelled(opts: {
   providerName: string;
   reason?: string;
 }) {
-  const msg =
+  const reason = opts.reason || "No additional details.";
+  const fallback =
     `Hi ${opts.customerName}, your booking ${opts.bookingId} with ${opts.providerName} was cancelled.` +
-    (opts.reason ? `\nReason: ${opts.reason}` : "") +
-    `\n— Sociva`;
-  return sendWhatsAppText({ phoneNumber: opts.phoneNumber, message: msg });
+    `\nReason: ${reason}\n— Sociva`;
+  return sendWhatsAppTemplateOrText({
+    phoneNumber: opts.phoneNumber,
+    templateName: "sociva_booking_cancelled",
+    bodyParams: [
+      opts.customerName || "there",
+      opts.bookingId || "—",
+      opts.providerName || "your provider",
+      reason,
+    ],
+    fallbackText: fallback,
+  });
 }
 
 export async function sendBookingReminder(opts: {
@@ -219,8 +322,19 @@ export async function sendBookingReminder(opts: {
   serviceDate: string;
   serviceTime: string;
 }) {
-  const msg =
+  const fallback =
     `Reminder: Hi ${opts.customerName}, you have a booking with ${opts.providerName} on ` +
     `${opts.serviceDate} at ${opts.serviceTime} (ref ${opts.bookingId}).\n— Sociva`;
-  return sendWhatsAppText({ phoneNumber: opts.phoneNumber, message: msg });
+  return sendWhatsAppTemplateOrText({
+    phoneNumber: opts.phoneNumber,
+    templateName: "sociva_booking_reminder",
+    bodyParams: [
+      opts.customerName || "there",
+      opts.providerName || "your provider",
+      opts.serviceDate || "—",
+      opts.serviceTime || "—",
+      opts.bookingId || "—",
+    ],
+    fallbackText: fallback,
+  });
 }

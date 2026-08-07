@@ -1,0 +1,11 @@
+# Copy to android/transistorsoft.properties (gitignored) and paste your real key.
+# Generate a key bound to applicationId app.sociva.community at:
+#   https://www.transistorsoft.com/shop/customers
+#
+# Without this key, @transistorsoft/capacitor-background-geolocation shows a native
+# Android toast "LICENSE VALIDATION FAILURE" when delivery GPS starts (and again on
+# reopen while tracking). Debug builds still track; RELEASE builds require a valid key.
+#
+# CI alternative: set env TRANSISTORSOFT_LICENSE (or BGGEO_LICENSE) instead of this file.
+
+license=YOUR_TRANSISTORSOFT_LICENSE_KEY_HERE

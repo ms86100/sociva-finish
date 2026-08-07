@@ -395,6 +395,34 @@ export default function CartPage() {
           </div>
         )}
 
+        {/* Sociva Credit */}
+        {c.wallet.balance > 0 && c.wallet.status === 'active' && (
+          <div className="mt-5 px-4">
+            <div className="flex items-center justify-between bg-emerald-500/5 border border-emerald-500/15 rounded-xl p-3">
+              <div className="flex items-center gap-2">
+                <span className="text-lg">💳</span>
+                <div>
+                  <p className="text-sm font-semibold">Use Sociva Credit</p>
+                  <p className="text-[11px] text-muted-foreground">
+                    {c.formatPrice(c.wallet.balance)} available
+                    {c.wallet.promoAvailable > 0 ? ` · Promo ${c.formatPrice(c.wallet.promoAvailable)} first` : ''}
+                  </p>
+                </div>
+              </div>
+              <Switch
+                checked={c.wallet.appliedAmount > 0}
+                onCheckedChange={() => c.wallet.toggleCredit(c.payableBeforeWallet)}
+              />
+            </div>
+            {c.effectiveWalletCredit > 0 && (
+              <p className="text-xs text-emerald-700 font-medium mt-1.5 ml-1">
+                Applying {c.formatPrice(c.effectiveWalletCredit)} Sociva Credit
+                {c.finalAmount > 0 ? ` · pay ${c.formatPrice(c.finalAmount)} residual` : ' · covers full amount'}
+              </p>
+            )}
+          </div>
+        )}
+
         {/* Bill Details */}
         <div className="mt-5 mx-4 bg-muted rounded-xl p-4">
           <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Bill Details</h3>
@@ -402,6 +430,7 @@ export default function CartPage() {
             {c.sellerGroups.map((group) => (<div key={group.sellerId} className="flex justify-between"><span className="text-muted-foreground truncate mr-2">{group.sellerName}</span><span className="font-medium">{c.formatPrice(group.subtotal)}</span></div>))}
             {c.appliedCoupon && (<div className="flex justify-between text-primary"><span>Coupon ({c.appliedCoupon.code})</span><span>-{c.formatPrice(Math.min(c.effectiveCouponDiscount, c.totalAmount))}</span></div>)}
             {c.effectiveLoyaltyDiscount > 0 && (<div className="flex justify-between text-primary"><span>Loyalty Points</span><span>-{c.formatPrice(c.effectiveLoyaltyDiscount)}</span></div>)}
+            {c.effectiveWalletCredit > 0 && (<div className="flex justify-between text-emerald-700"><span>Sociva Credit</span><span>-{c.formatPrice(c.effectiveWalletCredit)}</span></div>)}
             <div className="flex justify-between"><span className="text-muted-foreground">Delivery Fee</span><span className={`font-medium ${c.effectiveDeliveryFee === 0 ? 'text-primary' : ''}`}>{c.fulfillmentType === 'delivery' ? (c.effectiveDeliveryFee === 0 ? 'FREE' : c.formatPrice(c.effectiveDeliveryFee)) : 'Self Pickup'}</span></div>
             <div className="border-t border-border pt-2 mt-1 flex justify-between font-bold"><span>To Pay</span><span>{c.formatPrice(c.finalAmount)}</span></div>
           </div>

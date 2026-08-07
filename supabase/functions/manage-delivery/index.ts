@@ -149,7 +149,10 @@ async function handleAssign(req: Request, db: any, userId: string) {
     .single();
 
   if (!assignment) return jsonResponse({ error: 'Assignment not found' }, 404);
-  if (assignment.status !== 'pending') return jsonResponse({ error: 'Assignment not in pending status' }, 400);
+  if (!['pending', 'assigned'].includes(assignment.status)) {
+    return jsonResponse({ error: 'Assignment cannot be (re)assigned in current status' }, 400);
+  }
+  const isReassign = assignment.status === 'assigned';
 
   // Bug 10 fix: Authorization — only the order's seller, a society admin, or platform admin can assign
   const { data: order } = await db.from('orders').select('seller_id').eq('id', assignment.order_id).single();
@@ -187,9 +190,42 @@ async function handleAssign(req: Request, db: any, userId: string) {
   await db.from('delivery_tracking_logs').insert({
     assignment_id,
     status: 'assigned',
-    note: `Assigned to ${rider_name || 'rider'}`,
+    note: isReassign
+      ? `Reassigned to ${rider_name || 'rider'}`
+      : `Assigned to ${rider_name || 'rider'}`,
     source: 'manual',
   });
+
+  // Notify buyer of provider/rider assignment (WA via PNQ when opted in)
+  try {
+    const { data: orderRow } = await db
+      .from('orders')
+      .select('buyer_id')
+      .eq('id', assignment.order_id)
+      .single();
+    if (orderRow?.buyer_id) {
+      await db.from('notification_queue').insert({
+        user_id: orderRow.buyer_id,
+        title: isReassign ? '🔄 Provider Updated' : '👤 Provider Assigned',
+        body: isReassign
+          ? `Your delivery partner was updated to ${rider_name || 'a new rider'}.`
+          : `${rider_name || 'A delivery partner'} has been assigned to your order.`,
+        type: 'order_status',
+        reference_path: `/orders/${assignment.order_id}`,
+        payload: {
+          orderId: assignment.order_id,
+          order_id: assignment.order_id,
+          status: isReassign ? 'provider_changed' : 'assigned',
+          new_status: isReassign ? 'provider_changed' : 'assigned',
+          target_role: 'buyer',
+          providerName: rider_name || 'Delivery partner',
+          wa_template: 'sociva_order_update',
+        },
+      });
+    }
+  } catch (notifyErr) {
+    console.warn('[manage-delivery] assign notify failed:', notifyErr);
+  }
 
   return jsonResponse({ success: true });
 }

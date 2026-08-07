@@ -63,7 +63,15 @@ Deno.serve(async (req) => {
         title: `📊 Daily Summary — ${seller.business_name}`,
         body,
         reference_path: "/seller",
-        payload: { type: "daily_summary", seller_id: seller.id, order_count: orderCount, revenue },
+        payload: {
+          type: "daily_summary",
+          seller_id: seller.id,
+          order_count: orderCount,
+          revenue,
+          status: "seller_daily_summary",
+          target_role: "seller",
+          wa_template: "sociva_payment_update",
+        },
       });
 
       sentCount++;

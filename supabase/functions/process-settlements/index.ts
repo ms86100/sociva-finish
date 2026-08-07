@@ -184,6 +184,9 @@ Deno.serve(async (req) => {
         },
       });
 
+      // Seller notify is also fired by trg_seller_settlement_notification on settlement_status update.
+      // Extra enqueue here is intentionally skipped to avoid duplicates.
+
       processed++;
     }
 

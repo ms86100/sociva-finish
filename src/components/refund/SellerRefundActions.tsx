@@ -238,7 +238,7 @@ export function SellerRefundActions({
 
       {isApproved && (
         <p className="text-[11px] text-muted-foreground text-center bg-background/40 rounded-lg py-2">
-          Refund is being settled to the buyer's original payment method automatically.
+          Refund is being settled automatically (original payment or Sociva Credit per buyer choice).
         </p>
       )}
       {isCompleted && (

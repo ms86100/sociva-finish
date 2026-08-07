@@ -136,21 +136,17 @@ export function LicenseManager() {
             ? `Your ${licenseType} has been verified. You're all set!`
             : `Your ${licenseType} was rejected.${adminNotes.trim() ? ` Reason: ${adminNotes.trim()}` : ' Please re-upload a valid document.'}`;
 
-          const { error: notifError } = await supabase.from('user_notifications').insert({
-            user_id: sellerData.user_id,
-            title: notifTitle,
-            body: notifBody,
-            type: status === 'approved' ? 'license_approved' : 'license_rejected',
-            is_read: false,
-          });
-          if (notifError) {
-            console.error('Failed to insert license notification:', notifError);
-          }
-
+          // Queue-only path: PNQ writes inbox + push with consistent metadata
           sendPushNotification({
             userId: sellerData.user_id,
             title: notifTitle,
             body: notifBody,
+            data: {
+              type: status === 'approved' ? 'license_approved' : 'license_rejected',
+              path: '/seller',
+              action_url: '/seller',
+              reference_path: '/seller',
+            },
           }).catch(() => {});
         }
       }

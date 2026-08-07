@@ -181,6 +181,24 @@ export function useOrderDetail(id: string | undefined) {
     queryClient.invalidateQueries({ queryKey: ['order-review', id] });
   };
 
+  /** Keep seller dashboard board / money widgets ≤5s fresh after local status changes. */
+  const invalidateSellerDashboardCaches = (sellerId?: string | null) => {
+    const sid = sellerId || order?.seller_id;
+    const keys = [
+      'seller-orders',
+      'seller-dashboard-stats',
+      'seller-order-filter-counts',
+      'seller-analytics-charts',
+      'seller-reliability',
+      'seller-refund-requests',
+      'seller-customers',
+    ] as const;
+    for (const key of keys) {
+      if (sid) queryClient.invalidateQueries({ queryKey: [key, sid] });
+      else queryClient.invalidateQueries({ queryKey: [key] });
+    }
+  };
+
   // Realtime subscription — invalidates cache instead of manual fetch
   useEffect(() => {
     if (!id) return;
@@ -272,12 +290,13 @@ export function useOrderDetail(id: string | undefined) {
 
       // Optimistic update — immediately reflect in UI
       queryClient.setQueryData(['order-detail', id], (old: any) =>
-        old ? { ...old, order: { ...old.order, status: newStatus } } : old
+        old ? { ...old, order: { ...old.order, status: newStatus, rejection_reason: rejectionReason || old.order?.rejection_reason } } : old
       );
       // Release button BEFORE background refetch
       setIsUpdating(false);
       // Background refetch to reconcile with server state
       queryClient.invalidateQueries({ queryKey: ['order-detail', id] });
+      if (isSellerView) invalidateSellerDashboardCaches(order.seller_id);
       supabase.functions.invoke('process-notification-queue').catch(() => {});
       if (order.society_id) logAudit(`order_${newStatus}`, 'order', order.id, order.society_id, { old_status: order.status, new_status: newStatus, rejection_reason: rejectionReason });
     } catch (error: any) {

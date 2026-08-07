@@ -32,10 +32,15 @@ export function PushNotificationProvider({ children }: PushNotificationProviderP
     prevUserRef.current = user;
   }, [user, removeTokenFromDatabase]);
 
-  // Realtime: invalidate notification queries the moment a new row lands.
-  // Bridges the up-to-60s polling gap so the bell + inbox react in <1s.
+  // Realtime: invalidate on INSERT (new notif) and UPDATE (cross-device mark-read /
+  // server-side terminal supersession). Bridges polling gap so bell + inbox stay fresh.
   useEffect(() => {
     if (!user?.id) return;
+    const invalidateInbox = () => {
+      queryClient.invalidateQueries({ queryKey: ['unread-notifications'] });
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
+      queryClient.invalidateQueries({ queryKey: ['latest-action-notification'] });
+    };
     const channel = supabase
       .channel(`user-notifications-${user.id}`)
       .on(
@@ -46,11 +51,17 @@ export function PushNotificationProvider({ children }: PushNotificationProviderP
           table: 'user_notifications',
           filter: `user_id=eq.${user.id}`,
         },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ['unread-notifications'] });
-          queryClient.invalidateQueries({ queryKey: ['notifications'] });
-          queryClient.invalidateQueries({ queryKey: ['latest-action-notification'] });
+        invalidateInbox,
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'user_notifications',
+          filter: `user_id=eq.${user.id}`,
         },
+        invalidateInbox,
       )
       .subscribe();
 

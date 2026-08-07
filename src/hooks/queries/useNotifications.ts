@@ -46,8 +46,12 @@ export interface UserNotification {
  *  Self-heals: ensures `data` is always an object so `data?.action` never throws. */
 function wrapNotification(row: any): UserNotification {
   const safe = { ...row };
-  // Coerce data to {} when null so downstream `data?.x` accesses are stable
+  // Dual-column heal: prefer data, fall back to payload
+  if (safe.data == null || (typeof safe.data === 'object' && Object.keys(safe.data).length === 0)) {
+    safe.data = safe.payload && typeof safe.payload === 'object' ? { ...safe.payload } : {};
+  }
   if (safe.data == null) safe.data = {};
+  if (!safe.action_url && safe.reference_path) safe.action_url = safe.reference_path;
   return Object.defineProperties(safe, {
     reference_path: { get() { return this.action_url; }, enumerable: false },
     payload: { get() { return this.data; }, enumerable: false },
@@ -88,7 +92,7 @@ export async function cleanupStaleDeliveryNotifications(notifications: UserNotif
       .from('orders')
       .select('id')
       .in('id', [...orderIds])
-      .in('status', ['delivered', 'completed', 'cancelled', 'no_show']);
+      .in('status', ['delivered', 'completed', 'cancelled', 'no_show', 'rejected', 'returned', 'failed']);
     if (!terminalOrders || terminalOrders.length === 0) return;
 
     const terminalSet = new Set(terminalOrders.map((o: any) => o.id));
@@ -194,7 +198,7 @@ export function useLatestActionNotification(userId: string | undefined) {
             .from('orders')
             .select('id')
             .in('id', [...orderIds])
-            .in('status', ['delivered', 'completed', 'cancelled', 'no_show']),
+            .in('status', ['delivered', 'completed', 'cancelled', 'no_show', 'rejected', 'returned', 'failed']),
           supabase
             .from('orders')
             .select('id')

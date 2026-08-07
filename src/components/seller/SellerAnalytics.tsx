@@ -27,7 +27,7 @@ export function SellerAnalytics({ sellerId }: SellerAnalyticsProps) {
     );
   }
 
-  if (!data || data.totalOrders === 0) {
+  if (!data || data.settledOrders30d === 0 && data.topProducts.length === 0) {
     return (
       <Card className="bg-muted/30">
         <CardContent className="p-4 text-center">
@@ -44,6 +44,8 @@ export function SellerAnalytics({ sellerId }: SellerAnalyticsProps) {
     if (h === 12) return '12 PM';
     return `${h - 12} PM`;
   };
+
+  const repeatBuyers = Math.round((data.repeatCustomerRate / 100) * data.totalCustomers);
 
   return (
     <div className="space-y-3">
@@ -63,7 +65,7 @@ export function SellerAnalytics({ sellerId }: SellerAnalyticsProps) {
         <Card>
           <CardContent className="p-3 text-center">
             <Users size={16} className="mx-auto text-primary mb-1" />
-            <p className="text-lg font-bold">{data.repeatCustomers}</p>
+            <p className="text-lg font-bold">{repeatBuyers}</p>
             <p className="text-[10px] text-muted-foreground">Repeat Buyers</p>
           </CardContent>
         </Card>
@@ -77,7 +79,7 @@ export function SellerAnalytics({ sellerId }: SellerAnalyticsProps) {
         <Card>
           <CardContent className="p-3 text-center">
             <XCircle size={16} className="mx-auto text-destructive mb-1" />
-            <p className="text-lg font-bold">{data.cancellationRate}%</p>
+            <p className="text-lg font-bold">{data.cancelRate}%</p>
             <p className="text-[10px] text-muted-foreground">Cancellations</p>
           </CardContent>
         </Card>
@@ -129,12 +131,12 @@ export function SellerAnalytics({ sellerId }: SellerAnalyticsProps) {
             <p className="text-xs font-semibold text-muted-foreground mb-2">Most Ordered Items</p>
             <div className="space-y-2">
               {data.topProducts.map((p, i) => (
-                <div key={p.product_name} className="flex items-center justify-between text-sm">
+                <div key={p.product_id} className="flex items-center justify-between text-sm">
                   <span className="flex items-center gap-2 truncate">
                     <span className="text-xs font-bold text-muted-foreground w-4">{i + 1}.</span>
-                    <span className="truncate">{p.product_name}</span>
+                    <span className="truncate">{p.name}</span>
                   </span>
-                  <span className="text-xs font-semibold text-primary shrink-0">{p.total_ordered} sold</span>
+                  <span className="text-xs font-semibold text-primary shrink-0">{p.qty || p.orders} sold</span>
                 </div>
               ))}
             </div>
@@ -155,7 +157,7 @@ export function SellerAnalytics({ sellerId }: SellerAnalyticsProps) {
                   key={h.hour}
                   className="text-xs px-2 py-1 rounded-full bg-primary/10 text-primary font-medium"
                 >
-                  {formatHour(h.hour)} ({h.order_count})
+                  {formatHour(h.hour)} ({h.count})
                 </span>
               ))}
             </div>
