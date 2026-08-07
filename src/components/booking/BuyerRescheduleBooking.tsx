@@ -3,7 +3,7 @@ import { useMemo, useState } from 'react';
 import { format, isBefore, startOfToday } from 'date-fns';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { useServiceSlots, slotsToPickerFormat, findSlot } from '@/hooks/useServiceSlots';
+import { useServiceSlots, slotsToPickerFormat, findSlot, normalizeSlotTime } from '@/hooks/useServiceSlots';
 import { TimeSlotPicker } from './TimeSlotPicker';
 import { Button } from '@/components/ui/button';
 import {
@@ -68,9 +68,8 @@ export function BuyerRescheduleBooking({
     setIsSubmitting(true);
     try {
       const dateStr = format(selectedDate, 'yyyy-MM-dd');
-      const normalizedTime = selectedTime.length === 5 ? `${selectedTime}:00` : selectedTime;
-      const slot = findSlot(serviceSlots, dateStr, normalizedTime)
-        || findSlot(serviceSlots, dateStr, selectedTime);
+      const normalizedTime = normalizeSlotTime(selectedTime);
+      const slot = findSlot(serviceSlots, dateStr, normalizedTime);
 
       if (!slot || slot.booked_count >= slot.max_capacity) {
         toast.error('Selected slot is no longer available. Refreshing...');

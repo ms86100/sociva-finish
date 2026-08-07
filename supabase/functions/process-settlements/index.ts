@@ -1,34 +1,11 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.93.3";
+import { getRazorpayCredentials, getCredential } from "../_shared/credentials.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
-
-async function getRazorpayCredentials(supabase: any) {
-  const envKeyId = Deno.env.get("RAZORPAY_KEY_ID") || "";
-  const envKeySecret = Deno.env.get("RAZORPAY_KEY_SECRET") || "";
-  if (envKeyId && envKeySecret) {
-    return { keyId: envKeyId, keySecret: envKeySecret };
-  }
-
-  const { data: rows } = await supabase
-    .from("admin_settings")
-    .select("key, value, is_active")
-    .in("key", ["razorpay_key_id", "razorpay_key_secret"])
-    .eq("is_active", true);
-
-  const map: Record<string, string> = {};
-  for (const r of rows || []) {
-    if (r?.key && r?.value) map[r.key] = String(r.value);
-  }
-
-  return {
-    keyId: map.razorpay_key_id || envKeyId,
-    keySecret: map.razorpay_key_secret || envKeySecret,
-  };
-}
 
 /**
  * Create a Razorpay Route transfer to a linked account.
@@ -132,15 +109,12 @@ Deno.serve(async (req) => {
       );
     }
 
-    const { data: routeSetting } = await supabase
-      .from("admin_settings")
-      .select("value, is_active")
-      .eq("key", "razorpay_route_enabled")
-      .maybeSingle();
-
-    const routeEnabled =
-      routeSetting?.is_active === true &&
-      String(routeSetting?.value || "").toLowerCase() === "true";
+    const routeVal = await getCredential(
+      supabase,
+      "razorpay_route_enabled",
+      "RAZORPAY_ROUTE_ENABLED",
+    );
+    const routeEnabled = String(routeVal || "").toLowerCase() === "true";
 
     const creds = routeEnabled
       ? await getRazorpayCredentials(supabase)

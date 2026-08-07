@@ -2,6 +2,7 @@
 // Executes real Razorpay refunds — never simulates success.
 // P4: partial refunds against shared checkout-group captures.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.93.3";
+import { getRazorpayCredentials } from "../_shared/credentials.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -14,20 +15,9 @@ interface ProcessRequest {
 }
 
 async function getRazorpayKeys(supabase: any): Promise<{ keyId: string; keySecret: string } | null> {
-  const { data: settings } = await supabase
-    .from("admin_settings")
-    .select("key, value, is_active")
-    .in("key", ["razorpay_key_id", "razorpay_key_secret"]);
-
-  const map: Record<string, string> = {};
-  for (const r of settings || []) {
-    if (r.value && r.is_active) map[r.key] = r.value;
-  }
-
-  const keyId = map.razorpay_key_id || Deno.env.get("RAZORPAY_KEY_ID") || "";
-  const keySecret = map.razorpay_key_secret || Deno.env.get("RAZORPAY_KEY_SECRET") || "";
-  if (!keyId || !keySecret) return null;
-  return { keyId, keySecret };
+  const keys = await getRazorpayCredentials(supabase);
+  if (!keys.keyId || !keys.keySecret) return null;
+  return keys;
 }
 
 async function fetchPaymentRefundable(

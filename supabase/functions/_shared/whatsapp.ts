@@ -1,6 +1,6 @@
 /**
  * Shared WhatsApp Cloud API client for Sociva Edge Functions.
- * Credentials: admin_settings first, then Deno.env secrets.
+ * Credentials: Deno.env first, then Vault/admin_settings via get_edge_credential.
  */
 import { createAdminClient, getCredential } from "./credentials.ts";
 

@@ -1,5 +1,6 @@
 import { Hono } from "https://deno.land/x/hono@v4.3.11/mod.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.93.3";
+import { getRazorpayCredentials } from "../_shared/credentials.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -324,16 +325,7 @@ app.post("/", async (c) => {
 
     async function verifyRazorpayRefund(gatewayRefundId: string): Promise<"processed" | "pending" | "failed" | "unknown"> {
       try {
-        const { data: credRows } = await supabase
-          .from("admin_settings")
-          .select("key, value, is_active")
-          .in("key", ["razorpay_key_id", "razorpay_key_secret"]);
-        const credMap: Record<string, string> = {};
-        for (const r of credRows || []) {
-          if (r.value && r.is_active) credMap[r.key] = r.value;
-        }
-        const keyId = credMap.razorpay_key_id || Deno.env.get("RAZORPAY_KEY_ID") || "";
-        const keySecret = credMap.razorpay_key_secret || Deno.env.get("RAZORPAY_KEY_SECRET") || "";
+        const { keyId, keySecret } = await getRazorpayCredentials(supabase);
         if (!keyId || !keySecret || !gatewayRefundId) return "unknown";
 
         const res = await fetch(`https://api.razorpay.com/v1/refunds/${gatewayRefundId}`, {
@@ -417,16 +409,7 @@ app.post("/", async (c) => {
           }
           if (paymentId) {
             try {
-              const { data: credRows } = await supabase
-                .from("admin_settings")
-                .select("key, value, is_active")
-                .in("key", ["razorpay_key_id", "razorpay_key_secret"]);
-              const credMap: Record<string, string> = {};
-              for (const r of credRows || []) {
-                if (r.value && r.is_active) credMap[r.key] = r.value;
-              }
-              const keyId = credMap.razorpay_key_id || Deno.env.get("RAZORPAY_KEY_ID") || "";
-              const keySecret = credMap.razorpay_key_secret || Deno.env.get("RAZORPAY_KEY_SECRET") || "";
+              const { keyId, keySecret } = await getRazorpayCredentials(supabase);
               if (keyId && keySecret) {
                 const payRes = await fetch(`https://api.razorpay.com/v1/payments/${paymentId}`, {
                   headers: { Authorization: "Basic " + btoa(`${keyId}:${keySecret}`) },
@@ -542,16 +525,7 @@ app.post("/", async (c) => {
     // --- Razorpay verification helper: check if payment was actually captured ---
     async function isRazorpayPaid(razorpayOrderId: string): Promise<boolean> {
       try {
-        const { data: credRows } = await supabase
-          .from("admin_settings")
-          .select("key, value, is_active")
-          .in("key", ["razorpay_key_id", "razorpay_key_secret"]);
-        const credMap: Record<string, string> = {};
-        for (const r of credRows || []) {
-          if (r.value && r.is_active) credMap[r.key] = r.value;
-        }
-        const keyId = credMap.razorpay_key_id || Deno.env.get("RAZORPAY_KEY_ID") || "";
-        const keySecret = credMap.razorpay_key_secret || Deno.env.get("RAZORPAY_KEY_SECRET") || "";
+        const { keyId, keySecret } = await getRazorpayCredentials(supabase);
         if (!keyId || !keySecret) return false;
 
         // Fetch payments for this Razorpay order

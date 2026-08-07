@@ -65,12 +65,22 @@ export function useServiceSlots(productId: string | undefined, daysAhead = 30) {
   });
 }
 
+/** Normalize Postgres time / picker values to HH:mm for stable matching. */
+export function normalizeSlotTime(time: string | null | undefined): string {
+  if (!time) return '';
+  const trimmed = String(time).trim();
+  // Already HH:mm or HH:mm:ss
+  const m = trimmed.match(/^(\d{1,2}):(\d{2})(?::\d{2})?/);
+  if (m) return `${m[1].padStart(2, '0')}:${m[2]}`;
+  return trimmed;
+}
+
 export function slotsToPickerFormat(slots: ServiceSlot[]): { date: string; slots: string[] }[] {
   const grouped: Record<string, string[]> = {};
   for (const slot of slots) {
     if (!grouped[slot.slot_date]) grouped[slot.slot_date] = [];
-    const timeStr = slot.start_time;
-    if (!grouped[slot.slot_date].includes(timeStr)) {
+    const timeStr = normalizeSlotTime(slot.start_time);
+    if (timeStr && !grouped[slot.slot_date].includes(timeStr)) {
       grouped[slot.slot_date].push(timeStr);
     }
   }
@@ -81,5 +91,8 @@ export function slotsToPickerFormat(slots: ServiceSlot[]): { date: string; slots
 }
 
 export function findSlot(slots: ServiceSlot[], date: string, time: string): ServiceSlot | undefined {
-  return slots.find(s => s.slot_date === date && s.start_time === time);
+  const want = normalizeSlotTime(time);
+  return slots.find(
+    (s) => s.slot_date === date && normalizeSlotTime(s.start_time) === want,
+  );
 }

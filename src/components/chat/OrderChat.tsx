@@ -37,6 +37,11 @@ export function OrderChat({
   const [isSending, setIsSending] = useState(false);
   const lastSentRef = useRef<number>(0);
   const [reportOpen, setReportOpen] = useState(false);
+  const [peerTyping, setPeerTyping] = useState(false);
+  const [peerOnline, setPeerOnline] = useState(false);
+  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const peerTypingClearRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const { viewportHeight, viewportTop, keyboardInset } = useChatViewport(isOpen);
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -50,7 +55,9 @@ export function OrderChat({
 
       // Subscribe FIRST to avoid race where INSERT lands between fetch and subscribe.
       const channel = supabase
-        .channel(`chat-${orderId}`)
+        .channel(`chat-${orderId}`, {
+          config: { presence: { key: user?.id || `anon-${orderId}` } },
+        })
         .on(
           'postgres_changes',
           {
@@ -78,6 +85,8 @@ export function OrderChat({
             if (newMsg.receiver_id === user?.id) {
               markMessagesAsRead();
             }
+            // Peer message implies they stopped typing.
+            if (newMsg.sender_id !== user?.id) setPeerTyping(false);
           },
         )
         .on(
@@ -93,23 +102,49 @@ export function OrderChat({
             setMessages((prev) => prev.map((m) => (m.id === upd.id ? { ...m, ...upd } : m)));
           },
         )
-        .subscribe((status) => {
+        .on('broadcast', { event: 'typing' }, ({ payload }) => {
+          const fromId = (payload as any)?.userId as string | undefined;
+          if (!fromId || fromId === user?.id) return;
+          setPeerTyping(!!(payload as any)?.typing);
+          if (peerTypingClearRef.current) clearTimeout(peerTypingClearRef.current);
+          if ((payload as any)?.typing) {
+            peerTypingClearRef.current = setTimeout(() => setPeerTyping(false), 3000);
+          }
+        })
+        .on('presence', { event: 'sync' }, () => {
+          const state = channel.presenceState() as Record<string, Array<{ user_id?: string }>>;
+          const online = Object.values(state)
+            .flat()
+            .some((p) => p.user_id && p.user_id === otherUserId);
+          setPeerOnline(online);
+        })
+        .subscribe(async (status) => {
           if (status === 'SUBSCRIBED') {
             // Now safe to fetch — any INSERT after this moment will be delivered.
             fetchMessages();
             markMessagesAsRead();
+            if (user?.id) {
+              await channel.track({ user_id: user.id, at: Date.now() });
+            }
           }
         });
+
+      channelRef.current = channel;
 
       return () => {
         document.body.style.overflow = '';
         clearActiveChat(orderId);
+        setPeerTyping(false);
+        setPeerOnline(false);
+        channelRef.current = null;
+        if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+        if (peerTypingClearRef.current) clearTimeout(peerTypingClearRef.current);
         supabase.removeChannel(channel);
       };
     } else {
       document.body.style.overflow = '';
     }
-  }, [isOpen, orderId]);
+  }, [isOpen, orderId, user?.id, otherUserId]);
 
   const scrollToBottom = useCallback(() => {
     requestAnimationFrame(() => {
@@ -171,6 +206,7 @@ export function OrderChat({
     } as any;
     setMessages((prev) => [...prev, optimisticMsg]);
     setNewMessage('');
+    broadcastTyping(false);
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
     }
@@ -224,13 +260,34 @@ export function OrderChat({
     }
   };
 
-  // Auto-resize textarea
+  const broadcastTyping = useCallback(
+    (typing: boolean) => {
+      const ch = channelRef.current;
+      if (!ch || !user?.id) return;
+      ch.send({
+        type: 'broadcast',
+        event: 'typing',
+        payload: { userId: user.id, typing },
+      }).catch(() => {});
+    },
+    [user?.id],
+  );
+
+  // Auto-resize textarea + ephemeral typing signal (Realtime broadcast)
   const handleTextChange = (value: string) => {
     setNewMessage(value);
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
       textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 120)}px`;
     }
+    if (!value.trim()) {
+      broadcastTyping(false);
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      return;
+    }
+    broadcastTyping(true);
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    typingTimeoutRef.current = setTimeout(() => broadcastTyping(false), 1500);
   };
 
   if (!isOpen) return null;
@@ -255,7 +312,13 @@ export function OrderChat({
               </div>
               <div className="min-w-0">
                 <p className="font-semibold truncate">{otherUserName}</p>
-                <p className="text-xs text-muted-foreground">Order #{orderId.slice(0, 8)}</p>
+                <p className="text-xs text-muted-foreground">
+                  {peerTyping
+                    ? 'typing…'
+                    : peerOnline
+                      ? 'Online · Order #' + orderId.slice(0, 8)
+                      : 'Order #' + orderId.slice(0, 8)}
+                </p>
               </div>
             </div>
             <div className="flex items-center gap-1 shrink-0">

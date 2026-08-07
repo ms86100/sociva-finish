@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { crypto } from "https://deno.land/std@0.168.0/crypto/mod.ts";
+import { getRazorpayWebhookSecret as resolveWebhookSecret } from "../_shared/credentials.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -8,21 +9,12 @@ const corsHeaders = {
 };
 
 async function getRazorpayWebhookSecret(supabase: any): Promise<string | null> {
-  // Prefer dedicated webhook secret — API key secret is NOT the webhook HMAC secret.
-  // Fail closed: do not fall back to razorpay_key_secret (wrong secret → false accepts / rejects).
-  const { data: settings } = await supabase
-    .from('admin_settings')
-    .select('key, value, is_active')
-    .eq('key', 'razorpay_webhook_secret');
-
-  const row = (settings || []).find((r: any) => r.value && r.is_active);
-  if (row?.value) return row.value;
-
-  const envWebhook = Deno.env.get('RAZORPAY_WEBHOOK_SECRET');
-  if (envWebhook) return envWebhook;
+  // Prefer Deno.env / Vault — never fall back to razorpay_key_secret (wrong HMAC).
+  const secret = await resolveWebhookSecret(supabase);
+  if (secret) return secret;
 
   console.error(
-    '[razorpay-webhook] razorpay_webhook_secret missing or inactive — paste Webhook Secret from Razorpay Dashboard → Webhooks. Refusing to verify with API key secret.',
+    '[razorpay-webhook] razorpay_webhook_secret missing — paste Webhook Secret from Razorpay Dashboard → Webhooks. Refusing to verify with API key secret.',
   );
   return null;
 }

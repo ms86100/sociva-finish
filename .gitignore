@@ -43,6 +43,7 @@ android-config/google-services.json
 tmp/
 
 
-# Local keystore password backup — never commit
+# Local keystore password backup ï¿½ never commit
 sociva-release-keystore-SECRET.txt
 
+.vercel

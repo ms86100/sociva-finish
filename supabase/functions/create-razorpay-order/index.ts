@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { checkRateLimit, rateLimitResponse } from "../_shared/rate-limiter.ts";
+import { getRazorpayCredentials } from "../_shared/credentials.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -18,28 +19,9 @@ interface CreateOrderRequest {
 }
 
 async function getRazorpayKeys(supabase: any): Promise<{ keyId: string; keySecret: string } | null> {
-  const { data: settings } = await supabase
-    .from('admin_settings')
-    .select('key, value, is_active')
-    .in('key', ['razorpay_key_id', 'razorpay_key_secret']);
-
-  if (settings && settings.length === 2) {
-    const keyIdSetting = settings.find((s: any) => s.key === 'razorpay_key_id');
-    const keySecretSetting = settings.find((s: any) => s.key === 'razorpay_key_secret');
-
-    if (keyIdSetting?.value && keySecretSetting?.value && keyIdSetting.is_active && keySecretSetting.is_active) {
-      return { keyId: keyIdSetting.value, keySecret: keySecretSetting.value };
-    }
-  }
-
-  const envKeyId = Deno.env.get('RAZORPAY_KEY_ID');
-  const envKeySecret = Deno.env.get('RAZORPAY_KEY_SECRET');
-
-  if (envKeyId && envKeySecret) {
-    return { keyId: envKeyId, keySecret: envKeySecret };
-  }
-
-  return null;
+  const keys = await getRazorpayCredentials(supabase);
+  if (!keys.keyId || !keys.keySecret) return null;
+  return keys;
 }
 
 serve(async (req) => {
