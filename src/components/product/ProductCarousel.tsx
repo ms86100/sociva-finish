@@ -84,7 +84,7 @@ export function ProductCarousel({
       {/* Carousel with nav arrows */}
       <div className="relative group">
         <div ref={emblaRef} className="overflow-hidden">
-          <div className="flex gap-2.5 sm:gap-3 pl-4 pr-2 items-stretch">
+          <div className="flex gap-3 sm:gap-3.5 pl-4 pr-2 items-stretch">
             {products.map((product) => (
               <div key={product.id} className={cn('shrink-0 flex', cardWidth)}>
                 <ProductListingCard

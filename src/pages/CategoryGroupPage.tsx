@@ -102,18 +102,19 @@ export default function CategoryGroupPage() {
     for (const s of marketplaceSellers) {
       const items = s.matching_products;
       if (!Array.isArray(items)) continue;
-      const hasCategory = items.some((p: any) => categorySet.has(p.category));
-      if (!hasCategory) continue;
+      const categoryProducts = items.filter((p: any) => categorySet.has(p.category));
+      if (categoryProducts.length === 0) continue;
       if (!sellerMap.has(s.seller_id)) {
         sellerMap.set(s.seller_id, {
           id: s.seller_id,
           business_name: s.business_name,
+          description: s.description ?? null,
           profile_image_url: s.profile_image_url,
           cover_image_url: s.cover_image_url ?? null,
           rating: s.rating,
           total_reviews: s.total_reviews,
           is_featured: s.is_featured,
-          categories: s.categories,
+          categories: s.categories || [],
           primary_group: s.primary_group,
           distance_km: s.distance_km,
           society_name: s.society_name,
@@ -121,6 +122,11 @@ export default function CategoryGroupPage() {
           availability_start: s.availability_start ?? null,
           availability_end: s.availability_end ?? null,
           operating_days: s.operating_days ?? null,
+          avg_response_minutes: s.avg_response_minutes ?? null,
+          last_active_at: s.last_active_at ?? null,
+          completed_order_count: s.completed_order_count ?? 0,
+          // Category-scoped products so SellerCard can show starting-from price
+          products: categoryProducts.map((p: any) => ({ price: p.price })),
         });
       }
     }
@@ -382,7 +388,10 @@ export default function CategoryGroupPage() {
         )}
 
         {topSellers.length > 0 && !searchQuery && (
-          <section className="mt-10 pt-6 border-t border-border/40">
+          <section className={cn(
+            'pt-6 border-t border-border/40',
+            displayProducts.length > 0 || productsLoading ? 'mt-10' : 'mt-6'
+          )}>
             <div className="flex items-center gap-2 mb-4 px-0.5">
               <span className="text-base" aria-hidden>⭐</span>
               <h3 className="font-extrabold text-sm tracking-tight text-foreground">

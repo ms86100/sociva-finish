@@ -240,7 +240,7 @@ function ProductGridByCategory({ products, categoryMap, categoryConfigs, marketp
               <span className="text-[11px] font-semibold text-accent ml-auto">From {formatPrice(Math.min(...items.map(p => p.price)))}</span>
             </div>
             <motion.div
-              className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5"
+              className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 sm:gap-3.5"
               variants={staggerGrid}
               initial="hidden"
               animate="show"

@@ -69,8 +69,8 @@ export function RichSellerCard({
         onClick={() => navigate(`/seller/${id}`)}
         className={cn(
           'rounded-2xl overflow-hidden cursor-pointer',
-          'bg-card border border-border',
-          'transition-all duration-200 hover:shadow-md hover:scale-[1.02]',
+          'bg-card border border-border/60 shadow-card',
+          'transition-[box-shadow,border-color,transform] duration-200 ease-out hover:shadow-elevated hover:border-border',
           cardWidth,
         )}
       >

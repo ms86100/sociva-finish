@@ -16,6 +16,8 @@ import { useNavigate } from 'react-router-dom';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { useCurrency } from '@/hooks/useCurrency';
 import { computeStoreStatus, formatStoreClosedMessage } from '@/lib/store-availability';
+import { optimizedImageUrl, handleImageError } from '@/utils/imageHelpers';
+import { cn } from '@/lib/utils';
 
 export default function FavoritesPage() {
   const { user, profile } = useAuth();
@@ -91,13 +93,13 @@ export default function FavoritesPage() {
 
           <TabsContent value="sellers">
             {isLoading ? (
-              <div className="grid grid-cols-3 gap-2.5">
+              <div className="grid grid-cols-3 gap-2.5 sm:gap-3">
                 {[1, 2, 3, 4, 5, 6].map((i) => (
-                  <Skeleton key={i} className="aspect-square rounded-xl" />
+                  <Skeleton key={i} className="aspect-square rounded-2xl" />
                 ))}
               </div>
             ) : favorites.length > 0 ? (
-              <div className="grid grid-cols-3 gap-2.5">
+              <div className="grid grid-cols-3 gap-2.5 sm:gap-3">
                 {favorites.map((seller) => (
                   <FavoriteSellerCard
                     key={seller.id}
@@ -121,30 +123,53 @@ export default function FavoritesPage() {
 
           <TabsContent value="products">
             {productsLoading ? (
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-3 sm:gap-3.5">
                 {[1, 2, 3, 4].map((i) => (
-                  <Skeleton key={i} className="h-48 rounded-xl" />
+                  <Skeleton key={i} className="h-48 rounded-2xl" />
                 ))}
               </div>
             ) : savedProducts.length > 0 ? (
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-3 sm:gap-3.5">
                 {savedProducts.map((product: any) => (
-                  <Link key={product.id} to={`/product/${product.id}`} className="block">
-                    <div className="rounded-xl border border-border bg-card overflow-hidden">
-                      <div className="aspect-square bg-muted relative">
+                  <Link
+                    key={product.id}
+                    to={`/product/${product.id}`}
+                    className="group/fav block min-w-0 rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  >
+                    <div className="rounded-2xl border border-border/60 bg-card overflow-hidden shadow-card transition-[box-shadow,border-color] duration-200 hover:shadow-elevated hover:border-border">
+                      <div className="aspect-square product-image-bg relative">
                         {product.image_url ? (
-                          <img src={product.image_url} alt={product.name} className="w-full h-full object-cover" />
+                          <img
+                            src={optimizedImageUrl(product.image_url, { width: 400, quality: 78 })}
+                            alt={product.name}
+                            className="w-full h-full object-cover transition-transform duration-500 group-hover/fav:scale-[1.03]"
+                            loading="lazy"
+                            decoding="async"
+                            onError={handleImageError}
+                          />
                         ) : (
-                          <div className="w-full h-full flex items-center justify-center text-2xl">🛍️</div>
+                          <div className="w-full h-full flex items-center justify-center">
+                            <ShoppingBag size={28} className="text-muted-foreground" aria-hidden />
+                          </div>
                         )}
-                        <div className="absolute top-1 right-1">
-                          <ProductFavoriteButton productId={product.id} initialFavorite={true} size="sm" />
+                        <div
+                          className="absolute top-1.5 right-1.5 z-10"
+                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                        >
+                          <ProductFavoriteButton
+                            productId={product.id}
+                            initialFavorite={true}
+                            size="sm"
+                            className="bg-card/90 backdrop-blur-md shadow-sm border border-border/40"
+                          />
                         </div>
                       </div>
-                      <div className="p-2">
-                        <p className="text-xs font-medium text-foreground line-clamp-1">{product.name}</p>
-                        <p className="text-[10px] text-muted-foreground truncate">{product.seller_name}</p>
-                        <p className="text-xs font-bold text-foreground mt-0.5">{formatPrice(product.price)}</p>
+                      <div className="p-2.5">
+                        <p className="text-xs font-semibold text-foreground line-clamp-2 leading-snug">{product.name}</p>
+                        {product.seller_name && (
+                          <p className="text-[10px] text-muted-foreground truncate mt-0.5">{product.seller_name}</p>
+                        )}
+                        <p className="text-sm font-extrabold text-foreground mt-1 tabular-nums">{formatPrice(product.price)}</p>
                       </div>
                     </div>
                   </Link>
@@ -179,26 +204,41 @@ function FavoriteSellerCard({ seller, onRemoved }: { seller: any; onRemoved: () 
   const closedMsg = !isOpen ? formatStoreClosedMessage(storeStatus) : '';
 
   return (
-    <Link to={`/seller/${seller.id}`} className="block">
-      <div className={`relative rounded-xl border border-border bg-card overflow-hidden ${!isOpen ? 'opacity-60' : ''}`}>
-        <div className="aspect-square bg-muted flex items-center justify-center relative">
+    <Link
+      to={`/seller/${seller.id}`}
+      className="group/fav-seller block min-w-0 rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+    >
+      <div
+        className={cn(
+          'relative rounded-2xl border border-border/60 bg-card overflow-hidden shadow-card',
+          'transition-[box-shadow,border-color] duration-200 hover:shadow-elevated hover:border-border',
+          !isOpen && 'opacity-60'
+        )}
+      >
+        <div className="aspect-square product-image-bg flex items-center justify-center relative">
           {seller.profile_image_url || seller.cover_image_url ? (
             <img
-              src={seller.profile_image_url || seller.cover_image_url}
+              src={optimizedImageUrl(seller.profile_image_url || seller.cover_image_url, { width: 300, quality: 78 })}
               alt={seller.business_name}
-              className="w-full h-full object-cover"
+              className="w-full h-full object-cover transition-transform duration-500 group-hover/fav-seller:scale-[1.03]"
+              loading="lazy"
+              decoding="async"
+              onError={handleImageError}
             />
           ) : (
-            <Store size={28} className="text-muted-foreground" />
+            <Store size={28} className="text-muted-foreground" aria-hidden />
           )}
           {!isOpen && (
-            <div className="absolute inset-0 bg-background/50 flex items-center justify-center">
-              <span className="text-[10px] font-semibold text-muted-foreground bg-background/80 px-2 py-0.5 rounded-full">
+            <div className="absolute inset-0 bg-background/50 flex items-center justify-center z-[5]">
+              <span className="text-[10px] font-semibold text-muted-foreground bg-card/90 px-2 py-0.5 rounded-full border border-border/50">
                 {closedMsg || 'Closed'}
               </span>
             </div>
           )}
-          <div className="absolute top-1 right-1">
+          <div
+            className="absolute top-1.5 right-1.5 z-10"
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
+          >
             <FavoriteButton
               sellerId={seller.id}
               initialFavorite={true}
@@ -207,19 +247,21 @@ function FavoriteSellerCard({ seller, onRemoved }: { seller: any; onRemoved: () 
             />
           </div>
         </div>
-        <div className="p-1.5">
-          <div className="flex items-center gap-1">
-            <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isOpen ? 'bg-green-500' : 'bg-muted-foreground'}`} />
-            <p className="text-xs font-medium text-foreground truncate leading-tight">
+        <div className="p-2">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', isOpen ? 'bg-success' : 'bg-muted-foreground')} />
+            <p className="text-xs font-semibold text-foreground truncate leading-tight">
               {seller.business_name}
             </p>
           </div>
-          <div className="flex items-center gap-1 mt-0.5">
+          <div className="flex items-center gap-1 mt-0.5 min-w-0">
             {seller.rating > 0 && (
-              <span className="text-[10px] text-warning font-medium flex items-center gap-0.5">★ {seller.rating.toFixed(1)}</span>
+              <span className="text-[10px] text-foreground font-bold flex items-center gap-0.5 shrink-0">
+                ★ {Number(seller.rating).toFixed(1)}
+              </span>
             )}
             {seller.category && (
-              <span className="text-[10px] text-muted-foreground truncate">{seller.category}</span>
+              <span className="text-[10px] text-muted-foreground truncate capitalize">{String(seller.category).replace(/_/g, ' ')}</span>
             )}
           </div>
         </div>

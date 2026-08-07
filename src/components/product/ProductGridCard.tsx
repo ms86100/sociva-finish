@@ -47,6 +47,8 @@ export function ProductGridCard({ product, behavior, onTap, className, viewOnly 
   const actionType: ProductActionType = deriveActionType(product.action_type as string, catCfg?.transactionType ?? null, catCfg ? { supportsCart: catCfg.behavior.supportsCart, enquiryOnly: catCfg.behavior.enquiryOnly } : null);
   const actionConfig = ACTION_CONFIG[actionType];
   const isCartAction = actionConfig.isCart;
+  const showVegBadge = catCfg?.formHints?.showVegToggle ?? false;
+  const placeholderEmoji = catCfg?.formHints?.placeholderEmoji || '📦';
 
   const cartItem = isCartAction ? items.find((item) => item.product_id === product.id) : null;
   const quantity = cartItem?.quantity || 0;
@@ -80,9 +82,10 @@ export function ProductGridCard({ product, behavior, onTap, className, viewOnly 
   const handleDecrement = (e: React.MouseEvent) => { e.stopPropagation(); e.preventDefault(); hapticImpact('light'); updateQuantity(product.id, quantity - 1); };
   const handleCardClick = () => { hapticSelection(); if (onTap) { onTap(product); } else { navigate(`/seller/${product.seller_id}`); } };
 
-  const isOutOfStock = !product.is_available;
+  const isOutOfStock = !product.is_available || ((product as any).stock_quantity != null && (product as any).stock_quantity <= 0);
   const hasDiscount = (product as any).mrp && (product as any).mrp > product.price;
   const discountPct = (product as any).discount_percentage || (hasDiscount ? Math.round((((product as any).mrp - product.price) / (product as any).mrp) * 100) : 0);
+  const showAdd = !viewOnly && !isOutOfStock && !isStoreClosed;
 
   return (
     <div
@@ -91,6 +94,7 @@ export function ProductGridCard({ product, behavior, onTap, className, viewOnly 
         'group/grid bg-card rounded-2xl border border-border/60 shadow-card cursor-pointer flex flex-col h-full relative overflow-hidden',
         'transition-[box-shadow,border-color,transform] duration-200 ease-out active:scale-[0.985]',
         'hover:shadow-elevated hover:border-border',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
         isOutOfStock && 'opacity-50 grayscale-[40%]',
         isStoreClosed && !isOutOfStock && 'opacity-60 grayscale-[30%]',
         className
@@ -122,9 +126,14 @@ export function ProductGridCard({ product, behavior, onTap, className, viewOnly 
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center bg-muted">
-              <span className="text-3xl" aria-hidden>📦</span>
+              <span className="text-3xl" aria-hidden>{placeholderEmoji}</span>
             </div>
           )}
+
+          <div
+            className="pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-card/70 via-card/15 to-transparent"
+            aria-hidden
+          />
 
           <AnimatePresence>
             {justAdded && (
@@ -140,37 +149,41 @@ export function ProductGridCard({ product, behavior, onTap, className, viewOnly 
           </AnimatePresence>
 
           {isOutOfStock && (
-            <div className="absolute inset-0 bg-background/60 flex items-center justify-center rounded-xl">
-              <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider bg-card/90 px-2 py-1 rounded-full">Out of stock</span>
+            <div className="absolute inset-0 bg-background/60 flex items-center justify-center rounded-xl z-[5]">
+              <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider bg-card/90 px-2 py-1 rounded-full border border-border/50">Out of stock</span>
             </div>
           )}
           {isStoreClosed && !isOutOfStock && (
-            <div className="absolute inset-0 bg-background/40 flex items-center justify-center rounded-xl">
-              <span className="text-[8px] font-bold text-muted-foreground bg-card/90 px-1.5 py-0.5 rounded-full uppercase tracking-wider flex items-center gap-1 max-w-[90%] truncate">
+            <div className="absolute inset-0 bg-background/40 flex items-center justify-center rounded-xl z-[5]">
+              <span className="text-[8px] font-bold text-muted-foreground bg-card/90 px-1.5 py-0.5 rounded-full uppercase tracking-wider flex items-center gap-1 max-w-[90%] truncate border border-border/50">
                 <Clock size={8} className="shrink-0" />{storeClosedMessage || 'Closed'}
               </span>
             </div>
           )}
           {product.is_bestseller && (
-            <Badge className="absolute top-1.5 left-1.5 bg-badge-new text-primary-foreground text-[8px] px-1.5 py-0.5 font-bold shadow-sm rounded-md border-0">
+            <Badge className="absolute top-1.5 left-1.5 bg-badge-new text-primary-foreground text-[8px] px-1.5 py-0.5 font-bold shadow-sm rounded-md border-0 z-10">
               Bestseller
             </Badge>
           )}
           {hasDiscount && discountPct > 0 && (
-            <span className="absolute top-1.5 right-8 bg-badge-discount text-primary-foreground text-[8px] font-extrabold px-1.5 py-0.5 rounded-md shadow-sm">
+            <span className="absolute top-1.5 right-1.5 z-10 bg-badge-discount text-primary-foreground text-[8px] font-extrabold px-1.5 py-0.5 rounded-md shadow-sm">
               {discountPct}% OFF
             </span>
           )}
           {(product as any).accepts_preorders && !product.is_bestseller && (
-            <Badge className="absolute top-1.5 left-1.5 bg-card/90 text-foreground text-[8px] px-1.5 py-0.5 font-bold shadow-sm rounded-md border border-border/50">
+            <Badge className="absolute top-1.5 left-1.5 z-10 bg-card/90 text-foreground text-[8px] px-1.5 py-0.5 font-bold shadow-sm rounded-md border border-border/50">
               Pre-order{(product as any).lead_time_hours ? ` · ${(product as any).lead_time_hours}hr` : ''}
             </Badge>
           )}
-          <div className="absolute top-1.5 right-1.5"><VegBadge isVeg={product.is_veg} size="sm" /></div>
+          {showVegBadge && (
+            <div className="absolute bottom-1.5 left-1.5 z-10">
+              <VegBadge isVeg={product.is_veg} size="sm" />
+            </div>
+          )}
         </div>
 
-        {!viewOnly && !isOutOfStock && !isStoreClosed && (
-          <div className="absolute -bottom-3.5 left-1/2 -translate-x-1/2 z-10">
+        {showAdd && (
+          <div className="absolute -bottom-3.5 right-3 z-10">
             {isCartAction && quantity > 0 ? (
               <div className="flex items-center bg-primary rounded-xl overflow-hidden shadow-cta animate-stepper-pop">
                 <button
@@ -203,7 +216,7 @@ export function ProductGridCard({ product, behavior, onTap, className, viewOnly 
         )}
       </div>
 
-      <div className="px-2.5 pb-2.5 pt-5 flex flex-col flex-1 min-w-0">
+      <div className={cn('px-2.5 pb-2.5 flex flex-col flex-1 min-w-0', showAdd ? 'pt-5' : 'pt-2.5')}>
         <h4 className="font-semibold text-[12px] leading-snug line-clamp-2 text-foreground mb-0.5">{product.name}</h4>
         {product.seller_name && (
           <div className="flex items-center gap-1 mt-0.5 min-w-0">

@@ -258,7 +258,7 @@ export function SellerCard({ seller, featuredProduct, showFavorite = true }: Sel
             )}
           </div>
 
-          {seller.categories.length > 0 && (
+          {(seller.categories?.length ?? 0) > 0 && (
             <div className="flex flex-wrap gap-1.5 mt-2.5">
               {seller.categories.slice(0, 3).map((cat) => (
                 <span
