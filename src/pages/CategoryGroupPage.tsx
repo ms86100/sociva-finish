@@ -342,17 +342,17 @@ export default function CategoryGroupPage() {
       {/* Product Grid */}
       <div className="p-4 pb-6">
         {productsLoading ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-3.5">
             {[1, 2, 3, 4, 5, 6].map((i) => (
-              <Skeleton key={i} className="h-56 w-full rounded-xl" />
+              <Skeleton key={i} className="h-56 w-full rounded-2xl" />
             ))}
           </div>
         ) : displayProducts.length > 0 ? (
           <>
-            <p className="text-[11px] text-muted-foreground mb-3">
+            <p className="text-[11px] text-muted-foreground mb-3 px-0.5">
               {displayProducts.length} item{displayProducts.length !== 1 ? 's' : ''}
             </p>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 sm:gap-3.5">
               {displayProducts.map((product) => (
                 <ProductListingCard
                   key={product.id}
@@ -382,19 +382,20 @@ export default function CategoryGroupPage() {
         )}
 
         {topSellers.length > 0 && !searchQuery && (
-          <div className="mt-10 pt-4 border-t border-border/40">
-            <div className="flex items-center gap-2 mb-4">
-              <span className="text-base">⭐</span>
-              <h3 className="font-bold text-sm">
+          <section className="mt-10 pt-6 border-t border-border/40">
+            <div className="flex items-center gap-2 mb-4 px-0.5">
+              <span className="text-base" aria-hidden>⭐</span>
+              <h3 className="font-extrabold text-sm tracking-tight text-foreground">
                 Top Sellers in {parentGroup.label}
               </h3>
             </div>
-            <div className="space-y-3">
+            {/* marketplace-stack uses gap — space-y margins do not apply to inline <a>/Link roots */}
+            <div className="marketplace-stack">
               {topSellers.slice(0, 5).map((seller: any) => (
                 <SellerCard key={seller.id} seller={seller} />
               ))}
             </div>
-          </div>
+          </section>
         )}
       </div>
 

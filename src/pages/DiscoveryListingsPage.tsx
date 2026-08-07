@@ -174,7 +174,7 @@ export default function DiscoveryListingsPage() {
             <p className="text-[11px] text-muted-foreground mb-3 px-0.5">
               {displayProducts.length} listing{displayProducts.length !== 1 ? 's' : ''}
             </p>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5 sm:gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 sm:gap-3.5">
               {displayProducts.map((product) => (
                 <ProductListingCard
                   key={product.id}

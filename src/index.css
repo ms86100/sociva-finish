@@ -486,6 +486,11 @@
     @apply font-extrabold text-base text-foreground tracking-tight flex items-center gap-2;
   }
 
+  /* Vertical marketplace lists (Top Sellers, etc.) — use gap, not space-y on Link children */
+  .marketplace-stack {
+    @apply flex flex-col gap-4;
+  }
+
   /* Shimmer sweep for skeletons */
   @keyframes shimmer {
     100% { transform: translateX(100%); }
