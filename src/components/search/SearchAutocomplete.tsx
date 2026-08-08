@@ -9,10 +9,10 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useCurrency } from '@/hooks/useCurrency';
 import { MARKETPLACE_RADIUS_KM } from '@/lib/marketplace-constants';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Store, Package, Tag } from 'lucide-react';
+import { Store, Package, Tag, Wrench, Calendar, MessageCircle } from 'lucide-react';
 import { DynamicIcon } from '@/components/ui/DynamicIcon';
 import { useNavigate } from 'react-router-dom';
-import { useMemo } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 
 interface Props {
   query: string;
@@ -27,6 +27,20 @@ interface CategoryMatch {
   matchedAlias?: string | null;
 }
 
+const INTENT_GROUPS = [
+  { key: 'products', label: 'Products', icon: Package },
+  { key: 'services', label: 'Services', icon: Wrench },
+  { key: 'bookable', label: 'Bookable', icon: Calendar },
+  { key: 'enquiries', label: 'Enquiries', icon: MessageCircle },
+] as const;
+
+function canonicalIntent(actionType?: string | null) {
+  if (actionType === 'request_service') return 'services';
+  if (actionType === 'book') return 'bookable';
+  if (['request_quote', 'contact_seller', 'schedule_visit', 'make_offer'].includes(actionType || '')) return 'enquiries';
+  return 'products';
+}
+
 /**
  * Search autocomplete using full-text search (tsvector/tsquery).
  * Replaces former ILIKE pattern matching for dramatically better
@@ -37,6 +51,10 @@ export function SearchAutocomplete({ query, onSelect }: Props) {
   const { formatPrice } = useCurrency();
   const { browsingLocation } = useBrowsingLocation();
   const navigate = useNavigate();
+  const listboxId = useId();
+  const rootRef = useRef<HTMLDivElement>(null);
+  const [activeIndex, setActiveIndex] = useState(-1);
+  const [dismissedQuery, setDismissedQuery] = useState('');
   const { configs: categoryConfigs } = useCategoryConfigs();
   const { index: aliasIndex } = useResolvedCategoryAliases();
   const trimmed = query.trim();
@@ -131,95 +149,101 @@ export function SearchAutocomplete({ query, onSelect }: Props) {
     staleTime: 2 * 60_000,
   });
 
-  const hasResults = productSuggestions.length > 0 || sellerSuggestions.length > 0 || matchedCategories.length > 0;
+  const groupedProducts = useMemo(() => {
+    const groups: Record<string, any[]> = { products: [], services: [], bookable: [], enquiries: [] };
+    productSuggestions.forEach((product: any) => groups[canonicalIntent(product.action_type)].push(product));
+    return groups;
+  }, [productSuggestions]);
 
-  if (trimmed.length < 2 || !hasResults) return null;
+  const hasResults = productSuggestions.length > 0 || sellerSuggestions.length > 0 || matchedCategories.length > 0;
+  const optionCount = productSuggestions.length + sellerSuggestions.length + matchedCategories.length;
+  const isVisible = trimmed.length >= 2 && hasResults && dismissedQuery !== trimmed;
+
+  useEffect(() => {
+    setActiveIndex(-1);
+    if (dismissedQuery && dismissedQuery !== trimmed) setDismissedQuery('');
+  }, [trimmed, dismissedQuery]);
+
+  useEffect(() => {
+    if (!isVisible || !rootRef.current) return;
+    const input = rootRef.current.parentElement?.querySelector('input');
+    if (!input) return;
+
+    input.setAttribute('role', 'combobox');
+    input.setAttribute('aria-autocomplete', 'list');
+    input.setAttribute('aria-controls', listboxId);
+    input.setAttribute('aria-expanded', 'true');
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        setActiveIndex((current) => (current + 1) % optionCount);
+      } else if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        setActiveIndex((current) => (current <= 0 ? optionCount - 1 : current - 1));
+      } else if (event.key === 'Enter' && activeIndex >= 0) {
+        event.preventDefault();
+        rootRef.current?.querySelector<HTMLButtonElement>(`[data-option-index="${activeIndex}"]`)?.click();
+      } else if (event.key === 'Escape') {
+        setDismissedQuery(trimmed);
+        setActiveIndex(-1);
+      }
+    };
+
+    input.addEventListener('keydown', handleKeyDown);
+    return () => {
+      input.removeEventListener('keydown', handleKeyDown);
+      input.setAttribute('aria-expanded', 'false');
+      input.removeAttribute('aria-activedescendant');
+    };
+  }, [activeIndex, isVisible, listboxId, optionCount, trimmed]);
+
+  useEffect(() => {
+    const input = rootRef.current?.parentElement?.querySelector('input');
+    if (!input) return;
+    if (activeIndex >= 0) input.setAttribute('aria-activedescendant', `${listboxId}-option-${activeIndex}`);
+    else input.removeAttribute('aria-activedescendant');
+  }, [activeIndex, listboxId]);
+
+  if (!isVisible) return null;
+
+  let optionIndex = 0;
+  const optionProps = () => {
+    const index = optionIndex++;
+    return {
+      id: `${listboxId}-option-${index}`,
+      role: 'option' as const,
+      'aria-selected': activeIndex === index,
+      'data-option-index': index,
+      onMouseEnter: () => setActiveIndex(index),
+      className: `w-full flex items-center gap-3 px-3 py-2.5 active:bg-muted transition-colors text-left border-b border-border last:border-0 ${
+        activeIndex === index ? 'bg-muted' : 'hover:bg-muted/50'
+      }`,
+    };
+  };
 
   return (
     <AnimatePresence>
       <motion.div
+        ref={rootRef}
+        id={listboxId}
+        role="listbox"
+        aria-label="Search suggestions"
         initial={{ opacity: 0, y: -4 }}
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: -4 }}
         className="absolute left-0 right-0 top-full mt-1 z-50 bg-card border border-border rounded-xl shadow-lg overflow-hidden max-h-[60vh] overflow-y-auto"
       >
-        {/* Category matches */}
-        {matchedCategories.length > 0 && (
-          <div>
+        {INTENT_GROUPS.map(({ key, label, icon: GroupIcon }) => groupedProducts[key].length > 0 && (
+          <div key={key} role="group" aria-label={label}>
             <div className="px-3 pt-2 pb-1 flex items-center gap-1.5">
-              <Tag size={11} className="text-muted-foreground" />
-              <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Categories</span>
+              <GroupIcon size={11} className="text-muted-foreground" />
+              <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">{label}</span>
             </div>
-            {matchedCategories.map((cat) => (
-              <button
-                key={cat.slug}
-                onClick={() => navigate(`/category/${cat.parentGroup}?sub=${cat.slug}`)}
-                className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-muted/50 active:bg-muted transition-colors text-left border-b border-border last:border-0"
-              >
-                <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                  <DynamicIcon name={cat.icon} size={16} className="text-primary" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <p className="text-[13px] font-medium text-foreground truncate">{cat.displayName}</p>
-                    {cat.matchedAlias && (
-                      <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary font-medium shrink-0">
-                        matches "{cat.matchedAlias}"
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-[11px] text-muted-foreground">Browse all {cat.displayName.toLowerCase()}</p>
-                </div>
-
-              </button>
-            ))}
-          </div>
-        )}
-
-        {/* Seller results */}
-        {sellerSuggestions.length > 0 && (
-          <div>
-            <div className="px-3 pt-2 pb-1 flex items-center gap-1.5">
-              <Store size={11} className="text-muted-foreground" />
-              <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Stores</span>
-            </div>
-            {sellerSuggestions.map((seller: any) => (
-              <button
-                key={seller.id}
-                onClick={() => navigate(`/seller/${seller.id}`)}
-                className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-muted/50 active:bg-muted transition-colors text-left border-b border-border last:border-0"
-              >
-                <div className="w-8 h-8 rounded-lg bg-primary/10 overflow-hidden shrink-0 flex items-center justify-center">
-                  {seller.profile_image_url ? (
-                    <img src={seller.profile_image_url} alt="" className="w-full h-full object-cover" />
-                  ) : (
-                    <Store size={14} className="text-primary" />
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-[13px] font-medium text-foreground truncate">{seller.business_name}</p>
-                  {seller.description && (
-                    <p className="text-[11px] text-muted-foreground truncate">{seller.description}</p>
-                  )}
-                </div>
-                <span className="text-[10px] font-medium text-primary shrink-0 bg-primary/10 px-2 py-0.5 rounded-full">Visit</span>
-              </button>
-            ))}
-          </div>
-        )}
-
-        {/* Product results — from FTS */}
-        {productSuggestions.length > 0 && (
-          <div>
-            {(sellerSuggestions.length > 0 || matchedCategories.length > 0) && (
-              <div className="px-3 pt-2 pb-1 flex items-center gap-1.5">
-                <Package size={11} className="text-muted-foreground" />
-                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Products</span>
-              </div>
-            )}
-            {productSuggestions.map((product: any) => (
+            {groupedProducts[key].map((product: any) => (
               <button
                 key={product.product_id}
+                {...optionProps()}
                 onClick={() => onSelect({
                   product_id: product.product_id,
                   product_name: product.product_name,
@@ -238,7 +262,6 @@ export function SearchAutocomplete({ query, onSelect }: Props) {
                   distance_km: product.distance_km || null,
                   is_same_society: (product.distance_km ?? 99) < 0.5,
                 })}
-                className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-muted/50 active:bg-muted transition-colors text-left border-b border-border last:border-0"
               >
                 <div className="w-8 h-8 rounded-lg bg-muted overflow-hidden shrink-0">
                   {product.image_url ? (
@@ -249,11 +272,53 @@ export function SearchAutocomplete({ query, onSelect }: Props) {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-[13px] font-medium text-foreground truncate">{product.product_name}</p>
-                  {product.seller_name && (
-                    <p className="text-[11px] text-muted-foreground truncate">{product.seller_name}</p>
-                  )}
+                  {product.seller_name && <p className="text-[11px] text-muted-foreground truncate">{product.seller_name}</p>}
                 </div>
                 <span className="text-[12px] font-bold text-primary shrink-0">{formatPrice(product.price)}</span>
+              </button>
+            ))}
+          </div>
+        ))}
+
+        {sellerSuggestions.length > 0 && (
+          <div role="group" aria-label="Stores">
+            <div className="px-3 pt-2 pb-1 flex items-center gap-1.5">
+              <Store size={11} className="text-muted-foreground" />
+              <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Stores</span>
+            </div>
+            {sellerSuggestions.map((seller: any) => (
+              <button key={seller.id} {...optionProps()} onClick={() => navigate(`/seller/${seller.id}`)}>
+                <div className="w-8 h-8 rounded-lg bg-primary/10 overflow-hidden shrink-0 flex items-center justify-center">
+                  {seller.profile_image_url ? <img src={seller.profile_image_url} alt="" className="w-full h-full object-cover" /> : <Store size={14} className="text-primary" />}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[13px] font-medium text-foreground truncate">{seller.business_name}</p>
+                  {seller.description && <p className="text-[11px] text-muted-foreground truncate">{seller.description}</p>}
+                </div>
+                <span className="text-[10px] font-medium text-primary shrink-0 bg-primary/10 px-2 py-0.5 rounded-full">Visit</span>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {matchedCategories.length > 0 && (
+          <div role="group" aria-label="Categories">
+            <div className="px-3 pt-2 pb-1 flex items-center gap-1.5">
+              <Tag size={11} className="text-muted-foreground" />
+              <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Categories</span>
+            </div>
+            {matchedCategories.map((cat) => (
+              <button key={cat.slug} {...optionProps()} onClick={() => navigate(`/category/${cat.parentGroup}?sub=${cat.slug}`)}>
+                <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                  <DynamicIcon name={cat.icon} size={16} className="text-primary" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-[13px] font-medium text-foreground truncate">{cat.displayName}</p>
+                    {cat.matchedAlias && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary font-medium shrink-0">matches "{cat.matchedAlias}"</span>}
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">Browse all {cat.displayName.toLowerCase()}</p>
+                </div>
               </button>
             ))}
           </div>

@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { useMemo, memo, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Minus, Clock, MapPin, AlertTriangle, Check, Star } from 'lucide-react';
+import { Plus, Minus, Clock, MapPin, AlertTriangle, Check, Star, Zap } from 'lucide-react';
 import { formatDistanceToNowStrict } from 'date-fns';
 import { useHaptics } from '@/hooks/useHaptics';
 import { Badge } from '@/components/ui/badge';
@@ -128,6 +128,11 @@ function ProductListingCardInner({ product, layout = 'auto', onTap, onNavigate, 
   const discountPct = product.discount_percentage || (hasDiscount ? Math.round(((product.mrp! - product.price) / product.mrp!) * 100) : 0);
   const deliveryText = product.delivery_time_text || (product.prep_time_minutes ? mc.labels.prepTimeFormat.replace('{value}', String(product.prep_time_minutes)) : null);
   const variantText = product.unit_type ? (product.price_per_unit || product.unit_type) : (product.serving_size || null);
+  const isServiceLayout = resolvedLayout === 'service';
+  const serviceStartingPrice = product.minimum_charge ?? product.visit_charge ?? product.price;
+  const serviceDuration = product.service_duration_minutes ? `${product.service_duration_minutes} min` : null;
+  const responseMinutes = Number((product as any).avg_response_minutes) > 0 ? Number((product as any).avg_response_minutes) : null;
+  const serviceAvailabilityLabel = isStoreClosed ? storeClosedMessage : 'Available now';
 
   const distanceLabel = useMemo(() => {
     const distKm = product.distance_km ?? (product as any).distance_km;
@@ -404,7 +409,8 @@ function ProductListingCardInner({ product, layout = 'auto', onTap, onNavigate, 
           <div className="flex h-full flex-col overflow-hidden">
             <div className="min-h-[20px] flex items-baseline gap-1.5 overflow-hidden">
               <span className="font-extrabold text-[15px] text-foreground leading-none tracking-tight tabular-nums">
-                {formatPrice(product.price)}
+                {isServiceLayout && <span className="text-[10px] font-semibold text-muted-foreground mr-1">From</span>}
+                {formatPrice(isServiceLayout ? serviceStartingPrice : product.price)}
               </span>
               {hasDiscount && (
                 <span className="text-[11px] text-muted-foreground/80 line-through leading-none tabular-nums">
@@ -414,7 +420,11 @@ function ProductListingCardInner({ product, layout = 'auto', onTap, onNavigate, 
             </div>
 
             <div className="mt-0.5 h-[14px] overflow-hidden">
-              {variantText && (
+              {isServiceLayout ? (
+                <span className="block text-[9px] font-medium text-muted-foreground truncate">
+                  {[serviceDuration, responseMinutes ? `~${responseMinutes}m response` : null, serviceAvailabilityLabel].filter(Boolean).join(' · ')}
+                </span>
+              ) : variantText && (
                 <span className="block text-[10px] font-medium text-muted-foreground line-clamp-1">{variantText}</span>
               )}
             </div>
@@ -432,7 +442,8 @@ function ProductListingCardInner({ product, layout = 'auto', onTap, onNavigate, 
           {/* Price row */}
           <div className="flex items-baseline gap-1.5 flex-wrap">
             <span className="font-extrabold text-[15px] sm:text-base text-foreground leading-none tracking-tight tabular-nums">
-              {formatPrice(product.price)}
+              {isServiceLayout && <span className="text-[10px] font-semibold text-muted-foreground mr-1">From</span>}
+              {formatPrice(isServiceLayout ? serviceStartingPrice : product.price)}
             </span>
             {hasDiscount && (
               <span className="text-[11px] text-muted-foreground/80 line-through leading-none tabular-nums">
@@ -453,6 +464,17 @@ function ProductListingCardInner({ product, layout = 'auto', onTap, onNavigate, 
           <h4 className="font-semibold leading-snug text-foreground text-[12px] sm:text-[13px] line-clamp-2 mt-1 min-h-[2lh]">
             {product.name}
           </h4>
+
+          {isServiceLayout && (
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1 text-[9px] font-semibold text-muted-foreground">
+              {serviceDuration && <span className="inline-flex items-center gap-0.5"><Clock size={9} />{serviceDuration}</span>}
+              {responseMinutes && <span className="inline-flex items-center gap-0.5"><Zap size={9} />~{responseMinutes}m response</span>}
+              <span className={cn('inline-flex items-center gap-0.5', isStoreClosed ? 'text-muted-foreground' : 'text-success')}>
+                <span className={cn('w-1.5 h-1.5 rounded-full', isStoreClosed ? 'bg-muted-foreground' : 'bg-success')} />
+                {serviceAvailabilityLabel}
+              </span>
+            </div>
+          )}
 
           {product.description && (
             <p className="text-[10px] text-muted-foreground line-clamp-1 mt-0.5">{product.description}</p>

@@ -16,6 +16,7 @@ import { SocietyLeaderboard } from '@/components/home/SocietyLeaderboard';
 import { RecentlyViewedRow } from '@/components/home/RecentlyViewedRow';
 import { WelcomeBackStrip } from '@/components/home/WelcomeBackStrip';
 import { WhatsNewSection } from '@/components/home/WhatsNewSection';
+import { HomeSearchSuggestions } from '@/components/home/HomeSearchSuggestions';
 
 import { useAuth } from '@/contexts/AuthContext';
 import { useBuyerRealtimeShell } from '@/hooks/useBuyerRealtimeShell';
@@ -65,6 +66,7 @@ export default function HomePage() {
       <div className="pb-4 space-y-0">
         <HomeNotificationBanner />
         <ActiveOrderStrip />
+        <HomeSearchSuggestions />
         <MarketplaceSection />
 
         {profile && (() => {

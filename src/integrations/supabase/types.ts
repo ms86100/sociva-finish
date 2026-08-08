@@ -7224,28 +7224,40 @@ export type Database = {
       search_demand_log: {
         Row: {
           category: string | null
+          filters: Json
           id: string
+          latency_ms: number | null
+          retrieval_mode: string | null
           results_count: number | null
           search_term: string
           searched_at: string
+          session_query_id: string | null
           society_id: string | null
           user_id: string | null
         }
         Insert: {
           category?: string | null
+          filters?: Json
           id?: string
+          latency_ms?: number | null
+          retrieval_mode?: string | null
           results_count?: number | null
           search_term: string
           searched_at?: string
+          session_query_id?: string | null
           society_id?: string | null
           user_id?: string | null
         }
         Update: {
           category?: string | null
+          filters?: Json
           id?: string
+          latency_ms?: number | null
+          retrieval_mode?: string | null
           results_count?: number | null
           search_term?: string
           searched_at?: string
+          session_query_id?: string | null
           society_id?: string | null
           user_id?: string | null
         }
@@ -12338,9 +12350,13 @@ export type Database = {
         }[]
       }
       get_unmet_demand: {
-        Args: { _limit?: number; _society_id: string }
+        Args: {
+          _limit?: number
+          _seller_id?: string | null
+          _society_id: string | null
+        }
         Returns: {
-          last_searched_at: string
+          last_searched: string
           search_count: number
           search_term: string
         }[]
@@ -12462,6 +12478,19 @@ export type Database = {
           _user_id: string
         }
         Returns: Json
+      }
+      log_committed_search: {
+        Args: {
+          _category?: string
+          _filters?: Json
+          _latency_ms?: number
+          _result_count?: number
+          _retrieval_mode?: string
+          _search_term: string
+          _session_query_id: string
+          _society_id?: string
+        }
+        Returns: boolean
       }
       log_order_activity_impl: {
         Args: {
@@ -12820,6 +12849,47 @@ export type Database = {
           product_id: string
           product_name: string
           rank: number
+          seller_id: string
+          seller_name: string
+          seller_profile_image: string
+          seller_rating: number
+          seller_total_reviews: number
+          society_name: string
+        }[]
+      }
+      search_products_v2: {
+        Args: {
+          _buyer_society_id?: string
+          _categories?: string[]
+          _is_veg?: boolean
+          _lat?: number
+          _limit?: number
+          _lng?: number
+          _max_price?: number
+          _min_price?: number
+          _min_rating?: number
+          _offset?: number
+          _query?: string
+          _radius_km?: number
+          _sort_by?: string
+        }
+        Returns: {
+          action_type: string
+          brand: string
+          category: string
+          description: string
+          discount_percentage: number
+          distance_km: number
+          image_url: string
+          is_available: boolean
+          is_same_society: boolean
+          is_veg: boolean
+          mrp: number
+          price: number
+          product_id: string
+          product_name: string
+          rank: number
+          retrieval_mode: string
           seller_id: string
           seller_name: string
           seller_profile_image: string

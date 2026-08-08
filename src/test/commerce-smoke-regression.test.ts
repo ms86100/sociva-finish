@@ -93,31 +93,19 @@ describe('OTP → order → seller accept smoke (status contract)', () => {
 });
 
 describe('Cart integrity mismatch contract', () => {
+  const hasMismatch = (pendingMutations: number, itemsLength: number, fallbackItemCount: number) =>
+    pendingMutations === 0 && itemsLength === 0 && fallbackItemCount > 0;
+
   it('detects empty items with non-zero count cache (Layer 3)', () => {
-    const itemsLength = 0;
-    const fallbackItemCount = 3;
-    const pendingMutations = 0;
-    const isFetched = true;
-    const isFetching = false;
-    const hasUser = true;
-    const hasCartCountMismatch =
-      hasUser && isFetched && !isFetching && pendingMutations === 0 && itemsLength === 0 && fallbackItemCount > 0;
-    expect(hasCartCountMismatch).toBe(true);
+    expect(hasMismatch(0, 0, 3)).toBe(true);
   });
 
   it('does not flag mismatch while a mutation is in flight', () => {
-    const hasCartCountMismatch =
-      true && true && !false && 1 === 0 && [].length === 0 && 2 > 0;
-    // pendingMutations === 1 → false
-    const pendingMutations = 1;
-    const mismatch =
-      true && true && !false && pendingMutations === 0 && [].length === 0 && 2 > 0;
-    expect(mismatch).toBe(false);
+    expect(hasMismatch(1, 0, 2)).toBe(false);
   });
 
   it('empty cart with zero count is healthy', () => {
-    const mismatch = true && true && !false && 0 === 0 && [].length === 0 && 0 > 0;
-    expect(mismatch).toBe(false);
+    expect(hasMismatch(0, 0, 0)).toBe(false);
   });
 });
 

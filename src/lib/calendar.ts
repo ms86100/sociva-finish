@@ -1,4 +1,5 @@
 import { Capacitor } from '@capacitor/core';
+import type { CapacitorCalendarPlugin } from '@ebarooni/capacitor-calendar';
 
 /** Booking times are stored as IST wall-clock values. */
 export const BOOKING_TIMEZONE_OFFSET = '+05:30';
@@ -120,11 +121,7 @@ async function addToNativeCalendar(data: CalendarEventData): Promise<AddToCalend
 }
 
 async function addToAndroidCalendar(
-  CapacitorCalendar: {
-    requestWriteOnlyCalendarAccess: () => Promise<{ result: string }>;
-    createEvent: (opts: Record<string, unknown>) => Promise<{ id: string }>;
-    createEventWithPrompt: (opts: Record<string, unknown>) => Promise<{ id: string | null }>;
-  },
+  CapacitorCalendar: CapacitorCalendarPlugin,
   base: {
     title: string;
     startDate: number;

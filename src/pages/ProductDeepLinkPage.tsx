@@ -26,16 +26,21 @@ export default function ProductDeepLinkPage() {
           .from('products')
           .select(`
             id, name, price, image_url, is_veg, category, description,
-            prep_time_minutes, delivery_time_text, action_type,
-            contact_phone, specifications, seller_id,
+            prep_time_minutes, delivery_time_text, action_type, contact_phone,
+            specifications, seller_id, mrp, discount_percentage, stock_quantity,
+            service_duration_minutes, service_scope, minimum_charge, visit_charge,
+            lead_time_hours, accepts_preorders, price_stable_since,
             seller:seller_profiles!products_seller_id_fkey(
               id, business_name, rating, total_reviews, society_id,
-              latitude, longitude,
+              latitude, longitude, is_featured, is_available,
+              availability_start, availability_end, operating_days,
+              fulfillment_mode, delivery_note, avg_response_minutes, last_active_at,
               society:societies(name)
             )
           `)
           .eq('id', productId)
           .eq('is_available', true)
+          .eq('approval_status', 'approved')
           .maybeSingle();
 
         if (fetchErr) throw fetchErr;
@@ -54,13 +59,35 @@ export default function ProductDeepLinkPage() {
           category: data.category,
           description: data.description,
           prep_time_minutes: data.prep_time_minutes,
+          delivery_time_text: data.delivery_time_text,
           action_type: data.action_type,
           contact_phone: data.contact_phone,
           specifications: data.specifications,
+          mrp: data.mrp,
+          discount_percentage: data.discount_percentage,
+          stock_quantity: data.stock_quantity,
+          service_duration_minutes: data.service_duration_minutes,
+          service_scope: data.service_scope,
+          minimum_charge: data.minimum_charge,
+          visit_charge: data.visit_charge,
+          lead_time_hours: data.lead_time_hours,
+          accepts_preorders: data.accepts_preorders,
+          price_stable_since: data.price_stable_since,
+          fulfillment_mode: seller?.fulfillment_mode || null,
+          delivery_note: seller?.delivery_note || null,
           seller_id: seller?.id || data.seller_id,
           seller_name: seller?.business_name || '',
           seller_rating: seller?.rating || 0,
           seller_reviews: seller?.total_reviews || 0,
+          seller_verified: !!seller?.is_featured,
+          seller_availability_start: seller?.availability_start || null,
+          seller_availability_end: seller?.availability_end || null,
+          seller_operating_days: seller?.operating_days || null,
+          seller_is_available: seller?.is_available ?? true,
+          seller_latitude: seller?.latitude ?? null,
+          seller_longitude: seller?.longitude ?? null,
+          avg_response_minutes: seller?.avg_response_minutes ?? null,
+          last_active_at: seller?.last_active_at ?? null,
           society_name: seller?.society?.name || null,
           distance_km: null,
           is_same_society: false,

@@ -56,6 +56,14 @@ const ACTION_META: Record<string, { title: string; icon: typeof Send; placeholde
   },
 };
 
+const QUICK_QUESTIONS: Record<string, string[]> = {
+  book: ['Is my preferred time available?', 'How long does the service take?', 'What should I prepare beforehand?'],
+  request_service: ['Can you help with this requirement?', 'What is the earliest availability?', 'What would the starting price be?'],
+  request_quote: ['Can you share an itemised quote?', 'What details do you need from me?', 'How soon can this be completed?'],
+  schedule_visit: ['Is a visit available this week?', 'What times are available?', 'Is there a visit charge?'],
+  make_offer: ['Is the price negotiable?', 'Would you consider my offer?', 'Can I inspect it before deciding?'],
+};
+
 export function ProductEnquirySheet({
   open,
   onOpenChange,
@@ -74,6 +82,11 @@ export function ProductEnquirySheet({
 
   const meta = ACTION_META[actionType] || ACTION_META.request_service;
   const Icon = meta.icon;
+  const quickQuestions = QUICK_QUESTIONS[actionType] || [
+    'Is this still available?',
+    'Can you share more details?',
+    'How soon can you respond?',
+  ];
 
   const handleSubmit = async () => {
     if (!user) {
@@ -193,6 +206,21 @@ export function ProductEnquirySheet({
           {/* Message */}
           <div className="space-y-2">
             <label className="text-sm font-medium">Your Message</label>
+            <div>
+              <p className="mb-1.5 text-[11px] text-muted-foreground">Quick questions · tap, then edit</p>
+              <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide" aria-label="Quick question suggestions">
+                {quickQuestions.map((question) => (
+                  <button
+                    key={question}
+                    type="button"
+                    onClick={() => setMessage(question)}
+                    className="shrink-0 rounded-full border border-border bg-card px-3 py-1.5 text-[11px] font-medium text-foreground transition-colors hover:border-primary/40 hover:bg-primary/5"
+                  >
+                    {question}
+                  </button>
+                ))}
+              </div>
+            </div>
             <Textarea
               placeholder={meta.placeholder}
               value={message}

@@ -1,19 +1,39 @@
 // @ts-nocheck
 import { useQuery } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import { optimizedImageUrl, handleImageError } from '@/utils/imageHelpers';
 import { supabase } from '@/integrations/supabase/client';
 import { useRecentlyViewed } from '@/hooks/useRecentlyViewed';
 import { useCart } from '@/hooks/useCart';
 import { useCurrency } from '@/hooks/useCurrency';
+import { useCategoryConfigs } from '@/hooks/useCategoryBehavior';
+import { ACTION_CONFIG, deriveActionType } from '@/lib/marketplace-constants';
 import { computeStoreStatus } from '@/lib/store-availability';
 import { Eye, Plus, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
 
+export function resolveRecentlyViewedAction(
+  productActionType: string | null | undefined,
+  categoryTransactionType: string | null | undefined,
+  categoryFlags?: { supportsCart?: boolean; enquiryOnly?: boolean } | null,
+) {
+  return deriveActionType(productActionType, categoryTransactionType, categoryFlags);
+}
+
+export function canQuickAddRecentlyViewed(
+  actionType: keyof typeof ACTION_CONFIG,
+  actionResolved = true,
+): boolean {
+  return actionResolved && ACTION_CONFIG[actionType]?.isCart === true;
+}
+
 export function RecentlyViewedRow() {
   const { recentIds } = useRecentlyViewed();
   const { items, addItem } = useCart();
   const { formatPrice } = useCurrency();
+  const { configs: categoryConfigs } = useCategoryConfigs();
+  const navigate = useNavigate();
 
   const { data: products = [] } = useQuery({
     queryKey: ['recently-viewed-products', recentIds],
@@ -34,10 +54,7 @@ export function RecentlyViewedRow() {
     staleTime: 2 * 60_000,
   });
 
-  // Filter out bookable services — only cart-compatible products
-  const cartProducts = products.filter(p => (p as any).action_type !== 'book');
-
-  if (cartProducts.length === 0) return null;
+  if (products.length === 0) return null;
 
   const isInCart = (id: string) => items.some(i => i.product_id === id);
 
@@ -62,8 +79,22 @@ export function RecentlyViewedRow() {
         <h3 className="section-header">Recently Viewed</h3>
       </div>
       <div className="flex gap-2.5 overflow-x-auto scrollbar-hide px-4 pb-2">
-        {cartProducts.map((product, i) => {
-          const inCart = isInCart(product.id);
+        {products.map((product, i) => {
+          const categoryConfig = categoryConfigs.find(config => config.category === product.category);
+          const hasCanonicalProductAction = Boolean(
+            (product as any).action_type && (product as any).action_type in ACTION_CONFIG,
+          );
+          const actionType = resolveRecentlyViewedAction(
+            (product as any).action_type,
+            categoryConfig?.transactionType,
+            categoryConfig ? {
+              supportsCart: categoryConfig.behavior.supportsCart,
+              enquiryOnly: categoryConfig.behavior.enquiryOnly,
+            } : null,
+          );
+          const isActionResolved = hasCanonicalProductAction || Boolean(categoryConfig);
+          const isCartAction = canQuickAddRecentlyViewed(actionType, isActionResolved);
+          const inCart = isCartAction && isInCart(product.id);
           const closed = isStoreClosed(product);
           return (
             <motion.button
@@ -71,11 +102,17 @@ export function RecentlyViewedRow() {
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.04 }}
-              onClick={() => !inCart && !closed && addItem(product as any)}
-              disabled={closed}
+              onClick={() => {
+                if (!isCartAction) {
+                  navigate(`/product/${product.id}`);
+                  return;
+                }
+                if (!inCart && !closed) addItem({ ...product, action_type: actionType } as any);
+              }}
+              disabled={isCartAction && closed}
               className={cn(
                 'shrink-0 w-[100px] rounded-2xl border bg-card overflow-hidden text-left transition-all duration-200 shadow-sm',
-                closed ? 'border-border opacity-60 cursor-not-allowed' :
+                isCartAction && closed ? 'border-border opacity-60 cursor-not-allowed' :
                 inCart ? 'border-primary/30 shadow-card' : 'border-border active:scale-[0.96] hover:shadow-card hover:border-primary/20'
               )}
             >
@@ -85,7 +122,7 @@ export function RecentlyViewedRow() {
                 ) : (
                   <div className="w-full h-full flex items-center justify-center text-xl">📦</div>
                 )}
-                {closed ? (
+                {isCartAction && closed ? (
                   <div className="absolute inset-0 bg-background/60 flex items-center justify-center">
                     <span className="text-[9px] font-bold text-destructive bg-background/80 px-1.5 py-0.5 rounded-full">Closed</span>
                   </div>
@@ -94,7 +131,7 @@ export function RecentlyViewedRow() {
                     'absolute bottom-1.5 right-1.5 w-6 h-6 rounded-full flex items-center justify-center shadow-md transition-all',
                     inCart ? 'bg-primary scale-110' : 'bg-primary hover:scale-110'
                   )}>
-                    {inCart ? <Check size={11} className="text-primary-foreground" /> : <Plus size={11} className="text-primary-foreground" />}
+                    {inCart ? <Check size={11} className="text-primary-foreground" /> : isCartAction ? <Plus size={11} className="text-primary-foreground" /> : <Eye size={11} className="text-primary-foreground" />}
                   </div>
                 )}
               </div>

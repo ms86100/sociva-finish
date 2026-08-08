@@ -44,7 +44,9 @@ export async function openNotificationChannelSettings(
       `S.android.provider.extra.APP_PACKAGE=${ANDROID_PACKAGE_ID};` +
       `S.android.provider.extra.CHANNEL_ID=${encodeURIComponent(channelId)};` +
       `end`;
-    await (App as { openUrl: (opts: { url: string }) => Promise<void> }).openUrl({ url: intentUrl });
+    await (App as unknown as { openUrl: (opts: { url: string }) => Promise<void> }).openUrl({
+      url: intentUrl,
+    });
     return { opened: true, mode: 'android_channel_intent' };
   } catch {
     // fall through

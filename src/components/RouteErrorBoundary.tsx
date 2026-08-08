@@ -2,6 +2,7 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import { AlertTriangle, RefreshCw, ArrowLeft } from 'lucide-react';
+import { captureException } from '@/lib/observability';
 
 interface Props {
   children: ReactNode;
@@ -30,6 +31,11 @@ export class RouteErrorBoundary extends Component<Props, State> {
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error(`[RouteErrorBoundary:${this.props.sectionName || 'unknown'}]`, error, errorInfo);
+    captureException(error, {
+      boundary: 'route',
+      sectionName: this.props.sectionName || 'unknown',
+      componentStack: errorInfo.componentStack,
+    });
   }
 
   private isAuthError(): boolean {

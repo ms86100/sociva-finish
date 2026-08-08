@@ -16,7 +16,7 @@ function redactValue(value: unknown): unknown {
 }
 
 export function sanitizeSentryEvent<T extends Record<string, any>>(event: T): T {
-  const sanitized = redactValue(event) as T;
+  const sanitized = redactValue(event) as Record<string, any>;
   if (sanitized.user) {
     sanitized.user = {
       id: sanitized.user.id,
@@ -27,7 +27,7 @@ export function sanitizeSentryEvent<T extends Record<string, any>>(event: T): T 
     delete sanitized.request.cookies;
     delete sanitized.request.data;
   }
-  return sanitized;
+  return sanitized as T;
 }
 
 export function initObservability(): boolean {

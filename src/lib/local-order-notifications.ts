@@ -113,7 +113,7 @@ export async function cancelAllIncomingOrderLocalNotifications(): Promise<void> 
     const { LocalNotifications } = await import('@capacitor/local-notifications');
     const pending = await LocalNotifications.getPending();
     const ids = (pending.notifications || [])
-      .filter((n) => (n.extra as { type?: string } | undefined)?.type === 'order' || n.channelId === ORDERS_INCOMING_CHANNEL_ID)
+      .filter((n) => (n.extra as { type?: string } | undefined)?.type === 'order')
       .map((n) => ({ id: n.id }));
     if (ids.length > 0) {
       await LocalNotifications.cancel({ notifications: ids });

@@ -17,7 +17,7 @@ import { ServiceBookingFlow } from '@/components/booking/ServiceBookingFlow';
 import { ProductAttributeBlocks } from './ProductAttributeBlocks';
 import { PriceStabilityBadge } from '@/components/trust/PriceStabilityBadge';
 import { RefundTierBadge } from '@/components/trust/RefundTierBadge';
-import { Plus, Minus, Store, MapPin, Clock, Truck, Users, Zap, RotateCcw, ChevronRight, ChevronDown, Shield, Flag, X, Share2, Heart } from 'lucide-react';
+import { Plus, Minus, Store, MapPin, Clock, Truck, Users, Zap, RotateCcw, ChevronRight, ChevronDown, Shield, Flag, X, Share2, Heart, Star } from 'lucide-react';
 import { ProductFavoriteButton } from '@/components/favorite/ProductFavoriteButton';
 import { useProductFavorites } from '@/hooks/useProductFavorites';
 import { useProductDetail, ProductDetail } from '@/hooks/useProductDetail';
@@ -55,12 +55,17 @@ interface ProductDetailSheetProps {
 
 export { type ProductDetail };
 
+/** Only canonical slot-booking listings may enter the atomic booking flow. */
+export function usesServiceBookingFlow(actionType: string | null | undefined): boolean {
+  return actionType === 'book';
+}
+
 export function ProductDetailSheet({ product, open, onOpenChange, onSelectProduct, categoryIcon, categoryName }: ProductDetailSheetProps) {
   const { user } = useAuth();
   const d = useProductDetail(product, open, onOpenChange);
   const ml = useMarketplaceLabels();
   const [bookingOpen, setBookingOpen] = useState(false);
-  const isServiceBookingAction = d.actionType === 'book' || d.actionType === 'request_service';
+  const isServiceBookingAction = usesServiceBookingFlow(d.actionType);
   const { data: favoriteIds = [] } = useProductFavorites();
 
   // Animated price
@@ -74,7 +79,9 @@ export function ProductDetailSheet({ product, open, onOpenChange, onSelectProduc
         const prev: string[] = JSON.parse(localStorage.getItem(key) || '[]');
         const next = [product.product_id, ...prev.filter(id => id !== product.product_id)].slice(0, 10);
         localStorage.setItem(key, JSON.stringify(next));
-      } catch {}
+      } catch {
+        // Recently viewed history is best-effort.
+      }
       // Server-side view tracking
       if (user) {
         supabase.from('product_views' as any).insert({ product_id: product.product_id, viewer_id: user.id } as any).then(() => {});
@@ -186,6 +193,26 @@ export function ProductDetailSheet({ product, open, onOpenChange, onSelectProduc
                   <h2 className="font-bold text-lg leading-tight text-foreground">{product.product_name}</h2>
                   {categoryName && <span className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">{categoryIcon && <DynamicIcon name={categoryIcon} size={14} />}{categoryName}</span>}
                 </div>
+              </motion.div>
+              <motion.div variants={fadeSlideUp} className="flex items-center gap-x-3 gap-y-1.5 flex-wrap text-xs">
+                {product.seller_rating > 0 && (
+                  <span className="inline-flex items-center gap-1 font-semibold text-foreground">
+                    <Star size={13} className="fill-warning text-warning" aria-hidden="true" />
+                    {Number(product.seller_rating).toFixed(1)}
+                    {product.seller_reviews > 0 && <span className="font-normal text-muted-foreground">· {product.seller_reviews} reviews</span>}
+                  </span>
+                )}
+                {!isStoreCheckPending && !isStoreUnknown && (
+                  <span className={isStoreClosed ? 'font-medium text-destructive' : 'font-medium text-success'}>
+                    {isStoreClosed ? storeClosedMsg : 'Available now'}
+                  </span>
+                )}
+                {locationText && (
+                  <span className="inline-flex items-center gap-1 text-muted-foreground">
+                    <MapPin size={12} aria-hidden="true" />
+                    {locationText}
+                  </span>
+                )}
               </motion.div>
               <motion.div variants={fadeSlideUp} className="flex items-baseline gap-2">
                 {d.actionType === 'contact_seller' ? (<span className="text-sm font-medium text-muted-foreground">Contact for price</span>) : (<span className="text-xl font-bold text-foreground tabular-nums">{d.formatPrice(animatedPrice)}</span>)}
@@ -307,7 +334,9 @@ export function ProductDetailSheet({ product, open, onOpenChange, onSelectProduc
                       const { toast } = await import('sonner');
                       toast.success('Link copied to clipboard');
                     }
-                  } catch {}
+                  } catch {
+                    // Sharing may be cancelled or unavailable without affecting the sheet.
+                  }
                 }}
                 className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary transition-colors"
               >

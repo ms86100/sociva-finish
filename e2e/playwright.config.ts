@@ -2,6 +2,7 @@ import { defineConfig, devices } from '@playwright/test';
 import * as path from 'path';
 
 const BASE_URL = process.env.BASE_URL || 'https://sociva.lovable.app';
+const isLocalBaseUrl = /^https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/i.test(BASE_URL);
 
 export default defineConfig({
   testDir: './tests',
@@ -24,6 +25,15 @@ export default defineConfig({
     actionTimeout: 15_000,
     navigationTimeout: 30_000,
   },
+
+  webServer: isLocalBaseUrl
+    ? {
+        command: 'npm run preview -- --host 127.0.0.1 --port 4173',
+        url: BASE_URL,
+        reuseExistingServer: !process.env.CI,
+        timeout: 120_000,
+      }
+    : undefined,
 
   projects: [
     // Setup project — authenticates buyer & seller, caches storageState
@@ -53,6 +63,19 @@ export default defineConfig({
       use: { ...devices['iPhone 13'] },
       dependencies: ['setup'],
       grep: [/@mobile/, /@smoke/, /@critical/],
+    },
+
+    // Public discovery smoke projects intentionally avoid authenticated setup.
+    // They can run against a local production preview or a configured deployment.
+    {
+      name: 'discovery-desktop',
+      testMatch: /buyer\/discovery-smoke\.spec\.ts/,
+      use: { ...devices['Desktop Chrome'] },
+    },
+    {
+      name: 'discovery-mobile',
+      testMatch: /buyer\/discovery-smoke\.spec\.ts/,
+      use: { ...devices['Pixel 5'] },
     },
   ],
 

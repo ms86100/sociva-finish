@@ -2,6 +2,7 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import { AlertTriangle, RefreshCw, Copy } from 'lucide-react';
+import { captureException } from '@/lib/observability';
 
 interface Props {
   children: ReactNode;
@@ -43,6 +44,10 @@ export class ErrorBoundary extends Component<Props, State> {
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error('Uncaught error:', error, errorInfo);
+    captureException(error, {
+      boundary: 'root',
+      componentStack: errorInfo.componentStack,
+    });
   }
 
   private handleReload = () => {
@@ -55,7 +60,9 @@ export class ErrorBoundary extends Component<Props, State> {
         Object.keys(localStorage)
           .filter((k) => k.startsWith('sb-') && k.endsWith('-auth-token'))
           .forEach((k) => localStorage.removeItem(k));
-      } catch {}
+      } catch {
+        // Storage cleanup is best-effort before the forced reload.
+      }
     }
     window.location.reload();
   };
