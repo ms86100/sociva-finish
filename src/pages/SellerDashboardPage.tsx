@@ -29,6 +29,7 @@ import { useSellerTickets, useSellerSupportRealtime } from '@/hooks/useSupportTi
 import { useSellerServiceBookings } from '@/hooks/useServiceBookings';
 import { AvailabilityPromptBanner } from '@/components/seller/AvailabilityPromptBanner';
 import { MissingLocationBanner } from '@/components/seller/MissingLocationBanner';
+import { SellerDashboardLoadingState } from '@/components/seller/SellerDashboardLoadingState';
 import { useSellerOrderStats, useSellerOrdersInfinite, useSellerOrderFilterCounts } from '@/hooks/queries/useSellerOrders';
 import { useSellerHasBookableServices } from '@/hooks/useSellerHasBookableServices';
 import {
@@ -285,14 +286,10 @@ export default function SellerDashboardPage() {
   };
 
   if (isLoadingProfile) {
+    const loadingStoreName = sellerProfiles.find((seller) => seller.id === activeSellerId)?.business_name;
     return (
       <AppLayout headerTitle="Seller Dashboard" showLocation={false}>
-        <div className="p-4 space-y-3">
-          <Skeleton className="h-20 w-full rounded-xl" />
-          <Skeleton className="h-10 w-full rounded-lg" />
-          <Skeleton className="h-11 w-full rounded-lg" />
-          <Skeleton className="h-48 w-full rounded-xl" />
-        </div>
+        <SellerDashboardLoadingState storeName={loadingStoreName} />
       </AppLayout>
     );
   }
