@@ -253,7 +253,7 @@ export function usePushNotificationsInternal() {
       listenersResolveRef.current = resolve;
     });
 
-    let cleanupListeners: (() => void)[] = [];
+    const cleanupListeners: (() => void)[] = [];
 
     const setup = async () => {
       // Terminal statuses now resolved dynamically at event time via getTerminalStatuses()
@@ -439,7 +439,7 @@ export function usePushNotificationsInternal() {
         // CRITICAL: Dispatch terminal sync BEFORE suppression check
         const pushStatus = data?.status;
         const isTerminalPush = data?.is_terminal === 'true' || (data as any)?.is_terminal === true;
-        let isTerminal = isTerminalPush;
+        const isTerminal = isTerminalPush;
         if (!isTerminal && pushStatus) {
           getTerminalStatuses().then(terminalSet => {
             if (terminalSet.has(pushStatus) && orderId) {

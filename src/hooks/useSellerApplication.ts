@@ -328,7 +328,7 @@ export function useSellerApplication() {
     setFormData(f => {
       const newCategories = checked ? [...f.categories, category] : f.categories.filter(c => c !== category);
       // Clear subcategory preferences for unchecked category
-      let newPrefs = f.subcategory_preferences;
+      const newPrefs = f.subcategory_preferences;
       if (!checked) {
         // Find the category_config_id for this category slug to clear prefs
         // We clear by matching — but since prefs are keyed by config id, we keep them

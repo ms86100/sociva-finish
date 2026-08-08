@@ -88,7 +88,7 @@ export function useSellerApplicationReview() {
   const fetchData = useCallback(async () => {
     setIsLoading(true);
     try {
-      let sellerQuery = supabase
+      const sellerQuery = supabase
         .from('seller_profiles')
         .select('id, user_id, business_name, description, verification_status, is_available, society_id, primary_group, latitude, longitude, rejection_note, categories, cover_image_url, profile_image_url, created_at, updated_at, sell_beyond_community, delivery_radius_km, operating_days, fulfillment_mode, profile:profiles!seller_profiles_user_id_fkey(name, phone, block, flat_number, phase), society:societies!seller_profiles_society_id_fkey(name, address)')
         .order('created_at', { ascending: false });

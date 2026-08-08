@@ -81,7 +81,7 @@ export default function SocietyProgressPage() {
     }
 
     const milestoneIds = (data || []).map(m => m.id);
-    let reactionsMap: Record<string, { thumbsup: number; concern: number; user_reaction?: string | null }> = {};
+    const reactionsMap: Record<string, { thumbsup: number; concern: number; user_reaction?: string | null }> = {};
 
     if (milestoneIds.length > 0) {
       const { data: reactions } = await supabase

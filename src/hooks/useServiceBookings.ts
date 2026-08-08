@@ -167,7 +167,7 @@ export function useBuyerRecurringConfigs(buyerId: string | undefined) {
 
         // Step 2: hydrate product names separately
         const productIds = [...new Set(configs.map((c: any) => c.product_id).filter(Boolean))];
-        let productMap = new Map<string, string>();
+        const productMap = new Map<string, string>();
         if (productIds.length > 0) {
           const { data: products } = await supabase
             .from('products')

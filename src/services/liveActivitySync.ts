@@ -133,7 +133,7 @@ export async function syncActiveOrders(userId: string): Promise<number> {
     const riderIds = [...new Set(
       (deliveriesResult.data ?? []).map((d: any) => d.rider_id).filter(Boolean)
     )];
-    let riderVehicleMap = new Map<string, string | null>();
+    const riderVehicleMap = new Map<string, string | null>();
     if (riderIds.length > 0) {
       try {
         const { data: riders } = await supabase

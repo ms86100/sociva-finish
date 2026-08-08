@@ -69,7 +69,7 @@ export default function WorkerLeavePage() {
     // Fetch profile names for workers
     const workerList = (workerData || []) as any[];
     const userIds = workerList.map(w => w.user_id).filter(Boolean);
-    let profileMap: Record<string, string> = {};
+    const profileMap: Record<string, string> = {};
     if (userIds.length > 0) {
       const { data: profiles } = await supabase.from('profiles').select('id, name').in('id', userIds);
       (profiles || []).forEach((p: any) => { profileMap[p.id] = p.name; });

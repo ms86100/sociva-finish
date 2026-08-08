@@ -22,8 +22,7 @@ const BUYER_ONLY_FILTER = `(${BUYER_ONLY_TYPES.join(',')})`;
 
 export function useUnreadNotificationCount() {
   const { user } = useAuth();
-  let isSeller = false;
-  try { isSeller = useSellerContext().isSeller; } catch { /* outside provider */ }
+  const { isSeller } = useSellerContext();
 
   const { data: count = 0 } = useQuery({
     queryKey: ['unread-notifications', user?.id, isSeller ? 'seller' : 'buyer'],
