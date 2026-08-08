@@ -1,6 +1,9 @@
 // @ts-nocheck
 import "./index.css";
 import { initializeCapacitorPlugins } from "./lib/capacitor";
+import { captureException, initObservability } from "./lib/observability";
+
+initObservability();
 
 // Bump when shipping bootstrap/critical-path fixes so returning users drop
 // stale Workbox caches that competed with first paint (e.g. splash-video).
@@ -95,6 +98,7 @@ window.addEventListener("error", (event) => {
     if (handleChunkError()) return;
   }
   console.error("[Bootstrap] Unhandled error:", event.error || event.message);
+  captureException(event.error || new Error(event.message), { source: 'window.error' });
 });
 
 window.addEventListener("unhandledrejection", (event) => {
@@ -102,6 +106,7 @@ window.addEventListener("unhandledrejection", (event) => {
     if (handleChunkError()) return;
   }
   console.error("[Bootstrap] Unhandled rejection:", event.reason);
+  captureException(event.reason, { source: 'window.unhandledrejection' });
 });
 
 async function bootstrap() {
@@ -141,5 +146,6 @@ async function bootstrap() {
 bootstrap().catch((e) => {
   if (String(e).includes("Reloading after cache reset")) return;
   console.error('[Bootstrap] Fatal error:', e);
+  captureException(e, { source: 'bootstrap' });
   showFatalFallback();
 });

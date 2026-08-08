@@ -384,14 +384,16 @@ async function scheduleNextRun(supabase: any, supabaseUrl: string): Promise<void
       if (delayMs > 5 * 60 * 1000) return;
     }
 
-    const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+    // The handler rejects anon JWTs. Self-scheduling is an internal worker
+    // operation, so authenticate exactly like webhook/cron callers.
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const selfUrl = `${supabaseUrl}/functions/v1/process-notification-queue`;
     const invoke = () =>
       fetch(selfUrl, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${anonKey}`,
+          Authorization: `Bearer ${serviceRoleKey}`,
         },
         body: JSON.stringify({ trigger: "self_reschedule", time: new Date().toISOString() }),
       }).catch((e) => console.warn("[PNQ] Self-invoke failed:", e));
@@ -904,7 +906,19 @@ Deno.serve(async (req) => {
             }).eq("id", item.id);
           // Audit: mark delivered when at least one token succeeded
           if (successCount > 0) {
-            await supabase.rpc("fn_mark_notification_delivered", { _queue_id: item.id }).catch(() => {});
+            try {
+              const { error: deliveredError } = await supabase.rpc(
+                "fn_mark_notification_delivered",
+                { _queue_id: item.id },
+              );
+              if (deliveredError) {
+                console.warn(`[Queue][${item.id}] delivery audit failed: ${deliveredError.message}`);
+              }
+            } catch (deliveredError) {
+              // Delivery audit is best-effort and must never dead-letter a push
+              // that was already accepted by FCM/APNs.
+              console.warn(`[Queue][${item.id}] delivery audit exception: ${String(deliveredError)}`);
+            }
           }
           processed++;
         } else {

@@ -60,8 +60,10 @@ describe('Phase 2–5 payment/trust', () => {
 
     it('does not fall back to razorpay_key_secret for HMAC', () => {
       expect(webhookSrc).not.toMatch(/Using razorpay_key_secret as HMAC fallback/);
-      expect(webhookSrc).toMatch(/razorpay_webhook_secret missing or inactive/);
-      expect(webhookSrc).toMatch(/\.eq\('key',\s*'razorpay_webhook_secret'\)/);
+      expect(webhookSrc).toMatch(/never fall back to razorpay_key_secret/);
+      expect(webhookSrc).toMatch(/resolveWebhookSecret\(supabase\)/);
+      expect(webhookSrc).toMatch(/razorpay_webhook_secret missing/);
+      expect(webhookSrc).toMatch(/Refusing to verify with API key secret/);
     });
 
     it('blocks switching to razorpay without active webhook secret', () => {

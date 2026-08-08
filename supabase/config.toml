@@ -3,3 +3,9 @@ project_id = "kkzkuyhgdvyecmxtmkpy"
 # Meta WhatsApp Cloud API webhook (GET verify + POST events) — no user JWT
 [functions.receive-whatsapp-webhook]
 verify_jwt = false
+
+# Internal worker has its own service-role / cron-secret / admin-JWT gate.
+# Gateway JWT verification must remain off so pg_net can authenticate with the
+# current service key format; anonymous requests are still rejected in code.
+[functions.process-notification-queue]
+verify_jwt = false

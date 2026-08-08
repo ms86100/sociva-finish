@@ -19,7 +19,7 @@ function getBundledTransistorsoftVersion(moduleName) {
   );
 
   if (!fs.existsSync(metadataPath)) {
-    throw new Error(`Bundled Transistorsoft metadata not found: ${path.relative(root, metadataPath)}`);
+    return null;
   }
 
   const metadata = read(metadataPath);
@@ -142,8 +142,12 @@ const pluginGradle = patchFile(pluginGradlePath, (text) => {
 
   next = normalizeTransistorsoftRepositoryLines(next);
 
-  next = next.replace(/name:'tslocationmanager-v21', version: '\d+\.\d+\.\d+'|name:'tslocationmanager-v21', version: '3\.\+'|name:'tslocationmanager-v21', version: '\+'/g, `name:'tslocationmanager-v21', version: '${bundledTsLocationManagerV21Version}'`);
-  next = next.replace(/name:'tslocationmanager', version: '\d+\.\d+\.\d+'|name:'tslocationmanager', version: '3\.\+'|name:'tslocationmanager', version: '\+'/g, `name:'tslocationmanager', version: '${bundledTsLocationManagerVersion}'`);
+  if (bundledTsLocationManagerV21Version) {
+    next = next.replace(/name:'tslocationmanager-v21', version: '\d+\.\d+\.\d+'|name:'tslocationmanager-v21', version: '3\.\+'|name:'tslocationmanager-v21', version: '\+'/g, `name:'tslocationmanager-v21', version: '${bundledTsLocationManagerV21Version}'`);
+  }
+  if (bundledTsLocationManagerVersion) {
+    next = next.replace(/name:'tslocationmanager', version: '\d+\.\d+\.\d+'|name:'tslocationmanager', version: '3\.\+'|name:'tslocationmanager', version: '\+'/g, `name:'tslocationmanager', version: '${bundledTsLocationManagerVersion}'`);
+  }
   next = next.replace("maven { url 'https://maven.transistorsoft.com' }", "maven { url = uri('https://maven.transistorsoft.com') }");
 
   return next;
@@ -153,10 +157,16 @@ for (const filePath of [geolocationGradlePath, calendarGradlePath]) {
   patchFile(filePath, (text) => text.replace('        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"\n', ''));
 }
 
-ensureContains(pluginGradle, "maven { url = uri('./libs') }", 'Transistorsoft local Maven repository');
+ensureContains(pluginGradle, "maven { url = uri('https://maven.transistorsoft.com') }", 'Transistorsoft Maven repository');
 
-if (!pluginGradle.includes(`name:'tslocationmanager-v21', version: '${bundledTsLocationManagerV21Version}'`) || !pluginGradle.includes(`name:'tslocationmanager', version: '${bundledTsLocationManagerVersion}'`)) {
-  throw new Error('Transistorsoft dependency alignment to bundled local artifacts was not applied');
+if (bundledTsLocationManagerVersion || bundledTsLocationManagerV21Version) {
+  ensureContains(pluginGradle, "maven { url = uri('./libs') }", 'Transistorsoft local Maven repository');
+  if (!pluginGradle.includes(`name:'tslocationmanager-v21', version: '${bundledTsLocationManagerV21Version}'`) || !pluginGradle.includes(`name:'tslocationmanager', version: '${bundledTsLocationManagerVersion}'`)) {
+    throw new Error('Transistorsoft dependency alignment to bundled local artifacts was not applied');
+  }
+} else {
+  ensureContains(pluginGradle, 'DEFAULT_PLAY_SERVICES_LOCATION_VERSION          = "21.3.0"', 'Transistorsoft Google Play Services 21 compatibility');
+  ensureContains(pluginGradle, 'tslocationmanager-gms20', 'Transistorsoft legacy Google Play Services fallback');
 }
 
 for (const filePath of [geolocationGradlePath, calendarGradlePath]) {

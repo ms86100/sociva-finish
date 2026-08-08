@@ -19,6 +19,24 @@ import { SUPABASE_URL, SUPABASE_ANON_KEY, hasSupabaseEnv, authHeaders } from "./
 let client: SupabaseClient;
 let seedResult: any;
 
+const SEED_PRODUCT_FINGERPRINT = [
+  "Butter Chicken Thali",
+  "Paneer Tikka Masala",
+  "Dal Makhani",
+  "IIT-JEE Math Foundation (Monthly)",
+  "Hatha Yoga (Morning Batch)",
+  "Mechanical Keyboard",
+  "Masala Dosa",
+];
+
+const SEED_BLOCK_FINGERPRINT = [
+  "nutrition_info",
+  "allergen_info",
+  "course_details",
+  "session_details",
+  "product_specs",
+];
+
 // Probe once at collection time: these assertions only make sense against a
 // backend that holds the demo seed data. Skip (don't fail) otherwise.
 async function probeSeed(): Promise<boolean> {
@@ -28,16 +46,29 @@ async function probeSeed(): Promise<boolean> {
     auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false },
   });
 
-  // Check if seed data already exists to avoid destructive re-seeding
-  const { data: existingProducts } = await client
+  // A single leftover product is not proof that the destructive seed completed.
+  // Require the complete fixture fingerprint before running integration assertions.
+  const [{ data: existingProducts }, { data: existingBlocks }] = await Promise.all([
+    client
     .from("products")
     .select("id, name")
     .eq("approval_status", "approved")
     .eq("is_available", true)
-    .ilike("name", "%Butter Chicken%")
-    .limit(1);
+      .in("name", SEED_PRODUCT_FINGERPRINT),
+    client
+      .from("attribute_block_library")
+      .select("block_type")
+      .eq("is_active", true)
+      .in("block_type", SEED_BLOCK_FINGERPRINT),
+  ]);
 
-  if (existingProducts && existingProducts.length > 0) {
+  const productNames = new Set((existingProducts || []).map((p: any) => p.name));
+  const blockTypes = new Set((existingBlocks || []).map((b: any) => b.block_type));
+  const hasCompleteFingerprint =
+    SEED_PRODUCT_FINGERPRINT.every((name) => productNames.has(name)) &&
+    SEED_BLOCK_FINGERPRINT.every((type) => blockTypes.has(type));
+
+  if (hasCompleteFingerprint) {
     seedResult = { success: true };
     return true;
   }
@@ -49,7 +80,11 @@ async function probeSeed(): Promise<boolean> {
       headers: authHeaders(),
     });
     if (!res.ok) {
-      console.warn(`[seed-products] Skipping suite — seed function unavailable (${res.status})`);
+      console.warn(
+        `[seed-products] External integration unavailable (${res.status}); ` +
+        `fixture fingerprint incomplete (${productNames.size}/${SEED_PRODUCT_FINGERPRINT.length} products, ` +
+        `${blockTypes.size}/${SEED_BLOCK_FINGERPRINT.length} blocks)`,
+      );
       return false;
     }
     seedResult = await res.json();

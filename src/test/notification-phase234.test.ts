@@ -2,6 +2,8 @@
  * Unit tests for Phase 2–4 notification remediation helpers.
  */
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'fs';
+import { resolve } from 'path';
 import {
   pickNotificationData,
   pickNotificationRoute,
@@ -83,5 +85,38 @@ describe('whatsapp hard opt-in gate', () => {
 
   it('allows grandfathered / explicit opt-in', () => {
     expect(shouldSend({ whatsappPref: true, whatsappOptedInAt: '2026-08-07T00:00:00Z' })).toBe(true);
+  });
+});
+
+describe('notification queue worker authorization', () => {
+  const workerSource = readFileSync(
+    resolve(__dirname, '../../supabase/functions/process-notification-queue/index.ts'),
+    'utf8',
+  );
+  const supabaseConfig = readFileSync(
+    resolve(__dirname, '../../supabase/config.toml'),
+    'utf8',
+  );
+
+  it('self-reschedules with service-role auth accepted by its own gate', () => {
+    expect(workerSource).toMatch(
+      /const serviceRoleKey = Deno\.env\.get\("SUPABASE_SERVICE_ROLE_KEY"\)!/,
+    );
+    expect(workerSource).toMatch(/Authorization: `Bearer \$\{serviceRoleKey\}`/);
+    expect(workerSource).not.toMatch(
+      /const anonKey[\s\S]{0,500}trigger: "self_reschedule"/,
+    );
+    expect(workerSource).toMatch(/authHeader === `Bearer \$\{supabaseServiceKey\}`/);
+    expect(supabaseConfig).toMatch(
+      /\[functions\.process-notification-queue\]\s*verify_jwt = false/,
+    );
+  });
+
+  it('does not dead-letter successful pushes when delivery audit fails', () => {
+    expect(workerSource).not.toMatch(
+      /supabase\.rpc\("fn_mark_notification_delivered"[\s\S]{0,150}\.catch/,
+    );
+    expect(workerSource).toMatch(/delivery audit is best-effort/i);
+    expect(workerSource).toMatch(/delivery audit failed/);
   });
 });

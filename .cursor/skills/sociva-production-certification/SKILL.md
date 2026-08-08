@@ -130,6 +130,8 @@ Create atomic case IDs under these groups. Do not collapse unexecuted subcases i
 - In-app notification creation, recipient, copy, deep link, unread/read state, and dedupe.
 - Push delivery, tap/deep link, foreground/background behavior when configured and device exists.
 - Ensure unrelated users receive nothing.
+- Verify database/cron wake-ups authenticate with the same credential accepted by the worker, one harmless queue fixture reaches `processed`, no new dead letter is created, and fixture rows are cleaned up.
+- Group dead letters and trigger errors by exact root cause; historical counts alone do not prove a current failure.
 
 ### C10 Wallet, loyalty, and coupons
 
@@ -153,7 +155,10 @@ Create atomic case IDs under these groups. Do not collapse unexecuted subcases i
 ### C13 Android APK
 
 - Confirm latest downloadable production APK identity and checksum.
+- Verify release signing with Android SDK `apksigner` (not `jarsigner` alone; APK Signature Scheme v2/v3 may be valid without v1).
+- Resolve Android SDK tools from `android/local.properties` before declaring `adb` unavailable.
 - Available emulator/device: clean install, upgrade, launch, login, deep links, payment return, push, background/resume, navigation, keyboard, camera/image picker, and safe-area smoke.
+- Clear logcat immediately before launch and fail on an app-process `FATAL EXCEPTION`; use Gradle `dependencyInsight` for native binary linkage crashes.
 - No device/emulator: mark each device-only case `BLOCKED` with required emulator/device, API level, architecture, APK, and credentials.
 
 ### C14 Performance and security
@@ -187,6 +192,8 @@ For user-facing web/native-wrapper changes, follow the repository release route:
 ## Database and security checks
 
 Before Supabase operations, read MCP tool descriptors. Start with `list_tables`, `get_logs`, and `get_advisors`; use read-only, scoped SQL for assertions. Do not apply migrations during certification unless a confirmed defect requires a reviewed schema fix.
+
+When the default full-suite worker count is unstable or fails to print a final summary, rerun with an explicit bounded worker count and require Vitest's final file/test totals. Integration suites disabled by a production safety gate must report the exact HTTP status and missing fixture fingerprint; never let a partial seed make the suite run and fail nondeterministically.
 
 Check:
 
