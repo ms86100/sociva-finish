@@ -63,7 +63,7 @@ Deno.serve(async (req) => {
       if (matches && matches.length > 0 && matches[0].confidence >= 0.8) {
         // Auto-merge: return existing society + save alias
         const normalized = sanitizedName.toLowerCase()
-          .replace(/\s*(phase|ph|tower|block|wing|sec|sector)\s*[\d\-]*/gi, '')
+          .replace(/\s*(phase|ph|tower|block|wing|sec|sector)\s*[\d-]*/gi, '')
           .replace(/\s+/g, ' ').trim();
         await adminClient.from('society_aliases').upsert({
           society_id: matches[0].society_id,
@@ -103,7 +103,7 @@ Deno.serve(async (req) => {
 
       // Compute normalized_name for the new society
       const normalizedName = sanitizedName.toLowerCase()
-        .replace(/\s*(phase|ph|tower|block|wing|sec|sector)\s*[\d\-]*/gi, '')
+        .replace(/\s*(phase|ph|tower|block|wing|sec|sector)\s*[\d-]*/gi, '')
         .replace(/\s+/g, ' ').trim();
 
       const { data: created, error: createError } = await adminClient
@@ -134,7 +134,7 @@ Deno.serve(async (req) => {
 
       // Auto-create alias for the new society
       const aliasNormalized = sanitizedName.toLowerCase()
-        .replace(/\s*(phase|ph|tower|block|wing|sec|sector)\s*[\d\-]*/gi, '')
+        .replace(/\s*(phase|ph|tower|block|wing|sec|sector)\s*[\d-]*/gi, '')
         .replace(/\s+/g, ' ').trim();
       await adminClient.from('society_aliases').upsert({
         society_id: created.id,

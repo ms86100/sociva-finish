@@ -73,7 +73,7 @@ serve(async (req) => {
 
     // Pull existing escalation_hits to preserve cumulative count
     const sellerIds = Array.from(bySeller.keys());
-    let existingMap = new Map<string, number>();
+    const existingMap = new Map<string, number>();
     if (sellerIds.length > 0) {
       const { data: existing } = await supabase
         .from("seller_performance_metrics")

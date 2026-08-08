@@ -55,7 +55,9 @@ describe('CSV Export Utility', () => {
     expect(String('He said "hi"').replace(/"/g, '""')).toBe('He said ""hi""');
   });
   it('TC-CSV005: Null/undefined → empty string', () => {
-    expect(null == null ? '' : String(null)).toBe('');
+    const csvValue = (value: unknown) => value == null ? '' : String(value);
+    expect(csvValue(null)).toBe('');
+    expect(csvValue(undefined)).toBe('');
   });
   it('TC-CSV006: Newlines trigger quoting', () => {
     expect('Line1\nLine2'.includes('\n')).toBe(true);

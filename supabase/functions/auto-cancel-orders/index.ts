@@ -79,7 +79,7 @@ app.post("/", async (c) => {
       } catch { /* ignore malformed override */ }
     }
 
-    let autoCompletableStatuses = dbCompletableStatuses.length > 0
+    const autoCompletableStatuses = dbCompletableStatuses.length > 0
       ? dbCompletableStatuses
       : ["delivered"];
 

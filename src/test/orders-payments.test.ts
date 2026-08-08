@@ -548,7 +548,9 @@ describeDb('Orders & Payments Module', () => {
     });
 
     it('RV-04: review CTA hidden when already reviewed', () => {
-      const canReview = true && !true; // hasReview = true
+      const isBuyer = true;
+      const hasReview = true;
+      const canReview = isBuyer && !hasReview;
       expect(canReview).toBe(false);
     });
 

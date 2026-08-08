@@ -74,7 +74,7 @@ Deno.serve(async (req) => {
       });
 
       // Calculate next delivery date
-      let nextDate = new Date(sub.next_delivery_date);
+      const nextDate = new Date(sub.next_delivery_date);
       if (sub.frequency === 'daily') {
         nextDate.setDate(nextDate.getDate() + 1);
       } else if (sub.frequency === 'weekly') {

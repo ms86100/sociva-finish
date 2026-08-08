@@ -168,7 +168,8 @@ describe('cn — Tailwind Class Merge', () => {
     expect(cn('p-4', 'bg-red')).toContain('p-4');
   });
   it('handles conditional classes', () => {
-    expect(cn('base', false && 'hidden')).toBe('base');
+    const isHidden = false;
+    expect(cn('base', isHidden && 'hidden')).toBe('base');
   });
   it('handles empty input', () => {
     expect(cn()).toBe('');
