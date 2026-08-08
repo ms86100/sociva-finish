@@ -50,7 +50,11 @@ export function LicenseConfigSection() {
   const toggleExpand = (slug: string) => {
     setExpandedGroups(prev => {
       const next = new Set(prev);
-      next.has(slug) ? next.delete(slug) : next.add(slug);
+      if (next.has(slug)) {
+        next.delete(slug);
+      } else {
+        next.add(slug);
+      }
       return next;
     });
   };

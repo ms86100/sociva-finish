@@ -27,7 +27,7 @@ export function useProductsByCategory(limit = 50) {
     if (!sellers || sellers.length === 0) return [];
 
     // Get category configs from cache
-    let configs: any[] | undefined = queryClient.getQueryData(['category-configs']);
+    const configs: any[] | undefined = queryClient.getQueryData(['category-configs']);
     const configMap = new Map(
       (configs || []).map((c: any) => [
         c.category,

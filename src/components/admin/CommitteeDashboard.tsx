@@ -27,6 +27,7 @@ interface Props {
 export function CommitteeDashboard({ societyId }: Props) {
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
   const [loading, setLoading] = useState(true);
+  const { formatPrice } = useCurrency();
 
   useEffect(() => {
     fetchMetrics();
@@ -65,7 +66,6 @@ export function CommitteeDashboard({ societyId }: Props) {
     return <div className="space-y-3">{[1, 2, 3].map(i => <Skeleton key={i} className="h-20 w-full rounded-2xl" />)}</div>;
   }
 
-  const { formatPrice } = useCurrency();
   if (!metrics) return null;
 
   const collectionRate = (metrics.maintenanceCollected + metrics.maintenancePending) > 0

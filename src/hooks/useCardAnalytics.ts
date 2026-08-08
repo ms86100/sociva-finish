@@ -19,7 +19,7 @@ interface CardEvent {
 }
 
 // ── Batched impression queue ──
-let impressionQueue: CardEvent[] = [];
+const impressionQueue: CardEvent[] = [];
 let flushTimer: ReturnType<typeof setTimeout> | null = null;
 let cachedUserId: string | null | undefined = undefined;
 

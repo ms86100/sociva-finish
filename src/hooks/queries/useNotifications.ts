@@ -112,8 +112,7 @@ export async function cleanupStaleDeliveryNotifications(notifications: UserNotif
 }
 
 export function useNotifications(userId: string | undefined) {
-  let isSeller = false;
-  try { isSeller = useSellerContext().isSeller; } catch { /* outside provider */ }
+  const { isSeller } = useSellerContext();
 
   return useInfiniteQuery({
     queryKey: ['notifications', userId, isSeller ? 'seller' : 'buyer'],
@@ -157,8 +156,7 @@ export function useNotifications(userId: string | undefined) {
 
 
 export function useLatestActionNotification(userId: string | undefined) {
-  let isSeller = false;
-  try { isSeller = useSellerContext().isSeller; } catch { /* outside provider */ }
+  const { isSeller } = useSellerContext();
 
   return useQuery({
     queryKey: ['latest-action-notification', userId, isSeller ? 'seller' : 'buyer'],
