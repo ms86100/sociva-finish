@@ -43,7 +43,12 @@ workflows:
 
       - name: Add iOS platform and set up CocoaPods
         script: |
-          npx cap add ios || true
+          # If App.xcodeproj is missing (not committed), wipe ios/ so cap add ios regenerates it
+          if [ ! -f "ios/App/App.xcodeproj/project.pbxproj" ]; then
+            echo "=== App.xcodeproj missing — regenerating iOS platform ==="
+            rm -rf ios
+            npx cap add ios
+          fi
           npx cap sync ios
           cd ios/App
           # Capacitor 8 defaults to SPM — remove ALL SPM artifacts before switching to CocoaPods
@@ -1005,7 +1010,12 @@ workflows:
 
       - name: Add iOS platform and set up CocoaPods
         script: |
-          npx cap add ios || true
+          # If App.xcodeproj is missing (not committed), wipe ios/ so cap add ios regenerates it
+          if [ ! -f "ios/App/App.xcodeproj/project.pbxproj" ]; then
+            echo "=== App.xcodeproj missing — regenerating iOS platform ==="
+            rm -rf ios
+            npx cap add ios
+          fi
           npx cap sync ios
           cd ios/App
           rm -f Package.swift .package.resolved
