@@ -361,6 +361,24 @@ serve(async (req) => {
       console.log(
         `[razorpay-webhook] recorded failed attempt ${paymentEntity.id}; order truth unchanged`,
       );
+      // Push failure signal to the frontend via Realtime.
+      // record_payment_attempt_failure only touches payment_pending orders,
+      // so a concurrently-captured order is never overwritten.
+      if (allOrderIds.length > 0) {
+        await supabase.rpc('record_payment_attempt_failure', {
+          p_order_ids: allOrderIds,
+          p_failure_code: paymentEntity?.error_code
+            ? String(paymentEntity.error_code)
+            : null,
+          p_failure_description: paymentEntity?.error_description
+            ? String(paymentEntity.error_description)
+            : paymentEntity?.error_reason
+            ? String(paymentEntity.error_reason)
+            : null,
+        }).then(({ error }: { error: any }) => {
+          if (error) console.warn('[razorpay-webhook] record_payment_attempt_failure:', error.message);
+        });
+      }
     } else if (
       event === 'payment.dispute.created' ||
       event === 'payment.dispute.won' ||

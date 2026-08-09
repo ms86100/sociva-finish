@@ -82,9 +82,20 @@ const DeliveryMapView = lazy(() => import('@/components/delivery/DeliveryMapView
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function PaymentConfirmingBanner({ paymentStatus, paymentType, onCheck, onCancel }: { paymentStatus?: string | null; paymentType?: string | null; onCheck?: () => void; onCancel?: () => void }) {
+type PaymentCheckResult = 'not_captured' | 'captured' | null;
+
+function PaymentConfirmingBanner({
+  paymentStatus, paymentType, lastFailedAt, onCheck, onCancel,
+}: {
+  paymentStatus?: string | null;
+  paymentType?: string | null;
+  lastFailedAt?: string | null;
+  onCheck?: () => Promise<PaymentCheckResult>;
+  onCancel?: () => void;
+}) {
   const [dots, setDots] = useState('');
   const [isChecking, setIsChecking] = useState(false);
+  const [checkResult, setCheckResult] = useState<PaymentCheckResult>(null);
   const [showCancel, setShowCancel] = useState(false);
 
   useEffect(() => {
@@ -92,7 +103,6 @@ function PaymentConfirmingBanner({ paymentStatus, paymentType, onCheck, onCancel
     return () => clearInterval(i);
   }, []);
 
-  // Show cancel option after 3 minutes of being on this screen
   useEffect(() => {
     const t = setTimeout(() => setShowCancel(true), 3 * 60 * 1000);
     return () => clearTimeout(t);
@@ -100,12 +110,25 @@ function PaymentConfirmingBanner({ paymentStatus, paymentType, onCheck, onCancel
 
   const awaitingSeller = paymentStatus === 'buyer_confirmed';
   const isOnline = paymentType === 'online' || paymentType === 'razorpay';
+  // A recent failure signal from Realtime (via payment.failed webhook) or a
+  // manual check that returned no captured payment.
+  const hasFailureSignal = checkResult === 'not_captured' || !!lastFailedAt;
 
   let headline: string;
   let subtitle: string;
+  let tone: 'warning' | 'error' = 'warning';
+
   if (awaitingSeller) {
     headline = `Awaiting seller confirmation${dots}`;
     subtitle = 'Your payment was submitted. The seller must verify before the order is placed.';
+  } else if (checkResult === 'not_captured') {
+    tone = 'error';
+    headline = 'No payment found';
+    subtitle = 'We checked with the payment gateway — no completed payment exists for this order. You can retry payment or cancel the order.';
+  } else if (lastFailedAt && isOnline) {
+    tone = 'error';
+    headline = 'Last payment attempt failed';
+    subtitle = 'Your most recent payment was not completed. You can retry or cancel the order.';
   } else if (isOnline) {
     headline = `Verifying payment${dots}`;
     subtitle = 'If you completed the payment, it will be confirmed automatically. You can safely close this screen.';
@@ -117,27 +140,38 @@ function PaymentConfirmingBanner({ paymentStatus, paymentType, onCheck, onCancel
   const handleCheck = async () => {
     setIsChecking(true);
     try {
-      await onCheck?.();
+      const result = await onCheck?.();
+      if (result) setCheckResult(result);
     } finally {
-      setTimeout(() => setIsChecking(false), 1500);
+      setTimeout(() => setIsChecking(false), 1200);
     }
   };
+
+  const borderClass = tone === 'error'
+    ? 'bg-destructive/10 border-destructive/20'
+    : 'bg-warning/10 border-warning/20';
+  const textClass = tone === 'error' ? 'text-destructive' : 'text-warning';
+  const btnClass = tone === 'error'
+    ? 'border-destructive/40 text-destructive'
+    : 'border-warning/40 text-warning';
 
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.96 }}
       animate={{ opacity: 1, scale: 1 }}
       transition={{ type: 'spring', stiffness: 200, damping: 20 }}
-      className="bg-warning/10 border border-warning/20 rounded-xl p-4 text-center"
+      className={`border rounded-xl p-4 text-center ${borderClass}`}
     >
-      <span className="text-2xl">💳</span>
-      <p className="text-sm font-semibold text-warning mt-1">{headline}</p>
+      <span className="text-2xl">{tone === 'error' ? '⚠️' : '💳'}</span>
+      <p className={`text-sm font-semibold mt-1 ${textClass}`}>{headline}</p>
       <p className="text-xs text-muted-foreground mt-0.5">{subtitle}</p>
-      <Button variant="outline" size="sm" className="mt-3 text-xs font-semibold border-warning/40 text-warning" onClick={handleCheck} disabled={isChecking}>
-        {isChecking ? <Loader2 size={12} className="mr-1 animate-spin" /> : <RefreshCw size={12} className="mr-1" />}
-        {isChecking ? 'Checking...' : 'Check payment status'}
-      </Button>
-      {showCancel && onCancel && !awaitingSeller && (
+      {!awaitingSeller && (
+        <Button variant="outline" size="sm" className={`mt-3 text-xs font-semibold ${btnClass}`} onClick={handleCheck} disabled={isChecking}>
+          {isChecking ? <Loader2 size={12} className="mr-1 animate-spin" /> : <RefreshCw size={12} className="mr-1" />}
+          {isChecking ? 'Checking...' : 'Check payment status'}
+        </Button>
+      )}
+      {(showCancel || hasFailureSignal) && onCancel && !awaitingSeller && (
         <div className="mt-2">
           <Button variant="ghost" size="sm" className="text-xs text-destructive hover:text-destructive" onClick={onCancel}>
             Abandon &amp; cancel order
@@ -367,17 +401,21 @@ export default function OrderDetailPage() {
     });
   }, [orderId, order?.status]);
 
-  const handlePaymentCheck = useCallback(async () => {
+  const handlePaymentCheck = useCallback(async (): Promise<PaymentCheckResult> => {
     reconcileAttemptedRef.current = false;
     o.fetchOrder?.();
     const razorpayOrderId = (order as any)?.razorpay_order_id;
-    if (!razorpayOrderId || !orderId) return;
+    if (!razorpayOrderId || !orderId) return 'not_captured';
     reconcileAttemptedRef.current = true;
-    await supabase.functions.invoke('confirm-razorpay-payment', {
+    const { data, error } = await supabase.functions.invoke('confirm-razorpay-payment', {
       body: { razorpay_payment_id: null, razorpay_order_id: razorpayOrderId, order_ids: [orderId], source: 'manual_check' },
-    }).then(({ error }) => {
-      if (!error) o.fetchOrder?.();
-    }).catch(() => {});
+    }).catch(() => ({ data: null, error: true }));
+    if (!error && (data as any)?.success === true) {
+      o.fetchOrder?.();
+      return 'captured';
+    }
+    o.fetchOrder?.();
+    return 'not_captured';
   }, [orderId, order, o.fetchOrder]);
 
   const handleAbandonPayment = useCallback(async () => {
@@ -763,7 +801,13 @@ export default function OrderDetailPage() {
           )}
 
           {o.isBuyerView && order.status === 'payment_pending' && (
-            <PaymentConfirmingBanner paymentStatus={(order as any).payment_status} paymentType={(order as any).payment_type} onCheck={handlePaymentCheck} onCancel={handleAbandonPayment} />
+            <PaymentConfirmingBanner
+              paymentStatus={(order as any).payment_status}
+              paymentType={(order as any).payment_type}
+              lastFailedAt={(order as any).last_payment_failed_at ?? null}
+              onCheck={handlePaymentCheck}
+              onCancel={handleAbandonPayment}
+            />
           )}
 
           {o.isSellerView && order.auto_cancel_at && !isTerminalStatus(o.flow, order.status) && <UrgentOrderTimer autoCancelAt={order.auto_cancel_at} onTimeout={o.handleTimeout} variant="seller" />}
