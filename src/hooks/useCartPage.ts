@@ -977,40 +977,37 @@ export function useCartPage() {
   };
 
   const handleRazorpayFailed = async () => {
-    // CRITICAL: If success already handled, never cancel orders
+    // If success already handled, never cancel orders
     if (razorpaySuccessHandledRef.current) {
       console.log('[Payment] handleRazorpayFailed suppressed — success already handled');
       setShowRazorpayCheckout(false);
       return;
     }
     setShowRazorpayCheckout(false);
-    if (!user?.id) { notify.block('Your session expired. Sign in again before continuing.', { id: 'checkout-session', title: 'Sign in required' }); setPendingOrderIds([]); clearPaymentSession(); return; }
+
     if (pendingOrderIds.length > 0) {
-      // Poll for webhook / delayed confirm — do NOT auto-cancel (paid-but-cancelled race).
-      for (let attempt = 0; attempt < 5; attempt++) {
-        if (await anyOrderPaidOrBuyerConfirmed(pendingOrderIds)) {
-          await clearCartAndCache();
-          clearPaymentSession();
-          navigate(pendingOrderIds.length === 1 ? `/orders/${pendingOrderIds[0]}` : '/orders');
-          setPendingOrderIds([]);
-          return;
-        }
-        if (attempt < 4) await new Promise(r => setTimeout(r, 2000));
+      // Single check — covers webhook confirming while modal was open
+      if (await anyOrderPaidOrBuyerConfirmed(pendingOrderIds)) {
+        await clearCartAndCache();
+        clearPaymentSession();
+        navigate(pendingOrderIds.length === 1 ? `/orders/${pendingOrderIds[0]}` : '/orders');
+        setPendingOrderIds([]);
+        return;
       }
-      notify.warn(
-        'Payment not confirmed yet. Check Orders — unpaid orders auto-cancel later. Do not pay twice.',
-        { id: 'razorpay-pending-hold', title: 'Payment verification pending', priority: 'critical', okLabel: 'View orders' },
-      );
-      navigate(pendingOrderIds.length === 1 ? `/orders/${pendingOrderIds[0]}` : '/orders');
-      // Keep session so resume works; server TTL cancels truly unpaid orders.
-      return;
+      // Not paid — cancel immediately so no payment_pending orders linger
+      try {
+        await supabase.rpc('buyer_cancel_pending_orders', { _order_ids: pendingOrderIds });
+      } catch (err) {
+        console.warn('[Payment] failed: cancel pending orders failed (non-blocking):', err);
+      }
     }
+
     setPendingOrderIds([]);
     clearPaymentSession();
     idempotencyKeyRef.current = null;
-    setPaymentFailureInfo({
-      amount: finalAmount || sessionAmount || 0,
-      sellerName: sellerGroups[0]?.sellerName || sessionSellerName || 'Seller',
+    toast.info('Payment failed. Your cart is saved — tap Place Order to try again.', {
+      id: 'razorpay-failed',
+      duration: 4000,
     });
   };
 
