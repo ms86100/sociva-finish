@@ -85,12 +85,16 @@ Deno.serve(async (req) => {
 
   try {
     const body = await req.json().catch(() => ({}));
+    // Default to today in IST so the date label matches Razorpay's settlement calendar.
+    const istNow = new Date(Date.now() + 5.5 * 60 * 60 * 1000);
     const reconciliationDate =
       typeof body?.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(body.date)
         ? body.date
-        : new Date().toISOString().slice(0, 10);
+        : istNow.toISOString().slice(0, 10);
+    // Use IST (UTC+05:30) midnight so Razorpay's settlement windows align with
+    // Indian business dates rather than UTC dates.
     const from = Math.floor(
-      new Date(`${reconciliationDate}T00:00:00.000Z`).getTime() / 1000,
+      new Date(`${reconciliationDate}T00:00:00+05:30`).getTime() / 1000,
     );
     const to = from + 86_399;
 
