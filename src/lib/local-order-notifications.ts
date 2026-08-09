@@ -76,7 +76,7 @@ export async function scheduleIncomingOrderLocalNotification(opts: {
     const id = orderNotificationId(opts.orderId);
     const title = opts.title || 'New order';
     const body = opts.body
-      || (opts.amount != null ? `₹${Number(opts.amount).toFixed(0)} — tap to review` : 'Tap to review and accept');
+      || (opts.amount != null && opts.amount > 0 ? `₹${Number(opts.amount).toFixed(0)} — tap to review` : 'Tap to review and accept');
 
     await LocalNotifications.schedule({
       notifications: [{
