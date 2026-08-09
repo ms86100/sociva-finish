@@ -203,16 +203,18 @@ serve(async (req) => {
     console.log('Razorpay order payload:', orderPayload);
 
     // Recover a provider order created before a crash/database-link failure.
-    // The deterministic receipt and exact notes/amount prevent guessing.
-    const recoveryResponse = await fetch(
-      `https://api.razorpay.com/v1/orders?receipt=${encodeURIComponent(deterministicReceipt)}&count=100`,
-      { headers: { 'Authorization': `Basic ${razorpayAuth}` } },
-    );
+    // Paginate so a high receipt-collision volume never hides the correct order.
+    const expectedIds = [...allOrderIds].sort();
     let razorpayOrder: any = null;
-    if (recoveryResponse.ok) {
+    for (let skip = 0; skip < 1_000 && !razorpayOrder; skip += 100) {
+      const recoveryResponse = await fetch(
+        `https://api.razorpay.com/v1/orders?receipt=${encodeURIComponent(deterministicReceipt)}&count=100&skip=${skip}`,
+        { headers: { 'Authorization': `Basic ${razorpayAuth}` } },
+      );
+      if (!recoveryResponse.ok) break;
       const recoveryBody = await recoveryResponse.json().catch(() => ({}));
-      const expectedIds = [...allOrderIds].sort();
-      razorpayOrder = (recoveryBody?.items || []).find((candidate: any) => {
+      const items: any[] = recoveryBody?.items || [];
+      razorpayOrder = items.find((candidate: any) => {
         let candidateIds: string[] = [];
         try {
           candidateIds = JSON.parse(candidate?.notes?.order_ids || '[]').map(String).sort();
@@ -227,6 +229,7 @@ serve(async (req) => {
           ['created', 'attempted'].includes(String(candidate?.status || ''))
         );
       }) || null;
+      if (items.length < 100) break;
     }
 
     const razorpayResponse = razorpayOrder ? null : await fetch('https://api.razorpay.com/v1/orders', {

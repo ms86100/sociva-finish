@@ -217,14 +217,41 @@ Deno.serve(async (req) => {
       terminalByWorkflow.get(r.transaction_type)!.add(r.status_key);
     }
 
-    for (const settlement of pendingSettlements || []) {
-      const { data: orderData } = await supabase
-        .from("orders")
-        .select(
-          "status, fulfillment_type, delivery_handled_by, order_type, transaction_type, payment_status",
-        )
-        .eq("id", settlement.order_id)
-        .single();
+    const settlementList = pendingSettlements || [];
+    const allOrderIds = settlementList.map((s) => s.order_id);
+
+    // Batch-fetch all related rows upfront to avoid N+1 queries per settlement.
+    const [ordersResult, deliveriesResult, paymentsResult] = await Promise.all([
+      allOrderIds.length > 0
+        ? supabase
+            .from("orders")
+            .select("id, status, fulfillment_type, delivery_handled_by, order_type, transaction_type, payment_status")
+            .in("id", allOrderIds)
+        : Promise.resolve({ data: [] }),
+      allOrderIds.length > 0
+        ? supabase
+            .from("delivery_assignments")
+            .select("order_id, status")
+            .in("order_id", allOrderIds)
+        : Promise.resolve({ data: [] }),
+      allOrderIds.length > 0
+        ? supabase
+            .from("payment_records")
+            .select("order_id, payment_status")
+            .in("order_id", allOrderIds)
+        : Promise.resolve({ data: [] }),
+    ]);
+
+    const orderMap = new Map((ordersResult.data || []).map((o: any) => [o.id, o]));
+    const deliveryMap = new Map((deliveriesResult.data || []).map((d: any) => [d.order_id, d]));
+    // Keep only the first payment record per order (mirrors the previous .limit(1) behaviour).
+    const paymentMap = new Map<string, any>();
+    for (const p of (paymentsResult.data || []) as any[]) {
+      if (!paymentMap.has(p.order_id)) paymentMap.set(p.order_id, p);
+    }
+
+    for (const settlement of settlementList) {
+      const orderData = orderMap.get(settlement.order_id) || null;
 
       const orderPay = String(orderData?.payment_status || "");
       if (["refunded", "refund_initiated", "refund_processing"].includes(orderPay)) {
@@ -259,25 +286,14 @@ Deno.serve(async (req) => {
           continue;
         }
       } else {
-        const { data: delivery } = await supabase
-          .from("delivery_assignments")
-          .select("status")
-          .eq("order_id", settlement.order_id)
-          .single();
-
+        const delivery = deliveryMap.get(settlement.order_id) || null;
         if (delivery?.status !== "delivered") {
           errors.push({ id: settlement.id, error: "Delivery not confirmed" });
           continue;
         }
       }
 
-      const { data: payment } = await supabase
-        .from("payment_records")
-        .select("payment_status")
-        .eq("order_id", settlement.order_id)
-        .limit(1)
-        .single();
-
+      const payment = paymentMap.get(settlement.order_id) || null;
       if (payment?.payment_status !== "paid") {
         errors.push({ id: settlement.id, error: "Payment not confirmed" });
         continue;
