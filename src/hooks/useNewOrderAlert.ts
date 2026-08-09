@@ -155,6 +155,10 @@ export function useNewOrderAlert(sellerIds: string[]) {
     if (seenIdsRef.current.has(order.id)) return;
     if (dismissedIdsRef.current.has(order.id)) return;
     if (!isActionableStatus(order.status)) return;
+    // Ignore orders created before this hook mounted (with 5-min buffer for Realtime replay
+    // of in-flight events). Prevents pre-mount WAL replay from ringing the overlay.
+    if (order.created_at < new Date(Date.now() - 5 * 60 * 1000).toISOString() &&
+        order.created_at < mountedAtRef.current) return;
     const snoozedUntil = snoozedUntilRef.current[order.id];
     if (snoozedUntil && Date.now() < snoozedUntil) return;
     seenIdsRef.current.add(order.id);

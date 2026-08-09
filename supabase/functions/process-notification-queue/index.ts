@@ -476,18 +476,29 @@ Deno.serve(async (req) => {
       console.warn(`[PNQ] Stuck recovery exception: ${e}`);
     }
 
-    // ── ORPHAN RECOVERY: auto-deliver failed items older than 1 hour without in-app notification ──
+    // ── ORPHAN RECOVERY: auto-deliver failed items 1–24 hours old as silent in-app ──
+    // Upper bound of 24 h prevents re-delivering events from days/weeks ago as fresh
+    // notifications. Rows older than 24 h are simply discarded (marked processed + read).
     try {
       const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+      const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
       const { data: orphans, error: orphanErr } = await supabase
         .from("notification_queue")
-        .select("id, user_id, title, body, type, reference_path, payload")
+        .select("id, user_id, title, body, type, reference_path, payload, created_at")
         .eq("status", "failed")
         .lt("processed_at", oneHourAgo)
+        .gt("created_at", twentyFourHoursAgo)  // hard upper bound — never redeliver stale events
         .limit(25);
 
+      // Also quietly discard (mark processed) failed rows older than 24 h — no in-app entry.
+      try {
+        await supabase.from("notification_queue")
+          .update({ status: "processed", processed_at: new Date().toISOString(), last_error: "Orphan recovery: expired (>24h)" })
+          .eq("status", "failed")
+          .lte("created_at", twentyFourHoursAgo);
+      } catch { /* best-effort */ }
+
       if (orphans && orphans.length > 0) {
-        // Check which ones already have in-app notifications
         const orphanIds = orphans.map((o: any) => o.id);
         const { data: existingNotifs } = await supabase
           .from("user_notifications")
@@ -498,22 +509,24 @@ Deno.serve(async (req) => {
         let recoveredCount = 0;
         for (const orphan of orphans) {
           if (deliveredSet.has(orphan.id)) {
-            // Already has in-app — just mark processed
             await supabase.from("notification_queue")
               .update({ status: "processed", processed_at: new Date().toISOString(), last_error: "Orphan recovery: already delivered" })
               .eq("id", orphan.id);
             recoveredCount++;
             continue;
           }
-          // Create in-app notification and mark processed (defense-in-depth: write both column pairs)
+          // Orphan deliveries are always marked is_read=true — they are historical catch-ups,
+          // not fresh events, and must not inflate the unread badge or ring the bell.
+          const ageMs = Date.now() - new Date(orphan.created_at).getTime();
+          const isOldOrphan = ageMs > 4 * 60 * 60 * 1000; // older than 4 hours
           const { error: insertErr } = await supabase.from("user_notifications").insert({
             user_id: orphan.user_id, title: orphan.title, body: orphan.body,
             type: orphan.type,
             reference_path: orphan.reference_path, action_url: orphan.reference_path,
             queue_item_id: orphan.id,
             payload: orphan.payload || null, data: orphan.payload || null,
+            is_read: isOldOrphan,  // historical orphans go in silently as already-read
           });
-          
           if (!insertErr || insertErr.code === '23505') {
             await supabase.from("notification_queue")
               .update({ status: "processed", processed_at: new Date().toISOString(), last_error: "Orphan recovery: auto-delivered as in-app" })
@@ -624,6 +637,16 @@ Deno.serve(async (req) => {
 
     for (const item of pending) {
       try {
+        // Discard expired items immediately — never deliver a notification after its TTL.
+        if (item.expires_at && new Date(item.expires_at) < new Date()) {
+          await supabase.from("notification_queue")
+            .update({ status: "processed", processed_at: new Date().toISOString(), push_skip_reason: "expired" })
+            .eq("id", item.id);
+          processed++;
+          console.log(`[Queue][${item.id}] Discarded: expires_at passed`);
+          continue;
+        }
+
         // Enforce user notification preferences
         const userPrefs = prefMap.get(item.user_id);
         const notifType = item.type || item.payload?.type || "order";
@@ -687,7 +710,9 @@ Deno.serve(async (req) => {
         const payloadStatus = item.payload?.status || item.payload?.new_status;
         if (isOrderNotif && payloadOrderId) {
           const ageMs = Date.now() - new Date(item.created_at).getTime();
-          const isStale = ageMs > 5 * 60 * 1000;
+          // Anything older than 4 hours is treated as stale regardless of terminal state —
+          // it must not ring the bell or fire a push as if the event just happened.
+          const isStale = ageMs > 4 * 60 * 60 * 1000;
           const { data: orderCheck } = await supabase
             .from("orders").select("status").eq("id", payloadOrderId).single();
           if (orderCheck) {
@@ -880,6 +905,8 @@ Deno.serve(async (req) => {
         if (item.type) pushData.type = String(item.type);
         if (item.id) pushData.queue_item_id = String(item.id);
         if (rawPayload.notif_id) pushData.notif_id = String(rawPayload.notif_id);
+        // Include queue creation time so the client can detect stale pushes buffered by FCM/APNs.
+        if (item.created_at) pushData.created_at = String(item.created_at);
 
         const threadId = resolvedOrderId
           ? String(resolvedOrderId)

@@ -436,6 +436,13 @@ export function usePushNotificationsInternal() {
         const data = notification?.data as Record<string, string> | undefined;
         const orderId = data?.orderId ?? data?.order_id ?? data?.entity_id;
 
+        // Staleness check: if the queue item has a created_at older than 10 minutes,
+        // downgrade to a silent toast — no haptic, no sound. This prevents a push
+        // that was buffered in FCM/APNs for hours/days from ringing as a fresh event.
+        const pushCreatedAt = data?.created_at || data?.queue_created_at;
+        const pushAgeMs = pushCreatedAt ? Date.now() - new Date(pushCreatedAt).getTime() : 0;
+        const isPushStale = pushAgeMs > 10 * 60 * 1000;
+
         // CRITICAL: Dispatch terminal sync BEFORE suppression check
         const pushStatus = data?.status;
         const isTerminalPush = data?.is_terminal === 'true' || (data as any)?.is_terminal === true;
@@ -501,9 +508,10 @@ export function usePushNotificationsInternal() {
 
         // High-priority foreground: play professional ring asset (not synthetic beeps).
         // Seller overlay owns looping buzz when pending — skip duplicate for seller incoming.
+        // Also skip sound/haptic for stale pushes (buffered by FCM/APNs for >10 min).
         const isHighPriority = data?.high_priority === 'true';
         const isSellerIncoming = data?.target_role === 'seller' && isHighPriority;
-        if (soundsEnabledRef.current && isHighPriority && !isSellerIncoming) {
+        if (soundsEnabledRef.current && isHighPriority && !isSellerIncoming && !isPushStale) {
           void (async () => {
             try {
               const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
