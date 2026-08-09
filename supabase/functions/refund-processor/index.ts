@@ -260,6 +260,39 @@ Deno.serve(async (req) => {
           { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } },
         );
       }
+      // Claim mutex: prevents concurrent cron ticks from double-crediting the wallet.
+      // Uses the same claim_refund_attempt RPC as the Razorpay path, with a sentinel
+      // provider_payment_id so the attempt row is identifiable in audits.
+      const { data: walletClaim, error: walletClaimErr } = await supabase.rpc(
+        "claim_refund_attempt",
+        {
+          p_refund_id: refund.id,
+          p_provider_payment_id: `wallet:${refund.id}`,
+          p_request_key: `wallet-refund-${refund.id}`,
+          p_amount_minor: Math.round(Number(refund.amount) * 100),
+        },
+      );
+      if (walletClaimErr) {
+        return new Response(JSON.stringify({ ok: false, error: walletClaimErr.message }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      if (walletClaim?.claimed !== true || !walletClaim?.attempt_id) {
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            deduplicated: walletClaim?.deduplicated === true,
+            state: walletClaim?.status || walletClaim?.reason || "not_claimed",
+            destination: "wallet",
+          }),
+          {
+            status: walletClaim?.status === "succeeded" ? 200 : 202,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          },
+        );
+      }
+
       const { data: walletDone, error: walletErr } = await supabase.rpc("complete_wallet_refund", {
         p_refund_id: refund.id,
       });
@@ -383,7 +416,7 @@ Deno.serve(async (req) => {
           updated_at: new Date().toISOString(),
         })
         .eq("id", refund.id)
-        .eq("refund_state", "refund_initiated");
+        .eq("refund_state", "approved");
       return new Response(
         JSON.stringify({ ok: false, state: "needs_manual_review", error: "provider_state_unknown" }),
         { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } },
@@ -402,7 +435,7 @@ Deno.serve(async (req) => {
           updated_at: new Date().toISOString(),
         })
         .eq("id", refund.id)
-        .eq("refund_state", "refund_initiated");
+        .eq("refund_state", "approved");
       return new Response(
         JSON.stringify({ ok: false, state: "needs_manual_review", error: "exact_refund_reference_required" }),
         { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } },
@@ -417,7 +450,7 @@ Deno.serve(async (req) => {
           updated_at: new Date().toISOString(),
         })
         .eq("id", refund.id)
-        .eq("refund_state", "refund_initiated");
+        .eq("refund_state", "approved");
       return new Response(
         JSON.stringify({ ok: false, state: "needs_manual_review", error: "insufficient_provider_refundable_amount" }),
         { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } },
