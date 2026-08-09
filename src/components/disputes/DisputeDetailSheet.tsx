@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { toast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import { friendlyError } from '@/lib/utils';
 import { formatDistanceToNow, format } from 'date-fns';
 import { Loader2, Send } from 'lucide-react';
@@ -83,7 +83,7 @@ export function DisputeDetailSheet({ ticket, open, onOpenChange, onUpdated, isAd
       setNewComment('');
       fetchComments();
     } catch (err: any) {
-      toast({ title: 'Failed to send', description: friendlyError(err), variant: 'destructive' });
+      toast.error(friendlyError(err));
     } finally {
       setSending(false);
     }
@@ -110,11 +110,11 @@ export function DisputeDetailSheet({ ticket, open, onOpenChange, onUpdated, isAd
         .update(updates)
         .eq('id', ticket.id);
       if (error) throw error;
-      toast({ title: `Ticket ${newStatus}` });
+      toast.success(`Ticket ${newStatus}`);
       setResolutionNote('');
       onUpdated();
     } catch (err: any) {
-      toast({ title: 'Failed', description: friendlyError(err), variant: 'destructive' });
+      toast.error(friendlyError(err));
     } finally {
       setUpdating(false);
     }

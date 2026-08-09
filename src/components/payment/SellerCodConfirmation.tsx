@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { CheckCircle, Loader2, Banknote } from 'lucide-react';
 import { useCurrency } from '@/hooks/useCurrency';
 import { useQueryClient } from '@tanstack/react-query';
+import { friendlyError } from '@/lib/utils';
 
 interface SellerCodConfirmationProps {
   orderId: string;
@@ -37,9 +38,8 @@ export function SellerCodConfirmation({
       await queryClient.invalidateQueries({ queryKey: ['payment-record', orderId] });
       onConfirmed();
     } catch (err: any) {
-      const msg = err?.message || err?.details || JSON.stringify(err);
-      console.error('Failed to confirm COD payment:', msg, err);
-      toast.error(`Failed to confirm payment: ${msg}`);
+      console.error('Failed to confirm COD payment:', err);
+      toast.error(friendlyError(err), { id: 'seller-cod-confirm-error' });
     } finally {
       setIsUpdating(false);
     }
@@ -57,7 +57,7 @@ export function SellerCodConfirmation({
             {buyerName || 'Buyer'} owes <span className="font-semibold text-foreground">{formatPrice(amount)}</span> (Cash on Delivery)
           </p>
           <p className="text-[11px] text-muted-foreground mt-2">
-            Confirm once you have received the cash payment
+            Confirm only after receiving the cash. Seller-collected COD is tracked separately and is never added to your online payout balance.
           </p>
         </div>
       </div>

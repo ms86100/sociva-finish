@@ -6,10 +6,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { toast } from 'sonner';
+import { adminNotify } from '@/lib/admin-notify';
 import { type WorkflowGroup } from './types';
 import { notify } from '@/lib/notify';
 import { useAvailableWorkflows } from '@/hooks/useAvailableWorkflows';
+import { friendlyError } from '@/lib/utils';
 
 interface Props {
   open: boolean;
@@ -63,7 +64,7 @@ export function CreateWorkflowDialog({ open, onOpenChange, existingWorkflows, on
       return;
     }
     if (isDuplicate) {
-      toast.error('This workflow already exists');
+      adminNotify.error('This workflow already exists');
       return;
     }
 
@@ -86,11 +87,11 @@ export function CreateWorkflowDialog({ open, onOpenChange, existingWorkflows, on
         allowed_actor: 'seller',
       });
 
-      toast.success('Workflow created! Customize the steps now.');
+      adminNotify.success('Workflow created! Customize the steps now.');
       onOpenChange(false);
       onCreated();
     } catch (err: any) {
-      toast.error(`Failed to create: ${err.message}`);
+      adminNotify.error(friendlyError(err) || 'Failed to create workflow');
     } finally {
       setIsCreating(false);
     }

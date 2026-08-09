@@ -1,6 +1,10 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getRazorpayCredentials } from "../_shared/credentials.ts";
+import {
+  checkFinancialRuntime,
+  financialRuntimeUnavailableResponse,
+} from "../_shared/financial-runtime.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -29,6 +33,15 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    const runtime = await checkFinancialRuntime(
+      supabase,
+      "payment_ready",
+      "payment_confirm_enabled",
+    );
+    if (!runtime.ready) {
+      return financialRuntimeUnavailableResponse(runtime, corsHeaders);
+    }
 
     // Auth: JWT buyer OR service-role (webhook/cron)
     const authHeader = req.headers.get("Authorization") || "";
@@ -78,7 +91,7 @@ serve(async (req) => {
     // Load seed orders, then expand ALL siblings via checkout_group_id BEFORE amount check
     const { data: seedOrders, error: seedErr } = await supabase
       .from("orders")
-      .select("id, buyer_id, seller_id, total_amount, society_id, status, payment_status, razorpay_order_id, platform_fee, net_amount, loyalty_reservation_id, loyalty_discount_amount, loyalty_points_redeemed, checkout_group_id")
+      .select("id, buyer_id, seller_id, total_amount, society_id, status, payment_status, razorpay_order_id, net_amount, loyalty_reservation_id, loyalty_discount_amount, loyalty_points_redeemed, checkout_group_id")
       .in("id", order_ids);
 
     if (seedErr || !seedOrders || seedOrders.length === 0) {
@@ -100,7 +113,7 @@ serve(async (req) => {
     if (groupIds.length > 0) {
       const { data: siblings, error: sibErr } = await supabase
         .from("orders")
-        .select("id, buyer_id, seller_id, total_amount, society_id, status, payment_status, razorpay_order_id, platform_fee, net_amount, loyalty_reservation_id, loyalty_discount_amount, loyalty_points_redeemed, checkout_group_id")
+        .select("id, buyer_id, seller_id, total_amount, society_id, status, payment_status, razorpay_order_id, net_amount, loyalty_reservation_id, loyalty_discount_amount, loyalty_points_redeemed, checkout_group_id")
         .in("checkout_group_id", groupIds);
 
       if (sibErr || !siblings?.length) {
@@ -118,6 +131,8 @@ serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+    orders = [...orders].sort((a: any, b: any) => String(a.id).localeCompare(String(b.id)));
+    order_ids = orders.map((o: any) => o.id);
 
     if (callerUserId) {
       const unauthorized = orders.some((o: any) => o.buyer_id !== callerUserId);
@@ -149,9 +164,13 @@ serve(async (req) => {
         });
       }
       paymentEntity = await rzpResponse.json();
-      if (paymentEntity.status !== "captured" && paymentEntity.status !== "authorized") {
+      if (paymentEntity.status !== "captured") {
         return new Response(
-          JSON.stringify({ error: "Payment not confirmed", status: paymentEntity.status }),
+          JSON.stringify({
+            error: "Payment is not captured",
+            status: paymentEntity.status,
+            reconciliation_required: paymentEntity.status === "authorized",
+          }),
           { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
@@ -169,7 +188,7 @@ serve(async (req) => {
       const data = await rzpResponse.json();
       const items = data.items || data;
       paymentEntity = Array.isArray(items)
-        ? items.find((p: any) => p.status === "captured" || p.status === "authorized")
+        ? items.find((p: any) => p.status === "captured")
         : null;
       if (!paymentEntity) {
         return new Response(
@@ -219,19 +238,43 @@ serve(async (req) => {
       }
     }
 
-    // ONE DB transaction: payment_records + orders + group stamp + loyalty/wallet
+    // ONE DB transaction: provider capture + allocations + payment records +
+    // order/group stamps + loyalty/wallet commit.
     const { data: commitData, error: commitErr } = await supabase.rpc(
-      "confirm_orders_after_razorpay_payment",
+      "confirm_captured_payment_group",
       {
         p_order_ids: order_ids,
-        p_razorpay_payment_id: verifiedPaymentId,
-        p_razorpay_order_id: expectedRzpOrderId || razorpay_order_id || null,
+        p_provider_payment_id: verifiedPaymentId,
+        p_provider_order_id: paymentEntity.order_id ||
+          expectedRzpOrderId ||
+          razorpay_order_id ||
+          null,
+        p_amount_minor: paidPaise,
+        p_currency: paymentEntity.currency || "INR",
+        p_captured_at: paymentEntity.captured_at
+          ? new Date(Number(paymentEntity.captured_at) * 1000).toISOString()
+          : new Date().toISOString(),
         p_source: source,
       },
     );
 
     if (commitErr) {
       console.error("[confirm] atomic commit failed", commitErr);
+      if (commitErr.message?.includes("duplicate_capture")) {
+        await supabase.from("financial_reconciliation_records").upsert(
+          {
+            provider: "razorpay",
+            reconciliation_date: new Date().toISOString().slice(0, 10),
+            reference_type: "payment_capture",
+            reference_id: verifiedPaymentId,
+            provider_amount_minor: paidPaise,
+            status: "open",
+            reason: commitErr.message,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "provider,reconciliation_date,reference_type,reference_id" },
+        );
+      }
       return new Response(
         JSON.stringify({
           success: false,
@@ -246,8 +289,8 @@ serve(async (req) => {
     const allOk = commitData?.success === true;
     const successCount = Number(commitData?.confirmed || 0);
 
-    if (allOk && successCount > 0) {
-      setTimeout(() => {
+    if (allOk) {
+      if (successCount > 0) setTimeout(() => {
         fetch(`${supabaseUrl}/functions/v1/process-notification-queue`, {
           method: "POST",
           headers: {

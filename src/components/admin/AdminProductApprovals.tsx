@@ -6,7 +6,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Check, X, Loader2, Package, ShieldCheck } from 'lucide-react';
-import { toast } from 'sonner';
+import { adminNotify } from '@/lib/admin-notify';
 import { logAudit } from '@/lib/audit';
 import { ProductAttributeBlocks } from '@/components/product/ProductAttributeBlocks';
 import { useCurrency } from '@/hooks/useCurrency';
@@ -59,7 +59,7 @@ export function AdminProductApprovals() {
   const handleApprove = async (product: PendingProduct) => {
     setActionId(product.id);
     const { error } = await supabase.from('products').update({ approval_status: 'approved', rejection_note: null } as any).eq('id', product.id);
-    if (error) { toast.error('Failed to approve'); setActionId(null); return; }
+    if (error) { adminNotify.error('Failed to approve'); setActionId(null); return; }
     // Clear old snapshots so admin only sees future diffs
     await supabase.from('product_edit_snapshots').delete().eq('product_id', product.id);
     await logAudit('product_approved', 'product', product.id, '', {});
@@ -73,7 +73,7 @@ export function AdminProductApprovals() {
       );
     }
 
-    toast.success('Product approved');
+    adminNotify.success('Product approved');
     setActionId(null);
     fetchPending();
   };
@@ -84,7 +84,7 @@ export function AdminProductApprovals() {
       approval_status: 'rejected',
       rejection_note: rejectionNote.trim() || null,
     } as any).eq('id', product.id);
-    if (error) { toast.error('Failed to reject'); setActionId(null); return; }
+    if (error) { adminNotify.error('Failed to reject'); setActionId(null); return; }
     await logAudit('product_rejected', 'product', product.id, '', { reason: rejectionNote });
 
     if (product.seller) {
@@ -97,7 +97,7 @@ export function AdminProductApprovals() {
       );
     }
 
-    toast.success('Product rejected');
+    adminNotify.success('Product rejected');
     setActionId(null);
     setRejectingId(null);
     setRejectionNote('');

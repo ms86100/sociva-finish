@@ -523,8 +523,15 @@ export function useSellerApplication() {
     if (group !== selectedGroup) {
       // Bug 10: If draft products exist from the old group, clean them up
       if (draftSellerId && draftProducts.length > 0) {
-        const confirmed = window.confirm(
-          `Changing your store type will remove your ${draftProducts.length} existing draft product(s). Continue?`
+        const confirmed = await notify.confirm(
+          `Changing your store type will remove ${draftProducts.length} existing draft product${draftProducts.length === 1 ? '' : 's'}. This cannot be undone.`,
+          {
+            id: 'seller-change-store-type',
+            title: 'Remove draft products?',
+            okLabel: 'Change store type',
+            cancelLabel: 'Keep drafts',
+            priority: 'critical',
+          },
         );
         if (!confirmed) return;
         // Delete orphaned products from DB

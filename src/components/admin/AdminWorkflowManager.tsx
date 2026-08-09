@@ -13,12 +13,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { toast } from 'sonner';
+import { adminNotify } from '@/lib/admin-notify';
 import {
   GitBranch, Plus, Trash2, Save, ChevronRight,
   ArrowRight, Copy, HelpCircle, AlertTriangle,
 } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn, friendlyError } from '@/lib/utils';
 import { type FlowStep, type Transition, type WorkflowGroup, ACTORS, TRANSACTION_TYPES, formatName } from './workflow/types';
 import { CreateWorkflowDialog } from './workflow/CreateWorkflowDialog';
 import { TransitionRulesEditor } from './workflow/TransitionRulesEditor';
@@ -82,7 +82,7 @@ export function AdminWorkflowManager() {
       .order('sort_order', { ascending: true });
 
     if (error) {
-      toast.error('Failed to load workflows');
+      adminNotify.error('Failed to load workflows');
       setIsLoading(false);
       return;
     }
@@ -182,18 +182,18 @@ export function AdminWorkflowManager() {
     if (!selectedWorkflow) return;
 
     const emptyKeys = editSteps.filter(s => !s.status_key.trim());
-    if (emptyKeys.length > 0) { toast.error('All steps must have a status key'); return; }
+    if (emptyKeys.length > 0) { adminNotify.error('All steps must have a status key'); return; }
 
     const keys = editSteps.map(s => s.status_key.trim().toLowerCase());
     const dupes = keys.filter((k, i) => keys.indexOf(k) !== i);
-    if (dupes.length > 0) { toast.error(`Duplicate status key: "${dupes[0]}"`); return; }
+    if (dupes.length > 0) { adminNotify.error(`Duplicate status key: "${dupes[0]}"`); return; }
 
-    if (!editSteps.some(s => s.is_terminal)) { toast.error('Workflow must have at least one terminal status'); return; }
+    if (!editSteps.some(s => s.is_terminal)) { adminNotify.error('Workflow must have at least one terminal status'); return; }
 
     const nonTerminalKeys = new Set(editSteps.filter(s => !s.is_terminal).map(s => s.status_key));
     const fromKeys = new Set(transitions.map(t => t.from_status));
     const orphaned = [...nonTerminalKeys].filter(k => !fromKeys.has(k));
-    if (orphaned.length > 0) toast.warning(`Warning: "${orphaned.join('", "')}" have no outgoing transitions`);
+    if (orphaned.length > 0) adminNotify.warning(`Warning: "${orphaned.join('", "')}" have no outgoing transitions`);
 
     const stepOrderMap = new Map(editSteps.map(s => [s.status_key, s.sort_order]));
     const backwardTransitions = transitions.filter(t => {
@@ -202,7 +202,7 @@ export function AdminWorkflowManager() {
       return fromOrder !== undefined && toOrder !== undefined && toOrder < fromOrder;
     });
     if (backwardTransitions.length > 0) {
-      toast.warning(`Backward transition detected: ${backwardTransitions.map(t => `${t.from_status} → ${t.to_status}`).join(', ')}`);
+      adminNotify.warning(`Backward transition detected: ${backwardTransitions.map(t => `${t.from_status} → ${t.to_status}`).join(', ')}`);
     }
 
     // Self-pickup validation: auto-clear transit/tracking flags that are ignored by DB triggers
@@ -210,7 +210,7 @@ export function AdminWorkflowManager() {
     if (isSelfPickupWorkflow) {
       const flaggedSteps = editSteps.filter(s => s.is_transit || s.creates_tracking_assignment);
       if (flaggedSteps.length > 0) {
-        toast.warning('Self-pickup workflows cannot use transit or tracking flags — auto-cleared before saving.');
+        adminNotify.warning('Self-pickup workflows cannot use transit or tracking flags — auto-cleared before saving.');
         for (const s of editSteps) {
           s.is_transit = false;
           s.creates_tracking_assignment = false;
@@ -223,7 +223,7 @@ export function AdminWorkflowManager() {
     {
       const trackingSteps = editSteps.filter(s => s.creates_tracking_assignment);
       if (trackingSteps.length > 1) {
-        toast.error('Only one step can have "Start Delivery Here" enabled. Please remove duplicates.');
+        adminNotify.error('Only one step can have "Start Delivery Here" enabled. Please remove duplicates.');
         return;
       }
     }
@@ -236,7 +236,7 @@ export function AdminWorkflowManager() {
       for (const s of sortedForValidation) {
         if (s.creates_tracking_assignment) trackingAssignmentSeen = true;
         if (s.otp_type === 'delivery' && !trackingAssignmentSeen) {
-          toast.error(`Delivery OTP requires a delivery assignment. Step "${s.display_name || s.status_key}" comes before any tracking assignment step — cleared to 'None'. Review and save again.`, { duration: 8000 });
+          adminNotify.error(`Delivery OTP requires a delivery assignment. Step "${s.display_name || s.status_key}" comes before any tracking assignment step — cleared to 'None'. Review and save again.`, { duration: 8000 });
           s.otp_type = null;
           s.requires_otp = false;
           cleared = true;
@@ -260,11 +260,11 @@ export function AdminWorkflowManager() {
           if (trackingSeenForLegacy) {
             // Post-tracking step: safe to assume delivery OTP was intended
             s.otp_type = 'delivery';
-            toast.info(`Step "${s.display_name || s.status_key}" had legacy OTP flag — auto-mapped to Delivery OTP.`);
+            adminNotify.info(`Step "${s.display_name || s.status_key}" had legacy OTP flag — auto-mapped to Delivery OTP.`);
           } else {
             // Pre-tracking step: delivery OTP cannot work here, clear the flag
             s.requires_otp = false;
-            toast.warning(`Step "${s.display_name || s.status_key}" had legacy OTP flag but no delivery context — cleared.`);
+            adminNotify.warning(`Step "${s.display_name || s.status_key}" had legacy OTP flag but no delivery context — cleared.`);
           }
           normalized = true;
         }
@@ -365,11 +365,11 @@ export function AdminWorkflowManager() {
         console.warn('Failed to sync transit_statuses system setting:', syncErr);
       }
 
-      toast.success('Workflow saved successfully');
+      adminNotify.success('Workflow saved successfully');
       await loadWorkflows();
       setSelectedWorkflow(null);
     } catch (error: any) {
-      toast.error(`Failed to save: ${error.message}`);
+      adminNotify.error(friendlyError(error) || 'Failed to save workflow');
     } finally {
       setIsSaving(false);
     }

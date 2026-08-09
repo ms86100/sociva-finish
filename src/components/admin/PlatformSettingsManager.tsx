@@ -8,7 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
-import { toast } from 'sonner';
+import { adminNotify } from '@/lib/admin-notify';
 import { Settings, Save, Loader2, RefreshCw, IndianRupee, Mail, Type, Percent, FileText, Info, Activity, MapPin, Users, TrendingUp } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 
@@ -128,9 +128,9 @@ export function PlatformSettingsManager() {
       }
       setOriginal({ ...values });
       queryClient.invalidateQueries({ queryKey: ['system-settings-all'] });
-      toast.success(`${changedKeys.length} setting(s) updated`);
+      adminNotify.success(`${changedKeys.length} setting(s) updated`);
     } catch {
-      toast.error('Failed to save settings');
+      adminNotify.error('Failed to save settings');
     } finally {
       setSaving(false);
     }

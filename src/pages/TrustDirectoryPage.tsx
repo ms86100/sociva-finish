@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { escapeIlike } from '@/lib/query-utils';
-import { toast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import { cn, friendlyError } from '@/lib/utils';
 import { Search, Plus, Loader2, Award, ThumbsUp, Star } from 'lucide-react';
 
@@ -78,12 +78,12 @@ export default function TrustDirectoryPage() {
         availability: newAvail.trim() || null,
       });
       if (error) throw error;
-      toast({ title: 'Skill added!' });
+      toast.success('Skill added!');
       setNewSkill(''); setNewDesc(''); setNewAvail('');
       setShowAdd(false);
       fetchSkills();
     } catch (err: any) {
-      toast({ title: 'Failed', description: friendlyError(err), variant: 'destructive' });
+      toast.error(friendlyError(err));
     } finally {
       setSaving(false);
     }

@@ -19,8 +19,9 @@ import {
 } from '@/components/ui/drawer';
 import { useCategoryConfig } from '@/hooks/queries/useCategoryConfig';
 import { Plus, Pencil, Trash2, GripVertical, ChevronDown, ChevronUp, X } from 'lucide-react';
-import { toast } from 'sonner';
+import { adminNotify } from '@/lib/admin-notify';
 import { notify } from '@/lib/notify';
+import { friendlyError } from '@/lib/utils';
 
 interface SchemaField {
   key: string;
@@ -96,7 +97,7 @@ export function AdminAttributeBlockManager() {
       .from('attribute_block_library')
       .select('*')
       .order('display_order');
-    if (error) { toast.error('Failed to load blocks'); console.error(error); }
+    if (error) { adminNotify.error('Failed to load blocks'); console.error(error); }
     else setBlocks((data || []) as unknown as AttributeBlock[]);
     setLoading(false);
   };
@@ -129,9 +130,9 @@ export function AdminAttributeBlockManager() {
       .from('attribute_block_library')
       .update({ is_active: !block.is_active })
       .eq('id', block.id);
-    if (error) toast.error('Failed to update');
+    if (error) adminNotify.error('Failed to update');
     else {
-      toast.success(block.is_active ? 'Block deactivated' : 'Block activated');
+      adminNotify.success(block.is_active ? 'Block deactivated' : 'Block activated');
       fetchBlocks();
     }
   };
@@ -141,13 +142,13 @@ export function AdminAttributeBlockManager() {
       .from('attribute_block_library')
       .update({ is_active: false })
       .eq('id', block.id);
-    if (error) toast.error('Failed to deactivate');
-    else { toast.success('Block deactivated'); fetchBlocks(); }
+    if (error) adminNotify.error('Failed to deactivate');
+    else { adminNotify.success('Block deactivated'); fetchBlocks(); }
   };
 
   const handleSave = async () => {
-    if (!displayName.trim()) { toast.error('Display name is required'); return; }
-    if (fields.some(f => !f.label.trim())) { toast.error('All fields must have a label'); return; }
+    if (!displayName.trim()) { adminNotify.error('Display name is required'); return; }
+    if (fields.some(f => !f.label.trim())) { adminNotify.error('All fields must have a label'); return; }
     if (selectedCategories.length === 0) { notify.block('Select at least one category'); return; }
 
     setSaving(true);
@@ -183,8 +184,8 @@ export function AdminAttributeBlockManager() {
     }
 
     setSaving(false);
-    if (error) { toast.error('Failed to save: ' + error.message); return; }
-    toast.success(editingBlock ? 'Block updated' : 'Block created');
+    if (error) { adminNotify.error(friendlyError(error) || 'Failed to save attribute block'); return; }
+    adminNotify.success(editingBlock ? 'Block updated' : 'Block created');
     setSheetOpen(false);
     fetchBlocks();
   };

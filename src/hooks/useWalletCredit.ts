@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { useState, useCallback } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useBuyerWallet } from '@/hooks/queries/useWallet';
 import { toast } from 'sonner';
@@ -14,6 +14,19 @@ export function useWalletCredit() {
   const queryClient = useQueryClient();
   const [appliedAmount, setAppliedAmount] = useState(0);
   const [quotedMax, setQuotedMax] = useState<number | null>(null);
+  const { data: capabilities, isLoading: capabilitiesLoading } = useQuery({
+    queryKey: ['financial-capabilities'],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('get_financial_capabilities');
+      if (error) throw error;
+      return data as {
+        wallet_spend_enabled?: boolean;
+        wallet_refund_credit_enabled?: boolean;
+      };
+    },
+    staleTime: 30_000,
+  });
+  const spendEnabled = capabilities?.wallet_spend_enabled === true;
 
   const balance = Number(wallet?.total_available || 0);
   const cashAvailable = Number(wallet?.cash_available || 0);
@@ -53,6 +66,11 @@ export function useWalletCredit() {
   });
 
   const refreshQuote = useCallback(async (payable: number) => {
+    if (!spendEnabled) {
+      setQuotedMax(0);
+      setAppliedAmount(0);
+      return 0;
+    }
     const amount = Math.max(0, payable);
     try {
       const data = await quoteMutation.mutateAsync(amount);
@@ -62,11 +80,13 @@ export function useWalletCredit() {
       return max;
     } catch (err) {
       console.error('[Wallet] quote failed:', err);
-      const max = Math.min(balance, Math.round(amount * 100) / 100);
-      setQuotedMax(max);
-      return max;
+      // Financial authority stays server-side. A failed quote cannot fall back
+      // to client arithmetic.
+      setQuotedMax(0);
+      setAppliedAmount(0);
+      return 0;
     }
-  }, [quoteMutation, appliedAmount, balance]);
+  }, [quoteMutation, appliedAmount, spendEnabled]);
 
   const clearApplied = useCallback(() => {
     setAppliedAmount(0);
@@ -81,9 +101,13 @@ export function useWalletCredit() {
       toast.error('Sociva Credit is frozen on this account.');
       return;
     }
+    if (!spendEnabled) {
+      toast.info('Sociva Credit spending is temporarily unavailable.');
+      return;
+    }
     const max = await refreshQuote(payableAfterCouponLoyalty);
     setAppliedAmount(max);
-  }, [appliedAmount, refreshQuote, status]);
+  }, [appliedAmount, refreshQuote, spendEnabled, status]);
 
   const releaseForOrders = useCallback(async (orderIds: string[]) => {
     try {
@@ -102,6 +126,8 @@ export function useWalletCredit() {
     promoAvailable,
     status,
     walletLoading,
+    capabilitiesLoading,
+    spendEnabled,
     appliedAmount,
     quotedMax,
     nearestPromoExpiresAt: wallet?.nearest_promo_expires_at || null,

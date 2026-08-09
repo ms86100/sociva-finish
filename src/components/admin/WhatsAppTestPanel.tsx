@@ -7,7 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, MessageCircle, Send } from 'lucide-react';
-import { toast } from 'sonner';
+import { adminNotify } from '@/lib/admin-notify';
 
 type SendResult = {
   success?: boolean;
@@ -55,21 +55,21 @@ export function WhatsAppTestPanel() {
       if (error) {
         const payload = (data || {}) as SendResult;
         setLastResult({ success: false, code: 'unexpected', error: error.message, ...payload });
-        toast.error(friendlyError(payload.code, error.message));
+        adminNotify.error(friendlyError(payload.code, error.message));
         return;
       }
 
       const result = (data || {}) as SendResult;
       setLastResult(result);
       if (result.success) {
-        toast.success(`WhatsApp sent (${result.elapsedMs ?? '?'}ms)`);
+        adminNotify.success(`WhatsApp sent (${result.elapsedMs ?? '?'}ms)`);
       } else {
-        toast.error(friendlyError(result.code, result.error));
+        adminNotify.error(friendlyError(result.code, result.error));
       }
     } catch (e) {
       const msg = String(e);
       setLastResult({ success: false, code: 'unexpected', error: msg });
-      toast.error(msg);
+      adminNotify.error(msg);
     } finally {
       setSending(false);
     }

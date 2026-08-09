@@ -1,0 +1,106 @@
+r: "Refund gateway not configured. Set Razorpay keys before processing refunds.",
+        }),
+        { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    // P4: resolve payment from order OR checkout_group; amount = child share
+    const { data: gwCtx, error: ctxErr } = await supabase.rpc("resolve_refund_gateway_context", {
+      p_refund_id: refund.id,
+    });
+    if (ctxErr) {
+      console.error("[refund-processor] resolve context failed", ctxErr);
+    }
+    const ctx = (gwCtx || {}) as {
+      ok?: boolean;
+      razorpay_payment_id?: string;
+      amount?: number;
+      is_partial?: boolean;
+      checkout_group_id?: string;
+    };
+
+    let paymentId = ctx.razorpay_payment_id || null;
+    if (!paymentId) {
+      const { data: orderPay } = await supabase
+        .from("orders")
+        .select("razorpay_payment_id, checkout_group_id")
+        .eq("id", refund.order_id)
+        .single();
+      paymentId = orderPay?.razorpay_payment_id || null;
+      if (!paymentId && orderPay?.checkout_group_id) {
+        const { data: group } = await supabase
+          .from("checkout_groups")
+          .select("razorpay_payment_id")
+          .eq("id", orderPay.checkout_group_id)
+          .maybeSingle();
+        paymentId = group?.razorpay_payment_id || null;
+      }
+    }
+
+    if (!paymentId) {
+      // Audit: no razorpay_payment_id → route to wallet destination
+      console.warn(`[refund-processor] no razorpay_payment_id for ${refund.id} — routing to wallet`);
+      await supabase
+        .from("refund_requests")
+        .update({
+          refund_destination: "wallet",
+          wallet_credit_amount: refund.amount,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", refund.id)
+        .eq("refund_state", "approved");
+
+      const { data: walletDone, error: walletErr } = await supabase.rpc("complete_wallet_refund", {
+        p_refund_id: refund.id,
+      });
+      if (walletErr) {
+        console.error("[refund-processor] wallet fallback failed", walletErr);
+        await supabase.rpc("fail_refund", {
+          p_refund_id: refund.id,
+          p_reason: walletErr.message || "Wallet credit failed (no razorpay_payment_id)",
+        });
+        return new Response(
+          JSON.stringify({ ok: false, state: "refund_failed", error: walletErr.message, destination: "wallet" }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          state: "refund_completed",
+          destination: "wallet",
+          gateway_ref: walletDone?.gateway_refund_id || null,
+          routed_from: "missing_razorpay_payment_id",
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    const idempotencyKey = `refund-${refund.id}-attempt-1`;
+    const { error: initErr } = await supabase.rpc("initiate_refund", {
+      p_refund_id: refund.id,
+      p_idempotency_key: idempotencyKey,
+    });
+    if (initErr) {
+      console.error("[refund-processor] initiate failed", initErr);
+      return new Response(JSON.stringify({ error: initErr.message }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // P0: ignore client-stored refund.amount — recompute from order server-side only
+    let gatewayRefundAmount = Number(ctx.amount);
+    if (!Number.isFinite(gatewayRefundAmount) || gatewayRefundAmount <= 0) {
+      const { data: recomputed } = await supabase.rpc("compute_child_gateway_refund_amount", {
+        _order_id: refund.order_id,
+      });
+      gatewayRefundAmount = Number(recomputed);
+    }
+    if (!Number.isFinite(gatewayRefundAmount) || gatewayRefundAmount <= 0) {
+      await supabase.rpc("fail_refund", {
+        p_refund_id: refund.id,
+        p_reason: "Server could not compute refund amount from order",
+      });
+      return new Response(
+        JSON.stringify({ ok: false, state: "refu

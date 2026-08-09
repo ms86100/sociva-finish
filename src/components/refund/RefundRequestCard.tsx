@@ -12,6 +12,7 @@ import { cardEntrance } from '@/lib/motion-variants';
 import { MultiImageCapture } from '@/components/ui/multi-image-capture';
 import { RefundTimeline } from './RefundTimeline';
 import { notify } from '@/lib/notify';
+import { friendlyError } from '@/lib/utils';
 
 interface RefundRequestCardProps {
   orderId: string;
@@ -60,6 +61,7 @@ export function RefundRequestCard({ orderId, orderStatus, paymentStatus, isBuyer
   const [reason, setReason] = useState('');
   const [category, setCategory] = useState('order_issue');
   const [refundDestination, setRefundDestination] = useState<'original_payment' | 'wallet'>('original_payment');
+  const [walletRefundEnabled, setWalletRefundEnabled] = useState(false);
   const [evidenceUrls, setEvidenceUrls] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
 
@@ -86,6 +88,11 @@ export function RefundRequestCard({ orderId, orderStatus, paymentStatus, isBuyer
         .order('created_at', { ascending: true });
       setAuditLog(audit || []);
     }
+    const { data: capabilities } = await supabase.rpc('get_financial_capabilities');
+    setWalletRefundEnabled(
+      (capabilities as { wallet_refund_credit_enabled?: boolean } | null)
+        ?.wallet_refund_credit_enabled === true,
+    );
     setLoading(false);
   }
 
@@ -146,7 +153,7 @@ export function RefundRequestCard({ orderId, orderStatus, paymentStatus, isBuyer
       await fetchRefund();
       onRefundRequested?.();
     } catch (err: any) {
-      toast.error(err.message || 'Failed to submit refund request');
+      toast.error(friendlyError(err), { id: 'refund-request-error' });
     } finally {
       setSubmitting(false);
     }
@@ -266,19 +273,21 @@ export function RefundRequestCard({ orderId, orderStatus, paymentStatus, isBuyer
               <span className="block text-[10px] text-muted-foreground">3–7 business days · default</span>
             </span>
           </label>
-          <label className="flex items-start gap-2 text-xs cursor-pointer">
-            <input
-              type="radio"
-              name="refund-dest"
-              className="mt-0.5"
-              checked={refundDestination === 'wallet'}
-              onChange={() => setRefundDestination('wallet')}
-            />
-            <span>
-              <span className="font-medium">Instant Sociva Credit</span>
-              <span className="block text-[10px] text-muted-foreground">Usable on Sociva only · not withdrawable</span>
-            </span>
-          </label>
+          {walletRefundEnabled && (
+            <label className="flex items-start gap-2 text-xs cursor-pointer">
+              <input
+                type="radio"
+                name="refund-dest"
+                className="mt-0.5"
+                checked={refundDestination === 'wallet'}
+                onChange={() => setRefundDestination('wallet')}
+              />
+              <span>
+                <span className="font-medium">Instant Sociva Credit</span>
+                <span className="block text-[10px] text-muted-foreground">Usable on Sociva only · not withdrawable</span>
+              </span>
+            </label>
+          )}
         </div>
       </div>
 

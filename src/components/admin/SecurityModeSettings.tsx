@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
-import { toast } from 'sonner';
+import { adminNotify } from '@/lib/admin-notify';
 import { logAudit } from '@/lib/audit';
 import { Shield, Clock, Lock } from 'lucide-react';
 
@@ -44,10 +44,10 @@ export function SecurityModeSettings() {
       .update({ security_mode: newMode })
       .eq('id', effectiveSocietyId);
     if (error) {
-      toast.error('Failed to update security mode');
+      adminNotify.error('Failed to update security mode');
     } else {
       await logAudit('security_mode_changed', 'society', effectiveSocietyId, effectiveSocietyId, { mode: newMode });
-      toast.success(`Security mode set to ${newMode}`);
+      adminNotify.success(`Security mode set to ${newMode}`);
     }
     setIsSaving(false);
   };
@@ -61,7 +61,7 @@ export function SecurityModeSettings() {
       .update({ security_confirmation_timeout_seconds: clamped })
       .eq('id', effectiveSocietyId);
     if (error) {
-      toast.error('Failed to update timeout');
+      adminNotify.error('Failed to update timeout');
     }
   };
 

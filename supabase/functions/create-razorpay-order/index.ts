@@ -2,6 +2,10 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { checkRateLimit, rateLimitResponse } from "../_shared/rate-limiter.ts";
 import { getRazorpayCredentials } from "../_shared/credentials.ts";
+import {
+  checkFinancialRuntime,
+  financialRuntimeUnavailableResponse,
+} from "../_shared/financial-runtime.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -34,6 +38,20 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+    const runtime = await checkFinancialRuntime(
+      supabase,
+      'payment_ready',
+      'payment_create_enabled',
+    );
+    if (!runtime.ready) {
+      return financialRuntimeUnavailableResponse(runtime, corsHeaders);
+    }
+
+    const { withAuth } = await import("../_shared/auth.ts");
+    const authResult = await withAuth(req, corsHeaders);
+    if (authResult instanceof Response) return authResult;
+    const user = { id: authResult.userId };
+
     const razorpayKeys = await getRazorpayKeys(supabase);
     if (!razorpayKeys) {
       console.error('Razorpay keys not configured');
@@ -42,11 +60,6 @@ serve(async (req) => {
         { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
-
-    const { withAuth } = await import("../_shared/auth.ts");
-    const authResult = await withAuth(req, corsHeaders);
-    if (authResult instanceof Response) return authResult;
-    const user = { id: authResult.userId };
 
     const { allowed } = await checkRateLimit(`order:${user.id}`, 10, 60);
     if (!allowed) return rateLimitResponse(corsHeaders);
@@ -85,8 +98,8 @@ serve(async (req) => {
     const uniqueSellers = new Set(orders.map((o: any) => o.seller_id).filter(Boolean));
     const isMultiSeller = uniqueSellers.size > 1;
 
-    // P5: multi-seller online is platform-collect (one Razorpay payment → N child orders).
-    // Route transfers only for single-seller + linked account (below).
+    // All online orders use platform-collect. Seller transfers are created only
+    // by the deferred settlement worker after fulfilment and reconciliation.
     const resolvedSellerId = [...uniqueSellers][0] as string | undefined;
     if (!resolvedSellerId) {
       return new Response(
@@ -112,8 +125,11 @@ serve(async (req) => {
 
     console.log('Creating Razorpay order for orders:', allOrderIds, 'amount:', dbAmount, 'sellerId:', resolvedSellerId);
 
-    // Multi-order checkout = platform collect once (merchant of record).
-    // Route `transfers` only for a single order with linked seller account below.
+    // Platform collect once. Never attach a Route transfer here: doing so would
+    // race with process-settlements and could pay a seller twice.
+
+    const checkoutGroupId =
+      orders.map((o: any) => o.checkout_group_id).find((id: string | null) => !!id) || null;
 
     // Idempotency: reuse existing Razorpay order if still valid
     const existingRzpId = orders[0]?.razorpay_order_id;
@@ -131,6 +147,19 @@ serve(async (req) => {
             (existingOrder.status === 'created' || existingOrder.status === 'attempted') &&
             Math.abs(existingPaise - expectedPaise) <= 1
           ) {
+            const { data: repairedLink, error: repairedLinkError } = await supabase.rpc(
+              'link_razorpay_order_group',
+              {
+                p_order_ids: allOrderIds,
+                p_razorpay_order_id: existingOrder.id,
+                p_checkout_group_id: checkoutGroupId,
+              },
+            );
+            if (repairedLinkError || repairedLink?.linked !== true) {
+              throw new Error(
+                `existing_provider_order_link_repair_failed:${repairedLinkError?.message || 'not_linked'}`,
+              );
+            }
             console.log('Reusing existing Razorpay order:', existingRzpId, 'status:', existingOrder.status);
             return new Response(
               JSON.stringify({
@@ -152,22 +181,14 @@ serve(async (req) => {
       }
     }
 
-    const checkoutGroupId =
-      orders.map((o: any) => o.checkout_group_id).find((id: string | null) => !!id) || null;
-
-    const { data: seller } = !isMultiSeller
-      ? await supabase
-          .from('seller_profiles')
-          .select('razorpay_account_id, business_name')
-          .eq('id', resolvedSellerId)
-          .single()
-      : { data: null };
-
     const amountPaise = Math.round(dbAmount * 100);
+    const deterministicReceipt = `sociva_${checkoutGroupId || allOrderIds[0]}`
+      .replace(/-/g, '')
+      .slice(0, 40);
     const orderPayload: any = {
       amount: amountPaise,
       currency: 'INR',
-      receipt: allOrderIds[0].slice(0, 40),
+      receipt: deterministicReceipt,
       notes: {
         order_id: allOrderIds[0],
         order_ids: JSON.stringify(allOrderIds),
@@ -175,27 +196,40 @@ serve(async (req) => {
         seller_ids: JSON.stringify([...uniqueSellers]),
         buyer_id: user.id,
         checkout_group_id: checkoutGroupId || '',
-        platform_collect: isMultiSeller || allOrderIds.length > 1 ? '1' : '0',
+        platform_collect: '1',
       },
     };
 
-    // Route transfers only for single-order single-seller with linked account.
-    // Multi-seller / multi-order = platform collect (partial refunds per child in P4).
-    if (!isMultiSeller && allOrderIds.length === 1 && seller?.razorpay_account_id) {
-      orderPayload.transfers = [
-        {
-          account: seller.razorpay_account_id,
-          amount: amountPaise,
-          currency: 'INR',
-          notes: { order_id: allOrderIds[0], type: 'seller_payout' },
-          on_hold: 0,
-        },
-      ];
-    }
-
     console.log('Razorpay order payload:', orderPayload);
 
-    const razorpayResponse = await fetch('https://api.razorpay.com/v1/orders', {
+    // Recover a provider order created before a crash/database-link failure.
+    // The deterministic receipt and exact notes/amount prevent guessing.
+    const recoveryResponse = await fetch(
+      `https://api.razorpay.com/v1/orders?receipt=${encodeURIComponent(deterministicReceipt)}&count=100`,
+      { headers: { 'Authorization': `Basic ${razorpayAuth}` } },
+    );
+    let razorpayOrder: any = null;
+    if (recoveryResponse.ok) {
+      const recoveryBody = await recoveryResponse.json().catch(() => ({}));
+      const expectedIds = [...allOrderIds].sort();
+      razorpayOrder = (recoveryBody?.items || []).find((candidate: any) => {
+        let candidateIds: string[] = [];
+        try {
+          candidateIds = JSON.parse(candidate?.notes?.order_ids || '[]').map(String).sort();
+        } catch {
+          candidateIds = [];
+        }
+        return (
+          candidate?.receipt === deterministicReceipt &&
+          Number(candidate?.amount) === amountPaise &&
+          String(candidate?.currency || '').toUpperCase() === 'INR' &&
+          JSON.stringify(candidateIds) === JSON.stringify(expectedIds) &&
+          ['created', 'attempted'].includes(String(candidate?.status || ''))
+        );
+      }) || null;
+    }
+
+    const razorpayResponse = razorpayOrder ? null : await fetch('https://api.razorpay.com/v1/orders', {
       method: 'POST',
       headers: {
         'Authorization': `Basic ${razorpayAuth}`,
@@ -204,7 +238,7 @@ serve(async (req) => {
       body: JSON.stringify(orderPayload),
     });
 
-    if (!razorpayResponse.ok) {
+    if (razorpayResponse && !razorpayResponse.ok) {
       const errorText = await razorpayResponse.text();
       console.error('Razorpay error:', errorText);
       return new Response(
@@ -213,35 +247,33 @@ serve(async (req) => {
       );
     }
 
-    const razorpayOrder = await razorpayResponse.json();
+    if (!razorpayOrder && razorpayResponse) {
+      razorpayOrder = await razorpayResponse.json();
+    }
+    if (!razorpayOrder?.id) {
+      throw new Error('provider_order_create_or_recovery_missing_id');
+    }
     console.log('Razorpay order created:', razorpayOrder.id, 'for', allOrderIds.length, 'orders');
 
-    for (const oid of allOrderIds) {
-      const { error: linkErr } = await supabase
-        .from('orders')
-        .update({ razorpay_order_id: razorpayOrder.id })
-        .eq('id', oid);
-      if (linkErr) {
-        console.error('Failed to link razorpay_order_id on order', oid, linkErr);
-        return new Response(
-          JSON.stringify({ error: 'Payment order created but failed to link to Sociva order', details: linkErr.message }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-    }
-
-    if (checkoutGroupId) {
-      const { error: groupLinkErr } = await supabase
-        .from('checkout_groups')
-        .update({
+    const { data: linkedGroup, error: linkErr } = await supabase.rpc(
+      'link_razorpay_order_group',
+      {
+        p_order_ids: allOrderIds,
+        p_razorpay_order_id: razorpayOrder.id,
+        p_checkout_group_id: checkoutGroupId,
+      },
+    );
+    if (linkErr || linkedGroup?.linked !== true) {
+      console.error('Provider order created but atomic linkage failed', linkErr);
+      return new Response(
+        JSON.stringify({
+          error: 'Payment order created but failed to link atomically',
+          details: linkErr?.message || 'not_linked',
           razorpay_order_id: razorpayOrder.id,
-          payment_method: 'online',
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', checkoutGroupId);
-      if (groupLinkErr) {
-        console.warn('Failed to link razorpay_order_id on checkout_group', checkoutGroupId, groupLinkErr);
-      }
+          retryable: true,
+        }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      );
     }
 
     return new Response(

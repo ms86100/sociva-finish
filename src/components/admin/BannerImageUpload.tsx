@@ -5,8 +5,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Upload, X, Image as ImageIcon, Loader2 } from 'lucide-react';
-import { toast } from 'sonner';
-import { cn } from '@/lib/utils';
+import { adminNotify } from '@/lib/admin-notify';
+import { cn, friendlyError } from '@/lib/utils';
 import { notify } from '@/lib/notify';
 
 interface BannerImageUploadProps {
@@ -26,7 +26,7 @@ export function BannerImageUpload({ value, onChange, label = 'Banner Image' }: B
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
-      toast.error('Image must be under 5MB');
+      adminNotify.error('Image must be under 5MB');
       return;
     }
 
@@ -47,9 +47,9 @@ export function BannerImageUpload({ value, onChange, label = 'Banner Image' }: B
         .getPublicUrl(filePath);
 
       onChange(publicUrl);
-      toast.success('Image uploaded');
+      adminNotify.success('Image uploaded');
     } catch (err: any) {
-      toast.error(err.message || 'Upload failed');
+      adminNotify.error(friendlyError(err) || 'Upload failed');
     } finally {
       setUploading(false);
     }

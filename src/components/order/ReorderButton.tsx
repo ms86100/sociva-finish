@@ -41,7 +41,7 @@ export function ReorderButton({
     }
 
     if (orderItems.length === 0) {
-      toast.error('No items to reorder');
+      notify.block('This order has no reusable items.', { id: 'reorder-empty', title: 'Nothing to reorder' });
       return;
     }
 
@@ -78,7 +78,7 @@ export function ReorderButton({
         .eq('approval_status', 'approved');
 
       if (!availableProducts || availableProducts.length === 0) {
-        toast.error('None of these items are currently available');
+        notify.block('None of the items from this order are currently available.', { id: 'reorder-unavailable', title: 'Items unavailable' });
         setIsLoading(false);
         return;
       }
@@ -103,7 +103,7 @@ export function ReorderButton({
         }));
 
       if (cartInserts.length === 0) {
-        toast.error('None of these items are currently available');
+        notify.block('None of the items from this order are currently available.', { id: 'reorder-unavailable', title: 'Items unavailable' });
         setIsLoading(false);
         return;
       }
@@ -116,7 +116,6 @@ export function ReorderButton({
         toast.info(`${unavailableCount} item(s) were unavailable and skipped`);
       }
 
-      toast.success('Items added to cart!');
       navigate('/cart');
     } catch (error) {
       console.error('Error reordering:', error);

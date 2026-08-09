@@ -1,0 +1,2 @@
+-- ------------------------------------------------------------
+-- 4. Harden auto-refund: child share + refund_state=approved

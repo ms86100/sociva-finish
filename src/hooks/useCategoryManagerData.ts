@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient } from '@tanstack/react-query';
 import { useParentGroups, ParentGroupRow } from '@/hooks/useParentGroups';
-import { toast } from 'sonner';
+import { adminNotify } from '@/lib/admin-notify';
 import { friendlyError } from '@/lib/utils';
 import {
   useSensor, useSensors, PointerSensor, KeyboardSensor,
@@ -78,7 +78,7 @@ export function useCategoryManagerData() {
       const { data, error } = await supabase.from('category_config').select('*').order('display_order');
       if (error) throw error;
       setCategories(data || []);
-    } catch { toast.error('Failed to load categories'); }
+    } catch { adminNotify.error('Failed to load categories'); }
     finally { setIsLoading(false); }
   };
 
@@ -88,8 +88,8 @@ export function useCategoryManagerData() {
       if (error) throw error;
       setCategories(categories.map(c => c.id === id ? { ...c, is_active: isActive } : c));
       queryClient.invalidateQueries({ queryKey: ['category-configs'] });
-      toast.success(isActive ? 'Category enabled' : 'Category disabled');
-    } catch { toast.error('Failed to update category'); }
+      adminNotify.success(isActive ? 'Category enabled' : 'Category disabled');
+    } catch { adminNotify.error('Failed to update category'); }
   };
 
   const openEditDialog = (category: CategoryConfigRow) => {
@@ -111,7 +111,7 @@ export function useCategoryManagerData() {
 
   const saveEditedCategory = async () => {
     if (!editingCategory) return;
-    if (!editForm.display_name.trim()) { toast.error('Display name is required'); return; }
+    if (!editForm.display_name.trim()) { adminNotify.error('Display name is required'); return; }
     setIsSaving(true);
     try {
       const journeyFields = journeyPayload(editForm.buyer_journey);
@@ -134,9 +134,9 @@ export function useCategoryManagerData() {
       if (error) throw error;
       setCategories(categories.map(c => c.id === editingCategory.id ? { ...c, ...editForm, ...journeyFields } : c));
       queryClient.invalidateQueries({ queryKey: ['category-configs'] });
-      toast.success('Category updated');
+      adminNotify.success('Category updated');
       setEditingCategory(null);
-    } catch { toast.error('Failed to update category'); }
+    } catch { adminNotify.error('Failed to update category'); }
     finally { setIsSaving(false); }
   };
 
@@ -152,10 +152,10 @@ export function useCategoryManagerData() {
   };
 
   const saveNewCategory = async () => {
-    if (!addForm.display_name.trim()) { toast.error('Display name is required'); return; }
-    if (!addForm.icon.trim()) { toast.error('Icon is required'); return; }
+    if (!addForm.display_name.trim()) { adminNotify.error('Display name is required'); return; }
+    if (!addForm.icon.trim()) { adminNotify.error('Icon is required'); return; }
     const categoryKey = generateCategoryKey(addForm.display_name);
-    if (categories.some(c => c.category === categoryKey)) { toast.error('A category with this key already exists'); return; }
+    if (categories.some(c => c.category === categoryKey)) { adminNotify.error('A category with this key already exists'); return; }
     setIsSaving(true);
     try {
       const groupCats = categories.filter(c => c.parent_group === addForm.parent_group);
@@ -175,19 +175,19 @@ export function useCategoryManagerData() {
       if (error) throw error;
       setCategories([...categories, data]);
       queryClient.invalidateQueries({ queryKey: ['category-configs'] });
-      toast.success('Category added — attach attribute blocks in the Attributes tab if needed');
+      adminNotify.success('Category added — attach attribute blocks in the Attributes tab if needed');
       setIsAddDialogOpen(false);
       if (!addForm.image_url) {
-        toast.info('Generating AI image for the new category...');
+        adminNotify.info('Generating AI image for the new category...');
         try {
           const { data: imgData, error: imgError } = await supabase.functions.invoke('generate-category-image', { body: { categoryName: addForm.display_name, categoryKey, parentGroup: addForm.parent_group } });
           if (!imgError && imgData?.image_url) {
             setCategories(prev => prev.map(c => c.category === categoryKey ? { ...c, image_url: imgData.image_url } : c));
-            toast.success('AI image generated for ' + addForm.display_name);
+            adminNotify.success('AI image generated for ' + addForm.display_name);
           }
         } catch { console.log('Auto image generation failed'); }
       }
-    } catch (error: any) { toast.error(friendlyError(error)); }
+    } catch (error: any) { adminNotify.error(friendlyError(error)); }
     finally { setIsSaving(false); }
   };
 
@@ -200,15 +200,15 @@ export function useCategoryManagerData() {
         await supabase.from('category_config').update({ is_active: false }).eq('id', deleteCategory.id);
         setCategories(categories.map(c => c.id === deleteCategory.id ? { ...c, is_active: false } : c));
         queryClient.invalidateQueries({ queryKey: ['category-configs'] });
-        toast.info('Category disabled (sellers are using it)');
+        adminNotify.info('Category disabled (sellers are using it)');
       } else {
         await supabase.from('category_config').delete().eq('id', deleteCategory.id);
         setCategories(categories.filter(c => c.id !== deleteCategory.id));
         queryClient.invalidateQueries({ queryKey: ['category-configs'] });
-        toast.success('Category deleted');
+        adminNotify.success('Category deleted');
       }
       setDeleteCategory(null);
-    } catch { toast.error('Failed to delete category'); }
+    } catch { adminNotify.error('Failed to delete category'); }
     finally { setIsDeleting(false); }
   };
 
@@ -224,8 +224,8 @@ export function useCategoryManagerData() {
       }
       await refreshGroups();
       queryClient.invalidateQueries({ queryKey: ['category-configs'] });
-      toast.success(enable ? `${group.name} section enabled` : `${group.name} section disabled`);
-    } catch { toast.error('Failed to update section'); }
+      adminNotify.success(enable ? `${group.name} section enabled` : `${group.name} section disabled`);
+    } catch { adminNotify.error('Failed to update section'); }
   };
 
   const openGroupDialog = (group?: ParentGroupRow) => {
@@ -240,26 +240,26 @@ export function useCategoryManagerData() {
   };
 
   const saveGroup = async () => {
-    if (!groupForm.name.trim()) { toast.error('Name is required'); return; }
-    if (!groupForm.icon.trim()) { toast.error('Icon is required'); return; }
+    if (!groupForm.name.trim()) { adminNotify.error('Name is required'); return; }
+    if (!groupForm.icon.trim()) { adminNotify.error('Icon is required'); return; }
     setIsSaving(true);
     try {
       if (editingGroup) {
         await supabase.from('parent_groups').update({ name: groupForm.name.trim(), icon: groupForm.icon.trim(), color: groupForm.color, description: groupForm.description.trim() }).eq('id', editingGroup.id);
-        toast.success('Section updated');
+        adminNotify.success('Section updated');
         await refreshGroups();
       } else {
         const slug = groupForm.name.toLowerCase().trim().replace(/[^a-z0-9\s]/g, '').replace(/\s+/g, '_');
         const maxOrder = groups.length > 0 ? Math.max(...groups.map(g => g.sort_order)) : 0;
         await supabase.from('parent_groups').insert({ slug, name: groupForm.name.trim(), icon: groupForm.icon.trim(), color: groupForm.color, description: groupForm.description.trim(), sort_order: maxOrder + 1 });
-        toast.success('Section created — use Add Category on this card');
+        adminNotify.success('Section created — use Add Category on this card');
         await refreshGroups();
         // Focus the new section so it isn't buried at the bottom of a long list
         setSelectedGroupSlug(slug);
       }
       queryClient.invalidateQueries({ queryKey: ['category-configs'] });
       setIsGroupDialogOpen(false);
-    } catch (error: any) { toast.error(friendlyError(error)); }
+    } catch (error: any) { adminNotify.error(friendlyError(error)); }
     finally { setIsSaving(false); }
   };
 
@@ -274,21 +274,21 @@ export function useCategoryManagerData() {
           await supabase.from('parent_groups').update({ is_active: false }).eq('id', deleteGroup.id);
           await supabase.from('category_config').update({ is_active: false }).in('id', groupCats.map(c => c.id));
           setCategories(categories.map(c => c.parent_group === deleteGroup.slug ? { ...c, is_active: false } : c));
-          toast.info('Section disabled (sellers are using it)');
+          adminNotify.info('Section disabled (sellers are using it)');
         } else {
           await supabase.from('category_config').delete().in('id', groupCats.map(c => c.id));
           await supabase.from('parent_groups').delete().eq('id', deleteGroup.id);
           setCategories(categories.filter(c => c.parent_group !== deleteGroup.slug));
-          toast.success('Section and its categories deleted');
+          adminNotify.success('Section and its categories deleted');
         }
       } else {
         await supabase.from('parent_groups').delete().eq('id', deleteGroup.id);
-        toast.success('Section deleted');
+        adminNotify.success('Section deleted');
       }
       queryClient.invalidateQueries({ queryKey: ['category-configs'] });
       await refreshGroups();
       setDeleteGroup(null);
-    } catch { toast.error('Failed to delete section'); }
+    } catch { adminNotify.error('Failed to delete section'); }
     finally { setIsDeletingGroup(false); }
   };
 
@@ -303,8 +303,8 @@ export function useCategoryManagerData() {
     try {
       await Promise.all(reordered.map((g, i) => supabase.from('parent_groups').update({ sort_order: i }).eq('id', g.id)));
       await refreshGroups();
-      toast.success('Section order updated');
-    } catch { toast.error('Failed to reorder sections'); await refreshGroups(); }
+      adminNotify.success('Section order updated');
+    } catch { adminNotify.error('Failed to reorder sections'); await refreshGroups(); }
   }, [groups, selectedGroupSlug, refreshGroups]);
 
   const handleSubcategoryDragEnd = useCallback(async (groupSlug: string, event: DragEndEvent) => {
@@ -319,8 +319,8 @@ export function useCategoryManagerData() {
     setCategories(prev => prev.map(c => orderMap.has(c.id) ? { ...c, display_order: orderMap.get(c.id)! } : c));
     try {
       await Promise.all(reordered.map((c, i) => supabase.from('category_config').update({ display_order: i }).eq('id', c.id)));
-      toast.success('Category order updated');
-    } catch { toast.error('Failed to reorder categories'); fetchCategories(); }
+      adminNotify.success('Category order updated');
+    } catch { adminNotify.error('Failed to reorder categories'); fetchCategories(); }
   }, [categories]);
 
   const groupedCategories = categories.reduce((acc, cat) => {

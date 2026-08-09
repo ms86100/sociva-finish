@@ -16,7 +16,7 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
+import { adminNotify } from '@/lib/admin-notify';
 import { useNavigate } from 'react-router-dom';
 
 interface SeedResult {
@@ -80,14 +80,14 @@ export function ResetAndSeedButton() {
       setResult(data as SeedResult);
 
       if (data?.success) {
-        toast.success(`Seed completed! ${data.summary?.products} products across ${data.summary?.sellers} sellers`);
+        adminNotify.success(`Seed completed! ${data.summary?.products} products across ${data.summary?.sellers} sellers`);
       } else {
-        toast.error(`Seed failed: ${data?.error}`);
+        adminNotify.error(`Seed failed: ${data?.error}`);
       }
     } catch (err: any) {
       const errorMsg = err?.message || 'Unknown error';
       setResult({ success: false, error: errorMsg });
-      toast.error(`Seed error: ${errorMsg}`);
+      adminNotify.error(`Seed error: ${errorMsg}`);
     } finally {
       setIsRunning(false);
     }

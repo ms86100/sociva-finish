@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { ThumbsUp } from 'lucide-react';
 import { toast } from 'sonner';
 import { notify } from '@/lib/notify';
+import { friendlyError } from '@/lib/utils';
 
 interface Props {
   sellerId: string;
@@ -74,7 +75,7 @@ export function SellerRecommendButton({ sellerId, sellerUserId }: Props) {
         toast.success('Thanks for recommending!');
       }
     } catch (err: any) {
-      toast.error(err.message || 'Failed');
+      toast.error(friendlyError(err) || 'Failed');
     } finally {
       setLoading(false);
     }

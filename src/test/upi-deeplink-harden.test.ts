@@ -59,12 +59,13 @@ describe('UPI deep-link Phase 1 harden', () => {
     });
 
     it('clears cart after UPI claim so buyer cannot double-order while awaiting seller', () => {
-      expect(cartSrc).toMatch(/Payment submitted — waiting for seller confirmation/);
       const successFn = cartSrc.slice(
         cartSrc.indexOf('handleUpiDeepLinkSuccess'),
         cartSrc.indexOf('handleUpiDeepLinkFailed'),
       );
       expect(successFn).toMatch(/clearCartAndCache/);
+      expect(successFn).toMatch(/navigate\(dest\)/);
+      expect(successFn).not.toMatch(/toast\./);
     });
 
     it('blocks multi-seller UPI deep-link checkout (C2 money-path)', () => {

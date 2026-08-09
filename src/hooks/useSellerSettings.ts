@@ -193,7 +193,15 @@ export function useSellerSettings() {
         nextUpiHolder = formData.upi_holder_name ?? null;
       } else {
         // unverified / unavailable / error / stale / idle → confirm
-        const confirmed = window.confirm('UPI could not be verified by Razorpay. Save anyway? Payouts will be paused until verified.');
+        const confirmed = await notify.confirm(
+          'UPI could not be verified by Razorpay. You can save, but payouts will remain paused until verification succeeds.',
+          {
+            id: 'seller-upi-unverified-save',
+            title: 'Save unverified UPI?',
+            okLabel: 'Save anyway',
+            cancelLabel: 'Go back',
+          },
+        );
         if (!confirmed) return;
         nextUpiStatus = 'unavailable';
       }

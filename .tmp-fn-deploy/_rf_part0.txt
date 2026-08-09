@@ -1,0 +1,120 @@
+// Refund Processor Edge Function
+// Executes real Razorpay refunds — never simulates success.
+// P4: partial refunds against shared checkout-group captures.
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.93.3";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+
+interface ProcessRequest {
+  refund_id: string;
+}
+
+async function getRazorpayKeys(supabase: any): Promise<{ keyId: string; keySecret: string } | null> {
+  const { data: settings } = await supabase
+    .from("admin_settings")
+    .select("key, value, is_active")
+    .in("key", ["razorpay_key_id", "razorpay_key_secret"]);
+
+  const map: Record<string, string> = {};
+  for (const r of settings || []) {
+    if (r.value && r.is_active) map[r.key] = r.value;
+  }
+
+  const keyId = map.razorpay_key_id || Deno.env.get("RAZORPAY_KEY_ID") || "";
+  const keySecret = map.razorpay_key_secret || Deno.env.get("RAZORPAY_KEY_SECRET") || "";
+  if (!keyId || !keySecret) return null;
+  return { keyId, keySecret };
+}
+
+async function fetchPaymentRefundable(
+  keys: { keyId: string; keySecret: string },
+  paymentId: string,
+): Promise<{ amountPaise: number; amountRefundedPaise: number; status: string } | null> {
+  const auth = "Basic " + btoa(`${keys.keyId}:${keys.keySecret}`);
+  const res = await fetch(`https://api.razorpay.com/v1/payments/${paymentId}`, {
+    headers: { Authorization: auth },
+  });
+  const raw = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    console.error("[refund-processor] payment fetch failed", paymentId, raw);
+    return null;
+  }
+  return {
+    amountPaise: Number(raw.amount || 0),
+    amountRefundedPaise: Number(raw.amount_refunded || 0),
+    status: String(raw.status || ""),
+  };
+}
+
+async function callRazorpayRefund(
+  keys: { keyId: string; keySecret: string },
+  paymentId: string,
+  amountRupees: number,
+  refundId: string,
+  opts?: { reverseAll?: boolean },
+): Promise<{ ok: boolean; reference: string; status: string; raw: any; error?: string }> {
+  const amountPaise = Math.round(Number(amountRupees) * 100);
+  const auth = "Basic " + btoa(`${keys.keyId}:${keys.keySecret}`);
+
+  const body: Record<string, unknown> = {
+    amount: amountPaise,
+    notes: { refund_request_id: refundId, sociva_partial: true },
+  };
+  // Route: reverse linked transfers when this refund covers the full remaining capture
+  if (opts?.reverseAll) {
+    body.reverse_all = 1;
+  }
+
+  const res = await fetch(`https://api.razorpay.com/v1/payments/${paymentId}/refund`, {
+    method: "POST",
+    headers: {
+      Authorization: auth,
+      "Content-Type": "application/json",
+      "X-Razorpay-Idempotency-Key": `refund-${refundId}`,
+    },
+    body: JSON.stringify(body),
+  });
+
+  const raw = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    return {
+      ok: false,
+      reference: "",
+      status: "failed",
+      raw,
+      error: raw?.error?.description || raw?.error?.reason || `HTTP ${res.status}`,
+    };
+  }
+
+  return {
+    ok: true,
+    reference: raw.id || `rzp_rfnd_${refundId.slice(0, 8)}`,
+    status: raw.status || "processed",
+    raw,
+  };
+}
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(supabaseUrl, serviceKey);
+
+    const authHeader = req.headers.get("Authorization") || "";
+    const isService = authHeader === `Bearer ${serviceKey}`;
+    const isCron = req.headers.get("x-cron-secret") === Deno.env.get("CRON_SECRET");
+    let callerUserId: string | null = null;
+
+    if (!isService && !isCron) {
+      const userClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!, {
+        global: { headers: { Authorization: authHeader } },
+      });
+      const { data: { user } } = await userClient.auth.getUser();

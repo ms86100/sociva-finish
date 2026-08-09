@@ -10,9 +10,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Switch } from '@/components/ui/switch';
-import { toast } from 'sonner';
+import { adminNotify } from '@/lib/admin-notify';
 import { motion, AnimatePresence } from 'framer-motion';
-import { cn } from '@/lib/utils';
+import { cn, friendlyError } from '@/lib/utils';
 import {
   Play, Plus, ChevronDown, ChevronRight, CheckCircle2, XCircle,
   Clock, AlertTriangle, Loader2, Trash2, Edit3, RotateCcw,
@@ -132,12 +132,12 @@ export default function AdminTestScenariosTab() {
         setStepResults(prev => ({ ...prev, [id]: data.steps }));
       }
       if (!options?.silent) {
-        toast.success(`Scenario ${data?.result === 'passed' ? 'passed ✓' : 'completed with issues'}`);
+        adminNotify.success(`Scenario ${data?.result === 'passed' ? 'passed ✓' : 'completed with issues'}`);
       }
       return data?.result as string | undefined;
     } catch (err: any) {
       if (!options?.silent) {
-        toast.error(`Run failed: ${err.message}`);
+        adminNotify.error(friendlyError(err) || 'Failed to run scenario');
       }
       return 'failed';
     } finally {
@@ -149,7 +149,7 @@ export default function AdminTestScenariosTab() {
   function stopRunningQueue() {
     stopRequestedRef.current = true;
     setStopRequested(true);
-    toast.message('Stopping after the current scenario finishes.');
+    adminNotify.message('Stopping after the current scenario finishes.');
   }
 
   async function runAllActive() {
@@ -157,7 +157,7 @@ export default function AdminTestScenariosTab() {
 
     const active = scenarios.filter(s => s.is_active);
     if (active.length === 0) {
-      toast.error('No active scenarios to run');
+      adminNotify.error('No active scenarios to run');
       return;
     }
 
@@ -177,9 +177,9 @@ export default function AdminTestScenariosTab() {
       }
 
       if (stopRequestedRef.current) {
-        toast.message(`Stopped after ${completed}/${active.length} scenarios.`);
+        adminNotify.message(`Stopped after ${completed}/${active.length} scenarios.`);
       } else {
-        toast.success(`Finished ${completed} scenarios${failed ? ` · ${failed} with issues` : ''}`);
+        adminNotify.success(`Finished ${completed} scenarios${failed ? ` · ${failed} with issues` : ''}`);
       }
     } finally {
       stopRequestedRef.current = false;
@@ -195,10 +195,10 @@ export default function AdminTestScenariosTab() {
         body: { modules: ['cart', 'checkout', 'lifecycle', 'rls', 'edge_cases'], clear_existing: true },
       });
       if (error) throw error;
-      toast.success(`Generated ${data?.total_inserted || 0} test scenarios across ${Object.keys(data?.by_module || {}).length} modules`);
+      adminNotify.success(`Generated ${data?.total_inserted || 0} test scenarios across ${Object.keys(data?.by_module || {}).length} modules`);
       fetchScenarios();
     } catch (err: any) {
-      toast.error(`Generation failed: ${err.message}`);
+      adminNotify.error(friendlyError(err) || 'Failed to generate scenarios');
     } finally {
       setGenerating(false);
     }
@@ -211,7 +211,7 @@ export default function AdminTestScenariosTab() {
 
   async function deleteScenario(id: string) {
     await supabase.from('test_scenarios').delete().eq('id', id);
-    toast.success('Scenario deleted');
+    adminNotify.success('Scenario deleted');
     fetchScenarios();
   }
 
@@ -233,7 +233,7 @@ export default function AdminTestScenariosTab() {
   }
 
   async function saveScenario() {
-    if (!formName.trim()) { toast.error('Name required'); return; }
+    if (!formName.trim()) { adminNotify.error('Name required'); return; }
     const payload = {
       name: formName, module: formModule, description: formDesc || null,
       priority: formPriority, steps: formSteps as any,
@@ -241,10 +241,10 @@ export default function AdminTestScenariosTab() {
     };
     if (editScenario) {
       await supabase.from('test_scenarios').update(payload).eq('id', editScenario.id);
-      toast.success('Scenario updated');
+      adminNotify.success('Scenario updated');
     } else {
       await supabase.from('test_scenarios').insert(payload);
-      toast.success('Scenario created');
+      adminNotify.success('Scenario created');
     }
     setShowCreate(false);
     fetchScenarios();

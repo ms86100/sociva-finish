@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { cn, friendlyError } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { toast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import { Loader2, Handshake, AlertCircle, HelpCircle, Gift } from 'lucide-react';
 
 const TAGS = [
@@ -43,7 +43,7 @@ export function CreateHelpSheet({ open, onOpenChange, onCreated }: CreateHelpShe
         tag,
       }).select('id').single();
       if (error) throw error;
-      toast({ title: 'Help request posted!' });
+      toast.success('Help request posted!');
 
       // Fire-and-forget push notification to society members
       supabase.functions.invoke('notify-help-request', {
@@ -61,7 +61,7 @@ export function CreateHelpSheet({ open, onOpenChange, onCreated }: CreateHelpShe
       onOpenChange(false);
       onCreated();
     } catch (err: any) {
-      toast({ title: 'Failed', description: friendlyError(err), variant: 'destructive' });
+      toast.error(friendlyError(err));
     } finally {
       setLoading(false);
     }

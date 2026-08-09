@@ -1,0 +1,102 @@
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+};
+
+async function getRazorpayCredentials(supabase: any) {
+  const { data: rows } = await supabase
+    .from("admin_settings")
+    .select("key, value, is_active")
+    .in("key", ["razorpay_key_id", "razorpay_key_secret"]);
+
+  const map: Record<string, string> = {};
+  for (const r of rows || []) {
+    if (r.value && r.is_active) map[r.key] = r.value;
+  }
+
+  return {
+    keyId: map.razorpay_key_id || Deno.env.get("RAZORPAY_KEY_ID") || "",
+    keySecret: map.razorpay_key_secret || Deno.env.get("RAZORPAY_KEY_SECRET") || "",
+  };
+}
+
+function parseNotesOrderIds(notes: any): string[] {
+  if (!notes) return [];
+  if (notes.order_ids) {
+    try {
+      const parsed = typeof notes.order_ids === "string" ? JSON.parse(notes.order_ids) : notes.order_ids;
+      if (Array.isArray(parsed)) return parsed.map(String);
+    } catch { /* fall through */ }
+  }
+  if (notes.order_id) return [String(notes.order_id)];
+  return [];
+}
+
+serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
+
+  try {
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Auth: JWT buyer OR service-role (webhook/cron)
+    const authHeader = req.headers.get("Authorization") || "";
+    const isService = authHeader === `Bearer ${supabaseServiceKey}`;
+    let callerUserId: string | null = null;
+
+    if (!isService) {
+      const { withAuth } = await import("../_shared/auth.ts");
+      const authResult = await withAuth(req, corsHeaders);
+      if (authResult instanceof Response) return authResult;
+      callerUserId = authResult.userId;
+    }
+
+    const body = await req.json().catch(() => null);
+    if (!body) {
+      return new Response(JSON.stringify({ error: "Invalid JSON body" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const { razorpay_payment_id, razorpay_order_id, order_ids } = body;
+    const source = body.source || (isService ? "service" : "client_confirm");
+
+    if (
+      (!razorpay_payment_id && !razorpay_order_id) ||
+      !order_ids ||
+      !Array.isArray(order_ids) ||
+      order_ids.length === 0
+    ) {
+      return new Response(
+        JSON.stringify({ error: "Missing razorpay_payment_id/razorpay_order_id or order_ids" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const creds = await getRazorpayCredentials(supabase);
+    if (!creds.keyId || !creds.keySecret) {
+      return new Response(JSON.stringify({ error: "Payment gateway not configured" }), {
+        status: 503,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const authBasic = "Basic " + btoa(`${creds.keyId}:${creds.keySecret}`);
+
+    // Load orders from DB — amount and ownership come from DB only
+    const { data: orders, error: ordersErr } = await supabase
+      .from("orders")
+      .select("id, buyer_id, seller_id, total_amount, society_id, status, payment_status, razorpay_order_id, platform_fee, net_amount, loyalty_reservation_id, loyalty_discount_amount, loyalty_points_redeemed, checkout_group_id")
+      .in("id", order_ids);
+
+    if (ordersErr || !orders || orders.length !== order_ids.length) {
+      return new Response(JSON.stringify({ error: "One or more orders not found" }), {
+        s

@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { Capacitor } from '@capacitor/core';
 import { pickOrCaptureImage } from '@/lib/native-media';
 import { supabase } from '@/integrations/supabase/client';
+import { friendlyError } from '@/lib/utils';
 
 interface MultiImageCaptureProps {
   value: string[];
@@ -66,7 +67,7 @@ export function MultiImageCapture({
       }
       if (urls.length) onChange([...value, ...urls]);
     } catch (err: any) {
-      toast.error(err.message || 'Upload failed');
+      toast.error(friendlyError(err) || 'Upload failed');
     } finally {
       setUploading(false);
     }
@@ -84,7 +85,7 @@ export function MultiImageCapture({
       const url = await uploadBlob(blob, 'photo.jpg');
       onChange([...value, url]);
     } catch (err: any) {
-      toast.error(err.message || 'Capture failed');
+      toast.error(friendlyError(err) || 'Capture failed');
     } finally {
       setUploading(false);
     }

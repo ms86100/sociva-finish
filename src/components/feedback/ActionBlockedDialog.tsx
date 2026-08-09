@@ -1,15 +1,17 @@
 import { useEffect, useState } from 'react';
 import { AlertTriangle, Info, ShieldAlert } from 'lucide-react';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import {
+  acknowledgeNotify,
   closeNotify,
   getNotifyState,
   subscribeNotify,
@@ -45,33 +47,32 @@ export function ActionBlockedDialog() {
 
   const { Icon, iconWrap, iconColor } = VARIANT_STYLES[s.variant];
 
-  const handleAck = () => {
-    const cb = s.onAck;
-    closeNotify();
-    cb?.();
-  };
-
   return (
-    <Dialog open={s.open} onOpenChange={(o) => { if (!o) closeNotify(); }}>
-      <DialogContent className="sm:max-w-sm">
-        <DialogHeader className="items-center text-center">
+    <AlertDialog open={s.open}>
+      <AlertDialogContent className="sm:max-w-sm max-h-[calc(100dvh-var(--app-safe-top,0px)-var(--app-safe-bottom,0px)-2rem)]">
+        <AlertDialogHeader className="items-center text-center">
           <div className={`mx-auto mb-2 flex h-14 w-14 items-center justify-center rounded-full ${iconWrap}`}>
             <Icon className={`h-7 w-7 ${iconColor}`} aria-hidden />
           </div>
-          <DialogTitle className="text-center">{s.title}</DialogTitle>
+          <AlertDialogTitle className="text-center">{s.title}</AlertDialogTitle>
           {s.message && (
-            <DialogDescription className="text-center text-foreground/80">
+            <AlertDialogDescription className="text-center text-foreground/80">
               {s.message}
-            </DialogDescription>
+            </AlertDialogDescription>
           )}
-        </DialogHeader>
-        <DialogFooter className="sm:justify-center">
-          <Button onClick={handleAck} className="min-w-[120px]">
+        </AlertDialogHeader>
+        <AlertDialogFooter className="sm:justify-center">
+          {s.confirmation && (
+            <AlertDialogCancel onClick={closeNotify} className="min-w-[110px]">
+              {s.cancelLabel || 'Cancel'}
+            </AlertDialogCancel>
+          )}
+          <AlertDialogAction onClick={acknowledgeNotify} className="min-w-[120px]">
             {s.okLabel}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }
 

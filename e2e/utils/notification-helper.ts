@@ -44,7 +44,9 @@ export async function interceptPushDelivery(page: Page): Promise<{
     try {
       const body = route.request().postDataJSON();
       fcmRequests.push(body);
-    } catch {}
+    } catch {
+      // Ignore malformed optional request bodies while intercepting delivery.
+    }
     await route.fulfill({ status: 200, body: JSON.stringify({ success: true }) });
   });
 
@@ -53,7 +55,9 @@ export async function interceptPushDelivery(page: Page): Promise<{
     try {
       const body = route.request().postDataJSON();
       apnsRequests.push(body);
-    } catch {}
+    } catch {
+      // Ignore malformed optional request bodies while intercepting delivery.
+    }
     await route.fulfill({ status: 200 });
   });
 

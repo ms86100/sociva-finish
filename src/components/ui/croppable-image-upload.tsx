@@ -78,9 +78,9 @@ export function CroppableImageUpload({
       if (err?.message?.includes('cancelled') || err?.message?.includes('canceled') || err?.message?.includes('User cancelled')) return;
       console.error('Native pick error:', err);
       if (err?.message?.includes('permission') || err?.message?.includes('Permission')) {
-        toast.error(err.message);
+        toast.error(friendlyError(err) || 'Image access permission is required');
       } else {
-        toast.error(err?.message || 'Failed to select image');
+        toast.error(friendlyError(err) || 'Failed to select image');
       }
     }
   }, []);

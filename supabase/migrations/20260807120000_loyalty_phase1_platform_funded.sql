@@ -578,7 +578,7 @@ BEGIN
       FROM public.orders o
       WHERE o.id = _oid
         AND COALESCE(o.loyalty_points_redeemed, 0) > 0
-      ON CONFLICT (idempotency_key) DO NOTHING;
+      ON CONFLICT (idempotency_key) WHERE idempotency_key IS NOT NULL DO NOTHING;
     END LOOP;
   ELSE
     INSERT INTO public.loyalty_ledger (
@@ -589,7 +589,7 @@ BEGIN
       jsonb_build_object('funding_source', 'platform'),
       'redeem:' || r.id::text
     )
-    ON CONFLICT (idempotency_key) DO NOTHING;
+    ON CONFLICT (idempotency_key) WHERE idempotency_key IS NOT NULL DO NOTHING;
   END IF;
 
   INSERT INTO public.loyalty_ledger (
@@ -600,7 +600,7 @@ BEGIN
     jsonb_build_object('points', r.points),
     'commit:' || r.id::text
   )
-  ON CONFLICT (idempotency_key) DO NOTHING;
+  ON CONFLICT (idempotency_key) WHERE idempotency_key IS NOT NULL DO NOTHING;
 
   RETURN jsonb_build_object('success', true, 'reservation_id', r.id, 'status', 'committed', 'points', r.points);
 END;
@@ -660,7 +660,7 @@ BEGIN
     jsonb_build_object('points', r.points),
     'release:' || r.id::text
   )
-  ON CONFLICT (idempotency_key) DO NOTHING;
+  ON CONFLICT (idempotency_key) WHERE idempotency_key IS NOT NULL DO NOTHING;
 
   RETURN jsonb_build_object('success', true, 'reservation_id', r.id, 'status', 'released', 'points', r.points);
 END;

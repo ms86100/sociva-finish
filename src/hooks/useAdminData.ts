@@ -7,7 +7,7 @@ import { useStatusLabels } from '@/hooks/useStatusLabels';
 import { useCurrency } from '@/hooks/useCurrency';
 import { logAudit } from '@/lib/audit';
 import { notifySellerStatusChange } from '@/lib/admin-notifications';
-import { toast } from 'sonner';
+import { adminNotify } from '@/lib/admin-notify';
 
 interface Report {
   id: string;
@@ -201,9 +201,9 @@ export function useAdminData() {
     try {
       await supabase.from('profiles').update({ verification_status: status }).eq('id', id);
       await logAudit(`user_${status}`, 'profile', id, '', { status });
-      toast.success(`User ${status}`);
+      adminNotify.success(`User ${status}`);
       fetchData();
-    } catch { toast.error('Failed to update'); }
+    } catch { adminNotify.error('Failed to update'); }
   };
 
   const updateSellerStatus = async (id: string, status: VerificationStatus) => {
@@ -221,15 +221,15 @@ export function useAdminData() {
         await rejectOrSuspendSeller(id, seller.user_id, seller.business_name, status as 'rejected' | 'suspended', adminNotes.trim() || undefined);
       }
 
-      toast.success(`Seller ${status}`);
+      adminNotify.success(`Seller ${status}`);
       fetchData();
     } catch (error: any) {
       const msg = error?.message || '';
       if (msg.includes('location') || msg.includes('Cannot approve')) {
-        toast.error(msg || 'Cannot approve: Store has no location coordinates.');
+        adminNotify.error(msg || 'Cannot approve: Store has no location coordinates.');
       } else {
         console.error('Error updating seller status:', error);
-        toast.error('Failed to update');
+        adminNotify.error('Failed to update');
       }
     }
   };
@@ -237,31 +237,31 @@ export function useAdminData() {
   const toggleSellerFeatured = async (seller: SellerProfile) => {
     try {
       await supabase.from('seller_profiles').update({ is_featured: !seller.is_featured }).eq('id', seller.id);
-      toast.success(seller.is_featured ? 'Removed from featured' : 'Added to featured');
+      adminNotify.success(seller.is_featured ? 'Removed from featured' : 'Added to featured');
       fetchData();
-    } catch { toast.error('Failed to update'); }
+    } catch { adminNotify.error('Failed to update'); }
   };
 
   const toggleReviewHidden = async (review: Review, hide: boolean) => {
     try {
       await supabase.from('reviews').update({ is_hidden: hide, hidden_reason: hide ? hideReason : null }).eq('id', review.id);
       await logAudit(hide ? 'review_hidden' : 'review_restored', 'review', review.id, '', { reason: hideReason });
-      toast.success(hide ? 'Review hidden' : 'Review restored');
+      adminNotify.success(hide ? 'Review hidden' : 'Review restored');
       setSelectedReview(null);
       setHideReason('');
       fetchData();
-    } catch { toast.error('Failed to update'); }
+    } catch { adminNotify.error('Failed to update'); }
   };
 
   const updateReportStatus = async (report: Report, status: string) => {
     try {
       await supabase.from('reports').update({ status, admin_notes: adminNotes || null }).eq('id', report.id);
       await logAudit(`report_${status}`, 'report', report.id, '', { admin_notes: adminNotes });
-      toast.success(`Report ${status}`);
+      adminNotify.success(`Report ${status}`);
       setSelectedReport(null);
       setAdminNotes('');
       fetchData();
-    } catch { toast.error('Failed to update report'); }
+    } catch { adminNotify.error('Failed to update report'); }
   };
 
   const issueWarning = async (userId: string) => {
@@ -270,21 +270,21 @@ export function useAdminData() {
       if (!user) throw new Error('Not authenticated');
       await supabase.from('warnings').insert({ user_id: userId, issued_by: user.id, reason: warningReason, severity: warningSeverity });
       await logAudit('warning_issued', 'profile', userId, '', { reason: warningReason, severity: warningSeverity });
-      toast.success('Warning issued');
+      adminNotify.success('Warning issued');
       setSelectedUserForWarning(null);
       setWarningReason('');
       setWarningSeverity('warning');
       fetchData();
-    } catch { toast.error('Failed to issue warning'); }
+    } catch { adminNotify.error('Failed to issue warning'); }
   };
 
   const updateSocietyStatus = async (id: string, is_verified: boolean, is_active: boolean) => {
     try {
       await supabase.from('societies').update({ is_verified, is_active }).eq('id', id);
       await logAudit('society_status_changed', 'society', id, '', { is_verified, is_active });
-      toast.success(is_verified ? 'Society approved' : 'Society updated');
+      adminNotify.success(is_verified ? 'Society approved' : 'Society updated');
       fetchData();
-    } catch { toast.error('Failed to update society'); }
+    } catch { adminNotify.error('Failed to update society'); }
   };
 
   const fetchChatForOrder = async (orderId: string) => {

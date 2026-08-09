@@ -50,6 +50,7 @@ export function CouponInput({ sellerId, totalAmount, onApply, onRemove, appliedC
   const [availableCoupons, setAvailableCoupons] = useState<CouponData[]>([]);
   const [showAvailable, setShowAvailable] = useState(false);
   const [userRedemptions, setUserRedemptions] = useState<Record<string, number>>({});
+  const [validationMessage, setValidationMessage] = useState('');
 
   useEffect(() => {
     if (!user) return;
@@ -96,10 +97,14 @@ export function CouponInput({ sellerId, totalAmount, onApply, onRemove, appliedC
 
   const applyCouponDirectly = (coupon: CouponData) => {
     if (!canApplyCoupon(coupon)) {
-      if (coupon.min_order_amount && totalAmount < coupon.min_order_amount) feedbackCouponFailed(`Minimum order of ${formatPrice(coupon.min_order_amount)} required`);
-      else feedbackCouponFailed('You have already used this coupon');
+      const message = coupon.min_order_amount && totalAmount < coupon.min_order_amount
+        ? `Add items worth ${formatPrice(coupon.min_order_amount - totalAmount)} more to use this coupon.`
+        : 'You have already used this coupon.';
+      setValidationMessage(message);
+      feedbackCouponFailed(message);
       return;
     }
+    setValidationMessage('');
     const discountAmount = calculateDiscount(coupon);
     onApply({ id: coupon.id, code: coupon.code, discountAmount, discount_type: coupon.discount_type, discount_value: coupon.discount_value, max_discount_amount: coupon.max_discount_amount, min_order_amount: coupon.min_order_amount });
     feedbackCouponApplied(formatPrice(discountAmount));
@@ -107,16 +112,17 @@ export function CouponInput({ sellerId, totalAmount, onApply, onRemove, appliedC
 
   const handleApply = async () => {
     if (!code.trim() || !user) return;
+    setValidationMessage('');
     setIsValidating(true);
     try {
       const { data: coupon, error } = await supabase.from('coupons').select('*').eq('code', code.toUpperCase().trim()).eq('seller_id', sellerId).eq('is_active', true).single();
-      if (error || !coupon) { feedbackCouponFailed('Invalid or expired coupon code'); return; }
-      if (coupon.expires_at && new Date(coupon.expires_at) < new Date()) { feedbackCouponFailed('This coupon has expired'); return; }
-      if (new Date(coupon.starts_at) > new Date()) { feedbackCouponFailed('This coupon is not yet active'); return; }
-      if (coupon.usage_limit && coupon.times_used >= coupon.usage_limit) { feedbackCouponFailed('This coupon has reached its usage limit'); return; }
+      if (error || !coupon) { setValidationMessage('Enter a valid, active coupon code.'); feedbackCouponFailed('Invalid coupon'); return; }
+      if (coupon.expires_at && new Date(coupon.expires_at) < new Date()) { setValidationMessage('This coupon has expired.'); feedbackCouponFailed('Coupon expired'); return; }
+      if (new Date(coupon.starts_at) > new Date()) { setValidationMessage('This coupon is not active yet.'); feedbackCouponFailed('Coupon not active'); return; }
+      if (coupon.usage_limit && coupon.times_used >= coupon.usage_limit) { setValidationMessage('This coupon has reached its usage limit.'); feedbackCouponFailed('Coupon limit reached'); return; }
       const { count } = await supabase.from('coupon_redemptions').select('*', { count: 'exact', head: true }).eq('coupon_id', coupon.id).eq('user_id', user.id);
-      if (count !== null && count >= coupon.per_user_limit) { feedbackCouponFailed('You have already used this coupon'); return; }
-      if (coupon.min_order_amount && totalAmount < coupon.min_order_amount) { feedbackCouponFailed(`Minimum order of ${formatPrice(coupon.min_order_amount)} required`); return; }
+      if (count !== null && count >= coupon.per_user_limit) { setValidationMessage('You have already used this coupon.'); feedbackCouponFailed('Coupon already used'); return; }
+      if (coupon.min_order_amount && totalAmount < coupon.min_order_amount) { setValidationMessage(`Add items worth ${formatPrice(coupon.min_order_amount - totalAmount)} more to use this coupon.`); feedbackCouponFailed('Minimum order not met'); return; }
       let discountAmount = 0;
       if (coupon.discount_type === 'percentage') {
         discountAmount = (totalAmount * coupon.discount_value) / 100;
@@ -125,7 +131,7 @@ export function CouponInput({ sellerId, totalAmount, onApply, onRemove, appliedC
       discountAmount = Math.round(discountAmount * 100) / 100;
       onApply({ id: coupon.id, code: coupon.code, discountAmount, discount_type: coupon.discount_type, discount_value: coupon.discount_value, max_discount_amount: coupon.max_discount_amount, min_order_amount: coupon.min_order_amount });
       feedbackCouponApplied(formatPrice(discountAmount));
-    } catch { feedbackCouponFailed('Failed to validate coupon'); }
+    } catch { setValidationMessage('Could not check this coupon. Please try again.'); feedbackCouponFailed('Coupon check failed'); }
     finally { setIsValidating(false); }
   };
 
@@ -152,10 +158,11 @@ export function CouponInput({ sellerId, totalAmount, onApply, onRemove, appliedC
       <div className="flex gap-2">
         <div className="relative flex-1">
           <Ticket className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
-          <Input placeholder="Enter coupon code" value={code} onChange={e => setCode(e.target.value.toUpperCase())} className="pl-9 uppercase" />
+          <Input placeholder="Enter coupon code" value={code} onChange={e => { setCode(e.target.value.toUpperCase()); setValidationMessage(''); }} className="pl-9 uppercase" aria-invalid={!!validationMessage} aria-describedby={validationMessage ? 'coupon-validation-message' : undefined} />
         </div>
         <Button variant="outline" onClick={handleApply} disabled={isValidating || !code.trim()}>{isValidating ? 'Checking...' : 'Apply'}</Button>
       </div>
+      {validationMessage && <p id="coupon-validation-message" role="alert" className="text-xs text-destructive">{validationMessage}</p>}
       {availableCoupons.length > 0 && (
         <button onClick={() => setShowAvailable(!showAvailable)} className="flex items-center gap-2 w-full text-left text-sm font-medium text-primary py-1.5">
           <Tag size={14} /><span>{availableCoupons.length} coupon{availableCoupons.length !== 1 ? 's' : ''} available</span>

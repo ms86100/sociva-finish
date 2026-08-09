@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
-import { toast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 
 /**
  * Intercepts `?reorder=<suggestion_id>` query param (set by push notification deep-link)
@@ -61,7 +61,7 @@ export function useReorderInterceptor() {
               .update({ acted_on: true })
               .eq('id', suggestionId);
 
-            toast({ title: '✅ Order placed!', description: 'Your reorder has been created successfully.' });
+            toast.success('✅ Order placed!', { description: 'Your reorder has been created successfully.' });
             navigate(`/orders/${data.orders[0]}`, { replace: true });
             return;
           }

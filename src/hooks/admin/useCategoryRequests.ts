@@ -2,7 +2,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { toast } from 'sonner';
+import { adminNotify } from '@/lib/admin-notify';
+import { friendlyError } from '@/lib/utils';
 
 export interface CategoryRequestRow {
   id: string;
@@ -208,9 +209,9 @@ export function useApproveAsNewCategory() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['admin', 'category-requests'] });
       qc.invalidateQueries({ queryKey: ['category-configs'] });
-      toast.success('Category approved and seller notified');
+      adminNotify.success('Category approved and seller notified');
     },
-    onError: (e: any) => toast.error('Approval failed', { description: e?.message }),
+    onError: (e: any) => adminNotify.error('Approval failed', { description: friendlyError(e) }),
   });
 }
 
@@ -256,9 +257,9 @@ export function useMergeCategoryRequest() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['admin', 'category-requests'] });
-      toast.success('Merged and seller notified');
+      adminNotify.success('Merged and seller notified');
     },
-    onError: (e: any) => toast.error('Merge failed', { description: e?.message }),
+    onError: (e: any) => adminNotify.error('Merge failed', { description: friendlyError(e) }),
   });
 }
 
@@ -308,9 +309,9 @@ export function useRejectCategoryRequest() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['admin', 'category-requests'] });
-      toast.success('Request rejected and seller notified');
+      adminNotify.success('Request rejected and seller notified');
     },
-    onError: (e: any) => toast.error('Reject failed', { description: e?.message }),
+    onError: (e: any) => adminNotify.error('Reject failed', { description: friendlyError(e) }),
   });
 }
 
@@ -393,9 +394,9 @@ export function useApproveAsNewSubcategory() {
       qc.invalidateQueries({ queryKey: ['admin', 'category-requests'] });
       qc.invalidateQueries({ queryKey: ['subcategories'] });
       qc.invalidateQueries({ queryKey: ['resolved-category-aliases'] });
-      toast.success('Subcategory approved and seller notified');
+      adminNotify.success('Subcategory approved and seller notified');
     },
-    onError: (e: any) => toast.error('Approval failed', { description: e?.message }),
+    onError: (e: any) => adminNotify.error('Approval failed', { description: friendlyError(e) }),
   });
 }
 
@@ -440,8 +441,8 @@ export function useMergeSubcategoryRequest() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['admin', 'category-requests'] });
       qc.invalidateQueries({ queryKey: ['resolved-category-aliases'] });
-      toast.success('Merged and seller notified');
+      adminNotify.success('Merged and seller notified');
     },
-    onError: (e: any) => toast.error('Merge failed', { description: e?.message }),
+    onError: (e: any) => adminNotify.error('Merge failed', { description: friendlyError(e) }),
   });
 }

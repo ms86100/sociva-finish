@@ -3,6 +3,10 @@
 // P4: partial refunds against shared checkout-group captures.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.93.3";
 import { getRazorpayCredentials } from "../_shared/credentials.ts";
+import {
+  checkFinancialRuntime,
+  financialRuntimeUnavailableResponse,
+} from "../_shared/financial-runtime.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -46,7 +50,14 @@ async function callRazorpayRefund(
   amountRupees: number,
   refundId: string,
   opts?: { reverseAll?: boolean },
-): Promise<{ ok: boolean; reference: string; status: string; raw: any; error?: string }> {
+): Promise<{
+  ok: boolean;
+  reference: string;
+  status: string;
+  raw: any;
+  failureState?: "failed" | "unknown";
+  error?: string;
+}> {
   const amountPaise = Math.round(Number(amountRupees) * 100);
   const auth = "Basic " + btoa(`${keys.keyId}:${keys.keySecret}`);
 
@@ -59,15 +70,27 @@ async function callRazorpayRefund(
     body.reverse_all = 1;
   }
 
-  const res = await fetch(`https://api.razorpay.com/v1/payments/${paymentId}/refund`, {
-    method: "POST",
-    headers: {
-      Authorization: auth,
-      "Content-Type": "application/json",
-      "X-Razorpay-Idempotency-Key": `refund-${refundId}`,
-    },
-    body: JSON.stringify(body),
-  });
+  let res: Response;
+  try {
+    res = await fetch(`https://api.razorpay.com/v1/payments/${paymentId}/refund`, {
+      method: "POST",
+      headers: {
+        Authorization: auth,
+        "Content-Type": "application/json",
+        "X-Razorpay-Idempotency-Key": `refund-${refundId}`,
+      },
+      body: JSON.stringify(body),
+    });
+  } catch (error) {
+    return {
+      ok: false,
+      reference: "",
+      status: "unknown",
+      raw: {},
+      failureState: "unknown",
+      error: `refund_request_timeout:${String(error)}`,
+    };
+  }
 
   const raw = await res.json().catch(() => ({}));
   if (!res.ok) {
@@ -76,13 +99,25 @@ async function callRazorpayRefund(
       reference: "",
       status: "failed",
       raw,
+      failureState: res.status >= 500 || res.status === 429 ? "unknown" : "failed",
       error: raw?.error?.description || raw?.error?.reason || `HTTP ${res.status}`,
+    };
+  }
+
+  if (!raw.id) {
+    return {
+      ok: false,
+      reference: "",
+      status: String(raw.status || "unknown"),
+      raw,
+      failureState: "unknown",
+      error: "razorpay_refund_missing_provider_id",
     };
   }
 
   return {
     ok: true,
-    reference: raw.id || `rzp_rfnd_${refundId.slice(0, 8)}`,
+    reference: raw.id,
     status: raw.status || "processed",
     raw,
   };
@@ -97,6 +132,15 @@ Deno.serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, serviceKey);
+
+    const runtime = await checkFinancialRuntime(
+      supabase,
+      "refund_ready",
+      "refund_processing_enabled",
+    );
+    if (!runtime.ready) {
+      return financialRuntimeUnavailableResponse(runtime, corsHeaders);
+    }
 
     const authHeader = req.headers.get("Authorization") || "";
     const isService = authHeader === `Bearer ${serviceKey}`;
@@ -192,6 +236,30 @@ Deno.serve(async (req) => {
     // Sociva Credit path: skip Razorpay, credit wallet + complete
     const destination = (refund as { refund_destination?: string }).refund_destination || "original_payment";
     if (destination === "wallet") {
+      const { data: walletFlag } = await supabase
+        .from("financial_feature_flags")
+        .select("enabled")
+        .eq("key", "wallet_refund_credit_enabled")
+        .maybeSingle();
+      if (walletFlag?.enabled !== true) {
+        await supabase
+          .from("refund_requests")
+          .update({
+            refund_state: "needs_manual_review",
+            notes: "needs_manual_review: wallet refund credit is disabled",
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", refund.id)
+          .eq("refund_state", "approved");
+        return new Response(
+          JSON.stringify({
+            ok: false,
+            state: "needs_manual_review",
+            error: "wallet_refund_credit_disabled",
+          }),
+          { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
       const { data: walletDone, error: walletErr } = await supabase.rpc("complete_wallet_refund", {
         p_refund_id: refund.id,
       });
@@ -263,55 +331,26 @@ Deno.serve(async (req) => {
     }
 
     if (!paymentId) {
-      // Audit: no razorpay_payment_id → route to wallet destination
-      console.warn(`[refund-processor] no razorpay_payment_id for ${refund.id} — routing to wallet`);
+      // Never silently change the buyer's chosen refund destination. Missing
+      // payment identity requires an operator to establish the original rail.
+      console.warn(`[refund-processor] no razorpay_payment_id for ${refund.id} — manual review`);
       await supabase
         .from("refund_requests")
         .update({
-          refund_destination: "wallet",
-          wallet_credit_amount: refund.amount,
+          refund_state: "needs_manual_review",
+          notes: "needs_manual_review: original payment reference is missing",
           updated_at: new Date().toISOString(),
         })
         .eq("id", refund.id)
         .eq("refund_state", "approved");
-
-      const { data: walletDone, error: walletErr } = await supabase.rpc("complete_wallet_refund", {
-        p_refund_id: refund.id,
-      });
-      if (walletErr) {
-        console.error("[refund-processor] wallet fallback failed", walletErr);
-        await supabase.rpc("fail_refund", {
-          p_refund_id: refund.id,
-          p_reason: walletErr.message || "Wallet credit failed (no razorpay_payment_id)",
-        });
-        return new Response(
-          JSON.stringify({ ok: false, state: "refund_failed", error: walletErr.message, destination: "wallet" }),
-          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-        );
-      }
       return new Response(
         JSON.stringify({
-          ok: true,
-          state: "refund_completed",
-          destination: "wallet",
-          gateway_ref: walletDone?.gateway_refund_id || null,
-          routed_from: "missing_razorpay_payment_id",
+          ok: false,
+          state: "needs_manual_review",
+          error: "missing_original_payment_reference",
         }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
-    }
-
-    const idempotencyKey = `refund-${refund.id}-attempt-1`;
-    const { error: initErr } = await supabase.rpc("initiate_refund", {
-      p_refund_id: refund.id,
-      p_idempotency_key: idempotencyKey,
-    });
-    if (initErr) {
-      console.error("[refund-processor] initiate failed", initErr);
-      return new Response(JSON.stringify({ error: initErr.message }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
     }
 
     // P0: ignore client-stored refund.amount — recompute from order server-side only
@@ -335,34 +374,54 @@ Deno.serve(async (req) => {
 
     // Cap against live Razorpay remaining (partial refunds must not overshoot)
     const live = await fetchPaymentRefundable(keys, paymentId);
-    if (live) {
-      const remainingRupees = Math.max(0, (live.amountPaise - live.amountRefundedPaise) / 100);
-      if (remainingRupees <= 0) {
-        // Already fully refunded at gateway — complete locally idempotently
-        const { error: doneErr } = await supabase.rpc("complete_refund", {
-          p_refund_id: refund.id,
-          p_gateway_ref: `already-refunded-${paymentId}`,
-          p_gateway_status: "already_refunded",
-        });
-        if (doneErr) {
-          console.error("[refund-processor] complete after already-refunded failed", doneErr);
-          return new Response(JSON.stringify({ error: doneErr.message }), {
-            status: 500,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
-        }
-        return new Response(
-          JSON.stringify({
-            ok: true,
-            state: "refund_completed",
-            gateway_ref: `already-refunded-${paymentId}`,
-            simulated: false,
-            note: "payment already fully refunded at gateway",
-          }),
-          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-        );
-      }
-      gatewayRefundAmount = Math.min(gatewayRefundAmount, remainingRupees);
+    if (!live) {
+      await supabase
+        .from("refund_requests")
+        .update({
+          refund_state: "needs_manual_review",
+          notes: "needs_manual_review: Razorpay refundable amount could not be verified",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", refund.id)
+        .eq("refund_state", "refund_initiated");
+      return new Response(
+        JSON.stringify({ ok: false, state: "needs_manual_review", error: "provider_state_unknown" }),
+        { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    const remainingRupees = Math.max(0, (live.amountPaise - live.amountRefundedPaise) / 100);
+    if (remainingRupees <= 0) {
+      // An aggregate refunded amount cannot identify which partial child refund
+      // succeeded. Exact provider refund identity is required.
+      await supabase
+        .from("refund_requests")
+        .update({
+          refund_state: "needs_manual_review",
+          notes: "needs_manual_review: payment is fully refunded but exact refund entity is unbound",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", refund.id)
+        .eq("refund_state", "refund_initiated");
+      return new Response(
+        JSON.stringify({ ok: false, state: "needs_manual_review", error: "exact_refund_reference_required" }),
+        { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+    if (remainingRupees + 0.001 < gatewayRefundAmount) {
+      await supabase
+        .from("refund_requests")
+        .update({
+          refund_state: "needs_manual_review",
+          notes: `needs_manual_review: requested gateway refund ${gatewayRefundAmount} exceeds provider remaining ${remainingRupees}`,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", refund.id)
+        .eq("refund_state", "refund_initiated");
+      return new Response(
+        JSON.stringify({ ok: false, state: "needs_manual_review", error: "insufficient_provider_refundable_amount" }),
+        { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
     }
 
     // Round to paise-safe 2dp
@@ -378,16 +437,77 @@ Deno.serve(async (req) => {
       );
     }
 
-    const remainingAfter = live
-      ? (live.amountPaise - live.amountRefundedPaise) / 100 - gatewayRefundAmount
-      : null;
-    const reverseAll = remainingAfter !== null && remainingAfter < 0.01;
+    const remainingAfter =
+      (live.amountPaise - live.amountRefundedPaise) / 100 - gatewayRefundAmount;
+    const reverseAll = remainingAfter < 0.01;
+
+    const requestKey = `refund-${refund.id}`;
+    const { data: refundAttempt, error: attemptErr } = await supabase.rpc(
+      "claim_refund_attempt",
+      {
+        p_refund_id: refund.id,
+        p_provider_payment_id: paymentId,
+        p_request_key: requestKey,
+        p_amount_minor: Math.round(gatewayRefundAmount * 100),
+      },
+    );
+    if (attemptErr) {
+      return new Response(
+        JSON.stringify({ ok: false, error: attemptErr.message }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+    if (refundAttempt?.claimed !== true || !refundAttempt?.attempt_id) {
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          deduplicated: refundAttempt?.deduplicated === true,
+          state: refundAttempt?.status || refundAttempt?.reason || "not_claimed",
+          gateway_ref: refundAttempt?.provider_refund_id || null,
+          provider_status: refundAttempt?.provider_status || null,
+        }),
+        {
+          status: refundAttempt?.status === "succeeded" ? 200 : 202,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
+    const refundAttemptId = String(refundAttempt.attempt_id);
 
     const gw = await callRazorpayRefund(keys, paymentId, gatewayRefundAmount, refund.id, {
       reverseAll,
     });
 
     if (gw.ok) {
+      if (String(gw.status).toLowerCase() !== "processed") {
+        await supabase
+          .from("refund_attempts")
+          .update({
+            status: "processing",
+            provider_refund_id: gw.reference,
+            provider_status: gw.status,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", refundAttemptId);
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            state: "refund_processing",
+            gateway_ref: gw.reference,
+            provider_status: gw.status,
+          }),
+          { status: 202, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+      await supabase
+        .from("refund_attempts")
+        .update({
+          status: "succeeded",
+          provider_refund_id: gw.reference,
+          provider_status: gw.status,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", refundAttemptId);
       const { error: doneErr } = await supabase.rpc("complete_refund", {
         p_refund_id: refund.id,
         p_gateway_ref: gw.reference,
@@ -417,13 +537,40 @@ Deno.serve(async (req) => {
       );
     }
 
-    await supabase.rpc("fail_refund", {
-      p_refund_id: refund.id,
-      p_reason: gw.error || "Gateway error",
-    });
+    const unknownOutcome = gw.failureState === "unknown";
+    await supabase
+      .from("refund_attempts")
+      .update({
+        status: unknownOutcome ? "reconciliation_required" : "failed",
+        provider_status: gw.status,
+        error_message: gw.error || "Gateway error",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", refundAttemptId);
+    if (unknownOutcome) {
+      await supabase
+        .from("refund_requests")
+        .update({
+          refund_state: "needs_manual_review",
+          notes: `needs_manual_review: provider outcome unknown: ${gw.error || "unknown"}`,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", refund.id)
+        .eq("refund_state", "refund_initiated");
+    } else {
+      await supabase.rpc("fail_refund", {
+        p_refund_id: refund.id,
+        p_reason: gw.error || "Gateway error",
+      });
+    }
     return new Response(
-      JSON.stringify({ ok: false, state: "refund_failed", error: gw.error, simulated: false }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      JSON.stringify({
+        ok: false,
+        state: unknownOutcome ? "needs_manual_review" : "refund_failed",
+        error: gw.error,
+        simulated: false,
+      }),
+      { status: unknownOutcome ? 409 : 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (err: any) {
     console.error("[refund-processor] error", err);

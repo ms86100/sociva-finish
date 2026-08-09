@@ -160,7 +160,7 @@ export default function SellerDashboardPage() {
 
       if (error) {
         console.error('[SellerDashboard] Profile fetch error:', error);
-        setRenderError(`Failed to load profile: ${error.message}`);
+        setRenderError(friendlyError(error) || 'Failed to load profile');
       }
       setSellerProfile(profile ? (profile as SellerProfile) : null);
 
@@ -175,7 +175,7 @@ export default function SellerDashboardPage() {
       }
     } catch (error) {
       console.error('[SellerDashboard] Unexpected error:', error);
-      setRenderError(error instanceof Error ? error.message : 'Unknown error');
+      setRenderError(friendlyError(error) || 'Failed to load seller dashboard');
     } finally {
       setIsLoadingProfile(false);
     }

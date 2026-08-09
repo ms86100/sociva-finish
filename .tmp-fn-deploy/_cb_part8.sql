@@ -1,0 +1,156 @@
+-- ============================================================
+-- C8: Atomic booking create
+-- ============================================================
+CREATE OR REPLACE FUNCTION public.create_service_booking_atomic(
+  _seller_id uuid,
+  _product_id uuid,
+  _slot_id uuid,
+  _booking_date text,
+  _start_time text,
+  _end_time text,
+  _total_amount numeric,
+  _product_name text,
+  _unit_price numeric,
+  _idempotency_key text,
+  _notes text DEFAULT NULL,
+  _buyer_address text DEFAULT NULL,
+  _location_type text DEFAULT 'at_seller',
+  _fulfillment_type text DEFAULT NULL,
+  _addons jsonb DEFAULT '[]'::jsonb,
+  _recurring jsonb DEFAULT NULL
+)
+RETURNS json
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $$
+DECLARE
+  _caller uuid := auth.uid();
+  _order_id uuid;
+  _booking_id uuid;
+  _slot_result json;
+  _addon jsonb;
+  _existing_order uuid;
+  _seller_user uuid;
+BEGIN
+  IF _caller IS NULL THEN
+    RETURN json_build_object('success', false, 'error', 'Not authenticated');
+  END IF;
+
+  IF EXISTS (SELECT 1 FROM seller_profiles WHERE id = _seller_id AND user_id = _caller) THEN
+    RETURN json_build_object('success', false, 'error', 'Cannot book your own service');
+  END IF;
+
+  SELECT id INTO _existing_order
+  FROM orders
+  WHERE buyer_id = _caller AND idempotency_key = _idempotency_key
+  LIMIT 1;
+
+  IF _existing_order IS NOT NULL THEN
+    SELECT id INTO _booking_id FROM service_bookings WHERE order_id = _existing_order LIMIT 1;
+    RETURN json_build_object(
+      'success', true,
+      'order_id', _existing_order,
+      'booking_id', _booking_id,
+      'idempotent', true
+    );
+  END IF;
+
+  INSERT INTO orders (
+    buyer_id, seller_id, total_amount, order_type, status,
+    payment_type, payment_status, transaction_type, idempotency_key,
+    notes, delivery_address, fulfillment_type
+  ) VALUES (
+    _caller, _seller_id, _total_amount, 'booking', 'confirmed',
+    'cod', 'pending', 'service_booking', _idempotency_key,
+    NULLIF(LEFT(COALESCE(_notes, ''), 500), ''),
+    NULLIF(LEFT(COALESCE(_buyer_address, ''), 300), ''),
+    COALESCE(_fulfillment_type, _location_type, 'at_seller')
+  )
+  RETURNING id INTO _order_id;
+
+  INSERT INTO order_items (order_id, product_id, product_name, quantity, unit_price)
+  VALUES (_order_id, _product_id, _product_name, 1, _unit_price);
+
+  _slot_result := public.book_service_slot(
+    _order_id, _slot_id, _caller, _seller_id, _product_id,
+    _booking_date, _start_time, _end_time,
+    COALESCE(_location_type, 'at_seller'),
+    NULLIF(LEFT(COALESCE(_buyer_address, ''), 300), ''),
+    NULLIF(LEFT(COALESCE(_notes, ''), 500), '')
+  );
+
+  IF COALESCE((_slot_result->>'success')::boolean, false) IS NOT TRUE THEN
+    UPDATE orders SET status = 'cancelled', notes = COALESCE(notes, '') || ' [booking_setup_failed]'
+    WHERE id = _order_id;
+    RETURN json_build_object(
+      'success', false,
+      'error', COALESCE(_slot_result->>'error', 'Failed to book slot'),
+      'order_id', _order_id
+    );
+  END IF;
+
+  _booking_id := (_slot_result->>'booking_id')::uuid;
+
+  IF _addons IS NOT NULL AND jsonb_typeof(_addons) = 'array' THEN
+    FOR _addon IN SELECT * FROM jsonb_array_elements(_addons)
+    LOOP
+      INSERT INTO service_booking_addons (booking_id, addon_id, addon_name, addon_price)
+      VALUES (
+        _booking_id,
+        NULLIF(_addon->>'id', '')::uuid,
+        COALESCE(_addon->>'name', 'Add-on'),
+        COALESCE((_addon->>'price')::numeric, 0)
+      );
+    END LOOP;
+  END IF;
+
+  IF _recurring IS NOT NULL AND COALESCE((_recurring->>'enabled')::boolean, false) THEN
+    INSERT INTO service_recurring_configs (
+      booking_id, buyer_id, seller_id, product_id,
+      frequency, preferred_time, start_date, end_date, day_of_week
+    ) VALUES (
+      _booking_id, _caller, _seller_id, _product_id,
+      COALESCE(_recurring->>'frequency', 'weekly'),
+      _start_time::time,
+      _booking_date::date,
+      NULLIF(_recurring->>'endDate', '')::date,
+      COALESCE((_recurring->>'dayOfWeek')::int, EXTRACT(DOW FROM _booking_date::date)::int)
+    );
+  END IF;
+
+  SELECT user_id INTO _seller_user FROM seller_profiles WHERE id = _seller_id;
+  IF _seller_user IS NOT NULL THEN
+    INSERT INTO notification_queue (user_id, type, title, body, reference_path, payload)
+    VALUES (
+      _seller_user,
+      'order',
+      'New Booking Confirmed',
+      'A customer booked ' || _product_name || ' on ' || _booking_date || ' at ' || LEFT(_start_time, 5),
+      '/orders/' || _order_id::text,
+      jsonb_build_object('orderId', _order_id, 'status', 'confirmed', 'type', 'order')
+    );
+  END IF;
+
+  RETURN json_build_object(
+    'success', true,
+    'order_id', _order_id,
+    'booking_id', _booking_id,
+    'idempotent', false
+  );
+EXCEPTION WHEN unique_violation THEN
+  SELECT id INTO _existing_order
+  FROM orders WHERE buyer_id = _caller AND idempotency_key = _idempotency_key LIMIT 1;
+  IF _existing_order IS NOT NULL THEN
+    SELECT id INTO _booking_id FROM service_bookings WHERE order_id = _existing_order LIMIT 1;
+    RETURN json_build_object('success', true, 'order_id', _existing_order, 'booking_id', _booking_id, 'idempotent', true);
+  END IF;
+  RETURN json_build_object('success', false, 'error', SQLERRM);
+WHEN OTHERS THEN
+  RETURN json_build_object('success', false, 'error', SQLERRM);
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.create_service_booking_atomic(
+  uuid, uuid, uuid, text, text, text, numeric, text, numeric, text, text, text, text, text, jsonb, jsonb
+) TO authenticated;

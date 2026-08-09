@@ -12,6 +12,7 @@ import { useGoogleMaps, useAutocomplete } from '@/hooks/useGoogleMaps';
 import { MapPin, Navigation, Loader2, Search, ArrowLeft, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
+import { friendlyError } from '@/lib/utils';
 
 interface SetStoreLocationSheetProps {
   open: boolean;
@@ -112,7 +113,7 @@ export function SetStoreLocationSheet({ open, onOpenChange, sellerId, onSuccess 
       handleClose();
     } catch (err: any) {
       console.error('[SetStoreLocation] Save error:', err);
-      toast.error(err.message || 'Failed to save location');
+      toast.error(friendlyError(err) || 'Failed to save location');
     } finally {
       setSaving(false);
     }

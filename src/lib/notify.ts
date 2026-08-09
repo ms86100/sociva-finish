@@ -6,14 +6,22 @@
 // Operational failures (network errors, "Failed to save", etc.) should
 // continue to use toasts — they're informational, not blocking.
 
+import { toast } from 'sonner';
 import { hapticNotification } from '@/lib/haptics';
+import { friendlyError } from '@/lib/utils';
 
 export type NotifyVariant = 'block' | 'warn' | 'info';
+export type NotifyPriority = 'normal' | 'high' | 'critical';
 
 export interface NotifyOptions {
   title?: string;
   okLabel?: string;
+  cancelLabel?: string;
   onAck?: () => void;
+  onCancel?: () => void;
+  /** Stable key used to suppress an already-open or queued duplicate. */
+  id?: string;
+  priority?: NotifyPriority;
 }
 
 export interface NotifyState {
@@ -22,9 +30,13 @@ export interface NotifyState {
   title: string;
   message: string;
   okLabel: string;
+  cancelLabel?: string;
+  id?: string;
+  priority: NotifyPriority;
+  confirmation: boolean;
   onAck?: () => void;
-  // bump on every open so identical messages still re-trigger if the previous
-  // dialog was dismissed
+  onCancel?: () => void;
+  resolve?: (confirmed: boolean) => void;
   nonce: number;
 }
 
@@ -40,10 +52,14 @@ let state: NotifyState = {
   title: DEFAULT_TITLES.block,
   message: '',
   okLabel: 'OK',
+  priority: 'normal',
+  confirmation: false,
   nonce: 0,
 };
 
 const listeners = new Set<(s: NotifyState) => void>();
+const queue: NotifyState[] = [];
+const PRIORITY: Record<NotifyPriority, number> = { normal: 0, high: 1, critical: 2 };
 
 function emit() {
   for (const l of listeners) l(state);
@@ -61,32 +77,109 @@ export function getNotifyState(): NotifyState {
   return state;
 }
 
-export function closeNotify() {
-  if (!state.open) return;
-  state = { ...state, open: false };
+function openNext() {
+  if (state.open || queue.length === 0) return;
+  const next = queue.shift()!;
+  state = { ...next, open: true, nonce: state.nonce + 1 };
   emit();
 }
 
-function show(variant: NotifyVariant, message: string, opts: NotifyOptions = {}) {
-  // Dedupe: if the same message+variant is already open, do nothing.
-  if (state.open && state.message === message && state.variant === variant) return;
+function finishCurrent(confirmed: boolean) {
+  if (!state.open) return;
+  const current = state;
+  state = { ...state, open: false };
+  emit();
+  current.resolve?.(confirmed);
+  if (confirmed) current.onAck?.();
+  else current.onCancel?.();
+  queueMicrotask(openNext);
+}
+
+export function closeNotify() {
+  finishCurrent(false);
+}
+
+export function acknowledgeNotify() {
+  finishCurrent(true);
+}
+
+export function clearNotifyQueue() {
+  if (state.open) {
+    const current = state;
+    state = { ...state, open: false };
+    current.resolve?.(false);
+  }
+  for (const queued of queue.splice(0)) queued.resolve?.(false);
+  emit();
+}
+
+function enqueue(
+  variant: NotifyVariant,
+  message: string,
+  opts: NotifyOptions = {},
+  confirmation = false,
+  resolve?: (confirmed: boolean) => void,
+) {
+  const id = opts.id ?? `${variant}:${message}`;
+  if (state.open && state.id === id) {
+    if (confirmation && resolve) {
+      const previousResolve = state.resolve;
+      state.resolve = (confirmed) => {
+        previousResolve?.(confirmed);
+        resolve(confirmed);
+      };
+    }
+    return;
+  }
+  const queuedDuplicate = queue.find(item => item.id === id);
+  if (queuedDuplicate) {
+    if (confirmation && resolve) {
+      const previousResolve = queuedDuplicate.resolve;
+      queuedDuplicate.resolve = (confirmed) => {
+        previousResolve?.(confirmed);
+        resolve(confirmed);
+      };
+    }
+    return;
+  }
   if (variant === 'block') hapticNotification('error');
   else if (variant === 'warn') hapticNotification('warning');
-  state = {
-    open: true,
+  const next: NotifyState = {
+    open: false,
     variant,
     title: opts.title ?? DEFAULT_TITLES[variant],
     message,
     okLabel: opts.okLabel ?? 'OK',
+    cancelLabel: opts.cancelLabel,
+    id,
+    priority: opts.priority ?? (variant === 'block' ? 'high' : 'normal'),
+    confirmation,
     onAck: opts.onAck,
-    nonce: state.nonce + 1,
+    onCancel: opts.onCancel,
+    resolve,
+    nonce: state.nonce,
   };
-  emit();
+  queue.push(next);
+  queue.sort((a, b) => PRIORITY[b.priority] - PRIORITY[a.priority]);
+  openNext();
 }
 
 export const notify = {
-  block: (message: string, opts?: NotifyOptions) => show('block', message, opts),
-  warn: (message: string, opts?: NotifyOptions) => show('warn', message, opts),
-  info: (message: string, opts?: NotifyOptions) => show('info', message, opts),
+  block: (message: string, opts?: NotifyOptions) => enqueue('block', message, opts),
+  warn: (message: string, opts?: NotifyOptions) => enqueue('warn', message, opts),
+  info: (message: string, opts?: NotifyOptions) => enqueue('info', message, opts),
+  confirm: (message: string, opts: NotifyOptions = {}) =>
+    new Promise<boolean>((resolve) => enqueue('warn', message, {
+      okLabel: opts.okLabel ?? 'Continue',
+      cancelLabel: opts.cancelLabel ?? 'Cancel',
+      priority: opts.priority ?? 'high',
+      ...opts,
+    }, true, resolve)),
+  /** Operational failures stay transient and are always sanitized. */
+  error: (error: unknown, opts?: { id?: string; title?: string }) =>
+    toast.error(opts?.title ?? friendlyError(error), { id: opts?.id }),
+  success: (message: string, opts?: { id?: string }) =>
+    toast.success(message, { id: opts?.id }),
   close: closeNotify,
+  clear: clearNotifyQueue,
 };

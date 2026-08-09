@@ -1,0 +1,117 @@
+
+      if (!user) {
+        return new Response(JSON.stringify({ error: "Unauthorized" }), {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      callerUserId = user.id;
+    }
+
+    const body = (await req.json().catch(() => ({}))) as ProcessRequest;
+    if (!body.refund_id) {
+      return new Response(JSON.stringify({ error: "refund_id required" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const { data: refund, error: fetchErr } = await supabase
+      .from("refund_requests")
+      .select("id, refund_state, amount, order_id, buyer_id, refund_destination, wallet_credit_amount")
+      .eq("id", body.refund_id)
+      .single();
+
+    if (fetchErr || !refund) {
+      return new Response(JSON.stringify({ error: "Refund not found" }), {
+        status: 404,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Ownership: seller of order, admin, or service/cron
+    if (callerUserId) {
+      const { data: order } = await supabase
+        .from("orders")
+        .select("seller_id")
+        .eq("id", refund.order_id)
+        .single();
+
+      const { data: sellerProfile } = order?.seller_id
+        ? await supabase
+            .from("seller_profiles")
+            .select("user_id")
+            .eq("id", order.seller_id)
+            .maybeSingle()
+        : { data: null };
+
+      const { data: isAdmin } = await supabase.rpc("is_admin", { _user_id: callerUserId });
+      const isSellerOwner = sellerProfile?.user_id === callerUserId;
+
+      if (!isSellerOwner && !isAdmin) {
+        return new Response(JSON.stringify({ error: "Forbidden" }), {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
+
+    if (refund.refund_state === "refund_completed" || refund.refund_state === "settled") {
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          skipped: true,
+          state: refund.refund_state,
+          message: `Refund already completed`,
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    if (refund.refund_state !== "approved") {
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          skipped: true,
+          state: refund.refund_state,
+          message: `Refund already in state ${refund.refund_state}`,
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    // Sociva Credit path: skip Razorpay, credit wallet + complete
+    const destination = (refund as { refund_destination?: string }).refund_destination || "original_payment";
+    if (destination === "wallet") {
+      const { data: walletDone, error: walletErr } = await supabase.rpc("complete_wallet_refund", {
+        p_refund_id: refund.id,
+      });
+      if (walletErr) {
+        console.error("[refund-processor] wallet refund failed", walletErr);
+        await supabase.rpc("fail_refund", {
+          p_refund_id: refund.id,
+          p_reason: walletErr.message || "Wallet credit failed",
+        });
+        return new Response(
+          JSON.stringify({ ok: false, state: "refund_failed", error: walletErr.message, destination: "wallet" }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+      console.log(`[refund-processor] completed wallet refund ${refund.id}`);
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          state: "refund_completed",
+          destination: "wallet",
+          gateway_ref: walletDone?.gateway_refund_id || null,
+          simulated: false,
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    const keys = await getRazorpayKeys(supabase);
+    if (!keys) {
+      return new Response(
+        JSON.stringify({
+          erro

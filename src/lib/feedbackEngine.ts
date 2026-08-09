@@ -75,7 +75,6 @@ export function feedbackQuantityFailed() {
 
 export function feedbackOrderPlaced() {
   hapticNotification('success');
-  toast.success('Order placed!', { id: 'order-placed', duration: 2500 });
   dispatch('order-placed');
 }
 
@@ -92,7 +91,6 @@ export function feedbackOrderFailed(message?: string) {
 export function feedbackPaymentResult(success: boolean, message?: string) {
   if (success) {
     hapticNotification('success');
-    toast.success(message || 'Payment confirmed', { id: 'payment-result', duration: 2500 });
     dispatch('payment-success');
   } else {
     hapticNotification('error');
@@ -105,26 +103,17 @@ export function feedbackPaymentResult(success: boolean, message?: string) {
 
 export function feedbackCouponApplied(savings: string) {
   hapticImpact('medium');
-  toast.success(`Coupon applied! You save ${savings}`, {
-    id: 'coupon-applied',
-    duration: 2200,
-  });
   dispatch('coupon-applied');
 }
 
 export function feedbackCouponFailed(reason: string) {
   hapticNotification('warning');
-  toast.error(reason, {
-    id: 'coupon-failed',
-    duration: 2500,
-  });
 }
 
 // ── Cart Cleared Feedback ───────────────────────────────────────────
 
 export function feedbackCartCleared() {
   hapticImpact('light');
-  toast('Cart cleared', { id: 'cart-cleared', duration: 1800 });
   dispatch('cart-cleared');
 }
 

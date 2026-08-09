@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Shield, ChevronDown, ChevronRight } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { DynamicIcon } from '@/components/ui/DynamicIcon';
-import { toast } from 'sonner';
+import { adminNotify } from '@/lib/admin-notify';
 
 interface CategoryLicenseConfig {
   id: string;
@@ -61,13 +61,13 @@ export function LicenseConfigSection() {
 
   const toggleRequiresLicense = async (cat: CategoryLicenseConfig, checked: boolean) => {
     await supabase.from('category_config').update({ requires_license: checked } as any).eq('id', cat.id);
-    toast.success(checked ? `License enabled for ${cat.display_name}` : `License disabled for ${cat.display_name}`);
+    adminNotify.success(checked ? `License enabled for ${cat.display_name}` : `License disabled for ${cat.display_name}`);
     fetchData();
   };
 
   const toggleMandatory = async (cat: CategoryLicenseConfig, checked: boolean) => {
     await supabase.from('category_config').update({ license_mandatory: checked } as any).eq('id', cat.id);
-    toast.success(checked ? 'License now mandatory' : 'License now optional');
+    adminNotify.success(checked ? 'License now mandatory' : 'License now optional');
     fetchData();
   };
 
@@ -77,7 +77,7 @@ export function LicenseConfigSection() {
       license_type_name: editForm.license_type_name.trim() || null,
       license_description: editForm.license_description.trim() || null,
     } as any).eq('id', editingCategory.id);
-    toast.success('License config updated');
+    adminNotify.success('License config updated');
     setEditingCategory(null);
     fetchData();
   };

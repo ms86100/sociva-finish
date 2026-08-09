@@ -7,6 +7,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { PartyPopper, Eye, MousePointer, Globe, AlertTriangle, ShieldOff } from 'lucide-react';
 import { toast } from 'sonner';
+import { friendlyError } from '@/lib/utils';
 
 interface Props {
   sellerId: string;
@@ -129,7 +130,7 @@ export function SellerFestivalParticipation({ sellerId }: Props) {
       qc.invalidateQueries({ queryKey: ['seller-festival-participation'] });
       toast.success('Festival participation updated');
     },
-    onError: (e: any) => toast.error(e.message),
+    onError: (e: any) => toast.error(friendlyError(e) || 'Failed to update participation'),
   });
 
   if (loadingFestivals || loadingPart) {

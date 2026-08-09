@@ -1,0 +1,187 @@
+           ORDER BY COALESCE(last_message_at, created_at) DESC NULLS LAST, created_at DESC
+         ) AS rn
+  FROM seller_conversations
+)
+DELETE FROM seller_conversations sc
+USING ranked r
+WHERE sc.id = r.id AND r.rn > 1;
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_seller_conversations_buyer_seller_product
+  ON public.seller_conversations (buyer_id, seller_id, product_id);
+
+-- ============================================================
+-- C4: book_service_slot — bind buyer to auth.uid()
+-- ============================================================
+CREATE OR REPLACE FUNCTION public.book_service_slot(
+  _order_id uuid,
+  _slot_id uuid,
+  _buyer_id uuid,
+  _seller_id uuid,
+  _product_id uuid,
+  _booking_date text,
+  _start_time text,
+  _end_time text,
+  _location_type text DEFAULT 'at_seller'::text,
+  _buyer_address text DEFAULT NULL::text,
+  _notes text DEFAULT NULL::text
+) RETURNS json
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $$
+DECLARE
+  _slot record;
+  _booking_id uuid;
+  _existing_count int;
+  _caller uuid := auth.uid();
+  _order record;
+BEGIN
+  IF _caller IS NULL THEN
+    RETURN json_build_object('success', false, 'error', 'Not authenticated');
+  END IF;
+
+  IF _buyer_id IS DISTINCT FROM _caller THEN
+    RETURN json_build_object('success', false, 'error', 'Buyer mismatch');
+  END IF;
+
+  SELECT * INTO _order FROM orders WHERE id = _order_id;
+  IF _order IS NULL THEN
+    RETURN json_build_object('success', false, 'error', 'Order not found');
+  END IF;
+  IF _order.buyer_id IS DISTINCT FROM _caller THEN
+    RETURN json_build_object('success', false, 'error', 'Not your order');
+  END IF;
+  IF _order.seller_id IS DISTINCT FROM _seller_id THEN
+    RETURN json_build_object('success', false, 'error', 'Seller mismatch');
+  END IF;
+
+  SELECT COUNT(*) INTO _existing_count
+  FROM public.service_bookings
+  WHERE buyer_id = _buyer_id
+    AND slot_id = _slot_id
+    AND status NOT IN ('cancelled', 'no_show');
+
+  IF _existing_count > 0 THEN
+    RETURN json_build_object('success', false, 'error', 'You already have a booking for this time slot');
+  END IF;
+
+  SELECT COUNT(*) INTO _existing_count
+  FROM public.service_bookings
+  WHERE buyer_id = _buyer_id
+    AND booking_date = _booking_date::date
+    AND status NOT IN ('cancelled', 'no_show')
+    AND start_time < _end_time::time
+    AND end_time > _start_time::time;
+
+  IF _existing_count > 0 THEN
+    RETURN json_build_object('success', false, 'error', 'You have an overlapping booking at this time');
+  END IF;
+
+  IF _booking_date::date < CURRENT_DATE THEN
+    RETURN json_build_object('success', false, 'error', 'Cannot book a past date');
+  END IF;
+
+  IF _booking_date::date = CURRENT_DATE AND _start_time::time < CURRENT_TIME THEN
+    RETURN json_build_object('success', false, 'error', 'This time slot has already passed');
+  END IF;
+
+  UPDATE public.service_slots
+  SET booked_count = booked_count + 1
+  WHERE id = _slot_id
+    AND is_blocked = false
+    AND booked_count < max_capacity
+  RETURNING * INTO _slot;
+
+  IF _slot IS NULL THEN
+    RETURN json_build_object('success', false, 'error', 'Slot is no longer available');
+  END IF;
+
+  INSERT INTO public.service_bookings (
+    order_id, slot_id, buyer_id, seller_id, product_id,
+    booking_date, start_time, end_time, status, location_type, buyer_address, notes
+  ) VALUES (
+    _order_id, _slot_id, _buyer_id, _seller_id, _product_id,
+    _booking_date::date, _start_time::time, _end_time::time, 'confirmed',
+    _location_type, _buyer_address, _notes
+  )
+  RETURNING id INTO _booking_id;
+
+  RETURN json_build_object('success', true, 'booking_id', _booking_id);
+EXCEPTION WHEN OTHERS THEN
+  RETURN json_build_object('success', false, 'error', SQLERRM);
+END;
+$$;
+
+-- ============================================================
+-- C4: release_service_slot — ownership / party check
+-- ============================================================
+CREATE OR REPLACE FUNCTION public.release_service_slot(_slot_id uuid)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  _caller uuid := auth.uid();
+  _ok boolean := false;
+  _role text := coalesce(auth.role(), '');
+BEGIN
+  -- Edge functions / cron use the service_role key (auth.uid() is null).
+  IF _role = 'service_role' THEN
+    UPDATE public.service_slots
+    SET booked_count = GREATEST(booked_count - 1, 0)
+    WHERE id = _slot_id;
+    RETURN;
+  END IF;
+
+  IF _caller IS NULL THEN
+    RAISE EXCEPTION 'Not authenticated';
+  END IF;
+
+  SELECT EXISTS (
+    SELECT 1
+    FROM service_slots ss
+    LEFT JOIN seller_profiles sp ON sp.id = ss.seller_id
+    WHERE ss.id = _slot_id
+      AND (
+        sp.user_id = _caller
+        OR EXISTS (
+          SELECT 1 FROM service_bookings sb
+          WHERE sb.slot_id = _slot_id
+            AND sb.buyer_id = _caller
+            AND sb.status IN ('cancelled', 'confirmed', 'requested', 'scheduled', 'rescheduled')
+        )
+      )
+  ) INTO _ok;
+
+  IF NOT _ok THEN
+    RAISE EXCEPTION 'Not allowed to release this slot';
+  END IF;
+
+  UPDATE public.service_slots
+  SET booked_count = GREATEST(booked_count - 1, 0)
+  WHERE id = _slot_id;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.release_service_slot(uuid) TO authenticated, service_role;
+
+-- ============================================================
+-- H3: Sync booking status + release slot on cancel
+-- ============================================================
+CREATE OR REPLACE FUNCTION public.sync_booking_status_on_order_update_impl(p_old orders, p_new orders)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  _booking record;
+BEGIN
+  IF p_new.status IS DISTINCT FROM p_old.status
+     AND (p_new.order_type = 'booking' OR p_new.transaction_type IN ('service_booking', 'request_service')) THEN
+    UPDATE public.service_bookings
+    SET status = p_new.status::text,
+        updated_at = now(),
+        cancelled_at = CASE
+          WHEN p_new.status::text IN ('cancelled', 'rejected') THEN COALESCE(cancelled_at, now

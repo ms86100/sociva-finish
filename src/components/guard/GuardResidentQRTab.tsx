@@ -8,6 +8,7 @@ import { GuardConfirmationPoller } from '@/components/security/GuardConfirmation
 import { toast } from 'sonner';
 import { CheckCircle, XCircle, User, Search, Clock, QrCode } from 'lucide-react';
 import { notify } from '@/lib/notify';
+import { friendlyError } from '@/lib/utils';
 
 interface VerifiedResident {
   name: string;
@@ -66,7 +67,7 @@ export function GuardResidentQRTab({ societyId }: Props) {
       } else if (result.expired) {
         setVerificationStatus('expired'); setErrorMessage('QR code has expired. Ask resident to refresh.');
       } else {
-        setVerificationStatus('failed'); setErrorMessage(result.error || 'Invalid QR code');
+        setVerificationStatus('failed'); setErrorMessage(result.error ? friendlyError(result.error) : 'Invalid QR code');
       }
     } catch {
       setVerificationStatus('failed'); setErrorMessage('Verification failed');

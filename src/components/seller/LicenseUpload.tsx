@@ -10,6 +10,7 @@ import { ImageUpload } from '@/components/ui/image-upload';
 import { useAuth } from '@/contexts/AuthContext';
 import { FileText, Check, X, Clock, Upload } from 'lucide-react';
 import { toast } from 'sonner';
+import { friendlyError } from '@/lib/utils';
 
 interface LicenseUploadProps {
   sellerId: string;
@@ -138,7 +139,7 @@ export function LicenseUpload({ sellerId, groupId, categoryConfigId, onStatusCha
       fetchData();
     } catch (error: any) {
       console.error('License upload failed:', error);
-      toast.error(error?.message || 'Failed to upload license');
+      toast.error(friendlyError(error) || 'Failed to upload license');
     }
   };
 

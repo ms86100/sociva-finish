@@ -55,7 +55,9 @@ function showFatalFallback() {
       Object.keys(localStorage)
         .filter((k) => k.startsWith('sb-') && k.endsWith('-auth-token'))
         .forEach((k) => localStorage.removeItem(k));
-    } catch {}
+    } catch {
+      // Storage cleanup is best-effort before the forced reload.
+    }
     root.innerHTML = "";
     window.location.reload();
   });

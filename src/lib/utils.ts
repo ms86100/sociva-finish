@@ -18,6 +18,9 @@ export function friendlyError(error: unknown): string {
       ? (error as any).message
       : String(error ?? '');
   const lower = msg.toLowerCase();
+  const code = typeof error === 'object' && error !== null && 'code' in error
+    ? String((error as any).code ?? '').toLowerCase()
+    : '';
 
   if (lower.includes('invalid category') || lower.includes('category does not exist')) {
     return 'Please pick a category before saving. If you don\'t see yours, use the closest "Other" category or request a new one.';
@@ -60,6 +63,21 @@ export function friendlyError(error: unknown): string {
   if (lower.includes('stock_validation_failed') || lower.includes('items are unavailable')) {
     return 'Some items in your cart are no longer available. Please review your cart.';
   }
+  if (lower.includes('unavailable_items')) {
+    return 'Some items are unavailable. Review your cart before trying again.';
+  }
+  if (lower.includes('closed_sellers') || lower.includes('store_closed')) {
+    return 'One or more stores are currently closed. Review your cart for available options.';
+  }
+  if (lower.includes('minimum_order')) {
+    return 'One or more stores have not reached their minimum order amount.';
+  }
+  if (lower.includes('payment_method_not_accepted') || lower.includes('payment not accepted')) {
+    return 'That payment method is unavailable. Choose another payment option.';
+  }
+  if (lower.includes('price_changed')) {
+    return 'Some prices changed. Review the updated cart total before continuing.';
+  }
   if (lower.includes('insufficient') || lower.includes('balance')) {
     return 'Insufficient balance. Please try a different payment method.';
   }
@@ -85,8 +103,26 @@ export function friendlyError(error: unknown): string {
     return 'Server error. Please try again in a moment.';
   }
 
+  // Never expose database, RPC, storage, or stack-trace internals to users.
+  const technicalMessage =
+    /(^|\s)(column|relation|operator|function|constraint|schema|table|trigger|policy)\s+["']?[\w.]+["']?\s+(does not exist|is ambiguous)/i.test(msg) ||
+    /violates\s+(not-null|foreign key|check|unique)|null value in column|on conflict specification|sqlstate|syntax error|stack trace/i.test(msg) ||
+    /\b(pgrst|postgres|postgrest|plpgsql|2350[235]|42p01|42703|42883)\b/i.test(`${code} ${msg}`) ||
+    (lower.includes('rpc') && lower.includes('failed')) ||
+    (msg.trim().startsWith('{') && msg.trim().endsWith('}'));
+  if (technicalMessage) {
+    return 'We could not complete that request. Please try again. If it continues, contact Sociva support.';
+  }
+
   // Fallback: return original if it looks user-friendly (short, no technical jargon)
-  if (msg.length > 0 && msg.length < 120 && !lower.includes('error') && !lower.includes('exception') && !lower.includes('unexpected')) {
+  if (
+    msg.length > 0 &&
+    msg.length < 120 &&
+    !lower.includes('error') &&
+    !lower.includes('exception') &&
+    !lower.includes('unexpected') &&
+    !code
+  ) {
     return msg;
   }
 

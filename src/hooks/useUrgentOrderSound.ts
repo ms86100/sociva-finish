@@ -67,7 +67,9 @@ export function useUrgentOrderSound(isActive: boolean) {
         sourceNodeRef.current.stop();
         sourceNodeRef.current = null;
       }
-    } catch {}
+    } catch {
+      // The source may already be stopped during overlapping cleanup.
+    }
   }, []);
 
   useEffect(() => {
@@ -87,7 +89,9 @@ export function useUrgentOrderSound(isActive: boolean) {
     return () => {
       try {
         audioContextRef.current?.close();
-      } catch {}
+      } catch {
+        // AudioContext cleanup is best-effort during unmount.
+      }
     };
   }, []);
 

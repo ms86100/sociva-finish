@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
+import { adminNotify } from '@/lib/admin-notify';
 import { logAudit } from '@/lib/audit';
 import { useCurrency } from '@/hooks/useCurrency';
 import { notifySellerStatusChange, notifyLicenseStatusChange, notifyProductStatusChange } from '@/lib/admin-notifications';
@@ -172,7 +172,7 @@ export function useSellerApplicationReview() {
         );
       }
 
-      toast.success(`Seller ${status}`);
+      adminNotify.success(`Seller ${status}`);
       setRejectingId(null);
       setRejectionNote('');
       fetchData();
@@ -182,9 +182,9 @@ export function useSellerApplicationReview() {
       if (msg.includes('Cannot approve seller without location') || msg.includes('location')) {
         notify.block('Cannot approve: Store has no location coordinates. Ask seller to set their store location first.');
       } else if (msg.includes('Update did not persist')) {
-        toast.error('Approval failed — the update did not save. Please try again or check permissions.');
+        adminNotify.error('Approval failed — the update did not save. Please try again or check permissions.');
       } else {
-        toast.error(`Failed to update seller status: ${msg || 'Unknown error'}`);
+        adminNotify.error(`Failed to update seller status: ${msg || 'Unknown error'}`);
       }
     } finally {
       setActionId(null);
@@ -208,26 +208,26 @@ export function useSellerApplicationReview() {
         await notifyLicenseStatusChange(seller.user_id, licenseType, status, licenseAdminNotes.trim() || undefined);
       }
 
-      toast.success(`License ${status}`);
+      adminNotify.success(`License ${status}`);
       setLicenseAdminNotes('');
       fetchData();
     } catch (error) {
-      toast.error('Failed to update license');
+      adminNotify.error('Failed to update license');
     }
   };
 
   const toggleRequiresLicense = async (group: GroupConfig, checked: boolean) => {
     // Now updates category_config instead of parent_groups
     const { error } = await supabase.from('category_config').update({ requires_license: checked } as any).eq('id', group.id);
-    if (error) { toast.error('Failed to update license requirement'); return; }
-    toast.success(checked ? `License enabled for ${group.name}` : `License disabled for ${group.name}`);
+    if (error) { adminNotify.error('Failed to update license requirement'); return; }
+    adminNotify.success(checked ? `License enabled for ${group.name}` : `License disabled for ${group.name}`);
     fetchData();
   };
 
   const toggleMandatory = async (group: GroupConfig, checked: boolean) => {
     const { error } = await supabase.from('category_config').update({ license_mandatory: checked } as any).eq('id', group.id);
-    if (error) { toast.error('Failed to update license mandatory flag'); return; }
-    toast.success(checked ? 'License now mandatory' : 'License now optional');
+    if (error) { adminNotify.error('Failed to update license mandatory flag'); return; }
+    adminNotify.success(checked ? 'License now mandatory' : 'License now optional');
     fetchData();
   };
 
@@ -237,8 +237,8 @@ export function useSellerApplicationReview() {
       license_type_name: editForm.license_type_name.trim() || null,
       license_description: editForm.license_description.trim() || null,
     } as any).eq('id', editingGroup.id);
-    if (error) { toast.error('Failed to update license config'); return; }
-    toast.success('License config updated');
+    if (error) { adminNotify.error('Failed to update license config'); return; }
+    adminNotify.success('License config updated');
     setEditingGroup(null);
     fetchData();
   };
@@ -261,7 +261,7 @@ export function useSellerApplicationReview() {
       }
 
       const { error } = await supabase.from('products').update(updatePayload).eq('id', productId);
-      if (error) { toast.error(`Failed to ${status} product`); return; }
+      if (error) { adminNotify.error(`Failed to ${status} product`); return; }
       // Clear old snapshots on approval so admin only sees future diffs
       if (status === 'approved') {
         await supabase.from('product_edit_snapshots').delete().eq('product_id', productId);
@@ -281,12 +281,12 @@ export function useSellerApplicationReview() {
         );
       }
 
-      toast.success(`Product ${status}`);
+      adminNotify.success(`Product ${status}`);
       setProductRejectingId(null);
       setProductRejectionNote('');
       fetchData();
     } catch {
-      toast.error('Failed to update product');
+      adminNotify.error('Failed to update product');
     } finally {
       setProductActionId(null);
     }

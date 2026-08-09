@@ -9,7 +9,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { notifySocietyMembers } from '@/lib/society-notifications';
 import { Megaphone, Loader2, AlertTriangle } from 'lucide-react';
-import { toast } from 'sonner';
+import { adminNotify } from '@/lib/admin-notify';
 import { friendlyError } from '@/lib/utils';
 
 const BROADCAST_CATEGORIES = [
@@ -64,13 +64,13 @@ export function EmergencyBroadcastSheet() {
         { includeUnapproved: true }
       );
 
-      toast.success('Broadcast sent to all residents');
+      adminNotify.success('Broadcast sent to all residents');
       setTitle('');
       setBody('');
       setCategory('general');
       setOpen(false);
     } catch (err: any) {
-      toast.error(friendlyError(err));
+      adminNotify.error(friendlyError(err));
     } finally {
       setSending(false);
     }

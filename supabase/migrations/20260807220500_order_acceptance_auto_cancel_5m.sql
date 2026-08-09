@@ -4,6 +4,11 @@
 -- Expiry cancels by primary key only (O(1)) — no pending-order scans.
 -- ============================================================
 
+-- Older production snapshots can have the auto-accept trigger body without
+-- the seller capacity column it reads. Make the runtime dependency explicit.
+ALTER TABLE public.seller_profiles
+  ADD COLUMN IF NOT EXISTS daily_order_limit integer;
+
 -- 1) Settings
 INSERT INTO public.system_settings (key, value, description)
 VALUES (

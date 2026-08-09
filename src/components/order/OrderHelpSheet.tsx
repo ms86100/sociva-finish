@@ -17,7 +17,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { MultiImageCapture } from '@/components/ui/multi-image-capture';
 import { useAuth } from '@/contexts/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
-import { cn } from '@/lib/utils';
+import { cn, friendlyError } from '@/lib/utils';
 import { notify } from '@/lib/notify';
 
 interface OrderHelpSheetProps {
@@ -279,7 +279,7 @@ export function OrderHelpSheet({
       } else if (msg.includes('permission denied') && msg.includes('support_tickets')) {
         notify.block('Please refresh the app and try again.');
       } else {
-        toast.error(err?.message || 'Something went wrong');
+        toast.error(friendlyError(err) || 'Something went wrong');
       }
     } finally {
       setIsUploading(false);

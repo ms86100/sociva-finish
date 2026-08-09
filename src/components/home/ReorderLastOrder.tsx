@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 import { useCurrency } from '@/hooks/useCurrency';
 import { useMarketplaceLabels } from '@/hooks/useMarketplaceLabels';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { notify } from '@/lib/notify';
 
 interface LastOrder {
   id: string;
@@ -111,7 +112,7 @@ export function ReorderLastOrder() {
               const status = computeStoreStatus(seller.availability_start, seller.availability_end, seller.operating_days, seller.is_available ?? true);
               if (status.status !== 'open') {
                 const msg = formatStoreClosedMessage(status);
-                toast.error(msg || 'Store is currently closed. Please try later.');
+                notify.block(msg || 'This store is currently closed. Please try later.', { id: 'reorder-store-closed', title: 'Store unavailable' });
                 setIsLoading(false);
                 return;
               }
@@ -121,7 +122,7 @@ export function ReorderLastOrder() {
       }
 
       if (!available?.length) {
-        toast.error(ml.label('label_reorder_unavailable'));
+        notify.block(ml.label('label_reorder_unavailable'), { id: 'reorder-unavailable', title: 'Items unavailable' });
         setIsLoading(false);
         return;
       }
@@ -134,7 +135,7 @@ export function ReorderLastOrder() {
         .map(i => ({ product_id: i.product_id, quantity: i.quantity }));
 
       if (inserts.length === 0) {
-        toast.error(ml.label('label_reorder_unavailable'));
+        notify.block(ml.label('label_reorder_unavailable'), { id: 'reorder-unavailable', title: 'Items unavailable' });
         setIsLoading(false);
         return;
       }
@@ -144,7 +145,6 @@ export function ReorderLastOrder() {
       if (unavailableCount > 0) {
         toast.info(`${unavailableCount} item(s) were unavailable and skipped`);
       }
-      toast.success(ml.label('label_reorder_success'));
       navigate('/cart');
     } catch {
       toast.error('Failed to reorder');

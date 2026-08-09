@@ -18,7 +18,7 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
-import { toast } from 'sonner';
+import { adminNotify } from '@/lib/admin-notify';
 import { Loader2, Plus, Edit2, Trash2, Tag, RefreshCw, Sparkles, ImageIcon } from 'lucide-react';
 import { DynamicIcon } from '@/components/ui/DynamicIcon';
 import { friendlyError, cn } from '@/lib/utils';
@@ -93,15 +93,15 @@ function GenerateSubcategoryImageButton({ name, subcategoryId, parentCategoryNam
 }) {
   const [isGenerating, setIsGenerating] = useState(false);
   const handleGenerate = async () => {
-    if (!name.trim()) { toast.error('Enter a name first'); return; }
+    if (!name.trim()) { adminNotify.error('Enter a name first'); return; }
     setIsGenerating(true);
     try {
       const { data, error } = await supabase.functions.invoke('generate-category-image', {
         body: { categoryName: name, categoryKey: `sub_${subcategoryId || name.toLowerCase().replace(/\s+/g, '_')}`, parentGroup: parentCategoryName || 'general', targetType: 'subcategory' },
       });
-      if (!error && data?.image_url) { onImageGenerated(data.image_url); toast.success('Image generated!'); }
-      else { toast.error('Generation failed'); }
-    } catch { toast.error('Generation failed'); } finally { setIsGenerating(false); }
+      if (!error && data?.image_url) { onImageGenerated(data.image_url); adminNotify.success('Image generated!'); }
+      else { adminNotify.error('Generation failed'); }
+    } catch { adminNotify.error('Generation failed'); } finally { setIsGenerating(false); }
   };
   return (
     <div className="space-y-2">
@@ -231,7 +231,7 @@ export function SubcategoryManager() {
 
   const handleSave = async () => {
     if (!formData.display_name.trim() || !formData.slug.trim()) {
-      toast.error('Name and slug are required');
+      adminNotify.error('Name and slug are required');
       return;
     }
     const configId = editingSub ? editingSub.category_config_id : createConfigId;
@@ -263,17 +263,17 @@ export function SubcategoryManager() {
       if (editingSub) {
         const { error } = await supabase.from('subcategories').update(payload).eq('id', editingSub.id);
         if (error) throw error;
-        toast.success('Subcategory updated');
+        adminNotify.success('Subcategory updated');
       } else {
         const { error } = await supabase.from('subcategories').insert(payload as any);
         if (error) throw error;
-        toast.success('Subcategory created');
+        adminNotify.success('Subcategory created');
       }
       setIsDialogOpen(false);
       resetForm();
       fetchSubcategories();
     } catch (err: any) {
-      toast.error(friendlyError(err));
+      adminNotify.error(friendlyError(err));
     } finally {
       setIsSaving(false);
     }
@@ -284,10 +284,10 @@ export function SubcategoryManager() {
     try {
       const { error } = await supabase.from('subcategories').delete().eq('id', deleteTarget.id);
       if (error) throw error;
-      toast.success('Subcategory deleted');
+      adminNotify.success('Subcategory deleted');
       fetchSubcategories();
     } catch (err: any) {
-      toast.error(friendlyError(err));
+      adminNotify.error(friendlyError(err));
     } finally {
       setDeleteTarget(null);
     }

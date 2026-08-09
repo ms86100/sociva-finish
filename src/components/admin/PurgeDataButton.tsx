@@ -9,7 +9,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
+import { adminNotify } from '@/lib/admin-notify';
 
 interface PurgeResult {
   success: boolean;
@@ -57,14 +57,14 @@ export function PurgeDataButton() {
       if (error) throw error;
       setResult(data as PurgeResult);
       if (data?.success) {
-        toast.success(`Purge complete! ${data.summary?.users_deleted} users removed, ${data.summary?.admins_preserved} admin(s) preserved.`);
+        adminNotify.success(`Purge complete! ${data.summary?.users_deleted} users removed, ${data.summary?.admins_preserved} admin(s) preserved.`);
       } else {
-        toast.error(`Purge failed: ${data?.error}`);
+        adminNotify.error(`Purge failed: ${data?.error}`);
       }
     } catch (err: any) {
       const msg = err?.message || 'Unknown error';
       setResult({ success: false, error: msg });
-      toast.error(`Purge error: ${msg}`);
+      adminNotify.error(`Purge error: ${msg}`);
     } finally {
       setIsRunning(false);
     }

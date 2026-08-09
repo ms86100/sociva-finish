@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { toast } from 'sonner';
+import { adminNotify } from '@/lib/admin-notify';
 import { Loader2, Eye, EyeOff, Key, Check, X } from 'lucide-react';
 
 interface ApiKeySetting {
@@ -86,7 +86,7 @@ export function ApiKeySettings() {
       setEditValues(values);
     } catch (error) {
       console.error('Error fetching settings:', error);
-      toast.error('Failed to load settings');
+      adminNotify.error('Failed to load settings');
     } finally {
       setIsLoading(false);
     }
@@ -119,11 +119,11 @@ export function ApiKeySettings() {
         if (error) throw error;
       }
 
-      toast.success('Setting saved');
+      adminNotify.success('Setting saved');
       await fetchSettings();
     } catch (error) {
       console.error('Error saving setting:', error);
-      toast.error('Failed to save setting');
+      adminNotify.error('Failed to save setting');
     } finally {
       setIsSaving(null);
     }
@@ -138,10 +138,10 @@ export function ApiKeySettings() {
 
       if (error) throw error;
       await fetchSettings();
-      toast.success(isActive ? 'Enabled' : 'Disabled');
+      adminNotify.success(isActive ? 'Enabled' : 'Disabled');
     } catch (error) {
       console.error('Error toggling setting:', error);
-      toast.error('Failed to update setting');
+      adminNotify.error('Failed to update setting');
     }
   };
 

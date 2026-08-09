@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 import { CalendarClock, Loader2 } from 'lucide-react';
+import { friendlyError } from '@/lib/utils';
 
 const RESCHEDULABLE_STATUSES = new Set(['confirmed', 'scheduled', 'rescheduled']);
 
@@ -118,7 +119,7 @@ export function BuyerRescheduleBooking({
       resetSelection();
     } catch (err: any) {
       console.error('Reschedule booking error:', err);
-      toast.error(err?.message || 'Failed to reschedule booking');
+      toast.error(friendlyError(err) || 'Failed to reschedule booking');
     } finally {
       setIsSubmitting(false);
     }

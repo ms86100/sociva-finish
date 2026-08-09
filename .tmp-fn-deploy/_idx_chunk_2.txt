@@ -1,0 +1,114 @@
+rn new Response(
+          JSON.stringify({ error: "Payment notes do not include these orders" }),
+          { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    }
+
+    const results: { id: string; success: boolean; skipped?: boolean }[] = [];
+    const now = new Date().toISOString();
+
+    for (const orderData of orders) {
+      const orderId = orderData.id;
+
+      if (orderData.payment_status === "paid") {
+        results.push({ id: orderId, success: true, skipped: true });
+        continue;
+      }
+
+      const { error: payRecErr } = await supabase.from("payment_records").upsert(
+        {
+          order_id: orderId,
+          buyer_id: orderData.buyer_id,
+          // Per-order seller_id — critical for multi-store platform-collect so each
+          // settlement row (created on delivery) attributes the right seller.
+          seller_id: orderData.seller_id,
+          amount: orderData.total_amount,
+          platform_fee: Number(orderData.platform_fee || 0),
+          net_amount: Number(
+            orderData.net_amount != null
+              ? orderData.net_amount
+              : Number(orderData.total_amount || 0) - Number(orderData.platform_fee || 0),
+          ),
+          razorpay_payment_id: verifiedPaymentId,
+          payment_status: "paid",
+          payment_method: "online",
+          transaction_reference: verifiedPaymentId,
+          payment_collection: "direct",
+          payment_mode: "online",
+          society_id: orderData.society_id,
+        },
+        { onConflict: "order_id", ignoreDuplicates: false }
+      );
+      if (payRecErr) {
+        console.error("payment_records upsert failed for order", orderId, payRecErr);
+        results.push({ id: orderId, success: false });
+        continue;
+      }
+
+      // Leave auto_cancel_at alone — DB trigger stamps the 5-minute
+      // seller-acceptance deadline when status becomes `placed`.
+      const { data: updated, error: updateErr } = await supabase
+        .from("orders")
+        .update({
+          status: "placed",
+          payment_status: "paid",
+          razorpay_payment_id: verifiedPaymentId,
+          updated_at: now,
+        })
+        .eq("id", orderId)
+        .in("status", ["payment_pending", "placed"])
+        .in("payment_status", ["pending"])
+        .select("id");
+
+      if (updateErr) {
+        results.push({ id: orderId, success: false });
+        continue;
+      }
+
+      if (!updated || updated.length === 0) {
+        const { data: cancelledOrder } = await supabase
+          .from("orders")
+          .select("id")
+          .eq("id", orderId)
+          .eq("status", "cancelled")
+          .eq("payment_status", "pending")
+          .maybeSingle();
+
+        if (cancelledOrder) {
+          const { error: resurrectErr } = await supabase
+            .from("orders")
+            .update({
+              status: "placed",
+              payment_status: "paid",
+              razorpay_payment_id: verifiedPaymentId,
+              rejection_reason: null,
+              updated_at: now,
+            })
+            .eq("id", orderId)
+            .eq("status", "cancelled");
+
+          results.push({ id: orderId, success: !resurrectErr });
+          continue;
+        }
+
+        results.push({ id: orderId, success: true, skipped: true });
+        continue;
+      }
+
+      results.push({ id: orderId, success: true });
+    }
+
+    const successCount = results.filter((r) => r.success && !r.skipped).length;
+    const allOk = results.every((r) => r.success);
+
+    // Stamp checkout_group payment header when children share a group
+    const groupIds = Array.from(
+      new Set(
+        (orders || [])
+          .map((o: any) => o.checkout_group_id)
+          .filter((id: string | null | undefined) => !!id),
+      ),
+    );
+    if (groupIds.length > 0 && (allOk || successCount > 0)) {
+      for (const groupId o

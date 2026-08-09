@@ -1,0 +1,81 @@
+CREATE OR REPLACE FUNCTION public.restore_wallet_for_order(
+  _order_id uuid,
+  _cash_amount numeric DEFAULT NULL,
+  _promo_amount numeric DEFAULT NULL,
+  _reason text DEFAULT 'cancel'
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  o public.orders;
+  _cash numeric;
+  _promo numeric;
+  _idem text;
+  _res jsonb;
+BEGIN
+  SELECT * INTO o FROM public.orders WHERE id = _order_id FOR UPDATE;
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('success', false, 'error', 'order_not_found');
+  END IF;
+
+  _cash := ROUND(COALESCE(_cash_amount, o.wallet_cash_amount, 0)::numeric, 2);
+  _promo := ROUND(COALESCE(_promo_amount, o.wallet_promo_amount, 0)::numeric, 2);
+
+  IF _cash <= 0 AND _promo <= 0 THEN
+    RETURN jsonb_build_object('success', true, 'restored', 0, 'skipped', true);
+  END IF;
+
+  _idem := 'wallet-restore:' || _order_id::text || ':' || _reason || ':' || _cash::text || ':' || _promo::text;
+  IF EXISTS (SELECT 1 FROM public.wallet_ledger_txns WHERE idempotency_key = _idem) THEN
+    RETURN jsonb_build_object('success', true, 'deduplicated', true, 'cash', _cash, 'promo', _promo);
+  END IF;
+
+  IF _cash > 0 THEN
+    _res := public.credit_wallet_cash(
+      o.buyer_id, _cash, 'spend_restore', _idem || ':cash', NULL, o.id,
+      'Restored cash credit from order (' || _reason || ')'
+    );
+  END IF;
+
+  IF _promo > 0 THEN
+    -- Restore promo with 90-day expiry (MVP policy)
+    PERFORM public.wallet_ensure_wallet(o.buyer_id);
+
+    INSERT INTO public.wallet_credit_lots (
+      user_id, bucket, source, original_amount, remaining_amount, expires_at, order_id, status
+    ) VALUES (
+      o.buyer_id, 'promo', 'spend_restore', _promo, _promo, now() + interval '90 days', o.id, 'open'
+    );
+
+    UPDATE public.buyer_wallets
+    SET
+      promo_available = promo_available + _promo,
+      lifetime_credited = lifetime_credited + _promo,
+      lifetime_spent = GREATEST(lifetime_spent - _promo - CASE WHEN _cash > 0 THEN 0 ELSE 0 END, 0),
+      version = version + 1,
+      updated_at = now()
+    WHERE user_id = o.buyer_id;
+
+    INSERT INTO public.wallet_ledger_txns (
+      user_id, type, reference_type, reference_id, idempotency_key, description, metadata
+    ) VALUES (
+      o.buyer_id, 'spend_restore', 'order', o.id::text,
+      _idem || ':promo',
+      'Restored promo credit from order (' || _reason || ')',
+      jsonb_build_object('promo', _promo, 'reason', _reason)
+    );
+  END IF;
+
+  -- Adjust lifetime_spent for cash restore too
+  IF _cash > 0 OR _promo > 0 THEN
+    UPDATE public.buyer_wallets
+    SET lifetime_spent = GREATEST(lifetime_spent - _cash - _promo, 0), updated_at = now()
+    WHERE user_id = o.buyer_id;
+  END IF;
+
+  RETURN jsonb_build_object('success', true, 'cash', _cash, 'promo', _promo);
+END;
+$$;

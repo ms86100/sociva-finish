@@ -49,7 +49,6 @@ import { IdentityContext as IdentityCtx, SellerContext as SellerCtx } from "@/co
 
 import { ThemeProvider, useTheme } from "next-themes";
 import { toast } from "sonner";
-import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { ActionBlockedDialog } from "@/components/feedback/ActionBlockedDialog";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -122,6 +121,7 @@ const SellerEarningsPage = lazyWithRetry(() => import("./pages/SellerEarningsPag
 const SellerPayoutsPage = lazyWithRetry(() => import("./pages/SellerPayoutsPage"));
 const SellerMessagesPage = lazyWithRetry(() => import("./pages/SellerMessagesPage"));
 const AdminPage = lazyWithRetry(() => import("./pages/AdminPage"));
+const AdminFinancialTracePage = lazyWithRetry(() => import("./pages/AdminFinancialTracePage"));
 const NotFound = lazyWithRetry(() => import("./pages/NotFound"));
 const ProductDeepLinkPage = lazyWithRetry(() => import("./pages/ProductDeepLinkPage"));
 const PrivacyPolicyPage = lazyWithRetry(() => import("./pages/PrivacyPolicyPage"));
@@ -534,6 +534,7 @@ function AppRoutes() {
           <Route path="/seller/earnings" element={<SellerRoute><RouteErrorBoundary sectionName="Earnings"><SellerEarningsPage /></RouteErrorBoundary></SellerRoute>} />
           <Route path="/seller/payouts" element={<SellerRoute><RouteErrorBoundary sectionName="Payouts"><SellerPayoutsPage /></RouteErrorBoundary></SellerRoute>} />
           <Route path="/admin" element={<AdminRoute><RouteErrorBoundary sectionName="Admin"><AdminPage /></RouteErrorBoundary></AdminRoute>} />
+          <Route path="/admin/financial-trace" element={<AdminRoute><RouteErrorBoundary sectionName="Financial Trace"><AdminFinancialTracePage /></RouteErrorBoundary></AdminRoute>} />
           <Route path="/test-results" element={<AdminRoute><TestResultsPage /></AdminRoute>} />
           <Route path="/api-docs" element={<AdminRoute><ApiDocsPage /></AdminRoute>} />
           <Route path="/docs" element={<DocumentationPage />} />
@@ -640,10 +641,9 @@ function App() {
         <QueryClientProvider client={queryClient}>
           <TooltipProvider>
             <OfflineBanner />
-            <Toaster />
             <Sonner />
-            <ActionBlockedDialog />
             <HashRouter>
+              <ActionBlockedDialog />
               <GlobalHapticListener />
               <AuthProvider>
                 <SplashGate>

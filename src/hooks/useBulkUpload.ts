@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
+import { adminNotify } from '@/lib/admin-notify';
 import { CategoryConfig } from '@/types/categories';
 import { friendlyError } from '@/lib/utils';
 import { Subcategory } from '@/hooks/useSubcategories';
@@ -144,7 +144,7 @@ export function useBulkUpload(sellerId: string, allowedCategories: CategoryConfi
     reader.onload = (event) => {
       const text = event.target?.result as string;
       const lines = text.split('\n').filter(l => l.trim());
-      if (lines.length < 2) { toast.error('CSV must have a header row and at least one data row'); return; }
+      if (lines.length < 2) { adminNotify.error('CSV must have a header row and at least one data row'); return; }
 
       const headers = parseCSVLine(lines[0]).map(h => h.trim().toLowerCase());
       const nameIdx = headers.indexOf('name');
@@ -158,7 +158,7 @@ export function useBulkUpload(sellerId: string, allowedCategories: CategoryConfi
       const actionIdx = headers.indexOf('action_type');
       const stockIdx = headers.indexOf('stock_quantity');
 
-      if (nameIdx === -1 || priceIdx === -1) { toast.error('CSV must have "name" and "price" columns'); return; }
+      if (nameIdx === -1 || priceIdx === -1) { adminNotify.error('CSV must have "name" and "price" columns'); return; }
 
       const parsed: BulkRow[] = lines.slice(1).map(line => {
         const cols = parseCSVLine(line);
@@ -188,7 +188,7 @@ export function useBulkUpload(sellerId: string, allowedCategories: CategoryConfi
       });
 
       setRows(parsed);
-      toast.success(`Parsed ${parsed.length} rows from CSV`);
+      adminNotify.success(`Parsed ${parsed.length} rows from CSV`);
     };
     reader.readAsText(file);
     e.target.value = '';
@@ -236,7 +236,7 @@ export function useBulkUpload(sellerId: string, allowedCategories: CategoryConfi
   }, [rows, categorySlugs, allowedCategories]);
 
   const handleSave = useCallback(async () => {
-    if (!validate()) { toast.error('Fix validation errors before saving'); return; }
+    if (!validate()) { adminNotify.error('Fix validation errors before saving'); return; }
 
     setIsSaving(true);
     setSaveResult(null);
@@ -305,12 +305,12 @@ export function useBulkUpload(sellerId: string, allowedCategories: CategoryConfi
 
       setSaveResult({ success: products.length, errors: 0 });
       setSavedCount(products.length);
-      toast.success(`${products.length} products added as drafts`);
+      adminNotify.success(`${products.length} products added as drafts`);
       onSuccess();
       setShowSuccessDialog(true);
     } catch (error: any) {
       console.error('Bulk save error:', error);
-      toast.error(friendlyError(error));
+      adminNotify.error(friendlyError(error));
       setSaveResult({ success: 0, errors: rows.length });
     } finally {
       setIsSaving(false);

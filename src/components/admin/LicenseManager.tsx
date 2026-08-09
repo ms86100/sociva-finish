@@ -10,7 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Check, X, FileText, Eye, Clock, Shield } from 'lucide-react';
 import { DynamicIcon } from '@/components/ui/DynamicIcon';
-import { toast } from 'sonner';
+import { adminNotify } from '@/lib/admin-notify';
 import { format } from 'date-fns';
 import { sendPushNotification } from '@/lib/notifications';
 
@@ -75,20 +75,20 @@ export function LicenseManager() {
   const toggleRequiresLicense = async (group: GroupConfig, checked: boolean) => {
     try {
       await supabase.from('parent_groups').update({ requires_license: checked } as any).eq('id', group.id);
-      toast.success(checked ? `License requirement enabled for ${group.name}` : `License requirement disabled for ${group.name}`);
+      adminNotify.success(checked ? `License requirement enabled for ${group.name}` : `License requirement disabled for ${group.name}`);
       fetchData();
     } catch (error) {
-      toast.error('Failed to update');
+      adminNotify.error('Failed to update');
     }
   };
 
   const toggleMandatory = async (group: GroupConfig, checked: boolean) => {
     try {
       await supabase.from('parent_groups').update({ license_mandatory: checked } as any).eq('id', group.id);
-      toast.success(checked ? 'License is now mandatory (blocks selling)' : 'License is now optional');
+      adminNotify.success(checked ? 'License is now mandatory (blocks selling)' : 'License is now optional');
       fetchData();
     } catch (error) {
-      toast.error('Failed to update');
+      adminNotify.error('Failed to update');
     }
   };
 
@@ -99,11 +99,11 @@ export function LicenseManager() {
         license_type_name: editForm.license_type_name.trim() || null,
         license_description: editForm.license_description.trim() || null,
       } as any).eq('id', editingGroup.id);
-      toast.success('License config updated');
+      adminNotify.success('License config updated');
       setEditingGroup(null);
       fetchData();
     } catch (error) {
-      toast.error('Failed to update');
+      adminNotify.error('Failed to update');
     }
   };
 
@@ -151,11 +151,11 @@ export function LicenseManager() {
         }
       }
 
-      toast.success(`License ${status}`);
+      adminNotify.success(`License ${status}`);
       setAdminNotes('');
       fetchData();
     } catch (error) {
-      toast.error('Failed to update license status');
+      adminNotify.error('Failed to update license status');
     }
   };
 

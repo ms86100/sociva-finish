@@ -1,0 +1,1 @@
+{"project_id":"kkzkuyhgdvyecmxtmkpy","name":"process-notification-queue","entrypoint_path":"index.ts","verify_jwt":false,"fileNames":["index.ts","../_shared/whatsapp.ts","../_shared/whatsapp-notify.ts","../_shared/credentials.ts"]}

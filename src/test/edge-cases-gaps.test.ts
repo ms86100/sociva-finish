@@ -157,6 +157,19 @@ describe('friendlyError — Error Mapping', () => {
     expect(friendlyError(null)).toBe('Something went wrong. Please try again.');
     expect(friendlyError(undefined)).toBe('Something went wrong. Please try again.');
   });
+  it('never exposes database column errors', () => {
+    expect(friendlyError({ code: '42703', message: 'column sp.payment_config does not exist' }))
+      .not.toContain('payment_config');
+  });
+  it('never exposes ON CONFLICT constraint errors', () => {
+    expect(friendlyError({ code: '42P10', message: 'there is no unique or exclusion constraint matching the ON CONFLICT specification' }))
+      .toContain('contact Sociva support');
+  });
+  it('maps checkout business codes to actionable messages', () => {
+    expect(friendlyError(new Error('payment_method_not_accepted'))).toContain('Choose another payment');
+    expect(friendlyError(new Error('closed_sellers'))).toContain('stores are currently closed');
+    expect(friendlyError(new Error('price_changed'))).toContain('prices changed');
+  });
 });
 
 // ════════════════════════════════════════════════════

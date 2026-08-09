@@ -45,11 +45,11 @@ export function getSnoozePreference(): number | null {
 }
 
 export function setSnoozePreference(minutes: number) {
-  try { sessionStorage.setItem(SNOOZE_PREF_KEY, String(minutes)); } catch {}
+  try { sessionStorage.setItem(SNOOZE_PREF_KEY, String(minutes)); } catch { /* Session preference is best-effort. */ }
 }
 
 export function clearSnoozePreference() {
-  try { sessionStorage.removeItem(SNOOZE_PREF_KEY); } catch {}
+  try { sessionStorage.removeItem(SNOOZE_PREF_KEY); } catch { /* Session cleanup is best-effort. */ }
 }
 
 function isActionableStatus(status: string | null | undefined): boolean {
@@ -421,7 +421,9 @@ export function useNewOrderAlert(sellerIds: string[]) {
             handleTerminalOrder(alert.id, live?.seller_id ?? alert.seller_id);
           }
         }
-      } catch {}
+      } catch {
+        // Reconciliation will retry on the next visibility change.
+      }
     };
 
     const onVis = () => {
@@ -462,7 +464,9 @@ export function useNewOrderAlert(sellerIds: string[]) {
             ceiling,
           );
         }
-      } catch {}
+      } catch {
+        // Polling failures are retried using the current backoff delay.
+      }
 
       if (!cancelled) pollTimerRef.current = setTimeout(poll, pollDelayRef.current);
     };

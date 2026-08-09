@@ -1,0 +1,2 @@
+-- ------------------------------------------------------------
+-- 6. Wallet / loyalty reverse on rejected (not only cancelled)

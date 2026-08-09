@@ -17,8 +17,8 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Plus, Pencil, Trash2, GripVertical, Eye, Megaphone, Globe, Building2, Timer, Sparkles, Image, PartyPopper, X, ChevronUp, ChevronDown, Copy, ChevronLeft, ChevronRight, Check, Search } from 'lucide-react';
-import { toast } from 'sonner';
-import { cn } from '@/lib/utils';
+import { adminNotify } from '@/lib/admin-notify';
+import { cn, friendlyError } from '@/lib/utils';
 import { motion } from 'framer-motion';
 import { BannerImageUpload } from './BannerImageUpload';
 
@@ -341,10 +341,10 @@ export function AdminBannerManager() {
       qc.invalidateQueries({ queryKey: ['admin-banners'] });
       qc.invalidateQueries({ queryKey: ['featured-banners'] });
       qc.invalidateQueries({ queryKey: ['banner-sections'] });
-      toast.success(editingId ? 'Banner updated' : 'Banner created');
+      adminNotify.success(editingId ? 'Banner updated' : 'Banner created');
       closeSheet();
     },
-    onError: (e: any) => toast.error(e.message),
+    onError: (e: any) => adminNotify.error(friendlyError(e) || 'Failed to save banner'),
   });
 
   const deleteMutation = useMutation({
@@ -357,7 +357,7 @@ export function AdminBannerManager() {
       qc.invalidateQueries({ queryKey: ['admin-banners'] });
       qc.invalidateQueries({ queryKey: ['featured-banners'] });
       qc.invalidateQueries({ queryKey: ['banner-sections'] });
-      toast.success('Banner deleted');
+      adminNotify.success('Banner deleted');
     },
   });
 
@@ -391,7 +391,7 @@ export function AdminBannerManager() {
     };
 
     const { data, error } = await supabase.from('featured_items').insert(payload).select('id').single();
-    if (error) { toast.error(error.message); return; }
+    if (error) { adminNotify.error(friendlyError(error) || 'Failed to duplicate banner'); return; }
 
     if (banner.banner_type === 'festival') {
       const { data: sections } = await supabase.from('banner_sections').select('*').eq('banner_id', banner.id).order('display_order');
@@ -410,7 +410,7 @@ export function AdminBannerManager() {
     }
 
     qc.invalidateQueries({ queryKey: ['admin-banners'] });
-    toast.success('Banner duplicated as draft');
+    adminNotify.success('Banner duplicated as draft');
   };
 
   const openCreate = () => {
@@ -546,13 +546,13 @@ export function AdminBannerManager() {
 
   const handleSave = async () => {
     if (form.banner_type === 'festival' && form.sections.length === 0) {
-      toast.error('Festival banners need at least one section');
+      adminNotify.error('Festival banners need at least one section');
       return;
     }
     if (form.banner_type === 'festival') {
       const empty = form.sections.filter(s => !s.title.trim());
       if (empty.length > 0) {
-        toast.error('All sections need a title');
+        adminNotify.error('All sections need a title');
         return;
       }
 
@@ -568,15 +568,16 @@ export function AdminBannerManager() {
           });
           if (products.length === 0) {
             emptyCount++;
-            toast.warning(`Section "${section.title}" has no matching products yet`);
+            adminNotify.warning(`Section "${section.title}" has no matching products yet`);
           }
         }
         if (emptyCount > 0 && emptyCount < form.sections.length) {
-          toast.info('Some sections are empty — they will be hidden on the buyer side');
+          adminNotify.info('Some sections are empty — they will be hidden on the buyer side');
         } else if (emptyCount === form.sections.length) {
-          toast.warning('All sections are currently empty — banner will be hidden until products are added');
+          adminNotify.warning('All sections are currently empty — banner will be hidden until products are added');
         }
       } catch {
+        // Product availability validation is advisory; saving may continue.
       } finally {
         setIsValidating(false);
       }

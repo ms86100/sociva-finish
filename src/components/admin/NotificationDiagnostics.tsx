@@ -5,8 +5,9 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Bell, Smartphone, AlertTriangle, CheckCircle2, Clock, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { toast } from 'sonner';
+import { adminNotify } from '@/lib/admin-notify';
 import { useState } from 'react';
+import { friendlyError } from '@/lib/utils';
 
 export function NotificationDiagnostics() {
   const [processing, setProcessing] = useState(false);
@@ -45,9 +46,9 @@ export function NotificationDiagnostics() {
     try {
       const { data, error } = await supabase.functions.invoke('process-notification-queue');
       if (error) throw error;
-      toast.success(`Processed: ${data?.processed || 0}, Retried: ${data?.retried || 0}`);
+      adminNotify.success(`Processed: ${data?.processed || 0}, Retried: ${data?.retried || 0}`);
     } catch (err: any) {
-      toast.error(err.message || 'Failed to process queue');
+      adminNotify.error(friendlyError(err) || 'Failed to process queue');
     } finally {
       setProcessing(false);
     }

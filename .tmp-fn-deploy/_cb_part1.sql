@@ -1,0 +1,248 @@
+d_object('success', false, 'error', 'You already have a booking for this time slot');
+  END IF;
+
+  SELECT COUNT(*) INTO _existing_count
+  FROM public.service_bookings
+  WHERE buyer_id = _buyer_id
+    AND booking_date = _booking_date::date
+    AND status NOT IN ('cancelled', 'no_show')
+    AND start_time < _end_time::time
+    AND end_time > _start_time::time;
+
+  IF _existing_count > 0 THEN
+    RETURN json_build_object('success', false, 'error', 'You have an overlapping booking at this time');
+  END IF;
+
+  IF _booking_date::date < CURRENT_DATE THEN
+    RETURN json_build_object('success', false, 'error', 'Cannot book a past date');
+  END IF;
+
+  IF _booking_date::date = CURRENT_DATE AND _start_time::time < CURRENT_TIME THEN
+    RETURN json_build_object('success', false, 'error', 'This time slot has already passed');
+  END IF;
+
+  UPDATE public.service_slots
+  SET booked_count = booked_count + 1
+  WHERE id = _slot_id
+    AND is_blocked = false
+    AND booked_count < max_capacity
+  RETURNING * INTO _slot;
+
+  IF _slot IS NULL THEN
+    RETURN json_build_object('success', false, 'error', 'Slot is no longer available');
+  END IF;
+
+  INSERT INTO public.service_bookings (
+    order_id, slot_id, buyer_id, seller_id, product_id,
+    booking_date, start_time, end_time, status, location_type, buyer_address, notes
+  ) VALUES (
+    _order_id, _slot_id, _buyer_id, _seller_id, _product_id,
+    _booking_date::date, _start_time::time, _end_time::time, 'confirmed',
+    _location_type, _buyer_address, _notes
+  )
+  RETURNING id INTO _booking_id;
+
+  RETURN json_build_object('success', true, 'booking_id', _booking_id);
+EXCEPTION WHEN OTHERS THEN
+  RETURN json_build_object('success', false, 'error', SQLERRM);
+END;
+$$;
+
+-- ============================================================
+-- C4: release_service_slot — ownership / party check
+-- ============================================================
+CREATE OR REPLACE FUNCTION public.release_service_slot(_slot_id uuid)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  _caller uuid := auth.uid();
+  _ok boolean := false;
+  _role text := coalesce(auth.role(), '');
+BEGIN
+  -- Edge functions / cron use the service_role key (auth.uid() is null).
+  IF _role = 'service_role' THEN
+    UPDATE public.service_slots
+    SET booked_count = GREATEST(booked_count - 1, 0)
+    WHERE id = _slot_id;
+    RETURN;
+  END IF;
+
+  IF _caller IS NULL THEN
+    RAISE EXCEPTION 'Not authenticated';
+  END IF;
+
+  SELECT EXISTS (
+    SELECT 1
+    FROM service_slots ss
+    LEFT JOIN seller_profiles sp ON sp.id = ss.seller_id
+    WHERE ss.id = _slot_id
+      AND (
+        sp.user_id = _caller
+        OR EXISTS (
+          SELECT 1 FROM service_bookings sb
+          WHERE sb.slot_id = _slot_id
+            AND sb.buyer_id = _caller
+            AND sb.status IN ('cancelled', 'confirmed', 'requested', 'scheduled', 'rescheduled')
+        )
+      )
+  ) INTO _ok;
+
+  IF NOT _ok THEN
+    RAISE EXCEPTION 'Not allowed to release this slot';
+  END IF;
+
+  UPDATE public.service_slots
+  SET booked_count = GREATEST(booked_count - 1, 0)
+  WHERE id = _slot_id;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.release_service_slot(uuid) TO authenticated, service_role;
+
+-- ============================================================
+-- H3: Sync booking status + release slot on cancel
+-- ============================================================
+CREATE OR REPLACE FUNCTION public.sync_booking_status_on_order_update_impl(p_old orders, p_new orders)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  _booking record;
+BEGIN
+  IF p_new.status IS DISTINCT FROM p_old.status
+     AND (p_new.order_type = 'booking' OR p_new.transaction_type IN ('service_booking', 'request_service')) THEN
+    UPDATE public.service_bookings
+    SET status = p_new.status::text,
+        updated_at = now(),
+        cancelled_at = CASE
+          WHEN p_new.status::text IN ('cancelled', 'rejected') THEN COALESCE(cancelled_at, now())
+          ELSE cancelled_at
+        END
+    WHERE order_id = p_new.id;
+
+    IF p_new.status::text IN ('cancelled', 'rejected')
+       AND p_old.status::text IS DISTINCT FROM p_new.status::text THEN
+      FOR _booking IN
+        SELECT id, slot_id FROM service_bookings
+        WHERE order_id = p_new.id AND slot_id IS NOT NULL
+      LOOP
+        UPDATE public.service_slots
+        SET booked_count = GREATEST(booked_count - 1, 0)
+        WHERE id = _booking.slot_id;
+      END LOOP;
+    END IF;
+  END IF;
+END;
+$$;
+
+-- ============================================================
+-- C6: can_cancel_booking — both fee keys + seller via profile
+-- ============================================================
+CREATE OR REPLACE FUNCTION public.can_cancel_booking(_booking_id uuid, _actor_id uuid)
+RETURNS json
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $$
+DECLARE
+  _booking record;
+  _hours_until numeric;
+  _fee numeric := 0;
+  _caller uuid := auth.uid();
+  _is_seller boolean := false;
+BEGIN
+  IF _caller IS NULL OR _actor_id IS DISTINCT FROM _caller THEN
+    RETURN json_build_object('can_cancel', false, 'cancel_fee', 0, 'fee_percentage', 0, 'reason', 'Not authenticated');
+  END IF;
+
+  SELECT sb.*, sl.cancellation_notice_hours, sl.cancellation_fee_percentage
+  INTO _booking
+  FROM service_bookings sb
+  LEFT JOIN service_listings sl ON sl.product_id = sb.product_id
+  WHERE sb.id = _booking_id;
+
+  IF _booking IS NULL THEN
+    RETURN json_build_object('can_cancel', false, 'cancel_fee', 0, 'fee_percentage', 0, 'reason', 'Booking not found');
+  END IF;
+
+  SELECT EXISTS (
+    SELECT 1 FROM seller_profiles sp
+    WHERE sp.id = _booking.seller_id AND sp.user_id = _caller
+  ) INTO _is_seller;
+
+  IF _booking.buyer_id IS DISTINCT FROM _caller AND NOT _is_seller THEN
+    RETURN json_build_object('can_cancel', false, 'cancel_fee', 0, 'fee_percentage', 0, 'reason', 'Not authorized');
+  END IF;
+
+  IF _booking.status IN ('cancelled', 'completed', 'no_show', 'in_progress') THEN
+    RETURN json_build_object('can_cancel', false, 'cancel_fee', 0, 'fee_percentage', 0, 'reason', 'Booking can no longer be cancelled');
+  END IF;
+
+  IF _is_seller THEN
+    RETURN json_build_object('can_cancel', true, 'cancel_fee', 0, 'fee_percentage', 0, 'reason', 'Seller cancellation');
+  END IF;
+
+  _hours_until := EXTRACT(EPOCH FROM (
+    (_booking.booking_date::timestamp + _booking.start_time) - now()
+  )) / 3600.0;
+
+  IF _booking.cancellation_notice_hours IS NOT NULL
+     AND _hours_until < _booking.cancellation_notice_hours THEN
+    IF COALESCE(_booking.cancellation_fee_percentage, 0) > 0 THEN
+      _fee := _booking.cancellation_fee_percentage;
+      RETURN json_build_object(
+        'can_cancel', true,
+        'cancel_fee', _fee,
+        'fee_percentage', _fee,
+        'reason', 'Within cancellation notice window — fee applies'
+      );
+    END IF;
+  END IF;
+
+  RETURN json_build_object('can_cancel', true, 'cancel_fee', 0, 'fee_percentage', 0, 'reason', 'Within cancellation window');
+END;
+$$;
+
+-- ============================================================
+-- C8: Atomic booking create
+-- ============================================================
+CREATE OR REPLACE FUNCTION public.create_service_booking_atomic(
+  _seller_id uuid,
+  _product_id uuid,
+  _slot_id uuid,
+  _booking_date text,
+  _start_time text,
+  _end_time text,
+  _total_amount numeric,
+  _product_name text,
+  _unit_price numeric,
+  _idempotency_key text,
+  _notes text DEFAULT NULL,
+  _buyer_address text DEFAULT NULL,
+  _location_type text DEFAULT 'at_seller',
+  _fulfillment_type text DEFAULT NULL,
+  _addons jsonb DEFAULT '[]'::jsonb,
+  _recurring jsonb DEFAULT NULL
+)
+RETURNS json
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $$
+DECLARE
+  _caller uuid := auth.uid();
+  _order_id uuid;
+  _booking_id uuid;
+  _slot_result json;
+  _addon jsonb;
+  _existing_order uuid;
+  _seller_user uuid;
+BEGIN
+  IF _caller IS NULL THEN
+    RETURN json_build_object('success', false, 'err

@@ -27,7 +27,7 @@ function readSnoozePref(): number | null {
   } catch { return null; }
 }
 function writeSnoozePref(minutes: number) {
-  try { sessionStorage.setItem(SNOOZE_PREF_KEY, String(minutes)); } catch {}
+  try { sessionStorage.setItem(SNOOZE_PREF_KEY, String(minutes)); } catch { /* Session preference is best-effort. */ }
 }
 
 function statusLabel(status: string): string {

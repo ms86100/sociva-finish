@@ -1,0 +1,28 @@
+{
+  "project_id": "kkzkuyhgdvyecmxtmkpy",
+  "name": "process-notification-queue",
+  "entrypoint_path": "index.ts",
+  "verify_jwt": false,
+  "files": [
+    {
+      "name": "index.ts",
+      "content_sha256": "b3297f3c549a65b41103b43d16b4dbe6ab6183c1369b148e66a0f2c0595df41e",
+      "bytes": 35199
+    },
+    {
+      "name": "../_shared/whatsapp.ts",
+      "content_sha256": "3202d8917cd94d4a8e31509aa1fdc0b4f7ba7a9b510738e53f442bae9659c748",
+      "bytes": 10460
+    },
+    {
+      "name": "../_shared/whatsapp-notify.ts",
+      "content_sha256": "0e975947ea984385f6b97325ce55e666287aa5ec525d2f88121b68ec98410093",
+      "bytes": 8392
+    },
+    {
+      "name": "../_shared/credentials.ts",
+      "content_sha256": "f492da97b503147a02ccb796026f4ee4afd3320e0a97abb411b59c4042af2713",
+      "bytes": 921
+    }
+  ]
+}

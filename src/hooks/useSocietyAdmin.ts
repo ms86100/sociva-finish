@@ -5,7 +5,7 @@ import { escapeIlike } from '@/lib/query-utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { Profile, SellerProfile, VerificationStatus, SocietyAdmin } from '@/types/database';
 import { useEffectiveFeatures } from '@/hooks/useEffectiveFeatures';
-import { toast } from 'sonner';
+import { adminNotify } from '@/lib/admin-notify';
 import { logAudit } from '@/lib/audit';
 import { notifySellerStatusChange } from '@/lib/admin-notifications';
 import { notify } from '@/lib/notify';
@@ -60,9 +60,9 @@ export function useSocietyAdmin() {
     try {
       await supabase.from('profiles').update({ verification_status: status }).eq('id', id);
       await logAudit(`user_${status}`, 'profile', id, societyId, { status });
-      toast.success(`User ${status}`);
+      adminNotify.success(`User ${status}`);
       fetchData();
-    } catch { toast.error('Failed to update'); }
+    } catch { adminNotify.error('Failed to update'); }
   };
 
   const updateSellerStatus = async (id: string, status: VerificationStatus, rejectionNote?: string) => {
@@ -93,14 +93,14 @@ export function useSocietyAdmin() {
         );
       }
 
-      toast.success(`Seller ${status}`);
+      adminNotify.success(`Seller ${status}`);
       fetchData();
     } catch (error: any) {
       const msg = error?.message || '';
       if (msg.includes('location') || msg.includes('Cannot approve')) {
-        toast.error(msg || 'Cannot approve: Store has no location set. Ask seller to set their store location first.');
+        adminNotify.error(msg || 'Cannot approve: Store has no location set. Ask seller to set their store location first.');
       } else {
-        toast.error('Failed to update seller status');
+        adminNotify.error('Failed to update seller status');
       }
     }
   };
@@ -110,8 +110,8 @@ export function useSocietyAdmin() {
     try {
       await supabase.from('societies').update({ [field]: value }).eq('id', societyId);
       await logAudit('settings_changed', 'society', societyId, societyId, { field, value });
-      toast.success('Settings updated');
-    } catch { toast.error('Failed to update settings'); }
+      adminNotify.success('Settings updated');
+    } catch { adminNotify.error('Failed to update settings'); }
   };
 
   const searchResidents = async (query: string) => {
@@ -126,12 +126,12 @@ export function useSocietyAdmin() {
     try {
       await supabase.from('society_admins').insert({ society_id: societyId, user_id: userId, role, appointed_by: profile.id });
       await logAudit('admin_appointed', 'society_admin', userId, societyId, { role });
-      toast.success('Admin appointed');
+      adminNotify.success('Admin appointed');
       setAppointOpen(false); setSearchQuery(''); setSearchResults([]); fetchData();
     } catch (error: any) {
-      if (error?.code === '23505') toast.error('This user is already an admin');
-      else if (error?.message?.includes('Maximum number')) toast.error('Maximum admin limit reached for this society');
-      else toast.error('Failed to appoint admin');
+      if (error?.code === '23505') adminNotify.error('This user is already an admin');
+      else if (error?.message?.includes('Maximum number')) adminNotify.error('Maximum admin limit reached for this society');
+      else adminNotify.error('Failed to appoint admin');
     }
   };
 
@@ -145,8 +145,8 @@ export function useSocietyAdmin() {
     try {
       await supabase.from('society_admins').update({ deactivated_at: new Date().toISOString() }).eq('id', adminId);
       await logAudit('admin_removed', 'society_admin', adminId, societyId);
-      toast.success('Admin removed'); fetchData();
-    } catch { toast.error('Failed to remove admin'); }
+      adminNotify.success('Admin removed'); fetchData();
+    } catch { adminNotify.error('Failed to remove admin'); }
   };
 
   return {

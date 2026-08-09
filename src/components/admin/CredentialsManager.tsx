@@ -9,8 +9,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
-import { toast } from 'sonner';
 import { Loader2, Check, X, CreditCard, MessageSquare, Bell, MapPin, KeyRound, MessageCircle } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
+import { adminNotify } from '@/lib/admin-notify';
 
 interface CredentialConfig {
   key: string;
@@ -91,6 +92,7 @@ const TOGGLE_KEYS = new Set(
 );
 
 export function CredentialsManager() {
+  const queryClient = useQueryClient();
   const [settings, setSettings] = useState<CredentialSetting[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState<string | null>(null);
@@ -122,7 +124,7 @@ export function CredentialsManager() {
       } else {
         // P0: never SELECT raw admin_settings.value — meta RPC is required
         console.error('get_admin_credential_meta failed', error);
-        toast.error('Credential meta RPC unavailable — secrets are not loaded into the browser');
+        adminNotify.error('Credential settings could not be loaded safely. Secrets were not exposed.', { id: 'credential-meta-unavailable' });
         rows = [];
       }
 
@@ -135,7 +137,7 @@ export function CredentialsManager() {
       setEditValues(values);
     } catch (error) {
       console.error('Error fetching credentials:', error);
-      toast.error('Failed to load credentials');
+      adminNotify.error(error, { id: 'credentials-load-error', title: 'Could not load credentials' });
     } finally {
       setIsLoading(false);
     }
@@ -147,11 +149,11 @@ export function CredentialsManager() {
       const existingSetting = settings.find(s => s.key === key);
       const value = (editValues[key] || '').trim();
       if (!value) {
-        toast.error('Enter a new value to update this credential');
+        adminNotify.warning('Enter a new value before saving this credential.', { id: `credential-empty:${key}` });
         return;
       }
       if (value.includes('•')) {
-        toast.error('Enter a new secret value');
+        adminNotify.warning('Enter a new secret value rather than the masked placeholder.', { id: `credential-masked:${key}` });
         return;
       }
       const config = CREDENTIAL_TABS.flatMap(t => t.credentials).find(c => c.key === key);
@@ -173,12 +175,12 @@ export function CredentialsManager() {
         });
         if (error) throw error;
       }
-      toast.success('Credential saved');
+      adminNotify.success('Credential saved and activated.', { id: `credential-saved:${key}` });
       setEditValues({ ...editValues, [key]: '' });
       await fetchSettings();
     } catch (error) {
       console.error('Error saving credential:', error);
-      toast.error('Failed to save credential');
+      adminNotify.error(error, { id: `credential-save-error:${key}`, title: 'Could not save credential' });
     } finally {
       setIsSaving(null);
     }
@@ -186,15 +188,15 @@ export function CredentialsManager() {
 
   const toggleActive = async (key: string, isActive: boolean) => {
     try {
-      const { error } = await supabase
-        .from('admin_settings')
-        .update({ is_active: isActive })
-        .eq('key', key);
+      const { error } = await supabase.rpc('set_admin_credential_active', {
+        p_key: key,
+        p_is_active: isActive,
+      } as any);
       if (error) throw error;
       await fetchSettings();
-      toast.success(isActive ? 'Enabled' : 'Disabled');
+      adminNotify.success(isActive ? 'Credential enabled.' : 'Credential disabled.', { id: `credential-active:${key}` });
     } catch (error) {
-      toast.error('Failed to update');
+      adminNotify.error(error, { id: `credential-active-error:${key}`, title: 'Could not update credential' });
     }
   };
 
@@ -234,27 +236,45 @@ export function CredentialsManager() {
                 checked={isRazorpay}
                 onCheckedChange={async (checked) => {
                   if (checked && !razorpayKeySet) {
-                    toast.error('Configure Razorpay keys first before switching to gateway mode');
+                    adminNotify.warning('Configure the Razorpay Key ID and Key Secret before enabling gateway mode.', { id: 'razorpay-keys-required', title: 'Razorpay setup incomplete' });
                     return;
                   }
                   if (checked && !webhookSecretSet) {
-                    toast.error('Add and activate Razorpay webhook secret before switching to Razorpay mode');
+                    adminNotify.warning('Add and activate the Razorpay webhook secret before enabling gateway mode.', { id: 'razorpay-webhook-required', title: 'Webhook secret required' });
                     return;
                   }
                   const newMode = checked ? 'razorpay' : 'upi_deep_link';
-                  setEditValues({ ...editValues, [config.key]: newMode });
+                  const previousSettings = settings;
+                  setEditValues(values => ({ ...values, [config.key]: newMode }));
+                  setSettings(current => setting
+                    ? current.map(row => row.key === config.key
+                        ? { ...row, value: newMode, is_active: true }
+                        : row)
+                    : [...current, {
+                        id: `optimistic:${config.key}`,
+                        key: config.key,
+                        value: newMode,
+                        is_active: true,
+                        description: config.description,
+                      }]);
                   try {
-                    if (setting) {
-                      const { error } = await supabase.from('admin_settings').update({ value: newMode, is_active: true, updated_at: new Date().toISOString() }).eq('key', config.key);
-                      if (error) throw error;
-                    } else {
-                      const { error } = await supabase.from('admin_settings').insert({ key: config.key, value: newMode, is_active: true, description: config.description });
-                      if (error) throw error;
-                    }
-                    toast.success(`Payment mode switched to ${checked ? 'Razorpay Gateway' : 'UPI Deep Link'}`);
+                    const { error } = await supabase.rpc('upsert_admin_credential', {
+                      p_key: config.key,
+                      p_value: newMode,
+                      p_description: config.description,
+                      p_is_active: true,
+                    });
+                    if (error) throw error;
+                    await queryClient.invalidateQueries({ queryKey: ['payment-gateway-mode'] });
                     await fetchSettings();
+                    adminNotify.success(
+                      `Payment mode is now ${checked ? 'Razorpay Gateway' : 'UPI Direct'}.`,
+                      { id: 'payment-mode-updated', title: 'Payment mode updated' },
+                    );
                   } catch (err) {
-                    toast.error('Failed to update payment mode');
+                    setSettings(previousSettings);
+                    setEditValues(values => ({ ...values, [config.key]: currentMode }));
+                    adminNotify.error(err, { id: 'payment-mode-update-error', title: 'Could not switch payment mode' });
                   }
                 }}
               />
@@ -296,14 +316,15 @@ export function CredentialsManager() {
                       p_is_active: checked,
                     });
                     if (error) throw error;
-                    toast.success(
+                    adminNotify.success(
                       checked
                         ? 'Route payouts ON — process-settlements will transfer only when sellers have razorpay_account_id'
                         : 'Razorpay Route payouts off — settlements stay Eligible (owed)',
+                      { id: 'razorpay-route-updated', title: 'Route payout setting updated' },
                     );
                     await fetchSettings();
-                  } catch {
-                    toast.error('Failed to update Route setting');
+                  } catch (error) {
+                    adminNotify.error(error, { id: 'razorpay-route-update-error', title: 'Could not update Route setting' });
                   }
                 }}
               />

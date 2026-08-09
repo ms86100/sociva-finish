@@ -1,0 +1,38 @@
+{
+  "project_id": "kkzkuyhgdvyecmxtmkpy",
+  "name": "process-notification-queue",
+  "entrypoint_path": "functions/process-notification-queue/index.ts",
+  "verify_jwt": false,
+  "files": [
+    {
+      "name": "functions/process-notification-queue/index.ts",
+      "content_sha": "941b0dca6d62",
+      "len": 43603
+    },
+    {
+      "name": "functions/_shared/credentials.ts",
+      "content_sha": "f492da97b503",
+      "len": 921
+    },
+    {
+      "name": "functions/_shared/whatsapp-notify.ts",
+      "content_sha": "df8c0b29ffdf",
+      "len": 13311
+    },
+    {
+      "name": "functions/_shared/whatsapp.ts",
+      "content_sha": "29ffff4c5046",
+      "len": 10800
+    },
+    {
+      "name": "functions/_shared/rate-limiter.ts",
+      "content_sha": "0d25ddbd4aaf",
+      "len": 3732
+    },
+    {
+      "name": "functions/_shared/notification-ops.ts",
+      "content_sha": "167b0faa4870",
+      "len": 3750
+    }
+  ]
+}

@@ -56,7 +56,9 @@ export default function NotificationsPage() {
           if (isActive) checkPermission();
         });
         cleanup = () => listener.remove();
-      } catch {}
+      } catch {
+        // Resume listener is optional outside the native runtime.
+      }
     })();
 
     return () => cleanup?.();

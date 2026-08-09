@@ -6,8 +6,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { toast } from 'sonner';
+import { adminNotify } from '@/lib/admin-notify';
 import { TRANSACTION_TYPES, type WorkflowGroup, formatName } from './types';
+import { friendlyError } from '@/lib/utils';
 
 interface Props {
   open: boolean;
@@ -45,7 +46,7 @@ export function CloneWorkflowDialog({ open, onOpenChange, source, existingWorkfl
   const handleClone = async () => {
     if (!source || !finalGroup || !transactionType) return;
     if (isDuplicate) {
-      toast.error('This workflow already exists');
+      adminNotify.error('This workflow already exists');
       return;
     }
 
@@ -88,11 +89,11 @@ export function CloneWorkflowDialog({ open, onOpenChange, source, existingWorkfl
         if (transError) throw transError;
       }
 
-      toast.success(`Workflow cloned from ${formatName(source.parent_group)}!`);
+      adminNotify.success(`Workflow cloned from ${formatName(source.parent_group)}!`);
       onOpenChange(false);
       onCloned();
     } catch (err: any) {
-      toast.error(`Clone failed: ${err.message}`);
+      adminNotify.error(friendlyError(err) || 'Failed to clone workflow');
     } finally {
       setIsCloning(false);
     }

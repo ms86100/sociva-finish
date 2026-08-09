@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerTrigger, DrawerDescription } from '@/components/ui/drawer';
 import { Loader2, Plus, Trash2, IndianRupee } from 'lucide-react';
-import { toast } from 'sonner';
+import { adminNotify } from '@/lib/admin-notify';
 
 const STAGES = [
   { value: 'booking', label: 'Booking' },
@@ -80,10 +80,10 @@ export function AdminPaymentMilestones() {
     });
 
     if (error) {
-      toast.error('Failed to create milestone');
+      adminNotify.error('Failed to create milestone');
       console.error(error);
     } else {
-      toast.success('Milestone created');
+      adminNotify.success('Milestone created');
       setSheetOpen(false);
       resetForm();
       fetchMilestones();
@@ -93,7 +93,7 @@ export function AdminPaymentMilestones() {
 
   const handleDelete = async (id: string) => {
     const { error } = await supabase.from('payment_milestones').delete().eq('id', id);
-    if (!error) { toast.success('Milestone deleted'); fetchMilestones(); }
+    if (!error) { adminNotify.success('Milestone deleted'); fetchMilestones(); }
   };
 
   const totalPct = milestones.reduce((s, m) => s + m.amount_percentage, 0);

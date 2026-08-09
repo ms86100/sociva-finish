@@ -549,7 +549,9 @@ export default function SellerDetailPage() {
                     await Browser.open({ url: mapsUrl });
                     return;
                   }
-                } catch {}
+                } catch {
+                  // Fall back to opening the maps URL in a browser.
+                }
                 window.open(mapsUrl, '_blank', 'noopener');
               };
 

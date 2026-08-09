@@ -10,8 +10,8 @@ import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Clock, Play, Pause, Settings2, History, Loader2, RefreshCw, Timer, AlertTriangle } from 'lucide-react';
-import { toast } from 'sonner';
-import { cn } from '@/lib/utils';
+import { adminNotify } from '@/lib/admin-notify';
+import { cn, friendlyError } from '@/lib/utils';
 import { format } from 'date-fns';
 
 interface CronJob {
@@ -102,9 +102,9 @@ export function AdminCronManager() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-cron-jobs'] });
-      toast.success('Job updated');
+      adminNotify.success('Job updated');
     },
-    onError: (err: any) => toast.error(err.message || 'Failed to update'),
+    onError: (err: any) => adminNotify.error(friendlyError(err) || 'Failed to update'),
   });
 
   const scheduleMutation = useMutation({
@@ -117,9 +117,9 @@ export function AdminCronManager() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-cron-jobs'] });
       setEditingJob(null);
-      toast.success('Schedule updated');
+      adminNotify.success('Schedule updated');
     },
-    onError: (err: any) => toast.error(err.message || 'Failed to update schedule'),
+    onError: (err: any) => adminNotify.error(friendlyError(err) || 'Failed to update schedule'),
   });
 
   return (

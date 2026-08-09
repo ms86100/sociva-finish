@@ -688,7 +688,7 @@ BEGIN
     'Committed Sociva Credit spend',
     jsonb_build_object('cash', r.cash_amount, 'promo', r.promo_amount)
   )
-  ON CONFLICT (idempotency_key) DO NOTHING
+  ON CONFLICT (idempotency_key) WHERE idempotency_key IS NOT NULL DO NOTHING
   RETURNING id INTO _txn_id;
 
   IF _txn_id IS NULL THEN
@@ -777,7 +777,7 @@ BEGIN
     'Released Sociva Credit hold',
     jsonb_build_object('cash', r.cash_amount, 'promo', r.promo_amount)
   )
-  ON CONFLICT (idempotency_key) DO NOTHING
+  ON CONFLICT (idempotency_key) WHERE idempotency_key IS NOT NULL DO NOTHING
   RETURNING id INTO _txn_id;
 
   IF _txn_id IS NOT NULL THEN
@@ -1170,7 +1170,7 @@ BEGIN
       'Expired ' || lot.bucket || ' credit ₹' || _amt::text,
       jsonb_build_object('lot_id', lot.id, 'amount', _amt, 'bucket', lot.bucket)
     )
-    ON CONFLICT (idempotency_key) DO NOTHING
+    ON CONFLICT (idempotency_key) WHERE idempotency_key IS NOT NULL DO NOTHING
     RETURNING id INTO _txn_id;
 
     IF _txn_id IS NOT NULL THEN

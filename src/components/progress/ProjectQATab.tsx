@@ -11,7 +11,7 @@ import { MessageCircle, Pin, ShieldCheck, Send, ChevronDown, ChevronUp } from 'l
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { AskQuestionSheet } from './AskQuestionSheet';
-import { cn } from '@/lib/utils';
+import { cn, friendlyError } from '@/lib/utils';
 
 interface Question {
   id: string;
@@ -103,7 +103,7 @@ export function ProjectQATab() {
       setReplyText('');
       fetchQuestions();
     } catch (e: any) {
-      toast.error(e.message || 'Failed to post');
+      toast.error(friendlyError(e) || 'Failed to post');
     } finally {
       setIsReplying(false);
     }

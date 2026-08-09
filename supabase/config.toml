@@ -1,5 +1,17 @@
 project_id = "kkzkuyhgdvyecmxtmkpy"
 
+[functions.create-razorpay-order]
+verify_jwt = true
+
+[functions.confirm-razorpay-payment]
+verify_jwt = true
+
+[functions.refund-processor]
+verify_jwt = true
+
+[functions.process-settlements]
+verify_jwt = true
+
 # Meta WhatsApp Cloud API webhook (GET verify + POST events) — no user JWT
 [functions.receive-whatsapp-webhook]
 verify_jwt = false
@@ -8,4 +20,16 @@ verify_jwt = false
 # Gateway JWT verification must remain off so pg_net can authenticate with the
 # current service key format; anonymous requests are still rejected in code.
 [functions.process-notification-queue]
+verify_jwt = false
+
+# Razorpay cannot attach a Supabase JWT. The function authenticates the exact
+# raw request body with Razorpay's HMAC-SHA256 webhook signature before parsing.
+[functions.razorpay-webhook]
+verify_jwt = false
+
+# Internal cron workers validate the service-role bearer or CRON_SECRET in code.
+[functions.reconcile-financials]
+verify_jwt = false
+
+[functions.recover-financial-operations]
 verify_jwt = false

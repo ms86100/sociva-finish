@@ -62,82 +62,21 @@ export function useAdminAnalytics() {
   const overview = useQuery({
     queryKey: ['admin-analytics-overview', period],
     queryFn: async () => {
-      // Paginate past PostgREST default/5k caps so admin analytics stay accurate
-      const pageSize = 1000;
-      const maxRows = 20000;
-      let allOrders: { id: string; total_amount: number | null; status: string; seller_id: string; created_at: string }[] = [];
-      for (let from = 0; from < maxRows; from += pageSize) {
-        const page = supabase.from('orders').select('id, total_amount, status, seller_id, created_at');
-        const q = dateFrom ? page.gte('created_at', dateFrom) : page;
-        const { data: orders, error } = await q.range(from, from + pageSize - 1);
-        if (error) throw error;
-        if (!orders?.length) break;
-        allOrders = allOrders.concat(orders as any);
-        if (orders.length < pageSize) break;
-      }
-
-      // Status breakdown
-      const statusMap = new Map<string, { count: number; revenue: number }>();
-      const sellerIds = new Set<string>();
-
-      allOrders.forEach(o => {
-        const entry = statusMap.get(o.status) || { count: 0, revenue: 0 };
-        entry.count++;
-        entry.revenue += o.total_amount || 0;
-        statusMap.set(o.status, entry);
-        if (!CANCELLED_STATUSES.includes(o.status)) {
-          sellerIds.add(o.seller_id);
-        }
+      const { data, error } = await supabase.rpc('get_admin_financial_overview', {
+        p_from: dateFrom,
+        p_to: null,
       });
-
-      const statusBreakdown: StatusBreakdownEntry[] = Array.from(statusMap.entries())
-        .map(([status, data]) => ({ status, ...data }))
-        .sort((a, b) => b.count - a.count);
-
-      const totalOrders = allOrders.length;
-      // Settled GMV from server aggregate (paid − refunded) — no silent truncation
-      let totalRevenue = 0;
-      try {
-        const { data: gmv } = await supabase.rpc('get_admin_settled_gmv', {
-          p_from: dateFrom || null,
-          p_to: null,
-        });
-        totalRevenue = Number((gmv as any)?.settled_gmv ?? 0);
-      } catch {
-        totalRevenue = allOrders
-          .filter(o => !CANCELLED_STATUSES.includes(o.status))
-          .reduce((s, o) => s + (o.total_amount || 0), 0);
-      }
-      const deliveredRevenue = allOrders
-        .filter(o => DELIVERED_STATUSES.includes(o.status))
-        .reduce((s, o) => s + (o.total_amount || 0), 0);
-      const cancelledRevenue = allOrders
-        .filter(o => CANCELLED_STATUSES.includes(o.status))
-        .reduce((s, o) => s + (o.total_amount || 0), 0);
-      const activeSellers = sellerIds.size;
-
-      // Items sold (from non-cancelled orders only)
-      const nonCancelledOrderIds = allOrders
-        .filter(o => !CANCELLED_STATUSES.includes(o.status))
-        .map(o => o.id);
-
-      let productsSold = 0;
-      if (nonCancelledOrderIds.length > 0) {
-        const { count } = await supabase
-          .from('order_items')
-          .select('id', { count: 'exact', head: true })
-          .in('order_id', nonCancelledOrderIds.slice(0, 500));
-        productsSold = count || 0;
-      }
+      if (error) throw error;
+      const result = (data || {}) as Record<string, unknown>;
 
       return {
-        totalOrders,
-        totalRevenue,
-        deliveredRevenue,
-        cancelledRevenue,
-        activeSellers,
-        productsSold,
-        statusBreakdown,
+        totalOrders: Number(result.total_orders || 0),
+        totalRevenue: Number(result.total_revenue || 0),
+        deliveredRevenue: Number(result.delivered_revenue || 0),
+        cancelledRevenue: Number(result.cancelled_revenue || 0),
+        activeSellers: Number(result.active_sellers || 0),
+        productsSold: Number(result.products_sold || 0),
+        statusBreakdown: (result.status_breakdown || []) as StatusBreakdownEntry[],
       };
     },
     staleTime: 5 * 60_000,

@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
-import { toast } from 'sonner';
+import { adminNotify } from '@/lib/admin-notify';
 import {
   Play, RotateCcw, ArrowRight, CheckCircle2, CircleDot, Circle,
   AlertTriangle, User, Store, Truck, Bot, ShieldCheck, XCircle,
@@ -63,7 +63,7 @@ export function WorkflowSimulator() {
       .order('transaction_type')
       .order('sort_order', { ascending: true });
 
-    if (error) { toast.error('Failed to load workflows'); setIsLoading(false); return; }
+    if (error) { adminNotify.error('Failed to load workflows'); setIsLoading(false); return; }
 
     const groupMap = new Map<string, WorkflowGroup>();
     for (const row of (data || [])) {

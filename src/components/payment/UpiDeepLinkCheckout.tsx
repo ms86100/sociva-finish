@@ -15,6 +15,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import QRCodeDisplay from '@/components/security/QRCodeDisplay';
 import { getString, setString, removeKey } from '@/lib/persistent-kv';
+import { friendlyError } from '@/lib/utils';
 
 interface UpiDeepLinkCheckoutProps {
   isOpen: boolean;
@@ -81,20 +82,29 @@ export function UpiDeepLinkCheckout({
     try {
       const saved = getString(UPI_STEP_KEY);
       if (saved && ['pay', 'confirm'].includes(saved)) return saved as CheckoutStep;
-    } catch {}
+    } catch {
+      // Fall back to the initial payment step if persistence is unavailable.
+    }
     return 'pay';
   });
   const [screenshotFile, setScreenshotFile] = useState<File | null>(null);
   const [screenshotPreview, setScreenshotPreview] = useState<string | null>(null);
   const [utrRef, setUtrRef] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [proofError, setProofError] = useState('');
   const hasOpenedApp = useRef<boolean>(getString(UPI_OPENED_APP_KEY) === 'true');
   const completionTriggeredRef = useRef(false);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    document.body.classList.add('payment-flow-active');
+    return () => document.body.classList.remove('payment-flow-active');
+  }, [isOpen]);
 
   const setStep = useCallback((nextStep: CheckoutStep | ((prev: CheckoutStep) => CheckoutStep)) => {
     setStepRaw(prev => {
       const resolved = typeof nextStep === 'function' ? nextStep(prev) : nextStep;
-      try { setString(UPI_STEP_KEY, resolved); } catch {}
+      try { setString(UPI_STEP_KEY, resolved); } catch { /* Persistence is best-effort. */ }
       return resolved;
     });
   }, []);
@@ -126,7 +136,7 @@ export function UpiDeepLinkCheckout({
       } else if (!isRestoredRef.current) {
         setStep('pay');
         hasOpenedApp.current = false;
-        try { removeKey(UPI_OPENED_APP_KEY); } catch {}
+        try { removeKey(UPI_OPENED_APP_KEY); } catch { /* Cleanup is best-effort. */ }
         completionTriggeredRef.current = false;
       }
     } else {
@@ -143,7 +153,7 @@ export function UpiDeepLinkCheckout({
     if (completionTriggeredRef.current) return;
     completionTriggeredRef.current = true;
     setStep('done');
-    try { removeKey(UPI_STEP_KEY); removeKey(UPI_OPENED_APP_KEY); } catch {}
+    try { removeKey(UPI_STEP_KEY); removeKey(UPI_OPENED_APP_KEY); } catch { /* Cleanup is best-effort. */ }
     setTimeout(() => onPaymentConfirmed(), 1500);
   }, [onPaymentConfirmed]);
 
@@ -188,12 +198,9 @@ export function UpiDeepLinkCheckout({
   };
 
   const handlePayWithApp = (scheme: string) => {
-    if (!sellerUpiReady) {
-      toast.error('Seller payout / UPI is not set up', { id: 'upi-payout-not-ready' });
-      return;
-    }
+    if (!sellerUpiReady) return;
     hasOpenedApp.current = true;
-    try { setString(UPI_OPENED_APP_KEY, 'true'); } catch {}
+    try { setString(UPI_OPENED_APP_KEY, 'true'); } catch { /* Persistence is best-effort. */ }
     setStep('confirm');
     void openUpiIntent(buildUpiLink(scheme));
   };
@@ -206,7 +213,8 @@ export function UpiDeepLinkCheckout({
   const handleScreenshotSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 5 * 1024 * 1024) { toast.error('Image must be under 5MB'); return; }
+    if (file.size > 5 * 1024 * 1024) { setProofError('Choose an image smaller than 5 MB.'); return; }
+    setProofError('');
     setScreenshotFile(file);
     setScreenshotPreview(URL.createObjectURL(file));
   };
@@ -222,13 +230,11 @@ export function UpiDeepLinkCheckout({
   const canSubmitProof = !!screenshotFile && trimmedUtr.length > 0;
 
   const handleSubmitConfirmation = async () => {
-    if (!canSubmitProof) {
-      toast.error('Upload a screenshot and enter the UTR / transaction ID', { id: 'upi-proof-required' });
-      return;
-    }
+    if (!canSubmitProof) return;
     // Idempotency guard: prevent double-submission on app-switch
     if (confirmSubmittedRef.current) return;
     confirmSubmittedRef.current = true;
+    setProofError('');
     setIsSubmitting(true);
     try {
       let screenshotUrl: string | null = null;
@@ -288,7 +294,7 @@ export function UpiDeepLinkCheckout({
     } catch (err) {
       confirmSubmittedRef.current = false; // Allow retry on failure
       console.error('Failed to submit payment confirmation:', err);
-      toast.error('Failed to submit payment confirmation', { id: 'upi-submit-err' });
+      setProofError(friendlyError(err));
     } finally {
       setIsSubmitting(false);
     }
@@ -304,14 +310,14 @@ export function UpiDeepLinkCheckout({
       return;
     }
     if ((step === 'pay' || step === 'blocked') && !hasOpenedApp.current) {
-      try { removeKey(UPI_STEP_KEY); removeKey(UPI_OPENED_APP_KEY); } catch {}
+      try { removeKey(UPI_STEP_KEY); removeKey(UPI_OPENED_APP_KEY); } catch { /* Cleanup is best-effort. */ }
       onPaymentFailed();
     }
     onClose();
   };
 
   const handleCancelOrder = () => {
-    try { removeKey(UPI_STEP_KEY); removeKey(UPI_OPENED_APP_KEY); } catch {}
+    try { removeKey(UPI_STEP_KEY); removeKey(UPI_OPENED_APP_KEY); } catch { /* Cleanup is best-effort. */ }
     onPaymentFailed();
     onClose();
   };
@@ -458,6 +464,7 @@ export function UpiDeepLinkCheckout({
               {!screenshotFile && (
                 <p className="text-xs text-destructive text-center font-medium">Please upload a payment screenshot to confirm</p>
               )}
+              {proofError && <p role="alert" className="text-xs text-destructive text-center font-medium">{proofError}</p>}
 
               <div className="flex flex-col gap-3 pt-1">
                 <Button

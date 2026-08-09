@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { cn, friendlyError } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { toast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
 import { DAYS_OF_WEEK } from '@/types/database';
 import { useCurrency } from '@/hooks/useCurrency';
@@ -47,10 +47,10 @@ export function SubscriptionSheet({ open, onOpenChange, product }: SubscriptionS
         next_delivery_date: new Date().toISOString().split('T')[0],
       });
       if (error) throw error;
-      toast({ title: 'Subscribed!', description: `You'll receive ${product.name} ${frequency}` });
+      toast.success('Subscribed!', { description: `You'll receive ${product.name} ${frequency}` });
       onOpenChange(false);
     } catch (err: any) {
-      toast({ title: 'Failed', description: friendlyError(err), variant: 'destructive' });
+      toast.error(friendlyError(err));
     } finally {
       setLoading(false);
     }

@@ -6,8 +6,9 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
-import { toast } from 'sonner';
+import { adminNotify } from '@/lib/admin-notify';
 import { Loader2 } from 'lucide-react';
+import { friendlyError } from '@/lib/utils';
 
 export function NotificationTemplatesEditor() {
   const { data: templates, isLoading } = useNotificationTemplates();
@@ -23,10 +24,10 @@ export function NotificationTemplatesEditor() {
     if (!patch) return;
     try {
       await update.mutateAsync({ id, patch });
-      toast.success('Template saved');
+      adminNotify.success('Template saved');
       setDrafts((d) => { const n = { ...d }; delete n[id]; return n; });
     } catch (e: any) {
-      toast.error(e.message || 'Save failed');
+      adminNotify.error(friendlyError(e) || 'Save failed');
     }
   };
 

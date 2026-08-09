@@ -14,6 +14,7 @@ interface PaymentMethodSelectorProps {
   onSelect: (method: PaymentMethod) => void;
   /** Phase 1: disable online/UPI when cart has multiple sellers */
   multiSellerOnlineBlocked?: boolean;
+  onlineDisabledReason?: string;
 }
 
 export function PaymentMethodSelector({
@@ -22,13 +23,12 @@ export function PaymentMethodSelector({
   selectedMethod,
   onSelect,
   multiSellerOnlineBlocked = false,
+  onlineDisabledReason,
 }: PaymentMethodSelectorProps) {
   const { upiProviderLabel } = useSystemSettings();
   const { isUpiDeepLink, isRazorpay } = usePaymentMode();
 
-  const onlineEnabled = isRazorpay
-    ? !multiSellerOnlineBlocked
-    : acceptsUpi && !multiSellerOnlineBlocked;
+  const onlineEnabled = acceptsUpi && !multiSellerOnlineBlocked;
 
   const methods = isRazorpay
     ? [
@@ -44,7 +44,7 @@ export function PaymentMethodSelector({
           bgColor: 'bg-info/10',
           disabledReason: multiSellerOnlineBlocked
             ? 'Online pay is limited to one store per checkout'
-            : undefined,
+            : onlineDisabledReason,
         },
         {
           id: 'cod' as PaymentMethod,
@@ -73,7 +73,7 @@ export function PaymentMethodSelector({
           bgColor: 'bg-info/10',
           disabledReason: multiSellerOnlineBlocked
             ? 'UPI cannot split one payment across multiple sellers'
-            : undefined,
+            : onlineDisabledReason,
         },
         {
           id: 'cod' as PaymentMethod,

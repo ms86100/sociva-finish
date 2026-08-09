@@ -11,7 +11,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sh
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Users, Building2, Plus, Trash2, Search } from 'lucide-react';
-import { toast } from 'sonner';
+import { adminNotify } from '@/lib/admin-notify';
 import { logAudit } from '@/lib/audit';
 import { friendlyError } from '@/lib/utils';
 
@@ -154,12 +154,12 @@ export function BuilderManagementSheet({ open, onOpenChange, builderId, builderN
       role: memberRole,
     });
     if (error) {
-      if (error.code === '23505') toast.error('User is already a member');
-      else toast.error(friendlyError(error));
+      if (error.code === '23505') adminNotify.error('User is already a member');
+      else adminNotify.error(friendlyError(error));
       return;
     }
     await logAudit('builder_member_added', 'builder_members', builderId, null, { user_id: selectedUserId, role: memberRole });
-    toast.success('Member added');
+    adminNotify.success('Member added');
     setSelectedUserId('');
     setSearchTerm('');
     setSearchResults([]);
@@ -169,7 +169,7 @@ export function BuilderManagementSheet({ open, onOpenChange, builderId, builderN
   const removeMember = async (memberId: string, userId: string) => {
     await supabase.from('builder_members').update({ deactivated_at: new Date().toISOString() }).eq('id', memberId);
     await logAudit('builder_member_removed', 'builder_members', builderId, null, { user_id: userId });
-    toast.success('Member removed');
+    adminNotify.success('Member removed');
     fetchData();
   };
 
@@ -180,12 +180,12 @@ export function BuilderManagementSheet({ open, onOpenChange, builderId, builderN
       society_id: selectedSocietyId,
     });
     if (error) {
-      if (error.code === '23505') toast.error('Society already linked');
-      else toast.error(friendlyError(error));
+      if (error.code === '23505') adminNotify.error('Society already linked');
+      else adminNotify.error(friendlyError(error));
       return;
     }
     await logAudit('society_linked_to_builder', 'builder_societies', builderId, null, { society_id: selectedSocietyId });
-    toast.success('Society linked');
+    adminNotify.success('Society linked');
     setSelectedSocietyId('');
     fetchData();
   };
@@ -193,7 +193,7 @@ export function BuilderManagementSheet({ open, onOpenChange, builderId, builderN
   const unlinkSociety = async (linkId: string, societyId: string) => {
     await supabase.from('builder_societies').delete().eq('id', linkId);
     await logAudit('society_unlinked_from_builder', 'builder_societies', builderId, null, { society_id: societyId });
-    toast.success('Society unlinked');
+    adminNotify.success('Society unlinked');
     fetchData();
   };
 

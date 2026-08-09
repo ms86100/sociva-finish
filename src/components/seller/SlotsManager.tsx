@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Calendar, Lock, Unlock, Loader2, Info, AlertTriangle } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn, friendlyError } from '@/lib/utils';
 import { toast } from 'sonner';
 
 interface SlotsManagerProps { sellerId: string; }
@@ -96,7 +96,7 @@ export function SlotsManager({ sellerId }: SlotsManagerProps) {
       .eq('id', slot.id)
       .eq('seller_id', sellerId);
     setBusyId(null);
-    if (error) { toast.error(error.message); return; }
+    if (error) { toast.error(friendlyError(error) || 'Failed to update slot'); return; }
     toast.success(slot.is_blocked ? 'Slot enabled' : 'Slot blocked');
     queryClient.invalidateQueries({ queryKey: ['seller-slots-range', sellerId] });
   };

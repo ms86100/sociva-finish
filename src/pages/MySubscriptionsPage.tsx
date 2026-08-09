@@ -5,7 +5,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { toast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
+import { friendlyError } from '@/lib/utils';
 import { useCurrency } from '@/hooks/useCurrency';
 import { Pause, Play, X, RefreshCw } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -63,10 +64,10 @@ export default function MySubscriptionsPage() {
       .eq('id', id)
       .eq('buyer_id', user.id);
     if (error) {
-      toast({ title: 'Failed to update', description: error.message, variant: 'destructive' });
+      toast.error(friendlyError(error));
       return;
     }
-    toast({ title: `Subscription ${status}` });
+    toast.success(`Subscription ${status}`);
     fetchSubs();
   };
 

@@ -4,7 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { formatDistanceToNow } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
+import { adminNotify } from '@/lib/admin-notify';
 import { useQueryClient } from '@tanstack/react-query';
 
 export function SellerAccountabilityPanel() {
@@ -13,9 +13,9 @@ export function SellerAccountabilityPanel() {
 
   const refresh = async () => {
     const { error } = await supabase.functions.invoke('update-seller-performance');
-    if (error) toast.error('Refresh failed');
+    if (error) adminNotify.error('Refresh failed');
     else {
-      toast.success('Recomputing metrics…');
+      adminNotify.success('Recomputing metrics…');
       setTimeout(() => qc.invalidateQueries({ queryKey: ['seller-performance-metrics'] }), 1500);
     }
   };

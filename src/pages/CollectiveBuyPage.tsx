@@ -13,6 +13,7 @@ import { useCurrency } from '@/hooks/useCurrency';
 import { toast } from 'sonner';
 import { formatDistanceToNowStrict } from 'date-fns';
 import { useMarketplaceLabels } from '@/hooks/useMarketplaceLabels';
+import { friendlyError } from '@/lib/utils';
 
 interface CollectiveBuy {
   id: string;
@@ -78,7 +79,7 @@ export default function CollectiveBuyPage() {
       toast.success('You joined the group buy!');
       fetchBuys();
     } catch (err: any) {
-      toast.error(err.message || 'Failed to join');
+      toast.error(friendlyError(err) || 'Failed to join');
     } finally {
       setJoining(null);
     }

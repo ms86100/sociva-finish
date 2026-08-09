@@ -104,7 +104,7 @@ export default function CartPage() {
               <Button variant="outline" onClick={async () => {
                 if (c.pendingOrderIds.length > 0) {
                   const { supabase: sb } = await import('@/integrations/supabase/client');
-                  try { await sb.rpc('buyer_cancel_pending_orders', { _order_ids: c.pendingOrderIds }); } catch {}
+                  try { await sb.rpc('buyer_cancel_pending_orders', { _order_ids: c.pendingOrderIds }); } catch { /* Cancellation cleanup is best-effort here. */ }
                 }
                 c.clearPendingPayment();
               }}>Cancel Payment</Button>
@@ -137,7 +137,7 @@ export default function CartPage() {
             <AlertDialogTrigger asChild><Button variant="ghost" size="sm" className="text-destructive text-xs h-8 min-w-[44px] px-2">Clear</Button></AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader><AlertDialogTitle>Clear cart?</AlertDialogTitle><AlertDialogDescription>This will remove all items from your cart. This action cannot be undone.</AlertDialogDescription></AlertDialogHeader>
-              <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={async () => { c.setAppliedCoupon(null); if (c.hasActivePaymentSession && c.pendingOrderIds.length > 0) { try { const { rpc } = await import('@/integrations/supabase/client').then(m => ({ rpc: m.supabase.rpc })); await rpc('buyer_cancel_pending_orders', { _order_ids: c.pendingOrderIds }); } catch {} } setJustCleared(true); c.clearCart(); c.clearPendingPayment(); }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Clear All</AlertDialogAction></AlertDialogFooter>
+              <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={async () => { c.setAppliedCoupon(null); if (c.hasActivePaymentSession && c.pendingOrderIds.length > 0) { try { const { rpc } = await import('@/integrations/supabase/client').then(m => ({ rpc: m.supabase.rpc })); await rpc('buyer_cancel_pending_orders', { _order_ids: c.pendingOrderIds }); } catch { /* Cancellation cleanup is best-effort here. */ } } setJustCleared(true); c.clearCart(); c.clearPendingPayment(); }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Clear All</AlertDialogAction></AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
         </div>
@@ -310,6 +310,7 @@ export default function CartPage() {
             selectedMethod={c.paymentMethod}
             onSelect={c.setPaymentMethod}
             multiSellerOnlineBlocked={c.blocksOnlineMultiSeller}
+            onlineDisabledReason={c.onlineDisabledReason}
           />
         </div>
 

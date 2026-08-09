@@ -15,7 +15,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Loader2, Grid3X3, GripVertical, Edit2, Plus, Trash2, Sparkles, ImageIcon, Package, Upload } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn, friendlyError } from '@/lib/utils';
 import { DynamicIcon } from '@/components/ui/DynamicIcon';
 import { CategoryWorkflowPreview } from '@/components/admin/CategoryWorkflowPreview';
 import { DndContext, closestCenter } from '@dnd-kit/core';
@@ -24,7 +24,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { useCategoryManagerData, CategoryConfigRow } from '@/hooks/useCategoryManagerData';
 import { useAvailableWorkflows } from '@/hooks/useAvailableWorkflows';
 import { ParentGroupRow } from '@/hooks/useParentGroups';
-import { toast } from 'sonner';
+import { adminNotify } from '@/lib/admin-notify';
 import { motion } from 'framer-motion';
 import { notify } from '@/lib/notify';
 import { BUYER_JOURNEYS, getJourney, type BuyerJourneyId } from '@/lib/buyer-journey';
@@ -45,19 +45,19 @@ function GenerateImageButton({ categoryName, categoryKey, parentGroup, imageUrl,
   const [isUploading, setIsUploading] = useState(false);
 
   const handleGenerate = async () => {
-    if (!categoryName.trim()) { toast.error('Enter a category name first'); return; }
+    if (!categoryName.trim()) { adminNotify.error('Enter a category name first'); return; }
     setIsGenerating(true);
     try {
       const { data, error } = await supabase.functions.invoke('generate-category-image', { body: { categoryName, categoryKey, parentGroup } });
-      if (!error && data?.image_url) { onImageGenerated(data.image_url); toast.success('Image generated successfully!'); }
-    } catch { toast.error('Generation failed'); } finally { setIsGenerating(false); }
+      if (!error && data?.image_url) { onImageGenerated(data.image_url); adminNotify.success('Image generated successfully!'); }
+    } catch { adminNotify.error('Generation failed'); } finally { setIsGenerating(false); }
   };
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     if (!file.type.startsWith('image/')) { notify.block('Please select an image file'); return; }
-    if (file.size > 5 * 1024 * 1024) { toast.error('Image must be under 5MB'); return; }
+    if (file.size > 5 * 1024 * 1024) { adminNotify.error('Image must be under 5MB'); return; }
     setIsUploading(true);
     try {
       const ext = file.name.split('.').pop() || 'jpg';
@@ -68,8 +68,8 @@ function GenerateImageButton({ categoryName, categoryKey, parentGroup, imageUrl,
       const publicUrl = `${urlData.publicUrl}?t=${Date.now()}`;
       await supabase.from('category_config').update({ image_url: publicUrl }).eq('category', categoryKey as any);
       onImageGenerated(publicUrl);
-      toast.success('Image uploaded!');
-    } catch (err: any) { toast.error(err?.message || 'Upload failed'); } finally { setIsUploading(false); }
+      adminNotify.success('Image uploaded!');
+    } catch (err: any) { adminNotify.error(friendlyError(err) || 'Upload failed'); } finally { setIsUploading(false); }
   };
 
   const busy = isGenerating || isUploading;

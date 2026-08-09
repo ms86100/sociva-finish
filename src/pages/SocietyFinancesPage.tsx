@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Textarea } from '@/components/ui/textarea';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { toast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import { friendlyError } from '@/lib/utils';
 import { SpendingPieChart } from '@/components/finances/SpendingPieChart';
 import { ExpenseList } from '@/components/finances/ExpenseList';
@@ -89,11 +89,11 @@ export default function SocietyFinancesPage() {
         reason: flagReason.trim(),
       } as any);
       if (error) throw error;
-      toast({ title: 'Expense flagged', description: 'The committee will review your concern.' });
+      toast.success('Expense flagged', { description: 'The committee will review your concern.' });
       setFlagExpenseId(null);
       setFlagReason('');
     } catch (err: any) {
-      toast({ title: 'Failed', description: friendlyError(err), variant: 'destructive' });
+      toast.error(friendlyError(err));
     } finally {
       setFlagging(false);
     }

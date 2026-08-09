@@ -113,7 +113,9 @@ export function EnableNotificationsBanner() {
           localStorage.setItem(DENIED_CONFIRMED_KEY, '1');
           setConfirmedDenied(true);
         }
-      } catch {}
+      } catch {
+        // Permission recheck is best-effort after the primary request.
+      }
     } catch {
       sessionStorage.setItem(DISMISSED_KEY, '1');
       setDismissed(true);

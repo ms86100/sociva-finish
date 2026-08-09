@@ -1,0 +1,179 @@
+())
+          ELSE cancelled_at
+        END
+    WHERE order_id = p_new.id;
+
+    IF p_new.status::text IN ('cancelled', 'rejected')
+       AND p_old.status::text IS DISTINCT FROM p_new.status::text THEN
+      FOR _booking IN
+        SELECT id, slot_id FROM service_bookings
+        WHERE order_id = p_new.id AND slot_id IS NOT NULL
+      LOOP
+        UPDATE public.service_slots
+        SET booked_count = GREATEST(booked_count - 1, 0)
+        WHERE id = _booking.slot_id;
+      END LOOP;
+    END IF;
+  END IF;
+END;
+$$;
+
+-- ============================================================
+-- C6: can_cancel_booking — both fee keys + seller via profile
+-- ============================================================
+CREATE OR REPLACE FUNCTION public.can_cancel_booking(_booking_id uuid, _actor_id uuid)
+RETURNS json
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $$
+DECLARE
+  _booking record;
+  _hours_until numeric;
+  _fee numeric := 0;
+  _caller uuid := auth.uid();
+  _is_seller boolean := false;
+BEGIN
+  IF _caller IS NULL OR _actor_id IS DISTINCT FROM _caller THEN
+    RETURN json_build_object('can_cancel', false, 'cancel_fee', 0, 'fee_percentage', 0, 'reason', 'Not authenticated');
+  END IF;
+
+  SELECT sb.*, sl.cancellation_notice_hours, sl.cancellation_fee_percentage
+  INTO _booking
+  FROM service_bookings sb
+  LEFT JOIN service_listings sl ON sl.product_id = sb.product_id
+  WHERE sb.id = _booking_id;
+
+  IF _booking IS NULL THEN
+    RETURN json_build_object('can_cancel', false, 'cancel_fee', 0, 'fee_percentage', 0, 'reason', 'Booking not found');
+  END IF;
+
+  SELECT EXISTS (
+    SELECT 1 FROM seller_profiles sp
+    WHERE sp.id = _booking.seller_id AND sp.user_id = _caller
+  ) INTO _is_seller;
+
+  IF _booking.buyer_id IS DISTINCT FROM _caller AND NOT _is_seller THEN
+    RETURN json_build_object('can_cancel', false, 'cancel_fee', 0, 'fee_percentage', 0, 'reason', 'Not authorized');
+  END IF;
+
+  IF _booking.status IN ('cancelled', 'completed', 'no_show', 'in_progress') THEN
+    RETURN json_build_object('can_cancel', false, 'cancel_fee', 0, 'fee_percentage', 0, 'reason', 'Booking can no longer be cancelled');
+  END IF;
+
+  IF _is_seller THEN
+    RETURN json_build_object('can_cancel', true, 'cancel_fee', 0, 'fee_percentage', 0, 'reason', 'Seller cancellation');
+  END IF;
+
+  _hours_until := EXTRACT(EPOCH FROM (
+    (_booking.booking_date::timestamp + _booking.start_time) - now()
+  )) / 3600.0;
+
+  IF _booking.cancellation_notice_hours IS NOT NULL
+     AND _hours_until < _booking.cancellation_notice_hours THEN
+    IF COALESCE(_booking.cancellation_fee_percentage, 0) > 0 THEN
+      _fee := _booking.cancellation_fee_percentage;
+      RETURN json_build_object(
+        'can_cancel', true,
+        'cancel_fee', _fee,
+        'fee_percentage', _fee,
+        'reason', 'Within cancellation notice window — fee applies'
+      );
+    END IF;
+  END IF;
+
+  RETURN json_build_object('can_cancel', true, 'cancel_fee', 0, 'fee_percentage', 0, 'reason', 'Within cancellation window');
+END;
+$$;
+
+-- ============================================================
+-- C8: Atomic booking create
+-- ============================================================
+CREATE OR REPLACE FUNCTION public.create_service_booking_atomic(
+  _seller_id uuid,
+  _product_id uuid,
+  _slot_id uuid,
+  _booking_date text,
+  _start_time text,
+  _end_time text,
+  _total_amount numeric,
+  _product_name text,
+  _unit_price numeric,
+  _idempotency_key text,
+  _notes text DEFAULT NULL,
+  _buyer_address text DEFAULT NULL,
+  _location_type text DEFAULT 'at_seller',
+  _fulfillment_type text DEFAULT NULL,
+  _addons jsonb DEFAULT '[]'::jsonb,
+  _recurring jsonb DEFAULT NULL
+)
+RETURNS json
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $$
+DECLARE
+  _caller uuid := auth.uid();
+  _order_id uuid;
+  _booking_id uuid;
+  _slot_result json;
+  _addon jsonb;
+  _existing_order uuid;
+  _seller_user uuid;
+BEGIN
+  IF _caller IS NULL THEN
+    RETURN json_build_object('success', false, 'error', 'Not authenticated');
+  END IF;
+
+  IF EXISTS (SELECT 1 FROM seller_profiles WHERE id = _seller_id AND user_id = _caller) THEN
+    RETURN json_build_object('success', false, 'error', 'Cannot book your own service');
+  END IF;
+
+  SELECT id INTO _existing_order
+  FROM orders
+  WHERE buyer_id = _caller AND idempotency_key = _idempotency_key
+  LIMIT 1;
+
+  IF _existing_order IS NOT NULL THEN
+    SELECT id INTO _booking_id FROM service_bookings WHERE order_id = _existing_order LIMIT 1;
+    RETURN json_build_object(
+      'success', true,
+      'order_id', _existing_order,
+      'booking_id', _booking_id,
+      'idempotent', true
+    );
+  END IF;
+
+  INSERT INTO orders (
+    buyer_id, seller_id, total_amount, order_type, status,
+    payment_type, payment_status, transaction_type, idempotency_key,
+    notes, delivery_address, fulfillment_type
+  ) VALUES (
+    _caller, _seller_id, _total_amount, 'booking', 'confirmed',
+    'cod', 'pending', 'service_booking', _idempotency_key,
+    NULLIF(LEFT(COALESCE(_notes, ''), 500), ''),
+    NULLIF(LEFT(COALESCE(_buyer_address, ''), 300), ''),
+    COALESCE(_fulfillment_type, _location_type, 'at_seller')
+  )
+  RETURNING id INTO _order_id;
+
+  INSERT INTO order_items (order_id, product_id, product_name, quantity, unit_price)
+  VALUES (_order_id, _product_id, _product_name, 1, _unit_price);
+
+  _slot_result := public.book_service_slot(
+    _order_id, _slot_id, _caller, _seller_id, _product_id,
+    _booking_date, _start_time, _end_time,
+    COALESCE(_location_type, 'at_seller'),
+    NULLIF(LEFT(COALESCE(_buyer_address, ''), 300), ''),
+    NULLIF(LEFT(COALESCE(_notes, ''), 500), '')
+  );
+
+  IF COALESCE((_slot_result->>'success')::boolean, false) IS NOT TRUE THEN
+    UPDATE orders SET status = 'cancelled', notes = COALESCE(notes, '') || ' [booking_setup_failed]'
+    WHERE id = _order_id;
+    RETURN json_build_object(
+      'success', false,
+      'error', COALESCE(_slot_result->>'error', 'Failed to book slot'),
+      'order_id', _order_id
+   

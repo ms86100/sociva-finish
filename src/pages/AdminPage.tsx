@@ -38,6 +38,7 @@ import AdminServiceBookingsTab from '@/components/admin/AdminServiceBookingsTab'
 import { AdminBannerManager } from '@/components/admin/AdminBannerManager';
 import { BannerAnalyticsDashboard } from '@/components/admin/BannerAnalyticsDashboard';
 import { ResetAndSeedButton } from '@/components/admin/ResetAndSeedButton';
+import { Link } from 'react-router-dom';
 import { PurgeDataButton } from '@/components/admin/PurgeDataButton';
 import AdminFeedbackViewer from '@/components/admin/AdminFeedbackViewer';
 import { NotificationDiagnostics } from '@/components/admin/NotificationDiagnostics';
@@ -52,7 +53,7 @@ import { AdminCronManager } from '@/components/admin/AdminCronManager';
 import AdminTestScenariosTab from '@/components/admin/AdminTestScenariosTab';
 import { useAdminData } from '@/hooks/useAdminData';
 import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
+import { adminNotify } from '@/lib/admin-notify';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 
@@ -109,6 +110,12 @@ export default function AdminPage() {
               <p className="text-xs text-muted-foreground mt-0.5 font-medium">Platform overview & management</p>
             </motion.div>
             <div className="flex items-center gap-2 shrink-0">
+              <Button asChild size="sm" variant="outline" className="gap-1.5">
+                <Link to="/admin/financial-trace">
+                  <DollarSign size={14} />
+                  Trace
+                </Link>
+              </Button>
               <SocietySwitcher />
               <EmergencyBroadcastSheet />
             </div>
@@ -192,10 +199,10 @@ export default function AdminPage() {
                           {soc.invite_code ? (
                             <div className="flex items-center gap-2">
                               <code className="text-xs bg-muted px-3 py-1 rounded-lg font-mono font-bold tracking-[0.2em]">{soc.invite_code}</code>
-                              <Button size="sm" variant="ghost" className="h-7 text-[10px] px-2 text-destructive rounded-lg" onClick={async () => { await supabase.from('societies').update({ invite_code: null }).eq('id', soc.id); admin.fetchData(); toast.success('Invite code removed'); }}>Remove</Button>
+                              <Button size="sm" variant="ghost" className="h-7 text-[10px] px-2 text-destructive rounded-lg" onClick={async () => { await supabase.from('societies').update({ invite_code: null }).eq('id', soc.id); admin.fetchData(); adminNotify.success('Invite code removed'); }}>Remove</Button>
                             </div>
                           ) : (
-                            <Button size="sm" variant="outline" className="h-7 text-[10px] px-3 rounded-lg" onClick={async () => { const code = Math.random().toString(36).substring(2, 8).toUpperCase(); await supabase.from('societies').update({ invite_code: code }).eq('id', soc.id); admin.fetchData(); toast.success(`Invite code generated: ${code}`); }}>Generate Code</Button>
+                            <Button size="sm" variant="outline" className="h-7 text-[10px] px-3 rounded-lg" onClick={async () => { const code = Math.random().toString(36).substring(2, 8).toUpperCase(); await supabase.from('societies').update({ invite_code: code }).eq('id', soc.id); admin.fetchData(); adminNotify.success(`Invite code generated: ${code}`); }}>Generate Code</Button>
                           )}
                         </div>
                       )}

@@ -4,9 +4,10 @@ import { supabase } from '@/integrations/supabase/client';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { toast } from 'sonner';
+import { adminNotify } from '@/lib/admin-notify';
 import { AlertTriangle } from 'lucide-react';
 import { type WorkflowGroup, formatName } from './types';
+import { friendlyError } from '@/lib/utils';
 
 interface Props {
   open: boolean;
@@ -46,11 +47,11 @@ export function DeleteWorkflowDialog({ open, onOpenChange, workflow, onDeleted }
         .eq('parent_group', workflow.parent_group)
         .eq('transaction_type', workflow.transaction_type);
 
-      toast.success('Workflow deleted');
+      adminNotify.success('Workflow deleted');
       onOpenChange(false);
       onDeleted();
     } catch (err: any) {
-      toast.error(`Delete failed: ${err.message}`);
+      adminNotify.error(friendlyError(err) || 'Failed to delete workflow');
     } finally {
       setIsDeleting(false);
     }

@@ -11,6 +11,7 @@ import { Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { addDays } from 'date-fns';
 import { notify } from '@/lib/notify';
+import { friendlyError } from '@/lib/utils';
 
 interface Props {
   onCreated: () => void;
@@ -41,7 +42,7 @@ export function CreateGroupBuySheet({ onCreated }: Props) {
       setOpen(false);
       setForm({ product_name: '', description: '', min_quantity: 5, unit: 'kg', target_price: '', expires_days: 7 });
       onCreated();
-    } catch (err: any) { toast.error(err.message || 'Failed to create'); }
+    } catch (err: any) { toast.error(friendlyError(err) || 'Failed to create'); }
     finally { setSaving(false); }
   };
 

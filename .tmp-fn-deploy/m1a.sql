@@ -1,0 +1,698 @@
+-- ============================================================
+-- Sociva Credit (enterprise wallet) MVP — schema + core RPCs
+-- Append-only double-entry SCL + cached buyer_wallets + FIFO lots
+-- Parallel to loyalty; does NOT overload payment_ledger
+-- ============================================================
+
+-- ------------------------------------------------------------
+-- 1. Schema
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.buyer_wallets (
+  user_id uuid PRIMARY KEY,
+  cash_available numeric(12,2) NOT NULL DEFAULT 0 CHECK (cash_available >= 0),
+  promo_available numeric(12,2) NOT NULL DEFAULT 0 CHECK (promo_available >= 0),
+  cash_pending numeric(12,2) NOT NULL DEFAULT 0 CHECK (cash_pending >= 0),
+  promo_pending numeric(12,2) NOT NULL DEFAULT 0 CHECK (promo_pending >= 0),
+  lifetime_credited numeric(12,2) NOT NULL DEFAULT 0 CHECK (lifetime_credited >= 0),
+  lifetime_spent numeric(12,2) NOT NULL DEFAULT 0 CHECK (lifetime_spent >= 0),
+  lifetime_expired numeric(12,2) NOT NULL DEFAULT 0 CHECK (lifetime_expired >= 0),
+  version integer NOT NULL DEFAULT 0,
+  status text NOT NULL DEFAULT 'active'
+    CHECK (status IN ('active', 'frozen', 'closed')),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS public.wallet_credit_lots (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL REFERENCES public.buyer_wallets(user_id),
+  bucket text NOT NULL CHECK (bucket IN ('cash', 'promo')),
+  source text NOT NULL DEFAULT 'support'
+    CHECK (source IN (
+      'refund', 'promo_campaign', 'referral', 'support',
+      'clawback_adjust', 'spend_restore', 'admin'
+    )),
+  original_amount numeric(12,2) NOT NULL CHECK (original_amount > 0),
+  remaining_amount numeric(12,2) NOT NULL CHECK (remaining_amount >= 0),
+  expires_at timestamptz,
+  order_id uuid,
+  refund_id uuid,
+  campaign_id text,
+  status text NOT NULL DEFAULT 'open'
+    CHECK (status IN ('open', 'depleted', 'expired', 'reversed')),
+  metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT wallet_lots_remaining_lte_original
+    CHECK (remaining_amount <= original_amount)
+);
+
+CREATE INDEX IF NOT EXISTS idx_wallet_lots_user_fifo
+  ON public.wallet_credit_lots (user_id, bucket, expires_at NULLS LAST, created_at)
+  WHERE status = 'open' AND remaining_amount > 0;
+
+CREATE INDEX IF NOT EXISTS idx_wallet_lots_refund
+  ON public.wallet_credit_lots (refund_id)
+  WHERE refund_id IS NOT NULL;
+
+CREATE TABLE IF NOT EXISTS public.wallet_ledger_txns (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  type text NOT NULL CHECK (type IN (
+    'spend_reserve', 'spend_commit', 'spend_release',
+    'refund_credit', 'promo_issue', 'promo_clawback',
+    'expire', 'adjust', 'reverse', 'spend_restore'
+  )),
+  reference_type text,
+  reference_id text,
+  idempotency_key text,
+  description text,
+  created_by uuid,
+  metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_wallet_ledger_txns_idempotency
+  ON public.wallet_ledger_txns (idempotency_key)
+  WHERE idempotency_key IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_wallet_ledger_txns_user_created
+  ON public.wallet_ledger_txns (user_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS public.wallet_ledger_entries (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  txn_id uuid NOT NULL REFERENCES public.wallet_ledger_txns(id),
+  account text NOT NULL,
+  direction text NOT NULL CHECK (direction IN ('debit', 'credit')),
+  amount numeric(12,2) NOT NULL CHECK (amount > 0),
+  bucket text CHECK (bucket IS NULL OR bucket IN ('cash', 'promo')),
+  lot_id uuid REFERENCES public.wallet_credit_lots(id),
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_wallet_ledger_entries_txn
+  ON public.wallet_ledger_entries (txn_id);
+
+CREATE TABLE IF NOT EXISTS public.wallet_reservations (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL REFERENCES public.buyer_wallets(user_id),
+  order_ids uuid[] NOT NULL DEFAULT '{}',
+  cash_amount numeric(12,2) NOT NULL DEFAULT 0 CHECK (cash_amount >= 0),
+  promo_amount numeric(12,2) NOT NULL DEFAULT 0 CHECK (promo_amount >= 0),
+  status text NOT NULL DEFAULT 'held'
+    CHECK (status IN ('held', 'committed', 'released', 'expired')),
+  idempotency_key text,
+  checkout_key text,
+  expires_at timestamptz NOT NULL DEFAULT (now() + interval '45 minutes'),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT wallet_reservations_positive
+    CHECK (cash_amount + promo_amount > 0)
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_wallet_reservations_idempotency
+  ON public.wallet_reservations (idempotency_key)
+  WHERE idempotency_key IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_wallet_reservations_user_status
+  ON public.wallet_reservations (user_id, status);
+
+-- Orders: wallet money fields
+ALTER TABLE public.orders
+  ADD COLUMN IF NOT EXISTS wallet_cash_amount numeric(12,2) NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS wallet_promo_amount numeric(12,2) NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS wallet_reservation_id uuid;
+
+-- Settlements: wallet applied audit
+ALTER TABLE public.seller_settlements
+  ADD COLUMN IF NOT EXISTS wallet_cash_applied numeric(12,2) NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS wallet_promo_applied numeric(12,2) NOT NULL DEFAULT 0;
+
+-- Refunds: destination for Sociva Credit
+ALTER TABLE public.refund_requests
+  ADD COLUMN IF NOT EXISTS refund_destination text NOT NULL DEFAULT 'original_payment'
+    CHECK (refund_destination IN ('original_payment', 'wallet', 'split')),
+  ADD COLUMN IF NOT EXISTS wallet_credit_amount numeric(12,2);
+
+-- RLS
+ALTER TABLE public.buyer_wallets ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.wallet_credit_lots ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.wallet_ledger_txns ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.wallet_ledger_entries ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.wallet_reservations ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Users can view own buyer wallet" ON public.buyer_wallets;
+CREATE POLICY "Users can view own buyer wallet"
+  ON public.buyer_wallets FOR SELECT TO authenticated
+  USING (user_id = auth.uid());
+
+DROP POLICY IF EXISTS "Admins can view all buyer wallets" ON public.buyer_wallets;
+CREATE POLICY "Admins can view all buyer wallets"
+  ON public.buyer_wallets FOR SELECT TO authenticated
+  USING (public.has_role(auth.uid(), 'admin'));
+
+DROP POLICY IF EXISTS "Users can view own wallet lots" ON public.wallet_credit_lots;
+CREATE POLICY "Users can view own wallet lots"
+  ON public.wallet_credit_lots FOR SELECT TO authenticated
+  USING (user_id = auth.uid());
+
+DROP POLICY IF EXISTS "Admins can view all wallet lots" ON public.wallet_credit_lots;
+CREATE POLICY "Admins can view all wallet lots"
+  ON public.wallet_credit_lots FOR SELECT TO authenticated
+  USING (public.has_role(auth.uid(), 'admin'));
+
+DROP POLICY IF EXISTS "Users can view own wallet txns" ON public.wallet_ledger_txns;
+CREATE POLICY "Users can view own wallet txns"
+  ON public.wallet_ledger_txns FOR SELECT TO authenticated
+  USING (user_id = auth.uid());
+
+DROP POLICY IF EXISTS "Admins can view all wallet txns" ON public.wallet_ledger_txns;
+CREATE POLICY "Admins can view all wallet txns"
+  ON public.wallet_ledger_txns FOR SELECT TO authenticated
+  USING (public.has_role(auth.uid(), 'admin'));
+
+DROP POLICY IF EXISTS "Users can view own wallet entries" ON public.wallet_ledger_entries;
+CREATE POLICY "Users can view own wallet entries"
+  ON public.wallet_ledger_entries FOR SELECT TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.wallet_ledger_txns t
+      WHERE t.id = txn_id AND t.user_id = auth.uid()
+    )
+  );
+
+DROP POLICY IF EXISTS "Admins can view all wallet entries" ON public.wallet_ledger_entries;
+CREATE POLICY "Admins can view all wallet entries"
+  ON public.wallet_ledger_entries FOR SELECT TO authenticated
+  USING (public.has_role(auth.uid(), 'admin'));
+
+DROP POLICY IF EXISTS "Users can view own wallet reservations" ON public.wallet_reservations;
+CREATE POLICY "Users can view own wallet reservations"
+  ON public.wallet_reservations FOR SELECT TO authenticated
+  USING (user_id = auth.uid());
+
+-- Immutable ledger: revoke UPDATE/DELETE from clients (service_role bypasses RLS)
+REVOKE INSERT, UPDATE, DELETE ON public.buyer_wallets FROM authenticated, anon;
+REVOKE INSERT, UPDATE, DELETE ON public.wallet_credit_lots FROM authenticated, anon;
+REVOKE INSERT, UPDATE, DELETE ON public.wallet_ledger_txns FROM authenticated, anon;
+REVOKE INSERT, UPDATE, DELETE ON public.wallet_ledger_entries FROM authenticated, anon;
+REVOKE INSERT, UPDATE, DELETE ON public.wallet_reservations FROM authenticated, anon;
+
+-- ------------------------------------------------------------
+-- 2. Helpers
+-- ------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.wallet_ensure_wallet(_user_id uuid)
+RETURNS public.buyer_wallets
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  w public.buyer_wallets;
+BEGIN
+  IF _user_id IS NULL THEN
+    RAISE EXCEPTION 'user_id required';
+  END IF;
+
+  INSERT INTO public.buyer_wallets (user_id)
+  VALUES (_user_id)
+  ON CONFLICT (user_id) DO NOTHING;
+
+  SELECT * INTO w
+  FROM public.buyer_wallets
+  WHERE user_id = _user_id
+  FOR UPDATE;
+
+  RETURN w;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.wallet_plan_spend(
+  _cash_available numeric,
+  _promo_available numeric,
+  _amount numeric
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+IMMUTABLE
+AS $$
+DECLARE
+  _want numeric := ROUND(GREATEST(COALESCE(_amount, 0), 0)::numeric, 2);
+  _promo numeric;
+  _cash numeric;
+BEGIN
+  _promo := LEAST(ROUND(GREATEST(COALESCE(_promo_available, 0), 0)::numeric, 2), _want);
+  _cash := LEAST(
+    ROUND(GREATEST(COALESCE(_cash_available, 0), 0)::numeric, 2),
+    ROUND((_want - _promo)::numeric, 2)
+  );
+  RETURN jsonb_build_object(
+    'promo_amount', _promo,
+    'cash_amount', _cash,
+    'total', ROUND((_promo + _cash)::numeric, 2),
+    'shortfall', ROUND(GREATEST(_want - _promo - _cash, 0)::numeric, 2)
+  );
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.wallet_insert_entry(
+  _txn_id uuid,
+  _account text,
+  _direction text,
+  _amount numeric,
+  _bucket text DEFAULT NULL,
+  _lot_id uuid DEFAULT NULL
+)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  IF COALESCE(_amount, 0) <= 0 THEN
+    RETURN;
+  END IF;
+  INSERT INTO public.wallet_ledger_entries (
+    txn_id, account, direction, amount, bucket, lot_id
+  ) VALUES (
+    _txn_id, _account, _direction, ROUND(_amount::numeric, 2), _bucket, _lot_id
+  );
+END;
+$$;
+
+-- Consume open lots FIFO (inventory only; liability moved via held→order entries)
+CREATE OR REPLACE FUNCTION public.wallet_consume_lots(
+  _user_id uuid,
+  _bucket text,
+  _amount numeric
+)
+RETURNS numeric
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  _need numeric := ROUND(GREATEST(COALESCE(_amount, 0), 0)::numeric, 2);
+  _orig numeric := _need;
+  _take numeric;
+  lot record;
+BEGIN
+  IF _need <= 0 THEN
+    RETURN 0;
+  END IF;
+
+  FOR lot IN
+    SELECT *
+    FROM public.wallet_credit_lots
+    WHERE user_id = _user_id
+      AND bucket = _bucket
+      AND status = 'open'
+      AND remaining_amount > 0
+      AND (expires_at IS NULL OR expires_at > now())
+    ORDER BY
+      CASE WHEN expires_at IS NULL THEN 1 ELSE 0 END,
+      expires_at ASC NULLS LAST,
+      created_at ASC
+    FOR UPDATE
+  LOOP
+    EXIT WHEN _need <= 0;
+    _take := LEAST(lot.remaining_amount, _need);
+    UPDATE public.wallet_credit_lots
+    SET
+      remaining_amount = remaining_amount - _take,
+      status = CASE WHEN remaining_amount - _take <= 0 THEN 'depleted' ELSE status END
+    WHERE id = lot.id;
+    _need := ROUND((_need - _take)::numeric, 2);
+  END LOOP;
+
+  RETURN ROUND((_orig - _need)::numeric, 2);
+END;
+$$;
+
+-- ------------------------------------------------------------
+-- 3. Read RPCs
+-- ------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.get_buyer_wallet(_user_id uuid DEFAULT NULL)
+RETURNS jsonb
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  _uid uuid;
+  w public.buyer_wallets;
+  _nearest timestamptz;
+BEGIN
+  _uid := auth.uid();
+  IF _uid IS NULL THEN
+    RETURN jsonb_build_object('success', false, 'error', 'not_authenticated');
+  END IF;
+
+  IF _user_id IS NOT NULL AND _user_id IS DISTINCT FROM _uid
+     AND NOT public.has_role(_uid, 'admin') THEN
+    RETURN jsonb_build_object('success', false, 'error', 'forbidden');
+  END IF;
+
+  _uid := COALESCE(_user_id, _uid);
+
+  SELECT * INTO w FROM public.buyer_wallets WHERE user_id = _uid;
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object(
+      'success', true,
+      'user_id', _uid,
+      'cash_available', 0,
+      'promo_available', 0,
+      'cash_pending', 0,
+      'promo_pending', 0,
+      'total_available', 0,
+      'status', 'active',
+      'nearest_promo_expires_at', NULL
+    );
+  END IF;
+
+  SELECT MIN(expires_at) INTO _nearest
+  FROM public.wallet_credit_lots
+  WHERE user_id = _uid
+    AND bucket = 'promo'
+    AND status = 'open'
+    AND remaining_amount > 0
+    AND expires_at IS NOT NULL
+    AND expires_at > now();
+
+  RETURN jsonb_build_object(
+    'success', true,
+    'user_id', w.user_id,
+    'cash_available', w.cash_available,
+    'promo_available', w.promo_available,
+    'cash_pending', w.cash_pending,
+    'promo_pending', w.promo_pending,
+    'total_available', ROUND((w.cash_available + w.promo_available)::numeric, 2),
+    'lifetime_credited', w.lifetime_credited,
+    'lifetime_spent', w.lifetime_spent,
+    'lifetime_expired', w.lifetime_expired,
+    'status', w.status,
+    'nearest_promo_expires_at', _nearest
+  );
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.get_wallet_history(
+  _limit integer DEFAULT 20,
+  _cursor timestamptz DEFAULT NULL
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  _uid uuid := auth.uid();
+BEGIN
+  IF _uid IS NULL THEN
+    RETURN '[]'::jsonb;
+  END IF;
+
+  RETURN COALESCE((
+    SELECT jsonb_agg(row_to_json(x)::jsonb ORDER BY x.created_at DESC)
+    FROM (
+      SELECT
+        t.id,
+        t.type,
+        t.description,
+        t.reference_type,
+        t.reference_id,
+        t.created_at,
+        COALESCE((
+          SELECT SUM(
+            CASE
+              WHEN e.direction = 'credit' AND (
+                e.account LIKE 'user_cash:%' OR e.account LIKE 'user_promo:%'
+              ) THEN e.amount
+              WHEN e.direction = 'debit' AND (
+                e.account LIKE 'user_cash:%' OR e.account LIKE 'user_promo:%'
+              ) THEN -e.amount
+              ELSE 0
+            END
+          )
+          FROM public.wallet_ledger_entries e
+          WHERE e.txn_id = t.id
+        ), 0) AS signed_amount,
+        (
+          SELECT COALESCE(SUM(e.amount), 0)
+          FROM public.wallet_ledger_entries e
+          WHERE e.txn_id = t.id AND e.bucket = 'cash'
+            AND e.direction = 'credit' AND e.account LIKE 'user_cash%'
+        ) AS cash_delta,
+        (
+          SELECT COALESCE(SUM(e.amount), 0)
+          FROM public.wallet_ledger_entries e
+          WHERE e.txn_id = t.id AND e.bucket = 'promo'
+            AND e.direction = 'credit' AND e.account LIKE 'user_promo%'
+        ) AS promo_delta
+      FROM public.wallet_ledger_txns t
+      WHERE t.user_id = _uid
+        AND (_cursor IS NULL OR t.created_at < _cursor)
+        AND t.type NOT IN ('spend_reserve') -- hide raw holds; show commit/release/credits
+      ORDER BY t.created_at DESC
+      LIMIT LEAST(GREATEST(COALESCE(_limit, 20), 1), 100)
+    ) x
+  ), '[]'::jsonb);
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.quote_wallet_application(
+  _payable_after_coupon_loyalty numeric
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  _uid uuid := auth.uid();
+  w public.buyer_wallets;
+  _plan jsonb;
+  _payable numeric := ROUND(GREATEST(COALESCE(_payable_after_coupon_loyalty, 0), 0)::numeric, 2);
+BEGIN
+  IF _uid IS NULL THEN
+    RETURN jsonb_build_object('success', false, 'error', 'not_authenticated');
+  END IF;
+
+  SELECT * INTO w FROM public.buyer_wallets WHERE user_id = _uid;
+  IF NOT FOUND OR w.status <> 'active' THEN
+    RETURN jsonb_build_object(
+      'success', true,
+      'max_amount', 0,
+      'cash_available', 0,
+      'promo_available', 0,
+      'plan', jsonb_build_object('promo_amount', 0, 'cash_amount', 0, 'total', 0)
+    );
+  END IF;
+
+  _plan := public.wallet_plan_spend(w.cash_available, w.promo_available, _payable);
+
+  RETURN jsonb_build_object(
+    'success', true,
+    'max_amount', (_plan->>'total')::numeric,
+    'cash_available', w.cash_available,
+    'promo_available', w.promo_available,
+    'payable', _payable,
+    'plan', _plan
+  );
+END;
+$$;
+
+-- ------------------------------------------------------------
+-- 4. Reserve / commit / release
+-- ------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.reserve_wallet_credit(
+  _amount numeric,
+  _idempotency_key text DEFAULT NULL,
+  _checkout_key text DEFAULT NULL,
+  _order_ids uuid[] DEFAULT NULL
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  _uid uuid := auth.uid();
+  w public.buyer_wallets;
+  r public.wallet_reservations;
+  _plan jsonb;
+  _cash numeric;
+  _promo numeric;
+  _total numeric;
+  _txn_id uuid;
+BEGIN
+  IF _uid IS NULL THEN
+    RETURN jsonb_build_object('success', false, 'error', 'not_authenticated');
+  END IF;
+
+  IF COALESCE(_amount, 0) <= 0 THEN
+    RETURN jsonb_build_object('success', false, 'error', 'amount_must_be_positive');
+  END IF;
+
+  IF _idempotency_key IS NOT NULL THEN
+    SELECT * INTO r FROM public.wallet_reservations WHERE idempotency_key = _idempotency_key;
+    IF FOUND THEN
+      RETURN jsonb_build_object(
+        'success', true,
+        'reservation_id', r.id,
+        'cash_amount', r.cash_amount,
+        'promo_amount', r.promo_amount,
+        'status', r.status,
+        'deduplicated', true
+      );
+    END IF;
+  END IF;
+
+  w := public.wallet_ensure_wallet(_uid);
+
+  IF w.status <> 'active' THEN
+    RETURN jsonb_build_object('success', false, 'error', 'wallet_frozen');
+  END IF;
+
+  _plan := public.wallet_plan_spend(w.cash_available, w.promo_available, _amount);
+  _cash := (_plan->>'cash_amount')::numeric;
+  _promo := (_plan->>'promo_amount')::numeric;
+  _total := (_plan->>'total')::numeric;
+
+  IF _total <= 0 THEN
+    RETURN jsonb_build_object('success', false, 'error', 'insufficient_credit', 'available', w.cash_available + w.promo_available);
+  END IF;
+
+  -- Cap to what we can actually reserve (may be less than requested)
+  UPDATE public.buyer_wallets
+  SET
+    cash_available = cash_available - _cash,
+    promo_available = promo_available - _promo,
+    cash_pending = cash_pending + _cash,
+    promo_pending = promo_pending + _promo,
+    version = version + 1,
+    updated_at = now()
+  WHERE user_id = _uid
+  RETURNING * INTO w;
+
+  INSERT INTO public.wallet_reservations (
+    user_id, order_ids, cash_amount, promo_amount, status, idempotency_key, checkout_key
+  ) VALUES (
+    _uid, COALESCE(_order_ids, '{}'), _cash, _promo, 'held', _idempotency_key, _checkout_key
+  )
+  RETURNING * INTO r;
+
+  INSERT INTO public.wallet_ledger_txns (
+    user_id, type, reference_type, reference_id, idempotency_key, description, created_by, metadata
+  ) VALUES (
+    _uid, 'spend_reserve', 'reservation', r.id::text,
+    CASE WHEN _idempotency_key IS NULL THEN NULL ELSE 'wallet-reserve:' || _idempotency_key END,
+    'Reserved Sociva Credit ₹' || _total::text,
+    _uid,
+    jsonb_build_object('cash', _cash, 'promo', _promo, 'checkout_key', _checkout_key)
+  )
+  RETURNING id INTO _txn_id;
+
+  IF _cash > 0 THEN
+    PERFORM public.wallet_insert_entry(_txn_id, 'user_cash:' || _uid::text, 'debit', _cash, 'cash');
+    PERFORM public.wallet_insert_entry(_txn_id, 'user_cash_held:' || _uid::text, 'credit', _cash, 'cash');
+  END IF;
+  IF _promo > 0 THEN
+    PERFORM public.wallet_insert_entry(_txn_id, 'user_promo:' || _uid::text, 'debit', _promo, 'promo');
+    PERFORM public.wallet_insert_entry(_txn_id, 'user_promo_held:' || _uid::text, 'credit', _promo, 'promo');
+  END IF;
+
+  RETURN jsonb_build_object(
+    'success', true,
+    'reservation_id', r.id,
+    'cash_amount', _cash,
+    'promo_amount', _promo,
+    'total', _total,
+    'status', 'held',
+    'cash_available', w.cash_available,
+    'promo_available', w.promo_available
+  );
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.commit_wallet_reservation(
+  _reservation_id uuid,
+  _order_ids uuid[] DEFAULT NULL
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  r public.wallet_reservations;
+  w public.buyer_wallets;
+  _txn_id uuid;
+  _order_clearing text;
+BEGIN
+  IF _reservation_id IS NULL THEN
+    RETURN jsonb_build_object('success', false, 'error', 'reservation_required');
+  END IF;
+
+  SELECT * INTO r
+  FROM public.wallet_reservations
+  WHERE id = _reservation_id
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('success', false, 'error', 'reservation_not_found');
+  END IF;
+
+  IF r.status = 'committed' THEN
+    RETURN jsonb_build_object('success', true, 'reservation_id', r.id, 'status', 'committed', 'deduplicated', true);
+  END IF;
+
+  IF r.status <> 'held' THEN
+    RETURN jsonb_build_object('success', false, 'error', 'invalid_status', 'status', r.status);
+  END IF;
+
+  IF auth.uid() IS NOT NULL AND auth.uid() IS DISTINCT FROM r.user_id
+     AND NOT public.has_role(auth.uid(), 'admin') THEN
+    RETURN jsonb_build_object('success', false, 'error', 'forbidden');
+  END IF;
+
+  w := public.wallet_ensure_wallet(r.user_id);
+
+  IF w.cash_pending < r.cash_amount OR w.promo_pending < r.promo_amount THEN
+    RETURN jsonb_build_object('success', false, 'error', 'pending_mismatch');
+  END IF;
+
+  UPDATE public.buyer_wallets
+  SET
+    cash_pending = cash_pending - r.cash_amount,
+    promo_pending = promo_pending - r.promo_amount,
+    lifetime_spent = lifetime_spent + r.cash_amount + r.promo_amount,
+    version = version + 1,
+    updated_at = now()
+  WHERE user_id = r.user_id;
+
+  UPDATE public.wallet_reservations
+  SET
+    status = 'committed',
+    order_ids = COALESCE(_order_ids, order_ids),
+    updated_at = now()
+  WHERE id = r.id
+  RETURNING * INTO r;
+
+  INSERT INTO public.wallet_ledger_txns (
+    user_id, type, reference_type, reference_id, idempotency_key, description, metadata
+  ) VALUES (
+    r.user_id, 'spend_commit', 'reservation', r.id::text,
+    'wallet-commit:' || r.id::text,
+    'Committed Sociva Credit spend',
+    jsonb_build_object('cash', r.cash_amount, 'promo', r.promo_amount)
+  )
+  ON CONFLICT (idempotency_key) DO NOTHING
+  RETURNING id INTO _txn_id;
+
+  IF _txn_id IS NULL THEN
+    SELECT id INTO _txn_id FROM public.wallet_ledger_txns WHERE idempotency_key = 'wallet-commit:' || r.id::text;
+  END IF;
+
+  _order_clearing := 'order_settlement:' || COALESCE((_order_ids)[1]::text, r.id::text);

@@ -1,0 +1,212 @@
+-- Chat + bookable-service production hardening
+-- C1: unify chat notify type/path on trigger
+-- C3: unique seller conversations
+-- C4: auth-bind book/release slot RPCs
+-- C5: cross-user notification enqueue helper (SECURITY DEFINER)
+-- C6: can_cancel_booking returns fee_percentage + cancel_fee
+-- C8: atomic create_service_booking_atomic
+-- H3: release slot when booking order cancelled via sync
+-- H4: reschedule_service_booking RPC
+
+-- ============================================================
+-- C1: Chat notification trigger — single canonical type + deep link
+-- ============================================================
+CREATE OR REPLACE FUNCTION public.fn_chat_message_notification()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $function$
+DECLARE
+  _order_status TEXT;
+  _sender_name TEXT;
+BEGIN
+  SELECT status INTO _order_status FROM orders WHERE id = NEW.order_id;
+  IF _order_status IS NULL OR _order_status IN ('cancelled', 'completed', 'rejected', 'refunded') THEN
+    RETURN NEW;
+  END IF;
+
+  SELECT COALESCE(name, 'Someone') INTO _sender_name FROM profiles WHERE id = NEW.sender_id;
+
+  INSERT INTO notification_queue (user_id, title, body, type, reference_path, payload)
+  VALUES (
+    NEW.receiver_id,
+    'New message',
+    _sender_name || ': ' || LEFT(NEW.message_text, 100),
+    'chat',
+    '/orders/' || NEW.order_id::text || '?chat=1',
+    jsonb_build_object(
+      'type', 'chat',
+      'orderId', NEW.order_id,
+      'order_id', NEW.order_id,
+      'entity_type', 'order',
+      'entity_id', NEW.order_id,
+      'sender_id', NEW.sender_id
+    )
+  );
+
+  RETURN NEW;
+END;
+$function$;
+
+-- ============================================================
+-- C5: Safe cross-user enqueue (caller may only enqueue for self OR
+--     for chat/order/booking recipients they are party to)
+-- ============================================================
+CREATE OR REPLACE FUNCTION public.enqueue_user_notification(
+  _user_id uuid,
+  _type text,
+  _title text,
+  _body text,
+  _reference_path text DEFAULT NULL,
+  _payload jsonb DEFAULT NULL
+)
+RETURNS uuid
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $$
+DECLARE
+  _caller uuid := auth.uid();
+  _qid uuid;
+  _allowed boolean := false;
+  _order_id uuid;
+  _conv_id uuid;
+BEGIN
+  IF _caller IS NULL THEN
+    RAISE EXCEPTION 'Not authenticated';
+  END IF;
+
+  IF _user_id = _caller THEN
+    _allowed := true;
+  ELSIF _type IN ('chat', 'chat_message', 'message') THEN
+    -- Party to an order chat, or seller/buyer on a product conversation
+    _order_id := NULLIF((_payload->>'orderId'), '')::uuid;
+    IF _order_id IS NULL THEN
+      _order_id := NULLIF((_payload->>'order_id'), '')::uuid;
+    END IF;
+    IF _order_id IS NULL AND _reference_path ~ '/orders/([0-9a-f-]{36})' THEN
+      _order_id := (regexp_match(_reference_path, '/orders/([0-9a-f-]{36})'))[1]::uuid;
+    END IF;
+
+    IF _order_id IS NOT NULL THEN
+      SELECT EXISTS (
+        SELECT 1 FROM orders o
+        WHERE o.id = _order_id
+          AND (
+            o.buyer_id = _caller
+            OR o.seller_id IN (SELECT id FROM seller_profiles WHERE user_id = _caller)
+          )
+          AND (
+            o.buyer_id = _user_id
+            OR o.seller_id IN (SELECT id FROM seller_profiles WHERE user_id = _user_id)
+            OR EXISTS (SELECT 1 FROM seller_profiles sp WHERE sp.user_id = _user_id AND sp.id = o.seller_id)
+          )
+      ) INTO _allowed;
+    END IF;
+
+    IF NOT _allowed THEN
+      _conv_id := NULLIF((_payload->>'conversationId'), '')::uuid;
+      IF _conv_id IS NOT NULL THEN
+        SELECT EXISTS (
+          SELECT 1 FROM seller_conversations sc
+          JOIN seller_profiles sp ON sp.id = sc.seller_id
+          WHERE sc.id = _conv_id
+            AND (
+              (sc.buyer_id = _caller AND sp.user_id = _user_id)
+              OR (sp.user_id = _caller AND sc.buyer_id = _user_id)
+            )
+        ) INTO _allowed;
+      END IF;
+    END IF;
+  ELSIF _type IN ('order', 'booking', 'booking_confirmed', 'booking_cancelled', 'booking_rescheduled') THEN
+    _order_id := NULLIF((_payload->>'orderId'), '')::uuid;
+    IF _order_id IS NULL THEN
+      _order_id := NULLIF((_payload->>'order_id'), '')::uuid;
+    END IF;
+    IF _order_id IS NULL AND _reference_path ~ '/orders/([0-9a-f-]{36})' THEN
+      _order_id := (regexp_match(_reference_path, '/orders/([0-9a-f-]{36})'))[1]::uuid;
+    END IF;
+    IF _order_id IS NOT NULL THEN
+      SELECT EXISTS (
+        SELECT 1 FROM orders o
+        WHERE o.id = _order_id
+          AND (
+            o.buyer_id = _caller
+            OR o.seller_id IN (SELECT id FROM seller_profiles WHERE user_id = _caller)
+          )
+          AND (
+            o.buyer_id = _user_id
+            OR EXISTS (SELECT 1 FROM seller_profiles sp WHERE sp.user_id = _user_id AND sp.id = o.seller_id)
+          )
+      ) INTO _allowed;
+    END IF;
+  END IF;
+
+  IF NOT _allowed THEN
+    RAISE EXCEPTION 'Not allowed to enqueue notification for this user';
+  END IF;
+
+  INSERT INTO notification_queue (user_id, type, title, body, reference_path, payload)
+  VALUES (_user_id, _type, _title, LEFT(COALESCE(_body, ''), 500), _reference_path, _payload)
+  RETURNING id INTO _qid;
+
+  RETURN _qid;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.enqueue_user_notification(uuid, text, text, text, text, jsonb) TO authenticated;
+
+-- ============================================================
+-- C3: Dedupe + UNIQUE on seller_conversations
+-- ============================================================
+WITH ranked AS (
+  SELECT id,
+         ROW_NUMBER() OVER (
+           PARTITION BY buyer_id, seller_id, product_id
+           ORDER BY COALESCE(last_message_at, created_at) DESC NULLS LAST, created_at DESC
+         ) AS rn
+  FROM seller_conversations
+)
+DELETE FROM seller_conversation_messages m
+USING ranked r
+WHERE m.conversation_id = r.id AND r.rn > 1;
+
+WITH ranked AS (
+  SELECT id,
+         ROW_NUMBER() OVER (
+           PARTITION BY buyer_id, seller_id, product_id
+           ORDER BY COALESCE(last_message_at, created_at) DESC NULLS LAST, created_at DESC
+         ) AS rn
+  FROM seller_conversations
+)
+DELETE FROM seller_conversations sc
+USING ranked r
+WHERE sc.id = r.id AND r.rn > 1;
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_seller_conversations_buyer_seller_product
+  ON public.seller_conversations (buyer_id, seller_id, product_id);
+
+-- ============================================================
+-- C4: book_service_slot — bind buyer to auth.uid()
+-- ============================================================
+CREATE OR REPLACE FUNCTION public.book_service_slot(
+  _order_id uuid,
+  _slot_id uuid,
+  _buyer_id uuid,
+  _seller_id uuid,
+  _product_id uuid,
+  _booking_date text,
+  _start_time text,
+  _end_time text,
+  _location_type text DEFAULT 'at_seller'::text,
+  _buyer_address text DEFAULT NULL::text,
+  _notes text DEFAULT NULL::text
+) RETURNS json
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $$
+DECLARE
+  _slot record;
+  _booking_id

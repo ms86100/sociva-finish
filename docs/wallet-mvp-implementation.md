@@ -4,6 +4,8 @@
 **Architecture:** [`wallet-architecture-study.md`](./wallet-architecture-study.md)  
 **Status:** **CLOSED (Phase 1 MVP)** — code + remote deploy on project `kkzkuyhgdvyecmxtmkpy` (Sociva).
 
+> **2026-08-08 control revision:** “CLOSED” describes the prior MVP delivery, not production certification. Apply [`wallet-phase0-controls.md`](./wallet-phase0-controls.md), [`wallet-accounting-brief.md`](./wallet-accounting-brief.md), and [`wallet-engineering-briefs.md`](./wallet-engineering-briefs.md). The repository now removes order-attached Route transfers and introduces separate COD tracking, but deployment, migration-backed tests, provider evidence, and professional approvals remain release gates. SOCIVA Credit remains non-loadable, non-transferable, and non-withdrawable; seller balances are payable/earnings records, not custody wallets. No professional approval is claimed.
+
 ## What shipped (Phase 1 MVP)
 
 | Area | Detail |

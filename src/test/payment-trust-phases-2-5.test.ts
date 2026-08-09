@@ -57,6 +57,10 @@ describe('Phase 2–5 payment/trust', () => {
       resolve(__dirname, '../components/admin/CredentialsManager.tsx'),
       'utf8',
     );
+    const paymentModeSrc = readFileSync(
+      resolve(__dirname, '../hooks/usePaymentMode.ts'),
+      'utf8',
+    );
 
     it('does not fall back to razorpay_key_secret for HMAC', () => {
       expect(webhookSrc).not.toMatch(/Using razorpay_key_secret as HMAC fallback/);
@@ -68,8 +72,20 @@ describe('Phase 2–5 payment/trust', () => {
 
     it('blocks switching to razorpay without active webhook secret', () => {
       expect(credsSrc).toMatch(/webhookSecretSet/);
-      expect(credsSrc).toMatch(/Add and activate Razorpay webhook secret/);
+      expect(credsSrc).toMatch(/Add and activate (the )?Razorpay webhook secret/);
       expect(credsSrc).toMatch(/webhook secret is empty/i);
+    });
+
+    it('persists payment mode through the credential RPC and refreshes its cache', () => {
+      expect(credsSrc).toMatch(/upsert_admin_credential/);
+      expect(credsSrc).toMatch(/payment-gateway-mode/);
+      expect(credsSrc).not.toMatch(/from\('admin_settings'\)\.update\(\{ value: newMode/);
+      expect(credsSrc).toMatch(/setSettings\(current => setting/);
+    });
+
+    it('reads payment mode through the non-secret public RPC', () => {
+      expect(paymentModeSrc).toMatch(/get_public_payment_mode/);
+      expect(paymentModeSrc).not.toMatch(/from\('admin_settings'\)/);
     });
   });
 

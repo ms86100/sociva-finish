@@ -22,6 +22,7 @@ import { toast } from 'sonner';
 import { Clock, MapPin, MessageCircle, Loader2, ArrowLeft, Calendar, User, Sparkles } from 'lucide-react';
 import type { ServiceCategory } from '@/types/categories';
 import { notify } from '@/lib/notify';
+import { friendlyError } from '@/lib/utils';
 
 interface ServiceBookingFlowProps {
   open: boolean;
@@ -296,7 +297,7 @@ export function ServiceBookingFlow({
       navigate(`/orders/${orderId}`);
     } catch (err: any) {
       console.error('Service booking error:', err);
-      toast.error(err?.message || 'Failed to create booking. Please try again.');
+      toast.error(friendlyError(err) || 'Failed to create booking. Please try again.');
     } finally {
       setIsLoading(false);
       isSubmittingRef.current = false;

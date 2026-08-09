@@ -1,5 +1,9 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.93.3";
 import { getRazorpayCredentials, getCredential } from "../_shared/credentials.ts";
+import {
+  checkFinancialRuntime,
+  financialRuntimeUnavailableResponse,
+} from "../_shared/financial-runtime.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -18,25 +22,34 @@ async function createRouteTransfer(opts: {
   amountPaise: number;
   settlementId: string;
   orderId: string;
-}): Promise<{ ok: true; transferId: string } | { ok: false; error: string }> {
+}): Promise<
+  | { ok: true; transferId: string }
+  | { ok: false; state: "failed" | "unknown"; error: string; transferId?: string }
+> {
   const authBasic = "Basic " + btoa(`${opts.keyId}:${opts.keySecret}`);
-  const res = await fetch("https://api.razorpay.com/v1/transfers", {
-    method: "POST",
-    headers: {
-      Authorization: authBasic,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      account: opts.accountId,
-      amount: opts.amountPaise,
-      currency: "INR",
-      notes: {
-        settlement_id: opts.settlementId,
-        order_id: opts.orderId,
-        source: "sociva_process_settlements",
+  let res: Response;
+  try {
+    res = await fetch("https://api.razorpay.com/v1/transfers", {
+      method: "POST",
+      headers: {
+        Authorization: authBasic,
+        "Content-Type": "application/json",
       },
-    }),
-  });
+      body: JSON.stringify({
+        account: opts.accountId,
+        amount: opts.amountPaise,
+        currency: "INR",
+        notes: {
+          settlement_id: opts.settlementId,
+          order_id: opts.orderId,
+          request_key: `settlement:${opts.settlementId}`,
+          source: "sociva_process_settlements",
+        },
+      }),
+    });
+  } catch (error) {
+    return { ok: false, state: "unknown", error: `razorpay_transfer_timeout:${String(error)}` };
+  }
 
   const body = await res.json().catch(() => ({}));
   if (!res.ok) {
@@ -44,12 +57,45 @@ async function createRouteTransfer(opts: {
       body?.error?.description ||
       body?.error?.reason ||
       `razorpay_transfer_http_${res.status}`;
-    return { ok: false, error: String(msg) };
+    return {
+      ok: false,
+      state: res.status >= 500 || res.status === 429 ? "unknown" : "failed",
+      error: String(msg),
+    };
   }
 
   const transferId = body?.id;
   if (!transferId) {
-    return { ok: false, error: "razorpay_transfer_missing_id" };
+    return { ok: false, state: "unknown", error: "razorpay_transfer_missing_id" };
+  }
+  const transferStatus = String(body?.status || "").toLowerCase();
+  if (transferStatus !== "processed") {
+    return {
+      ok: false,
+      state: "unknown",
+      transferId: String(transferId),
+      error: `razorpay_transfer_non_terminal:${transferStatus || "unknown"}:${transferId}`,
+    };
+  }
+  const providerAmount = Number(body?.amount);
+  const providerCurrency = String(body?.currency || "").toUpperCase();
+  const providerDestination = String(body?.recipient || body?.account || "");
+  const providerSettlementId = String(body?.notes?.settlement_id || "");
+  const providerRequestKey = String(body?.notes?.request_key || "");
+  if (
+    !Number.isSafeInteger(providerAmount) ||
+    providerAmount !== opts.amountPaise ||
+    providerCurrency !== "INR" ||
+    providerDestination !== opts.accountId ||
+    providerSettlementId !== opts.settlementId ||
+    providerRequestKey !== `settlement:${opts.settlementId}`
+  ) {
+    return {
+      ok: false,
+      state: "unknown",
+      transferId: String(transferId),
+      error: `razorpay_transfer_identity_mismatch:${transferId}`,
+    };
   }
   return { ok: true, transferId: String(transferId) };
 }
@@ -69,19 +115,28 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const authHeader = req.headers.get("Authorization");
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      serviceRoleKey,
+    );
+
+    const runtime = await checkFinancialRuntime(
+      supabase,
+      "payout_ready",
+      ["payout_processing_enabled", "route_transfer_enabled"],
+    );
+    if (!runtime.ready) {
+      return financialRuntimeUnavailableResponse(runtime, corsHeaders);
+    }
+
+    const authHeader = req.headers.get("Authorization");
     if (!authHeader || authHeader !== `Bearer ${serviceRoleKey}`) {
       return new Response(
         JSON.stringify({ error: "Unauthorized — service role required" }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
-
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      serviceRoleKey,
-    );
 
     const { data: autoSetting } = await supabase
       .from("system_settings")
@@ -114,7 +169,20 @@ Deno.serve(async (req) => {
       "razorpay_route_enabled",
       "RAZORPAY_ROUTE_ENABLED",
     );
-    const routeEnabled = String(routeVal || "").toLowerCase() === "true";
+    const { data: payoutFlag } = await supabase
+      .from("financial_feature_flags")
+      .select("enabled")
+      .eq("key", "seller_payout_enabled")
+      .maybeSingle();
+    const { data: payoutMode } = await supabase
+      .from("financial_configuration")
+      .select("value")
+      .eq("key", "provider_payout_mode")
+      .maybeSingle();
+    const routeEnabled =
+      String(routeVal || "").toLowerCase() === "true" &&
+      payoutFlag?.enabled === true &&
+      payoutMode?.value === "razorpay_route_deferred";
 
     const creds = routeEnabled
       ? await getRazorpayCredentials(supabase)
@@ -284,38 +352,26 @@ Deno.serve(async (req) => {
           continue;
         }
 
-        const { data: seller } = await supabase
-          .from("seller_profiles")
-          .select("id, razorpay_account_id, razorpay_onboarding_status")
-          .eq("id", row.seller_id)
-          .maybeSingle();
-
-        const accountId = seller?.razorpay_account_id;
-        if (!accountId) {
+        const requestKey = `settlement:${row.id}`;
+        const { data: claim, error: claimErr } = await supabase.rpc(
+          "claim_seller_payout",
+          {
+            p_settlement_id: row.id,
+            p_request_key: requestKey,
+            p_amount_minor: amountPaise,
+          },
+        );
+        if (claimErr || claim?.claimed !== true || !claim?.attempt_id) {
           errors.push({
             id: row.id,
-            error: "seller_missing_razorpay_account_id",
+            error: claimErr?.message || `payout_not_claimed:${claim?.reason || "unknown"}`,
           });
           continue;
         }
-
-        // Mark processing before transfer to reduce double-pay races
-        const { data: locked, error: lockErr } = await supabase
-          .from("seller_settlements")
-          .update({
-            settlement_status: "processing",
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", row.id)
-          .eq("settlement_status", "eligible")
-          .is("razorpay_transfer_id", null)
-          .select("id");
-
-        if (lockErr || !locked?.length) {
-          errors.push({
-            id: row.id,
-            error: lockErr?.message || "could_not_lock_for_transfer",
-          });
+        const payoutAttemptId = String(claim.attempt_id);
+        const accountId = String(claim.destination_provider_reference || "");
+        if (!accountId) {
+          errors.push({ id: row.id, error: "claimed_destination_missing_provider_reference" });
           continue;
         }
 
@@ -329,36 +385,37 @@ Deno.serve(async (req) => {
         });
 
         if (!transfer.ok) {
-          await supabase
-            .from("seller_settlements")
-            .update({
-              settlement_status: "eligible",
-              hold_reason: `Route transfer failed: ${transfer.error}`,
-              updated_at: new Date().toISOString(),
-            })
-            .eq("id", row.id)
-            .eq("settlement_status", "processing");
+          const { error: holdErr } = await supabase.rpc(
+            "hold_failed_seller_payout",
+            {
+              p_attempt_id: payoutAttemptId,
+              p_unknown: transfer.state === "unknown",
+              p_error: transfer.error,
+              p_provider_transfer_id: transfer.transferId || null,
+            },
+          );
 
-          errors.push({ id: row.id, error: transfer.error });
+          errors.push({
+            id: row.id,
+            error: holdErr
+              ? `${transfer.error}:hold_failed:${holdErr.message}`
+              : transfer.error,
+          });
           continue;
         }
 
-        const { error: settleErr } = await supabase
-          .from("seller_settlements")
-          .update({
-            settlement_status: "settled",
-            razorpay_transfer_id: transfer.transferId,
-            hold_reason: null,
-            settled_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", row.id)
-          .eq("settlement_status", "processing");
+        const { data: finalized, error: settleErr } = await supabase.rpc(
+          "finalize_seller_payout",
+          {
+            p_attempt_id: payoutAttemptId,
+            p_provider_transfer_id: transfer.transferId,
+          },
+        );
 
-        if (settleErr) {
+        if (settleErr || finalized?.finalized !== true) {
           errors.push({
             id: row.id,
-            error: `transfer_ok_but_db_update_failed:${settleErr.message}:transfer=${transfer.transferId}`,
+            error: `transfer_ok_but_atomic_finalize_failed:${settleErr?.message || "not_finalized"}:transfer=${transfer.transferId}`,
           });
           continue;
         }

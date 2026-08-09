@@ -6,6 +6,8 @@
 **Companion canvas:** Cursor Canvas `wallet-architecture-study.canvas.tsx`  
 **Grounding:** Existing Razorpay / loyalty / refund / settlement systems in this repo.
 
+> **2026-08-08 control revision:** This study is historical design context. The conservative operating baseline is now [`wallet-phase0-controls.md`](./wallet-phase0-controls.md), with accounting in [`wallet-accounting-brief.md`](./wallet-accounting-brief.md) and phase briefs in [`wallet-engineering-briefs.md`](./wallet-engineering-briefs.md). Where they conflict, the revised documents control: platform collect with deferred settlement; no order-attached Route transfers; seller payable/earnings is not a custody wallet; SOCIVA Credit is non-loadable, non-transferable, and non-withdrawable; seller-collected COD is separate from online payable. No document records legal, tax, accounting, or provider approval.
+
 ---
 
 ## Executive recommendation (opinionated)

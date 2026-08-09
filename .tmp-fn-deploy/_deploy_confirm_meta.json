@@ -1,0 +1,18 @@
+{
+  "project_id": "kkzkuyhgdvyecmxtmkpy",
+  "name": "confirm-razorpay-payment",
+  "entrypoint_path": "functions/confirm-razorpay-payment/index.ts",
+  "verify_jwt": false,
+  "files": [
+    {
+      "name": "functions/confirm-razorpay-payment/index.ts",
+      "bytes": 15354,
+      "sha": "efdb0bb6a13a"
+    },
+    {
+      "name": "functions/_shared/auth.ts",
+      "bytes": 1311,
+      "sha": "72bb5b1d9f7c"
+    }
+  ]
+}

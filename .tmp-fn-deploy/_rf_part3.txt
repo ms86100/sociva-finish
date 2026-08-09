@@ -1,0 +1,105 @@
+nd_failed", error: "uncomputable_refund_amount" }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    // Cap against live Razorpay remaining (partial refunds must not overshoot)
+    const live = await fetchPaymentRefundable(keys, paymentId);
+    if (live) {
+      const remainingRupees = Math.max(0, (live.amountPaise - live.amountRefundedPaise) / 100);
+      if (remainingRupees <= 0) {
+        // Already fully refunded at gateway — complete locally idempotently
+        const { error: doneErr } = await supabase.rpc("complete_refund", {
+          p_refund_id: refund.id,
+          p_gateway_ref: `already-refunded-${paymentId}`,
+          p_gateway_status: "already_refunded",
+        });
+        if (doneErr) {
+          console.error("[refund-processor] complete after already-refunded failed", doneErr);
+          return new Response(JSON.stringify({ error: doneErr.message }), {
+            status: 500,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            state: "refund_completed",
+            gateway_ref: `already-refunded-${paymentId}`,
+            simulated: false,
+            note: "payment already fully refunded at gateway",
+          }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+      gatewayRefundAmount = Math.min(gatewayRefundAmount, remainingRupees);
+    }
+
+    // Round to paise-safe 2dp
+    gatewayRefundAmount = Math.round(gatewayRefundAmount * 100) / 100;
+    if (gatewayRefundAmount < 0.01) {
+      await supabase.rpc("fail_refund", {
+        p_refund_id: refund.id,
+        p_reason: "Computed gateway refund amount is zero",
+      });
+      return new Response(
+        JSON.stringify({ ok: false, state: "refund_failed", error: "zero_refund_amount" }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    const remainingAfter = live
+      ? (live.amountPaise - live.amountRefundedPaise) / 100 - gatewayRefundAmount
+      : null;
+    const reverseAll = remainingAfter !== null && remainingAfter < 0.01;
+
+    const gw = await callRazorpayRefund(keys, paymentId, gatewayRefundAmount, refund.id, {
+      reverseAll,
+    });
+
+    if (gw.ok) {
+      const { error: doneErr } = await supabase.rpc("complete_refund", {
+        p_refund_id: refund.id,
+        p_gateway_ref: gw.reference,
+        p_gateway_status: gw.status,
+      });
+      if (doneErr) {
+        console.error("[refund-processor] complete failed", doneErr);
+        return new Response(JSON.stringify({ error: doneErr.message }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      console.log(
+        `[refund-processor] completed refund ${refund.id} ref=${gw.reference} amount=${gatewayRefundAmount} partial=${ctx.is_partial} reverse_all=${reverseAll}`,
+      );
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          state: "refund_completed",
+          gateway_ref: gw.reference,
+          amount: gatewayRefundAmount,
+          partial: !!ctx.is_partial,
+          reverse_all: reverseAll,
+          simulated: false,
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    await supabase.rpc("fail_refund", {
+      p_refund_id: refund.id,
+      p_reason: gw.error || "Gateway error",
+    });
+    return new Response(
+      JSON.stringify({ ok: false, state: "refund_failed", error: gw.error, simulated: false }),
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
+  } catch (err: any) {
+    console.error("[refund-processor] error", err);
+    return new Response(JSON.stringify({ error: err.message || "Internal error" }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+});

@@ -541,7 +541,9 @@ export function usePushNotificationsInternal() {
                 }
                 setTimeout(() => ctx.close().catch(() => {}), 600);
               }
-            } catch {}
+            } catch {
+              // Foreground sound is optional; notification delivery continues.
+            }
           })();
         }
 
@@ -625,7 +627,9 @@ export function usePushNotificationsInternal() {
             registerPush();
           }
         });
-      } catch {}
+      } catch {
+        // App resume integration is unavailable on unsupported platforms.
+      }
     })();
 
     return () => {

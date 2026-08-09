@@ -10,15 +10,16 @@ export function usePaymentMode() {
     queryKey: ['payment-gateway-mode'],
     queryFn: async (): Promise<PaymentGatewayMode> => {
       const { data, error } = await supabase
-        .from('admin_settings')
-        .select('value, is_active')
-        .eq('key', 'payment_gateway_mode')
-        .maybeSingle();
+        .rpc('get_public_payment_mode' as any);
 
-      if (error || !data?.value || !data.is_active) return 'upi_deep_link';
-      return (data.value === 'razorpay' ? 'razorpay' : 'upi_deep_link') as PaymentGatewayMode;
+      if (error) {
+        console.error('[PaymentMode] Failed to load public payment mode:', error);
+        return 'upi_deep_link';
+      }
+      return (data === 'razorpay' ? 'razorpay' : 'upi_deep_link') as PaymentGatewayMode;
     },
-    staleTime: jitteredStaleTime(10 * 60 * 1000),
+    staleTime: jitteredStaleTime(60 * 1000),
+    refetchOnMount: 'always',
   });
 
   return {

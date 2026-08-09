@@ -390,65 +390,19 @@ app.post("/", async (c) => {
         if (completeErr) console.error(`[refund-cron] verified fallback complete failed`, completeErr);
         else console.log(`[refund-cron] razorpay-verified completed refund ${ref.id}`);
       } else {
-        // Also accept payment.amount_refunded proof when gateway_refund_id missing/unknown
-        let completedViaPayment = false;
-        if (rzStatus !== "processed") {
-          const { data: orderRow } = await supabase
-            .from("orders")
-            .select("razorpay_payment_id, checkout_group_id")
-            .eq("id", (ref as any).order_id)
-            .maybeSingle();
-          let paymentId = (orderRow as any)?.razorpay_payment_id || null;
-          if (!paymentId && (orderRow as any)?.checkout_group_id) {
-            const { data: cg } = await supabase
-              .from("checkout_groups")
-              .select("razorpay_payment_id")
-              .eq("id", (orderRow as any).checkout_group_id)
-              .maybeSingle();
-            paymentId = (cg as any)?.razorpay_payment_id || null;
-          }
-          if (paymentId) {
-            try {
-              const { keyId, keySecret } = await getRazorpayCredentials(supabase);
-              if (keyId && keySecret) {
-                const payRes = await fetch(`https://api.razorpay.com/v1/payments/${paymentId}`, {
-                  headers: { Authorization: "Basic " + btoa(`${keyId}:${keySecret}`) },
-                });
-                if (payRes.ok) {
-                  const pay = await payRes.json();
-                  const refundedPaise = Number(pay.amount_refunded || 0);
-                  const needPaise = Math.round(Number((ref as any).amount || 0) * 100);
-                  if (needPaise > 0 && refundedPaise >= needPaise) {
-                    const { error: completeErr } = await supabase.rpc("complete_refund", {
-                      p_refund_id: ref.id,
-                      p_gateway_ref: `${paymentId}-refunded`,
-                      p_gateway_status: "amount_refunded_verified",
-                    });
-                    if (!completeErr) {
-                      completedViaPayment = true;
-                      console.log(`[refund-cron] payment-amount verified completed refund ${ref.id}`);
-                    }
-                  }
-                }
-              }
-            } catch (e) {
-              console.warn("[refund-cron] payment amount_refunded check failed", e);
-            }
-          }
-        }
-        if (!completedViaPayment) {
-          const { error: escErr } = await supabase
-            .from("refund_requests")
-            .update({
-              refund_state: "needs_manual_review",
-              notes: `needs_manual_review: razorpay status=${rzStatus} after 72h`,
-              updated_at: now,
-            })
-            .eq("id", ref.id)
-            .in("refund_state", ["refund_initiated", "refund_processing"]);
-          if (escErr) console.error(`[refund-cron] escalate failed`, escErr);
-          else console.warn(`[refund-cron] escalated ${ref.id} to needs_manual_review (rz=${rzStatus})`);
-        }
+        // Aggregate payment.amount_refunded cannot prove which partial refund or
+        // child order received funds. Require an exact provider refund id.
+        const { error: escErr } = await supabase
+          .from("refund_requests")
+          .update({
+            refund_state: "needs_manual_review",
+            notes: `needs_manual_review: exact gateway refund status=${rzStatus} after 72h`,
+            updated_at: now,
+          })
+          .eq("id", ref.id)
+          .in("refund_state", ["refund_initiated", "refund_processing"]);
+        if (escErr) console.error(`[refund-cron] escalate failed`, escErr);
+        else console.warn(`[refund-cron] escalated ${ref.id} to needs_manual_review (rz=${rzStatus})`);
       }
     }
 
@@ -523,22 +477,27 @@ app.post("/", async (c) => {
     );
 
     // --- Razorpay verification helper: check if payment was actually captured ---
-    async function isRazorpayPaid(razorpayOrderId: string): Promise<boolean> {
+    async function verifyRazorpayPayment(
+      razorpayOrderId: string,
+    ): Promise<"captured" | "unpaid" | "unknown"> {
       try {
         const { keyId, keySecret } = await getRazorpayCredentials(supabase);
-        if (!keyId || !keySecret) return false;
+        if (!keyId || !keySecret) return "unknown";
 
         // Fetch payments for this Razorpay order
         const res = await fetch(`https://api.razorpay.com/v1/orders/${razorpayOrderId}/payments`, {
           headers: { Authorization: "Basic " + btoa(`${keyId}:${keySecret}`) },
         });
-        if (!res.ok) return false;
+        if (!res.ok) return "unknown";
         const data = await res.json();
         const items = data.items || data;
-        return Array.isArray(items) && items.some((p: any) => p.status === "captured" || p.status === "authorized");
+        if (!Array.isArray(items)) return "unknown";
+        if (items.some((p: any) => p.status === "captured")) return "captured";
+        if (items.some((p: any) => p.status === "authorized")) return "unknown";
+        return "unpaid";
       } catch (e) {
-        console.warn("Razorpay verification failed, proceeding with cancel:", e);
-        return false;
+        console.warn("Razorpay verification failed; cancellation deferred:", e);
+        return "unknown";
       }
     }
 
@@ -548,8 +507,8 @@ app.post("/", async (c) => {
       (expiredOrders || []).map(async (order) => {
         // GUARD: For online orders with a razorpay_order_id, verify with Razorpay before cancelling
         if ((order as any).razorpay_order_id) {
-          const actuallyPaid = await isRazorpayPaid((order as any).razorpay_order_id);
-          if (actuallyPaid) {
+          const providerState = await verifyRazorpayPayment((order as any).razorpay_order_id);
+          if (providerState === "captured") {
             console.log(`[auto-cancel][reconcile] order=${order.id} razorpay_order_id=${(order as any).razorpay_order_id} result=actually_paid — triggering confirmation`);
             // Trigger the confirm function to fix the state
             try {
@@ -570,6 +529,31 @@ app.post("/", async (c) => {
               console.warn("Reconciliation trigger failed:", e);
             }
             return { id: order.id, success: false, skipped: true, reason: "razorpay_paid" };
+          }
+          if (providerState === "unknown") {
+            console.warn(
+              `[auto-cancel][reconcile] order=${order.id} provider state unknown — cancellation deferred`,
+            );
+            await supabase.from("financial_reconciliation_records").upsert(
+              {
+                provider: "razorpay",
+                reconciliation_date: new Date().toISOString().slice(0, 10),
+                reference_type: "order",
+                reference_id: order.id,
+                status: "open",
+                reason: "Auto-cancel deferred because Razorpay payment state could not be proven",
+                updated_at: new Date().toISOString(),
+              },
+              {
+                onConflict: "provider,reconciliation_date,reference_type,reference_id",
+              },
+            );
+            return {
+              id: order.id,
+              success: false,
+              skipped: true,
+              reason: "payment_reconciliation_required",
+            };
           }
         }
 

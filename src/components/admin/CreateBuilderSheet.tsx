@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { Plus, MapPin, Loader2, Search } from 'lucide-react';
-import { toast } from 'sonner';
+import { adminNotify } from '@/lib/admin-notify';
 import { logAudit } from '@/lib/audit';
 import { friendlyError } from '@/lib/utils';
 import { useAutocomplete, PlacePrediction } from '@/hooks/useGoogleMaps';
@@ -68,7 +68,7 @@ export function CreateBuilderSheet({ onCreated }: CreateBuilderSheetProps) {
 
   const handleSubmit = async () => {
     if (!form.name.trim() || !form.slug.trim()) {
-      toast.error('Name and slug are required');
+      adminNotify.error('Name and slug are required');
       return;
     }
 
@@ -85,13 +85,13 @@ export function CreateBuilderSheet({ onCreated }: CreateBuilderSheetProps) {
     setSaving(false);
 
     if (error) {
-      if (error.code === '23505') toast.error('A builder with this slug already exists');
-      else toast.error(friendlyError(error));
+      if (error.code === '23505') adminNotify.error('A builder with this slug already exists');
+      else adminNotify.error(friendlyError(error));
       return;
     }
 
     await logAudit('builder_created', 'builder', '', null, { name: form.name, slug: form.slug });
-    toast.success('Builder created successfully');
+    adminNotify.success('Builder created successfully');
     resetForm();
     setOpen(false);
     await onCreated();

@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Calendar, Clock, CheckCircle2, Loader2, AlertCircle, Users } from 'lucide-react';
 import { format, addDays } from 'date-fns';
+import { friendlyError } from '@/lib/utils';
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -160,7 +161,7 @@ export function ServiceAvailabilityManager({ sellerId, onComplete }: ServiceAvai
       console.error('Failed to save:', err);
       if (!isMounted.current) return;
       setSaveState('error');
-      setFeedback(err.message || 'Failed to save schedule');
+      setFeedback(friendlyError(err) || 'Failed to save schedule');
     }
   };
 

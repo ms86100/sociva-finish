@@ -9,10 +9,10 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
+import { adminNotify } from '@/lib/admin-notify';
 import { Send, Smartphone, Monitor, Users, Loader2, CheckCircle2, XCircle, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
-import { cn } from '@/lib/utils';
+import { cn, friendlyError } from '@/lib/utils';
 import { motion } from 'framer-motion';
 
 const SCREEN_OPTIONS = [
@@ -111,7 +111,7 @@ export function CampaignSender() {
 
   async function handleSend() {
     if (!title.trim() || !body.trim()) {
-      toast.error('Title and body are required');
+      adminNotify.error('Title and body are required');
       return;
     }
 
@@ -140,13 +140,13 @@ export function CampaignSender() {
       if (error) throw error;
 
       setResult(data as CampaignResult);
-      toast.success(`Campaign sent to ${data.sent} devices`);
+      adminNotify.success(`Campaign sent to ${data.sent} devices`);
       setTitle('');
       setBody('');
       setScreen('');
       loadHistory();
     } catch (err: any) {
-      toast.error(err.message || 'Failed to send campaign');
+      adminNotify.error(friendlyError(err) || 'Failed to send campaign');
     } finally {
       setSending(false);
     }

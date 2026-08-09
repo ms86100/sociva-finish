@@ -8,6 +8,7 @@ import { CheckCircle2, XCircle, Loader2, ShieldCheck, Clock, AlertTriangle } fro
 import { motion, AnimatePresence } from 'framer-motion';
 import { cardEntrance } from '@/lib/motion-variants';
 import { notify } from '@/lib/notify';
+import { friendlyError } from '@/lib/utils';
 
 interface SellerRefundActionsProps {
   refundId: string;
@@ -48,7 +49,7 @@ export function SellerRefundActions({
 
       onActionComplete?.();
     } catch (err: any) {
-      toast.error(err.message || 'Failed to approve refund');
+      toast.error(friendlyError(err), { id: 'refund-approve-error' });
     } finally {
       setActing(false);
     }
@@ -70,7 +71,7 @@ export function SellerRefundActions({
       setShowReject(false);
       onActionComplete?.();
     } catch (err: any) {
-      toast.error(err.message || 'Failed to reject refund');
+      toast.error(friendlyError(err), { id: 'refund-reject-error' });
     } finally {
       setActing(false);
     }

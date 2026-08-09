@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ImageUpload } from '@/components/ui/image-upload';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { toast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import { friendlyError } from '@/lib/utils';
 import { Loader2 } from 'lucide-react';
 import { useCurrency } from '@/hooks/useCurrency';
@@ -77,13 +77,13 @@ export function AddExpenseSheet({ open, onOpenChange, onCreated, type }: Props) 
         } as any);
         if (error) throw error;
       }
-      toast({ title: `${type === 'expense' ? 'Expense' : 'Income'} added!` });
+      toast.success(`${type === 'expense' ? 'Expense' : 'Income'} added!`);
       setTitle(''); setAmount(''); setVendorName(''); setInvoiceUrl(null);
       setCategory(type === 'expense' ? 'miscellaneous' : 'maintenance');
       onOpenChange(false);
       onCreated();
     } catch (err: any) {
-      toast({ title: 'Failed', description: friendlyError(err), variant: 'destructive' });
+      toast.error(friendlyError(err));
     } finally {
       setSaving(false);
     }

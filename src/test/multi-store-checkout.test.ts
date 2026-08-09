@@ -73,6 +73,10 @@ describe('multi-store source contracts', () => {
     resolve(__dirname, '../../supabase/migrations/20260808020000_phase0_atomic_confirm_inventory_secrets.sql'),
     'utf8',
   );
+  const paymentTruthMigration = readFileSync(
+    resolve(__dirname, '../../supabase/migrations/20260808131000_attempt_aware_payment_truth.sql'),
+    'utf8',
+  );
   const refundProcessor = readFileSync(
     resolve(__dirname, '../../supabase/functions/refund-processor/index.ts'),
     'utf8',
@@ -114,8 +118,10 @@ describe('multi-store source contracts', () => {
   });
 
   it('atomically writes per-order payment rows and stamps group capture', () => {
-    expect(razorpayConfirm).toMatch(/confirm_orders_after_razorpay_payment/);
+    expect(razorpayConfirm).toMatch(/confirm_captured_payment_group/);
     expect(razorpayConfirm).toMatch(/p_order_ids: order_ids/);
+    expect(paymentTruthMigration).toMatch(/confirm_orders_after_razorpay_payment/);
+    expect(paymentTruthMigration).toMatch(/payment_capture_allocations/);
     expect(atomicConfirmMigration).toMatch(/INSERT INTO public\.payment_records/);
     expect(atomicConfirmMigration).toMatch(/seller_id[\s\S]*v_order\.seller_id/);
     expect(atomicConfirmMigration).toMatch(/platform_fee[\s\S]*v_order\.platform_fee/);

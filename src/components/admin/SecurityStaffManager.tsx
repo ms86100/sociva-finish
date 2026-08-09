@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { useAuth } from '@/contexts/AuthContext';
-import { toast } from 'sonner';
+import { adminNotify } from '@/lib/admin-notify';
 import { logAudit } from '@/lib/audit';
 import { Shield, UserPlus, Trash2, Search } from 'lucide-react';
 import type { Profile } from '@/types/database';
@@ -74,7 +74,7 @@ export function SecurityStaffManager() {
       });
       if (staffError) {
         if (staffError.code === '23505') {
-          toast.error('This user is already a security officer');
+          adminNotify.error('This user is already a security officer');
           return;
         }
         throw staffError;
@@ -84,13 +84,13 @@ export function SecurityStaffManager() {
         { onConflict: 'user_id,role' }
       );
       await logAudit('security_officer_added', 'security_staff', userId, societyId, {});
-      toast.success('Security officer added');
+      adminNotify.success('Security officer added');
       setAddOpen(false);
       setSearchQuery('');
       setSearchResults([]);
       fetchStaff();
     } catch (error) {
-      toast.error('Failed to add security officer');
+      adminNotify.error('Failed to add security officer');
     }
   };
 
@@ -105,10 +105,10 @@ export function SecurityStaffManager() {
         .eq('user_id', userId)
         .eq('role', 'security_officer' as any);
       await logAudit('security_officer_removed', 'security_staff', userId, societyId, {});
-      toast.success('Security officer removed');
+      adminNotify.success('Security officer removed');
       fetchStaff();
     } catch (error) {
-      toast.error('Failed to remove security officer');
+      adminNotify.error('Failed to remove security officer');
     }
   };
 

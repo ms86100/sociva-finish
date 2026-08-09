@@ -1,0 +1,23 @@
+{
+  "project_id": "kkzkuyhgdvyecmxtmkpy",
+  "name": "create-razorpay-order",
+  "entrypoint_path": "functions/create-razorpay-order/index.ts",
+  "verify_jwt": false,
+  "files": [
+    {
+      "name": "functions/create-razorpay-order/index.ts",
+      "bytes": 11496,
+      "sha": "eefab23fe663"
+    },
+    {
+      "name": "functions/_shared/rate-limiter.ts",
+      "bytes": 3732,
+      "sha": "0d25ddbd4aaf"
+    },
+    {
+      "name": "functions/_shared/auth.ts",
+      "bytes": 1311,
+      "sha": "72bb5b1d9f7c"
+    }
+  ]
+}

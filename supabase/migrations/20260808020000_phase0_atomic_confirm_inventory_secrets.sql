@@ -32,6 +32,7 @@ DECLARE
   v_hold jsonb;
   v_loyalty jsonb;
   v_wallet jsonb;
+  v_platform_fee numeric;
   v_net numeric;
   v_already_paid boolean;
 BEGIN
@@ -76,9 +77,23 @@ BEGIN
       CONTINUE;
     END IF;
 
+    v_platform_fee := COALESCE(
+      CASE
+        WHEN v_order.net_amount IS NOT NULL
+          THEN ROUND(COALESCE(v_order.total_amount, 0) - v_order.net_amount, 2)
+      END,
+      ROUND(
+        COALESCE(v_order.total_amount, 0) * COALESCE((
+          SELECT value::numeric
+          FROM public.system_settings
+          WHERE key = 'platform_fee_percent'
+        ), 0) / 100,
+        2
+      )
+    );
     v_net := COALESCE(
       v_order.net_amount,
-      ROUND(COALESCE(v_order.total_amount, 0) - COALESCE(v_order.platform_fee, 0), 2)
+      ROUND(COALESCE(v_order.total_amount, 0) - v_platform_fee, 2)
     );
 
     INSERT INTO public.payment_records (
@@ -87,7 +102,7 @@ BEGIN
       transaction_reference, payment_collection, payment_mode, society_id
     ) VALUES (
       v_id, v_order.buyer_id, v_order.seller_id, v_order.total_amount,
-      COALESCE(v_order.platform_fee, 0), v_net,
+      v_platform_fee, v_net,
       p_razorpay_payment_id, 'paid', 'online',
       p_razorpay_payment_id, 'direct', 'online', v_order.society_id
     )

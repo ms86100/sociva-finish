@@ -1,0 +1,2 @@
+-- ------------------------------------------------------------
+-- 7. Stamp gateway_captured_amount when group is marked paid

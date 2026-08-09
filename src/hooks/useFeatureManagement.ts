@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
+import { adminNotify } from '@/lib/admin-notify';
 import { logAudit } from '@/lib/audit';
 import { friendlyError } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
@@ -90,9 +90,9 @@ export function useFeatureManagement() {
   const createFeature = async () => {
     if (!newFeature.feature_key || !newFeature.feature_name) return;
     const { error } = await supabase.from('platform_features').insert(newFeature);
-    if (error) { toast.error(friendlyError(error)); return; }
+    if (error) { adminNotify.error(friendlyError(error)); return; }
     await logAudit('feature_created', 'platform_feature', '', null, { feature_key: newFeature.feature_key });
-    toast.success('Feature created');
+    adminNotify.success('Feature created');
     setNewFeatureOpen(false);
     setNewFeature({ feature_key: '', feature_name: '', description: '', category: 'operations', is_core: false, society_configurable: true });
     fetchAll();
@@ -107,9 +107,9 @@ export function useFeatureManagement() {
   const createPackage = async () => {
     if (!newPkg.package_name) return;
     const { error } = await supabase.from('feature_packages').insert(newPkg);
-    if (error) { toast.error(friendlyError(error)); return; }
+    if (error) { adminNotify.error(friendlyError(error)); return; }
     await logAudit('package_created', 'feature_package', '', null, { name: newPkg.package_name });
-    toast.success('Package created');
+    adminNotify.success('Package created');
     setNewPkgOpen(false);
     setNewPkg({ package_name: '', description: '', price_tier: 'free' });
     fetchAll();
@@ -140,12 +140,12 @@ export function useFeatureManagement() {
     const { data: { user } } = await supabase.auth.getUser();
     const { error } = await supabase.from('builder_feature_packages').insert({ builder_id: assignBuilder, package_id: assignPackage, assigned_by: user?.id });
     if (error) {
-      if (error.code === '23505') toast.error('Already assigned');
-      else toast.error(friendlyError(error));
+      if (error.code === '23505') adminNotify.error('Already assigned');
+      else adminNotify.error(friendlyError(error));
       return;
     }
     await logAudit('package_assigned_to_builder', 'builder_feature_package', assignBuilder, null, { package_id: assignPackage });
-    toast.success('Package assigned');
+    adminNotify.success('Package assigned');
     setAssignOpen(false); setAssignBuilder(''); setAssignPackage('');
     fetchAll();
   };
@@ -153,7 +153,7 @@ export function useFeatureManagement() {
   const removeAssignment = async (id: string, builderId: string, packageId: string) => {
     await supabase.from('builder_feature_packages').delete().eq('id', id);
     await logAudit('package_removed_from_builder', 'builder_feature_package', builderId, null, { package_id: packageId });
-    toast.success('Assignment removed');
+    adminNotify.success('Assignment removed');
     fetchAll();
   };
 

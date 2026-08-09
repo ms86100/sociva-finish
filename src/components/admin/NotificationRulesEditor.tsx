@@ -5,8 +5,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
-import { toast } from 'sonner';
+import { adminNotify } from '@/lib/admin-notify';
 import { Loader2 } from 'lucide-react';
+import { friendlyError } from '@/lib/utils';
 
 export function NotificationRulesEditor() {
   const { data: rules, isLoading } = useNotificationRules();
@@ -28,10 +29,10 @@ export function NotificationRulesEditor() {
     if (!patch) return;
     try {
       await update.mutateAsync({ id, patch });
-      toast.success('Rule updated');
+      adminNotify.success('Rule updated');
       setDrafts((d) => { const n = { ...d }; delete n[id]; return n; });
     } catch (e: any) {
-      toast.error(e.message || 'Update failed');
+      adminNotify.error(friendlyError(e) || 'Update failed');
     }
   };
 

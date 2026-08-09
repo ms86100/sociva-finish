@@ -63,7 +63,6 @@ export function SmartSuggestionBanner() {
           navigate(`/product/${suggestion.product_id}`);
         } else {
           actMutation.mutate(suggestion.id);
-          toast.success('Order placed successfully!');
           if (data?.orders?.[0]) {
             navigate(`/orders/${data.orders[0]}`);
           }

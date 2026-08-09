@@ -1,0 +1,44 @@
+﻿[
+    {
+        "Function":  "purge-non-admin-data",
+        "Ok":  true,
+        "ExitCode":  0,
+        "Tail":  "Deployed Functions on project kkzkuyhgdvyecmxtmkpy: purge-non-admin-data\r | You can inspect your deployment in the Dashboard: https://supabase.com/dashboard/project/kkzkuyhgdvyecmxtmkpy/functions\r | A new version of Supabase CLI is available: v2.112.0 (currently installed v2.84.2)\r | We recommend updating regularly for new features and bug fixes: \r | https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli"
+    },
+    {
+        "Function":  "process-notification-queue",
+        "Ok":  true,
+        "ExitCode":  0,
+        "Tail":  "Deployed Functions on project kkzkuyhgdvyecmxtmkpy: process-notification-queue\r | You can inspect your deployment in the Dashboard: https://supabase.com/dashboard/project/kkzkuyhgdvyecmxtmkpy/functions\r | A new version of Supabase CLI is available: v2.112.0 (currently installed v2.84.2)\r | We recommend updating regularly for new features and bug fixes: \r | https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli"
+    },
+    {
+        "Function":  "delete-user-complete",
+        "Ok":  true,
+        "ExitCode":  0,
+        "Tail":  "Deployed Functions on project kkzkuyhgdvyecmxtmkpy: delete-user-complete\r | You can inspect your deployment in the Dashboard: https://supabase.com/dashboard/project/kkzkuyhgdvyecmxtmkpy/functions\r | A new version of Supabase CLI is available: v2.112.0 (currently installed v2.84.2)\r | We recommend updating regularly for new features and bug fixes: \r | https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli"
+    },
+    {
+        "Function":  "razorpay-webhook",
+        "Ok":  true,
+        "ExitCode":  0,
+        "Tail":  "Deployed Functions on project kkzkuyhgdvyecmxtmkpy: razorpay-webhook\r | You can inspect your deployment in the Dashboard: https://supabase.com/dashboard/project/kkzkuyhgdvyecmxtmkpy/functions\r | A new version of Supabase CLI is available: v2.112.0 (currently installed v2.84.2)\r | We recommend updating regularly for new features and bug fixes: \r | https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli"
+    },
+    {
+        "Function":  "auto-cancel-orders",
+        "Ok":  true,
+        "ExitCode":  0,
+        "Tail":  "Deployed Functions on project kkzkuyhgdvyecmxtmkpy: auto-cancel-orders\r | You can inspect your deployment in the Dashboard: https://supabase.com/dashboard/project/kkzkuyhgdvyecmxtmkpy/functions\r | A new version of Supabase CLI is available: v2.112.0 (currently installed v2.84.2)\r | We recommend updating regularly for new features and bug fixes: \r | https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli"
+    },
+    {
+        "Function":  "process-settlements",
+        "Ok":  true,
+        "ExitCode":  0,
+        "Tail":  "Deployed Functions on project kkzkuyhgdvyecmxtmkpy: process-settlements\r | You can inspect your deployment in the Dashboard: https://supabase.com/dashboard/project/kkzkuyhgdvyecmxtmkpy/functions\r | A new version of Supabase CLI is available: v2.112.0 (currently installed v2.84.2)\r | We recommend updating regularly for new features and bug fixes: \r | https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli"
+    },
+    {
+        "Function":  "refund-processor",
+        "Ok":  true,
+        "ExitCode":  0,
+        "Tail":  "Deployed Functions on project kkzkuyhgdvyecmxtmkpy: refund-processor\r | You can inspect your deployment in the Dashboard: https://supabase.com/dashboard/project/kkzkuyhgdvyecmxtmkpy/functions\r | A new version of Supabase CLI is available: v2.112.0 (currently installed v2.84.2)\r | We recommend updating regularly for new features and bug fixes: \r | https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli"
+    }
+]

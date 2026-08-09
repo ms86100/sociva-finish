@@ -99,16 +99,16 @@ interface SettingsCacheData {
 
 function buildConfig(sysMap: Record<string, string>, adminMap: Record<string, string>): MarketplaceConfig {
   let fulfillmentLabels = MARKETPLACE_FALLBACKS.fulfillmentLabels;
-  try { if (adminMap.fulfillment_labels) fulfillmentLabels = JSON.parse(adminMap.fulfillment_labels); } catch {}
+  try { if (adminMap.fulfillment_labels) fulfillmentLabels = JSON.parse(adminMap.fulfillment_labels); } catch { /* Keep fallback labels for malformed config. */ }
 
   let spiceEmojiMap = FALLBACK_SPICE;
-  try { if (sysMap.spice_emoji_map) spiceEmojiMap = JSON.parse(sysMap.spice_emoji_map); } catch {}
+  try { if (sysMap.spice_emoji_map) spiceEmojiMap = JSON.parse(sysMap.spice_emoji_map); } catch { /* Keep fallback map for malformed config. */ }
 
   let itemConditionLabels = MARKETPLACE_FALLBACKS.itemConditionLabels;
-  try { if (sysMap.item_condition_labels) itemConditionLabels = JSON.parse(sysMap.item_condition_labels); } catch {}
+  try { if (sysMap.item_condition_labels) itemConditionLabels = JSON.parse(sysMap.item_condition_labels); } catch { /* Keep fallback labels for malformed config. */ }
 
   let rentalPeriodLabels = MARKETPLACE_FALLBACKS.rentalPeriodLabels;
-  try { if (sysMap.rental_period_labels) rentalPeriodLabels = JSON.parse(sysMap.rental_period_labels); } catch {}
+  try { if (sysMap.rental_period_labels) rentalPeriodLabels = JSON.parse(sysMap.rental_period_labels); } catch { /* Keep fallback labels for malformed config. */ }
 
   return {
     lowStockThreshold: sysMap.low_stock_threshold != null ? parseInt(sysMap.low_stock_threshold, 10) : 5,

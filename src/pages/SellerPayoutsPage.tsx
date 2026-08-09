@@ -30,8 +30,9 @@ import { SellerSwitcher } from '@/components/seller/SellerSwitcher';
 const PAGE_SIZE = 50;
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: typeof CheckCircle2 }> = {
-  eligible: { label: 'Eligible — payout pending Route setup', color: 'bg-primary/10 text-primary border-primary/20', icon: Clock },
+  eligible: { label: 'Eligible — provider payout pending', color: 'bg-primary/10 text-primary border-primary/20', icon: Clock },
   settled: { label: 'Paid out', color: 'bg-success/10 text-success border-success/20', icon: CheckCircle2 },
+  settled_unverified: { label: 'Settled internally — transfer unconfirmed', color: 'bg-warning/10 text-warning border-warning/20', icon: AlertCircle },
   processing: { label: 'Transfer in progress', color: 'bg-primary/10 text-primary border-primary/20', icon: Clock },
   pending: { label: 'Pending eligibility', color: 'bg-warning/10 text-warning border-warning/20', icon: Clock },
   on_hold: { label: 'On Hold', color: 'bg-destructive/10 text-destructive border-destructive/20', icon: AlertCircle },
@@ -40,34 +41,19 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: typeof
 async function fetchSettlementTotals(sellerIds: string[]) {
   if (sellerIds.length === 0) return { totalSettled: 0, totalPending: 0 };
 
-  const { data, error } = await supabase.rpc('get_seller_settlement_totals', {
+  const { data, error } = await supabase.rpc('get_seller_financial_summary', {
     p_seller_ids: sellerIds,
   });
-  if (!error && data) {
-    const raw = data as Record<string, unknown>;
-    return {
-      totalSettled: Number(raw.total_settled) || 0,
-      totalPending: Number(raw.total_pending) || 0,
-    };
-  }
-
-  // Fallback if RPC not yet available locally
-  console.warn('[SellerPayouts] settlement totals RPC fallback:', error?.message);
-  let query = supabase.from('seller_settlements').select('net_amount, settlement_status');
-  if (sellerIds.length === 1) query = query.eq('seller_id', sellerIds[0]);
-  else query = query.in('seller_id', sellerIds);
-
-  const { data: rows, error: qErr } = await query;
-  if (qErr) throw qErr;
-
-  let totalSettled = 0;
-  let totalPending = 0;
-  for (const row of rows || []) {
-    const amt = Number(row.net_amount) || 0;
-    if (row.settlement_status === 'settled') totalSettled += amt;
-    else totalPending += amt;
-  }
-  return { totalSettled, totalPending };
+  if (error) throw error;
+  const raw = (data || {}) as Record<string, unknown>;
+  return {
+    totalSettled: Number(raw.paid_out) || 0,
+    totalPending:
+      Number(raw.pending || 0) +
+      Number(raw.available || 0) +
+      Number(raw.reserved || 0) +
+      Number(raw.on_hold || 0),
+  };
 }
 
 export default function SellerPayoutsPage() {
@@ -201,7 +187,7 @@ export default function SellerPayoutsPage() {
         <div className="rounded-xl border border-warning/30 bg-warning/10 px-3 py-3 text-sm">
           <p className="font-medium text-foreground">Ledger only — not a bank payout</p>
           <p className="text-xs text-muted-foreground mt-1">
-            These rows track amounts owed after delivery. Razorpay Route automatic transfers are not enabled, so “Eligible” means payout is pending platform Route setup — money has not been transferred.
+            These rows are seller payables owed after delivery. “Eligible” is not money held in a wallet and does not mean a bank transfer occurred. Only rows with a confirmed provider transfer are shown as paid out.
           </p>
         </div>
 
@@ -211,7 +197,7 @@ export default function SellerPayoutsPage() {
             <CardContent className="p-4 text-center">
               <TrendingUp size={20} className="mx-auto text-success mb-1" />
               <p className="text-xs text-muted-foreground">
-                Actually paid out{isPortfolio ? ' · All stores' : ''}
+                Recorded as settled{isPortfolio ? ' · All stores' : ''}
               </p>
               <p className="text-lg font-bold text-success tabular-nums">{formatPrice(totalSettled)}</p>
             </CardContent>
@@ -231,7 +217,11 @@ export default function SellerPayoutsPage() {
         {settlements.length > 0 ? (
           <div className="space-y-3">
             {settlements.map((s) => {
-              const config = STATUS_CONFIG[s.settlement_status] || STATUS_CONFIG.pending;
+              const statusKey =
+                s.settlement_status === 'settled' && !s.razorpay_transfer_id
+                  ? 'settled_unverified'
+                  : s.settlement_status;
+              const config = STATUS_CONFIG[statusKey] || STATUS_CONFIG.pending;
               const Icon = config.icon;
               const storeName =
                 isPortfolio && s.seller_id
@@ -265,7 +255,7 @@ export default function SellerPayoutsPage() {
                         </div>
                       </div>
                       <div className="text-right space-y-1">
-                        <p className="font-semibold tabular-nums">{formatPrice(s.net_amount || 0)}</p>
+                        <p className="font-semibold tabular-nums">{formatPrice(s.net_amount ?? 0)}</p>
                         <Badge variant="outline" className={`text-[10px] ${config.color}`}>
                           <Icon size={10} className="mr-0.5" />
                           {config.label}

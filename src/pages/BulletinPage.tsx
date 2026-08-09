@@ -16,7 +16,7 @@ import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '@/components/u
 import { supabase } from '@/integrations/supabase/client';
 import { escapeIlike } from '@/lib/query-utils';
 import { useAuth } from '@/contexts/AuthContext';
-import { toast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import { Plus, Search, Loader2, Send, MessageCircle } from 'lucide-react';
 import { useSearchPlaceholder } from '@/hooks/useSearchPlaceholder';
 
@@ -157,7 +157,7 @@ export default function BulletinPage() {
       message: newResponse.trim(),
     });
     if (error) {
-      toast({ title: 'Failed', variant: 'destructive' });
+      toast.error('Failed');
     } else {
       setNewResponse('');
       handleOpenHelp(selectedHelp);
@@ -168,7 +168,7 @@ export default function BulletinPage() {
   const handleMarkFulfilled = async () => {
     if (!selectedHelp) return;
     await supabase.from('help_requests').update({ status: 'fulfilled' }).eq('id', selectedHelp.id);
-    toast({ title: 'Marked as fulfilled!' });
+    toast.success('Marked as fulfilled!');
     setSelectedHelp(null);
     fetchHelpRequests();
   };

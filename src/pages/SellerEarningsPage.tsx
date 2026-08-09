@@ -120,7 +120,7 @@ export default function SellerEarningsPage() {
             <ArrowLeft size={18} className="text-foreground" />
           </Link>
           <h1 className="text-xl font-bold">
-            {isPortfolio ? 'Earnings & Payouts · All stores' : 'Earnings & Payouts'}
+            {isPortfolio ? 'Completed Sales · All stores' : 'Completed Sales'}
           </h1>
         </div>
       </SafeHeader>
@@ -189,7 +189,7 @@ export default function SellerEarningsPage() {
               {payments.map((payment) => {
                 const order = payment.order as any;
                 const statusInfo = getPaymentStatus(payment.payment_status as PaymentStatus);
-                const amount = Number((payment as any).net_amount || payment.amount) || 0;
+                const amount = Number((payment as any).net_amount ?? payment.amount) || 0;
 
                 return (
                   <Card key={payment.id}>

@@ -15,7 +15,7 @@ const Toaster = ({ ...props }: ToasterProps) => {
       visibleToasts={1}
       gap={8}
       closeButton
-      offset={80}
+      offset="calc(4.75rem + var(--app-safe-bottom, 0px))"
       toastOptions={{
         classNames: {
           toast:

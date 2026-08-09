@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { toast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
 import { 
@@ -87,7 +87,7 @@ export function PostDetailSheet({ post, open, onOpenChange, onVote }: PostDetail
       body: newComment.trim(),
     });
     if (error) {
-      toast({ title: 'Failed to comment', variant: 'destructive' });
+      toast.error('Failed to comment');
     } else {
       setNewComment('');
       await fetchComments();
@@ -123,7 +123,7 @@ export function PostDetailSheet({ post, open, onOpenChange, onVote }: PostDetail
     if (!post || !user) return;
     // Check if poll deadline has passed
     if (post.poll_deadline && new Date(post.poll_deadline) < new Date()) {
-      toast({ title: 'Voting has ended', variant: 'destructive' });
+      toast.error('Voting has ended');
       return;
     }
     const { error } = await supabase.from('bulletin_votes').insert({
@@ -134,10 +134,10 @@ export function PostDetailSheet({ post, open, onOpenChange, onVote }: PostDetail
     });
     if (error) {
       if (error.code === '23505') {
-        toast({ title: 'You already voted', variant: 'destructive' });
+        toast.error('You already voted');
       }
     } else {
-      toast({ title: 'Vote recorded!' });
+      toast.success('Vote recorded!');
     }
   };
 
