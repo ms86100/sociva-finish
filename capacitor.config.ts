@@ -100,7 +100,7 @@ const config: CapacitorConfig = {
 
   // Android-specific configuration
   android: {
-    allowMixedContent: isDev,
+    allowMixedContent: true,
     captureInput: true,
     // Keep true through Play internal testing so WebView console is visible in chrome://inspect
     webContentsDebuggingEnabled: true,
