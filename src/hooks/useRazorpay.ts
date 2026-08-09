@@ -313,6 +313,11 @@ export function useRazorpay() {
         },
         // CRITICAL: Enable UPI intent inside Capacitor WebView
         webview_intent: true,
+        // iOS WKWebView blocks window.open() by default — tell Razorpay to use
+        // embedded iframe mode instead of popup so payment never gets "blocked".
+        _: {
+          payment: { redirect: false },
+        },
         method: {
           upi: true,
           card: true,

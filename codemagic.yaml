@@ -364,6 +364,23 @@ workflows:
             /usr/libexec/PlistBuddy -c "Set :NSSupportsLiveActivities true" App/Info.plist
           echo "=== NSSupportsLiveActivities enabled ==="
 
+      - name: Inject Razorpay iOS requirements (UPI schemes + ATS)
+        script: |
+          cd ios/App
+          # LSApplicationQueriesSchemes — lets Razorpay detect installed UPI apps via canOpenURL.
+          # Without this iOS silently returns false for all upi/phonepe/paytm/gpay scheme checks
+          # and Razorpay shows "Payment Blocked" because it thinks no payment app is available.
+          for SCHEME in upi tez phonepe paytmmp; do
+            /usr/libexec/PlistBuddy -c "Add :LSApplicationQueriesSchemes: string $SCHEME" App/Info.plist 2>/dev/null || true
+          done
+          echo "=== LSApplicationQueriesSchemes injected ==="
+          # NSAppTransportSecurity — bank 3DS redirect pages sometimes load HTTP sub-resources.
+          # Without NSAllowsArbitraryLoads WKWebView silently drops those and payment hangs/fails.
+          /usr/libexec/PlistBuddy -c "Add :NSAppTransportSecurity dict" App/Info.plist 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :NSAppTransportSecurity:NSAllowsArbitraryLoads bool true" App/Info.plist 2>/dev/null || \
+            /usr/libexec/PlistBuddy -c "Set :NSAppTransportSecurity:NSAllowsArbitraryLoads true" App/Info.plist
+          echo "=== NSAllowsArbitraryLoads enabled ==="
+
       - name: Inject iOS privacy usage strings
         script: |
           cd ios/App
@@ -1258,6 +1275,18 @@ workflows:
           /usr/libexec/PlistBuddy -c "Add :NSSupportsLiveActivities bool true" App/Info.plist 2>/dev/null || \
             /usr/libexec/PlistBuddy -c "Set :NSSupportsLiveActivities true" App/Info.plist
           echo "=== NSSupportsLiveActivities enabled ==="
+
+      - name: Inject Razorpay iOS requirements (UPI schemes + ATS)
+        script: |
+          cd ios/App
+          for SCHEME in upi tez phonepe paytmmp; do
+            /usr/libexec/PlistBuddy -c "Add :LSApplicationQueriesSchemes: string $SCHEME" App/Info.plist 2>/dev/null || true
+          done
+          echo "=== LSApplicationQueriesSchemes injected ==="
+          /usr/libexec/PlistBuddy -c "Add :NSAppTransportSecurity dict" App/Info.plist 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :NSAppTransportSecurity:NSAllowsArbitraryLoads bool true" App/Info.plist 2>/dev/null || \
+            /usr/libexec/PlistBuddy -c "Set :NSAppTransportSecurity:NSAllowsArbitraryLoads true" App/Info.plist
+          echo "=== NSAllowsArbitraryLoads enabled ==="
 
       - name: Inject iOS privacy usage strings
         script: |
