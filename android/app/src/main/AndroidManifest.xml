@@ -110,6 +110,15 @@
         <meta-data
             android:name="com.transistorsoft.locationmanager.license"
             android:value="${transistorsoftLicense}" />
+
+        <!-- FCM: default notification icon (white silhouette on transparent) -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@drawable/ic_stat_sociva" />
+        <!-- FCM: default notification color -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_color"
+            android:resource="@color/colorPrimary" />
     </application>
 
     <!--
