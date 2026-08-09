@@ -82,12 +82,22 @@ const DeliveryMapView = lazy(() => import('@/components/delivery/DeliveryMapView
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function PaymentConfirmingBanner({ paymentStatus, paymentType }: { paymentStatus?: string | null; paymentType?: string | null }) {
+function PaymentConfirmingBanner({ paymentStatus, paymentType, onCheck, onCancel }: { paymentStatus?: string | null; paymentType?: string | null; onCheck?: () => void; onCancel?: () => void }) {
   const [dots, setDots] = useState('');
+  const [isChecking, setIsChecking] = useState(false);
+  const [showCancel, setShowCancel] = useState(false);
+
   useEffect(() => {
     const i = setInterval(() => setDots(d => d.length >= 3 ? '' : d + '.'), 500);
     return () => clearInterval(i);
   }, []);
+
+  // Show cancel option after 3 minutes of being on this screen
+  useEffect(() => {
+    const t = setTimeout(() => setShowCancel(true), 3 * 60 * 1000);
+    return () => clearTimeout(t);
+  }, []);
+
   const awaitingSeller = paymentStatus === 'buyer_confirmed';
   const isOnline = paymentType === 'online' || paymentType === 'razorpay';
 
@@ -104,6 +114,15 @@ function PaymentConfirmingBanner({ paymentStatus, paymentType }: { paymentStatus
     subtitle = 'Complete your UPI payment and share the UTR number if prompted.';
   }
 
+  const handleCheck = async () => {
+    setIsChecking(true);
+    try {
+      await onCheck?.();
+    } finally {
+      setTimeout(() => setIsChecking(false), 1500);
+    }
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.96 }}
@@ -114,10 +133,17 @@ function PaymentConfirmingBanner({ paymentStatus, paymentType }: { paymentStatus
       <span className="text-2xl">💳</span>
       <p className="text-sm font-semibold text-warning mt-1">{headline}</p>
       <p className="text-xs text-muted-foreground mt-0.5">{subtitle}</p>
-      <Button variant="outline" size="sm" className="mt-3 text-xs font-semibold border-warning/40 text-warning" onClick={() => window.location.reload()}>
-        <RefreshCw size={12} className="mr-1" />
-        Check payment status
+      <Button variant="outline" size="sm" className="mt-3 text-xs font-semibold border-warning/40 text-warning" onClick={handleCheck} disabled={isChecking}>
+        {isChecking ? <Loader2 size={12} className="mr-1 animate-spin" /> : <RefreshCw size={12} className="mr-1" />}
+        {isChecking ? 'Checking...' : 'Check payment status'}
       </Button>
+      {showCancel && onCancel && !awaitingSeller && (
+        <div className="mt-2">
+          <Button variant="ghost" size="sm" className="text-xs text-destructive hover:text-destructive" onClick={onCancel}>
+            Abandon &amp; cancel order
+          </Button>
+        </div>
+      )}
     </motion.div>
   );
 }
@@ -340,6 +366,25 @@ export default function OrderDetailPage() {
       console.warn('[Payment][reconcile] result=call_failed', err);
     });
   }, [orderId, order?.status]);
+
+  const handlePaymentCheck = useCallback(async () => {
+    reconcileAttemptedRef.current = false;
+    o.fetchOrder?.();
+    const razorpayOrderId = (order as any)?.razorpay_order_id;
+    if (!razorpayOrderId || !orderId) return;
+    reconcileAttemptedRef.current = true;
+    await supabase.functions.invoke('confirm-razorpay-payment', {
+      body: { razorpay_payment_id: null, razorpay_order_id: razorpayOrderId, order_ids: [orderId], source: 'manual_check' },
+    }).then(({ error }) => {
+      if (!error) o.fetchOrder?.();
+    }).catch(() => {});
+  }, [orderId, order, o.fetchOrder]);
+
+  const handleAbandonPayment = useCallback(async () => {
+    if (!orderId) return;
+    await supabase.rpc('buyer_cancel_pending_orders' as any, { _order_ids: [orderId] }).catch(() => {});
+    o.fetchOrder?.();
+  }, [orderId, o.fetchOrder]);
 
   // Resilient assignment hydration
   const [assignmentRetryCount, setAssignmentRetryCount] = useState(0);
@@ -718,7 +763,7 @@ export default function OrderDetailPage() {
           )}
 
           {o.isBuyerView && order.status === 'payment_pending' && (
-            <PaymentConfirmingBanner paymentStatus={(order as any).payment_status} paymentType={(order as any).payment_type} />
+            <PaymentConfirmingBanner paymentStatus={(order as any).payment_status} paymentType={(order as any).payment_type} onCheck={handlePaymentCheck} onCancel={handleAbandonPayment} />
           )}
 
           {o.isSellerView && order.auto_cancel_at && !isTerminalStatus(o.flow, order.status) && <UrgentOrderTimer autoCancelAt={order.auto_cancel_at} onTimeout={o.handleTimeout} variant="seller" />}

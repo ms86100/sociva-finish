@@ -67,7 +67,9 @@ export function UpiDeepLinkCheckout({
     return () => { cancelled = true; };
   }, [sellerUpiId]);
 
-  const sellerUpiReady = verification.status === 'valid';
+  // Only the UPI ID itself is required for the deep-link to work.
+  // Verification status is shown as a trust badge but must not block payment.
+  const sellerUpiReady = !!sellerUpiId;
 
   const trustBadge = (() => {
     const s = verification.status;

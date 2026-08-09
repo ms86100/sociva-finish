@@ -321,7 +321,6 @@ export function useCartPage() {
     }
     if (!paymentMode.isRazorpay) {
       if (!seller?.upi_id || !seller?.accepts_upi) return `${group.sellerName} has not set up direct UPI`;
-      if (seller?.upi_verification_status !== 'valid') return `${group.sellerName}’s UPI verification is pending`;
     }
     return `Online payment is unavailable for ${group.sellerName}`;
   }, [acceptsUpi, sellerGroups, resolvedFulfillment, paymentMode]);
@@ -812,8 +811,8 @@ export function useCartPage() {
       if (!paymentMode.isRazorpay) {
         for (const group of sellerGroups) {
           const seller = group.items[0]?.product?.seller as any;
-          if (!seller?.upi_id || seller?.upi_verification_status !== 'valid') {
-            notify.block('This seller does not have a verified UPI account. Choose Cash on Delivery or another store.', { id: `upi-payout-not-ready:${group.sellerId}`, title: 'Seller UPI unavailable' });
+          if (!seller?.upi_id) {
+            notify.block('This seller has not set up a UPI account. Choose Cash on Delivery or another store.', { id: `upi-payout-not-ready:${group.sellerId}`, title: 'Seller UPI unavailable' });
             setIsPlacingOrder(false);
             return;
           }
