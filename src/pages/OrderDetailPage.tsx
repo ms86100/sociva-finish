@@ -82,29 +82,38 @@ const DeliveryMapView = lazy(() => import('@/components/delivery/DeliveryMapView
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function PaymentConfirmingBanner({ paymentStatus }: { paymentStatus?: string | null }) {
-  const [dots, setDots] = useState('');
+function PaymentConfirmingBanner({ paymentStatus, paymentType }: { paymentStatus?: string | null; paymentType?: string | null }) {
+  const [dots, setDots] = useState(‘’);
   useEffect(() => {
-    const i = setInterval(() => setDots(d => d.length >= 3 ? '' : d + '.'), 500);
+    const i = setInterval(() => setDots(d => d.length >= 3 ? ‘’ : d + ‘.’), 500);
     return () => clearInterval(i);
   }, []);
-  const awaitingSeller = paymentStatus === 'buyer_confirmed';
+  const awaitingSeller = paymentStatus === ‘buyer_confirmed’;
+  const isOnline = paymentType === ‘online’ || paymentType === ‘razorpay’;
+
+  let headline: string;
+  let subtitle: string;
+  if (awaitingSeller) {
+    headline = `Awaiting seller confirmation${dots}`;
+    subtitle = ‘Your payment was submitted. The seller must verify before the order is placed.’;
+  } else if (isOnline) {
+    headline = `Verifying payment${dots}`;
+    subtitle = ‘If you completed the payment, it will be confirmed automatically. You can safely close this screen.’;
+  } else {
+    headline = `Waiting for payment${dots}`;
+    subtitle = ‘Complete your UPI payment and share the UTR number if prompted.’;
+  }
+
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.96 }}
       animate={{ opacity: 1, scale: 1 }}
-      transition={{ type: 'spring', stiffness: 200, damping: 20 }}
+      transition={{ type: ‘spring’, stiffness: 200, damping: 20 }}
       className="bg-warning/10 border border-warning/20 rounded-xl p-4 text-center"
     >
       <span className="text-2xl">💳</span>
-      <p className="text-sm font-semibold text-warning mt-1">
-        {awaitingSeller ? `Awaiting seller confirmation${dots}` : `Confirming payment${dots}`}
-      </p>
-      <p className="text-xs text-muted-foreground mt-0.5">
-        {awaitingSeller
-          ? 'Your payment claim was submitted. The seller must verify before the order is placed.'
-          : 'Don’t close this screen — complete UPI confirmation with screenshot and UTR.'}
-      </p>
+      <p className="text-sm font-semibold text-warning mt-1">{headline}</p>
+      <p className="text-xs text-muted-foreground mt-0.5">{subtitle}</p>
       <Button variant="outline" size="sm" className="mt-3 text-xs font-semibold border-warning/40 text-warning" onClick={() => window.location.reload()}>
         <RefreshCw size={12} className="mr-1" />
         Check payment status
@@ -709,7 +718,7 @@ export default function OrderDetailPage() {
           )}
 
           {o.isBuyerView && order.status === 'payment_pending' && (
-            <PaymentConfirmingBanner paymentStatus={(order as any).payment_status} />
+            <PaymentConfirmingBanner paymentStatus={(order as any).payment_status} paymentType={(order as any).payment_type} />
           )}
 
           {o.isSellerView && order.auto_cancel_at && !isTerminalStatus(o.flow, order.status) && <UrgentOrderTimer autoCancelAt={order.auto_cancel_at} onTimeout={o.handleTimeout} variant="seller" />}

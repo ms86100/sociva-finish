@@ -1014,7 +1014,7 @@ export function useCartPage() {
     });
   };
 
-  // Dismiss handler — never auto-cancel; webhook may still confirm after WebView dismiss
+  // Dismiss handler — single check, cancel if unpaid, return to cart cleanly
   const handleRazorpayDismiss = async () => {
     if (razorpaySuccessHandledRef.current) {
       console.log('[Payment] handleRazorpayDismiss suppressed — success already handled');
@@ -1022,27 +1022,33 @@ export function useCartPage() {
       return;
     }
     setShowRazorpayCheckout(false);
+
     if (pendingOrderIds.length > 0) {
-      for (let attempt = 0; attempt < 4; attempt++) {
-        if (await anyOrderPaidOrBuyerConfirmed(pendingOrderIds)) {
-          await clearCartAndCache();
-          clearPaymentSession();
-          navigate(pendingOrderIds.length === 1 ? `/orders/${pendingOrderIds[0]}` : '/orders');
-          setPendingOrderIds([]);
-          return;
-        }
-        if (attempt < 3) await new Promise(r => setTimeout(r, 1500));
+      // Single immediate check — covers the case where webhook confirmed while modal was open
+      if (await anyOrderPaidOrBuyerConfirmed(pendingOrderIds)) {
+        await clearCartAndCache();
+        clearPaymentSession();
+        navigate(pendingOrderIds.length === 1 ? `/orders/${pendingOrderIds[0]}` : '/orders');
+        setPendingOrderIds([]);
+        return;
       }
-      notify.warn(
-        'Checkout closed. If you paid, wait for confirmation in Orders — we will not cancel automatically.',
-        { id: 'razorpay-dismiss-hold', title: 'Check payment status before retrying', priority: 'critical', okLabel: 'View orders' },
-      );
-      navigate(pendingOrderIds.length === 1 ? `/orders/${pendingOrderIds[0]}` : '/orders');
-      return;
+      // Not paid — cancel pending orders so the user returns to a clean cart.
+      // buyer_cancel_pending_orders is safe: it only cancels payment_pending orders,
+      // so a webhook-confirmed paid order is never touched.
+      try {
+        await supabase.rpc('buyer_cancel_pending_orders', { _order_ids: pendingOrderIds });
+      } catch (err) {
+        console.warn('[Payment] dismiss: cancel pending orders failed (non-blocking):', err);
+      }
     }
+
     setPendingOrderIds([]);
     clearPaymentSession();
     idempotencyKeyRef.current = null;
+    toast.info('Payment cancelled. Your cart is saved — tap Place Order to try again.', {
+      id: 'razorpay-dismiss',
+      duration: 4000,
+    });
   };
 
   // ── UPI completion guard: only ONE of success/failed can execute per session ──
