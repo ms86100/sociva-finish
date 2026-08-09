@@ -42,13 +42,17 @@ function applyNativeCheckoutLayout(node: HTMLElement, layout: RazorpayNativeLayo
   node.style.setProperty('background-color', '#fff', 'important');
   node.style.setProperty('box-sizing', 'border-box', 'important');
 
+  // Both Android and iOS: full-screen with platform safe-area insets.
+  // iOS was previously a bottom-sheet (88vh) which hid the Razorpay header
+  // behind the status bar and made the close button inaccessible.
+  node.style.setProperty('top', '0', 'important');
+  node.style.setProperty('bottom', '0', 'important');
+  node.style.setProperty('height', '100%', 'important');
+  node.style.setProperty('max-height', '100%', 'important');
+  node.style.setProperty('border-radius', '0', 'important');
+
   if (layout === 'android-fullscreen') {
-    node.style.setProperty('top', '0', 'important');
-    node.style.setProperty('bottom', '0', 'important');
-    node.style.setProperty('height', '100%', 'important');
-    node.style.setProperty('max-height', '100%', 'important');
-    node.style.setProperty('border-radius', '0', 'important');
-    // One inset only — Capacitor publishes --app-safe-* (env() is unreliable on Android).
+    // Capacitor publishes --app-safe-* CSS vars; env() is unreliable on Android.
     node.style.setProperty('padding-top', 'var(--app-safe-top, 0px)', 'important');
     node.style.setProperty('padding-bottom', 'var(--app-safe-bottom, 0px)', 'important');
     node.style.setProperty('padding-left', '0', 'important');
@@ -56,13 +60,11 @@ function applyNativeCheckoutLayout(node: HTMLElement, layout: RazorpayNativeLayo
     return;
   }
 
-  // iOS bottom-sheet
-  node.style.setProperty('top', 'auto', 'important');
-  node.style.setProperty('bottom', '0', 'important');
-  node.style.setProperty('height', '88vh', 'important');
-  node.style.setProperty('max-height', '88vh', 'important');
-  node.style.setProperty('border-radius', '16px 16px 0 0', 'important');
+  // iOS full-screen: use env() which is reliable in WKWebView.
+  node.style.setProperty('padding-top', 'env(safe-area-inset-top, 44px)', 'important');
   node.style.setProperty('padding-bottom', 'env(safe-area-inset-bottom, 0px)', 'important');
+  node.style.setProperty('padding-left', '0', 'important');
+  node.style.setProperty('padding-right', '0', 'important');
 }
 
 /** Watch for Razorpay-injected overlays and apply native layout patches */

@@ -18,7 +18,6 @@ import { useWalletCredit } from '@/hooks/useWalletCredit';
 import { useDeliveryAddresses } from '@/hooks/useDeliveryAddresses';
 import { hapticImpact, hapticNotification, hapticSelection } from '@/lib/haptics';
 import { toast } from 'sonner';
-import { friendlyError } from '@/lib/utils';
 import { usePushNotifications } from '@/contexts/PushNotificationContext';
 import { notify } from '@/lib/notify';
 import { getString, setString, removeKey } from '@/lib/persistent-kv';
@@ -73,7 +72,7 @@ function savePaymentSession(session: PaymentSession) {
   try {
     setString(PAYMENT_SESSION_KEY, JSON.stringify(session));
   } catch {
-    try { localStorage.setItem(PAYMENT_SESSION_KEY, JSON.stringify(session)); } catch {}
+    try { localStorage.setItem(PAYMENT_SESSION_KEY, JSON.stringify(session)); } catch { /* Persistence is best-effort. */ }
   }
 }
 
@@ -89,16 +88,16 @@ function loadPaymentSession(): PaymentSession | null {
       return null;
     }
     // Migrate legacy sessionStorage-only sessions into durable storage
-    try { sessionStorage.removeItem(PAYMENT_SESSION_KEY); } catch {}
+    try { sessionStorage.removeItem(PAYMENT_SESSION_KEY); } catch { /* Legacy cleanup is best-effort. */ }
     savePaymentSession(session);
     return session;
   } catch { return null; }
 }
 
 function clearPaymentSession() {
-  try { removeKey(PAYMENT_SESSION_KEY); } catch {}
-  try { sessionStorage.removeItem(PAYMENT_SESSION_KEY); } catch {}
-  try { localStorage.removeItem(PAYMENT_SESSION_KEY); } catch {}
+  try { removeKey(PAYMENT_SESSION_KEY); } catch { /* Cleanup is best-effort. */ }
+  try { sessionStorage.removeItem(PAYMENT_SESSION_KEY); } catch { /* Cleanup is best-effort. */ }
+  try { localStorage.removeItem(PAYMENT_SESSION_KEY); } catch { /* Cleanup is best-effort. */ }
 }
 
 /** Recheck all pending orders — never cancel on a single-order paid race. */
@@ -254,7 +253,8 @@ export function useCartPage() {
         } else if (session.paymentMethod === 'razorpay') {
           setPaymentMethod('upi'); // internal state for online payment
           razorpaySuccessHandledRef.current = false;
-          setTimeout(() => setShowRazorpayCheckout(true), 100);
+          // Do not auto-open the modal — the pending-payment banner on the cart
+          // page shows "Continue Payment" / "Cancel" so the user decides.
         }
       } catch (err) {
         console.error('[Recovery] Failed to verify payment session:', err);
@@ -305,6 +305,26 @@ export function useCartPage() {
     const s = g.items[0]?.product?.seller as any;
     return resolvePaymentConfig(s, resolvedFulfillment, paymentMode).acceptsOnline;
   });
+  const onlineDisabledReason = useMemo(() => {
+    if (acceptsUpi) return undefined;
+    const group = sellerGroups.find(g => {
+      const seller = g.items[0]?.product?.seller as any;
+      return !resolvePaymentConfig(seller, resolvedFulfillment, paymentMode).acceptsOnline;
+    });
+    if (!group) return 'Online payment is unavailable for this checkout';
+    const seller = group.items[0]?.product?.seller as any;
+    const config = resolvedFulfillment === 'delivery'
+      ? seller?.delivery_payment_config
+      : seller?.pickup_payment_config;
+    if (config && config.accepts_online === false) {
+      return `${group.sellerName} has disabled online payment for ${resolvedFulfillment === 'delivery' ? 'delivery' : 'pickup'}`;
+    }
+    if (!paymentMode.isRazorpay) {
+      if (!seller?.upi_id || !seller?.accepts_upi) return `${group.sellerName} has not set up direct UPI`;
+      if (seller?.upi_verification_status !== 'valid') return `${group.sellerName}’s UPI verification is pending`;
+    }
+    return `Online payment is unavailable for ${group.sellerName}`;
+  }, [acceptsUpi, sellerGroups, resolvedFulfillment, paymentMode]);
   const hasFulfillmentConflict = sellerGroups.length > 1 && sellerGroups.some(g => {
     const mode = (g.items[0]?.product?.seller as any)?.fulfillment_mode;
     return mode && mode !== 'self_pickup' && !mode.startsWith('pickup_and_') && mode !== fulfillmentType;
@@ -580,24 +600,29 @@ export function useCartPage() {
 
       const stillPending = existingOrders?.filter(o => o.status !== 'cancelled' && o.payment_status !== 'paid' && o.payment_status !== 'buyer_confirmed') as any[];
       if (stillPending && stillPending.length > 0) {
-        toast.error('You have a pending payment. Please complete or cancel it first.', {
+        const continuePayment = await notify.confirm(
+          'An earlier payment is still pending. Continue that payment, or cancel it before creating another order.',
+          {
           id: 'checkout-pending',
-          action: {
-            label: 'Cancel Payment',
-            onClick: async () => {
-              try {
-                const { error: cancelErr } = await supabase.rpc('buyer_cancel_pending_orders', { _order_ids: stillPending.map((o: any) => o.id) });
-                if (cancelErr) throw cancelErr;
-                setPendingOrderIds([]);
-                clearPaymentSession();
-                toast.success('Pending payment cancelled. You can place a new order.', { id: 'checkout-pending-cancelled' });
-              } catch (err) {
-                console.error('Failed to cancel pending orders:', err);
-                toast.error('Could not cancel pending payment. Please try again.', { id: 'checkout-pending-cancel-error' });
-              }
-            },
+            title: 'Payment already in progress',
+            okLabel: 'Continue payment',
+            cancelLabel: 'Cancel pending payment',
+            priority: 'critical',
           },
-        });
+        );
+        if (!continuePayment) {
+          try {
+            const { error: cancelErr } = await supabase.rpc('buyer_cancel_pending_orders', { _order_ids: stillPending.map((o: any) => o.id) });
+            if (cancelErr) throw cancelErr;
+            setPendingOrderIds([]);
+            clearPaymentSession();
+            notify.success('Pending payment cancelled', { id: 'checkout-pending-cancelled' });
+          } catch (err) {
+            console.error('Failed to cancel pending orders:', err);
+            notify.error(err, { id: 'checkout-pending-cancel-error', title: 'Could not cancel the pending payment. Please try again.' });
+          }
+          return;
+        }
         // Re-open the correct payment UI
         setPendingOrderIds(stillPending.map(o => o.id));
         if (paymentMethod === 'upi' && paymentMode.isUpiDeepLink) {
@@ -632,13 +657,13 @@ export function useCartPage() {
         const sellerSupportsPickup = sellerMode === 'self_pickup' || sellerMode.startsWith('pickup_and_');
         const sellerSupportsDelivery = sellerMode !== 'self_pickup';
         if (fulfillmentType === 'self_pickup' && !sellerSupportsPickup) {
-          toast.error(`${group.sellerName} only supports delivery. Switching to delivery.`, { id: 'checkout-fulfillment-mismatch' });
           setFulfillmentType('delivery');
+          notify.info(`${group.sellerName} only supports delivery. Your checkout has been switched to delivery.`, { id: 'checkout-fulfillment-mismatch', title: 'Delivery selected' });
           return;
         }
         if (fulfillmentType === 'delivery' && !sellerSupportsDelivery) {
-          toast.error(`${group.sellerName} only supports self-pickup. Switching to pickup.`, { id: 'checkout-fulfillment-mismatch' });
           setFulfillmentType('self_pickup');
+          notify.info(`${group.sellerName} only supports self-pickup. Your checkout has been switched to pickup.`, { id: 'checkout-fulfillment-mismatch', title: 'Pickup selected' });
           return;
         }
       }
@@ -654,7 +679,7 @@ export function useCartPage() {
         const todayStart = new Date(Date.UTC(istNow.getUTCFullYear(), istNow.getUTCMonth(), istNow.getUTCDate()) - istOffset).toISOString();
         const { count } = await supabase.from('orders').select('id', { count: 'exact', head: true }).eq('seller_id', group.sellerId).gte('created_at', todayStart).not('status', 'in', '("cancelled","payment_pending")');
         if ((count || 0) >= dailyLimit) {
-          toast.error(`${group.sellerName} has reached their daily order limit. Please try again tomorrow.`, { id: 'checkout-daily-limit' });
+          notify.block(`${group.sellerName} has reached today’s order limit. Please try again tomorrow or remove this store from the cart.`, { id: `checkout-daily-limit:${group.sellerId}`, title: 'Store cannot accept more orders' });
           return;
         }
       }
@@ -662,7 +687,7 @@ export function useCartPage() {
 
     for (const group of sellerGroups) {
       const minOrder = (group.items[0]?.product?.seller as any)?.minimum_order_amount;
-      if (minOrder && group.subtotal < minOrder) { toast.error(`${group.sellerName} requires a minimum order of ${formatPrice(minOrder)}. Your current total is ${formatPrice(group.subtotal)}.`, { id: 'checkout-min-order' }); return; }
+      if (minOrder && group.subtotal < minOrder) { notify.block(`Add ${formatPrice(minOrder - group.subtotal)} more from ${group.sellerName} to reach its ${formatPrice(minOrder)} minimum.`, { id: `checkout-min-order:${group.sellerId}`, title: 'Minimum order not reached' }); return; }
     }
 
     setPriceChangeInfo(null);
@@ -673,7 +698,7 @@ export function useCartPage() {
     // All product availability, price, store status, and delivery range checks
     // are now handled server-side in the RPC for atomicity and speed.
 
-    if (paymentMethod === 'cod' && !acceptsCod) { toast.error('This seller does not accept Cash on Delivery. Please select UPI.', { id: 'checkout-no-cod' }); setIsPlacingOrder(false); return; }
+    if (paymentMethod === 'cod' && !acceptsCod) { notify.block('Cash on Delivery is unavailable for one or more stores. Choose Pay Online or remove those stores.', { id: 'checkout-no-cod', title: 'Payment method unavailable' }); setIsPlacingOrder(false); return; }
 
     // Full Sociva Credit (+loyalty) cover: no gateway residual.
     // payment_method=wallet → CMVO commits holds + marks payment_status=paid (SECURITY DEFINER).
@@ -735,14 +760,13 @@ export function useCartPage() {
         queryClient.invalidateQueries({ queryKey: ['wallet-history'] });
         queryClient.setQueryData(['cart-items', user.id], []);
         queryClient.setQueryData(['cart-count', user.id], 0);
-        toast.success('Order placed with Sociva Credit!', { id: 'order-placed-wallet' });
         await navigateAfterCheckout(navigate, orderIds);
         clearCartAndCache().catch(() => {});
         requestFullPermission().catch(() => {});
         supabase.functions.invoke('process-notification-queue').catch(() => {});
       } catch (error: any) {
         console.error('Error placing wallet-only order:', error);
-        toast.error(friendlyError(error), { id: 'checkout-wallet-error' });
+        notify.error(error, { id: 'checkout-wallet-error' });
       } finally {
         setIsPlacingOrder(false);
       }
@@ -755,11 +779,11 @@ export function useCartPage() {
           const s = g.items[0]?.product?.seller as any;
           return !s?.upi_id || s?.upi_verification_status !== 'valid';
         });
-        toast.error(
+        notify.block(
           unmetPayout
             ? 'Seller payout / UPI is not set up. Choose Cash on Delivery or try another seller.'
             : 'Online payment not available',
-          { id: unmetPayout ? 'upi-payout-not-ready' : 'upi-unavailable' },
+          { id: unmetPayout ? 'upi-payout-not-ready' : 'upi-unavailable', title: 'Payment method unavailable' },
         );
         setIsPlacingOrder(false);
         return;
@@ -769,18 +793,18 @@ export function useCartPage() {
         isRazorpay: paymentMode.isRazorpay,
         isUpiDeepLink: paymentMode.isUpiDeepLink,
       })) {
-        toast.error(onlineMultiSellerBlockedMessage(paymentMode.isRazorpay), {
+        notify.block(onlineMultiSellerBlockedMessage(paymentMode.isRazorpay), {
           id: 'online-multi-seller-blocked',
-          duration: 7000,
+          title: 'Checkout stores separately',
         });
         setIsPlacingOrder(false);
         return;
       }
       // Defense in depth: deep-link UPI is always single-VPA
       if (paymentMode.isUpiDeepLink && sellerGroups.length > 1) {
-        toast.error(
+        notify.block(
           'UPI pay works for one seller at a time. Remove other sellers’ items, or pay online (Razorpay) / COD.',
-          { id: 'upi-multi-seller-blocked', duration: 7000 },
+          { id: 'upi-multi-seller-blocked', title: 'UPI cannot split this payment' },
         );
         setIsPlacingOrder(false);
         return;
@@ -789,7 +813,7 @@ export function useCartPage() {
         for (const group of sellerGroups) {
           const seller = group.items[0]?.product?.seller as any;
           if (!seller?.upi_id || seller?.upi_verification_status !== 'valid') {
-            toast.error('Seller payout / UPI is not set up. Choose Cash on Delivery or try another seller.', { id: 'upi-payout-not-ready' });
+            notify.block('This seller does not have a verified UPI account. Choose Cash on Delivery or another store.', { id: `upi-payout-not-ready:${group.sellerId}`, title: 'Seller UPI unavailable' });
             setIsPlacingOrder(false);
             return;
           }
@@ -822,7 +846,7 @@ export function useCartPage() {
       } catch (error: any) {
         console.error('Error creating orders:', error);
         if (error?.code !== 'PRICE_CHANGED') {
-          toast.error(friendlyError(error), { id: 'checkout-create-error' });
+          notify.error(error, { id: 'checkout-create-error' });
         }
       }
       finally { setIsPlacingOrder(false); }
@@ -849,8 +873,6 @@ export function useCartPage() {
       // Optimistically clear cart cache BEFORE navigation to prevent back-button duplicates
       queryClient.setQueryData(['cart-items', user.id], []);
       queryClient.setQueryData(['cart-count', user.id], 0);
-      if (orderIds.length === 1) { toast.success('Order placed successfully!', { id: 'order-placed' }); }
-      else { toast.success(`${orderIds.length} orders placed successfully!`, { id: 'order-placed' }); }
       await navigateAfterCheckout(navigate, orderIds);
       // Background: DB cleanup + trigger notifications (non-blocking)
       clearCartAndCache().catch(() => {});
@@ -859,7 +881,7 @@ export function useCartPage() {
     } catch (error: any) {
       console.error('Error placing order:', error);
       if (error?.code !== 'PRICE_CHANGED') {
-        toast.error(friendlyError(error), { id: 'checkout-error' });
+        notify.error(error, { id: 'checkout-error' });
       }
     }
     finally { setIsPlacingOrder(false); }
@@ -928,7 +950,6 @@ export function useCartPage() {
     // Cleanup AFTER navigation — never claim success or clear cart unless confirm OK
     setTimeout(() => {
       if (confirmOk) {
-        toast.success('Payment successful! Your order is confirmed.', { id: 'razorpay-success' });
         clearPaymentSession();
         // Loyalty + wallet commit happens in confirm-razorpay-payment (server-authoritative)
         if (effectiveLoyaltyDiscount > 0) {
@@ -944,9 +965,9 @@ export function useCartPage() {
         setPendingOrderIds([]);
         clearCartAndCache().catch(() => {});
       } else {
-        toast.error(
+        notify.warn(
           'Payment received but confirmation is still pending. Check Orders — do not pay again until status updates.',
-          { id: 'razorpay-pending', duration: 8000 },
+          { id: 'razorpay-pending', title: 'Do not pay again', priority: 'critical', okLabel: 'View order status' },
         );
         // Keep pending session so buyer can retry confirm / see payment_pending orders
         setPendingOrderIds(orderIds);
@@ -963,12 +984,11 @@ export function useCartPage() {
       return;
     }
     setShowRazorpayCheckout(false);
-    if (!user?.id) { toast.error('Session expired. Please sign in again.', { id: 'checkout-session' }); setPendingOrderIds([]); clearPaymentSession(); return; }
+    if (!user?.id) { notify.block('Your session expired. Sign in again before continuing.', { id: 'checkout-session', title: 'Sign in required' }); setPendingOrderIds([]); clearPaymentSession(); return; }
     if (pendingOrderIds.length > 0) {
       // Poll for webhook / delayed confirm — do NOT auto-cancel (paid-but-cancelled race).
       for (let attempt = 0; attempt < 5; attempt++) {
         if (await anyOrderPaidOrBuyerConfirmed(pendingOrderIds)) {
-          toast.success('Payment verified! Your order is confirmed.', { id: 'razorpay-verified' });
           await clearCartAndCache();
           clearPaymentSession();
           navigate(pendingOrderIds.length === 1 ? `/orders/${pendingOrderIds[0]}` : '/orders');
@@ -977,9 +997,9 @@ export function useCartPage() {
         }
         if (attempt < 4) await new Promise(r => setTimeout(r, 2000));
       }
-      toast.message(
+      notify.warn(
         'Payment not confirmed yet. Check Orders — unpaid orders auto-cancel later. Do not pay twice.',
-        { id: 'razorpay-pending-hold', duration: 8000 },
+        { id: 'razorpay-pending-hold', title: 'Payment verification pending', priority: 'critical', okLabel: 'View orders' },
       );
       navigate(pendingOrderIds.length === 1 ? `/orders/${pendingOrderIds[0]}` : '/orders');
       // Keep session so resume works; server TTL cancels truly unpaid orders.
@@ -1005,7 +1025,6 @@ export function useCartPage() {
     if (pendingOrderIds.length > 0) {
       for (let attempt = 0; attempt < 4; attempt++) {
         if (await anyOrderPaidOrBuyerConfirmed(pendingOrderIds)) {
-          toast.success('Payment verified! Your order is confirmed.', { id: 'razorpay-verified' });
           await clearCartAndCache();
           clearPaymentSession();
           navigate(pendingOrderIds.length === 1 ? `/orders/${pendingOrderIds[0]}` : '/orders');
@@ -1014,9 +1033,9 @@ export function useCartPage() {
         }
         if (attempt < 3) await new Promise(r => setTimeout(r, 1500));
       }
-      toast.message(
+      notify.warn(
         'Checkout closed. If you paid, wait for confirmation in Orders — we will not cancel automatically.',
-        { id: 'razorpay-dismiss-hold', duration: 7000 },
+        { id: 'razorpay-dismiss-hold', title: 'Check payment status before retrying', priority: 'critical', okLabel: 'View orders' },
       );
       navigate(pendingOrderIds.length === 1 ? `/orders/${pendingOrderIds[0]}` : '/orders');
       return;
@@ -1035,7 +1054,6 @@ export function useCartPage() {
     setShowUpiDeepLink(false);
 
     // Buyer self-attest only — order stays payment_pending/buyer_confirmed until seller verifies.
-    toast.message('Payment submitted — waiting for seller confirmation', { id: 'upi-awaiting-seller' });
     clearPaymentSession();
     const dest = pendingOrderIds.length === 1 ? `/orders/${pendingOrderIds[0]}` : '/orders';
     setPendingOrderIds([]);
@@ -1049,7 +1067,7 @@ export function useCartPage() {
     if (upiCompletionRef.current) return;
     upiCompletionRef.current = true;
     setShowUpiDeepLink(false);
-    if (!user?.id) { toast.error('Session expired.', { id: 'checkout-session' }); setPendingOrderIds([]); clearPaymentSession(); return; }
+    if (!user?.id) { notify.block('Your session expired. Sign in again before continuing.', { id: 'checkout-session', title: 'Sign in required' }); setPendingOrderIds([]); clearPaymentSession(); return; }
     if (pendingOrderIds.length > 0) {
       if (await anyOrderPaidOrBuyerConfirmed(pendingOrderIds)) {
         toast.message('Payment already submitted — waiting for seller confirmation', { id: 'upi-awaiting-seller' });
@@ -1060,9 +1078,9 @@ export function useCartPage() {
         return;
       }
       // Do not auto-cancel — buyer may have paid in UPI app; server TTL cleans unpaid.
-      toast.message(
+      notify.warn(
         'UPI not confirmed yet. Finish payment from Orders, or cancel unpaid there. Do not pay twice.',
-        { id: 'upi-failed-hold', duration: 8000 },
+        { id: 'upi-failed-hold', title: 'UPI payment not confirmed', priority: 'critical', okLabel: 'View orders' },
       );
       navigate(pendingOrderIds.length === 1 ? `/orders/${pendingOrderIds[0]}` : '/orders');
       return;
@@ -1091,7 +1109,7 @@ export function useCartPage() {
         await supabase.rpc('buyer_cancel_pending_orders', { _order_ids: ids });
       } catch (err) {
         console.error('Failed to cancel pending orders:', err);
-        toast.error('Could not cancel pending orders. Please try again.', { id: 'clear-pending-fail' });
+        notify.error(err, { id: 'clear-pending-fail', title: 'Could not cancel the pending order. Please try again.' });
         return; // Don't clear local state if DB cancel failed
       }
     }
@@ -1120,13 +1138,6 @@ export function useCartPage() {
           clearPaymentSession();
           setPendingOrderIds([]);
           const dest = ids.length === 1 ? `/orders/${ids[0]}` : '/orders';
-          const awaitingSeller = orders?.some(o => o.payment_status === 'buyer_confirmed');
-          toast.message(
-            awaitingSeller
-              ? 'Payment submitted — waiting for seller confirmation'
-              : 'Payment already confirmed!',
-            { id: awaitingSeller ? 'upi-awaiting-seller' : 'retry-already-paid' },
-          );
           navigate(dest);
           return;
         }
@@ -1184,7 +1195,7 @@ export function useCartPage() {
     appliedCoupon, setAppliedCoupon, showConfirmDialog, setShowConfirmDialog,
     fulfillmentType, setFulfillmentType, orderStep,
     settings, formatPrice, currencySymbol,
-    effectiveDeliveryFee, finalAmount, acceptsCod, acceptsUpi,
+    effectiveDeliveryFee, finalAmount, acceptsCod, acceptsUpi, onlineDisabledReason,
     hasUrgentItem, itemCount, maxPrepTime,
     effectiveCouponDiscount, effectiveLoyaltyDiscount, loyalty,
     effectiveWalletCredit, payableBeforeWallet, wallet,
