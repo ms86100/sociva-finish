@@ -258,11 +258,8 @@ export function CredentialsManager() {
                         description: config.description,
                       }]);
                   try {
-                    const { error } = await supabase.rpc('upsert_admin_credential', {
-                      p_key: config.key,
-                      p_value: newMode,
-                      p_description: config.description,
-                      p_is_active: true,
+                    const { error } = await supabase.rpc('set_payment_gateway_mode' as any, {
+                      p_mode: newMode,
                     });
                     if (error) throw error;
                     await queryClient.invalidateQueries({ queryKey: ['payment-gateway-mode'] });
