@@ -23,6 +23,7 @@ interface UpiDeepLinkCheckoutProps {
   orderId: string;
   amount: number;
   sellerUpiId: string;
+  sellerId: string;
   sellerName: string;
   onPaymentConfirmed: () => void;
   onPaymentFailed: (explicitCancel?: boolean) => void;
@@ -39,6 +40,7 @@ export function UpiDeepLinkCheckout({
   orderId,
   amount,
   sellerUpiId,
+  sellerId,
   sellerName,
   onPaymentConfirmed,
   onPaymentFailed,
@@ -48,7 +50,7 @@ export function UpiDeepLinkCheckout({
   const [verificationLoaded, setVerificationLoaded] = useState(false);
 
   useEffect(() => {
-    if (!sellerUpiId) {
+    if (!sellerId) {
       setVerification({});
       setVerificationLoaded(true);
       return;
@@ -58,14 +60,20 @@ export function UpiDeepLinkCheckout({
     (async () => {
       const { data } = await supabase
         .from('seller_profiles')
-        .select('upi_verification_status, upi_holder_name, upi_verified_at')
-        .eq('upi_id', sellerUpiId)
+        .select('upi_id, upi_verification_status, upi_holder_name, upi_verified_at')
+        .eq('id', sellerId)
         .maybeSingle();
-      if (!cancelled && data) setVerification({ status: (data as any).upi_verification_status, holder: (data as any).upi_holder_name, verifiedAt: (data as any).upi_verified_at });
+      if (!cancelled && data) {
+        setVerification({
+          status: (data as any).upi_verification_status,
+          holder: (data as any).upi_holder_name,
+          verifiedAt: (data as any).upi_verified_at
+        });
+      }
       if (!cancelled) setVerificationLoaded(true);
     })();
     return () => { cancelled = true; };
-  }, [sellerUpiId]);
+  }, [sellerId]);
 
   // UPI checkout is blocked if:
   // 1. No UPI ID is set up for the seller, OR

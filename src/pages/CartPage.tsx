@@ -796,6 +796,7 @@ export default function CartPage() {
           orderId={c.pendingOrderIds[0]}
           amount={c.sessionAmount || c.finalAmount}
           sellerUpiId={(c.sellerGroups[0]?.items[0]?.product?.seller as any)?.upi_id || c.sessionSellerUpiId}
+          sellerId={c.sellerGroups[0]?.sellerId}
           sellerName={c.sellerGroups[0]?.sellerName || c.sessionSellerName}
           onPaymentConfirmed={c.handleUpiDeepLinkSuccess}
           onPaymentFailed={c.handleUpiDeepLinkFailed}

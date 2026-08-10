@@ -17,7 +17,8 @@
       "Bash(npx cap *)",
       "Bash(./gradlew assembleRelease)",
       "Bash(xargs grep -l \"razorpay\\\\|upi\\\\|payment\")",
-      "Bash(git commit -m 'fix: eliminate Deep UPI cancel loop, fix UPI web popup, expose raw COD error *)"
+      "Bash(git commit -m 'fix: eliminate Deep UPI cancel loop, fix UPI web popup, expose raw COD error *)",
+      "Bash(git commit -m 'chore: bump Android APK to v2.0.22 with payment fixes *)"
     ]
   },
   "enableAllProjectMcpServers": true,
