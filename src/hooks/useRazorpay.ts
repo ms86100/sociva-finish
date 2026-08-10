@@ -99,8 +99,8 @@ function startSafeAreaObserver(onDetected?: () => void) {
     attributeFilter: ['style'],
   });
 
-  // Also patch any already-present high z-index children (race condition guard)
-  document.body.querySelectorAll<HTMLElement>(':scope > div').forEach(patchNode);
+  // Also patch any already-present elements (race condition guard)
+  document.body.querySelectorAll<HTMLElement>('div').forEach(patchNode);
 }
 
 function stopSafeAreaObserver() {
@@ -226,6 +226,26 @@ export function useRazorpay() {
   }, [cleanupOpenAttempt]);
 
   const createOrder = useCallback(async (options: RazorpayOptions) => {
+    // Duplicate payment protection: check if order already has a successful payment
+    const { data: existingOrder, error: orderError } = await supabase
+      .from('orders')
+      .select('payment_status, razorpay_payment_id')
+      .eq('id', options.orderId)
+      .single();
+
+    if (orderError) {
+      console.error('Failed to fetch order for duplicate payment check:', orderError);
+      // Continue with payment creation if we can't check (fail open for payment attempts)
+    } else if (
+      existingOrder.payment_status === 'paid' ||
+      existingOrder.payment_status === 'buyer_confirmed' ||
+      (existingOrder.razorpay_payment_id && existingOrder.payment_status !== 'failed')
+    ) {
+      toast.error('A payment has already been processed for this order');
+      setIsLoading(false);
+      return;
+    }
+
     if (!isScriptLoaded) {
       if (scriptError) {
         // Retry loading script
@@ -429,18 +449,27 @@ export function useRazorpay() {
           options.onFailure({ code: 'POPUP_BLOCKED', description: 'Payment window could not open. Try again from the published app.' });
         }, 3500);
 
-        // Delayed re-sweeps to catch late-injected elements (native only)
-        if (nativeLayout) {
-          const sweep = () => document.body.querySelectorAll<HTMLElement>(':scope > div').forEach((el) => {
+        // Delayed re-sweeps to catch late-injected elements
+        const sweep = () => {
+          // Check all div elements for Razorpay container (broad but safe with isLikelyRazorpayNode check)
+          document.body.querySelectorAll<HTMLElement>('div').forEach((el) => {
             if (isLikelyRazorpayNode(el)) {
               markModalDetected();
               applyNativeCheckoutLayout(el, nativeLayout);
             }
           });
-          setTimeout(sweep, 100);
-          setTimeout(sweep, 500);
-          setTimeout(sweep, 1000);
-        }
+        };
+        // Run sweeps at increasing intervals up to 30 seconds to catch late injections
+        setTimeout(sweep, 100);
+        setTimeout(sweep, 250);
+        setTimeout(sweep, 500);
+        setTimeout(sweep, 1000);
+        setTimeout(sweep, 2000);
+        setTimeout(sweep, 4000);
+        setTimeout(sweep, 8000);
+        setTimeout(sweep, 12000);
+        setTimeout(sweep, 18000);
+        setTimeout(sweep, 25000);
       });
     } catch (error: any) {
       console.error('Razorpay error:', error);

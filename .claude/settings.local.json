@@ -1,10 +1,27 @@
 {
+  "env": {
+    "ANTHROPIC_BASE_URL": "http://127.0.0.1:8082",
+    "ANTHROPIC_AUTH_TOKEN": "freecc"
+  },
   "permissions": {
     "allow": [
-      "Bash(supabase db *)",
-      "Bash(git *)",
-      "Bash(node -e \"const p=require\\('./package.json'\\); console.log\\(JSON.stringify\\({scripts:p.scripts,version:p.version},null,2\\)\\)\")",
-      "Bash(xargs grep *)"
+      "Bash(xargs grep -l \"confirm_captured_payment_group\")",
+      "Bash(xargs grep -l \"confirm_orders_after_razorpay_payment\")",
+      "Bash(xargs grep -l -i \"razorpay.*webhook\\\\|webhook.*razorpay\")",
+      "Bash(xargs grep -l \"record_payment_attempt_failure\")",
+      "Bash(xargs grep -l \"PaymentConfirmingBanner\")",
+      "Bash(xargs grep -l \"verify_seller_payment\")",
+      "Bash(xargs grep -l -i \"android\\\\|capacitor\")",
+      "Bash(npm --version)",
+      "Bash(npm run *)",
+      "Bash(npx cap *)",
+      "Bash(./gradlew assembleRelease)",
+      "Bash(xargs grep -l \"razorpay\\\\|upi\\\\|payment\")",
+      "Bash(git commit -m 'fix: eliminate Deep UPI cancel loop, fix UPI web popup, expose raw COD error *)"
     ]
-  }
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "supabase"
+  ]
 }

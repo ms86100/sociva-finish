@@ -35,7 +35,7 @@ export interface BuilderMember {
   created_at: string;
 }
 export type VerificationStatus = 'pending' | 'approved' | 'rejected' | 'suspended' | 'draft';
-export type OrderStatus = 'placed' | 'accepted' | 'preparing' | 'ready' | 'picked_up' | 'delivered' | 'completed' | 'cancelled' | 'enquired' | 'quoted' | 'scheduled' | 'in_progress' | 'returned' | 'on_the_way' | 'arrived' | 'assigned' | 'requested' | 'confirmed' | 'rescheduled' | 'no_show' | 'at_gate' | 'payment_pending' | 'awaiting_cod_confirmation' | 'failed' | 'buyer_received' | 'pending' | 'rejected' | 'en_route';
+export type OrderStatus = 'placed' | 'accepted' | 'preparing' | 'ready' | 'picked_up' | 'delivered' | 'completed' | 'cancelled' | 'enquired' | 'quoted' | 'scheduled' | 'in_progress' | 'returned' | 'on_the_way' | 'arrived' | 'assigned' | 'requested' | 'confirmed' | 'rescheduled' | 'no_show' | 'at_gate' | 'payment_pending' | 'awaiting_cod_confirmation' | 'failed' | 'buyer_received' | 'pending' | 'rejected' | 'en_route' | 'expired';
 // ProductCategory is now an alias to ServiceCategory for backward compatibility
 export type ProductCategory = ServiceCategory;
 export type PaymentMethod = 'cod' | 'upi';
@@ -345,6 +345,7 @@ const ORDER_STATUS_MAP: Record<string, { label: string; color: string }> = {
   at_gate: { label: 'At Gate', color: 'bg-cyan-100 text-cyan-800' },
   payment_pending: { label: 'Complete payment', color: 'bg-amber-100 text-amber-800' },
   awaiting_cod_confirmation: { label: 'Confirm cash payment', color: 'bg-amber-100 text-amber-800' },
+  expired: { label: 'Expired', color: 'bg-red-100 text-red-800' },
 };
 
 const UNKNOWN_STATUS = { label: 'Unknown', color: 'bg-gray-100 text-gray-600' };

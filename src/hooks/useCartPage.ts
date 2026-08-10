@@ -765,7 +765,11 @@ export function useCartPage() {
         supabase.functions.invoke('process-notification-queue').catch(() => {});
       } catch (error: any) {
         console.error('Error placing wallet-only order:', error);
-        notify.error(error, { id: 'checkout-wallet-error' });
+        // Extract actual RPC error message instead of letting friendlyError sanitize it
+        const rawMessage = error?.message ?? error?.details ?? error?.hint ?? String(error);
+        const isTechnical = rawMessage.startsWith('{') || rawMessage.includes('rpc') || rawMessage.includes('P0001');
+        const displayMessage = isTechnical ? friendlyError(error) : rawMessage;
+        notify.error(displayMessage, { id: 'checkout-wallet-error' });
       } finally {
         setIsPlacingOrder(false);
       }
@@ -844,9 +848,11 @@ export function useCartPage() {
         }
       } catch (error: any) {
         console.error('Error creating orders:', error);
-        if (error?.code !== 'PRICE_CHANGED') {
-          notify.error(error, { id: 'checkout-create-error' });
-        }
+        // Extract actual RPC error message instead of letting friendlyError sanitize it
+        const rawMessage = error?.message ?? error?.details ?? error?.hint ?? String(error);
+        const isTechnical = rawMessage.startsWith('{') || rawMessage.includes('rpc') || rawMessage.includes('P0001');
+        const displayMessage = isTechnical ? friendlyError(error) : rawMessage;
+        notify.error(displayMessage, { id: 'checkout-create-error' });
       }
       finally { setIsPlacingOrder(false); }
       return;
@@ -878,10 +884,12 @@ export function useCartPage() {
       requestFullPermission().catch(() => {});
       supabase.functions.invoke('process-notification-queue').catch(() => {});
     } catch (error: any) {
-      console.error('Error placing order:', error);
-      if (error?.code !== 'PRICE_CHANGED') {
-        notify.error(error, { id: 'checkout-error' });
-      }
+      console.error('Error placing COD order:', error);
+      // Extract actual RPC error message instead of letting friendlyError sanitize it
+      const rawMessage = error?.message ?? error?.details ?? error?.hint ?? String(error);
+      const isTechnical = rawMessage.startsWith('{') || rawMessage.includes('rpc') || rawMessage.includes('P0001');
+      const displayMessage = isTechnical ? friendlyError(error) : rawMessage;
+      notify.error(displayMessage, { id: 'checkout-error' });
     }
     finally { setIsPlacingOrder(false); }
   };
@@ -1065,7 +1073,7 @@ export function useCartPage() {
     supabase.functions.invoke('process-notification-queue').catch(() => {});
   };
 
-  const handleUpiDeepLinkFailed = async () => {
+  const handleUpiDeepLinkFailed = async (explicitCancel?: boolean) => {
     if (upiCompletionRef.current) return;
     upiCompletionRef.current = true;
     setShowUpiDeepLink(false);
@@ -1079,7 +1087,19 @@ export function useCartPage() {
         setPendingOrderIds([]);
         return;
       }
-      // Do not auto-cancel — buyer may have paid in UPI app; server TTL cleans unpaid.
+      // Explicit user cancel: hard-cancel the orders in DB immediately
+      if (explicitCancel) {
+        try {
+          await supabase.rpc('buyer_cancel_pending_orders', { _order_ids: pendingOrderIds });
+        } catch (err) {
+          console.warn('[UPI] explicit cancel: failed to cancel pending orders:', err);
+        }
+        setPendingOrderIds([]);
+        clearPaymentSession();
+        toast.info('Payment cancelled. Your cart is saved.', { id: 'upi-cancelled', duration: 3000 });
+        return;
+      }
+      // Non-explicit (app-switch, timeout, dismiss): do not auto-cancel — buyer may have paid in UPI app; server TTL cleans unpaid.
       notify.warn(
         'UPI not confirmed yet. Finish payment from Orders, or cancel unpaid there. Do not pay twice.',
         { id: 'upi-failed-hold', title: 'UPI payment not confirmed', priority: 'critical', okLabel: 'View orders' },

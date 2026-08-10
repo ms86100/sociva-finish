@@ -484,7 +484,7 @@ Deno.serve(async (req) => {
       const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
       const { data: orphans, error: orphanErr } = await supabase
         .from("notification_queue")
-        .select("id, user_id, title, body, type, reference_path, payload, created_at, action_required, action_completed, event_created_at")
+        .select("id, user_id, title, body, type, reference_path, payload, created_at")
         .eq("status", "failed")
         .lt("processed_at", oneHourAgo)
         .gt("created_at", twentyFourHoursAgo)  // hard upper bound — never redeliver stale events
@@ -496,36 +496,28 @@ Deno.serve(async (req) => {
       try {
         const { data: expiredOrphans } = await supabase
           .from("notification_queue")
-          .select("id, user_id, title, body, type, reference_path, payload, action_required, action_completed, event_created_at")
+          .select("id, user_id, title, body, type, reference_path, payload")
           .eq("status", "failed")
           .lte("created_at", twentyFourHoursAgo);
 
         if (expiredOrphans && expiredOrphans.length > 0) {
-            // Write historical in-app record - only suppress as read if no action required or already completed
-
-            const shouldArchiveAsRead = !expired.action_required || expired.action_completed !== null;
-
+          for (const expired of expiredOrphans) {
+            // Write historical in-app record (is_read=true = no badge, no alert).
             await supabase.from("user_notifications").insert({
-
               user_id: expired.user_id, title: expired.title, body: expired.body,
-
               type: expired.type,
-
               reference_path: expired.reference_path, action_url: expired.reference_path,
-
               queue_item_id: expired.id,
-
               payload: expired.payload || null, data: expired.payload || null,
-
-              is_read: shouldArchiveAsRead,
-
+              is_read: true,
             }).then(() => {}).catch(() => {});  // 23505 conflict = already exists, fine
-
             await supabase.from("notification_queue")
-
               .update({ status: "processed", processed_at: new Date().toISOString(), last_error: "Orphan: expired >24h, archived to history" })
-
               .eq("id", expired.id);
+          }
+          console.log(`[PNQ] Archived ${expiredOrphans.length} expired (>24h) orphans to history`);
+        }
+      } catch { /* best-effort */ }
 
       if (orphans && orphans.length > 0) {
         const orphanIds = orphans.map((o: any) => o.id);
@@ -544,7 +536,25 @@ Deno.serve(async (req) => {
             recoveredCount++;
             continue;
           }
-// Orphan deliveries: only mark as read if no action required or already completed          const ageMs = Date.now() - new Date(orphan.created_at).getTime();          const isOldOrphan = ageMs > 4 * 60 * 60 * 1000; // older than 4 hours          const shouldBeRead = isOldOrphan && (!orphan.action_required || orphan.action_completed !== null);          const { error: insertErr } = await supabase.from("user_notifications").insert({            user_id: orphan.user_id, title: orphan.title, body: orphan.body,            type: orphan.type,            reference_path: orphan.reference_path, action_url: orphan.reference_path,            queue_item_id: orphan.id,            payload: orphan.payload || null, data: orphan.payload || null,            is_read: shouldBeRead,  // Only silently archive if no action required OR action already completed          });          if (!insertErr || insertErr.code === '23505') {            await supabase.from("notification_queue")              .update({ status: "processed", processed_at: new Date().toISOString(), last_error: "Orphan recovery: auto-delivered as in-app" })              .eq("id", orphan.id);            recoveredCount++;          }
+          // Orphan deliveries are always marked is_read=true — they are historical catch-ups,
+          // not fresh events, and must not inflate the unread badge or ring the bell.
+          const ageMs = Date.now() - new Date(orphan.created_at).getTime();
+          const isOldOrphan = ageMs > 4 * 60 * 60 * 1000; // older than 4 hours
+          const { error: insertErr } = await supabase.from("user_notifications").insert({
+            user_id: orphan.user_id, title: orphan.title, body: orphan.body,
+            type: orphan.type,
+            reference_path: orphan.reference_path, action_url: orphan.reference_path,
+            queue_item_id: orphan.id,
+            payload: orphan.payload || null, data: orphan.payload || null,
+            is_read: isOldOrphan,  // historical orphans go in silently as already-read
+          });
+          if (!insertErr || insertErr.code === '23505') {
+            await supabase.from("notification_queue")
+              .update({ status: "processed", processed_at: new Date().toISOString(), last_error: "Orphan recovery: auto-delivered as in-app" })
+              .eq("id", orphan.id);
+            recoveredCount++;
+          }
+        }
         console.log(`[PNQ] Orphan recovery complete: ${recoveredCount}/${orphans.length}`);
       }
     } catch (e) {
@@ -648,45 +658,17 @@ Deno.serve(async (req) => {
 
     for (const item of pending) {
       try {
-        // TTL-expired: push is suppressed but check if action is still required
-
+        // TTL-expired: push is suppressed but the EVENT must still exist in history.
+        // Write an is_read=true in-app record so the event appears in the order timeline,
+        // then discard the push. This preserves "what happened" while preventing a stale ring.
         if (item.expires_at && new Date(item.expires_at) < new Date()) {
-
-          // Only suppress push and archive as read if no action required or action already completed
-
-          const shouldSuppressAndArchive = !item.action_required || item.action_completed !== null;
-
-          
-
           await supabase.from("user_notifications").insert({
-
             user_id: item.user_id, title: item.title, body: item.body,
-
             type: item.type,
-
             reference_path: item.reference_path, action_url: item.reference_path,
-
             queue_item_id: item.id,
-
             payload: item.payload || null, data: item.payload || null,
-
-            is_read: shouldSuppressAndArchive,  // Only archive as read if no action needed
-
-          }).then(() => {}).catch(() => {});  // best-effort, 23505 conflict is fine
-
-          await supabase.from("notification_queue")
-
-            .update({ status: "processed", processed_at: new Date().toISOString(), push_skip_reason: "expired" })
-
-            .eq("id", item.id);
-
-          processed++;
-
-          console.log(`[Queue][${item.id}] TTL expired: archived to history, push suppressed`);
-
-          continue;
-
-        }
+            is_read: true,  // historical — push never sent, no alert, no badge increment
           }).then(() => {}).catch(() => {});  // best-effort, 23505 conflict is fine
           await supabase.from("notification_queue")
             .update({ status: "processed", processed_at: new Date().toISOString(), push_skip_reason: "expired" })
@@ -759,45 +741,37 @@ Deno.serve(async (req) => {
         const payloadStatus = item.payload?.status || item.payload?.new_status;
         if (isOrderNotif && payloadOrderId) {
           const ageMs = Date.now() - new Date(item.created_at).getTime();
-          // Guards: staleness + terminal-state + state-mismatch - now respecting action completion
-          const isOrderNotif = ["order_status", "order", "order_update"].includes(item.type);
-          const payloadOrderId = item.payload?.orderId || item.payload?.order_id;
-          const payloadStatus = item.payload?.status || item.payload?.new_status;
-          if (isOrderNotif && payloadOrderId) {
-            const ageMs = Date.now() - new Date(item.created_at).getTime();
-            // Only treat as stale for push suppression if action is not required OR already completed
-            const isStaleForPushSuppression = ageMs > 4 * 60 * 60 * 1000 && (!item.action_required || item.action_completed !== null);
-            const { data: orderCheck } = await supabase
-              .from("orders").select("status").eq("id", payloadOrderId).single();
-            if (orderCheck) {
-              const terminalStatuses = ["delivered", "completed", "cancelled", "no_show", "rejected", "returned", "failed"];
-              const isTerminal = terminalStatuses.includes(orderCheck.status);
-              const isStateMismatch = payloadStatus && payloadStatus !== orderCheck.status;
-              const isNewOrderNotif = ["placed", "enquired", "requested"].includes(payloadStatus);
-              // Skip push if: (stale AND terminal) OR state mismatch, BUT only if action is not required or already completed
-              const shouldSkipPush = (((isStaleForPushSuppression && isTerminal) || isStateMismatch) && !isNewOrderNotif &&
-                (!item.action_required || item.action_completed !== null));
-              
-              if (shouldSkipPush) {
-                await supabase.from("user_notifications").insert({
-                  user_id: item.user_id, title: item.title, body: item.body,
-                  type: item.type,
-                  reference_path: item.reference_path, action_url: item.reference_path,
-                  queue_item_id: item.id,
-                  payload: item.payload, data: item.payload,
-                  is_read: true,  // For skipped pushes, mark as read only if no action needed
-                });
-                await supabase.from("notification_queue")
-                  .update({
-                    status: "processed", processed_at: new Date().toISOString(),
-                    push_attempted: false, push_skip_reason: "stale_or_terminal",
-                  }).eq("id", item.id);
-                processed++;
-                console.log(`[Queue][${item.id}] Skipped push: stale/terminal/mismatch`);
-                continue;
-              }
+          // Anything older than 4 hours is treated as stale regardless of terminal state —
+          // it must not ring the bell or fire a push as if the event just happened.
+          const isStale = ageMs > 4 * 60 * 60 * 1000;
+          const { data: orderCheck } = await supabase
+            .from("orders").select("status").eq("id", payloadOrderId).single();
+          if (orderCheck) {
+            const terminalStatuses = ['delivered', 'completed', 'cancelled', 'no_show', 'rejected', 'returned', 'failed'];
+            const isTerminal = terminalStatuses.includes(orderCheck.status);
+            const isStateMismatch = payloadStatus && payloadStatus !== orderCheck.status;
+            const isNewOrderNotif = ['placed', 'enquired', 'requested'].includes(payloadStatus);
+            if (((isStale && isTerminal) || isStateMismatch) && !isNewOrderNotif) {
+              await supabase.from("user_notifications").insert({
+                user_id: item.user_id, title: item.title, body: item.body,
+                type: item.type,
+                reference_path: item.reference_path, action_url: item.reference_path,
+                queue_item_id: item.id,
+                payload: item.payload, data: item.payload,
+                is_read: true,
+              });
+              await supabase.from("notification_queue")
+                .update({
+                  status: "processed", processed_at: new Date().toISOString(),
+                  push_attempted: false, push_skip_reason: "stale_or_terminal",
+                }).eq("id", item.id);
+              processed++;
+              console.log(`[Queue][${item.id}] Skipped push: stale/terminal/mismatch`);
+              continue;
             }
           }
+        }
+
         // Insert in-app notification (with dedup via queue_item_id) — write both column pairs
         const { error: insertError } = await supabase.from("user_notifications").insert({
           user_id: item.user_id, title: item.title, body: item.body,

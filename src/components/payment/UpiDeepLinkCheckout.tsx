@@ -25,7 +25,7 @@ interface UpiDeepLinkCheckoutProps {
   sellerUpiId: string;
   sellerName: string;
   onPaymentConfirmed: () => void;
-  onPaymentFailed: () => void;
+  onPaymentFailed: (explicitCancel?: boolean) => void;
 }
 
 type CheckoutStep = 'pay' | 'confirm' | 'done' | 'failed' | 'blocked';
@@ -67,9 +67,10 @@ export function UpiDeepLinkCheckout({
     return () => { cancelled = true; };
   }, [sellerUpiId]);
 
-  // Only the UPI ID itself is required for the deep-link to work.
-  // Verification status is shown as a trust badge but must not block payment.
-  const sellerUpiReady = !!sellerUpiId;
+  // UPI checkout is blocked if:
+  // 1. No UPI ID is set up for the seller, OR
+  // 2. The seller's UPI is not verified or verification has expired
+  const sellerUpiReady = !!sellerUpiId && verification.status === 'valid' && !(verification.verifiedAt && (Date.now() - new Date(verification.verifiedAt).getTime() > 30 * 24 * 3600 * 1000));
 
   const trustBadge = (() => {
     const s = verification.status;
@@ -181,6 +182,7 @@ export function UpiDeepLinkCheckout({
   const openUpiIntent = async (url: string) => {
     // Prefer Capacitor Browser on native (package visibility + intent handoff).
     // Fall back to location assign (works better than window.open for custom schemes in WebView).
+    // On web, use window.open in new tab - works for detected UPI apps via intent routing on mobile browsers.
     try {
       const { Capacitor } = await import('@capacitor/core');
       if (Capacitor.isNativePlatform()) {
@@ -194,8 +196,14 @@ export function UpiDeepLinkCheckout({
         window.location.href = url;
         return;
       }
-    } catch { /* web */ }
-    const opened = window.open(url, '_blank');
+      // Web: Best effort - try to open in new tab (some mobile browsers handle intent://)
+      const opened = window.open(url, '_blank', 'noopener,noreferrer');
+      if (!opened) {
+        window.location.href = url;
+      }
+      return;
+    } catch { /* web / non-capacitor */ }
+    const opened = window.open(url, '_blank', 'noopener,noreferrer');
     if (!opened) window.location.href = url;
   };
 
@@ -235,6 +243,27 @@ export function UpiDeepLinkCheckout({
     if (!canSubmitProof) return;
     // Idempotency guard: prevent double-submission on app-switch
     if (confirmSubmittedRef.current) return;
+
+    // Duplicate payment protection: check if order already has a successful payment
+    const { data: existingOrder, error: orderError } = await supabase
+      .from('orders')
+      .select('payment_status')
+      .eq('id', orderId)
+      .single();
+
+    if (orderError) {
+      console.error('Failed to fetch order for duplicate payment check:', orderError);
+      // Continue with payment confirmation if we can't check (fail open for payment attempts)
+    } else if (
+      existingOrder.payment_status === 'paid' ||
+      existingOrder.payment_status === 'buyer_confirmed'
+    ) {
+      toast.error('A payment has already been processed for this order');
+      confirmSubmittedRef.current = false; // Allow retry on failure
+      setIsSubmitting(false);
+      return;
+    }
+
     confirmSubmittedRef.current = true;
     setProofError('');
     setIsSubmitting(true);
@@ -320,7 +349,7 @@ export function UpiDeepLinkCheckout({
 
   const handleCancelOrder = () => {
     try { removeKey(UPI_STEP_KEY); removeKey(UPI_OPENED_APP_KEY); } catch { /* Cleanup is best-effort. */ }
-    onPaymentFailed();
+    onPaymentFailed(true); // explicit cancel
     onClose();
   };
 

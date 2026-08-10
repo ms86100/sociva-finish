@@ -178,7 +178,10 @@ export function RazorpayCheckout({
           </DrawerDescription>
         </DrawerHeader>
 
-        <div className="py-6 px-4 overflow-y-auto" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
+        <div className="px-4 overflow-y-auto" style={{
+          paddingTop: 'max(1.5rem, env(safe-area-inset-top))',
+          paddingBottom: 'max(1rem, env(safe-area-inset-bottom))'
+        }}>
           {status === 'pending' && (
             <div className="text-center space-y-6">
               <div className="w-20 h-20 mx-auto rounded-full bg-primary/10 flex items-center justify-center">

@@ -85,13 +85,14 @@ const DeliveryMapView = lazy(() => import('@/components/delivery/DeliveryMapView
 type PaymentCheckResult = 'not_captured' | 'captured' | null;
 
 function PaymentConfirmingBanner({
-  paymentStatus, paymentType, lastFailedAt, onCheck, onCancel,
+  paymentStatus, paymentType, lastFailedAt, onCheck, onCancel, checkCount = 0,
 }: {
   paymentStatus?: string | null;
   paymentType?: string | null;
   lastFailedAt?: string | null;
   onCheck?: () => Promise<PaymentCheckResult>;
   onCancel?: () => void;
+  checkCount?: number;
 }) {
   const [dots, setDots] = useState('');
   const [isChecking, setIsChecking] = useState(false);
@@ -166,10 +167,37 @@ function PaymentConfirmingBanner({
       <p className={`text-sm font-semibold mt-1 ${textClass}`}>{headline}</p>
       <p className="text-xs text-muted-foreground mt-0.5">{subtitle}</p>
       {!awaitingSeller && (
-        <Button variant="outline" size="sm" className={`mt-3 text-xs font-semibold ${btnClass}`} onClick={handleCheck} disabled={isChecking}>
-          {isChecking ? <Loader2 size={12} className="mr-1 animate-spin" /> : <RefreshCw size={12} className="mr-1" />}
-          {isChecking ? 'Checking...' : 'Check payment status'}
-        </Button>
+        <>
+          <Button
+            variant="outline"
+            size="sm"
+            className={`mt-3 text-xs font-semibold ${btnClass}`}
+            onClick={handleCheck}
+            disabled={isChecking || checkCount >= 3}
+          >
+            {isChecking ? (
+              <>
+                <Loader2 size={12} className="mr-1 animate-spin" />
+                Checking...
+              </>
+            ) : checkCount >= 3 ? (
+              <>
+                <RefreshCw size={12} className="mr-1" />
+                Check limit reached
+              </>
+            ) : (
+              <>
+                <RefreshCw size={12} className="mr-1" />
+                Check payment status
+              </>
+            )}
+          </Button>
+          {checkCount >= 3 && (
+            <p className="text-xs text-muted-foreground mt-1">
+              You've reached the maximum number of payment checks. Please wait or contact support if the issue persists.
+            </p>
+          )}
+        </>
       )}
       {(showCancel || hasFailureSignal) && onCancel && !awaitingSeller && (
         <div className="mt-2">
@@ -296,6 +324,7 @@ export default function OrderDetailPage() {
   const [roadEtaMinutes, setRoadEtaMinutes] = useState<number | null>(null);
   const [routeInfo, setRouteInfo] = useState<{ totalDistance: number; remainingDistance: number } | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [paymentCheckCount, setPaymentCheckCount] = useState(0);
   const { data: serviceBooking } = useServiceBookingForOrder(o.order?.id);
   const { getSetting } = useSystemSettingsRaw(['proximity_thresholds', 'ui_setting_up_tracking']);
   const { data: orderTickets = [] } = useOrderTickets(o.order?.id);
@@ -402,21 +431,55 @@ export default function OrderDetailPage() {
   }, [orderId, order?.status]);
 
   const handlePaymentCheck = useCallback(async (): Promise<PaymentCheckResult> => {
+    // Prevent excessive manual checks - limit to 3 attempts with 30-second cooldown
+    const now = Date.now();
+    const lastCheck = Number(getString(`last_payment_check_${orderId}`) || '0');
+    const checkCount = Number(getString(`payment_check_count_${orderId}`) || '0');
+
+    // If we've checked too recently or too many times, return not_captured to prevent spamming
+    if (now - lastCheck < 30000 && checkCount >= 3) { // 30 seconds cooldown, max 3 attempts
+      setPaymentCheckCount(checkCount); // Update local state to reflect the limitation
+      return 'not_captured';
+    }
+
     reconcileAttemptedRef.current = false;
     o.fetchOrder?.();
     const razorpayOrderId = (order as any)?.razorpay_order_id;
-    if (!razorpayOrderId || !orderId) return 'not_captured';
+    if (!razorpayOrderId || !orderId) {
+      // Reset counters if no Razorpay order ID
+      removeKey(`last_payment_check_${orderId}`);
+      removeKey(`payment_check_count_${orderId}`);
+      setPaymentCheckCount(0); // Reset local state
+      return 'not_captured';
+    }
+
+    // Update check tracking
+    const newCount = checkCount + 1;
+    setString(`payment_check_count_${orderId}`, String(newCount));
+    setString(`last_payment_check_${orderId}`, String(now));
+    setPaymentCheckCount(newCount); // Update local state
+
     reconcileAttemptedRef.current = true;
     const { data, error } = await supabase.functions.invoke('confirm-razorpay-payment', {
       body: { razorpay_payment_id: null, razorpay_order_id: razorpayOrderId, order_ids: [orderId], source: 'manual_check' },
     }).catch(() => ({ data: null, error: true }));
     if (!error && (data as any)?.success === true) {
+      // Success - reset counters
+      removeKey(`last_payment_check_${orderId}`);
+      removeKey(`payment_check_count_${orderId}`);
+      setPaymentCheckCount(0); // Reset local state
       o.fetchOrder?.();
       return 'captured';
     }
+
+    // If we've reached max attempts, the UI will show limitation
+    if (newCount >= 3) {
+      // Keep the counters for UI to show limitation
+    }
+
     o.fetchOrder?.();
     return 'not_captured';
-  }, [orderId, order, o.fetchOrder]);
+  }, [orderId, order, o.fetchOrder, setPaymentCheckCount]);
 
   const handleAbandonPayment = useCallback(async () => {
     if (!orderId) return;
@@ -807,12 +870,13 @@ export default function OrderDetailPage() {
               lastFailedAt={(order as any).last_payment_failed_at ?? null}
               onCheck={handlePaymentCheck}
               onCancel={handleAbandonPayment}
+              checkCount={paymentCheckCount}
             />
           )}
 
-          {o.isSellerView && order.auto_cancel_at && !isTerminalStatus(o.flow, order.status) && <UrgentOrderTimer autoCancelAt={order.auto_cancel_at} onTimeout={o.handleTimeout} variant="seller" />}
-
-          {/* Attention banners */}
+          {o.isSellerView && order.auto_cancel_at && !isTerminalStatus(o.flow, order.status) && (
+            <UrgentOrderTimer autoCancelAt={order.auto_cancel_at} onTimeout={o.handleTimeout} variant="seller" />
+          )}
           {o.isBuyerView && (order as any).needs_attention && !isTerminalStatus(o.flow, order.status) && (
             <div className="bg-warning/10 border border-warning/20 rounded-xl p-3 flex items-start gap-2.5">
               <AlertTriangle className="text-warning shrink-0 mt-0.5" size={16} />

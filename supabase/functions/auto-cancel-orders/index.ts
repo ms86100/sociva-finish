@@ -113,6 +113,14 @@ app.post("/", async (c) => {
       .neq("payment_type", "cod")
       .lt("created_at", onlineCutoff);
 
+    // Query 3: Buyer-confirmed orders past grace period (awaiting seller verification too long)
+    const { data: expiredBuyerConfirmed, error: buyerConfirmedErr } = await supabase
+      .from("orders")
+      .select("id, buyer_id, seller_id, total_amount, razorpay_order_id, auto_cancel_at, status, payment_status, updated_at")
+      .in("status", cancellableStatuses)
+      .eq("payment_status", "buyer_confirmed")
+      .lt("updated_at", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()); // 24 hours grace period
+
     // Gate: L4 final-warning for SLA / placed cancels ONLY.
     // Unpaid payment orphans (payment TTL) cancel WITHOUT requiring L4.
     // Hard max_defer: if auto_cancel_at is >10 min past, cancel even if L4 missing.
@@ -560,12 +568,14 @@ app.post("/", async (c) => {
         // Dynamic rejection reason based on WHY the order is being cancelled
         const reason = orphanIds.has(order.id) && !urgentIds.has(order.id)
           ? "Order was cancelled as payment was not completed in time"
-          : "We couldn't confirm your order as the seller didn't respond in time";
+          : order.payment_status === 'buyer_confirmed'
+            ? "Order expired as seller did not verify payment in time"
+            : "We couldn't confirm your order as the seller didn't respond in time";
 
         const { error: updateError, data: updated } = await supabase
           .from("orders")
           .update({
-            status: "cancelled",
+            status: order.payment_status === 'buyer_confirmed' ? "expired" : "cancelled",
             rejection_reason: reason,
             auto_cancel_at: null,
             updated_at: now,
