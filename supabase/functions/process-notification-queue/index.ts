@@ -490,12 +490,33 @@ Deno.serve(async (req) => {
         .gt("created_at", twentyFourHoursAgo)  // hard upper bound — never redeliver stale events
         .limit(25);
 
-      // Also quietly discard (mark processed) failed rows older than 24 h — no in-app entry.
+      // Rows older than 24 h: push is permanently suppressed, but we must still
+      // write them as is_read=true in-app records so the event survives in order history.
+      // "Discard" means no push and no unread badge — NOT erasing the underlying event.
       try {
-        await supabase.from("notification_queue")
-          .update({ status: "processed", processed_at: new Date().toISOString(), last_error: "Orphan recovery: expired (>24h)" })
+        const { data: expiredOrphans } = await supabase
+          .from("notification_queue")
+          .select("id, user_id, title, body, type, reference_path, payload")
           .eq("status", "failed")
           .lte("created_at", twentyFourHoursAgo);
+
+        if (expiredOrphans && expiredOrphans.length > 0) {
+          for (const expired of expiredOrphans) {
+            // Write historical in-app record (is_read=true = no badge, no alert).
+            await supabase.from("user_notifications").insert({
+              user_id: expired.user_id, title: expired.title, body: expired.body,
+              type: expired.type,
+              reference_path: expired.reference_path, action_url: expired.reference_path,
+              queue_item_id: expired.id,
+              payload: expired.payload || null, data: expired.payload || null,
+              is_read: true,
+            }).then(() => {}).catch(() => {});  // 23505 conflict = already exists, fine
+            await supabase.from("notification_queue")
+              .update({ status: "processed", processed_at: new Date().toISOString(), last_error: "Orphan: expired >24h, archived to history" })
+              .eq("id", expired.id);
+          }
+          console.log(`[PNQ] Archived ${expiredOrphans.length} expired (>24h) orphans to history`);
+        }
       } catch { /* best-effort */ }
 
       if (orphans && orphans.length > 0) {
@@ -637,13 +658,23 @@ Deno.serve(async (req) => {
 
     for (const item of pending) {
       try {
-        // Discard expired items immediately — never deliver a notification after its TTL.
+        // TTL-expired: push is suppressed but the EVENT must still exist in history.
+        // Write an is_read=true in-app record so the event appears in the order timeline,
+        // then discard the push. This preserves "what happened" while preventing a stale ring.
         if (item.expires_at && new Date(item.expires_at) < new Date()) {
+          await supabase.from("user_notifications").insert({
+            user_id: item.user_id, title: item.title, body: item.body,
+            type: item.type,
+            reference_path: item.reference_path, action_url: item.reference_path,
+            queue_item_id: item.id,
+            payload: item.payload || null, data: item.payload || null,
+            is_read: true,  // historical — push never sent, no alert, no badge increment
+          }).then(() => {}).catch(() => {});  // best-effort, 23505 conflict is fine
           await supabase.from("notification_queue")
             .update({ status: "processed", processed_at: new Date().toISOString(), push_skip_reason: "expired" })
             .eq("id", item.id);
           processed++;
-          console.log(`[Queue][${item.id}] Discarded: expires_at passed`);
+          console.log(`[Queue][${item.id}] TTL expired: archived to history, push suppressed`);
           continue;
         }
 
