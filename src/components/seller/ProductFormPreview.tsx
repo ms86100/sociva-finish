@@ -10,7 +10,7 @@ import { useCategoryConfigs } from '@/hooks/useCategoryBehavior';
 import { useCurrency } from '@/hooks/useCurrency';
 import { deriveActionType, ACTION_CONFIG } from '@/lib/marketplace-constants';
 import type { ProductFormData } from '@/hooks/useSellerProducts';
-import type { SellerProfile } from '@/types/database';
+import type { SellerProfile } from '@/types/Database';
 import type { BlockData } from '@/hooks/useAttributeBlocks';
 
 interface ProductFormPreviewProps {

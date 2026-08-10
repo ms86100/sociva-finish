@@ -7,7 +7,7 @@ import {
   ORDER_STATUS_LABELS,
   PAYMENT_STATUS_LABELS,
   ITEM_STATUS_LABELS,
-} from '@/types/database';
+} from '@/types/Database';
 
 interface StatusLabel {
   label: string;

@@ -3,7 +3,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
 import { useAuth } from '@/contexts/AuthContext';
-import { Product, ProductCategory, SellerProfile, ProductActionType } from '@/types/database';
+import { Product, ProductCategory, SellerProfile, ProductActionType } from '@/types/Database';
 import { useCategoryConfigs } from '@/hooks/useCategoryBehavior';
 import { useActionTypeMap } from '@/hooks/useActionTypeMap';
 import { ParentGroup } from '@/types/categories';

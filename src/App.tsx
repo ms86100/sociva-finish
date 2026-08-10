@@ -66,6 +66,7 @@ function ThemeStatusBarSync() {
 }
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { CartProvider } from "@/hooks/useCart";
+import { CartPopupProvider } from "@/components/CartPopupProvider";
 import { BrowsingLocationProvider } from "@/contexts/BrowsingLocationContext";
 import { OfflineBanner } from "@/components/network/OfflineBanner";
 import { PushNotificationProvider } from "@/components/notifications/PushNotificationProvider";
@@ -649,15 +650,17 @@ function App() {
                 <SplashGate>
                 <NavigationHandler />
                 <BrowsingLocationProvider>
-                  <CartProvider>
-                    <NewOrderAlertProvider>
-                    <PushNotificationProvider>
-                      <GlobalChatAlerts />
-                      <SafeSellerAlert><GlobalSellerAlert /></SafeSellerAlert>
-                      <AppRoutes />
-                    </PushNotificationProvider>
-                    </NewOrderAlertProvider>
-                  </CartProvider>
+                  <CartPopupProvider>
+                    <CartProvider>
+                      <NewOrderAlertProvider>
+                      <PushNotificationProvider>
+                        <GlobalChatAlerts />
+                        <SafeSellerAlert><GlobalSellerAlert /></SafeSellerAlert>
+                        <AppRoutes />
+                      </PushNotificationProvider>
+                      </NewOrderAlertProvider>
+                    </CartProvider>
+                  </CartPopupProvider>
                 </BrowsingLocationProvider>
                 </SplashGate>
               </AuthProvider>

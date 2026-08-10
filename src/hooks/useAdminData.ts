@@ -2,7 +2,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
-import { Profile, SellerProfile, Review, PaymentRecord, VerificationStatus, PaymentStatus, Society } from '@/types/database';
+import { Profile, SellerProfile, Review, PaymentRecord, VerificationStatus, PaymentStatus, Society } from '@/types/Database';
 import { useStatusLabels } from '@/hooks/useStatusLabels';
 import { useCurrency } from '@/hooks/useCurrency';
 import { logAudit } from '@/lib/audit';

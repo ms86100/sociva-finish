@@ -365,7 +365,7 @@ export function useRazorpay() {
                 ],
               },
             },
-            sequence: ['block.upi', 'block.other'],
+            sequence: ['upi', 'other'],
             preferences: {
               show_default_blocks: false,
             },

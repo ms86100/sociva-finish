@@ -3,7 +3,7 @@ import { Plus, ShoppingBag, Calendar, Send, MessageCircle, Phone, Home, Handshak
 
 /** Single source of truth for marketplace discovery radius (km). */
 export const MARKETPLACE_RADIUS_KM = 5;
-import { ProductActionType } from '@/types/database';
+import { ProductActionType } from '@/types/Database';
 
 /**
  * Shared ACTION_CONFIG — single source of truth for all product action buttons.

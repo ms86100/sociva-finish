@@ -21,7 +21,7 @@ import { useBuyerRealtimeShell } from '@/hooks/useBuyerRealtimeShell';
 import { useOrdersList } from '@/hooks/useOrdersList';
 import { useFlowStepLabels } from '@/hooks/useFlowStepLabels';
 import { useCurrency } from '@/hooks/useCurrency';
-import { Order } from '@/types/database';
+import { Order } from '@/types/Database';
 import { Package, ChevronRight, Loader2, CheckCircle, Truck, MessageCircle } from 'lucide-react';
 import { format, formatDistanceToNow, isToday, isYesterday, differenceInDays } from 'date-fns';
 import { staggerContainer, cardEntrance, emptyState, fadeSlideUp } from '@/lib/motion-variants';

@@ -105,11 +105,15 @@ export default function ProductDeepLinkPage() {
   const handleSheetClose = useCallback((open: boolean) => {
     setSheetOpen(open);
     if (!open) {
-      // Navigate to seller page or home
-      if (product?.seller_id) {
-        navigate(`/seller/${product.seller_id}`, { replace: true });
-      } else {
-        navigate('/', { replace: true });
+      // Only navigate to seller page if we haven't already navigated elsewhere
+      // (e.g., add-to-cart celebration popup navigates to /cart)
+      const currentPath = window.location.pathname;
+      if (currentPath === '/' || currentPath.startsWith('/product/')) {
+        if (product?.seller_id) {
+          navigate(`/seller/${product.seller_id}`, { replace: true });
+        } else {
+          navigate('/', { replace: true });
+        }
       }
     }
   }, [product, navigate]);

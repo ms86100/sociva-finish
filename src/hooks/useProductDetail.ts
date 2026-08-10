@@ -1,10 +1,9 @@
 // @ts-nocheck
 import { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useCart } from '@/hooks/useCart';
 import { useSellerTrustSnapshot } from '@/hooks/queries/useProductTrustMetrics';
-import { ProductActionType } from '@/types/database';
+import { ProductActionType } from '@/types/Database';
 import { ACTION_CONFIG, deriveActionType } from '@/lib/marketplace-constants';
 import { useCategoryConfig } from '@/hooks/queries/useCategoryConfig';
 import { useCurrency } from '@/hooks/useCurrency';
@@ -79,17 +78,15 @@ export function useProductDetail(product: ProductDetail | null, open: boolean, o
   const stockLimit = canonicalStockQty ?? 99;
   const canIncrement = quantity < stockLimit;
 
-  const navigate = useNavigate();
-
   const isStockEmpty = isCartAction && canonicalStockQty != null && canonicalStockQty <= 0;
 
-  const handleAdd = useCallback(() => {
+  const handleAdd = useCallback(async () => {
     if (!product) return;
     if (actionType === 'contact_seller') { setContactOpen(true); return; }
     if (!isCartAction) { setEnquiryOpen(true); return; }
     if (canonicalStockQty != null && canonicalStockQty <= 0) { toast.error('This item is currently out of stock'); return; }
     hapticImpact('medium');
-    addItem({
+    await addItem({
       id: product.product_id, seller_id: product.seller_id,
       name: product.product_name, price: product.price,
       image_url: product.image_url, is_veg: product.is_veg ?? true,
@@ -99,9 +96,9 @@ export function useProductDetail(product: ProductDetail | null, open: boolean, o
       created_at: '', updated_at: '',
       stock_quantity: canonicalStockQty,
     } as any);
-    onOpenChange?.(false);
-    navigate('/cart');
-  }, [product, actionType, isCartAction, addItem, onOpenChange, navigate]);
+    // Don't close drawer here - let the celebration popup handle navigation
+    // onOpenChange?.(false);
+  }, [product, actionType, isCartAction, addItem, onOpenChange]);
 
   const isNewSeller = (product?.seller_reviews === 0) || (product?.seller_rating === 0);
   const ActionIcon = config.icon;

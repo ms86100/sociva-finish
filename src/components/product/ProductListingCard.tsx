@@ -7,7 +7,7 @@ import { useHaptics } from '@/hooks/useHaptics';
 import { Badge } from '@/components/ui/badge';
 import { VegBadge } from '@/components/ui/veg-badge';
 import { useCart } from '@/hooks/useCart';
-import { ProductActionType } from '@/types/database';
+import { ProductActionType } from '@/types/Database';
 import { NotifyMeButton } from './NotifyMeButton';
 import { ACTION_CONFIG, deriveActionType } from '@/lib/marketplace-constants';
 import { useCardAnalytics } from '@/hooks/useCardAnalytics';

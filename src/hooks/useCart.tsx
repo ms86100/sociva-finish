@@ -1,15 +1,16 @@
 // @ts-nocheck
 import { createContext, useContext, useCallback, useEffect, useMemo, useRef, ReactNode, useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { CartItem, Product } from '@/types/database';
+import { CartItem, Product } from '@/types/Database';
 import { toast } from 'sonner';
 import { handleApiError } from '@/lib/query-utils';
 import { computeStoreStatus, formatStoreClosedMessage, type StoreStatus } from '@/lib/store-availability';
 import { feedbackAddItem, feedbackAddItemFailed, feedbackRemoveItem, feedbackRemoveItemFailed, feedbackQuantityChanged, feedbackQuantityFailed } from '@/lib/feedbackEngine';
 import { notify } from '@/lib/notify';
+import { CartPopupProvider, useCartPopup } from '@/components/CartPopupProvider';
 
 const hasOwn = (obj: unknown, key: string) => Object.prototype.hasOwnProperty.call(obj ?? {}, key);
 
@@ -175,6 +176,9 @@ async function fetchCartItemCount(userId: string) {
 export function CartProvider({ children }: { children: ReactNode }) {
   const { user, isSessionRestored } = useAuth();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  // Popups — call at top level (valid hook location)
+  const { showAddPopup, showRemovePopup } = useCartPopup();
   // Perf: stable userId string prevents query key churn from object reference changes
   const userId = user?.id ?? null;
 
@@ -371,7 +375,17 @@ export function CartProvider({ children }: { children: ReactNode }) {
           const { error } = await supabase.from('cart_items').insert({ user_id: user.id, product_id: product.id, quantity });
           if (error) throw error;
         }
-        if (!silent) feedbackAddItem(product.name || 'Item');
+        if (!silent) {
+          showAddPopup(
+            product.name || 'Item',
+            product.image_url || undefined,
+            product.price,
+            () => {
+              // Navigate to cart page
+              navigate('/cart', { replace: false });
+            }
+          );
+        }
         // Authoritative reconcile after success
         await reconcile();
       } catch (error: any) {
@@ -412,9 +426,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     try {
       const { error } = await supabase.from('cart_items').delete().eq('user_id', user.id).eq('product_id', productId);
       if (error) throw error;
-      feedbackRemoveItem(removedItem?.product?.name || 'Item', removedItem ? () => {
-        addItem(removedItem.product, removedQty, true);
-      } : undefined);
+      showRemovePopup(removedItem?.product?.name || 'Item');
       await reconcile();
     } catch (error) {
       rollback(snap);
@@ -422,7 +434,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     } finally {
       setPendingMutations(c => Math.max(0, c - 1));
     }
-  }, [user, setOptimistic, cancelCartQueries, snapshot, rollback, reconcile, queryClient, countKey]);
+  }, [user, setOptimistic, cancelCartQueries, snapshot, rollback, reconcile, queryClient, countKey, showRemovePopup]);
 
   const updateQuantity = useCallback(async (productId: string, quantity: number) => {
     if (!user) return;

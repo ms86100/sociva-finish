@@ -7,7 +7,7 @@ import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
-import { ProductActionType } from '@/types/database';
+import { ProductActionType } from '@/types/Database';
 import { Loader2, MessageCircle, Calendar, Send, Home, Handshake } from 'lucide-react';
 import { useCurrency } from '@/hooks/useCurrency';
 import { notify } from '@/lib/notify';

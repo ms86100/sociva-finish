@@ -11,7 +11,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { adminNotify } from '@/lib/admin-notify';
 import { logAudit } from '@/lib/audit';
 import { Shield, UserPlus, Trash2, Search } from 'lucide-react';
-import type { Profile } from '@/types/database';
+import type { Profile } from '@/types/Database';
 
 interface SecurityStaffEntry {
   id: string;

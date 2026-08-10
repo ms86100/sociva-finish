@@ -14,7 +14,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardContent } from '@/components/ui/card';
 import { CroppableImageUpload } from '@/components/ui/croppable-image-upload';
-import { DAYS_OF_WEEK } from '@/types/database';
+import { DAYS_OF_WEEK } from '@/types/Database';
 import { Slider } from '@/components/ui/slider';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { ArrowLeft, Loader2, PauseCircle, PlayCircle, Clock, Banknote, AlertTriangle, Building2, Globe, Truck, Eye, MapPin, Navigation, Palmtree, Camera, CreditCard, PartyPopper, Smartphone, Plus } from 'lucide-react';

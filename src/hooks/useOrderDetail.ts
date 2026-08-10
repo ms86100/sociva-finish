@@ -10,7 +10,7 @@ import { useCategoryStatusFlow, getNextStatusForActor, getTimelineSteps, isTermi
 import { isDeliveryMapEligible } from '@/lib/orderProgressStages';
 import { logAudit } from '@/lib/audit';
 import { resolveTransactionType } from '@/lib/resolveTransactionType';
-import { Order, OrderStatus } from '@/types/database';
+import { Order, OrderStatus } from '@/types/Database';
 import { toast } from 'sonner';
 
 async function fetchOrderData(id: string) {

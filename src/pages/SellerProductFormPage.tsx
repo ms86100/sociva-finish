@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { VegBadge } from '@/components/ui/veg-badge';
 import { ProductImageUpload } from '@/components/ui/product-image-upload';
-import { ProductCategory, ProductActionType } from '@/types/database';
+import { ProductCategory, ProductActionType } from '@/types/Database';
 import { ArrowLeft, ArrowRight, Loader2, Star, Award, Bell, Package, Tag, Settings2, Eye, Layers, Wrench, Check, Info } from 'lucide-react';
 import { ACTION_CONFIG } from '@/lib/marketplace-constants';
 import { DynamicIcon } from '@/components/ui/DynamicIcon';

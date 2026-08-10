@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { motion } from 'framer-motion';
 import { Package } from 'lucide-react';
-import { OrderItem, ItemStatus } from '@/types/database';
+import { OrderItem, ItemStatus } from '@/types/Database';
 import { useStatusLabels } from '@/hooks/useStatusLabels';
 import { useCurrency } from '@/hooks/useCurrency';
 import { cn } from '@/lib/utils';

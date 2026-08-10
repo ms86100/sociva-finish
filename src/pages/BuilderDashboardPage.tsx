@@ -5,7 +5,7 @@ import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/contexts/AuthContext';
-import { Builder } from '@/types/database';
+import { Builder } from '@/types/Database';
 import { Building2, Users, Shield, AlertTriangle, ChevronRight, IndianRupee, Clock, BarChart3 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useBuilderStats } from '@/hooks/queries/useBuilderStats';

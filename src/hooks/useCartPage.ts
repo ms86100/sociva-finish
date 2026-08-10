@@ -3,7 +3,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { PaymentMethod } from '@/types/database';
+import { PaymentMethod } from '@/types/Database';
 import { fetchStatusFlow, fetchStatusTransitions, statusFlowQueryKey, statusTransitionsQueryKey } from '@/hooks/useCategoryStatusFlow';
 import { resolveTransactionType } from '@/lib/resolveTransactionType';
 import { resolvePaymentConfig } from '@/lib/resolvePaymentConfig';
@@ -780,11 +780,11 @@ export function useCartPage() {
       if (!acceptsUpi) {
         const unmetPayout = sellerGroups.some(g => {
           const s = g.items[0]?.product?.seller as any;
-          return !s?.upi_id || s?.upi_verification_status !== 'valid';
+          return !s?.upi_id;
         });
         notify.block(
           unmetPayout
-            ? 'Seller payout / UPI is not set up. Choose Cash on Delivery or try another seller.'
+            ? 'This seller has not set up a UPI account. Choose Cash on Delivery or another store.'
             : 'Online payment not available',
           { id: unmetPayout ? 'upi-payout-not-ready' : 'upi-unavailable', title: 'Payment method unavailable' },
         );

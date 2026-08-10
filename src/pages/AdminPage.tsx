@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { PaymentStatus } from '@/types/database';
+import { PaymentStatus } from '@/types/Database';
 import {
   Check, X, Users, Store, Package, Star, Award, Eye, EyeOff,
   DollarSign, Flag, Building2, ShieldCheck, CreditCard,

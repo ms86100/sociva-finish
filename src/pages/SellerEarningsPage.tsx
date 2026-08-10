@@ -8,7 +8,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/contexts/AuthContext';
-import { PaymentRecord, Order, PaymentStatus } from '@/types/database';
+import { PaymentRecord, Order, PaymentStatus } from '@/types/Database';
 import { useStatusLabels } from '@/hooks/useStatusLabels';
 import { ArrowLeft, TrendingUp, DollarSign, CreditCard, Loader2, LayoutGrid } from 'lucide-react';
 import { format } from 'date-fns';

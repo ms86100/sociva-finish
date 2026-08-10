@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { createContext, useContext } from 'react';
 import { User, Session } from '@supabase/supabase-js';
-import { Profile, UserRole, SellerProfile, Society, SocietyAdmin } from '@/types/database';
+import { Profile, UserRole, SellerProfile, Society, SocietyAdmin } from '@/types/Database';
 
 // ── Identity Context ──────────────────────────────────────
 // Auth session, user, loading state, sign-out

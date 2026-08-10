@@ -7,7 +7,7 @@ import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/contexts/AuthContext';
-import { SellerProfile } from '@/types/database';
+import { SellerProfile } from '@/types/Database';
 import { Package, Loader2, CalendarDays, Wrench, BarChart3, ShoppingBag, HeadphonesIcon, Receipt, MessageCircle, ChevronRight, Clock, XCircle, LayoutGrid } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
@@ -247,11 +247,10 @@ export default function SellerDashboardPage() {
         const wantsOnline =
           !!(sellerProfile as any).pickup_payment_config?.accepts_online ||
           !!(sellerProfile as any).delivery_payment_config?.accepts_online;
-        const upiValid =
-          (sellerProfile as any).upi_verification_status === 'valid' &&
+        const hasUpiId =
           !!(sellerProfile as any).upi_id;
-        if (wantsOnline && !upiValid) {
-          notify.block('Verify your UPI ID before going live with online payments, or disable online payments in Settings');
+        if (wantsOnline && !hasUpiId) {
+          notify.block('Please enter your UPI ID before going live with online payments, or disable online payments in Settings');
           return;
         }
       }

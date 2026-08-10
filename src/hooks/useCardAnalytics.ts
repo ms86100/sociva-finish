@@ -45,10 +45,12 @@ async function flushImpressions() {
       batch.map(data => ({
         product_id: data.productId,
         seller_id: data.sellerId,
+        entity_type: 'product',
+        entity_id: data.productId,
+        actor_id: userId,
         category: data.category,
         layout_type: data.layout,
         event_type: 'impression',
-        user_id: userId,
         metadata: { price: data.price },
       }))
     );
@@ -73,10 +75,12 @@ async function emitSingle(eventType: string, data: CardEvent) {
     await supabase.from('marketplace_events').insert({
       product_id: data.productId,
       seller_id: data.sellerId,
+      entity_type: 'product',
+      entity_id: data.productId,
+      actor_id: userId,
       category: data.category,
       layout_type: data.layout,
       event_type: eventType,
-      user_id: userId,
       metadata: { price: data.price },
     });
   } catch {

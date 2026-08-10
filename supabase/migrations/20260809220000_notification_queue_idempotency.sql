@@ -92,7 +92,7 @@ BEGIN
       ),
       _idem_key
     )
-    ON CONFLICT (user_id, idempotency_key) DO NOTHING;  -- idempotent: ignore duplicates
+    ON CONFLICT ON CONSTRAINT idx_notification_queue_idempotency DO NOTHING;  -- idempotent: ignore duplicates
   END IF;
 
   RETURN NEW;

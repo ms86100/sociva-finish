@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { VegBadge } from '@/components/ui/veg-badge';
 import { Badge } from '@/components/ui/badge';
-import { Product, ProductActionType } from '@/types/database';
+import { Product, ProductActionType } from '@/types/Database';
 import { ACTION_CONFIG } from '@/lib/marketplace-constants';
 import { useCart } from '@/hooks/useCart';
 import { cn } from '@/lib/utils';

@@ -41,7 +41,7 @@ import { SellerPaymentConfirmation } from '@/components/payment/SellerPaymentCon
 import { SellerCodConfirmation } from '@/components/payment/SellerCodConfirmation';
 import { PaymentProofReadonly } from '@/components/payment/PaymentProofReadonly';
 import { useOrderDetail } from '@/hooks/useOrderDetail';
-import { OrderItem, OrderStatus, PaymentStatus, ItemStatus } from '@/types/database';
+import { OrderItem, OrderStatus, PaymentStatus, ItemStatus } from '@/types/Database';
 import { isTerminalStatus, isSuccessfulTerminal, isFirstFlowStep, stepRequiresOtp, getStepOtpType } from '@/hooks/useCategoryStatusFlow';
 import { ArrowLeft, Phone, MapPin, Check, Star, MessageCircle, CreditCard, XCircle, Package, ChevronRight, Copy, Truck, Loader2, AlertTriangle, Clock, CircleCheckBig } from 'lucide-react';
 import { format } from 'date-fns';

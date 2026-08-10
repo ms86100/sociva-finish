@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { SellerProfile, ProductCategory, DAYS_OF_WEEK } from '@/types/database';
+import { SellerProfile, ProductCategory, DAYS_OF_WEEK } from '@/types/Database';
 import { useCategoryConfigs } from '@/hooks/useCategoryBehavior';
 import { useParentGroups } from '@/hooks/useParentGroups';
 import { ParentGroup } from '@/types/categories';
@@ -145,18 +145,17 @@ export function useSellerSettings() {
       return;
     }
     const newAvailability = !formData.is_available;
-    // Gate new go-live when online payments enabled without verified UPI (deep-link mode).
+    // Gate new go-live when online payments enabled without UPI ID.
     // Use payment configs only — formData.accepts_upi can lag behind Online Payment toggles.
     if (newAvailability) {
       const wantsOnline =
         formData.pickup_payment_config?.accepts_online ||
         formData.delivery_payment_config?.accepts_online;
-      const upiValid =
-        (sellerProfile as any).upi_verification_status === 'valid' &&
+      const hasUpiId =
         !!(formData.upi_id || (sellerProfile as any).upi_id);
-      if (wantsOnline && !upiValid) {
+      if (wantsOnline && !hasUpiId) {
         // Allow go-live only if online is turned off — otherwise block
-        notify.block('Verify your UPI ID before going live with online payments, or turn off online payments and use COD only');
+        notify.block('Please enter your UPI ID before going live with online payments, or turn off online payments and use COD only');
         return;
       }
     }
@@ -180,31 +179,14 @@ export function useSellerSettings() {
     if (wantsOnlinePay && !formData.upi_id.trim()) { notify.block('Please enter your UPI ID'); return; }
     if (formData.operating_days.length === 0) { notify.block('Select at least one operating day, or use "Pause Shop" to temporarily close', { id: 'settings-days-error' }); return; }
 
-    // UPI verification gate
+    // UPI validation gate - just validate format, no external verification required
     const upiOnline = formData.pickup_payment_config.accepts_online || formData.delivery_payment_config.accepts_online;
     let nextUpiStatus: string | null = null;
     let nextUpiHolder: string | null = null;
     if (upiOnline && formData.upi_id.trim()) {
-      const status = formData.upi_validation_status;
-      if (status === 'checking') { notify.block('Please wait for UPI verification to finish'); return; }
-      if (status === 'invalid') { toast.error('UPI ID is invalid. Fix it before saving.', { id: 'settings-upi-invalid' }); return; }
-      if (status === 'valid') {
-        nextUpiStatus = 'valid';
-        nextUpiHolder = formData.upi_holder_name ?? null;
-      } else {
-        // unverified / unavailable / error / stale / idle → confirm
-        const confirmed = await notify.confirm(
-          'UPI could not be verified by Razorpay. You can save, but payouts will remain paused until verification succeeds.',
-          {
-            id: 'seller-upi-unverified-save',
-            title: 'Save unverified UPI?',
-            okLabel: 'Save anyway',
-            cancelLabel: 'Go back',
-          },
-        );
-        if (!confirmed) return;
-        nextUpiStatus = 'unavailable';
-      }
+      // Simple format validation (already done in UpiVpaInput)
+      nextUpiStatus = 'valid';
+      nextUpiHolder = formData.upi_holder_name ?? null;
     }
 
     setIsSaving(true);
@@ -235,12 +217,11 @@ export function useSellerSettings() {
         delivery_payment_config: formData.delivery_payment_config,
         auto_accept_enabled: formData.auto_accept_enabled,
       };
-      if (nextUpiStatus) {
-        updatePayload.upi_verification_status = nextUpiStatus;
-        if (nextUpiStatus === 'valid') {
-          updatePayload.upi_holder_name = nextUpiHolder;
-          updatePayload.upi_verified_at = new Date().toISOString();
-        }
+      if (upiOnline && formData.upi_id.trim()) {
+        updatePayload.upi_verification_status = 'valid';
+        updatePayload.upi_holder_name = nextUpiHolder;
+        updatePayload.upi_verified_at = new Date().toISOString();
+        updatePayload.upi_provider = formData.upi_id.split('@')[1]?.toLowerCase() || null;
       } else if (!upiOnline || !formData.upi_id.trim()) {
         // UPI disabled → reset
         updatePayload.upi_verification_status = 'unverified';

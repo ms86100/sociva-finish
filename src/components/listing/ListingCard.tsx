@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useCategoryBehavior } from '@/hooks/useCategoryBehavior';
 import { ServiceCategory, ItemCondition, RentalPeriodType } from '@/types/categories';
 import { useMarketplaceConfig } from '@/hooks/useMarketplaceConfig';
-import { ProductActionType } from '@/types/database';
+import { ProductActionType } from '@/types/Database';
 import { ACTION_CONFIG } from '@/lib/marketplace-constants';
 import { VegBadge } from '@/components/ui/veg-badge';
 import { Button } from '@/components/ui/button';

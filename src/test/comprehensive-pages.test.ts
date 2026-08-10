@@ -39,7 +39,7 @@ import {
 import { loginSchema, signupSchema, profileDataSchema, emailSchema, passwordSchema, disputeSchema, workerRegistrationSchema, jobRequestSchema, validateForm } from '@/lib/validation-schemas';
 import { formatPrice } from '@/lib/format-price';
 import { ACTION_CONFIG, SORT_OPTIONS } from '@/lib/marketplace-constants';
-import { ORDER_STATUS_LABELS, PAYMENT_STATUS_LABELS, ITEM_STATUS_LABELS, DAYS_OF_WEEK } from '@/types/database';
+import { ORDER_STATUS_LABELS, PAYMENT_STATUS_LABELS, ITEM_STATUS_LABELS, DAYS_OF_WEEK } from '@/types/Database';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // CORE PAGES

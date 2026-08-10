@@ -2,7 +2,7 @@
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
 import { SellerSwitcher } from '@/components/seller/SellerSwitcher';
-import { SellerProfile } from '@/types/database';
+import { SellerProfile } from '@/types/Database';
 import { Clock, Store, CheckCircle2, XCircle, FileEdit, Eye, ShieldCheck } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Badge } from '@/components/ui/badge';

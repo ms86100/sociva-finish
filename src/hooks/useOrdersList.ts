@@ -2,7 +2,7 @@
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useTerminalStatuses } from '@/hooks/useCategoryStatusFlow';
-import { Order } from '@/types/database';
+import { Order } from '@/types/Database';
 
 const PAGE_SIZE = 20;
 

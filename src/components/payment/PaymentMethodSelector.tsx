@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { PaymentMethod } from '@/types/database';
+import { PaymentMethod } from '@/types/Database';
 import { Card, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { Banknote, Smartphone, CreditCard, Check } from 'lucide-react';

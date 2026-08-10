@@ -19,7 +19,7 @@ import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Badge } from '@/components/ui/badge';
-import { DAYS_OF_WEEK } from '@/types/database';
+import { DAYS_OF_WEEK } from '@/types/Database';
 import { ArrowLeft, Store, Loader2, ChevronRight, Settings, Shield, Save, Send, Globe, LayoutGrid, Tags, FileText, Package, CheckCircle2, ArrowRight, Truck, Smartphone, Banknote, Clock, ImageIcon, MapPin, Navigation, CheckCircle, Star, X, Search, ShoppingCart, Calendar, MessageCircle, Phone } from 'lucide-react';
 import { useActionTypeMap, useCategoryAllowedActions } from '@/hooks/useActionTypeMap';
 import { OnboardingLocationSheet } from '@/components/seller/OnboardingLocationSheet';

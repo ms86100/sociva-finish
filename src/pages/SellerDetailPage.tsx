@@ -32,7 +32,7 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { useCart } from '@/hooks/useCart';
 import { useAuth } from '@/contexts/AuthContext';
-import { SellerProfile, Product, DAYS_OF_WEEK } from '@/types/database';
+import { SellerProfile, Product, DAYS_OF_WEEK } from '@/types/Database';
 import { useCategoryConfigs } from '@/hooks/useCategoryBehavior';
 import { ArrowLeft, Clock, MapPin, Phone, Search, ShoppingCart, Star, Calendar, Flag, X, Zap, Users, ShieldCheck, AlertCircle } from 'lucide-react';
 import { Input } from '@/components/ui/input';

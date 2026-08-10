@@ -9,7 +9,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { VegBadge } from '@/components/ui/veg-badge';
 import { Badge } from '@/components/ui/badge';
-import { ProductActionType, ProductCategory } from '@/types/database';
+import { ProductActionType, ProductCategory } from '@/types/Database';
 import { SellerSwitcher } from '@/components/seller/SellerSwitcher';
 import { ArrowLeft, Plus, Edit, Trash2, Star, Store, ShieldAlert, Upload, Send, CheckCircle2, Clock, XCircle, FileText, Eye, AlertTriangle } from 'lucide-react';
 import { DynamicIcon } from '@/components/ui/DynamicIcon';

@@ -138,10 +138,10 @@ export function useSellerHealth(sellerId: string | null) {
         !!(profile.pickup_payment_config?.accepts_online) ||
         !!(profile.delivery_payment_config?.accepts_online);
       if (gatewayMode !== 'razorpay' && wantsOnline) {
-        if (profile.upi_verification_status === 'valid' && profile.upi_id) {
+        if (profile.upi_id) {
           checks.push({
             key: 'upi_verified',
-            label: 'UPI verified for online payments',
+            label: 'UPI configured for online payments',
             status: 'pass',
             message: 'Buyers can pay you online via UPI.',
             group: 'critical',
@@ -149,10 +149,10 @@ export function useSellerHealth(sellerId: string | null) {
         } else {
           checks.push({
             key: 'upi_verified',
-            label: 'UPI verification required',
+            label: 'UPI ID required',
             status: 'fail',
-            message: 'Verify your UPI ID before accepting online payments. COD can still work.',
-            actionLabel: 'Verify UPI',
+            message: 'Enter your UPI ID before accepting online payments. COD can still work.',
+            actionLabel: 'Add UPI ID',
             actionRoute: '/seller/settings',
             group: 'critical',
           });

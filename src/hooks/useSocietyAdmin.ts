@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { escapeIlike } from '@/lib/query-utils';
 import { useAuth } from '@/contexts/AuthContext';
-import { Profile, SellerProfile, VerificationStatus, SocietyAdmin } from '@/types/database';
+import { Profile, SellerProfile, VerificationStatus, SocietyAdmin } from '@/types/Database';
 import { useEffectiveFeatures } from '@/hooks/useEffectiveFeatures';
 import { adminNotify } from '@/lib/admin-notify';
 import { logAudit } from '@/lib/audit';

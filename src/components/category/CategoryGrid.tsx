@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { Link } from 'react-router-dom';
 import { useCategoryConfigs } from '@/hooks/useCategoryBehavior';
-import { ProductCategory } from '@/types/database';
+import { ProductCategory } from '@/types/Database';
 import { cn } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
 import { DynamicIcon } from '@/components/ui/DynamicIcon';

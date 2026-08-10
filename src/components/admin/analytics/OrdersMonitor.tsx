@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { useOrdersMonitor } from '@/hooks/queries/useAdminAnalytics';
-import { PAYMENT_STATUS_LABELS } from '@/types/database';
+import { PAYMENT_STATUS_LABELS } from '@/types/Database';
 import { useStatusLabels } from '@/hooks/useStatusLabels';
 import { ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import { format } from 'date-fns';

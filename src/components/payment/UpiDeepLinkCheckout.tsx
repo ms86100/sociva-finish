@@ -9,7 +9,7 @@ import {
   SheetTitle,
   SheetDescription,
 } from '@/components/ui/sheet';
-import { Loader2, CheckCircle, XCircle, RefreshCw, Copy, ImagePlus, X, ShieldCheck, ShieldAlert, ShieldX } from 'lucide-react';
+import { Loader2, CheckCircle, XCircle, RefreshCw, Copy, ImagePlus, X, ShieldCheck } from 'lucide-react';
 import { useCurrency } from '@/hooks/useCurrency';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -29,7 +29,7 @@ interface UpiDeepLinkCheckoutProps {
   onPaymentFailed: (explicitCancel?: boolean) => void;
 }
 
-type CheckoutStep = 'pay' | 'confirm' | 'done' | 'failed' | 'blocked';
+type CheckoutStep = 'pay' | 'confirm' | 'done' | 'failed';
 
 const UPI_STEP_KEY = 'sociva_upi_checkout_step';
 const UPI_OPENED_APP_KEY = 'sociva_upi_opened_app';
@@ -46,7 +46,7 @@ export function UpiDeepLinkCheckout({
   onPaymentFailed,
 }: UpiDeepLinkCheckoutProps) {
   const { formatPrice } = useCurrency();
-  const [verification, setVerification] = useState<{ status?: string; holder?: string | null; verifiedAt?: string | null }>({});
+  const [verification, setVerification] = useState<{ holder?: string | null; provider?: string | null }>({});
   const [verificationLoaded, setVerificationLoaded] = useState(false);
 
   useEffect(() => {
@@ -60,14 +60,13 @@ export function UpiDeepLinkCheckout({
     (async () => {
       const { data } = await supabase
         .from('seller_profiles')
-        .select('upi_id, upi_verification_status, upi_holder_name, upi_verified_at')
+        .select('upi_id, upi_holder_name, upi_provider')
         .eq('id', sellerId)
         .maybeSingle();
       if (!cancelled && data) {
         setVerification({
-          status: (data as any).upi_verification_status,
           holder: (data as any).upi_holder_name,
-          verifiedAt: (data as any).upi_verified_at
+          provider: (data as any).upi_provider
         });
       }
       if (!cancelled) setVerificationLoaded(true);
@@ -75,18 +74,14 @@ export function UpiDeepLinkCheckout({
     return () => { cancelled = true; };
   }, [sellerId]);
 
-  // UPI checkout is blocked if:
-  // 1. No UPI ID is set up for the seller, OR
-  // 2. The seller's UPI is not verified or verification has expired
-  const sellerUpiReady = !!sellerUpiId && verification.status === 'valid' && !(verification.verifiedAt && (Date.now() - new Date(verification.verifiedAt).getTime() > 30 * 24 * 3600 * 1000));
+  // UPI checkout is ready if seller has a UPI ID configured
+  const sellerUpiReady = !!sellerUpiId;
 
   const trustBadge = (() => {
-    const s = verification.status;
-    const stale = s === 'valid' && verification.verifiedAt && (Date.now() - new Date(verification.verifiedAt).getTime() > 30 * 24 * 3600 * 1000);
-    if (s === 'valid' && !stale) return { tone: 'ok' as const, icon: ShieldCheck, text: verification.holder ? `Paying to: ${verification.holder}` : 'Verified seller UPI' };
-    if (s === 'stale' || stale) return { tone: 'warn' as const, icon: ShieldAlert, text: 'Seller UPI verification expired. Payout is not available until the seller re-verifies.' };
-    if (s === 'unavailable' || s === 'unverified' || s === 'invalid' || !s) return { tone: 'danger' as const, icon: ShieldX, text: 'Seller payout / UPI is not set up. You cannot pay via UPI for this order.' };
-    return null;
+    // Always show trust badge with holder name if available; no verification enforcement
+    if (verification.holder) return { tone: 'ok' as const, icon: ShieldCheck, text: `Paying to: ${verification.holder}` };
+    if (verification.provider) return { tone: 'info' as const, icon: ShieldCheck, text: `UPI via ${verification.provider.toUpperCase()}` };
+    return { tone: 'ok' as const, icon: ShieldCheck, text: 'UPI payment enabled' };
   })();
 
   const [step, setStepRaw] = useState<CheckoutStep>(() => {
@@ -157,8 +152,7 @@ export function UpiDeepLinkCheckout({
 
   useEffect(() => {
     if (!isOpen || !verificationLoaded) return;
-    if (!sellerUpiReady) setStep('blocked');
-  }, [isOpen, verificationLoaded, sellerUpiReady, setStep]);
+  }, [isOpen, verificationLoaded]);
 
   const completeFlow = useCallback(() => {
     if (completionTriggeredRef.current) return;
@@ -245,7 +239,7 @@ export function UpiDeepLinkCheckout({
 
   const confirmSubmittedRef = useRef(false);
   const trimmedUtr = utrRef.trim();
-  const canSubmitProof = !!screenshotFile && trimmedUtr.length > 0;
+  const canSubmitProof = !!screenshotFile;
 
   const handleSubmitConfirmation = async () => {
     if (!canSubmitProof) return;
@@ -297,7 +291,7 @@ export function UpiDeepLinkCheckout({
 
       const { error } = await supabase.rpc('confirm_upi_payment', {
         _order_id: orderId,
-        _upi_transaction_ref: trimmedUtr,
+        _upi_transaction_ref: trimmedUtr || null,
         _payment_screenshot_url: screenshotUrl,
       });
       if (error) throw error;
@@ -375,21 +369,6 @@ export function UpiDeepLinkCheckout({
         </SheetHeader>
 
         <div className="py-4">
-          {step === 'blocked' && (
-            <div className="text-center space-y-5 py-4">
-              <div className="w-16 h-16 mx-auto rounded-full bg-destructive/10 flex items-center justify-center">
-                <ShieldX className="text-destructive" size={32} />
-              </div>
-              <div>
-                <p className="font-semibold text-lg">Seller payout not ready</p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  This seller has not set up a verified UPI for payouts. Choose Cash on Delivery or try another seller.
-                </p>
-              </div>
-              <Button variant="outline" className="w-full" onClick={handleCancelOrder}>Close</Button>
-            </div>
-          )}
-
           {/* Step 1: Pay */}
           {step === 'pay' && (
             <div className="text-center space-y-5">
@@ -465,17 +444,14 @@ export function UpiDeepLinkCheckout({
               </div>
 
               <div className="space-y-2">
-                <label className="text-xs font-medium text-foreground">UTR / Transaction ID</label>
+                <label className="text-xs font-medium text-foreground">UTR / Transaction ID (Optional)</label>
                 <Input
                   value={utrRef}
                   onChange={(e) => setUtrRef(e.target.value)}
-                  placeholder="Enter UTR from your UPI app"
+                  placeholder="Enter UTR from your UPI app (optional)"
                   className="font-mono"
                   autoComplete="off"
                 />
-                {!trimmedUtr && (
-                  <p className="text-xs text-destructive font-medium">UTR is required</p>
-                )}
               </div>
 
               {/* Required screenshot upload */}

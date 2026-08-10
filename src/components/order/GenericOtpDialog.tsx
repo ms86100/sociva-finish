@@ -1,9 +1,9 @@
 // @ts-nocheck
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp';
-import { Loader2, ShieldCheck } from 'lucide-react';
+import { Loader2, ShieldCheck, CheckCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
@@ -19,8 +19,18 @@ export function GenericOtpDialog({ orderId, targetStatus, open, onOpenChange, on
   const [otp, setOtp] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
 
-  const canSubmit = useMemo(() => otp.trim().length === 4 && !isSubmitting, [otp, isSubmitting]);
+  // Reset success state when dialog opens
+  useEffect(() => {
+    if (open) {
+      setSuccess(false);
+      setOtp('');
+      setErrorMessage(null);
+    }
+  }, [open]);
+
+  const canSubmit = useMemo(() => otp.trim().length === 4 && !isSubmitting && !success, [otp, isSubmitting, success]);
 
   const handleOtpChange = (value: string) => {
     setOtp(value);
@@ -39,11 +49,16 @@ export function GenericOtpDialog({ orderId, targetStatus, open, onOpenChange, on
       });
       if (error) throw error;
 
-      toast.success('OTP verified — order advanced');
+      // Show inline success message instead of toast
+      setSuccess(true);
       setOtp('');
       setErrorMessage(null);
-      onOpenChange(false);
+
+      // Update parent state and close after brief delay to show success
       onVerified?.();
+      setTimeout(() => {
+        onOpenChange(false);
+      }, 1200);
     } catch (error: any) {
       const msg = error?.message || 'Invalid code';
       const friendly = msg.toLowerCase().includes('invalid otp') ? 'Invalid code, please try again'
@@ -70,28 +85,42 @@ export function GenericOtpDialog({ orderId, targetStatus, open, onOpenChange, on
         </DialogHeader>
 
         <div className="py-2 space-y-2">
-          <div className="flex justify-center">
-            <InputOTP maxLength={4} value={otp} onChange={handleOtpChange} autoFocus>
-              <InputOTPGroup className="gap-3">
-                <InputOTPSlot index={0} className={`w-12 h-12 rounded-xl border-2 ${errorMessage ? 'border-destructive' : ''}`} />
-                <InputOTPSlot index={1} className={`w-12 h-12 rounded-xl border-2 ${errorMessage ? 'border-destructive' : ''}`} />
-                <InputOTPSlot index={2} className={`w-12 h-12 rounded-xl border-2 ${errorMessage ? 'border-destructive' : ''}`} />
-                <InputOTPSlot index={3} className={`w-12 h-12 rounded-xl border-2 ${errorMessage ? 'border-destructive' : ''}`} />
-              </InputOTPGroup>
-            </InputOTP>
-          </div>
-          {errorMessage && (
-            <p className="text-xs text-destructive text-center font-medium">{errorMessage}</p>
+          {!success ? (
+            <>
+              <div className="flex justify-center">
+                <InputOTP maxLength={4} value={otp} onChange={handleOtpChange} autoFocus>
+                  <InputOTPGroup className="gap-3">
+                    <InputOTPSlot index={0} className={`w-12 h-12 rounded-xl border-2 ${errorMessage ? 'border-destructive' : ''}`} />
+                    <InputOTPSlot index={1} className={`w-12 h-12 rounded-xl border-2 ${errorMessage ? 'border-destructive' : ''}`} />
+                    <InputOTPSlot index={2} className={`w-12 h-12 rounded-xl border-2 ${errorMessage ? 'border-destructive' : ''}`} />
+                    <InputOTPSlot index={3} className={`w-12 h-12 rounded-xl border-2 ${errorMessage ? 'border-destructive' : ''}`} />
+                  </InputOTPGroup>
+                </InputOTP>
+              </div>
+              {errorMessage && (
+                <p className="text-xs text-destructive text-center font-medium">{errorMessage}</p>
+              )}
+            </>
+          ) : (
+            <div className="flex flex-col items-center gap-2 text-center py-4">
+              <div className="w-16 h-16 rounded-full bg-success/10 flex items-center justify-center">
+                <CheckCircle size={32} className="text-success" strokeWidth={2.5} />
+              </div>
+              <p className="text-sm font-semibold text-foreground">OTP Verified</p>
+              <p className="text-xs text-muted-foreground">Order status updated successfully</p>
+            </div>
           )}
         </div>
 
-        <DialogFooter className="gap-2 sm:gap-2">
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>Cancel</Button>
-          <Button onClick={handleVerify} disabled={!canSubmit} className="gap-2">
-            {isSubmitting ? <Loader2 size={14} className="animate-spin" /> : null}
-            {isSubmitting ? 'Verifying...' : 'Verify & Proceed'}
-          </Button>
-        </DialogFooter>
+        {!success && (
+          <DialogFooter className="gap-2 sm:gap-2">
+            <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>Cancel</Button>
+            <Button onClick={handleVerify} disabled={!canSubmit} className="gap-2">
+              {isSubmitting ? <Loader2 size={14} className="animate-spin" /> : null}
+              {isSubmitting ? 'Verifying...' : 'Verify & Proceed'}
+            </Button>
+          </DialogFooter>
+        )}
       </DialogContent>
     </Dialog>
   );

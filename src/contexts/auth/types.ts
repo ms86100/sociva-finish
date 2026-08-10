@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { User, Session } from '@supabase/supabase-js';
-import { Profile, UserRole, SellerProfile, Society, SocietyAdmin } from '@/types/database';
+import { Profile, UserRole, SellerProfile, Society, SocietyAdmin } from '@/types/Database';
 
 export interface AuthContextType {
   user: User | null;

@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase, SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { friendlyError } from '@/lib/utils';
-import { Society } from '@/types/database';
+import { Society } from '@/types/Database';
 import { useAutocomplete, PlaceDetails } from '@/hooks/useGoogleMaps';
 import { useSystemSettings } from '@/hooks/useSystemSettings';
 import { usePushNotifications } from '@/contexts/PushNotificationContext';

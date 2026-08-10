@@ -6,7 +6,7 @@ import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerTrigger } from 
 import { Slider } from '@/components/ui/slider';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { ProductCategory } from '@/types/database';
+import { ProductCategory } from '@/types/Database';
 import { useCategoryConfigs } from '@/hooks/useCategoryBehavior';
 import { useSystemSettings } from '@/hooks/useSystemSettings';
 

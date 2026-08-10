@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { FavoriteButton } from '@/components/favorite/FavoriteButton';
 import { Badge } from '@/components/ui/badge';
-import { SellerProfile, Product } from '@/types/database';
+import { SellerProfile, Product } from '@/types/Database';
 import { Clock, MapPin, Award, Zap, Users, Shield, Star, TrendingUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useCurrency } from '@/hooks/useCurrency';

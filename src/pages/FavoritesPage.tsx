@@ -6,7 +6,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/contexts/AuthContext';
-import { SellerProfile } from '@/types/database';
+import { SellerProfile } from '@/types/Database';
 import { Heart, ArrowLeft, Store, ShoppingBag } from 'lucide-react';
 import { LottieEmptyState } from '@/components/ui/LottieEmptyState';
 import { FavoriteButton } from '@/components/favorite/FavoriteButton';
