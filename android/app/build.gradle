@@ -25,8 +25,8 @@ android {
         applicationId "app.sociva.community"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 20
-        versionName "2.0.20"
+        versionCode 21
+        versionName "2.0.21"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         manifestPlaceholders = [transistorsoftLicense: transistorsoftLicense]
         aaptOptions {
