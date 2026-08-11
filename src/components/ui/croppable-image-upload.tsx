@@ -57,7 +57,10 @@ export function CroppableImageUpload({
       if (error) throw error;
       const { data: urlData } = supabase.storage.from('app-images').getPublicUrl(data.path);
       onChange(urlData.publicUrl);
-      toast.success('Image uploaded successfully');
+      showFeedback({
+        title: 'Image uploaded successfully',
+        variant: 'success',
+      });
     } catch (error: any) {
       console.error('Upload error:', error);
       toast.error(friendlyError(error));

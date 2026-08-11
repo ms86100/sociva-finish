@@ -51,9 +51,9 @@ export function WorkerCategoryManager() {
       display_order: categories.length,
     });
     if (error) {
-      toast.error(error.code === '23505' ? 'Category already exists' : 'Failed to add');
+      showFeedback({ title: error.code === '23505' ? 'Category already exists' : 'Failed to add', variant: 'success' });
     } else {
-      toast.success('Category added');
+      showFeedback({ title: 'Category added', variant: 'success' });
       queryClient.invalidateQueries({ queryKey: ['worker-categories'] });
       setIsOpen(false);
       setName(''); setIcon('👤'); setEntryType('daily');
@@ -64,7 +64,7 @@ export function WorkerCategoryManager() {
   const handleDelete = async (id: string) => {
     const { error } = await supabase.from('society_worker_categories').delete().eq('id', id);
     if (!error) {
-      toast.success('Category removed');
+      showFeedback({ title: 'Category removed', variant: 'success' });
       queryClient.invalidateQueries({ queryKey: ['worker-categories'] });
     }
   };

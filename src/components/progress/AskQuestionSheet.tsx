@@ -44,7 +44,10 @@ export function AskQuestionSheet({ onAsked, existingQuestions }: AskQuestionShee
       });
       if (error) throw error;
 
-      toast.success('Question posted');
+      showFeedback({
+        title: 'Question posted',
+        variant: 'success',
+      });
       setQuestionText(''); setCategory('general');
       setOpen(false);
       onAsked();

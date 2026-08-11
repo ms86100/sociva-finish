@@ -12,7 +12,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Calendar, Search, MapPin } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-const STATUS_OPTIONS = ['all', 'requested', 'confirmed', 'scheduled', 'in_progress', 'completed', 'cancelled', 'no_show'];
+const STATUS_OPTIONS = ['all', 'requested', 'booked', 'scheduled', 'in_progress', 'completed', 'cancelled', 'no_show'];
 
 const DATE_FILTERS = [
   { value: 'today', label: 'Today' },
@@ -23,7 +23,7 @@ const DATE_FILTERS = [
 
 const STATUS_COLORS: Record<string, string> = {
   requested: 'bg-blue-100 text-blue-700',
-  confirmed: 'bg-emerald-100 text-emerald-700',
+  booked: 'bg-emerald-100 text-emerald-700',
   scheduled: 'bg-cyan-100 text-cyan-700',
   in_progress: 'bg-amber-100 text-amber-700',
   completed: 'bg-green-100 text-green-700',

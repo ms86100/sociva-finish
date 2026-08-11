@@ -64,7 +64,10 @@ export default function DeliveryPartnerManagementPage() {
     if (error) {
       toast.error('Failed to add partner');
     } else {
-      toast.success('Delivery partner added');
+      showFeedback({
+        title: 'Delivery partner added',
+        variant: 'success',
+      });
       setIsAddOpen(false);
       setName(''); setPhone(''); setVehicleNumber(''); setPhotoUrl(null);
       queryClient.invalidateQueries({ queryKey: ['delivery-partners'] });

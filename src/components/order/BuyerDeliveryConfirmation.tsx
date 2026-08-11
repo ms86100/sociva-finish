@@ -22,7 +22,10 @@ export function BuyerDeliveryConfirmation({ orderId, sellerName, onConfirmed }: 
       const { error } = await supabase.rpc('buyer_confirm_delivery', { _order_id: orderId });
       if (error) throw error;
       setConfirmed(true);
-      toast.success('Delivery confirmed! Thank you.', { id: `delivery-confirm-${orderId}` });
+      showFeedback({
+        title: 'Delivery confirmed! Thank you.',
+        variant: 'success',
+      });
       // Fire notification processing
       supabase.functions.invoke('process-notification-queue').catch(() => {});
       setTimeout(onConfirmed, 1500);

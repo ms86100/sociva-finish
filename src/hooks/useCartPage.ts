@@ -18,6 +18,7 @@ import { useWalletCredit } from '@/hooks/useWalletCredit';
 import { useDeliveryAddresses } from '@/hooks/useDeliveryAddresses';
 import { hapticImpact, hapticNotification, hapticSelection } from '@/lib/haptics';
 import { toast } from 'sonner';
+import { useFeedbackPopup } from '@/components/FeedbackPopupProvider';
 import { usePushNotifications } from '@/contexts/PushNotificationContext';
 import { notify } from '@/lib/notify';
 import { getString, setString, removeKey } from '@/lib/persistent-kv';
@@ -1012,9 +1013,10 @@ export function useCartPage() {
     setPendingOrderIds([]);
     clearPaymentSession();
     idempotencyKeyRef.current = null;
-    toast.info('Payment failed. Your cart is saved — tap Place Order to try again.', {
-      id: 'razorpay-failed',
-      duration: 4000,
+    const { showFeedback } = useFeedbackPopup();
+    showFeedback({
+      title: 'Payment failed. Your cart is saved — tap Place Order to try again.',
+      variant: 'error'
     });
   };
 
@@ -1049,9 +1051,9 @@ export function useCartPage() {
     setPendingOrderIds([]);
     clearPaymentSession();
     idempotencyKeyRef.current = null;
-    toast.info('Payment cancelled. Your cart is saved — tap Place Order to try again.', {
-      id: 'razorpay-dismiss',
-      duration: 4000,
+    showFeedback({
+      title: 'Payment cancelled. Your cart is saved — tap Place Order to try again.',
+      variant: 'error',
     });
   };
 
@@ -1080,7 +1082,11 @@ export function useCartPage() {
     if (!user?.id) { notify.block('Your session expired. Sign in again before continuing.', { id: 'checkout-session', title: 'Sign in required' }); setPendingOrderIds([]); clearPaymentSession(); return; }
     if (pendingOrderIds.length > 0) {
       if (await anyOrderPaidOrBuyerConfirmed(pendingOrderIds)) {
-        toast.message('Payment already submitted — waiting for seller confirmation', { id: 'upi-awaiting-seller' });
+        const { showFeedback } = useFeedbackPopup();
+        showFeedback({
+          title: 'Payment already submitted — waiting for seller confirmation',
+          variant: 'error'
+        });
         clearPaymentSession();
         try { await clearCartAndCache(); } catch { /* best-effort */ }
         navigate(pendingOrderIds.length === 1 ? `/orders/${pendingOrderIds[0]}` : '/orders');
@@ -1096,7 +1102,11 @@ export function useCartPage() {
         }
         setPendingOrderIds([]);
         clearPaymentSession();
-        toast.info('Payment cancelled. Your cart is saved.', { id: 'upi-cancelled', duration: 3000 });
+        const { showFeedback } = useFeedbackPopup();
+        showFeedback({
+          title: 'Payment cancelled. Your cart is saved.',
+          variant: 'error'
+        });
         return;
       }
       // Non-explicit (app-switch, timeout, dismiss): do not auto-cancel — buyer may have paid in UPI app; server TTL cleans unpaid.
@@ -1203,10 +1213,10 @@ export function useCartPage() {
     for (const item of others) {
       await removeItem(item.product_id);
     }
-    toast.success(`Ready to checkout ${group.sellerName} only. Other stores removed from cart.`, {
-      id: 'checkout-this-store',
-      duration: 5000,
-    });
+    showFeedback({
+        title: `Ready to checkout ${group.sellerName} only. Other stores removed from cart.`,
+        variant: 'success',
+      });
     hapticSelection();
   }, [sellerGroups, items, removeItem]);
 

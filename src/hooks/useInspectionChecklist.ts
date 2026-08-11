@@ -95,8 +95,8 @@ export function useInspectionChecklist() {
       itemNames.map((name, idx) => ({ checklist_id: checklist.id, category, item_name: name, status: 'not_checked', severity: 'minor', display_order: idx }))
     );
     const { error: itemsError } = await supabase.from('inspection_items').insert(allItems);
-    if (itemsError) toast.error('Failed to create checklist items');
-    else { toast.success('Inspection checklist created!'); fetchChecklists(); }
+    if (itemsError) showFeedback({ title: 'Failed to create checklist items', variant: 'success' });
+    showFeedback({ title: 'Inspection checklist created!', variant: 'success' }); fetchChecklists();
     setIsCreating(false);
   };
 
@@ -129,7 +129,7 @@ export function useInspectionChecklist() {
   const submitChecklist = async () => {
     if (!activeChecklist || !user) return;
     const { error } = await supabase.from('inspection_checklists').update({ status: 'submitted', submitted_at: new Date().toISOString() }).eq('id', activeChecklist.id).eq('resident_id', user.id);
-    if (!error) { toast.success('Checklist submitted to builder!'); fetchChecklists(); }
+    if (!error) { showFeedback({ title: 'Checklist submitted to builder!', variant: 'success' }); fetchChecklists(); }
   };
 
   const convertToSnags = async () => {
@@ -142,8 +142,8 @@ export function useInspectionChecklist() {
       sla_deadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
     }));
     const { error } = await supabase.from('snag_tickets').insert(snags);
-    if (error) { toast.error('Failed to create snag tickets'); console.error(error); }
-    else toast.success(`${failedItems.length} snag tickets created!`);
+    if (error) { showFeedback({ title: 'Failed to create snag tickets', variant: 'success' }); console.error(error); }
+    showFeedback({ title: `${failedItems.length} snag tickets created!`, variant: 'success' });
   };
 
   const categoryItems = items.filter(i => i.category === activeCategory);

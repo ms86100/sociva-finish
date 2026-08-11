@@ -135,7 +135,10 @@ export function LicenseUpload({ sellerId, groupId, categoryConfigId, onStatusCha
         ({ error } = await supabase.from('seller_licenses').insert(insertPayload));
       }
       if (error) throw error;
-      toast.success(`${config.license_type_name} uploaded! Awaiting admin verification.`);
+      showFeedback({
+        title: `${config.license_type_name} uploaded! Awaiting admin verification.`,
+        variant: 'success',
+      });
       fetchData();
     } catch (error: any) {
       console.error('License upload failed:', error);
@@ -151,7 +154,10 @@ export function LicenseUpload({ sellerId, groupId, categoryConfigId, onStatusCha
         .update({ license_number: licenseNumber.trim() || null } as any)
         .eq('id', license.id);
       if (error) throw error;
-      toast.success('License number updated');
+      showFeedback({
+        title: 'License number updated',
+        variant: 'success',
+      });
     } catch (error) {
       toast.error('Failed to update license number');
     }

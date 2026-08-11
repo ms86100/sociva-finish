@@ -191,8 +191,65 @@ const SOCIVA_GREEN = '#22A05A';
 const PICKUP_AMBER = '#F59E0B';
 const DROP_ROSE = '#E11D48';
 
+// Color palette for dark/light mode adaptation
+const MAP_LIGHT_BG = 'rgba(255, 255, 255, 0.85)';
+const MAP_DARK_BG = 'rgba(15, 23, 42, 0.7)';
+const GLOW_COLOR = 'rgba(34, 160, 90, 0.4)';
+
 function svgDataUrl(svg: string): string {
   return 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg);
+}
+
+/** Dotted route line SVG (Swiggy/Zomato style) — from pickup to destination. */
+function createDottedRouteSvg(strokeColor: string, strokeWidth: number): string {
+  const dashArray = '6 6'; // dash gap pattern
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="0" height="0" viewBox="0 0 100 100">
+    <defs>
+      <pattern id="dotPattern" width="10" height="10" patternUnits="strokeWidth" patternTransform="rotate(45)">
+        <circle cx="5" cy="5" r="2" fill="${strokeColor}" />
+      </pattern>
+    </defs>
+    <line x1="0" y1="0" x2="100" y2="100"
+          stroke="${strokeColor}" stroke-width="${strokeWidth}"
+          stroke-dasharray="${dashArray}" />
+  </svg>`;
+}
+
+/** Progress dot SVG that travels along the route. */
+function createProgressDotSVG(index: number, total: number, color: string): string {
+  const progress = (index / Math.max(total, 1)) * 100;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+    <circle cx="8" cy="8" r="7" fill="${color}" opacity="0.8" />
+    <text x="8" y="12" text-anchor="middle" font-family="system-ui, sans-serif" font-size="9" fill="${color}">
+      ⬤
+    </text>
+  </svg>`;
+}
+
+/** Comet tail segment SVG - fading dot trail behind rider. */
+function createCometTailSvg(index: number, total: number, color: string, alpha: number): string {
+  const progress = (index / Math.max(total, 1)) * 100;
+  const segmentAlpha = alpha * 0.3;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 12 12">
+    <circle cx="6" cy="6" r="5" fill="${color}" opacity="${segmentAlpha}" />
+  </svg>`;
+}
+
+/** Glow background SVG for the map container. */
+function createMapGlowSvg(size: number): string {
+  const s = size;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${s}" height="${s}" viewBox="0 0 ${s} ${s}">
+    <defs>
+      <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+        <feGaussianBlur stdDeviation="4" result="blur"/>
+        <feMerge>
+          <feMergeNode/>
+          <feMergeNode in="SourceGraphic"/>
+        </feMerge>
+      </filter>
+    </defs>
+    <circle cx="${s/2}" cy="${s/2}" r="${s/2}" fill="#000" filter="url(#glow)"/>
+  </svg>`;
 }
 
 // ─── Branded SVG Icons (Uber/Swiggy-style) ───────────────────────────────────
@@ -357,7 +414,39 @@ function MapFallbackCard({
   );
 }
 
-// ─── Main component ──────────────────────────────────────────────────────────
+// ─── Main component ───────────────────────────────────────────────────────────
+
+type RoutePoint = { lat: number; lng: number };
+
+function useDottedRoutePath(
+  routeCoords: RoutePoint[],
+  riderLat: number, riderLng: number,
+  sellerLat?: number | null, sellerLng?: number | null,
+): { fullPath: RoutePoint[]; completedPath: RoutePoint[]; remainingPath: RoutePoint[] } {
+  // Full route from seller (if available) to destination, prepending rider start
+  let allCoords: RoutePoint[] = [];
+
+  if (sellerLat && sellerLng) {
+    allCoords = [{ lat: sellerLat, lng: sellerLng }, ...routeCoords];
+  } else {
+    // If no seller, start from current rider position
+    allCoords = [{ lat: riderLat, lng: riderLng }, ...routeCoords];
+  }
+
+  // Find the point closest to current rider position
+  let closestIdx = 0;
+  let closestDist = Infinity;
+  for (let i = 0; i < allCoords.length; i++) {
+    const d = Math.pow(allCoords[i].lat - riderLat, 2) + Math.pow(allCoords[i].lng - riderLng, 2);
+    if (d < closestDist) { closestDist = d; closestIdx = i; }
+  }
+
+  // Split into completed (behind rider) and remaining (ahead)
+  const completedPath = allCoords.slice(0, closestIdx + 1);
+  const remainingPath = allCoords.slice(closestIdx);
+
+  return { fullPath: allCoords, completedPath, remainingPath };
+}
 
 export function DeliveryMapView({
   riderLat, riderLng, destinationLat, destinationLng,
@@ -374,16 +463,19 @@ export function DeliveryMapView({
   const destMarkerRef = useRef<google.maps.Marker | null>(null);
   const completedPolyRef = useRef<google.maps.Polyline | null>(null);
   const remainingPolyRef = useRef<google.maps.Polyline | null>(null);
-  const remainingAnimPolyRef = useRef<google.maps.Polyline | null>(null);
+  const routeDottedRef = useRef<google.maps.Polyline | null>(null); // full dotted route
+  const progressDotRef = useRef<google.maps.Marker | null>(null); // moving dot along route
+  const cometTailRef = useRef<google.maps.Marker[]>([]); // trailing dots
+  const progressAnimRef = useRef<number>(0);
   const infoWindowRef = useRef<google.maps.InfoWindow | null>(null);
   const animFrameRef = useRef<number>(0);
-  const dashAnimRef = useRef<number>(0);
   const riderHeadingRef = useRef<number>(heading ?? 0);
   const lastCameraFitAt = useRef(0);
   const userPannedRef = useRef(false);
   const initialFitDone = useRef(false);
   const [showRecenter, setShowRecenter] = useState(false);
   const [mapAuthFailed, setMapAuthFailed] = useState(false);
+  const [showGlow, setShowGlow] = useState(false);
 
   const smoothedPos = useGPSSmoothing(riderLat, riderLng);
 
@@ -437,6 +529,11 @@ export function DeliveryMapView({
 
   const { completed, remaining, remainingDistance } = useRouteSplit(routeCoords, smoothedPos.lat, smoothedPos.lng);
 
+  // Compute dotted route paths using helper
+  const { fullPath, completedPath, remainingPath } = useDottedRoutePath(
+    routeCoords, riderLat, riderLng, sellerLat, sellerLng,
+  );
+
   // Notify parent of ETA
   const prevEtaRef = useRef<number | null>(null);
   useEffect(() => {
@@ -456,12 +553,12 @@ export function DeliveryMapView({
   // Detect Google's auth failure overlay after map init
   useEffect(() => {
     if (!mapContainerRef.current || !isLoaded) return;
-    
+
     const observer = new MutationObserver(() => {
       const container = mapContainerRef.current;
       if (!container) return;
-      const errorDialog = container.querySelector('.dismissButton') || 
-        Array.from(container.querySelectorAll('div')).find(el => 
+      const errorDialog = container.querySelector('.dismissButton') ||
+        Array.from(container.querySelectorAll('div')).find(el =>
           el.textContent?.includes("can't load Google Maps correctly")
         );
       if (errorDialog) {
@@ -473,7 +570,7 @@ export function DeliveryMapView({
 
     observer.observe(mapContainerRef.current, { childList: true, subtree: true });
     const timeout = setTimeout(() => observer.disconnect(), 10000);
-    
+
     return () => {
       observer.disconnect();
       clearTimeout(timeout);
@@ -507,7 +604,7 @@ export function DeliveryMapView({
     // Rider marker — branded scooter with SV bag
     const riderMarker = new google.maps.Marker({
       map,
-      position: { lat: riderLat, lng: riderLng },
+      position: { lat: riderLat, lng: riderIdx },
       title: riderName || 'Delivery Partner',
       icon: {
         url: svgDataUrl(createRiderIconSvg(heading || 0)),
@@ -566,35 +663,22 @@ export function DeliveryMapView({
       sellerMarkerRef.current = sellerMarker;
     }
 
-    // Completed route (faded)
-    completedPolyRef.current = new google.maps.Polyline({
+    // ── Full dotted route line (Swiggy/Zomato style) ─────────────────────
+    const dottedColor = SOCIVA_GREEN;
+    const dottedWidth = 4;
+    routeDottedRef.current = new google.maps.Polyline({
       map,
-      path: [],
-      strokeColor: '#9ca3af',
-      strokeWeight: 4,
-      strokeOpacity: 0.45,
-    });
-
-    // Remaining route (solid base) — Sociva green
-    remainingPolyRef.current = new google.maps.Polyline({
-      map,
-      path: [],
-      strokeColor: SOCIVA_GREEN,
-      strokeWeight: 5,
-      strokeOpacity: 0.35,
-    });
-
-    // Remaining route (animated dash overlay)
-    remainingAnimPolyRef.current = new google.maps.Polyline({
-      map,
-      path: [],
-      strokeOpacity: 0,
+      path: fullPath,
+      strokeColor: dottedColor,
+      strokeWidth: dottedWidth,
+      strokeOpacity: 0.65,
+      geodesic: true,
       icons: [{
         icon: {
           path: 'M 0,-1 0,1',
           strokeOpacity: 1,
-          strokeColor: SOCIVA_GREEN,
-          strokeWeight: 4,
+          strokeColor: dottedColor,
+          strokeWeight: dottedWidth,
           scale: 3,
         },
         offset: '0',
@@ -602,24 +686,98 @@ export function DeliveryMapView({
       }],
     });
 
-    // Animate the dashes
-    let dashOffset = 0;
-    const animateDashes = () => {
-      dashOffset = (dashOffset + 0.45) % 200;
-      const icons = remainingAnimPolyRef.current?.get('icons');
-      if (icons?.[0]) {
-        icons[0].offset = dashOffset + 'px';
-        remainingAnimPolyRef.current?.set('icons', icons);
+    // ── Progress moving dot along the full route ───────────────────────────
+    // Determine starting index: if rider is in completed section, start from behind;
+    // otherwise start from the beginning of remaining
+    let startIdx = 0;
+    if (remainingPath.length > 1) {
+      startIdx = 0;
+    } else if (completedPath.length > 1) {
+      startIdx = completedPath.length - 1;
+    }
+    const progressDot = new google.maps.Marker({
+      map,
+      position: remainingPath.length > 1 ? remainingPath[0] : fullPath[fullPath.length - 1],
+      icon: createProgressDotSVG(startIdx, Math.max(fullPath.length, 1), dottedColor),
+      zIndex: 200,
+      optimized: false,
+    });
+    progressDotRef.current = progressDot;
+
+    // Animate the progress dot moving along the polyline path
+    let progressStep = startIdx;
+    const animateProgress = () => {
+      progressStep = (progressStep + 1) % Math.max(fullPath.length, 1);
+      if (progressDotRef.current) {
+        const targetPoint = fullPath[progressStep];
+        progressDotRef.current.setPosition(
+          new google.maps.LatLng(targetPoint.lat, targetPoint.lng)
+        );
       }
-      dashAnimRef.current = requestAnimationFrame(animateDashes);
+      // Update the dot's SVG to reflect progress
+      const totalIdx = Math.max(fullPath.length - 1, 1);
+      const progressPct = (progressStep / totalIdx) * 100;
+      progressDotRef.current.setIcon(
+        createProgressDotSVG(progressStep, totalIdx, dottedColor)
+      );
+      progressAnimRef.current = requestAnimationFrame(animateProgress);
     };
-    dashAnimRef.current = requestAnimationFrame(animateDashes);
+    progressAnimRef.current = requestAnimationFrame(animateProgress);
+
+    // ── Activate glow effect after map is ready ───────────────────────────
+    setShowGlow(true);
 
     return () => {
       cancelAnimationFrame(animFrameRef.current);
-      cancelAnimationFrame(dashAnimRef.current);
+      cancelAnimationFrame(progressAnimRef.current);
     };
-  }, [isLoaded, mapAuthFailed]);
+  }, [isLoaded, smoothedPos.lat, smoothedPos.lng, fullPath, completedPath]);
+
+  // ─── Comet tail fade animation ──────────────────────────────────────────
+  // Create fading dot trail behind the rider marker
+  useEffect(() => {
+    const marker = riderMarkerRef.current;
+    if (!marker) return;
+
+    const tailCount = 8; // number of trailing dots
+    const tailColors = [SOCIVA_GREEN, 'rgba(34, 160, 90, 0.6)', 'rgba(34, 160, 90, 0.3)'];
+
+    // Remove any existing tail markers
+    cometTailRef.current.forEach(m => m.setMap(null));
+    cometTailRef.current = [];
+
+    const markerPos = marker.getPosition();
+    if (!markerPos) return;
+
+    // Create fading tail dots behind the rider
+    for (let i = 1; i <= tailCount; i++) {
+      const delay = i * 150; // stagger the dots
+      const alpha = 1 - (i / (tailCount + 1));
+      const offsetLng = (Math.random() - 0.5) * 0.0001; // slight random offset
+      const offsetLat = (Math.random() - 0.5) * 0.0001;
+
+      setTimeout(() => {
+        if (!markerRef.current) return;
+        const tailMarker = new google.maps.Marker({
+          map,
+          position: new google.maps.LatLng(
+            markerPos.lat() + offsetLat,
+            markerPos.lng() + offsetLng
+          ),
+          icon: createCometTailSvg(i, tailCount, SOCIVA_GREEN, alpha),
+          zIndex: 50,
+          optimized: false,
+        });
+        cometTailRef.current.push(tailMarker);
+      }, delay * i);
+    }
+
+    // Clean up on unmount
+    return () => {
+      cometTailRef.current.forEach(m => m.setMap(null));
+      cometTailRef.current = [];
+    };
+  }, [riderMarkerRef.current, smoothedPos.lat, smoothedPos.lng]);
 
   // ─── Animate rider position + rotate toward travel direction ─────────────
   useEffect(() => {
@@ -684,22 +842,57 @@ export function DeliveryMapView({
 
   // ─── Update polylines ────────────────────────────────────────────────────
   useEffect(() => {
-    if (completed.length > 1) {
-      completedPolyRef.current?.setPath(completed);
+    // Update full dotted route
+    if (routeDottedRef.current) {
+      routeDottedRef.current.setPath(fullPath);
     }
 
-    const remainPath = remaining.length > 1
-      ? remaining
-      : routeCoords.length > 0
-        ? routeCoords
-        : [
-            { lat: smoothedPos.lat, lng: smoothedPos.lng },
-            { lat: destinationLat, lng: destinationLng },
-          ];
+    // Update completed route (faded) — behind the rider
+    if (completedPolyRef.current && completedPath.length > 1) {
+      completedPolyRef.current.setPath(completedPath);
+    } else if (completedPolyRef.current) {
+      completedPolyRef.current.setPath([]);
+    }
 
-    remainingPolyRef.current?.setPath(remainPath);
-    remainingAnimPolyRef.current?.setPath(remainPath);
-  }, [completed, remaining, routeCoords, smoothedPos.lat, smoothedPos.lng, destinationLat, destinationLng]);
+    // Update remaining route (solid base) — ahead of the rider
+    if (remainingPolyRef.current) {
+      const remainPath = remaining.length > 1
+        ? remainingPath
+        : routeCoords.length > 0
+          ? routeCoords
+          : [
+              { lat: smoothedPos.lat, lng: smoothedPos.lng },
+              { lat: destinationLat, lng: destinationLng },
+            ];
+      remainingPolyRef.current.setPath(remainPath);
+    }
+
+    // Update progress dot position along the full route
+    if (progressDotRef.current && fullPath.length > 0) {
+      // Find which segment the smoothed rider position falls on
+      let closestSegmentIdx = 0;
+      let closestSegDist = Infinity;
+      for (let i = 0; i < fullPath.length - 1; i++) {
+        const a = fullPath[i];
+        const b = fullPath[i + 1];
+        const d = Math.pow(smoothedPos.lat - a.lat, 2) + Math.pow(smoothedPos.lng - a.lng, 2);
+        if (d < closestSegDist) {
+          closestSegDist = d;
+          closestSegmentIdx = i;
+        }
+      }
+      // Move dot to closest point on the route
+      progressDotRef.current?.setPosition(new google.maps.LatLng(fullPath[closestSegmentIdx].lat, fullPath[closestSegmentIdx].lng));
+
+      // Update the dot's SVG to show progress index
+      const totalIdx = Math.max(fullPath.length - 1, 1);
+      const progressPct = (closestSegmentIdx / totalIdx) * 100;
+      progressDotRef.current.setIcon(
+        createProgressDotSVG(closestSegmentIdx, totalIdx, SOCIVA_GREEN)
+      );
+    }
+  }, [fullPath, completedPath, remainingPath, smoothedPos.lat, smoothedPos.lng,
+    remaining, routeCoords, destinationLat, destinationLng]);
 
   // ─── Intelligent camera: keep rider + drop (+ pickup) in view ────────────
   useEffect(() => {
@@ -738,6 +931,21 @@ export function DeliveryMapView({
   const mapHeight = tall ? 'h-[320px]' : 'h-[260px]';
   const distanceKm = roadDistanceMeters != null ? (roadDistanceMeters / 1000).toFixed(1) : null;
 
+  // Add CSS variables for gradient background
+  useEffect(() => {
+    const style = document.createElement('style');
+    style.textContent = `
+      :root {
+        --map-light-bg: ${MAP_LIGHT_BG};
+        --map-dark-bg: ${MAP_DARK_BG};
+      }
+    `;
+    document.head.appendChild(style);
+    return () => {
+      document.head.removeChild(style);
+    };
+  }, []);
+
   // Show fallback for: no API key, auth failure, or detected error overlay
   const showFallback = mapsError || mapAuthFailed;
 
@@ -770,7 +978,8 @@ export function DeliveryMapView({
   }
 
   return (
-    <div className={`rounded-xl overflow-hidden border border-border ${mapHeight} relative shadow-sm transition-all duration-500`}>
+    <div className={`rounded-xl overflow-hidden border border-border ${mapHeight} relative shadow-sm transition-all duration-500 ${showGlow ? 'bg-gradient-to-br from-[var(--map-light-bg)] to-[var(--map-dark-bg)]' : ''}`}>
+      <div className="absolute inset-0 opacity-20" style={{ background: 'radial-gradient(circle at 30% 20%, rgba(34,160,90,0.15) 0%, transparent 50%), radial-gradient(circle at 70% 80%, rgba(34,160,90,0.1) 0%, transparent 50%)' }} />
       <div ref={mapContainerRef} className="h-full w-full" />
 
       {/* Route legend */}

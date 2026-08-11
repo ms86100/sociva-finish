@@ -42,7 +42,10 @@ export function DeleteAccountDialog() {
       // Sign out locally
       await signOut();
       
-      toast.success('Your account has been permanently deleted');
+      showFeedback({
+        title: 'Your account has been permanently deleted',
+        variant: 'success',
+      });
       navigate('/auth');
     } catch (error: any) {
       console.error('Error deleting account:', error);

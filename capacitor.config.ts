@@ -79,7 +79,7 @@ const config: CapacitorConfig = {
 
   // iOS-specific configuration
   ios: {
-    scheme: 'https',
+    scheme: 'sociva',
     contentInset: 'never',
     // Force CocoaPods so Firebase pod injection scripts work
     packageManager: 'cocoapods' as any,

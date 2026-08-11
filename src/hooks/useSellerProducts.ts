@@ -408,7 +408,10 @@ export function useSellerProducts() {
         });
         if (error) throw error;
         savedProductId = editingProduct.id;
-        toast.success('Product updated', { id: 'product-saved' });
+        showFeedback({
+        title: 'Product updated',
+        variant: 'success',
+      });
       } else {
         const { data: newId, error } = await (supabase as any).rpc('save_product_with_service', {
           p_product: productData,
@@ -416,7 +419,10 @@ export function useSellerProducts() {
         });
         if (error) throw error;
         savedProductId = newId as string;
-        toast.success('Product added', { id: 'product-saved' });
+        showFeedback({
+        title: 'Product added',
+        variant: 'success',
+      });
       }
 
       if (actionRequiresAvailability) {
@@ -436,7 +442,10 @@ export function useSellerProducts() {
       if (activeBookings && activeBookings.length > 0) { notify.block('Cannot delete: this product has active bookings. Cancel or complete them first.'); setDeleteTarget(null); return; }
       const { error } = await supabase.from('products').delete().eq('id', deleteTarget.id);
       if (error) throw error;
-      toast.success('Product deleted', { id: 'product-deleted' });
+      showFeedback({
+        title: 'Product deleted',
+        variant: 'success',
+      });
       if (sellerProfile) fetchData(sellerProfile.id);
     } catch (error) { console.error('Error deleting product:', error); toast.error(friendlyError(error), { id: 'product-delete-error' }); }
     finally { setDeleteTarget(null); }

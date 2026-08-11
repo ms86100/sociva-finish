@@ -62,7 +62,10 @@ export function SellerRecommendButton({ sellerId, sellerUserId }: Props) {
         if (error) throw error;
         setRecommended(false);
         setCount((c) => Math.max(0, c - 1));
-        toast.success('Recommendation removed');
+        showFeedback({
+        title: 'Recommendation removed',
+        variant: 'success',
+      });
       } else {
         const { error } = await supabase.from('seller_recommendations').insert({
           seller_id: sellerId,
@@ -72,7 +75,10 @@ export function SellerRecommendButton({ sellerId, sellerUserId }: Props) {
         if (error) throw error;
         setRecommended(true);
         setCount((c) => c + 1);
-        toast.success('Thanks for recommending!');
+        showFeedback({
+        title: 'Thanks for recommending!',
+        variant: 'success',
+      });
       }
     } catch (err: any) {
       toast.error(friendlyError(err) || 'Failed');

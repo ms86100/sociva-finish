@@ -219,7 +219,10 @@ export function UpiDeepLinkCheckout({
 
   const handleCopyUpi = () => {
     navigator.clipboard.writeText(sellerUpiId);
-    toast.success('UPI ID copied', { id: 'upi-copy' });
+    showFeedback({
+        title: 'UPI ID copied',
+        variant: 'success',
+      });
   };
 
   const handleScreenshotSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -511,7 +514,7 @@ export function UpiDeepLinkCheckout({
               </div>
               <div>
                 <p className="font-semibold text-accent">Payment Submitted!</p>
-                <p className="text-sm text-muted-foreground mt-1">Waiting for seller confirmation — your order is not placed yet</p>
+                <p className="text-sm text-muted-foreground mt-1">Order placed. Seller will verify payment shortly.</p>
               </div>
             </div>
           )}

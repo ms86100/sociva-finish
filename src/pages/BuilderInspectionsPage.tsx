@@ -88,7 +88,10 @@ export default function BuilderInspectionsPage() {
         } as any)
         .eq('id', selectedChecklist.id);
       if (error) throw error;
-      toast.success('Inspection acknowledged');
+      showFeedback({
+        title: 'Inspection acknowledged',
+        variant: 'success',
+      });
       setSelectedChecklist(null);
       fetchChecklists();
     } catch (err: any) {

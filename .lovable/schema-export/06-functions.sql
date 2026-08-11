@@ -454,7 +454,7 @@ BEGIN
   END IF;
 
   -- Fetch order and verify ownership
-  SELECT id, buyer_id, status, payment_status
+  SELECT id, buyer_id, status, payment_status, payment_confirmed_by_seller
   INTO _order
   FROM public.orders
   WHERE id = _order_id
@@ -476,10 +476,11 @@ BEGIN
     RAISE EXCEPTION 'Payment already processed';
   END IF;
 
-  -- Update only the allowed fields
+  -- Update order: record UTR, mark buyer as confirmed, set status to placed
   UPDATE public.orders
   SET upi_transaction_ref = trim(_upi_transaction_ref),
       payment_status = 'buyer_confirmed',
+      status = 'placed',
       updated_at = now()
   WHERE id = _order_id;
 END;

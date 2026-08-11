@@ -63,7 +63,10 @@ export function AddMilestoneSheet({ onAdded, towers = [] }: AddMilestoneSheetPro
         );
       }
 
-      toast.success('Milestone added! Your entry will appear in the timeline.');
+      showFeedback({
+        title: 'Milestone added! Your entry will appear in the timeline.',
+        variant: 'success',
+      });
       setTitle('');
       setDescription('');
       setStage('foundation');

@@ -146,7 +146,10 @@ export function RefundRequestCard({ orderId, orderStatus, paymentStatus, isBuyer
       } as any);
 
       if (error) throw error;
-      toast.success('Refund request submitted');
+      showFeedback({
+        title: 'Refund request submitted',
+        variant: 'success',
+      });
       setShowForm(false);
       setReason('');
       setEvidenceUrls([]);

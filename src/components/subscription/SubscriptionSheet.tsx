@@ -47,7 +47,10 @@ export function SubscriptionSheet({ open, onOpenChange, product }: SubscriptionS
         next_delivery_date: new Date().toISOString().split('T')[0],
       });
       if (error) throw error;
-      toast.success('Subscribed!', { description: `You'll receive ${product.name} ${frequency}` });
+      showFeedback({
+        title: 'Subscribed!',
+        variant: 'success',
+      });
       onOpenChange(false);
     } catch (err: any) {
       toast.error(friendlyError(err));

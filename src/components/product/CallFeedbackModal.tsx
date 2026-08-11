@@ -37,7 +37,10 @@ export function CallFeedbackModal({ open, onOpenChange, interactionId, buyerId, 
         seller_id: sellerId,
         outcome: selected,
       });
-      toast.success('Thanks for your feedback!');
+      showFeedback({
+        title: 'Thanks for your feedback!',
+        variant: 'success',
+      });
       onOpenChange(false);
     } catch {
       toast.error('Could not save feedback');

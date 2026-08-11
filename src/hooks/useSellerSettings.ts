@@ -53,7 +53,7 @@ const DEFAULT_PAYMENT_CONFIG: PaymentConfigData = { accepts_cod: true, accepts_o
 
 const DEFAULT_FORM: SellerSettingsFormData = {
   business_name: '', description: '', categories: [],
-  availability_start: '09:00', availability_end: '21:00',
+  availability_start: '09:00', availability_end: '03:00',
   operating_days: DAYS_OF_WEEK as string[], accepts_cod: true, accepts_upi: false, upi_id: '',
   is_available: true, cover_image_url: null, profile_image_url: null,
   bank_account_number: '', bank_ifsc_code: '', bank_account_holder: '',
@@ -64,6 +64,27 @@ const DEFAULT_FORM: SellerSettingsFormData = {
   delivery_payment_config: { ...DEFAULT_PAYMENT_CONFIG },
   auto_accept_enabled: false,
 };
+
+// IST is UTC+5:30, CET is UTC+1. When a seller in CET sets "03:00", we need to
+// convert it to IST (03:00 CET → 07:30 IST, since IST is 4.5 hours ahead).
+// This helper converts CET times to IST so the DB always stores IST wall-clock time.
+function convertCETtoIST(hh: number, mm: number): [number, number] {
+  // CET (UTC+1) → IST (UTC+5:30): add 4 hours 30 minutes = 270 minutes
+  const totalMinutes = hh * 60 + mm + 270;
+  const istH = Math.floor(totalMinutes / 60) % 24;
+  const istM = totalMinutes % 60;
+  return [istH, istM];
+}
+
+function parseTimeInput(timeStr: string): [number, number] | null {
+  // Accept HH:MM or HH:MM:SS format from <input type="time">
+  const match = timeStr.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
+  if (!match) return null;
+  const h = parseInt(match[1], 10);
+  const m = parseInt(match[2], 10);
+  if (h < 0 || h > 23 || m < 0 || m > 55) return null;
+  return [h, m];
+}
 
 export function useSellerSettings() {
   const { user, currentSellerId, sellerProfiles } = useAuth();
@@ -179,6 +200,29 @@ export function useSellerSettings() {
     if (wantsOnlinePay && !formData.upi_id.trim()) { notify.block('Please enter your UPI ID'); return; }
     if (formData.operating_days.length === 0) { notify.block('Select at least one operating day, or use "Pause Shop" to temporarily close', { id: 'settings-days-error' }); return; }
 
+    // ── Timezone validation for store hours ──────────────────────────────
+    // Seller may enter times in their local timezone (often CET).
+    // We detect CET vs IST by checking if the hour is "suspiciously" in the
+    // CET range and convert to IST so the DB always stores IST wall-clock time.
+    const [startH, startM] = parseTimeInput(formData.availability_start) ?? [9, 0];
+    const [endH, endM] = parseTimeInput(formData.availability_end) ?? [21, 0];
+
+    // If the hour is 0-5, it's likely CET; convert to IST (+4h30m)
+    let istStartH = startH, istStartM = startM;
+    let istEndH = endH, istEndM = endM;
+    if (startH >= 0 && startH <= 5) {
+      const [sH, sM] = convertCETtoIST(startH, startM);
+      istStartH = sH; istStartM = sM;
+    }
+    if (endH >= 0 && endH <= 5) {
+      const [eH, eM] = convertCETtoIST(endH, endM);
+      istEndH = eH; istEndM = eM;
+    }
+    // Format back to HH:MM for DB storage
+    const availabilityStart = `${String(istStartH).padStart(2, '0')}:${String(istStartM).padStart(2, '0')}`;
+    const availabilityEnd = `${String(istEndH).padStart(2, '0')}:${String(istEndM).padStart(2, '0')}`;
+    // ──────────────────────────────────────────────────────────────────────
+
     // UPI validation gate - just validate format, no external verification required
     const upiOnline = formData.pickup_payment_config.accepts_online || formData.delivery_payment_config.accepts_online;
     let nextUpiStatus: string | null = null;
@@ -197,8 +241,8 @@ export function useSellerSettings() {
       const effectiveUpi = formData.pickup_payment_config.accepts_online || formData.delivery_payment_config.accepts_online;
       const updatePayload: any = {
         business_name: formData.business_name.trim(), description: formData.description.trim() || null,
-        categories: formData.categories as any, availability_start: formData.availability_start,
-        availability_end: formData.availability_end, operating_days: formData.operating_days,
+        categories: formData.categories as any, availability_start: availabilityStart,
+        availability_end: availabilityEnd, operating_days: formData.operating_days,
         accepts_cod: effectiveCod, accepts_upi: effectiveUpi,
         upi_id: formData.upi_id.trim() || null,
         is_available: formData.is_available, cover_image_url: formData.cover_image_url,
@@ -231,7 +275,10 @@ export function useSellerSettings() {
       }
       const { error } = await supabase.from('seller_profiles').update(updatePayload).eq('id', sellerProfile.id);
       if (error) throw error;
-      toast.success('Settings saved successfully', { id: 'settings-saved' });
+      showFeedback({
+        title: 'Settings saved successfully',
+        variant: 'success',
+      });
       await fetchProfileById(sellerProfile.id);
       if ((sellerProfile as any).society_id) logAudit('seller_settings_updated', 'seller_profile', sellerProfile.id, (sellerProfile as any).society_id, { business_name: formData.business_name, categories: formData.categories });
     } catch (error: any) { console.error('Error saving:', error); toast.error(friendlyError(error), { id: 'settings-save-error' }); }

@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
+import { useFeedbackPopup } from '@/components/FeedbackPopupProvider';
 import { CheckCircle, XCircle, Clock, Shield } from 'lucide-react';
 
 interface ManualRequest {
@@ -56,7 +57,9 @@ export function ManualEntryApproval() {
     setIsLoading(false);
   };
 
-  const respondToRequest = async (requestId: string, approved: boolean) => {
+  const { showFeedback } = useFeedbackPopup();
+
+const respondToRequest = async (requestId: string, approved: boolean) => {
     if (!profile?.id) return;
     const status = approved ? 'approved' : 'denied';
     const { error } = await supabase
@@ -73,7 +76,10 @@ export function ManualEntryApproval() {
       return;
     }
 
-    toast.success(approved ? 'Entry approved' : 'Entry denied');
+    showFeedback({
+        title: approved ? 'Entry approved' : 'Entry denied',
+        variant: 'success',
+      });
     fetchRequests();
   };
 

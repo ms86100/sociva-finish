@@ -134,29 +134,29 @@ export function useVisitorManagement() {
       vehicle_number: vehicleNumber || null, flat_number: profile?.flat_number || null, status: 'expected',
     });
     if (error) { toast.error(friendlyError(error)); }
-    else { toast.success(`Visitor added! ${isPreapproved ? `OTP: ${otp}` : ''}`); setIsAddOpen(false); resetForm(); fetchVisitors(); }
+    else { showFeedback({ title: `Visitor added${isPreapproved ? ` OTP: ${otp}` : ''}`, variant: 'success' }); setIsAddOpen(false); resetForm(); fetchVisitors(); }
     setIsSubmitting(false);
   };
 
   const handleCheckIn = withLoading(async (id: string) => {
     if (!user) return;
     const { error } = await supabase.from('visitor_entries').update({ status: 'checked_in', checked_in_at: new Date().toISOString() }).eq('id', id).eq('resident_id', user.id);
-    if (!error) { toast.success('Visitor checked in'); fetchVisitors(); }
+    if (!error) { showFeedback({ title: 'Visitor checked in' }); fetchVisitors(); }
   });
 
   const handleCheckOut = async (id: string) => {
     if (!user) return;
     const { error } = await supabase.from('visitor_entries').update({ status: 'checked_out', checked_out_at: new Date().toISOString() }).eq('id', id).eq('resident_id', user.id);
-    if (!error) { toast.success('Visitor checked out'); fetchVisitors(); }
+    if (!error) { showFeedback({ title: 'Visitor checked out' }); fetchVisitors(); }
   };
 
   const handleCancel = async (id: string) => {
     if (!user) return;
     const { error } = await supabase.from('visitor_entries').update({ status: 'cancelled' }).eq('id', id).eq('resident_id', user.id);
-    if (!error) { toast.success('Visitor entry cancelled'); fetchVisitors(); }
+    if (!error) { showFeedback({ title: 'Visitor entry cancelled' }); fetchVisitors(); }
   };
 
-  const copyOTP = (otp: string) => { navigator.clipboard.writeText(otp); toast.success('OTP copied to clipboard'); };
+  const copyOTP = (otp: string) => { navigator.clipboard.writeText(otp); showFeedback({ title: 'OTP copied to clipboard' }); };
 
   const todayCount = visitors.filter(v => v.status === 'expected' || v.status === 'checked_in').length;
 

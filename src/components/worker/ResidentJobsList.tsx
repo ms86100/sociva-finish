@@ -54,7 +54,7 @@ export function ResidentJobsList() {
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success('Job cancelled');
+      showFeedback({ title: 'Job cancelled', variant: 'success' });
       queryClient.invalidateQueries({ queryKey: ['resident-job-requests'] });
     },
     onError: () => toast.error('Failed to cancel'),
@@ -133,7 +133,7 @@ function RateWorkerDialog({ jobId }: { jobId: string }) {
       if (!result.success) throw new Error(result.error);
     },
     onSuccess: () => {
-      toast.success('Rating submitted!');
+      showFeedback({ title: 'Rating submitted!', variant: 'success' });
       queryClient.invalidateQueries({ queryKey: ['resident-job-requests'] });
       setOpen(false);
     },

@@ -24,7 +24,10 @@ export function GenericOtpCard({ orderId, targetStatus, targetStatusLabel }: Gen
       });
       if (error) throw error;
       setCode(data as string);
-      if (showToast) toast.success('New code generated');
+      if (showToast) showFeedback({
+        title: 'New code generated',
+        variant: 'success',
+      });
     } catch (err: any) {
       console.error('Failed to generate OTP:', err);
       if (showToast) toast.error('Failed to generate code');
@@ -54,7 +57,10 @@ export function GenericOtpCard({ orderId, targetStatus, targetStatusLabel }: Gen
   const handleCopy = () => {
     if (!code) return;
     navigator.clipboard.writeText(code).catch(() => {});
-    toast.success('Code copied');
+    showFeedback({
+        title: 'Code copied',
+        variant: 'success',
+      });
   };
 
   const handleRegenerate = async () => {

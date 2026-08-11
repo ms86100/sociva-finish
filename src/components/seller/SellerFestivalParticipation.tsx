@@ -128,7 +128,10 @@ export function SellerFestivalParticipation({ sellerId }: Props) {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['seller-festival-participation'] });
-      toast.success('Festival participation updated');
+      showFeedback({
+        title: 'Festival participation updated',
+        variant: 'success',
+      });
     },
     onError: (e: any) => toast.error(friendlyError(e) || 'Failed to update participation'),
   });

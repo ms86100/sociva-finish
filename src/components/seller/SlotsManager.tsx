@@ -97,7 +97,10 @@ export function SlotsManager({ sellerId }: SlotsManagerProps) {
       .eq('seller_id', sellerId);
     setBusyId(null);
     if (error) { toast.error(friendlyError(error) || 'Failed to update slot'); return; }
-    toast.success(slot.is_blocked ? 'Slot enabled' : 'Slot blocked');
+    showFeedback({
+        title: slot.is_blocked ? 'Slot enabled' : 'Slot blocked',
+        variant: 'success',
+      });
     queryClient.invalidateQueries({ queryKey: ['seller-slots-range', sellerId] });
   };
 
@@ -121,7 +124,10 @@ export function SlotsManager({ sellerId }: SlotsManagerProps) {
     }
     setBulkBusy(null);
     if (failed > 0) toast.error(`${failed} slot(s) failed to update`);
-    else toast.success(`${targets.length} slot(s) ${mode === 'block' ? 'blocked' : 'unblocked'}`);
+    else showFeedback({
+        title: `${targets.length} slot(s) ${mode === 'block' ? 'blocked' : 'unblocked'}`,
+        variant: 'success',
+      });
     queryClient.invalidateQueries({ queryKey: ['seller-slots-range', sellerId] });
   };
 

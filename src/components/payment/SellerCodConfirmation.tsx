@@ -34,7 +34,10 @@ export function SellerCodConfirmation({
 
       if (error) throw error;
 
-      toast.success('Cash payment confirmed');
+      showFeedback({
+        title: 'Cash payment confirmed',
+        variant: 'success',
+      });
       await queryClient.invalidateQueries({ queryKey: ['payment-record', orderId] });
       onConfirmed();
     } catch (err: any) {

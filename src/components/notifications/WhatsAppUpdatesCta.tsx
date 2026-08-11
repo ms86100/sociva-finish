@@ -9,6 +9,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
+import { useFeedbackPopup } from '@/components/FeedbackPopupProvider';
 import {
   WHATSAPP_OPTIN_DISMISS_KEY,
   openWhatsAppOptIn,
@@ -59,6 +60,7 @@ export function WhatsAppUpdatesCta({
 }: WhatsAppUpdatesCtaProps) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const { showFeedback } = useFeedbackPopup();
   const copy = audienceCopy(audience);
   const [dismissed, setDismissed] = useState(
     () => (typeof sessionStorage !== 'undefined' && sessionStorage.getItem(WHATSAPP_OPTIN_DISMISS_KEY) === '1'),
@@ -115,7 +117,10 @@ export function WhatsAppUpdatesCta({
       await openWhatsAppOptIn(user.id);
       queryClient.invalidateQueries({ queryKey: ['notification-preferences-whatsapp', user.id] });
       queryClient.invalidateQueries({ queryKey: ['notification-preferences', user.id] });
-      toast.success('WhatsApp opened — tap Send to register for updates');
+      showFeedback({
+        title: 'WhatsApp opened — tap Send to register for updates',
+        variant: 'success',
+      });
       if (dismissible && variant !== 'settings') {
         sessionStorage.setItem(WHATSAPP_OPTIN_DISMISS_KEY, '1');
         setDismissed(true);

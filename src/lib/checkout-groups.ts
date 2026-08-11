@@ -66,7 +66,7 @@ export function buyerStoreStatusLabel(
     return 'Cancelled';
   }
   if (s === 'placed' || s === 'pending') return 'Waiting for seller';
-  if (['accepted', 'preparing', 'confirmed', 'in_progress'].includes(s)) {
+  if (['accepted', 'preparing', 'booked', 'in_progress'].includes(s)) {
     if (s === 'accepted') return 'Accepted';
     if (s === 'preparing' || s === 'in_progress') return 'Preparing';
     return 'Accepted';

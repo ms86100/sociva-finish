@@ -21,7 +21,7 @@ import { CalendarClock, Loader2 } from 'lucide-react';
 import { friendlyError } from '@/lib/utils';
 import { useFeedbackPopup } from '@/components/FeedbackPopupProvider';
 
-const RESCHEDULABLE_STATUSES = new Set(['confirmed', 'scheduled', 'rescheduled']);
+const RESCHEDULABLE_STATUSES = new Set(['booked', 'scheduled', 'rescheduled']);
 
 interface BuyerRescheduleBookingProps {
   bookingId: string;

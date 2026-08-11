@@ -42,7 +42,10 @@ export function SellerRefundActions({
     try {
       const { error } = await supabase.rpc('approve_refund', { p_refund_id: refundId });
       if (error) throw error;
-      toast.success('Refund approved — processing automatically');
+      showFeedback({
+        title: 'Refund approved — processing automatically',
+        variant: 'success',
+      });
 
       // Fire-and-forget: kick refund-processor (DB trigger or cron will also catch it)
       supabase.functions.invoke('refund-processor', { body: { refund_id: refundId } }).catch(() => {});
@@ -67,7 +70,10 @@ export function SellerRefundActions({
         p_reason: rejectionReason.trim(),
       });
       if (error) throw error;
-      toast.success('Refund rejected');
+      showFeedback({
+        title: 'Refund rejected',
+        variant: 'success',
+      });
       setShowReject(false);
       onActionComplete?.();
     } catch (err: any) {

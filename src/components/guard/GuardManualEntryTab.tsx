@@ -22,7 +22,9 @@ export function GuardManualEntryTab({ societyId }: Props) {
   const [isSending, setIsSending] = useState(false);
   const manualRequestIdRef = useRef<string | null>(null);
 
-  useEffect(() => {
+  const { showFeedback } = useFeedbackPopup();
+
+useEffect(() => {
     if (manualStatus !== 'sent' || !manualRequestIdRef.current) return;
     const channel = supabase
       .channel(`manual-entry-${manualRequestIdRef.current}`)
@@ -33,7 +35,7 @@ export function GuardManualEntryTab({ societyId }: Props) {
         filter: `id=eq.${manualRequestIdRef.current}`,
       }, (payload) => {
         const newStatus = (payload.new as any).status;
-        if (newStatus === 'approved') { setManualStatus('approved'); toast.success('��✅ Entry approved by resident!'); }
+        if (newStatus === 'approved') { setManualStatus('approved'); showFeedback({ title: '✅ Entry approved by resident!', variant: 'success' }); }
         else if (newStatus === 'denied') { setManualStatus('denied'); toast.error('��❌ Entry denied by resident'); }
         else if (newStatus === 'expired') { setManualStatus('expired'); toast.warning('��⏰ Request expired'); }
       })

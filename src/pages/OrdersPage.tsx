@@ -25,7 +25,7 @@ import { Order } from '@/types/Database';
 import { Package, ChevronRight, Loader2, CheckCircle, Truck, MessageCircle } from 'lucide-react';
 import { format, formatDistanceToNow, isToday, isYesterday, differenceInDays } from 'date-fns';
 import { staggerContainer, cardEntrance, emptyState, fadeSlideUp } from '@/lib/motion-variants';
-import { isPortfolioSellerId, resolveOperationalSellerId } from '@/lib/seller-order-board';
+import { ALL_STORES_ID, isPortfolioSellerId, resolveOperationalSellerId } from '@/lib/seller-order-board';
 import { resolveOrderProgress } from '@/lib/orderProgressStages';
 import { groupBuyerOrdersForList } from '@/lib/checkout-groups';
 import { CheckoutGroupCard } from '@/components/order/CheckoutGroupCard';
@@ -399,6 +399,9 @@ export default function OrdersPage() {
                   </div>
                 ) : (
                   <OrderList type="seller" userId={user.id} sellerId={operationalSellerId || undefined} />
+                )}
+                {portfolioMode && (
+                  <OrderList type="seller" userId={user.id} sellerId={ALL_STORES_ID} />
                 )}
               </TabsContent>
             </Tabs>

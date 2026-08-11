@@ -68,7 +68,10 @@ export function SnagDetailSheet({
 
     const { error } = await supabase.from('snag_tickets').update(updates).eq('id', ticket.id);
     if (error) { toast.error('Failed to update'); return; }
-    toast.success('Status updated');
+    showFeedback({
+        title: 'Status updated',
+        variant: 'success',
+      });
     onUpdated();
   };
 

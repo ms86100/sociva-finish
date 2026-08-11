@@ -61,7 +61,10 @@ export function SellerPaymentConfirmation({
         supabase.functions.invoke('process-notification-queue').catch(() => {});
       }
 
-      toast.success(received ? 'Payment confirmed' : 'Marked not received — order cancelled');
+      showFeedback({
+        title: received ? 'Payment confirmed' : 'Marked not received — order cancelled',
+        variant: 'success',
+      });
       onConfirmed();
     } catch (err) {
       console.error('Failed to update payment confirmation:', err);

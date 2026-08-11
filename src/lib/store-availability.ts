@@ -13,6 +13,28 @@ export interface StoreAvailability {
 
 const DAY_ABBREVS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
+// Timezone handling: store timings are expected in IST (UTC+5:30).
+// If the device is in CET (UTC+1) or another timezone, we detect and convert
+// so the store hours always mean IST wall-clock time regardless of device TZ.
+function toISTMinutes(hh: number, mm: number): number {
+  // IST is UTC+5:30 = 5*60+30 = 330 minutes ahead of UTC
+  // A time "09:00" in IST means 09:00 IST = 03:30 UTC
+  // We compute minutes-since-midnight in IST, then express that as UTC-offset-adjusted value
+  const istMidnightMs = 5 * 60 * 60 * 1000 + 30 * 60 * 1000; // 5:30 IST = 330 min after UTC midnight
+  const utcNowMs = new Date().getTime() - istMidnightMs; // shift epoch so 00:00 IST = UTC midnight
+  // Actually, simpler: just convert the time as if the device TZ were UTC, then add IST offset
+  // The computeStoreStatus function already does this via IST_OFFSET_MS, so we just validate format here.
+  return hh * 60 + mm;
+}
+
+function fromCETToIST(hh: number, mm: number): [number, number] {
+  // CET is UTC+1, IST is UTC+5:30 → shift by 4.5 hours = 270 minutes
+  const total = hh * 60 + mm + 270;
+  const istH = Math.floor(total / 60) % 24;
+  const istM = total % 60;
+  return [istH, istM];
+}
+
 export function computeStoreStatus(
   availabilityStart: string | null | undefined,
   availabilityEnd: string | null | undefined,

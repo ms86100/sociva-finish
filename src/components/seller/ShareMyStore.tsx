@@ -41,7 +41,10 @@ export function ShareMyStore() {
     try {
       await navigator.clipboard.writeText(shareText);
       setCopied(true);
-      toast.success('Store link copied to clipboard!');
+      showFeedback({
+        title: 'Store link copied to clipboard!',
+        variant: 'success',
+      });
       setTimeout(() => setCopied(false), 2000);
     } catch {
       toast.error('Could not copy link');

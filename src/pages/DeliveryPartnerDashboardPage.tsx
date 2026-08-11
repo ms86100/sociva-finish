@@ -11,6 +11,7 @@ import { FeatureGate } from '@/components/ui/FeatureGate';
 import { useAuth } from '@/contexts/AuthContext';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import { useFeedbackPopup } from '@/components/FeedbackPopupProvider';
 import { Truck, Package, CheckCircle2, Loader2, Radio } from 'lucide-react';
 import { useCurrency } from '@/hooks/useCurrency';
 import { useBackgroundLocationTracking } from '@/hooks/useBackgroundLocationTracking';
@@ -177,7 +178,10 @@ export default function DeliveryPartnerDashboardPage() {
 
     if (error) toast.error('Failed to update status');
     else {
-      toast.success(`Status updated to ${newStatus.replace('_', ' ')}`);
+      showFeedback({
+        title: `Status updated to ${newStatus.replace('_', ' ')}`,
+        variant: 'success',
+      });
       // Start/stop GPS tracking based on new status
       if (newStatus === 'picked_up') {
         setActiveTrackingId(assignmentId);
@@ -209,7 +213,10 @@ export default function DeliveryPartnerDashboardPage() {
 
     if (error) toast.error('Failed to accept delivery');
     else {
-      toast.success('Delivery accepted!');
+      showFeedback({
+        title: 'Delivery accepted!',
+        variant: 'success',
+      });
       queryClient.invalidateQueries({ queryKey: ['my-deliveries'] });
       queryClient.invalidateQueries({ queryKey: ['pending-deliveries'] });
     }
@@ -224,7 +231,10 @@ export default function DeliveryPartnerDashboardPage() {
       .eq('id', partnerProfile.id);
     if (!error) {
       queryClient.invalidateQueries({ queryKey: ['my-delivery-partner-profile'] });
-      toast.success(partnerProfile.is_available ? 'Marked as unavailable' : 'Marked as available');
+      showFeedback({
+        title: partnerProfile.is_available ? 'Marked as unavailable' : 'Marked as available',
+        variant: 'success',
+      });
     }
   };
 

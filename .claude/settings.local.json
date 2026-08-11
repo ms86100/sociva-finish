@@ -28,7 +28,20 @@
       "Bash(xargs grep -l \"@/types/database\")",
       "Bash(xargs sed -i 's|@/types/database|@/types/Database|g')",
       "Bash(git commit *)",
-      "Bash(sort -k5 -nr)"
+      "Bash(sort -k5 -nr)",
+      "Bash(npx tsc *)",
+      "Bash(rtk git *)",
+      "Bash(rtk tsc *)",
+      "Bash(rtk grep *)",
+      "Bash(dir /b /s)",
+      "Bash(rtk ls *)",
+      "mcp__supabase__apply_migration",
+      "Bash(npx vitest *)",
+      "Bash(supabase db *)",
+      "Bash(rtk npx *)",
+      "Bash(npx supabase *)",
+      "Bash(rtk read *)",
+      "mcp__supabase__get_project"
     ]
   },
   "enableAllProjectMcpServers": true,

@@ -8,6 +8,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { useAuth } from '@/contexts/AuthContext';
 import { Clock, Users, Shield, Building2, ShieldCheck, Activity, HelpCircle, ChevronDown, CheckCircle2, LogOut } from 'lucide-react';
+import { useFeedbackPopup } from '@/components/FeedbackPopupProvider';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 
@@ -21,6 +22,7 @@ interface PreviewData {
 
 export function VerificationPendingScreen() {
   const { profile, refreshProfile, signOut } = useAuth();
+  const { showFeedback } = useFeedbackPopup();
   const [preview, setPreview] = useState<PreviewData | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -33,7 +35,10 @@ export function VerificationPendingScreen() {
       .eq('id', profile.id)
       .single();
     if (data?.verification_status === 'approved') {
-      toast.success('🎉 You have been verified! Welcome to your community.');
+      showFeedback({
+        title: '🎉 You have been verified! Welcome to your community.',
+        variant: 'success',
+      });
       // Re-fetch auth context so React re-renders with updated status
       await refreshProfile();
     }

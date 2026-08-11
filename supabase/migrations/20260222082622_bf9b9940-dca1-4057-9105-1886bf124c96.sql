@@ -14,6 +14,10 @@ DECLARE
   _notif_title text;
   _notif_body text;
   _target_user_id uuid;
+  _seller_profile seller_profiles%rowtype;
+  _buyer_profile profiles%rowtype;
+  _order_order items%rowtype[];
+  _item product%rowtype;
 BEGIN
   -- Only fire on actual status changes
   IF OLD.status IS NOT DISTINCT FROM NEW.status THEN
@@ -23,15 +27,27 @@ BEGIN
   _short_order_id := LEFT(NEW.id::text, 8);
 
   -- Get seller user_id and name
-  SELECT sp.user_id, sp.business_name
-  INTO _seller_user_id, _seller_name
+  SELECT sp.user_id, sp.business_name, sp.society_id, sp.delivery_address
+  INTO _seller_user_id, _seller_name, _seller_user_society_id, _seller_delivery_address
   FROM seller_profiles sp
   WHERE sp.id = NEW.seller_id;
 
-  -- Get buyer name
-  SELECT p.name INTO _buyer_name
+  -- Get buyer profile (for society/flat info)
+  SELECT p.* INTO _buyer_profile
   FROM profiles p
   WHERE p.id = NEW.buyer_id;
+
+  -- Get order items with product details
+  SELECT jsonb_agg(jsonb_build_object(
+    'id', oi.id,
+    'product_name', p.name,
+    'quantity', oi.quantity,
+    'unit_price', oi.unit_price,
+    'total_price', oi.quantity * oi.unit_price
+  )) INTO _order_order
+  FROM order_items oi
+  JOIN products p ON p.id = oi.product_id
+  WHERE oi.order_id = NEW.id;
 
   _seller_name := COALESCE(_seller_name, 'Seller');
   _buyer_name := COALESCE(_buyer_name, 'Customer');
@@ -45,7 +61,17 @@ BEGIN
       _buyer_name || ' placed an order. Tap to view and accept.',
       'order',
       '/orders/' || NEW.id::text,
-      jsonb_build_object('orderId', NEW.id, 'status', NEW.status)
+      jsonb_build_object(
+        'orderId', NEW.id,
+        'status', NEW.status,
+        'itemName', COALESCE(_order_order[0]->> 'product_name', 'Item'),
+        'quantity', COALESCE(_order_order[0]->> 'quantity', '1'),
+        'actualAmount', COALESCE(_order_order[0]->> 'total_price', '0'),
+        'sellerSocietyId', _seller_user_society_id,
+        'buyerFlatNo', COALESCE(_buyer_profile.flat_number, ''),
+        'buyerBlock', COALESCE(_buyer_profile.block, ''),
+        'buyerPhase', COALESCE(_buyer_profile.phase, '')
+      )
     );
   END IF;
 
@@ -58,7 +84,12 @@ BEGIN
       'Order #' || _short_order_id || ' from ' || _buyer_name || ' was cancelled.',
       'order',
       '/orders/' || NEW.id::text,
-      jsonb_build_object('orderId', NEW.id, 'status', NEW.status)
+      jsonb_build_object(
+        'orderId', NEW.id,
+        'status', NEW.status,
+        'itemName', COALESCE(_order_order[0]->> 'product_name', 'Item'),
+        'actualAmount', COALESCE(_order_order[0]->> 'total_price', '0')
+      )
     );
   END IF;
 
@@ -103,7 +134,16 @@ BEGIN
       _notif_body,
       'order',
       '/orders/' || NEW.id::text,
-      jsonb_build_object('orderId', NEW.id, 'status', NEW.status)
+      jsonb_build_object(
+        'orderId', NEW.id,
+        'status', NEW.status,
+        'itemName', COALESCE(_order_order[0]->> 'product_name', 'Item'),
+        'actualAmount', COALESCE(_order_order[0]->> 'total_price', '0'),
+        'sellerSocietyId', _seller_user_society_id,
+        'buyerFlatNo', COALESCE(_buyer_profile.flat_number, ''),
+        'buyerBlock', COALESCE(_buyer_profile.block, ''),
+        'buyerPhase', COALESCE(_buyer_profile.phase, '')
+      )
     );
   END IF;
 
@@ -127,17 +167,43 @@ CREATE OR REPLACE FUNCTION public.enqueue_order_placed_notification()
 AS $function$
 DECLARE
   _seller_user_id uuid;
+  _seller_name text;
   _buyer_name text;
+  _short_order_id text;
+  _seller_user_society_id uuid;
+  _buyer_profile profiles%rowtype;
+  _order_order jsonb[];
 BEGIN
   IF NEW.status != 'placed' THEN
     RETURN NEW;
   END IF;
 
-  SELECT sp.user_id INTO _seller_user_id
-  FROM seller_profiles sp WHERE sp.id = NEW.seller_id;
+  _short_order_id := LEFT(NEW.id::text, 8);
 
-  SELECT p.name INTO _buyer_name
-  FROM profiles p WHERE p.id = NEW.buyer_id;
+  -- Get seller user_id and name
+  SELECT sp.user_id, sp.business_name, sp.society_id INTO _seller_user_id, _seller_name, _seller_user_society_id
+  FROM seller_profiles sp
+  WHERE sp.id = NEW.seller_id;
+
+  -- Get buyer profile (for society/flat info)
+  SELECT p.* INTO _buyer_profile
+  FROM profiles p
+  WHERE p.id = NEW.buyer_id;
+
+  -- Get order items with product details
+  SELECT jsonb_agg(jsonb_build_object(
+    'id', oi.id,
+    'product_name', p.name,
+    'quantity', oi.quantity,
+    'unit_price', oi.unit_price,
+    'total_price', oi.quantity * oi.unit_price
+  )) INTO _order_order
+  FROM order_items oi
+  JOIN products p ON p.id = oi.product_id
+  WHERE oi.order_id = NEW.id;
+
+  _seller_name := COALESCE(_seller_name, 'Seller');
+  _buyer_name := COALESCE(_buyer_name, 'Customer');
 
   IF _seller_user_id IS NOT NULL THEN
     INSERT INTO notification_queue (user_id, title, body, type, reference_path, payload)
@@ -147,7 +213,17 @@ BEGIN
       COALESCE(_buyer_name, 'Customer') || ' placed an order. Tap to view and accept.',
       'order',
       '/orders/' || NEW.id::text,
-      jsonb_build_object('orderId', NEW.id, 'status', 'placed')
+      jsonb_build_object(
+        'orderId', NEW.id,
+        'status', 'placed',
+        'itemName', COALESCE(_order_order[0]->> 'product_name', 'Item'),
+        'quantity', COALESCE(_order_order[0]->> 'quantity', '1'),
+        'actualAmount', COALESCE(_order_order[0]->> 'total_price', '0'),
+        'sellerSocietyId', _seller_user_society_id,
+        'buyerFlatNo', COALESCE(_buyer_profile.flat_number, ''),
+        'buyerBlock', COALESCE(_buyer_profile.block, ''),
+        'buyerPhase', COALESCE(_buyer_profile.phase, '')
+      )
     );
   END IF;
 

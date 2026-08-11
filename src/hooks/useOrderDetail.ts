@@ -390,7 +390,7 @@ export function useOrderDetail(id: string | undefined) {
     chatRecipientName = isSellerView ? seller?.business_name : (order as any)?.buyer?.name;
   }
 
-  const copyOrderId = () => { if (!order) return; navigator.clipboard.writeText(order.id.slice(0, 8)); toast.success('Order ID copied', { id: 'order-id-copied' }); };
+  const copyOrderId = () => { if (!order) return; navigator.clipboard.writeText(order.id.slice(0, 8)); showFeedback({ title: 'Order ID copied', variant: 'success' }); };
 
   const displayStatuses = useMemo(() => {
     if (timelineSteps.length === 0) return [];

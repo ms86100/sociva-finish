@@ -346,28 +346,13 @@ export function useRazorpay() {
         },
         config: {
           display: {
-            blocks: {
-              upi: {
-                name: 'Pay via UPI',
-                instruments: [
-                  // Show ALL installed UPI apps (not just gpay/phonepe/paytm)
-                  { method: 'upi', flows: ['intent'] },
-                  // Fallback: manual UPI ID entry for apps not detected via intent
-                  { method: 'upi', flows: ['collect'] },
-                ],
-              },
-              other: {
-                name: 'Other Payment Methods',
-                instruments: [
-                  { method: 'card' },
-                  { method: 'netbanking' },
-                  { method: 'wallet' },
-                ],
-              },
-            },
-            sequence: ['upi', 'other'],
+            // Show all blocks in a single view — users see UPI, Card, Netbanking, Wallet together
+            // rather than needing to swipe between tabs.
+            sequence: [],
             preferences: {
               show_default_blocks: false,
+              // Ensure all configured blocks are visible — do not collapse/hide any payment method
+              preferred_blocks: ['upi', 'card', 'netbanking', 'wallet'],
             },
           },
         },

@@ -61,7 +61,10 @@ export function ReportSheet({ open, onOpenChange, targetType, targetId, targetNa
       const { error } = await supabase.from('reports').insert(insertData as any);
       if (error) throw error;
 
-      toast.success('Report submitted. Our team will review it shortly.');
+      showFeedback({
+        title: 'Report submitted. Our team will review it shortly.',
+        variant: 'success',
+      });
       onOpenChange(false);
       setReportType('');
       setDescription('');

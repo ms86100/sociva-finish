@@ -346,10 +346,16 @@ export function DraftProductManager({
         const updated = [...products];
         updated[editingIndex] = { ...newProduct, id: savedProductId, discount_percentage: computedDiscount };
         onProductsChange(updated);
-        toast.success('Product updated');
+        showFeedback({
+        title: 'Product updated',
+        variant: 'success',
+      });
       } else {
         onProductsChange([...products, { ...newProduct, id: savedProductId, discount_percentage: computedDiscount }]);
-        toast.success('Product added');
+        showFeedback({
+        title: 'Product added',
+        variant: 'success',
+      });
       }
 
       resetForm();

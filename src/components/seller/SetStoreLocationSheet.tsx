@@ -105,7 +105,10 @@ export function SetStoreLocationSheet({ open, onOpenChange, sellerId, onSuccess 
         if (labelErr) throw labelErr;
       }
 
-      toast.success('Store location set successfully!');
+      showFeedback({
+        title: 'Store location set successfully!',
+        variant: 'success',
+      });
       queryClient.invalidateQueries({ queryKey: ['seller-health', sellerId] });
       queryClient.invalidateQueries({ queryKey: ['seller-profile'] });
       queryClient.invalidateQueries({ queryKey: ['seller-settings'] });

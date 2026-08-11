@@ -139,7 +139,10 @@ export default function CreateJobRequestPage() {
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success('Job request posted! Workers will be notified.');
+      showFeedback({
+        title: 'Job request posted! Workers will be notified.',
+        variant: 'success',
+      });
       queryClient.invalidateQueries({ queryKey: ['resident-job-requests'] });
       navigate('/worker-hire');
     },

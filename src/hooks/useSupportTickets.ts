@@ -355,7 +355,10 @@ export function useResolveTicket() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['support-tickets'] });
-      toast.success('Ticket updated');
+      showFeedback({
+        title: 'Ticket updated',
+        variant: 'success',
+      });
     },
   });
 }

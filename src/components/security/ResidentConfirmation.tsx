@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
+import { useFeedbackPopup } from '@/components/FeedbackPopupProvider';
 import { CheckCircle, XCircle, Clock, Shield, AlertTriangle } from 'lucide-react';
 
 interface PendingConfirmation {
@@ -92,7 +93,9 @@ export function ResidentConfirmation() {
     return () => clearInterval(interval);
   }, [pending]);
 
-  const respond = async (entryId: string, approved: boolean) => {
+  const { showFeedback } = useFeedbackPopup();
+
+const respond = async (entryId: string, approved: boolean) => {
     const now = new Date().toISOString();
     const { error } = await supabase
       .from('gate_entries')
@@ -117,7 +120,10 @@ export function ResidentConfirmation() {
       return;
     }
 
-    toast.success(approved ? 'Entry confirmed' : 'Entry denied');
+    showFeedback({
+      title: approved ? 'Entry confirmed' : 'Entry denied',
+      variant: 'success'
+    });
     fetchPending();
   };
 

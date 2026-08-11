@@ -71,7 +71,10 @@ export default function AuthorizedPersonsPage() {
     });
     if (error) toast.error('Failed to add person');
     else {
-      toast.success('Authorized person added');
+      showFeedback({
+        title: 'Authorized person added',
+        variant: 'success',
+      });
       setSheetOpen(false);
       setName(''); setPhone(''); setPhotoUrl(null);
       fetchPersons();
@@ -84,7 +87,7 @@ export default function AuthorizedPersonsPage() {
       .update({ is_active: false })
       .eq('id', id)
       .eq('resident_id', user!.id);
-    if (!error) { toast.success('Person removed'); fetchPersons(); }
+    if (!error) { showFeedback({ title: 'Person removed', variant: 'success' }); fetchPersons(); }
   };
 
   if (loading) return (

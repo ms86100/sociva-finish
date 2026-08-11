@@ -618,7 +618,7 @@ export default function OrderDetailPage() {
   // as long as we have a resolvable next status (via transitions-only fallback in useOrderDetail).
   const hasResolvableSellerCTA = !!o.nextStatus || o.canSellerReject;
   const hasSellerActionBar = o.isSellerView && !o.isFlowLoading && !isTerminalStatus(o.flow, order.status) && (o.flow.length > 0 || hasResolvableSellerCTA);
-  const canRescheduleBooking = !!serviceBooking && ['confirmed', 'scheduled', 'rescheduled'].includes(serviceBooking.status);
+  const canRescheduleBooking = !!serviceBooking && ['booked', 'scheduled', 'rescheduled'].includes(serviceBooking.status);
   const hasBuyerActionBar = o.isBuyerView && !o.isFlowLoading && o.flow.length > 0 && !isTerminalStatus(o.flow, order.status) && (o.buyerNextStatus || o.canBuyerCancel || canRescheduleBooking);
 
   // Show the prominent "Accept Order" hero card when the seller is on a fresh placed order.

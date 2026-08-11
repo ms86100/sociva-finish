@@ -64,7 +64,7 @@ export function WorkerGateValidation() {
     });
 
     if (error) {
-      toast.error('Validation failed');
+      showFeedback({ title: 'Validation failed', variant: 'success' });
       setResult({ valid: false, reason: error.message });
     } else {
       setResult(data as unknown as ValidationResult);
@@ -93,7 +93,7 @@ export function WorkerGateValidation() {
       verified_by: user.id,
     });
 
-    toast.success(allowed ? 'Worker entry allowed' : 'Worker entry denied');
+    showFeedback({ title: allowed ? 'Worker entry allowed' : 'Worker entry denied', variant: 'success' });
     setResult(null);
     setSelectedWorkerId(null);
     setSearchInput('');

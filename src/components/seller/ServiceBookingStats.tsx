@@ -19,7 +19,7 @@ export function ServiceBookingStats({ sellerId }: ServiceBookingStatsProps) {
   const todaysBookings = bookings.filter(b => b.booking_date === todayStr);
   const pendingRequests = bookings.filter(b => b.status === 'requested');
   const upcomingConfirmed = bookings.filter(b =>
-    ['confirmed', 'scheduled'].includes(b.status) && b.booking_date >= todayStr
+    ['booked', 'scheduled'].includes(b.status) && b.booking_date >= todayStr
   );
   const completedThisWeek = bookings.filter(b => {
     if (b.status !== 'completed') return false;

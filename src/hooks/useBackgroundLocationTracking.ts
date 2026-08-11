@@ -362,7 +362,10 @@ export function useBackgroundLocationTracking(assignmentId: string | null) {
               console.log('[LocationTracking] Detected stopped tracking on resume — restarting');
               await bgGeoRef.current.start();
               await flushQueue();
-              toast.success('Tracking resumed', { id: 'tracking-resumed', duration: 3000 });
+              showFeedback({
+        title: 'Tracking resumed',
+        variant: 'success',
+      });
               if (mountedRef.current) setState(s => ({ ...s, trackingPaused: false }));
             }
           } catch (err) {

@@ -7,6 +7,7 @@ import { Link } from 'react-router-dom';
 import { format } from 'date-fns';
 import { Package, RotateCcw } from 'lucide-react';
 import { useCart } from '@/hooks/useCart';
+import { useFeedbackPopup } from '@/components/FeedbackPopupProvider';
 import { toast } from 'sonner';
 import { jitteredStaleTime } from '@/lib/query-utils';
 import { slideFromLeft, pulseRing } from '@/lib/motion-variants';
@@ -14,6 +15,7 @@ import { slideFromLeft, pulseRing } from '@/lib/motion-variants';
 export function WelcomeBackStrip() {
   const { user } = useAuth();
   const { addItem } = useCart();
+  const { showFeedback } = useFeedbackPopup();
 
   const { data: lastOrder } = useQuery({
     queryKey: ['last-order-context', user?.id],
@@ -62,7 +64,10 @@ export function WelcomeBackStrip() {
         });
         added++;
       }
-      toast.success(`${added} item${added !== 1 ? 's' : ''} added to cart`);
+      showFeedback({
+        title: `${added} item${added !== 1 ? 's' : ''} added to cart`,
+        variant: 'success'
+      });
     } catch {
       toast.error('Failed to reorder');
     }

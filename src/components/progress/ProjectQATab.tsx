@@ -99,7 +99,10 @@ export function ProjectQATab() {
         await supabase.from('project_questions').update({ is_answered: true }).eq('id', questionId);
       }
 
-      toast.success('Answer posted');
+      showFeedback({
+        title: 'Answer posted',
+        variant: 'success',
+      });
       setReplyText('');
       fetchQuestions();
     } catch (e: any) {

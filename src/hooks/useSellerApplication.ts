@@ -452,7 +452,10 @@ export function useSellerApplication() {
       }
     }
     localStorage.removeItem('seller_onboarding_step');
-    toast.success('Draft saved! You can resume later.', { id: 'seller-app-draft-saved' });
+    showFeedback({
+        title: 'Draft saved! You can resume later.',
+        variant: 'success',
+      });
     navigate('/profile');
   };
 
@@ -508,7 +511,10 @@ export function useSellerApplication() {
       await refreshProfile();
       localStorage.setItem('seller_onboarding_completed', 'true');
     localStorage.removeItem('seller_onboarding_step');
-    toast.success('Application submitted! Awaiting admin approval.', { id: 'seller-app-submitted' });
+    showFeedback({
+        title: 'Application submitted! Awaiting admin approval.',
+        variant: 'success',
+      });
     // Notify admins about the new store application
       notifyAdminsNewStoreApplication(formData.business_name.trim(), user.id).catch(console.error);
       setSubmissionComplete(true);

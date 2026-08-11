@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { SlidersHorizontal, Globe } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerTrigger } from '@/components/ui/drawer';
@@ -9,6 +9,8 @@ import { Switch } from '@/components/ui/switch';
 import { ProductCategory } from '@/types/Database';
 import { useCategoryConfigs } from '@/hooks/useCategoryBehavior';
 import { useSystemSettings } from '@/hooks/useSystemSettings';
+
+const STORAGE_KEY = 'sociva_search_radius';
 
 export interface FilterState {
   priceRange: [number, number];
@@ -53,7 +55,10 @@ export function SearchFilters({
   const [isOpen, setIsOpen] = useState(false);
   const [localFilters, setLocalFilters] = useState(filters);
   const [localBrowseBeyond, setLocalBrowseBeyond] = useState(browseBeyond ?? true);
-  const [localRadius, setLocalRadius] = useState(searchRadius ?? 5);
+  const [localRadius, setLocalRadius] = useState(() => {
+    const saved = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEY) : null;
+    return saved ? parseInt(saved, 10) : searchRadius ?? 5;
+  });
 
   const activeFilterCount = [
     filters.minRating > 0,
@@ -67,7 +72,7 @@ export function SearchFilters({
     if (open) {
       setLocalFilters(filters);
       setLocalBrowseBeyond(browseBeyond ?? true);
-      setLocalRadius(searchRadius ?? 5);
+      // Do NOT reset localRadius from prop - it's now persisted in localStorage
     }
     setIsOpen(open);
   };
@@ -79,6 +84,10 @@ export function SearchFilters({
     }
     if (onSearchRadiusCommit && localRadius !== searchRadius) {
       onSearchRadiusCommit(localRadius);
+    }
+    // Persist the search radius to localStorage
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(STORAGE_KEY, String(localRadius));
     }
     setIsOpen(false);
   };

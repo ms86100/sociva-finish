@@ -35,14 +35,20 @@ export function NotifyMeButton({ productId, className, compact = true }: NotifyM
           .eq('user_id', user.id)
           .eq('product_id', productId);
         setIsWatching(false);
-        toast.success('Removed from watchlist');
+        showFeedback({
+        title: 'Removed from watchlist',
+        variant: 'success',
+      });
       } else {
         const { error } = await supabase
           .from('stock_watchlist')
           .upsert({ user_id: user.id, product_id: productId }, { onConflict: 'user_id,product_id' });
         if (error) throw error;
         setIsWatching(true);
-        toast.success("We'll notify you when it's back!");
+        showFeedback({
+        title: "We'll notify you when it's back!",
+        variant: 'success',
+      });
       }
     } catch (err) {
       console.error(err);

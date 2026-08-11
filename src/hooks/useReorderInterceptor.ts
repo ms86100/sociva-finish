@@ -61,7 +61,10 @@ export function useReorderInterceptor() {
               .update({ acted_on: true })
               .eq('id', suggestionId);
 
-            toast.success('✅ Order placed!', { description: 'Your reorder has been created successfully.' });
+            showFeedback({
+        title: '✅ Order placed!',
+        variant: 'success',
+      });
             navigate(`/orders/${data.orders[0]}`, { replace: true });
             return;
           }

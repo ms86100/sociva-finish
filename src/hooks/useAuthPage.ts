@@ -160,11 +160,12 @@ export function useAuthPage() {
         setResendCooldown(0);
       }
       const timedOut = error?.name === 'AbortError';
-      toast.error(
-        timedOut
-          ? 'OTP is taking too long. Please try again.'
-          : (error.message || 'Failed to send OTP'),
-      );
+      showFeedback({
+      title: timedOut
+        ? 'OTP is taking too long. Please try again.'
+        : (error.message || 'Failed to send OTP'),
+      variant: 'success',
+    });
     } finally {
       clearTimeout(timeoutId);
       setIsSendingOtp(false);
@@ -280,7 +281,7 @@ export function useAuthPage() {
       }
 
       if (resolvedNew) {
-        toast.success('Phone verified! Now select your society.');
+        showFeedback({ title: 'Phone verified! Now select your society.', variant: 'success' });
         setStep('society');
       } else {
         const isIncomplete = !prof?.name || prof.name === 'User';
@@ -368,7 +369,7 @@ export function useAuthPage() {
       latitude: details.latitude, longitude: details.longitude,
     });
     setSelectedSociety({ id: 'pending', name, slug, is_active: false, is_verified: false, latitude: details.latitude, longitude: details.longitude, created_at: '', updated_at: '' } as Society);
-    toast.success('Location selected! Continue to complete setup.');
+    showFeedback({ title: 'Location selected! Continue to complete setup.', variant: 'success' });
   };
 
   const handleConfirmMatch = (societyId: string) => {
@@ -396,7 +397,7 @@ export function useAuthPage() {
     setSelectedSociety({ id: 'pending', name, slug, is_active: false, is_verified: false, latitude: details.latitude, longitude: details.longitude, created_at: '', updated_at: '' } as Society);
     setPotentialMatches([]);
     setPendingPlaceDetails(null);
-    toast.success('Location selected! Continue to complete setup.');
+    showFeedback({ title: 'Location selected! Continue to complete setup.', variant: 'success' });
   };
 
   const verifyGpsLocation = async () => {
@@ -408,7 +409,7 @@ export function useAuthPage() {
       const dist = haversineDistance(pos.latitude, pos.longitude, Number(selectedSociety.latitude), Number(selectedSociety.longitude));
       setGpsDistance(Math.round(dist));
       const radius = selectedSociety.geofence_radius_meters || 500;
-      if (dist <= radius) { setGpsStatus('verified'); toast.success('Location verified!'); }
+      if (dist <= radius) { setGpsStatus('verified'); showFeedback({ title: 'Location verified!', variant: 'success' }); }
       else { setGpsStatus('failed'); toast.error(`You appear to be ${Math.round(dist)}m away.`); }
     } catch {
       setGpsStatus('failed'); toast.error('Unable to access your location.');
@@ -429,7 +430,7 @@ export function useAuthPage() {
     };
     setPendingNewSociety(pending);
     setSelectedSociety({ id: 'pending', name: newSocietyData.name, slug: pending.slug, is_active: false, is_verified: false, created_at: '', updated_at: '' } as Society);
-    toast.success("Society details saved! Continue to finish setup.");
+    showFeedback({ title: "Society details saved! Continue to finish setup.", variant: 'success' });
     setSocietySubStep('search');
     setNewSocietyData({ name: '', address: '', city: '', pincode: '', landmark: '', contact: '' });
   };
@@ -476,7 +477,7 @@ export function useAuthPage() {
         }
       }
 
-      toast.success('Welcome! Complete your profile to get started.');
+      showFeedback({ title: 'Welcome! Complete your profile to get started.', variant: 'success' });
       navigate('/profile/edit');
     } catch (error: any) {
       toast.error(friendlyError(error));

@@ -59,9 +59,9 @@ const SUBTYPES: Record<string, { id: string; label: string }[]> = {
   ],
 };
 
-const CANCELABLE_STATUSES = ['placed', 'confirmed', 'preparing'];
+const CANCELABLE_STATUSES = ['placed', 'booked', 'preparing'];
 const EVIDENCE_CATEGORIES = ['wrong_item', 'missing_item'];
-const PRE_DELIVERY_STATUSES = ['placed', 'confirmed', 'preparing', 'ready', 'out_for_delivery'];
+const PRE_DELIVERY_STATUSES = ['placed', 'booked', 'preparing', 'ready', 'out_for_delivery'];
 const POST_DELIVERY_STATUSES = ['delivered', 'completed'];
 
 function getAvailableCategories(orderStatus: string, paymentStatus?: string) {

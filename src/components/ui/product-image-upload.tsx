@@ -60,7 +60,10 @@ export function ProductImageUpload({
 
       if (data?.image_url) {
         setPreviewUrl(data.image_url);
-        toast.success('Image generated! Click "Use This Image" to apply.');
+        showFeedback({
+        title: 'Image generated! Click "Use This Image" to apply.',
+        variant: 'success',
+      });
       } else {
         toast.error('No image was generated');
       }
@@ -76,7 +79,10 @@ export function ProductImageUpload({
     if (previewUrl) {
       onChange(previewUrl);
       setPreviewUrl(null);
-      toast.success('AI image applied');
+      showFeedback({
+        title: 'AI image applied',
+        variant: 'success',
+      });
     }
   };
 

@@ -45,7 +45,10 @@ export function CreateSnagSheet({ onCreated }: { onCreated: () => void }) {
         );
       }
 
-      toast.success('Snag reported');
+      showFeedback({
+        title: 'Snag reported',
+        variant: 'success',
+      });
       setDescription(''); setCategory('other'); setPhotoUrl(null);
       setOpen(false);
       onCreated();

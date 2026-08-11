@@ -76,7 +76,10 @@ export default function CollectiveBuyPage() {
         .from('collective_buy_participants')
         .insert({ request_id: buyId, user_id: user.id, quantity });
       if (error) throw error;
-      toast.success('You joined the group buy!');
+      showFeedback({
+        title: 'You joined the group buy!',
+        variant: 'success',
+      });
       fetchBuys();
     } catch (err: any) {
       toast.error(friendlyError(err) || 'Failed to join');
@@ -94,7 +97,10 @@ export default function CollectiveBuyPage() {
         .delete()
         .eq('request_id', buyId)
         .eq('user_id', user.id);
-      toast.success('You left the group buy');
+      showFeedback({
+        title: 'You left the group buy',
+        variant: 'success',
+      });
       fetchBuys();
     } catch {
       toast.error('Failed to leave');

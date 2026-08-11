@@ -159,7 +159,10 @@ export function CouponManager() {
       return;
     }
 
-    toast.success('Coupon created!');
+    showFeedback({
+        title: 'Coupon created!',
+        variant: 'success',
+      });
     setShowForm(false);
     setFormData({ code: '', description: '', discount_type: 'percentage', discount_value: '', min_order_amount: '', max_discount_amount: '', usage_limit: '', per_user_limit: '1', expires_at: '', show_to_buyers: true });
     fetchCoupons();
@@ -177,7 +180,10 @@ export function CouponManager() {
     const { error } = await supabase.from('coupons').update({ show_to_buyers: !current }).eq('id', id).eq('seller_id', operationalSellerId);
     if (error) { toast.error('Failed to update coupon visibility'); return; }
     setCoupons(coupons.map(c => c.id === id ? { ...c, show_to_buyers: !current } : c));
-    toast.success(!current ? 'Coupon now visible to buyers at checkout' : 'Coupon hidden — buyers must enter code manually');
+    showFeedback({
+        title: !current ? 'Coupon now visible to buyers at checkout' : 'Coupon hidden — buyers must enter code manually',
+        variant: 'success',
+      });
   };
 
   const deleteCoupon = async (id: string) => {
@@ -185,12 +191,18 @@ export function CouponManager() {
     const { error } = await supabase.from('coupons').delete().eq('id', id).eq('seller_id', operationalSellerId);
     if (error) { toast.error('Failed to delete coupon'); return; }
     setCoupons(coupons.filter(c => c.id !== id));
-    toast.success('Coupon deleted');
+    showFeedback({
+        title: 'Coupon deleted',
+        variant: 'success',
+      });
   };
 
   const copyCode = (code: string) => {
     navigator.clipboard.writeText(code);
-    toast.success('Code copied!');
+    showFeedback({
+        title: 'Code copied!',
+        variant: 'success',
+      });
   };
 
   return (

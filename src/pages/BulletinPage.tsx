@@ -168,7 +168,10 @@ export default function BulletinPage() {
   const handleMarkFulfilled = async () => {
     if (!selectedHelp) return;
     await supabase.from('help_requests').update({ status: 'fulfilled' }).eq('id', selectedHelp.id);
-    toast.success('Marked as fulfilled!');
+    showFeedback({
+        title: 'Marked as fulfilled!',
+        variant: 'success',
+      });
     setSelectedHelp(null);
     fetchHelpRequests();
   };

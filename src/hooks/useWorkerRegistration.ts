@@ -157,7 +157,10 @@ export function useWorkerRegistration(
 
       await logAudit('worker_registered', 'society_worker', worker?.id || '', effectiveSocietyId, { worker_type: workerType, name: name.trim() });
 
-      toast.success('Worker registered successfully');
+      showFeedback({
+        title: 'Worker registered successfully',
+        variant: 'success',
+      });
       onSuccess();
       onOpenChange(false);
     } catch (err: any) {

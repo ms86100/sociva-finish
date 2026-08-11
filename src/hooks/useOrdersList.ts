@@ -2,7 +2,7 @@
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useTerminalStatuses } from '@/hooks/useCategoryStatusFlow';
-import { Order } from '@/types/Database';
+import { ALL_STORES_ID, Order } from '@/lib/seller-order-board';
 
 const PAGE_SIZE = 20;
 
@@ -11,13 +11,13 @@ type OrderFilter = 'all' | 'active' | 'completed' | 'cancelled';
 async function fetchOrdersPage(
   type: 'buyer' | 'seller',
   userId: string,
-  sellerId: string | undefined,
+  sellerId: string | typeof ALL_STORES_ID | undefined,
   filter: OrderFilter,
   terminalSet: Set<string>,
   successSet: Set<string>,
   cursor?: string,
 ) {
-  let query;
+  let query: any;
   if (type === 'buyer') {
     query = supabase
       .from('orders')
@@ -36,12 +36,16 @@ async function fetchOrdersPage(
       if (cancelledStatuses.length > 0) query = query.in('status', cancelledStatuses as any);
     }
   } else {
-    query = supabase
-      .from('orders')
-      .select(`id, created_at, status, payment_status, total_amount, order_type, fulfillment_type, delivery_handled_by, transaction_type, auto_cancel_at, seller_id, buyer_id, buyer:profiles!orders_buyer_id_fkey(name, block, flat_number, phone), items:order_items(id, product_name, quantity, unit_price, subtotal, status, product_image)`)
-      .eq('seller_id', sellerId!)
-      .order('created_at', { ascending: false })
-      .limit(PAGE_SIZE);
+    const _isAllStores = sellerId === ALL_STORES_ID;
+    if (_isAllStores) {
+      query = supabase.from('orders').select(`id, created_at, status, payment_status, total_amount, order_type, fulfillment_type, delivery_handled_by, transaction_type, auto_cancel_at, seller_id, buyer_id, buyer:profiles!orders_buyer_id_fkey(name, block, flat_number, phone), items:order_items(id, product_name, quantity, unit_price, subtotal, status, product_image)`);
+    } else {
+      query = supabase
+        .from('orders')
+        .select(`id, created_at, status, payment_status, total_amount, order_type, fulfillment_type, delivery_handled_by, transaction_type, auto_cancel_at, seller_id, buyer_id, buyer:profiles!orders_buyer_id_fkey(name, block, flat_number, phone), items:order_items(id, product_name, quantity, unit_price, subtotal, status, product_image)`)
+        .eq('seller_id', sellerId!);
+    }
+    query = query.order('created_at', { ascending: false }).limit(PAGE_SIZE);
   }
 
   if (cursor) {
@@ -56,10 +60,11 @@ async function fetchOrdersPage(
 export function useOrdersList(
   type: 'buyer' | 'seller',
   userId: string,
-  sellerId?: string,
+  sellerId?: string | typeof ALL_STORES_ID,
   filter: OrderFilter = 'all',
 ) {
   const { successSet, terminalSet } = useTerminalStatuses();
+  const isAllStores = sellerId === ALL_STORES_ID;
 
   const result = useInfiniteQuery({
     queryKey: ['orders', type, userId, sellerId, filter],

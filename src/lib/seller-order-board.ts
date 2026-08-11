@@ -69,7 +69,7 @@ export const STATUS_TO_BUCKET: Record<string, SellerBoardBucket> = {
   placed: 'action_needed',
   pending: 'action_needed',
   accepted: 'action_needed',
-  confirmed: 'action_needed',
+  booked: 'action_needed',
   requested: 'action_needed',
   scheduled: 'action_needed',
   rescheduled: 'action_needed',

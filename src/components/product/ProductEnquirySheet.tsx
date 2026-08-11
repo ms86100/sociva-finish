@@ -171,7 +171,10 @@ export function ProductEnquirySheet({
       // Trigger immediate push notification to seller (fire-and-forget)
       supabase.functions.invoke('process-notification-queue').catch(() => {});
 
-      toast.success('Request sent! The seller will respond soon.');
+      showFeedback({
+        title: 'Request sent! The seller will respond soon.',
+        variant: 'success',
+      });
       onOpenChange(false);
       setMessage('');
       navigate(`/orders/${order.id}`);

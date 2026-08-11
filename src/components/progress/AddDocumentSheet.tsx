@@ -36,7 +36,10 @@ export function AddDocumentSheet({ onAdded }: { onAdded: () => void }) {
       });
       if (error) throw error;
 
-      toast.success('Document uploaded! It will appear in the vault shortly.');
+      showFeedback({
+        title: 'Document uploaded! It will appear in the vault shortly.',
+        variant: 'success',
+      });
       setTitle(''); setDescription(''); setCategory('other'); setFileUrl(null);
       setOpen(false);
       onAdded();
