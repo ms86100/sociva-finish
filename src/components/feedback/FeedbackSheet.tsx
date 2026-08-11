@@ -6,9 +6,10 @@ import { Textarea } from '@/components/ui/textarea';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
+import { useFeedbackPopup } from '@/components/FeedbackPopupProvider';
 import { MessageSquareHeart } from 'lucide-react';
 
-const EMOJIS = ['😞', '😐', '🙂', '😊', '🤩'];
+const EMOJIS = ['���😞', '���😐', '���🙂', '���😊', '���🤩'];
 
 interface FeedbackSheetProps {
   triggerLabel?: string;
@@ -23,6 +24,7 @@ export function FeedbackSheet({ triggerLabel, onSubmitted, triggerOpen, onOpenCh
   const [rating, setRating] = useState(0);
   const [message, setMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const { showFeedback } = useFeedbackPopup();
 
   useEffect(() => {
     if (triggerOpen) setOpen(true);
@@ -39,7 +41,11 @@ export function FeedbackSheet({ triggerLabel, onSubmitted, triggerOpen, onOpenCh
         page_context: window.location.pathname,
       });
       if (error) throw error;
-      toast.success('Thank you for your feedback! 💛');
+      const { showFeedback } = useFeedbackPopup();
+      showFeedback({
+        title: 'Thank you for your feedback!',
+        variant: 'success'
+      });
       setOpen(false);
       setRating(0);
       setMessage('');
@@ -57,7 +63,7 @@ export function FeedbackSheet({ triggerLabel, onSubmitted, triggerOpen, onOpenCh
         <button className="flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-muted/50 active:bg-muted transition-colors w-full">
           <MessageSquareHeart size={18} className="text-muted-foreground shrink-0" />
           <span className="flex-1 text-sm font-medium text-left">{triggerLabel || 'Share Feedback'}</span>
-          <span className="text-muted-foreground">›</span>
+          <span className="text-muted-foreground">�›</span>
         </button>
       </DrawerTrigger>
       <DrawerContent>

@@ -35,6 +35,7 @@ import {
 import { FeedbackSheet } from '@/components/feedback/FeedbackSheet';
 import { NotificationHealthCheck } from '@/components/notifications/NotificationHealthCheck';
 import { toast } from 'sonner';
+import { useFeedbackPopup } from '@/components/FeedbackPopupProvider';
 import { useSystemSettings } from '@/hooks/useSystemSettings';
 import { getFlag, setFlag, getString, removeKey } from '@/lib/persistent-kv';
 import { useTheme } from 'next-themes';
@@ -102,7 +103,11 @@ export default function ProfilePage() {
       const { error } = await supabase.from('profiles').update({ avatar_url: url }).eq('id', user.id);
       if (error) throw error;
       await refreshProfile();
-      toast.success('Profile photo updated');
+      const { showFeedback } = useFeedbackPopup();
+      showFeedback({
+        title: 'Profile photo updated',
+        variant: 'success'
+      });
       setIsEditingAvatar(false);
     } catch (error: any) {
       console.error('Error updating avatar:', error);

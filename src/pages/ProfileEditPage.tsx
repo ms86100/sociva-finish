@@ -11,6 +11,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useDeliveryAddresses } from '@/hooks/useDeliveryAddresses';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { useFeedbackPopup } from '@/components/FeedbackPopupProvider';
 import { ArrowLeft, Plus, Loader2, Mail, MapPin, Phone, User, ChevronRight } from 'lucide-react';
 import { useRef } from 'react';
 
@@ -48,7 +49,11 @@ export default function ProfileEditPage() {
       }).eq('id', user.id);
       if (error) throw error;
       await refreshProfile();
-      toast.success('Profile updated! Redirecting…');
+      const { showFeedback } = useFeedbackPopup();
+      showFeedback({
+        title: 'Profile updated! Redirecting…',
+        variant: 'success'
+      });
       navigate('/');
     } catch {
       toast.error('Failed to update profile');

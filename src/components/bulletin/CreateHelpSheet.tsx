@@ -10,6 +10,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { Loader2, Handshake, AlertCircle, HelpCircle, Gift } from 'lucide-react';
+import { useFeedbackPopup } from '@/components/FeedbackPopupProvider';
 
 const TAGS = [
   { value: 'borrow', label: 'Borrow', icon: Handshake, color: 'text-blue-600' },
@@ -43,7 +44,11 @@ export function CreateHelpSheet({ open, onOpenChange, onCreated }: CreateHelpShe
         tag,
       }).select('id').single();
       if (error) throw error;
-      toast.success('Help request posted!');
+      const { showFeedback } = useFeedbackPopup();
+      showFeedback({
+        title: 'Help request posted!',
+        variant: 'success'
+      });
 
       // Fire-and-forget push notification to society members
       supabase.functions.invoke('notify-help-request', {

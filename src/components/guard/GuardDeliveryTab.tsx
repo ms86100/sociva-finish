@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
+import { useFeedbackPopup } from '@/components/FeedbackPopupProvider';
 import {
   Truck, Search, CheckCircle, XCircle, Package, User, Phone, Home,
   Loader2, ShoppingBag
@@ -131,7 +132,11 @@ export function GuardDeliveryTab({ societyId }: Props) {
       .eq('status', 'expected')
       .ilike('purpose', `%${delivery.order_id.slice(0, 8)}%`);
 
-    toast.success(`Delivery rider allowed entry → Flat ${delivery.buyer_flat || 'N/A'}`);
+    const { showFeedback } = useFeedbackPopup();
+    showFeedback({
+      title: `Delivery rider allowed entry → Flat ${delivery.buyer_flat || 'N/A'}`,
+      variant: 'success'
+    });
     setDelivery(null);
     setSearchInput('');
     setSearchStatus('idle');

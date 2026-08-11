@@ -14,6 +14,7 @@ import {
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { Megaphone } from 'lucide-react';
+import { useFeedbackPopup } from '@/components/FeedbackPopupProvider';
 
 interface Props {
   societies: { id: string; name: string }[];
@@ -54,7 +55,11 @@ export function BuilderAnnouncementSheet({ societies, builderId, onSent }: Props
       toast.error('Failed to send announcement');
       console.error(error);
     } else {
-      toast.success('Announcement sent to all residents!');
+      const { showFeedback } = useFeedbackPopup();
+      showFeedback({
+        title: 'Announcement sent to all residents!',
+        variant: 'success'
+      });
       setTitle(''); setBody(''); setCategory('update');
       setOpen(false);
       onSent?.();

@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
+import { useFeedbackPopup } from '@/components/FeedbackPopupProvider';
 import { AlertTriangle, Send, CheckCircle, XCircle, Clock, Loader2 } from 'lucide-react';
 import { notify } from '@/lib/notify';
 
@@ -32,9 +33,9 @@ export function GuardManualEntryTab({ societyId }: Props) {
         filter: `id=eq.${manualRequestIdRef.current}`,
       }, (payload) => {
         const newStatus = (payload.new as any).status;
-        if (newStatus === 'approved') { setManualStatus('approved'); toast.success('✅ Entry approved by resident!'); }
-        else if (newStatus === 'denied') { setManualStatus('denied'); toast.error('❌ Entry denied by resident'); }
-        else if (newStatus === 'expired') { setManualStatus('expired'); toast.warning('⏰ Request expired'); }
+        if (newStatus === 'approved') { setManualStatus('approved'); toast.success('��✅ Entry approved by resident!'); }
+        else if (newStatus === 'denied') { setManualStatus('denied'); toast.error('��❌ Entry denied by resident'); }
+        else if (newStatus === 'expired') { setManualStatus('expired'); toast.warning('��⏰ Request expired'); }
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
@@ -74,12 +75,16 @@ export function GuardManualEntryTab({ societyId }: Props) {
       if (error) throw error;
       manualRequestIdRef.current = insertData?.id || null;
       setManualStatus('sent');
-      toast.success('Verification request sent to resident');
+      const { showFeedback } = useFeedbackPopup();
+      showFeedback({
+        title: 'Verification request sent to resident',
+        variant: 'success'
+      });
 
       if (resident?.id) {
         await supabase.from('notification_queue').insert({
           user_id: resident.id,
-          title: '🚨 Gate Entry Request',
+          title: '���🚨 Gate Entry Request',
           body: `Someone claiming to be "${nameInput.trim()}" is requesting entry. Approve?`,
           type: 'gate_manual_entry',
           reference_path: '/gate-entry',

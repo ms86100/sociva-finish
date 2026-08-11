@@ -9,6 +9,7 @@ import { ConfirmAction } from '@/components/ui/confirm-action';
 import { ImageUpload } from '@/components/ui/image-upload';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
+import { useFeedbackPopup } from '@/components/FeedbackPopupProvider';
 import { Shield, Search, CheckCircle, XCircle, User, Phone, Car, Clock, Loader2 } from 'lucide-react';
 
 interface VerifiedVisitor {
@@ -81,7 +82,11 @@ export function GuardVisitorOTPTab({ societyId }: Props) {
       .eq('id', verifiedVisitor.id);
 
     if (!error) {
-      toast.success(`${verifiedVisitor.visitor_name} checked in`);
+      const { showFeedback } = useFeedbackPopup();
+      showFeedback({
+        title: `${verifiedVisitor.visitor_name} checked in`,
+        variant: 'success'
+      });
       reset();
     }
     setIsAllowing(false);

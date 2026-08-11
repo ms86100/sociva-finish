@@ -71,7 +71,11 @@ export default function ResetPasswordPage() {
       const { error } = await supabase.auth.updateUser({ password });
       if (error) throw error;
       setIsSuccess(true);
-      toast.success('Password updated successfully!');
+      const { showFeedback } = useFeedbackPopup();
+      showFeedback({
+        title: 'Password updated successfully!',
+        variant: 'success'
+      });
     } catch (error: any) {
       toast.error(friendlyError(error));
     } finally {

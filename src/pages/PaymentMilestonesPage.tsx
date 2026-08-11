@@ -15,6 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '@/components/ui/drawer';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
+import { useFeedbackPopup } from '@/components/FeedbackPopupProvider';
 import { friendlyError } from '@/lib/utils';
 import {
   IndianRupee, Calendar, CheckCircle, Clock, AlertTriangle, Building2, Plus, Trash2, Edit2, Loader2
@@ -129,11 +130,19 @@ export default function PaymentMilestonesPage() {
       if (editing) {
         const { error } = await supabase.from('payment_milestones').update(payload).eq('id', editing.id);
         if (error) throw error;
-        toast.success('Milestone updated');
+        const { showFeedback } = useFeedbackPopup();
+        showFeedback({
+          title: 'Milestone updated',
+          variant: 'success'
+        });
       } else {
         const { error } = await supabase.from('payment_milestones').insert(payload);
         if (error) throw error;
-        toast.success('Milestone created');
+        const { showFeedback } = useFeedbackPopup();
+        showFeedback({
+          title: 'Milestone created',
+          variant: 'success'
+        });
       }
       setSheetOpen(false);
       fetchData();
@@ -148,7 +157,14 @@ export default function PaymentMilestonesPage() {
     if (!confirm('Delete this milestone?')) return;
     const { error } = await supabase.from('payment_milestones').delete().eq('id', id);
     if (error) toast.error(friendlyError(error));
-    else { toast.success('Deleted'); fetchData(); }
+    else {
+      const { showFeedback } = useFeedbackPopup();
+      showFeedback({
+        title: 'Deleted',
+        variant: 'success'
+      });
+      fetchData();
+    }
   };
 
   // Group milestones by stage

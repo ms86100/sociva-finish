@@ -10,11 +10,12 @@ import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
-import { 
-  ArrowBigUp, Send, Calendar, MapPin, Users, Pin, Loader2 
+import {
+  ArrowBigUp, Send, Calendar, MapPin, Users, Pin, Loader2
 } from 'lucide-react';
 import { CATEGORY_CONFIG } from './CategoryFilter';
 import type { BulletinPost } from './PostCard';
+import { useFeedbackPopup } from '@/components/FeedbackPopupProvider';
 
 interface Comment {
   id: string;
@@ -87,7 +88,11 @@ export function PostDetailSheet({ post, open, onOpenChange, onVote }: PostDetail
       body: newComment.trim(),
     });
     if (error) {
-      toast.error('Failed to comment');
+      const { showFeedback } = useFeedbackPopup();
+      showFeedback({
+        title: 'Failed to comment',
+        variant: 'error'
+      });
     } else {
       setNewComment('');
       await fetchComments();
@@ -123,7 +128,11 @@ export function PostDetailSheet({ post, open, onOpenChange, onVote }: PostDetail
     if (!post || !user) return;
     // Check if poll deadline has passed
     if (post.poll_deadline && new Date(post.poll_deadline) < new Date()) {
-      toast.error('Voting has ended');
+      const { showFeedback } = useFeedbackPopup();
+      showFeedback({
+        title: 'Voting has ended',
+        variant: 'error'
+      });
       return;
     }
     const { error } = await supabase.from('bulletin_votes').insert({
@@ -134,10 +143,18 @@ export function PostDetailSheet({ post, open, onOpenChange, onVote }: PostDetail
     });
     if (error) {
       if (error.code === '23505') {
-        toast.error('You already voted');
+        const { showFeedback } = useFeedbackPopup();
+        showFeedback({
+          title: 'You already voted',
+          variant: 'error'
+        });
       }
     } else {
-      toast.success('Vote recorded!');
+      const { showFeedback } = useFeedbackPopup();
+      showFeedback({
+        title: 'Vote recorded!',
+        variant: 'success'
+      });
     }
   };
 

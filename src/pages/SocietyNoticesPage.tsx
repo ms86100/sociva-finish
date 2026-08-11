@@ -17,6 +17,7 @@ import { toast } from 'sonner';
 import { friendlyError } from '@/lib/utils';
 import { Megaphone, Plus, Pin, Clock, User } from 'lucide-react';
 import { format } from 'date-fns';
+import { useFeedbackPopup } = '@/components/FeedbackPopupProvider';
 
 interface Notice {
   id: string;
@@ -79,7 +80,11 @@ export default function SocietyNoticesPage() {
     } as any);
     if (error) { toast.error(friendlyError(error)); }
     else {
-      toast.success('Notice posted & residents notified');
+      const { showFeedback } = useFeedbackPopup();
+      showFeedback({
+        title: 'Notice posted & residents notified',
+        variant: 'success'
+      });
       setSheetOpen(false);
       setTitle(''); setBody(''); setCategory('general'); setIsPinned(false);
       fetchNotices();

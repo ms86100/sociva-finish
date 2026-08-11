@@ -18,6 +18,7 @@ import { ProductAttributeBlocks } from './ProductAttributeBlocks';
 import { PriceStabilityBadge } from '@/components/trust/PriceStabilityBadge';
 import { RefundTierBadge } from '@/components/trust/RefundTierBadge';
 import { Plus, Minus, Store, MapPin, Clock, Truck, Users, Zap, RotateCcw, ChevronRight, ChevronDown, Shield, Flag, X, Share2, Heart, Star } from 'lucide-react';
+import { useFeedbackPopup } from '@/components/FeedbackPopupProvider';
 import { ProductFavoriteButton } from '@/components/favorite/ProductFavoriteButton';
 import { useProductFavorites } from '@/hooks/useProductFavorites';
 import { useProductDetail, ProductDetail } from '@/hooks/useProductDetail';
@@ -331,8 +332,11 @@ export function ProductDetailSheet({ product, open, onOpenChange, onSelectProduc
                       await navigator.share(shareData);
                     } else {
                       await navigator.clipboard.writeText(shareUrl);
-                      const { toast } = await import('sonner');
-                      toast.success('Link copied to clipboard');
+                      const { showFeedback } = useFeedbackPopup();
+                      showFeedback({
+                        title: 'Link copied to clipboard',
+                        variant: 'success'
+                      });
                     }
                   } catch {
                     // Sharing may be cancelled or unavailable without affecting the sheet.

@@ -8,6 +8,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { friendlyError } from '@/lib/utils';
 import { useCurrency } from '@/hooks/useCurrency';
+import { useFeedbackPopup } from '@/components/FeedbackPopupProvider';
 import { Pause, Play, X, RefreshCw } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { formatDistanceToNow } from 'date-fns';
@@ -67,7 +68,11 @@ export default function MySubscriptionsPage() {
       toast.error(friendlyError(error));
       return;
     }
-    toast.success(`Subscription ${status}`);
+    const { showFeedback } = useFeedbackPopup();
+    showFeedback({
+      title: `Subscription ${status}`,
+      variant: 'success'
+    });
     fetchSubs();
   };
 

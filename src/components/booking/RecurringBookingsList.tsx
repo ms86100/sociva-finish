@@ -13,6 +13,7 @@ import { RefreshCw, XCircle, Loader2, CalendarDays } from 'lucide-react';
 import { toast } from 'sonner';
 import { useState } from 'react';
 import { addDays, addWeeks, addMonths, format } from 'date-fns';
+import { useFeedbackPopup } from '@/components/FeedbackPopupProvider';
 
 function computeNextDate(config: any): string | null {
   if (!config.is_active) return null;
@@ -47,9 +48,17 @@ export function RecurringBookingsList() {
       if (error) throw error;
       if (!updated?.length) throw new Error('Recurring booking not found');
       refetch();
-      toast.success('Recurring booking cancelled');
+      const { showFeedback } = useFeedbackPopup();
+      showFeedback({
+        title: 'Recurring booking cancelled',
+        variant: 'success'
+      });
     } catch {
-      toast.error('Failed to cancel');
+      const { showFeedback } = useFeedbackPopup();
+      showFeedback({
+        title: 'Failed to cancel',
+        variant: 'error'
+      });
     } finally {
       setCancelling(null);
     }

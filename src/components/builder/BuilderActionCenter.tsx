@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
 import { Bug, ShieldAlert, Clock, CheckCircle, AlertTriangle, ChevronRight, MessageSquare } from 'lucide-react';
+import { useFeedbackPopup } from '@/components/FeedbackPopupProvider';
 
 interface SnagItem {
   id: string;
@@ -118,7 +119,11 @@ export function BuilderActionCenter({ societyIds, onNavigateToSociety }: Builder
     if (error) {
       toast.error('Failed to acknowledge');
     } else {
-      toast.success('Acknowledged');
+      const { showFeedback } = useFeedbackPopup();
+      showFeedback({
+        title: 'Acknowledged',
+        variant: 'success'
+      });
     }
   };
 

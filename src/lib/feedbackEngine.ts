@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { toast } from 'sonner';
 import { hapticImpact, hapticNotification, hapticSelection } from '@/lib/haptics';
+import { useFeedbackPopup } from '@/components/FeedbackPopupProvider';
 
 /**
  * Global Feedback Engine
@@ -28,7 +29,11 @@ function dispatch(event: string) {
 
 export function feedbackAddItem(productName: string) {
   hapticImpact('medium');
-  toast.success(`${truncate(productName)} added`, { id: 'cart-add', duration: 1500 });
+  const { showFeedback } = useFeedbackPopup();
+  showFeedback({
+    title: `${truncate(productName)} added`,
+    variant: 'success'
+  });
   dispatch('cart-item-added');
 }
 
@@ -42,10 +47,12 @@ export function feedbackAddItemFailed(productName: string) {
 
 export function feedbackRemoveItem(productName: string, undoFn?: () => void) {
   hapticImpact('light');
-  toast(`${truncate(productName)} removed`, {
-    id: 'cart-remove',
-    duration: 4000,
-    ...(undoFn ? { action: { label: 'Undo', onClick: undoFn } } : {}),
+  const { showFeedback } = useFeedbackPopup();
+  showFeedback({
+    title: `${truncate(productName)} removed`,
+    variant: 'success',
+    actionLabel: 'Undo',
+    onAction: undoFn
   });
   dispatch('cart-item-removed');
 }
@@ -60,6 +67,11 @@ export function feedbackRemoveItemFailed() {
 
 export function feedbackQuantityChanged() {
   hapticImpact('light');
+  const { showFeedback } = useFeedbackPopup();
+  showFeedback({
+    title: 'Quantity updated',
+    variant: 'success'
+  });
   dispatch('cart-item-updated');
 }
 
@@ -75,6 +87,11 @@ export function feedbackQuantityFailed() {
 
 export function feedbackOrderPlaced() {
   hapticNotification('success');
+  const { showFeedback } = useFeedbackPopup();
+  showFeedback({
+    title: 'Order placed',
+    variant: 'success'
+  });
   dispatch('order-placed');
 }
 
@@ -91,6 +108,11 @@ export function feedbackOrderFailed(message?: string) {
 export function feedbackPaymentResult(success: boolean, message?: string) {
   if (success) {
     hapticNotification('success');
+    const { showFeedback } = useFeedbackPopup();
+    showFeedback({
+      title: 'Payment successful',
+      variant: 'success'
+    });
     dispatch('payment-success');
   } else {
     hapticNotification('error');
@@ -103,6 +125,12 @@ export function feedbackPaymentResult(success: boolean, message?: string) {
 
 export function feedbackCouponApplied(savings: string) {
   hapticImpact('medium');
+  const { showFeedback } = useFeedbackPopup();
+  showFeedback({
+    title: 'Coupon applied',
+    description: `Saved ${savings}`,
+    variant: 'success'
+  });
   dispatch('coupon-applied');
 }
 
@@ -114,6 +142,11 @@ export function feedbackCouponFailed(reason: string) {
 
 export function feedbackCartCleared() {
   hapticImpact('light');
+  const { showFeedback } = useFeedbackPopup();
+  showFeedback({
+    title: 'Cart cleared',
+    variant: 'success'
+  });
   dispatch('cart-cleared');
 }
 
@@ -121,9 +154,10 @@ export function feedbackCartCleared() {
 
 export function feedbackFavoriteToggled(added: boolean, productName: string) {
   hapticImpact('light');
-  toast(added ? `${truncate(productName)} saved` : `${truncate(productName)} removed from saved`, {
-    id: 'favorite-toggle',
-    duration: 1800,
+  const { showFeedback } = useFeedbackPopup();
+  showFeedback({
+    title: added ? `${truncate(productName)} saved` : `${truncate(productName)} removed from saved`,
+    variant: 'success'
   });
   dispatch('favorite-toggled');
 }

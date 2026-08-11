@@ -7,6 +7,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
 import { hapticImpact, hapticNotification } from '@/lib/haptics';
 import { toast } from 'sonner';
+import { useFeedbackPopup } from '@/components/FeedbackPopupProvider';
 import { notify } from '@/lib/notify';
 
 interface ProductFavoriteButtonProps {
@@ -45,11 +46,19 @@ export function ProductFavoriteButton({ productId, initialFavorite = false, size
         await supabase.from('product_favorites' as any).insert({ user_id: user.id, product_id: productId } as any);
         setIsFavorite(true);
         onToggle?.(true);
-        toast.success('Saved to favorites');
+        const { showFeedback } = useFeedbackPopup();
+        showFeedback({
+          title: 'Saved to favorites',
+          variant: 'success'
+        });
       }
     } catch {
       hapticNotification('error');
-      toast.error('Failed to update favorites');
+      const { showFeedback } = useFeedbackPopup();
+      showFeedback({
+        title: 'Failed to update favorites',
+        variant: 'destructive'
+      });
     } finally {
       setIsLoading(false);
     }

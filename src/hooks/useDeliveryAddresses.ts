@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
+import { useFeedbackPopup } from '@/components/FeedbackPopupProvider';
 
 export function useDeliveryAddresses() {
   const { user } = useAuth();
@@ -57,7 +58,14 @@ export function useDeliveryAddresses() {
         if (error) throw error;
       }
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: key }); toast.success('Address saved'); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: key });
+      const { showFeedback } = useFeedbackPopup();
+      showFeedback({
+        title: 'Address saved',
+        variant: 'success'
+      });
+    },
     onError: () => toast.error('Failed to save address'),
   });
 
@@ -66,7 +74,14 @@ export function useDeliveryAddresses() {
       const { error } = await supabase.from('delivery_addresses').delete().eq('id', id);
       if (error) throw error;
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: key }); toast.success('Address deleted'); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: key });
+      const { showFeedback } = useFeedbackPopup();
+      showFeedback({
+        title: 'Address deleted',
+        variant: 'success'
+      });
+    },
     onError: () => toast.error('Failed to delete address'),
   });
 
@@ -88,7 +103,13 @@ export function useDeliveryAddresses() {
       if (context?.previous) qc.setQueryData(key, context.previous);
       toast.error('Failed to update default');
     },
-    onSuccess: () => { toast.success('Default address updated'); },
+    onSuccess: () => {
+      const { showFeedback } = useFeedbackPopup();
+      showFeedback({
+        title: 'Default address updated',
+        variant: 'success'
+      });
+    },
     onSettled: () => { qc.invalidateQueries({ queryKey: key }); },
   });
 

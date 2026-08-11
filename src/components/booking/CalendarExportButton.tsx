@@ -4,6 +4,7 @@ import { CalendarPlus, Loader2 } from 'lucide-react';
 import { addToCalendar, parseBookingDateTime, type AddToCalendarResult } from '@/lib/calendar';
 import { toast } from 'sonner';
 import { Capacitor } from '@capacitor/core';
+import { useFeedbackPopup } from '@/components/FeedbackPopupProvider';
 
 interface CalendarExportButtonProps {
   title: string;
@@ -18,18 +19,25 @@ interface CalendarExportButtonProps {
 
 function showCalendarResult(result: AddToCalendarResult) {
   switch (result.status) {
-    case 'added':
-      toast.success('Added to your calendar');
+    case 'added': {
+      const { showFeedback } = useFeedbackPopup();
+      showFeedback({
+        title: 'Added to your calendar',
+        variant: 'success'
+      });
       break;
+    }
     case 'downloaded': {
       const mobile =
         typeof navigator !== 'undefined' &&
         /iPhone|iPad|iPod|Android|gonative|median/i.test(navigator.userAgent);
-      toast.success(
-        mobile
+      const { showFeedback } = useFeedbackPopup();
+      showFeedback({
+        title: mobile
           ? 'Open the calendar prompt to save your booking'
           : 'Calendar file downloaded — open it to save the event',
-      );
+        variant: 'success'
+      });
       break;
     }
     case 'cancelled':

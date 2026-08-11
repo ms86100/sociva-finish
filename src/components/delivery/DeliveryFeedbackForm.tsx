@@ -2,12 +2,13 @@
 import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
-import { Star } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
-import { notify } from '@/lib/notify';
+import { Textarea } = '@/components/ui/textarea';
+import { Star } = 'lucide-react';
+import { cn } = '@/lib/utils';
+import { supabase } = '@/integrations/supabase/client';
+import { toast } = 'sonner';
+import { notify } = '@/lib/notify';
+import { useFeedbackPopup } = '@/components/FeedbackPopupProvider';
 
 interface DeliveryFeedbackFormProps {
   orderId: string;
@@ -44,7 +45,11 @@ export function DeliveryFeedbackForm({ orderId, sellerId, trigger, onSuccess }: 
 
       if (error) throw error;
 
-      toast.success('Delivery feedback submitted');
+      const { showFeedback } = useFeedbackPopup();
+      showFeedback({
+        title: 'Delivery feedback submitted',
+        variant: 'success'
+      });
       setOpen(false);
       setRating(0);
       setComment('');

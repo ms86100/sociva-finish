@@ -78,7 +78,11 @@ export default function TrustDirectoryPage() {
         availability: newAvail.trim() || null,
       });
       if (error) throw error;
-      toast.success('Skill added!');
+      const { showFeedback } = useFeedbackPopup();
+      showFeedback({
+        title: 'Skill added!',
+        variant: 'success'
+      });
       setNewSkill(''); setNewDesc(''); setNewAvail('');
       setShowAdd(false);
       fetchSkills();

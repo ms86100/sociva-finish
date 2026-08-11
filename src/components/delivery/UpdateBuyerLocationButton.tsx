@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { getCurrentPosition } from '@/lib/native-location';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { useFeedbackPopup } from '@/components/FeedbackPopupProvider';
 
 interface Props {
   orderId: string;
@@ -28,8 +29,11 @@ export function UpdateBuyerLocationButton({ orderId }: Props) {
       if (error) throw error;
 
       setStatus('done');
-      toast.success('Delivery location updated', {
+      const { showFeedback } = useFeedbackPopup();
+      showFeedback({
+        title: 'Delivery location updated',
         description: 'ETA will recalculate on the next rider update.',
+        variant: 'success'
       });
 
       // Reset after 5s so user can tap again if needed

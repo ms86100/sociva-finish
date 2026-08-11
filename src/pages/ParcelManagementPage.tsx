@@ -15,6 +15,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
+import { useFeedbackPopup } from '@/components/FeedbackPopupProvider';
 import { friendlyError } from '@/lib/utils';
 import { useActionLoading } from '@/hooks/useActionLoading';
 import { Package, Plus, CheckCircle, Clock, PackageOpen, Loader2, Search } from 'lucide-react';
@@ -154,7 +155,11 @@ export default function ParcelManagementPage() {
       toast.error(friendlyError(error));
       console.error(error);
     } else {
-      toast.success(canLogParcels ? `Parcel logged for Flat ${targetFlat}` : 'Parcel logged');
+      const { showFeedback } = useFeedbackPopup();
+      showFeedback({
+        title: canLogParcels ? `Parcel logged for Flat ${targetFlat}` : 'Parcel logged',
+        variant: 'success'
+      });
       setIsAddOpen(false);
       setCourierName(''); setTrackingNumber(''); setDescription('');
       setGuardFlatNumber(''); setGuardResidentId(null); setGuardResidentName('');
@@ -177,7 +182,14 @@ export default function ParcelManagementPage() {
       query = query.eq('resident_id', user.id);
     }
     const { error } = await query;
-    if (!error) { toast.success('Parcel marked as collected'); fetchParcels(); }
+    if (!error) {
+      const { showFeedback } = useFeedbackPopup();
+      showFeedback({
+        title: 'Parcel marked as collected',
+        variant: 'success'
+      });
+      fetchParcels();
+    }
   });
 
   return (

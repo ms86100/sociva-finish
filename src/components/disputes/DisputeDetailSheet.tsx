@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
+import { useFeedbackPopup } from '@/components/FeedbackPopupProvider';
 import { friendlyError } from '@/lib/utils';
 import { formatDistanceToNow, format } from 'date-fns';
 import { Loader2, Send } from 'lucide-react';
@@ -110,7 +111,11 @@ export function DisputeDetailSheet({ ticket, open, onOpenChange, onUpdated, isAd
         .update(updates)
         .eq('id', ticket.id);
       if (error) throw error;
-      toast.success(`Ticket ${newStatus}`);
+      const { showFeedback } = useFeedbackPopup();
+      showFeedback({
+        title: `Ticket ${newStatus}`,
+        variant: 'success'
+      });
       setResolutionNote('');
       onUpdated();
     } catch (err: any) {

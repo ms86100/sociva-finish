@@ -17,7 +17,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Car, Bike, AlertTriangle, Plus, ParkingSquare, Check, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { friendlyError } from '@/lib/utils';
-import { ModuleSearchBar } from '@/components/search/ModuleSearchBar';
+import { ModuleSearchBar } = '@/components/search/ModuleSearchBar';
+import { useFeedbackPopup } = '@/components/FeedbackPopupProvider';
 
 interface ParkingSlot {
   id: string;
@@ -97,7 +98,11 @@ export default function VehicleParkingPage() {
         flat_number: slotFlatNumber.trim() || null,
       } as any);
       if (error) throw error;
-      toast.success('Parking slot added');
+      const { showFeedback } = useFeedbackPopup();
+      showFeedback({
+        title: 'Parking slot added',
+        variant: 'success'
+      });
       setAddSlotOpen(false);
       setSlotNumber('');
       setVehicleNumber('');
@@ -119,7 +124,11 @@ export default function VehicleParkingPage() {
         description: violationDesc.trim() || null,
       });
       if (error) throw error;
-      toast.success('Violation reported');
+      const { showFeedback } = useFeedbackPopup();
+      showFeedback({
+        title: 'Violation reported',
+        variant: 'success'
+      });
       setReportOpen(false);
       setViolationVehicle('');
       setViolationDesc('');
@@ -132,12 +141,16 @@ export default function VehicleParkingPage() {
   const resolveViolation = async (id: string, status: 'resolved' | 'dismissed') => {
     if (!effectiveSocietyId) return;
     try {
-      await supabase.from('parking_violations').update({ 
-        status, 
+      await supabase.from('parking_violations').update({
+        status,
         resolved_at: new Date().toISOString(),
-        resolved_by: profile?.id 
+        resolved_by: profile?.id
       }).eq('id', id).eq('society_id', effectiveSocietyId);
-      toast.success(`Violation ${status}`);
+      const { showFeedback } = useFeedbackPopup();
+      showFeedback({
+        title: `Violation ${status}`,
+        variant: 'success'
+      });
       fetchData();
     } catch {
       toast.error('Failed to update violation. Please try again.');

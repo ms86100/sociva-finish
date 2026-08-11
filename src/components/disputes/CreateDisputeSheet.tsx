@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
+import { useFeedbackPopup } from '@/components/FeedbackPopupProvider';
 import { friendlyError } from '@/lib/utils';
 import { Loader2, ShieldAlert } from 'lucide-react';
 import { notifySocietyAdmins } from '@/lib/society-notifications';
@@ -61,7 +62,11 @@ export function CreateDisputeSheet({ open, onOpenChange, onCreated }: Props) {
         );
       }
 
-      toast.success('Concern submitted — ' + ml.label('label_dispute_sla_notice'));
+      const { showFeedback } = useFeedbackPopup();
+      showFeedback({
+        title: 'Concern submitted — ' + ml.label('label_dispute_sla_notice'),
+        variant: 'success'
+      });
       setDescription('');
       setCategory(categories[0]?.value || 'other');
       setIsAnonymous(false);

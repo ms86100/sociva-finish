@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 import { XCircle, Loader2, AlertTriangle } from 'lucide-react';
+import { useFeedbackPopup } from '@/components/FeedbackPopupProvider';
 
 interface BuyerCancelBookingProps {
   bookingId: string;
@@ -153,7 +154,11 @@ export function BuyerCancelBooking({ bookingId, orderId, status }: BuyerCancelBo
 
       window.dispatchEvent(new Event('booking-changed'));
 
-      toast.success('Booking cancelled');
+      const { showFeedback } = useFeedbackPopup();
+      showFeedback({
+        title: 'Booking cancelled',
+        variant: 'success'
+      });
       setIsOpen(false);
     } catch (err: any) {
       const msg = err?.message?.includes('Invalid status transition')

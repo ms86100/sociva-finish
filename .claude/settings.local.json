@@ -26,7 +26,9 @@
       "Bash(vercel *)",
       "Bash(npm i *)",
       "Bash(xargs grep -l \"@/types/database\")",
-      "Bash(xargs sed -i 's|@/types/database|@/types/Database|g')"
+      "Bash(xargs sed -i 's|@/types/database|@/types/Database|g')",
+      "Bash(git commit *)",
+      "Bash(sort -k5 -nr)"
     ]
   },
   "enableAllProjectMcpServers": true,

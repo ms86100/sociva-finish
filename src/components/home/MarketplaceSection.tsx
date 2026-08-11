@@ -13,6 +13,7 @@ import { AutoHighlightStrip } from '@/components/home/AutoHighlightStrip';
 import { BuyAgainRow } from '@/components/home/BuyAgainRow';
 import { ShopByStoreDiscovery } from '@/components/home/ShopByStoreDiscovery';
 import { NearbySellersSection } from '@/components/marketplace/NearbySellersSection';
+import { useFeedbackPopup } from '@/components/FeedbackPopupProvider';
 import { LazySection } from '@/components/home/LazySection';
 import { ProductWithSeller } from '@/components/product/ProductListingCard';
 import { GroupedSellerRow } from '@/components/home/GroupedSellerRow';
@@ -169,11 +170,18 @@ export function MarketplaceSection() {
             <button
               onClick={() => {
                 const shareData = { title: 'Join our community marketplace', url: window.location.origin };
+                const { showFeedback } = useFeedbackPopup();
                 if (navigator.share) {
                   navigator.share(shareData).catch(() => {});
                 } else {
                   navigator.clipboard.writeText(shareData.url).then(() => {
-                    toast.success('Link copied!', { description: 'Share it with your neighbor to get them selling' });
+                    showFeedback({
+                      title: 'Link copied!',
+                      description: 'Share it with your neighbor to get them selling',
+                      variant: 'success',
+                      actionLabel: 'Done',
+                      onAction: () => {} // Empty handler since clicking outside also closes it
+                    });
                   });
                 }
               }}

@@ -661,6 +661,7 @@ function App() {
                       </NewOrderAlertProvider>
                     </CartProvider>
                   </CartPopupProvider>
+                  <FeedbackPopupProvider />
                 </BrowsingLocationProvider>
                 </SplashGate>
               </AuthProvider>

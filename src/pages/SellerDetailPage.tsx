@@ -42,6 +42,7 @@ import { useCurrency } from '@/hooks/useCurrency';
 import { useBrowsingLocation } from '@/contexts/BrowsingLocationContext';
 import { useMarketplaceData } from '@/hooks/queries/useMarketplaceData';
 import { notify } from '@/lib/notify';
+import { useFeedbackPopup } from '@/components/FeedbackPopupProvider';
 
 export default function SellerDetailPage() {
   const { id } = useParams();
@@ -306,7 +307,12 @@ export default function SellerDetailPage() {
 
       if (error) throw error;
 
-      toast.success('Report submitted. Our moderation team will review within 24 hours. You\'ll be notified of any action taken. Your identity is kept confidential.');
+      const { showFeedback } = useFeedbackPopup();
+      showFeedback({
+        title: 'Report submitted',
+        description: 'Our moderation team will review within 24 hours. You\'ll be notified of any action taken. Your identity is kept confidential.',
+        variant: 'success'
+      });
       setIsReportOpen(false);
       setReportType('');
       setReportDescription('');

@@ -5,17 +5,18 @@ import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerTrigger } from '@/components/ui/drawer';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useAuth } from '@/contexts/AuthContext';
-import { useWorkerRole } from '@/hooks/useWorkerRole';
-import { FeatureGate } from '@/components/ui/FeatureGate';
-import { toast } from 'sonner';
-import { IndianRupee, Plus, Loader2, Wallet } from 'lucide-react';
-import { useCurrency } from '@/hooks/useCurrency';
+import { Label } = '@/components/ui/label';
+import { Badge } = '@/components/ui/badge';
+import { Skeleton } = '@/components/ui/skeleton';
+import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerTrigger } = '@/components/ui/drawer';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } = '@/components/ui/select';
+import { useAuth } = '@/contexts/AuthContext';
+import { useWorkerRole } = '@/hooks/useWorkerRole';
+import { FeatureGate } = '@/components/ui/FeatureGate';
+import { toast } = 'sonner';
+import { IndianRupee, Plus, Loader2, Wallet } = 'lucide-react';
+import { useCurrency } = '@/hooks/useCurrency';
+import { useFeedbackPopup } = '@/components/FeedbackPopupProvider';
 
 interface WorkerOption {
   id: string;
@@ -105,7 +106,16 @@ export default function WorkerSalaryPage() {
       resident_id: user.id,
     });
     if (error) toast.error('Failed to record salary');
-    else { toast.success('Salary recorded'); setSheetOpen(false); setAmount(''); fetchData(); }
+    else {
+      const { showFeedback } = useFeedbackPopup();
+      showFeedback({
+        title: 'Salary recorded',
+        variant: 'success'
+      });
+      setSheetOpen(false);
+      setAmount('');
+      fetchData();
+    }
     setSubmitting(false);
   };
 
@@ -113,7 +123,14 @@ export default function WorkerSalaryPage() {
     const { error } = await supabase.from('worker_salary_records')
       .update({ status: 'paid', paid_date: new Date().toISOString() })
       .eq('id', id);
-    if (!error) { toast.success('Marked as paid'); fetchData(); }
+    if (!error) {
+      const { showFeedback } = useFeedbackPopup();
+      showFeedback({
+        title: 'Marked as paid',
+        variant: 'success'
+      });
+      fetchData();
+    }
   };
 
   if (loading) return (

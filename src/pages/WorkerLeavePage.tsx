@@ -17,6 +17,7 @@ import { FeatureGate } from '@/components/ui/FeatureGate';
 import { toast } from 'sonner';
 import { CalendarOff, Plus, Loader2, Calendar } from 'lucide-react';
 import { format } from 'date-fns';
+import { useFeedbackPopup } from '@/components/FeedbackPopupProvider';
 
 interface WorkerOption {
   id: string;
@@ -106,7 +107,16 @@ export default function WorkerLeavePage() {
       marked_by: user.id,
     });
     if (error) toast.error('Failed to record leave');
-    else { toast.success('Leave recorded'); setSheetOpen(false); setReason(''); fetchData(); }
+    else {
+      const { showFeedback } = useFeedbackPopup();
+      showFeedback({
+        title: 'Leave recorded',
+        variant: 'success'
+      });
+      setSheetOpen(false);
+      setReason('');
+      fetchData();
+    }
     setSubmitting(false);
   };
 

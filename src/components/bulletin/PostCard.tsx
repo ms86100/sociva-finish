@@ -4,13 +4,14 @@ import { formatDistanceToNow } from 'date-fns';
 import { ArrowBigUp, MessageCircle, Pin, MapPin, Calendar, Users, Flag, Archive, Trash2, MoreVertical } from 'lucide-react';
 import { ReportSheet } from '@/components/report/ReportSheet';
 import { cn } from '@/lib/utils';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/contexts/AuthContext';
-import { toast } from 'sonner';
+import { Badge } = '@/components/ui/badge';
+import { Button } = '@/components/ui/button';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } = '@/components/ui/dropdown-menu';
+import { supabase } = '@/integrations/supabase/client';
+import { useAuth } = '@/contexts/AuthContext';
+import { toast } = 'sonner';
 import { CATEGORY_CONFIG } from './CategoryFilter';
+import { useFeedbackPopup } = '@/components/FeedbackPopupProvider';
 
 export interface BulletinPost {
   id: string;
@@ -46,6 +47,7 @@ interface PostCardProps {
 export function PostCard({ post, onUpvote, onOpen, onRefresh }: PostCardProps) {
   const { isSocietyAdmin, isAdmin } = useAuth();
   const [reportOpen, setReportOpen] = useState(false);
+  const { showFeedback } = useFeedbackPopup();
   const canModerate = isSocietyAdmin || isAdmin;
   const cat = CATEGORY_CONFIG[post.category] || CATEGORY_CONFIG.alert;
   const CatIcon = cat.icon;
@@ -54,13 +56,24 @@ export function PostCard({ post, onUpvote, onOpen, onRefresh }: PostCardProps) {
     e.stopPropagation();
     if (action === 'pin') {
       await supabase.from('bulletin_posts').update({ is_pinned: !post.is_pinned }).eq('id', post.id);
-      toast.success(post.is_pinned ? 'Unpinned' : 'Pinned');
+      showFeedback({
+        title: post.is_pinned ? 'Unpinned' : 'Pinned',
+        variant: 'success'
+      });
     } else if (action === 'archive') {
       await supabase.from('bulletin_posts').update({ is_archived: true }).eq('id', post.id);
-      toast.success('Post archived');
+      const { showFeedback } = useFeedbackPopup();
+      showFeedback({
+        title: 'Post archived',
+        variant: 'success'
+      });
     } else if (action === 'delete') {
       await supabase.from('bulletin_posts').delete().eq('id', post.id);
-      toast.success('Post deleted');
+      const { showFeedback } = useFeedbackPopup();
+      showFeedback({
+        title: 'Post deleted',
+        variant: 'success'
+      });
     }
     onRefresh?.();
   };

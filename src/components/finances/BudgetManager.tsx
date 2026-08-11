@@ -11,6 +11,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
+import { useFeedbackPopup } from '@/components/FeedbackPopupProvider';
 import { Plus, Target, Loader2 } from 'lucide-react';
 import { useCurrency } from '@/hooks/useCurrency';
 
@@ -76,8 +77,19 @@ export function BudgetManager({ expenses }: Props) {
       budget_amount: parseFloat(newAmount),
       fiscal_year: currentYear,
     } as any, { onConflict: 'society_id,category,fiscal_year' });
-    if (error) toast.error('Failed to save budget');
-    else { toast.success('Budget saved'); setAddOpen(false); setNewCategory(''); setNewAmount(''); fetchBudgets(); }
+    if (error) {
+      toast.error('Failed to save budget');
+    } else {
+      const { showFeedback } = useFeedbackPopup();
+      showFeedback({
+        title: 'Budget saved',
+        variant: 'success'
+      });
+      setAddOpen(false);
+      setNewCategory('');
+      setNewAmount('');
+      fetchBudgets();
+    }
     setSubmitting(false);
   };
 

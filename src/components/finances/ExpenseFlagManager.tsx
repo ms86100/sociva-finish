@@ -8,6 +8,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
+import { useFeedbackPopup } from '@/components/FeedbackPopupProvider';
 import { Flag, CheckCircle, XCircle, Loader2, MessageCircle } from 'lucide-react';
 import { format } from 'date-fns';
 import { useCurrency } from '@/hooks/useCurrency';
@@ -60,7 +61,11 @@ export function ExpenseFlagManager() {
     if (error) {
       toast.error('Failed to update flag');
     } else {
-      toast.success(`Flag ${status}`);
+      const { showFeedback } = useFeedbackPopup();
+      showFeedback({
+        title: `Flag ${status}`,
+        variant: 'success'
+      });
       fetchFlags();
     }
     setUpdating(null);

@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerTrigger } from '@/components/ui/drawer';
 import { toast } from 'sonner';
 import { Wand2, CheckCircle, Circle, Building2, Layers, CreditCard, ParkingCircle } from 'lucide-react';
+import { useFeedbackPopup } from '@/components/FeedbackPopupProvider';
 
 interface SetupStep {
   key: string;
@@ -56,7 +57,14 @@ export function BuilderSetupWizard({ societyId, societyName, enabledFeatures = [
     const rows = names.map(name => ({ society_id: societyId, tower_name: name }));
     const { error } = await supabase.from('project_towers').insert(rows as any);
     if (error) { toast.error('Failed to add towers'); }
-    else { toast.success(`Added ${names.length} towers`); markDone('towers'); }
+    else {
+      const { showFeedback } = useFeedbackPopup();
+      showFeedback({
+        title: `Added ${names.length} towers`,
+        variant: 'success'
+      });
+      markDone('towers');
+    }
     setLoading(false);
   };
 
@@ -70,7 +78,14 @@ export function BuilderSetupWizard({ societyId, societyName, enabledFeatures = [
     if (slots.length === 0) { toast.error('Enter slot counts'); setLoading(false); return; }
     const { error } = await supabase.from('parking_slots').insert(slots);
     if (error) { toast.error('Failed to create slots'); }
-    else { toast.success(`Created ${slots.length} parking slots`); markDone('parking'); }
+    else {
+      const { showFeedback } = useFeedbackPopup();
+      showFeedback({
+        title: `Created ${slots.length} parking slots`,
+        variant: 'success'
+      });
+      markDone('parking');
+    }
     setLoading(false);
   };
 
@@ -86,7 +101,14 @@ export function BuilderSetupWizard({ societyId, societyName, enabledFeatures = [
     }));
     const { error } = await supabase.from('payment_milestones').insert(rows as any);
     if (error) { toast.error('Failed to add milestones'); }
-    else { toast.success(`Added ${names.length} milestones`); markDone('milestones'); }
+    else {
+      const { showFeedback } = useFeedbackPopup();
+      showFeedback({
+        title: `Added ${names.length} milestones`,
+        variant: 'success'
+      });
+      markDone('milestones');
+    }
     setLoading(false);
   };
 

@@ -11,6 +11,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { friendlyError } from '@/lib/utils';
 import { useRazorpay } from '@/hooks/useRazorpay';
+import { useFeedbackPopup } from '@/components/FeedbackPopupProvider';
 import { CheckCircle2, Clock, AlertTriangle, Plus, Download, Loader2 } from 'lucide-react';
 import { exportMaintenanceDues } from '@/lib/csv-export';
 import { FeatureGate } from '@/components/ui/FeatureGate';
@@ -68,7 +69,11 @@ export default function MaintenancePage() {
       .eq('id', id)
       .eq('society_id', effectiveSocietyId);
     if (error) { toast.error('Failed to update'); return; }
-    toast.success('Marked as paid');
+    const { showFeedback } = useFeedbackPopup();
+    showFeedback({
+      title: 'Marked as paid',
+      variant: 'success'
+    });
     fetchDues();
   };
 
@@ -121,7 +126,11 @@ export default function MaintenancePage() {
 
       const { error } = await supabase.from('maintenance_dues').insert(rows as any);
       if (error) throw error;
-      toast.success(`Generated dues for ${rows.length} flats`);
+      const { showFeedback } = useFeedbackPopup();
+      showFeedback({
+        title: `Generated dues for ${rows.length} flats`,
+        variant: 'success'
+      });
       setSheetOpen(false);
       setGenerateMonth('');
       setGenerateAmount('');
@@ -139,7 +148,11 @@ export default function MaintenancePage() {
     try {
       const { error } = await supabase.rpc('apply_maintenance_late_fees' as any);
       if (error) throw error;
-      toast.success('Late fees applied to overdue records');
+      const { showFeedback } = useFeedbackPopup();
+      showFeedback({
+        title: 'Late fees applied to overdue records',
+        variant: 'success'
+      });
       fetchDues();
     } catch (err: any) {
       toast.error(friendlyError(err));
@@ -280,7 +293,11 @@ export default function MaintenancePage() {
                             await supabase.from('maintenance_dues')
                               .update({ status: 'paid', paid_date: new Date().toISOString().split('T')[0], receipt_url: paymentId })
                               .eq('id', d.id);
-                            toast.success('Payment successful!');
+                            const { showFeedback } = useFeedbackPopup();
+                            showFeedback({
+                              title: 'Payment successful!',
+                              variant: 'success'
+                            });
                             fetchDues();
                           },
                           onFailure: () => toast.error('Payment failed'),

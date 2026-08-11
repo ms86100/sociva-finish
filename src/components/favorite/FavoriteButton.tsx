@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
+import { useFeedbackPopup } from '@/components/FeedbackPopupProvider';
 import { cn } from '@/lib/utils';
 import { notify } from '@/lib/notify';
 
@@ -67,7 +68,11 @@ export function FavoriteButton({
           .eq('seller_id', sellerId);
         if (error) throw error;
         setIsFavorite(false);
-        toast.success('Removed from favorites');
+        const { showFeedback } = useFeedbackPopup();
+        showFeedback({
+          title: 'Removed from favorites',
+          variant: 'success'
+        });
         onToggle?.(false);
       } else {
         const { error } = await supabase.from('favorites').insert({
@@ -76,7 +81,11 @@ export function FavoriteButton({
         });
         if (error) throw error;
         setIsFavorite(true);
-        toast.success('Added to favorites');
+        const { showFeedback } = useFeedbackPopup();
+        showFeedback({
+          title: 'Added to favorites',
+          variant: 'success'
+        });
         onToggle?.(true);
       }
     } catch (error) {

@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { User, Phone, Car, Clock, CheckCircle, Users, Home, Truck } from 'lucide-react';
 import { toast } from 'sonner';
+import { useFeedbackPopup } from '@/components/FeedbackPopupProvider';
 
 interface ExpectedVisitor {
   id: string;
@@ -61,7 +62,11 @@ export function ExpectedVisitorsList({ societyId }: Props) {
         confirmation_status: visitor.is_preapproved ? 'pre_approved' : 'confirmed',
         notes: `Quick check-in from expected visitors list`,
       });
-      toast.success(`${visitor.visitor_name} checked in`);
+      const { showFeedback } = useFeedbackPopup();
+      showFeedback({
+        title: `${visitor.visitor_name} checked in`,
+        variant: 'success'
+      });
       fetchVisitors();
     }
   };

@@ -4,17 +4,18 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useWorkerRole } from '@/hooks/useWorkerRole';
 import { AppLayout } from '@/components/layout/AppLayout';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { CheckCircle, Clock, XCircle, AlertCircle } from 'lucide-react';
-import { toast } from 'sonner';
-import { format } from 'date-fns';
-import { friendlyError } from '@/lib/utils';
-import { FeatureGate } from '@/components/ui/FeatureGate';
-import { useCurrency } from '@/hooks/useCurrency';
+import { Card, CardContent, CardHeader, CardTitle } = '@/components/ui/card';
+import { Button } = '@/components/ui/button';
+import { Badge } = '@/components/ui/badge';
+import { Skeleton } = '@/components/ui/skeleton';
+import { Tabs, TabsContent, TabsList, TabsTrigger } = '@/components/ui/tabs';
+import { CheckCircle, Clock, XCircle, AlertCircle } = 'lucide-react';
+import { toast } = 'sonner';
+import { format } = 'date-fns';
+import { friendlyError } = '@/lib/utils';
+import { FeatureGate } = '@/components/ui/FeatureGate';
+import { useCurrency } = '@/hooks/useCurrency';
+import { useFeedbackPopup } = '@/components/FeedbackPopupProvider';
 
 const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
   accepted: { label: 'Active', color: 'bg-info/20 text-info' },
@@ -57,7 +58,11 @@ export default function WorkerMyJobsPage() {
       return result;
     },
     onSuccess: () => {
-      toast.success('Job marked as completed!');
+      const { showFeedback } = useFeedbackPopup();
+      showFeedback({
+        title: 'Job marked as completed!',
+        variant: 'success'
+      });
       queryClient.invalidateQueries({ queryKey: ['worker-my-jobs'] });
     },
     onError: (error: Error) => toast.error(friendlyError(error)),

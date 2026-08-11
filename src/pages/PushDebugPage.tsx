@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Loader2, RefreshCw, CheckCircle2, XCircle, Trash2, Bell, Save, Settings, Zap } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { toast } from 'sonner';
+import { useFeedbackPopup } from '@/components/FeedbackPopupProvider';
 import { flushPushLogs } from '@/lib/pushLogger';
 import { Capacitor } from '@capacitor/core';
 
@@ -39,7 +40,11 @@ export default function PushDebugPage() {
   const handleRequestPermission = async () => {
     try {
       await requestFullPermission();
-      toast.success('Permission requested — check status above');
+      const { showFeedback } = useFeedbackPopup();
+      showFeedback({
+        title: 'Permission requested — check status above',
+        variant: 'success'
+      });
     } catch (e) {
       toast.error('Permission request failed: ' + String(e));
     }
@@ -67,7 +72,11 @@ export default function PushDebugPage() {
   const handleRegister = async () => {
     try {
       await registerPushNotifications();
-      toast.success('Registration triggered');
+      const { showFeedback } = useFeedbackPopup();
+      showFeedback({
+        title: 'Registration triggered',
+        variant: 'success'
+      });
     } catch (e) {
       toast.error('Registration failed: ' + String(e));
     }
@@ -85,7 +94,11 @@ export default function PushDebugPage() {
       await PushNotifications.addListener('registration', (regToken) => {
         const raw = regToken.value;
         setApnsToken(raw);
-        toast.success(`APNs token captured: ${raw.substring(0, 16)}…`);
+        const { showFeedback } = useFeedbackPopup();
+        showFeedback({
+          title: `APNs token captured: ${raw.substring(0, 16)}…`,
+          variant: 'success'
+        });
       });
       await PushNotifications.register();
     } catch (e) {
@@ -111,7 +124,11 @@ export default function PushDebugPage() {
       });
       if (error) throw error;
       setApnsResult(data);
-      toast.success(`APNs response: ${data?.status}`);
+      const { showFeedback } = useFeedbackPopup();
+      showFeedback({
+        title: `APNs response: ${data?.status}`,
+        variant: 'success'
+      });
     } catch (e) {
       toast.error('APNs test failed: ' + String(e));
       setApnsResult({ error: String(e) });
@@ -136,7 +153,11 @@ export default function PushDebugPage() {
         const { PushNotifications } = await import('@capacitor/push-notifications');
         // On Android, register triggers the token event — but let's try to get existing
         await PushNotifications.register();
-        toast.info('Android register triggered — token will be saved by the hook');
+        const { showFeedback } = useFeedbackPopup();
+        showFeedback({
+          title: 'Android register triggered — token will be saved by the hook',
+          variant: 'info'
+        });
         setSavingToken(false);
         return;
       }
@@ -158,7 +179,11 @@ export default function PushDebugPage() {
         { onConflict: 'user_id,token' }
       );
       if (error) throw error;
-      toast.success(`Token saved! (${fcmToken.substring(0, 20)}…)`);
+      const { showFeedback } = useFeedbackPopup();
+      showFeedback({
+        title: `Token saved! (${fcmToken.substring(0, 20)}…)`,
+        variant: 'success'
+      });
     } catch (e) {
       toast.error('Save failed: ' + String(e));
     } finally {
@@ -209,7 +234,11 @@ export default function PushDebugPage() {
         .eq('user_id', user.id);
       if (error) throw error;
       setLogs([]);
-      toast.success('Logs cleared');
+      const { showFeedback } = useFeedbackPopup();
+      showFeedback({
+        title: 'Logs cleared',
+        variant: 'success'
+      });
     } catch (e) {
       toast.error('Failed to clear: ' + String(e));
     }
