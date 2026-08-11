@@ -604,7 +604,7 @@ export function DeliveryMapView({
     // Rider marker — branded scooter with SV bag
     const riderMarker = new google.maps.Marker({
       map,
-      position: { lat: riderLat, lng: riderIdx },
+      position: { lat: riderLat, lng: riderLng },
       title: riderName || 'Delivery Partner',
       icon: {
         url: svgDataUrl(createRiderIconSvg(heading || 0)),
@@ -757,9 +757,9 @@ export function DeliveryMapView({
       const offsetLat = (Math.random() - 0.5) * 0.0001;
 
       setTimeout(() => {
-        if (!markerRef.current) return;
+        if (!marker) return;
         const tailMarker = new google.maps.Marker({
-          map,
+          map: mapRef.current,
           position: new google.maps.LatLng(
             markerPos.lat() + offsetLat,
             markerPos.lng() + offsetLng
