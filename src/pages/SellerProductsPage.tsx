@@ -17,8 +17,8 @@ import { toast } from 'sonner';
 import { BulkProductUpload } from '@/components/seller/BulkProductUpload';
 import { useCurrency } from '@/hooks/useCurrency';
 import { useSellerProducts } from '@/hooks/useSellerProducts';
-import { ProductPerformanceBadge, getPerformanceLevel } = '@/components/seller/ProductPerformanceBadge';
-import { useFeedbackPopup } = '@/components/FeedbackPopupProvider';
+import { ProductPerformanceBadge, getPerformanceLevel } from '@/components/seller/ProductPerformanceBadge';
+import { useFeedbackPopup } from '@/components/FeedbackPopupProvider';
 
 export default function SellerProductsPage() {
   const navigate = useNavigate();

@@ -17,8 +17,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Car, Bike, AlertTriangle, Plus, ParkingSquare, Check, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { friendlyError } from '@/lib/utils';
-import { ModuleSearchBar } = '@/components/search/ModuleSearchBar';
-import { useFeedbackPopup } = '@/components/FeedbackPopupProvider';
+import { ModuleSearchBar } from '@/components/search/ModuleSearchBar';
+import { useFeedbackPopup } from '@/components/FeedbackPopupProvider';
 
 interface ParkingSlot {
   id: string;

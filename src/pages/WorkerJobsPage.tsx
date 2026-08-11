@@ -6,16 +6,16 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useWorkerRole } from '@/hooks/useWorkerRole';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } = '@/components/ui/button';
-import { Badge } = '@/components/ui/badge';
-import { Skeleton } = '@/components/ui/skeleton';
-import { Briefcase, Clock, MapPin, IndianRupee, Zap, Check, AlertCircle, Volume2, VolumeX, Loader2 } = 'lucide-react';
-import { toast } = 'sonner';
-import { format } = 'date-fns';
-import { friendlyError } = '@/lib/utils';
-import { FeatureGate } = '@/components/ui/FeatureGate';
-import { useCurrency } = '@/hooks/useCurrency';
-import { useFeedbackPopup } = '@/components/FeedbackPopupProvider';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Briefcase, Clock, MapPin, IndianRupee, Zap, Check, AlertCircle, Volume2, VolumeX, Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
+import { format } from 'date-fns';
+import { friendlyError } from '@/lib/utils';
+import { FeatureGate } from '@/components/ui/FeatureGate';
+import { useCurrency } from '@/hooks/useCurrency';
+import { useFeedbackPopup } from '@/components/FeedbackPopupProvider';
 
 // Job type labels fetched dynamically from worker categories or used as structural display-only labels
 function useJobTypeLabels() {

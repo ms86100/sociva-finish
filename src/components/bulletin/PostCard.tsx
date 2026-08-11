@@ -4,14 +4,14 @@ import { formatDistanceToNow } from 'date-fns';
 import { ArrowBigUp, MessageCircle, Pin, MapPin, Calendar, Users, Flag, Archive, Trash2, MoreVertical } from 'lucide-react';
 import { ReportSheet } from '@/components/report/ReportSheet';
 import { cn } from '@/lib/utils';
-import { Badge } = '@/components/ui/badge';
-import { Button } = '@/components/ui/button';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } = '@/components/ui/dropdown-menu';
-import { supabase } = '@/integrations/supabase/client';
-import { useAuth } = '@/contexts/AuthContext';
-import { toast } = 'sonner';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
+import toast from 'sonner';
 import { CATEGORY_CONFIG } from './CategoryFilter';
-import { useFeedbackPopup } = '@/components/FeedbackPopupProvider';
+import { useFeedbackPopup } from '@/components/FeedbackPopupProvider';
 
 export interface BulletinPost {
   id: string;

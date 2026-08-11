@@ -27,7 +27,7 @@ export function useOrderSuggestions() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('order_suggestions')
-        .select('id, user_id, seller_id, product_ids, reason, is_dismissed, created_at')
+        .select('id, user_id, seller_id, product_ids, is_dismissed, created_at')
         .eq('user_id', user!.id)
         .eq('is_dismissed', false)
         .order('created_at', { ascending: false })

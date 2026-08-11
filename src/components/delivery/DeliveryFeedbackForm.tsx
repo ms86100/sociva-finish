@@ -2,13 +2,13 @@
 import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Textarea } = '@/components/ui/textarea';
-import { Star } = 'lucide-react';
-import { cn } = '@/lib/utils';
-import { supabase } = '@/integrations/supabase/client';
-import { toast } = 'sonner';
-import { notify } = '@/lib/notify';
-import { useFeedbackPopup } = '@/components/FeedbackPopupProvider';
+import { Textarea } from '@/components/ui/textarea';
+import { Star } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
+import { notify } from '@/lib/notify';
+import { useFeedbackPopup } from '@/components/FeedbackPopupProvider';
 
 interface DeliveryFeedbackFormProps {
   orderId: string;

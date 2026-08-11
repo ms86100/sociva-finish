@@ -83,6 +83,7 @@ import { useNewOrderAlert } from "@/hooks/useNewOrderAlert";
 import { useChatAlerts } from "@/hooks/useSellerChatAlerts";
 import { NewOrderAlertProvider, useNewOrderAlertContext } from "@/contexts/NewOrderAlertContext";
 import { NewOrderAlertOverlay } from "@/components/seller/NewOrderAlertOverlay";
+import { FeedbackPopupProvider } from "@/components/FeedbackPopupProvider";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PageTransitionWrapper } from "@/components/layout/PageTransitionWrapper";
 import { AppShellGate } from "@/components/layout/AppShell";
@@ -646,9 +647,10 @@ function App() {
             <HashRouter>
               <ActionBlockedDialog />
               <GlobalHapticListener />
-              <AuthProvider>
-                <SplashGate>
-                <NavigationHandler />
+              <FeedbackPopupProvider>
+                <AuthProvider>
+                  <SplashGate>
+                    <NavigationHandler />
                 <BrowsingLocationProvider>
                   <CartPopupProvider>
                     <CartProvider>
@@ -656,15 +658,15 @@ function App() {
                       <PushNotificationProvider>
                         <GlobalChatAlerts />
                         <SafeSellerAlert><GlobalSellerAlert /></SafeSellerAlert>
-                        <AppRoutes />
+                          <AppRoutes />
                       </PushNotificationProvider>
                       </NewOrderAlertProvider>
                     </CartProvider>
                   </CartPopupProvider>
-                  <FeedbackPopupProvider />
                 </BrowsingLocationProvider>
                 </SplashGate>
               </AuthProvider>
+            </FeedbackPopupProvider>
             </HashRouter>
           </TooltipProvider>
         </QueryClientProvider>
