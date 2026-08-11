@@ -87,6 +87,11 @@ export function RazorpayCheckout({
       paymentInFlightRef.current = false;
     }, 15000);
 
+    // Close the drawer before opening Razorpay so only one payment surface is visible.
+    // This prevents the Sociva bottom sheet from appearing under/behind the Razorpay overlay,
+    // which was causing duplicated payment layers and the "No appropriate payment method found" error.
+    onClose();
+
     await createOrder({
       orderId,
       orderIds: orderIds || [orderId],

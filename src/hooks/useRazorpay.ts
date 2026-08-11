@@ -16,17 +16,17 @@ declare global {
 /** MutationObserver ref — disconnected on payment end */
 let razorpayDomObserver: MutationObserver | null = null;
 
-type RazorpayNativeLayout = 'android-fullscreen' | 'ios-sheet' | null;
+type RazorpayNativeLayout = 'android-fullscreen' | 'ios-fullscreen' | null;
 
 function getRazorpayNativeLayout(): RazorpayNativeLayout {
   if (!Capacitor.isNativePlatform()) return null;
-  return Capacitor.getPlatform() === 'ios' ? 'ios-sheet' : 'android-fullscreen';
+  return Capacitor.getPlatform() === 'ios' ? 'ios-fullscreen' : 'android-fullscreen';
 }
 
 /**
  * Native layout patches for Checkout.js overlays.
  * Android: full viewport + a single --app-safe-top inset (avoids 88vh gap / double padding).
- * iOS: bottom sheet so the modal clears the notch without fighting WKWebView safe-area.
+ * iOS: full-screen with safe-area insets so the modal clears the notch without fighting WKWebView safe-area.
  * Web: no layout overrides — leave Checkout.js defaults.
  * Only patch direct body children so nested frames do not stack a second inset.
  */
@@ -43,8 +43,6 @@ function applyNativeCheckoutLayout(node: HTMLElement, layout: RazorpayNativeLayo
   node.style.setProperty('box-sizing', 'border-box', 'important');
 
   // Both Android and iOS: full-screen with platform safe-area insets.
-  // iOS was previously a bottom-sheet (88vh) which hid the Razorpay header
-  // behind the status bar and made the close button inaccessible.
   node.style.setProperty('top', '0', 'important');
   node.style.setProperty('bottom', '0', 'important');
   node.style.setProperty('height', '100%', 'important');
@@ -142,7 +140,7 @@ function lockBodyForCheckout() {
   document.body.classList.remove('razorpay-android', 'razorpay-ios');
   const layout = getRazorpayNativeLayout();
   if (layout === 'android-fullscreen') document.body.classList.add('razorpay-android');
-  if (layout === 'ios-sheet') document.body.classList.add('razorpay-ios');
+  if (layout === 'ios-fullscreen') document.body.classList.add('razorpay-ios');
 }
 
 const SCRIPT_URL = 'https://checkout.razorpay.com/v1/checkout.js';
@@ -348,7 +346,7 @@ export function useRazorpay() {
           display: {
             // Show all blocks in a single view — users see UPI, Card, Netbanking, Wallet together
             // rather than needing to swipe between tabs.
-            sequence: [],
+            sequence: ['upi', 'card', 'netbanking', 'wallet'],
             preferences: {
               show_default_blocks: false,
               // Ensure all configured blocks are visible — do not collapse/hide any payment method
@@ -385,7 +383,7 @@ export function useRazorpay() {
       };
 
       const razorpay = new window.Razorpay(razorpayOptions);
-      
+
       razorpay.on('payment.failed', function (response: any) {
         console.error('Payment failed:', response.error);
         settleAttempt();
