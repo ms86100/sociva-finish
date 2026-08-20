@@ -4,6 +4,7 @@ import fs from "fs";
 import path from "path";
 import { componentTagger } from "lovable-tagger";
 import { VitePWA } from "vite-plugin-pwa";
+import ViteTsconfigPaths from "vite-tsconfig-paths";
 
 // Drop Workbox for native shell builds. Use `npm run build:native` (mode=capacitor)
 // or CAPACITOR_ENV=production — matches Codemagic android-release.
@@ -42,6 +43,7 @@ export default defineConfig(({ mode }) => {
       react(),
       mode === "development" && componentTagger(),
       omitApkFromNativeDist(isCapacitorBuild),
+      ViteTsconfigPaths(),
       !skipPwa &&
         VitePWA({
           registerType: "autoUpdate",
