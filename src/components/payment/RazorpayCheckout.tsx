@@ -171,7 +171,7 @@ export function RazorpayCheckout({
     onClose();
   };
 
-  const publishedUrl = 'https://sociva.lovable.app';
+  const publishedUrl = 'https://www.sociva.in';
 
   return (
     <Drawer open={isOpen} onOpenChange={handleClose}>
