@@ -41,7 +41,9 @@
       "Bash(rtk npx *)",
       "Bash(npx supabase *)",
       "Bash(rtk read *)",
-      "mcp__supabase__get_project"
+      "mcp__supabase__get_project",
+      "mcp__supabase__list_organizations",
+      "Bash(git check-ignore *)"
     ]
   },
   "enableAllProjectMcpServers": true,
