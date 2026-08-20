@@ -85,6 +85,7 @@ export default defineConfig(({ mode }) => {
       alias: {
         "@": path.resolve(__dirname, "./src"),
       },
+      tsconfigPaths: true,
       dedupe: ["react", "react-dom", "react/jsx-runtime"],
     },
     build: {
