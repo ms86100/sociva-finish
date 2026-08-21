@@ -51,6 +51,7 @@ export default function ProfilePage() {
   const { isFeatureEnabled } = useEffectiveFeatures();
   const settings = useSystemSettings();
   const { theme, setTheme } = useTheme();
+  const { showFeedback } = useFeedbackPopup();
   const [largeFont, setLargeFont] = useState(() => getFlag('app_large_font'));
   const [isEditingAvatar, setIsEditingAvatar] = useState(false);
   const [showOnboardingFeedback, setShowOnboardingFeedback] = useState(false);
@@ -103,7 +104,6 @@ export default function ProfilePage() {
       const { error } = await supabase.from('profiles').update({ avatar_url: url }).eq('id', user.id);
       if (error) throw error;
       await refreshProfile();
-      const { showFeedback } = useFeedbackPopup();
       showFeedback({
         title: 'Profile photo updated',
         variant: 'success'

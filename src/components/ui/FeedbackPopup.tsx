@@ -57,7 +57,8 @@ export function FeedbackPopup({
     }
   };
 
-  const { Icon, bg, border, text, iconBg, iconText } = getVariantProps();
+  const { icon: Icon, bg, border, text, iconBg, iconText } = getVariantProps();
+  if (!Icon) return null;
 
   return (
     <motion.div
@@ -78,10 +79,10 @@ export function FeedbackPopup({
           stiffness: 350,
           damping: 22,
         }}
-        className="fixed inset-0 z-[101] flex items-center justify-center pointer-events-auto"
+        className="fixed inset-0 z-[101] flex items-center justify-center pointer-events-none"
       >
         <div className={cn(
-          "relative rounded-xl max-w-md w-full max-h-[80vh] overflow-hidden",
+          "relative rounded-xl max-w-md w-full max-h-[80vh] overflow-hidden pointer-events-auto",
           bg,
           border,
           "animate-in fade-in-0 zoom-in-95 slide-in-from-bottom-4 duration-300"

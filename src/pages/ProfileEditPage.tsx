@@ -18,6 +18,7 @@ import { useRef } from 'react';
 export default function ProfileEditPage() {
   const navigate = useNavigate();
   const { user, profile, society, refreshProfile } = useAuth();
+  const { showFeedback } = useFeedbackPopup();
   const { addresses, isLoading: addressesLoading, saveAddress, deleteAddress, setDefault, isSaving } = useDeliveryAddresses();
 
   const [name, setName] = useState(
@@ -43,19 +44,29 @@ export default function ProfileEditPage() {
     }
     setSavingProfile(true);
     try {
-      const { error } = await supabase.from('profiles').update({
-        name: name.trim(),
-        email: email.trim() && !email.trim().endsWith('@phone.sociva.app') ? email.trim() : null,
-      }).eq('id', user.id);
+      const updates: Record<string, any> = { name: name.trim() };
+      const trimmedEmail = email.trim();
+      if (trimmedEmail && !trimmedEmail.endsWith('@phone.sociva.app')) {
+        updates.email = trimmedEmail;
+      }
+
+      const { data, error } = await supabase
+        .from('profiles')
+        .update(updates)
+        .eq('id', user.id)
+        .select('id')
+        .maybeSingle();
       if (error) throw error;
+      if (!data) throw new Error('Profile update did not apply');
+
       await refreshProfile();
-      const { showFeedback } = useFeedbackPopup();
       showFeedback({
         title: 'Profile updated! Redirecting…',
         variant: 'success'
       });
       navigate('/');
-    } catch {
+    } catch (err) {
+      console.error('Failed to update profile', err);
       toast.error('Failed to update profile');
     } finally {
       setSavingProfile(false);
@@ -63,37 +74,42 @@ export default function ProfileEditPage() {
   };
 
   const handleSaveAddress = async (data: any) => {
-    const payload = {
-      ...data,
-      society_id: profile?.society_id || null,
-    };
+    try {
+      const payload = {
+        ...data,
+        society_id: profile?.society_id || null,
+        is_default: data.is_default || addresses.length === 0,
+      };
 
-    await saveAddress(payload);
+      await saveAddress(payload);
 
-    // Sync flat_number and block back to profile
-    if (user && (data.flat_number || data.block)) {
-      try {
-        await supabase.from('profiles').update({
-          flat_number: data.flat_number || '',
-          block: data.block || '',
-          phase: data.phase || null,
-        }).eq('id', user.id);
-        await refreshProfile();
-      } catch {
-        // Non-critical — don't block address save
+      // Sync flat_number and block back to profile
+      if (user && (data.flat_number || data.block)) {
+        try {
+          await supabase.from('profiles').update({
+            flat_number: data.flat_number || '',
+            block: data.block || '',
+            phase: data.phase || null,
+          }).eq('id', user.id);
+          await refreshProfile();
+        } catch {
+          // Non-critical — don't block address save
+        }
       }
-    }
 
-    setShowAddressForm(false);
-    setEditingAddress(null);
+      setShowAddressForm(false);
+      setEditingAddress(null);
 
-    // Auto-advance to step 2 after first address save
-    setTimeout(() => {
-      setStep(2);
+      // Auto-advance to step 2 after first address save
       setTimeout(() => {
-        detailsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }, 100);
-    }, 300);
+        setStep(2);
+        setTimeout(() => {
+          detailsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 100);
+      }, 300);
+    } catch (err) {
+      console.error('Failed to save address from profile edit', err);
+    }
   };
 
   const handleEditAddress = (addr: any) => {

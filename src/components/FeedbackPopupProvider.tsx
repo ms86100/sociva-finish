@@ -1,11 +1,6 @@
 // @ts-nocheck
-import { createContext, useContext, useState, useCallback, ReactNode } from 'react';
+import { useState, useCallback, useEffect, ReactNode } from 'react';
 import { FeedbackPopup } from '@/components/ui/FeedbackPopup';
-
-interface FeedbackPopupContextType {
-  showFeedback: (options: FeedbackPopupOptions) => void;
-  FeedbackPopup: React.ReactElement | null;
-}
 
 interface FeedbackPopupOptions {
   title: string;
@@ -15,61 +10,81 @@ interface FeedbackPopupOptions {
   onAction?: () => void;
 }
 
-const FeedbackPopupContext = createContext<FeedbackPopupContextType | undefined>(undefined);
+interface FeedbackState extends FeedbackPopupOptions {
+  isOpen: boolean;
+}
+
+const EMPTY_STATE: FeedbackState = { isOpen: false, title: '' };
+
+let memoryState: FeedbackState = EMPTY_STATE;
+const listeners = new Set<(state: FeedbackState) => void>();
+let dismissTimer: ReturnType<typeof setTimeout> | null = null;
+
+function emit(next: FeedbackState) {
+  memoryState = next;
+  listeners.forEach((listener) => listener(next));
+}
+
+function clearDismissTimer() {
+  if (dismissTimer) {
+    clearTimeout(dismissTimer);
+    dismissTimer = null;
+  }
+}
+
+export function showFeedback(options: FeedbackPopupOptions) {
+  clearDismissTimer();
+  emit({ isOpen: true, ...options });
+  if (!options.actionLabel) {
+    dismissTimer = setTimeout(() => {
+      emit({ ...memoryState, isOpen: false });
+    }, 2200);
+  }
+}
+
+export function hideFeedback() {
+  clearDismissTimer();
+  emit({ ...memoryState, isOpen: false });
+}
+
+export function getFeedbackState() {
+  return memoryState;
+}
+
+/** Safe from callbacks and mutations — do not turn this back into a React hook. */
+export function useFeedbackPopup() {
+  return { showFeedback };
+}
 
 export function FeedbackPopupProvider({ children }: { children: ReactNode }) {
-  const [feedbackState, setFeedbackState] = useState<{
-    isOpen: boolean;
-    title: string;
-    description?: string;
-    variant?: 'success' | 'info' | 'warning';
-    actionLabel?: string;
-    onAction?: () => void;
-  }>({ isOpen: false, title: '' });
+  const [feedbackState, setFeedbackState] = useState<FeedbackState>(memoryState);
 
-  const showFeedback = useCallback((
-    options: FeedbackPopupOptions
-  ) => {
-    setFeedbackState({
-      isOpen: true,
-      ...options
-    });
+  useEffect(() => {
+    listeners.add(setFeedbackState);
+    setFeedbackState(memoryState);
+    return () => {
+      listeners.delete(setFeedbackState);
+    };
   }, []);
 
   const handleClose = useCallback(() => {
-    setFeedbackState(prev => ({ ...prev, isOpen: false }));
+    hideFeedback();
   }, []);
 
-  const feedbackPopup = (
-    <FeedbackPopup
-      isOpen={feedbackState.isOpen}
-      onClose={handleClose}
-      title={feedbackState.title}
-      description={feedbackState.description}
-      variant={feedbackState.variant}
-      actionLabel={feedbackState.actionLabel}
-      onAction={feedbackState.onAction}
-    />
-  );
-
   return (
-    <FeedbackPopupContext.Provider value={{
-      showFeedback,
-      FeedbackPopup: feedbackPopup,
-    }}>
+    <>
       {children}
-      {/* Portal for feedback popup - render at end of body to avoid clipping */}
       <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 9999 }}>
-        {feedbackPopup}
+        <FeedbackPopup
+          isOpen={feedbackState.isOpen}
+          onClose={handleClose}
+          title={feedbackState.title}
+          description={feedbackState.description}
+          variant={feedbackState.variant}
+          actionLabel={feedbackState.actionLabel}
+          onAction={feedbackState.onAction}
+        />
       </div>
-    </FeedbackPopupContext.Provider>
+    </>
   );
-}
-
-export function useFeedbackPopup() {
-  const context = useContext(FeedbackPopupContext);
-  if (context === undefined) {
-    throw new Error('useFeedbackPopup must be used within a FeedbackPopupProvider');
-  }
-  return context;
 }
