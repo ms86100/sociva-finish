@@ -27,10 +27,7 @@ import {
   FileText,
   Camera,
   Repeat,
-  Award,
   Building2,
-  Bug,
-  Activity,
 } from 'lucide-react';
 import { FeedbackSheet } from '@/components/feedback/FeedbackSheet';
 import { NotificationHealthCheck } from '@/components/notifications/NotificationHealthCheck';
@@ -123,7 +120,6 @@ export default function ProfilePage() {
   ];
 
   const menuItems = [
-    { icon: Award, label: 'Community Directory', to: '/directory' },
     ...(isBuilderMember
       ? [{ icon: Building2, label: 'Builder Dashboard', to: '/builder' }]
       : []),
@@ -133,9 +129,6 @@ export default function ProfilePage() {
     { icon: Bell, label: 'Notifications', to: '/notifications' },
     { icon: HelpCircle, label: 'Help & Guide', to: '/help' },
     ...(isAdmin ? [{ icon: Shield, label: 'Admin Panel', to: '/admin' }] : []),
-    ...(isAdmin ? [{ icon: FileText, label: 'Platform Docs', to: '/docs' }] : []),
-    ...(isAdmin ? [{ icon: Bug, label: 'Push Debug', to: '/push-debug' }] : []),
-    ...(isAdmin ? [{ icon: Activity, label: 'Live Activity Debug', to: '/la-debug' }] : []),
     { icon: FileText, label: 'Privacy Policy', to: '/privacy-policy' },
     { icon: FileText, label: 'Terms & Conditions', to: '/terms' },
     { icon: FileText, label: 'Community Rules', to: '/community-rules' },

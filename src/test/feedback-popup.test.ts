@@ -5,6 +5,7 @@ import {
   showFeedback,
   useFeedbackPopup,
 } from '@/components/FeedbackPopupProvider';
+import { FEEDBACK_AUTO_DISMISS_MS } from '@/components/ui/FeedbackPopup';
 
 afterEach(() => {
   hideFeedback();
@@ -35,7 +36,7 @@ describe('feedback popup API', () => {
     showFeedback({ title: 'Address saved', variant: 'success' });
     expect(getFeedbackState().isOpen).toBe(true);
 
-    vi.advanceTimersByTime(2200);
+    vi.advanceTimersByTime(FEEDBACK_AUTO_DISMISS_MS);
     expect(getFeedbackState().isOpen).toBe(false);
   });
 

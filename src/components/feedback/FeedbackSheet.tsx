@@ -6,10 +6,17 @@ import { Textarea } from '@/components/ui/textarea';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
-import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
-import { MessageSquareHeart } from 'lucide-react';
+import { showFeedback } from '@/components/FeedbackPopupProvider';
+import { MessageSquareHeart, ChevronRight, Star } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
-const EMOJIS = ['���😞', '���😐', '���🙂', '���😊', '���🤩'];
+const RATING_LABELS = [
+  'Poor',
+  'Fair',
+  'Good',
+  'Very good',
+  'Excellent',
+];
 
 interface FeedbackSheetProps {
   triggerLabel?: string;
@@ -24,7 +31,6 @@ export function FeedbackSheet({ triggerLabel, onSubmitted, triggerOpen, onOpenCh
   const [rating, setRating] = useState(0);
   const [message, setMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const { showFeedback } = useFeedbackPopup();
 
   useEffect(() => {
     if (triggerOpen) setOpen(true);
@@ -41,17 +47,19 @@ export function FeedbackSheet({ triggerLabel, onSubmitted, triggerOpen, onOpenCh
         page_context: window.location.pathname,
       });
       if (error) throw error;
-      const { showFeedback } = useFeedbackPopup();
-      showFeedback({
-        title: 'Thank you for your feedback!',
-        variant: 'success'
-      });
       setOpen(false);
       setRating(0);
       setMessage('');
       onSubmitted?.();
+      window.setTimeout(() => {
+        showFeedback({
+          title: 'Feedback received',
+          description: 'Thank you. This helps us improve Sociva.',
+          variant: 'success',
+        });
+      }, 320);
     } catch {
-      toast.error('Failed to submit feedback. Please try again.');
+      toast.error('Could not submit feedback. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
@@ -63,40 +71,49 @@ export function FeedbackSheet({ triggerLabel, onSubmitted, triggerOpen, onOpenCh
         <button className="flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-muted/50 active:bg-muted transition-colors w-full">
           <MessageSquareHeart size={18} className="text-muted-foreground shrink-0" />
           <span className="flex-1 text-sm font-medium text-left">{triggerLabel || 'Share Feedback'}</span>
-          <span className="text-muted-foreground">�›</span>
+          <ChevronRight size={16} className="text-muted-foreground" />
         </button>
       </DrawerTrigger>
       <DrawerContent>
         <DrawerHeader>
-          <DrawerTitle>How's your experience?</DrawerTitle>
+          <DrawerTitle>How was your experience?</DrawerTitle>
         </DrawerHeader>
         <div className="px-4 pb-6 space-y-5">
-          {/* Emoji Rating */}
-          <div className="flex justify-center gap-4">
-            {EMOJIS.map((emoji, i) => {
+          <div className="flex justify-center gap-2">
+            {RATING_LABELS.map((label, i) => {
               const value = i + 1;
+              const active = rating >= value;
               return (
                 <button
                   key={value}
+                  type="button"
                   onClick={() => setRating(value)}
-                  className={`text-3xl transition-transform ${
-                    rating === value ? 'scale-125' : 'opacity-50 hover:opacity-80'
-                  }`}
+                  className="flex flex-col items-center gap-1.5 px-1"
+                  aria-label={`${value} star${value === 1 ? '' : 's'} — ${label}`}
                 >
-                  {emoji}
+                  <Star
+                    size={28}
+                    className={cn(
+                      'transition-colors',
+                      active ? 'fill-primary text-primary' : 'text-muted-foreground/40',
+                    )}
+                  />
                 </button>
               );
             })}
           </div>
           {rating > 0 && (
             <p className="text-center text-sm text-muted-foreground">
-              {rating <= 2 ? "We're sorry to hear that." : rating === 3 ? 'Thanks for letting us know.' : 'Glad you like it!'}
+              {rating <= 2
+                ? 'We are sorry it fell short. Tell us how we can improve.'
+                : rating === 3
+                  ? 'Thank you — a short note helps us improve.'
+                  : 'Glad it went well. We appreciate you taking a moment.'}
             </p>
           )}
 
-          {/* Message */}
           <Textarea
-            placeholder="Tell us more (optional)..."
+            placeholder="Tell us more (optional)"
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             rows={3}
@@ -108,7 +125,7 @@ export function FeedbackSheet({ triggerLabel, onSubmitted, triggerOpen, onOpenCh
             disabled={rating === 0 || isSubmitting}
             className="w-full rounded-xl"
           >
-            {isSubmitting ? 'Submitting...' : 'Submit Feedback'}
+            {isSubmitting ? 'Sending...' : 'Submit feedback'}
           </Button>
         </div>
       </DrawerContent>

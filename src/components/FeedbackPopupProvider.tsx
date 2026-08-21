@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { useState, useCallback, useEffect, ReactNode } from 'react';
-import { FeedbackPopup } from '@/components/ui/FeedbackPopup';
+import { AnimatePresence } from 'framer-motion';
+import { FeedbackPopup, FEEDBACK_AUTO_DISMISS_MS } from '@/components/ui/FeedbackPopup';
 
 interface FeedbackPopupOptions {
   title: string;
@@ -39,7 +40,7 @@ export function showFeedback(options: FeedbackPopupOptions) {
     if (!options.actionLabel) {
       dismissTimer = setTimeout(() => {
         emit({ ...memoryState, isOpen: false });
-      }, 2200);
+      }, FEEDBACK_AUTO_DISMISS_MS);
     }
   } catch (err) {
     console.warn('showFeedback failed', err);
@@ -83,15 +84,20 @@ export function FeedbackPopupProvider({ children }: { children: ReactNode }) {
     <>
       {children}
       <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 9999 }}>
-        <FeedbackPopup
-          isOpen={feedbackState.isOpen}
-          onClose={handleClose}
-          title={feedbackState.title}
-          description={feedbackState.description}
-          variant={feedbackState.variant}
-          actionLabel={feedbackState.actionLabel}
-          onAction={feedbackState.onAction}
-        />
+        <AnimatePresence>
+          {feedbackState.isOpen && (
+            <FeedbackPopup
+              key={feedbackState.title}
+              isOpen
+              onClose={handleClose}
+              title={feedbackState.title}
+              description={feedbackState.description}
+              variant={feedbackState.variant}
+              actionLabel={feedbackState.actionLabel}
+              onAction={feedbackState.onAction}
+            />
+          )}
+        </AnimatePresence>
       </div>
     </>
   );

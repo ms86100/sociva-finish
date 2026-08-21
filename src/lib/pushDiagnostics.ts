@@ -179,8 +179,8 @@ export async function runPushDiagnostics(userId?: string): Promise<DiagnosticRes
         } else {
           const { data: insertData, error } = await supabase.from('notification_queue').insert({
             user_id: userId,
-            title: '🔔 Push Diagnostics',
-            body: 'If you see this, push notifications are working!',
+            title: 'Sociva',
+            body: 'Notifications are on. You’ll receive order updates and important alerts here.',
             payload: { type: 'diagnostic' },
             status: 'pending',
           }).select('id').single();
