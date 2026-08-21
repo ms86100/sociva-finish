@@ -5,8 +5,8 @@ import { motion, useInView } from 'framer-motion';
 import { Apple, Smartphone } from 'lucide-react';
 
 const IOS_APP_STORE_URL = 'https://apps.apple.com/in/app/sociva/id6759218504';
-/** GitHub LFS media URL — serves the real APK binary (not the LFS pointer). */
-export const ANDROID_APK_URL = 'https://media.githubusercontent.com/media/ms86100/sociva-finish/master/public/downloads/sociva-android.apk';
+/** Vercel serving URL — serves the APK from the public directory. */
+export const ANDROID_APK_URL = '/downloads/sociva-android.apk';
 
 export function LandingDownload() {
   const ref = useRef<HTMLDivElement>(null);
