@@ -1,5 +1,5 @@
 // @ts-nocheck
-import React, { useState, useEffect, lazy, Suspense, ComponentType } from "react";
+import React, { useState, useEffect, lazy, Suspense, ComponentType, useRef } from "react";
 
 // Fallback component shown when a lazy page fails to resolve
 function LazyLoadFailed() {
