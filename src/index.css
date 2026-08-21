@@ -19,6 +19,7 @@
     --app-safe-right: var(--safe-area-inset-right);
     --app-safe-bottom: var(--safe-area-inset-bottom);
     --app-safe-left: var(--safe-area-inset-left);
+    --keyboard-inset: 0px;
 
     /* ═══ LIGHT — Warm white, punchy green ═══ */
     --background: 40 20% 99%;
@@ -267,6 +268,15 @@
     -webkit-overflow-scrolling: touch;
     overscroll-behavior-y: contain;
     background: hsl(var(--background));
+    padding-bottom: var(--keyboard-inset, 0px);
+  }
+
+  input,
+  textarea,
+  select,
+  [contenteditable="true"] {
+    scroll-margin-top: 5rem;
+    scroll-margin-bottom: calc(var(--keyboard-inset, 0px) + 6rem);
   }
 
   #root::before {

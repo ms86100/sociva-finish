@@ -277,7 +277,7 @@ export function useSellerProducts() {
   };
 
   const handleSave = async () => {
-    if (!sellerProfile || !user) return;
+    if (!sellerProfile || !user || isSaving) return;
     const price = parseFloat(formData.price);
     const actionNeedsPrice = !['contact_seller', 'request_quote', 'make_offer'].includes(formData.action_type);
 
@@ -409,10 +409,6 @@ export function useSellerProducts() {
         });
         if (error) throw error;
         savedProductId = editingProduct.id;
-        showFeedback({
-        title: 'Product updated',
-        variant: 'success',
-      });
       } else {
         const { data: newId, error } = await (supabase as any).rpc('save_product_with_service', {
           p_product: productData,
@@ -420,17 +416,18 @@ export function useSellerProducts() {
         });
         if (error) throw error;
         savedProductId = newId as string;
-        showFeedback({
-        title: 'Product added',
-        variant: 'success',
-      });
       }
 
       if (actionRequiresAvailability) {
         toast.info('Save your Store Hours to generate booking slots', { id: 'slots-hint' });
       }
-      setIsDialogOpen(false); resetForm();
+      setIsDialogOpen(false);
+      resetForm();
       if (sellerProfile) fetchData(sellerProfile.id);
+      showFeedback({
+        title: editingProduct ? 'Product updated' : 'Product saved successfully',
+        variant: 'success',
+      });
     } catch (error: any) { console.error('Error saving product:', error); toast.error(friendlyError(error), { id: 'product-save-error' }); }
     finally { setIsSaving(false); }
   };

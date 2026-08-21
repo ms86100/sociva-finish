@@ -249,7 +249,7 @@ export function SubcategoryPickerDialog({
 
   return (
     <Sheet open={open} onOpenChange={handleOpenChange}>
-      <SheetContent side="bottom" className="max-h-[85dvh] flex flex-col pb-6">
+      <SheetContent side="bottom" className="max-h-[85dvh] flex flex-col overflow-y-auto pb-[max(1.5rem,var(--keyboard-inset,0px))]">
         <SheetHeader className="text-left pb-2">
           <SheetTitle className="flex items-center gap-2">
             <DynamicIcon name={categoryIcon} size={20} />
@@ -496,11 +496,20 @@ function EditableIdentityLabel({
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value || defaultLabel);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   // Re-sync draft when entering edit mode or when default changes (new primary)
   useEffect(() => {
     setDraft(value || defaultLabel);
   }, [value, defaultLabel, editing]);
+
+  useEffect(() => {
+    if (!editing) return;
+    const el = inputRef.current;
+    if (!el) return;
+    el.focus();
+    setTimeout(() => el.scrollIntoView({ block: 'center', behavior: 'smooth' }), 350);
+  }, [editing]);
 
   const isCustom = !!value && value !== defaultLabel;
   const displayed = isCustom ? value : defaultLabel;
@@ -520,7 +529,7 @@ function EditableIdentityLabel({
   return (
     <div className="mt-3 p-3 rounded-lg bg-muted">
       <div className="flex items-center justify-between gap-2">
-        <p className="text-xs text-muted-foreground">You'll appear as:</p>
+        <p className="text-xs text-muted-foreground">Seller role (how buyers describe you)</p>
         {!editing && (
           <div className="flex items-center gap-1">
             {isCustom && (
@@ -548,6 +557,7 @@ function EditableIdentityLabel({
       {editing ? (
         <div className="mt-1 flex items-center gap-2">
           <Input
+            ref={inputRef}
             autoFocus
             value={draft}
             onChange={(e) => setDraft(e.target.value.slice(0, 40))}
@@ -555,11 +565,13 @@ function EditableIdentityLabel({
               if (e.key === 'Enter') { e.preventDefault(); commit(); }
               if (e.key === 'Escape') { setDraft(value || defaultLabel); setEditing(false); }
             }}
-            onBlur={commit}
             placeholder={defaultLabel}
             className="h-8 text-sm font-semibold text-center"
             maxLength={40}
           />
+          <Button type="button" size="sm" className="h-8 shrink-0" onMouseDown={(e) => e.preventDefault()} onClick={commit}>
+            Done
+          </Button>
         </div>
       ) : (
         <p className="text-sm font-semibold text-foreground text-center mt-0.5">
@@ -568,7 +580,9 @@ function EditableIdentityLabel({
       )}
 
       <p className="text-[10px] text-muted-foreground text-center mt-1">
-        {editing ? `${draft.length}/40 — press Enter to save` : 'This is how buyers see your store role'}
+        {editing
+          ? `${draft.length}/40 — this is your specialty label, not your store name`
+          : 'Shown as your specialty (for example, Home Meal Provider). Your store name comes next.'}
       </p>
     </div>
   );

@@ -38,4 +38,10 @@ describe('feedback popup API', () => {
     vi.advanceTimersByTime(2200);
     expect(getFeedbackState().isOpen).toBe(false);
   });
+
+  it('exposes showFeedback on window so native bundles cannot miss the import', () => {
+    expect(typeof window.showFeedback).toBe('function');
+    expect(() => window.showFeedback({ title: 'Product saved successfully', variant: 'success' })).not.toThrow();
+    expect(getFeedbackState().title).toBe('Product saved successfully');
+  });
 });

@@ -915,7 +915,14 @@ export default function BecomeSellerPage() {
                 <p className="text-sm text-foreground">{rejectionFeedback}</p>
               </div>
             )}
-            <div className="space-y-2"><Label htmlFor="business_name">Business Name *</Label><Input id="business_name" placeholder={groups.find(g => g.slug === selectedGroup)?.placeholder_hint || "e.g., Your Store Name"} value={formData.business_name} onChange={(e) => setFormData({ ...formData, business_name: e.target.value })} /></div>
+            <div className="space-y-2">
+              <Label htmlFor="business_name">Business / Store Name *</Label>
+              <Input id="business_name" placeholder={groups.find(g => g.slug === selectedGroup)?.placeholder_hint || "e.g., Your Store Name"} value={formData.business_name} onChange={(e) => setFormData({ ...formData, business_name: e.target.value })} />
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                This is your shop title — buyers see it on your store page, products, orders, and invoices.
+                The previous “you'll appear as” label is only your specialty (for example, Home Meal Provider), not this store name.
+              </p>
+            </div>
             <div className="space-y-2"><Label htmlFor="description">Description</Label><Textarea id="description" placeholder="Tell customers about what you offer..." value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} rows={3} /></div>
             <div className="space-y-2"><Label>Availability Hours</Label><div className="grid grid-cols-2 gap-3"><div><Label htmlFor="start" className="text-xs text-muted-foreground">Opens at</Label><Input id="start" type="time" value={formData.availability_start} onChange={(e) => setFormData({ ...formData, availability_start: e.target.value })} /></div><div><Label htmlFor="end" className="text-xs text-muted-foreground">Closes at</Label><Input id="end" type="time" value={formData.availability_end} onChange={(e) => setFormData({ ...formData, availability_end: e.target.value })} /></div></div></div>
             <div className="border rounded-lg p-4 space-y-4">

@@ -73,6 +73,7 @@ import { PushNotificationProvider } from "@/components/notifications/PushNotific
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { RouteErrorBoundary } from "@/components/RouteErrorBoundary";
 import { GlobalHapticListener } from "@/components/haptics/GlobalHapticListener";
+import { KeyboardAwareInputs } from "@/components/haptics/KeyboardAwareInputs";
 import { initializeMedianBridge } from "@/lib/median";
 import { useDeepLinks, consumePendingDeepLink } from "@/hooks/useDeepLinks";
 import { useAndroidBackButton } from "@/hooks/useAndroidBackButton";
@@ -654,6 +655,7 @@ function App() {
             <HashRouter>
               <ActionBlockedDialog />
               <GlobalHapticListener />
+              <KeyboardAwareInputs />
               <FeedbackPopupProvider>
                 <AuthProvider>
                   <SplashGate>

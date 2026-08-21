@@ -13,7 +13,7 @@ import { AutoHighlightStrip } from '@/components/home/AutoHighlightStrip';
 import { BuyAgainRow } from '@/components/home/BuyAgainRow';
 import { ShopByStoreDiscovery } from '@/components/home/ShopByStoreDiscovery';
 import { NearbySellersSection } from '@/components/marketplace/NearbySellersSection';
-import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
+import { showFeedback } from '@/components/FeedbackPopupProvider';
 import { LazySection } from '@/components/home/LazySection';
 import { ProductWithSeller } from '@/components/product/ProductListingCard';
 import { GroupedSellerRow } from '@/components/home/GroupedSellerRow';
@@ -24,6 +24,48 @@ import { useMarketplaceConfig } from '@/hooks/useMarketplaceConfig';
 import { useBadgeConfig } from '@/hooks/useBadgeConfig';
 import { useMarketplaceLabels } from '@/hooks/useMarketplaceLabels';
 import { cn } from '@/lib/utils';
+
+function getPublicOrigin() {
+  const origin = window.location.origin || '';
+  if (
+    !origin ||
+    origin.includes('localhost') ||
+    origin.startsWith('capacitor://') ||
+    origin.startsWith('https://localhost')
+  ) {
+    return 'https://www.sociva.in';
+  }
+  return origin;
+}
+
+async function inviteNeighborToSell() {
+  const inviteUrl = `${getPublicOrigin()}/#/become-seller`;
+  const shareText = `I'm using Sociva to buy and sell with neighbors. Start selling in our community:\n${inviteUrl}`;
+
+  try {
+    if (navigator.share) {
+      await navigator.share({
+        title: 'Start selling on Sociva',
+        text: shareText,
+        url: inviteUrl,
+      });
+      return;
+    }
+  } catch (err) {
+    if ((err as Error).name === 'AbortError') return;
+  }
+
+  try {
+    await navigator.clipboard.writeText(shareText);
+    showFeedback({
+      title: 'Invite link copied',
+      description: 'Share it on WhatsApp so your neighbor can start selling',
+      variant: 'success',
+    });
+  } catch {
+    window.open(`https://wa.me/?text=${encodeURIComponent(shareText)}`, '_blank');
+  }
+}
 
 // Keep recharts / booking / enquiry sheets off the Home critical path
 const ProductDetailSheet = lazy(() =>
@@ -168,23 +210,7 @@ export function MarketplaceSection() {
               Start selling to your neighbors
             </button>
             <button
-              onClick={() => {
-                const shareData = { title: 'Join our community marketplace', url: window.location.origin };
-                const { showFeedback } = useFeedbackPopup();
-                if (navigator.share) {
-                  navigator.share(shareData).catch(() => {});
-                } else {
-                  navigator.clipboard.writeText(shareData.url).then(() => {
-                    showFeedback({
-                      title: 'Link copied!',
-                      description: 'Share it with your neighbor to get them selling',
-                      variant: 'success',
-                      actionLabel: 'Done',
-                      onAction: () => {} // Empty handler since clicking outside also closes it
-                    });
-                  });
-                }
-              }}
+              onClick={() => { inviteNeighborToSell(); }}
               className="w-full px-4 py-3 rounded-xl bg-secondary text-secondary-foreground text-sm font-medium active:scale-[0.98] transition-transform"
             >
               Invite a neighbor to sell

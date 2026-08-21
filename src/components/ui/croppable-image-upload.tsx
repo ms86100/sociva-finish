@@ -59,7 +59,7 @@ export function CroppableImageUpload({
       const { data: urlData } = supabase.storage.from('app-images').getPublicUrl(data.path);
       onChange(urlData.publicUrl);
       showFeedback({
-        title: 'Image uploaded successfully',
+        title: 'Product image uploaded successfully',
         variant: 'success',
       });
     } catch (error: any) {

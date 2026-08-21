@@ -83,6 +83,7 @@ export function UpiVpaInput({
     <div className="space-y-2">
       <div className="relative">
         <Input
+          id="upi_id"
           value={value}
           onChange={(e) => handleChange(e.target.value)}
           placeholder={placeholder}

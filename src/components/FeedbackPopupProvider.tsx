@@ -33,13 +33,21 @@ function clearDismissTimer() {
 }
 
 export function showFeedback(options: FeedbackPopupOptions) {
-  clearDismissTimer();
-  emit({ isOpen: true, ...options });
-  if (!options.actionLabel) {
-    dismissTimer = setTimeout(() => {
-      emit({ ...memoryState, isOpen: false });
-    }, 2200);
+  try {
+    clearDismissTimer();
+    emit({ isOpen: true, ...options });
+    if (!options.actionLabel) {
+      dismissTimer = setTimeout(() => {
+        emit({ ...memoryState, isOpen: false });
+      }, 2200);
+    }
+  } catch (err) {
+    console.warn('showFeedback failed', err);
   }
+}
+
+if (typeof window !== 'undefined') {
+  window.showFeedback = showFeedback;
 }
 
 export function hideFeedback() {
