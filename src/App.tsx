@@ -602,6 +602,13 @@ function SplashGate({ children }: { children: React.ReactNode }) {
 }
 
 function App() {
+  const appStartRef = useRef(0);
+  if (appStartRef.current === 0) {
+    const now = performance.now();
+    appStartRef.current = now;
+    console.debug(`[App Perf] App function start: ${now.toFixed(0)}`);
+  }
+
   useEffect(() => {
     const handler = () => queryClient.clear();
     window.addEventListener('app:clear-cache', handler);

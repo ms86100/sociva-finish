@@ -9,6 +9,14 @@ initObservability();
 // stale Workbox caches that competed with first paint (e.g. splash-video).
 const BUILD_CACHE_VERSION = "2026-08-07-fast-first-paint-v2";
 
+// Performance markers for landing page load analysis
+const perfMarks = {};
+function mark(name) {
+  perfMarks[name] = performance.now();
+  console.debug(`[Perf] ${name}: ${perfMarks[name].toFixed(0)}ms`);
+}
+mark('start');
+
 async function clearAppCaches() {
   try {
     if ("caches" in window) {
@@ -112,30 +120,40 @@ window.addEventListener("unhandledrejection", (event) => {
 });
 
 async function bootstrap() {
+  mark('beforeEnsureFreshBuild');
   await ensureFreshBuild();
+  mark('afterEnsureFreshBuild');
 
   try {
+    mark('beforeInitializeCapacitorPlugins');
     await initializeCapacitorPlugins();
+    mark('afterInitializeCapacitorPlugins');
   } catch (e) {
     console.error('[Bootstrap] Capacitor init failed, continuing without native plugins:', e);
   }
 
+  mark('beforeGetRootElement');
   const rootElement = document.getElementById("root");
   if (!rootElement) {
     throw new Error("[Bootstrap] Missing root element");
   }
+  mark('afterGetRootElement');
 
+  mark('beforeImportReactDOMAndApp');
   const [{ createRoot }, { default: App }] = await Promise.all([
     import("react-dom/client"),
     import("./App.tsx"),
   ]);
+  mark('afterImportReactDOMAndApp');
 
+  mark('beforeRenderApp');
   createRoot(rootElement).render(<App />);
   rootElement.setAttribute('data-app-mounted', 'true');
   // Clear any leftover HTML bootstrap splash (React replaces children, this is belt-and-suspenders)
   const bootSplash = document.getElementById('boot-splash');
   bootSplash?.remove();
   sessionStorage.removeItem('boot-fails');
+  mark('afterRenderApp');
 
   window.setTimeout(() => {
     if (appDidNotMount()) {
@@ -143,9 +161,22 @@ async function bootstrap() {
       showFatalFallback();
     }
   }, 10000);
+  mark('afterSetupTimeout');
 }
 
-bootstrap().catch((e) => {
+bootstrap().then(() => {
+  mark('bootstrapFinished');
+  // Calculate and log intervals
+  const start = perfMarks['start'];
+  const finish = perfMarks['bootstrapFinished'];
+  if (start && finish) {
+    console.log('[Perf] Bootstrap total time:', (finish - start).toFixed(0), 'ms');
+    // Optionally log other intervals
+    console.log('[Perf] Timestamps:', JSON.stringify(Object.fromEntries(
+      Object.entries(perfMarks).map(([k, v]) => [k, v.toFixed(0)])
+    ), null, 2));
+  }
+}).catch((e) => {
   if (String(e).includes("Reloading after cache reset")) return;
   console.error('[Bootstrap] Fatal error:', e);
   captureException(e, { source: 'bootstrap' });
