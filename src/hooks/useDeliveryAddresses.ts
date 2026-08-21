@@ -8,6 +8,7 @@ import { useFeedbackPopup } from '@/components/FeedbackPopupProvider';
 export function useDeliveryAddresses() {
   const { user } = useAuth();
   const qc = useQueryClient();
+  const { showFeedback } = useFeedbackPopup();
   const key = ['delivery-addresses', user?.id];
 
   const { data: addresses = [], isLoading } = useQuery({
@@ -60,13 +61,15 @@ export function useDeliveryAddresses() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: key });
-      const { showFeedback } = useFeedbackPopup();
       showFeedback({
         title: 'Address saved',
         variant: 'success'
       });
     },
-    onError: () => toast.error('Failed to save address'),
+    onError: (err) => {
+      console.error('Failed to save address', err);
+      toast.error('Failed to save address');
+    },
   });
 
   const deleteMutation = useMutation({
@@ -76,13 +79,15 @@ export function useDeliveryAddresses() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: key });
-      const { showFeedback } = useFeedbackPopup();
       showFeedback({
         title: 'Address deleted',
         variant: 'success'
       });
     },
-    onError: () => toast.error('Failed to delete address'),
+    onError: (err) => {
+      console.error('Failed to delete address', err);
+      toast.error('Failed to delete address');
+    },
   });
 
   const setDefaultMutation = useMutation({
@@ -104,7 +109,6 @@ export function useDeliveryAddresses() {
       toast.error('Failed to update default');
     },
     onSuccess: () => {
-      const { showFeedback } = useFeedbackPopup();
       showFeedback({
         title: 'Default address updated',
         variant: 'success'
