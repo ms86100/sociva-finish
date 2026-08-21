@@ -42,25 +42,27 @@ function applyNativeCheckoutLayout(node: HTMLElement, layout: RazorpayNativeLayo
   node.style.setProperty('background-color', '#fff', 'important');
   node.style.setProperty('box-sizing', 'border-box', 'important');
 
-  // Both Android and iOS: full-screen with platform safe-area insets.
-  node.style.setProperty('top', '0', 'important');
-  node.style.setProperty('bottom', '0', 'important');
-  node.style.setProperty('height', '100%', 'important');
-  node.style.setProperty('max-height', '100%', 'important');
-  node.style.setProperty('border-radius', '0', 'important');
-
+  // Use safe area insets to avoid system UI (status bar, notch, home indicator)
   if (layout === 'android-fullscreen') {
     // Capacitor publishes --app-safe-* CSS vars; env() is unreliable on Android.
-    node.style.setProperty('padding-top', 'var(--app-safe-top, 0px)', 'important');
-    node.style.setProperty('padding-bottom', 'var(--app-safe-bottom, 0px)', 'important');
+    node.style.setProperty('top', 'var(--app-safe-top, 0px)', 'important');
+    node.style.setProperty('bottom', 'var(--app-safe-bottom, 0px)', 'important');
+    node.style.setProperty('height', 'calc(100% - var(--app-safe-top, 0px) - var(--app-safe-bottom, 0px))', 'important');
+    node.style.setProperty('max-height', 'calc(100% - var(--app-safe-top, 0px) - var(--app-safe-bottom, 0px))', 'important');
+    node.style.setProperty('padding-top', '0', 'important');
+    node.style.setProperty('padding-bottom', '0', 'important');
     node.style.setProperty('padding-left', '0', 'important');
     node.style.setProperty('padding-right', '0', 'important');
     return;
   }
 
   // iOS full-screen: use env() which is reliable in WKWebView.
-  node.style.setProperty('padding-top', 'env(safe-area-inset-top, 44px)', 'important');
-  node.style.setProperty('padding-bottom', 'env(safe-area-inset-bottom, 0px)', 'important');
+  node.style.setProperty('top', 'env(safe-area-inset-top)', 'important');
+  node.style.setProperty('bottom', 'env(safe-area-inset-bottom)', 'important');
+  node.style.setProperty('height', 'calc(100% - env(safe-area-inset-top) - env(safe-area-inset-bottom))', 'important');
+  node.style.setProperty('max-height', 'calc(100% - env(safe-area-inset-top) - env(safe-area-inset-bottom))', 'important');
+  node.style.setProperty('padding-top', '0', 'important');
+  node.style.setProperty('padding-bottom', '0', 'important');
   node.style.setProperty('padding-left', '0', 'important');
   node.style.setProperty('padding-right', '0', 'important');
 }

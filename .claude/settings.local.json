@@ -43,7 +43,12 @@
       "Bash(rtk read *)",
       "mcp__supabase__get_project",
       "mcp__supabase__list_organizations",
-      "Bash(git check-ignore *)"
+      "Bash(git check-ignore *)",
+      "mcp__supabase__get_publishable_keys",
+      "Bash(findstr :3000)",
+      "Bash(tasklist *)",
+      "PowerShell(git add *)",
+      "PowerShell(git commit *)"
     ]
   },
   "enableAllProjectMcpServers": true,

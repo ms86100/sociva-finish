@@ -100,20 +100,24 @@ export default defineConfig(({ mode }) => {
           manualChunks(id) {
             if (!id.includes("node_modules")) return;
             const p = id.replace(/\\/g, "/");
-            // Keep the entire React family together. Splitting jsx-runtime into
-            // another vendor chunk (e.g. motion) caused entry to side-effect
-            // import a huge "charts" shared chunk before first paint.
+
+            // Split vendor chunks more aggressively for better code splitting
             if (
               p.includes("/react-dom/") ||
-              p.includes("/react-router") ||
               p.includes("/react/") ||
               p.includes("/scheduler/")
             ) {
               return "react";
             }
+
+            // Split react-router into its own chunk for route-based code splitting
+            if (p.includes("/react-router")) {
+              return "react-router";
+            }
+
             if (p.includes("@radix-ui")) return "ui-radix";
             if (p.includes("@supabase")) return "supabase";
-            if (p.includes("framer-motion")) return "motion";
+            if (p.includes("framer-motion")) return "framer-motion";
             // Do NOT force a single lucide chunk — that pulled ~400KB onto the
             // critical path whenever any entry import touched lucide-react.
             // Per-route tree-shaking keeps Home icons small.
