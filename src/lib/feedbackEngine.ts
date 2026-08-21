@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { toast } from 'sonner';
 import { hapticImpact, hapticNotification, hapticSelection } from '@/lib/haptics';
-import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
+import { showFeedback } from '@/components/FeedbackPopupProvider';
 
 /**
  * Global Feedback Engine
@@ -29,10 +29,10 @@ function dispatch(event: string) {
 
 export function feedbackAddItem(productName: string) {
   hapticImpact('medium');
-  const { showFeedback } = useFeedbackPopup();
   showFeedback({
-    title: `${truncate(productName)} added`,
-    variant: 'success'
+    title: 'Added to cart',
+    description: `${truncate(productName)} is in your cart.`,
+    variant: 'success',
   });
   dispatch('cart-item-added');
 }
@@ -47,12 +47,12 @@ export function feedbackAddItemFailed(productName: string) {
 
 export function feedbackRemoveItem(productName: string, undoFn?: () => void) {
   hapticImpact('light');
-  const { showFeedback } = useFeedbackPopup();
   showFeedback({
-    title: `${truncate(productName)} removed`,
+    title: 'Removed from cart',
+    description: `${truncate(productName)} is no longer in your cart.`,
     variant: 'success',
-    actionLabel: 'Undo',
-    onAction: undoFn
+    actionLabel: undoFn ? 'Undo' : undefined,
+    onAction: undoFn,
   });
   dispatch('cart-item-removed');
 }
@@ -67,10 +67,9 @@ export function feedbackRemoveItemFailed() {
 
 export function feedbackQuantityChanged() {
   hapticImpact('light');
-  const { showFeedback } = useFeedbackPopup();
   showFeedback({
     title: 'Quantity updated',
-    variant: 'success'
+    variant: 'success',
   });
   dispatch('cart-item-updated');
 }
@@ -87,10 +86,10 @@ export function feedbackQuantityFailed() {
 
 export function feedbackOrderPlaced() {
   hapticNotification('success');
-  const { showFeedback } = useFeedbackPopup();
   showFeedback({
     title: 'Order placed',
-    variant: 'success'
+    description: 'You can track it from Orders.',
+    variant: 'success',
   });
   dispatch('order-placed');
 }
@@ -108,10 +107,10 @@ export function feedbackOrderFailed(message?: string) {
 export function feedbackPaymentResult(success: boolean, message?: string) {
   if (success) {
     hapticNotification('success');
-    const { showFeedback } = useFeedbackPopup();
     showFeedback({
       title: 'Payment successful',
-      variant: 'success'
+      description: 'Your payment has been received.',
+      variant: 'success',
     });
     dispatch('payment-success');
   } else {
@@ -125,11 +124,10 @@ export function feedbackPaymentResult(success: boolean, message?: string) {
 
 export function feedbackCouponApplied(savings: string) {
   hapticImpact('medium');
-  const { showFeedback } = useFeedbackPopup();
   showFeedback({
     title: 'Coupon applied',
     description: `Saved ${savings}`,
-    variant: 'success'
+    variant: 'success',
   });
   dispatch('coupon-applied');
 }
@@ -142,10 +140,10 @@ export function feedbackCouponFailed(reason: string) {
 
 export function feedbackCartCleared() {
   hapticImpact('light');
-  const { showFeedback } = useFeedbackPopup();
   showFeedback({
     title: 'Cart cleared',
-    variant: 'success'
+    description: 'Your cart is empty.',
+    variant: 'success',
   });
   dispatch('cart-cleared');
 }
@@ -154,10 +152,10 @@ export function feedbackCartCleared() {
 
 export function feedbackFavoriteToggled(added: boolean, productName: string) {
   hapticImpact('light');
-  const { showFeedback } = useFeedbackPopup();
   showFeedback({
-    title: added ? `${truncate(productName)} saved` : `${truncate(productName)} removed from saved`,
-    variant: 'success'
+    title: added ? 'Saved' : 'Removed from saved',
+    description: truncate(productName),
+    variant: 'success',
   });
   dispatch('favorite-toggled');
 }

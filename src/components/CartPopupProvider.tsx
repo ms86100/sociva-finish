@@ -44,18 +44,12 @@ export function CartPopupProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const handleAddClose = useCallback(() => {
-    setAddPopupState(prev => ({ ...prev, isOpen: false }));
-    if (addPopupState.onViewCart) {
-      addPopupState.onViewCart();
-    }
-  }, [addPopupState.onViewCart]);
+    setAddPopupState((prev) => ({ ...prev, isOpen: false }));
+  }, []);
 
   const handleRemoveClose = useCallback(() => {
-    setRemovePopupState(prev => ({ ...prev, isOpen: false }));
-    if (removePopupState.onContinueShopping) {
-      removePopupState.onContinueShopping();
-    }
-  }, [removePopupState.onContinueShopping]);
+    setRemovePopupState((prev) => ({ ...prev, isOpen: false }));
+  }, []);
 
   const addPopup = (
     <CartAddPopup

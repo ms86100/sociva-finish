@@ -29,7 +29,10 @@ const COPY_HINTS = [
   { match: /address saved/i, heading: 'Address saved', body: 'We will use this for deliveries.' },
   { match: /profile updated/i, heading: 'Profile updated', body: 'You are all set.' },
   { match: /submitted for approval/i, heading: 'Sent for review', body: 'We will notify you once it is approved.' },
-  { match: /thank you for your feedback/i, heading: 'Feedback received', body: 'Thank you — this helps us improve Sociva.' },
+  { match: /thank you for your feedback|feedback received/i, heading: 'Feedback received', body: 'Thank you. This helps us improve Sociva.' },
+  { match: /added to cart/i, heading: 'Added to cart', body: 'You can review it anytime in your cart.' },
+  { match: /removed from cart/i, heading: 'Removed from cart', body: 'The item is no longer in your cart.' },
+  { match: /quantity updated/i, heading: 'Quantity updated', body: 'Your cart has been updated.' },
 ];
 
 function stripBrokenGlyphs(value: string) {

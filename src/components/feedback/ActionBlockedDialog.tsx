@@ -49,12 +49,12 @@ export function ActionBlockedDialog() {
 
   return (
     <AlertDialog open={s.open}>
-      <AlertDialogContent className="sm:max-w-sm max-h-[calc(100dvh-var(--app-safe-top,0px)-var(--app-safe-bottom,0px)-2rem)]">
+      <AlertDialogContent className="sm:max-w-sm rounded-[1.75rem] border-border/80 shadow-[0_24px_60px_-18px_hsl(var(--foreground)/0.35)] max-h-[calc(100dvh-var(--app-safe-top,0px)-var(--app-safe-bottom,0px)-2rem)]">
         <AlertDialogHeader className="items-center text-center">
           <div className={`mx-auto mb-2 flex h-14 w-14 items-center justify-center rounded-full ${iconWrap}`}>
             <Icon className={`h-7 w-7 ${iconColor}`} aria-hidden />
           </div>
-          <AlertDialogTitle className="text-center">{s.title}</AlertDialogTitle>
+          <AlertDialogTitle className="text-center tracking-tight">{s.title}</AlertDialogTitle>
           {s.message && (
             <AlertDialogDescription className="text-center text-foreground/80">
               {s.message}
