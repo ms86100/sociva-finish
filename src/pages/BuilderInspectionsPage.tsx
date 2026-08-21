@@ -12,6 +12,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { friendlyError } from '@/lib/utils';
 import { ClipboardCheck, CheckCircle, XCircle, Eye, Loader2, Send } from 'lucide-react';
+import { showFeedback } from '@/components/FeedbackPopupProvider';
 
 interface Checklist {
   id: string;

@@ -10,6 +10,7 @@ import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { useState } from 'react';
 import { CheckCircle2, RotateCcw, ShieldCheck, Clock, Wrench, AlertTriangle } from 'lucide-react';
+import { showFeedback } from '@/components/FeedbackPopupProvider';
 
 interface SnagTicket {
   id: string;

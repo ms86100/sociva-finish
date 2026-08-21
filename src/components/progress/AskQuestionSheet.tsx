@@ -10,6 +10,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Plus, Loader2, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { friendlyError } from '@/lib/utils';
+import { showFeedback } from '@/components/FeedbackPopupProvider';
 
 interface AskQuestionSheetProps {
   onAsked: () => void;

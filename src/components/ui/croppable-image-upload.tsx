@@ -7,6 +7,7 @@ import { Camera, X, Loader2, ImageIcon, Upload } from 'lucide-react';
 import { cn, friendlyError } from '@/lib/utils';
 import { ImageCropDialog } from './image-crop-dialog';
 import { Capacitor } from '@capacitor/core';
+import { showFeedback } from '@/components/FeedbackPopupProvider';
 
 interface CroppableImageUploadProps {
   value?: string | null;

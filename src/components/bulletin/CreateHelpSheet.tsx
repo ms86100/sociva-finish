@@ -10,7 +10,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { Loader2, Handshake, AlertCircle, HelpCircle, Gift } from 'lucide-react';
-import { useFeedbackPopup } from '@/components/FeedbackPopupProvider';
+import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
 
 const TAGS = [
   { value: 'borrow', label: 'Borrow', icon: Handshake, color: 'text-blue-600' },

@@ -13,7 +13,7 @@ import { RefreshCw, XCircle, Loader2, CalendarDays } from 'lucide-react';
 import { toast } from 'sonner';
 import { useState } from 'react';
 import { addDays, addWeeks, addMonths, format } from 'date-fns';
-import { useFeedbackPopup } from '@/components/FeedbackPopupProvider';
+import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
 
 function computeNextDate(config: any): string | null {
   if (!config.is_active) return null;

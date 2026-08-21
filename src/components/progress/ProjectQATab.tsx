@@ -12,6 +12,7 @@ import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { AskQuestionSheet } from './AskQuestionSheet';
 import { cn, friendlyError } from '@/lib/utils';
+import { showFeedback } from '@/components/FeedbackPopupProvider';
 
 interface Question {
   id: string;

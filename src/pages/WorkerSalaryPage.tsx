@@ -16,7 +16,7 @@ import { FeatureGate } from '@/components/ui/FeatureGate';
 import { toast } from 'sonner';
 import { IndianRupee, Plus, Loader2, Wallet } from 'lucide-react';
 import { useCurrency } from '@/hooks/useCurrency';
-import { useFeedbackPopup } from '@/components/FeedbackPopupProvider';
+import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
 
 interface WorkerOption {
   id: string;

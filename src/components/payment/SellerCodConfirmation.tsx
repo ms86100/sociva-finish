@@ -7,6 +7,7 @@ import { CheckCircle, Loader2, Banknote } from 'lucide-react';
 import { useCurrency } from '@/hooks/useCurrency';
 import { useQueryClient } from '@tanstack/react-query';
 import { friendlyError } from '@/lib/utils';
+import { showFeedback } from '@/components/FeedbackPopupProvider';
 
 interface SellerCodConfirmationProps {
   orderId: string;

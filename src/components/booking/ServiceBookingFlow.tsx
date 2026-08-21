@@ -23,7 +23,7 @@ import { Clock, MapPin, MessageCircle, Loader2, ArrowLeft, Calendar, User, Spark
 import type { ServiceCategory } from '@/types/categories';
 import { notify } from '@/lib/notify';
 import { friendlyError } from '@/lib/utils';
-import { useFeedbackPopup } from '@/components/FeedbackPopupProvider';
+import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
 
 interface ServiceBookingFlowProps {
   open: boolean;

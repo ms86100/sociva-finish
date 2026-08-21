@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { PartyPopper, Eye, MousePointer, Globe, AlertTriangle, ShieldOff } from 'lucide-react';
 import { toast } from 'sonner';
 import { friendlyError } from '@/lib/utils';
+import { showFeedback } from '@/components/FeedbackPopupProvider';
 
 interface Props {
   sellerId: string;

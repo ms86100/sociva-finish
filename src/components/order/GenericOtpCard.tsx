@@ -4,6 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Copy, KeyRound, RefreshCw, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
+import { showFeedback } from '@/components/FeedbackPopupProvider';
 
 interface GenericOtpCardProps {
   orderId: string;

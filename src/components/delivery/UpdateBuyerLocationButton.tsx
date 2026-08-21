@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { getCurrentPosition } from '@/lib/native-location';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { useFeedbackPopup } from '@/components/FeedbackPopupProvider';
+import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
 
 interface Props {
   orderId: string;

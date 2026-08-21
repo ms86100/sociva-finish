@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { Upload, X, Loader2, Camera, ImageIcon } from 'lucide-react';
 import { cn, friendlyError } from '@/lib/utils';
 import { Capacitor } from '@capacitor/core';
+import { showFeedback } from '@/components/FeedbackPopupProvider';
 
 interface ImageUploadProps {
   value?: string | null;

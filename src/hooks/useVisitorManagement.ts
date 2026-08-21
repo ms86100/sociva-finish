@@ -7,6 +7,7 @@ import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { friendlyError } from '@/lib/utils';
 import { exportVisitorLog } from '@/lib/csv-export';
+import { showFeedback } from '@/components/FeedbackPopupProvider';
 
 type VisitorStatus = 'expected' | 'checked_in' | 'checked_out' | 'cancelled' | 'expired';
 

@@ -10,7 +10,7 @@ import { loadGoogleMapsScript } from '@/hooks/useGoogleMaps';
 import { GoogleMapConfirm } from '@/components/auth/GoogleMapConfirm';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
-import { useFeedbackPopup } from '@/components/FeedbackPopupProvider';
+import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
 
 interface LocationSelectorSheetProps {
   open: boolean;

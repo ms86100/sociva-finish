@@ -42,7 +42,7 @@ import { useCurrency } from '@/hooks/useCurrency';
 import { useBrowsingLocation } from '@/contexts/BrowsingLocationContext';
 import { useMarketplaceData } from '@/hooks/queries/useMarketplaceData';
 import { notify } from '@/lib/notify';
-import { useFeedbackPopup } from '@/components/FeedbackPopupProvider';
+import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
 
 export default function SellerDetailPage() {
   const { id } = useParams();

@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import { CATEGORY_CONFIG } from './CategoryFilter';
 import type { BulletinPost } from './PostCard';
-import { useFeedbackPopup } from '@/components/FeedbackPopupProvider';
+import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
 
 interface Comment {
   id: string;

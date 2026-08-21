@@ -19,6 +19,7 @@ import { friendlyError } from '@/lib/utils';
 import { FeatureGate } from '@/components/ui/FeatureGate';
 import { Building, Globe, MapPin, Loader2 } from 'lucide-react';
 import { useSystemSettingsRaw } from '@/hooks/useSystemSettingsRaw';
+import { showFeedback } from '@/components/FeedbackPopupProvider';
 
 
 // Job types loaded dynamically from DB worker categories

@@ -15,7 +15,7 @@ import { format } from 'date-fns';
 import { friendlyError } from '@/lib/utils';
 import { FeatureGate } from '@/components/ui/FeatureGate';
 import { useCurrency } from '@/hooks/useCurrency';
-import { useFeedbackPopup } from '@/components/FeedbackPopupProvider';
+import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
 
 // Job type labels fetched dynamically from worker categories or used as structural display-only labels
 function useJobTypeLabels() {

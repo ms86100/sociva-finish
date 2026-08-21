@@ -17,6 +17,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Truck, Plus, Phone, Star, Package, User, Loader2 } from 'lucide-react';
 import { ImageUpload } from '@/components/ui/image-upload';
+import { showFeedback } from '@/components/FeedbackPopupProvider';
 
 export default function DeliveryPartnerManagementPage() {
   const { user, profile, effectiveSocietyId, isSocietyAdmin, isAdmin } = useAuth();

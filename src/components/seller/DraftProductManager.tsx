@@ -23,6 +23,7 @@ import { useBlockLibrary, filterByCategory, type BlockData } from '@/hooks/useAt
 import { useCurrency } from '@/hooks/useCurrency';
 import { ServiceFieldsSection, INITIAL_SERVICE_FIELDS, type ServiceFieldsData } from '@/components/seller/ServiceFieldsSection';
 import { ProductFormPreviewPanel, ProductFormPreviewMobile } from '@/components/seller/ProductFormPreview';
+import { showFeedback } from '@/components/FeedbackPopupProvider';
 
 interface DraftProduct {
   id?: string;

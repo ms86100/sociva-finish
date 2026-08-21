@@ -13,6 +13,7 @@ import { MultiImageCapture } from '@/components/ui/multi-image-capture';
 import { RefundTimeline } from './RefundTimeline';
 import { notify } from '@/lib/notify';
 import { friendlyError } from '@/lib/utils';
+import { showFeedback } from '@/components/FeedbackPopupProvider';
 
 interface RefundRequestCardProps {
   orderId: string;

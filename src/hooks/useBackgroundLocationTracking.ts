@@ -4,6 +4,7 @@ import { Capacitor } from '@capacitor/core';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { getTrackingConfig, type TrackingConfig } from '@/services/trackingConfig';
+import { showFeedback } from '@/components/FeedbackPopupProvider';
 
 interface TrackingState {
   isTracking: boolean;

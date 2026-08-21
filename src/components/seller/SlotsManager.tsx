@@ -11,6 +11,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Calendar, Lock, Unlock, Loader2, Info, AlertTriangle } from 'lucide-react';
 import { cn, friendlyError } from '@/lib/utils';
 import { toast } from 'sonner';
+import { showFeedback } from '@/components/FeedbackPopupProvider';
 
 interface SlotsManagerProps { sellerId: string; }
 

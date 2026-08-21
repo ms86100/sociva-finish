@@ -12,6 +12,7 @@ import { Plus, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { notifySocietyMembers } from '@/lib/society-notifications';
 import { friendlyError } from '@/lib/utils';
+import { showFeedback } from '@/components/FeedbackPopupProvider';
 
 interface Tower {
   id: string;

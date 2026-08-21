@@ -11,7 +11,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useDeliveryAddresses } from '@/hooks/useDeliveryAddresses';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { useFeedbackPopup } from '@/components/FeedbackPopupProvider';
+import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
 import { ArrowLeft, Plus, Loader2, Mail, MapPin, Phone, User, ChevronRight } from 'lucide-react';
 import { useRef } from 'react';
 

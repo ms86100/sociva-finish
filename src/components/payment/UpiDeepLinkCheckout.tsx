@@ -16,6 +16,7 @@ import { toast } from 'sonner';
 import QRCodeDisplay from '@/components/security/QRCodeDisplay';
 import { getString, setString, removeKey } from '@/lib/persistent-kv';
 import { friendlyError } from '@/lib/utils';
+import { showFeedback } from '@/components/FeedbackPopupProvider';
 
 interface UpiDeepLinkCheckoutProps {
   isOpen: boolean;
