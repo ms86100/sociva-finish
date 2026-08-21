@@ -2,6 +2,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { motion, useInView } from 'framer-motion';
+import { useQuery } from '@tanstack/react-query';
 
 function useCountUp(target: number, inView: boolean, duration = 1500) {
   const [value, setValue] = useState(0);
@@ -19,31 +20,74 @@ function useCountUp(target: number, inView: boolean, duration = 1500) {
   return value;
 }
 
+// Hook to fetch estimated counts for landing page stats
+function useLandingStats() {
+  const societyQuery = useQuery({
+    queryKey: ['societyCount'],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from('societies')
+        .select('*', { count: 'estimated', head: true })
+        .eq('is_active', true);
+      if (error) throw error;
+      return count || 0;
+    },
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+
+  const sellerQuery = useQuery({
+    queryKey: ['sellerCount'],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from('seller_profiles')
+        .select('*', { count: 'estimated', head: true })
+        .eq('verification_status', 'approved');
+      if (error) throw error;
+      return count || 0;
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const categoryQuery = useQuery({
+    queryKey: ['categoryCount'],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from('parent_groups')
+        .select('*', { count: 'estimated', head: true })
+        .eq('is_active', true);
+      if (error) throw error;
+      return count || 0;
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
+  return {
+    societies: societyQuery.data ?? 0,
+    sellers: sellerQuery.data ?? 0,
+    categories: categoryQuery.data ?? 0,
+    isLoading: societyQuery.isLoading || sellerQuery.isLoading || categoryQuery.isLoading,
+    error: societyQuery.error || sellerQuery.error || categoryQuery.error,
+  };
+}
+
 export function LandingTrustBar() {
-  const [stats, setStats] = useState({ societies: 0, sellers: 0, categories: 0 });
+  const { societies, sellers, categories, isLoading, error } = useLandingStats();
   const ref = useRef<HTMLDivElement>(null);
   const inView = useInView(ref, { once: true, margin: '-50px' });
 
-  const societies = useCountUp(stats.societies, inView);
-  const sellers = useCountUp(stats.sellers, inView);
-  const categories = useCountUp(stats.categories, inView);
+  const societiesAnim = useCountUp(societies, inView);
+  const sellersAnim = useCountUp(sellers, inView);
+  const categoriesAnim = useCountUp(categories, inView);
 
-  useEffect(() => {
-    async function load() {
-      const [s, sel, cat] = await Promise.all([
-        supabase.from('societies').select('*', { count: 'exact', head: true }).eq('is_active', true),
-        supabase.from('seller_profiles').select('*', { count: 'exact', head: true }).eq('verification_status', 'approved'),
-        supabase.from('parent_groups').select('*', { count: 'exact', head: true }).eq('is_active', true),
-      ]);
-      setStats({ societies: s.count || 0, sellers: sel.count || 0, categories: cat.count || 0 });
-    }
-    load();
-  }, []);
+  if (error) {
+    console.error('Failed to load landing stats:', error);
+    // Optionally show an error state or fallback to defaults
+  }
 
   const items = [
-    { label: 'Communities Trust Us', value: societies },
-    { label: 'Neighbor Sellers', value: sellers },
-    { label: 'Things You Can\'t Get Elsewhere', value: categories },
+    { label: 'Communities Trust Us', value: societiesAnim },
+    { label: 'Neighbor Sellers', value: sellersAnim },
+    { label: 'Things You Can\'t Get Elsewhere', value: categoriesAnim },
   ];
 
   return (
