@@ -6,6 +6,7 @@ import { Share2, Copy, Check } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { resolveOperationalSellerId } from '@/lib/seller-order-board';
+import { showFeedback } from '@/components/FeedbackPopupProvider';
 
 export function ShareMyStore() {
   const { currentSellerId, sellerProfiles } = useAuth();

@@ -10,6 +10,7 @@ import { friendlyError } from '@/lib/utils';
 import { Key, Loader2, Eye, EyeOff, CheckCircle2, Home } from 'lucide-react';
 import { PasswordStrengthIndicator } from '@/components/auth/PasswordStrengthIndicator';
 import { passwordSchema } from '@/lib/validation-schemas';
+import { showFeedback } from '@/components/FeedbackPopupProvider';
 
 export default function ResetPasswordPage() {
   const navigate = useNavigate();

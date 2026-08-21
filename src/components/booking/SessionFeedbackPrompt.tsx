@@ -8,7 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Star, Loader2, Check } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import { useFeedbackPopup } from '@/components/FeedbackPopupProvider';
+import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
 
 interface SessionFeedbackPromptProps {
   bookingId: string;

@@ -6,6 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { useMarketplaceLabels } from '@/hooks/useMarketplaceLabels';
 import { notify } from '@/lib/notify';
+import { showFeedback } from '@/components/FeedbackPopupProvider';
 
 interface NotifyMeButtonProps {
   productId: string;

@@ -11,6 +11,7 @@ import { ProductActionType } from '@/types/Database';
 import { Loader2, MessageCircle, Calendar, Send, Home, Handshake } from 'lucide-react';
 import { useCurrency } from '@/hooks/useCurrency';
 import { notify } from '@/lib/notify';
+import { showFeedback } from '@/components/FeedbackPopupProvider';
 
 interface ProductEnquirySheetProps {
   open: boolean;

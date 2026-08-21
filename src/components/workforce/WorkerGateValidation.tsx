@@ -10,6 +10,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { Search, CheckCircle, XCircle, Shield, AlertTriangle, Star, Clock, Home } from 'lucide-react';
+import { showFeedback } from '@/components/FeedbackPopupProvider';
 
 interface ValidationResult {
   valid: boolean;

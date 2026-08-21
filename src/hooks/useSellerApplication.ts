@@ -13,6 +13,7 @@ import { friendlyError } from '@/lib/utils';
 import { notifyAdminsNewStoreApplication } from '@/lib/admin-notifications';
 import { notify } from '@/lib/notify';
 import { migrateOnboardingStep, NEW_ONBOARDING_TOTAL_STEPS, commerceModelFromActionType } from '@/lib/listing-intent';
+import { showFeedback } from '@/components/FeedbackPopupProvider';
 
 const ONBOARDING_VERSION_KEY = 'seller_onboarding_version';
 const ONBOARDING_VERSION = '2';

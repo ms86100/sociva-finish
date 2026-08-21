@@ -9,7 +9,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import { useFeedbackPopup } from '@/components/FeedbackPopupProvider';
+import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
 import {
   WHATSAPP_OPTIN_DISMISS_KEY,
   openWhatsAppOptIn,

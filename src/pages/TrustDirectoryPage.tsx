@@ -13,6 +13,7 @@ import { escapeIlike } from '@/lib/query-utils';
 import { toast } from 'sonner';
 import { cn, friendlyError } from '@/lib/utils';
 import { Search, Plus, Loader2, Award, ThumbsUp, Star } from 'lucide-react';
+import { showFeedback } from '@/components/FeedbackPopupProvider';
 
 interface SkillListing {
   id: string;

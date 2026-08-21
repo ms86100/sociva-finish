@@ -11,7 +11,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import toast from 'sonner';
 import { CATEGORY_CONFIG } from './CategoryFilter';
-import { useFeedbackPopup } from '@/components/FeedbackPopupProvider';
+import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
 
 export interface BulletinPost {
   id: string;

@@ -8,7 +8,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
-import { useFeedbackPopup } from '@/components/FeedbackPopupProvider';
+import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
 import { Flag, CheckCircle, XCircle, Loader2, MessageCircle } from 'lucide-react';
 import { format } from 'date-fns';
 import { useCurrency } from '@/hooks/useCurrency';

@@ -9,6 +9,7 @@ import { useAutocomplete, PlaceDetails } from '@/hooks/useGoogleMaps';
 import { useSystemSettings } from '@/hooks/useSystemSettings';
 import { usePushNotifications } from '@/contexts/PushNotificationContext';
 import { notify } from '@/lib/notify';
+import { showFeedback } from '@/components/FeedbackPopupProvider';
 
 export type AuthStep = 'phone' | 'otp' | 'society';
 export type SocietySubStep = 'search' | 'map-confirm' | 'request-form';

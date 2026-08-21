@@ -7,6 +7,7 @@ import { friendlyError } from '@/lib/utils';
 import { Loader2, Sparkles, Upload } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { CroppableImageUpload } from '@/components/ui/croppable-image-upload';
+import { showFeedback } from '@/components/FeedbackPopupProvider';
 
 interface ProductImageUploadProps {
   value?: string | null;

@@ -17,6 +17,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import { showFeedback } from '@/components/FeedbackPopupProvider';
 
 // STATUS_COLORS now provided by useStatusLabels().getWorkerJobStatus
 

@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { toast } from 'sonner';
 import { hapticImpact, hapticNotification, hapticSelection } from '@/lib/haptics';
-import { useFeedbackPopup } from '@/components/FeedbackPopupProvider';
+import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
 
 /**
  * Global Feedback Engine

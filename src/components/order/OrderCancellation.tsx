@@ -18,6 +18,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { useSystemSettingsRaw } from '@/hooks/useSystemSettingsRaw';
 import { notify } from '@/lib/notify';
+import { showFeedback } from '@/components/FeedbackPopupProvider';
 
 interface OrderCancellationProps {
   orderId: string;

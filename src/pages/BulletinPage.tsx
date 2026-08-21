@@ -19,6 +19,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { Plus, Search, Loader2, Send, MessageCircle } from 'lucide-react';
 import { useSearchPlaceholder } from '@/hooks/useSearchPlaceholder';
+import { showFeedback } from '@/components/FeedbackPopupProvider';
 
 export default function BulletinPage() {
   const { user, profile, effectiveSocietyId } = useAuth();

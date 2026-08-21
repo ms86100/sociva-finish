@@ -7,7 +7,7 @@ import { Link } from 'react-router-dom';
 import { format } from 'date-fns';
 import { Package, RotateCcw } from 'lucide-react';
 import { useCart } from '@/hooks/useCart';
-import { useFeedbackPopup } from '@/components/FeedbackPopupProvider';
+import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
 import { toast } from 'sonner';
 import { jitteredStaleTime } from '@/lib/query-utils';
 import { slideFromLeft, pulseRing } from '@/lib/motion-variants';

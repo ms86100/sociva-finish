@@ -8,7 +8,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { useAuth } from '@/contexts/AuthContext';
 import { Clock, Users, Shield, Building2, ShieldCheck, Activity, HelpCircle, ChevronDown, CheckCircle2, LogOut } from 'lucide-react';
-import { useFeedbackPopup } from '@/components/FeedbackPopupProvider';
+import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 

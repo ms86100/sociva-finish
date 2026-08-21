@@ -13,6 +13,7 @@ import { MapPin, Navigation, Loader2, Search, ArrowLeft, X } from 'lucide-react'
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { friendlyError } from '@/lib/utils';
+import { showFeedback } from '@/components/FeedbackPopupProvider';
 
 interface SetStoreLocationSheetProps {
   open: boolean;

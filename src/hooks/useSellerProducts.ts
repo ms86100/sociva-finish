@@ -16,6 +16,7 @@ import { buildDraftKey, readDraft, useAutoSaveDraft } from '@/hooks/useProductFo
 import { deriveActionFromCategoryFlags } from '@/lib/marketplace-constants';
 import { notify } from '@/lib/notify';
 import { isPortfolioSellerId } from '@/lib/seller-order-board';
+import { showFeedback } from '@/components/FeedbackPopupProvider';
 
 export interface ProductFormData {
   name: string;

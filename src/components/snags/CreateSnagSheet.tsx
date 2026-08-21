@@ -11,6 +11,7 @@ import { Plus, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { notifySocietyAdmins } from '@/lib/society-notifications';
 import { friendlyError } from '@/lib/utils';
+import { showFeedback } from '@/components/FeedbackPopupProvider';
 
 export function CreateSnagSheet({ onCreated }: { onCreated: () => void }) {
   const { user, profile, viewAsSocietyId } = useAuth();

@@ -12,6 +12,7 @@ import { friendlyError } from '@/lib/utils';
 import { logAudit } from '@/lib/audit';
 import { notify } from '@/lib/notify';
 import { isPortfolioSellerId } from '@/lib/seller-order-board';
+import { showFeedback } from '@/components/FeedbackPopupProvider';
 
 export interface PaymentConfigData {
   accepts_cod: boolean;

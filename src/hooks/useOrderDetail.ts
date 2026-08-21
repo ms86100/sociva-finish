@@ -12,6 +12,7 @@ import { logAudit } from '@/lib/audit';
 import { resolveTransactionType } from '@/lib/resolveTransactionType';
 import { Order, OrderStatus } from '@/types/Database';
 import { toast } from 'sonner';
+import { showFeedback } from '@/components/FeedbackPopupProvider';
 
 async function fetchOrderData(id: string) {
   const { data, error } = await supabase

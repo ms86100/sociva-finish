@@ -18,7 +18,7 @@ import { BulkProductUpload } from '@/components/seller/BulkProductUpload';
 import { useCurrency } from '@/hooks/useCurrency';
 import { useSellerProducts } from '@/hooks/useSellerProducts';
 import { ProductPerformanceBadge, getPerformanceLevel } from '@/components/seller/ProductPerformanceBadge';
-import { useFeedbackPopup } from '@/components/FeedbackPopupProvider';
+import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
 
 export default function SellerProductsPage() {
   const navigate = useNavigate();

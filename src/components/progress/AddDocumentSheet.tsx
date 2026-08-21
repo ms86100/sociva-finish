@@ -11,6 +11,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Plus, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { friendlyError } from '@/lib/utils';
+import { showFeedback } from '@/components/FeedbackPopupProvider';
 
 export function AddDocumentSheet({ onAdded }: { onAdded: () => void }) {
   const { user, profile, viewAsSocietyId } = useAuth();

@@ -9,6 +9,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { cardEntrance } from '@/lib/motion-variants';
 import { notify } from '@/lib/notify';
 import { friendlyError } from '@/lib/utils';
+import { showFeedback } from '@/components/FeedbackPopupProvider';
 
 interface SellerRefundActionsProps {
   refundId: string;

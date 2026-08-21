@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Loader2, RefreshCw, CheckCircle2, XCircle, Trash2, Bell, Save, Settings, Zap } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { toast } from 'sonner';
-import { useFeedbackPopup } from '@/components/FeedbackPopupProvider';
+import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
 import { flushPushLogs } from '@/lib/pushLogger';
 import { Capacitor } from '@capacitor/core';
 

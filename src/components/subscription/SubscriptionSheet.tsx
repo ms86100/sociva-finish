@@ -12,6 +12,7 @@ import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
 import { DAYS_OF_WEEK } from '@/types/Database';
 import { useCurrency } from '@/hooks/useCurrency';
+import { showFeedback } from '@/components/FeedbackPopupProvider';
 
 interface SubscriptionSheetProps {
   open: boolean;

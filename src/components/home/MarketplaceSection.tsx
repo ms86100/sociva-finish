@@ -13,7 +13,7 @@ import { AutoHighlightStrip } from '@/components/home/AutoHighlightStrip';
 import { BuyAgainRow } from '@/components/home/BuyAgainRow';
 import { ShopByStoreDiscovery } from '@/components/home/ShopByStoreDiscovery';
 import { NearbySellersSection } from '@/components/marketplace/NearbySellersSection';
-import { useFeedbackPopup } from '@/components/FeedbackPopupProvider';
+import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
 import { LazySection } from '@/components/home/LazySection';
 import { ProductWithSeller } from '@/components/product/ProductListingCard';
 import { GroupedSellerRow } from '@/components/home/GroupedSellerRow';

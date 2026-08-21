@@ -21,7 +21,7 @@ import { Loader2, Plus, TrendingUp, TrendingDown, Wallet, Download, Flag, Target
 import { exportFinances } from '@/lib/csv-export';
 import { ModuleSearchBar } from '@/components/search/ModuleSearchBar';
 import { useCurrency } from '@/hooks/useCurrency';
-import { useFeedbackPopup } from '@/components/FeedbackPopupProvider';
+import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
 
 interface Expense {
   id: string;

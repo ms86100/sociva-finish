@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { showFeedback } from '@/components/FeedbackPopupProvider';
 
 /**
  * Intercepts `?reorder=<suggestion_id>` query param (set by push notification deep-link)

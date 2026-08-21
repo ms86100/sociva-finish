@@ -35,7 +35,7 @@ import {
 import { FeedbackSheet } from '@/components/feedback/FeedbackSheet';
 import { NotificationHealthCheck } from '@/components/notifications/NotificationHealthCheck';
 import { toast } from 'sonner';
-import { useFeedbackPopup } from '@/components/FeedbackPopupProvider';
+import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
 import { useSystemSettings } from '@/hooks/useSystemSettings';
 import { getFlag, setFlag, getString, removeKey } from '@/lib/persistent-kv';
 import { useTheme } from 'next-themes';

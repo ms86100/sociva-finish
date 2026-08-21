@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerTrigger } from '@/components/ui/drawer';
 import { toast } from 'sonner';
 import { Wand2, CheckCircle, Circle, Building2, Layers, CreditCard, ParkingCircle } from 'lucide-react';
-import { useFeedbackPopup } from '@/components/FeedbackPopupProvider';
+import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
 
 interface SetupStep {
   key: string;

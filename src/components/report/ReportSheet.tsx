@@ -10,6 +10,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { Loader2, Flag } from 'lucide-react';
 import { notify } from '@/lib/notify';
+import { showFeedback } from '@/components/FeedbackPopupProvider';
 
 interface ReportSheetProps {
   open: boolean;

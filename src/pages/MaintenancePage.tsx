@@ -11,7 +11,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { friendlyError } from '@/lib/utils';
 import { useRazorpay } from '@/hooks/useRazorpay';
-import { useFeedbackPopup } from '@/components/FeedbackPopupProvider';
+import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
 import { CheckCircle2, Clock, AlertTriangle, Plus, Download, Loader2 } from 'lucide-react';
 import { exportMaintenanceDues } from '@/lib/csv-export';
 import { FeatureGate } from '@/components/ui/FeatureGate';

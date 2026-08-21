@@ -4,7 +4,7 @@ import { CalendarPlus, Loader2 } from 'lucide-react';
 import { addToCalendar, parseBookingDateTime, type AddToCalendarResult } from '@/lib/calendar';
 import { toast } from 'sonner';
 import { Capacitor } from '@capacitor/core';
-import { useFeedbackPopup } from '@/components/FeedbackPopupProvider';
+import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
 
 interface CalendarExportButtonProps {
   title: string;

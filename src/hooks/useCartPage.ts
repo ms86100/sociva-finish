@@ -18,7 +18,7 @@ import { useWalletCredit } from '@/hooks/useWalletCredit';
 import { useDeliveryAddresses } from '@/hooks/useDeliveryAddresses';
 import { hapticImpact, hapticNotification, hapticSelection } from '@/lib/haptics';
 import { toast } from 'sonner';
-import { useFeedbackPopup } from '@/components/FeedbackPopupProvider';
+import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
 import { usePushNotifications } from '@/contexts/PushNotificationContext';
 import { notify } from '@/lib/notify';
 import { getString, setString, removeKey } from '@/lib/persistent-kv';

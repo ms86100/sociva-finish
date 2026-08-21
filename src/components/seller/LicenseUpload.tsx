@@ -11,6 +11,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { FileText, Check, X, Clock, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 import { friendlyError } from '@/lib/utils';
+import { showFeedback } from '@/components/FeedbackPopupProvider';
 
 interface LicenseUploadProps {
   sellerId: string;

@@ -17,7 +17,7 @@ import { toast } from 'sonner';
 import { friendlyError } from '@/lib/utils';
 import { Megaphone, Plus, Pin, Clock, User } from 'lucide-react';
 import { format } from 'date-fns';
-import { useFeedbackPopup } from '@/components/FeedbackPopupProvider';
+import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
 
 interface Notice {
   id: string;

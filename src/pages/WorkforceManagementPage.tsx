@@ -22,7 +22,7 @@ import { toast } from 'sonner';
 import { logAudit } from '@/lib/audit';
 import { UserPlus, Users, Shield, AlertTriangle, Settings } from 'lucide-react';
 import { ModuleSearchBar } from '@/components/search/ModuleSearchBar';
-import { useFeedbackPopup } from '@/components/FeedbackPopupProvider';
+import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
 
 export default function WorkforceManagementPage() {
   const { user, profile, effectiveSocietyId, isSocietyAdmin, isAdmin, isBuilderMember } = useAuth();

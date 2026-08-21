@@ -16,6 +16,7 @@ import { ImageUpload } from '@/components/ui/image-upload';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { Users, Plus, Loader2, Phone, Trash2, User } from 'lucide-react';
+import { showFeedback } from '@/components/FeedbackPopupProvider';
 
 interface AuthorizedPerson {
   id: string;
