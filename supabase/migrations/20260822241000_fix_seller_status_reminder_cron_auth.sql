@@ -8,20 +8,20 @@ SET search_path TO 'public'
 AS $function$
 DECLARE
   v_url text;
-  v_service_key text;
+  v_worker_secret text;
 BEGIN
   v_url := rtrim(coalesce(
     current_setting('app.settings.supabase_url', true),
     'https://kkzkuyhgdvyecmxtmkpy.supabase.co'
   ), '/') || '/functions/v1/send-seller-status-reminders';
 
-  SELECT decrypted_secret INTO v_service_key
+  SELECT decrypted_secret INTO v_worker_secret
   FROM vault.decrypted_secrets
-  WHERE name = 'service_role_key'
+  WHERE name = 'pnq_worker_secret'
   LIMIT 1;
 
-  IF v_service_key IS NULL OR length(v_service_key) < 32 THEN
-    RAISE WARNING 'fn_invoke_seller_status_reminders: service_role_key missing — skip';
+  IF v_worker_secret IS NULL OR length(v_worker_secret) < 32 THEN
+    RAISE WARNING 'fn_invoke_seller_status_reminders: pnq_worker_secret missing — skip';
     RETURN;
   END IF;
 
@@ -29,7 +29,7 @@ BEGIN
     url := v_url,
     headers := jsonb_build_object(
       'Content-Type', 'application/json',
-      'Authorization', 'Bearer ' || v_service_key
+      'x-cron-secret', v_worker_secret
     ),
     body := jsonb_build_object('trigger', p_trigger, 'time', now())
   );
