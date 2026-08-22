@@ -32,10 +32,11 @@ export function resolveSellerFinancialIds(
   return sellerId ? [sellerId] : [];
 }
 
-const financialRpc = supabase.rpc as unknown as (
-  name: string,
-  args?: Record<string, unknown>,
-) => PromiseLike<{ data: unknown; error: { message: string } | null }>;
+const financialRpc = (name: string, args?: Record<string, unknown>) =>
+  supabase.rpc(name as never, args as never) as PromiseLike<{
+    data: unknown;
+    error: { message: string } | null;
+  }>;
 
 export function useSellerFinancialSummary(
   sellerId: string | null | undefined,

@@ -11,10 +11,11 @@ import { supabase } from '@/integrations/supabase/client';
 import { useCurrency } from '@/hooks/useCurrency';
 import { format } from 'date-fns';
 
-const adminRpc = supabase.rpc as unknown as (
-  name: string,
-  args?: Record<string, unknown>,
-) => PromiseLike<{ data: unknown; error: { message: string } | null }>;
+const adminRpc = (name: string, args?: Record<string, unknown>) =>
+  supabase.rpc(name as never, args as never) as PromiseLike<{
+    data: unknown;
+    error: { message: string } | null;
+  }>;
 
 export default function AdminRefundsPage() {
   const { formatPrice } = useCurrency();

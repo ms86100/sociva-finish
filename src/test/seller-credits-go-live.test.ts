@@ -18,6 +18,36 @@ describe('Seller credits go-live safety', () => {
     expect(checks.find((c) => c.id === 'duplicate_confirm')?.status).toBe('manual');
   });
 
+  it('allows spend enable when live + isolated evidence passes', () => {
+    const checks = buildSellerCreditsGoLiveChecks({
+      purchaseEnabled: true,
+      spendEnabled: false,
+      resolutionReady: true,
+      capturedPurchaseCount: 1,
+      purchaseLedgerCount: 1,
+      evidence: {
+        productionVerifyOk: true,
+        productionCases: [
+          { id: 'live_duplicate_confirm', result: 'PASS' },
+          { id: 'live_purchase_ledger', result: 'PASS' },
+          { id: 'live_purchase_notification', result: 'PASS' },
+        ],
+        isolatedCertOk: true,
+        isolatedCases: [
+          { id: 'enquiry_charge', result: 'PASS' },
+          { id: 'enquiry_insufficient_block', result: 'PASS' },
+          { id: 'contact_debounce_no_duplicate', result: 'PASS' },
+          { id: 'order_reserve_commit', result: 'PASS' },
+          { id: 'booking_reserve_release', result: 'PASS' },
+          { id: 'purchase_refund_unused', result: 'PASS' },
+        ],
+      },
+    });
+    expect(goLiveChecksAllowSpend(checks)).toBe(true);
+    expect(checks.find((c) => c.id === 'billing_e2e')?.status).toBe('pass');
+    expect(checks.find((c) => c.id === 'refund_path')?.status).toBe('pass');
+  });
+
   it('fails spend-off check when spend is on', () => {
     const checks = buildSellerCreditsGoLiveChecks({
       purchaseEnabled: true,
@@ -31,6 +61,9 @@ describe('Seller credits go-live safety', () => {
     const admin = read('src/pages/AdminSellerCreditsPage.tsx');
     expect(admin).toMatch(/Spend cannot be enabled from Admin until every go-live checklist/);
     expect(admin).toMatch(/Spend is blocked until the go-live checklist below is fully green/);
+    expect(admin).toMatch(/Run billing certification/);
+    expect(admin).toMatch(/Unified financial timeline/);
+    expect(admin).toMatch(/admin_list_seller_credit_financial_timeline/);
     expect(admin).not.toMatch(/Turn Spend ON\?/);
   });
 
@@ -45,5 +78,12 @@ describe('Seller credits go-live safety', () => {
     const confirm = read('supabase/functions/confirm-seller-credit-payment/index.ts');
     expect(confirm).toMatch(/select\("id, seller_id, amount, status, provider_order_id, provider_payment_id"\)/);
     expect(confirm).not.toMatch(/seller_credit_purchases\.currency/);
+  });
+
+  it('cert reconciliation uses last ledger balance not raw sum', () => {
+    const sql = read('supabase/migrations/20260822210000_seller_credits_gap_closeout.sql');
+    expect(sql).toMatch(/last_ledger_balance/);
+    expect(sql).toMatch(/v_acct_a.reserved = 0/);
+    expect(sql).toMatch(/v_max numeric := 50000/);
   });
 });

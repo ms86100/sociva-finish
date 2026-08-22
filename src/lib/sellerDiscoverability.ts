@@ -1,10 +1,11 @@
 import { supabase } from '@/integrations/supabase/client';
 import { hasPreciseCoordinates, SELLER_UNAVAILABLE_NEARBY } from '@/lib/buyerLocation';
 
-const creditRpc = supabase.rpc as unknown as (
-  name: string,
-  args?: Record<string, unknown>,
-) => PromiseLike<{ data: unknown; error: { message: string } | null }>;
+const creditRpc = (name: string, args?: Record<string, unknown>) =>
+  supabase.rpc(name as never, args as never) as PromiseLike<{
+    data: unknown;
+    error: { message: string } | null;
+  }>;
 
 export async function buyerCanOrderFromSeller(
   sellerId: string | null | undefined,

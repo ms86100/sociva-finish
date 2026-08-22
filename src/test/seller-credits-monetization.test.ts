@@ -61,6 +61,8 @@ describe('Seller credits monetization integrity', () => {
     expect(admin).toMatch(/Buyer no-show: commit reserved credits/);
     expect(admin).toMatch(/Buyer no-show: release reservation/);
     expect(admin).not.toMatch(/option value="charge"/);
+    expect(admin).toMatch(/Unified financial timeline/);
+    expect(admin).toMatch(/Run billing certification/);
     expect(admin).toMatch(/Spend is OFF/);
     expect(admin).toMatch(/Spend cannot be enabled from Admin/);
     expect(admin).toMatch(/Store lookup/);

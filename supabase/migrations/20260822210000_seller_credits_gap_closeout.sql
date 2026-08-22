@@ -1,5 +1,4 @@
--- Monetization E2E certification: runs with Purchase ON / Spend OFF (production-safe).
--- Isolated CREDIT-VERIFY stores only; does not mutate real seller balances.
+-- Gap closeout: cert reconciliation fix, admin adjustment cap, admin go-live evidence RPCs.
 
 CREATE OR REPLACE FUNCTION public.seller_credit_run_monetization_certification()
 RETURNS jsonb
@@ -227,157 +226,6 @@ BEGIN
 END;
 $$;
 
-REVOKE ALL ON FUNCTION public.seller_credit_run_monetization_certification() FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.seller_credit_run_monetization_certification() TO service_role;
-
--- Live production purchase verification (read-safe idempotent re-confirm).
-CREATE OR REPLACE FUNCTION public.seller_credit_verify_production_purchase(p_purchase_id uuid DEFAULT NULL)
-RETURNS jsonb
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-DECLARE
-  v_row public.seller_credit_purchases;
-  v_before numeric;
-  v_after numeric;
-  v_ledger_count integer;
-  v_notify_count integer;
-  v_result jsonb;
-  v_seller_user uuid;
-BEGIN
-  SELECT * INTO v_row
-  FROM public.seller_credit_purchases
-  WHERE id = COALESCE(p_purchase_id, (
-    SELECT id FROM public.seller_credit_purchases
-    WHERE status = 'captured' AND provider_payment_id IS NOT NULL
-    ORDER BY captured_at DESC NULLS LAST
-    LIMIT 1
-  ));
-  IF NOT FOUND THEN
-    RETURN jsonb_build_object('ok', false, 'error', 'no captured purchase found');
-  END IF;
-
-  SELECT available INTO v_before FROM public.seller_credit_accounts WHERE seller_id = v_row.seller_id;
-  SELECT count(*) INTO v_ledger_count
-  FROM public.seller_credit_ledger
-  WHERE type = 'purchase' AND reference_type = 'credit_purchase' AND reference_id = v_row.id::text;
-
-  v_result := public.confirm_seller_credit_purchase(
-    v_row.id,
-    v_row.provider_payment_id,
-    v_row.provider_order_id,
-    v_row.amount
-  );
-  SELECT available INTO v_after FROM public.seller_credit_accounts WHERE seller_id = v_row.seller_id;
-  SELECT count(*) INTO v_ledger_count
-  FROM public.seller_credit_ledger
-  WHERE type = 'purchase' AND reference_type = 'credit_purchase' AND reference_id = v_row.id::text;
-
-  SELECT user_id INTO v_seller_user FROM public.seller_profiles WHERE id = v_row.seller_id;
-  SELECT count(*) INTO v_notify_count
-  FROM public.notification_queue
-  WHERE type = 'seller_credit_purchased'
-    AND user_id = v_seller_user;
-
-  RETURN jsonb_build_object(
-    'ok', true,
-    'purchase_id', v_row.id,
-    'idempotent_retry', COALESCE((v_result->>'idempotent')::boolean, false),
-    'ledger_rows', v_ledger_count,
-    'balance_unchanged_on_retry', v_before = v_after,
-    'notification_rows', v_notify_count,
-    'cases', jsonb_build_array(
-      jsonb_build_object('id', 'live_duplicate_confirm', 'result',
-        CASE WHEN v_ledger_count = 1 AND v_before = v_after THEN 'PASS' ELSE 'FAIL' END),
-      jsonb_build_object('id', 'live_purchase_ledger', 'result',
-        CASE WHEN v_ledger_count >= 1 THEN 'PASS' ELSE 'FAIL' END),
-      jsonb_build_object('id', 'live_purchase_notification', 'result',
-        CASE WHEN v_notify_count >= 1 THEN 'PASS' ELSE 'FAIL' END)
-    )
-  );
-END;
-$$;
-
-REVOKE ALL ON FUNCTION public.seller_credit_verify_production_purchase(uuid) FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.seller_credit_verify_production_purchase(uuid) TO service_role;
-
--- Hide dead V1 settings from admin list; block oversized adjustments.
-CREATE OR REPLACE FUNCTION public.admin_list_seller_credit_settings()
-RETURNS jsonb
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-BEGIN
-  IF NOT public.is_admin(auth.uid()) THEN
-    RAISE EXCEPTION 'admin only';
-  END IF;
-  RETURN COALESCE((
-    SELECT jsonb_agg(jsonb_build_object(
-      'key', s.key,
-      'value', s.value,
-      'updated_by', s.updated_by,
-      'updated_at', s.updated_at
-    ) ORDER BY s.key)
-    FROM public.seller_credit_settings s
-    WHERE s.key NOT IN ('seller_failure_policy', 'dispute_policy')
-  ), '[]'::jsonb);
-END;
-$$;
-
-CREATE OR REPLACE FUNCTION public.admin_list_seller_credit_financial_timeline(p_limit integer DEFAULT 60)
-RETURNS jsonb
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-BEGIN
-  IF NOT public.is_admin(auth.uid()) THEN
-    RAISE EXCEPTION 'admin only';
-  END IF;
-  RETURN COALESCE((
-    SELECT jsonb_agg(to_jsonb(x) ORDER BY x.occurred_at DESC)
-    FROM (
-      SELECT
-        led.created_at AS occurred_at,
-        sp.business_name,
-        led.seller_id,
-        led.type AS event_kind,
-        led.event_type,
-        led.amount,
-        led.balance_after,
-        led.reference_type,
-        led.reference_id,
-        led.description,
-        'ledger'::text AS source
-      FROM public.seller_credit_ledger led
-      JOIN public.seller_profiles sp ON sp.id = led.seller_id
-      UNION ALL
-      SELECT
-        p.captured_at AS occurred_at,
-        sp.business_name,
-        p.seller_id,
-        'purchase_' || p.status AS event_kind,
-        NULL::text AS event_type,
-        COALESCE(p.credits_granted, p.amount) AS amount,
-        NULL::numeric AS balance_after,
-        'credit_purchase'::text AS reference_type,
-        p.id::text AS reference_id,
-        'Razorpay purchase ' || p.status AS description,
-        'purchase'::text AS source
-      FROM public.seller_credit_purchases p
-      JOIN public.seller_profiles sp ON sp.id = p.seller_id
-      WHERE p.captured_at IS NOT NULL
-      ORDER BY occurred_at DESC
-      LIMIT GREATEST(COALESCE(p_limit, 60), 1)
-    ) x
-  ), '[]'::jsonb);
-END;
-$$;
-
-GRANT EXECUTE ON FUNCTION public.admin_list_seller_credit_financial_timeline(integer) TO authenticated, service_role;
-
 CREATE OR REPLACE FUNCTION public.admin_adjust_seller_credits(
   p_seller_id uuid,
   p_amount numeric,
@@ -476,3 +324,34 @@ BEGIN
   );
 END;
 $$;
+
+CREATE OR REPLACE FUNCTION public.admin_verify_seller_credit_production_purchase(p_purchase_id uuid DEFAULT NULL)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  IF NOT public.is_admin(auth.uid()) THEN
+    RAISE EXCEPTION 'admin only';
+  END IF;
+  RETURN public.seller_credit_verify_production_purchase(p_purchase_id);
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.admin_run_seller_credit_monetization_certification()
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  IF NOT public.is_admin(auth.uid()) THEN
+    RAISE EXCEPTION 'admin only';
+  END IF;
+  RETURN public.seller_credit_run_monetization_certification();
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.admin_verify_seller_credit_production_purchase(uuid) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.admin_run_seller_credit_monetization_certification() TO authenticated, service_role;

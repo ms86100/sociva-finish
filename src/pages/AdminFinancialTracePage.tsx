@@ -11,10 +11,8 @@ import { supabase } from '@/integrations/supabase/client';
 type TraceResult = Record<string, unknown>;
 type RpcResult = { data: unknown; error: { message: string } | null };
 
-const traceRpc = supabase.rpc as unknown as (
-  name: string,
-  args: Record<string, unknown>,
-) => PromiseLike<RpcResult>;
+const traceRpc = (name: string, args: Record<string, unknown>) =>
+  supabase.rpc(name as never, args as never) as PromiseLike<RpcResult>;
 
 export default function AdminFinancialTracePage() {
   const [reference, setReference] = useState('');

@@ -13,7 +13,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useCurrency } from '@/hooks/useCurrency';
 import { BILLING_EVENT_LABELS, type BillingEventType } from '@/lib/sellerCredits';
 import type { AdminStoreCreditRow } from '@/lib/adminStoreCredits';
-import { buildSellerCreditsGoLiveChecks, goLiveChecksAllowSpend } from '@/lib/sellerCreditsGoLive';
+import { buildSellerCreditsGoLiveChecks, goLiveChecksAllowSpend, type GoLiveCertCase, type SellerCreditsGoLiveEvidence } from '@/lib/sellerCreditsGoLive';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 
@@ -77,6 +77,8 @@ export default function AdminSellerCreditsPage() {
   const [refundPurchase, setRefundPurchase] = useState('');
   const [refundReason, setRefundReason] = useState('');
   const [activeStoreId, setActiveStoreId] = useState('');
+  const [certRunning, setCertRunning] = useState(false);
+  const [goLiveEvidence, setGoLiveEvidence] = useState<SellerCreditsGoLiveEvidence | null>(null);
 
   const debouncedStoreSearch = useDebouncedValue(storeSearch, 300);
   const debouncedPurchaseSearch = useDebouncedValue(purchaseSearch, 300);
@@ -100,6 +102,7 @@ export default function AdminSellerCreditsPage() {
       const ready = await adminRpc('seller_credit_resolution_ready');
       const charges = await adminRpc('admin_list_reversible_seller_charges', { p_limit: 20 });
       const ledger = await adminRpc('admin_list_seller_credit_ledger', { p_limit: 40 });
+      const timeline = await adminRpc('admin_list_seller_credit_financial_timeline', { p_limit: 60 });
       const rpcError = [purchase, spend, settings, ready].find((result) => result.error);
       if (rpcError?.error) throw new Error(rpcError.error.message);
       return {
@@ -112,6 +115,7 @@ export default function AdminSellerCreditsPage() {
         packages: Array.isArray(packages.data) ? packages.data : [],
         charges: Array.isArray(charges.data) ? charges.data : [],
         ledger: Array.isArray(ledger.data) ? ledger.data : [],
+        timeline: Array.isArray(timeline.data) ? timeline.data : [],
         resolutionReady: Boolean((ready.data as { ok?: boolean } | null)?.ok),
       };
     },
@@ -153,6 +157,52 @@ export default function AdminSellerCreditsPage() {
     queryClient.invalidateQueries({ queryKey: ['admin-seller-credits'] });
     queryClient.invalidateQueries({ queryKey: ['admin-seller-credit-purchases'] });
   };
+
+  const parseCertCases = (payload: unknown): GoLiveCertCase[] => {
+    if (!payload || typeof payload !== 'object') return [];
+    const cases = (payload as { cases?: unknown }).cases;
+    if (!Array.isArray(cases)) return [];
+    return cases
+      .filter((row): row is GoLiveCertCase => Boolean(row && typeof row === 'object' && 'id' in row && 'result' in row))
+      .map((row) => ({ id: String((row as GoLiveCertCase).id), result: String((row as GoLiveCertCase).result) }));
+  };
+
+  const loadGoLiveEvidence = async (runCert = false) => {
+    try {
+      const verify = await adminRpc('admin_verify_seller_credit_production_purchase', { p_purchase_id: null });
+      if (verify.error) throw verify.error;
+      let isolated = goLiveEvidence?.isolatedCertOk != null && !runCert
+        ? { ok: goLiveEvidence.isolatedCertOk, cases: goLiveEvidence.isolatedCases || [] }
+        : null;
+      if (runCert) {
+        setCertRunning(true);
+        const cert = await adminRpc('admin_run_seller_credit_monetization_certification');
+        if (cert.error) throw cert.error;
+        isolated = {
+          ok: Boolean((cert.data as { ok?: boolean } | null)?.ok),
+          cases: parseCertCases(cert.data),
+        };
+      }
+      setGoLiveEvidence({
+        productionVerifyOk: Boolean((verify.data as { ok?: boolean } | null)?.ok),
+        productionCases: parseCertCases(verify.data),
+        isolatedCertOk: isolated?.ok,
+        isolatedCases: isolated?.cases,
+      });
+      if (runCert) {
+        toast.success(isolated?.ok ? 'Billing certification passed (10/10).' : 'Billing certification finished with failures — see checklist.');
+        refresh();
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not load go-live evidence.');
+    } finally {
+      setCertRunning(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadGoLiveEvidence(true);
+  }, []);
 
   const thresholdValue = (key: string) => {
     const row = (flagsQuery.data?.thresholds || []).find((item: any) => item.key === key);
@@ -380,8 +430,9 @@ export default function AdminSellerCreditsPage() {
       purchaseLedgerCount: (flagsQuery.data?.ledger || []).filter(
         (row: { type?: string }) => row.type === 'purchase',
       ).length,
+      evidence: goLiveEvidence ?? undefined,
     }),
-    [purchaseOn, spendOn, flagsQuery.data, capturedPurchaseCount],
+    [purchaseOn, spendOn, flagsQuery.data, capturedPurchaseCount, goLiveEvidence],
   );
 
   const spendGoLiveReady = goLiveChecksAllowSpend(goLiveChecks);
@@ -717,6 +768,26 @@ export default function AdminSellerCreditsPage() {
 
         <Card>
           <CardContent className="p-4 space-y-2">
+            <p className="text-sm font-semibold">Unified financial timeline</p>
+            <p className="text-xs text-muted-foreground">
+              Merged ledger movements and captured purchases across all stores — use this for financial audit, not just configuration history above.
+            </p>
+            {(flagsQuery.data?.timeline || []).map((row: any, index: number) => (
+              <p key={`${row.source}-${row.reference_id}-${row.occurred_at}-${index}`} className="text-[11px] text-muted-foreground">
+                {row.occurred_at ? format(new Date(row.occurred_at), 'MMM d, yyyy · h:mm a') : ''} · {row.business_name} · {row.source}/{row.event_kind}
+                {row.event_type ? `/${row.event_type}` : ''} · {formatPrice(Number(row.amount) || 0)}
+                {row.balance_after != null ? ` · after ${formatPrice(Number(row.balance_after) || 0)}` : ''}
+                {row.description ? ` · ${row.description}` : ''}
+              </p>
+            ))}
+            {(flagsQuery.data?.timeline || []).length === 0 && (
+              <p className="text-xs text-muted-foreground">No financial timeline entries yet</p>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-4 space-y-2">
             <p className="text-sm font-semibold">Financial activity</p>
             <p className="text-xs text-muted-foreground">Ledger of purchases, charges, reservations, releases, refunds, reversals, and admin adjustments.</p>
             {(flagsQuery.data?.ledger || []).map((row: any) => (
@@ -886,8 +957,7 @@ export default function AdminSellerCreditsPage() {
           <CardContent className="p-4 space-y-2">
             <p className="text-sm font-semibold">Admin adjustment</p>
             <p className="text-xs text-muted-foreground">
-              Use for goodwill or balance corrections that are not reversing a specific charge. Reason is required. Negative balances are rejected. Each submit sends a unique request id so a double-click does not post twice.
-              Approval workflow and amount caps are not in V1.
+              Use for goodwill or balance corrections that are not reversing a specific charge. Reason is required. Negative balances are rejected. V1 cap: ₹50,000 per adjustment. Each submit sends a unique request id so a double-click does not post twice.
             </p>
             <AdminStoreSearchPicker
               value={adjustSeller}
@@ -911,7 +981,16 @@ export default function AdminSellerCreditsPage() {
             <p className="text-sm font-semibold">Spend go-live checklist</p>
             <p className="text-xs text-muted-foreground">
               Spend remains blocked in Admin until every item below is green. Purchase can stay ON while Spend is OFF.
+              Live purchase verification runs automatically; billing certification uses isolated CREDIT-VERIFY stores only.
             </p>
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" variant="outline" disabled={certRunning} onClick={() => void loadGoLiveEvidence(true)}>
+                {certRunning ? 'Running billing certification…' : 'Run billing certification'}
+              </Button>
+              <Button size="sm" variant="ghost" disabled={certRunning} onClick={() => void loadGoLiveEvidence(false)}>
+                Refresh live purchase proof
+              </Button>
+            </div>
             <ul className="text-[11px] space-y-1.5">
               {goLiveChecks.map((item) => (
                 <li key={item.id} className="flex items-start gap-2">
