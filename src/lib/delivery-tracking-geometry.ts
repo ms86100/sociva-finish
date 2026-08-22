@@ -5,6 +5,19 @@
 
 export type LatLng = { lat: number; lng: number };
 
+export function asPoint(lat: number, lng: number): LatLng {
+  return { lat, lng };
+}
+
+/** Force route polyline to start/end exactly at pickup + delivery pins. */
+export function anchorRouteToPins(path: LatLng[], start: LatLng, end: LatLng): LatLng[] {
+  if (path.length < 2) return [start, end];
+  const anchored = path.slice();
+  anchored[0] = { ...start };
+  anchored[anchored.length - 1] = { ...end };
+  return anchored;
+}
+
 export const LONG_DISTANCE_METERS = 40_000;
 export const ARRIVING_METERS = 220;
 export const OFF_ROUTE_REROUTE_METERS = 150;

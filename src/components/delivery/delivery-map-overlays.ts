@@ -109,9 +109,9 @@ export function createTrackingOverlays(): {
       if (!proj || !this.div) return;
       const pt = proj.fromLatLngToDivPixel(new google.maps.LatLng(this.position.lat, this.position.lng));
       if (!pt) return;
-      this.div.style.left = '0';
-      this.div.style.top = '0';
-      this.div.style.transform = `translate(${pt.x}px, ${pt.y}px)`;
+      this.div.style.left = `${pt.x}px`;
+      this.div.style.top = `${pt.y}px`;
+      this.div.style.transform = 'translate(-50%, -100%)';
     }
 
     setPosition(position: LatLng) {

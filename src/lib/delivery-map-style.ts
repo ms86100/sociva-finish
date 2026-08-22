@@ -49,7 +49,7 @@ export const TRACKING_MAP_CSS = `
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-1.5px); }
 }
-.sociva-pin { width: 40px; height: 50px; transform: translate(-50%, -100%); filter: drop-shadow(0 2px 4px rgba(0,0,0,0.32)); }
+.sociva-pin { width: 40px; height: 50px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.32)); }
 .sociva-pin svg { display: block; width: 40px; height: 50px; }
 .sociva-dest-ring {
   position: absolute;

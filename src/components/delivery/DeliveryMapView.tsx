@@ -7,10 +7,11 @@ import { useTrackingConfig } from '@/hooks/useTrackingConfig';
 import {
   ARRIVING_METERS,
   BACKWARD_IGNORE_METERS,
-  OFF_ROUTE_REROUTE_METERS,
   buildLongDistancePath,
   buildRouteMetrics,
   haversineMeters,
+  asPoint,
+  anchorRouteToPins,
   headingDelta,
   isLongDistance,
   lerpHeading,
@@ -19,16 +20,11 @@ import {
   poseAtDistance,
   resolveTrackingPhase,
   snapToRoute,
-  splitRouteAtDistance,
   type LatLng,
   type TrackingPhase,
 } from '@/lib/delivery-tracking-geometry';
 import {
-  DASH_ROUTE,
   RECENTER_ICON_SVG,
-  ROUTE_BLUE,
-  ROUTE_BLUE_MUTED,
-  ROUTE_HALO,
   SOCIVA_TRACKING_MAP_STYLE,
   TRACKING_MAP_CSS,
 } from '@/lib/delivery-map-style';
@@ -79,18 +75,34 @@ function injectTrackingCss() {
   cssInjected = true;
 }
 
+const ROUTE_DOT_COLOR = '#1a1a1a';
+
 function dashIcons(offsetPx: number): google.maps.IconSequence[] {
   return [{
     icon: {
       path: 'M 0,-1 0,1',
       strokeOpacity: 1,
-      strokeColor: DASH_ROUTE,
-      strokeWeight: 2.4,
-      scale: 2.6,
+      strokeColor: ROUTE_DOT_COLOR,
+      strokeWeight: 2,
+      scale: 2,
     },
     offset: `${offsetPx.toFixed(1)}px`,
-    repeat: '14px',
+    repeat: '10px',
   }];
+}
+
+/** Thin Zomato-style dotted connector — icons only, no solid under-stroke. */
+function paintDottedRoute(poly: google.maps.Polyline | null, path: LatLng[], offsetPx = 0) {
+  if (!poly || path.length < 2) return;
+  poly.setPath(path);
+  poly.setOptions({
+    strokeColor: ROUTE_DOT_COLOR,
+    strokeOpacity: 0,
+    strokeWeight: 0,
+    geodesic: false,
+    zIndex: 5,
+    icons: dashIcons(offsetPx),
+  });
 }
 
 let googleDirectionsUnavailable = false;
@@ -267,9 +279,6 @@ export function DeliveryMapView({
   const vehicleRef = useRef<VehicleOverlayHandle | null>(null);
   const homeRef = useRef<(PinOverlayHandle & google.maps.OverlayView) | null>(null);
   const storeRef = useRef<(PinOverlayHandle & google.maps.OverlayView) | null>(null);
-  const haloPolyRef = useRef<google.maps.Polyline | null>(null);
-  const remainingPolyRef = useRef<google.maps.Polyline | null>(null);
-  const completedPolyRef = useRef<google.maps.Polyline | null>(null);
   const dashPolyRef = useRef<google.maps.Polyline | null>(null);
   const rafRef = useRef(0);
   const dashOffsetRef = useRef(0);
@@ -311,6 +320,8 @@ export function DeliveryMapView({
   const [mapAuthFailed, setMapAuthFailed] = useState(false);
   const [mapReady, setMapReady] = useState(false);
   const [route, setRoute] = useState<FetchedRoute | null>(null);
+  /** Full store → buyer path for the dotted line; never shortened when rider reroutes. */
+  const visualRouteRef = useRef<LatLng[]>([]);
   const [phase, setPhase] = useState<TrackingPhase>('moving');
   const [remainingHud, setRemainingHud] = useState<number | null>(null);
 
@@ -327,8 +338,15 @@ export function DeliveryMapView({
 
   useEffect(() => { injectTrackingCss(); }, []);
 
-  const applyRoute = useCallback((fetched: FetchedRoute, gps: LatLng) => {
-    const metrics = buildRouteMetrics(fetched.coords);
+  const syncDottedLine = useCallback((path: LatLng[], offsetPx = 0) => {
+    const anchored = anchorRouteToPins(path, origin, dest);
+    visualRouteRef.current = anchored;
+    paintDottedRoute(dashPolyRef.current, anchored, offsetPx);
+  }, [origin, dest]);
+
+  const applyVisualRoute = useCallback((fetched: FetchedRoute, gps: LatLng) => {
+    const anchored = anchorRouteToPins(fetched.coords, origin, dest);
+    const metrics = buildRouteMetrics(anchored);
     const snap = snapToRoute(metrics, gps);
     const engine = engineRef.current;
     const jumped = engine.metrics.total === 0 || Math.abs(snap.distanceAlong - engine.displayDist) > 400;
@@ -338,10 +356,13 @@ export function DeliveryMapView({
     engine.totalDistanceMeters = fetched.distanceMeters || metrics.total;
     engine.targetDist = snap.distanceAlong;
     if (jumped) engine.displayDist = snap.distanceAlong;
+    engine.lastPolyDist = -1;
     const h = headingRef.current;
     if (h != null && !Number.isNaN(h)) engine.displayHeading = h;
-    setRoute(fetched);
-  }, []);
+    visualRouteRef.current = anchored;
+    syncDottedLine(anchored);
+    setRoute({ ...fetched, coords: anchored });
+  }, [origin, dest, syncDottedLine]);
 
   const fetchRoute = useCallback(async (from: LatLng, to: LatLng, gps: LatLng, force = false) => {
     if (!force && lastRouteFetchAt.current) {
@@ -359,7 +380,7 @@ export function DeliveryMapView({
     const long = isLongDistance(from, to);
     if (long) {
       const coords = buildLongDistancePath(from, to);
-      applyRoute({
+      applyVisualRoute({
         coords,
         distanceMeters: Math.round(haversineMeters(from, to)),
         durationSeconds: Math.max(3600, Math.round(haversineMeters(from, to) / 18)),
@@ -374,7 +395,7 @@ export function DeliveryMapView({
     }
     if (controller.signal.aborted) return;
     if (!fetched) {
-      applyRoute({
+      applyVisualRoute({
         coords: [from, to],
         distanceMeters: Math.round(haversineMeters(from, to)),
         durationSeconds: Math.max(60, Math.round(haversineMeters(from, to) / 6.5)),
@@ -382,32 +403,39 @@ export function DeliveryMapView({
       }, gps);
       return;
     }
-    applyRoute(fetched, gps);
-  }, [applyRoute, config.osrm_refetch_threshold_meters, config.osrm_timeout_ms]);
+    applyVisualRoute(fetched, gps);
+  }, [applyVisualRoute, config.osrm_refetch_threshold_meters, config.osrm_timeout_ms]);
 
-  // Fetch the visual master route once from pickup → destination.
-  // GPS movement snaps onto this geometry; we only refetch if the rider leaves the road.
+  // Fetch the dotted connector once: store → buyer. Never replace when rider reroutes.
   useEffect(() => {
     void fetchRoute(origin, dest, lastGpsRef.current, true);
     return () => abortRef.current?.abort();
   }, [origin, dest, fetchRoute]);
 
-  // Snap incoming GPS onto the current route
+  // Paint dotted connector as soon as the map polyline exists (route may have loaded first).
+  useEffect(() => {
+    if (!mapReady) return;
+    const path = visualRouteRef.current.length >= 2
+      ? visualRouteRef.current
+      : [origin, dest];
+    syncDottedLine(path);
+  }, [mapReady, origin, dest, route, syncDottedLine]);
+
+  // Snap rider GPS onto the fixed store→buyer dotted route (never replace the connector).
   useEffect(() => {
     lastGpsRef.current = rider;
     const engine = engineRef.current;
-    if (engine.metrics.points.length < 2) return;
-    const snap = snapToRoute(engine.metrics, rider);
-    if (engine.mode === 'road' && snap.offRouteMeters > OFF_ROUTE_REROUTE_METERS) {
-      void fetchRoute(rider, dest, rider, true);
-      return;
-    }
+    const visual = visualRouteRef.current;
+    if (visual.length < 2) return;
+    const metrics = buildRouteMetrics(visual);
+    const snap = snapToRoute(metrics, rider);
+    engine.metrics = metrics;
     if (snap.distanceAlong + BACKWARD_IGNORE_METERS < engine.displayDist) {
       engine.targetDist = engine.displayDist;
     } else {
       engine.targetDist = snap.distanceAlong;
     }
-  }, [riderLat, riderLng, dest.lat, dest.lng, fetchRoute]);
+  }, [riderLat, riderLng, route]);
 
   // Notify parent of ETA / remaining
   useEffect(() => {
@@ -456,61 +484,34 @@ export function DeliveryMapView({
     vehicle.setVisible(!!isPickedUp);
     vehicleRef.current = vehicle;
 
-    haloPolyRef.current = new google.maps.Polyline({
-      map,
-      path: [],
-      strokeColor: ROUTE_HALO,
-      strokeOpacity: 0.18,
-      strokeWeight: 11,
-      geodesic: false,
-      zIndex: 2,
-      clickable: false,
-    });
-    remainingPolyRef.current = new google.maps.Polyline({
-      map,
-      path: [],
-      strokeColor: ROUTE_BLUE_MUTED,
-      strokeOpacity: 0.9,
-      strokeWeight: 6,
-      geodesic: false,
-      zIndex: 3,
-      clickable: false,
-    });
-    completedPolyRef.current = new google.maps.Polyline({
-      map,
-      path: [],
-      strokeColor: ROUTE_BLUE,
-      strokeOpacity: 1,
-      strokeWeight: 6.5,
-      geodesic: false,
-      zIndex: 4,
-      clickable: false,
-    });
     dashPolyRef.current = new google.maps.Polyline({
       map,
       path: [],
-      strokeColor: DASH_ROUTE,
+      strokeColor: ROUTE_DOT_COLOR,
       strokeOpacity: 0,
       strokeWeight: 0,
-      geodesic: true,
-      zIndex: 3,
+      geodesic: false,
+      zIndex: 5,
       clickable: false,
       icons: dashIcons(0),
     });
+
+    const initialPath = visualRouteRef.current.length >= 2
+      ? visualRouteRef.current
+      : anchorRouteToPins([origin, dest], origin, dest);
+    paintDottedRoute(dashPolyRef.current, initialPath, 0);
 
     return () => {
       cancelAnimationFrame(rafRef.current);
       vehicleRef.current?.setMap(null);
       homeRef.current?.setMap(null);
       storeRef.current?.setMap(null);
-      haloPolyRef.current?.setMap(null);
-      remainingPolyRef.current?.setMap(null);
-      completedPolyRef.current?.setMap(null);
       dashPolyRef.current?.setMap(null);
       mapRef.current = null;
       vehicleRef.current = null;
       homeRef.current = null;
       storeRef.current = null;
+      dashPolyRef.current = null;
       initialFitDone.current = false;
       setMapReady(false);
     };
@@ -629,36 +630,11 @@ export function DeliveryMapView({
         }
         homeRef.current?.setArriving?.(nextPhase === 'arriving');
 
-        if (Math.abs(engine.displayDist - engine.lastPolyDist) > 3 || engine.lastPolyDist < 0) {
-          engine.lastPolyDist = engine.displayDist;
-          const split = splitRouteAtDistance(engine.metrics, engine.displayDist);
-          if (engine.mode === 'long-distance') {
-            haloPolyRef.current?.setPath([]);
-            remainingPolyRef.current?.setPath([]);
-            completedPolyRef.current?.setPath([]);
-            dashPolyRef.current?.setPath(engine.metrics.points);
-            dashOffsetRef.current = (dashOffsetRef.current + dt * 0.028) % 14;
-            dashPolyRef.current?.setOptions({ icons: dashIcons(dashOffsetRef.current) });
-          } else {
-            dashPolyRef.current?.setPath([]);
-            haloPolyRef.current?.setPath(engine.metrics.points);
-            remainingPolyRef.current?.setPath(split.remaining);
-            completedPolyRef.current?.setPath(split.completed);
-            remainingPolyRef.current?.setOptions({
-              strokeWeight: 6,
-              strokeColor: ROUTE_BLUE_MUTED,
-            });
-            completedPolyRef.current?.setOptions({
-              strokeWeight: 6,
-              strokeColor: ROUTE_BLUE,
-            });
-          }
-        } else if (engine.mode === 'long-distance') {
-          dashOffsetRef.current = (dashOffsetRef.current + dt * 0.028) % 14;
-          dashPolyRef.current?.setOptions({ icons: dashIcons(dashOffsetRef.current) });
-        }
+        // Animate dash offset only — path stays pinned store → buyer.
+        dashOffsetRef.current = (dashOffsetRef.current + dt * 0.022) % 10;
+        dashPolyRef.current?.setOptions({ icons: dashIcons(dashOffsetRef.current) });
 
-        if (!initialFitDone.current && engine.metrics.total > 0) {
+        if (!initialFitDone.current && visualRouteRef.current.length >= 2) {
           initialFitDone.current = true;
           fitRoute(true);
         } else {
@@ -680,7 +656,7 @@ export function DeliveryMapView({
 
     rafRef.current = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(rafRef.current);
-  }, [mapReady, config.map_animation_duration_ms, fitRoute, followCamera, sellerLat, sellerLng]);
+  }, [mapReady, config.map_animation_duration_ms, fitRoute, followCamera, sellerLat, sellerLng, syncDottedLine]);
 
   useEffect(() => {
     if (!mapContainerRef.current || !isLoaded) return;
