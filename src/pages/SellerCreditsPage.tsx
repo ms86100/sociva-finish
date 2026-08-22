@@ -30,6 +30,7 @@ import {
 } from '@/hooks/queries/useSellerCredits';
 import { supabase } from '@/integrations/supabase/client';
 import { functionInvokeErrorMessage, parseFunctionInvokeError } from '@/lib/function-invoke-error';
+import { openNativeRazorpayCheckout } from '@/lib/razorpay-native-checkout';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { ArrowLeft, CheckCircle2, Coins } from 'lucide-react';
@@ -37,17 +38,19 @@ import { cn } from '@/lib/utils';
 
 const MIN_RECHARGE = 100;
 const FALLBACK_PRESETS = [100, 500, 1000];
+const SYNTHETIC_PHONE_EMAIL = '@phone.sociva.app';
+
+function razorpayCheckoutPrefill(user: { email?: string | null; phone?: string | null } | null) {
+  const digits = String(user?.phone || '').replace(/\D/g, '');
+  const contact = digits.length >= 10 ? digits.slice(-10) : '';
+  const email = user?.email && !user.email.endsWith(SYNTHETIC_PHONE_EMAIL) ? user.email : '';
+  return {
+    ...(contact ? { contact } : {}),
+    ...(email ? { email } : {}),
+  };
+}
 
 type RechargePhase = 'idle' | 'paying' | 'success' | 'failed' | 'cancelled' | 'pending';
-
-declare global {
-  interface Window {
-    Razorpay?: new (options: Record<string, unknown>) => {
-      open: () => void;
-      on: (event: string, handler: () => void) => void;
-    };
-  }
-}
 
 function parseAmount(raw: string): number | null {
   const cleaned = raw.replace(/,/g, '').trim();
@@ -58,7 +61,7 @@ function parseAmount(raw: string): number | null {
 }
 
 export default function SellerCreditsPage() {
-  const { currentSellerId, sellerProfiles, user } = useAuth();
+  const { currentSellerId, sellerProfiles, user, profile } = useAuth();
   const { formatPrice } = useCurrency();
   const invalidate = useInvalidateSellerCredits();
   const isPortfolio = isPortfolioSellerId(currentSellerId);
@@ -147,65 +150,59 @@ export default function SellerCreditsPage() {
         available?: number;
         message?: string;
       }>((resolve) => {
-        const start = () => {
-          const rzp = new window.Razorpay({
-            key: keyId,
-            amount: amountPaise,
-            currency: 'INR',
-            name: 'Sociva Credits',
-            description: 'Prepaid platform usage',
-            order_id: orderId,
-            prefill: { email: user?.email || '' },
-            handler: async (response: {
-              razorpay_payment_id: string;
-              razorpay_order_id: string;
-              razorpay_signature: string;
-            }) => {
-              const confirm = await supabase.functions.invoke('confirm-seller-credit-payment', {
-                body: {
-                  purchase_id: purchaseId,
-                  razorpay_payment_id: response.razorpay_payment_id,
-                  razorpay_order_id: response.razorpay_order_id,
-                  razorpay_signature: response.razorpay_signature,
-                },
-              });
-              if (confirm.error || confirm.data?.error) {
-                const parsed = await parseFunctionInvokeError(confirm);
-                if (parsed.pending && !/mismatch/i.test(parsed.message)) {
-                  resolve({
-                    status: 'pending',
-                    message: "We're confirming this payment. Your Sociva Credits will appear after verification.",
-                  });
-                  return;
-                }
+        void openNativeRazorpayCheckout({
+          key: keyId,
+          amount: amountPaise,
+          currency: 'INR',
+          name: 'Sociva Credits',
+          description: 'Prepaid platform usage',
+          order_id: orderId,
+          prefill: razorpayCheckoutPrefill({
+            email: user?.email,
+            phone: user?.phone || profile?.phone,
+          }),
+          handler: async (response) => {
+            const confirm = await supabase.functions.invoke('confirm-seller-credit-payment', {
+              body: {
+                purchase_id: purchaseId,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_signature: response.razorpay_signature,
+              },
+            });
+            if (confirm.error || confirm.data?.error) {
+              const parsed = await parseFunctionInvokeError(confirm);
+              if (parsed.pending && !/mismatch/i.test(parsed.message)) {
                 resolve({
-                  status: 'failed',
-                  message: parsed.message || 'Payment could not be verified. Your account has not been credited unless verification succeeds.',
+                  status: 'pending',
+                  message: "We're confirming this payment. Your Sociva Credits will appear after verification.",
                 });
                 return;
               }
               resolve({
-                status: 'verified',
-                available: Number(confirm.data?.available),
+                status: 'failed',
+                message: parsed.message || 'Payment could not be verified. Your account has not been credited unless verification succeeds.',
               });
-            },
-            modal: {
-              ondismiss: () => resolve({ status: 'cancelled' }),
-            },
+              return;
+            }
+            resolve({
+              status: 'verified',
+              available: Number(confirm.data?.available),
+            });
+          },
+          onDismiss: () => resolve({ status: 'cancelled' }),
+          onFailure: () => {
+            resolve({
+              status: 'failed',
+              message: 'We couldn\'t complete your Sociva Credit recharge. Your account has not been charged/credited unless the payment was successfully verified.',
+            });
+          },
+        }).catch((error) => {
+          resolve({
+            status: 'failed',
+            message: error instanceof Error ? error.message : 'Could not load payment checkout.',
           });
-          rzp.on('payment.failed', () => {
-            resolve({ status: 'failed', message: 'We couldn\'t complete your Sociva Credit recharge. Your account has not been charged/credited unless the payment was successfully verified.' });
-          });
-          rzp.open();
-        };
-        if (window.Razorpay) start();
-        else {
-          const script = document.createElement('script');
-          script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-          script.onload = start;
-          script.onerror = () => resolve({ status: 'failed', message: 'Could not load payment checkout.' });
-          document.body.appendChild(script);
-        }
+        });
       });
 
       if (outcome.status === 'verified') {

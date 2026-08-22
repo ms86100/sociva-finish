@@ -119,10 +119,20 @@ serve(async (req) => {
       }, 502);
     }
 
-    await supabase.rpc("attach_seller_credit_provider_order", {
+    const { error: attachError } = await supabase.rpc("attach_seller_credit_provider_order", {
       p_purchase_id: created.purchase_id,
       p_provider_order_id: rzp.id,
     });
+    if (attachError) {
+      console.error("[create-seller-credit-order] attach provider order failed", {
+        purchase_id: created.purchase_id,
+        provider_order_id: rzp.id,
+        error: attachError.message,
+      });
+      return json({
+        error: "We created a payment order but could not bind it to this recharge. Please try again. If Razorpay deducted money, it will be matched after verification.",
+      }, 500);
+    }
 
     return json({
       ok: true,

@@ -370,7 +370,7 @@ workflows:
           # LSApplicationQueriesSchemes — lets Razorpay detect installed UPI apps via canOpenURL.
           # Without this iOS silently returns false for all upi/phonepe/paytm/gpay scheme checks
           # and Razorpay shows "Payment Blocked" because it thinks no payment app is available.
-          for SCHEME in upi tez phonepe paytmmp; do
+          for SCHEME in upi tez gpay phonepe paytmmp paytm bhim credpay amazonpay whatsapp; do
             /usr/libexec/PlistBuddy -c "Add :LSApplicationQueriesSchemes: string $SCHEME" App/Info.plist 2>/dev/null || true
           done
           echo "=== LSApplicationQueriesSchemes injected ==="
@@ -1279,7 +1279,7 @@ workflows:
       - name: Inject Razorpay iOS requirements (UPI schemes + ATS)
         script: |
           cd ios/App
-          for SCHEME in upi tez phonepe paytmmp; do
+          for SCHEME in upi tez gpay phonepe paytmmp paytm bhim credpay amazonpay whatsapp; do
             /usr/libexec/PlistBuddy -c "Add :LSApplicationQueriesSchemes: string $SCHEME" App/Info.plist 2>/dev/null || true
           done
           echo "=== LSApplicationQueriesSchemes injected ==="

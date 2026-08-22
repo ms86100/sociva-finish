@@ -124,13 +124,33 @@ serve(async (req) => {
     if (orderLookupError) {
       return json({ error: "Could not load credit purchase." }, 400);
     }
-    if (!purchaseByOrder?.id) {
-      return json({ error: "No credit purchase is bound to this payment order." }, 400);
+    let purchase = purchaseByOrder;
+    if (!purchase?.id) {
+      const candidateId = notePurchaseId || clientPurchaseId;
+      if (!candidateId) {
+        return json({ error: "No credit purchase is bound to this payment order." }, 400);
+      }
+      const { data: purchaseById, error: idLookupError } = await supabase
+        .from("seller_credit_purchases")
+        .select("id, seller_id, amount, status, provider_order_id, provider_payment_id")
+        .eq("id", candidateId)
+        .eq("provider", "razorpay")
+        .maybeSingle();
+      if (idLookupError) {
+        return json({ error: "Could not load credit purchase." }, 400);
+      }
+      if (
+        !purchaseById?.id
+        || (purchaseById.provider_order_id && purchaseById.provider_order_id !== providerOrderId)
+      ) {
+        return json({ error: "No credit purchase is bound to this payment order." }, 400);
+      }
+      purchase = purchaseById;
     }
-    if (clientPurchaseId && clientPurchaseId !== purchaseByOrder.id) {
+    if (clientPurchaseId && clientPurchaseId !== purchase.id) {
       return json({ error: "Payment does not belong to this credit purchase." }, 400);
     }
-    if (notePurchaseId && notePurchaseId !== purchaseByOrder.id) {
+    if (notePurchaseId && notePurchaseId !== purchase.id) {
       return json({ error: "Payment notes do not match this credit purchase." }, 400);
     }
 
@@ -138,7 +158,7 @@ serve(async (req) => {
       const { data: seller } = await supabase
         .from("seller_profiles")
         .select("user_id")
-        .eq("id", purchaseByOrder.seller_id)
+        .eq("id", purchase.seller_id)
         .maybeSingle();
       if (!seller?.user_id || seller.user_id !== userId) {
         return json({ error: "seller scope forbidden" }, 403);
@@ -147,7 +167,7 @@ serve(async (req) => {
 
     const paidAmount = Number(payment.amount) / 100;
     const orderAmount = Number(rzpOrder.amount) / 100;
-    const purchaseAmount = Number(purchaseByOrder.amount);
+    const purchaseAmount = Number(purchase.amount);
     if (
       !Number.isFinite(paidAmount) ||
       paidAmount !== purchaseAmount ||
@@ -157,7 +177,7 @@ serve(async (req) => {
     }
 
     const { data, error } = await supabase.rpc("confirm_seller_credit_purchase", {
-      p_purchase_id: purchaseByOrder.id,
+      p_purchase_id: purchase.id,
       p_provider_payment_id: paymentId,
       p_provider_order_id: providerOrderId,
       p_amount: paidAmount,

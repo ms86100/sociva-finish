@@ -18,7 +18,16 @@ describe('Seller credits monetization integrity', () => {
   it('maps Razorpay authentication failed to a seller-safe gateway message', () => {
     const orderFn = read('supabase/functions/create-seller-credit-order/index.ts');
     expect(orderFn).toMatch(/authentication failed/i);
+    expect(orderFn).toMatch(/attach provider order failed/);
     expect(orderFn).toMatch(/RAZORPAY_GATEWAY_AUTH_FAILED/);
+  });
+
+  it('binds confirmation to purchase notes when the order row was not attached', () => {
+    const confirm = read('supabase/functions/confirm-seller-credit-payment/index.ts');
+    expect(confirm).toMatch(/candidateId = notePurchaseId \|\| clientPurchaseId/);
+    expect(read('src/pages/SellerCreditsPage.tsx')).toMatch(/razorpayCheckoutPrefill/);
+    expect(read('src/pages/SellerCreditsPage.tsx')).toMatch(/openNativeRazorpayCheckout/);
+    expect(read('src/pages/SellerCreditsPage.tsx')).not.toMatch(/prefill: \{ email: user\?\.email/);
   });
 
   it('issues credits only with a purchase ledger and self-heals captured-without-ledger', () => {

@@ -1,112 +1,23 @@
 // @ts-nocheck
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { Capacitor } from '@capacitor/core';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { friendlyError } from '@/lib/utils';
 import { hasRazorpayCheckout, isLikelyRazorpayNode } from '@/lib/razorpay-checkout-dom';
+import {
+  applyNativeCheckoutLayout,
+  getRazorpayNativeLayout,
+  lockBodyForCheckout,
+  razorpayNativeCheckoutOptions,
+  startSafeAreaObserver,
+  unlockBodyScroll,
+  RAZORPAY_CHECKOUT_SCRIPT,
+} from '@/lib/razorpay-native-checkout';
 import { notify } from '@/lib/notify';
 
 declare global {
   interface Window {
     Razorpay: any;
-  }
-}
-
-/** MutationObserver ref — disconnected on payment end */
-let razorpayDomObserver: MutationObserver | null = null;
-
-type RazorpayNativeLayout = 'android-fullscreen' | 'ios-fullscreen' | null;
-
-function getRazorpayNativeLayout(): RazorpayNativeLayout {
-  if (!Capacitor.isNativePlatform()) return null;
-  return Capacitor.getPlatform() === 'ios' ? 'ios-fullscreen' : 'android-fullscreen';
-}
-
-/**
- * Native layout patches for Checkout.js overlays.
- * Android: full viewport + a single --app-safe-top inset (avoids 88vh gap / double padding).
- * iOS: full-screen with safe-area insets so the modal clears the notch without fighting WKWebView safe-area.
- * Web: no layout overrides — leave Checkout.js defaults.
- * Only patch direct body children so nested frames do not stack a second inset.
- */
-function applyNativeCheckoutLayout(node: HTMLElement, layout: RazorpayNativeLayout) {
-  if (!layout) return;
-  if (node.parentElement !== document.body) return;
-  if (!isLikelyRazorpayNode(node)) return;
-
-  node.style.setProperty('left', '0', 'important');
-  node.style.setProperty('right', '0', 'important');
-  node.style.setProperty('width', '100%', 'important');
-  node.style.setProperty('overflow', 'hidden', 'important');
-  node.style.setProperty('background-color', '#fff', 'important');
-  node.style.setProperty('box-sizing', 'border-box', 'important');
-
-  // Use safe area insets to avoid system UI (status bar, notch, home indicator)
-  if (layout === 'android-fullscreen') {
-    // Capacitor publishes --app-safe-* CSS vars; env() is unreliable on Android.
-    node.style.setProperty('top', 'var(--app-safe-top, 0px)', 'important');
-    node.style.setProperty('bottom', 'var(--app-safe-bottom, 0px)', 'important');
-    node.style.setProperty('height', 'calc(100% - var(--app-safe-top, 0px) - var(--app-safe-bottom, 0px))', 'important');
-    node.style.setProperty('max-height', 'calc(100% - var(--app-safe-top, 0px) - var(--app-safe-bottom, 0px))', 'important');
-    node.style.setProperty('padding-top', '0', 'important');
-    node.style.setProperty('padding-bottom', '0', 'important');
-    node.style.setProperty('padding-left', '0', 'important');
-    node.style.setProperty('padding-right', '0', 'important');
-    return;
-  }
-
-  // iOS full-screen: use env() which is reliable in WKWebView.
-  node.style.setProperty('top', 'env(safe-area-inset-top)', 'important');
-  node.style.setProperty('bottom', 'env(safe-area-inset-bottom)', 'important');
-  node.style.setProperty('height', 'calc(100% - env(safe-area-inset-top) - env(safe-area-inset-bottom))', 'important');
-  node.style.setProperty('max-height', 'calc(100% - env(safe-area-inset-top) - env(safe-area-inset-bottom))', 'important');
-  node.style.setProperty('padding-top', '0', 'important');
-  node.style.setProperty('padding-bottom', '0', 'important');
-  node.style.setProperty('padding-left', '0', 'important');
-  node.style.setProperty('padding-right', '0', 'important');
-}
-
-/** Watch for Razorpay-injected overlays and apply native layout patches */
-function startSafeAreaObserver(onDetected?: () => void) {
-  stopSafeAreaObserver();
-  const layout = getRazorpayNativeLayout();
-
-  const patchNode = (node: HTMLElement) => {
-    if (!isLikelyRazorpayNode(node)) return;
-    onDetected?.();
-    applyNativeCheckoutLayout(node, layout);
-  };
-
-  razorpayDomObserver = new MutationObserver((mutations) => {
-    for (const m of mutations) {
-      for (const added of m.addedNodes) {
-        if (added instanceof HTMLElement) {
-          patchNode(added);
-        }
-      }
-      // Also re-patch if Razorpay SDK resets inline styles
-      if (m.type === 'attributes' && m.target instanceof HTMLElement) {
-        patchNode(m.target);
-      }
-    }
-  });
-
-  razorpayDomObserver.observe(document.body, {
-    childList: true,
-    subtree: true,
-    attributes: true,
-    attributeFilter: ['style'],
-  });
-
-  // Also patch any already-present elements (race condition guard)
-  document.body.querySelectorAll<HTMLElement>('div').forEach(patchNode);
-}
-
-function stopSafeAreaObserver() {
-  if (razorpayDomObserver) {
-    razorpayDomObserver.disconnect();
-    razorpayDomObserver = null;
   }
 }
 
@@ -123,29 +34,6 @@ interface RazorpayOptions {
   onFailure: (error: any) => void;
   onDismiss?: () => void;
 }
-
-/** Restore body scroll position and remove the lock class */
-function unlockBodyScroll() {
-  stopSafeAreaObserver();
-  document.body.classList.remove('razorpay-active', 'razorpay-android', 'razorpay-ios');
-  document.body.style.removeProperty('top');
-  const savedY = parseInt(document.body.dataset.scrollY || '0', 10);
-  window.scrollTo(0, savedY);
-  delete document.body.dataset.scrollY;
-}
-
-function lockBodyForCheckout() {
-  const scrollY = window.scrollY;
-  document.body.dataset.scrollY = String(scrollY);
-  document.body.style.top = `-${scrollY}px`;
-  document.body.classList.add('razorpay-active');
-  document.body.classList.remove('razorpay-android', 'razorpay-ios');
-  const layout = getRazorpayNativeLayout();
-  if (layout === 'android-fullscreen') document.body.classList.add('razorpay-android');
-  if (layout === 'ios-fullscreen') document.body.classList.add('razorpay-ios');
-}
-
-const SCRIPT_URL = 'https://checkout.razorpay.com/v1/checkout.js';
 
 export function useRazorpay() {
   const [isLoading, setIsLoading] = useState(false);
@@ -185,11 +73,11 @@ export function useRazorpay() {
     }
 
     // Remove any previous failed script tag
-    const existing = document.querySelector(`script[src="${SCRIPT_URL}"]`);
+    const existing = document.querySelector(`script[src="${RAZORPAY_CHECKOUT_SCRIPT}"]`);
     if (existing) existing.remove();
 
     const script = document.createElement('script');
-    script.src = SCRIPT_URL;
+    script.src = RAZORPAY_CHECKOUT_SCRIPT;
     script.async = true;
     script.onload = () => {
       setIsScriptLoaded(true);
@@ -331,31 +219,7 @@ export function useRazorpay() {
         theme: {
           color: '#2D4A3E',
         },
-        // CRITICAL: Enable UPI intent inside Capacitor WebView
-        webview_intent: true,
-        // iOS WKWebView blocks window.open() by default — tell Razorpay to use
-        // embedded iframe mode instead of popup so payment never gets "blocked".
-        _: {
-          payment: { redirect: false },
-        },
-        method: {
-          upi: true,
-          card: true,
-          netbanking: true,
-          wallet: true,
-        },
-        config: {
-          display: {
-            // Show all blocks in a single view — users see UPI, Card, Netbanking, Wallet together
-            // rather than needing to swipe between tabs.
-            sequence: ['upi', 'card', 'netbanking', 'wallet'],
-            preferences: {
-              show_default_blocks: false,
-              // Ensure all configured blocks are visible — do not collapse/hide any payment method
-              preferred_blocks: ['upi', 'card', 'netbanking', 'wallet'],
-            },
-          },
-        },
+        ...razorpayNativeCheckoutOptions(),
         handler: function (response: any) {
           console.log('Payment successful:', response);
           successFired = true; // Prevent ondismiss from resetting state

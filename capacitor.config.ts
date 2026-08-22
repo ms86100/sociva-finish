@@ -95,6 +95,19 @@ const config: CapacitorConfig = {
       NSCalendarsUsageDescription: 'Sociva needs calendar access so you can save service bookings to your calendar.',
       NSCalendarsWriteOnlyAccessUsageDescription: 'Sociva needs calendar access so you can save service bookings to your calendar.',
       NSCalendarsFullAccessUsageDescription: 'Sociva needs calendar access so you can save service bookings to your calendar.',
+      // Required for Razorpay UPI Intent: iOS returns false from canOpenURL unless listed.
+      LSApplicationQueriesSchemes: [
+        'upi',
+        'tez',
+        'gpay',
+        'phonepe',
+        'paytmmp',
+        'paytm',
+        'bhim',
+        'credpay',
+        'amazonpay',
+        'whatsapp',
+      ],
     },
   },
 

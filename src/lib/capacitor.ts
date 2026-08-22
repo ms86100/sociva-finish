@@ -7,20 +7,39 @@ import { migrateLocalStorageToPreferences } from '@/lib/capacitor-storage';
 import { restoreAppPreferences } from '@/lib/persistent-kv';
 
 /** Always publish status-bar height — Android env(safe-area-inset-*) is unreliable. */
+function readCssEnvInset(side: 'top' | 'right' | 'bottom' | 'left'): number {
+  const probe = document.createElement('div');
+  probe.setAttribute('aria-hidden', 'true');
+  probe.style.cssText = `position:fixed;pointer-events:none;visibility:hidden;padding-${side}:env(safe-area-inset-${side}, 0px);`;
+  document.documentElement.appendChild(probe);
+  const value = parseFloat(getComputedStyle(probe).getPropertyValue(`padding-${side}`)) || 0;
+  probe.remove();
+  return value;
+}
+
 async function syncSafeAreaCssVars() {
-  const apply = (px: number) => {
+  const applyTop = (px: number) => {
     const value = `${Math.max(px, 24)}px`;
     // Set both: --app-safe-top must be a concrete length (nested var()+max() is
     // dropped by some Android WebViews, which zeroed header padding).
     document.documentElement.style.setProperty('--safe-area-inset-top', value);
     document.documentElement.style.setProperty('--app-safe-top', value);
   };
+  const applySide = (name: 'right' | 'bottom' | 'left', px: number) => {
+    const value = `${Math.max(0, px)}px`;
+    document.documentElement.style.setProperty(`--safe-area-inset-${name}`, value);
+    document.documentElement.style.setProperty(`--app-safe-${name}`, value);
+  };
   // Paint with a safe default immediately, then refine from StatusBar.getInfo().
-  apply(28);
+  applyTop(Math.max(28, readCssEnvInset('top')));
+  applySide('bottom', readCssEnvInset('bottom'));
+  applySide('left', readCssEnvInset('left'));
+  applySide('right', readCssEnvInset('right'));
   try {
     const info = await StatusBar.getInfo();
-    const top = Math.max(0, Number(info.height) || 0);
-    if (top > 0) apply(top);
+    const top = Math.max(0, Number(info.height) || 0, readCssEnvInset('top'));
+    if (top > 0) applyTop(top);
+    applySide('bottom', readCssEnvInset('bottom'));
   } catch (e) {
     console.warn('[Capacitor] syncSafeAreaCssVars failed:', e);
   }
