@@ -62,7 +62,9 @@ describe('Seller credits monetization integrity', () => {
     expect(admin).toMatch(/Buyer no-show: release reservation/);
     expect(admin).not.toMatch(/option value="charge"/);
     expect(admin).toMatch(/Spend is OFF/);
-    expect(admin).toMatch(/will not enable Spend/);
+    expect(admin).toMatch(/Spend cannot be enabled from Admin/);
+    expect(admin).toMatch(/Store lookup/);
+    expect(admin).toMatch(/AdminStoreSearchPicker/);
     expect(admin).not.toMatch(/const adminRpc = supabase\.rpc/);
     expect(admin).toMatch(/supabase\.rpc\(name as never/);
     expect(admin).toMatch(/Low\/critical boundary/);

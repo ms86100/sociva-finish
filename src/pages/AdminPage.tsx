@@ -103,32 +103,30 @@ export default function AdminPage() {
     <AppLayout headerTitle="Admin Panel" showLocation={false}>
       <div className="pb-8">
         {/* ═══ HEADER ═══ */}
-        <div className="px-4 pt-5 pb-4">
-          <div className="flex items-center justify-between gap-2">
-            <motion.div initial={{ opacity: 0, x: -12 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.4 }} className="min-w-0">
-              <h1 className="text-2xl font-extrabold text-foreground tracking-tight">Dashboard</h1>
-              <p className="text-xs text-muted-foreground mt-0.5 font-medium">Platform overview & management</p>
-            </motion.div>
-            <div className="flex items-center gap-2 shrink-0">
-              <Button asChild size="sm" variant="outline" className="gap-1.5">
-                <Link to="/admin/refunds">
-                  Refunds
-                </Link>
-              </Button>
-              <Button asChild size="sm" variant="outline" className="gap-1.5">
-                <Link to="/admin/seller-payouts">
-                  Payouts
-                </Link>
-              </Button>
-              <Button asChild size="sm" variant="outline" className="gap-1.5">
-                <Link to="/admin/financial-trace">
-                  <DollarSign size={14} />
-                  Trace
-                </Link>
-              </Button>
-              <SocietySwitcher />
-              <EmergencyBroadcastSheet />
-            </div>
+        <div className="px-4 pt-5 pb-4 space-y-3">
+          <motion.div initial={{ opacity: 0, x: -12 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.4 }} className="min-w-0">
+            <h1 className="text-2xl font-extrabold text-foreground tracking-tight">Dashboard</h1>
+            <p className="text-xs text-muted-foreground mt-0.5 font-medium">Platform overview & management</p>
+          </motion.div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button asChild size="sm" variant="outline" className="gap-1.5 shrink-0">
+              <Link to="/admin/refunds">
+                Refunds
+              </Link>
+            </Button>
+            <Button asChild size="sm" variant="outline" className="gap-1.5 shrink-0">
+              <Link to="/admin/seller-payouts">
+                Payouts
+              </Link>
+            </Button>
+            <Button asChild size="sm" variant="outline" className="gap-1.5 shrink-0">
+              <Link to="/admin/financial-trace">
+                <DollarSign size={14} />
+                Trace
+              </Link>
+            </Button>
+            <SocietySwitcher />
+            <EmergencyBroadcastSheet />
           </div>
         </div>
 

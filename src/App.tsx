@@ -300,6 +300,19 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function SocietyMemberRoute({ children }: { children: React.ReactNode }) {
+  const { effectiveSocietyId, isAdmin, isLoading } = useAuth();
+  if (isLoading) {
+    return (
+      <div className="min-h-[100dvh] flex items-center justify-center bg-background">
+        <Skeleton className="h-6 w-32 rounded-lg" />
+      </div>
+    );
+  }
+  if (!effectiveSocietyId && !isAdmin) return <Navigate to="/" replace />;
+  return <>{children}</>;
+}
+
 function AdminRoute({ children }: { children: React.ReactNode }) {
   const { isAdmin, isLoading } = useAuth();
   if (isLoading) {
@@ -497,13 +510,13 @@ function AppRoutes() {
           <Route path="/directory" element={<RouteErrorBoundary sectionName="Directory"><TrustDirectoryPage /></RouteErrorBoundary>} />
           <Route path="/disputes" element={<RouteErrorBoundary sectionName="Disputes"><DisputesPage /></RouteErrorBoundary>} />
           <Route path="/group-buys" element={<RouteErrorBoundary sectionName="Group Buys"><CollectiveBuyPage /></RouteErrorBoundary>} />
-          <Route path="/society/finances" element={<RouteErrorBoundary sectionName="Society Finances"><SocietyFinancesPage /></RouteErrorBoundary>} />
-          <Route path="/society/progress" element={<RouteErrorBoundary sectionName="Construction Progress"><SocietyProgressPage /></RouteErrorBoundary>} />
-          <Route path="/society/snags" element={<RouteErrorBoundary sectionName="Snag List"><SnagListPage /></RouteErrorBoundary>} />
-          <Route path="/society" element={<RouteErrorBoundary sectionName="Society Dashboard"><SocietyDashboardPage /></RouteErrorBoundary>} />
+          <Route path="/society/finances" element={<SocietyMemberRoute><RouteErrorBoundary sectionName="Society Finances"><SocietyFinancesPage /></RouteErrorBoundary></SocietyMemberRoute>} />
+          <Route path="/society/progress" element={<SocietyMemberRoute><RouteErrorBoundary sectionName="Construction Progress"><SocietyProgressPage /></RouteErrorBoundary></SocietyMemberRoute>} />
+          <Route path="/society/snags" element={<SocietyMemberRoute><RouteErrorBoundary sectionName="Snag List"><SnagListPage /></RouteErrorBoundary></SocietyMemberRoute>} />
+          <Route path="/society" element={<SocietyMemberRoute><RouteErrorBoundary sectionName="Society Dashboard"><SocietyDashboardPage /></RouteErrorBoundary></SocietyMemberRoute>} />
           <Route path="/notifications/inbox" element={<RouteErrorBoundary sectionName="Notifications"><NotificationInboxPage /></RouteErrorBoundary>} />
           <Route path="/maintenance" element={<RouteErrorBoundary sectionName="Maintenance"><MaintenancePage /></RouteErrorBoundary>} />
-          <Route path="/society/reports" element={<RouteErrorBoundary sectionName="Society Reports"><SocietyReportPage /></RouteErrorBoundary>} />
+          <Route path="/society/reports" element={<SocietyMemberRoute><RouteErrorBoundary sectionName="Society Reports"><SocietyReportPage /></RouteErrorBoundary></SocietyMemberRoute>} />
           <Route path="/society/admin" element={<SocietyAdminRoute><RouteErrorBoundary sectionName="Society Admin"><SocietyAdminPage /></RouteErrorBoundary></SocietyAdminRoute>} />
           <Route path="/builder" element={<BuilderRoute><RouteErrorBoundary sectionName="Builder Dashboard"><BuilderDashboardPage /></RouteErrorBoundary></BuilderRoute>} />
           <Route path="/builder/analytics" element={<BuilderRoute><RouteErrorBoundary sectionName="Builder Analytics"><BuilderAnalyticsPage /></RouteErrorBoundary></BuilderRoute>} />
@@ -522,8 +535,8 @@ function AppRoutes() {
           <Route path="/worker/my-jobs" element={<WorkerRoute><WorkerMyJobsPage /></WorkerRoute>} />
           <Route path="/worker-hire" element={<WorkerHirePage />} />
           <Route path="/worker-hire/create" element={<CreateJobRequestPage />} />
-          <Route path="/society/notices" element={<SocietyNoticesPage />} />
-          <Route path="/society/deliveries" element={<SocietyDeliveriesPage />} />
+          <Route path="/society/notices" element={<SocietyMemberRoute><SocietyNoticesPage /></SocietyMemberRoute>} />
+          <Route path="/society/deliveries" element={<SocietyMemberRoute><SocietyDeliveriesPage /></SocietyMemberRoute>} />
           <Route path="/delivery-partners" element={<ManagementRoute><DeliveryPartnerManagementPage /></ManagementRoute>} />
           <Route path="/my-deliveries" element={<ManagementRoute><DeliveryPartnerDashboardPage /></ManagementRoute>} />
           <Route path="/worker-attendance" element={<ManagementRoute><WorkerAttendancePage /></ManagementRoute>} />

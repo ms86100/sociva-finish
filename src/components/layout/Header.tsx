@@ -38,19 +38,11 @@ function HeaderInner({
   const [locationSheetOpen, setLocationSheetOpen] = useState(false);
   const navigateImmediately = useImmediateNavigate('Header');
 
-  const handleBack = useCallback(() => {
-    if (window.history.length > 2) {
-      navigate(-1);
-    } else {
-      navigate('/society');
-    }
-  }, [navigate]);
-
   const handleRouteNav = useCallback((to: string) => {
     navigateImmediately(to);
   }, [navigateImmediately]);
 
-  const { profile, society, user, viewAsSocietyId, effectiveSociety, setViewAsSociety, isAdmin, isBuilderMember, isProfileLoading } = useAuth();
+  const { profile, society, user, viewAsSocietyId, effectiveSociety, effectiveSocietyId, setViewAsSociety, isAdmin, isBuilderMember, isProfileLoading } = useAuth();
   const unreadCount = useUnreadNotificationCount();
   const { browsingLocation } = useBrowsingLocation();
   const takeover = useFestivalTakeover();
@@ -70,6 +62,15 @@ function HeaderInner({
       ? [profile.block, profile.flat_number].filter(Boolean).join(' · ')
       : null) ||
     'Set location';
+
+  const handleBack = useCallback(() => {
+    if (window.history.length > 1) {
+      navigate(-1);
+      return;
+    }
+    // Marketplace users must never land on society routes from back navigation.
+    navigate(effectiveSocietyId ? '/society' : '/');
+  }, [navigate, effectiveSocietyId]);
 
   return (
     <>

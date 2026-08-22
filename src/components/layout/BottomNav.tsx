@@ -36,7 +36,7 @@ const workerNavItems: { to: string; icon: typeof Briefcase; label: string }[] = 
 function BottomNavInner() {
   const location = useLocation();
   const { features, isFeatureEnabled, isLoading } = useEffectiveFeatures();
-  const { isAdmin, isSocietyAdmin, isBuilderMember, isSecurityOfficer, isWorker } = useAuth();
+  const { isAdmin, isSocietyAdmin, isBuilderMember, isSecurityOfficer, isWorker, effectiveSocietyId } = useAuth();
   const itemCount = useCartCount();
   const navigateImmediately = useImmediateNavigate('BottomNav');
 
@@ -55,13 +55,14 @@ function BottomNavInner() {
 
   const hasAnyFeature = features.some(f => f.is_enabled && f.society_configurable);
 
-  const visibleItems = isLoading
-    ? navItems
-    : navItems.filter(item => {
-        if (item.to === '/society' && !hasAnyFeature && !isAdmin) return false;
-        if ('featureKey' in item && item.featureKey) return isFeatureEnabled((item as any).featureKey);
-        return true;
-      });
+  const visibleItems = navItems.filter(item => {
+    if (item.to === '/society') {
+      if (!effectiveSocietyId && !isAdmin) return false;
+      if (!isLoading && !hasAnyFeature && !isAdmin) return false;
+    }
+    if ('featureKey' in item && item.featureKey) return isFeatureEnabled((item as any).featureKey);
+    return true;
+  });
 
   return (
     <nav

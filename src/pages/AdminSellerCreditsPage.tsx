@@ -1,18 +1,30 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Search } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { SafeHeader } from '@/components/layout/SafeHeader';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
+import { AdminStoreSearchPicker } from '@/components/admin/AdminStoreSearchPicker';
 import { supabase } from '@/integrations/supabase/client';
 import { useCurrency } from '@/hooks/useCurrency';
 import { BILLING_EVENT_LABELS, type BillingEventType } from '@/lib/sellerCredits';
+import type { AdminStoreCreditRow } from '@/lib/adminStoreCredits';
+import { buildSellerCreditsGoLiveChecks, goLiveChecksAllowSpend } from '@/lib/sellerCreditsGoLive';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
+
+function useDebouncedValue<T>(value: T, delayMs: number): T {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebounced(value), delayMs);
+    return () => window.clearTimeout(timer);
+  }, [value, delayMs]);
+  return debounced;
+}
 
 const adminRpc = (name: string, args?: Record<string, unknown>) =>
   supabase.rpc(name as never, args as never) as PromiseLike<{
@@ -64,6 +76,16 @@ export default function AdminSellerCreditsPage() {
   const [reverseReason, setReverseReason] = useState('');
   const [refundPurchase, setRefundPurchase] = useState('');
   const [refundReason, setRefundReason] = useState('');
+  const [activeStoreId, setActiveStoreId] = useState('');
+
+  const debouncedStoreSearch = useDebouncedValue(storeSearch, 300);
+  const debouncedPurchaseSearch = useDebouncedValue(purchaseSearch, 300);
+
+  const selectStoreFor = (target: 'adjust' | 'reverse' | 'browse', row: AdminStoreCreditRow) => {
+    if (target === 'adjust') setAdjustSeller(row.seller_id);
+    if (target === 'reverse') setReverseSeller(row.seller_id);
+    setActiveStoreId(row.seller_id);
+  };
 
   const flagsQuery = useQuery({
     queryKey: ['admin-seller-credit-flags'],
@@ -96,19 +118,20 @@ export default function AdminSellerCreditsPage() {
   });
 
   const sellersQuery = useQuery({
-    queryKey: ['admin-seller-credits', storeSearch],
+    queryKey: ['admin-seller-credits', debouncedStoreSearch],
     queryFn: async () => {
-      const { data, error } = await adminRpc('admin_list_seller_credits', { p_search: storeSearch || null });
+      const { data, error } = await adminRpc('admin_list_seller_credits', { p_search: debouncedStoreSearch || null });
       if (error) throw error;
       return Array.isArray(data) ? data : [];
     },
+    enabled: debouncedStoreSearch.trim().length >= 1,
   });
 
   const purchasesQuery = useQuery({
-    queryKey: ['admin-seller-credit-purchases', purchaseSearch],
+    queryKey: ['admin-seller-credit-purchases', debouncedPurchaseSearch],
     queryFn: async () => {
       const { data, error } = await adminRpc('admin_list_seller_credit_purchases', {
-        p_search: purchaseSearch || null,
+        p_search: debouncedPurchaseSearch || null,
         p_limit: 50,
       });
       if (error) throw error;
@@ -199,7 +222,10 @@ export default function AdminSellerCreditsPage() {
 
   const setFlag = async (key: string, enabled: boolean) => {
     if (key === 'seller_credit_spend_enabled' && enabled) {
-      toast.error('Spend cannot be turned on from this screen until the go-live checklist is signed off separately.');
+      toast.error(
+        'Spend cannot be enabled from Admin until every go-live checklist item passes. '
+        + 'This is blocked for production safety — billing E2E must be proven first.',
+      );
       return;
     }
     try {
@@ -321,6 +347,55 @@ export default function AdminSellerCreditsPage() {
   const spendOn = !!flagsQuery.data?.spendEnabled;
   const purchaseOn = !!flagsQuery.data?.purchaseEnabled;
 
+  const orderCompletedRule = useMemo(
+    () => (flagsQuery.data?.rules || []).find((rule: BillingRule) => rule.event_type === 'ORDER_COMPLETED'),
+    [flagsQuery.data?.rules],
+  );
+
+  const healthyMinDisplay = Number(thresholdValue('healthy_min')) || 100;
+  const lowMinDisplay = Number(thresholdValue('low_min')) || 50;
+  const discoveryActivationMin = useMemo(() => {
+    if (!spendOn) return null;
+    if (!orderCompletedRule?.enabled) return 0;
+    const amount = Number(orderCompletedRule.amount);
+    return Number.isFinite(amount) ? amount : 0;
+  }, [spendOn, orderCompletedRule]);
+
+  const midBalanceExample = Math.max(
+    (discoveryActivationMin ?? 0) + 1,
+    Math.min(30, healthyMinDisplay - 1),
+  );
+
+  const capturedPurchaseCount = useMemo(
+    () => (purchasesQuery.data || []).filter((row: { status?: string }) => row.status === 'captured').length,
+    [purchasesQuery.data],
+  );
+
+  const goLiveChecks = useMemo(
+    () => buildSellerCreditsGoLiveChecks({
+      purchaseEnabled: purchaseOn,
+      spendEnabled: spendOn,
+      resolutionReady: Boolean(flagsQuery.data?.resolutionReady),
+      capturedPurchaseCount,
+      purchaseLedgerCount: (flagsQuery.data?.ledger || []).filter(
+        (row: { type?: string }) => row.type === 'purchase',
+      ).length,
+    }),
+    [purchaseOn, spendOn, flagsQuery.data, capturedPurchaseCount],
+  );
+
+  const spendGoLiveReady = goLiveChecksAllowSpend(goLiveChecks);
+
+  const selectedReverseCharge = useMemo(
+    () => (flagsQuery.data?.charges || []).find(
+      (row: { seller_id?: string; event_type?: string; reference_id?: string }) =>
+        row.seller_id === reverseSeller
+        && row.event_type === reverseEvent
+        && row.reference_id === reverseRefId,
+    ),
+    [flagsQuery.data?.charges, reverseSeller, reverseEvent, reverseRefId],
+  );
+
   return (
     <AppLayout showHeader={false} safeTop={false}>
       <SafeHeader>
@@ -353,11 +428,26 @@ export default function AdminSellerCreditsPage() {
             </div>
             <div className="flex items-center justify-between">
               <span className="text-sm">Spend / gating enabled</span>
-              <Switch checked={spendOn} onCheckedChange={(v) => setFlag('seller_credit_spend_enabled', v)} />
+              <Switch
+                checked={spendOn}
+                disabled={!spendOn && !spendGoLiveReady}
+                onCheckedChange={(v) => {
+                  if (v) {
+                    toast.error('Spend is blocked until the go-live checklist below is fully green.');
+                    return;
+                  }
+                  setFlag('seller_credit_spend_enabled', false);
+                }}
+              />
             </div>
             {!spendOn && (
               <p className="text-xs text-amber-700">
-                Spend is OFF. Sellers are not charged and buyers are not blocked for insufficient credits. Do not enable spend until purchase, ledger, refund, and reconciliation are proven.
+                Spend is OFF. Sellers are not charged and buyers are not blocked for insufficient credits. Marketplace behavior stays unchanged until Spend is deliberately enabled after go-live sign-off.
+              </p>
+            )}
+            {spendOn && (
+              <p className="text-xs text-destructive font-medium">
+                Spend is ON — sellers are credit-gated. Turn OFF unless you are running a controlled billing test.
               </p>
             )}
             {!flagsQuery.data?.resolutionReady && (
@@ -372,8 +462,8 @@ export default function AdminSellerCreditsPage() {
           <CardContent className="p-4 space-y-3">
             <p className="text-sm font-semibold">Billing rates</p>
             <p className="text-xs text-muted-foreground">
-              Who pays: the seller, in Sociva Credits (not the buyer, not seller earnings). These prices apply to future events only. No rate is read from application code.
-              Changing a rate does not rewrite existing reservations. If spend is disabled, rates are stored but not charged.
+              Who pays: the seller, in Sociva Credits (not the buyer, not seller earnings). When Spend is OFF, rates are stored for future use but nothing is charged or blocked.
+              Changing a rate applies to future events only. Existing reservations keep their snapshot.
             </p>
             <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Change reason" />
             {(flagsQuery.data?.rules || []).map((rule) => {
@@ -511,7 +601,8 @@ export default function AdminSellerCreditsPage() {
               Contact debounce: first call/message in this window is charged; repeats are not. Runtime reads this setting (1–168 hours).
             </p>
             <p className="text-[11px] text-muted-foreground">
-              V1 locked (not configurable): seller cancellation / seller failure always releases reserved credits. Disputes after commit use Admin reversal below — `seller_failure_policy` and `dispute_policy` are stored but ignored by runtime.
+              V1 system-controlled (not Admin-configurable): seller cancellation / seller failure always releases reserved credits.
+              Disputes after commit use Charge reversal below — not a second booking workflow.
             </p>
           </CardContent>
         </Card>
@@ -520,14 +611,49 @@ export default function AdminSellerCreditsPage() {
           <CardContent className="p-4 space-y-3">
             <p className="text-sm font-semibold">Health thresholds</p>
             <p className="text-xs text-muted-foreground">
-              These bands label the seller balance and can send low/exhausted notifications. They do not block transactions and do not affect purchasing.
+              These bands label the seller balance and can send low/exhausted notifications. They do not block transactions, do not affect purchasing, and do not hide products from buyers.
               Exhausted is always available ≤ 0. Critical is at or below Critical max, or below the Low/Critical boundary. Low is below Healthy min but at or above that boundary.
             </p>
+            <div className="rounded-lg border bg-muted/40 p-3 space-y-2">
+              <p className="text-xs font-medium">Buyer visibility (Spend / gating)</p>
+              {!spendOn ? (
+                <p className="text-[11px] text-muted-foreground">
+                  Spend is OFF — approved stores stay discoverable regardless of balance. Health labels below are seller-facing warnings only.
+                </p>
+              ) : (
+                <>
+                  <p className="text-[11px] text-muted-foreground">
+                    Spend is ON — products drop out of buyer discovery when available credits are ₹0 or below the activation floor
+                    {orderCompletedRule?.enabled
+                      ? ` (currently ${formatPrice(discoveryActivationMin ?? 0)} from the enabled Order completed billing rate).`
+                      : ' (any balance above ₹0 when Order completed billing is disabled).'}
+                    {' '}Health thresholds below are warnings only — they do not hide listings.
+                  </p>
+                  <ul className="text-[11px] text-muted-foreground space-y-1 list-disc pl-4">
+                    <li>
+                      <span className="font-medium text-foreground">healthy_min</span> ({formatPrice(healthyMinDisplay)}): below this → Low label (warning, not a block).
+                    </li>
+                    <li>
+                      <span className="font-medium text-foreground">low_min</span> ({formatPrice(lowMinDisplay)}): below this → Critical label (still a warning, not a block).
+                    </li>
+                    <li>
+                      <span className="font-medium text-foreground">critical_min</span>: at or above 0 and at/below this → Critical label (still a warning, not a block).
+                    </li>
+                  </ul>
+                  <p className="text-[11px] text-muted-foreground">
+                    Examples with current settings: ₹0 → hidden from buyers; {formatPrice(midBalanceExample)} → still visible (above activation floor) but Critical/Low warnings on the seller credits page; {formatPrice(healthyMinDisplay)} → visible and Healthy.
+                  </p>
+                  <p className="text-[11px] text-muted-foreground">
+                    New sellers with no recharge: not visible until balance meets the activation floor. Sellers see “Recharge Sociva Credits to make your store visible”; buyers see a generic unavailable message.
+                  </p>
+                </>
+              )}
+            </div>
             <div className="flex items-center gap-2">
               <Input type="number" min="0" value={healthyMin || thresholdValue('healthy_min')} onChange={(e) => setHealthyMin(e.target.value)} placeholder="Healthy min" />
               <Button size="sm" variant="outline" onClick={() => saveThreshold('healthy_min', healthyMin, 'Healthy threshold')}>Save</Button>
             </div>
-            <p className="text-[11px] text-muted-foreground">Healthy min: available below this is Low (warning).</p>
+            <p className="text-[11px] text-muted-foreground">Healthy min: available below this is Low (warning only — products stay visible).</p>
             <div className="flex items-center gap-2">
               <Input type="number" min="0" value={lowMin || thresholdValue('low_min')} onChange={(e) => setLowMin(e.target.value)} placeholder="Low/critical boundary" />
               <Button size="sm" variant="outline" onClick={() => saveThreshold('low_min', lowMin, 'Low/critical boundary')}>Save</Button>
@@ -537,7 +663,7 @@ export default function AdminSellerCreditsPage() {
               <Input type="number" min="0" value={criticalMin || thresholdValue('critical_min')} onChange={(e) => setCriticalMin(e.target.value)} placeholder="Critical max" />
               <Button size="sm" variant="outline" onClick={() => saveThreshold('critical_min', criticalMin, 'Critical threshold')}>Save</Button>
             </div>
-            <p className="text-[11px] text-muted-foreground">Critical max (`critical_min`): available at or below this (and above 0) is Critical.</p>
+            <p className="text-[11px] text-muted-foreground">Critical max (`critical_min`): available at or below this (and above 0) is Critical (warning only — products stay visible).</p>
           </CardContent>
         </Card>
 
@@ -607,9 +733,70 @@ export default function AdminSellerCreditsPage() {
         </Card>
 
         <Card>
+          <CardContent className="p-4 space-y-3">
+            <p className="text-sm font-semibold">Store lookup</p>
+            <p className="text-xs text-muted-foreground">
+              Search by store name, seller phone, or id. Pick a store for adjustments and reversals — you do not need to copy UUIDs manually.
+            </p>
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={storeSearch}
+                onChange={(e) => setStoreSearch(e.target.value)}
+                placeholder="Search stores by name, phone, or id"
+                className="pl-9"
+              />
+            </div>
+            {storeSearch.trim().length === 0 && (
+              <p className="text-xs text-muted-foreground">Type at least one character to search stores.</p>
+            )}
+            {sellersQuery.isLoading && storeSearch.trim().length > 0 && (
+              <p className="text-xs text-muted-foreground">Searching stores…</p>
+            )}
+            {!sellersQuery.isLoading && storeSearch.trim().length > 0 && (sellersQuery.data || []).length === 0 && (
+              <p className="text-xs text-muted-foreground">No stores match that search.</p>
+            )}
+            {(sellersQuery.data || []).slice(0, 20).map((row: AdminStoreCreditRow) => (
+              <div
+                key={row.seller_id}
+                className={`rounded-lg border p-3 space-y-2 ${activeStoreId === row.seller_id ? 'border-primary/50 bg-primary/5' : ''}`}
+              >
+                <div>
+                  <p className="text-sm font-medium">{row.business_name}</p>
+                  <p className="text-[11px] text-muted-foreground">
+                    {row.seller_phone ? `${row.seller_phone} · ` : ''}{row.seller_id}
+                  </p>
+                  <p className="text-xs mt-1">
+                    Available {formatPrice(Number(row.available) || 0)} · Reserved {formatPrice(Number(row.reserved) || 0)} · Used {formatPrice(Number(row.lifetime_consumed) || 0)}
+                  </p>
+                  {row.last_recharge_at && (
+                    <p className="text-[11px] text-muted-foreground">Last recharge {format(new Date(row.last_recharge_at), 'MMM d, yyyy')}</p>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button size="sm" variant="outline" onClick={() => selectStoreFor('adjust', row)}>Use for adjustment</Button>
+                  <Button size="sm" variant="ghost" onClick={() => selectStoreFor('reverse', row)}>Use for reversal</Button>
+                </div>
+              </div>
+            ))}
+            {storeSearch.trim().length > 0 && (sellersQuery.data || []).length > 20 && (
+              <p className="text-[11px] text-muted-foreground">Showing first 20 matches. Refine your search to narrow further.</p>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
           <CardContent className="p-4 space-y-2">
             <p className="text-sm font-semibold">Credit purchases</p>
-            <Input value={purchaseSearch} onChange={(e) => setPurchaseSearch(e.target.value)} placeholder="Search store, purchase id, payment ref" />
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={purchaseSearch}
+                onChange={(e) => setPurchaseSearch(e.target.value)}
+                placeholder="Search store name, purchase id, or payment ref"
+                className="pl-9"
+              />
+            </div>
             {(purchasesQuery.data || []).map((row: any) => (
               <div key={row.id} className="rounded-lg border p-2 text-[11px] space-y-0.5">
                 <p className="font-medium text-sm">{row.business_name}</p>
@@ -619,6 +806,19 @@ export default function AdminSellerCreditsPage() {
                 <p>Created {row.created_at ? format(new Date(row.created_at), 'MMM d, yyyy · h:mm a') : '—'}</p>
                 {row.captured_at && <p>Confirmed {format(new Date(row.captured_at), 'MMM d, yyyy · h:mm a')}</p>}
                 {row.failure_reason && <p>Failed {row.failure_reason}</p>}
+                {row.status === 'captured' && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="mt-1 h-7 text-xs"
+                    onClick={() => {
+                      setRefundPurchase(row.id);
+                      setRefundReason((prev) => prev || `Admin refund · ${row.business_name}`);
+                    }}
+                  >
+                    Use for refund
+                  </Button>
+                )}
               </div>
             ))}
             {!purchasesQuery.isLoading && (purchasesQuery.data || []).length === 0 && (
@@ -628,7 +828,7 @@ export default function AdminSellerCreditsPage() {
             <p className="text-xs text-muted-foreground">
               V1: refunds a captured purchase only if the seller still has unused credits covering the granted amount. Spent credits cannot be clawed back here.
             </p>
-            <Input value={refundPurchase} onChange={(e) => setRefundPurchase(e.target.value)} placeholder="Captured purchase id" />
+            <Input value={refundPurchase} onChange={(e) => setRefundPurchase(e.target.value)} placeholder="Captured purchase id (or pick from list above)" />
             <Input value={refundReason} onChange={(e) => setRefundReason(e.target.value)} placeholder="Reason required" />
             <Button size="sm" variant="outline" onClick={refundCaptured}>Refund unused credits</Button>
           </CardContent>
@@ -647,6 +847,7 @@ export default function AdminSellerCreditsPage() {
                 className="block w-full text-left rounded-lg border p-2 text-[11px]"
                 onClick={() => {
                   setReverseSeller(row.seller_id);
+                  setActiveStoreId(row.seller_id);
                   setReverseEvent(row.event_type);
                   setReverseRefType(row.reference_type);
                   setReverseRefId(row.reference_id);
@@ -655,7 +856,24 @@ export default function AdminSellerCreditsPage() {
                 {row.business_name} · {row.event_type} · {formatPrice(Number(row.amount) || 0)} · {row.reference_id}
               </button>
             ))}
-            <Input value={reverseSeller} onChange={(e) => setReverseSeller(e.target.value)} placeholder="Seller / store id" />
+            <AdminStoreSearchPicker
+              value={reverseSeller}
+              onChange={(sellerId) => {
+                setReverseSeller(sellerId);
+                setActiveStoreId(sellerId);
+              }}
+              helperText="Search by store name, phone, or id. Recent charges above also pre-fill this."
+            />
+            {reverseSeller && reverseRefId && (
+              <div className="rounded-md border bg-muted/30 p-2 text-[11px] space-y-0.5">
+                <p className="font-medium text-xs">Reversal preview</p>
+                <p>Seller: {selectedReverseCharge?.business_name || reverseSeller}</p>
+                <p>Event: {reverseEvent} · Reference: {reverseRefType}/{reverseRefId}</p>
+                {selectedReverseCharge && (
+                  <p>Original charge: {formatPrice(Number(selectedReverseCharge.amount) || 0)} — a separate reversal ledger row will be added; the original charge stays.</p>
+                )}
+              </div>
+            )}
             <Input value={reverseEvent} onChange={(e) => setReverseEvent(e.target.value)} placeholder="Event type" />
             <Input value={reverseRefType} onChange={(e) => setReverseRefType(e.target.value)} placeholder="Reference type (order/contact)" />
             <Input value={reverseRefId} onChange={(e) => setReverseRefId(e.target.value)} placeholder="Original reference id" />
@@ -671,7 +889,14 @@ export default function AdminSellerCreditsPage() {
               Use for goodwill or balance corrections that are not reversing a specific charge. Reason is required. Negative balances are rejected. Each submit sends a unique request id so a double-click does not post twice.
               Approval workflow and amount caps are not in V1.
             </p>
-            <Input value={adjustSeller} onChange={(e) => setAdjustSeller(e.target.value)} placeholder="Seller / store id" />
+            <AdminStoreSearchPicker
+              value={adjustSeller}
+              onChange={(sellerId) => {
+                setAdjustSeller(sellerId);
+                setActiveStoreId(sellerId);
+              }}
+              helperText="Search by store name, phone, or id. Store lookup above can also pre-fill this."
+            />
             <Input value={adjustAmount} onChange={(e) => setAdjustAmount(e.target.value)} placeholder="Amount (positive)" />
             <Input value={adjustReason} onChange={(e) => setAdjustReason(e.target.value)} placeholder="Reason required" />
             <div className="flex gap-2">
@@ -685,36 +910,31 @@ export default function AdminSellerCreditsPage() {
           <CardContent className="p-4 space-y-2">
             <p className="text-sm font-semibold">Spend go-live checklist</p>
             <p className="text-xs text-muted-foreground">
-              Informational only. This screen will not enable Spend. Marketplace charging stays off until a separate signed-off go-live.
+              Spend remains blocked in Admin until every item below is green. Purchase can stay ON while Spend is OFF.
             </p>
-            <p className="text-xs">Purchase flag: {flagsQuery.isError ? 'could not load' : purchaseOn ? 'ON' : 'OFF'}</p>
-            <p className="text-xs">Spend flag: {flagsQuery.isError ? 'could not load' : spendOn ? 'ON' : 'OFF (required until signed off)'}</p>
-            <p className="text-xs">Booking resolution config: {flagsQuery.isError ? 'could not load' : flagsQuery.data?.resolutionReady ? 'ready' : 'incomplete'}</p>
-            <ul className="text-[11px] text-muted-foreground list-disc pl-4 space-y-1">
-              <li>Still required before Spend: one live captured purchase with ledger + balance increase</li>
-              <li>Still required: duplicate confirmation/webhook is proven idempotent on a real payment</li>
-              <li>Still required: unused-credit refund against a captured purchase</li>
-              <li>Still required: booking reserve/commit/release and order/enquiry/contact billing in a controlled test</li>
-              <li>Still required: production web/app build that includes Spend-off seller copy</li>
+            <ul className="text-[11px] space-y-1.5">
+              {goLiveChecks.map((item) => (
+                <li key={item.id} className="flex items-start gap-2">
+                  <span className={
+                    item.status === 'pass' ? 'text-green-700'
+                      : item.status === 'fail' ? 'text-destructive'
+                        : item.status === 'blocked' ? 'text-muted-foreground'
+                          : 'text-amber-700'
+                  }>
+                    {item.status === 'pass' ? '✓' : item.status === 'fail' ? '✗' : item.status === 'blocked' ? '—' : '?'}
+                  </span>
+                  <span>
+                    {item.label}
+                    {item.detail ? ` — ${item.detail}` : ''}
+                  </span>
+                </li>
+              ))}
             </ul>
+            {!spendGoLiveReady && (
+              <p className="text-xs text-amber-700">Spend enable is disabled until all checklist items pass.</p>
+            )}
           </CardContent>
         </Card>
-
-        <Input value={storeSearch} onChange={(e) => setStoreSearch(e.target.value)} placeholder="Search stores by name or id" />
-        {(sellersQuery.data || []).map((row: any) => (
-          <Card key={row.seller_id}>
-            <CardContent className="p-3">
-              <p className="text-sm font-medium">{row.business_name}</p>
-              <p className="text-[11px] text-muted-foreground">{row.seller_id}</p>
-              <p className="text-xs mt-1">
-                Available {formatPrice(Number(row.available) || 0)} · Reserved {formatPrice(Number(row.reserved) || 0)} · Used {formatPrice(Number(row.lifetime_consumed) || 0)}
-              </p>
-              {row.last_recharge_at && (
-                <p className="text-[11px] text-muted-foreground">Last recharge {format(new Date(row.last_recharge_at), 'MMM d, yyyy')}</p>
-              )}
-            </CardContent>
-          </Card>
-        ))}
       </div>
     </AppLayout>
   );
