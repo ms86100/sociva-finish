@@ -10,7 +10,8 @@ type ReminderKind =
   | "scheduled_48h"
   | "scheduled_24h"
   | "scheduled_prep"
-  | "scheduled_30m";
+  | "scheduled_30m"
+  | "scheduled_late";
 
 interface WindowSpec {
   kind: ReminderKind;
@@ -95,6 +96,17 @@ const WINDOWS: WindowSpec[] = [
       return m >= 25 && m <= 35;
     },
   },
+  {
+    kind: "scheduled_late",
+    title: "⚠️ Scheduled order overdue",
+    bodySeller: (ref, when) => `Order #${ref} (${when}) is past its scheduled time — please start preparation or contact the buyer.`,
+    bodyBuyer: (store, when) => `Your scheduled order from ${store} (${when}) is delayed. The seller has been notified.`,
+    match: (o, now) => {
+      if (!o.scheduled_fulfilment_at) return false;
+      const fulfil = new Date(o.scheduled_fulfilment_at);
+      return now.getTime() > fulfil.getTime() + 15 * 60_000;
+    },
+  },
 ];
 
 Deno.serve(async (req) => {
@@ -171,6 +183,7 @@ Deno.serve(async (req) => {
             reminder_type: w.kind,
             scheduled_date: o.scheduled_date,
             reference_path: `/orders/${o.id}`,
+            high_priority: w.kind === "scheduled_late" || w.kind === "scheduled_prep",
           },
         });
       }

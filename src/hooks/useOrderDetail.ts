@@ -10,6 +10,12 @@ import { useCategoryStatusFlow, getNextStatusForActor, getTimelineSteps, isTermi
 import { isDeliveryMapEligible } from '@/lib/orderProgressStages';
 import { logAudit } from '@/lib/audit';
 import { resolveTransactionType } from '@/lib/resolveTransactionType';
+import {
+  canBuyerCancelScheduled,
+  isDueForPreparation,
+  isScheduledOrder,
+  isUpcomingScheduled,
+} from '@/lib/scheduled-orders';
 import { Order, OrderStatus } from '@/types/Database';
 import { toast } from 'sonner';
 import { showFeedback } from '@/components/FeedbackPopupProvider';
@@ -178,8 +184,15 @@ export function useOrderDetail(id: string | undefined) {
 
   const canBuyerCancel = useMemo(() => {
     if (!order) return false;
-    return canActorCancel(transitions, order.status, 'buyer');
-  }, [order?.status, transitions]);
+    if (!canActorCancel(transitions, order.status, 'buyer')) return false;
+    if (isScheduledOrder(order)) return canBuyerCancelScheduled(order);
+    return true;
+  }, [order, transitions]);
+
+  const isScheduledAwaitingPrep = useMemo(() => {
+    if (!order || !isScheduledOrder(order)) return false;
+    return isUpcomingScheduled(order) && !isDueForPreparation(order);
+  }, [order]);
 
   // Invalidate cache helper
   const invalidateOrder = () => {
@@ -386,7 +399,12 @@ export function useOrderDetail(id: string | undefined) {
   };
 
   const isBuyerView = order ? order.buyer_id === user?.id : false;
-  const nextStatus = getNextStatus();
+  const rawNextStatus = getNextStatus();
+  const fulfilmentBlockedStatuses = ['preparing', 'in_progress', 'ready', 'picked_up', 'on_the_way', 'at_gate', 'en_route', 'assigned', 'arrived'];
+  const nextStatus =
+    isScheduledAwaitingPrep && rawNextStatus && fulfilmentBlockedStatuses.includes(rawNextStatus)
+      ? null
+      : rawNextStatus;
   const canReview = isBuyerView && order ? isSuccessfulTerminal(flow, order.status) && !hasReview : false;
   const canChat = order ? !isTerminalStatus(flow, order.status) : false;
   const canReorder = isBuyerView && order ? isSuccessfulTerminal(flow, order.status) : false;
@@ -465,7 +483,7 @@ export function useOrderDetail(id: string | undefined) {
     isRejectionDialogOpen, setIsRejectionDialogOpen,
     seller, isSellerView, isUrgentOrder, isUrgentSellerView, isUrgentBuyerView, isBuyerView, isEnquiryOrder,
     nextStatus, buyerNextStatus, canReview, canChat, canReorder,
-    canSellerReject, canBuyerCancel, isInTransit, isFlowLoading,
+    canSellerReject, canBuyerCancel, isScheduledAwaitingPrep, isInTransit, isFlowLoading,
     currentStepActor, resolvedTxnType, resolvedParentGroup,
     chatRecipientId, chatRecipientName,
     orderFulfillmentType, currentStatusIndex, statusOrder,

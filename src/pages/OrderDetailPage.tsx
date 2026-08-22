@@ -79,7 +79,7 @@ import { useCheckoutSiblings } from '@/hooks/useCheckoutGroup';
 import { checkoutKeyPrefix } from '@/lib/checkout-groups';
 import { useAuth } from '@/contexts/AuthContext';
 import { ScheduledOrderBanner } from '@/components/orders/ScheduledOrderBanner';
-import { isUpcomingScheduled } from '@/lib/scheduled-orders';
+import { formatScheduledDateTime, getScheduledCountdownLabel, isScheduledOrder, isUpcomingScheduled } from '@/lib/scheduled-orders';
 
 const DeliveryMapView = lazy(() => import('@/components/delivery/DeliveryMapView').then(m => ({ default: m.DeliveryMapView })));
 
@@ -626,6 +626,7 @@ export default function OrderDetailPage() {
 
   // Show the prominent "Accept Order" hero card when the seller is on a fresh placed order.
   const showAcceptHero = o.isSellerView && order.status === 'placed' && !!o.nextStatus && !o.isFlowLoading;
+  const isFutureScheduledAccept = isScheduledOrder(order as any) && isUpcomingScheduled(order as any);
 
   const getActionLabel = (status: string, otpRequired: boolean) => {
     const step = o.flow.find(s => s.status_key === status);
@@ -725,9 +726,20 @@ export default function OrderDetailPage() {
                   <CircleCheckBig size={22} className="text-primary" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-bold text-foreground">New Order — Action Required</p>
+                  <p className="text-sm font-bold text-foreground">
+                    {isFutureScheduledAccept ? 'Scheduled Order — Confirm Slot' : 'New Order — Action Required'}
+                  </p>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    {buyer?.name ? `${buyer.name} is waiting` : 'Customer is waiting for your confirmation'} · Check the location, then accept or reject
+                    {isFutureScheduledAccept ? (
+                      <>
+                        Fulfilment on {formatScheduledDateTime(order as any)} · {getScheduledCountdownLabel(order as any)}.
+                        Confirming reserves the slot — you do not need to prepare until the prep window.
+                      </>
+                    ) : (
+                      <>
+                        {buyer?.name ? `${buyer.name} is waiting` : 'Customer is waiting for your confirmation'} · Check the location, then accept or reject
+                      </>
+                    )}
                   </p>
                 </div>
               </div>
@@ -782,7 +794,7 @@ export default function OrderDetailPage() {
                   disabled={o.isUpdating}
                 >
                   {o.isUpdating ? <Loader2 size={15} className="mr-1.5 animate-spin" /> : <Check size={15} className="mr-1.5" />}
-                  Accept Order
+                  {isFutureScheduledAccept ? 'Confirm Scheduled Order' : 'Accept Order'}
                   <ChevronRight size={14} className="ml-1" />
                 </Button>
               </div>
@@ -1442,6 +1454,10 @@ export default function OrderDetailPage() {
                   <Loader2 size={14} className="animate-spin text-primary" />
                   <span>Updating…</span>
                 </div>
+              ) : o.isScheduledAwaitingPrep ? (
+                <div className="flex-1 flex items-center justify-center h-12 px-3 rounded-lg bg-primary/10 border border-primary/20 text-xs text-primary font-medium text-center">
+                  Scheduled · {formatScheduledDateTime(order as any)} · {getScheduledCountdownLabel(order as any)}
+                </div>
               ) : (
                 <div className="flex-1 flex items-center justify-center gap-2 h-12 text-sm text-muted-foreground">
                   <Check size={14} className="text-primary" />
@@ -1500,7 +1516,7 @@ export default function OrderDetailPage() {
               </>
             ) : (
               o.canBuyerCancel && (
-                <OrderCancellation orderId={order.id} orderStatus={order.status} onCancelled={() => o.fetchOrder()} canCancel={true} kind={o.isEnquiryOrder ? 'enquiry' : 'order'} />
+                <OrderCancellation orderId={order.id} orderStatus={order.status} onCancelled={() => o.fetchOrder()} canCancel={o.canBuyerCancel} kind={o.isEnquiryOrder ? 'enquiry' : 'order'} />
               )
             )}
             {o.buyerNextStatus && (() => {

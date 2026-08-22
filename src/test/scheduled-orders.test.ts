@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  canBuyerCancelScheduled,
   daysUntilScheduledDate,
   getScheduledCountdownLabel,
   getScheduledFulfilmentAt,
@@ -38,6 +39,19 @@ describe('scheduled-orders', () => {
   it('shows tomorrow label one day before', () => {
     const now = new Date('2026-08-24T12:00:00+05:30');
     expect(getScheduledCountdownLabel(aug25Order, now)).toBe('Tomorrow');
+  });
+
+  it('blocks buyer cancel after cancellation cutoff', () => {
+    const order = {
+      status: 'scheduled',
+      scheduled_date: '2026-08-25',
+      scheduled_time_start: '10:00:00',
+      cancellation_cutoff_at: '2026-08-24T12:00:00+05:30',
+    };
+    const afterCutoff = new Date('2026-08-24T13:00:00+05:30');
+    expect(canBuyerCancelScheduled(order, afterCutoff)).toBe(false);
+    const beforeCutoff = new Date('2026-08-24T11:00:00+05:30');
+    expect(canBuyerCancelScheduled(order, beforeCutoff)).toBe(true);
   });
 
   it('moves to preparing phase when status is preparing', () => {
