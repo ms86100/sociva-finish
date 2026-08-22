@@ -510,7 +510,18 @@ export function usePushNotificationsInternal() {
         // Seller overlay owns looping buzz when pending — skip duplicate for seller incoming.
         // Also skip sound/haptic for stale pushes (buffered by FCM/APNs for >10 min).
         const isHighPriority = data?.high_priority === 'true';
-        const isSellerIncoming = data?.target_role === 'seller' && isHighPriority;
+        const isStatusNudge = data?.type === 'seller_order_status_reminder' || data?.reminder_type === 'status_nudge';
+        const isSellerIncoming = data?.target_role === 'seller' && isHighPriority && !isStatusNudge;
+        if (isStatusNudge && orderId) {
+          window.dispatchEvent(new CustomEvent('seller-status-nudge', { detail: { orderId } }));
+          void import('@/lib/local-order-notifications').then(({ scheduleIncomingOrderLocalNotification }) =>
+            scheduleIncomingOrderLocalNotification({
+              orderId,
+              title: notification?.title || '⏰ Update order status',
+              body: notification?.body || 'Order is still Accepted — tap to mark Preparing.',
+            }),
+          );
+        }
         if (soundsEnabledRef.current && isHighPriority && !isSellerIncoming && !isPushStale) {
           void (async () => {
             try {
@@ -566,7 +577,7 @@ export function usePushNotificationsInternal() {
           const isSellerOrder = data?.type === 'order' || data?.type === 'order_created';
           const navState = isSellerOrder ? { state: { tab: 'selling' } } : undefined;
           toastOptions.action = {
-            label: 'View',
+            label: isStatusNudge ? 'Update Status' : 'View',
             onClick: () => navigateRef.current(route, navState),
           };
         }

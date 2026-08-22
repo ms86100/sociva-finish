@@ -73,7 +73,9 @@ export default function HomePage() {
         <SellerJourneyBanner className="mx-4 mt-3" />
         <HomeNotificationBanner />
         {needsPreciseLocation && <PreciseLocationRequiredCard className="mx-4 mt-3" />}
-        <ActiveOrderStrip />
+        <div className="mt-1">
+          <ActiveOrderStrip />
+        </div>
         <HomeSearchSuggestions />
         <MarketplaceSection />
 

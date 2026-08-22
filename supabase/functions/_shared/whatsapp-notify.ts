@@ -80,11 +80,15 @@ function resolveTemplate(opts: {
   payload: Record<string, unknown>;
   userName: string;
 }): { templateName: string; bodyParams: string[]; fallbackText: string } {
-  const status = String(opts.payload.status || "").toLowerCase();
+  const status = String(opts.payload.status || opts.payload.new_status || "").toLowerCase();
   const targetRole = String(opts.payload.target_role || "");
   const name = opts.userName || "there";
   const orderRef = shortOrderRef(opts.payload, opts.title);
-  const fallbackText = `${opts.title}\n${opts.body}\n— Sociva`;
+  const displayTitle = (opts.title || "").trim()
+    || (status === "accepted" ? "Order Accepted" : status === "placed" ? "New Order" : "Order Update");
+  const displayBody = (opts.body || "").trim()
+    || String(opts.payload.item_summary || opts.payload.sellerName || opts.payload.providerName || displayTitle);
+  const fallbackText = `${displayTitle}\n${displayBody}\n— Sociva`;
 
   if (opts.payload.wa_template) {
     const tpl = String(opts.payload.wa_template);

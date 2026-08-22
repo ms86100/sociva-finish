@@ -31,8 +31,9 @@ function writeSnoozePref(minutes: number) {
   try { sessionStorage.setItem(SNOOZE_PREF_KEY, String(minutes)); } catch { /* Session preference is best-effort. */ }
 }
 
-function statusLabel(status: string): string {
-  switch (status) {
+function statusLabel(order: NewOrder): string {
+  if (order.alertKind === 'status_nudge') return '⏰ Update order status';
+  switch (order.status) {
     case 'enquired': return '📋 New Enquiry';
     case 'placed': return '🛒 New Order';
     case 'quoted': return '💬 Quote Request';
@@ -201,7 +202,7 @@ export function NewOrderAlertOverlay({ orders, onDismiss, onDismissAll, onSnooze
             </div>
 
             <div className="text-center space-y-2">
-              <h2 className="text-xl font-bold text-foreground">{statusLabel(order.status)}</h2>
+              <h2 className="text-xl font-bold text-foreground">{statusLabel(order)}</h2>
               {order.total_amount > 0 && (
                 <p className="text-2xl font-bold text-accent tabular-nums">{formatPrice(order.total_amount)}</p>
               )}
@@ -230,7 +231,9 @@ export function NewOrderAlertOverlay({ orders, onDismiss, onDismissAll, onSnooze
                 </div>
               )}
               <p className="text-sm text-muted-foreground">
-                {order.status === 'preparing'
+                {order.alertKind === 'status_nudge'
+                  ? 'This order is still Accepted. Open it to mark Preparing or advance the status.'
+                  : order.status === 'preparing'
                   ? 'This order was auto-accepted. Start preparing!'
                   : queueCount > 1
                     ? `${queueCount} orders waiting — tap to view this one`
@@ -243,7 +246,7 @@ export function NewOrderAlertOverlay({ orders, onDismiss, onDismissAll, onSnooze
               onClick={handleView}
             >
               <ShoppingBag size={18} />
-              View Order
+              {order.alertKind === 'status_nudge' ? 'Update Status' : 'View Order'}
               <ArrowRight size={16} />
             </Button>
 

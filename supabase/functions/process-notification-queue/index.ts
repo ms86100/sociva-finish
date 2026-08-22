@@ -8,6 +8,7 @@ import {
   pnqLog,
   updateTokenHealth,
 } from "../_shared/notification-ops.ts";
+import { resolveQueueDisplayCopy } from "../_shared/notification-display-copy.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -664,12 +665,19 @@ Deno.serve(async (req) => {
 
     for (const item of pending) {
       try {
+        const displayCopy = resolveQueueDisplayCopy({
+          title: item.title,
+          body: item.body,
+          type: item.type,
+          payload: item.payload || null,
+        });
+
         // TTL-expired: push is suppressed but the EVENT must still exist in history.
         // Write an is_read=true in-app record so the event appears in the order timeline,
         // then discard the push. This preserves "what happened" while preventing a stale ring.
         if (item.expires_at && new Date(item.expires_at) < new Date()) {
           await supabase.from("user_notifications").insert({
-            user_id: item.user_id, title: item.title, body: item.body,
+            user_id: item.user_id, title: displayCopy.title, body: displayCopy.body,
             type: item.type,
             reference_path: item.reference_path, action_url: item.reference_path,
             queue_item_id: item.id,
@@ -702,7 +710,7 @@ Deno.serve(async (req) => {
         if (!prefAllowed) {
           console.log(`[Queue][${item.id}] Skipped push — user opted out of '${notifType}'`);
           await supabase.from("user_notifications").insert({
-            user_id: item.user_id, title: item.title, body: item.body,
+            user_id: item.user_id, title: displayCopy.title, body: displayCopy.body,
             type: item.type,
             reference_path: item.reference_path, action_url: item.reference_path,
             queue_item_id: item.id,
@@ -763,7 +771,7 @@ Deno.serve(async (req) => {
             const isNewOrderNotif = ['placed', 'enquired', 'requested'].includes(payloadStatus);
             if (((isStale && isTerminal) || isStateMismatch) && !isNewOrderNotif) {
               await supabase.from("user_notifications").insert({
-                user_id: item.user_id, title: item.title, body: item.body,
+                user_id: item.user_id, title: displayCopy.title, body: displayCopy.body,
                 type: item.type,
                 reference_path: item.reference_path, action_url: item.reference_path,
                 queue_item_id: item.id,
@@ -784,7 +792,7 @@ Deno.serve(async (req) => {
 
         // Insert in-app notification (with dedup via queue_item_id) — write both column pairs
         const { error: insertError } = await supabase.from("user_notifications").insert({
-          user_id: item.user_id, title: item.title, body: item.body,
+          user_id: item.user_id, title: displayCopy.title, body: displayCopy.body,
           type: item.type,
           reference_path: item.reference_path, action_url: item.reference_path,
           queue_item_id: item.id,
@@ -802,8 +810,8 @@ Deno.serve(async (req) => {
             phone: profile?.phone,
             userName: profile?.name,
             type: item.type,
-            title: item.title,
-            body: item.body,
+            title: displayCopy.title,
+            body: displayCopy.body,
             payload: item.payload || {},
             whatsappPref: userPrefs?.whatsapp !== false,
             whatsappOptedInAt: userPrefs?.whatsapp_opted_in_at ?? null,
@@ -871,6 +879,8 @@ Deno.serve(async (req) => {
         const isHighPriority =
           (targetRole === 'seller' && SELLER_HIGH_PRIORITY_STATUSES.includes(notifStatus)) ||
           (targetRole === 'buyer' && BUYER_HIGH_PRIORITY_STATUSES.includes(notifStatus)) ||
+          item.type === 'seller_order_status_reminder' ||
+          rawPayload.reminder_type === 'status_nudge' ||
           SELLER_LIFECYCLE_TYPES.includes(item.type);
 
         // Quiet hours: suppress non-urgent push (inbox + WA already handled)
@@ -955,6 +965,7 @@ Deno.serve(async (req) => {
           pushData.is_terminal = TERMINAL_PUSH_STATUSES.includes(String(notifStatus)) ? 'true' : 'false';
         }
         if (item.type) pushData.type = String(item.type);
+        if (rawPayload.reminder_type) pushData.reminder_type = String(rawPayload.reminder_type);
         if (item.id) pushData.queue_item_id = String(item.id);
         if (rawPayload.notif_id) pushData.notif_id = String(rawPayload.notif_id);
         // Include queue creation time so the client can detect stale pushes buffered by FCM/APNs.
@@ -967,7 +978,7 @@ Deno.serve(async (req) => {
 
         const { successCount, failCount } = await deliverPushToUser(
           supabase, creds, item.user_id,
-          item.title, item.body, pushData,
+          displayCopy.title, displayCopy.body, pushData,
           threadId, imageUrl, item.id, isHighPriority,
         );
 

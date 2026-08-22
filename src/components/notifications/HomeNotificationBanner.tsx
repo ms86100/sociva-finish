@@ -63,7 +63,7 @@ export function HomeNotificationBanner() {
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -12 }}
           transition={{ duration: 0.3 }}
-          className="px-4 mt-3"
+          className="px-4 mt-3 mb-3"
         >
           <RichNotificationCard
             notification={notification}

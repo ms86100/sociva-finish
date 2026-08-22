@@ -37,5 +37,8 @@ verify_jwt = false
 [functions.reconcile-financials]
 verify_jwt = false
 
+[functions.send-seller-status-reminders]
+verify_jwt = false
+
 [functions.recover-financial-operations]
 verify_jwt = false

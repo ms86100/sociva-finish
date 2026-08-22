@@ -24,6 +24,8 @@ export interface NewOrder {
   delivery_lat?: number | null;
   delivery_lng?: number | null;
   society_id?: string | null;
+  /** Incoming new-order alert vs accepted-status reminder */
+  alertKind?: 'incoming' | 'status_nudge';
 }
 
 const MIN_POLL_MS = 3000;

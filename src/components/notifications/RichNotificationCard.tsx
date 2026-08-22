@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils';
 import type { UserNotification } from '@/hooks/queries/useNotifications';
 import { useMarkNotificationRead } from '@/hooks/queries/useNotifications';
 import { pickNotificationRoute } from '@/lib/notification-routes';
+import { resolveNotificationDisplay } from '@/lib/notification-display';
 import { SELLER_JOURNEY_ACTION_LABELS } from '@/lib/seller-journey';
 
 function getIcon(type: string) {
@@ -76,6 +77,7 @@ export function RichNotificationCard({ notification, onDismiss }: Props) {
   const markRead = useMarkNotificationRead();
   const action = notification.payload?.action;
   const urgent = isUrgentType(notification.type);
+  const { title, body } = resolveNotificationDisplay(notification);
 
   const handleAction = () => {
     if (!notification.is_read) markRead.mutate(notification.id);
@@ -110,10 +112,10 @@ export function RichNotificationCard({ notification, onDismiss }: Props) {
             <div className="flex items-center gap-2">
               <CheckCircle2 size={16} className={cn("shrink-0", urgent ? "text-destructive" : "text-primary")} />
               <h3 className="font-bold text-base text-foreground leading-tight truncate">
-                {notification.title}
+                {title}
               </h3>
             </div>
-            <p className="text-sm text-muted-foreground mt-1">{notification.body}</p>
+            <p className="text-sm text-muted-foreground mt-1">{body}</p>
             <p className="text-[10px] text-muted-foreground mt-1.5">
               {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
             </p>

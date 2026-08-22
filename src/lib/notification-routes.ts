@@ -40,6 +40,10 @@ export function resolveNotificationRoute(
       const orderId = getOrderId(payload);
       return orderId ? `/orders/${orderId}` : '/orders';
     }
+    case 'seller_order_status_reminder': {
+      const orderId = getOrderId(payload);
+      return orderId ? `/orders/${orderId}` : '/seller';
+    }
 
     // Reviews — buyer rates an order, seller views received review on the order page
     case 'review':

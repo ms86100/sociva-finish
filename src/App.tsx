@@ -81,6 +81,7 @@ import { useSecurityOfficer } from "@/hooks/useSecurityOfficer";
 import { useAppLifecycle } from "@/hooks/useAppLifecycle";
 import { useReorderInterceptor } from "@/hooks/useReorderInterceptor";
 import { useNewOrderAlert } from "@/hooks/useNewOrderAlert";
+import { useSellerStatusNudge } from "@/hooks/useSellerStatusNudge";
 import { useChatAlerts } from "@/hooks/useSellerChatAlerts";
 import { NewOrderAlertProvider, useNewOrderAlertContext } from "@/contexts/NewOrderAlertContext";
 import { NewOrderAlertOverlay } from "@/components/seller/NewOrderAlertOverlay";
@@ -422,13 +423,55 @@ function GlobalSellerAlertActive() {
     [seller?.sellerProfiles]
   );
   const { pendingAlerts, dismiss, dismissById, dismissAll, snooze } = useNewOrderAlert(sellerIds);
+  const incomingActive = pendingAlerts.length > 0;
+  const {
+    pendingNudges,
+    dismiss: dismissNudge,
+    dismissById: dismissNudgeById,
+    dismissAll: dismissAllNudges,
+    snooze: snoozeNudge,
+  } = useSellerStatusNudge(sellerIds, incomingActive);
+
+  const overlayOrders = React.useMemo(() => {
+    const incomingIds = new Set(pendingAlerts.map(o => o.id));
+    const nudges = pendingNudges.filter(n => !incomingIds.has(n.id));
+    return [...pendingAlerts, ...nudges];
+  }, [pendingAlerts, pendingNudges]);
+
+  const dismissTop = React.useCallback(() => {
+    const top = overlayOrders[0];
+    if (top?.alertKind === 'status_nudge') dismissNudge();
+    else dismiss();
+  }, [overlayOrders, dismiss, dismissNudge]);
+
+  const dismissAllTop = React.useCallback(() => {
+    dismissAll();
+    dismissAllNudges();
+  }, [dismissAll, dismissAllNudges]);
+
+  const snoozeTop = React.useCallback((minutes?: number) => {
+    const top = overlayOrders[0];
+    if (top?.alertKind === 'status_nudge') snoozeNudge(minutes ?? 5);
+    else snooze(minutes);
+  }, [overlayOrders, snooze, snoozeNudge]);
 
   React.useEffect(() => {
-    registerDismissById(dismissById);
-    registerDismissAll(dismissAll);
-  }, [dismissById, dismissAll, registerDismissById, registerDismissAll]);
+    registerDismissById((orderId: string) => {
+      dismissById(orderId);
+      dismissNudgeById(orderId);
+    });
+    registerDismissAll(dismissAllTop);
+  }, [dismissById, dismissNudgeById, dismissAllTop, registerDismissById, registerDismissAll]);
 
-  return <NewOrderAlertOverlay orders={pendingAlerts} onDismiss={dismiss} onDismissAll={dismissAll} onSnooze={snooze} sellerProfiles={seller?.sellerProfiles || []} />;
+  return (
+    <NewOrderAlertOverlay
+      orders={overlayOrders}
+      onDismiss={dismissTop}
+      onDismissAll={dismissAllTop}
+      onSnooze={snoozeTop}
+      sellerProfiles={seller?.sellerProfiles || []}
+    />
+  );
 }
 
 class SafeSellerAlert extends React.Component<
