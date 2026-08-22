@@ -3,6 +3,7 @@ import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ChevronRight } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { ProductWithSeller } from '@/components/product/ProductListingCard';
 import { RichSellerCard } from './RichSellerCard';
 import { useParentGroups } from '@/hooks/useParentGroups';
@@ -19,6 +20,8 @@ interface GroupedSellerRowProps {
   maxSellers?: number;
   /** Maximum top products per seller card */
   maxProductsPerSeller?: number;
+  tone?: 'default' | 'festival';
+  accentColor?: string;
 }
 
 interface SellerGroup {
@@ -43,6 +46,8 @@ export function GroupedSellerRow({
   seeAllLink,
   maxSellers = 12,
   maxProductsPerSeller = 2,
+  tone = 'default',
+  accentColor,
 }: GroupedSellerRowProps) {
   const { parentGroupInfos } = useParentGroups();
 
@@ -98,15 +103,27 @@ export function GroupedSellerRow({
   const fallbackLink = resolvedGroups.length === 1 ? `/category/${resolvedGroups[0]}` : '/categories';
   const finalSeeAllLink = seeAllLink || fallbackLink;
 
+  const festival = tone === 'festival';
+
   return (
     <div>
       <div className="flex items-center justify-between px-4 mb-3">
         <div className="flex items-center gap-2">
           {icon}
-          <h3 className="font-extrabold text-lg text-foreground tracking-tight">{title}</h3>
+          <h3 className={cn(
+            'font-extrabold text-lg tracking-tight',
+            festival ? 'text-white' : 'text-foreground'
+          )}>{title}</h3>
         </div>
         {finalSeeAllLink && (
-          <Link to={finalSeeAllLink} className="text-xs font-bold text-primary flex items-center gap-0.5 hover:underline">
+          <Link
+            to={finalSeeAllLink}
+            className={cn(
+              'text-xs font-bold flex items-center gap-0.5 hover:underline',
+              !festival && 'text-primary'
+            )}
+            style={festival ? { color: accentColor || '#f5d76e' } : undefined}
+          >
             See all <ChevronRight size={14} />
           </Link>
         )}

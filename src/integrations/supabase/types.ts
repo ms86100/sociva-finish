@@ -3556,6 +3556,52 @@ export type Database = {
           },
         ]
       }
+      festival_product_exclusions: {
+        Row: {
+          banner_id: string
+          created_at: string
+          id: string
+          product_id: string
+          seller_id: string
+        }
+        Insert: {
+          banner_id: string
+          created_at?: string
+          id?: string
+          product_id: string
+          seller_id: string
+        }
+        Update: {
+          banner_id?: string
+          created_at?: string
+          id?: string
+          product_id?: string
+          seller_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "festival_product_exclusions_banner_id_fkey"
+            columns: ["banner_id"]
+            isOneToOne: false
+            referencedRelation: "featured_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "festival_product_exclusions_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "festival_product_exclusions_seller_id_fkey"
+            columns: ["seller_id"]
+            isOneToOne: false
+            referencedRelation: "seller_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       festival_seller_participation: {
         Row: {
           banner_id: string
@@ -11849,6 +11895,19 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      festival_seller_matches: {
+        Args: { p_banner_id: string; p_seller_id: string }
+        Returns: {
+          is_excluded: boolean
+          product_id: string
+          product_image_url: string | null
+          product_mrp: number | null
+          product_name: string
+          product_price: number
+          section_id: string
+          section_title: string
+        }[]
+      }
       fn_check_dispute_sla_breach: { Args: never; Returns: number }
       fn_check_rate_limit: {
         Args: {
@@ -12556,7 +12615,26 @@ export type Database = {
         Returns: string
       }
       mark_stale_upi_verifications: { Args: never; Returns: undefined }
+      notify_eligible_sellers_festival_published: {
+        Args: { p_banner_id: string }
+        Returns: number
+      }
       notify_upcoming_maintenance_dues: { Args: never; Returns: undefined }
+      preview_festival_section_inventory: {
+        Args: {
+          p_banner_id?: string
+          p_sections: Json
+          p_society_ids?: string[]
+        }
+        Returns: {
+          product_count: number
+          section_index: number
+          seller_count: number
+          society_count: number
+          source_type: string
+          source_value: string
+        }[]
+      }
       quote_loyalty_redemption: {
         Args: { _cart_amount_after_coupon: number }
         Returns: Json
@@ -12690,6 +12768,8 @@ export type Database = {
             }
             Returns: {
               category: string
+              delivery_time_text: string | null
+              discount_percentage: number | null
               id: string
               image_url: string
               is_available: boolean
@@ -12700,6 +12780,10 @@ export type Database = {
               name: string
               price: number
               seller_id: string
+              seller_name: string | null
+              seller_rating: number | null
+              seller_reviews: number | null
+              seller_verified: boolean | null
               stock_quantity: number
             }[]
           }
@@ -12715,6 +12799,8 @@ export type Database = {
             }
             Returns: {
               category: string
+              delivery_time_text: string | null
+              discount_percentage: number | null
               id: string
               image_url: string
               is_available: boolean
@@ -12725,6 +12811,10 @@ export type Database = {
               name: string
               price: number
               seller_id: string
+              seller_name: string | null
+              seller_rating: number | null
+              seller_reviews: number | null
+              seller_verified: boolean | null
               stock_quantity: number
             }[]
           }
@@ -12737,6 +12827,8 @@ export type Database = {
           p_society_id?: string
         }
         Returns: {
+          delivery_time_text: string | null
+          discount_percentage: number | null
           product_category: string
           product_id: string
           product_image_url: string
@@ -12750,6 +12842,10 @@ export type Database = {
           product_seller_id: string
           product_stock_quantity: number
           section_id: string
+          seller_name: string | null
+          seller_rating: number | null
+          seller_reviews: number | null
+          seller_verified: boolean | null
         }[]
       }
       resolve_transition_parent_group: {

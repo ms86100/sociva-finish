@@ -3,22 +3,34 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { resolveProducts, ResolvedProduct } from '@/lib/bannerProductResolver';
-import { optimizedImageUrl, handleImageError } from '@/utils/imageHelpers';
+import { resolveProducts } from '@/lib/bannerProductResolver';
+import { toProductWithSeller } from '@/lib/festivalProductMapper';
 import { ArrowLeft, ShoppingBag } from 'lucide-react';
+import { FestivalStringLights } from '@/components/home/FestivalStringLights';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Badge } from '@/components/ui/badge';
-import { cn } from '@/lib/utils';
-import { motion, AnimatePresence } from 'framer-motion';
+import { ProductListingCard, ProductWithSeller } from '@/components/product/ProductListingCard';
+import { useCategoryConfigs } from '@/hooks/useCategoryBehavior';
+import { useMarketplaceConfig } from '@/hooks/useMarketplaceConfig';
+import { useBadgeConfig } from '@/hooks/useBadgeConfig';
 import {
-  staggerContainer, cardEntrance, scalePress, fadeSlideUp,
-  emptyState as emptyStateVariant, easings,
+  emptyState as emptyStateVariant,
 } from '@/lib/motion-variants';
+import { motion } from 'framer-motion';
+import { useCallback, useMemo, useState, lazy, Suspense } from 'react';
+
+const ProductDetailSheet = lazy(() =>
+  import('@/components/product/ProductDetailSheet').then((m) => ({ default: m.ProductDetailSheet })),
+);
 
 export default function FestivalCollectionPage() {
   const { bannerId, sectionId } = useParams<{ bannerId: string; sectionId: string }>();
   const navigate = useNavigate();
   const { user, effectiveSocietyId } = useAuth();
+  const { configs: categoryConfigs } = useCategoryConfigs();
+  const marketplaceConfig = useMarketplaceConfig();
+  const { badges: badgeConfigs } = useBadgeConfig();
+  const [selectedProduct, setSelectedProduct] = useState<any>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
 
   const { data: banner } = useQuery({
     queryKey: ['festival-banner', bannerId],
@@ -58,15 +70,48 @@ export default function FestivalCollectionPage() {
   });
 
   const themeConfig = (banner as any)?.theme_config || {};
-  const gradient = themeConfig.gradient || [];
-  const bgColor = themeConfig.bg || 'hsl(var(--primary))';
+  const gradient = Array.isArray(themeConfig.gradient) ? themeConfig.gradient.filter(Boolean) : [];
+  const bgColor = themeConfig.bg || gradient[0] || '#3b0a1e';
+  const accentColor = themeConfig.accent || (gradient.length >= 1 ? gradient[gradient.length - 1] : '#f5d76e');
 
-  const headerStyle = gradient.length >= 2
-    ? { background: `linear-gradient(135deg, ${gradient.join(', ')})` }
-    : { backgroundColor: bgColor };
+  const headerStyle = {
+    background: gradient.length >= 2
+      ? `linear-gradient(180deg, ${bgColor} 0%, ${gradient[0]} 70%, ${bgColor} 100%)`
+      : bgColor,
+    ['--festival-accent' as string]: accentColor,
+  };
 
-  const available = products.filter(p => p.is_available && (p.stock_quantity ?? 1) > 0);
-  const outOfStock = products.filter(p => !p.is_available || (p.stock_quantity ?? 1) <= 0);
+  const listingProducts = useMemo(() => products.map(toProductWithSeller), [products]);
+  const available = listingProducts.filter(p => p.is_available && (p.stock_quantity ?? 1) > 0);
+  const outOfStock = listingProducts.filter(p => !p.is_available || (p.stock_quantity ?? 1) <= 0);
+
+  const handleProductTap = useCallback((product: ProductWithSeller) => {
+    if (user && bannerId && sectionId) {
+      supabase.from('banner_analytics').insert({
+        banner_id: bannerId, section_id: sectionId,
+        event_type: 'product_click', product_id: product.id, user_id: user.id,
+      }).then(() => {});
+    }
+    const catConfig = categoryConfigs.find(c => c.category === product.category);
+    setSelectedProduct({
+      product_id: product.id,
+      product_name: product.name,
+      price: product.price,
+      image_url: product.image_url,
+      is_veg: product.is_veg,
+      category: product.category,
+      description: product.description,
+      seller_id: product.seller_id,
+      seller_name: product.seller_name || '',
+      seller_rating: product.seller_rating || 0,
+      seller_reviews: product.seller_reviews || 0,
+      seller_verified: !!product.seller_verified,
+      delivery_time_text: product.delivery_time_text || null,
+      _catIcon: catConfig?.icon || '🛍️',
+      _catName: catConfig?.displayName || product.category,
+    });
+    setDetailOpen(true);
+  }, [user, bannerId, sectionId, categoryConfigs]);
 
   return (
     <div className="min-h-screen bg-background pb-20">
@@ -74,26 +119,33 @@ export default function FestivalCollectionPage() {
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ type: 'spring', stiffness: 300, damping: 28 }}
-        className="relative"
+        className="relative overflow-hidden"
         style={headerStyle}
       >
-        <div className="flex items-center gap-3 px-4 pt-12 pb-5">
+        <FestivalStringLights />
+        <div className="flex items-start gap-3 px-4 pt-10 pb-6">
           <motion.button
             whileTap={{ scale: 0.9 }}
             onClick={() => navigate(-1)}
-            className="w-9 h-9 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center"
+            className="w-9 h-9 mt-1 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center shrink-0"
           >
             <ArrowLeft size={18} className="text-white" />
           </motion.button>
-          <div className="flex-1">
-            <h1 className="text-white font-extrabold text-lg">
+          <div className="flex-1 min-w-0">
+            <p className="text-[10px] font-semibold tracking-[0.18em] uppercase text-white/65">
+              {(banner as any)?.title || 'Festival'}
+            </p>
+            <h1
+              className="font-serif text-[28px] leading-tight font-bold mt-0.5"
+              style={{ color: accentColor }}
+            >
               {(section as any)?.icon_emoji} {(section as any)?.title || 'Collection'}
             </h1>
             {(section as any)?.subtitle && (
-              <p className="text-white/70 text-xs mt-0.5">{(section as any).subtitle}</p>
+              <p className="text-white/80 text-xs mt-1">{(section as any).subtitle}</p>
             )}
           </div>
-          <span className="text-white/60 text-xs font-medium">
+          <span className="text-white/70 text-xs font-medium mt-2 shrink-0">
             {available.length} items
           </span>
         </div>
@@ -103,7 +155,7 @@ export default function FestivalCollectionPage() {
         {isLoading ? (
           <div className="grid grid-cols-2 gap-3">
             {[1, 2, 3, 4].map(i => (
-              <Skeleton key={i} className="h-48 rounded-2xl" />
+              <Skeleton key={i} className="h-56 rounded-2xl" />
             ))}
           </div>
         ) : available.length === 0 && outOfStock.length === 0 ? (
@@ -117,124 +169,57 @@ export default function FestivalCollectionPage() {
               <ShoppingBag size={28} className="text-muted-foreground/40" />
             </div>
             <p className="text-sm font-semibold text-muted-foreground">No items available in your area</p>
-            <p className="text-xs text-muted-foreground/70 mt-1">Check back later — sellers are adding products!</p>
+            <p className="text-xs text-muted-foreground/70 mt-1">Check back later — sellers are adding products.</p>
           </motion.div>
         ) : (
           <>
-            <motion.div
-              variants={staggerContainer}
-              initial="hidden"
-              animate="show"
-              className="grid grid-cols-2 gap-3"
-            >
+            <div className="grid grid-cols-2 gap-3">
               {available.map(product => (
-                <ProductCard key={product.id} product={product} navigate={navigate} bannerId={bannerId!} sectionId={sectionId!} userId={user?.id} />
+                <ProductListingCard
+                  key={product.id}
+                  product={product}
+                  onTap={handleProductTap}
+                  onNavigate={navigate}
+                  categoryConfigs={categoryConfigs as any}
+                  marketplaceConfig={marketplaceConfig}
+                  badgeConfigs={badgeConfigs}
+                />
               ))}
-            </motion.div>
+            </div>
 
             {outOfStock.length > 0 && (
               <>
                 <p className="text-xs text-muted-foreground font-semibold mt-6 mb-2 uppercase tracking-wider">
                   Out of Stock
                 </p>
-                <motion.div
-                  variants={staggerContainer}
-                  initial="hidden"
-                  animate="show"
-                  className="grid grid-cols-2 gap-3 opacity-50"
-                >
+                <div className="grid grid-cols-2 gap-3 opacity-60">
                   {outOfStock.map(product => (
-                    <ProductCard key={product.id} product={product} navigate={navigate} bannerId={bannerId!} sectionId={sectionId!} userId={user?.id} outOfStock />
+                    <ProductListingCard
+                      key={product.id}
+                      product={product}
+                      onTap={handleProductTap}
+                      onNavigate={navigate}
+                      categoryConfigs={categoryConfigs as any}
+                      marketplaceConfig={marketplaceConfig}
+                      badgeConfigs={badgeConfigs}
+                    />
                   ))}
-                </motion.div>
+                </div>
               </>
             )}
           </>
         )}
       </div>
-    </div>
-  );
-}
 
-function ProductCard({
-  product, navigate, bannerId, sectionId, userId, outOfStock = false,
-}: {
-  product: ResolvedProduct; navigate: any; bannerId: string;
-  sectionId: string; userId?: string; outOfStock?: boolean;
-}) {
-  const lowStock = !outOfStock && product.stock_quantity != null && product.low_stock_threshold != null
-    && product.stock_quantity <= product.low_stock_threshold && product.stock_quantity > 0;
-
-  const discount = product.mrp && product.mrp > product.price
-    ? Math.round(((product.mrp - product.price) / product.mrp) * 100)
-    : 0;
-
-  const handleClick = () => {
-    // Product-level analytics tracking
-    if (userId) {
-      supabase.from('banner_analytics').insert({
-        banner_id: bannerId, section_id: sectionId,
-        event_type: 'product_click', product_id: product.id, user_id: userId,
-      }).then(() => {});
-    }
-    navigate(`/product/${product.id}`);
-  };
-
-  return (
-    <motion.button
-      variants={cardEntrance}
-      whileTap={!outOfStock ? { scale: 0.97 } : undefined}
-      whileHover={!outOfStock ? { y: -2, boxShadow: '0 8px 25px -5px rgba(0,0,0,0.1)' } : undefined}
-      onClick={handleClick}
-      className={cn(
-        'rounded-2xl border border-border/40 bg-card overflow-hidden text-left festival-product-card',
-      )}
-    >
-      <div className="relative aspect-square bg-muted">
-        {product.image_url ? (
-          <img
-            src={optimizedImageUrl(product.image_url, { width: 300, quality: 75 })}
-            alt={product.name}
-            className="w-full h-full object-cover"
-            loading="lazy"
-            onError={handleImageError}
+      {detailOpen && (
+        <Suspense fallback={null}>
+          <ProductDetailSheet
+            product={selectedProduct}
+            open={detailOpen}
+            onOpenChange={setDetailOpen}
           />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center text-muted-foreground/30">
-            <ShoppingBag size={32} />
-          </div>
-        )}
-
-        {outOfStock && (
-          <div className="absolute inset-0 bg-background/60 flex items-center justify-center">
-            <Badge variant="secondary" className="text-[10px]">Out of Stock</Badge>
-          </div>
-        )}
-
-        {lowStock && (
-          <Badge className="absolute top-2 left-2 text-[9px] bg-warning text-white border-0 px-1.5 py-0.5">
-            Only {product.stock_quantity} left
-          </Badge>
-        )}
-
-        {discount > 0 && !outOfStock && (
-          <Badge className="absolute top-2 right-2 text-[9px] bg-destructive text-white border-0 px-1.5 py-0.5">
-            {discount}% off
-          </Badge>
-        )}
-      </div>
-
-      <div className="p-2.5">
-        <p className="text-xs font-semibold text-foreground line-clamp-2 leading-tight">
-          {product.name}
-        </p>
-        <div className="flex items-baseline gap-1.5 mt-1">
-          <span className="text-sm font-bold text-foreground">₹{product.price}</span>
-          {product.mrp && product.mrp > product.price && (
-            <span className="text-[10px] text-muted-foreground line-through">₹{product.mrp}</span>
-          )}
-        </div>
-      </div>
-    </motion.button>
+        </Suspense>
+      )}
+    </div>
   );
 }

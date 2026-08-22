@@ -18,10 +18,15 @@ export function resolveNotificationRoute(
     // Seller lifecycle
     case 'seller_approved':
       return '/seller/credits';
+    case 'seller_store_submitted':
+    case 'seller_store_under_review':
+      return '/become-seller';
     case 'seller_rejected':
       return '/become-seller';
     case 'seller_suspended':
       return '/seller';
+    case 'seller_credit_failed':
+      return '/seller/credits';
     case 'seller_daily_summary':
       return '/seller';
 

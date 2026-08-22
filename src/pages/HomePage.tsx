@@ -10,6 +10,7 @@ import { SocietyQuickLinks } from '@/components/home/SocietyQuickLinks';
 import { CommunityTeaser } from '@/components/home/CommunityTeaser';
 import { LazySection } from '@/components/home/LazySection';
 import { HomeNotificationBanner } from '@/components/notifications/HomeNotificationBanner';
+import { SellerJourneyBanner } from '@/components/seller/SellerJourneyBanner';
 import { PreciseLocationRequiredCard } from '@/components/location/PreciseLocationRequiredCard';
 import { useBrowsingLocation } from '@/contexts/BrowsingLocationContext';
 import { hasPreciseCoordinates } from '@/lib/buyerLocation';
@@ -69,6 +70,7 @@ export default function HomePage() {
   return (
     <AppLayout>
       <div className="pb-4 space-y-0">
+        <SellerJourneyBanner className="mx-4 mt-3" />
         <HomeNotificationBanner />
         {needsPreciseLocation && <PreciseLocationRequiredCard className="mx-4 mt-3" />}
         <ActiveOrderStrip />

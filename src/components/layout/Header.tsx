@@ -13,6 +13,7 @@ import { useImmediateNavigate } from '@/hooks/useImmediateNavigate';
 import { useUnreadNotificationCount } from '@/hooks/useUnreadNotificationCount';
 import { useBrowsingLocation } from '@/contexts/BrowsingLocationContext';
 import { LocationSelectorSheet } from '@/components/location/LocationSelectorSheet';
+import { useFestivalTakeover } from '@/hooks/queries/useActiveFestivals';
 
 const IS_NATIVE = Capacitor.isNativePlatform();
 
@@ -52,6 +53,8 @@ function HeaderInner({
   const { profile, society, user, viewAsSocietyId, effectiveSociety, setViewAsSociety, isAdmin, isBuilderMember, isProfileLoading } = useAuth();
   const unreadCount = useUnreadNotificationCount();
   const { browsingLocation } = useBrowsingLocation();
+  const takeover = useFestivalTakeover();
+  const festivalChrome = takeover.active && !title;
 
   const displaySociety = effectiveSociety || society;
   const isViewingAs = viewAsSocietyId && (isAdmin || isBuilderMember);
@@ -72,10 +75,15 @@ function HeaderInner({
     <>
       <header
         className={cn(
-          'sticky top-0 z-40 bg-[hsl(var(--header-bg))] border-b border-border/50',
-          !IS_NATIVE && 'backdrop-blur-xl',
+          'sticky top-0 z-40',
+          festivalChrome
+            ? 'border-b border-white/10'
+            : 'bg-[hsl(var(--header-bg))] border-b border-border/50',
+          !IS_NATIVE && !festivalChrome && 'backdrop-blur-xl',
           className
         )}
+        style={festivalChrome ? { backgroundColor: takeover.bg } : undefined}
+        data-festival-takeover={festivalChrome ? 'true' : undefined}
       >
         <div
           className="px-4 pb-2.5 space-y-2.5"
@@ -102,15 +110,30 @@ function HeaderInner({
                   onClick={() => setLocationSheetOpen(true)}
                   className="min-w-0 flex-1 text-left active:opacity-80 transition-opacity"
                 >
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground leading-none mb-1">
+                  <p className={cn(
+                    'text-[10px] font-bold uppercase tracking-wider leading-none mb-1',
+                    festivalChrome ? 'text-white/70' : 'text-muted-foreground'
+                  )}>
                     Delivering to
                   </p>
                   <div className="flex items-center gap-1 min-w-0">
-                    <MapPin size={15} className="text-primary shrink-0" strokeWidth={2.5} />
-                    <span className="text-[15px] font-extrabold text-foreground truncate">
+                    <MapPin
+                      size={15}
+                      className={cn('shrink-0', festivalChrome ? 'text-white' : 'text-primary')}
+                      style={festivalChrome ? { color: takeover.accent } : undefined}
+                      strokeWidth={2.5}
+                    />
+                    <span className={cn(
+                      'text-[15px] font-extrabold truncate',
+                      festivalChrome ? 'text-white' : 'text-foreground'
+                    )}>
                       {locationLabel}
                     </span>
-                    <ChevronDown size={14} className="text-foreground shrink-0" strokeWidth={2.5} />
+                    <ChevronDown
+                      size={14}
+                      className={cn('shrink-0', festivalChrome ? 'text-white' : 'text-foreground')}
+                      strokeWidth={2.5}
+                    />
                   </div>
                 </button>
 
@@ -120,7 +143,10 @@ function HeaderInner({
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="relative h-9 w-9 rounded-full"
+                        className={cn(
+                          'relative h-9 w-9 rounded-full',
+                          festivalChrome && 'text-white hover:bg-white/10 hover:text-white'
+                        )}
                         onClick={() => handleRouteNav('/notifications/inbox')}
                         aria-label="Notifications"
                       >
@@ -154,8 +180,17 @@ function HeaderInner({
                 onClick={() => handleRouteNav('/search')}
                 className="block w-full text-left"
               >
-                <div className="flex items-center gap-3 bg-secondary border border-border rounded-xl px-3.5 py-2.5 shadow-sm">
-                  <Search size={18} className="text-primary shrink-0" strokeWidth={2.25} />
+                <div className={cn(
+                  'flex items-center gap-3 border px-3.5 shadow-sm',
+                  festivalChrome
+                    ? 'festival-takeover-search rounded-full py-3 border-white/30'
+                    : 'bg-secondary border-border rounded-xl py-2.5'
+                )}>
+                  <Search
+                    size={18}
+                    className={cn('shrink-0', festivalChrome ? 'text-white/85' : 'text-primary')}
+                    strokeWidth={2.25}
+                  />
                   <div className="flex-1 min-w-0">
                     <TypewriterPlaceholder context="home" />
                   </div>

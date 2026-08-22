@@ -8,7 +8,6 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { useProductsByCategory } from '@/hooks/queries/useProductsByCategory';
-import { FestivalBannerModule } from './FestivalBannerModule';
 
 /**
  * Extract the target sub-category from a banner link_url like
@@ -61,40 +60,6 @@ export function FeaturedBanners() {
       });
   }, [rawBanners, categoriesWithProducts]);
 
-  const festivalBanners = useMemo(() => {
-    return rawBanners.filter((b: any) => b.banner_type === 'festival');
-  }, [rawBanners]);
-
-  // Fetch sections for festival banners
-  const festivalBannerIds = useMemo(
-    () => festivalBanners.map((b: any) => b.id),
-    [festivalBanners]
-  );
-
-  const { data: allSections = [] } = useQuery({
-    queryKey: ['banner-sections', festivalBannerIds],
-    queryFn: async () => {
-      if (festivalBannerIds.length === 0) return [];
-      const { data } = await supabase
-        .from('banner_sections')
-        .select('id, banner_id, title, subtitle, icon_emoji, display_order, product_source_type, product_source_value')
-        .in('banner_id', festivalBannerIds)
-        .order('display_order');
-      return data || [];
-    },
-    enabled: festivalBannerIds.length > 0,
-    staleTime: 5 * 60_000,
-  });
-
-  const sectionsByBanner = useMemo(() => {
-    const map = new Map<string, any[]>();
-    for (const s of allSections) {
-      const list = map.get(s.banner_id) || [];
-      list.push(s);
-      map.set(s.banner_id, list);
-    }
-    return map;
-  }, [allSections]);
 
   // Featured banners change rarely — no global realtime channel (was unfiltered
   // fan-out to every Home viewer). Query staleTime + admin refetch is enough.
@@ -183,23 +148,10 @@ export function FeaturedBanners() {
     );
   }
 
-  if (classicBanners.length === 0 && festivalBanners.length === 0) return null;
+  if (classicBanners.length === 0) return null;
 
   return (
     <div className="my-4">
-      {/* Festival Banners — rendered as full-width modules */}
-      {festivalBanners.map((banner: any) => {
-        const sections = sectionsByBanner.get(banner.id) || [];
-        if (sections.length === 0) return null;
-        return (
-          <FestivalBannerModule
-            key={banner.id}
-            banner={banner}
-            sections={sections}
-          />
-        );
-      })}
-
       {/* Classic Banner Carousel */}
       {classicBanners.length > 0 && (
         <>

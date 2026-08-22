@@ -510,7 +510,7 @@ Deno.serve(async (req) => {
               queue_item_id: expired.id,
               payload: expired.payload || null, data: expired.payload || null,
               is_read: true,
-            }).then(() => {}).catch(() => {});  // 23505 conflict = already exists, fine
+            });
             await supabase.from("notification_queue")
               .update({ status: "processed", processed_at: new Date().toISOString(), last_error: "Orphan: expired >24h, archived to history" })
               .eq("id", expired.id);
@@ -669,7 +669,7 @@ Deno.serve(async (req) => {
             queue_item_id: item.id,
             payload: item.payload || null, data: item.payload || null,
             is_read: true,  // historical — push never sent, no alert, no badge increment
-          }).then(() => {}).catch(() => {});  // best-effort, 23505 conflict is fine
+          });
           await supabase.from("notification_queue")
             .update({ status: "processed", processed_at: new Date().toISOString(), push_skip_reason: "expired" })
             .eq("id", item.id);
@@ -847,7 +847,16 @@ Deno.serve(async (req) => {
 
         const SELLER_HIGH_PRIORITY_STATUSES = ['placed', 'enquired', 'requested', 'quoted'];
         const BUYER_HIGH_PRIORITY_STATUSES = ['payment_failed', 'refund_failed', 'otp'];
-        const SELLER_LIFECYCLE_TYPES = ['seller_approved', 'STORE_APPROVED', 'seller_rejected', 'seller_suspended'];
+        const SELLER_LIFECYCLE_TYPES = [
+          'seller_approved',
+          'STORE_APPROVED',
+          'seller_rejected',
+          'seller_suspended',
+          'seller_store_submitted',
+          'seller_store_under_review',
+          'seller_credit_purchased',
+          'seller_credit_failed',
+        ];
 
         const isHighPriority =
           (targetRole === 'seller' && SELLER_HIGH_PRIORITY_STATUSES.includes(notifStatus)) ||

@@ -9,6 +9,8 @@ import { useSocialProof } from '@/hooks/queries/useSocialProof';
 import { ParentGroupTabs } from '@/components/home/ParentGroupTabs';
 import { CategoryImageGrid } from '@/components/home/CategoryImageGrid';
 import { FeaturedBanners } from '@/components/home/FeaturedBanners';
+import { FestivalBannerModule } from '@/components/home/FestivalBannerModule';
+import { useActiveFestivals, useFestivalTakeover, FESTIVAL_TAB_VALUE } from '@/hooks/queries/useActiveFestivals';
 import { AutoHighlightStrip } from '@/components/home/AutoHighlightStrip';
 import { BuyAgainRow } from '@/components/home/BuyAgainRow';
 import { ShopByStoreDiscovery } from '@/components/home/ShopByStoreDiscovery';
@@ -81,6 +83,17 @@ export function MarketplaceSection() {
   const { browsingLocation } = useBrowsingLocation();
 
   const [activeGroup, setActiveGroup] = useState<string | null>(null);
+  const { festivals } = useActiveFestivals();
+  const takeover = useFestivalTakeover();
+  const festivalTabs = useMemo(
+    () => festivals.slice(0, 1).map((f) => ({
+      value: FESTIVAL_TAB_VALUE,
+      label: f.banner.title || 'Festival',
+    })),
+    [festivals],
+  );
+  const isFestivalTab = activeGroup === FESTIVAL_TAB_VALUE;
+
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const { configs: categoryConfigs } = useCategoryConfigs();
@@ -123,9 +136,11 @@ export function MarketplaceSection() {
   const activeCategorySet = new Set(localCategories.map(c => c.category));
   const activeParentGroupSet = new Set(localCategories.map(c => c.parentGroup));
 
-  const activeParentGroups = activeGroup
-    ? parentGroupInfos.filter(g => g.value === activeGroup && activeParentGroupSet.has(g.value))
-    : parentGroupInfos.filter(g => activeParentGroupSet.has(g.value));
+  const activeParentGroups = isFestivalTab
+    ? []
+    : activeGroup
+      ? parentGroupInfos.filter(g => g.value === activeGroup && activeParentGroupSet.has(g.value))
+      : parentGroupInfos.filter(g => activeParentGroupSet.has(g.value));
 
   const handleProductTap = useCallback((product: ProductWithSeller) => {
     const catConfig = categoryConfigs.find(c => c.category === product.category);
@@ -162,6 +177,15 @@ export function MarketplaceSection() {
   if (!loadingLocal && localCategories.length === 0) {
     return (
       <div className="pb-2">
+        {festivals.map((f) => (
+          <FestivalBannerModule
+            key={f.banner.id}
+            banner={f.banner}
+            sections={f.sections}
+            onProductTap={handleProductTap}
+            categoryConfigs={categoryConfigs}
+          />
+        ))}
         <LazySection>
           <FeaturedBanners />
         </LazySection>
@@ -224,11 +248,29 @@ export function MarketplaceSection() {
   return (
     <div className="pb-2">
       {/* Above-fold: categories first (Blinkit shop-first), then products */}
-      <div className="pt-1 pb-1">
-        <ParentGroupTabs activeGroup={activeGroup} onGroupChange={setActiveGroup} activeParentGroups={activeParentGroupSet} />
+      <div
+        className="pt-1 pb-1"
+        style={takeover.active ? { backgroundColor: takeover.bg } : undefined}
+      >
+        <ParentGroupTabs
+          activeGroup={activeGroup}
+          onGroupChange={setActiveGroup}
+          activeParentGroups={activeParentGroupSet}
+          festivalTabs={festivalTabs}
+        />
       </div>
 
-      {loadingLocal ? (
+      {(!activeGroup || isFestivalTab) && festivals.map((f) => (
+        <FestivalBannerModule
+          key={f.banner.id}
+          banner={f.banner}
+          sections={f.sections}
+          onProductTap={handleProductTap}
+          categoryConfigs={categoryConfigs}
+        />
+      ))}
+
+      {!isFestivalTab && (loadingLocal ? (
         <div className="px-4 mt-2">
           <ProductCardSkeleton count={6} />
         </div>
@@ -243,7 +285,7 @@ export function MarketplaceSection() {
             />
           ))}
         </div>
-      )}
+      ))}
 
       {/* Above-fold products — shop-first density after categories */}
       {!activeGroup && !loadingLocal && popularNearYou.length > 0 && (
@@ -275,28 +317,36 @@ export function MarketplaceSection() {
       )}
 
       {/* Promos + deferred strips after shop surface */}
-      <LazySection>
-        <FeaturedBanners />
-      </LazySection>
+      {!isFestivalTab && (
+        <LazySection>
+          <FeaturedBanners />
+        </LazySection>
+      )}
 
-      <LazySection>
-        <AutoHighlightStrip />
-      </LazySection>
+      {!isFestivalTab && (
+        <LazySection>
+          <AutoHighlightStrip />
+        </LazySection>
+      )}
 
-      {!activeGroup && (
+      {!activeGroup && !isFestivalTab && (
         <LazySection>
           <BuyAgainRow />
         </LazySection>
       )}
 
-      <LazySection>
-        <SectionDivider />
-        <ShopByStoreDiscovery sectionTitle={ml.label('label_section_store_discovery')} />
-      </LazySection>
+      {!isFestivalTab && (
+        <LazySection>
+          <SectionDivider />
+          <ShopByStoreDiscovery sectionTitle={ml.label('label_section_store_discovery')} />
+        </LazySection>
+      )}
 
-      <LazySection>
-        <NearbySellersSection />
-      </LazySection>
+      {!isFestivalTab && (
+        <LazySection>
+          <NearbySellersSection />
+        </LazySection>
+      )}
 
       {detailOpen && (
         <Suspense fallback={null}>

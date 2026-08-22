@@ -16,6 +16,8 @@ interface ProductCarouselProps {
   onSeeAll?: () => void;
   onProductTap?: (product: ProductWithSeller) => void;
   variant?: 'compact' | 'featured';
+  tone?: 'default' | 'festival';
+  accentColor?: string;
   className?: string;
 }
 
@@ -28,6 +30,8 @@ export function ProductCarousel({
   onSeeAll,
   onProductTap,
   variant = 'compact',
+  tone = 'default',
+  accentColor,
   className,
 }: ProductCarouselProps) {
   const [emblaRef, emblaApi] = useEmblaCarousel({
@@ -58,23 +62,31 @@ export function ProductCarousel({
 
   const minPrice = Math.min(...products.map((p) => p.price));
   const cardWidth = variant === 'compact' ? 'w-[160px]' : 'w-[200px]';
+  const festival = tone === 'festival';
 
   return (
     <div className={cn('', className)}>
       {/* Header — bold title left, "see all" right */}
       <div className="flex items-center justify-between px-4 mb-3">
-        <h3 className="font-extrabold text-base text-foreground flex items-center gap-2 tracking-tight min-w-0">
+        <h3 className={cn(
+          'font-extrabold text-base flex items-center gap-2 tracking-tight min-w-0',
+          festival ? 'text-white' : 'text-foreground'
+        )}>
           {emoji && <span className="text-lg shrink-0">{emoji}</span>}
           <span className="truncate">{title}</span>
           {itemCount !== undefined && (
-            <span className="text-xs font-normal text-muted-foreground shrink-0">({itemCount})</span>
+            <span className={cn('text-xs font-normal shrink-0', festival ? 'text-white/55' : 'text-muted-foreground')}>({itemCount})</span>
           )}
           <span className="text-xs font-semibold text-success ml-1 shrink-0 whitespace-nowrap">From {formatPrice(minPrice)}</span>
         </h3>
         {onSeeAll && (
           <button
             onClick={onSeeAll}
-            className="text-sm text-primary font-semibold flex items-center gap-0.5 hover:underline shrink-0 ml-2 min-h-[36px] touch-manipulation"
+            className={cn(
+              'text-sm font-semibold flex items-center gap-0.5 hover:underline shrink-0 ml-2 min-h-[36px] touch-manipulation',
+              !festival && 'text-primary'
+            )}
+            style={festival ? { color: accentColor || '#f5d76e' } : undefined}
           >
             see all <ChevronRight size={16} />
           </button>

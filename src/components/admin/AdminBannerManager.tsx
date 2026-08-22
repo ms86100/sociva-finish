@@ -5,7 +5,6 @@ import { AnimatedCategoryIcon, isAnimatedIcon } from '@/components/icons/Animate
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { resolveProducts } from '@/lib/bannerProductResolver';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -16,11 +15,12 @@ import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '@/components/u
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Pencil, Trash2, GripVertical, Eye, Megaphone, Globe, Building2, Timer, Sparkles, Image, PartyPopper, X, ChevronUp, ChevronDown, Copy, ChevronLeft, ChevronRight, Check, Search } from 'lucide-react';
+import { Plus, Pencil, Trash2, GripVertical, Eye, Megaphone, Globe, Building2, Timer, Sparkles, Image, PartyPopper, X, ChevronUp, ChevronDown, Copy, ChevronLeft, ChevronRight, Check, Search, CircleAlert, CircleCheck } from 'lucide-react';
 import { adminNotify } from '@/lib/admin-notify';
 import { cn, friendlyError } from '@/lib/utils';
 import { motion } from 'framer-motion';
 import { BannerImageUpload } from './BannerImageUpload';
+import { FestivalStringLights } from '@/components/home/FestivalStringLights';
 
 type BannerTemplate = 'image_only' | 'text_overlay' | 'split_left' | 'gradient_cta' | 'minimal_text';
 
@@ -223,6 +223,26 @@ export function AdminBannerManager() {
     staleTime: 60_000,
   });
 
+  const inventoryPreviewKey = useMemo(() => form.sections.map(s => ({
+    source_type: s.product_source_type,
+    source_value: s.product_source_value,
+  })), [form.sections]);
+
+  const { data: inventoryPreview = [] } = useQuery({
+    queryKey: ['festival-inventory-preview', inventoryPreviewKey, form.target_society_ids, editingId],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('preview_festival_section_inventory', {
+        p_sections: inventoryPreviewKey,
+        p_society_ids: form.target_society_ids.length ? form.target_society_ids : null,
+        p_banner_id: editingId || null,
+      });
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: form.banner_type === 'festival' && form.sections.length > 0 && (wizardStep === 1 || wizardStep === 2 || wizardStep === 3),
+    staleTime: 15_000,
+  });
+
   // Fetch societies with builder info for smart targeting
   const { data: allSocieties = [] } = useQuery({
     queryKey: ['societies-list-with-builders'],
@@ -323,7 +343,7 @@ export function AdminBannerManager() {
         bannerId = data.id;
       }
 
-      if (f.banner_type === 'festival' && f.sections.length > 0) {
+        if (f.banner_type === 'festival' && f.sections.length > 0) {
         const sectionRows = f.sections.map((s, idx) => ({
           banner_id: bannerId,
           title: s.title,
@@ -335,6 +355,10 @@ export function AdminBannerManager() {
         }));
         const { error: secErr } = await supabase.from('banner_sections').insert(sectionRows);
         if (secErr) throw secErr;
+      }
+
+      if (f.banner_type === 'festival' && f.is_active) {
+        await supabase.rpc('notify_eligible_sellers_festival_published', { p_banner_id: bannerId });
       }
     },
     onSuccess: () => {
@@ -542,54 +566,44 @@ export function AdminBannerManager() {
     }
   };
 
-  const [isValidating, setIsValidating] = useState(false);
-
   const handleSave = async () => {
     if (form.banner_type === 'festival' && form.sections.length === 0) {
       adminNotify.error('Festival banners need at least one section');
       return;
     }
     if (form.banner_type === 'festival') {
-      const empty = form.sections.filter(s => !s.title.trim());
-      if (empty.length > 0) {
+      const emptyTitles = form.sections.filter(s => !s.title.trim());
+      if (emptyTitles.length > 0) {
         adminNotify.error('All sections need a title');
         return;
       }
+      const incomplete = form.sections.filter(s => !s.product_source_value?.trim());
+      if (incomplete.length > 0) {
+        adminNotify.error('Every section needs a category or keyword mapping');
+        return;
+      }
 
-      setIsValidating(true);
-      try {
-        let emptyCount = 0;
-        for (const section of form.sections) {
-          const products = await resolveProducts({
-            sourceType: section.product_source_type,
-            sourceValue: section.product_source_value || null,
-            fallbackMode: form.fallback_mode,
-            limit: 1,
-          });
-          if (products.length === 0) {
-            emptyCount++;
-            adminNotify.warning(`Section "${section.title}" has no matching products yet`);
-          }
-        }
-        if (emptyCount > 0 && emptyCount < form.sections.length) {
-          adminNotify.info('Some sections are empty — they will be hidden on the buyer side');
-        } else if (emptyCount === form.sections.length) {
-          adminNotify.warning('All sections are currently empty — banner will be hidden until products are added');
-        }
-      } catch {
-        // Product availability validation is advisory; saving may continue.
-      } finally {
-        setIsValidating(false);
+      const emptyCount = form.sections.filter((_, idx) => {
+        const row = inventoryPreview.find((p: any) => p.section_index === idx);
+        return !row || Number(row.product_count) === 0;
+      }).length;
+      if (emptyCount > 0 && emptyCount < form.sections.length) {
+        adminNotify.info('Some sections are empty — they will stay hidden until sellers add matching products');
+      } else if (emptyCount === form.sections.length) {
+        adminNotify.warning('All sections are currently empty — the festival will stay hidden until inventory appears');
       }
     }
     saveMutation.mutate(form);
   };
 
   const canGoNext = () => {
-    if (wizardStep === 0) return true; // type always selected
+    if (wizardStep === 0) return true;
     if (wizardStep === 1) {
       if (!form.title.trim()) return false;
-      if (form.banner_type === 'festival' && form.sections.length === 0) return false;
+      if (form.banner_type === 'festival') {
+        if (form.sections.length === 0) return false;
+        if (form.sections.some(s => !s.title.trim() || !s.product_source_value?.trim())) return false;
+      }
       return true;
     }
     if (wizardStep === 2) return true;
@@ -1124,6 +1138,32 @@ export function AdminBannerManager() {
                               />
                             )}
                           </div>
+                          {(() => {
+                            const row = inventoryPreview.find((p: any) => p.section_index === idx);
+                            const mapped = !!section.product_source_value?.trim();
+                            const count = Number(row?.product_count || 0);
+                            const sellers = Number(row?.seller_count || 0);
+                            const societies = Number(row?.society_count || 0);
+                            if (!mapped) {
+                              return (
+                                <div className="flex items-center gap-1.5 text-[10px] text-destructive">
+                                  <CircleAlert size={11} /> Choose a category or keyword so products can match
+                                </div>
+                              );
+                            }
+                            if (count === 0) {
+                              return (
+                                <div className="flex items-center gap-1.5 text-[10px] text-amber-600">
+                                  <CircleAlert size={11} /> 0 products · 0 sellers — section will stay hidden until inventory appears
+                                </div>
+                              );
+                            }
+                            return (
+                              <div className="flex items-center gap-1.5 text-[10px] text-emerald-600">
+                                <CircleCheck size={11} /> {count} products · {sellers} sellers · {societies} societies · Ready
+                              </div>
+                            );
+                          })()}
                         </div>
                       ))}
                     </div>
@@ -1330,22 +1370,35 @@ export function AdminBannerManager() {
                   </div>
 
                   {form.banner_type === 'festival' && (
-                    <div className="p-3 rounded-xl bg-muted/60 border border-border/50">
+                    <div className="p-3 rounded-xl bg-muted/60 border border-border/50 space-y-2">
                       <p className="text-[10px] text-muted-foreground font-bold uppercase mb-1">Sections ({form.sections.length})</p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {form.sections.map((s, i) => (
-                          <Badge key={i} variant="secondary" className="text-[10px]">
-                            {isAnimatedIcon(s.icon_emoji) ? <><AnimatedCategoryIcon iconKey={s.icon_emoji} size={14} /> {s.title || 'Untitled'}</> : <>{s.icon_emoji} {s.title || 'Untitled'}</>}
-                          </Badge>
-                        ))}
+                      <div className="space-y-1.5">
+                        {form.sections.map((s, i) => {
+                          const row = inventoryPreview.find((p: any) => p.section_index === i);
+                          const mapped = !!s.product_source_value?.trim();
+                          const count = Number(row?.product_count || 0);
+                          const sellers = Number(row?.seller_count || 0);
+                          return (
+                            <div key={i} className="flex items-center justify-between gap-2 text-xs">
+                              <span className="truncate font-medium">{s.title || 'Untitled'}</span>
+                              {!mapped ? (
+                                <Badge variant="destructive" className="text-[9px] h-4">Incomplete</Badge>
+                              ) : count === 0 ? (
+                                <Badge variant="secondary" className="text-[9px] h-4">Empty · 0 products</Badge>
+                              ) : (
+                                <Badge className="text-[9px] h-4 bg-emerald-500/10 text-emerald-700 border-0">{count} products · {sellers} sellers</Badge>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   )}
 
                   {/* Validation warnings */}
-                  {form.banner_type === 'festival' && form.sections.length === 0 && (
+                  {form.banner_type === 'festival' && form.sections.some(s => !s.product_source_value?.trim()) && (
                     <div className="p-3 rounded-xl bg-destructive/10 border border-destructive/20">
-                      <p className="text-xs text-destructive font-semibold">⚠️ No sections added — this festival banner won't show any products.</p>
+                      <p className="text-xs text-destructive font-semibold">Every section needs a category or keyword before you can publish.</p>
                     </div>
                   )}
                   {!form.title.trim() && (
@@ -1366,7 +1419,7 @@ export function AdminBannerManager() {
                         updateField('is_active', false);
                         setTimeout(() => saveMutation.mutate({ ...form, is_active: false }), 0);
                       }}
-                      disabled={saveMutation.isPending || isValidating}
+                      disabled={saveMutation.isPending}
                     >
                       💾 Save as Draft
                     </Button>
@@ -1374,9 +1427,9 @@ export function AdminBannerManager() {
                   <Button
                     className="flex-1 rounded-xl h-11 font-semibold"
                     onClick={handleSave}
-                    disabled={saveMutation.isPending || isValidating}
+                    disabled={saveMutation.isPending || (form.banner_type === 'festival' && form.sections.some(s => !s.title.trim() || !s.product_source_value?.trim()))}
                   >
-                    {isValidating ? 'Validating...' : saveMutation.isPending ? 'Saving...' : editingId ? 'Update' : '🚀 Publish'}
+                    {saveMutation.isPending ? 'Saving...' : editingId ? 'Update' : 'Publish'}
                   </Button>
                 </div>
               </>
@@ -1408,37 +1461,66 @@ export function AdminBannerManager() {
 
 /* ── Festival Preview ── */
 function FestivalPreview({ form }: { form: BannerForm }) {
-  const gradient = form.theme_config?.gradient || [];
-  const bgColor = form.theme_config?.bg || form.bg_color || '#16a34a';
-  const style = gradient.length >= 2
-    ? { background: `linear-gradient(135deg, ${gradient.join(', ')})` }
-    : { backgroundColor: bgColor };
+  const gradient = Array.isArray(form.theme_config?.gradient) ? form.theme_config.gradient.filter(Boolean) : [];
+  const bgColor = form.theme_config?.bg || form.bg_color || '#3b0a1e';
+  const accentColor = form.theme_config?.accent || (gradient.length >= 1 ? gradient[gradient.length - 1] : '#f5d76e');
+  const style = {
+    background: gradient.length >= 2
+      ? `linear-gradient(180deg, ${bgColor} 0%, ${gradient[0]} 48%, ${bgColor} 100%)`
+      : bgColor,
+    ['--festival-accent' as string]: accentColor,
+  };
 
   const animClass = form.animation_config?.type && form.animation_config.type !== 'none'
     ? `banner-anim-${form.animation_config.type} banner-intensity-${form.animation_config.intensity || 'subtle'}`
     : '';
 
   return (
-    <div>
-      <div className={cn('px-4 py-4 relative', animClass)} style={style}>
-        {form.badge_text && (
-          <span className="absolute top-2 right-2 bg-white/20 text-white text-[9px] font-bold px-2 py-0.5 rounded-full">
-            {form.badge_text}
-          </span>
+    <div className={cn('relative overflow-hidden', animClass)} style={style}>
+      <FestivalStringLights />
+      <div className="px-4 pt-2 pb-3">
+        <p className="text-[8px] font-semibold tracking-[0.2em] uppercase text-white/65">
+          Celebrate in your community
+        </p>
+        <h3 className="font-serif text-[22px] leading-tight font-bold mt-0.5" style={{ color: accentColor }}>
+          {form.title || 'Festival Title'}
+        </h3>
+        {form.subtitle && <p className="text-white/85 text-[10px] mt-0.5">{form.subtitle}</p>}
+        {form.sections.length > 0 && (
+          <div className="flex gap-1.5 mt-2.5 overflow-x-auto scrollbar-hide">
+            {form.sections.map((s, i) => (
+              <div
+                key={i}
+                className="shrink-0 flex items-center gap-1 rounded-full border border-white/25 bg-white/10 px-2 py-1 text-[9px] font-semibold text-white"
+              >
+                {isAnimatedIcon(s.icon_emoji)
+                  ? <AnimatedCategoryIcon iconKey={s.icon_emoji} size={12} color={s.icon_color || accentColor} />
+                  : <span>{s.icon_emoji || '✨'}</span>}
+                {s.title || 'Section'}
+              </div>
+            ))}
+          </div>
         )}
-        <h3 className="text-white font-extrabold text-sm">{form.title || 'Festival Title'}</h3>
-        {form.subtitle && <p className="text-white/80 text-[10px] mt-0.5">{form.subtitle}</p>}
       </div>
       {form.sections.length > 0 && (
-        <div className="bg-card px-3 py-2 flex gap-2 overflow-x-auto scrollbar-hide">
-          {form.sections.map((s, i) => (
-            <div key={i} className="shrink-0 w-20 rounded-xl border border-border/50 p-2 text-center">
-              {isAnimatedIcon(s.icon_emoji) ? <AnimatedCategoryIcon iconKey={s.icon_emoji} size={24} color={s.icon_color || "hsl(var(--primary))"} /> : <span className="text-lg">{s.icon_emoji || '📦'}</span>}
-              <p className="text-[9px] font-semibold mt-0.5 line-clamp-1">{s.title || 'Section'}</p>
+        <div className="px-3 pb-2 grid grid-cols-2 gap-1.5">
+          {form.sections.slice(0, 4).map((s, i) => (
+            <div key={i} className="festival-merch-card px-2 pt-2 pb-2">
+              <p className="text-[9px] font-extrabold text-neutral-900 line-clamp-1 mb-1">{s.title || 'Section'}</p>
+              <div className="rounded-lg aspect-[4/3] flex items-center justify-center bg-neutral-100">
+                {isAnimatedIcon(s.icon_emoji)
+                  ? <AnimatedCategoryIcon iconKey={s.icon_emoji} size={28} color={s.icon_color || accentColor} />
+                  : <span className="text-2xl">{s.icon_emoji || '📦'}</span>}
+              </div>
             </div>
           ))}
         </div>
       )}
+      <div className="px-3 pb-3">
+        <div className="festival-offer-strip rounded-xl px-3 py-2 text-[10px] font-extrabold" style={{ background: '#f6e2b8', color: '#5a3410' }}>
+          {form.badge_text || 'Products from sellers in your society'}
+        </div>
+      </div>
     </div>
   );
 }

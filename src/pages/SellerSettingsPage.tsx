@@ -181,7 +181,7 @@ export default function SellerSettingsPage() {
                   <AlertTriangle size={18} className={sellerProfile.verification_status === 'rejected' ? 'text-destructive' : 'text-warning'} />
                   <div className="min-w-0">
                     <p className="text-sm font-semibold">
-                      {sellerProfile.verification_status === 'rejected' ? 'Store Rejected' : 'Store Pending Review'}
+                      {sellerProfile.verification_status === 'rejected' ? 'We need a small update' : "We're reviewing your store"}
                     </p>
                     {(sellerProfile as any).rejection_note && (
                       <p className="text-xs text-muted-foreground mt-1">Reason: {(sellerProfile as any).rejection_note}</p>
@@ -189,7 +189,7 @@ export default function SellerSettingsPage() {
                     <p className="text-xs text-muted-foreground mt-1">
                       {sellerProfile.verification_status === 'rejected'
                         ? 'You can update your details below and resubmit from the onboarding page.'
-                        : 'Your store is being reviewed. You can still update settings below.'}
+                        : "We're reviewing your store. You can still update settings below, and we'll notify you as soon as it's ready."}
                     </p>
                   </div>
                 </div>
@@ -494,8 +494,11 @@ export default function SellerSettingsPage() {
                       <label className="flex items-center gap-3 p-2 rounded-lg opacity-50 cursor-not-allowed"><RadioGroupItem value="platform_delivery" disabled /><div><p className="text-sm font-medium">Delivery Partner</p><p className="text-xs text-muted-foreground">Platform delivery partner — available in future plans</p></div></label>
                       <label className="flex items-center gap-3 p-2 rounded-lg opacity-50 cursor-not-allowed"><RadioGroupItem value="pickup_and_platform_delivery" disabled /><div><p className="text-sm font-medium">Pickup + Delivery Partner</p><p className="text-xs text-muted-foreground">Pickup or delivery partner — available in future plans</p></div></label>
                     </RadioGroup>
-                    {formData.fulfillment_mode !== 'self_pickup' && (
-                      <p className="text-xs text-primary/80 bg-primary/5 rounded-lg p-2">💡 Delivery fee is managed by the platform admin</p>
+                    {(formData.fulfillment_mode === 'seller_delivery' || formData.fulfillment_mode === 'pickup_and_seller_delivery') && (
+                      <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 space-y-1">
+                        <p className="text-sm font-medium">Delivery is free for customers</p>
+                        <p className="text-xs text-muted-foreground">Sellers cannot charge a separate delivery fee.</p>
+                      </div>
                     )}
                     {(formData.fulfillment_mode === 'platform_delivery' || formData.fulfillment_mode === 'pickup_and_platform_delivery') && (
                       <p className="text-xs text-muted-foreground bg-muted rounded-lg p-2">🚴 A delivery partner will be auto-assigned when the order is ready</p>
@@ -513,13 +516,14 @@ export default function SellerSettingsPage() {
                       <div><p className="font-medium text-sm">Sell beyond my community</p><p className="text-xs text-muted-foreground">Allow buyers from nearby societies to order</p></div>
                       <Switch checked={formData.sell_beyond_community} onCheckedChange={(checked) => setFormData({ ...formData, sell_beyond_community: checked })} />
                     </div>
-                    {formData.sell_beyond_community && (
-                      <div className="space-y-2 pt-2 border-t">
-                        <div className="flex items-center justify-between"><span className="text-xs text-muted-foreground">Delivery Radius</span><span className="text-sm font-medium text-primary">{formData.delivery_radius_km} km</span></div>
-                        <Slider value={[formData.delivery_radius_km]} onValueChange={([v]) => setFormData({ ...formData, delivery_radius_km: v })} min={1} max={10} step={1} />
-                        <p className="text-[10px] text-muted-foreground">Buyers within {formData.delivery_radius_km} km can order from you</p>
-                      </div>
-                    )}
+                    <div className="space-y-2 pt-2 border-t">
+                      <div className="flex items-center justify-between"><span className="text-xs text-muted-foreground">Selling radius</span><span className="text-sm font-medium text-primary">{formData.delivery_radius_km} km</span></div>
+                      <Slider value={[formData.delivery_radius_km]} onValueChange={([v]) => setFormData({ ...formData, delivery_radius_km: v, sell_beyond_community: true })} min={1} max={10} step={1} />
+                      <p className="text-xs text-muted-foreground">Your products can be discovered up to {formData.delivery_radius_km} km away.</p>
+                      {(formData.fulfillment_mode === 'seller_delivery' || formData.fulfillment_mode === 'pickup_and_seller_delivery') && (
+                        <p className="text-xs text-muted-foreground">You will be responsible for delivering orders within this area.</p>
+                      )}
+                    </div>
                   </div>
                 </div>
               </>

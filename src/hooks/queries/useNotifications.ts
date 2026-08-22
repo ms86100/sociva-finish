@@ -2,22 +2,7 @@
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useSellerContext } from '@/contexts/AuthContext';
-
-// Seller-only notification types — only relevant in seller mode
-const SELLER_ONLY_TYPES = [
-  'settlement',
-  'seller_approved',
-  'seller_rejected',
-  'seller_suspended',
-  'product_approved',
-  'product_rejected',
-  'license_approved',
-  'license_rejected',
-  'moderation',
-  'seller_daily_summary',
-] as const;
-
-const SELLER_ONLY_FILTER = `(${SELLER_ONLY_TYPES.join(',')})`;
+import { SELLER_LIFECYCLE_INBOX_TYPES, SELLER_LIFECYCLE_OR_FILTER, SELLER_ONLY_INBOX_FILTER } from '@/lib/notification-visibility';
 
 export interface NotificationPayload {
   action?: string;
@@ -127,8 +112,8 @@ export function useNotifications(userId: string | undefined) {
       if (!isSeller) {
         // Buyer mode: hide seller-only types and seller-targeted notifications
         query = query
-          .not('type', 'in', SELLER_ONLY_FILTER)
-          .not('data->>target_role', 'eq', 'seller');
+          .not('type', 'in', SELLER_ONLY_INBOX_FILTER)
+          .or(SELLER_LIFECYCLE_OR_FILTER);
       }
       // Seller mode: show everything (both buyer & seller notifications for this user)
 
@@ -172,8 +157,8 @@ export function useLatestActionNotification(userId: string | undefined) {
 
       if (!isSeller) {
         query = query
-          .not('type', 'in', SELLER_ONLY_FILTER)
-          .not('data->>target_role', 'eq', 'seller');
+          .not('type', 'in', SELLER_ONLY_INBOX_FILTER)
+          .or(SELLER_LIFECYCLE_OR_FILTER);
       }
 
       const { data } = await query;
@@ -211,6 +196,11 @@ export function useLatestActionNotification(userId: string | undefined) {
           for (const o of ageRes.data) staleOrderIds.add(o.id);
         }
       }
+
+      const lifecycle = notifications.find((n) =>
+        SELLER_LIFECYCLE_INBOX_TYPES.includes(n.type),
+      );
+      if (lifecycle) return lifecycle;
 
       for (const n of notifications) {
         const d = n.data;

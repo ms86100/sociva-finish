@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils';
 import type { UserNotification } from '@/hooks/queries/useNotifications';
 import { useMarkNotificationRead } from '@/hooks/queries/useNotifications';
 import { pickNotificationRoute } from '@/lib/notification-routes';
+import { SELLER_JOURNEY_ACTION_LABELS } from '@/lib/seller-journey';
 
 function getIcon(type: string) {
   switch (type) {
@@ -58,6 +59,7 @@ function formatActionLabel(action: string): string {
     view: 'View',
   };
   const key = action.toLowerCase().trim();
+  if (SELLER_JOURNEY_ACTION_LABELS[key]) return SELLER_JOURNEY_ACTION_LABELS[key];
   if (map[key]) return map[key];
   return key
     .replace(/[_-]+/g, ' ')

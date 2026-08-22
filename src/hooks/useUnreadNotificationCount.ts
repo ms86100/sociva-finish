@@ -3,13 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSellerContext } from '@/contexts/AuthContext';
-
-const SELLER_ONLY_TYPES = [
-  'settlement', 'seller_approved', 'seller_rejected', 'seller_suspended',
-  'product_approved', 'product_rejected', 'license_approved', 'license_rejected',
-  'moderation', 'seller_daily_summary',
-] as const;
-const SELLER_ONLY_FILTER = `(${SELLER_ONLY_TYPES.join(',')})`;
+import { SELLER_LIFECYCLE_OR_FILTER, SELLER_ONLY_INBOX_FILTER } from '@/lib/notification-visibility';
 
 // Pure-buyer types — when in seller mode, exclude from the badge so it means
 // "things needing seller attention" only (inbox still shows them).
@@ -38,8 +32,8 @@ export function useUnreadNotificationCount() {
       if (!isSeller) {
         // Buyer mode — hide seller-only and seller-targeted notifications
         q = q
-          .not('type', 'in', SELLER_ONLY_FILTER)
-          .not('data->>target_role', 'eq', 'seller');
+          .not('type', 'in', SELLER_ONLY_INBOX_FILTER)
+          .or(SELLER_LIFECYCLE_OR_FILTER);
       } else {
         // Seller mode — exclude pure-buyer types from the badge count
         q = q.not('type', 'in', BUYER_ONLY_FILTER);

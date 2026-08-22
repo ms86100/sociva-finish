@@ -29,6 +29,7 @@ import {
   useSellerCreditSummary,
 } from '@/hooks/queries/useSellerCredits';
 import { supabase } from '@/integrations/supabase/client';
+import { functionInvokeErrorMessage, parseFunctionInvokeError } from '@/lib/function-invoke-error';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { ArrowLeft, CheckCircle2, Coins } from 'lucide-react';
@@ -132,8 +133,9 @@ export default function SellerCreditsPage() {
           ? { seller_id: activeSellerId, package_id: matchingPack.id }
           : { seller_id: activeSellerId, amount },
       });
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
+      if (error || data?.error) {
+        throw new Error(await functionInvokeErrorMessage({ error, data }));
+      }
       const keyId = data?.key_id;
       const orderId = data?.razorpay_order_id;
       const amountPaise = data?.amount_paise;
@@ -168,8 +170,8 @@ export default function SellerCreditsPage() {
                 },
               });
               if (confirm.error || confirm.data?.error) {
-                const message = confirm.error?.message || confirm.data?.error || '';
-                if (/captured|pending|authorized|processing/i.test(message) && !/mismatch/i.test(message)) {
+                const parsed = await parseFunctionInvokeError(confirm);
+                if (parsed.pending && !/mismatch/i.test(parsed.message)) {
                   resolve({
                     status: 'pending',
                     message: "We're confirming this payment. Your Sociva Credits will appear after verification.",
@@ -178,7 +180,7 @@ export default function SellerCreditsPage() {
                 }
                 resolve({
                   status: 'failed',
-                  message: message || 'Payment could not be verified. Your account has not been credited unless verification succeeds.',
+                  message: parsed.message || 'Payment could not be verified. Your account has not been credited unless verification succeeds.',
                 });
                 return;
               }

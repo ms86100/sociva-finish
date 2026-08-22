@@ -98,15 +98,18 @@ export function OnboardingLocationSheet({ open, onOpenChange, onConfirm }: Onboa
           >
             <ArrowLeft size={20} className="text-foreground" />
           </button>
-          <h2 className="text-base font-semibold text-foreground">Set Store Location</h2>
+          <h2 className="text-base font-semibold text-foreground">Set your selling location</h2>
         </div>
 
-        <div className="shrink-0 px-4 pt-3 pb-2">
+        <div className="shrink-0 px-4 pt-3 pb-2 space-y-3">
+          <p className="text-sm text-muted-foreground">
+            Selling from home? Select your home address or enter your society/locality name.
+          </p>
           <div className="relative">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <Input
               ref={inputRef}
-              placeholder="Search your store location or area..."
+              placeholder="Search home, society, or locality..."
               value={searchInput}
               onChange={(e) => handleSearchChange(e.target.value)}
               className="pl-10 pr-10 h-12 rounded-xl text-base"

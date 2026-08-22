@@ -20,7 +20,7 @@ import { Switch } from '@/components/ui/switch';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Badge } from '@/components/ui/badge';
 import { DAYS_OF_WEEK } from '@/types/Database';
-import { ArrowLeft, Store, Loader2, ChevronRight, Settings, Shield, Save, Send, Globe, LayoutGrid, Tags, FileText, Package, CheckCircle2, ArrowRight, Truck, Smartphone, Banknote, Clock, ImageIcon, MapPin, Navigation, CheckCircle, Star, X, Search, ShoppingCart, Calendar, MessageCircle, Phone } from 'lucide-react';
+import { ArrowLeft, Store, Loader2, ChevronRight, Settings, Shield, Save, Send, LayoutGrid, Tags, FileText, Package, CheckCircle2, ArrowRight, Truck, Smartphone, Banknote, Clock, ImageIcon, MapPin, Navigation, CheckCircle, Star, X, Search, ShoppingCart, Calendar, MessageCircle, Phone } from 'lucide-react';
 import { useActionTypeMap, useCategoryAllowedActions } from '@/hooks/useActionTypeMap';
 import { OnboardingLocationSheet } from '@/components/seller/OnboardingLocationSheet';
 import { cn } from '@/lib/utils';
@@ -47,6 +47,14 @@ import {
 } from '@/lib/listing-intent';
 import type { BuyerJourneyId } from '@/lib/buyer-journey';
 import { notify } from '@/lib/notify';
+import {
+  FREE_DELIVERY_NOTICE,
+  HOME_SELLER_LOCATION_HINT,
+  SELLING_RADIUS_HELPER,
+  formatStoreLocationLabel,
+  isSellerDeliveryMode,
+  sellingRadiusCopy,
+} from '@/lib/seller-onboarding-copy';
 // ─── Store Location Picker ──────────────────────────────────────────────────
 function StoreLocationPicker({ latitude, longitude, label, onLocationSet, hasSociety, existingStoreLocations = [] }: {
   latitude: number | null;
@@ -66,8 +74,9 @@ function StoreLocationPicker({ latitude, longitude, label, onLocationSet, hasSoc
     <div className="border rounded-lg p-4 space-y-3">
       <div className="flex items-center gap-2">
         <MapPin size={16} className="text-primary" />
-        <h3 className="font-semibold text-sm">Store Location {!hasSociety && <span className="text-destructive">*</span>}</h3>
+        <h3 className="font-semibold text-sm">Set your selling location {!hasSociety && <span className="text-destructive">*</span>}</h3>
       </div>
+      <p className="text-xs text-muted-foreground leading-relaxed">{HOME_SELLER_LOCATION_HINT}</p>
       {hasCoords ? (
         <div className="flex items-center gap-2 p-3 bg-success/10 rounded-lg">
           <CheckCircle size={16} className="text-success shrink-0" />
@@ -117,12 +126,12 @@ function StoreLocationPicker({ latitude, longitude, label, onLocationSet, hasSoc
           )}
           <p className="text-xs text-muted-foreground">
             {hasSociety
-              ? 'Set a precise location for your store (recommended for better discovery)'
-              : 'Set your store location so buyers can find you'}
+              ? 'The Google location result does not need to be a formal business listing.'
+              : 'Set your store location so buyers can find you. The Google result does not need to be a formal business listing.'}
           </p>
           <Button variant="outline" className="w-full h-10" onClick={() => setSheetOpen(true)}>
             <Navigation size={14} className="mr-2" />
-            Set Store Location
+            Set selling location
           </Button>
           {!hasSociety && (
             <p className="text-[10px] text-destructive">Required — your store won't be visible without a location</p>
@@ -191,14 +200,21 @@ const STEP_META = [
   { label: 'Intent', icon: Search, title: 'What are you selling?', helper: 'Describe it in your words — category comes after.' },
   { label: 'Buyers', icon: ShoppingCart, title: 'How should buyers get it?', helper: 'This sets your store default — you can customize per product later.' },
   { label: 'Category', icon: Tags, title: 'We found a home for it', helper: 'Confirm or adjust — taxonomy never blocks you.' },
-  { label: 'Store', icon: FileText, title: 'Set up your store', helper: 'These details help buyers find and trust your business.' },
+  { label: 'Store', icon: FileText, title: 'Set up your store', helper: 'Location first, then how you fulfil orders, then your store details.' },
   { label: 'Configure', icon: Settings, title: 'Configure your store', helper: 'A few quick decisions to get you up and running.' },
   { label: 'Products', icon: Package, title: 'Add your first products', helper: 'Buyers will see these once your store is approved. Start with 1-2 items.' },
   { label: 'Review', icon: CheckCircle2, title: 'Review and submit', helper: 'Double-check everything. You can edit your store after approval too.' },
 ];
 
+const STORE_SETUP_SUB_STEPS = [
+  { key: 'location', title: 'Where do you sell from?', helper: 'Set the exact map location buyers will see.' },
+  { key: 'fulfillment', title: 'How will customers receive orders?', helper: 'Choose pickup, delivery, or both before setting distance.' },
+  { key: 'radius', title: 'How far do you want to sell?', helper: SELLING_RADIUS_HELPER },
+  { key: 'details', title: 'Store information', helper: 'These details help buyers find and trust your business.' },
+];
+
 const CONFIG_SUB_STEPS = [
-  { key: 'delivery', title: 'Delivery & Payments', helper: 'How do you get products to buyers, and how do they pay?' },
+  { key: 'payments', title: 'How do customers pay?', helper: 'Customer payments go to you. Sociva Credits are separate platform usage.' },
   { key: 'schedule', title: 'When are you open?', helper: 'Select your operating days and availability.' },
   { key: 'images', title: 'Make your store shine ✨', helper: 'Add photos to build trust — you can skip this for now.' },
 ];
@@ -219,9 +235,9 @@ function SubStepDots({ current, total }: { current: number; total: number }) {
   );
 }
 const FULFILLMENT_OPTIONS = [
-  { value: 'self_pickup', label: 'Self Pickup Only', description: 'Customers pick up from your location', icon: Store, disabled: false },
+  { value: 'self_pickup', label: 'Self Pickup', description: 'Customers pick up from your location', icon: Store, disabled: false },
   { value: 'seller_delivery', label: 'I Deliver', description: 'You deliver to customers', icon: Truck, disabled: false },
-  { value: 'pickup_and_seller_delivery', label: 'Pickup + I Deliver', description: 'Buyer can choose pickup or you deliver', icon: Truck, disabled: false },
+  { value: 'pickup_and_seller_delivery', label: 'Both', description: 'Buyer can choose pickup or you deliver', icon: Truck, disabled: false },
   { value: 'platform_delivery', label: 'Delivery Partner', description: 'Platform delivery partner delivers — available in future plans', icon: Truck, disabled: true },
   { value: 'pickup_and_platform_delivery', label: 'Pickup + Delivery Partner', description: 'Buyer can choose pickup or delivery partner — available in future plans', icon: Truck, disabled: true },
 ];
@@ -613,6 +629,17 @@ export default function BecomeSellerPage() {
     try { sessionStorage.setItem('onboarding_config_substep', String(val)); } catch { /* */ }
   }, []);
 
+  const [storeSetupSubStep, setStoreSetupSubStep] = useState<number>(() => {
+    try {
+      const raw = parseInt(sessionStorage.getItem('onboarding_store_substep') || '1', 10) || 1;
+      return Math.max(1, Math.min(raw, 4));
+    } catch { return 1; }
+  });
+  const handleSetStoreSetupSubStep = useCallback((val: number) => {
+    setStoreSetupSubStep(val);
+    try { sessionStorage.setItem('onboarding_store_substep', String(val)); } catch { /* */ }
+  }, []);
+
   // Reset configure substep when entering Configure from Store, or starting a new journey (DEF-009)
   const prevStepRef = useRef(step);
   useEffect(() => {
@@ -621,10 +648,14 @@ export default function BecomeSellerPage() {
     if (step === 5 && prev === 4) {
       handleSetConfigSubStep(1);
     }
+    if (step === 4 && prev === 3) {
+      handleSetStoreSetupSubStep(1);
+    }
     if (step === 1) {
       handleSetConfigSubStep(1);
+      handleSetStoreSetupSubStep(1);
     }
-  }, [step, handleSetConfigSubStep]);
+  }, [step, handleSetConfigSubStep, handleSetStoreSetupSubStep]);
 
   // Auto-save draft before opening native image picker (survives WebView reload)
   const beforeImagePick = useCallback(async () => {
@@ -649,12 +680,12 @@ export default function BecomeSellerPage() {
             <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-success/20 flex items-center justify-center">
               <CheckCircle2 className="text-success" size={40} />
             </div>
-            <h1 className="text-2xl font-bold mb-2">Application Submitted!</h1>
+            <h1 className="text-2xl font-bold mb-2">We're reviewing your store</h1>
             <p className="text-muted-foreground mb-2 max-w-xs mx-auto">
-              Your store <strong>{formData.business_name}</strong> has been submitted for admin review.
+              Thank you for submitting <strong>{formData.business_name}</strong>.
             </p>
             <p className="text-sm text-muted-foreground mb-8 max-w-xs mx-auto">
-              You'll receive a notification once your store is approved. This usually takes less than 24 hours.
+              You'll get a notification as soon as the review is complete — usually within a day. Nothing more is needed from you right now.
             </p>
             <Link to="/">
               <Button size="lg" className="w-full max-w-xs">
@@ -709,9 +740,9 @@ export default function BecomeSellerPage() {
             ) : isPendingReview ? (
               <>
                 <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-warning/20 flex items-center justify-center"><Clock className="text-warning" size={32} /></div>
-                <h1 className="text-2xl font-bold mb-2">Under Review</h1>
-                <p className="text-muted-foreground mb-2">Your store <strong>{existingSeller.business_name}</strong> is currently being reviewed by our admin team.</p>
-                <p className="text-sm text-muted-foreground mb-6">You'll be notified once it's approved. This usually takes less than 24 hours.</p>
+                <h1 className="text-2xl font-bold mb-2">We're reviewing your store</h1>
+                <p className="text-muted-foreground mb-2">Thank you for submitting <strong>{existingSeller.business_name}</strong>.</p>
+                <p className="text-sm text-muted-foreground mb-6">You'll get a notification as soon as the review is complete — usually within a day. Nothing more is needed from you right now.</p>
                 <div className="space-y-3">
                   <Link to="/"><Button className="w-full" size="lg"><ArrowRight size={16} className="mr-2" />Go to Home</Button></Link>
                   <Button variant="outline" className="w-full" onClick={() => { setSelectedGroup(null); setExistingSeller(null); setStep(1); }}>Register Another Category</Button>
@@ -773,10 +804,10 @@ export default function BecomeSellerPage() {
         {/* Step Header */}
         <div className="text-center mb-4">
           <h1 className="text-2xl font-bold">
-            {step === 5 ? CONFIG_SUB_STEPS[configSubStep - 1].title : STEP_META[step - 1].title}
+            {step === 4 ? STORE_SETUP_SUB_STEPS[storeSetupSubStep - 1].title : step === 5 ? CONFIG_SUB_STEPS[configSubStep - 1].title : STEP_META[step - 1].title}
           </h1>
           <p className="text-muted-foreground text-sm mt-1">
-            {step === 5 ? CONFIG_SUB_STEPS[configSubStep - 1].helper : STEP_META[step - 1].helper}
+            {step === 4 ? STORE_SETUP_SUB_STEPS[storeSetupSubStep - 1].helper : step === 5 ? CONFIG_SUB_STEPS[configSubStep - 1].helper : STEP_META[step - 1].helper}
           </p>
         </div>
 
@@ -934,61 +965,146 @@ export default function BecomeSellerPage() {
           </div>
         )}
 
-        {/* Step 4: Business Details */}
+        {/* Step 4: Location → Fulfilment → Radius → Store information */}
         {step === 4 && (
           <div className="space-y-5">
-            <button onClick={() => handleStepBack(3)} className="flex items-center gap-1 text-sm text-muted-foreground"><ArrowLeft size={16} />Change categories</button>
+            <button onClick={() => {
+              if (storeSetupSubStep > 1) {
+                handleSetStoreSetupSubStep(storeSetupSubStep - 1);
+              } else {
+                handleStepBack(3);
+              }
+            }} className="flex items-center gap-1 text-sm text-muted-foreground">
+              <ArrowLeft size={16} />{storeSetupSubStep > 1 ? 'Back' : 'Change categories'}
+            </button>
             {rejectionFeedback && (
               <div className="bg-destructive/10 border border-destructive/20 rounded-xl p-4 text-left">
                 <p className="text-xs font-semibold text-destructive mb-1">⚠️ Admin Feedback — Please address before resubmitting:</p>
                 <p className="text-sm text-foreground">{rejectionFeedback}</p>
               </div>
             )}
-            <div className="space-y-2">
-              <Label htmlFor="business_name">Business / Store Name *</Label>
-              <Input id="business_name" placeholder={groups.find(g => g.slug === selectedGroup)?.placeholder_hint || "e.g., Your Store Name"} value={formData.business_name} onChange={(e) => setFormData({ ...formData, business_name: e.target.value })} />
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                This is your shop title — buyers see it on your store page, products, orders, and invoices.
-                The previous “you'll appear as” label is only your specialty (for example, Home Meal Provider), not this store name.
-              </p>
-            </div>
-            <div className="space-y-2"><Label htmlFor="description">Description</Label><Textarea id="description" placeholder="Tell customers about what you offer..." value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} rows={3} /></div>
-            <div className="space-y-2"><Label>Availability Hours</Label><div className="grid grid-cols-2 gap-3"><div><Label htmlFor="start" className="text-xs text-muted-foreground">Opens at</Label><Input id="start" type="time" value={formData.availability_start} onChange={(e) => setFormData({ ...formData, availability_start: e.target.value })} /></div><div><Label htmlFor="end" className="text-xs text-muted-foreground">Closes at</Label><Input id="end" type="time" value={formData.availability_end} onChange={(e) => setFormData({ ...formData, availability_end: e.target.value })} /></div></div></div>
-            <div className="border rounded-lg p-4 space-y-4">
-              <div className="flex items-center justify-between"><div className="flex items-center gap-3"><Globe className="text-primary" size={20} /><div><p className="font-medium text-sm">Sell beyond my community</p><p className="text-xs text-muted-foreground">Allow buyers from nearby societies to order</p></div></div><Switch checked={formData.sell_beyond_community} onCheckedChange={(checked) => setFormData({ ...formData, sell_beyond_community: checked })} /></div>
-              {formData.sell_beyond_community && <div className="space-y-2 pt-2 border-t"><div className="flex items-center justify-between"><Label className="text-xs text-muted-foreground">Delivery Radius</Label><span className="text-sm font-medium text-primary">{formData.delivery_radius_km} km</span></div><Slider value={[formData.delivery_radius_km]} onValueChange={([v]) => setFormData({ ...formData, delivery_radius_km: v })} min={1} max={10} step={1} /><p className="text-[10px] text-muted-foreground">Buyers within {formData.delivery_radius_km} km of your society can order</p></div>}
-            </div>
-            {(() => {
-              const selectedCatConfigs = configs.filter(c => formData.categories.includes(c.category));
-              return selectedCatConfigs.map(catCfg => {
-                return <CategoryLicensePrompt key={catCfg.id} categoryConfigId={catCfg.id} categoryName={catCfg.displayName} draftSellerId={draftSellerId} isOnboarding={true} onStatusChange={setLicenseStatus} />;
-              });
-            })()}
-            <StoreLocationPicker
-              latitude={formData.latitude}
-              longitude={formData.longitude}
-              label={formData.store_location_label}
-              onLocationSet={(lat, lng, _name, formattedAddress) => setFormData({ ...formData, latitude: lat, longitude: lng, store_location_label: formattedAddress || _name || formData.store_location_label || null })}
-              hasSociety={!!profile?.society_id}
-              existingStoreLocations={
-                (sellerProfiles || [])
-                  .filter((sp: any) => sp.latitude && sp.longitude && sp.id !== draftSellerId)
-                  .map((sp: any) => ({ id: sp.id, business_name: sp.business_name || 'Store', latitude: sp.latitude, longitude: sp.longitude, store_location_label: sp.store_location_label || null }))
-              }
-            />
-            <p className="text-xs text-muted-foreground text-center flex items-center justify-center gap-1"><ArrowRight size={12} />Next: Delivery, schedule, and store images</p>
-            <Button className="w-full" onClick={() => {
-              if (!selectedGroup || formData.categories.length === 0) {
-                notify.block('Please confirm a category before continuing');
-                handleStepBack(3);
-                return;
-              }
-              if (!storeActionType && commerceModel) {
-                handleSetStoreActionType(commerceModelToDefaultAction(commerceModel as BuyerJourneyId));
-              }
-              handleSetConfigSubStep(1);
-              handleProceedToSettings();
-            }} disabled={isLoading || !formData.business_name.trim() || ((selectedGroupRow as any)?.license_mandatory && (!licenseStatus || licenseStatus === 'rejected'))}>{isLoading && <Loader2 className="animate-spin mr-2" size={18} />}Continue<ChevronRight size={16} className="ml-1" /></Button>
+            <SubStepDots current={storeSetupSubStep} total={4} />
+
+            {storeSetupSubStep === 1 && (
+              <div className="space-y-5">
+                <StoreLocationPicker
+                  latitude={formData.latitude}
+                  longitude={formData.longitude}
+                  label={formData.store_location_label}
+                  onLocationSet={(lat, lng, _name, formattedAddress) => setFormData({ ...formData, latitude: lat, longitude: lng, store_location_label: formattedAddress || _name || formData.store_location_label || null })}
+                  hasSociety={!!profile?.society_id}
+                  existingStoreLocations={
+                    (sellerProfiles || [])
+                      .filter((sp: any) => sp.latitude && sp.longitude && sp.id !== draftSellerId)
+                      .map((sp: any) => ({ id: sp.id, business_name: sp.business_name || 'Store', latitude: sp.latitude, longitude: sp.longitude, store_location_label: sp.store_location_label || null }))
+                  }
+                />
+                <Button className="w-full" onClick={() => {
+                  if (!formData.latitude && !profile?.society_id) {
+                    notify.block('Please set your selling location');
+                    return;
+                  }
+                  handleSetStoreSetupSubStep(2);
+                }}>
+                  Continue<ChevronRight size={16} className="ml-1" />
+                </Button>
+              </div>
+            )}
+
+            {storeSetupSubStep === 2 && (
+              <div className="space-y-5">
+                <div className="border rounded-lg p-4 space-y-3">
+                  <div className="flex items-center gap-2"><Truck size={16} className="text-primary" /><h3 className="font-semibold text-sm">How will customers receive their orders?</h3></div>
+                  <RadioGroup value={formData.fulfillment_mode} onValueChange={(value) => setFormData({ ...formData, fulfillment_mode: value })} className="space-y-2">
+                    {FULFILLMENT_OPTIONS.filter((option) => !option.disabled || ['self_pickup', 'seller_delivery', 'pickup_and_seller_delivery'].includes(option.value)).map((option) => (
+                      <label key={option.value} className={cn('flex items-center gap-3 p-3 rounded-lg border transition-all', option.disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer', !option.disabled && formData.fulfillment_mode === option.value ? 'border-primary bg-primary/5' : 'border-border hover:border-muted-foreground/30')}>
+                        <RadioGroupItem value={option.value} disabled={option.disabled} /><div className="flex-1"><span className="text-sm font-medium">{option.label}</span><p className="text-xs text-muted-foreground">{option.description}</p></div>
+                      </label>
+                    ))}
+                  </RadioGroup>
+                  {isSellerDeliveryMode(formData.fulfillment_mode) && (
+                    <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 space-y-1">
+                      <p className="text-sm font-medium text-foreground">Delivery is free for customers</p>
+                      <p className="text-xs text-muted-foreground">{FREE_DELIVERY_NOTICE}</p>
+                    </div>
+                  )}
+                  {isSellerDeliveryMode(formData.fulfillment_mode) && (
+                    <div className="space-y-2 pt-2 border-t">
+                      <Label htmlFor="delivery_note" className="text-xs text-muted-foreground">Delivery Note (optional)</Label>
+                      <Input id="delivery_note" placeholder="e.g., Delivery available after 5 PM only" value={formData.delivery_note} onChange={(e) => setFormData({ ...formData, delivery_note: e.target.value })} />
+                    </div>
+                  )}
+                </div>
+                <Button className="w-full" onClick={() => handleSetStoreSetupSubStep(3)}>
+                  Continue<ChevronRight size={16} className="ml-1" />
+                </Button>
+              </div>
+            )}
+
+            {storeSetupSubStep === 3 && (
+              <div className="space-y-5">
+                <div className="border rounded-lg p-4 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm font-medium">Set your selling radius</Label>
+                    <span className="text-sm font-semibold text-primary">{formData.delivery_radius_km} km</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">{SELLING_RADIUS_HELPER}</p>
+                  <Slider
+                    value={[formData.delivery_radius_km]}
+                    onValueChange={([v]) => setFormData({ ...formData, delivery_radius_km: v, sell_beyond_community: v > 0 })}
+                    min={1}
+                    max={10}
+                    step={1}
+                  />
+                  <div className="rounded-lg bg-muted p-3 space-y-1">
+                    <p className="text-sm font-medium">Your products can be discovered up to {formData.delivery_radius_km} km away.</p>
+                    {isSellerDeliveryMode(formData.fulfillment_mode) && (
+                      <p className="text-xs text-muted-foreground">You will be responsible for delivering orders within this area.</p>
+                    )}
+                    {!isSellerDeliveryMode(formData.fulfillment_mode) && (
+                      <p className="text-xs text-muted-foreground">{sellingRadiusCopy(formData.delivery_radius_km, formData.fulfillment_mode)}</p>
+                    )}
+                  </div>
+                </div>
+                <Button className="w-full" onClick={() => handleSetStoreSetupSubStep(4)}>
+                  Continue<ChevronRight size={16} className="ml-1" />
+                </Button>
+              </div>
+            )}
+
+            {storeSetupSubStep === 4 && (
+              <div className="space-y-5">
+                <div className="space-y-2">
+                  <Label htmlFor="business_name">Business / Store Name *</Label>
+                  <Input id="business_name" placeholder={groups.find(g => g.slug === selectedGroup)?.placeholder_hint || "e.g., Your Store Name"} value={formData.business_name} onChange={(e) => setFormData({ ...formData, business_name: e.target.value })} />
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    This is your shop title — buyers see it on your store page, products, orders, and invoices.
+                    The previous “you'll appear as” label is only your specialty (for example, Home Meal Provider), not this store name.
+                  </p>
+                </div>
+                <div className="space-y-2"><Label htmlFor="description">Description</Label><Textarea id="description" placeholder="Tell customers about what you offer..." value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} rows={3} /></div>
+                <div className="space-y-2"><Label>Availability Hours</Label><div className="grid grid-cols-2 gap-3"><div><Label htmlFor="start" className="text-xs text-muted-foreground">Opens at</Label><Input id="start" type="time" value={formData.availability_start} onChange={(e) => setFormData({ ...formData, availability_start: e.target.value })} /></div><div><Label htmlFor="end" className="text-xs text-muted-foreground">Closes at</Label><Input id="end" type="time" value={formData.availability_end} onChange={(e) => setFormData({ ...formData, availability_end: e.target.value })} /></div></div></div>
+                {(() => {
+                  const selectedCatConfigs = configs.filter(c => formData.categories.includes(c.category));
+                  return selectedCatConfigs.map(catCfg => {
+                    return <CategoryLicensePrompt key={catCfg.id} categoryConfigId={catCfg.id} categoryName={catCfg.displayName} draftSellerId={draftSellerId} isOnboarding={true} onStatusChange={setLicenseStatus} />;
+                  });
+                })()}
+                <p className="text-xs text-muted-foreground text-center flex items-center justify-center gap-1"><ArrowRight size={12} />Next: Payments, schedule, and store images</p>
+                <Button className="w-full" onClick={() => {
+                  if (!selectedGroup || formData.categories.length === 0) {
+                    notify.block('Please confirm a category before continuing');
+                    handleStepBack(3);
+                    return;
+                  }
+                  if (!storeActionType && commerceModel) {
+                    handleSetStoreActionType(commerceModelToDefaultAction(commerceModel as BuyerJourneyId));
+                  }
+                  handleSetConfigSubStep(1);
+                  handleProceedToSettings();
+                }} disabled={isLoading || !formData.business_name.trim() || ((selectedGroupRow as any)?.license_mandatory && (!licenseStatus || licenseStatus === 'rejected'))}>{isLoading && <Loader2 className="animate-spin mr-2" size={18} />}Continue<ChevronRight size={16} className="ml-1" /></Button>
+              </div>
+            )}
           </div>
         )}
 
@@ -1010,30 +1126,13 @@ export default function BecomeSellerPage() {
             <AnimatePresence mode="wait">
               {configSubStep === 1 && (
                 <motion.div
-                  key="delivery"
+                  key="payments"
                   initial={{ opacity: 0, x: 20 }}
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: -20 }}
                   transition={{ duration: 0.25 }}
                   className="space-y-5"
                 >
-                  <div className="border rounded-lg p-4 space-y-3">
-                    <div className="flex items-center gap-2"><Truck size={16} className="text-primary" /><h3 className="font-semibold text-sm">Fulfillment Mode</h3></div>
-                    <RadioGroup value={formData.fulfillment_mode} onValueChange={(value) => setFormData({ ...formData, fulfillment_mode: value })} className="space-y-2">
-                      {FULFILLMENT_OPTIONS.map((option) => { const Icon = option.icon; return (
-                        <label key={option.value} className={cn('flex items-center gap-3 p-3 rounded-lg border transition-all', option.disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer', !option.disabled && formData.fulfillment_mode === option.value ? 'border-primary bg-primary/5' : 'border-border hover:border-muted-foreground/30')}>
-                          <RadioGroupItem value={option.value} disabled={option.disabled} /><div className="flex-1"><span className="text-sm font-medium">{option.label}</span><p className="text-xs text-muted-foreground">{option.description}</p></div>
-                        </label>
-                      ); })}
-                    </RadioGroup>
-                    {formData.fulfillment_mode !== 'self_pickup' && (
-                      <p className="text-xs text-primary/80 bg-primary/5 rounded-lg p-2">💡 Delivery fee is managed by the platform admin</p>
-                    )}
-                    {(formData.fulfillment_mode === 'platform_delivery' || formData.fulfillment_mode === 'pickup_and_platform_delivery') && (
-                      <p className="text-xs text-muted-foreground bg-muted rounded-lg p-2">🚴 A delivery partner will be auto-assigned when the order is ready</p>
-                    )}
-                    {(formData.fulfillment_mode === 'seller_delivery' || formData.fulfillment_mode === 'pickup_and_seller_delivery') && <div className="space-y-2 pt-2 border-t"><Label htmlFor="delivery_note" className="text-xs text-muted-foreground">Delivery Note (optional)</Label><Input id="delivery_note" placeholder="e.g., Delivery available within 2 km, after 5 PM only" value={formData.delivery_note} onChange={(e) => setFormData({ ...formData, delivery_note: e.target.value })} /></div>}
-                  </div>
                   <div className="border rounded-lg p-4 space-y-3">
                     <div className="flex items-center gap-2"><Banknote size={16} className="text-primary" /><h3 className="font-semibold text-sm">Payment Methods</h3></div>
                     <p className="text-xs text-muted-foreground">Customer payments go directly to you. Sociva Credits are a separate prepaid balance for platform usage such as orders, enquiries, bookings, and contact requests.</p>
@@ -1189,14 +1288,19 @@ export default function BecomeSellerPage() {
                 <div className="flex justify-between"><span className="text-muted-foreground">Category</span><span className="font-medium">{selectedGroupInfo?.label}</span></div>
                 <div className="flex justify-between"><span className="text-muted-foreground">Products</span><span className="font-medium">{draftProducts.length} item(s)</span></div>
                 <div className="flex justify-between"><span className="text-muted-foreground">Hours</span><span className="font-medium">{formData.availability_start} – {formData.availability_end}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Location</span><span className="font-medium">{formData.latitude ? '📍 Set' : profile?.society_id ? 'Society default' : '⚠️ Not set'}</span></div>
+                <div className="flex justify-between gap-3"><span className="text-muted-foreground shrink-0">Location</span><span className="font-medium text-right">{formatStoreLocationLabel(formData.store_location_label) || (formData.latitude ? 'Location selected' : profile?.society_id ? 'Society default' : '⚠️ Not set')}</span></div>
                 <div className="border-t pt-2 mt-2 space-y-2">
                   <div className="flex justify-between"><span className="text-muted-foreground">Fulfillment</span><span className="font-medium">{fulfillmentLabel}</span></div>
                   <div className="flex justify-between"><span className="text-muted-foreground">Payments</span><span className="font-medium">{paymentMethods}</span></div>
                   <div className="flex justify-between"><span className="text-muted-foreground">Operating Days</span><span className="font-medium">{formData.operating_days.length === 7 ? 'Every day' : `${formData.operating_days.length} day(s)`}</span></div>
                   {(formData.profile_image_url || formData.cover_image_url) && <div className="flex justify-between"><span className="text-muted-foreground">Store Images</span><span className="font-medium">{[formData.profile_image_url && 'Profile', formData.cover_image_url && 'Cover'].filter(Boolean).join(' + ')}</span></div>}
                 </div>
-                <div className="border-t pt-2 mt-2"><div className="flex justify-between"><span className="text-muted-foreground">Cross-Society</span><span className="font-medium">{formData.sell_beyond_community ? `Yes (${formData.delivery_radius_km} km)` : 'No'}</span></div></div>
+                <div className="border-t pt-2 mt-2 space-y-2">
+                  <div className="flex justify-between"><span className="text-muted-foreground">Selling radius</span><span className="font-medium">{formData.delivery_radius_km} km</span></div>
+                  {isSellerDeliveryMode(formData.fulfillment_mode) && (
+                    <p className="text-xs text-muted-foreground">Delivery is free for customers. You deliver within {formData.delivery_radius_km} km.</p>
+                  )}
+                </div>
               </div>
             </div>
             {draftSellerId && selectedGroupRow && (selectedGroupRow as any).requires_license && licenseStatus && (
@@ -1204,7 +1308,7 @@ export default function BecomeSellerPage() {
                 <Shield size={16} className="flex-shrink-0" /><span>{(selectedGroupRow as any).license_type_name || 'Business License'}: {licenseStatus === 'approved' ? 'Verified ✓' : licenseStatus === 'pending' ? 'Uploaded — awaiting admin verification' : 'Status: ' + licenseStatus}</span>
               </div>
             )}
-            <div className="bg-muted rounded-lg p-4 text-sm"><h4 className="font-semibold mb-2">What happens next?</h4><ul className="space-y-1 text-muted-foreground"><li>• Your full application will be reviewed by admin</li><li>• Once approved, your store goes live immediately</li><li>• Start receiving orders from neighbors!</li></ul></div>
+            <div className="bg-muted rounded-lg p-4 text-sm"><h4 className="font-semibold mb-2">What happens next?</h4><ul className="space-y-1 text-muted-foreground"><li>• Your store is submitted for review</li><li>• You'll get an in-app and push notification when the review finishes</li><li>• After approval, recharge Sociva Credits to start selling</li></ul></div>
             <div className="border rounded-lg p-4 space-y-3">
               <h4 className="font-semibold text-sm flex items-center gap-2"><Shield size={16} className="text-primary" />Seller Declaration</h4>
               <div className="text-xs text-muted-foreground space-y-1"><p>By submitting this application, I declare that:</p><ul className="space-y-0.5 ml-3"><li>• I hold all necessary licenses and registrations</li><li>• I am solely responsible for product/service quality and safety</li><li>• I will comply with all applicable laws and regulations</li><li>• I will handle customer complaints professionally</li><li>• I understand that violations may lead to account suspension</li></ul></div>

@@ -19,7 +19,7 @@ describe('seller activation, discovery, and location', () => {
     const sql = read('supabase/migrations/20260822100000_seller_activation_discovery_notifications.sql');
     const notify = read('src/lib/admin-notifications.ts');
     expect(sql).toMatch(/enqueue_seller_lifecycle_notification/);
-    expect(sql).toMatch(/Your store is now live!/);
+    expect(sql).toMatch(/Your store is now live!|Your store has been approved!/);
     expect(sql).toMatch(/\/seller\/credits/);
     expect(sql).toMatch(/ON CONFLICT \(user_id, idempotency_key\)/);
     expect(sql).toMatch(/trg_enqueue_seller_status_notification/);
@@ -75,9 +75,10 @@ describe('seller activation, discovery, and location', () => {
     expect(orderFn).toMatch(/Minimum recharge amount is ₹100/);
     expect(confirmFn).toMatch(/confirm_seller_credit_purchase/);
     expect(confirmFn).toMatch(/pending: true/);
-    expect(dashboard).toMatch(/SellerActivationBanner/);
+    expect(dashboard).toMatch(/SellerJourneyBanner/);
     expect(dashboard).toMatch(/flex flex-col gap-4/);
-    expect(dashboard).toMatch(/creditActivated === false/);
+    expect(dashboard).toMatch(/creditActivated/);
+    expect(read('src/pages/HomePage.tsx')).toMatch(/SellerJourneyBanner/);
   });
 
   it('gates seller pages, reorder, enquiry, and booking through the same eligibility RPC', () => {

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Button } from '@/components/ui/button';
 import { MapPin, Check, Loader2, ArrowLeft } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import {
   extractBestLabel,
   extractBestFormattedAddress,
@@ -33,16 +34,17 @@ function callerNameToLabel(name: string): ResolvedLabel | null {
 export function GoogleMapConfirm({ latitude, longitude, name, onConfirm, onBack }: GoogleMapConfirmProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<google.maps.Map | null>(null);
-  const markerRef = useRef<google.maps.Marker | null>(null);
   const geocoderRef = useRef<google.maps.Geocoder | null>(null);
   const mapInitializedRef = useRef(false);
   const hasUserInteractedRef = useRef(false);
   const resolveRequestIdRef = useRef(0);
+  const idleTimerRef = useRef<number | null>(null);
 
-  const [marker, setMarker] = useState<{ lat: number; lng: number }>({ lat: latitude, lng: longitude });
+  const [center, setCenter] = useState<{ lat: number; lng: number }>({ lat: latitude, lng: longitude });
   const [displayName, setDisplayName] = useState(name);
   const [formattedAddress, setFormattedAddress] = useState('');
   const [isGeocoding, setIsGeocoding] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
 
   const displayNameRef = useRef(name);
   const formattedAddressRef = useRef('');
@@ -85,15 +87,9 @@ export function GoogleMapConfirm({ latitude, longitude, name, onConfirm, onBack 
         currentBest = pickBetterLabel(currentBest, geocodeLabel);
       }
 
-      // Always consult Places API — it has fresher, more accurate POI names
-      // than the Geocoder (which may return a nearby landmark/circle instead
-      // of the actual business under the pin, e.g. "Mountain High Studio Cafe").
       if (map) {
         const placesLabel = await findNearbyPlaceName(map, lat, lng);
         if (placesLabel) {
-          // If the initial caller-supplied label matches a real POI nearby, keep it.
-          // Otherwise prefer the Places result over geocoder POIs that are often
-          // street/area names rather than the business itself.
           if (preserveInitial && currentBest && currentBest.quality === LabelQuality.POI) {
             // keep caller label
           } else {
@@ -117,18 +113,11 @@ export function GoogleMapConfirm({ latitude, longitude, name, onConfirm, onBack 
     setIsGeocoding(false);
   }, []);
 
-  const updateMarkerPosition = useCallback((lat: number, lng: number, options?: { preserveInitial?: boolean; panMap?: boolean }) => {
-    const nextPos = { lat, lng };
-    setMarker(nextPos);
-
-    if (markerRef.current) {
-      markerRef.current.setPosition(nextPos);
-    }
-
+  const commitCenter = useCallback((lat: number, lng: number, options?: { preserveInitial?: boolean; panMap?: boolean }) => {
+    setCenter({ lat, lng });
     if (options?.panMap && mapInstanceRef.current) {
-      mapInstanceRef.current.panTo(nextPos);
+      mapInstanceRef.current.panTo({ lat, lng });
     }
-
     resolveLabel(lat, lng, options?.preserveInitial ?? false);
   }, [resolveLabel]);
 
@@ -152,27 +141,28 @@ export function GoogleMapConfirm({ latitude, longitude, name, onConfirm, onBack 
       styles: [{ featureType: 'poi', stylers: [{ visibility: 'simplified' }] }],
     });
 
-    const markerInstance = new google.maps.Marker({
-      map,
-      position: initialPos,
-      draggable: true,
-      title: 'Selected location',
-      cursor: 'grab',
-    });
-
     mapInstanceRef.current = map;
-    markerRef.current = markerInstance;
     geocoderRef.current = new google.maps.Geocoder();
     mapInitializedRef.current = true;
 
     const mapDragStartListener = map.addListener('dragstart', () => {
       hasUserInteractedRef.current = true;
+      setIsDragging(true);
     });
 
     const mapDragEndListener = map.addListener('dragend', () => {
-      const center = map.getCenter();
-      if (!center) return;
-      updateMarkerPosition(center.lat(), center.lng());
+      setIsDragging(false);
+    });
+
+    const idleListener = map.addListener('idle', () => {
+      const next = map.getCenter();
+      if (!next) return;
+      const lat = next.lat();
+      const lng = next.lng();
+      if (idleTimerRef.current) window.clearTimeout(idleTimerRef.current);
+      idleTimerRef.current = window.setTimeout(() => {
+        commitCenter(lat, lng, { preserveInitial: !hasUserInteractedRef.current });
+      }, 180);
     });
 
     const zoomListener = map.addListener('zoom_changed', () => {
@@ -182,47 +172,29 @@ export function GoogleMapConfirm({ latitude, longitude, name, onConfirm, onBack 
     const mapClickListener = map.addListener('click', (event: google.maps.MapMouseEvent) => {
       if (!event.latLng) return;
       hasUserInteractedRef.current = true;
-      updateMarkerPosition(event.latLng.lat(), event.latLng.lng());
-    });
-
-    const markerDragStartListener = markerInstance.addListener('dragstart', () => {
-      hasUserInteractedRef.current = true;
-      map.setOptions({ draggable: false });
-    });
-
-    const markerDragEndListener = markerInstance.addListener('dragend', () => {
-      map.setOptions({ draggable: true });
-      const pos = markerInstance.getPosition();
-      if (!pos) return;
-      updateMarkerPosition(pos.lat(), pos.lng());
+      map.panTo(event.latLng);
     });
 
     resolveLabel(latitude, longitude, true);
 
     return () => {
+      if (idleTimerRef.current) window.clearTimeout(idleTimerRef.current);
       mapDragStartListener.remove();
       mapDragEndListener.remove();
+      idleListener.remove();
       zoomListener.remove();
       mapClickListener.remove();
-      markerDragStartListener.remove();
-      markerDragEndListener.remove();
-      if (markerRef.current) {
-        markerRef.current.setMap(null);
-        markerRef.current = null;
-      }
       mapInstanceRef.current = null;
       geocoderRef.current = null;
       mapInitializedRef.current = false;
     };
-  }, [latitude, longitude, resolveLabel, updateMarkerPosition]);
+  }, [latitude, longitude, resolveLabel, commitCenter]);
 
   useEffect(() => {
     if (!mapInstanceRef.current || !mapInitializedRef.current) return;
-    updateMarkerPosition(latitude, longitude, {
-      preserveInitial: true,
-      panMap: !hasUserInteractedRef.current,
-    });
-  }, [latitude, longitude, updateMarkerPosition]);
+    if (hasUserInteractedRef.current) return;
+    mapInstanceRef.current.panTo({ lat: latitude, lng: longitude });
+  }, [latitude, longitude]);
 
   return createPortal(
     <div className="fixed inset-0 z-50 bg-background flex flex-col" style={{ overscrollBehavior: 'contain' }}>
@@ -240,9 +212,17 @@ export function GoogleMapConfirm({ latitude, longitude, name, onConfirm, onBack 
       <div className="flex-1 relative" style={{ touchAction: 'none' }}>
         <div ref={mapRef} className="absolute inset-0" />
 
+        <div className="absolute inset-0 z-10 pointer-events-none flex items-center justify-center">
+          <div className={cn('relative flex flex-col items-center transition-transform duration-150', isDragging ? '-translate-y-3 scale-110' : '-translate-y-2')}>
+            <div className="w-5 h-5 rounded-full bg-[#1a73e8] border-[3px] border-white shadow-[0_2px_8px_rgba(26,115,232,0.45)]" />
+            <div className="w-px h-3 bg-[#1a73e8]/80" />
+            <div className={cn('w-2 h-2 rounded-full bg-black/25 blur-[1px]', isDragging ? 'opacity-40' : 'opacity-70')} />
+          </div>
+        </div>
+
         <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 pointer-events-none">
           <div className="bg-background/90 backdrop-blur-sm text-xs text-muted-foreground px-3 py-1.5 rounded-full shadow-sm border border-border">
-            Drag the pin or tap the map
+            Move the map to position the location
           </div>
         </div>
       </div>
@@ -264,8 +244,8 @@ export function GoogleMapConfirm({ latitude, longitude, name, onConfirm, onBack 
             Back
           </Button>
           <Button
-            onClick={() => onConfirm(marker.lat, marker.lng, displayNameRef.current, formattedAddressRef.current)}
-            disabled={isGeocoding}
+            onClick={() => onConfirm(center.lat, center.lng, displayNameRef.current, formattedAddressRef.current)}
+            disabled={isGeocoding || isDragging}
             className="flex-1 h-12 rounded-xl font-semibold"
           >
             {isGeocoding ? (

@@ -15,6 +15,12 @@ export interface ResolvedProduct {
   stock_quantity: number | null;
   low_stock_threshold: number | null;
   seller_id: string;
+  seller_name?: string | null;
+  seller_rating?: number | null;
+  seller_reviews?: number | null;
+  seller_verified?: boolean;
+  delivery_time_text?: string | null;
+  discount_percentage?: number | null;
 }
 
 interface ResolveOptions {
@@ -94,20 +100,7 @@ export async function resolveBannerSections(options: {
     if (!result.has(sectionId)) {
       result.set(sectionId, []);
     }
-    result.get(sectionId)!.push({
-      id: row.product_id,
-      name: row.product_name,
-      price: row.product_price,
-      mrp: row.product_mrp,
-      image_url: row.product_image_url,
-      category: row.product_category,
-      is_veg: row.product_is_veg,
-      is_available: row.product_is_available,
-      is_bestseller: row.product_is_bestseller,
-      stock_quantity: row.product_stock_quantity,
-      low_stock_threshold: row.product_low_stock_threshold,
-      seller_id: row.product_seller_id,
-    });
+    result.get(sectionId)!.push(mapResolvedRow(row));
   }
 
   return result;
@@ -133,7 +126,30 @@ async function fetchViaRpc(
     p_banner_id: bannerId ?? null,
   });
 
-  return (data as ResolvedProduct[]) || [];
+  return ((data as any[]) || []).map(mapResolvedRow);
+}
+
+function mapResolvedRow(row: any): ResolvedProduct {
+  return {
+    id: row.product_id || row.id,
+    name: row.product_name || row.name,
+    price: row.product_price ?? row.price,
+    mrp: row.product_mrp ?? row.mrp ?? null,
+    image_url: row.product_image_url ?? row.image_url ?? null,
+    category: row.product_category ?? row.category ?? null,
+    is_veg: row.product_is_veg ?? row.is_veg ?? null,
+    is_available: row.product_is_available ?? row.is_available ?? true,
+    is_bestseller: row.product_is_bestseller ?? row.is_bestseller ?? false,
+    stock_quantity: row.product_stock_quantity ?? row.stock_quantity ?? null,
+    low_stock_threshold: row.product_low_stock_threshold ?? row.low_stock_threshold ?? null,
+    seller_id: row.product_seller_id || row.seller_id,
+    seller_name: row.seller_name ?? null,
+    seller_rating: row.seller_rating != null ? Number(row.seller_rating) : null,
+    seller_reviews: row.seller_reviews ?? null,
+    seller_verified: !!row.seller_verified,
+    delivery_time_text: row.delivery_time_text ?? null,
+    discount_percentage: row.discount_percentage ?? null,
+  };
 }
 
 /** Manual section: fetch product IDs from join table, then validate eligibility */

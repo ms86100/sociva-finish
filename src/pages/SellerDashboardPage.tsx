@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/contexts/AuthContext';
 import { SellerProfile } from '@/types/Database';
-import { Package, Loader2, CalendarDays, Wrench, BarChart3, ShoppingBag, HeadphonesIcon, Receipt, MessageCircle, ChevronRight, Clock, XCircle, LayoutGrid } from 'lucide-react';
+import { Package, Loader2, CalendarDays, Wrench, BarChart3, ShoppingBag, HeadphonesIcon, Receipt, MessageCircle, ChevronRight, LayoutGrid } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
@@ -19,7 +19,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 
 // Eager: default Orders tab + chrome
-import { StoreStatusCard } from '@/components/seller/StoreStatusCard';
+import { SellerFestivalParticipation } from '@/components/seller/SellerFestivalParticipation';
 import { PortfolioRollupStrip } from '@/components/seller/PortfolioRollupStrip';
 import { SellerVisibilityChecklist } from '@/components/seller/SellerVisibilityChecklist';
 import { EarningsSummary } from '@/components/seller/EarningsSummary';
@@ -39,6 +39,7 @@ import {
 } from '@/hooks/queries/useSellerFinancial';
 import { SellerTransferBanner } from '@/components/seller/SellerTransferBanner';
 import { SellerActivationBanner } from '@/components/seller/SellerActivationBanner';
+import { SellerJourneyBanner } from '@/components/seller/SellerJourneyBanner';
 import { SocivaCreditsCard } from '@/components/seller/SocivaCreditsCard';
 import { useSellerCreditActivation, useSellerCreditRealtime, useSellerCreditSummary } from '@/hooks/queries/useSellerCredits';
 import { useSellerHasBookableServices } from '@/hooks/useSellerHasBookableServices';
@@ -411,40 +412,10 @@ export default function SellerDashboardPage() {
           />
         ) : (
           <>
-            {/* Rejection / Pending banner */}
-            {sellerProfile.verification_status !== 'approved' && (
-              <div className={cn(
-                'rounded-xl border p-4 space-y-2',
-                sellerProfile.verification_status === 'rejected'
-                  ? 'bg-destructive/10 border-destructive/20'
-                  : 'bg-warning/10 border-warning/20',
-              )}>
-                <div className="flex items-start gap-2">
-                  {sellerProfile.verification_status === 'rejected' ? (
-                    <XCircle size={18} className="text-destructive shrink-0 mt-0.5" />
-                  ) : (
-                    <Clock size={18} className="text-warning shrink-0 mt-0.5" />
-                  )}
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold">
-                      {sellerProfile.verification_status === 'rejected'
-                        ? 'Your store application was rejected'
-                        : 'Your store is pending review'}
-                    </p>
-                    {(sellerProfile as any).rejection_note && (
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Reason: {(sellerProfile as any).rejection_note}
-                      </p>
-                    )}
-                    <Link to="/become-seller">
-                      <Button size="sm" variant={sellerProfile.verification_status === 'rejected' ? 'destructive' : 'outline'} className="mt-2 h-8 text-xs">
-                        {sellerProfile.verification_status === 'rejected' ? 'Update & Resubmit' : 'View Application'}
-                      </Button>
-                    </Link>
-                  </div>
-                </div>
-              </div>
-            )}
+            <SellerJourneyBanner
+              profiles={[sellerProfile]}
+              creditActivated={isPortfolio ? undefined : creditActivated}
+            />
 
             <StoreStatusCard
               sellerProfile={sellerProfile}
@@ -456,13 +427,16 @@ export default function SellerDashboardPage() {
             />
 
             {sellerProfile.verification_status === 'approved' && (
+              <SellerFestivalParticipation sellerId={sellerProfile.id} variant="dashboard" />
+            )}
+
+            {sellerProfile.verification_status === 'approved' && (
               <div className="flex flex-col gap-4">
                 <SellerTransferBanner
                   sellerId={activeSellerId}
                   portfolioIds={null}
                   available={finance?.available || 0}
                 />
-                <SellerActivationBanner visible={creditActivated === false} />
                 <EarningsSummary
                   todayEarnings={stats?.todayEarnings || 0}
                   weekEarnings={stats?.weekEarnings || 0}

@@ -5,11 +5,13 @@ import { cn } from '@/lib/utils';
 import { hapticSelection } from '@/lib/haptics';
 import { DynamicIcon } from '@/components/ui/DynamicIcon';
 import { motion } from 'framer-motion';
+import { useFestivalTakeover } from '@/hooks/queries/useActiveFestivals';
 
 interface ParentGroupTabsProps {
   activeGroup: string | null;
   onGroupChange: (slug: string | null) => void;
   activeParentGroups?: Set<string>;
+  festivalTabs?: { value: string; label: string }[];
 }
 
 // Warm tint per category type for visual variety
@@ -38,19 +40,30 @@ const DEFAULT_ACCENT = {
   iconBg: 'bg-primary/15',
 };
 
-export function ParentGroupTabs({ activeGroup, onGroupChange, activeParentGroups }: ParentGroupTabsProps) {
+export function ParentGroupTabs({ activeGroup, onGroupChange, activeParentGroups, festivalTabs = [] }: ParentGroupTabsProps) {
   const { parentGroupInfos, isLoading } = useParentGroups();
+  const takeover = useFestivalTakeover();
   const filteredGroups = activeParentGroups
     ? parentGroupInfos.filter(g => activeParentGroups.has(g.value))
     : parentGroupInfos;
 
-  if (!isLoading && filteredGroups.length === 0) {
+  const barStyle = takeover.active
+    ? { backgroundColor: takeover.bg, borderColor: 'rgba(255,255,255,0.12)' }
+    : undefined;
+
+  if (!isLoading && filteredGroups.length === 0 && festivalTabs.length === 0) {
     return null;
   }
 
   if (isLoading) {
     return (
-      <div className="sticky top-[max(var(--app-safe-top),3.25rem)] z-20 bg-background/80 backdrop-blur-xl border-b border-border/30 px-4 py-2">
+      <div
+        className={cn(
+          'sticky top-[max(var(--app-safe-top),3.25rem)] z-20 px-4 py-2',
+          takeover.active ? 'border-b border-white/10' : 'bg-background/80 backdrop-blur-xl border-b border-border/30'
+        )}
+        style={barStyle}
+      >
         <div className="flex gap-2.5 overflow-x-auto scrollbar-hide">
           {[1, 2, 3].map(i => (
             <Skeleton key={i} className="w-28 h-10 rounded-full shrink-0" />
@@ -61,17 +74,32 @@ export function ParentGroupTabs({ activeGroup, onGroupChange, activeParentGroups
   }
 
   // Always horizontal scrollable chips — works for 1 or N groups
-  const showAll = filteredGroups.length > 1;
+  const showAll = filteredGroups.length > 1 || festivalTabs.length > 0;
   const tabs: ParentGroupInfo[] = [
     ...(showAll ? [{ value: '__all__', label: 'All', icon: 'LayoutGrid', color: '', description: '', layoutType: 'ecommerce' as const }] : []),
+    ...festivalTabs.map((f) => ({
+      value: f.value,
+      label: f.label,
+      icon: 'Sparkles',
+      color: '',
+      description: '',
+      layoutType: 'ecommerce' as const,
+    })),
     ...filteredGroups,
   ];
 
   return (
-    <div className="sticky top-[max(var(--app-safe-top),3.25rem)] z-20 bg-background/80 backdrop-blur-xl border-b border-border/30">
+    <div
+      className={cn(
+        'sticky top-[max(var(--app-safe-top),3.25rem)] z-20',
+        takeover.active ? 'border-b border-white/10' : 'bg-background/80 backdrop-blur-xl border-b border-border/30'
+      )}
+      style={barStyle}
+    >
       <div className="flex gap-2 overflow-x-auto scrollbar-hide px-4 py-2">
         {tabs.map((tab, index) => {
           const isAll = tab.value === '__all__';
+          const isFestival = tab.value === '__festival__' || tab.value.startsWith('__festival__');
           const isActive = isAll ? activeGroup === null : activeGroup === tab.value;
           const accent = GROUP_ACCENTS[tab.value] || DEFAULT_ACCENT;
 
@@ -88,12 +116,18 @@ export function ParentGroupTabs({ activeGroup, onGroupChange, activeParentGroups
               className={cn(
                 'flex items-center gap-2 shrink-0 px-3.5 py-2 rounded-full transition-all duration-300 relative overflow-hidden',
                 'border',
-                isActive
-                  ? 'bg-primary/12 border-primary/30 shadow-[0_0_12px_hsl(var(--primary)/0.1)] text-primary'
-                  : 'bg-card/50 border-border/25 text-muted-foreground hover:bg-card/70 active:scale-95'
+                takeover.active
+                  ? isActive
+                    ? 'bg-white/15 border-white/25 text-white'
+                    : 'bg-transparent border-white/10 text-white/75 active:scale-95'
+                  : isActive
+                    ? isFestival
+                      ? 'bg-amber-500/15 border-amber-500/35 text-amber-700 dark:text-amber-300'
+                      : 'bg-primary/12 border-primary/30 shadow-[0_0_12px_hsl(var(--primary)/0.1)] text-primary'
+                    : 'bg-card/50 border-border/25 text-muted-foreground hover:bg-card/70 active:scale-95'
               )}
             >
-              {isActive && (
+              {isActive && !takeover.active && (
                 <div className={cn(
                   'absolute inset-0 bg-gradient-to-r pointer-events-none opacity-40',
                   accent.gradient
@@ -102,10 +136,14 @@ export function ParentGroupTabs({ activeGroup, onGroupChange, activeParentGroups
 
               <div className={cn(
                 'relative w-6 h-6 rounded-full flex items-center justify-center transition-colors duration-300',
-                isActive ? accent.iconBg : 'bg-muted/40'
+                takeover.active
+                  ? isActive ? 'bg-white/20' : 'bg-white/10'
+                  : isActive ? accent.iconBg : 'bg-muted/40'
               )}>
                 {isAll ? (
                   <DynamicIcon name="LayoutGrid" size={12} />
+                ) : isFestival ? (
+                  <DynamicIcon name="Sparkles" size={12} />
                 ) : (
                   <span className="text-xs">{tab.icon || '📦'}</span>
                 )}
@@ -118,7 +156,14 @@ export function ParentGroupTabs({ activeGroup, onGroupChange, activeParentGroups
                 {tab.label}
               </span>
 
-              {isActive && (
+              {isActive && takeover.active && (
+                <span
+                  className="absolute bottom-0.5 left-4 right-4 h-0.5 rounded-full"
+                  style={{ backgroundColor: takeover.accent }}
+                />
+              )}
+
+              {isActive && !takeover.active && (
                 <motion.div
                   layoutId="activeGroupPill"
                   className="absolute inset-0 rounded-full bg-primary/10 border border-primary/25"

@@ -60,7 +60,9 @@ serve(async (req) => {
     }
 
     const keys = await getRazorpayCredentials(supabase);
-    if (!keys.keyId || !keys.keySecret) {
+    const keyId = String(keys.keyId || "").trim();
+    const keySecret = String(keys.keySecret || "").trim();
+    if (!keyId || !keySecret) {
       return new Response(JSON.stringify({ error: "Payment gateway not configured. Please contact admin." }), {
         status: 503,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -68,28 +70,48 @@ serve(async (req) => {
     }
 
     const amountPaise = Math.round(Number(created.amount) * 100);
+    if (!Number.isFinite(amountPaise) || amountPaise < 10000) {
+      await supabase.rpc("fail_seller_credit_purchase", { p_purchase_id: created.purchase_id });
+      return new Response(JSON.stringify({ error: "Minimum recharge amount is ₹100" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
     const receipt = `scred_${String(created.purchase_id).replace(/-/g, "").slice(0, 32)}`;
+    const razorpayAuth = btoa(`${keyId}:${keySecret}`);
     const rzpRes = await fetch("https://api.razorpay.com/v1/orders", {
       method: "POST",
       headers: {
-        Authorization: "Basic " + btoa(`${keys.keyId}:${keys.keySecret}`),
+        Authorization: `Basic ${razorpayAuth}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
         amount: amountPaise,
         currency: "INR",
         receipt,
+        payment_capture: 1,
         notes: {
           purpose: "seller_credit_purchase",
-          seller_id: sellerId,
-          purchase_id: created.purchase_id,
+          seller_id: String(sellerId),
+          purchase_id: String(created.purchase_id),
         },
       }),
     });
-    const rzp = await rzpRes.json();
+    const rzp = await rzpRes.json().catch(() => ({}));
     if (!rzpRes.ok || !rzp.id) {
+      const razorpayMessage = rzp?.error?.description || rzp?.error?.reason || rzp?.error?.code;
+      console.error("[create-seller-credit-order] Razorpay order failed", {
+        status: rzpRes.status,
+        purchase_id: created.purchase_id,
+        amount_paise: amountPaise,
+        razorpay: razorpayMessage || rzp,
+      });
       await supabase.rpc("fail_seller_credit_purchase", { p_purchase_id: created.purchase_id });
-      return new Response(JSON.stringify({ error: "Could not create credit payment." }), {
+      return new Response(JSON.stringify({
+        error: razorpayMessage
+          ? `We couldn't start the recharge: ${razorpayMessage}`
+          : "We couldn't complete your recharge. Please try again.",
+      }), {
         status: 502,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
