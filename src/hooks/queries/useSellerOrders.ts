@@ -6,6 +6,7 @@ import {
   emptyBoardCounts,
   emptyDashboardKpis,
   getIstPeriodBounds,
+  isFutureScheduledAwaitingPrep,
   isPortfolioSellerId,
   statusesForFilter,
   sumBoardCounts,
@@ -13,6 +14,7 @@ import {
   type SellerDashboardKpis,
   type SellerOrderFilter,
 } from '@/lib/seller-order-board';
+import { istDateString } from '@/lib/scheduled-orders';
 
 const PAGE_SIZE = 20;
 
@@ -48,6 +50,7 @@ function mapCountsRpc(raw: Record<string, unknown> | null): SellerBoardCounts {
   return {
     all: Number(raw.all) || 0,
     today: Number(raw.today) || 0,
+    upcoming: Number(raw.upcoming) || 0,
     enquiries: Number(raw.enquiries) || 0,
     pending: Number(raw.pending) || 0,
     preparing: Number(raw.preparing) || 0,
@@ -66,7 +69,7 @@ async function fetchCountsClientFallback(sellerId: string): Promise<SellerBoardC
   const since = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
   const { data: orders } = await supabase
     .from('orders')
-    .select('id, status, created_at, payment_status')
+    .select('id, status, created_at, payment_status, scheduled_date, scheduled_time_start, scheduled_time, preparation_start_at, scheduled_fulfilment_at')
     .eq('seller_id', sellerId)
     .gte('created_at', since)
     .order('created_at', { ascending: false })
@@ -194,7 +197,7 @@ export function useSellerOrdersInfinite(
       let query = supabase
         .from('orders')
         .select(
-          `id, created_at, status, payment_status, total_amount, order_type, fulfillment_type, delivery_handled_by, transaction_type, auto_cancel_at, auto_accepted, seller_id, buyer_id, rejection_reason, delivery_address, delivery_lat, delivery_lng, buyer:profiles!orders_buyer_id_fkey(name, block, flat_number, phone, phase), items:order_items(id, product_name, quantity, unit_price, status)`,
+          `id, created_at, status, payment_status, total_amount, order_type, fulfillment_type, delivery_handled_by, transaction_type, auto_cancel_at, auto_accepted, seller_id, buyer_id, rejection_reason, delivery_address, delivery_lat, delivery_lng, scheduled_date, scheduled_time_start, scheduled_time, preparation_start_at, scheduled_fulfilment_at, cancellation_cutoff_at, buyer:profiles!orders_buyer_id_fkey(name, block, flat_number, phone, phase), items:order_items(id, product_name, quantity, unit_price, status)`,
         )
         .order('created_at', { ascending: false })
         .limit(PAGE_SIZE)
@@ -208,10 +211,19 @@ export function useSellerOrdersInfinite(
 
       const { todayISO } = getIstPeriodBounds();
       const typedFilter = filter as SellerOrderFilter;
+      const todayIst = istDateString();
 
       switch (typedFilter) {
         case 'today':
           query = query.gte('created_at', todayISO);
+          break;
+        case 'upcoming':
+          query = query
+            .not('scheduled_date', 'is', null)
+            .gte('scheduled_date', todayIst)
+            .in('status', statusesForFilter('upcoming')!)
+            .order('scheduled_date', { ascending: true })
+            .order('scheduled_time_start', { ascending: true });
           break;
         case 'pending':
           query = query.or(
@@ -253,7 +265,15 @@ export function useSellerOrdersInfinite(
       }
 
       const { data } = await query;
-      return (data as any[]) || [];
+      let rows = (data as any[]) || [];
+
+      if (typedFilter === 'pending') {
+        rows = rows.filter((r) => !isFutureScheduledAwaitingPrep(r));
+      } else if (typedFilter === 'upcoming') {
+        rows = rows.filter((r) => isFutureScheduledAwaitingPrep(r));
+      }
+
+      return rows;
     },
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage) => {

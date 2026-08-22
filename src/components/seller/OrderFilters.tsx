@@ -18,6 +18,7 @@ interface OrderFiltersProps {
 const FILTER_ORDER: SellerOrderFilter[] = [
   'all',
   'pending',
+  'upcoming',
   'preparing',
   'ready',
   'in_transit',
@@ -50,7 +51,7 @@ export function OrderFilters({ currentFilter, onFilterChange, counts }: OrderFil
         const emphasis = EMPHASIS[value];
         // Hide zero-count rare buckets to reduce clutter (keep core always)
         const alwaysShow: SellerOrderFilter[] = [
-          'all', 'pending', 'preparing', 'ready', 'in_transit', 'today', 'completed',
+          'all', 'pending', 'upcoming', 'preparing', 'ready', 'in_transit', 'today', 'completed',
         ];
         if (!alwaysShow.includes(value) && count === 0 && !active) return null;
 

@@ -10,6 +10,8 @@ import { useCurrency } from '@/hooks/useCurrency';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { sellerDisplayStatusLabel } from '@/lib/seller-order-board';
+import { ScheduledOrderCountdown } from '@/components/orders/ScheduledOrderCountdown';
+import { isScheduledOrder, isUpcomingScheduled } from '@/lib/scheduled-orders';
 
 interface OrderItemWithStatus {
   id: string;
@@ -76,7 +78,8 @@ export function SellerOrderCard({ order }: SellerOrderCardProps) {
 
   // SLA countdown for pending orders
   const autoCancelAt = order.auto_cancel_at;
-  const isPending = order.status === 'placed' || order.status === 'pending';
+  const isUpcoming = isScheduledOrder(order) && isUpcomingScheduled(order);
+  const isPending = !isUpcoming && (order.status === 'placed' || order.status === 'pending');
   const [slaSeconds, setSlaSeconds] = useState(() => {
     if (!autoCancelAt || !isPending) return -1;
     return Math.max(0, Math.floor((new Date(autoCancelAt).getTime() - Date.now()) / 1000));
@@ -177,12 +180,15 @@ export function SellerOrderCard({ order }: SellerOrderCardProps) {
 
           {/* Scheduled Pre-order Indicator */}
           {order.scheduled_date && (
-            <div className="flex items-center gap-1.5 mb-2 bg-accent/10 border border-accent/20 rounded-lg px-2.5 py-1.5 text-xs">
-              <CalendarDays size={12} className="text-accent shrink-0" />
-              <span className="text-accent font-medium">
-                📅 Scheduled: {format(new Date(order.scheduled_date), 'MMM d')}
-                {order.scheduled_time_start && ` at ${order.scheduled_time_start.slice(0, 5)}`}
-              </span>
+            <div className="flex items-center justify-between gap-2 mb-2 bg-accent/10 border border-accent/20 rounded-lg px-2.5 py-1.5 text-xs">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <CalendarDays size={12} className="text-accent shrink-0" />
+                <span className="text-accent font-medium truncate">
+                  📅 {format(new Date(order.scheduled_date), 'MMM d')}
+                  {order.scheduled_time_start && ` at ${order.scheduled_time_start.slice(0, 5)}`}
+                </span>
+              </div>
+              {isUpcoming && <ScheduledOrderCountdown order={order} size="sm" />}
             </div>
           )}
 

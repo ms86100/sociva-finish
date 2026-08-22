@@ -28,7 +28,9 @@ import { staggerContainer, cardEntrance, emptyState, fadeSlideUp } from '@/lib/m
 import { ALL_STORES_ID, isPortfolioSellerId, resolveOperationalSellerId } from '@/lib/seller-order-board';
 import { resolveOrderProgress } from '@/lib/orderProgressStages';
 import { groupBuyerOrdersForList } from '@/lib/checkout-groups';
-import { CheckoutGroupCard } from '@/components/order/CheckoutGroupCard';
+import { BuyerUpcomingOrders } from '@/components/orders/BuyerUpcomingOrders';
+import { ScheduledOrderCountdown } from '@/components/orders/ScheduledOrderCountdown';
+import { isScheduledOrder, isUpcomingScheduled } from '@/lib/scheduled-orders';
 
 function humanizeTime(iso: string): string {
   const d = new Date(iso);
@@ -49,7 +51,8 @@ function OrderCard({ order, type, successTerminals, unreadCounts }: { order: Ord
   const canReorder = type === 'buyer' && successTerminals.has(order.status);
   const isCompleted = successTerminals.has(order.status);
   const unread = unreadCounts?.get(order.id) || 0;
-  const isActive = !isCompleted && !['cancelled', 'rejected'].includes(order.status);
+  const isUpcomingScheduledOrder = isScheduledOrder(order as any) && isUpcomingScheduled(order as any);
+  const isActive = !isCompleted && !['cancelled', 'rejected'].includes(order.status) && !isUpcomingScheduledOrder;
   const progress = resolveOrderProgress({
     status: order.status,
     fulfillmentType: (order as any).fulfillment_type,
@@ -113,6 +116,9 @@ function OrderCard({ order, type, successTerminals, unreadCounts }: { order: Ord
                 <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-medium">
                   {(order as any).payment_type === 'cod' ? 'COD' : (order as any).payment_type === 'card' ? 'Online ✓' : 'UPI ✓'}
                 </span>
+              )}
+              {isUpcomingScheduledOrder && (
+                <ScheduledOrderCountdown order={order as any} size="sm" />
               )}
               <span className="text-[11px] text-muted-foreground ml-auto">
                 {humanizeTime(order.created_at)}
@@ -196,8 +202,9 @@ function EmptyState({ message, type }: { message: string; type?: 'buyer' | 'sell
 }
 
 function OrderList({ type, userId, sellerId }: { type: 'buyer' | 'seller'; userId: string; sellerId?: string }) {
-  const [buyerFilter, setBuyerFilter] = useState<'all' | 'active' | 'completed' | 'cancelled'>('all');
-  const { orders, isLoading, hasMore, isLoadingMore, loadMore, successSet } = useOrdersList(type, userId, sellerId, buyerFilter);
+  const [buyerFilter, setBuyerFilter] = useState<'all' | 'active' | 'upcoming' | 'completed' | 'cancelled'>('all');
+  const listFilter = buyerFilter === 'upcoming' ? 'all' : buyerFilter;
+  const { orders, isLoading, hasMore, isLoadingMore, loadMore, successSet } = useOrdersList(type, userId, sellerId, listFilter);
   const queryClient = useQueryClient();
 
   // Fetch unread chat message counts per order
@@ -255,7 +262,7 @@ function OrderList({ type, userId, sellerId }: { type: 'buyer' | 'seller'; userI
     return () => { supabase.removeChannel(channel); };
   }, [userId, queryClient]);
 
-  if (isLoading) {
+  if (isLoading && buyerFilter !== 'upcoming') {
     return (
       <motion.div
         variants={staggerContainer}
@@ -272,15 +279,11 @@ function OrderList({ type, userId, sellerId }: { type: 'buyer' | 'seller'; userI
     );
   }
 
-  if (orders.length === 0 && buyerFilter === 'all') {
-    return <EmptyState message={type === 'buyer' ? "You haven't placed any orders yet" : "No orders received yet"} type={type} />;
-  }
-
-  return (
-    <div>
-      {type === 'buyer' && (
+  if (buyerFilter === 'upcoming' && type === 'buyer') {
+    return (
+      <div>
         <div className="flex gap-2 mb-3 overflow-x-auto scrollbar-hide">
-          {(['all', 'active', 'completed', 'cancelled'] as const).map(f => (
+          {(['all', 'active', 'upcoming', 'completed', 'cancelled'] as const).map(f => (
             <motion.button
               key={f}
               onClick={() => setBuyerFilter(f)}
@@ -292,12 +295,45 @@ function OrderList({ type, userId, sellerId }: { type: 'buyer' | 'seller'; userI
                   : 'bg-muted text-muted-foreground hover:bg-muted/80'
               }`}
             >
-              {f === 'all' ? 'All' : f === 'active' ? 'Active' : f === 'completed' ? 'Completed' : 'Cancelled'}
+              {f === 'all' ? 'All' : f === 'active' ? 'Active' : f === 'upcoming' ? 'Upcoming' : f === 'completed' ? 'Completed' : 'Cancelled'}
+            </motion.button>
+          ))}
+        </div>
+        <BuyerUpcomingOrders buyerId={userId} />
+      </div>
+    );
+  }
+
+  const visibleOrders = buyerFilter === 'active'
+    ? orders.filter(o => !isUpcomingScheduled(o as any))
+    : orders;
+
+  if (visibleOrders.length === 0 && buyerFilter === 'all') {
+    return <EmptyState message={type === 'buyer' ? "You haven't placed any orders yet" : "No orders received yet"} type={type} />;
+  }
+
+  return (
+    <div>
+      {type === 'buyer' && (
+        <div className="flex gap-2 mb-3 overflow-x-auto scrollbar-hide">
+          {(['all', 'active', 'upcoming', 'completed', 'cancelled'] as const).map(f => (
+            <motion.button
+              key={f}
+              onClick={() => setBuyerFilter(f)}
+              whileTap={{ scale: 0.93 }}
+              transition={{ type: 'spring', stiffness: 400, damping: 17 }}
+              className={`relative px-3 py-1.5 rounded-full text-xs whitespace-nowrap transition-colors ${
+                buyerFilter === f
+                  ? 'bg-primary text-primary-foreground shadow-sm'
+                  : 'bg-muted text-muted-foreground hover:bg-muted/80'
+              }`}
+            >
+              {f === 'all' ? 'All' : f === 'active' ? 'Active' : f === 'upcoming' ? 'Upcoming' : f === 'completed' ? 'Completed' : 'Cancelled'}
             </motion.button>
           ))}
         </div>
       )}
-      {orders.length === 0 ? (
+      {visibleOrders.length === 0 ? (
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -313,7 +349,7 @@ function OrderList({ type, userId, sellerId }: { type: 'buyer' | 'seller'; userI
           key={buyerFilter}
         >
           {type === 'buyer'
-            ? groupBuyerOrdersForList(orders as any).map((item) => (
+            ? groupBuyerOrdersForList(visibleOrders as any).map((item) => (
                 <motion.div
                   key={item.kind === 'group' ? item.groupId : item.order.id}
                   variants={cardEntrance}
@@ -330,7 +366,7 @@ function OrderList({ type, userId, sellerId }: { type: 'buyer' | 'seller'; userI
                   )}
                 </motion.div>
               ))
-            : orders.map((order) => (
+            : visibleOrders.map((order) => (
                 <motion.div key={order.id} variants={cardEntrance}>
                   <OrderCard
                     order={order}

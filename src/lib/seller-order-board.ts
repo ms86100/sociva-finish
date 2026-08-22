@@ -1,3 +1,5 @@
+import { isUpcomingScheduled, type ScheduledOrderLike } from '@/lib/scheduled-orders';
+
 /**
  * Seller ops board taxonomy — single source of truth for KPI cards,
  * OrderFilters chips, and infinite-list filter predicates.
@@ -32,6 +34,7 @@ export type SellerBoardBucket =
 export type SellerOrderFilter =
   | 'all'
   | 'today'
+  | 'upcoming'
   | 'enquiries'
   | 'pending' // action needed
   | 'preparing'
@@ -114,6 +117,7 @@ export const STATUS_TO_BUCKET: Record<string, SellerBoardBucket> = {
 export const FILTER_LABELS: Record<SellerOrderFilter, string> = {
   all: 'All',
   today: 'Today',
+  upcoming: 'Upcoming',
   enquiries: 'Enquiries',
   pending: 'Action needed',
   preparing: 'Preparing',
@@ -224,6 +228,7 @@ export function getIstPeriodBounds(now = new Date()) {
 export interface SellerBoardCounts {
   all: number;
   today: number;
+  upcoming: number;
   enquiries: number;
   pending: number;
   preparing: number;
@@ -265,6 +270,7 @@ export function emptyBoardCounts(): SellerBoardCounts {
   return {
     all: 0,
     today: 0,
+    upcoming: 0,
     enquiries: 0,
     pending: 0,
     preparing: 0,
@@ -305,7 +311,7 @@ export function emptyDashboardKpis(): SellerDashboardKpis {
   };
 }
 
-type AggregateRow = {
+type AggregateRow = ScheduledOrderLike & {
   status: string;
   payment_status?: string | null;
   total_amount?: number | null;
@@ -316,6 +322,14 @@ type AggregateRow = {
   status_changed_at?: string | null;
   is_refunded?: boolean;
 };
+
+/** Future scheduled orders waiting for their prep window — not instant action needed. */
+export function isFutureScheduledAwaitingPrep(
+  row: ScheduledOrderLike & { status?: string | null },
+  now = new Date(),
+): boolean {
+  return isUpcomingScheduled(row, now);
+}
 
 /**
  * Client-side aggregate mirroring RPC semantics (fallback when RPC unavailable).
@@ -355,10 +369,16 @@ export function aggregateSellerBoardFromOrders(
     }
     if (isRefunded) counts.refunded++;
 
+    if (isFutureScheduledAwaitingPrep(row, opts?.now)) {
+      counts.upcoming++;
+    }
+
     switch (bucket) {
       case 'action_needed':
-        counts.pending++;
-        kpis.pendingOrders++;
+        if (!isFutureScheduledAwaitingPrep(row, opts?.now)) {
+          counts.pending++;
+          kpis.pendingOrders++;
+        }
         break;
       case 'enquiries':
         counts.enquiries++;
@@ -435,6 +455,16 @@ export function aggregateSellerBoardFromOrders(
 /** Status list for PostgREST `.in('status', …)` for a given filter (non-overlay). */
 export function statusesForFilter(filter: SellerOrderFilter): string[] | null {
   switch (filter) {
+    case 'upcoming':
+      return [
+        'placed',
+        'pending',
+        'accepted',
+        'confirmed',
+        'scheduled',
+        'requested',
+        'rescheduled',
+      ];
     case 'enquiries':
       return [...ENQUIRY_STATUSES];
     case 'pending':
@@ -546,6 +576,7 @@ export function sumBoardCounts(parts: SellerBoardCounts[]): SellerBoardCounts {
   for (const p of parts) {
     out.all += p.all;
     out.today += p.today;
+    out.upcoming += p.upcoming;
     out.enquiries += p.enquiries;
     out.pending += p.pending;
     out.preparing += p.preparing;

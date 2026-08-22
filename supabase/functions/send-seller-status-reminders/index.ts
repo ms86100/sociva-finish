@@ -44,6 +44,9 @@ Deno.serve(async (req) => {
         status,
         total_amount,
         seller_id,
+        scheduled_date,
+        scheduled_fulfilment_at,
+        preparation_start_at,
         status_changed_at,
         updated_at,
         seller_profiles!inner(user_id, business_name)
@@ -68,6 +71,21 @@ Deno.serve(async (req) => {
       if (!sellerUserId) {
         skipped++;
         continue;
+      }
+
+      // Skip future scheduled orders — they are not due for fulfilment yet
+      const scheduledDate = (row as any).scheduled_date as string | null;
+      const prepStart = (row as any).preparation_start_at as string | null;
+      if (scheduledDate) {
+        const todayIst = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+        if (scheduledDate > todayIst) {
+          skipped++;
+          continue;
+        }
+        if (prepStart && new Date(prepStart).getTime() > Date.now()) {
+          skipped++;
+          continue;
+        }
       }
 
       const orderId = row.id as string;

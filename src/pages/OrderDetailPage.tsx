@@ -77,7 +77,8 @@ import { WhatsAppUpdatesCta } from '@/components/notifications/WhatsAppUpdatesCt
 import { CheckoutSiblingsStrip } from '@/components/order/CheckoutSiblingsStrip';
 import { useCheckoutSiblings } from '@/hooks/useCheckoutGroup';
 import { checkoutKeyPrefix } from '@/lib/checkout-groups';
-import { useAuth } from '@/contexts/AuthContext';
+import { ScheduledOrderBanner } from '@/components/orders/ScheduledOrderBanner';
+import { isUpcomingScheduled } from '@/lib/scheduled-orders';
 
 const DeliveryMapView = lazy(() => import('@/components/delivery/DeliveryMapView').then(m => ({ default: m.DeliveryMapView })));
 
@@ -866,22 +867,16 @@ export default function OrderDetailPage() {
             </motion.div>
           )}
 
-          {/* Scheduled delivery date */}
+          {/* Scheduled order lifecycle (countdown + timeline) */}
           {(order as any).scheduled_date && (
-            <div className="bg-accent/10 border border-accent/20 rounded-xl p-3 flex items-start gap-2.5">
-              <Clock size={16} className="text-accent shrink-0 mt-0.5" />
-              <div>
-                <p className="text-sm font-semibold text-foreground">Scheduled Order</p>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  📅 {format(new Date((order as any).scheduled_date), 'EEEE, MMM d, yyyy')}
-                  {(order as any).scheduled_time_start && ` at ${(order as any).scheduled_time_start.slice(0, 5)}`}
-                </p>
-              </div>
-            </div>
+            <ScheduledOrderBanner
+              order={order as any}
+              view={o.isSellerView ? 'seller' : 'buyer'}
+            />
           )}
 
-          {/* Urgent timers */}
-          {o.isBuyerView && order.auto_cancel_at && order.status !== 'payment_pending' && !isTerminalStatus(o.flow, order.status) && (
+          {/* Urgent timers — skip for future scheduled orders still waiting */}
+          {o.isBuyerView && order.auto_cancel_at && order.status !== 'payment_pending' && !isTerminalStatus(o.flow, order.status) && !(order as any).scheduled_date && (
             <UrgentOrderTimer autoCancelAt={order.auto_cancel_at} onTimeout={o.handleTimeout} variant="buyer" />
           )}
 
@@ -909,7 +904,7 @@ export default function OrderDetailPage() {
             />
           )}
 
-          {o.isSellerView && order.auto_cancel_at && !isTerminalStatus(o.flow, order.status) && (
+          {o.isSellerView && order.auto_cancel_at && !isTerminalStatus(o.flow, order.status) && !isUpcomingScheduled(order as any) && (
             <UrgentOrderTimer autoCancelAt={order.auto_cancel_at} onTimeout={o.handleTimeout} variant="seller" />
           )}
           {o.isBuyerView && (order as any).needs_attention && !isTerminalStatus(o.flow, order.status) && (

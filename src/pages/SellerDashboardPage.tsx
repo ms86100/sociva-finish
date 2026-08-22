@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
@@ -27,6 +27,8 @@ import { EarningsSummary } from '@/components/seller/EarningsSummary';
 import { DashboardStats } from '@/components/seller/DashboardStats';
 import { OrderFilters, OrderFilter } from '@/components/seller/OrderFilters';
 import { SellerOrderCard } from '@/components/seller/SellerOrderCard';
+import { UpcomingScheduledPanel } from '@/components/seller/UpcomingScheduledPanel';
+import { SellerScheduleView } from '@/components/seller/SellerScheduleView';
 import { useSellerTickets, useSellerSupportRealtime } from '@/hooks/useSupportTickets';
 import { useSellerServiceBookings } from '@/hooks/useServiceBookings';
 import { AvailabilityPromptBanner } from '@/components/seller/AvailabilityPromptBanner';
@@ -106,6 +108,7 @@ function TabFallback() {
 
 export default function SellerDashboardPage() {
   const { user, sellerProfiles = [], currentSellerId } = useAuth();
+  const [searchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const settings = useSystemSettings();
   const paymentMode = usePaymentMode();
@@ -115,6 +118,15 @@ export default function SellerDashboardPage() {
   const [renderError, setRenderError] = useState<string | null>(null);
   const [healthSheetOpen, setHealthSheetOpen] = useState(false);
   const [dashboardTab, setDashboardTab] = useState('orders');
+
+  useEffect(() => {
+    const tab = searchParams.get('tab');
+    const filter = searchParams.get('filter') as OrderFilter | null;
+    if (tab === 'schedule') setDashboardTab('schedule');
+    if (filter && FILTER_LABELS[filter as keyof typeof FILTER_LABELS]) {
+      setOrderFilter(filter);
+    }
+  }, [searchParams]);
 
   const isPortfolio = isPortfolioSellerId(currentSellerId);
   const portfolioSellerIds = sellerProfiles.map((s) => s.id);
@@ -372,6 +384,11 @@ export default function SellerDashboardPage() {
           title: 'All caught up',
           body: 'No orders need your action right now. New placements will show here first.',
         };
+      case 'upcoming':
+        return {
+          title: 'No upcoming scheduled orders',
+          body: 'Future pre-orders and scheduled deliveries will appear here until their preparation window.',
+        };
       case 'preparing':
         return { title: 'Nothing cooking', body: 'Accepted orders you are preparing appear here.' };
       case 'ready':
@@ -498,7 +515,7 @@ export default function SellerDashboardPage() {
 
         {/* Tab navigation */}
         <Tabs value={dashboardTab} onValueChange={setDashboardTab} className="w-full">
-          <TabsList className={cn('sticky top-0 z-10 w-full h-11 bg-muted/80 backdrop-blur-sm grid', hasBookableServices ? 'grid-cols-6' : 'grid-cols-5')}>
+          <TabsList className={cn('sticky top-0 z-10 w-full h-11 bg-muted/80 backdrop-blur-sm grid grid-cols-6')}>
             <TabsTrigger value="orders" className="gap-1.5 text-xs px-1 relative">
               <ShoppingBag size={14} />
               <span className="hidden min-[420px]:inline">Orders</span>
@@ -526,12 +543,10 @@ export default function SellerDashboardPage() {
                 </Badge>
               )}
             </TabsTrigger>
-            {hasBookableServices && (
-              <TabsTrigger value="schedule" className="gap-1.5 text-xs px-1">
-                <CalendarDays size={14} />
-                <span className="hidden min-[420px]:inline">Schedule</span>
-              </TabsTrigger>
-            )}
+            <TabsTrigger value="schedule" className="gap-1.5 text-xs px-1">
+              <CalendarDays size={14} />
+              <span className="hidden min-[420px]:inline">Schedule</span>
+            </TabsTrigger>
             <TabsTrigger value="tools" className="gap-1.5 text-xs px-1">
               <Wrench size={14} />
               <span className="hidden min-[420px]:inline">Tools</span>
@@ -551,6 +566,13 @@ export default function SellerDashboardPage() {
               <p className="text-[11px] text-muted-foreground -mt-1">
                 Showing orders from all stores — labeled portfolio totals above.
               </p>
+            )}
+
+            {!isPortfolio && sellerProfile && (
+              <UpcomingScheduledPanel
+                sellerId={sellerProfile.id}
+                onOpenCalendar={hasBookableServices ? () => setDashboardTab('schedule') : undefined}
+              />
             )}
 
             <DashboardStats
@@ -655,16 +677,24 @@ export default function SellerDashboardPage() {
             )}
           </TabsContent>
 
-          {/* ── Schedule Tab (unified Bookings hub) ── */}
-          {hasBookableServices && (
-            <TabsContent value="schedule" className="space-y-4 mt-3">
-              {isPortfolio || !sellerProfile ? pickStoreBanner : (
-                <Suspense fallback={<TabFallback />}>
+          {/* ── Schedule Tab — bookings + scheduled cart orders ── */}
+          <TabsContent value="schedule" className="space-y-4 mt-3">
+            {isPortfolio || !sellerProfile ? pickStoreBanner : (
+              <Suspense fallback={<TabFallback />}>
+                {hasBookableServices ? (
                   <BookingsHub sellerId={sellerProfile.id} />
-                </Suspense>
-              )}
-            </TabsContent>
-          )}
+                ) : (
+                  <div className="space-y-3">
+                    <div>
+                      <h3 className="font-semibold text-sm">Scheduled Orders Calendar</h3>
+                      <p className="text-[11px] text-muted-foreground">Pre-orders and scheduled deliveries by date</p>
+                    </div>
+                    <SellerScheduleView sellerId={sellerProfile.id} />
+                  </div>
+                )}
+              </Suspense>
+            )}
+          </TabsContent>
 
           {/* ── Tools Tab ── */}
           <TabsContent value="tools" className="space-y-4 mt-3">
