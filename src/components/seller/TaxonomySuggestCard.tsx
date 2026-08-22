@@ -1,7 +1,7 @@
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { DynamicIcon } from '@/components/ui/DynamicIcon';
-import type { ResolvedListingIntent } from '@/lib/listing-intent';
+import { listingMatchBand, type ResolvedListingIntent } from '@/lib/listing-intent';
 import { ArrowRight, ChevronRight, Plus, RefreshCw, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { ReactNode } from 'react';
@@ -19,6 +19,13 @@ interface TaxonomySuggestCardProps {
   browseSlot?: ReactNode;
 }
 
+function prettyParentGroup(slug: string | null): string | null {
+  if (!slug) return null;
+  return slug
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 export function TaxonomySuggestCard({
   intentPhrase,
   resolved,
@@ -32,18 +39,36 @@ export function TaxonomySuggestCard({
   browseSlot,
 }: TaxonomySuggestCardProps) {
   const hasSuggestion = !!resolved.suggestedCategorySlug;
-  const pathLabel = hasSuggestion
-    ? [
-        categoryDisplayName || resolved.suggestedCategorySlug,
-        resolved.suggestedSubcategoryName || (resolved.needsOtherSubcategory ? 'Other' : null),
-      ]
-        .filter(Boolean)
-        .join(' → ')
-    : null;
+  const band = resolved.matchBand ?? listingMatchBand(resolved.confidence);
+  const parentLabel = prettyParentGroup(resolved.suggestedParentGroup);
+  const leafLabel =
+    resolved.suggestedSubcategoryName
+    || (resolved.needsOtherSubcategory ? 'Other' : null)
+    || categoryDisplayName
+    || resolved.suggestedCategorySlug;
+  const pathParts = [
+    parentLabel,
+    categoryDisplayName && categoryDisplayName !== leafLabel ? categoryDisplayName : null,
+    leafLabel,
+  ].filter((part, i, arr) => part && arr.indexOf(part) === i);
 
   if (showBrowse && browseSlot) {
     return <div className="space-y-4">{browseSlot}</div>;
   }
+
+  const heading = !hasSuggestion
+    ? 'We couldn\'t find an exact match'
+    : band === 'strong'
+      ? `We found a category for ${intentPhrase || 'your item'}`
+      : band === 'reasonable'
+        ? `${intentPhrase || 'This'} looks closest to`
+        : 'We couldn\'t find an exact match';
+
+  const subcopy = !hasSuggestion
+    ? 'Browse the existing catalog and pick the closest type. Your item name stays as you wrote it.'
+    : band === 'weak'
+      ? 'We found the closest existing category. Your item will still be listed under the name you entered.'
+      : 'You can change this if it doesn\'t look right. Your item name is not a taxonomy node.';
 
   return (
     <div className="space-y-5">
@@ -62,12 +87,20 @@ export function TaxonomySuggestCard({
           </div>
         </div>
 
+        <p className="text-sm font-medium">{heading}</p>
+        <p className="text-xs text-muted-foreground">{subcopy}</p>
+
         {hasSuggestion ? (
           <>
             <div className="rounded-xl bg-background border border-border px-3 py-3 space-y-1">
-              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Suggested home</p>
-              <p className="text-base font-semibold">{pathLabel}</p>
-              {resolved.matchedAlias && (
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                {band === 'weak' ? 'Closest existing category' : 'Suggested home'}
+              </p>
+              <p className="text-base font-semibold">{leafLabel}</p>
+              {pathParts.length > 1 && (
+                <p className="text-xs text-muted-foreground">{pathParts.join(' → ')}</p>
+              )}
+              {resolved.matchedAlias && resolved.matchedAlias !== 'closest parent' && (
                 <Badge variant="secondary" className="text-[10px] mt-1">
                   Matched: {resolved.matchedAlias}
                 </Badge>
@@ -79,45 +112,38 @@ export function TaxonomySuggestCard({
               )}
             </div>
             <div className="flex flex-col gap-2">
-              <Button className="w-full" onClick={onConfirm}>
-                Looks right — continue<ChevronRight size={16} className="ml-1" />
+              <Button className="w-full" onClick={band === 'weak' ? onContinueClosest : onConfirm}>
+                {band === 'strong' ? 'Continue' : 'Continue with this'}
+                <ChevronRight size={16} className="ml-1" />
               </Button>
               <Button type="button" variant="outline" className="w-full" onClick={onChangeTaxonomy}>
-                <RefreshCw size={14} className="mr-1.5" />Change category
+                <RefreshCw size={14} className="mr-1.5" />
+                {band === 'weak' ? 'Choose another' : 'Change category'}
               </Button>
             </div>
           </>
         ) : (
-          <>
-            <p className="text-sm text-muted-foreground">
-              We couldn&apos;t place that yet. Browse categories, continue with the closest match once you pick one, or request a new category.
-            </p>
-            <div className="flex flex-col gap-2">
-              <Button className="w-full" onClick={onChangeTaxonomy}>
-                Browse categories<ChevronRight size={16} className="ml-1" />
-              </Button>
-              <Button type="button" variant="outline" className="w-full" onClick={onRequestCategory}>
-                <Plus size={14} className="mr-1.5" />Can&apos;t find it — request category
-              </Button>
-            </div>
-          </>
+          <div className="flex flex-col gap-2">
+            <Button className="w-full" onClick={onChangeTaxonomy}>
+              Browse categories<ChevronRight size={16} className="ml-1" />
+            </Button>
+          </div>
         )}
       </div>
 
-      {hasSuggestion && (
-        <button
-          type="button"
-          onClick={onContinueClosest}
-          className={cn(
-            'w-full text-center text-xs text-muted-foreground hover:text-foreground py-1',
-          )}
-        >
-          Continue with closest match
-        </button>
-      )}
+      <button
+        type="button"
+        onClick={onRequestCategory}
+        className={cn(
+          'w-full text-center text-xs text-muted-foreground hover:text-foreground py-1',
+        )}
+      >
+        <Plus size={12} className="inline mr-1" />
+        Can&apos;t find a suitable category? Request a new category
+      </button>
 
       <p className="text-xs text-muted-foreground text-center flex items-center justify-center gap-1">
-        <ArrowRight size={12} />Taxonomy is a suggestion — you can always adjust later
+        <ArrowRight size={12} />The seller defines the item. Sociva only suggests a type.
       </p>
     </div>
   );

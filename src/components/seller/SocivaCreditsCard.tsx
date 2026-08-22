@@ -39,7 +39,7 @@ export function SocivaCreditsCard({
             <ChevronRight size={16} className="text-muted-foreground" />
           </div>
         </div>
-        {exhausted && (
+        {exhausted && summary?.spendEnabled && (
           <p className="text-xs text-destructive mt-2">{SELLER_CREDITS_EXHAUSTED}</p>
         )}
         <div className="flex items-center justify-between mt-2 text-[11px] text-muted-foreground">

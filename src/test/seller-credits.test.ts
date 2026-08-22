@@ -116,6 +116,8 @@ describe('Sociva Credits', () => {
     expect(admin).toMatch(/Credit packages/);
     expect(admin).toMatch(/Credit purchases/);
     expect(admin).toMatch(/Health thresholds/);
+    expect(admin).toMatch(/Configuration history/);
+    expect(admin).toMatch(/Charge reversal/);
     expect(admin).not.toMatch(/graceMinutes.*=.*['"]30['"]/);
     expect(admin).not.toMatch(/booking_resolution_grace_minutes['"]\s*,\s*['"]30['"]/);
     expect(read('src/App.tsx')).toMatch('/seller/credits');
@@ -128,5 +130,32 @@ describe('Sociva Credits', () => {
     expect(privileged).toMatch(/RETURN public\.is_admin\(auth\.uid\(\)\)/);
     expect(privileged).toMatch(/v_jwt_role IN \('anon', 'authenticated'\)/);
     expect(privileged).not.toMatch(/RETURN current_user IN \('postgres'/);
+  });
+
+  it('never mixes env Razorpay key id with a stored secret', async () => {
+    const { selectRazorpayKeyPair, razorpayKeyCandidates, sanitizeCredential } = await import(
+      '../../supabase/functions/_shared/razorpay-key-pair.ts'
+    );
+    expect(sanitizeCredential(' "rzp_live_abc" \n')).toBe('rzp_live_abc');
+    expect(selectRazorpayKeyPair({
+      envKeyId: 'rzp_live_env',
+      envKeySecret: '',
+      rpcKeyId: 'rzp_live_admin',
+      rpcKeySecret: 'admin_secret',
+    })).toEqual({
+      keyId: 'rzp_live_admin',
+      keySecret: 'admin_secret',
+      source: 'rpc',
+    });
+    expect(razorpayKeyCandidates({
+      envKeyId: 'rzp_live_env',
+      envKeySecret: 'env_secret',
+      rpcKeyId: 'rzp_live_admin',
+      rpcKeySecret: 'admin_secret',
+    }).map((pair) => pair.source)).toEqual(['env', 'rpc']);
+    const orderFn = read('supabase/functions/create-seller-credit-order/index.ts');
+    expect(orderFn).toMatch(/getWorkingRazorpayCredentials/);
+    expect(orderFn).toMatch(/RAZORPAY_GATEWAY_AUTH_FAILED/);
+    expect(orderFn).toMatch(/rzpRes\.status === 401/);
   });
 });

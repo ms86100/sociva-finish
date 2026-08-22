@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { getRazorpayCredentials } from "../_shared/credentials.ts";
+import { getWorkingRazorpayCredentials } from "../_shared/credentials.ts";
 import { verifyRazorpayCheckoutSignature } from "../_shared/razorpay-signature.ts";
 import { checkRateLimit, rateLimitResponse } from "../_shared/rate-limiter.ts";
 
@@ -53,7 +53,10 @@ serve(async (req) => {
       return json({ error: "service confirmation requires webhook source" }, 403);
     }
 
-    const keys = await getRazorpayCredentials(supabase);
+    const keys = await getWorkingRazorpayCredentials(supabase);
+    if (!keys.keyId || !keys.keySecret) {
+      return json({ error: "Payment gateway not configured. Please contact admin." }, 503);
+    }
     const payRes = await fetch(`https://api.razorpay.com/v1/payments/${paymentId}`, {
       headers: { Authorization: "Basic " + btoa(`${keys.keyId}:${keys.keySecret}`) },
     });
@@ -114,7 +117,7 @@ serve(async (req) => {
 
     const { data: purchaseByOrder, error: orderLookupError } = await supabase
       .from("seller_credit_purchases")
-      .select("id, seller_id, amount, currency, status, provider_order_id, provider_payment_id")
+      .select("id, seller_id, amount, status, provider_order_id, provider_payment_id")
       .eq("provider", "razorpay")
       .eq("provider_order_id", providerOrderId)
       .maybeSingle();

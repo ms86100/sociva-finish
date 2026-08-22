@@ -26,6 +26,7 @@ export function resolveNotificationRoute(
     case 'seller_suspended':
       return '/seller';
     case 'seller_credit_failed':
+    case 'seller_credit_refunded':
       return '/seller/credits';
     case 'seller_daily_summary':
       return '/seller';
@@ -111,6 +112,7 @@ export function resolveNotificationRoute(
       return '/seller/wallet';
 
     case 'seller_credit_purchased':
+    case 'seller_credit_refunded':
     case 'seller_credit_low':
     case 'seller_credit_exhausted':
       return '/seller/credits';

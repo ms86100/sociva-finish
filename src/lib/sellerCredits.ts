@@ -46,7 +46,7 @@ export type CreditThresholds = {
   criticalMin?: number | null;
 };
 
-/** V1 locked contact debounce. Live billing reads seller_credit_settings.contact_debounce_hours. */
+/** Default contact debounce. Live billing reads seller_credit_settings.contact_debounce_hours. */
 export const CONTACT_DEBOUNCE_HOURS_INVARIANT = 24;
 
 export function creditEventForOrder(orderType?: string | null, transactionType?: string | null): BillingEventType | null {
@@ -77,6 +77,7 @@ export function creditLedgerLabel(type?: string | null, eventType?: string | nul
   if (type === 'reservation') return 'Reserved';
   if (type === 'reservation_release') return 'Booking reservation released';
   if (type === 'reversal') return 'Reversal';
+  if (type === 'refund') return 'Purchase refund';
   switch (eventType) {
     case 'ORDER_COMPLETED':
       return 'Successful order';

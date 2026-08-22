@@ -23,7 +23,12 @@ export type SoftListingTag = 'rental' | 'appointment' | 'digital' | null;
 /** Category-level aliases (product nouns → category slug). */
 export const CATEGORY_ALIAS_MAP: Record<string, string[]> = {
   daily_tiffin: ['home food', 'dabba', 'meal service', 'lunch delivery', 'tiffin', 'food delivery', 'home cooked'],
-  one_time_meals: ['special meals', 'party food', 'bulk food', 'catering food'],
+  one_time_meals: [
+    'special meals', 'party food', 'bulk food', 'catering food',
+    'biryani', 'biriyani', 'chicken biryani', 'mutton biryani', 'veg biryani', 'egg biryani',
+    'hyderabadi biryani', 'dum biryani', 'rice bowl', 'rice meal', 'meal box', 'lunch box',
+    'dinner box', 'prepared meals', 'prepared meal',
+  ],
   breakfast_items: ['breakfast', 'morning food', 'idli', 'dosa', 'paratha', 'poha'],
   cakes: ['cake', 'birthday cake', 'baking', 'pastry', 'bakery'],
   cookies_biscuits: ['cookies', 'biscuits', 'baked snacks'],
@@ -132,11 +137,14 @@ export const SUBCATEGORY_NOUN_ALIASES: Record<string, string[]> = {
 };
 
 export const INTENT_EXAMPLE_CHIPS = [
+  'Biryani',
   'Home-cooked tiffin',
   'T-shirts',
   'Yoga classes',
   'AC repair',
   'Birthday cakes',
+  'Saree',
+  'Haircut',
   'Flat for rent',
   'Bridal makeup',
   'Tuition',
@@ -162,6 +170,15 @@ export interface IntentCatalogSubcategory {
   categorySlug: string;
 }
 
+export type ListingMatchBand = 'strong' | 'reasonable' | 'weak' | 'none';
+
+export function listingMatchBand(confidence: number): ListingMatchBand {
+  if (confidence >= 2.5) return 'strong';
+  if (confidence >= 1.5) return 'reasonable';
+  if (confidence > 0) return 'weak';
+  return 'none';
+}
+
 export interface ResolvedListingIntent {
   commerceModel: CommerceModel;
   listingKindHint: ListingKindHint;
@@ -176,6 +193,8 @@ export interface ResolvedListingIntent {
   /** True when category found but no subcategory — use Other / customLabel path */
   needsOtherSubcategory: boolean;
   useCustomSubcategoryLabel: string | null;
+  /** How sure the existing-taxonomy suggestion is. Never blocks listing. */
+  matchBand: ListingMatchBand;
 }
 
 function normalize(q: string): string {
@@ -274,6 +293,54 @@ function findCategoryByAlias(
   return best;
 }
 
+/** Culinary tokens used only when no alias/subcategory hit — never create taxonomy. */
+const FOOD_FALLBACK_HINTS = [
+  'homemade', 'cooked', 'cuisine', 'dish', 'curry', 'gravy', 'rice', 'dal', 'roti',
+  'paneer', 'masala', 'pickle', 'achar', 'snack', 'sweet', 'bakery', 'juice',
+  'fermented', 'soybean', 'paste', 'sauce', 'stew', 'soup', 'biryani', 'biriyani',
+  'tandoor', 'tikka', 'kebab', 'meal', 'thali', 'paratha',
+];
+
+const SERVICE_FALLBACK_HINTS = [
+  'class', 'classes', 'repair', 'service', 'therapy', 'tuition', 'massage', 'salon',
+  'grooming', 'training', 'coaching', 'appointment',
+];
+
+function isFoodishGroup(parentGroup: string): boolean {
+  const g = parentGroup.toLowerCase();
+  return g.includes('food');
+}
+
+function isServiceishGroup(parentGroup: string): boolean {
+  const g = parentGroup.toLowerCase();
+  return g.includes('service') || g.includes('wellness');
+}
+
+/**
+ * Last-resort: map unknown phrases onto an existing `other-*` category.
+ * Does not insert taxonomy rows.
+ */
+function findOtherFallback(
+  phrase: string,
+  categories: IntentCatalogCategory[],
+): IntentCatalogCategory | null {
+  const others = categories.filter((c) => c.slug.startsWith('other-'));
+  if (others.length === 0) return null;
+  const q = normalize(phrase);
+  const foodish = FOOD_FALLBACK_HINTS.some((h) => q.includes(h));
+  const serviceish = SERVICE_FALLBACK_HINTS.some((h) => q.includes(h));
+  if (foodish) {
+    const foodOther = others.find((c) => isFoodishGroup(c.parentGroup) || c.slug.includes('food'));
+    if (foodOther) return foodOther;
+  }
+  if (serviceish) {
+    const svcOther = others.find((c) => isServiceishGroup(c.parentGroup) || c.slug.includes('service'));
+    if (svcOther) return svcOther;
+  }
+  return others.find((c) => c.slug.includes('marketplace') || c.parentGroup.includes('marketplace'))
+    || others[0];
+}
+
 function inferModelFromCategory(cat: IntentCatalogCategory | null, softTag: SoftListingTag): CommerceModel {
   if (softTag === 'digital') return 'enquire';
   if (softTag === 'rental') return 'enquire';
@@ -353,6 +420,7 @@ export function resolveListingIntent(input: {
     seedProductName,
     needsOtherSubcategory: false,
     useCustomSubcategoryLabel: null,
+    matchBand: 'none',
   };
 
   if (!phrase && !input.commerceModel) {
@@ -387,6 +455,15 @@ export function resolveListingIntent(input: {
       category = catHit.category;
       matchedAlias = catHit.matchedAlias;
       confidence = catHit.score;
+    }
+  }
+
+  if (!category && phrase) {
+    const fallback = findOtherFallback(phrase, input.categories);
+    if (fallback) {
+      category = fallback;
+      matchedAlias = 'closest parent';
+      confidence = 0.9;
     }
   }
 
@@ -432,6 +509,7 @@ export function resolveListingIntent(input: {
     seedProductName,
     needsOtherSubcategory: needsOther,
     useCustomSubcategoryLabel: customLabel,
+    matchBand: listingMatchBand(confidence),
   };
 }
 

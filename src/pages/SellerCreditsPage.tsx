@@ -270,7 +270,9 @@ export default function SellerCreditsPage() {
                 <p className="text-2xl font-bold tabular-nums">{formatPrice(confirmedBalance ?? summaryQuery.data?.available ?? 0)}</p>
               </div>
               <p className="text-xs text-muted-foreground">
-                Your store is now activated and your products are eligible for buyer discovery based on your configured service radius.
+                {summaryQuery.data?.spendEnabled
+                  ? 'Your store is now activated and your products are eligible for buyer discovery based on your configured service radius.'
+                  : 'Credits were added to this store. Platform usage billing is not charging sellers yet.'}
               </p>
               <Link to="/seller">
                 <Button className="w-full">Continue to Seller Dashboard</Button>
@@ -297,12 +299,22 @@ export default function SellerCreditsPage() {
         </div>
       </SafeHeader>
       <div className="p-4 space-y-4">
-        {(summary?.available || 0) <= 0 && (
+        {(summary?.available || 0) <= 0 && summary?.spendEnabled && (
           <Card className="border-primary/25 bg-primary/5">
             <CardContent className="p-4 space-y-1">
               <p className="font-semibold">Your store is approved!</p>
               <p className="text-sm text-muted-foreground">
                 Your products are ready to go live on Sociva. Recharge your Sociva Credits to activate product visibility and start receiving orders from buyers in your service area.
+              </p>
+            </CardContent>
+          </Card>
+        )}
+        {(summary?.available || 0) <= 0 && summary && !summary.spendEnabled && (
+          <Card>
+            <CardContent className="p-4 space-y-1">
+              <p className="font-semibold">Sociva Credits</p>
+              <p className="text-sm text-muted-foreground">
+                You can recharge now. Credits are not currently required to accept orders — platform usage billing is not active yet.
               </p>
             </CardContent>
           </Card>
@@ -322,7 +334,7 @@ export default function SellerCreditsPage() {
               <span className="font-semibold tabular-nums">{formatPrice(summary?.reserved || 0)}</span>
             </div>
             <p className="text-[11px] text-muted-foreground">Total available for new activity {formatPrice(summary?.available || 0)}</p>
-            {exhausted && <p className="text-sm text-destructive">{SELLER_CREDITS_EXHAUSTED}</p>}
+            {exhausted && summary?.spendEnabled && <p className="text-sm text-destructive">{SELLER_CREDITS_EXHAUSTED}</p>}
             <div className="grid grid-cols-3 gap-2 text-[11px] text-muted-foreground">
               <div>Purchased<br /><strong className="text-foreground">{formatPrice(summary?.lifetimePurchased || 0)}</strong></div>
               <div>Used<br /><strong className="text-foreground">{formatPrice(summary?.lifetimeConsumed || 0)}</strong></div>

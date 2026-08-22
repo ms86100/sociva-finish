@@ -43,6 +43,22 @@ const categories: IntentCatalogCategory[] = [
     transactionType: 'cart_purchase',
     supportsCart: true,
   },
+  {
+    slug: 'one_time_meals',
+    id: 'cfg-meals',
+    displayName: 'One-time Meals',
+    parentGroup: 'food',
+    transactionType: 'cart_purchase',
+    supportsCart: true,
+  },
+  {
+    slug: 'cakes',
+    id: 'cfg-cakes',
+    displayName: 'Cakes',
+    parentGroup: 'food',
+    transactionType: 'cart_purchase',
+    supportsCart: true,
+  },
 ];
 
 const subcategories: IntentCatalogSubcategory[] = [
@@ -164,6 +180,65 @@ describe('resolveListingIntent', () => {
   it('maps commerce model to default_action_type', () => {
     expect(commerceModelToDefaultAction('cart')).toBeTruthy();
     expect(commerceModelToDefaultAction('book')).toBeTruthy();
+  });
+
+  it('classifies biryani variants onto existing one_time_meals without renaming the item', () => {
+    for (const phrase of ['Biryani', 'biriyani', 'Chicken Biryani', 'Homemade Hyderabadi Chicken Biryani']) {
+      const r = resolveListingIntent({ phrase, categories, subcategories });
+      expect(r.suggestedCategorySlug).toBe('one_time_meals');
+      expect(r.seedProductName).toBe(phrase.charAt(0).toUpperCase() + phrase.slice(1));
+      expect(r.matchBand === 'none').toBe(false);
+    }
+  });
+
+  it('keeps cake, saree, and yoga on their existing categories', () => {
+    expect(resolveListingIntent({ phrase: 'Cake', categories, subcategories }).suggestedCategorySlug).toBe('cakes');
+    expect(resolveListingIntent({ phrase: 'Saree', categories, subcategories }).suggestedCategorySlug).toBe('clothing');
+    expect(resolveListingIntent({ phrase: 'Yoga', categories, subcategories }).suggestedCategorySlug).toBe('yoga');
+  });
+
+  it('does not create taxonomy for unknown products and does not throw', () => {
+    const r = resolveListingIntent({
+      phrase: 'quantum widget fabrication',
+      categories,
+      subcategories,
+    });
+    expect(r.commerceModel).toBe('enquire');
+    expect(r.suggestedCategorySlug).toBeNull();
+    expect(r.matchBand).toBe('none');
+    expect(r.seedProductName).toBe('Quantum widget fabrication');
+  });
+
+  it('falls back to an existing other-* parent instead of failing', () => {
+    const r = resolveListingIntent({
+      phrase: 'Korean fermented soybean paste',
+      categories: [
+        ...categories,
+        {
+          slug: 'other-food',
+          id: 'cfg-other-food',
+          displayName: 'Other Food',
+          parentGroup: 'food_beverages',
+          transactionType: 'cart_purchase',
+          supportsCart: true,
+        },
+      ],
+      subcategories,
+    });
+    expect(r.suggestedCategorySlug).toBe('other-food');
+    expect(r.matchBand).toBe('weak');
+    expect(r.seedProductName).toBe('Korean fermented soybean paste');
+  });
+
+  it('empty input keeps previous validation behavior', () => {
+    const r = resolveListingIntent({
+      phrase: '',
+      categories,
+      subcategories,
+    });
+    expect(r.suggestedCategorySlug).toBeNull();
+    expect(r.confidence).toBe(0);
+    expect(r.matchBand).toBe('none');
   });
 });
 

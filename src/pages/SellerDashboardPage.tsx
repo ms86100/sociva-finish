@@ -20,6 +20,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/co
 
 // Eager: default Orders tab + chrome
 import { SellerFestivalParticipation } from '@/components/seller/SellerFestivalParticipation';
+import { StoreStatusCard } from '@/components/seller/StoreStatusCard';
 import { PortfolioRollupStrip } from '@/components/seller/PortfolioRollupStrip';
 import { SellerVisibilityChecklist } from '@/components/seller/SellerVisibilityChecklist';
 import { EarningsSummary } from '@/components/seller/EarningsSummary';

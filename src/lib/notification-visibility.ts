@@ -21,6 +21,7 @@ export const SELLER_LIFECYCLE_INBOX_TYPES = [
   'seller_store_under_review',
   'seller_credit_purchased',
   'seller_credit_failed',
+  'seller_credit_refunded',
 ] as const;
 
 export const SELLER_ONLY_INBOX_FILTER = `(${SELLER_OPERATIONAL_TYPES.join(',')})`;

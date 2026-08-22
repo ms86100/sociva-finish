@@ -103,8 +103,24 @@ serve(async (req) => {
     const sellerCreditCaptured =
       String(event || '') === 'payment.captured' &&
       payload.payload?.payment?.entity?.notes?.purpose === 'seller_credit_purchase';
+    const refundPaymentIdEarly = String(
+      payload.payload?.refund?.entity?.payment_id || payload.payload?.payment?.entity?.id || '',
+    ).trim();
+    let sellerCreditRefundEvent = false;
+    if (
+      (String(event || '') === 'refund.created' || String(event || '') === 'refund.processed')
+      && refundPaymentIdEarly
+    ) {
+      const { data: creditPurchaseForRefund } = await supabase
+        .from('seller_credit_purchases')
+        .select('id')
+        .eq('provider', 'razorpay')
+        .eq('provider_payment_id', refundPaymentIdEarly)
+        .maybeSingle();
+      sellerCreditRefundEvent = Boolean(creditPurchaseForRefund?.id);
+    }
 
-    if (!sellerCreditCaptured) {
+    if (!sellerCreditCaptured && !sellerCreditRefundEvent) {
       const requiredCapability = String(event || '').startsWith('transfer.')
         ? 'payout_ready'
         : String(event || '').startsWith('refund.') ||
@@ -568,6 +584,44 @@ serve(async (req) => {
       const gatewayRefundId = refundEntity?.id as string | undefined;
       const gatewayStatus = refundEntity?.status || event;
       const paymentId = refundEntity?.payment_id || paymentEntity?.id;
+
+      if (paymentId) {
+        const { data: creditPurchase } = await supabase
+          .from('seller_credit_purchases')
+          .select('id, status')
+          .eq('provider', 'razorpay')
+          .eq('provider_payment_id', String(paymentId))
+          .maybeSingle();
+        if (creditPurchase?.id) {
+          if (event === 'refund.created') {
+            await supabase
+              .from('payment_provider_events')
+              .update({ processing_status: 'processed' })
+              .eq('id', providerEventRowId);
+            return new Response(
+              JSON.stringify({ ok: true, purpose: 'seller_credit_purchase', refund: 'pending' }),
+              { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+            );
+          }
+          const { error: creditRefundError } = await supabase.rpc('refund_seller_credit_purchase', {
+            p_purchase_id: creditPurchase.id,
+            p_provider_refund_id: gatewayRefundId || 'razorpay_refund',
+            p_reason: 'Razorpay refund',
+            p_amount: Number(refundEntity?.amount || 0) / 100 || null,
+          });
+          if (creditRefundError) {
+            throw new Error(`seller_credit_refund_failed:${creditRefundError.message}`);
+          }
+          await supabase
+            .from('payment_provider_events')
+            .update({ processing_status: 'processed' })
+            .eq('id', providerEventRowId);
+          return new Response(
+            JSON.stringify({ ok: true, purpose: 'seller_credit_purchase', refund: 'processed' }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+          );
+        }
+      }
       const notedRefundRequestId = refundEntity?.notes?.refund_request_id
         ? String(refundEntity.notes.refund_request_id)
         : null;

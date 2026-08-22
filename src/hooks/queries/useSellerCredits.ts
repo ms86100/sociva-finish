@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { scopeKey as creditRealtimeScopeKey, subscribeSellerCreditRealtime } from '@/lib/seller-credits-realtime-bus';
 import {
   emptySellerCreditSummary,
   mapSellerCreditSummary,
@@ -132,31 +133,9 @@ export function useInvalidateSellerCredits() {
 
 export function useSellerCreditRealtime(sellerIds: string[]) {
   const invalidate = useInvalidateSellerCredits();
+  const key = creditRealtimeScopeKey(sellerIds);
   useEffect(() => {
-    if (sellerIds.length === 0) return;
-    const channel = supabase
-      .channel(`seller-credits-${sellerIds.join(',')}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'seller_credit_accounts' },
-        (payload) => {
-          const id = (payload.new as { seller_id?: string } | null)?.seller_id
-            || (payload.old as { seller_id?: string } | null)?.seller_id;
-          if (id && sellerIds.includes(id)) invalidate();
-        },
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'seller_credit_ledger' },
-        (payload) => {
-          const id = (payload.new as { seller_id?: string } | null)?.seller_id
-            || (payload.old as { seller_id?: string } | null)?.seller_id;
-          if (id && sellerIds.includes(id)) invalidate();
-        },
-      )
-      .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [sellerIds.join(','), invalidate]);
+    if (!key) return;
+    return subscribeSellerCreditRealtime(key.split(','), invalidate);
+  }, [key, invalidate]);
 }
