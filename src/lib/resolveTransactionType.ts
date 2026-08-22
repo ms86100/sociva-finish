@@ -55,18 +55,20 @@ export function resolveTransactionType(
   /** Stored transaction_type from the order row (new orders have this set at creation) */
   storedTransactionType?: string | null
 ): string {
+  if (orderType === 'enquiry') {
+    const healed = storedTransactionType
+      ? healOrderTransactionType(storedTransactionType, fulfillmentType, deliveryHandledBy) || storedTransactionType
+      : null;
+    if (healed === 'request_service' || healed === 'contact_enquiry') return healed;
+    return resolveEnquiryTransactionType(listingType);
+  }
+
   // Prefer healed stamp so UI matches seller_advance_order / DB backfill
   if (storedTransactionType) {
-    const healed =
+    return (
       healOrderTransactionType(storedTransactionType, fulfillmentType, deliveryHandledBy) ||
-      storedTransactionType;
-    if (
-      orderType === 'enquiry' &&
-      (healed === 'service_booking' || healed === 'book_slot')
-    ) {
-      return resolveEnquiryTransactionType(listingType);
-    }
-    return healed;
+      storedTransactionType
+    );
   }
 
   // Legacy fallback for orders created before the migration

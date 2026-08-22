@@ -118,7 +118,10 @@ export function AttributeBlockBuilder({ category, value, onChange, wizardMode = 
             >
               <DynamicIcon name={block.icon || 'ClipboardList'} size={18} />
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-foreground">{block.display_name}</p>
+                <p className="text-sm font-medium text-foreground">
+                  {block.display_name}
+                  {block.buyer_selectable ? <span className="ml-1.5 text-[10px] font-normal text-primary">Buyers pick</span> : null}
+                </p>
                 <p className="text-xs text-muted-foreground line-clamp-1">{block.description}</p>
               </div>
               <Plus size={16} className="text-muted-foreground shrink-0 mt-0.5" />
@@ -153,7 +156,10 @@ export function AttributeBlockBuilder({ category, value, onChange, wizardMode = 
               >
                 <DynamicIcon name={block.icon || 'ClipboardList'} size={18} />
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-foreground">{block.display_name}</p>
+                  <p className="text-sm font-medium text-foreground">
+                  {block.display_name}
+                  {block.buyer_selectable ? <span className="ml-1.5 text-[10px] font-normal text-primary">Buyers pick</span> : null}
+                </p>
                   <p className="text-xs text-muted-foreground line-clamp-1">{block.description}</p>
                 </div>
                 <Plus size={16} className="text-muted-foreground shrink-0 mt-0.5" />
@@ -225,6 +231,7 @@ function SortableBlock({ block, libBlock, isExpanded, onToggle, onRemove, onData
         <DynamicIcon name={libBlock.icon || 'ClipboardList'} size={14} />
         <button onClick={onToggle} className="flex-1 text-left">
           <span className="text-xs font-medium text-foreground">{libBlock.display_name}</span>
+          {libBlock.buyer_selectable ? <span className="ml-1.5 text-[10px] text-primary">Buyers pick</span> : null}
           {hasData && <span className="ml-1.5 text-[9px] text-primary">●</span>}
         </button>
         <button onClick={onRemove} className="text-muted-foreground hover:text-destructive">
@@ -236,6 +243,11 @@ function SortableBlock({ block, libBlock, isExpanded, onToggle, onRemove, onData
       </div>
       {isExpanded && (
         <div className="px-3 pb-3 border-t border-border pt-2">
+          {libBlock.buyer_selectable ? (
+            <p className="mb-2 text-[11px] text-primary">
+              Buyers pick these when they add to cart, enquire, or book. For tags, add the choices they can tap.
+            </p>
+          ) : null}
           <AttributeBlockForm
             blockType={block.type}
             schema={libBlock.schema}

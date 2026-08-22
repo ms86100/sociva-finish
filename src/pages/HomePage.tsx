@@ -10,6 +10,9 @@ import { SocietyQuickLinks } from '@/components/home/SocietyQuickLinks';
 import { CommunityTeaser } from '@/components/home/CommunityTeaser';
 import { LazySection } from '@/components/home/LazySection';
 import { HomeNotificationBanner } from '@/components/notifications/HomeNotificationBanner';
+import { PreciseLocationRequiredCard } from '@/components/location/PreciseLocationRequiredCard';
+import { useBrowsingLocation } from '@/contexts/BrowsingLocationContext';
+import { hasPreciseCoordinates } from '@/lib/buyerLocation';
 import { ActiveOrderStrip } from '@/components/home/ActiveOrderStrip';
 import { ForYouSection } from '@/components/home/ForYouSection';
 import { SocietyLeaderboard } from '@/components/home/SocietyLeaderboard';
@@ -26,6 +29,8 @@ import { trackRouteMount } from '@/lib/perf-telemetry';
 export default function HomePage() {
   useBuyerRealtimeShell();
   const { user, profile } = useAuth();
+  const { browsingLocation } = useBrowsingLocation();
+  const needsPreciseLocation = !hasPreciseCoordinates(browsingLocation?.lat, browsingLocation?.lng);
   const { showOnboarding, hasChecked, completeOnboarding } = useOnboarding(user?.id);
 
   const scrollKey = 'home-scroll-y';
@@ -65,6 +70,7 @@ export default function HomePage() {
     <AppLayout>
       <div className="pb-4 space-y-0">
         <HomeNotificationBanner />
+        {needsPreciseLocation && <PreciseLocationRequiredCard className="mx-4 mt-3" />}
         <ActiveOrderStrip />
         <HomeSearchSuggestions />
         <MarketplaceSection />

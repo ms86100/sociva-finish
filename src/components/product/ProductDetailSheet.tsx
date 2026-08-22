@@ -12,6 +12,8 @@ import { Badge } from '@/components/ui/badge';
 import { ContactSellerModal } from './ContactSellerModal';
 import { DynamicIcon } from '@/components/ui/DynamicIcon';
 import { ProductEnquirySheet } from './ProductEnquirySheet';
+import { ProductExtraPicker, useProductExtraGroups } from './ProductExtraPicker';
+import { extrasHaveRequiredGaps, sanitizeSelectedExtras, type SelectedExtra } from '@/lib/productExtras';
 import { ReportSheet } from '@/components/report/ReportSheet';
 import { ServiceBookingFlow } from '@/components/booking/ServiceBookingFlow';
 import { ProductAttributeBlocks } from './ProductAttributeBlocks';
@@ -30,6 +32,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useSellerCreditCanAccept } from '@/hooks/queries/useSellerCredits';
 import { sellerCreditCustomerMessage } from '@/lib/sellerCredits';
 import { useCountUp } from '@/hooks/useCountUp';
+import { notify } from '@/lib/notify';
 
 const PriceHistoryChart = lazy(() =>
   import('./PriceHistoryChart').then((m) => ({ default: m.PriceHistoryChart })),
@@ -68,6 +71,9 @@ export function ProductDetailSheet({ product, open, onOpenChange, onSelectProduc
   const d = useProductDetail(product, open, onOpenChange);
   const ml = useMarketplaceLabels();
   const [bookingOpen, setBookingOpen] = useState(false);
+  const [selectedExtras, setSelectedExtras] = useState<SelectedExtra[]>([]);
+  const extraGroups = useProductExtraGroups(d.loadedSpecs ?? product?.specifications);
+  useEffect(() => { setSelectedExtras([]); }, [product?.product_id]);
   const isServiceBookingAction = usesServiceBookingFlow(d.actionType);
   const { data: favoriteIds = [] } = useProductFavorites();
   const creditEvent = d.actionType === 'book'
@@ -302,6 +308,13 @@ export function ProductDetailSheet({ product, open, onOpenChange, onSelectProduc
                   <ChevronRight size={16} className="text-muted-foreground shrink-0" />
                 </Link>
               </motion.div>
+              {d.isCartAction && (
+                <ProductExtraPicker
+                  specifications={d.loadedSpecs ?? product.specifications}
+                  value={selectedExtras}
+                  onChange={setSelectedExtras}
+                />
+              )}
             </motion.div>
             {/* Similar products with stagger */}
             {d.similarProducts.length > 0 && (
@@ -376,7 +389,14 @@ export function ProductDetailSheet({ product, open, onOpenChange, onSelectProduc
               <div className="w-full h-12 flex items-center justify-center bg-muted rounded-xl"><span className="text-sm font-medium text-muted-foreground">Out of Stock</span></div>
             ) : d.isCartAction ? (
               d.quantity === 0 ? (
-                <Button data-haptic="medium" className="w-full h-12 text-base font-bold bg-accent hover:bg-accent/90 text-accent-foreground rounded-xl" onClick={() => { d.handleAdd(); }}>{d.actionType === 'buy_now' ? 'Buy Now' : 'Add to cart'} · {d.formatPrice(product.price)}</Button>
+                <Button data-haptic="medium" className="w-full h-12 text-base font-bold bg-accent hover:bg-accent/90 text-accent-foreground rounded-xl" onClick={() => {
+                  const extras = sanitizeSelectedExtras(selectedExtras, extraGroups);
+                  if (extrasHaveRequiredGaps(extraGroups, extras)) {
+                    notify.block('Please choose the required extra details');
+                    return;
+                  }
+                  d.handleAdd(extras);
+                }}>{d.actionType === 'buy_now' ? 'Buy Now' : 'Add to cart'} · {d.formatPrice(product.price)}</Button>
               ) : (
                 <div className="flex items-center justify-between">
                   <div><span className="text-lg font-bold text-foreground">{d.formatPrice(product.price * d.quantity)}</span><span className="text-xs text-muted-foreground ml-1.5">{d.quantity} item{d.quantity > 1 ? 's' : ''}</span></div>
@@ -407,7 +427,7 @@ export function ProductDetailSheet({ product, open, onOpenChange, onSelectProduc
         </DrawerContent>
       </Drawer>
       {d.actionType === 'contact_seller' && <ContactSellerModal open={d.contactOpen} onOpenChange={d.setContactOpen} sellerName={product.seller_name} phone={product.contact_phone || ''} sellerId={product.seller_id} buyerId={user?.id ?? ''} productId={product.product_id} productName={product.product_name} />}
-      {!d.isCartAction && d.actionType !== 'contact_seller' && !isServiceBookingAction && <ProductEnquirySheet open={d.enquiryOpen} onOpenChange={d.setEnquiryOpen} productId={product.product_id} productName={product.product_name} sellerId={product.seller_id} sellerName={product.seller_name} actionType={d.actionType} price={product.price} />}
+      {!d.isCartAction && d.actionType !== 'contact_seller' && !isServiceBookingAction && <ProductEnquirySheet open={d.enquiryOpen} onOpenChange={d.setEnquiryOpen} productId={product.product_id} productName={product.product_name} sellerId={product.seller_id} sellerName={product.seller_name} actionType={d.actionType} price={product.price} specifications={d.loadedSpecs ?? product.specifications} />}
       {isServiceBookingAction && product && (
         <ServiceBookingFlow open={bookingOpen} onOpenChange={setBookingOpen} productId={product.product_id} productName={product.product_name} sellerId={product.seller_id} sellerName={product.seller_name} price={product.price} category={product.category || ''} imageUrl={product.image_url} durationMinutes={product.prep_time_minutes || undefined} locationType={(product as any).location_type || undefined} subcategoryId={(product as any).subcategory_id || undefined} />
       )}

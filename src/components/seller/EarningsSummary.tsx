@@ -36,7 +36,7 @@ export function EarningsSummary({
   if (compact) {
     return (
       <Link to="/seller/wallet">
-        <div className="bg-gradient-to-r from-success/10 to-success/5 rounded-lg px-3 py-2 mt-2 space-y-1.5">
+        <div className="bg-gradient-to-r from-success/10 to-success/5 rounded-lg px-3 py-2 space-y-1.5">
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2 min-w-0">
               <TrendingUp className="text-success shrink-0" size={14} />

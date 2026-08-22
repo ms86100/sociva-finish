@@ -4,6 +4,9 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { useBrowsingLocation } from '@/contexts/BrowsingLocationContext';
+import { buyerCanOrderFromSeller } from '@/lib/sellerDiscoverability';
+import { PRECISE_LOCATION_TITLE } from '@/lib/buyerLocation';
 import { CartItem, Product } from '@/types/Database';
 import { toast } from 'sonner';
 import { handleApiError } from '@/lib/query-utils';
@@ -133,7 +136,7 @@ interface CartContextType {
   pendingMutations: number;
   /** True once the cart state has been positively confirmed (items arrived or server verified empty) */
   cartVerified: boolean;
-  addItem: (product: Product, quantity?: number, silent?: boolean) => Promise<void>;
+  addItem: (product: Product, quantity?: number, silent?: boolean, extras?: any[]) => Promise<void>;
   replaceCart: (inserts: { product_id: string; quantity: number }[]) => Promise<void>;
   updateQuantity: (productId: string, quantity: number) => Promise<void>;
   removeItem: (productId: string) => Promise<void>;
@@ -175,6 +178,7 @@ async function fetchCartItemCount(userId: string) {
 
 export function CartProvider({ children }: { children: ReactNode }) {
   const { user, isSessionRestored } = useAuth();
+  const { browsingLocation } = useBrowsingLocation();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   // Popups — call at top level (valid hook location)
@@ -307,7 +311,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   // Per-product mutex to prevent race conditions on rapid taps
   const addItemLocksRef = useRef<Set<string>>(new Set());
 
-  const addItem = useCallback(async (product: Product, quantity = 1, silent = false) => {
+  const addItem = useCallback(async (product: Product, quantity = 1, silent = false, extras: any[] = []) => {
     if (!user) { notify.block('Please sign in to add items to cart'); return; }
     if (addItemLocksRef.current.has(product.id)) return;
     addItemLocksRef.current.add(product.id);
@@ -319,6 +323,16 @@ export function CartProvider({ children }: { children: ReactNode }) {
         pActionType = actionLookup?.action_type;
       }
       if (pActionType && !['add_to_cart', 'buy_now'].includes(pActionType)) { toast.error('This item cannot be added to cart', { id: 'cart-not-allowed' }); return; }
+
+      const eligibility = await buyerCanOrderFromSeller(
+        product.seller_id,
+        browsingLocation?.lat,
+        browsingLocation?.lng,
+      );
+      if (!eligibility.ok) {
+        toast.error(eligibility.reason === 'buyer_location' ? PRECISE_LOCATION_TITLE : eligibility.message, { id: 'cart-not-discoverable' });
+        return;
+      }
 
       const inlineAvailability = getInlineSellerAvailability(product);
       let availability = computeStoreStatus(inlineAvailability.availabilityStart, inlineAvailability.availabilityEnd, inlineAvailability.operatingDays, inlineAvailability.isAvailable);
@@ -358,21 +372,30 @@ export function CartProvider({ children }: { children: ReactNode }) {
       // Cancel + snapshot + optimistic
       await cancelCartQueries();
       const snap = snapshot();
+      const extrasPayload = Array.isArray(extras) ? extras : [];
 
       setOptimistic(prev => {
         const existing = prev.find(item => item.product_id === product.id);
-        if (existing) return prev.map(item => item.product_id === product.id ? { ...item, quantity: Math.min(item.quantity + quantity, maxQty) } : item);
-        return [...prev, { id: `temp-${crypto.randomUUID()}`, user_id: user.id, product_id: product.id, quantity, created_at: new Date().toISOString(), product, society_id: null } as CartItem & { product: Product }];
+        if (existing) return prev.map(item => item.product_id === product.id ? { ...item, quantity: Math.min(item.quantity + quantity, maxQty), ...(extrasPayload.length ? { selected_extras: extrasPayload } : {}) } : item);
+        return [...prev, { id: `temp-${crypto.randomUUID()}`, user_id: user.id, product_id: product.id, quantity, created_at: new Date().toISOString(), product, society_id: null, selected_extras: extrasPayload } as CartItem & { product: Product }];
       });
       queryClient.setQueryData(countKey(), (old: number | undefined) => (old || 0) + quantity);
 
       try {
         const { data: existing } = await supabase.from('cart_items').select('quantity').eq('user_id', user.id).eq('product_id', product.id).maybeSingle();
         if (existing) {
-          const { error } = await supabase.from('cart_items').update({ quantity: Math.min(existing.quantity + quantity, maxQty) }).eq('user_id', user.id).eq('product_id', product.id);
+          const { error } = await supabase.from('cart_items').update({
+            quantity: Math.min(existing.quantity + quantity, maxQty),
+            ...(extrasPayload.length ? { selected_extras: extrasPayload } : {}),
+          }).eq('user_id', user.id).eq('product_id', product.id);
           if (error) throw error;
         } else {
-          const { error } = await supabase.from('cart_items').insert({ user_id: user.id, product_id: product.id, quantity });
+          const { error } = await supabase.from('cart_items').insert({
+            user_id: user.id,
+            product_id: product.id,
+            quantity,
+            ...(extrasPayload.length ? { selected_extras: extrasPayload } : {}),
+          });
           if (error) throw error;
         }
         if (!silent) {
@@ -410,7 +433,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       addItemLocksRef.current.delete(product.id);
       setPendingMutations(c => Math.max(0, c - 1));
     }
-  }, [user, setOptimistic, cancelCartQueries, snapshot, rollback, reconcile, queryClient, countKey]);
+  }, [user, browsingLocation?.lat, browsingLocation?.lng, setOptimistic, cancelCartQueries, snapshot, rollback, reconcile, queryClient, countKey]);
 
   const removeItem = useCallback(async (productId: string) => {
     if (!user) return;

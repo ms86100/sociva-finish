@@ -24,6 +24,7 @@ import { LottieEmptyState } from '@/components/ui/LottieEmptyState';
 import { AlertCircle } from 'lucide-react';
 import { CartClearedAnimation } from '@/components/cart/CartClearedAnimation';
 import { AddressPicker } from '@/components/profile/AddressPicker';
+import { PreciseLocationRequiredCard } from '@/components/location/PreciseLocationRequiredCard';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
 
@@ -258,6 +259,11 @@ export default function CartPage() {
                         </div>
                         <p className="text-sm font-bold mt-0.5">{c.formatPrice(item.product.price * item.quantity)}</p>
                         <p className="text-[11px] text-muted-foreground">{c.formatPrice(item.product.price)} × {item.quantity}</p>
+                        {Array.isArray((item as any).selected_extras) && (item as any).selected_extras.length > 0 && (
+                          <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-2">
+                            {(item as any).selected_extras.map((extra: any) => `${extra.fieldLabel}: ${Array.isArray(extra.value) ? extra.value.join(', ') : extra.value}`).join(' · ')}
+                          </p>
+                        )}
                       </>) : (<p className="text-sm text-muted-foreground italic">Item unavailable</p>)}
                     </div>
                     <div className="flex items-center gap-1.5">
@@ -448,7 +454,7 @@ export default function CartPage() {
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Deliver to</p>
                 <p className="text-sm font-medium mt-0.5">{c.selectedDeliveryAddress.label}</p>
                 <p className="text-xs text-muted-foreground">{[c.selectedDeliveryAddress.flat_number && `Flat ${c.selectedDeliveryAddress.flat_number}`, c.selectedDeliveryAddress.block && `Block ${c.selectedDeliveryAddress.block}`, c.selectedDeliveryAddress.building_name].filter(Boolean).join(', ')}</p>
-                {!c.selectedDeliveryAddress.latitude && (
+                {c.needsPreciseLocation && (
                   <p className="text-[10px] text-warning flex items-center gap-1 mt-1"><AlertTriangle size={10} /> No location pin — update address for delivery</p>
                 )}
               </>
@@ -467,6 +473,8 @@ export default function CartPage() {
             )
           )}
         </div>
+
+        {c.needsPreciseLocation && <PreciseLocationRequiredCard />}
 
         {/* Multi-seller note moved to top — see #5 above */}
 
@@ -563,6 +571,7 @@ export default function CartPage() {
                   c.multiStoreRequiresSplit ||
                   c.hasFulfillmentConflict ||
                   (c.fulfillmentType === 'delivery' && !c.selectedDeliveryAddress) ||
+                  c.needsPreciseLocation ||
                   c.preorderMissingSchedule
                 }
               >

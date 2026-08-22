@@ -2,6 +2,8 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { useBrowsingLocation } from '@/contexts/BrowsingLocationContext';
+import { filterDiscoverableProductIds, filterDiscoverableSellerIds } from '@/lib/sellerDiscoverability';
 
 interface OrderSuggestion {
   id: string;
@@ -21,9 +23,10 @@ interface OrderSuggestion {
 
 export function useOrderSuggestions() {
   const { user } = useAuth();
+  const { browsingLocation } = useBrowsingLocation();
 
   return useQuery({
-    queryKey: ['order-suggestions', user?.id],
+    queryKey: ['order-suggestions', user?.id, browsingLocation?.lat, browsingLocation?.lng],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('order_suggestions')
@@ -51,12 +54,16 @@ export function useOrderSuggestions() {
 
       const productMap = new Map((productsRes.data || []).map((p: any) => [p.id, p]));
       const sellerMap = new Map((sellersRes.data || []).map((s: any) => [s.id, s]));
+      const [allowedProducts, allowedSellers] = await Promise.all([
+        filterDiscoverableProductIds(productIds, browsingLocation?.lat, browsingLocation?.lng),
+        filterDiscoverableSellerIds(sellerIds, browsingLocation?.lat, browsingLocation?.lng),
+      ]);
 
       return (data as any[]).map(s => ({
         ...s,
-        products: (s.product_ids || []).map((pid: string) => productMap.get(pid)).filter(Boolean),
-        seller: sellerMap.get(s.seller_id) || undefined,
-      })) as OrderSuggestion[];
+        products: (s.product_ids || []).map((pid: string) => productMap.get(pid)).filter((p: any) => p && allowedProducts.has(p.id)),
+        seller: (s.seller_id && allowedSellers.has(s.seller_id)) ? sellerMap.get(s.seller_id) : undefined,
+      })).filter((s) => (s.seller_id ? allowedSellers.has(s.seller_id) : s.products.length > 0)) as OrderSuggestion[];
     },
     enabled: !!user?.id,
     staleTime: 5 * 60_000,

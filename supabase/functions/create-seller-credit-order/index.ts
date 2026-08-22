@@ -27,17 +27,31 @@ serve(async (req) => {
     const body = await req.json();
     const sellerId = String(body.seller_id || "");
     const packageId = String(body.package_id || "");
-    if (!sellerId || !packageId) {
-      return new Response(JSON.stringify({ error: "seller_id and package_id required" }), {
+    const customAmount = Number(body.amount);
+    const hasPackage = Boolean(packageId);
+    const hasAmount = Number.isFinite(customAmount) && customAmount > 0;
+    if (!sellerId || (!hasPackage && !hasAmount)) {
+      return new Response(JSON.stringify({ error: "seller_id and package_id or amount required" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (!hasPackage && customAmount < 100) {
+      return new Response(JSON.stringify({ error: "Minimum recharge amount is ₹100" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const { data: created, error: createError } = await authResult.userClient.rpc(
-      "create_seller_credit_purchase",
-      { p_seller_id: sellerId, p_package_id: packageId },
-    );
+    const { data: created, error: createError } = hasPackage
+      ? await authResult.userClient.rpc("create_seller_credit_purchase", {
+          p_seller_id: sellerId,
+          p_package_id: packageId,
+        })
+      : await authResult.userClient.rpc("create_seller_credit_purchase_amount", {
+          p_seller_id: sellerId,
+          p_amount: Math.round(customAmount * 100) / 100,
+        });
     if (createError || !created?.ok) {
       return new Response(JSON.stringify({ error: createError?.message || "Could not start credit purchase" }), {
         status: 400,

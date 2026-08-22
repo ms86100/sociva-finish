@@ -17,7 +17,7 @@ export function resolveNotificationRoute(
   switch (type) {
     // Seller lifecycle
     case 'seller_approved':
-      return '/seller';
+      return '/seller/credits';
     case 'seller_rejected':
       return '/become-seller';
     case 'seller_suspended':

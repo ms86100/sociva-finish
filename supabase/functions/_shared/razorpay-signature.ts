@@ -5,6 +5,16 @@ const decodeHex = (value: string): Uint8Array | null => {
   );
 };
 
+export async function verifyRazorpayCheckoutSignature(
+  orderId: string,
+  paymentId: string,
+  signature: string,
+  keySecret: string,
+): Promise<boolean> {
+  if (!orderId || !paymentId || !signature || !keySecret) return false;
+  return verifyRazorpaySignature(`${orderId}|${paymentId}`, signature, keySecret);
+}
+
 export async function verifyRazorpaySignature(
   body: string,
   signature: string,

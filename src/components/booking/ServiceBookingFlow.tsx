@@ -25,6 +25,12 @@ import { notify } from '@/lib/notify';
 import { friendlyError } from '@/lib/utils';
 import { isSellerCreditInsufficientError, sellerCreditCustomerMessage } from '@/lib/sellerCredits';
 import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
+import { useBrowsingLocation } from '@/contexts/BrowsingLocationContext';
+import { buyerCanOrderFromSeller } from '@/lib/sellerDiscoverability';
+import { PRECISE_LOCATION_TITLE } from '@/lib/buyerLocation';
+import { scrollFocusedFieldInDrawer, useDrawerKeyboard } from '@/hooks/useChatViewport';
+import { ProductExtraPicker, useProductExtraGroups } from '@/components/product/ProductExtraPicker';
+import { extrasHaveRequiredGaps, sanitizeSelectedExtras, type SelectedExtra } from '@/lib/productExtras';
 
 interface ServiceBookingFlowProps {
   open: boolean;
@@ -53,6 +59,7 @@ export function ServiceBookingFlow({
   const navigate = useNavigate();
   const { user } = useAuth();
   const { formatPrice } = useCurrency();
+  const { browsingLocation } = useBrowsingLocation();
   const queryClient = useQueryClient();
   const { config } = useCategoryBehavior(category as ServiceCategory);
 
@@ -87,9 +94,13 @@ export function ServiceBookingFlow({
   const [notes, setNotes] = useState('');
   const [buyerAddress, setBuyerAddress] = useState('');
   const [selectedAddons, setSelectedAddons] = useState<SelectedAddon[]>([]);
+  const [selectedExtras, setSelectedExtras] = useState<SelectedExtra[]>([]);
+  const [productSpecs, setProductSpecs] = useState<Record<string, any> | null>(null);
   const [recurringConfig, setRecurringConfig] = useState<RecurringConfig>({ enabled: false, frequency: 'weekly' });
   const [isLoading, setIsLoading] = useState(false);
   const [selfBookError, setSelfBookError] = useState(false);
+  const { viewportHeight, keyboardInset } = useDrawerKeyboard(open);
+  const extraGroups = useProductExtraGroups(productSpecs);
 
   useEffect(() => {
     if (open) {
@@ -99,11 +110,23 @@ export function ServiceBookingFlow({
       setNotes('');
       setBuyerAddress('');
       setSelectedAddons([]);
+      setSelectedExtras([]);
       setRecurringConfig({ enabled: false, frequency: 'weekly' });
       setIsLoading(false);
       isSubmittingRef.current = false;
+      if (productId) {
+        supabase.from('products').select('specifications').eq('id', productId).maybeSingle()
+          .then(({ data }) => setProductSpecs((data as any)?.specifications || null));
+      }
     }
-  }, [open]);
+  }, [open, productId]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onFocus = () => window.setTimeout(() => scrollFocusedFieldInDrawer(), 80);
+    document.addEventListener('focusin', onFocus);
+    return () => document.removeEventListener('focusin', onFocus);
+  }, [open, keyboardInset]);
 
   const { data: subcategories = [] } = useSubcategories(config?.id || null);
   const activeSubcategory = useMemo(() => {
@@ -169,6 +192,25 @@ export function ServiceBookingFlow({
     }
     if (needsAddress && !buyerAddress.trim()) {
       notify.block('Please enter your address for home visit');
+      isSubmittingRef.current = false;
+      return;
+    }
+    const extras = sanitizeSelectedExtras(selectedExtras, extraGroups);
+    if (extrasHaveRequiredGaps(extraGroups, extras)) {
+      notify.block('Please choose the required extra details');
+      isSubmittingRef.current = false;
+      return;
+    }
+
+    const eligibility = await buyerCanOrderFromSeller(
+      sellerId,
+      browsingLocation?.lat,
+      browsingLocation?.lng,
+    );
+    if (!eligibility.ok) {
+      notify.block(
+        eligibility.reason === 'buyer_location' ? PRECISE_LOCATION_TITLE : eligibility.message,
+      );
       isSubmittingRef.current = false;
       return;
     }
@@ -265,6 +307,7 @@ export function ServiceBookingFlow({
               dayOfWeek: selectedDate.getDay(),
             }
           : null,
+        _selected_extras: extras,
       });
 
       if (bookErr) throw bookErr;
@@ -324,7 +367,15 @@ export function ServiceBookingFlow({
   return (
     <>
     <Drawer open={open} onOpenChange={onOpenChange}>
-      <DrawerContent className="max-h-[85vh]">
+      <DrawerContent
+        data-drawer-scroll
+        className="max-h-[85vh] overflow-y-auto"
+        style={{
+          bottom: keyboardInset,
+          maxHeight: viewportHeight ? `${Math.max(viewportHeight - 12, 280)}px` : '85vh',
+          paddingBottom: `calc(${keyboardInset}px + env(safe-area-inset-bottom, 0px))`,
+        }}
+      >
         <DrawerHeader className="pb-4">
           <DrawerTitle className="flex items-center gap-2">
             {step === 'review' && (
@@ -390,6 +441,12 @@ export function ServiceBookingFlow({
                   )}
                 </div>
               )}
+
+              <ProductExtraPicker
+                specifications={productSpecs}
+                value={selectedExtras}
+                onChange={setSelectedExtras}
+              />
 
               {/* Add-ons */}
               {supportsAddons && (
@@ -470,6 +527,20 @@ export function ServiceBookingFlow({
               </div>
 
               {/* Add-ons */}
+              {selectedExtras.length > 0 && (
+                <div className="p-3 rounded-lg border border-border space-y-1.5">
+                  <p className="text-xs font-medium text-muted-foreground">Extra details</p>
+                  {selectedExtras.map((extra) => (
+                    <div key={extra.id} className="flex justify-between gap-3 text-xs">
+                      <span>{extra.fieldLabel}</span>
+                      <span className="font-medium text-right">
+                        {Array.isArray(extra.value) ? extra.value.join(', ') : String(extra.value)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
               {selectedAddons.length > 0 && (
                 <div className="p-3 rounded-lg border border-border space-y-1.5">
                   <p className="text-xs font-medium flex items-center gap-1 text-muted-foreground">

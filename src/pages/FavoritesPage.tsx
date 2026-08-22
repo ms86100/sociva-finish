@@ -18,12 +18,15 @@ import { useCurrency } from '@/hooks/useCurrency';
 import { computeStoreStatus, formatStoreClosedMessage } from '@/lib/store-availability';
 import { optimizedImageUrl, handleImageError } from '@/utils/imageHelpers';
 import { cn } from '@/lib/utils';
+import { useBrowsingLocation } from '@/contexts/BrowsingLocationContext';
+import { filterDiscoverableSellerIds } from '@/lib/sellerDiscoverability';
 
 export default function FavoritesPage() {
   const { user, profile } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const { formatPrice } = useCurrency();
+  const { browsingLocation } = useBrowsingLocation();
   const [favorites, setFavorites] = useState<SellerProfile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { data: savedProducts = [], isLoading: productsLoading } = useProductFavoritesList();
@@ -32,7 +35,7 @@ export default function FavoritesPage() {
     if (user) {
       fetchFavorites();
     }
-  }, [user, location.key]);
+  }, [user, location.key, browsingLocation?.lat, browsingLocation?.lng]);
 
   const fetchFavorites = async () => {
     if (!user) return;
@@ -54,8 +57,12 @@ export default function FavoritesPage() {
       const sellers = data
         ?.map((f: any) => f.seller)
         .filter((s: any) => s && s.verification_status === 'approved') || [];
-      
-      setFavorites(sellers);
+      const allowed = await filterDiscoverableSellerIds(
+        sellers.map((s: any) => s.id),
+        browsingLocation?.lat,
+        browsingLocation?.lng,
+      );
+      setFavorites(sellers.filter((s: any) => allowed.has(s.id)));
     } catch (error) {
       console.error('Error fetching favorites:', error);
     } finally {

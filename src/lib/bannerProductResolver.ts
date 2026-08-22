@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { supabase } from '@/integrations/supabase/client';
+import { filterDiscoverableProductIds } from '@/lib/sellerDiscoverability';
 
 export interface ResolvedProduct {
   id: string;
@@ -46,9 +47,9 @@ export async function resolveProducts(options: ResolveOptions): Promise<Resolved
     products = await fetchViaRpc(sourceType, sourceValue, societyId, buyerLat, buyerLng, limit, bannerId);
   } else {
     if (sourceType === 'category' && sourceValue) {
-      products = await fetchByCategory(sourceValue, limit);
+      products = await fetchByCategory(sourceValue, limit, buyerLat, buyerLng);
     } else if (sourceType === 'search' && sourceValue) {
-      products = await fetchBySearch(sourceValue, limit);
+      products = await fetchBySearch(sourceValue, limit, buyerLat, buyerLng);
     }
   }
 
@@ -56,7 +57,7 @@ export async function resolveProducts(options: ResolveOptions): Promise<Resolved
     if (societyId) {
       products = await fetchViaRpc('popular', null, societyId, buyerLat, buyerLng, limit, bannerId);
     } else {
-      products = await fetchPopular(limit);
+      products = await fetchPopular(limit, buyerLat, buyerLng);
     }
   }
 
@@ -184,7 +185,16 @@ async function fetchManual(
 
 // ── Legacy fallback functions (used when no society context) ──
 
-async function fetchByCategory(category: string, limit: number): Promise<ResolvedProduct[]> {
+async function filterResolved(products: ResolvedProduct[], buyerLat?: number, buyerLng?: number): Promise<ResolvedProduct[]> {
+  const allowed = await filterDiscoverableProductIds(
+    products.map((p) => p.id),
+    buyerLat,
+    buyerLng,
+  );
+  return products.filter((p) => allowed.has(p.id));
+}
+
+async function fetchByCategory(category: string, limit: number, buyerLat?: number, buyerLng?: number): Promise<ResolvedProduct[]> {
   const { data } = await supabase
     .from('products')
     .select('id, name, price, mrp, image_url, category, is_veg, is_available, is_bestseller, stock_quantity, low_stock_threshold, seller_id')
@@ -197,23 +207,25 @@ async function fetchByCategory(category: string, limit: number): Promise<Resolve
     .order('price', { ascending: true })
     .limit(limit);
 
-  return (data as ResolvedProduct[]) || [];
+  return filterResolved((data as ResolvedProduct[]) || [], buyerLat, buyerLng);
 }
 
-async function fetchBySearch(keyword: string, limit: number): Promise<ResolvedProduct[]> {
+async function fetchBySearch(keyword: string, limit: number, buyerLat?: number, buyerLng?: number): Promise<ResolvedProduct[]> {
   const { data } = await supabase.rpc('search_products_fts', {
     _query: keyword,
+    _lat: buyerLat ?? null,
+    _lng: buyerLng ?? null,
     _limit: limit * 3,
   });
 
   if (!data) return [];
 
   return (data as any[])
-    .filter((p: any) => p.is_available && p.approval_status === 'approved' && (p.stock_quantity ?? 0) > 0)
+    .filter((p: any) => p.is_available)
     .slice(0, limit)
     .map((p: any): ResolvedProduct => ({
-      id: p.id,
-      name: p.name,
+      id: p.product_id || p.id,
+      name: p.product_name || p.name,
       price: p.price,
       mrp: p.mrp,
       image_url: p.image_url,
@@ -227,7 +239,7 @@ async function fetchBySearch(keyword: string, limit: number): Promise<ResolvedPr
     }));
 }
 
-async function fetchPopular(limit: number): Promise<ResolvedProduct[]> {
+async function fetchPopular(limit: number, buyerLat?: number, buyerLng?: number): Promise<ResolvedProduct[]> {
   const { data } = await supabase
     .from('products')
     .select('id, name, price, mrp, image_url, category, is_veg, is_available, is_bestseller, stock_quantity, low_stock_threshold, seller_id')
@@ -238,5 +250,5 @@ async function fetchPopular(limit: number): Promise<ResolvedProduct[]> {
     .order('price', { ascending: true })
     .limit(limit);
 
-  return (data as ResolvedProduct[]) || [];
+  return filterResolved((data as ResolvedProduct[]) || [], buyerLat, buyerLng);
 }

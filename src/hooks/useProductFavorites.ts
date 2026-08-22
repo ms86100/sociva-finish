@@ -2,6 +2,8 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { useBrowsingLocation } from '@/contexts/BrowsingLocationContext';
+import { filterDiscoverableProductIds } from '@/lib/sellerDiscoverability';
 
 export function useProductFavorites() {
   const { user } = useAuth();
@@ -24,9 +26,10 @@ export function useProductFavorites() {
 
 export function useProductFavoritesList() {
   const { user } = useAuth();
+  const { browsingLocation } = useBrowsingLocation();
 
   return useQuery({
-    queryKey: ['product-favorites-list', user?.id],
+    queryKey: ['product-favorites-list', user?.id, browsingLocation?.lat, browsingLocation?.lng],
     queryFn: async () => {
       if (!user) return [];
       const { data, error } = await supabase
@@ -52,10 +55,17 @@ export function useProductFavoritesList() {
         .eq('is_available', true);
 
       if (pErr) throw pErr;
-      return (products || []).map((p: any) => ({
-        ...p,
-        seller_name: p.seller?.business_name || '',
-      }));
+      const allowed = await filterDiscoverableProductIds(
+        (products || []).map((p: any) => p.id),
+        browsingLocation?.lat,
+        browsingLocation?.lng,
+      );
+      return (products || [])
+        .filter((p: any) => allowed.has(p.id))
+        .map((p: any) => ({
+          ...p,
+          seller_name: p.seller?.business_name || '',
+        }));
     },
     enabled: !!user,
     staleTime: 60 * 1000,

@@ -136,8 +136,14 @@ export function SearchAutocomplete({ query, onSelect }: Props) {
         .lte('latitude', lat + boxDelta)
         .gte('longitude', lng - boxDelta)
         .lte('longitude', lng + boxDelta)
-        .limit(3);
-      return (data || []).map((d: any) => ({
+        .limit(8);
+      const { filterDiscoverableSellerIds } = await import('@/lib/sellerDiscoverability');
+      const allowed = await filterDiscoverableSellerIds(
+        (data || []).map((d: { id: string }) => d.id),
+        lat,
+        lng,
+      );
+      return (data || []).filter((d: any) => allowed.has(d.id)).slice(0, 3).map((d: any) => ({
         id: d.id,
         business_name: d.business_name,
         description: d.description,

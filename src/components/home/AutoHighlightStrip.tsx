@@ -4,6 +4,8 @@ import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { useBrowsingLocation } from '@/contexts/BrowsingLocationContext';
+import { filterDiscoverableProductIds, filterDiscoverableSellerIds } from '@/lib/sellerDiscoverability';
 import { useCurrency } from '@/hooks/useCurrency';
 import { Star, Flame, Tag, TrendingUp } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -23,12 +25,13 @@ interface HighlightCard {
 
 export function AutoHighlightStrip() {
   const { effectiveSocietyId } = useAuth();
+  const { browsingLocation } = useBrowsingLocation();
   const navigate = useNavigate();
   const { formatPrice } = useCurrency();
   const ml = useMarketplaceLabels();
 
   const { data: highlights = [], isLoading } = useQuery({
-    queryKey: ['auto-highlights', effectiveSocietyId],
+    queryKey: ['auto-highlights', effectiveSocietyId, browsingLocation?.lat, browsingLocation?.lng],
     queryFn: async (): Promise<HighlightCard[]> => {
       if (!effectiveSocietyId) return [];
 
@@ -57,9 +60,24 @@ export function AutoHighlightStrip() {
           .limit(3),
       ]);
 
+      const allowedProducts = await filterDiscoverableProductIds(
+        (bestsellersRes.data || []).map((p: { id: string }) => p.id),
+        browsingLocation?.lat,
+        browsingLocation?.lng,
+      );
+      const allowedSellers = await filterDiscoverableSellerIds(
+        [
+          ...(topSellersRes.data || []).map((s: { id: string }) => s.id),
+          ...(couponsRes.data || []).map((c: { seller_id?: string }) => c.seller_id).filter(Boolean),
+        ],
+        browsingLocation?.lat,
+        browsingLocation?.lng,
+      );
+
       const cards: HighlightCard[] = [];
 
       for (const p of (bestsellersRes.data || []) as any[]) {
+        if (!allowedProducts.has(p.id)) continue;
         cards.push({
           id: `bs-${p.id}`,
           type: 'bestseller',
@@ -73,6 +91,7 @@ export function AutoHighlightStrip() {
       }
 
       for (const s of (topSellersRes.data || []) as any[]) {
+        if (!allowedSellers.has(s.id)) continue;
         cards.push({
           id: `ts-${s.id}`,
           type: 'top_seller',
@@ -86,6 +105,7 @@ export function AutoHighlightStrip() {
       }
 
       for (const c of (couponsRes.data || []) as any[]) {
+        if (c.seller_id && !allowedSellers.has(c.seller_id)) continue;
         const discountText = c.discount_type === 'percentage'
           ? `${c.discount_value}% OFF`
           : `${formatPrice(c.discount_value)} OFF`;

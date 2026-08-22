@@ -44,6 +44,7 @@ import { useOrderDetail } from '@/hooks/useOrderDetail';
 import { OrderItem, OrderStatus, PaymentStatus, ItemStatus } from '@/types/Database';
 import { isTerminalStatus, isSuccessfulTerminal, isFirstFlowStep, stepRequiresOtp, getStepOtpType } from '@/hooks/useCategoryStatusFlow';
 import { ArrowLeft, Phone, MapPin, Check, Star, MessageCircle, CreditCard, XCircle, Package, ChevronRight, Copy, Truck, Loader2, AlertTriangle, Clock, CircleCheckBig } from 'lucide-react';
+import { describeBuyerOrderLocation } from '@/lib/buyerOrderLocation';
 import { format } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
 import { getString, setString } from '@/lib/persistent-kv';
@@ -618,7 +619,7 @@ export default function OrderDetailPage() {
   // as long as we have a resolvable next status (via transitions-only fallback in useOrderDetail).
   const hasResolvableSellerCTA = !!o.nextStatus || o.canSellerReject;
   const hasSellerActionBar = o.isSellerView && !o.isFlowLoading && !isTerminalStatus(o.flow, order.status) && (o.flow.length > 0 || hasResolvableSellerCTA);
-  const canRescheduleBooking = !!serviceBooking && ['booked', 'scheduled', 'rescheduled'].includes(serviceBooking.status);
+  const canRescheduleBooking = !o.isEnquiryOrder && !!serviceBooking && ['booked', 'scheduled', 'rescheduled'].includes(serviceBooking.status);
   const hasBuyerActionBar = o.isBuyerView && !o.isFlowLoading && o.flow.length > 0 && !isTerminalStatus(o.flow, order.status) && (o.buyerNextStatus || o.canBuyerCancel || canRescheduleBooking);
 
   // Show the prominent "Accept Order" hero card when the seller is on a fresh placed order.
@@ -724,10 +725,44 @@ export default function OrderDetailPage() {
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-bold text-foreground">New Order — Action Required</p>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    {buyer?.name ? `${buyer.name} is waiting` : 'Customer is waiting for your confirmation'} · Tap Accept to start preparing
+                    {buyer?.name ? `${buyer.name} is waiting` : 'Customer is waiting for your confirmation'} · Check the location, then accept or reject
                   </p>
                 </div>
               </div>
+              {(() => {
+                const loc = describeBuyerOrderLocation({
+                  deliveryAddress: (order as any).delivery_address,
+                  societyName: (order as any).buyer_society_name,
+                  phase: buyer?.phase,
+                  block: buyer?.block,
+                  flatNumber: buyer?.flat_number,
+                  buyerLat: (order as any).delivery_lat,
+                  buyerLng: (order as any).delivery_lng,
+                  sellerLat: (seller as any)?.latitude,
+                  sellerLng: (seller as any)?.longitude,
+                  sellerRadiusKm: (seller as any)?.delivery_radius_km,
+                });
+                if (!loc) return null;
+                return (
+                  <div className={`mt-3 rounded-xl px-3 py-2 ${loc.outsideRadius ? 'bg-destructive/10 border border-destructive/30' : 'bg-background/80 border border-border/60'}`}>
+                    <p className="text-xs font-semibold text-foreground flex items-start gap-1.5">
+                      <MapPin size={13} className="mt-0.5 shrink-0" />
+                      <span>Buyer location: {loc.label}</span>
+                    </p>
+                    {loc.distanceLabel && (
+                      <p className={`text-[11px] mt-1 ${loc.outsideRadius ? 'text-destructive font-medium' : 'text-muted-foreground'}`}>
+                        {loc.distanceLabel}
+                        {loc.outsideRadius && loc.radiusKm != null
+                          ? ` — outside your ${loc.radiusKm} km radius. Reject if this is not your community.`
+                          : ''}
+                      </p>
+                    )}
+                    {(order as any).delivery_address && (
+                      <p className="text-[11px] text-muted-foreground mt-1">{(order as any).delivery_address}</p>
+                    )}
+                  </div>
+                );
+              })()}
               <div className="flex gap-2 mt-3">
                 {o.canSellerReject && (
                   <Button
@@ -1360,6 +1395,19 @@ export default function OrderDetailPage() {
 
           {/* Totals — already rendered above the fold */}
 
+          {Array.isArray((order as any).selected_extras) && (order as any).selected_extras.length > 0 && (
+            <motion.div variants={cardEntrance} className="bg-card/80 backdrop-blur-lg border border-border/50 rounded-xl p-4 shadow-sm">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">Extra details</p>
+              <div className="space-y-1">
+                {(order as any).selected_extras.map((extra: any) => (
+                  <p key={extra.id || extra.fieldKey} className="text-sm text-foreground">
+                    <span className="text-muted-foreground">{extra.fieldLabel}: </span>
+                    {Array.isArray(extra.value) ? extra.value.join(', ') : String(extra.value ?? '')}
+                  </p>
+                ))}
+              </div>
+            </motion.div>
+          )}
           {order.notes && (<motion.div variants={cardEntrance} className="bg-card/80 backdrop-blur-lg border border-border/50 rounded-xl p-4 shadow-sm"><p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">Instructions</p><p className="text-sm text-muted-foreground">{order.notes}</p></motion.div>)}
 
           {/* Payment Status */}
@@ -1430,7 +1478,7 @@ export default function OrderDetailPage() {
       {hasBuyerActionBar && (
         <div className="fixed bottom-[calc(4rem+env(safe-area-inset-bottom))] left-0 right-0 z-[60] bg-background/80 backdrop-blur-xl border-t border-border/50">
           <div className="px-4 py-3 flex gap-3">
-            {serviceBooking ? (
+            {serviceBooking && !o.isEnquiryOrder ? (
               <>
                 {o.canBuyerCancel && (
                   <BuyerCancelBooking

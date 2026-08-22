@@ -104,12 +104,29 @@ export function useSellerCreditCanAccept(
   });
 }
 
+export function useSellerCreditActivation(sellerId: string | null | undefined) {
+  return useQuery({
+    queryKey: ['seller-credit-activated', sellerId || ''],
+    queryFn: async () => {
+      if (!sellerId) return false;
+      const { data, error } = await creditRpc('seller_credit_activation_satisfied', {
+        p_seller_id: sellerId,
+      });
+      if (error) throw error;
+      return Boolean(data);
+    },
+    enabled: Boolean(sellerId),
+    staleTime: 15_000,
+  });
+}
+
 export function useInvalidateSellerCredits() {
   const queryClient = useQueryClient();
   return useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ['seller-credit-summary'] });
     queryClient.invalidateQueries({ queryKey: ['seller-credit-activity'] });
     queryClient.invalidateQueries({ queryKey: ['seller-credit-can-accept'] });
+    queryClient.invalidateQueries({ queryKey: ['seller-credit-activated'] });
   }, [queryClient]);
 }
 

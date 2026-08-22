@@ -12,52 +12,14 @@ export async function notifySellerStatusChange(
   businessName: string,
   status: 'approved' | 'rejected' | 'suspended',
   rejectionNote?: string,
+  sellerId?: string,
 ) {
-  const titleMap: Record<string, string> = {
-    approved: '🎉 Congratulations! Your store is approved!',
-    rejected: '❌ Store application rejected',
-    suspended: '⚠️ Store suspended',
-  };
-
-  const bodyMap: Record<string, string> = {
-    approved: `Your store "${businessName}" has been approved and is now live. Start selling to your neighbors!`,
-    rejected: rejectionNote
-      ? `Your store application for "${businessName}" was rejected. Reason: ${rejectionNote}`
-      : `Your store application for "${businessName}" was rejected. Please review and resubmit.`,
-    suspended: `Your store "${businessName}" has been suspended. Please contact your admin for details.`,
-  };
-
-  const typeMap: Record<string, string> = {
-    approved: 'seller_approved',
-    rejected: 'seller_rejected',
-    suspended: 'seller_suspended',
-  };
-
-  const referencePathMap: Record<string, string> = {
-    approved: '/seller',
-    rejected: '/become-seller',
-    suspended: '/seller',
-  };
-
-  const actionMap: Record<string, string> = {
-    approved: 'STORE_APPROVED',
-    rejected: 'STORE_REJECTED',
-    suspended: 'STORE_SUSPENDED',
-  };
-
-  const { error } = await supabase.from('notification_queue').insert({
-    user_id: userId,
-    title: titleMap[status],
-    body: bodyMap[status],
-    type: typeMap[status],
-    reference_path: referencePathMap[status],
-    payload: {
-      type: typeMap[status],
-      action: actionMap[status],
-      status: typeMap[status],
-      target_role: 'seller',
-      wa_template: 'sociva_store_status',
-    },
+  const { error } = await supabase.rpc('enqueue_seller_lifecycle_notification', {
+    p_user_id: userId,
+    p_business_name: businessName,
+    p_status: status,
+    p_seller_id: sellerId || null,
+    p_rejection_note: rejectionNote || null,
   });
   if (error) console.error('Failed to enqueue seller notification:', error);
 }
@@ -111,7 +73,7 @@ export async function notifyAdminsNewStoreApplication(
     if (!adminRoles || adminRoles.length === 0) return;
 
     const rows = adminRoles
-      .filter((r) => r.user_id !== sellerUserId) // don't notify the seller if they're also an admin
+      .filter((r) => r.user_id !== sellerUserId)
       .map((r) => ({
         user_id: r.user_id,
         title: '🏪 New Store Application',

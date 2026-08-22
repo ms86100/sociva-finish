@@ -11,6 +11,9 @@ import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { notify } from '@/lib/notify';
+import { useBrowsingLocation } from '@/contexts/BrowsingLocationContext';
+import { buyerCanOrderFromSeller, filterDiscoverableProductIds } from '@/lib/sellerDiscoverability';
+import { PRECISE_LOCATION_TITLE } from '@/lib/buyerLocation';
 
 interface ReorderButtonProps {
   orderItems: OrderItem[];
@@ -28,6 +31,7 @@ export function ReorderButton({
   className 
 }: ReorderButtonProps) {
   const { user } = useAuth();
+  const { browsingLocation } = useBrowsingLocation();
   const navigate = useNavigate();
   const { replaceCart } = useCart();
   const [isLoading, setIsLoading] = useState(false);
@@ -83,8 +87,26 @@ export function ReorderButton({
         return;
       }
 
+      const gate = await buyerCanOrderFromSeller(sellerId, browsingLocation?.lat, browsingLocation?.lng);
+      if (!gate.ok) {
+        notify.block(gate.reason === 'buyer_location' ? PRECISE_LOCATION_TITLE : gate.message, { id: 'reorder-unavailable', title: 'Unavailable' });
+        setIsLoading(false);
+        return;
+      }
+      const allowed = await filterDiscoverableProductIds(
+        availableProducts.map((p) => p.id),
+        browsingLocation?.lat,
+        browsingLocation?.lng,
+      );
+      const discoverableProducts = availableProducts.filter((p) => allowed.has(p.id));
+      if (discoverableProducts.length === 0) {
+        notify.block('None of the items from this order are currently available in your area.', { id: 'reorder-unavailable', title: 'Items unavailable' });
+        setIsLoading(false);
+        return;
+      }
+
       // Warn buyer if any prices changed since original order
-      const priceChanged = availableProducts.some(p => {
+      const priceChanged = discoverableProducts.some(p => {
         const original = orderItems.find(oi => oi.product_id === p.id);
         return original?.unit_price != null && p.price !== original.unit_price;
       });
@@ -95,7 +117,7 @@ export function ReorderButton({
       const cartInserts = orderItems
         .filter(item => 
           item.product_id && 
-          availableProducts.some(p => p.id === item.product_id)
+          discoverableProducts.some(p => p.id === item.product_id)
         )
         .map(item => ({
           product_id: item.product_id!,

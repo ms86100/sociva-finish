@@ -2,6 +2,8 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { useBrowsingLocation } from '@/contexts/BrowsingLocationContext';
+import { filterDiscoverableProductIds } from '@/lib/sellerDiscoverability';
 
 export interface SellerInCategory {
   seller_id: string;
@@ -23,8 +25,9 @@ export interface CategoryWithSellers {
 }
 
 export function useSellersByCategory(societyId?: string | null) {
+  const { browsingLocation } = useBrowsingLocation();
   return useQuery({
-    queryKey: ['sellers-by-category', societyId],
+    queryKey: ['sellers-by-category', societyId, browsingLocation?.lat, browsingLocation?.lng],
     queryFn: async (): Promise<CategoryWithSellers[]> => {
       // Fetch category configs for display info
       const { data: configs } = await supabase
@@ -37,7 +40,7 @@ export function useSellersByCategory(societyId?: string | null) {
       let query = supabase
         .from('products')
         .select(`
-          category, price, seller_id,
+          id, category, price, seller_id,
           seller:seller_profiles!products_seller_id_fkey(
             id, business_name, profile_image_url, rating,
             completed_order_count, fulfillment_mode, is_available,
@@ -54,8 +57,13 @@ export function useSellersByCategory(societyId?: string | null) {
       const { data: products, error } = await query;
       if (error) throw error;
 
+      const allowed = await filterDiscoverableProductIds(
+        (products || []).map((p: { id?: string }) => p.id).filter(Boolean) as string[],
+        browsingLocation?.lat,
+        browsingLocation?.lng,
+      );
       const approved = (products || []).filter(
-        (p: any) => p.seller?.verification_status === 'approved'
+        (p: any) => p.seller?.verification_status === 'approved' && allowed.has(p.id)
       );
 
       // Group: category -> seller_id -> aggregated info

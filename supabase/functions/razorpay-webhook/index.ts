@@ -74,27 +74,6 @@ serve(async (req) => {
       );
     }
     const event = payload.event;
-    const requiredCapability = String(event || '').startsWith('transfer.')
-      ? 'payout_ready'
-      : String(event || '').startsWith('refund.') ||
-          String(event || '').startsWith('payment.dispute.')
-      ? 'refund_ready'
-      : 'payment_ready';
-    const requiredEnablement = String(event || '').startsWith('transfer.')
-      ? 'payout_processing_enabled'
-      : String(event || '').startsWith('refund.') ||
-          String(event || '').startsWith('payment.dispute.')
-      ? 'webhook_refund_enabled'
-      : 'webhook_capture_enabled';
-    const runtime = await checkFinancialRuntime(
-      supabase,
-      requiredCapability,
-      requiredEnablement,
-    );
-    if (!runtime.ready) {
-      return financialRuntimeUnavailableResponse(runtime, corsHeaders);
-    }
-
     const webhookSecret = await getRazorpayWebhookSecret(supabase);
     if (!webhookSecret) {
       console.error('Razorpay webhook secret not configured');
@@ -119,6 +98,33 @@ serve(async (req) => {
         JSON.stringify({ error: 'Invalid signature' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
+    }
+
+    const sellerCreditCaptured =
+      String(event || '') === 'payment.captured' &&
+      payload.payload?.payment?.entity?.notes?.purpose === 'seller_credit_purchase';
+
+    if (!sellerCreditCaptured) {
+      const requiredCapability = String(event || '').startsWith('transfer.')
+        ? 'payout_ready'
+        : String(event || '').startsWith('refund.') ||
+            String(event || '').startsWith('payment.dispute.')
+        ? 'refund_ready'
+        : 'payment_ready';
+      const requiredEnablement = String(event || '').startsWith('transfer.')
+        ? 'payout_processing_enabled'
+        : String(event || '').startsWith('refund.') ||
+            String(event || '').startsWith('payment.dispute.')
+        ? 'webhook_refund_enabled'
+        : 'webhook_capture_enabled';
+      const runtime = await checkFinancialRuntime(
+        supabase,
+        requiredCapability,
+        requiredEnablement,
+      );
+      if (!runtime.ready) {
+        return financialRuntimeUnavailableResponse(runtime, corsHeaders);
+      }
     }
 
     const paymentEntity = payload.payload?.payment?.entity;

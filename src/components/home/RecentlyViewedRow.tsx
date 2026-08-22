@@ -3,7 +3,8 @@ import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { optimizedImageUrl, handleImageError } from '@/utils/imageHelpers';
 import { supabase } from '@/integrations/supabase/client';
-import { useRecentlyViewed } from '@/hooks/useRecentlyViewed';
+import { useBrowsingLocation } from '@/contexts/BrowsingLocationContext';
+import { filterDiscoverableProductIds } from '@/lib/sellerDiscoverability';
 import { useCart } from '@/hooks/useCart';
 import { useCurrency } from '@/hooks/useCurrency';
 import { useCategoryConfigs } from '@/hooks/useCategoryBehavior';
@@ -33,10 +34,11 @@ export function RecentlyViewedRow() {
   const { items, addItem } = useCart();
   const { formatPrice } = useCurrency();
   const { configs: categoryConfigs } = useCategoryConfigs();
+  const { browsingLocation } = useBrowsingLocation();
   const navigate = useNavigate();
 
   const { data: products = [] } = useQuery({
-    queryKey: ['recently-viewed-products', recentIds],
+    queryKey: ['recently-viewed-products', recentIds, browsingLocation?.lat, browsingLocation?.lng],
     queryFn: async () => {
       if (recentIds.length === 0) return [];
       const { data } = await supabase
@@ -46,9 +48,14 @@ export function RecentlyViewedRow() {
         .eq('is_available', true)
         .eq('approval_status', 'approved');
       if (!data) return [];
+      const allowed = await filterDiscoverableProductIds(
+        data.map((p) => p.id),
+        browsingLocation?.lat,
+        browsingLocation?.lng,
+      );
       return recentIds
         .map(id => data.find(p => p.id === id))
-        .filter(Boolean) as typeof data;
+        .filter((p): p is NonNullable<typeof p> => Boolean(p) && allowed.has(p.id));
     },
     enabled: recentIds.length > 0,
     staleTime: 2 * 60_000,

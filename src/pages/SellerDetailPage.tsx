@@ -43,6 +43,8 @@ import { useBrowsingLocation } from '@/contexts/BrowsingLocationContext';
 import { useMarketplaceData } from '@/hooks/queries/useMarketplaceData';
 import { notify } from '@/lib/notify';
 import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
+import { PreciseLocationRequiredCard } from '@/components/location/PreciseLocationRequiredCard';
+import { buyerCanOrderFromSeller } from '@/lib/sellerDiscoverability';
 
 export default function SellerDetailPage() {
   const { id } = useParams();
@@ -57,7 +59,9 @@ export default function SellerDetailPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [sellerNotFound, setSellerNotFound] = useState(false);
+  const [sellerUnavailable, setSellerUnavailable] = useState(false);
   const [productsError, setProductsError] = useState(false);
+  const [needsLocation, setNeedsLocation] = useState(false);
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const [activeTab, setActiveTab] = useState('menu');
   const tabsRef = useRef<HTMLDivElement>(null);
@@ -90,14 +94,16 @@ export default function SellerDetailPage() {
       fetchSellerDetails();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, marketplaceSellerReady]);
+  }, [id, marketplaceSellerReady, browsingLoc?.lat, browsingLoc?.lng]);
 
   const fetchSellerDetails = async () => {
     if (!id) return;
 
     setIsLoading(true);
     setSellerNotFound(false);
+    setSellerUnavailable(false);
     setProductsError(false);
+    setNeedsLocation(false);
 
     const canonicalSeller = marketplaceSeller
       ? ({
@@ -198,6 +204,18 @@ export default function SellerDetailPage() {
 
       setSeller(sellerData);
       setIsLoading(false);
+
+      const gate = await buyerCanOrderFromSeller(id, browsingLoc?.lat, browsingLoc?.lng);
+      if (!gate.ok) {
+        setProducts([]);
+        if (gate.reason === 'buyer_location') {
+          setNeedsLocation(true);
+        } else {
+          setSellerUnavailable(true);
+          return;
+        }
+        return;
+      }
 
       // ── Step 2: Fetch products (failure does NOT affect seller display) ──
       try {
@@ -332,6 +350,19 @@ export default function SellerDetailPage() {
           <Skeleton className="h-8 w-3/4" />
           <Skeleton className="h-4 w-1/2" />
           <Skeleton className="h-32 w-full" />
+        </div>
+      </AppLayout>
+    );
+  }
+
+  if (sellerUnavailable) {
+    return (
+      <AppLayout showHeader={false} showNav={true} showCart={false} safeTop={false}>
+        <div className="p-4 text-center safe-top space-y-3">
+          <p>This seller is not available for your location right now.</p>
+          <Link to="/">
+            <Button className="mt-4">Go Home</Button>
+          </Link>
         </div>
       </AppLayout>
     );
@@ -822,6 +853,8 @@ export default function SellerDetailPage() {
                   ));
                 })()}
               </motion.div>
+            ) : needsLocation ? (
+              <PreciseLocationRequiredCard className="mx-0 mt-4" />
             ) : productsError ? (
               <div className="text-center py-8 space-y-3">
                 <AlertCircle size={24} className="mx-auto text-destructive" />

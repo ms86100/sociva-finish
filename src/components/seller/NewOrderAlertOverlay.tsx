@@ -7,6 +7,7 @@ import { Bell, ShoppingBag, ArrowRight, Truck, Package, MapPin, Store } from 'lu
 import { useCurrency } from '@/hooks/useCurrency';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { NewOrder } from '@/hooks/useNewOrderAlert';
+import { describeBuyerOrderLocation } from '@/lib/buyerOrderLocation';
 
 const AUTO_DISMISS_SECONDS = 30;
 
@@ -15,7 +16,7 @@ interface NewOrderAlertOverlayProps {
   onDismiss: () => void;
   onDismissAll?: () => void;
   onSnooze?: (minutes?: number) => void;
-  sellerProfiles?: { id: string; business_name: string }[];
+  sellerProfiles?: { id: string; business_name: string; latitude?: number | null; longitude?: number | null; delivery_radius_km?: number | null }[];
 }
 
 const SNOOZE_PREF_KEY = 'seller_snooze_pref_minutes';
@@ -68,8 +69,19 @@ export function NewOrderAlertOverlay({ orders, onDismiss, onDismissAll, onSnooze
   const queueCount = orders.length;
 
   // Resolve store name for the current order
-  const storeName = order?.seller_id
-    ? sellerProfiles.find(s => s.id === order.seller_id)?.business_name
+  const store = order?.seller_id
+    ? sellerProfiles.find(s => s.id === order.seller_id)
+    : null;
+  const storeName = store?.business_name;
+  const buyerLocation = order
+    ? describeBuyerOrderLocation({
+        deliveryAddress: order.delivery_address,
+        buyerLat: order.delivery_lat,
+        buyerLng: order.delivery_lng,
+        sellerLat: store?.latitude,
+        sellerLng: store?.longitude,
+        sellerRadiusKm: store?.delivery_radius_km,
+      })
     : null;
 
   const handleBackgroundDismiss = useCallback(() => {
@@ -201,12 +213,28 @@ export function NewOrderAlertOverlay({ orders, onDismiss, onDismissAll, onSnooze
                   </Badge>
                 );
               })()}
+              {buyerLocation && (
+                <div className={`rounded-xl px-3 py-2 text-left ${buyerLocation.outsideRadius ? 'bg-destructive/10 border border-destructive/30' : 'bg-muted/60'}`}>
+                  <p className="text-xs font-medium text-foreground flex items-start gap-1.5">
+                    <MapPin size={13} className="mt-0.5 shrink-0" />
+                    <span>{buyerLocation.label}</span>
+                  </p>
+                  {buyerLocation.distanceLabel && (
+                    <p className={`text-[11px] mt-1 ${buyerLocation.outsideRadius ? 'text-destructive font-medium' : 'text-muted-foreground'}`}>
+                      {buyerLocation.distanceLabel}
+                      {buyerLocation.outsideRadius && buyerLocation.radiusKm != null
+                        ? ` — outside your ${buyerLocation.radiusKm} km radius. Reject if this is not your area.`
+                        : ''}
+                    </p>
+                  )}
+                </div>
+              )}
               <p className="text-sm text-muted-foreground">
                 {order.status === 'preparing'
                   ? 'This order was auto-accepted. Start preparing!'
                   : queueCount > 1
                     ? `${queueCount} orders waiting — tap to view this one`
-                    : 'Tap below to view and respond'}
+                    : 'Check the buyer location, then accept or reject'}
               </p>
             </div>
 

@@ -10,6 +10,9 @@ import { useCurrency } from '@/hooks/useCurrency';
 import { useMarketplaceLabels } from '@/hooks/useMarketplaceLabels';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { notify } from '@/lib/notify';
+import { useBrowsingLocation } from '@/contexts/BrowsingLocationContext';
+import { buyerCanOrderFromSeller, filterDiscoverableProductIds } from '@/lib/sellerDiscoverability';
+import { PRECISE_LOCATION_TITLE } from '@/lib/buyerLocation';
 
 interface LastOrder {
   id: string;
@@ -26,6 +29,7 @@ export function ReorderLastOrder() {
   const { replaceCart } = useCart();
   const { formatPrice } = useCurrency();
   const ml = useMarketplaceLabels();
+  const { browsingLocation } = useBrowsingLocation();
   const [lastOrder, setLastOrder] = useState<LastOrder | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
@@ -93,11 +97,31 @@ export function ReorderLastOrder() {
     setIsLoading(true);
     try {
       const productIds = lastOrder.items.map(i => i.product_id).filter(Boolean);
-      const { data: available } = await supabase
+      const { data: availableRows } = await supabase
         .from('products')
         .select('id, price, seller_id')
         .in('id', productIds)
         .eq('is_available', true);
+
+      const allowedIds = await filterDiscoverableProductIds(
+        (availableRows || []).map((p) => p.id).filter(Boolean),
+        browsingLocation?.lat,
+        browsingLocation?.lng,
+      );
+      const available = (availableRows || []).filter((p) => allowedIds.has(p.id));
+      if ((availableRows || []).length > 0 && allowedIds.size === 0) {
+        const gate = await buyerCanOrderFromSeller(
+          availableRows[0]?.seller_id,
+          browsingLocation?.lat,
+          browsingLocation?.lng,
+        );
+        notify.block(
+          gate.reason === 'buyer_location' ? PRECISE_LOCATION_TITLE : (gate.message || ml.label('label_reorder_unavailable')),
+          { id: 'reorder-unavailable', title: gate.reason === 'buyer_location' ? PRECISE_LOCATION_TITLE : 'Items unavailable' },
+        );
+        setIsLoading(false);
+        return;
+      }
 
       if (available && available.length > 0) {
         const sellerIds = [...new Set(available.map(p => p.seller_id).filter(Boolean))];

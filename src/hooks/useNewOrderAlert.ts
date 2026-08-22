@@ -20,6 +20,10 @@ export interface NewOrder {
   seller_id?: string;
   fulfillment_type?: string | null;
   delivery_handled_by?: string | null;
+  delivery_address?: string | null;
+  delivery_lat?: number | null;
+  delivery_lng?: number | null;
+  society_id?: string | null;
 }
 
 const MIN_POLL_MS = 3000;
@@ -176,6 +180,9 @@ export function useNewOrderAlert(sellerIds: string[]) {
     void scheduleIncomingOrderLocalNotification({
       orderId: order.id,
       title: 'New order',
+      body: order.delivery_address
+        ? `${order.delivery_address} — tap to review and accept`
+        : undefined,
       amount: order.total_amount,
     });
   }, [invalidateSellerOrderCaches]);
@@ -320,7 +327,7 @@ export function useNewOrderAlert(sellerIds: string[]) {
         try {
           const { data } = await supabase
             .from('orders')
-            .select('id, status, created_at, total_amount, seller_id, fulfillment_type, delivery_handled_by')
+            .select('id, status, created_at, total_amount, seller_id, fulfillment_type, delivery_handled_by, delivery_address, delivery_lat, delivery_lng, society_id')
             .eq('id', current.id)
             .maybeSingle();
           if (!data || !isActionableStatus(data.status)) {
@@ -357,6 +364,8 @@ export function useNewOrderAlert(sellerIds: string[]) {
           id: n.id, status: n.status, created_at: n.created_at,
           total_amount: n.total_amount, seller_id: n.seller_id,
           fulfillment_type: n.fulfillment_type, delivery_handled_by: n.delivery_handled_by,
+          delivery_address: n.delivery_address, delivery_lat: n.delivery_lat,
+          delivery_lng: n.delivery_lng, society_id: n.society_id,
         });
       })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders', filter }, (payload) => {
@@ -370,6 +379,8 @@ export function useNewOrderAlert(sellerIds: string[]) {
             id: n.id, status: n.status, created_at: n.created_at,
             total_amount: n.total_amount, seller_id: n.seller_id,
             fulfillment_type: n.fulfillment_type, delivery_handled_by: n.delivery_handled_by,
+            delivery_address: n.delivery_address, delivery_lat: n.delivery_lat,
+            delivery_lng: n.delivery_lng, society_id: n.society_id,
           });
         } else {
           // Cancelled / expired / accepted / rejected / completed / etc. — stop overlay
@@ -448,7 +459,7 @@ export function useNewOrderAlert(sellerIds: string[]) {
       try {
         let query = supabase
           .from('orders')
-          .select('id, status, total_amount, created_at, seller_id, fulfillment_type, delivery_handled_by')
+          .select('id, status, total_amount, created_at, seller_id, fulfillment_type, delivery_handled_by, delivery_address, delivery_lat, delivery_lng, society_id')
           .in('seller_id', sellerIds)
           .in('status', [...ACTIONABLE_STATUSES])
           .order('created_at', { ascending: true });

@@ -42,6 +42,7 @@ interface AttributeBlock {
   renderer_type: string;
   display_order: number;
   is_active: boolean;
+  buyer_selectable?: boolean;
   created_at: string;
 }
 
@@ -85,6 +86,7 @@ export function AdminAttributeBlockManager() {
   const [rendererType, setRendererType] = useState('key_value');
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [fields, setFields] = useState<SchemaField[]>([emptyField()]);
+  const [buyerSelectable, setBuyerSelectable] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const { data: categories = [] } = useCategoryConfig();
@@ -110,6 +112,7 @@ export function AdminAttributeBlockManager() {
     setRendererType('key_value');
     setSelectedCategories([]);
     setFields([emptyField()]);
+    setBuyerSelectable(false);
     setSheetOpen(true);
   };
 
@@ -120,8 +123,9 @@ export function AdminAttributeBlockManager() {
     setIcon(block.icon || '');
     setRendererType(block.renderer_type);
     setSelectedCategories(block.category_hints || []);
-    const schemaFields = block.schema?.fields;
+    const schemaFields = block.schema?.fields?.length ? block.schema.fields : (block as any).default_config?.fields;
     setFields(Array.isArray(schemaFields) && schemaFields.length > 0 ? schemaFields : [emptyField()]);
+    setBuyerSelectable(block.buyer_selectable === true);
     setSheetOpen(true);
   };
 
@@ -169,6 +173,8 @@ export function AdminAttributeBlockManager() {
       renderer_type: rendererType,
       category_hints: selectedCategories,
       schema: { fields: cleanFields } as any,
+      default_config: { fields: cleanFields } as any,
+      buyer_selectable: buyerSelectable,
     };
 
     let error;
@@ -275,6 +281,7 @@ export function AdminAttributeBlockManager() {
                       {block.icon && <span className="text-sm">{block.icon}</span>}
                       <p className="font-medium text-sm truncate">{block.display_name}</p>
                       <Badge variant="outline" className="text-[9px] shrink-0">{block.renderer_type}</Badge>
+                      {block.buyer_selectable && <Badge variant="secondary" className="text-[9px]">Buyers pick</Badge>}
                       {!block.is_active && <Badge variant="secondary" className="text-[9px]">Inactive</Badge>}
                     </div>
                     {block.description && (
@@ -356,6 +363,14 @@ export function AdminAttributeBlockManager() {
                     </SelectContent>
                   </Select>
                 </div>
+              </div>
+
+              <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2">
+                <div>
+                  <p className="text-xs font-medium">Buyers can pick these options</p>
+                  <p className="text-[10px] text-muted-foreground">Show as chips on enquiry, booking and add to cart</p>
+                </div>
+                <Switch checked={buyerSelectable} onCheckedChange={setBuyerSelectable} />
               </div>
 
               {/* Category Assignment */}

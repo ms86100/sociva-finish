@@ -266,6 +266,7 @@ export interface CartItem {
   product_id: string;
   quantity: number;
   created_at: string;
+  selected_extras?: Array<Record<string, unknown>> | null;
   // Joined data
   product?: Product;
 }

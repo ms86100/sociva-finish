@@ -194,7 +194,7 @@ export function useSellerOrdersInfinite(
       let query = supabase
         .from('orders')
         .select(
-          `id, created_at, status, payment_status, total_amount, order_type, fulfillment_type, delivery_handled_by, transaction_type, auto_cancel_at, auto_accepted, seller_id, buyer_id, rejection_reason, buyer:profiles!orders_buyer_id_fkey(name, block, flat_number, phone), items:order_items(id, product_name, quantity, unit_price, status)`,
+          `id, created_at, status, payment_status, total_amount, order_type, fulfillment_type, delivery_handled_by, transaction_type, auto_cancel_at, auto_accepted, seller_id, buyer_id, rejection_reason, delivery_address, delivery_lat, delivery_lng, buyer:profiles!orders_buyer_id_fkey(name, block, flat_number, phone, phase), items:order_items(id, product_name, quantity, unit_price, status)`,
         )
         .order('created_at', { ascending: false })
         .limit(PAGE_SIZE)

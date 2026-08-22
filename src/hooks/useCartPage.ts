@@ -6,6 +6,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { PaymentMethod } from '@/types/Database';
 import { fetchStatusFlow, fetchStatusTransitions, statusFlowQueryKey, statusTransitionsQueryKey } from '@/hooks/useCategoryStatusFlow';
 import { resolveTransactionType } from '@/lib/resolveTransactionType';
+import { extrasFromCartItems } from '@/lib/productExtras';
 import { resolvePaymentConfig } from '@/lib/resolvePaymentConfig';
 import { useCart } from '@/hooks/useCart';
 import { useAuth } from '@/contexts/AuthContext';
@@ -16,6 +17,8 @@ import { useCurrency } from '@/hooks/useCurrency';
 import { useLoyaltyRedeem } from '@/hooks/useLoyaltyRedeem';
 import { useWalletCredit } from '@/hooks/useWalletCredit';
 import { useDeliveryAddresses } from '@/hooks/useDeliveryAddresses';
+import { useBrowsingLocation } from '@/contexts/BrowsingLocationContext';
+import { hasPreciseCoordinates } from '@/lib/buyerLocation';
 import { hapticImpact, hapticNotification, hapticSelection } from '@/lib/haptics';
 import { toast } from 'sonner';
 import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
@@ -159,6 +162,7 @@ export function useCartPage() {
   const settings = useSystemSettings();
   const { formatPrice, currencySymbol } = useCurrency();
   const { addresses, defaultAddress, isLoading: addressesLoading } = useDeliveryAddresses();
+  const { browsingLocation } = useBrowsingLocation();
   const loyalty = useLoyaltyRedeem();
   const wallet = useWalletCredit();
 
@@ -403,6 +407,24 @@ export function useCartPage() {
     }
   }, [defaultAddress, selectedDeliveryAddress]);
 
+  useEffect(() => {
+    if (browsingLocation?.source === 'address' && browsingLocation.id) {
+      const addr = addresses.find((a: { id: string }) => a.id === browsingLocation.id);
+      if (addr && hasPreciseCoordinates(addr.latitude, addr.longitude)) {
+        setSelectedDeliveryAddress(addr);
+      }
+    }
+  }, [browsingLocation, addresses]);
+
+  const needsPreciseLocation = fulfillmentType === 'delivery'
+    && (!selectedDeliveryAddress || !hasPreciseCoordinates(selectedDeliveryAddress.latitude, selectedDeliveryAddress.longitude));
+  const checkoutLat = hasPreciseCoordinates(selectedDeliveryAddress?.latitude, selectedDeliveryAddress?.longitude)
+    ? Number(selectedDeliveryAddress.latitude)
+    : browsingLocation?.lat;
+  const checkoutLng = hasPreciseCoordinates(selectedDeliveryAddress?.latitude, selectedDeliveryAddress?.longitude)
+    ? Number(selectedDeliveryAddress.longitude)
+    : browsingLocation?.lng;
+
   const hasUrgentItem = items.some((item) => (item.product as any)?.is_urgent);
   const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
   const maxPrepTime = items.reduce((max, item) => {
@@ -468,13 +490,13 @@ export function useCartPage() {
     const scheduledTimeStr = scheduledTime ? `${scheduledTime}:00` : null;
     const { data, error } = await supabase.rpc('create_multi_vendor_orders', {
       _buyer_id: user.id, _delivery_address: deliveryAddressText,
-      _notes: notes || null, _payment_method: effectivePaymentMethod, _payment_status: paymentStatus,
+      _notes: [extrasFromCartItems(items), notes].filter(Boolean).join('\n\n') || null, _payment_method: effectivePaymentMethod, _payment_status: paymentStatus,
       _coupon_id: appliedCoupon?.id || null,
       _coupon_discount: effectiveCouponDiscount,
       _seller_groups: sellerGroupsPayload, _fulfillment_type: fulfillmentType, _delivery_fee: effectiveDeliveryFee,
       _delivery_address_id: selectedDeliveryAddress?.id || null,
-      _delivery_lat: selectedDeliveryAddress?.latitude || null,
-      _delivery_lng: selectedDeliveryAddress?.longitude || null,
+      _delivery_lat: checkoutLat || selectedDeliveryAddress?.latitude || null,
+      _delivery_lng: checkoutLng || selectedDeliveryAddress?.longitude || null,
       _idempotency_key: idempotencyKeyRef.current,
       _scheduled_date: scheduledDateStr,
       _scheduled_time_start: scheduledTimeStr,
@@ -651,7 +673,8 @@ export function useCartPage() {
     if (selfSellerGroup) { notify.block("You cannot place an order from your own store."); return; }
     if (!navigator.onLine) { toast.error("You're offline. Please check your connection and try again.", { id: 'checkout-offline' }); return; }
     if (fulfillmentType === 'delivery' && !selectedDeliveryAddress) { notify.block('Please add a delivery address to continue.'); return; }
-    if (fulfillmentType === 'delivery' && selectedDeliveryAddress && !selectedDeliveryAddress.latitude) { notify.block('Your selected address has no location coordinates. Please update it with a precise location.'); return; }
+    if (fulfillmentType === 'delivery' && selectedDeliveryAddress && !hasPreciseCoordinates(selectedDeliveryAddress.latitude, selectedDeliveryAddress.longitude)) { notify.block('Your selected address has no location coordinates. Please update it with a precise location.'); return; }
+    if (!hasPreciseCoordinates(checkoutLat, checkoutLng)) { notify.block('Your selected address has no location coordinates. Please update it with a precise location.'); return; }
 
     // GUARD: Pre-order items MUST have a scheduled date/time — cannot bypass via race condition
     if (hasPreorderItems && (!scheduledDate || !scheduledTime)) {
@@ -735,7 +758,7 @@ export function useCartPage() {
         const { data, error } = await supabase.rpc('create_multi_vendor_orders', {
           _buyer_id: user.id,
           _delivery_address: deliveryAddressText,
-          _notes: notes || null,
+          _notes: [extrasFromCartItems(items), notes].filter(Boolean).join('\n\n') || null,
           _payment_method: 'wallet',
           _payment_status: 'pending',
           _coupon_id: appliedCoupon?.id || null,
@@ -744,8 +767,8 @@ export function useCartPage() {
           _fulfillment_type: fulfillmentType,
           _delivery_fee: effectiveDeliveryFee,
           _delivery_address_id: selectedDeliveryAddress?.id || null,
-          _delivery_lat: selectedDeliveryAddress?.latitude || null,
-          _delivery_lng: selectedDeliveryAddress?.longitude || null,
+          _delivery_lat: checkoutLat || selectedDeliveryAddress?.latitude || null,
+          _delivery_lng: checkoutLng || selectedDeliveryAddress?.longitude || null,
           _idempotency_key: idempotencyKeyRef.current,
           _scheduled_date: scheduledDateStr,
           _scheduled_time_start: scheduledTimeStr,
@@ -1256,6 +1279,7 @@ export function useCartPage() {
     multiStoreRequiresSplit: isMultiSeller && !acceptsCod && blocksOnlineMultiSeller,
     checkoutThisStoreOnly,
     selectedDeliveryAddress, setSelectedDeliveryAddress, addresses, addressesLoading,
+    needsPreciseLocation,
     handlePlaceOrder, handleRazorpaySuccess, handleRazorpayFailed, handleRazorpayDismiss,
     handleUpiDeepLinkSuccess, handleUpiDeepLinkFailed,
     hasActivePaymentSession, sessionSellerUpiId, sessionSellerName, sessionAmount,

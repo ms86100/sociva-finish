@@ -113,7 +113,7 @@ export async function approveSeller({ sellerId, userId, businessName, societyId 
   await logAudit('seller_approved', 'seller_profile', sellerId, societyId || '', { status: 'approved' });
 
   // 6. Notify
-  await notifySellerStatusChange(userId, businessName, 'approved');
+  await notifySellerStatusChange(userId, businessName, 'approved', undefined, sellerId);
 
   // 7. Invalidate marketplace caches so other users see the new seller immediately
   invalidateMarketplaceCache();
@@ -168,7 +168,7 @@ export async function rejectOrSuspendSeller(
     note: rejectionNote || undefined,
   });
 
-  await notifySellerStatusChange(userId, businessName, status, rejectionNote?.trim() || undefined);
+  await notifySellerStatusChange(userId, businessName, status, rejectionNote?.trim() || undefined, sellerId);
 
   invalidateMarketplaceCache();
 }

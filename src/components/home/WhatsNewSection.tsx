@@ -48,9 +48,17 @@ export function WhatsNewSection() {
         .eq('is_available', true)
         .eq('verification_status', 'approved')
         .order('created_at', { ascending: false })
-        .limit(6);
+        .limit(12);
 
-      return (data || []) as { id: string; business_name: string; cover_image_url: string | null }[];
+      const { filterDiscoverableSellerIds } = await import('@/lib/sellerDiscoverability');
+      const allowed = await filterDiscoverableSellerIds(
+        (data || []).map((s: { id: string }) => s.id),
+        browsingLocation?.lat,
+        browsingLocation?.lng,
+      );
+      return ((data || []) as { id: string; business_name: string; cover_image_url: string | null }[])
+        .filter((s) => allowed.has(s.id))
+        .slice(0, 6);
     },
     enabled: !!isDormant && !!browsingLocation?.lat,
     staleTime: jitteredStaleTime(10 * 60_000),

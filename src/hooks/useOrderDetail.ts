@@ -17,11 +17,17 @@ import { showFeedback } from '@/components/FeedbackPopupProvider';
 async function fetchOrderData(id: string) {
   const { data, error } = await supabase
     .from('orders')
-    .select(`*, seller:seller_profiles(id, business_name, user_id, primary_group, profile:profiles!seller_profiles_user_id_fkey(name, phone, block, flat_number)), buyer:profiles!orders_buyer_id_fkey(name, phone, block, flat_number), items:order_items(*, product:products(category, listing_type))`)
+    .select(`*, seller:seller_profiles(id, business_name, user_id, primary_group, latitude, longitude, delivery_radius_km, profile:profiles!seller_profiles_user_id_fkey(name, phone, block, flat_number)), buyer:profiles!orders_buyer_id_fkey(name, phone, block, flat_number, phase, society_id), items:order_items(*, product:products(category, listing_type))`)
     .eq('id', id)
     .maybeSingle();
   if (error) throw error;
   if (!data) return null;
+
+  const societyId = (data as any).society_id || (data as any).buyer?.society_id;
+  if (societyId) {
+    const { data: society } = await supabase.from('societies').select('name').eq('id', societyId).maybeSingle();
+    (data as any).buyer_society_name = society?.name || null;
+  }
 
   // Derive parent_group inline from the first item's product category
   let parentGroup: string | null = null;

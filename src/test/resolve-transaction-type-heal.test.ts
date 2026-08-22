@@ -62,6 +62,12 @@ describe('resolveTransactionType heal', () => {
     expect(
       resolveTransactionType('education_learning', 'enquiry', 'self_pickup', null, 'product', 'service_booking'),
     ).toBe('request_service');
+    expect(
+      resolveTransactionType('education_learning', 'enquiry', 'self_pickup', null, 'product', 'self_fulfillment'),
+    ).toBe('request_service');
+    expect(
+      resolveTransactionType('default', 'enquiry', null, null, 'contact_only', 'cart_purchase'),
+    ).toBe('contact_enquiry');
   });
 
   it('stamps new cart orders by fulfillment', () => {

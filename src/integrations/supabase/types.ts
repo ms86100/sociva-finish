@@ -181,12 +181,14 @@ export type Database = {
           icon: string | null
           id: string
           is_active: boolean
+          buyer_selectable: boolean
           renderer_type: string | null
           schema: Json
         }
         Insert: {
           applicable_categories?: string[] | null
           block_key: string
+          buyer_selectable?: boolean
           block_type?: string
           category_hints?: string[] | null
           created_at?: string
@@ -213,6 +215,7 @@ export type Database = {
           icon?: string | null
           id?: string
           is_active?: boolean
+          buyer_selectable?: boolean
           renderer_type?: string | null
           schema?: Json
         }
@@ -1244,6 +1247,7 @@ export type Database = {
           id: string
           product_id: string
           quantity: number
+          selected_extras: Json
           society_id: string | null
           user_id: string
         }
@@ -1252,6 +1256,7 @@ export type Database = {
           id?: string
           product_id: string
           quantity?: number
+          selected_extras?: Json
           society_id?: string | null
           user_id: string
         }
@@ -1260,6 +1265,7 @@ export type Database = {
           id?: string
           product_id?: string
           quantity?: number
+          selected_extras?: Json
           society_id?: string | null
           user_id?: string
         }
@@ -11744,6 +11750,7 @@ export type Database = {
       create_service_booking_atomic: {
         Args: {
           _addons?: Json
+          _selected_extras?: Json
           _booking_date: string
           _buyer_address?: string
           _end_time: string

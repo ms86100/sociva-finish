@@ -7,13 +7,18 @@ import { ProductDetailSheet } from '@/components/product/ProductDetailSheet';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
+import { PreciseLocationRequiredCard } from '@/components/location/PreciseLocationRequiredCard';
+import { useBrowsingLocation } from '@/contexts/BrowsingLocationContext';
+import { buyerCanOrderFromSeller } from '@/lib/sellerDiscoverability';
 
 export default function ProductDeepLinkPage() {
   const { productId } = useParams<{ productId: string }>();
   const navigate = useNavigate();
+  const { browsingLocation } = useBrowsingLocation();
   const [product, setProduct] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [needsLocation, setNeedsLocation] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
 
   useEffect(() => {
@@ -46,6 +51,21 @@ export default function ProductDeepLinkPage() {
         if (fetchErr) throw fetchErr;
         if (!data) {
           setError('Product not found or no longer available');
+          return;
+        }
+
+        const gate = await buyerCanOrderFromSeller(
+          data.seller_id,
+          browsingLocation?.lat,
+          browsingLocation?.lng,
+        );
+        if (!gate.ok) {
+          if (gate.reason === 'buyer_location') {
+            setNeedsLocation(true);
+            setError('Precise location required');
+          } else {
+            setError('This product is not available in your area.');
+          }
           return;
         }
 
@@ -100,7 +120,7 @@ export default function ProductDeepLinkPage() {
         setIsLoading(false);
       }
     })();
-  }, [productId]);
+  }, [productId, browsingLocation?.lat, browsingLocation?.lng]);
 
   const handleSheetClose = useCallback((open: boolean) => {
     setSheetOpen(open);
@@ -136,6 +156,7 @@ export default function ProductDeepLinkPage() {
         <div className="flex flex-col items-center justify-center min-h-[60vh] p-6 text-center">
           <p className="text-lg font-semibold mb-2">Oops!</p>
           <p className="text-sm text-muted-foreground mb-4">{error}</p>
+          {needsLocation && <PreciseLocationRequiredCard className="mb-4" />}
           <Button onClick={() => navigate('/', { replace: true })}>
             <ArrowLeft size={16} className="mr-2" />
             Go Home

@@ -14,6 +14,7 @@ export interface AttributeBlock {
   display_order: number;
   is_active: boolean;
   block_key: string;
+  buyer_selectable?: boolean;
 }
 
 export interface SellerFormConfig {
@@ -39,11 +40,15 @@ export function useBlockLibrary() {
         .order('display_order');
       if (error) throw error;
       // Map default_config → schema for compatibility
-      return (data || []).map((row: any) => ({
-        ...row,
-        schema: row.default_config || row.schema || {},
-        category_hints: row.category_hints || row.applicable_categories || [],
-      })) as AttributeBlock[];
+      return (data || []).map((row: any) => {
+        const schemaHasFields = Array.isArray(row.schema?.fields) && row.schema.fields.length > 0;
+        const configHasFields = Array.isArray(row.default_config?.fields) && row.default_config.fields.length > 0;
+        return {
+          ...row,
+          schema: schemaHasFields ? row.schema : (configHasFields ? row.default_config : (row.schema || row.default_config || {})),
+          category_hints: row.category_hints || row.applicable_categories || [],
+        };
+      }) as AttributeBlock[];
     },
     staleTime: 10 * 60 * 1000,
   });

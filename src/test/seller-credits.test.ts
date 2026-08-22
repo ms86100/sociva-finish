@@ -27,6 +27,7 @@ describe('Sociva Credits', () => {
     expect(pickNotificationRoute({ type: 'seller_credit_purchased' })).toBe('/seller/credits');
     expect(pickNotificationRoute({ type: 'seller_credit_exhausted' })).toBe('/seller/credits');
     expect(pickNotificationRoute({ type: 'seller_credit_low' })).toBe('/seller/credits');
+    expect(pickNotificationRoute({ type: 'seller_approved' })).toBe('/seller/credits');
   });
 
   it('does not double-bill enquiry or booking as ORDER_COMPLETED', () => {

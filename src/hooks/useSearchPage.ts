@@ -14,6 +14,7 @@ import { useMarketplaceData } from '@/hooks/queries/useMarketplaceData';
 import { useCurrency } from '@/hooks/useCurrency';
 import { MARKETPLACE_RADIUS_KM } from '@/lib/marketplace-constants';
 import { committedSearchKey, getSessionQueryId } from '@/lib/searchTelemetry';
+import { hasPreciseCoordinates } from '@/lib/buyerLocation';
 
 export interface ProductSearchResult {
   product_id: string;
@@ -98,7 +99,8 @@ export function useSearchPage() {
 
   const lat = browsingLocation?.lat;
   const lng = browsingLocation?.lng;
-  const hasCoords = Number.isFinite(lat) && Number.isFinite(lng);
+  const hasCoords = hasPreciseCoordinates(lat, lng);
+  const needsPreciseLocation = !hasCoords;
 
   const categoryMap = useMemo(() => {
     const m: Record<string, { icon: string; displayName: string; color: string; supportsCart?: boolean; enquiryOnly?: boolean; requiresTimeSlot?: boolean }> = {};
@@ -180,6 +182,10 @@ export function useSearchPage() {
     setIsLoading(true); setHasSearched(true);
 
     try {
+      if (!hasCoords) {
+        setResults([]);
+        return;
+      }
       const products: ProductSearchResult[] = [];
       const effectiveCategories = selectedCategory ? [selectedCategory, ...filters.categories.filter(c => c !== selectedCategory)] : filters.categories;
       const radius = browseBeyond ? searchRadius : 2;
@@ -312,6 +318,7 @@ export function useSearchPage() {
     mc, badgeConfigs, settings, formatPrice, currencySymbol,
     popularProducts, isLoadingPopular,
     displayProducts, showLoading, hasSearched,
+    needsPreciseLocation,
     pills, clearFilters, handleFiltersChange, handlePresetSelect, handleCategoryTap,
   };
 }

@@ -21,6 +21,7 @@ import { useCurrency } from '@/hooks/useCurrency';
 import { useSearchPage, ProductSearchResult } from '@/hooks/useSearchPage';
 import { CommunitySuggestions } from '@/components/search/CommunitySuggestions';
 import { SearchAutocomplete } from '@/components/search/SearchAutocomplete';
+import { PreciseLocationRequiredCard } from '@/components/location/PreciseLocationRequiredCard';
 import { type ProductDetail } from '@/hooks/useProductDetail';
 
 const ProductDetailSheet = lazy(() =>
@@ -119,6 +120,8 @@ export default function SearchPage() {
             </ScrollArea>
           </div>
         </SafeHeader>
+
+        {s.needsPreciseLocation && <PreciseLocationRequiredCard className="mx-4 mt-3" />}
 
         <div className="px-4">
           {/* Community search suggestions */}

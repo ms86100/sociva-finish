@@ -12,6 +12,8 @@ import { useMarketplaceLabels } from '@/hooks/useMarketplaceLabels';
 import { jitteredStaleTime } from '@/lib/query-utils';
 import { staggerContainer, cardEntrance, listItem } from '@/lib/motion-variants';
 import { useCountUp } from '@/hooks/useCountUp';
+import { useBrowsingLocation } from '@/contexts/BrowsingLocationContext';
+import { filterDiscoverableProductIds, filterDiscoverableSellerIds } from '@/lib/sellerDiscoverability';
 
 interface TopSeller {
   id: string;
@@ -46,12 +48,13 @@ function AnimatedCount({ value }: { value: number }) {
 
 export function SocietyLeaderboard() {
   const { effectiveSocietyId } = useAuth();
+  const { browsingLocation } = useBrowsingLocation();
   const navigate = useNavigate();
   const { formatPrice } = useCurrency();
   const ml = useMarketplaceLabels();
 
   const { data, isLoading: loading } = useQuery({
-    queryKey: ['society-leaderboard', effectiveSocietyId],
+    queryKey: ['society-leaderboard', effectiveSocietyId, browsingLocation?.lat, browsingLocation?.lng],
     queryFn: async () => {
       const [sellersRes, productsRes] = await Promise.all([
         supabase
@@ -68,7 +71,7 @@ export function SocietyLeaderboard() {
         }),
       ]);
 
-      const sellers = (sellersRes.data || []) as TopSeller[];
+      const rawSellers = (sellersRes.data || []) as TopSeller[];
       let products: TopProduct[] = [];
       if (!productsRes.error) {
         products = (productsRes.data || []).map((p: any) => ({
@@ -81,7 +84,14 @@ export function SocietyLeaderboard() {
           price: p.price || 0,
         }));
       }
-      return { sellers, products };
+      const [allowedSellers, allowedProducts] = await Promise.all([
+        filterDiscoverableSellerIds(rawSellers.map((s) => s.id), browsingLocation?.lat, browsingLocation?.lng),
+        filterDiscoverableProductIds(products.map((p) => p.product_id), browsingLocation?.lat, browsingLocation?.lng),
+      ]);
+      return {
+        sellers: rawSellers.filter((s) => allowedSellers.has(s.id)),
+        products: products.filter((p) => allowedProducts.has(p.product_id)),
+      };
     },
     enabled: !!effectiveSocietyId,
     staleTime: jitteredStaleTime(10 * 60_000),

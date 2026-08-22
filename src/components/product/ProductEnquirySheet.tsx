@@ -12,8 +12,13 @@ import { Loader2, MessageCircle, Calendar, Send, Home, Handshake } from 'lucide-
 import { useCurrency } from '@/hooks/useCurrency';
 import { notify } from '@/lib/notify';
 import { showFeedback } from '@/components/FeedbackPopupProvider';
-import { useChatViewport } from '@/hooks/useChatViewport';
+import { scrollFocusedFieldInDrawer, useDrawerKeyboard } from '@/hooks/useChatViewport';
 import { sellerCreditCustomerMessage } from '@/lib/sellerCredits';
+import { useBrowsingLocation } from '@/contexts/BrowsingLocationContext';
+import { buyerCanOrderFromSeller } from '@/lib/sellerDiscoverability';
+import { PRECISE_LOCATION_TITLE } from '@/lib/buyerLocation';
+import { ProductExtraPicker, useProductExtraGroups } from '@/components/product/ProductExtraPicker';
+import { extrasHaveRequiredGaps, sanitizeSelectedExtras, type SelectedExtra } from '@/lib/productExtras';
 
 interface ProductEnquirySheetProps {
   open: boolean;
@@ -24,6 +29,7 @@ interface ProductEnquirySheetProps {
   sellerName: string;
   actionType: ProductActionType;
   price?: number;
+  specifications?: Record<string, any> | null;
 }
 
 const ACTION_META: Record<string, { title: string; icon: typeof Send; placeholder: string; submitLabel: string }> = {
@@ -76,24 +82,41 @@ export function ProductEnquirySheet({
   sellerName,
   actionType,
   price,
+  specifications,
 }: ProductEnquirySheetProps) {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { formatPrice } = useCurrency();
+  const { browsingLocation } = useBrowsingLocation();
   const [message, setMessage] = useState('');
+  const [selectedExtras, setSelectedExtras] = useState<SelectedExtra[]>([]);
+  const [loadedSpecs, setLoadedSpecs] = useState<Record<string, any> | null>(specifications || null);
   const [isLoading, setIsLoading] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const { viewportHeight, keyboardInset } = useChatViewport(open);
+  const { viewportHeight, keyboardInset } = useDrawerKeyboard(open);
+  const extraGroups = useProductExtraGroups(loadedSpecs);
+
+  useEffect(() => {
+    if (!open) {
+      setMessage('');
+      setSelectedExtras([]);
+      return;
+    }
+    setLoadedSpecs(specifications || null);
+    if (specifications || !productId) return;
+    supabase.from('products').select('specifications').eq('id', productId).maybeSingle()
+      .then(({ data }) => setLoadedSpecs((data as any)?.specifications || null));
+  }, [open, productId, specifications]);
 
   useEffect(() => {
     if (!open) return;
-    const el = textareaRef.current;
-    if (!el) return;
-    const keepVisible = () => {
-      window.setTimeout(() => el.scrollIntoView({ block: 'center', behavior: 'smooth' }), 80);
+    const keepVisible = (event: Event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement) || !target.matches('input, textarea, select')) return;
+      window.setTimeout(() => scrollFocusedFieldInDrawer(), 80);
     };
-    el.addEventListener('focus', keepVisible);
-    return () => el.removeEventListener('focus', keepVisible);
+    document.addEventListener('focusin', keepVisible);
+    return () => document.removeEventListener('focusin', keepVisible);
   }, [open, keyboardInset]);
 
   const meta = ACTION_META[actionType] || ACTION_META.request_service;
@@ -113,6 +136,24 @@ export function ProductEnquirySheet({
 
     if (!message.trim()) {
       notify.block('Please enter a message');
+      return;
+    }
+
+    const extras = sanitizeSelectedExtras(selectedExtras, extraGroups);
+    if (extrasHaveRequiredGaps(extraGroups, extras)) {
+      notify.block('Please choose the required extra details');
+      return;
+    }
+
+    const eligibility = await buyerCanOrderFromSeller(
+      sellerId,
+      browsingLocation?.lat,
+      browsingLocation?.lng,
+    );
+    if (!eligibility.ok) {
+      notify.block(
+        eligibility.reason === 'buyer_location' ? PRECISE_LOCATION_TITLE : eligibility.message,
+      );
       return;
     }
 
@@ -163,6 +204,7 @@ export function ProductEnquirySheet({
         p_price: price || 0,
         p_listing_type: (productRow as any)?.listing_type || null,
         p_idempotency_key: idempotencyKey,
+        p_selected_extras: extras,
       });
       if (orderError) throw orderError;
       const order = { id: created?.order_id };
@@ -189,11 +231,12 @@ export function ProductEnquirySheet({
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
       <DrawerContent
+        data-drawer-scroll
         className="max-h-[min(92dvh,100%)] overflow-y-auto"
         style={{
           bottom: keyboardInset,
           maxHeight: viewportHeight ? `${Math.max(viewportHeight - 12, 280)}px` : '92dvh',
-          paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+          paddingBottom: `calc(${keyboardInset}px + env(safe-area-inset-bottom, 0px))`,
         }}
       >
         <DrawerHeader className="pb-3">
@@ -212,6 +255,12 @@ export function ProductEnquirySheet({
               {price ? ` · ${formatPrice(price)}` : ''}
             </p>
           </div>
+
+          <ProductExtraPicker
+            specifications={loadedSpecs}
+            value={selectedExtras}
+            onChange={setSelectedExtras}
+          />
 
           {/* Message */}
           <div className="space-y-2">

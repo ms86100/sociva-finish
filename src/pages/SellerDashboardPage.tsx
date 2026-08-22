@@ -38,8 +38,9 @@ import {
   useSellerFinancialSummary,
 } from '@/hooks/queries/useSellerFinancial';
 import { SellerTransferBanner } from '@/components/seller/SellerTransferBanner';
+import { SellerActivationBanner } from '@/components/seller/SellerActivationBanner';
 import { SocivaCreditsCard } from '@/components/seller/SocivaCreditsCard';
-import { useSellerCreditRealtime, useSellerCreditSummary } from '@/hooks/queries/useSellerCredits';
+import { useSellerCreditActivation, useSellerCreditRealtime, useSellerCreditSummary } from '@/hooks/queries/useSellerCredits';
 import { useSellerHasBookableServices } from '@/hooks/useSellerHasBookableServices';
 import {
   emptyBoardCounts,
@@ -209,6 +210,7 @@ export default function SellerDashboardPage() {
   } = useSellerFinancialSummary(activeSellerId, isPortfolio ? portfolioSellerIds : null);
   const creditScopeIds = resolveSellerFinancialIds(activeSellerId, isPortfolio ? portfolioSellerIds : null);
   const { data: creditSummary } = useSellerCreditSummary(activeSellerId, isPortfolio ? portfolioSellerIds : null);
+  const { data: creditActivated } = useSellerCreditActivation(isPortfolio ? null : activeSellerId);
   useSellerFinancialRealtime(creditScopeIds);
   useSellerCreditRealtime(creditScopeIds);
   const { data: filterCounts } = useSellerOrderFilterCounts(
@@ -454,12 +456,13 @@ export default function SellerDashboardPage() {
             />
 
             {sellerProfile.verification_status === 'approved' && (
-              <>
+              <div className="flex flex-col gap-4">
                 <SellerTransferBanner
                   sellerId={activeSellerId}
                   portfolioIds={null}
                   available={finance?.available || 0}
                 />
+                <SellerActivationBanner visible={creditActivated === false} />
                 <EarningsSummary
                   todayEarnings={stats?.todayEarnings || 0}
                   weekEarnings={stats?.weekEarnings || 0}
@@ -472,7 +475,7 @@ export default function SellerDashboardPage() {
                   financeError={financeError}
                 />
                 <SocivaCreditsCard summary={creditSummary} compact />
-              </>
+              </div>
             )}
 
             <MissingLocationBanner
@@ -495,12 +498,13 @@ export default function SellerDashboardPage() {
         )}
 
         {isPortfolio && (
-          <>
+          <div className="flex flex-col gap-4">
             <SellerTransferBanner
               sellerId={activeSellerId}
               portfolioIds={portfolioSellerIds}
               available={finance?.available || 0}
             />
+            <SellerActivationBanner visible={(creditSummary?.available || 0) <= 0} allStores />
             <EarningsSummary
               todayEarnings={stats?.todayEarnings || 0}
               weekEarnings={stats?.weekEarnings || 0}
@@ -514,7 +518,7 @@ export default function SellerDashboardPage() {
               financeError={financeError}
             />
             <SocivaCreditsCard summary={creditSummary} compact allStores />
-          </>
+          </div>
         )}
 
         {/* Tab navigation */}

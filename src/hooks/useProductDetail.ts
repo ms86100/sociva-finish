@@ -9,6 +9,8 @@ import { useCategoryConfig } from '@/hooks/queries/useCategoryConfig';
 import { useCurrency } from '@/hooks/useCurrency';
 import { hapticImpact } from '@/lib/haptics';
 import { toast } from 'sonner';
+import { useBrowsingLocation } from '@/contexts/BrowsingLocationContext';
+import { filterDiscoverableProductIds } from '@/lib/sellerDiscoverability';
 
 export interface ProductDetail {
   product_id: string;
@@ -34,6 +36,7 @@ export interface ProductDetail {
 }
 
 export function useProductDetail(product: ProductDetail | null, open: boolean, onOpenChange?: (open: boolean) => void) {
+  const { browsingLocation } = useBrowsingLocation();
   const { items, addItem, updateQuantity } = useCart();
   const { data: trustSnapshot } = useSellerTrustSnapshot(product?.seller_id || null);
   const [contactOpen, setContactOpen] = useState(false);
@@ -62,10 +65,16 @@ export function useProductDetail(product: ProductDetail | null, open: boolean, o
       ]);
       setLoadedSpecs(productRes.data?.specifications as Record<string, any> | null);
       setCanonicalStockQty(productRes.data?.stock_quantity ?? null);
-      setSimilarProducts(similarRes.data || []);
+      const similar = similarRes.data || [];
+      const allowed = await filterDiscoverableProductIds(
+        similar.map((p: { id: string }) => p.id),
+        browsingLocation?.lat,
+        browsingLocation?.lng,
+      );
+      setSimilarProducts(similar.filter((p: { id: string }) => allowed.has(p.id)));
     };
     fetchData();
-  }, [product?.product_id, open]);
+  }, [product?.product_id, open, browsingLocation?.lat, browsingLocation?.lng]);
 
   const { data: categoryConfigs } = useCategoryConfig();
   const catCfg = categoryConfigs?.find(c => c.category === product?.category);
@@ -80,7 +89,7 @@ export function useProductDetail(product: ProductDetail | null, open: boolean, o
 
   const isStockEmpty = isCartAction && canonicalStockQty != null && canonicalStockQty <= 0;
 
-  const handleAdd = useCallback(async () => {
+  const handleAdd = useCallback(async (extras?: any[]) => {
     if (!product) return;
     if (actionType === 'contact_seller') { setContactOpen(true); return; }
     if (!isCartAction) { setEnquiryOpen(true); return; }
@@ -95,7 +104,7 @@ export function useProductDetail(product: ProductDetail | null, open: boolean, o
       is_bestseller: false, is_recommended: false, is_urgent: false,
       created_at: '', updated_at: '',
       stock_quantity: canonicalStockQty,
-    } as any);
+    } as any, 1, false, extras);
     // Don't close drawer here - let the celebration popup handle navigation
     // onOpenChange?.(false);
   }, [product, actionType, isCartAction, addItem, onOpenChange]);

@@ -4,6 +4,8 @@ import { optimizedImageUrl, handleImageError } from '@/utils/imageHelpers';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { useBrowsingLocation } from '@/contexts/BrowsingLocationContext';
+import { filterDiscoverableProductIds } from '@/lib/sellerDiscoverability';
 import { useCart } from '@/hooks/useCart';
 import { useCurrency } from '@/hooks/useCurrency';
 import { RefreshCw, Plus, Check } from 'lucide-react';
@@ -32,11 +34,12 @@ interface GroupedCategory {
 
 export function BuyAgainRow() {
   const { user } = useAuth();
+  const { browsingLocation } = useBrowsingLocation();
   const { items, addItem } = useCart();
   const { formatPrice } = useCurrency();
 
   const { data: products = [] } = useQuery({
-    queryKey: ['buy-again', user?.id],
+    queryKey: ['buy-again', user?.id, browsingLocation?.lat, browsingLocation?.lng],
     queryFn: async (): Promise<BuyAgainProduct[]> => {
       if (!user) return [];
 
@@ -46,7 +49,7 @@ export function BuyAgainRow() {
       });
 
       if (!rpcError && rpcData && rpcData.length > 0) {
-        return rpcData.map((r: any) => ({
+        const mapped = rpcData.map((r: any) => ({
           id: r.product_id,
           name: r.product_name,
           price: r.price,
@@ -57,6 +60,12 @@ export function BuyAgainRow() {
           category: r.category || '',
           action_type: r.action_type || null,
         }));
+        const allowed = await filterDiscoverableProductIds(
+          mapped.map((p: BuyAgainProduct) => p.id),
+          browsingLocation?.lat,
+          browsingLocation?.lng,
+        );
+        return mapped.filter((p: BuyAgainProduct) => allowed.has(p.id));
       }
 
       if (rpcError) console.warn('[BuyAgain] RPC error, using fallback:', rpcError.message);
@@ -100,9 +109,15 @@ export function BuyAgainRow() {
         freq[pid].order_count = freq[pid].count;
       }
 
-      return Object.values(freq)
+      const ranked = Object.values(freq)
         .sort((a, b) => b.count - a.count)
         .slice(0, 20);
+      const allowed = await filterDiscoverableProductIds(
+        ranked.map((p) => p.id),
+        browsingLocation?.lat,
+        browsingLocation?.lng,
+      );
+      return ranked.filter((p) => allowed.has(p.id));
     },
     enabled: !!user,
     staleTime: 5 * 60_000,

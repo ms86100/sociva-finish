@@ -33,7 +33,8 @@ interface SellerOrderCardOrder {
   auto_cancel_at?: string | null;
   auto_accepted?: boolean;
   rejection_reason?: string | null;
-  buyer?: { name: string; block: string; flat_number: string; phone?: string };
+  delivery_address?: string | null;
+  buyer?: { name: string; block: string; flat_number: string; phone?: string; phase?: string | null };
   items?: OrderItemWithStatus[];
 }
 
@@ -132,9 +133,9 @@ export function SellerOrderCard({ order }: SellerOrderCardProps) {
               </div>
               <div className="min-w-0">
                 <p className="font-medium text-sm truncate">{buyer?.name || 'Customer'}</p>
-                {['delivery', 'seller_delivery'].includes(order.fulfillment_type || '') && buyer?.block && (
-                  <p className="text-[10px] text-muted-foreground">
-                    {buyer.block}-{buyer.flat_number}
+                {['delivery', 'seller_delivery'].includes(order.fulfillment_type || '') && (order.delivery_address || buyer?.block) && (
+                  <p className="text-[10px] text-muted-foreground truncate">
+                    {order.delivery_address || [buyer?.phase, buyer?.block, buyer?.flat_number].filter(Boolean).join(' · ')}
                   </p>
                 )}
               </div>

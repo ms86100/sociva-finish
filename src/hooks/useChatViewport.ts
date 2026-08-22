@@ -91,10 +91,39 @@ export function useKeyboardViewport(enabled: boolean) {
     viewportHeight: snapshot.height,
     viewportTop: snapshot.top,
     keyboardInset,
+    visualKeyboardHeight: snapshot.visualKeyboardHeight,
+    nativeKeyboardHeight,
     isKeyboardOpen: snapshot.visualKeyboardHeight > 0 || nativeKeyboardHeight > 0,
   };
 }
 
 export function useChatViewport(enabled: boolean) {
   return useKeyboardViewport(enabled);
+}
+
+/** Fixed bottom drawers need the full keyboard height, not the residual inset. */
+export function useDrawerKeyboard(enabled: boolean) {
+  const viewport = useKeyboardViewport(enabled);
+  return {
+    ...viewport,
+    keyboardInset: Math.max(
+      viewport.nativeKeyboardHeight,
+      viewport.visualKeyboardHeight,
+      viewport.keyboardInset,
+    ),
+  };
+}
+
+export function scrollFocusedFieldInDrawer() {
+  const el = document.activeElement;
+  if (!(el instanceof HTMLElement) || !el.matches('input, textarea, select, [contenteditable="true"]')) return;
+  const scroller = el.closest('[data-drawer-scroll]');
+  if (scroller instanceof HTMLElement) {
+    const fieldBox = el.getBoundingClientRect();
+    const scrollerBox = scroller.getBoundingClientRect();
+    const nextTop = scroller.scrollTop + (fieldBox.top - scrollerBox.top) - 48;
+    scroller.scrollTo({ top: Math.max(0, nextTop), behavior: 'smooth' });
+    return;
+  }
+  el.scrollIntoView({ block: 'center', behavior: 'smooth' });
 }

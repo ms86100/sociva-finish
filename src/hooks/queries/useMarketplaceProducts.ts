@@ -2,6 +2,7 @@
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { jitteredStaleTime } from '@/lib/query-utils';
+import { useBrowsingLocation } from '@/contexts/BrowsingLocationContext';
 
 /**
  * Product row from get_products_for_sellers RPC.
@@ -48,11 +49,14 @@ export function useMarketplaceProducts(
   options?: { category?: string }
 ) {
   const { category } = options ?? {};
+  const { browsingLocation } = useBrowsingLocation();
+  const lat = browsingLocation?.lat ?? null;
+  const lng = browsingLocation?.lng ?? null;
   const sortedIds = [...sellerIds].sort();
   const idsKey = sortedIds.join(',');
 
   const query = useInfiniteQuery({
-    queryKey: ['marketplace-products', idsKey, category ?? 'all'],
+    queryKey: ['marketplace-products', idsKey, category ?? 'all', lat, lng],
     queryFn: async ({ pageParam = 0 }): Promise<MarketplaceProduct[]> => {
       if (sellerIds.length === 0) return [];
 
@@ -65,6 +69,8 @@ export function useMarketplaceProducts(
             _category: category ?? null,
             _limit: PAGE_SIZE,
             _offset: pageParam as number,
+            _lat: lat,
+            _lng: lng,
           });
 
           if (error) {
