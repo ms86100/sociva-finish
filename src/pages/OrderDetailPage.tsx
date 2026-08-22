@@ -77,6 +77,7 @@ import { WhatsAppUpdatesCta } from '@/components/notifications/WhatsAppUpdatesCt
 import { CheckoutSiblingsStrip } from '@/components/order/CheckoutSiblingsStrip';
 import { useCheckoutSiblings } from '@/hooks/useCheckoutGroup';
 import { checkoutKeyPrefix } from '@/lib/checkout-groups';
+import { useAuth } from '@/contexts/AuthContext';
 import { ScheduledOrderBanner } from '@/components/orders/ScheduledOrderBanner';
 import { isUpcomingScheduled } from '@/lib/scheduled-orders';
 
