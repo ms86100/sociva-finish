@@ -6,6 +6,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useBrowsingLocation } from '@/contexts/BrowsingLocationContext';
 import { filterDiscoverableProductIds } from '@/lib/sellerDiscoverability';
 import { useCart } from '@/hooks/useCart';
+import { useRecentlyViewed } from '@/hooks/useRecentlyViewed';
 import { useCurrency } from '@/hooks/useCurrency';
 import { useCategoryConfigs } from '@/hooks/useCategoryBehavior';
 import { ACTION_CONFIG, deriveActionType } from '@/lib/marketplace-constants';
