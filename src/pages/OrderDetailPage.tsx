@@ -982,7 +982,8 @@ export default function OrderDetailPage() {
                 const destLat = (order as any).delivery_lat || (buyer as any)?.latitude || null;
                 const destLng = (order as any).delivery_lng || (buyer as any)?.longitude || null;
                 return destLat && destLng ? (
-                  <Suspense fallback={<Skeleton className="h-[320px] w-full rounded-xl" />}>
+                  <div className="-mx-4 border-y border-border/40 overflow-hidden bg-[#f3f3f1]">
+                    <Suspense fallback={<Skeleton className="h-[min(56vh,520px)] w-full" />}>
                     <DeliveryMapView
                       riderLat={originLat || sellerLatVal || destLat}
                       riderLng={originLng || sellerLngVal || destLng}
@@ -994,11 +995,14 @@ export default function OrderDetailPage() {
                       sellerLat={sellerLatVal}
                       sellerLng={sellerLngVal}
                       sellerName={seller?.business_name}
-                      isPickedUp={['picked_up', 'on_the_way', 'at_gate'].includes(order.status)}
+                      isPickedUp={['picked_up', 'on_the_way', 'at_gate', 'en_route', 'arrived'].includes(order.status)}
                       tall={true}
                       onRouteInfo={handleRouteInfo}
+                      proximityStatus={deliveryTracking.proximityStatus}
+                      distanceMeters={deliveryTracking.distance}
                     />
-                  </Suspense>
+                    </Suspense>
+                  </div>
                 ) : null;
               })()}
 

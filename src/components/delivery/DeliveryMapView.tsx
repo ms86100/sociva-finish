@@ -1,11 +1,42 @@
-// @ts-nocheck
-import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
-import { Navigation, ExternalLink, AlertTriangle, RefreshCw } from 'lucide-react';
+/// <reference types="@types/google.maps" />
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { AlertTriangle, ExternalLink, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useGoogleMaps } from '@/hooks/useGoogleMaps';
 import { useTrackingConfig } from '@/hooks/useTrackingConfig';
-
-// ─── Props ───────────────────────────────────────────────────────────────────
+import {
+  ARRIVING_METERS,
+  BACKWARD_IGNORE_METERS,
+  OFF_ROUTE_REROUTE_METERS,
+  buildLongDistancePath,
+  buildRouteMetrics,
+  haversineMeters,
+  headingDelta,
+  isLongDistance,
+  lerpHeading,
+  lookAheadPoint,
+  nextDisplayDistance,
+  poseAtDistance,
+  resolveTrackingPhase,
+  snapToRoute,
+  splitRouteAtDistance,
+  type LatLng,
+  type TrackingPhase,
+} from '@/lib/delivery-tracking-geometry';
+import {
+  DASH_ROUTE,
+  RECENTER_ICON_SVG,
+  ROUTE_BLUE,
+  ROUTE_BLUE_MUTED,
+  ROUTE_HALO,
+  SOCIVA_TRACKING_MAP_STYLE,
+  TRACKING_MAP_CSS,
+} from '@/lib/delivery-map-style';
+import {
+  createTrackingOverlays,
+  type PinOverlayHandle,
+  type VehicleOverlayHandle,
+} from '@/components/delivery/delivery-map-overlays';
 
 interface DeliveryMapViewProps {
   riderLat: number;
@@ -21,319 +52,129 @@ interface DeliveryMapViewProps {
   isPickedUp?: boolean;
   tall?: boolean;
   onRouteInfo?: (info: { totalDistance: number; remainingDistance: number }) => void;
+  proximityStatus?: string | null;
+  distanceMeters?: number | null;
 }
 
-// ─── Haversine distance ──────────────────────────────────────────────────────
+type RouteMode = 'road' | 'long-distance';
 
-function haversineMeters(lat1: number, lng1: number, lat2: number, lng2: number): number {
-  const R = 6371000;
-  const toRad = (d: number) => d * Math.PI / 180;
-  const dLat = toRad(lat2 - lat1);
-  const dLng = toRad(lng2 - lng1);
-  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+interface FetchedRoute {
+  coords: LatLng[];
+  distanceMeters: number;
+  durationSeconds: number;
+  mode: RouteMode;
 }
 
-// ─── GPS Smoothing ───────────────────────────────────────────────────────────
-
-function useGPSSmoothing(lat: number, lng: number) {
-  const history = useRef<{ lat: number; lng: number; time: number }[]>([]);
-
-  return useMemo(() => {
-    const now = Date.now();
-    const h = history.current;
-
-    if (h.length > 0) {
-      const last = h[h.length - 1];
-      const dist = haversineMeters(last.lat, last.lng, lat, lng);
-      const timeDiff = (now - last.time) / 1000;
-      if (dist > 200 && timeDiff < 2) {
-        return { lat: last.lat, lng: last.lng };
-      }
-    }
-
-    h.push({ lat, lng, time: now });
-    if (h.length > 3) h.shift();
-
-    if (h.length >= 3) {
-      const weights = [0.15, 0.3, 0.55];
-      let sLat = 0, sLng = 0;
-      for (let i = 0; i < 3; i++) {
-        sLat += h[i].lat * weights[i];
-        sLng += h[i].lng * weights[i];
-      }
-      return { lat: sLat, lng: sLng };
-    }
-    return { lat, lng };
-  }, [lat, lng]);
+let cssInjected = false;
+function injectTrackingCss() {
+  if (cssInjected || typeof document === 'undefined') return;
+  if (document.getElementById('sociva-tracking-map-css')) {
+    cssInjected = true;
+    return;
+  }
+  const el = document.createElement('style');
+  el.id = 'sociva-tracking-map-css';
+  el.textContent = TRACKING_MAP_CSS;
+  document.head.appendChild(el);
+  cssInjected = true;
 }
 
-// ─── OSRM route hook ─────────────────────────────────────────────────────────
+function dashIcons(offsetPx: number): google.maps.IconSequence[] {
+  return [{
+    icon: {
+      path: 'M 0,-1 0,1',
+      strokeOpacity: 1,
+      strokeColor: DASH_ROUTE,
+      strokeWeight: 2.4,
+      scale: 2.6,
+    },
+    offset: `${offsetPx.toFixed(1)}px`,
+    repeat: '14px',
+  }];
+}
 
-function useOSRMRoute(
-  riderLat: number, riderLng: number,
-  destLat: number, destLng: number,
-  refetchThreshold: number,
-  timeoutMs: number,
-) {
-  const [routeCoords, setRouteCoords] = useState<{ lat: number; lng: number }[]>([]);
-  const [roadEtaMinutes, setRoadEtaMinutes] = useState<number | null>(null);
-  const [roadDistanceMeters, setRoadDistanceMeters] = useState<number | null>(null);
-  const [totalRouteDistance, setTotalRouteDistance] = useState<number | null>(null);
-  const lastFetchPos = useRef<[number, number] | null>(null);
-  const abortRef = useRef<AbortController | null>(null);
-  const lastSuccessfulRoute = useRef<{ lat: number; lng: number }[]>([]);
+let googleDirectionsUnavailable = false;
 
-  const fetchRoute = useCallback(async (retryCount = 0) => {
-    if (lastFetchPos.current) {
-      const [prevLat, prevLng] = lastFetchPos.current;
-      const degThresholdLat = refetchThreshold / 111000;
-      const degThresholdLng = refetchThreshold / (111000 * Math.cos(riderLat * Math.PI / 180));
-      if (Math.abs(riderLat - prevLat) < degThresholdLat && Math.abs(riderLng - prevLng) < degThresholdLng) return;
-    }
-
-    abortRef.current?.abort();
-    const controller = new AbortController();
-    abortRef.current = controller;
-    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-
-    try {
-      const url = `https://router.project-osrm.org/route/v1/driving/${riderLng},${riderLat};${destLng},${destLat}?overview=full&geometries=geojson`;
-      const res = await fetch(url, { signal: controller.signal });
-      clearTimeout(timeoutId);
-
-      if (!res.ok) throw new Error(`OSRM ${res.status}`);
-      const data = await res.json();
-      const route = data.routes?.[0];
-      if (route?.geometry?.coordinates) {
-        const coords = route.geometry.coordinates.map((c: [number, number]) => ({ lat: c[1], lng: c[0] }));
-        setRouteCoords(coords);
-        lastSuccessfulRoute.current = coords;
-        lastFetchPos.current = [riderLat, riderLng];
-
-        if (route.distance != null) {
-          setRoadDistanceMeters(Math.round(route.distance));
-          if (totalRouteDistance === null) setTotalRouteDistance(Math.round(route.distance));
-        }
-        if (route.duration != null) {
-          let etaMin = Math.max(1, Math.ceil(route.duration / 60));
-          const hour = new Date().getHours();
-          const isRushHour = (hour >= 8 && hour <= 10) || (hour >= 17 && hour <= 20);
-          etaMin += 2 + (isRushHour ? 3 : 0);
-          setRoadEtaMinutes(etaMin);
+async function fetchGoogleDirections(from: LatLng, to: LatLng): Promise<FetchedRoute | null> {
+  if (googleDirectionsUnavailable || !window.google?.maps?.DirectionsService) return null;
+  try {
+    const svc = new google.maps.DirectionsService();
+    const result = await new Promise<google.maps.DirectionsResult>((resolve, reject) => {
+      svc.route(
+        {
+          origin: from,
+          destination: to,
+          travelMode: google.maps.TravelMode.DRIVING,
+          provideRouteAlternatives: false,
+        },
+        (res, status) => {
+          if (status === google.maps.DirectionsStatus.OK && res) resolve(res);
+          else reject(status);
+        },
+      );
+    });
+    const route = result.routes?.[0];
+    const leg = route?.legs?.[0];
+    if (!route || !leg) return null;
+    const coords: LatLng[] = [];
+    for (const currentLeg of route.legs) {
+      for (const step of currentLeg.steps || []) {
+        for (const p of step.path || []) {
+          coords.push({ lat: p.lat(), lng: p.lng() });
         }
       }
-    } catch (e) {
-      clearTimeout(timeoutId);
-      if ((e as Error).name === 'AbortError' && retryCount < 2) {
-        setTimeout(() => fetchRoute(retryCount + 1), 1000 * (retryCount + 1) + Math.random() * 500);
-      } else {
-        if (lastSuccessfulRoute.current.length > 0) setRouteCoords(lastSuccessfulRoute.current);
-        const fallbackDist = haversineMeters(riderLat, riderLng, destLat, destLng);
-        setRoadEtaMinutes(Math.max(1, Math.ceil(fallbackDist / 1000 * 4)));
-      }
     }
-  }, [riderLat, riderLng, destLat, destLng, refetchThreshold, timeoutMs]);
-
-  useEffect(() => { fetchRoute(); }, [fetchRoute]);
-  useEffect(() => { return () => abortRef.current?.abort(); }, []);
-
-  return { routeCoords, roadEtaMinutes, roadDistanceMeters, totalRouteDistance };
-}
-
-// ─── Route split (completed/remaining) ───────────────────────────────────────
-
-function useRouteSplit(routeCoords: { lat: number; lng: number }[], riderLat: number, riderLng: number) {
-  return useMemo(() => {
-    if (routeCoords.length < 2) return { completed: [] as { lat: number; lng: number }[], remaining: [] as { lat: number; lng: number }[], remainingDistance: 0 };
-
-    let closestIdx = 0;
-    let closestDist = Infinity;
-    for (let i = 0; i < routeCoords.length; i++) {
-      const d = Math.pow(routeCoords[i].lat - riderLat, 2) + Math.pow(routeCoords[i].lng - riderLng, 2);
-      if (d < closestDist) { closestDist = d; closestIdx = i; }
+    if (coords.length < 2 && route.overview_path?.length) {
+      coords.push(...route.overview_path.map((p) => ({ lat: p.lat(), lng: p.lng() })));
     }
-
-    const remaining = [{ lat: riderLat, lng: riderLng }, ...routeCoords.slice(closestIdx)];
-    let remainingDistance = 0;
-    for (let i = 0; i < remaining.length - 1; i++) {
-      remainingDistance += haversineMeters(remaining[i].lat, remaining[i].lng, remaining[i + 1].lat, remaining[i + 1].lng);
-    }
-
+    if (coords.length < 2) return null;
     return {
-      completed: routeCoords.slice(0, closestIdx + 1),
-      remaining,
-      remainingDistance: Math.round(remainingDistance),
+      coords,
+      distanceMeters: route.legs.reduce((sum, item) => sum + (item.distance?.value ?? 0), 0) || Math.round(haversineMeters(from, to)),
+      durationSeconds: route.legs.reduce((sum, item) => sum + (item.duration?.value ?? 0), 0) || Math.max(60, Math.round(haversineMeters(from, to) / 6.5)),
+      mode: 'road',
     };
-  }, [routeCoords, riderLat, riderLng]);
+  } catch (status) {
+    if (status === 'REQUEST_DENIED' || status === google.maps?.DirectionsStatus?.REQUEST_DENIED) {
+      googleDirectionsUnavailable = true;
+    }
+    return null;
+  }
 }
 
-// ─── Geo helpers ─────────────────────────────────────────────────────────────
-
-/** Bearing in degrees clockwise from north (0–360). */
-function bearingDegrees(lat1: number, lng1: number, lat2: number, lng2: number): number {
-  const toRad = (d: number) => (d * Math.PI) / 180;
-  const φ1 = toRad(lat1);
-  const φ2 = toRad(lat2);
-  const Δλ = toRad(lng2 - lng1);
-  const y = Math.sin(Δλ) * Math.cos(φ2);
-  const x = Math.cos(φ1) * Math.sin(φ2) - Math.sin(φ1) * Math.cos(φ2) * Math.cos(Δλ);
-  return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
+async function fetchOsrmRoute(from: LatLng, to: LatLng, timeoutMs: number, signal: AbortSignal): Promise<FetchedRoute | null> {
+  const url = `https://router.project-osrm.org/route/v1/driving/${from.lng},${from.lat};${to.lng},${to.lat}?overview=full&geometries=geojson`;
+  const ctrl = new AbortController();
+  const onAbort = () => ctrl.abort();
+  signal.addEventListener('abort', onAbort);
+  const timeout = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { signal: ctrl.signal });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const route = data.routes?.[0];
+    if (!route?.geometry?.coordinates?.length) return null;
+    return {
+      coords: route.geometry.coordinates.map((c: [number, number]) => ({ lat: c[1], lng: c[0] })),
+      distanceMeters: Math.round(route.distance ?? haversineMeters(from, to)),
+      durationSeconds: Math.round(route.duration ?? haversineMeters(from, to) / 6.5),
+      mode: 'road',
+    };
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timeout);
+    signal.removeEventListener('abort', onAbort);
+  }
 }
 
-/** Shortest signed delta between two headings (−180…180). */
-function headingDelta(from: number, to: number): number {
-  return ((to - from + 540) % 360) - 180;
+function rushAdjustedEtaMinutes(durationSeconds: number): number {
+  let etaMin = Math.max(1, Math.ceil(durationSeconds / 60));
+  const hour = new Date().getHours();
+  const isRushHour = (hour >= 8 && hour <= 10) || (hour >= 17 && hour <= 20);
+  etaMin += 2 + (isRushHour ? 3 : 0);
+  return etaMin;
 }
-
-// Brand green ≈ hsl(151 65% 38%)
-const SOCIVA_GREEN = '#22A05A';
-const PICKUP_AMBER = '#F59E0B';
-const DROP_ROSE = '#E11D48';
-
-// Color palette for dark/light mode adaptation
-const MAP_LIGHT_BG = 'rgba(255, 255, 255, 0.85)';
-const MAP_DARK_BG = 'rgba(15, 23, 42, 0.7)';
-const GLOW_COLOR = 'rgba(34, 160, 90, 0.4)';
-
-function svgDataUrl(svg: string): string {
-  return 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg);
-}
-
-/** Dotted route line SVG (Swiggy/Zomato style) — from pickup to destination. */
-function createDottedRouteSvg(strokeColor: string, strokeWidth: number): string {
-  const dashArray = '6 6'; // dash gap pattern
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="0" height="0" viewBox="0 0 100 100">
-    <defs>
-      <pattern id="dotPattern" width="10" height="10" patternUnits="strokeWidth" patternTransform="rotate(45)">
-        <circle cx="5" cy="5" r="2" fill="${strokeColor}" />
-      </pattern>
-    </defs>
-    <line x1="0" y1="0" x2="100" y2="100"
-          stroke="${strokeColor}" stroke-width="${strokeWidth}"
-          stroke-dasharray="${dashArray}" />
-  </svg>`;
-}
-
-/** Progress dot SVG that travels along the route. */
-function createProgressDotSVG(index: number, total: number, color: string): string {
-  const progress = (index / Math.max(total, 1)) * 100;
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
-    <circle cx="8" cy="8" r="7" fill="${color}" opacity="0.8" />
-    <text x="8" y="12" text-anchor="middle" font-family="system-ui, sans-serif" font-size="9" fill="${color}">
-      ⬤
-    </text>
-  </svg>`;
-}
-
-/** Comet tail segment SVG - fading dot trail behind rider. */
-function createCometTailSvg(index: number, total: number, color: string, alpha: number): string {
-  const progress = (index / Math.max(total, 1)) * 100;
-  const segmentAlpha = alpha * 0.3;
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 12 12">
-    <circle cx="6" cy="6" r="5" fill="${color}" opacity="${segmentAlpha}" />
-  </svg>`;
-}
-
-/** Glow background SVG for the map container. */
-function createMapGlowSvg(size: number): string {
-  const s = size;
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${s}" height="${s}" viewBox="0 0 ${s} ${s}">
-    <defs>
-      <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
-        <feGaussianBlur stdDeviation="4" result="blur"/>
-        <feMerge>
-          <feMergeNode/>
-          <feMergeNode in="SourceGraphic"/>
-        </feMerge>
-      </filter>
-    </defs>
-    <circle cx="${s/2}" cy="${s/2}" r="${s/2}" fill="#000" filter="url(#glow)"/>
-  </svg>`;
-}
-
-// ─── Branded SVG Icons (Uber/Swiggy-style) ───────────────────────────────────
-
-/** Delivery scooter facing north; rotate via `rotation` (GPS heading). Bag branded "SV". */
-function createRiderIconSvg(rotation: number = 0): string {
-  const r = Math.round(rotation);
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
-  <defs>
-    <filter id="svShadow" x="-40%" y="-40%" width="180%" height="180%">
-      <feDropShadow dx="0" dy="1.5" stdDeviation="2.2" flood-color="rgba(0,0,0,0.38)"/>
-    </filter>
-    <linearGradient id="svBody" x1="0.5" y1="0" x2="0.5" y2="1">
-      <stop offset="0%" stop-color="#34C776"/>
-      <stop offset="100%" stop-color="${SOCIVA_GREEN}"/>
-    </linearGradient>
-  </defs>
-  <ellipse cx="32" cy="52" rx="12" ry="4.5" fill="rgba(0,0,0,0.14)"/>
-  <g filter="url(#svShadow)" transform="rotate(${r}, 32, 32)">
-    <!-- rear wheel -->
-    <circle cx="32" cy="44" r="6.2" fill="#111827" stroke="#fff" stroke-width="1.8"/>
-    <circle cx="32" cy="44" r="2.4" fill="#9ca3af"/>
-    <!-- body / deck -->
-    <path d="M26 40 L26 28 Q26 22 32 16 Q38 22 38 28 L38 40 Z" fill="url(#svBody)" stroke="#fff" stroke-width="2" stroke-linejoin="round"/>
-    <!-- front fairing tip -->
-    <path d="M29.5 20 Q32 13.5 34.5 20 Q32 18.5 29.5 20Z" fill="#fff" opacity="0.35"/>
-    <!-- handlebar -->
-    <rect x="24.5" y="23" width="15" height="2.6" rx="1.3" fill="#111827"/>
-    <circle cx="24.5" cy="24.3" r="1.8" fill="#374151"/>
-    <circle cx="39.5" cy="24.3" r="1.8" fill="#374151"/>
-    <!-- seat -->
-    <ellipse cx="32" cy="33.5" rx="4.2" ry="2.4" fill="#111827"/>
-    <!-- delivery bag (trails behind when facing north) -->
-    <g transform="translate(23, 35)">
-      <rect x="0" y="0" width="18" height="13" rx="3" fill="#0f766e" stroke="#fff" stroke-width="1.5"/>
-      <path d="M4 0.5 C4 -2 7 -3.2 9 -3.2 S14 -2 14 0.5" fill="none" stroke="#fff" stroke-width="1.4" stroke-linecap="round"/>
-      <rect x="2" y="2.5" width="14" height="8" rx="2" fill="#115e59"/>
-      <text x="9" y="8.6" text-anchor="middle" font-family="system-ui,-apple-system,Segoe UI,sans-serif" font-size="6.5" font-weight="800" fill="#ecfdf5" letter-spacing="0.6">SV</text>
-    </g>
-  </g>
-</svg>`;
-}
-
-/** Drop / End pin — professional teardrop with home glyph. Anchor at tip. */
-function createDestinationIconSvg(): string {
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="44" height="56" viewBox="0 0 44 56">
-  <defs>
-    <filter id="dropSh" x="-30%" y="-20%" width="160%" height="160%">
-      <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="rgba(0,0,0,0.32)"/>
-    </filter>
-  </defs>
-  <ellipse cx="22" cy="52" rx="8" ry="2.5" fill="rgba(0,0,0,0.18)"/>
-  <g filter="url(#dropSh)">
-    <path d="M22 2C12.06 2 4 10.06 4 20c0 12.5 18 32 18 32s18-19.5 18-32C40 10.06 31.94 2 22 2z" fill="${DROP_ROSE}" stroke="#fff" stroke-width="2.5"/>
-    <circle cx="22" cy="20" r="9.5" fill="#fff"/>
-    <path d="M22 13.5l7 6.2h-2.1V26h-3.2v-3.6h-3.4V26h-3.2v-6.3H15l7-6.2z" fill="${DROP_ROSE}"/>
-  </g>
-  <rect x="8" y="0" width="28" height="12" rx="6" fill="#fff" stroke="${DROP_ROSE}" stroke-width="1.5"/>
-  <text x="22" y="9" text-anchor="middle" font-family="system-ui,Segoe UI,sans-serif" font-size="7.5" font-weight="700" fill="${DROP_ROSE}" letter-spacing="0.3">DROP</text>
-</svg>`;
-}
-
-/** Pickup / Start pin — amber teardrop with store glyph. Anchor at tip. */
-function createSellerIconSvg(): string {
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="44" height="56" viewBox="0 0 44 56">
-  <defs>
-    <filter id="pickSh" x="-30%" y="-20%" width="160%" height="160%">
-      <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="rgba(0,0,0,0.32)"/>
-    </filter>
-  </defs>
-  <ellipse cx="22" cy="52" rx="8" ry="2.5" fill="rgba(0,0,0,0.18)"/>
-  <g filter="url(#pickSh)">
-    <path d="M22 2C12.06 2 4 10.06 4 20c0 12.5 18 32 18 32s18-19.5 18-32C40 10.06 31.94 2 22 2z" fill="${PICKUP_AMBER}" stroke="#fff" stroke-width="2.5"/>
-    <circle cx="22" cy="20" r="9.5" fill="#fff"/>
-    <path d="M14.5 22.5v-4.2l7.5-5.2 7.5 5.2v4.2h-2.4v-2.8h-10.2v2.8h-2.4z" fill="${PICKUP_AMBER}"/>
-    <rect x="17.2" y="20.8" width="3.2" height="3.6" rx="0.4" fill="${PICKUP_AMBER}"/>
-    <rect x="23.6" y="20.8" width="3.2" height="3.6" rx="0.4" fill="${PICKUP_AMBER}"/>
-  </g>
-  <rect x="5" y="0" width="34" height="12" rx="6" fill="#fff" stroke="${PICKUP_AMBER}" stroke-width="1.5"/>
-  <text x="22" y="9" text-anchor="middle" font-family="system-ui,Segoe UI,sans-serif" font-size="7.5" font-weight="700" fill="#B45309" letter-spacing="0.2">PICKUP</text>
-</svg>`;
-}
-
-// ─── Map Fallback Card ───────────────────────────────────────────────────────
 
 function MapFallbackCard({
   riderLat, riderLng, destinationLat, destinationLng,
@@ -352,13 +193,12 @@ function MapFallbackCard({
   const distText = roadDistanceMeters
     ? roadDistanceMeters < 1000 ? `${roadDistanceMeters}m` : `${(roadDistanceMeters / 1000).toFixed(1)} km`
     : null;
-
   const mapsUrl = `https://www.google.com/maps/dir/${riderLat},${riderLng}/${destinationLat},${destinationLng}`;
-  const mapHeight = tall ? 'min-h-[200px]' : 'min-h-[160px]';
+  const mapHeight = tall ? 'min-h-[280px]' : 'min-h-[200px]';
 
   const getErrorMessage = () => {
     if (errorType === 'AUTH_FAILED') {
-      return 'Google Maps API key is restricted. Add your app domain to the key\'s allowed referrers in Google Cloud Console.';
+      return "Google Maps API key is restricted. Add your app domain to the key's allowed referrers in Google Cloud Console.";
     }
     if (errorType === 'NO_API_KEY') {
       return 'Google Maps API key not configured. Add GOOGLE_MAPS_API_KEY as a project secret.';
@@ -376,9 +216,7 @@ function MapFallbackCard({
       </div>
       <div className="text-center space-y-1">
         <p className="text-sm font-semibold text-foreground">Live map unavailable</p>
-        <p className="text-xs text-muted-foreground max-w-[280px]">
-          {getErrorMessage()}
-        </p>
+        <p className="text-xs text-muted-foreground max-w-[280px]">{getErrorMessage()}</p>
       </div>
       {(roadEtaMinutes || distText) && (
         <div className="flex items-center gap-4">
@@ -414,170 +252,171 @@ function MapFallbackCard({
   );
 }
 
-// ─── Main component ───────────────────────────────────────────────────────────
-
-type RoutePoint = { lat: number; lng: number };
-
-function useDottedRoutePath(
-  routeCoords: RoutePoint[],
-  riderLat: number, riderLng: number,
-  sellerLat?: number | null, sellerLng?: number | null,
-): { fullPath: RoutePoint[]; completedPath: RoutePoint[]; remainingPath: RoutePoint[] } {
-  // Full route from seller (if available) to destination, prepending rider start
-  let allCoords: RoutePoint[] = [];
-
-  if (sellerLat && sellerLng) {
-    allCoords = [{ lat: sellerLat, lng: sellerLng }, ...routeCoords];
-  } else {
-    // If no seller, start from current rider position
-    allCoords = [{ lat: riderLat, lng: riderLng }, ...routeCoords];
-  }
-
-  // Find the point closest to current rider position
-  let closestIdx = 0;
-  let closestDist = Infinity;
-  for (let i = 0; i < allCoords.length; i++) {
-    const d = Math.pow(allCoords[i].lat - riderLat, 2) + Math.pow(allCoords[i].lng - riderLng, 2);
-    if (d < closestDist) { closestDist = d; closestIdx = i; }
-  }
-
-  // Split into completed (behind rider) and remaining (ahead)
-  const completedPath = allCoords.slice(0, closestIdx + 1);
-  const remainingPath = allCoords.slice(closestIdx);
-
-  return { fullPath: allCoords, completedPath, remainingPath };
-}
-
 export function DeliveryMapView({
   riderLat, riderLng, destinationLat, destinationLng,
   riderName, heading, onRoadEtaChange,
   sellerLat, sellerLng, sellerName,
-  isPickedUp, tall, onRouteInfo,
+  isPickedUp = true, tall, onRouteInfo,
+  proximityStatus, distanceMeters,
 }: DeliveryMapViewProps) {
   const { isLoaded, error: mapsError, retry } = useGoogleMaps();
   const config = useTrackingConfig();
+
   const mapRef = useRef<google.maps.Map | null>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
-  const riderMarkerRef = useRef<google.maps.Marker | null>(null);
-  const sellerMarkerRef = useRef<google.maps.Marker | null>(null);
-  const destMarkerRef = useRef<google.maps.Marker | null>(null);
-  const completedPolyRef = useRef<google.maps.Polyline | null>(null);
+  const vehicleRef = useRef<VehicleOverlayHandle | null>(null);
+  const homeRef = useRef<(PinOverlayHandle & google.maps.OverlayView) | null>(null);
+  const storeRef = useRef<(PinOverlayHandle & google.maps.OverlayView) | null>(null);
+  const haloPolyRef = useRef<google.maps.Polyline | null>(null);
   const remainingPolyRef = useRef<google.maps.Polyline | null>(null);
-  const routeDottedRef = useRef<google.maps.Polyline | null>(null); // full dotted route
-  const progressDotRef = useRef<google.maps.Marker | null>(null); // moving dot along route
-  const cometTailRef = useRef<google.maps.Marker[]>([]); // trailing dots
-  const progressAnimRef = useRef<number>(0);
-  const infoWindowRef = useRef<google.maps.InfoWindow | null>(null);
-  const animFrameRef = useRef<number>(0);
-  const riderHeadingRef = useRef<number>(heading ?? 0);
-  const lastCameraFitAt = useRef(0);
-  const userPannedRef = useRef(false);
+  const completedPolyRef = useRef<google.maps.Polyline | null>(null);
+  const dashPolyRef = useRef<google.maps.Polyline | null>(null);
+  const rafRef = useRef(0);
+  const dashOffsetRef = useRef(0);
+  const lastPanAtRef = useRef(0);
+  const lastPanPosRef = useRef<LatLng | null>(null);
   const initialFitDone = useRef(false);
+  const followRef = useRef(true);
+  const lastGpsRef = useRef<LatLng>({ lat: riderLat, lng: riderLng });
+  const lastRouteFetchAt = useRef<{ from: LatLng; at: number } | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+  const lastEtaRef = useRef<number | null>(null);
+  const lastRouteInfoRef = useRef<{ total: number; remaining: number } | null>(null);
+  const headingRef = useRef<number | null>(heading ?? null);
+  const pickedUpRef = useRef(!!isPickedUp);
+  const proximityRef = useRef(proximityStatus ?? null);
+  const distanceRef = useRef(distanceMeters ?? null);
+  const onRouteInfoRef = useRef(onRouteInfo);
+  const phaseRef = useRef<TrackingPhase>('moving');
+
+  headingRef.current = heading ?? null;
+  pickedUpRef.current = !!isPickedUp;
+  proximityRef.current = proximityStatus ?? null;
+  distanceRef.current = distanceMeters ?? null;
+  onRouteInfoRef.current = onRouteInfo;
+
+  const engineRef = useRef({
+    metrics: buildRouteMetrics([]),
+    mode: 'road' as RouteMode,
+    displayDist: 0,
+    targetDist: 0,
+    displayHeading: heading ?? 0,
+    totalDurationSeconds: 0,
+    totalDistanceMeters: 0,
+    lastFrame: 0,
+    lastPolyDist: -1,
+  });
+
   const [showRecenter, setShowRecenter] = useState(false);
   const [mapAuthFailed, setMapAuthFailed] = useState(false);
-  const [showGlow, setShowGlow] = useState(false);
+  const [mapReady, setMapReady] = useState(false);
+  const [route, setRoute] = useState<FetchedRoute | null>(null);
+  const [phase, setPhase] = useState<TrackingPhase>('moving');
+  const [remainingHud, setRemainingHud] = useState<number | null>(null);
 
-  const smoothedPos = useGPSSmoothing(riderLat, riderLng);
+  const dest = useMemo(() => asPoint(destinationLat, destinationLng), [destinationLat, destinationLng]);
+  const rider = useMemo(() => asPoint(riderLat, riderLng), [riderLat, riderLng]);
+  const originLockRef = useRef<LatLng | null>(null);
+  if (!originLockRef.current) originLockRef.current = rider;
+  const origin = useMemo(
+    () => (sellerLat != null && sellerLng != null ? asPoint(sellerLat, sellerLng) : originLockRef.current || rider),
+    [sellerLat, sellerLng, rider],
+  );
 
-  const setRiderIcon = (marker: google.maps.Marker, rotation: number) => {
-    riderHeadingRef.current = rotation;
-    marker.setIcon({
-      url: svgDataUrl(createRiderIconSvg(rotation)),
-      scaledSize: new google.maps.Size(64, 64),
-      anchor: new google.maps.Point(32, 40),
-    });
-  };
+  const roadEtaMinutes = route ? rushAdjustedEtaMinutes(route.durationSeconds) : null;
 
-  /** Keep rider, destination, and (when relevant) pickup in view. */
-  const fitTrackingBounds = (map: google.maps.Map, force = false) => {
-    const now = Date.now();
-    if (!force && now - lastCameraFitAt.current < 2500) return;
+  useEffect(() => { injectTrackingCss(); }, []);
 
-    const points: google.maps.LatLngLiteral[] = [
-      { lat: smoothedPos.lat, lng: smoothedPos.lng },
-      { lat: destinationLat, lng: destinationLng },
-    ];
-    if (sellerLat && sellerLng && !isPickedUp) {
-      points.push({ lat: sellerLat, lng: sellerLng });
-    }
+  const applyRoute = useCallback((fetched: FetchedRoute, gps: LatLng) => {
+    const metrics = buildRouteMetrics(fetched.coords);
+    const snap = snapToRoute(metrics, gps);
+    const engine = engineRef.current;
+    const jumped = engine.metrics.total === 0 || Math.abs(snap.distanceAlong - engine.displayDist) > 400;
+    engine.metrics = metrics;
+    engine.mode = fetched.mode;
+    engine.totalDurationSeconds = fetched.durationSeconds;
+    engine.totalDistanceMeters = fetched.distanceMeters || metrics.total;
+    engine.targetDist = snap.distanceAlong;
+    if (jumped) engine.displayDist = snap.distanceAlong;
+    const h = headingRef.current;
+    if (h != null && !Number.isNaN(h)) engine.displayHeading = h;
+    setRoute(fetched);
+  }, []);
 
-    // Skip re-fit when all key points are already comfortably on-screen
-    if (!force) {
-      const view = map.getBounds();
-      if (view) {
-        const allVisible = points.every((p) => view.contains(p));
-        if (allVisible) return;
+  const fetchRoute = useCallback(async (from: LatLng, to: LatLng, gps: LatLng, force = false) => {
+    if (!force && lastRouteFetchAt.current) {
+      const moved = haversineMeters(lastRouteFetchAt.current.from, from);
+      if (moved < config.osrm_refetch_threshold_meters && Date.now() - lastRouteFetchAt.current.at < 4000) {
+        return;
       }
     }
 
-    lastCameraFitAt.current = now;
-    const bounds = new google.maps.LatLngBounds();
-    points.forEach((p) => bounds.extend(p));
-    map.fitBounds(bounds, { top: 56, bottom: 72, left: 48, right: 48 });
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+    lastRouteFetchAt.current = { from, at: Date.now() };
 
-    google.maps.event.addListenerOnce(map, 'idle', () => {
-      const z = map.getZoom();
-      if (z != null && z > 17) map.setZoom(17);
-      if (z != null && z < 11) map.setZoom(11);
-    });
-  };
+    const long = isLongDistance(from, to);
+    if (long) {
+      const coords = buildLongDistancePath(from, to);
+      applyRoute({
+        coords,
+        distanceMeters: Math.round(haversineMeters(from, to)),
+        durationSeconds: Math.max(3600, Math.round(haversineMeters(from, to) / 18)),
+        mode: 'long-distance',
+      }, gps);
+      return;
+    }
 
-  const { routeCoords, roadEtaMinutes, roadDistanceMeters, totalRouteDistance } = useOSRMRoute(
-    riderLat, riderLng, destinationLat, destinationLng,
-    config.osrm_refetch_threshold_meters, config.osrm_timeout_ms,
-  );
+    let fetched = await fetchGoogleDirections(from, to);
+    if (!fetched && !controller.signal.aborted) {
+      fetched = await fetchOsrmRoute(from, to, config.osrm_timeout_ms, controller.signal);
+    }
+    if (controller.signal.aborted) return;
+    if (!fetched) {
+      applyRoute({
+        coords: [from, to],
+        distanceMeters: Math.round(haversineMeters(from, to)),
+        durationSeconds: Math.max(60, Math.round(haversineMeters(from, to) / 6.5)),
+        mode: isLongDistance(from, to) ? 'long-distance' : 'road',
+      }, gps);
+      return;
+    }
+    applyRoute(fetched, gps);
+  }, [applyRoute, config.osrm_refetch_threshold_meters, config.osrm_timeout_ms]);
 
-  const { completed, remaining, remainingDistance } = useRouteSplit(routeCoords, smoothedPos.lat, smoothedPos.lng);
-
-  // Compute dotted route paths using helper
-  const { fullPath, completedPath, remainingPath } = useDottedRoutePath(
-    routeCoords, riderLat, riderLng, sellerLat, sellerLng,
-  );
-
-  // Notify parent of ETA
-  const prevEtaRef = useRef<number | null>(null);
+  // Fetch the visual master route once from pickup → destination.
+  // GPS movement snaps onto this geometry; we only refetch if the rider leaves the road.
   useEffect(() => {
-    if (roadEtaMinutes !== prevEtaRef.current) {
-      prevEtaRef.current = roadEtaMinutes;
+    void fetchRoute(origin, dest, lastGpsRef.current, true);
+    return () => abortRef.current?.abort();
+  }, [origin, dest, fetchRoute]);
+
+  // Snap incoming GPS onto the current route
+  useEffect(() => {
+    lastGpsRef.current = rider;
+    const engine = engineRef.current;
+    if (engine.metrics.points.length < 2) return;
+    const snap = snapToRoute(engine.metrics, rider);
+    if (engine.mode === 'road' && snap.offRouteMeters > OFF_ROUTE_REROUTE_METERS) {
+      void fetchRoute(rider, dest, rider, true);
+      return;
+    }
+    if (snap.distanceAlong + BACKWARD_IGNORE_METERS < engine.displayDist) {
+      engine.targetDist = engine.displayDist;
+    } else {
+      engine.targetDist = snap.distanceAlong;
+    }
+  }, [riderLat, riderLng, dest.lat, dest.lng, fetchRoute]);
+
+  // Notify parent of ETA / remaining
+  useEffect(() => {
+    if (roadEtaMinutes !== lastEtaRef.current) {
+      lastEtaRef.current = roadEtaMinutes;
       onRoadEtaChange?.(roadEtaMinutes);
     }
   }, [roadEtaMinutes, onRoadEtaChange]);
 
-  // Notify parent of route info
-  useEffect(() => {
-    if (totalRouteDistance && remainingDistance != null) {
-      onRouteInfo?.({ totalDistance: totalRouteDistance, remainingDistance });
-    }
-  }, [totalRouteDistance, remainingDistance, onRouteInfo]);
-
-  // Detect Google's auth failure overlay after map init
-  useEffect(() => {
-    if (!mapContainerRef.current || !isLoaded) return;
-
-    const observer = new MutationObserver(() => {
-      const container = mapContainerRef.current;
-      if (!container) return;
-      const errorDialog = container.querySelector('.dismissButton') ||
-        Array.from(container.querySelectorAll('div')).find(el =>
-          el.textContent?.includes("can't load Google Maps correctly")
-        );
-      if (errorDialog) {
-        console.error('DeliveryMapView: Detected Google Maps auth error overlay. Origin:', window.location.origin);
-        setMapAuthFailed(true);
-        observer.disconnect();
-      }
-    });
-
-    observer.observe(mapContainerRef.current, { childList: true, subtree: true });
-    const timeout = setTimeout(() => observer.disconnect(), 10000);
-
-    return () => {
-      observer.disconnect();
-      clearTimeout(timeout);
-    };
-  }, [isLoaded]);
-
-  // ─── Initialize map ──────────────────────────────────────────────────────
   useEffect(() => {
     if (!isLoaded || !mapContainerRef.current || mapRef.current || mapAuthFailed) return;
 
@@ -585,342 +424,295 @@ export function DeliveryMapView({
       center: { lat: (riderLat + destinationLat) / 2, lng: (riderLng + destinationLng) / 2 },
       zoom: 14,
       disableDefaultUI: true,
-      zoomControl: true,
       gestureHandling: 'greedy',
-      styles: [
-        { featureType: 'poi', stylers: [{ visibility: 'off' }] },
-        { featureType: 'transit', stylers: [{ visibility: 'off' }] },
-      ],
+      clickableIcons: false,
+      keyboardShortcuts: false,
+      styles: SOCIVA_TRACKING_MAP_STYLE,
+      isFractionalZoomEnabled: true,
     });
 
     map.addListener('dragstart', () => {
-      userPannedRef.current = true;
+      followRef.current = false;
       setShowRecenter(true);
     });
 
     mapRef.current = map;
-    infoWindowRef.current = new google.maps.InfoWindow();
+    setMapReady(true);
 
-    // Rider marker — branded scooter with SV bag
-    const riderMarker = new google.maps.Marker({
-      map,
-      position: { lat: riderLat, lng: riderLng },
-      title: riderName || 'Delivery Partner',
-      icon: {
-        url: svgDataUrl(createRiderIconSvg(heading || 0)),
-        scaledSize: new google.maps.Size(64, 64),
-        anchor: new google.maps.Point(32, 40),
-      },
-      zIndex: 100,
-      optimized: false,
-    });
-    riderHeadingRef.current = heading || 0;
+    const { VehicleOverlay, PinOverlay } = createTrackingOverlays();
 
-    riderMarker.addListener('click', () => {
-      const distText = roadDistanceMeters
-        ? roadDistanceMeters < 1000 ? `${roadDistanceMeters}m` : `${(roadDistanceMeters / 1000).toFixed(1)}km`
-        : '';
-      infoWindowRef.current?.setContent(`
-        <div style="padding:8px;min-width:120px;text-align:center;">
-          <p style="font-weight:700;font-size:14px;margin:0;">${riderName || 'Delivery Partner'}</p>
-          ${roadEtaMinutes ? `<p style="font-size:12px;color:#666;margin:4px 0 0;">ETA: ${roadEtaMinutes} min</p>` : ''}
-          ${distText ? `<p style="font-size:12px;color:#666;margin:2px 0 0;">${distText} away</p>` : ''}
-        </div>
-      `);
-      infoWindowRef.current?.open({ map, anchor: riderMarker });
-    });
-    riderMarkerRef.current = riderMarker;
+    const home = new PinOverlay(dest, 'home');
+    home.setMap(map);
+    homeRef.current = home;
 
-    // Destination / End marker
-    const destMarker = new google.maps.Marker({
-      map,
-      position: { lat: destinationLat, lng: destinationLng },
-      title: 'Delivery Address',
-      icon: {
-        url: svgDataUrl(createDestinationIconSvg()),
-        scaledSize: new google.maps.Size(44, 56),
-        anchor: new google.maps.Point(22, 52),
-      },
-      zIndex: 90,
-      optimized: false,
-    });
-    destMarkerRef.current = destMarker;
-
-    // Pickup / Start marker
-    if (sellerLat && sellerLng) {
-      const sellerMarker = new google.maps.Marker({
-        map,
-        position: { lat: sellerLat, lng: sellerLng },
-        title: sellerName || 'Pickup',
-        icon: {
-          url: svgDataUrl(createSellerIconSvg()),
-          scaledSize: new google.maps.Size(44, 56),
-          anchor: new google.maps.Point(22, 52),
-        },
-        zIndex: 80,
-        optimized: false,
-      });
-      sellerMarkerRef.current = sellerMarker;
+    if (sellerLat != null && sellerLng != null) {
+      const store = new PinOverlay(asPoint(sellerLat, sellerLng), 'store');
+      store.setMap(map);
+      storeRef.current = store;
     }
 
-    // ── Full dotted route line (Swiggy/Zomato style) ─────────────────────
-    const dottedColor = SOCIVA_GREEN;
-    const dottedWidth = 4;
-    routeDottedRef.current = new google.maps.Polyline({
+    const vehicle = new VehicleOverlay(rider, heading ?? 0);
+    vehicle.setMap(map);
+    vehicle.setVisible(!!isPickedUp);
+    vehicleRef.current = vehicle;
+
+    haloPolyRef.current = new google.maps.Polyline({
       map,
-      path: fullPath,
-      strokeColor: dottedColor,
-      strokeWidth: dottedWidth,
-      strokeOpacity: 0.65,
+      path: [],
+      strokeColor: ROUTE_HALO,
+      strokeOpacity: 0.18,
+      strokeWeight: 11,
+      geodesic: false,
+      zIndex: 2,
+      clickable: false,
+    });
+    remainingPolyRef.current = new google.maps.Polyline({
+      map,
+      path: [],
+      strokeColor: ROUTE_BLUE_MUTED,
+      strokeOpacity: 0.9,
+      strokeWeight: 6,
+      geodesic: false,
+      zIndex: 3,
+      clickable: false,
+    });
+    completedPolyRef.current = new google.maps.Polyline({
+      map,
+      path: [],
+      strokeColor: ROUTE_BLUE,
+      strokeOpacity: 1,
+      strokeWeight: 6.5,
+      geodesic: false,
+      zIndex: 4,
+      clickable: false,
+    });
+    dashPolyRef.current = new google.maps.Polyline({
+      map,
+      path: [],
+      strokeColor: DASH_ROUTE,
+      strokeOpacity: 0,
+      strokeWeight: 0,
       geodesic: true,
-      icons: [{
-        icon: {
-          path: 'M 0,-1 0,1',
-          strokeOpacity: 1,
-          strokeColor: dottedColor,
-          strokeWeight: dottedWidth,
-          scale: 3,
-        },
-        offset: '0',
-        repeat: '18px',
-      }],
+      zIndex: 3,
+      clickable: false,
+      icons: dashIcons(0),
     });
 
-    // ── Progress moving dot along the full route ───────────────────────────
-    // Determine starting index: if rider is in completed section, start from behind;
-    // otherwise start from the beginning of remaining
-    let startIdx = 0;
-    if (remainingPath.length > 1) {
-      startIdx = 0;
-    } else if (completedPath.length > 1) {
-      startIdx = completedPath.length - 1;
+    return () => {
+      cancelAnimationFrame(rafRef.current);
+      vehicleRef.current?.setMap(null);
+      homeRef.current?.setMap(null);
+      storeRef.current?.setMap(null);
+      haloPolyRef.current?.setMap(null);
+      remainingPolyRef.current?.setMap(null);
+      completedPolyRef.current?.setMap(null);
+      dashPolyRef.current?.setMap(null);
+      mapRef.current = null;
+      vehicleRef.current = null;
+      homeRef.current = null;
+      storeRef.current = null;
+      initialFitDone.current = false;
+      setMapReady(false);
+    };
+    // Map is created once per loaded/auth cycle.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoaded, mapAuthFailed]);
+
+  useEffect(() => {
+    homeRef.current?.setPosition(dest);
+  }, [destinationLat, destinationLng]);
+
+  useEffect(() => {
+    if (sellerLat != null && sellerLng != null) {
+      storeRef.current?.setPosition(asPoint(sellerLat, sellerLng));
     }
-    const progressDot = new google.maps.Marker({
-      map,
-      position: remainingPath.length > 1 ? remainingPath[0] : fullPath[fullPath.length - 1],
-      icon: createProgressDotSVG(startIdx, Math.max(fullPath.length, 1), dottedColor),
-      zIndex: 200,
-      optimized: false,
-    });
-    progressDotRef.current = progressDot;
+  }, [sellerLat, sellerLng]);
 
-    // Animate the progress dot moving along the polyline path
-    let progressStep = startIdx;
-    const animateProgress = () => {
-      progressStep = (progressStep + 1) % Math.max(fullPath.length, 1);
-      if (progressDotRef.current) {
-        const targetPoint = fullPath[progressStep];
-        progressDotRef.current.setPosition(
-          new google.maps.LatLng(targetPoint.lat, targetPoint.lng)
-        );
+  useEffect(() => {
+    vehicleRef.current?.setVisible(!!isPickedUp);
+  }, [isPickedUp]);
+
+  const fitRoute = useCallback((force = false) => {
+    const map = mapRef.current;
+    const metrics = engineRef.current.metrics;
+    if (!map || metrics.points.length === 0) return;
+
+    const bounds = new google.maps.LatLngBounds();
+    metrics.points.forEach((p) => bounds.extend(p));
+    bounds.extend(dest);
+    bounds.extend(lastGpsRef.current);
+    if (sellerLat != null && sellerLng != null) bounds.extend({ lat: sellerLat, lng: sellerLng });
+    map.fitBounds(bounds, { top: 56, right: 52, bottom: 72, left: 52 });
+
+    google.maps.event.addListenerOnce(map, 'idle', () => {
+      const z = map.getZoom();
+      if (z == null) return;
+      const long = engineRef.current.mode === 'long-distance';
+      if (!long && z > 17) map.setZoom(17);
+      if (!long && z < 12) map.setZoom(12);
+      if (long && z > 8) {
+        // keep the national / regional context; don't over-zoom a dashed route
       }
-      // Update the dot's SVG to reflect progress
-      const totalIdx = Math.max(fullPath.length - 1, 1);
-      const progressPct = (progressStep / totalIdx) * 100;
-      progressDotRef.current.setIcon(
-        createProgressDotSVG(progressStep, totalIdx, dottedColor)
-      );
-      progressAnimRef.current = requestAnimationFrame(animateProgress);
-    };
-    progressAnimRef.current = requestAnimationFrame(animateProgress);
+    });
+    void force;
+  }, [dest, sellerLat, sellerLng]);
 
-    // ── Activate glow effect after map is ready ───────────────────────────
-    setShowGlow(true);
-
-    return () => {
-      cancelAnimationFrame(animFrameRef.current);
-      cancelAnimationFrame(progressAnimRef.current);
-    };
-  }, [isLoaded, smoothedPos.lat, smoothedPos.lng, fullPath, completedPath]);
-
-  // ─── Comet tail fade animation ──────────────────────────────────────────
-  // Create fading dot trail behind the rider marker
-  useEffect(() => {
-    const marker = riderMarkerRef.current;
-    if (!marker) return;
-
-    const tailCount = 8; // number of trailing dots
-    const tailColors = [SOCIVA_GREEN, 'rgba(34, 160, 90, 0.6)', 'rgba(34, 160, 90, 0.3)'];
-
-    // Remove any existing tail markers
-    cometTailRef.current.forEach(m => m.setMap(null));
-    cometTailRef.current = [];
-
-    const markerPos = marker.getPosition();
-    if (!markerPos) return;
-
-    // Create fading tail dots behind the rider
-    for (let i = 1; i <= tailCount; i++) {
-      const delay = i * 150; // stagger the dots
-      const alpha = 1 - (i / (tailCount + 1));
-      const offsetLng = (Math.random() - 0.5) * 0.0001; // slight random offset
-      const offsetLat = (Math.random() - 0.5) * 0.0001;
-
-      setTimeout(() => {
-        if (!marker) return;
-        const tailMarker = new google.maps.Marker({
-          map: mapRef.current,
-          position: new google.maps.LatLng(
-            markerPos.lat() + offsetLat,
-            markerPos.lng() + offsetLng
-          ),
-          icon: createCometTailSvg(i, tailCount, SOCIVA_GREEN, alpha),
-          zIndex: 50,
-          optimized: false,
-        });
-        cometTailRef.current.push(tailMarker);
-      }, delay * i);
+  const followCamera = useCallback((vehiclePos: LatLng, remainingMeters: number, currentPhase: TrackingPhase) => {
+    const map = mapRef.current;
+    if (!map || !followRef.current) return;
+    const now = performance.now();
+    const lastPos = lastPanPosRef.current;
+    const moved = lastPos ? haversineMeters(lastPos, vehiclePos) : Infinity;
+    if (!lastPos) {
+      lastPanPosRef.current = vehiclePos;
     }
-
-    // Clean up on unmount
-    return () => {
-      cometTailRef.current.forEach(m => m.setMap(null));
-      cometTailRef.current = [];
-    };
-  }, [riderMarkerRef.current, smoothedPos.lat, smoothedPos.lng]);
-
-  // ─── Animate rider position + rotate toward travel direction ─────────────
-  useEffect(() => {
-    const marker = riderMarkerRef.current;
-    if (!marker) return;
-
-    const currentPos = marker.getPosition();
-    if (!currentPos) {
-      marker.setPosition(new google.maps.LatLng(smoothedPos.lat, smoothedPos.lng));
+    if (engineRef.current.mode === 'long-distance') {
+      if (!initialFitDone.current || moved > 2500) fitRoute(true);
       return;
     }
+    if (now - lastPanAtRef.current < (currentPhase === 'arriving' ? 420 : 520) && moved < 14) return;
+    lastPanAtRef.current = now;
+    lastPanPosRef.current = vehiclePos;
 
-    const startLat = currentPos.lat();
-    const startLng = currentPos.lng();
-    const endLat = smoothedPos.lat;
-    const endLng = smoothedPos.lng;
-    const moveDist = haversineMeters(startLat, startLng, endLat, endLng);
+    const look = lookAheadPoint(vehiclePos, dest, currentPhase === 'arriving' ? 0.22 : 0.16);
+    map.panTo(look);
 
-    if (moveDist < 0.4) return;
+    const z = map.getZoom() ?? 14;
+    if (currentPhase === 'arriving' && remainingMeters < ARRIVING_METERS && z < 16.2) {
+      map.setZoom(16.4);
+    } else if (currentPhase === 'moving' && remainingMeters > 2500 && z > 15) {
+      map.setZoom(14.4);
+    }
+  }, [dest, fitRoute]);
 
-    // Prefer GPS heading when available; otherwise derive from movement
-    const targetHeading =
-      heading != null && !Number.isNaN(heading)
-        ? heading
-        : moveDist >= 1.5
-          ? bearingDegrees(startLat, startLng, endLat, endLng)
-          : riderHeadingRef.current;
-    const startHeading = riderHeadingRef.current;
-    const delta = headingDelta(startHeading, targetHeading);
-
-    const duration = config.map_animation_duration_ms || 1200;
-    const startTime = performance.now();
-    cancelAnimationFrame(animFrameRef.current);
-
-    const animate = (now: number) => {
-      const t = Math.min((now - startTime) / duration, 1);
-      const ease = 1 - Math.pow(1 - t, 3); // cubic ease-out
-      const lat = startLat + (endLat - startLat) * ease;
-      const lng = startLng + (endLng - startLng) * ease;
-      marker.setPosition(new google.maps.LatLng(lat, lng));
-
-      // Smoothly rotate icon along the glide (throttle icon swaps every ~8°)
-      const nextHeading = (startHeading + delta * ease + 360) % 360;
-      if (Math.abs(headingDelta(riderHeadingRef.current, nextHeading)) >= 8 || t === 1) {
-        setRiderIcon(marker, nextHeading);
-      }
-
-      if (t < 1) animFrameRef.current = requestAnimationFrame(animate);
-    };
-    animFrameRef.current = requestAnimationFrame(animate);
-
-    return () => cancelAnimationFrame(animFrameRef.current);
-  }, [smoothedPos.lat, smoothedPos.lng, heading, config.map_animation_duration_ms]);
-
-  // ─── Sync icon when GPS heading arrives without a position change ────────
+  // Animation loop — interpolate along decoded geometry
   useEffect(() => {
-    const marker = riderMarkerRef.current;
-    if (!marker || heading == null) return;
-    if (Math.abs(headingDelta(riderHeadingRef.current, heading)) < 5) return;
-    setRiderIcon(marker, heading);
-  }, [heading]);
+    if (!mapReady || !mapRef.current) return;
 
-  // ─── Update polylines ────────────────────────────────────────────────────
-  useEffect(() => {
-    // Update full dotted route
-    if (routeDottedRef.current) {
-      routeDottedRef.current.setPath(fullPath);
-    }
+    const tick = (now: number) => {
+      const engine = engineRef.current;
+      const dt = engine.lastFrame ? Math.min(48, now - engine.lastFrame) : 16;
+      engine.lastFrame = now;
 
-    // Update completed route (faded) — behind the rider
-    if (completedPolyRef.current && completedPath.length > 1) {
-      completedPolyRef.current.setPath(completedPath);
-    } else if (completedPolyRef.current) {
-      completedPolyRef.current.setPath([]);
-    }
+      if (engine.metrics.points.length >= 2) {
+        engine.displayDist = nextDisplayDistance({
+          display: engine.displayDist,
+          target: engine.targetDist,
+          total: engine.metrics.total,
+          dtMs: dt,
+          durationMs: config.map_animation_duration_ms || 2000,
+        });
 
-    // Update remaining route (solid base) — ahead of the rider
-    if (remainingPolyRef.current) {
-      const remainPath = remaining.length > 1
-        ? remainingPath
-        : routeCoords.length > 0
-          ? routeCoords
-          : [
-              { lat: smoothedPos.lat, lng: smoothedPos.lng },
-              { lat: destinationLat, lng: destinationLng },
-            ];
-      remainingPolyRef.current.setPath(remainPath);
-    }
+        // Keep vehicle slightly ahead of the store pin at pickup
+        if (sellerLat != null && sellerLng != null && engine.displayDist < 16) {
+          const atStore = haversineMeters(poseAtDistance(engine.metrics, engine.displayDist).point, asPoint(sellerLat, sellerLng)) < 18;
+          if (atStore) engine.displayDist = Math.min(engine.metrics.total, Math.max(engine.displayDist, 14));
+        }
 
-    // Update progress dot position along the full route
-    if (progressDotRef.current && fullPath.length > 0) {
-      // Find which segment the smoothed rider position falls on
-      let closestSegmentIdx = 0;
-      let closestSegDist = Infinity;
-      for (let i = 0; i < fullPath.length - 1; i++) {
-        const a = fullPath[i];
-        const b = fullPath[i + 1];
-        const d = Math.pow(smoothedPos.lat - a.lat, 2) + Math.pow(smoothedPos.lng - a.lng, 2);
-        if (d < closestSegDist) {
-          closestSegDist = d;
-          closestSegmentIdx = i;
+        const pose = poseAtDistance(engine.metrics, engine.displayDist);
+        const liveHeading = headingRef.current;
+        const gpsHeading = liveHeading != null && !Number.isNaN(liveHeading) ? liveHeading : pose.bearing;
+        const headingBlend = Math.abs(headingDelta(engine.displayHeading, gpsHeading)) > 1 ? 0.14 : 0.06;
+        engine.displayHeading = lerpHeading(engine.displayHeading, gpsHeading, headingBlend);
+
+        vehicleRef.current?.setPose(pose.point, engine.displayHeading);
+
+        const remainingMeters = Math.max(0, engine.metrics.total - engine.displayDist);
+        const nextPhase = resolveTrackingPhase({
+          hasVehicle: pickedUpRef.current,
+          remainingMeters,
+          proximityStatus: proximityRef.current ?? (distanceRef.current != null && distanceRef.current < ARRIVING_METERS ? 'arriving' : null),
+        });
+        if (nextPhase !== phaseRef.current) {
+          phaseRef.current = nextPhase;
+          setPhase(nextPhase);
+        }
+        homeRef.current?.setArriving?.(nextPhase === 'arriving');
+
+        if (Math.abs(engine.displayDist - engine.lastPolyDist) > 3 || engine.lastPolyDist < 0) {
+          engine.lastPolyDist = engine.displayDist;
+          const split = splitRouteAtDistance(engine.metrics, engine.displayDist);
+          if (engine.mode === 'long-distance') {
+            haloPolyRef.current?.setPath([]);
+            remainingPolyRef.current?.setPath([]);
+            completedPolyRef.current?.setPath([]);
+            dashPolyRef.current?.setPath(engine.metrics.points);
+            dashOffsetRef.current = (dashOffsetRef.current + dt * 0.028) % 14;
+            dashPolyRef.current?.setOptions({ icons: dashIcons(dashOffsetRef.current) });
+          } else {
+            dashPolyRef.current?.setPath([]);
+            haloPolyRef.current?.setPath(engine.metrics.points);
+            remainingPolyRef.current?.setPath(split.remaining);
+            completedPolyRef.current?.setPath(split.completed);
+            remainingPolyRef.current?.setOptions({
+              strokeWeight: 6,
+              strokeColor: ROUTE_BLUE_MUTED,
+            });
+            completedPolyRef.current?.setOptions({
+              strokeWeight: 6,
+              strokeColor: ROUTE_BLUE,
+            });
+          }
+        } else if (engine.mode === 'long-distance') {
+          dashOffsetRef.current = (dashOffsetRef.current + dt * 0.028) % 14;
+          dashPolyRef.current?.setOptions({ icons: dashIcons(dashOffsetRef.current) });
+        }
+
+        if (!initialFitDone.current && engine.metrics.total > 0) {
+          initialFitDone.current = true;
+          fitRoute(true);
+        } else {
+          followCamera(pose.point, remainingMeters, nextPhase);
+        }
+
+        const remainingInfo = Math.round(remainingMeters);
+        const totalInfo = Math.round(engine.totalDistanceMeters || engine.metrics.total);
+        const prev = lastRouteInfoRef.current;
+        if (!prev || prev.total !== totalInfo || Math.abs(prev.remaining - remainingInfo) > 8) {
+          lastRouteInfoRef.current = { total: totalInfo, remaining: remainingInfo };
+          onRouteInfoRef.current?.({ totalDistance: totalInfo, remainingDistance: remainingInfo });
+          setRemainingHud(remainingInfo);
         }
       }
-      // Move dot to closest point on the route
-      progressDotRef.current?.setPosition(new google.maps.LatLng(fullPath[closestSegmentIdx].lat, fullPath[closestSegmentIdx].lng));
 
-      // Update the dot's SVG to show progress index
-      const totalIdx = Math.max(fullPath.length - 1, 1);
-      const progressPct = (closestSegmentIdx / totalIdx) * 100;
-      progressDotRef.current.setIcon(
-        createProgressDotSVG(closestSegmentIdx, totalIdx, SOCIVA_GREEN)
-      );
-    }
-  }, [fullPath, completedPath, remainingPath, smoothedPos.lat, smoothedPos.lng,
-    remaining, routeCoords, destinationLat, destinationLng]);
+      rafRef.current = requestAnimationFrame(tick);
+    };
 
-  // ─── Intelligent camera: keep rider + drop (+ pickup) in view ────────────
+    rafRef.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafRef.current);
+  }, [mapReady, config.map_animation_duration_ms, fitRoute, followCamera, sellerLat, sellerLng]);
+
   useEffect(() => {
-    const map = mapRef.current;
-    if (!map) return;
+    if (!mapContainerRef.current || !isLoaded) return;
+    const observer = new MutationObserver(() => {
+      const container = mapContainerRef.current;
+      if (!container) return;
+      const errorDialog = container.querySelector('.dismissButton') ||
+        Array.from(container.querySelectorAll('div')).find((el) =>
+          el.textContent?.includes("can't load Google Maps correctly"),
+        );
+      if (errorDialog) {
+        setMapAuthFailed(true);
+        observer.disconnect();
+      }
+    });
+    observer.observe(mapContainerRef.current, { childList: true, subtree: true });
+    const timeout = setTimeout(() => observer.disconnect(), 10000);
+    return () => {
+      observer.disconnect();
+      clearTimeout(timeout);
+    };
+  }, [isLoaded]);
 
-    if (!initialFitDone.current) {
-      fitTrackingBounds(map, true);
-      initialFitDone.current = true;
-      return;
-    }
-
-    if (userPannedRef.current) return;
-
-    // Re-fit when rider moves enough that framing matters; throttle inside helper
-    fitTrackingBounds(map, false);
-  }, [smoothedPos.lat, smoothedPos.lng, destinationLat, destinationLng, isPickedUp, sellerLat, sellerLng]);
-
-  // ─── Recenter handler ────────────────────────────────────────────────────
   const handleRecenter = useCallback(() => {
-    const map = mapRef.current;
-    if (!map) return;
-    userPannedRef.current = false;
+    followRef.current = true;
     setShowRecenter(false);
-    fitTrackingBounds(map, true);
-  }, [smoothedPos.lat, smoothedPos.lng, destinationLat, destinationLng, sellerLat, sellerLng, isPickedUp]);
+    lastPanAtRef.current = 0;
+    if (engineRef.current.mode === 'long-distance') {
+      fitRoute(true);
+    }
+  }, [fitRoute]);
 
-  // ─── Retry handler ──────────────────────────────────────────────────────
   const handleRetry = useCallback(() => {
     mapRef.current = null;
     initialFitDone.current = false;
@@ -928,28 +720,14 @@ export function DeliveryMapView({
     retry();
   }, [retry]);
 
-  const mapHeight = tall ? 'h-[320px]' : 'h-[260px]';
-  const distanceKm = roadDistanceMeters != null ? (roadDistanceMeters / 1000).toFixed(1) : null;
+  const mapHeight = tall ? 'h-[min(56vh,520px)]' : 'h-[min(42vh,380px)]';
+  const remainingKm = remainingHud != null
+    ? remainingHud < 1000
+      ? `${remainingHud} m`
+      : `${(remainingHud / 1000).toFixed(1)} km`
+    : null;
 
-  // Add CSS variables for gradient background
-  useEffect(() => {
-    const style = document.createElement('style');
-    style.textContent = `
-      :root {
-        --map-light-bg: ${MAP_LIGHT_BG};
-        --map-dark-bg: ${MAP_DARK_BG};
-      }
-    `;
-    document.head.appendChild(style);
-    return () => {
-      document.head.removeChild(style);
-    };
-  }, []);
-
-  // Show fallback for: no API key, auth failure, or detected error overlay
-  const showFallback = mapsError || mapAuthFailed;
-
-  if (showFallback) {
+  if (mapsError || mapAuthFailed) {
     return (
       <MapFallbackCard
         riderLat={riderLat}
@@ -958,7 +736,7 @@ export function DeliveryMapView({
         destinationLng={destinationLng}
         riderName={riderName}
         roadEtaMinutes={roadEtaMinutes}
-        roadDistanceMeters={roadDistanceMeters}
+        roadDistanceMeters={route?.distanceMeters ?? null}
         tall={tall}
         errorType={mapsError || 'AUTH_FAILED'}
         onRetry={handleRetry}
@@ -968,7 +746,7 @@ export function DeliveryMapView({
 
   if (!isLoaded) {
     return (
-      <div className={`rounded-xl overflow-hidden border border-border ${mapHeight} bg-muted flex items-center justify-center`}>
+      <div className={`${mapHeight} bg-muted flex items-center justify-center`}>
         <div className="text-center text-muted-foreground">
           <div className="animate-spin h-6 w-6 border-2 border-primary border-t-transparent rounded-full mx-auto mb-2" />
           <p className="text-xs">Loading map...</p>
@@ -978,54 +756,39 @@ export function DeliveryMapView({
   }
 
   return (
-    <div className={`rounded-xl overflow-hidden border border-border ${mapHeight} relative shadow-sm transition-all duration-500 ${showGlow ? 'bg-gradient-to-br from-[var(--map-light-bg)] to-[var(--map-dark-bg)]' : ''}`}>
-      <div className="absolute inset-0 opacity-20" style={{ background: 'radial-gradient(circle at 30% 20%, rgba(34,160,90,0.15) 0%, transparent 50%), radial-gradient(circle at 70% 80%, rgba(34,160,90,0.1) 0%, transparent 50%)' }} />
-      <div ref={mapContainerRef} className="h-full w-full" />
+    <div className={`${mapHeight} relative bg-[#f3f3f1]`}>
+      <div ref={mapContainerRef} className="h-full w-full" role="img" aria-label="Live delivery map" />
 
-      {/* Route legend */}
-      <div className="absolute top-2.5 left-2.5 z-10 flex items-center gap-1.5 bg-background/90 backdrop-blur-md border border-border rounded-lg px-2 py-1 shadow-sm">
-        {sellerLat && sellerLng && (
-          <>
-            <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-700 dark:text-amber-400">
-              <span className="h-2 w-2 rounded-full bg-amber-500" /> Pickup
-            </span>
-            <span className="text-[10px] text-muted-foreground">→</span>
-          </>
-        )}
-        <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-rose-700 dark:text-rose-400">
-          <span className="h-2 w-2 rounded-full bg-rose-500" /> Drop
-        </span>
-      </div>
+      {showRecenter && (
+        <button
+          type="button"
+          onClick={handleRecenter}
+          className="sociva-recenter absolute top-3 right-3 z-10"
+          aria-label="Recenter map on delivery"
+          dangerouslySetInnerHTML={{ __html: RECENTER_ICON_SVG }}
+        />
+      )}
 
-      {/* ETA Overlay */}
-      {roadEtaMinutes && (
-        <div className="absolute bottom-2.5 right-2.5 z-10 bg-background/90 backdrop-blur-md border border-border rounded-xl px-3 py-2 shadow-md">
-          <div className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
-              <Navigation className="h-4 w-4 text-primary" />
-            </div>
-            <div>
-              <p className="text-sm font-bold text-foreground leading-tight">
-                {roadEtaMinutes > 3 ? `${roadEtaMinutes - 1}–${roadEtaMinutes + 1}` : roadEtaMinutes} min
-              </p>
-              {distanceKm && (
-                <p className="text-[10px] text-muted-foreground leading-tight">{distanceKm} km remaining</p>
-              )}
-            </div>
-          </div>
+      {(roadEtaMinutes || remainingKm) && (
+        <div className="absolute bottom-3 right-3 z-10 bg-white/95 backdrop-blur-md rounded-2xl px-3 py-2 shadow-md border border-black/5">
+          <p className="text-sm font-bold text-[#202124] leading-tight">
+            {roadEtaMinutes
+              ? (roadEtaMinutes > 3 ? `${roadEtaMinutes - 1}–${roadEtaMinutes + 1} min` : `${roadEtaMinutes} min`)
+              : 'On the way'}
+          </p>
+          {remainingKm && (
+            <p className="text-[10px] text-[#5f6368] leading-tight mt-0.5">{remainingKm} remaining</p>
+          )}
         </div>
       )}
 
-      {/* Recenter button */}
-      {showRecenter && (
-        <button
-          onClick={handleRecenter}
-          className="absolute bottom-3 left-3 z-10 bg-background/95 backdrop-blur-sm border border-border rounded-full p-2.5 shadow-lg hover:bg-accent transition-all active:scale-90"
-          aria-label="Re-center map"
-        >
-          <Navigation className="h-4 w-4 text-primary" />
-        </button>
+      {phase === 'arriving' && (
+        <div className="absolute top-3 left-3 z-10 bg-white/95 backdrop-blur-md rounded-full px-3 py-1.5 shadow-sm border border-black/5">
+          <p className="text-[11px] font-semibold text-[#188038]">Arriving now</p>
+        </div>
       )}
+
+      <span className="sr-only">{sellerName ? `Pickup at ${sellerName}. ` : ''}{riderName ? `${riderName} is on the way.` : 'Delivery in progress.'}</span>
     </div>
   );
 }
