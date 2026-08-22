@@ -1,4 +1,6 @@
 // @ts-nocheck
+import { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
 import { X, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -17,21 +19,35 @@ export function CartRemovePopup({
   productName,
   onContinueShopping,
 }: CartRemovePopupProps) {
-  if (!isOpen) return null;
+  useEffect(() => {
+    if (!isOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => {
+      document.body.style.overflow = prev;
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [isOpen, onClose]);
 
-  return (
+  if (!isOpen || typeof document === 'undefined') return null;
+
+  return createPortal(
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[200] flex items-center justify-center px-6"
-      role="status"
-      aria-live="polite"
+      className="fixed inset-0 z-[300] flex items-center justify-center px-6 pointer-events-auto"
+      role="dialog"
+      aria-modal="true"
       aria-label="Removed from cart"
     >
       <button
         type="button"
-        className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,hsl(var(--foreground)/0.22),transparent_64%)]"
+        className="absolute inset-0 bg-foreground/40"
         aria-label="Dismiss"
         onClick={onClose}
       />
@@ -41,9 +57,10 @@ export function CartRemovePopup({
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.96, y: 8 }}
         transition={easings.soft}
+        onClick={(event) => event.stopPropagation()}
         className={cn(
-          'relative w-[min(20.5rem,calc(100vw-2.5rem))] overflow-hidden rounded-[1.75rem]',
-          'bg-card text-card-foreground border border-border/80',
+          'relative z-10 w-[min(20.5rem,calc(100vw-2.5rem))] overflow-hidden rounded-[1.75rem]',
+          'pointer-events-auto bg-card text-card-foreground border border-border/80',
           'shadow-[0_24px_60px_-18px_hsl(var(--foreground)/0.28)]',
         )}
       >
@@ -89,6 +106,7 @@ export function CartRemovePopup({
           </div>
         </div>
       </motion.div>
-    </motion.div>
+    </motion.div>,
+    document.body,
   );
 }

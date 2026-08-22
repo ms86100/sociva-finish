@@ -221,13 +221,13 @@ export function CouponManager() {
 
       {showForm && (
         <Card>
-          <CardContent className="pt-4 space-y-3">
+          <CardContent className="pt-4 space-y-3 overflow-x-hidden">
             <div className="grid grid-cols-2 gap-3">
-              <div>
+              <div className="min-w-0">
                 <Label className="text-xs">Code</Label>
                 <Input placeholder="e.g. WELCOME10" value={formData.code} onChange={e => setFormData({ ...formData, code: e.target.value })} className="uppercase" />
               </div>
-              <div>
+              <div className="min-w-0">
                 <Label className="text-xs">Type</Label>
                 <Select value={formData.discount_type} onValueChange={v => setFormData({ ...formData, discount_type: v })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
@@ -254,33 +254,38 @@ export function CouponManager() {
             </div>
 
             <div className="grid grid-cols-2 gap-3">
-              <div>
+              <div className="min-w-0">
                 <Label className="text-xs">Discount Value</Label>
                 <Input type="number" placeholder={formData.discount_type === 'percentage' ? '10' : '50'} value={formData.discount_value} onChange={e => setFormData({ ...formData, discount_value: e.target.value })} />
               </div>
-              <div>
+              <div className="min-w-0">
                 <Label className="text-xs">Min Order ({currencySymbol})</Label>
                 <Input type="number" placeholder="0" value={formData.min_order_amount} onChange={e => setFormData({ ...formData, min_order_amount: e.target.value })} />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <div>
+              <div className="min-w-0">
                 <Label className="text-xs">Max Discount ({currencySymbol})</Label>
                 <Input type="number" placeholder="No limit" value={formData.max_discount_amount} onChange={e => setFormData({ ...formData, max_discount_amount: e.target.value })} />
               </div>
-              <div>
+              <div className="min-w-0">
                 <Label className="text-xs">Usage Limit</Label>
                 <Input type="number" placeholder="Unlimited" value={formData.usage_limit} onChange={e => setFormData({ ...formData, usage_limit: e.target.value })} />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <div>
+              <div className="min-w-0">
                 <Label className="text-xs">Per User Limit</Label>
                 <Input type="number" value={formData.per_user_limit} onChange={e => setFormData({ ...formData, per_user_limit: e.target.value })} />
               </div>
-              <div>
+              <div className="min-w-0">
                 <Label className="text-xs">Expires At</Label>
-                <Input type="datetime-local" value={formData.expires_at} onChange={e => setFormData({ ...formData, expires_at: e.target.value })} />
+                <Input
+                  type="date"
+                  value={formData.expires_at}
+                  onChange={e => setFormData({ ...formData, expires_at: e.target.value })}
+                  className="min-w-0 max-w-full"
+                />
               </div>
             </div>
 

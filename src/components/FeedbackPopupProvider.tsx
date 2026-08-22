@@ -83,22 +83,20 @@ export function FeedbackPopupProvider({ children }: { children: ReactNode }) {
   return (
     <>
       {children}
-      <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 9999 }}>
-        <AnimatePresence>
-          {feedbackState.isOpen && (
-            <FeedbackPopup
-              key={feedbackState.title}
-              isOpen
-              onClose={handleClose}
-              title={feedbackState.title}
-              description={feedbackState.description}
-              variant={feedbackState.variant}
-              actionLabel={feedbackState.actionLabel}
-              onAction={feedbackState.onAction}
-            />
-          )}
-        </AnimatePresence>
-      </div>
+      <AnimatePresence>
+        {feedbackState.isOpen && (
+          <FeedbackPopup
+            key={feedbackState.title}
+            isOpen
+            onClose={handleClose}
+            title={feedbackState.title}
+            description={feedbackState.description}
+            variant={feedbackState.variant}
+            actionLabel={feedbackState.actionLabel}
+            onAction={feedbackState.onAction}
+          />
+        )}
+      </AnimatePresence>
     </>
   );
 }

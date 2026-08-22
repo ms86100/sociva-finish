@@ -47,3 +47,7 @@ tmp/
 sociva-release-keystore-SECRET.txt
 
 .vercel
+
+# Large signed APKs are deployed via Vercel CLI, not git
+public/downloads/*.apk
+.env*

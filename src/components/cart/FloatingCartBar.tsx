@@ -6,7 +6,8 @@ import { useCart } from '@/hooks/useCart';
 import { useCurrency } from '@/hooks/useCurrency';
 import { motion, AnimatePresence, useAnimation } from 'framer-motion';
 import { cn } from '@/lib/utils';
-import { CART_HIDDEN_ROUTES, isRouteHidden } from '@/lib/visibilityEngine';
+import { shouldShowFloatingCartBar } from '@/lib/visibilityEngine';
+import { useIsCartPopupOpen } from '@/components/CartPopupProvider';
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '@/components/ui/drawer';
 import { Button } from '@/components/ui/button';
 import { useImmediateNavigate } from '@/hooks/useImmediateNavigate';
@@ -17,6 +18,7 @@ interface FloatingCartBarProps {
 
 export function FloatingCartBar({ className }: FloatingCartBarProps) {
   const { itemCount, totalAmount, items } = useCart();
+  const isCartPopupOpen = useIsCartPopupOpen();
   const { formatPrice } = useCurrency();
   const location = useLocation();
   const controls = useAnimation();
@@ -41,7 +43,7 @@ export function FloatingCartBar({ className }: FloatingCartBarProps) {
     return () => window.removeEventListener('cart-item-added', handler);
   }, [controls]);
 
-  if (itemCount === 0 || isRouteHidden(location.pathname, CART_HIDDEN_ROUTES)) return null;
+  if (!shouldShowFloatingCartBar(location.pathname, itemCount, isCartPopupOpen)) return null;
 
   const previewItems = items.slice(0, 3);
   const isMomentum = itemCount >= 3;

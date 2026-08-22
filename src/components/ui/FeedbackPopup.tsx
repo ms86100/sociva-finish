@@ -121,7 +121,10 @@ export function FeedbackPopup({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[200] flex items-center justify-center px-6 pointer-events-none"
+      className={cn(
+        'fixed inset-0 z-[250] flex items-center justify-center px-6',
+        actionLabel ? 'pointer-events-auto' : 'pointer-events-none',
+      )}
       role="status"
       aria-live="polite"
       aria-label={heading}

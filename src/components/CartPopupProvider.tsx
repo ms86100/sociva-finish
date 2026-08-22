@@ -2,12 +2,12 @@
 import { createContext, useContext, useState, useCallback, ReactNode } from 'react';
 import { CartAddPopup } from './ui/CartAddPopup';
 import { CartRemovePopup } from './ui/CartRemovePopup';
+import { hideFeedback } from '@/components/FeedbackPopupProvider';
 
 interface CartPopupContextType {
   showAddPopup: (productName: string, productImage?: string, price?: number, onViewCart?: () => void) => void;
   showRemovePopup: (productName: string, onContinueShopping?: () => void) => void;
-  CartAddPopup: React.ReactElement | null;
-  CartRemovePopup: React.ReactElement | null;
+  isCartPopupOpen: boolean;
 }
 
 const CartPopupContext = createContext<CartPopupContextType | undefined>(undefined);
@@ -33,6 +33,8 @@ export function CartPopupProvider({ children }: { children: ReactNode }) {
     price?: number,
     onViewCart?: () => void
   ) => {
+    hideFeedback();
+    setRemovePopupState({ isOpen: false, productName: '' });
     setAddPopupState({ isOpen: true, productName, productImage, price, onViewCart });
   }, []);
 
@@ -40,6 +42,8 @@ export function CartPopupProvider({ children }: { children: ReactNode }) {
     productName: string,
     onContinueShopping?: () => void
   ) => {
+    hideFeedback();
+    setAddPopupState({ isOpen: false, productName: '' });
     setRemovePopupState({ isOpen: true, productName, onContinueShopping });
   }, []);
 
@@ -51,39 +55,27 @@ export function CartPopupProvider({ children }: { children: ReactNode }) {
     setRemovePopupState((prev) => ({ ...prev, isOpen: false }));
   }, []);
 
-  const addPopup = (
-    <CartAddPopup
-      isOpen={addPopupState.isOpen}
-      onClose={handleAddClose}
-      productName={addPopupState.productName}
-      productImage={addPopupState.productImage}
-      price={addPopupState.price}
-      onViewCart={addPopupState.onViewCart}
-    />
-  );
-
-  const removePopup = (
-    <CartRemovePopup
-      isOpen={removePopupState.isOpen}
-      onClose={handleRemoveClose}
-      productName={removePopupState.productName}
-      onContinueShopping={removePopupState.onContinueShopping}
-    />
-  );
-
   return (
     <CartPopupContext.Provider value={{
       showAddPopup,
       showRemovePopup,
-      CartAddPopup: addPopup,
-      CartRemovePopup: removePopup,
+      isCartPopupOpen: addPopupState.isOpen || removePopupState.isOpen,
     }}>
       {children}
-      {/* Portals for popups - render at end of body to avoid clipping */}
-      <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 9999 }}>
-        {addPopup}
-        {removePopup}
-      </div>
+      <CartAddPopup
+        isOpen={addPopupState.isOpen}
+        onClose={handleAddClose}
+        productName={addPopupState.productName}
+        productImage={addPopupState.productImage}
+        price={addPopupState.price}
+        onViewCart={addPopupState.onViewCart}
+      />
+      <CartRemovePopup
+        isOpen={removePopupState.isOpen}
+        onClose={handleRemoveClose}
+        productName={removePopupState.productName}
+        onContinueShopping={removePopupState.onContinueShopping}
+      />
     </CartPopupContext.Provider>
   );
 }
@@ -94,4 +86,8 @@ export function useCartPopup() {
     throw new Error('useCartPopup must be used within a CartPopupProvider');
   }
   return context;
+}
+
+export function useIsCartPopupOpen() {
+  return useContext(CartPopupContext)?.isCartPopupOpen ?? false;
 }

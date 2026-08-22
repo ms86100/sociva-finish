@@ -426,7 +426,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
     try {
       const { error } = await supabase.from('cart_items').delete().eq('user_id', user.id).eq('product_id', productId);
       if (error) throw error;
-      showRemovePopup(removedItem?.product?.name || 'Item');
+      showRemovePopup(
+        removedItem?.product?.name || 'Item',
+        () => navigate('/'),
+      );
       await reconcile();
     } catch (error) {
       rollback(snap);
