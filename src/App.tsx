@@ -121,10 +121,15 @@ const SellerCategoryRequestsPage = lazyWithRetry(() => import("./pages/SellerCat
 const SellerProductFormPage = lazyWithRetry(() => import("./pages/SellerProductFormPage"));
 const SellerSettingsPage = lazyWithRetry(() => import("./pages/SellerSettingsPage"));
 const SellerEarningsPage = lazyWithRetry(() => import("./pages/SellerEarningsPage"));
+const SellerWalletPage = lazyWithRetry(() => import("./pages/SellerWalletPage"));
+const SellerCreditsPage = lazyWithRetry(() => import("./pages/SellerCreditsPage"));
 const SellerPayoutsPage = lazyWithRetry(() => import("./pages/SellerPayoutsPage"));
 const SellerMessagesPage = lazyWithRetry(() => import("./pages/SellerMessagesPage"));
 const AdminPage = lazyWithRetry(() => import("./pages/AdminPage"));
 const AdminFinancialTracePage = lazyWithRetry(() => import("./pages/AdminFinancialTracePage"));
+const AdminRefundsPage = lazyWithRetry(() => import("./pages/AdminRefundsPage"));
+const AdminSellerPayoutsPage = lazyWithRetry(() => import("./pages/AdminSellerPayoutsPage"));
+const AdminSellerCreditsPage = lazyWithRetry(() => import("./pages/AdminSellerCreditsPage"));
 const NotFound = lazyWithRetry(() => import("./pages/NotFound"));
 const ProductDeepLinkPage = lazyWithRetry(() => import("./pages/ProductDeepLinkPage"));
 const PrivacyPolicyPage = lazyWithRetry(() => import("./pages/PrivacyPolicyPage"));
@@ -535,9 +540,14 @@ function AppRoutes() {
           <Route path="/seller/category-requests" element={<SellerRoute><RouteErrorBoundary sectionName="Category Requests"><SellerCategoryRequestsPage /></RouteErrorBoundary></SellerRoute>} />
           <Route path="/seller/settings" element={<SellerRoute><RouteErrorBoundary sectionName="Seller Settings"><SellerSettingsPage /></RouteErrorBoundary></SellerRoute>} />
           <Route path="/seller/earnings" element={<SellerRoute><RouteErrorBoundary sectionName="Earnings"><SellerEarningsPage /></RouteErrorBoundary></SellerRoute>} />
+          <Route path="/seller/wallet" element={<SellerRoute><RouteErrorBoundary sectionName="Seller Wallet"><SellerWalletPage /></RouteErrorBoundary></SellerRoute>} />
+          <Route path="/seller/credits" element={<SellerRoute><RouteErrorBoundary sectionName="Sociva Credits"><SellerCreditsPage /></RouteErrorBoundary></SellerRoute>} />
           <Route path="/seller/payouts" element={<SellerRoute><RouteErrorBoundary sectionName="Payouts"><SellerPayoutsPage /></RouteErrorBoundary></SellerRoute>} />
           <Route path="/admin" element={<AdminRoute><RouteErrorBoundary sectionName="Admin"><AdminPage /></RouteErrorBoundary></AdminRoute>} />
           <Route path="/admin/financial-trace" element={<AdminRoute><RouteErrorBoundary sectionName="Financial Trace"><AdminFinancialTracePage /></RouteErrorBoundary></AdminRoute>} />
+          <Route path="/admin/refunds" element={<AdminRoute><RouteErrorBoundary sectionName="Refunds"><AdminRefundsPage /></RouteErrorBoundary></AdminRoute>} />
+          <Route path="/admin/seller-payouts" element={<AdminRoute><RouteErrorBoundary sectionName="Seller Payouts"><AdminSellerPayoutsPage /></RouteErrorBoundary></AdminRoute>} />
+          <Route path="/admin/seller-credits" element={<AdminRoute><RouteErrorBoundary sectionName="Monetization"><AdminSellerCreditsPage /></RouteErrorBoundary></AdminRoute>} />
           <Route path="/test-results" element={<AdminRoute><TestResultsPage /></AdminRoute>} />
           <Route path="/api-docs" element={<AdminRoute><ApiDocsPage /></AdminRoute>} />
           <Route path="/docs" element={<DocumentationPage />} />

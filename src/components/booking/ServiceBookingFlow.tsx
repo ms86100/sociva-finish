@@ -23,6 +23,7 @@ import { Clock, MapPin, MessageCircle, Loader2, ArrowLeft, Calendar, User, Spark
 import type { ServiceCategory } from '@/types/categories';
 import { notify } from '@/lib/notify';
 import { friendlyError } from '@/lib/utils';
+import { isSellerCreditInsufficientError, sellerCreditCustomerMessage } from '@/lib/sellerCredits';
 import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
 
 interface ServiceBookingFlowProps {
@@ -302,7 +303,11 @@ export function ServiceBookingFlow({
       navigate(`/orders/${orderId}`);
     } catch (err: any) {
       console.error('Service booking error:', err);
-      toast.error(friendlyError(err) || 'Failed to create booking. Please try again.');
+      toast.error(
+        isSellerCreditInsufficientError(err?.message)
+          ? sellerCreditCustomerMessage(err?.message, 'SERVICE_BOOKING')
+          : (friendlyError(err) || 'Failed to create booking. Please try again.'),
+      );
     } finally {
       setIsLoading(false);
       isSubmittingRef.current = false;

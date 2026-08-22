@@ -31,6 +31,15 @@ describe('intent-first onboarding contracts', () => {
     expect(src).not.toMatch(/configSubStep === 1[\s\S]*key="interaction"/);
   });
 
+  it('existing-store confirmation does not claim the store is fully live when a category is under review', () => {
+    const src = readSrc('src/pages/BecomeSellerPage.tsx');
+    expect(src).toContain('Store setup complete');
+    expect(src).toContain('still under review');
+    expect(src).toContain('flex flex-col gap-4');
+    expect(src).not.toContain('Store Approved! 🎉');
+    expect(src).not.toContain('is live. Go to your seller dashboard to manage it.');
+  });
+
   it('CategorySearchPicker auto-commits subcategory via shared resolver', () => {
     const src = readSrc('src/components/seller/CategorySearchPicker.tsx');
     expect(src).toContain('findBestSubcategoryMatch');

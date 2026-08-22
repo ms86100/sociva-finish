@@ -111,6 +111,16 @@ export default function AdminPage() {
             </motion.div>
             <div className="flex items-center gap-2 shrink-0">
               <Button asChild size="sm" variant="outline" className="gap-1.5">
+                <Link to="/admin/refunds">
+                  Refunds
+                </Link>
+              </Button>
+              <Button asChild size="sm" variant="outline" className="gap-1.5">
+                <Link to="/admin/seller-payouts">
+                  Payouts
+                </Link>
+              </Button>
+              <Button asChild size="sm" variant="outline" className="gap-1.5">
                 <Link to="/admin/financial-trace">
                   <DollarSign size={14} />
                   Trace

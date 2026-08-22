@@ -32,6 +32,14 @@ import { AvailabilityPromptBanner } from '@/components/seller/AvailabilityPrompt
 import { MissingLocationBanner } from '@/components/seller/MissingLocationBanner';
 import { SellerDashboardLoadingState } from '@/components/seller/SellerDashboardLoadingState';
 import { useSellerOrderStats, useSellerOrdersInfinite, useSellerOrderFilterCounts } from '@/hooks/queries/useSellerOrders';
+import {
+  resolveSellerFinancialIds,
+  useSellerFinancialRealtime,
+  useSellerFinancialSummary,
+} from '@/hooks/queries/useSellerFinancial';
+import { SellerTransferBanner } from '@/components/seller/SellerTransferBanner';
+import { SocivaCreditsCard } from '@/components/seller/SocivaCreditsCard';
+import { useSellerCreditRealtime, useSellerCreditSummary } from '@/hooks/queries/useSellerCredits';
 import { useSellerHasBookableServices } from '@/hooks/useSellerHasBookableServices';
 import {
   emptyBoardCounts,
@@ -45,6 +53,12 @@ import { SellerSwitcher } from '@/components/seller/SellerSwitcher';
 import { useSellerHealth } from '@/hooks/queries/useSellerHealth';
 import { format, addDays, startOfWeek } from 'date-fns';
 import { notify } from '@/lib/notify';
+import { usePaymentMode } from '@/hooks/usePaymentMode';
+import {
+  isUpiRequiredAndMissing,
+  UPI_REQUIRED_FOR_GO_LIVE_MESSAGE,
+  UPI_REQUIRED_TITLE,
+} from '@/lib/sellerPaymentReadiness';
 
 // Lazy: heavy secondary tabs — keep Orders path lean
 const QuickActions = lazy(() =>
@@ -91,6 +105,7 @@ export default function SellerDashboardPage() {
   const { user, sellerProfiles = [], currentSellerId } = useAuth();
   const queryClient = useQueryClient();
   const settings = useSystemSettings();
+  const paymentMode = usePaymentMode();
   const [sellerProfile, setSellerProfile] = useState<SellerProfile | null>(null);
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
   const [orderFilter, setOrderFilter] = useState<OrderFilter>('all');
@@ -138,6 +153,8 @@ export default function SellerDashboardPage() {
     queryClient.removeQueries({ queryKey: ['seller-order-filter-counts'] });
     queryClient.removeQueries({ queryKey: ['seller-analytics-charts'] });
     queryClient.removeQueries({ queryKey: ['seller-refund-requests'] });
+    queryClient.removeQueries({ queryKey: ['seller-financial-summary'] });
+    queryClient.removeQueries({ queryKey: ['seller-financial-activity'] });
     if (user && isPortfolio) {
       // Portfolio: no single store profile — still leave loading false quickly
       setIsLoadingProfile(false);
@@ -182,10 +199,18 @@ export default function SellerDashboardPage() {
     }
   };
 
-  const { data: stats, isFetching: statsFetching } = useSellerOrderStats(
+  const { data: stats, isFetching: statsFetching, isError: statsError } = useSellerOrderStats(
     activeSellerId,
     isPortfolio ? portfolioSellerIds : null,
   );
+  const {
+    data: finance,
+    isError: financeError,
+  } = useSellerFinancialSummary(activeSellerId, isPortfolio ? portfolioSellerIds : null);
+  const creditScopeIds = resolveSellerFinancialIds(activeSellerId, isPortfolio ? portfolioSellerIds : null);
+  const { data: creditSummary } = useSellerCreditSummary(activeSellerId, isPortfolio ? portfolioSellerIds : null);
+  useSellerFinancialRealtime(creditScopeIds);
+  useSellerCreditRealtime(creditScopeIds);
   const { data: filterCounts } = useSellerOrderFilterCounts(
     activeSellerId,
     isPortfolio ? portfolioSellerIds : null,
@@ -243,17 +268,9 @@ export default function SellerDashboardPage() {
     toggleBusyRef.current = true;
     try {
       const newVal = !sellerProfile.is_available;
-      if (newVal) {
-        // Prefer payment configs — accepts_upi can be stale relative to Online Payment toggles.
-        const wantsOnline =
-          !!(sellerProfile as any).pickup_payment_config?.accepts_online ||
-          !!(sellerProfile as any).delivery_payment_config?.accepts_online;
-        const hasUpiId =
-          !!(sellerProfile as any).upi_id;
-        if (wantsOnline && !hasUpiId) {
-          notify.block('Please enter your UPI ID before going live with online payments, or disable online payments in Settings');
-          return;
-        }
+      if (newVal && isUpiRequiredAndMissing(paymentMode.mode, sellerProfile as any)) {
+        notify.block(UPI_REQUIRED_FOR_GO_LIVE_MESSAGE, { title: UPI_REQUIRED_TITLE });
+        return;
       }
       const { error } = await supabase
         .from('seller_profiles')
@@ -437,12 +454,25 @@ export default function SellerDashboardPage() {
             />
 
             {sellerProfile.verification_status === 'approved' && (
-              <EarningsSummary
-                todayEarnings={stats?.todayEarnings || 0}
-                weekEarnings={stats?.weekEarnings || 0}
-                totalEarnings={stats?.totalEarnings || 0}
-                compact
-              />
+              <>
+                <SellerTransferBanner
+                  sellerId={activeSellerId}
+                  portfolioIds={null}
+                  available={finance?.available || 0}
+                />
+                <EarningsSummary
+                  todayEarnings={stats?.todayEarnings || 0}
+                  weekEarnings={stats?.weekEarnings || 0}
+                  totalEarnings={stats?.totalEarnings || 0}
+                  available={finance?.available || 0}
+                  pending={(finance?.pending || 0) + (finance?.reserved || 0)}
+                  paidOut={finance?.paidOut || 0}
+                  compact
+                  kpiError={statsError}
+                  financeError={financeError}
+                />
+                <SocivaCreditsCard summary={creditSummary} compact />
+              </>
             )}
 
             <MissingLocationBanner
@@ -465,13 +495,26 @@ export default function SellerDashboardPage() {
         )}
 
         {isPortfolio && (
-          <EarningsSummary
-            todayEarnings={stats?.todayEarnings || 0}
-            weekEarnings={stats?.weekEarnings || 0}
-            totalEarnings={stats?.totalEarnings || 0}
-            compact
-            allStores
-          />
+          <>
+            <SellerTransferBanner
+              sellerId={activeSellerId}
+              portfolioIds={portfolioSellerIds}
+              available={finance?.available || 0}
+            />
+            <EarningsSummary
+              todayEarnings={stats?.todayEarnings || 0}
+              weekEarnings={stats?.weekEarnings || 0}
+              totalEarnings={stats?.totalEarnings || 0}
+              available={finance?.available || 0}
+              pending={(finance?.pending || 0) + (finance?.reserved || 0)}
+              paidOut={finance?.paidOut || 0}
+              compact
+              allStores
+              kpiError={statsError}
+              financeError={financeError}
+            />
+            <SocivaCreditsCard summary={creditSummary} compact allStores />
+          </>
         )}
 
         {/* Tab navigation */}

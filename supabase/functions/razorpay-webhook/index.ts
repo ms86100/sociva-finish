@@ -200,6 +200,32 @@ serve(async (req) => {
 
     if (event === 'payment.captured') {
       const razorpayPaymentId = paymentEntity.id;
+      if (paymentEntity?.notes?.purpose === 'seller_credit_purchase') {
+        const confirmCredit = await fetch(`${supabaseUrl}/functions/v1/confirm-seller-credit-payment`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${supabaseServiceKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            razorpay_payment_id: razorpayPaymentId,
+            razorpay_order_id: paymentEntity.order_id || null,
+            purchase_id: paymentEntity.notes.purchase_id,
+            source: 'webhook',
+          }),
+        });
+        if (!confirmCredit.ok) {
+          const errText = await confirmCredit.text();
+          throw new Error(`seller_credit_confirm_failed:${errText}`);
+        }
+        await supabase
+          .from('payment_provider_events')
+          .update({ processing_status: 'processed' })
+          .eq('id', providerEventRowId);
+        return new Response(JSON.stringify({ ok: true, purpose: 'seller_credit_purchase' }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
       let allOrderIds = resolveOrderIds(paymentEntity.notes);
       if (allOrderIds.length === 0 && paymentEntity?.order_id) {
         const { data: linkedOrders, error: linkedOrdersError } = await supabase

@@ -18,6 +18,9 @@ const NAV_GROUPS = [
     items: [
       { value: 'sellers', label: 'Moderation', icon: Store },
       { value: 'payments', label: 'Payments', icon: CreditCard },
+      { value: 'refunds', label: 'Refunds', icon: CreditCard },
+      { value: 'seller-payouts', label: 'Seller payouts', icon: CreditCard },
+      { value: 'seller-credits', label: 'Monetization', icon: CreditCard },
       { value: 'services', label: 'Services', icon: Wrench },
     ],
   },
@@ -70,7 +73,12 @@ export function AdminSidebarNav({ activeTab, onTabChange }: AdminSidebarNavProps
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
 
-  const ROUTE_ITEMS: Record<string, string> = { 'api-docs': '/api-docs' };
+  const ROUTE_ITEMS: Record<string, string> = {
+    'api-docs': '/api-docs',
+    refunds: '/admin/refunds',
+    'seller-payouts': '/admin/seller-payouts',
+    'seller-credits': '/admin/seller-credits',
+  };
   const activeItem = NAV_GROUPS.flatMap(g => g.items).find(i => i.value === activeTab);
 
   const navContent = (

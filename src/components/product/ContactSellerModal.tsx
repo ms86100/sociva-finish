@@ -8,6 +8,7 @@ import { SellerChatSheet } from './SellerChatSheet';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { notify } from '@/lib/notify';
+import { sellerCreditCustomerMessage } from '@/lib/sellerCredits';
 
 interface ContactSellerModalProps {
   open: boolean;
@@ -29,18 +30,21 @@ export function ContactSellerModal({
   const [interactionId, setInteractionId] = useState<string | null>(null);
 
   const logInteraction = useCallback(async (type: 'call' | 'message') => {
-    try {
-      const { data } = await supabase
-        .from('seller_contact_interactions')
-        .insert({ buyer_id: buyerId, seller_id: sellerId, product_id: productId, interaction_type: type })
-        .select('id')
-        .single();
-      return data?.id ?? null;
-    } catch { return null; }
+    const { data, error } = await supabase.rpc('log_seller_contact_interaction', {
+      p_seller_id: sellerId,
+      p_product_id: productId,
+      p_interaction_type: type,
+    });
+    if (error) {
+      notify.block(sellerCreditCustomerMessage(error.message, 'CONTACT_REQUEST'));
+      return null;
+    }
+    return data?.interaction_id ?? null;
   }, [buyerId, sellerId, productId]);
 
   const handleCall = async () => {
     const id = await logInteraction('call');
+    if (!id) return;
     setInteractionId(id);
     window.location.href = `tel:${phone}`;
     // Prompt feedback after delay
@@ -53,7 +57,8 @@ export function ContactSellerModal({
       onOpenChange(false);
       return;
     }
-    await logInteraction('message');
+    const id = await logInteraction('message');
+    if (!id) return;
     onOpenChange(false);
     setChatOpen(true);
   };

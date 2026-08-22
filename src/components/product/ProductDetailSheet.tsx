@@ -27,6 +27,8 @@ import { formatDistanceToNowStrict } from 'date-fns';
 import { useMarketplaceLabels } from '@/hooks/useMarketplaceLabels';
 import { computeStoreStatus, formatStoreClosedMessage, type StoreAvailability } from '@/lib/store-availability';
 import { useAuth } from '@/contexts/AuthContext';
+import { useSellerCreditCanAccept } from '@/hooks/queries/useSellerCredits';
+import { sellerCreditCustomerMessage } from '@/lib/sellerCredits';
 import { useCountUp } from '@/hooks/useCountUp';
 
 const PriceHistoryChart = lazy(() =>
@@ -68,6 +70,15 @@ export function ProductDetailSheet({ product, open, onOpenChange, onSelectProduc
   const [bookingOpen, setBookingOpen] = useState(false);
   const isServiceBookingAction = usesServiceBookingFlow(d.actionType);
   const { data: favoriteIds = [] } = useProductFavorites();
+  const creditEvent = d.actionType === 'book'
+    ? 'SERVICE_BOOKING'
+    : d.actionType === 'contact_seller'
+      ? 'CONTACT_REQUEST'
+      : d.isCartAction
+        ? 'ORDER_COMPLETED'
+        : 'ENQUIRY_CREATED';
+  const creditGate = useSellerCreditCanAccept(open ? product?.seller_id : null, creditEvent);
+  const creditsBlocked = creditGate.data?.ok === false;
 
   // Animated price
   const animatedPrice = useCountUp(open && product ? Math.round(product.price) : 0, 600);
@@ -357,7 +368,9 @@ export function ProductDetailSheet({ product, open, onOpenChange, onSelectProduc
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2, duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
           >
-            {isStoreClosed ? (
+            {creditsBlocked ? (
+              <div className="w-full h-12 flex items-center justify-center bg-muted rounded-xl px-3 text-center"><span className="text-sm font-medium text-muted-foreground">{sellerCreditCustomerMessage(creditGate.data?.reason, creditEvent)}</span></div>
+            ) : isStoreClosed ? (
               <div className="w-full h-12 flex items-center justify-center bg-muted rounded-xl"><Clock size={16} className="text-muted-foreground mr-2" /><span className="text-sm font-medium text-muted-foreground">{storeClosedMsg}</span></div>
             ) : d.isStockEmpty ? (
               <div className="w-full h-12 flex items-center justify-center bg-muted rounded-xl"><span className="text-sm font-medium text-muted-foreground">Out of Stock</span></div>

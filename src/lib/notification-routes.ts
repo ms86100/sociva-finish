@@ -99,9 +99,16 @@ export function resolveNotificationRoute(
       return orderId ? `/orders/${orderId}` : '/orders';
     }
 
-    // Settlement (seller-facing) — real route is /seller/earnings
+    // Settlement / transfer (seller-facing) — wallet is the financial home
     case 'settlement':
-      return '/seller/earnings';
+    case 'seller_transfer':
+    case 'seller_withdrawal':
+      return '/seller/wallet';
+
+    case 'seller_credit_purchased':
+    case 'seller_credit_low':
+    case 'seller_credit_exhausted':
+      return '/seller/credits';
 
     // Support tickets — deep-link into the order with the ticket id so the
     // seller (or buyer) lands somewhere real instead of a dead /support route.

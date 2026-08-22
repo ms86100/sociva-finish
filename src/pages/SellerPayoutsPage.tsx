@@ -48,6 +48,10 @@ async function fetchSettlementTotals(sellerIds: string[]) {
   const raw = (data || {}) as Record<string, unknown>;
   return {
     totalSettled: Number(raw.paid_out) || 0,
+    available: Number(raw.available) || 0,
+    pending: Number(raw.pending) || 0,
+    reserved: Number(raw.reserved) || 0,
+    onHold: Number(raw.on_hold) || 0,
     totalPending:
       Number(raw.pending || 0) +
       Number(raw.available || 0) +
@@ -64,7 +68,10 @@ export default function SellerPayoutsPage() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(false);
   const [totalSettled, setTotalSettled] = useState(0);
-  const [totalPending, setTotalPending] = useState(0);
+  const [available, setAvailable] = useState(0);
+  const [pendingHold, setPendingHold] = useState(0);
+  const [onHold, setOnHold] = useState(0);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const isPortfolio = isPortfolioSellerId(currentSellerId);
   const portfolioIds = sellerProfiles.map((s) => s.id);
@@ -89,7 +96,10 @@ export default function SellerPayoutsPage() {
     setSettlements([]);
     setHasMore(false);
     setTotalSettled(0);
-    setTotalPending(0);
+    setAvailable(0);
+    setPendingHold(0);
+    setOnHold(0);
+    setLoadError(null);
     setIsLoading(true);
     if (!user || scopeIds.length === 0) {
       setIsLoading(false);
@@ -98,12 +108,15 @@ export default function SellerPayoutsPage() {
     Promise.all([fetchSettlementTotals(scopeIds), fetchSettlementPage(scopeIds)])
       .then(([totals, rows]) => {
         setTotalSettled(totals.totalSettled);
-        setTotalPending(totals.totalPending);
+        setAvailable(totals.available);
+        setPendingHold(totals.pending + totals.reserved);
+        setOnHold(totals.onHold);
         setSettlements(rows);
         setHasMore(rows.length >= PAGE_SIZE);
       })
       .catch((err) => {
         console.error('Error fetching settlements:', err);
+        setLoadError('Settlement totals could not be loaded. Incomplete numbers are not shown.');
       })
       .finally(() => setIsLoading(false));
   }, [user, isPortfolio, activeSellerId, portfolioIds.join(','), fetchSettlementPage]);
@@ -140,7 +153,7 @@ export default function SellerPayoutsPage() {
       <AppLayout showHeader={false} safeTop={false}>
         <SafeHeader>
           <div className="px-4 pb-3 flex items-center gap-3">
-            <Link to="/seller/earnings" className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-muted shrink-0">
+            <Link to="/seller/wallet" className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-muted shrink-0">
               <ArrowLeft size={18} className="text-foreground" />
             </Link>
             <h1 className="text-xl font-bold">Payouts</h1>
@@ -163,7 +176,7 @@ export default function SellerPayoutsPage() {
     <AppLayout showHeader={false} safeTop={false}>
       <SafeHeader>
         <div className="px-4 pb-3 flex items-center gap-3">
-          <Link to="/seller/earnings" className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-muted shrink-0">
+          <Link to="/seller/wallet" className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-muted shrink-0">
             <ArrowLeft size={18} className="text-foreground" />
           </Link>
           <h1 className="text-xl font-bold">
@@ -184,6 +197,12 @@ export default function SellerPayoutsPage() {
           </div>
         )}
 
+        {loadError && (
+          <div className="rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            {loadError}
+          </div>
+        )}
+
         <div className="rounded-xl border border-warning/30 bg-warning/10 px-3 py-3 text-sm">
           <p className="font-medium text-foreground">Ledger only — not a bank payout</p>
           <p className="text-xs text-muted-foreground mt-1">
@@ -192,26 +211,43 @@ export default function SellerPayoutsPage() {
         </div>
 
         {/* Summary Cards — from full aggregate, not the page list */}
+        {!loadError && (
         <div className="grid grid-cols-2 gap-3">
           <Card>
             <CardContent className="p-4 text-center">
               <TrendingUp size={20} className="mx-auto text-success mb-1" />
               <p className="text-xs text-muted-foreground">
-                Recorded as settled{isPortfolio ? ' · All stores' : ''}
+                Paid out{isPortfolio ? ' · All stores' : ''}
               </p>
               <p className="text-lg font-bold text-success tabular-nums">{formatPrice(totalSettled)}</p>
+              <p className="text-[10px] text-muted-foreground">Confirmed transfer reference only</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4 text-center">
+              <Clock size={20} className="mx-auto text-primary mb-1" />
+              <p className="text-xs text-muted-foreground">
+                Available{isPortfolio ? ' · All stores' : ''}
+              </p>
+              <p className="text-lg font-bold tabular-nums">{formatPrice(available)}</p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-4 text-center">
               <Clock size={20} className="mx-auto text-warning mb-1" />
-              <p className="text-xs text-muted-foreground">
-                Owed (pending / eligible){isPortfolio ? ' · All stores' : ''}
-              </p>
-              <p className="text-lg font-bold text-warning tabular-nums">{formatPrice(totalPending)}</p>
+              <p className="text-xs text-muted-foreground">Pending / processing</p>
+              <p className="text-lg font-bold text-warning tabular-nums">{formatPrice(pendingHold)}</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4 text-center">
+              <AlertCircle size={20} className="mx-auto text-destructive mb-1" />
+              <p className="text-xs text-muted-foreground">On hold</p>
+              <p className="text-lg font-bold text-destructive tabular-nums">{formatPrice(onHold)}</p>
             </CardContent>
           </Card>
         </div>
+        )}
 
         <h3 className="font-semibold">Settlement History</h3>
         {settlements.length > 0 ? (

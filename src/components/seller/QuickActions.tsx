@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { Link } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
-import { Plus, Settings, PlusCircle, Tag, Wallet, TrendingUp } from 'lucide-react';
+import { Plus, Settings, PlusCircle, Tag, Wallet, TrendingUp, Coins } from 'lucide-react';
 import { ShareMyStore } from './ShareMyStore';
 
 export function QuickActions() {
@@ -22,8 +22,11 @@ export function QuickActions() {
         <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Marketing & Finance</p>
         <ShareMyStore />
         <div className="grid grid-cols-3 gap-2 mt-2">
-          <ActionCard to="/seller/earnings" icon={TrendingUp} iconBg="bg-success/10" iconColor="text-success" label="Earnings" sub="Revenue data" />
-          <ActionCard to="/seller/payouts" icon={Wallet} iconBg="bg-primary/10" iconColor="text-primary" label="Payouts" sub="Settlement ledger" />
+          <ActionCard to="/seller/wallet" icon={Wallet} iconBg="bg-success/10" iconColor="text-success" label="Wallet" sub="Available & payouts" />
+          <ActionCard to="/seller/credits" icon={Coins} iconBg="bg-primary/10" iconColor="text-primary" label="Sociva Credits" sub="Platform usage" />
+          <ActionCard to="/seller/earnings" icon={TrendingUp} iconBg="bg-primary/10" iconColor="text-primary" label="Settled GMV" sub="Completed sales" />
+        </div>
+        <div className="grid grid-cols-3 gap-2 mt-2">
           <ActionCard to="#coupons" icon={Tag} iconBg="bg-warning/10" iconColor="text-warning" label="Coupons" sub="Discounts" scrollTo="coupon-section" />
         </div>
       </div>

@@ -6,14 +6,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Badge } from '@/components/ui/badge';
 
-export function PendingCategoryRequestsBanner({
-  variant = 'link',
-}: {
-  /** inline = non-navigating card for onboarding (avoids SellerRoute bounce) */
-  variant?: 'link' | 'inline';
-}) {
+export function useOpenCategoryRequests() {
   const { user } = useAuth();
-  const { data: rows = [] } = useQuery({
+  return useQuery({
     queryKey: ['seller', 'category-requests', 'open', user?.id],
     enabled: !!user?.id,
     queryFn: async () => {
@@ -29,6 +24,15 @@ export function PendingCategoryRequestsBanner({
     },
     staleTime: 60_000,
   });
+}
+
+export function PendingCategoryRequestsBanner({
+  variant = 'link',
+}: {
+  /** inline = non-navigating card for onboarding (avoids SellerRoute bounce) */
+  variant?: 'link' | 'inline';
+}) {
+  const { data: rows = [] } = useOpenCategoryRequests();
 
   if (rows.length === 0) return null;
 
@@ -51,10 +55,10 @@ export function PendingCategoryRequestsBanner({
             {rows.length} total
           </Badge>
         </div>
-        <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+        <p className="text-xs text-muted-foreground mt-1 line-clamp-3">
           {ready.length > 0
             ? 'Your requested category is available — select it below or continue onboarding.'
-            : pending.map((r: any) => r.requested_name).join(', ')}
+            : `${pending.map((r: any) => r.requested_name).filter(Boolean).join(', ') || 'Your request'} isn’t live yet. We’ll notify you when it’s approved.`}
         </p>
         {variant === 'link' && (
           <span className="inline-flex items-center gap-1 text-xs font-medium text-primary mt-2">

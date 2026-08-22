@@ -75,6 +75,17 @@ describe('seller-order-board taxonomy', () => {
     expect(isSettledRevenueOrder('cancelled', 'paid')).toBe(false);
   });
 
+  it('partial refunds reduce Settled GMV by the refunded amount only', () => {
+    const { kpis } = aggregateSellerBoardFromOrders(
+      [
+        { status: 'completed', payment_status: 'paid', total_amount: 500, amount_refunded: 120, created_at: '2099-01-01T00:00:00Z' },
+        { status: 'completed', payment_status: 'refunded', total_amount: 400, amount_refunded: 0, created_at: '2099-01-01T00:00:00Z' },
+      ],
+      { now: new Date('2099-01-01T12:00:00+05:30') },
+    );
+    expect(kpis.totalEarnings).toBe(380);
+  });
+
   it('aggregates KPI pending without preparing/ready inflation', () => {
     const { kpis, counts } = aggregateSellerBoardFromOrders(
       [

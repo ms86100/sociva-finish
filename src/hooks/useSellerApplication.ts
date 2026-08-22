@@ -66,7 +66,7 @@ export interface SellerFormData {
   delivery_payment_config: PaymentConfigData;
 }
 
-const DEFAULT_PAYMENT_CONFIG: PaymentConfigData = { accepts_cod: true, accepts_online: true };
+const DEFAULT_PAYMENT_CONFIG: PaymentConfigData = { accepts_cod: true, accepts_online: false };
 
 const INITIAL_FORM: SellerFormData = {
   business_name: '',

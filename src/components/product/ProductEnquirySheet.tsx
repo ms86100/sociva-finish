@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -12,6 +12,8 @@ import { Loader2, MessageCircle, Calendar, Send, Home, Handshake } from 'lucide-
 import { useCurrency } from '@/hooks/useCurrency';
 import { notify } from '@/lib/notify';
 import { showFeedback } from '@/components/FeedbackPopupProvider';
+import { useChatViewport } from '@/hooks/useChatViewport';
+import { sellerCreditCustomerMessage } from '@/lib/sellerCredits';
 
 interface ProductEnquirySheetProps {
   open: boolean;
@@ -80,6 +82,19 @@ export function ProductEnquirySheet({
   const { formatPrice } = useCurrency();
   const [message, setMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const { viewportHeight, keyboardInset } = useChatViewport(open);
+
+  useEffect(() => {
+    if (!open) return;
+    const el = textareaRef.current;
+    if (!el) return;
+    const keepVisible = () => {
+      window.setTimeout(() => el.scrollIntoView({ block: 'center', behavior: 'smooth' }), 80);
+    };
+    el.addEventListener('focus', keepVisible);
+    return () => el.removeEventListener('focus', keepVisible);
+  }, [open, keyboardInset]);
 
   const meta = ACTION_META[actionType] || ACTION_META.request_service;
   const Icon = meta.icon;
@@ -132,42 +147,26 @@ export function ProductEnquirySheet({
         ? `\n\n--- Contact Details ---\n${contactLines.join('\n')}`
         : '';
 
-      // Create an enquiry order
-      const { data: order, error: orderError } = await supabase
-        .from('orders')
-        .insert({
-          buyer_id: user.id,
-          seller_id: sellerId,
-          total_amount: price || 0,
-          order_type: 'enquiry',
-          status: 'enquired',
-          notes: `${meta.title} for: ${productName}\n\n${message}`,
-        })
-        .select()
-        .single();
+      const { data: productRow } = await supabase
+        .from('products')
+        .select('listing_type')
+        .eq('id', productId)
+        .maybeSingle();
 
-      if (orderError) throw orderError;
-
-      // Create order_item linking enquiry to specific product
-      await supabase.from('order_items').insert({
-        order_id: order.id,
-        product_id: productId,
-        product_name: productName,
-        quantity: 1,
-        unit_price: price || 0,
+      const idempotencyKey = `enquiry_${user.id}_${productId}_${Date.now()}`;
+      const { data: created, error: orderError } = await supabase.rpc('create_enquiry_atomic', {
+        p_seller_id: sellerId,
+        p_product_id: productId,
+        p_product_name: productName,
+        p_message: `${message}${contactBlock}`,
+        p_action_title: meta.title,
+        p_price: price || 0,
+        p_listing_type: (productRow as any)?.listing_type || null,
+        p_idempotency_key: idempotencyKey,
       });
-
-      // Create initial chat message with buyer details, using seller's user_id as receiver
-      const { error: chatError } = await supabase
-        .from('chat_messages')
-        .insert({
-          order_id: order.id,
-          sender_id: user.id,
-          receiver_id: sellerUserId,
-          message_text: `Hi! I'd like to ${meta.title.toLowerCase()} for "${productName}".\n\n${message}${contactBlock}`,
-        });
-
-      if (chatError) throw chatError;
+      if (orderError) throw orderError;
+      const order = { id: created?.order_id };
+      if (!order.id) throw new Error('Failed to send request');
 
       // Trigger immediate push notification to seller (fire-and-forget)
       supabase.functions.invoke('process-notification-queue').catch(() => {});
@@ -181,7 +180,7 @@ export function ProductEnquirySheet({
       navigate(`/orders/${order.id}`);
     } catch (error) {
       console.error('Error sending enquiry:', error);
-      toast.error('Failed to send request. Please try again.');
+      toast.error(sellerCreditCustomerMessage(error instanceof Error ? error.message : null, 'ENQUIRY_CREATED') || 'Failed to send request. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -189,7 +188,14 @@ export function ProductEnquirySheet({
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
-      <DrawerContent>
+      <DrawerContent
+        className="max-h-[min(92dvh,100%)] overflow-y-auto"
+        style={{
+          bottom: keyboardInset,
+          maxHeight: viewportHeight ? `${Math.max(viewportHeight - 12, 280)}px` : '92dvh',
+          paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+        }}
+      >
         <DrawerHeader className="pb-3">
           <DrawerTitle className="flex items-center gap-2">
             <Icon size={18} className="text-primary" />
@@ -226,6 +232,7 @@ export function ProductEnquirySheet({
               </div>
             </div>
             <Textarea
+              ref={textareaRef}
               placeholder={meta.placeholder}
               value={message}
               onChange={(e) => setMessage(e.target.value)}

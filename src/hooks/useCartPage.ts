@@ -30,6 +30,7 @@ import {
 } from '@/lib/multi-store-checkout';
 import { postCheckoutPath } from '@/lib/checkout-groups';
 import { resolveCheckoutGroupId } from '@/hooks/useCheckoutGroup';
+import { isSellerCreditInsufficientError, sellerCreditCustomerMessage } from '@/lib/sellerCredits';
 // Store status validation now handled server-side in create_multi_vendor_orders RPC
 
 async function navigateAfterCheckout(
@@ -503,6 +504,7 @@ export function useCartPage() {
       stock_insufficient?: string[];
       closed_sellers?: string[];
       out_of_range_sellers?: string[];
+      warnings?: { credit_blocked_sellers?: string[] | null };
       deduplicated?: boolean;
     };
     if (!result?.success) {
@@ -546,7 +548,14 @@ export function useCartPage() {
       if (result?.error === 'unauthorized') {
         throw new Error('Your session has expired. Please log in again.');
       }
+      if (result?.error === 'seller_credit_insufficient') {
+        throw new Error('This seller is currently unavailable for new orders.');
+      }
       throw new Error(result?.message || result?.error || 'Failed to create orders');
+    }
+    const creditBlocked = result.warnings?.credit_blocked_sellers?.filter(Boolean) || [];
+    if (creditBlocked.length) {
+      toast.warning('This seller is currently unavailable for new orders.');
     }
     // Reset idempotency key after successful (non-deduplicated) creation
     if (!result.deduplicated) idempotencyKeyRef.current = null;
@@ -768,8 +777,11 @@ export function useCartPage() {
         console.error('Error placing wallet-only order:', error);
         // Extract actual RPC error message instead of letting friendlyError sanitize it
         const rawMessage = error?.message ?? error?.details ?? error?.hint ?? String(error);
-        const isTechnical = rawMessage.startsWith('{') || rawMessage.includes('rpc') || rawMessage.includes('P0001');
-        const displayMessage = isTechnical ? friendlyError(error) : rawMessage;
+        const displayMessage = isSellerCreditInsufficientError(rawMessage)
+          ? sellerCreditCustomerMessage(rawMessage, 'ORDER_COMPLETED')
+          : ((rawMessage.startsWith('{') || rawMessage.includes('rpc') || rawMessage.includes('P0001'))
+            ? friendlyError(error)
+            : rawMessage);
         notify.error(displayMessage, { id: 'checkout-wallet-error' });
       } finally {
         setIsPlacingOrder(false);
@@ -851,8 +863,11 @@ export function useCartPage() {
         console.error('Error creating orders:', error);
         // Extract actual RPC error message instead of letting friendlyError sanitize it
         const rawMessage = error?.message ?? error?.details ?? error?.hint ?? String(error);
-        const isTechnical = rawMessage.startsWith('{') || rawMessage.includes('rpc') || rawMessage.includes('P0001');
-        const displayMessage = isTechnical ? friendlyError(error) : rawMessage;
+        const displayMessage = isSellerCreditInsufficientError(rawMessage)
+          ? sellerCreditCustomerMessage(rawMessage, 'ORDER_COMPLETED')
+          : ((rawMessage.startsWith('{') || rawMessage.includes('rpc') || rawMessage.includes('P0001'))
+            ? friendlyError(error)
+            : rawMessage);
         notify.error(displayMessage, { id: 'checkout-create-error' });
       }
       finally { setIsPlacingOrder(false); }
@@ -888,8 +903,11 @@ export function useCartPage() {
       console.error('Error placing COD order:', error);
       // Extract actual RPC error message instead of letting friendlyError sanitize it
       const rawMessage = error?.message ?? error?.details ?? error?.hint ?? String(error);
-      const isTechnical = rawMessage.startsWith('{') || rawMessage.includes('rpc') || rawMessage.includes('P0001');
-      const displayMessage = isTechnical ? friendlyError(error) : rawMessage;
+      const displayMessage = isSellerCreditInsufficientError(rawMessage)
+        ? sellerCreditCustomerMessage(rawMessage, 'ORDER_COMPLETED')
+        : ((rawMessage.startsWith('{') || rawMessage.includes('rpc') || rawMessage.includes('P0001'))
+          ? friendlyError(error)
+          : rawMessage);
       notify.error(displayMessage, { id: 'checkout-error' });
     }
     finally { setIsPlacingOrder(false); }

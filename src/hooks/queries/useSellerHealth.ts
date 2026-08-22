@@ -2,6 +2,13 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { jitteredStaleTime } from '@/lib/query-utils';
+import {
+  hasSellerUpiId,
+  isUpiRequiredAndMissing,
+  requiresSellerUpi,
+  wantsOnlinePayments,
+  type PaymentGatewayMode,
+} from '@/lib/sellerPaymentReadiness';
 
 export interface SellerHealthCheck {
   key: string;
@@ -131,32 +138,26 @@ export function useSellerHealth(sellerId: string | null) {
         }
       }
 
-      // C6: UPI verification required for online payments (UPI deep-link mode)
-      const gatewayMode = (gatewayRes.data as any)?.value || 'upi_deep_link';
-      const wantsOnline =
-        !!(profile.accepts_upi) ||
-        !!(profile.pickup_payment_config?.accepts_online) ||
-        !!(profile.delivery_payment_config?.accepts_online);
-      if (gatewayMode !== 'razorpay' && wantsOnline) {
-        if (profile.upi_id) {
-          checks.push({
-            key: 'upi_verified',
-            label: 'UPI configured for online payments',
-            status: 'pass',
-            message: 'Buyers can pay you online via UPI.',
-            group: 'critical',
-          });
-        } else {
-          checks.push({
-            key: 'upi_verified',
-            label: 'UPI ID required',
-            status: 'fail',
-            message: 'Enter your UPI ID before accepting online payments. COD can still work.',
-            actionLabel: 'Add UPI ID',
-            actionRoute: '/seller/settings',
-            group: 'critical',
-          });
-        }
+      // C6: UPI ID required for online payments only in Deep UPI mode
+      const gatewayMode = ((gatewayRes.data as any)?.value || 'upi_deep_link') as PaymentGatewayMode;
+      if (isUpiRequiredAndMissing(gatewayMode, profile)) {
+        checks.push({
+          key: 'upi_verified',
+          label: 'UPI ID required',
+          status: 'fail',
+          message: 'Enter your UPI ID before accepting online payments. COD can still work.',
+          actionLabel: 'Add UPI ID',
+          actionRoute: '/seller/settings',
+          group: 'critical',
+        });
+      } else if (requiresSellerUpi(gatewayMode, wantsOnlinePayments(profile)) && hasSellerUpiId(profile)) {
+        checks.push({
+          key: 'upi_verified',
+          label: 'UPI configured for online payments',
+          status: 'pass',
+          message: 'Buyers can pay you online via UPI.',
+          group: 'critical',
+        });
       }
 
       // ═══════════════════════════════════════

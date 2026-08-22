@@ -7,6 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
+import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
@@ -33,6 +34,7 @@ export function RequestCategoryDialog({
   fallbackCategory, fallbackCategoryLabel, onSubmitted, onboardingMode = false,
 }: RequestCategoryDialogProps) {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const [name, setName] = useState(initialName);
   const [group, setGroup] = useState<string>('');
   const [example, setExample] = useState('');
@@ -88,6 +90,7 @@ export function RequestCategoryDialog({
       onSubmitted?.(group || null);
       setSubmittedName(name.trim());
       resetForm();
+      queryClient.invalidateQueries({ queryKey: ['seller', 'category-requests'] });
     } catch (err: any) {
       const msg = `${err?.message ?? ''}`;
       let friendly = msg;

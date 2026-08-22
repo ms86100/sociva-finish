@@ -103,14 +103,17 @@ describe('Phase 2–5 payment/trust', () => {
       'utf8',
     );
 
-    it('readiness checklist includes UPI verification for online payments', () => {
+    it('readiness checklist uses shared UPI requirement for Deep UPI online', () => {
       expect(healthSrc).toMatch(/upi_verified/);
-      expect(healthSrc).toMatch(/UPI verification required/);
+      expect(healthSrc).toMatch(/isUpiRequiredAndMissing/);
+      expect(healthSrc).toMatch(/sellerPaymentReadiness/);
     });
 
-    it('go-live gates on verified UPI when online payments enabled', () => {
-      expect(settingsSrc).toMatch(/Verify your UPI ID before going live/);
-      expect(dashSrc).toMatch(/Verify your UPI ID before going live/);
+    it('go-live gates on UPI only when Deep UPI online is missing a VPA', () => {
+      expect(settingsSrc).toMatch(/isUpiRequiredAndMissing/);
+      expect(settingsSrc).toMatch(/UPI_REQUIRED_FOR_GO_LIVE_MESSAGE/);
+      expect(dashSrc).toMatch(/isUpiRequiredAndMissing/);
+      expect(dashSrc).toMatch(/UPI_REQUIRED_FOR_GO_LIVE_MESSAGE/);
       expect(dashSrc).toMatch(/upi_verification_status/);
     });
   });

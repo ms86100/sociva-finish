@@ -40,6 +40,12 @@ export function healOrderTransactionType(
   return stored;
 }
 
+/** Enquiry orders never use the booking workflow, including classes/events. */
+export function resolveEnquiryTransactionType(listingType?: string | null): string {
+  if (listingType === 'contact_only' || listingType === 'contact_enquiry') return 'contact_enquiry';
+  return 'request_service';
+}
+
 export function resolveTransactionType(
   parentGroup: string,
   orderType: string | null | undefined,
@@ -51,18 +57,23 @@ export function resolveTransactionType(
 ): string {
   // Prefer healed stamp so UI matches seller_advance_order / DB backfill
   if (storedTransactionType) {
-    return (
+    const healed =
       healOrderTransactionType(storedTransactionType, fulfillmentType, deliveryHandledBy) ||
-      storedTransactionType
-    );
+      storedTransactionType;
+    if (
+      orderType === 'enquiry' &&
+      (healed === 'service_booking' || healed === 'book_slot')
+    ) {
+      return resolveEnquiryTransactionType(listingType);
+    }
+    return healed;
   }
 
   // Legacy fallback for orders created before the migration
   if (listingType === 'contact_enquiry' || listingType === 'contact_only') return 'contact_enquiry';
 
   if (orderType === 'enquiry') {
-    if (['classes', 'events'].includes(parentGroup)) return 'service_booking';
-    return 'request_service';
+    return resolveEnquiryTransactionType(listingType);
   }
   if (orderType === 'booking') return 'service_booking';
 

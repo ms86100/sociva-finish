@@ -62,7 +62,9 @@ const sections: NavSection[] = [
       { label: 'Seller Dashboard', route: '/seller', icon: BarChart3, description: 'Seller overview & stats' },
       { label: 'Seller Products', route: '/seller/products', icon: Boxes, description: 'Manage products, bulk upload' },
       { label: 'Seller Settings', route: '/seller/settings', icon: Settings, description: 'Store settings, coupons, license' },
-      { label: 'Seller Earnings', route: '/seller/earnings', icon: DollarSign, description: 'Earnings & analytics' },
+      { label: 'Seller Wallet', route: '/seller/wallet', icon: DollarSign, description: 'Available, pending, paid out' },
+      { label: 'Sociva Credits', route: '/seller/credits', icon: DollarSign, description: 'Prepaid platform usage' },
+      { label: 'Settled GMV', route: '/seller/earnings', icon: DollarSign, description: 'Completed sales value' },
     ],
   },
   {
@@ -150,6 +152,7 @@ const sections: NavSection[] = [
     color: 'bg-destructive/10 text-destructive',
     items: [
       { label: 'Admin Panel', route: '/admin', icon: Settings, description: 'Full admin dashboard' },
+      { label: 'Monetization', route: '/admin/seller-credits', icon: CreditCard, description: 'Seller Credits rates and booking resolution' },
     ],
   },
 ];

@@ -28,6 +28,11 @@ import { useActionTypeMap } from '@/hooks/useActionTypeMap';
 import { SellerFestivalParticipation } from '@/components/seller/SellerFestivalParticipation';
 import { RequestCategoryDialog } from '@/components/seller/RequestCategoryDialog';
 import { useParentGroups } from '@/hooks/useParentGroups';
+import {
+  hasSellerUpiId,
+  shouldShowSellerUpiField,
+  type SellerSettingsSaveScope,
+} from '@/lib/sellerPaymentReadiness';
 
 function LicenseUploadSection({ sellerId, primaryGroup }: { sellerId: string; primaryGroup: string }) {
   const [groupId, setGroupId] = useState<string | null>(null);
@@ -97,16 +102,22 @@ const TABS = [
   { key: 'payments', label: 'Payments', icon: CreditCard },
   { key: 'delivery', label: 'Delivery', icon: Truck },
   { key: 'festivals', label: 'Festivals', icon: PartyPopper },
-  { key: 'payouts', label: 'Payouts', icon: Building2 },
 ] as const;
 
 type TabKey = typeof TABS[number]['key'];
+
+function saveScopeForTab(tab: TabKey): SellerSettingsSaveScope {
+  if (tab === 'hours') return 'hours';
+  if (tab === 'payments') return 'payments';
+  return 'general';
+}
 
 export default function SellerSettingsPage() {
   const {
     user, sellerProfile, primaryGroup, isLoading, isSaving,
     formData, setFormData, currencySymbol,
     groupedConfigs, getGroupBySlug,
+    paymentMode,
     handleCategoryChange, handleDayChange, togglePauseShop, handleSave,
   } = useSellerSettings();
   const { data: allActions = [] } = useActionTypeMap();
@@ -361,11 +372,14 @@ export default function SellerSettingsPage() {
               </>
             )}
 
-            {/* ── Payments ── */}
+            {/* ── Payments & Payouts ── */}
             {activeTab === 'payments' && (
               <>
                 <div className="space-y-3">
-                  <Label>Payment Methods</Label>
+                  <div>
+                    <Label>How customers pay you</Label>
+                    <p className="text-xs text-muted-foreground mt-1">Choose cash and/or online for each fulfillment type. At least one method is required.</p>
+                  </div>
                   {(formData.fulfillment_mode === 'self_pickup' || formData.fulfillment_mode === 'pickup_and_seller_delivery' || formData.fulfillment_mode === 'pickup_and_platform_delivery') && (
                     <div className="p-4 bg-muted rounded-lg space-y-3">
                       <p className="font-medium text-sm">Self Pickup</p>
@@ -410,9 +424,10 @@ export default function SellerSettingsPage() {
                       )}
                     </div>
                   )}
-                  {(formData.pickup_payment_config.accepts_online || formData.delivery_payment_config.accepts_online) && (
+                  {shouldShowSellerUpiField(paymentMode.mode, formData) && (
                     <div className="p-4 bg-muted rounded-lg space-y-2">
-                      <Label htmlFor="upi_id" className="text-xs">Your UPI ID (for direct UPI payments)</Label>
+                      <Label htmlFor="upi_id" className="text-xs">Your UPI ID (required for online payments)</Label>
+                      <p className="text-xs text-muted-foreground">Buyers pay this UPI ID directly. Required to accept online payments.</p>
                       <UpiVpaInput
                         value={formData.upi_id}
                         onChange={(v) => setFormData({ ...formData, upi_id: v })}
@@ -424,10 +439,33 @@ export default function SellerSettingsPage() {
                         initialVerifiedAt={(sellerProfile as any)?.upi_verified_at}
                         onStatusChange={(status, name) => setFormData({ ...formData, upi_validation_status: status, upi_holder_name: name } as any)}
                       />
+                      {!hasSellerUpiId(formData) && (
+                        <p className="text-xs text-destructive">Add your UPI ID to accept online payments, or turn off Online Payment and use cash.</p>
+                      )}
                     </div>
                   )}
+                  {paymentMode.isRazorpay && (formData.pickup_payment_config.accepts_online || formData.delivery_payment_config.accepts_online) && (
+                    <p className="text-xs text-muted-foreground bg-primary/5 rounded-lg p-3">
+                      Customers pay Sociva online. Your earnings appear under How you get paid. A UPI ID is not required.
+                    </p>
+                  )}
                 </div>
-                {/* Min Order */}
+                <div className="space-y-3">
+                  <div>
+                    <Label>How you get paid <span className="text-muted-foreground font-normal">(optional)</span></Label>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {paymentMode.isUpiDeepLink
+                        ? 'Bank details are optional and are not used for customer UPI payments. If you accept online, buyers pay your UPI ID directly.'
+                        : 'Used when Sociva transfers your earnings. Not used for customer payments. Optional until transfers are enabled.'}
+                    </p>
+                  </div>
+                  <div className="space-y-3 bg-muted rounded-lg p-4">
+                    <div className="space-y-2"><Label htmlFor="bank_account_holder" className="text-xs">Account Holder Name</Label><Input id="bank_account_holder" placeholder="As per bank records" value={formData.bank_account_holder} onChange={(e) => setFormData({ ...formData, bank_account_holder: e.target.value })} /></div>
+                    <div className="space-y-2"><Label htmlFor="bank_account_number" className="text-xs">Account Number</Label><Input id="bank_account_number" placeholder="Enter bank account number" value={formData.bank_account_number} onChange={(e) => setFormData({ ...formData, bank_account_number: e.target.value })} /></div>
+                    <div className="space-y-2"><Label htmlFor="bank_ifsc_code" className="text-xs">IFSC Code</Label><Input id="bank_ifsc_code" placeholder="e.g., SBIN0001234" value={formData.bank_ifsc_code} onChange={(e) => setFormData({ ...formData, bank_ifsc_code: e.target.value.toUpperCase() })} /></div>
+                  </div>
+                </div>
+                {sellerProfile && primaryGroup && <LicenseUploadSection sellerId={sellerProfile.id} primaryGroup={primaryGroup} />}
                 <div className="space-y-3">
                   <Label>Minimum Order Amount</Label>
                   <div className="p-4 bg-muted rounded-lg space-y-3">
@@ -492,28 +530,13 @@ export default function SellerSettingsPage() {
               <SellerFestivalParticipation sellerId={sellerProfile.id} />
             )}
 
-            {/* ── Payouts ── */}
-            {activeTab === 'payouts' && (
-              <>
-                <div className="space-y-3">
-                  <Label>Bank Account for Payouts</Label>
-                  <p className="text-xs text-muted-foreground">Payouts will be processed to this bank account</p>
-                  <div className="space-y-3 bg-muted rounded-lg p-4">
-                    <div className="space-y-2"><Label htmlFor="bank_account_holder" className="text-xs">Account Holder Name</Label><Input id="bank_account_holder" placeholder="As per bank records" value={formData.bank_account_holder} onChange={(e) => setFormData({ ...formData, bank_account_holder: e.target.value })} /></div>
-                    <div className="space-y-2"><Label htmlFor="bank_account_number" className="text-xs">Account Number</Label><Input id="bank_account_number" placeholder="Enter bank account number" value={formData.bank_account_number} onChange={(e) => setFormData({ ...formData, bank_account_number: e.target.value })} /></div>
-                    <div className="space-y-2"><Label htmlFor="bank_ifsc_code" className="text-xs">IFSC Code</Label><Input id="bank_ifsc_code" placeholder="e.g., SBIN0001234" value={formData.bank_ifsc_code} onChange={(e) => setFormData({ ...formData, bank_ifsc_code: e.target.value.toUpperCase() })} /></div>
-                  </div>
-                </div>
-                {sellerProfile && primaryGroup && <LicenseUploadSection sellerId={sellerProfile.id} primaryGroup={primaryGroup} />}
-              </>
-            )}
           </div>
         </div>
       </div>
 
       {/* Save Button */}
       <div className="fixed bottom-0 left-0 right-0 z-50 p-4 bg-card border-t border-border pb-[calc(1rem+env(safe-area-inset-bottom))]">
-        <Button className="w-full h-12" onClick={handleSave} disabled={isSaving}>
+        <Button className="w-full h-12" onClick={() => handleSave(saveScopeForTab(activeTab))} disabled={isSaving}>
           {isSaving ? <Loader2 className="animate-spin mr-2" size={18} /> : null} Save Changes
         </Button>
       </div>

@@ -24,9 +24,11 @@ import { SellerSwitcher } from '@/components/seller/SellerSwitcher';
 const PAGE_SIZE = 50;
 
 /**
- * Earnings overview uses Settled GMV from get_seller_dashboard_kpis
- * (same source as dashboard EarningsSummary). Transaction list is recent
- * payment_records for display only — not used for all-time totals.
+ * Settled GMV overview from get_seller_dashboard_kpis
+ * (same source as dashboard EarningsSummary). This is completed-sales value,
+ * not seller payable. Wallet numbers live on /seller/wallet via
+ * get_seller_financial_summary. Transaction list is recent payment_records
+ * for display only — not used for all-time totals.
  */
 export default function SellerEarningsPage() {
   const { user, currentSellerId, sellerProfiles } = useAuth();
@@ -120,7 +122,7 @@ export default function SellerEarningsPage() {
             <ArrowLeft size={18} className="text-foreground" />
           </Link>
           <h1 className="text-xl font-bold">
-            {isPortfolio ? 'Completed Sales · All stores' : 'Completed Sales'}
+            {isPortfolio ? 'Settled GMV · All stores' : 'Settled GMV'}
           </h1>
         </div>
       </SafeHeader>
@@ -137,12 +139,12 @@ export default function SellerEarningsPage() {
           </div>
         )}
 
-        <Link to="/seller/payouts">
+        <Link to="/seller/wallet">
           <Card className="mb-4 border-primary/20 bg-primary/5 hover:bg-primary/10 transition-colors cursor-pointer">
             <CardContent className="p-3 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <DollarSign size={18} className="text-primary" />
-                <span className="text-sm font-medium">View Payout History</span>
+                <span className="text-sm font-medium">Open Seller Wallet</span>
               </div>
               <ArrowLeft size={16} className="text-muted-foreground rotate-180" />
             </CardContent>
@@ -153,11 +155,11 @@ export default function SellerEarningsPage() {
           <div className="flex items-center gap-2 mb-1">
             <TrendingUp className="text-success" size={20} />
             <h3 className="font-semibold">
-              {isPortfolio ? 'Settled earnings · All stores' : 'Settled earnings'}
+              {isPortfolio ? 'Settled GMV · All stores' : 'Settled GMV'}
             </h3>
           </div>
           <p className="text-[10px] text-muted-foreground mb-3">
-            Completed / delivered orders · excludes refunded payments (same as dashboard)
+            Completed sales value after refunds. Partial refunds reduce this by the refunded amount only — this is not withdrawable earnings.
           </p>
           <div className="grid grid-cols-2 gap-3">
             <div className="bg-background/50 rounded-lg p-3 text-center">

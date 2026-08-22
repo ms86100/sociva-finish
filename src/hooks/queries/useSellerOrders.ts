@@ -9,7 +9,6 @@ import {
   isPortfolioSellerId,
   statusesForFilter,
   sumBoardCounts,
-  sumDashboardKpis,
   type SellerBoardCounts,
   type SellerDashboardKpis,
   type SellerOrderFilter,
@@ -63,29 +62,6 @@ function mapCountsRpc(raw: Record<string, unknown> | null): SellerBoardCounts {
   };
 }
 
-async function fetchKpisClientFallback(sellerId: string): Promise<SellerDashboardKpis> {
-  const since = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
-  const [{ data: orders }, { count: pendingRefunds }] = await Promise.all([
-    supabase
-      .from('orders')
-      .select('status, total_amount, created_at, updated_at, delivered_at, status_changed_at, payment_status')
-      .eq('seller_id', sellerId)
-      .gte('created_at', since)
-      .order('created_at', { ascending: false })
-      .limit(2000),
-    supabase
-      .from('refund_requests')
-      .select('id, orders!inner(seller_id)', { count: 'exact', head: true })
-      .eq('orders.seller_id', sellerId)
-      .eq('status', 'requested'),
-  ]);
-
-  const { kpis } = aggregateSellerBoardFromOrders(orders || [], {
-    pendingRefunds: pendingRefunds || 0,
-  });
-  return kpis;
-}
-
 async function fetchCountsClientFallback(sellerId: string): Promise<SellerBoardCounts> {
   const since = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
   const { data: orders } = await supabase
@@ -120,19 +96,18 @@ async function fetchOneSellerKpis(sellerId: string): Promise<SellerDashboardKpis
   const { data, error } = await supabase.rpc('get_seller_dashboard_kpis', {
     p_seller_id: sellerId,
   });
-  if (!error && data) return mapKpiRpc(data as Record<string, unknown>);
-  console.warn('[useSellerOrderStats] RPC fallback:', error?.message);
-  return fetchKpisClientFallback(sellerId);
+  if (error) throw error;
+  if (!data) throw new Error('Seller dashboard KPIs were not returned');
+  return mapKpiRpc(data as Record<string, unknown>);
 }
 
 async function fetchPortfolioKpis(sellerIds: string[]): Promise<SellerDashboardKpis> {
   const { data, error } = await supabase.rpc('get_seller_portfolio_kpis', {
     p_seller_ids: sellerIds,
   });
-  if (!error && data) return mapKpiRpc(data as Record<string, unknown>);
-  console.warn('[useSellerOrderStats] portfolio RPC fallback:', error?.message);
-  const parts = await Promise.all(sellerIds.map(fetchOneSellerKpis));
-  return sumDashboardKpis(parts);
+  if (error) throw error;
+  if (!data) throw new Error('Seller portfolio KPIs were not returned');
+  return mapKpiRpc(data as Record<string, unknown>);
 }
 
 async function fetchOneSellerCounts(sellerId: string): Promise<SellerBoardCounts> {
@@ -155,8 +130,8 @@ async function fetchPortfolioCounts(sellerIds: string[]): Promise<SellerBoardCou
 }
 
 /**
- * Consolidated seller dashboard KPIs via get_seller_dashboard_kpis RPC
- * (client aggregate fallback if RPC not deployed yet).
+ * Consolidated seller dashboard KPIs via get_seller_dashboard_kpis RPC.
+ * Financial totals fail transparently — no silent 90-day / 2000-order fallback.
  * Pass `portfolioSellerIds` when sellerId is ALL_STORES_ID for labeled rollup.
  */
 export function useSellerOrderStats(

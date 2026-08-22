@@ -26,6 +26,7 @@ interface OrderCancellationProps {
   onCancelled: () => void;
   /** Whether buyer→cancelled transition is allowed by the workflow engine (required, DB-driven) */
   canCancel: boolean;
+  kind?: 'order' | 'enquiry';
 }
 
 const DEFAULT_REASONS = [
@@ -37,7 +38,8 @@ const DEFAULT_REASONS = [
   { value: 'other', label: 'Other reason' },
 ];
 
-export function OrderCancellation({ orderId, orderStatus, onCancelled, canCancel }: OrderCancellationProps) {
+export function OrderCancellation({ orderId, orderStatus, onCancelled, canCancel, kind = 'order' }: OrderCancellationProps) {
+  const isEnquiry = kind === 'enquiry';
   const [isOpen, setIsOpen] = useState(false);
   const [reason, setReason] = useState('');
   const [otherReason, setOtherReason] = useState('');
@@ -87,7 +89,7 @@ export function OrderCancellation({ orderId, orderStatus, onCancelled, canCancel
       setIsOpen(false);
 
       showFeedback({
-        title: 'Order cancelled',
+        title: isEnquiry ? 'Enquiry cancelled' : 'Order cancelled',
         variant: 'success',
       });
       // Trigger push notification to seller
@@ -97,7 +99,11 @@ export function OrderCancellation({ orderId, orderStatus, onCancelled, canCancel
     } catch (error: any) {
       console.error('Error cancelling order:', error);
       const errMsg = error?.message || error?.details || '';
-      toast.error(errMsg.includes('Invalid status transition') ? 'This order cannot be cancelled at this stage' : errMsg.includes('notification_queue') ? 'Order cancelled, but seller notification failed. Retrying in the background.' : 'Failed to cancel order');
+      toast.error(errMsg.includes('Invalid status transition')
+        ? (isEnquiry ? 'This enquiry cannot be cancelled at this stage' : 'This order cannot be cancelled at this stage')
+        : errMsg.includes('notification_queue')
+          ? (isEnquiry ? 'Enquiry cancelled, but seller notification failed. Retrying in the background.' : 'Order cancelled, but seller notification failed. Retrying in the background.')
+          : (isEnquiry ? 'Failed to cancel enquiry' : 'Failed to cancel order'));
     } finally {
       setIsSubmitting(false);
     }
@@ -108,17 +114,17 @@ export function OrderCancellation({ orderId, orderStatus, onCancelled, canCancel
       <DialogTrigger asChild>
         <Button variant="outline" className="text-destructive border-destructive hover:bg-destructive/10">
           <X size={16} className="mr-2" />
-          Cancel Order
+          {isEnquiry ? 'Cancel Enquiry' : 'Cancel Order'}
         </Button>
       </DialogTrigger>
       <DialogContent className="max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <AlertTriangle className="text-warning" size={20} />
-            Cancel Order
+            {isEnquiry ? 'Cancel Enquiry' : 'Cancel Order'}
           </DialogTitle>
           <DialogDescription>
-            Please tell us why you want to cancel this order
+            {isEnquiry ? 'Please tell us why you want to cancel this enquiry' : 'Please tell us why you want to cancel this order'}
           </DialogDescription>
         </DialogHeader>
 
@@ -147,7 +153,7 @@ export function OrderCancellation({ orderId, orderStatus, onCancelled, canCancel
               className="flex-1"
               onClick={() => setIsOpen(false)}
             >
-              Keep Order
+              {isEnquiry ? 'Keep Enquiry' : 'Keep Order'}
             </Button>
             <Button
               variant="destructive"
@@ -158,7 +164,7 @@ export function OrderCancellation({ orderId, orderStatus, onCancelled, canCancel
               {isSubmitting ? (
                 <Loader2 className="animate-spin mr-2" size={16} />
               ) : null}
-              Cancel Order
+              {isEnquiry ? 'Cancel Enquiry' : 'Cancel Order'}
             </Button>
           </div>
         </div>

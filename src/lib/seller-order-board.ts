@@ -7,9 +7,12 @@
  * filter based on payment_status / refund_requests, not a status bucket.
  *
  * Settled GMV (revenue):
- *   sum(orders.total_amount) where status ∈ completed|delivered|buyer_received
- *   AND payment_status IS DISTINCT FROM 'refunded'
+ *   sum(GREATEST(total_amount - amount_refunded, 0))
+ *   where status ∈ completed|delivered|buyer_received.
+ *   A full refund (payment_status = refunded and no residual) contributes 0.
+ *   A partial refund reduces GMV by the refunded amount only.
  * Used by dashboard EarningsSummary, SellerEarningsPage overview, and analytics.
+ * Seller Wallet payable numbers come from get_seller_financial_summary — never mix them.
  */
 
 export type SellerBoardBucket =
@@ -69,6 +72,7 @@ export const STATUS_TO_BUCKET: Record<string, SellerBoardBucket> = {
   placed: 'action_needed',
   pending: 'action_needed',
   accepted: 'action_needed',
+  confirmed: 'action_needed',
   booked: 'action_needed',
   requested: 'action_needed',
   scheduled: 'action_needed',
@@ -136,11 +140,28 @@ export function resolveBoardBucket(
 export function isSettledRevenueOrder(
   status: string,
   paymentStatus?: string | null,
+  amountRefunded = 0,
+  totalAmount?: number | null,
 ): boolean {
-  return (
-    (SETTLED_STATUSES as readonly string[]).includes(status) &&
-    paymentStatus !== 'refunded'
-  );
+  if (!(SETTLED_STATUSES as readonly string[]).includes(status)) return false;
+  if (paymentStatus === 'refunded' && !(Number(amountRefunded) > 0 && Number(amountRefunded) < Number(totalAmount || 0))) {
+    return false;
+  }
+  return true;
+}
+
+/** Settled GMV contribution for one order. Partial refunds subtract only the refunded amount. */
+export function settledGmvAmount(
+  status: string,
+  paymentStatus?: string | null,
+  totalAmount?: number | null,
+  amountRefunded = 0,
+): number {
+  if (!(SETTLED_STATUSES as readonly string[]).includes(status)) return 0;
+  const total = Number(totalAmount) || 0;
+  const refunded = Number(amountRefunded) || 0;
+  if (paymentStatus === 'refunded' && refunded <= 0) return 0;
+  return Math.max(Math.round((total - refunded) * 100) / 100, 0);
 }
 
 /**
@@ -288,6 +309,7 @@ type AggregateRow = {
   status: string;
   payment_status?: string | null;
   total_amount?: number | null;
+  amount_refunded?: number | null;
   created_at: string;
   updated_at?: string | null;
   delivered_at?: string | null;
@@ -379,11 +401,12 @@ export function aggregateSellerBoardFromOrders(
         break;
     }
 
-    if (isSettledRevenueOrder(row.status, row.payment_status)) {
-      kpis.totalEarnings += amt;
-      if (isToday) kpis.todayEarnings += amt;
-      if (isWeek) kpis.weekEarnings += amt;
-      if (isMonth) kpis.monthEarnings += amt;
+    if (isSettledRevenueOrder(row.status, row.payment_status, row.amount_refunded, row.total_amount)) {
+      const gmv = settledGmvAmount(row.status, row.payment_status, row.total_amount, row.amount_refunded);
+      kpis.totalEarnings += gmv;
+      if (isToday) kpis.todayEarnings += gmv;
+      if (isWeek) kpis.weekEarnings += gmv;
+      if (isMonth) kpis.monthEarnings += gmv;
 
       const mins = computeFulfillMinutes(
         row.created_at,

@@ -13,6 +13,15 @@ import { logAudit } from '@/lib/audit';
 import { notify } from '@/lib/notify';
 import { isPortfolioSellerId } from '@/lib/seller-order-board';
 import { showFeedback } from '@/components/FeedbackPopupProvider';
+import { usePaymentMode } from '@/hooks/usePaymentMode';
+import {
+  isUpiRequiredAndMissing,
+  shouldValidateUpiOnSettingsSave,
+  UPI_REQUIRED_FOR_GO_LIVE_MESSAGE,
+  UPI_REQUIRED_FOR_ONLINE_MESSAGE,
+  UPI_REQUIRED_TITLE,
+  type SellerSettingsSaveScope,
+} from '@/lib/sellerPaymentReadiness';
 
 export interface PaymentConfigData {
   accepts_cod: boolean;
@@ -50,7 +59,7 @@ export interface SellerSettingsFormData {
   upi_holder_name?: string;
 }
 
-const DEFAULT_PAYMENT_CONFIG: PaymentConfigData = { accepts_cod: true, accepts_online: true };
+const DEFAULT_PAYMENT_CONFIG: PaymentConfigData = { accepts_cod: true, accepts_online: false };
 
 const DEFAULT_FORM: SellerSettingsFormData = {
   business_name: '', description: '', categories: [],
@@ -92,6 +101,7 @@ export function useSellerSettings() {
   const { currencySymbol } = useCurrency();
   const { groupedConfigs } = useCategoryConfigs();
   const { getGroupBySlug } = useParentGroups();
+  const paymentMode = usePaymentMode();
   const [sellerProfile, setSellerProfile] = useState<SellerProfile | null>(null);
   const [primaryGroup, setPrimaryGroup] = useState<ParentGroup | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -167,19 +177,14 @@ export function useSellerSettings() {
       return;
     }
     const newAvailability = !formData.is_available;
-    // Gate new go-live when online payments enabled without UPI ID.
-    // Use payment configs only — formData.accepts_upi can lag behind Online Payment toggles.
-    if (newAvailability) {
-      const wantsOnline =
-        formData.pickup_payment_config?.accepts_online ||
-        formData.delivery_payment_config?.accepts_online;
-      const hasUpiId =
-        !!(formData.upi_id || (sellerProfile as any).upi_id);
-      if (wantsOnline && !hasUpiId) {
-        // Allow go-live only if online is turned off — otherwise block
-        notify.block('Please enter your UPI ID before going live with online payments, or turn off online payments and use COD only');
-        return;
-      }
+    if (newAvailability && isUpiRequiredAndMissing(paymentMode.mode, {
+      upi_id: formData.upi_id || (sellerProfile as any).upi_id,
+      accepts_upi: formData.accepts_upi,
+      pickup_payment_config: formData.pickup_payment_config,
+      delivery_payment_config: formData.delivery_payment_config,
+    })) {
+      notify.block(UPI_REQUIRED_FOR_GO_LIVE_MESSAGE, { title: UPI_REQUIRED_TITLE });
+      return;
     }
     togglePauseRef.current = true;
     setFormData(prev => ({ ...prev, is_available: newAvailability }));
@@ -192,13 +197,17 @@ export function useSellerSettings() {
     finally { togglePauseRef.current = false; }
   };
 
-  const handleSave = async () => {
+  const handleSave = async (scope: SellerSettingsSaveScope = 'general') => {
     if (!sellerProfile) return;
     if (!formData.business_name.trim()) { notify.block('Please enter a business name'); return; }
     if (formData.categories.length === 0) { notify.block('Please select at least one category'); return; }
-    const wantsOnlinePay =
-      formData.pickup_payment_config.accepts_online || formData.delivery_payment_config.accepts_online;
-    if (wantsOnlinePay && !formData.upi_id.trim()) { notify.block('Please enter your UPI ID'); return; }
+    if (
+      shouldValidateUpiOnSettingsSave(scope) &&
+      isUpiRequiredAndMissing(paymentMode.mode, formData)
+    ) {
+      notify.block(UPI_REQUIRED_FOR_ONLINE_MESSAGE, { title: UPI_REQUIRED_TITLE });
+      return;
+    }
     if (formData.operating_days.length === 0) { notify.block('Select at least one operating day, or use "Pause Shop" to temporarily close', { id: 'settings-days-error' }); return; }
 
     // ── Timezone validation for store hours ──────────────────────────────
@@ -290,6 +299,7 @@ export function useSellerSettings() {
     user, sellerProfile, primaryGroup, isLoading, isSaving,
     formData, setFormData, currencySymbol,
     groupedConfigs, getGroupBySlug,
+    paymentMode,
     handleCategoryChange, handleDayChange, togglePauseShop, handleSave,
   };
 }

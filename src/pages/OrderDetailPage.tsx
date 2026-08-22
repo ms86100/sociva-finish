@@ -1452,7 +1452,7 @@ export default function OrderDetailPage() {
               </>
             ) : (
               o.canBuyerCancel && (
-                <OrderCancellation orderId={order.id} orderStatus={order.status} onCancelled={() => o.fetchOrder()} canCancel={true} />
+                <OrderCancellation orderId={order.id} orderStatus={order.status} onCancelled={() => o.fetchOrder()} canCancel={true} kind={o.isEnquiryOrder ? 'enquiry' : 'order'} />
               )
             )}
             {o.buyerNextStatus && (() => {

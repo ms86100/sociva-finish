@@ -31,7 +31,7 @@ import type { SellerFormData } from '@/hooks/useSellerApplication';
 import { useSubcategories } from '@/hooks/useSubcategories';
 import { SubcategoryPickerDialog, SubcategorySelection } from '@/components/seller/SubcategoryPickerDialog';
 import { CategorySearchPicker } from '@/components/seller/CategorySearchPicker';
-import { PendingCategoryRequestsBanner } from '@/components/seller/PendingCategoryRequestsBanner';
+import { PendingCategoryRequestsBanner, useOpenCategoryRequests } from '@/components/seller/PendingCategoryRequestsBanner';
 import { ListingIntentStep } from '@/components/seller/ListingIntentStep';
 import { CommerceModelStep } from '@/components/seller/CommerceModelStep';
 import { TaxonomySuggestCard } from '@/components/seller/TaxonomySuggestCard';
@@ -471,6 +471,11 @@ export default function BecomeSellerPage() {
   const app = useSellerApplication();
   const { configs } = useCategoryConfigs();
   const { data: allActions = [] } = useActionTypeMap();
+  const { data: openCategoryRequests = [] } = useOpenCategoryRequests();
+  const pendingCategoryRequests = openCategoryRequests.filter((r: any) => r.status === 'pending');
+  const pendingCategoryNames = pendingCategoryRequests
+    .map((r: any) => r.requested_name)
+    .filter(Boolean);
 
   // ─── Interaction mode state (persisted in sessionStorage) ─────────────
   const [storeActionType, setStoreActionType] = useState<string>(() => {
@@ -665,14 +670,12 @@ export default function BecomeSellerPage() {
   if (existingSeller && selectedGroup) {
     const isRejected = (existingSeller as any).verification_status === 'rejected';
     const isPendingReview = (existingSeller as any).verification_status === 'pending';
+    const hasPendingCategoryRequest = pendingCategoryRequests.length > 0;
     return (
       <AppLayout showHeader={false} showNav={false}>
         <div className="p-4 safe-top">
           <Link to="/" className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-muted shrink-0 mb-6"><ArrowLeft size={18} /></Link>
-          <div className="max-w-md mx-auto">
-            <PendingCategoryRequestsBanner />
-          </div>
-          <div className="text-center py-12">
+          <div className="text-center py-8 max-w-md mx-auto">
             {isRejected ? (
               <>
                 <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-destructive/20 flex items-center justify-center"><Store className="text-destructive" size={32} /></div>
@@ -716,13 +719,39 @@ export default function BecomeSellerPage() {
               </>
             ) : (
               <>
-                <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-success/20 flex items-center justify-center"><Store className="text-success" size={32} /></div>
-                <h1 className="text-2xl font-bold mb-2">Store Approved! 🎉</h1>
-                <p className="text-muted-foreground mb-6">Your store <strong>{existingSeller.business_name}</strong> is live. Go to your seller dashboard to manage it.</p>
-                <div className="space-y-3">
-                  <Link to="/seller"><Button className="w-full" size="lg"><Store size={18} className="mr-2" />Go to Seller Dashboard</Button></Link>
-                  <Link to="/seller/category-requests"><Button variant="outline" className="w-full">My Category Requests</Button></Link>
-                  <Button variant="ghost" className="w-full" onClick={() => { setSelectedGroup(null); setExistingSeller(null); setStep(1); }}>Register Another Category</Button>
+                <div className="text-[44px] leading-none mb-3" aria-hidden>{hasPendingCategoryRequest ? '🎈👏' : '🎈'}</div>
+                {hasPendingCategoryRequest ? (
+                  <>
+                    <h1 className="text-2xl font-bold mb-2">Store setup complete</h1>
+                    <p className="text-muted-foreground mb-2">
+                      Your store <strong>{existingSeller.business_name}</strong> is ready to manage.
+                    </p>
+                    <p className="text-sm text-muted-foreground mb-5">
+                      {pendingCategoryNames.length === 1
+                        ? <>The category you requested, <strong>&ldquo;{pendingCategoryNames[0]}&rdquo;</strong>, is still under review, so it is not live yet.</>
+                        : <>The categories you requested are still under review, so they are not live yet.</>}
+                      {' '}We&apos;ll notify you when {pendingCategoryNames.length === 1 ? "it's" : "they're"} approved — usually within 24 hours.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <h1 className="text-2xl font-bold mb-2">Store is live</h1>
+                    <p className="text-muted-foreground mb-5">
+                      Your store <strong>{existingSeller.business_name}</strong> is ready. Go to your seller dashboard to manage it.
+                    </p>
+                  </>
+                )}
+                <div className="text-left mb-5">
+                  <PendingCategoryRequestsBanner />
+                </div>
+                <div className="flex flex-col gap-4 w-full">
+                  <Link to="/seller" className="block w-full">
+                    <Button className="w-full" size="lg"><Store size={18} className="mr-2" />Go to Seller Dashboard</Button>
+                  </Link>
+                  <Link to="/seller/category-requests" className="block w-full">
+                    <Button variant="outline" className="w-full" size="lg">My Category Requests</Button>
+                  </Link>
+                  <Button variant="ghost" className="w-full mt-1" onClick={() => { setSelectedGroup(null); setExistingSeller(null); setStep(1); }}>Register Another Category</Button>
                 </div>
               </>
             )}
@@ -1007,8 +1036,14 @@ export default function BecomeSellerPage() {
                   </div>
                   <div className="border rounded-lg p-4 space-y-3">
                     <div className="flex items-center gap-2"><Banknote size={16} className="text-primary" /><h3 className="font-semibold text-sm">Payment Methods</h3></div>
+                    <p className="text-xs text-muted-foreground">Customer payments go directly to you. Sociva Credits are a separate prepaid balance for platform usage such as orders, enquiries, bookings, and contact requests.</p>
                     <label className="flex items-center justify-between p-3 rounded-lg border cursor-pointer"><div className="flex items-center gap-3"><Banknote size={18} className="text-muted-foreground" /><div><span className="text-sm font-medium">Cash on Delivery</span><p className="text-xs text-muted-foreground">Accept cash payments</p></div></div><Switch checked={formData.accepts_cod} onCheckedChange={(checked) => setFormData({ ...formData, accepts_cod: checked })} /></label>
-                    <label className="flex items-center justify-between p-3 rounded-lg border cursor-pointer"><div className="flex items-center gap-3"><Smartphone size={18} className="text-muted-foreground" /><div><span className="text-sm font-medium">UPI Payment</span><p className="text-xs text-muted-foreground">Accept UPI / digital payments</p></div></div><Switch checked={formData.accepts_upi} onCheckedChange={(checked) => setFormData({ ...formData, accepts_upi: checked })} /></label>
+                    <label className="flex items-center justify-between p-3 rounded-lg border cursor-pointer"><div className="flex items-center gap-3"><Smartphone size={18} className="text-muted-foreground" /><div><span className="text-sm font-medium">UPI Payment</span><p className="text-xs text-muted-foreground">Accept UPI / digital payments</p></div></div><Switch checked={formData.accepts_upi} onCheckedChange={(checked) => setFormData({
+                      ...formData,
+                      accepts_upi: checked,
+                      pickup_payment_config: { ...formData.pickup_payment_config, accepts_online: checked },
+                      delivery_payment_config: { ...formData.delivery_payment_config, accepts_online: checked },
+                    })} /></label>
                     {formData.accepts_upi && <div className="space-y-2 pt-2 border-t"><Label htmlFor="upi_id" className="text-xs text-muted-foreground">UPI ID <span className="text-destructive">*</span></Label><UpiVpaInput value={formData.upi_id} onChange={(v) => setFormData({ ...formData, upi_id: v, upi_validation_status: undefined } as any)} businessName={formData.business_name} placeholder="e.g., yourname@upi" onStatusChange={(status, name) => setFormData({ ...formData, upi_validation_status: status, upi_holder_name: name } as any)} />{formData.accepts_upi && !formData.upi_id.trim() && <p className="text-xs text-destructive">Required when UPI is enabled</p>}</div>}
                   </div>
                   <Button className="w-full" onClick={() => handleSetConfigSubStep(2)} disabled={formData.accepts_upi && !formData.upi_id.trim()}>
