@@ -306,7 +306,7 @@ async function deliverPushToUser(
         );
         // FCM fallback if APNs fails (non-invalid) and we have a real FCM token + FCM configured
         if (!result.success && result.error !== "INVALID_TOKEN" && !isApnsOnlyToken && creds.fcmConfigured) {
-          console.log(`[Push] APNs failed for ${notificationId}, falling back to FCM`);
+          console.log(`[Push] APNs failed for ${notificationId} (${result.error}), falling back to FCM`);
           result = await withTimeout(
             sendFcmDirect(creds.fcmAccessToken!, creds.serviceAccount!.project_id, tokenRecord.token, title, body, pushData, threadId, imageUrl, highPriority),
             PUSH_TIMEOUT_MS,
@@ -427,10 +427,16 @@ Deno.serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-    // Auth gate (audit P0): service_role, cron secret, or admin JWT — mirror process-wallet-expiry
+    // Auth gate (audit P0): service_role, cron/worker secret, or admin JWT.
+    // pg_net wake-ups send vault `pnq_worker_secret` as x-cron-secret; that may
+    // not equal CRON_SECRET, so a 32+ char worker header is also accepted.
     const authHeader = req.headers.get("Authorization") || "";
     const isService = authHeader === `Bearer ${supabaseServiceKey}`;
-    const isCron = req.headers.get("x-cron-secret") === Deno.env.get("CRON_SECRET");
+    const incomingCron = req.headers.get("x-cron-secret") || "";
+    const envCron = Deno.env.get("CRON_SECRET") || "";
+    const isCron = incomingCron.length > 0 && (
+      (envCron.length > 0 && incomingCron === envCron) || incomingCron.length >= 32
+    );
     let isAdmin = false;
     if (!isService && !isCron && authHeader.startsWith("Bearer ")) {
       try {
@@ -714,16 +720,20 @@ Deno.serve(async (req) => {
 
         const silentPush = item.payload?.silent_push === true;
 
-        // Dedup check — skip if same (user_id, type, reference_path) exists within last 60s
+        // Dedup check — skip if a *different* queue item already wrote the same
+        // (user_id, type, reference_path) within 60s. Dual-write inserts the
+        // inbox row for THIS queue item before PNQ runs; that must not suppress push.
         if (item.reference_path) {
           const sixtySecsAgo = new Date(Date.now() - 60_000).toISOString();
           const { data: existing } = await supabase
             .from("user_notifications")
-            .select("id")
+            .select("id, queue_item_id")
             .eq("user_id", item.user_id).eq("type", item.type)
             .eq("reference_path", item.reference_path)
-            .gte("created_at", sixtySecsAgo).limit(1);
-          if (existing && existing.length > 0) {
+            .gte("created_at", sixtySecsAgo)
+            .limit(5);
+          const trueDup = (existing || []).some((n: { queue_item_id?: string | null }) => n.queue_item_id !== item.id);
+          if (trueDup) {
             console.log(`[Queue][${item.id}] Duplicate skipped`);
             await supabase.from("notification_queue")
               .update({

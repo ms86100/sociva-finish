@@ -48,7 +48,13 @@
       "Bash(findstr :3000)",
       "Bash(tasklist *)",
       "PowerShell(git add *)",
-      "PowerShell(git commit *)"
+      "PowerShell(git commit *)",
+      "PowerShell(git push *)",
+      "PowerShell(npm run *)",
+      "PowerShell(TaskStop be3d0xez4 *)",
+      "PowerShell(TaskStop b4nc6tzpp *)",
+      "PowerShell(.\\\\gradlew assembleRelease)",
+      "PowerShell(copy *)"
     ]
   },
   "enableAllProjectMcpServers": true,
