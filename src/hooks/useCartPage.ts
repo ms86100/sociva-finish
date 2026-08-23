@@ -34,6 +34,7 @@ import {
 import { postCheckoutPath } from '@/lib/checkout-groups';
 import { resolveCheckoutGroupId } from '@/hooks/useCheckoutGroup';
 import { isSellerCreditInsufficientError, sellerCreditCustomerMessage } from '@/lib/sellerCredits';
+import { resolvePlatformDeliveryFee } from '@/lib/delivery-fee';
 // Store status validation now handled server-side in create_multi_vendor_orders RPC
 
 async function navigateAfterCheckout(
@@ -291,7 +292,12 @@ export function useCartPage() {
     return Math.min(fixedValue, totalAmount);
   })();
 
-  const effectiveDeliveryFee = fulfillmentType === 'delivery' ? (totalAmount >= settings.freeDeliveryThreshold ? 0 : settings.baseDeliveryFee) : 0;
+  const effectiveDeliveryFee = resolvePlatformDeliveryFee({
+    fulfillmentType,
+    cartSubtotal: totalAmount,
+    baseDeliveryFee: settings.baseDeliveryFee,
+    freeDeliveryThreshold: settings.freeDeliveryThreshold,
+  });
   const amountAfterCoupon = appliedCoupon ? Math.max(0, totalAmount - effectiveCouponDiscount) : totalAmount;
   const effectiveLoyaltyDiscount = Math.min(loyalty.appliedPoints, amountAfterCoupon);
   // Wallet applies after loyalty to remaining payable (includes delivery) — matches server

@@ -146,6 +146,8 @@ export function useMarketplaceConfig(): MarketplaceConfig {
     // PERF: reads from the shared single-request bootstrap instead of firing
     // its own system_settings + admin_settings queries.
     queryFn: async (): Promise<SettingsCacheData> => {
+      // After invalidateAppBootstrap(), cache is empty so this hits the network.
+      // Do not pass force:true on every mount — that would defeat the TTL cache.
       const { sysMap, adminMap } = await loadAppBootstrap();
       return { sysMap, adminMap, config: buildConfig(sysMap, adminMap) };
     },

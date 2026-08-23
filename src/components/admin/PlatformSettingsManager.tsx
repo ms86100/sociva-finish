@@ -11,6 +11,7 @@ import { Separator } from '@/components/ui/separator';
 import { adminNotify } from '@/lib/admin-notify';
 import { Settings, Save, Loader2, RefreshCw, IndianRupee, Mail, Type, Percent, FileText, Info, Activity, MapPin, Users, TrendingUp } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
+import { invalidateAppBootstrap } from '@/lib/app-bootstrap';
 
 interface SettingField {
   key: string;
@@ -127,7 +128,10 @@ export function PlatformSettingsManager() {
         }
       }
       setOriginal({ ...values });
-      queryClient.invalidateQueries({ queryKey: ['system-settings-all'] });
+      // Clear bootstrap memory + localStorage so buyers refetch live fees
+      // (without this, loadAppBootstrap() serves a 30min/7d stale snapshot).
+      invalidateAppBootstrap();
+      await queryClient.invalidateQueries({ queryKey: ['system-settings-all'] });
       adminNotify.success(`${changedKeys.length} setting(s) updated`);
     } catch {
       adminNotify.error('Failed to save settings');

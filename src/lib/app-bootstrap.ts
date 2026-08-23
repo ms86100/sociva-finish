@@ -54,18 +54,34 @@ const TTL_MS = 30 * 60 * 1000;
 const MAX_PERSIST_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
 /** Bump when the snapshot shape changes so old payloads are ignored. */
-const STORAGE_KEY = 'app-bootstrap-v1';
+const STORAGE_KEY = 'app-bootstrap-v2';
 
 let cache: AppBootstrap | null = null;
 let inflight: Promise<AppBootstrap> | null = null;
 
 function toMap(rows: any[] | null | undefined): Record<string, string> {
+  // Lazy import avoided — keep bootstrap free of circular deps; inline unwrap.
   const map: Record<string, string> = {};
   for (const row of rows || []) {
     if (row?.key == null || row?.value == null) continue;
-    // system_settings.value is jsonb for some rows and plain text for others —
-    // normalise to the string shape every existing hook already expects.
-    map[row.key] = typeof row.value === 'string' ? row.value : JSON.stringify(row.value);
+    // system_settings.value is jsonb (string/number) — always flatten to plain text.
+    const v = row.value;
+    if (typeof v === 'string') {
+      try {
+        const parsed = JSON.parse(v);
+        if (typeof parsed === 'string' || typeof parsed === 'number' || typeof parsed === 'boolean') {
+          map[row.key] = String(parsed);
+          continue;
+        }
+      } catch {
+        // plain string
+      }
+      map[row.key] = v;
+    } else if (typeof v === 'number' || typeof v === 'boolean') {
+      map[row.key] = String(v);
+    } else {
+      map[row.key] = JSON.stringify(v);
+    }
   }
   return map;
 }

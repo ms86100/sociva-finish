@@ -1,8 +1,7 @@
 // @ts-nocheck
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { useQueryClient } from '@tanstack/react-query';
 import { useMarketplaceConfig } from '@/hooks/useMarketplaceConfig';
-import { jitteredStaleTime } from '@/lib/query-utils';
+import { parseSettingNumber } from '@/lib/delivery-fee';
 
 export interface SystemSettings {
   baseDeliveryFee: number;
@@ -70,8 +69,8 @@ const DEFAULTS: SystemSettings = {
 
 function buildSettingsFromMap(map: Record<string, string>): SystemSettings {
   return {
-    baseDeliveryFee: map.base_delivery_fee != null ? parseInt(map.base_delivery_fee, 10) : 20,
-    freeDeliveryThreshold: map.free_delivery_threshold != null ? parseInt(map.free_delivery_threshold, 10) : 500,
+    baseDeliveryFee: parseSettingNumber(map.base_delivery_fee, 20),
+    freeDeliveryThreshold: parseSettingNumber(map.free_delivery_threshold, 500),
     platformFeePercent: map.platform_fee_percent != null ? parseFloat(map.platform_fee_percent) : 0,
     supportEmail: map.support_email || DEFAULTS.supportEmail,
     grievanceEmail: map.grievance_email || DEFAULTS.grievanceEmail,
@@ -107,9 +106,10 @@ function buildSettingsFromMap(map: Record<string, string>): SystemSettings {
 /**
  * Full settings object — reads from the shared ['system-settings-all'] cache
  * populated by useMarketplaceConfig. Zero additional network calls.
+ * Depends on useMarketplaceConfig() so admin invalidations re-render with live fees.
  */
 export function useSystemSettings(): SystemSettings {
-  // Ensure the shared cache is populated
+  // Ensure the shared cache is populated and this hook re-renders on refetch
   useMarketplaceConfig();
 
   const queryClient = useQueryClient();
@@ -127,11 +127,6 @@ export function useSystemSettings(): SystemSettings {
  * Usage: const symbol = useSystemSetting(s => s.currencySymbol);
  */
 export function useSystemSetting<T>(selector: (settings: SystemSettings) => T): T {
-  useMarketplaceConfig();
-
-  const queryClient = useQueryClient();
-  const cached = queryClient.getQueryData<{ sysMap: Record<string, string> }>(['system-settings-all']);
-  const settings = cached?.sysMap ? buildSettingsFromMap(cached.sysMap) : DEFAULTS;
-
+  const settings = useSystemSettings();
   return selector(settings);
 }
