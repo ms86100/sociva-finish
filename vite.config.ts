@@ -11,19 +11,17 @@ import ViteTsconfigPaths from "vite-tsconfig-paths";
 const isNativeProdBuild =
   process.env.CAPACITOR_ENV === "production" || process.env.CAPACITOR_BUILD === "1";
 
-/** Keep website APK downloads out of Capacitor bundles (self-nesting blows past GitHub's 100MB limit). */
-function omitApkFromNativeDist(enabled: boolean): Plugin {
+/** Keep website installer downloads out of Capacitor bundles (APK/EXE self-nesting blows size limits). */
+function omitDownloadsFromNativeDist(enabled: boolean): Plugin {
   return {
-    name: "omit-apk-from-native-dist",
+    name: "omit-downloads-from-native-dist",
     apply: "build",
     closeBundle() {
       if (!enabled) return;
       const downloadsDir = path.resolve(__dirname, "dist/downloads");
       if (!fs.existsSync(downloadsDir)) return;
       for (const name of fs.readdirSync(downloadsDir)) {
-        if (name.toLowerCase().endsWith(".apk")) {
-          fs.unlinkSync(path.join(downloadsDir, name));
-        }
+        fs.rmSync(path.join(downloadsDir, name), { force: true, recursive: true });
       }
     },
   };
@@ -45,7 +43,7 @@ export default defineConfig(({ mode }) => {
     plugins: [
       react(),
       mode === "development" && componentTagger(),
-      omitApkFromNativeDist(isCapacitorBuild),
+      omitDownloadsFromNativeDist(isCapacitorBuild),
       ViteTsconfigPaths(),
       !skipPwa &&
         VitePWA({
