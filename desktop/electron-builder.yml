@@ -1,0 +1,33 @@
+# Mirror of package.json "build" for clarity when editing packaging alone.
+# Prefer package.json build block as source of truth for npm scripts.
+appId: in.sociva.desktop
+productName: Sociva
+directories:
+  output: dist
+  buildResources: build
+files:
+  - src/**/*
+  - package.json
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  artifactName: Sociva-Setup-${version}.${ext}
+mac:
+  target:
+    - target: dmg
+      arch:
+        - universal
+    - target: zip
+      arch:
+        - universal
+  artifactName: Sociva-${version}-mac.${ext}
+  category: public.app-category.business
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Sociva
+publish: null

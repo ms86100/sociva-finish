@@ -1,0 +1,13 @@
+node_modules/
+dist/
+out/
+*.log
+.DS_Store
+Thumbs.db
+.env
+.env.*
+*.exe
+*.dmg
+*.blockmap
+*.zip
+!scripts/**

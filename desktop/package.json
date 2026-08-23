@@ -1,0 +1,74 @@
+{
+  "name": "sociva-desktop",
+  "version": "1.0.0",
+  "description": "Sociva desktop client for Windows and macOS — Electron shell over the live cloud app",
+  "main": "src/main.js",
+  "author": "Sociva",
+  "license": "UNLICENSED",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "dist:win": "electron-builder --win --x64",
+    "dist:mac": "electron-builder --mac dmg --arm64 --x64",
+    "dist:mac:ci": "electron-builder --mac dmg --arm64",
+    "dist": "electron-builder --win --x64"
+  },
+  "devDependencies": {
+    "electron": "^34.2.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "in.sociva.desktop",
+    "productName": "Sociva",
+    "copyright": "Copyright © Sociva",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "src/**/*",
+      "package.json"
+    ],
+    "extraMetadata": {
+      "main": "src/main.js"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ],
+      "artifactName": "Sociva-Setup-${version}.${ext}",
+      "icon": "build/icon.png",
+      "signAndEditExecutable": false,
+      "verifyUpdateCodeSignature": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Sociva",
+      "uninstallDisplayName": "Sociva"
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": ["arm64"]
+        }
+      ],
+      "artifactName": "Sociva-mac.${ext}",
+      "category": "public.app-category.business",
+      "icon": "build/icon.png",
+      "hardenedRuntime": false,
+      "gatekeeperAssess": false,
+      "identity": null
+    },
+    "dmg": {
+      "artifactName": "Sociva-mac.${ext}"
+    },
+    "publish": null
+  }
+}

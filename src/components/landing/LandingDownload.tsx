@@ -9,10 +9,14 @@ const IOS_APP_STORE_URL = 'https://apps.apple.com/in/app/sociva/id6759218504';
 export const ANDROID_APK_URL = '/downloads/sociva-android.apk';
 /** Stable Windows installer alias (Vercel public/downloads). */
 export const WINDOWS_SETUP_URL = '/downloads/sociva-windows-setup.exe';
-/** macOS DMG — enabled when the file is published to public/downloads. */
-export const MACOS_DMG_URL = '/downloads/sociva-macos.dmg';
-/** Flip to true after publishing sociva-macos.dmg from Mac CI. */
-const MACOS_DMG_AVAILABLE = false;
+/**
+ * macOS DMG via GitHub Releases (built by Actions on macos-latest).
+ * Prefer a promoted `desktop-v*` release; falls back to latest matching asset name.
+ */
+export const MACOS_DMG_URL =
+  'https://github.com/ms86100/sociva-finish/releases/latest/download/Sociva-mac.dmg';
+/** Set true after the first successful macOS Actions release exists. */
+const MACOS_DMG_AVAILABLE = true;
 
 export function LandingDownload() {
   const ref = useRef<HTMLDivElement>(null);
@@ -174,7 +178,7 @@ export function LandingDownload() {
                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">MacBook &amp; Mac</p>
                 <h3 className="text-lg font-bold text-foreground">macOS Download</h3>
                 <p className="text-sm text-muted-foreground leading-relaxed">
-                  Native Mac app for your MacBook — same Sociva account and live cloud backend.
+                  Native Mac app for your MacBook — same Sociva account and live cloud backend. First open: right-click → Open (unsigned BAT build).
                 </p>
               </div>
               <Button variant="outline" className="relative w-full rounded-xl font-semibold border-primary/30" size="lg">

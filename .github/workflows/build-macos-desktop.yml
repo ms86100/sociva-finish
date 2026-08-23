@@ -1,0 +1,82 @@
+name: Build Sociva macOS Desktop
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'desktop-v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-mac:
+    name: Build macOS DMG
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: desktop
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+
+      - name: Install dependencies
+        run: npm install --legacy-peer-deps
+
+      - name: Build DMG (unsigned — BAT/UAT)
+        run: npm run dist:mac:ci
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+
+      - name: List dist output
+        run: ls -lh dist/
+
+      - name: Upload DMG artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sociva-macos-dmg
+          path: desktop/dist/*.dmg
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Resolve release tag
+        id: meta
+        run: |
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            echo "tag=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=desktop-v1.0.0-${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create GitHub Release with DMG
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.meta.outputs.tag }}
+          name: Sociva Desktop macOS (${{ steps.meta.outputs.tag }})
+          draft: false
+          prerelease: ${{ steps.meta.outputs.prerelease == 'true' }}
+          files: desktop/dist/Sociva-mac.dmg
+          fail_on_unmatched_files: true
+          body: |
+            ## Sociva for Mac
+            Electron desktop shell → https://www.sociva.in (same cloud backend as web/mobile).
+
+            ### Install
+            1. Download `Sociva-mac.dmg`
+            2. Open it and drag **Sociva** into Applications
+            3. First launch: right-click Sociva → **Open** (unsigned BAT build)
+
+            ### Direct download
+            https://github.com/${{ github.repository }}/releases/download/${{ steps.meta.outputs.tag }}/Sociva-mac.dmg
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
