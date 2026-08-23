@@ -243,23 +243,24 @@ export function AdminBannerManager() {
     staleTime: 15_000,
   });
 
-  // Fetch societies with builder info for smart targeting
-  const { data: allSocieties = [] } = useQuery({
-    queryKey: ['societies-list-with-builders'],
+  // Fetch ALL societies (admin RPC) with live buyer/seller audience for targeting
+  const { data: allSocieties = [], isLoading: societiesLoading, isError: societiesError } = useQuery({
+    queryKey: ['admin-banner-target-societies'],
     queryFn: async () => {
-      const { data } = await supabase
-        .from('societies')
-        .select('id, name, builder_id, builders:builder_id(id, name)')
-        .eq('is_active', true)
-        .order('name');
+      const { data, error } = await supabase.rpc('admin_list_banner_target_societies');
+      if (error) throw error;
       return (data || []).map((s: any) => ({
-        id: s.id,
-        name: s.name,
-        builder_id: s.builder_id,
-        builder_name: s.builders?.name || null,
+        id: s.id as string,
+        name: s.name as string,
+        is_active: !!s.is_active,
+        builder_id: (s.builder_id as string | null) || null,
+        builder_name: (s.builder_name as string | null) || null,
+        buyer_count: Number(s.buyer_count || 0),
+        seller_count: Number(s.seller_count || 0),
+        is_test: !!s.is_test,
       }));
     },
-    staleTime: 5 * 60_000,
+    staleTime: 60_000,
   });
 
   // Group societies by builder for smart targeting
@@ -1221,7 +1222,14 @@ export function AdminBannerManager() {
                     <div>
                       <Label className="text-xs font-semibold">Target Societies</Label>
                       <p className="text-[10px] text-muted-foreground">
-                        {form.target_society_ids.length === 0 ? 'Global — visible to all societies' : `${form.target_society_ids.length} society(ies) selected`}
+                        {form.target_society_ids.length === 0
+                          ? 'Global — visible to all societies'
+                          : (() => {
+                              const selected = allSocieties.filter((s: any) => form.target_society_ids.includes(s.id));
+                              const buyers = selected.reduce((n: number, s: any) => n + (s.buyer_count || 0), 0);
+                              const sellers = selected.reduce((n: number, s: any) => n + (s.seller_count || 0), 0);
+                              return `${form.target_society_ids.length} society(ies) · audience buyer — ${buyers} · seller — ${sellers}`;
+                            })()}
                       </p>
                     </div>
                   </div>
@@ -1276,9 +1284,15 @@ export function AdminBannerManager() {
                     </div>
                   )}
 
-                  <div className="max-h-40 overflow-y-auto space-y-0.5 border border-border/40 rounded-lg p-2">
-                    {filteredSocieties.map((s: any) => (
-                      <label key={s.id} className="flex items-center gap-2 py-0.5 cursor-pointer hover:bg-muted/40 rounded px-1">
+                  <div className="max-h-52 overflow-y-auto space-y-0.5 border border-border/40 rounded-lg p-2">
+                    {societiesLoading && (
+                      <p className="text-[10px] text-muted-foreground text-center py-2">Loading societies…</p>
+                    )}
+                    {societiesError && (
+                      <p className="text-[10px] text-destructive text-center py-2">Could not load societies. Refresh and try again.</p>
+                    )}
+                    {!societiesLoading && !societiesError && filteredSocieties.map((s: any) => (
+                      <label key={s.id} className="flex items-start gap-2 py-1 cursor-pointer hover:bg-muted/40 rounded px-1">
                         <input
                           type="checkbox"
                           checked={form.target_society_ids.includes(s.id)}
@@ -1289,14 +1303,36 @@ export function AdminBannerManager() {
                               updateField('target_society_ids', form.target_society_ids.filter((id: string) => id !== s.id));
                             }
                           }}
-                          className="rounded border-border"
+                          className="rounded border-border mt-0.5"
                         />
-                        <span className="text-xs">{s.name}</span>
-                        {s.builder_name && <span className="text-[9px] text-muted-foreground ml-auto">{s.builder_name}</span>}
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="text-xs font-medium leading-tight">{s.name}</span>
+                            {s.is_test && (
+                              <Badge variant="outline" className="text-[8px] h-3.5 px-1 border-amber-500/40 text-amber-700 dark:text-amber-400">Test</Badge>
+                            )}
+                            {!s.is_active && (
+                              <Badge variant="outline" className="text-[8px] h-3.5 px-1 text-muted-foreground">Inactive</Badge>
+                            )}
+                          </div>
+                          <p className="text-[10px] text-muted-foreground mt-0.5">
+                            buyer — {s.buyer_count} · seller — {s.seller_count}
+                            {s.builder_name ? ` · ${s.builder_name}` : ''}
+                          </p>
+                        </div>
                       </label>
                     ))}
-                    {filteredSocieties.length === 0 && (
-                      <p className="text-[10px] text-muted-foreground text-center py-2">No societies found</p>
+                    {!societiesLoading && !societiesError && filteredSocieties.length === 0 && (
+                      <p className="text-[10px] text-muted-foreground text-center py-2">
+                        {allSocieties.length === 0
+                          ? 'No societies in the database yet. Create societies in Admin → Societies first.'
+                          : 'No societies match your search'}
+                      </p>
+                    )}
+                    {!societiesLoading && allSocieties.length > 0 && allSocieties.every((s: any) => s.is_test) && !societySearch.trim() && (
+                      <p className="text-[10px] text-amber-700 dark:text-amber-400 text-center py-1.5 px-1 border-t border-border/40 mt-1 pt-1.5">
+                        Only integration-test societies exist right now. Real societies were wiped by a test reset/seed — re-add them under Admin → Societies.
+                      </p>
                     )}
                   </div>
                 </div>

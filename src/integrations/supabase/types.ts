@@ -12620,6 +12620,19 @@ export type Database = {
         Returns: number
       }
       notify_upcoming_maintenance_dues: { Args: never; Returns: undefined }
+      admin_list_banner_target_societies: {
+        Args: never
+        Returns: {
+          buyer_count: number
+          builder_id: string | null
+          builder_name: string | null
+          id: string
+          is_active: boolean
+          is_test: boolean
+          name: string
+          seller_count: number
+        }[]
+      }
       preview_festival_section_inventory: {
         Args: {
           p_banner_id?: string

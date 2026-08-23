@@ -332,6 +332,18 @@ Deno.serve(async (req) => {
     );
   }
 
+  // Extra hard-stop: refuse society wipe unless FORCE_DESTROY_SOCIETIES=true.
+  // Prevents accidental production data loss when ALLOW_TEST_FUNCTIONS is left on.
+  if (Deno.env.get("FORCE_DESTROY_SOCIETIES") !== "true") {
+    return new Response(
+      JSON.stringify({
+        error:
+          "Society wipe blocked. Set FORCE_DESTROY_SOCIETIES=true only for disposable test DBs. This protects production societies.",
+      }),
+      { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+
   // Rate limit — 2 per hour
   const clientIp = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
   const { allowed } = await checkRateLimit(`reset-seed:${clientIp}`, 2, 3600);
