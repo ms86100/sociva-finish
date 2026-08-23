@@ -57,14 +57,15 @@ describe('Seller credits go-live safety', () => {
     expect(checks.find((c) => c.id === 'spend_off')?.status).toBe('fail');
   });
 
-  it('admin UI blocks spend enable from the panel', () => {
+  it('admin UI enables spend only when the go-live checklist is fully green', () => {
     const admin = read('src/pages/AdminSellerCreditsPage.tsx');
-    expect(admin).toMatch(/Spend cannot be enabled from Admin until every go-live checklist/);
     expect(admin).toMatch(/Spend is blocked until the go-live checklist below is fully green/);
+    expect(admin).toMatch(/spendReady: spendGoLiveReady/);
+    expect(admin).toMatch(/Turn Spend ON\?/);
     expect(admin).toMatch(/Run billing certification/);
     expect(admin).toMatch(/Unified financial timeline/);
     expect(admin).toMatch(/admin_list_seller_credit_financial_timeline/);
-    expect(admin).not.toMatch(/Turn Spend ON\?/);
+    expect(admin).toMatch(/Checklist is green — you can turn Spend \/ gating ON above/);
   });
 
   it('confirm RPC inserts ledger before marking captured', () => {

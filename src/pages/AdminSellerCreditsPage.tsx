@@ -270,13 +270,19 @@ export default function AdminSellerCreditsPage() {
     }
   };
 
-  const setFlag = async (key: string, enabled: boolean) => {
+  const setFlag = async (key: string, enabled: boolean, opts?: { spendReady?: boolean }) => {
     if (key === 'seller_credit_spend_enabled' && enabled) {
-      toast.error(
-        'Spend cannot be enabled from Admin until every go-live checklist item passes. '
-        + 'This is blocked for production safety — billing E2E must be proven first.',
-      );
-      return;
+      if (!opts?.spendReady) {
+        toast.error('Spend is blocked until the go-live checklist below is fully green.');
+        return;
+      }
+      if (!window.confirm(
+        'Turn Spend ON?\n\n'
+        + 'Sellers will be charged Sociva Credits for orders, enquiries, bookings, and contacts. '
+        + 'Buyer discovery already requires a positive credit balance.',
+      )) {
+        return;
+      }
     }
     try {
       const { error } = await adminRpc('admin_set_seller_credit_flag', { p_key: key, p_enabled: enabled });
@@ -285,7 +291,7 @@ export default function AdminSellerCreditsPage() {
         toast.success(
           key === 'seller_credit_purchase_enabled'
             ? (enabled ? 'Purchase enabled.' : 'Purchase disabled.')
-            : 'Flag updated.',
+            : (enabled ? 'Spend / gating enabled.' : 'Spend / gating disabled.'),
         );
         refresh();
       }
@@ -484,10 +490,10 @@ export default function AdminSellerCreditsPage() {
                 disabled={!spendOn && !spendGoLiveReady}
                 onCheckedChange={(v) => {
                   if (v) {
-                    toast.error('Spend is blocked until the go-live checklist below is fully green.');
+                    void setFlag('seller_credit_spend_enabled', true, { spendReady: spendGoLiveReady });
                     return;
                   }
-                  setFlag('seller_credit_spend_enabled', false);
+                  void setFlag('seller_credit_spend_enabled', false);
                 }}
               />
             </div>
@@ -1011,6 +1017,9 @@ export default function AdminSellerCreditsPage() {
             </ul>
             {!spendGoLiveReady && (
               <p className="text-xs text-amber-700">Spend enable is disabled until all checklist items pass.</p>
+            )}
+            {spendGoLiveReady && !spendOn && (
+              <p className="text-xs text-green-700">Checklist is green — you can turn Spend / gating ON above.</p>
             )}
           </CardContent>
         </Card>

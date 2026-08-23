@@ -64,7 +64,7 @@ describe('Seller credits monetization integrity', () => {
     expect(admin).toMatch(/Unified financial timeline/);
     expect(admin).toMatch(/Run billing certification/);
     expect(admin).toMatch(/Spend is OFF/);
-    expect(admin).toMatch(/Spend cannot be enabled from Admin/);
+    expect(admin).toMatch(/spendReady: spendGoLiveReady/);
     expect(admin).toMatch(/Store lookup/);
     expect(admin).toMatch(/AdminStoreSearchPicker/);
     expect(admin).not.toMatch(/const adminRpc = supabase\.rpc/);
