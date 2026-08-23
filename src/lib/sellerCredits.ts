@@ -46,6 +46,104 @@ export type CreditThresholds = {
   criticalMin?: number | null;
 };
 
+export type SellerBillingRate = {
+  eventType: BillingEventType;
+  amount: number;
+  enabled: boolean;
+};
+
+/** Store commerce surfaces that map to Admin Monetization billing events. */
+export type SellerCommerceMode = 'cart' | 'booking' | 'enquiry' | 'contact';
+
+const COMMERCE_MODE_EVENT: Record<SellerCommerceMode, BillingEventType> = {
+  cart: 'ORDER_COMPLETED',
+  booking: 'SERVICE_BOOKING',
+  enquiry: 'ENQUIRY_CREATED',
+  contact: 'CONTACT_REQUEST',
+};
+
+const COMMERCE_MODE_LABEL: Record<SellerCommerceMode, string> = {
+  cart: 'Add to cart / orders',
+  booking: 'Bookings',
+  enquiry: 'Enquiries',
+  contact: 'Contact requests',
+};
+
+export function commerceModesFromProductHints(
+  rows: Array<{ action_type?: string | null; listing_type?: string | null } | null | undefined>,
+): SellerCommerceMode[] {
+  const modes = new Set<SellerCommerceMode>();
+  for (const row of rows || []) {
+    const raw = `${row?.action_type || ''} ${row?.listing_type || ''}`.toLowerCase();
+    if (!raw.trim()) continue;
+    if (/(add_to_cart|buy_now|cart|purchase|product)/.test(raw)) modes.add('cart');
+    if (/(book|booking|service_booking|schedule)/.test(raw)) modes.add('booking');
+    if (/(enquir|request_service|quote)/.test(raw) && !/contact/.test(raw)) modes.add('enquiry');
+    if (/(contact|call|message|whatsapp)/.test(raw)) modes.add('contact');
+  }
+  return Array.from(modes);
+}
+
+export function buildSellerCreditUsageExplainer(opts: {
+  formatPrice: (amount: number) => string;
+  rates: SellerBillingRate[];
+  modes?: SellerCommerceMode[];
+}): { headline: string; lines: string[] } {
+  const rateByEvent = new Map(
+    (opts.rates || [])
+      .filter((r) => r.enabled && Number(r.amount) > 0)
+      .map((r) => [r.eventType, r] as const),
+  );
+
+  const preferredModes = (opts.modes && opts.modes.length > 0)
+    ? opts.modes
+    : (['cart', 'booking', 'enquiry', 'contact'] as SellerCommerceMode[]);
+
+  const lines: string[] = [];
+  for (const mode of preferredModes) {
+    const event = COMMERCE_MODE_EVENT[mode];
+    const rate = rateByEvent.get(event);
+    if (!rate) continue;
+    const price = opts.formatPrice(rate.amount);
+    switch (mode) {
+      case 'cart':
+        lines.push(
+          `${COMMERCE_MODE_LABEL.cart}: ${price} is reserved when a buyer places an order, then used when that order completes successfully.`,
+        );
+        break;
+      case 'booking':
+        lines.push(
+          `${COMMERCE_MODE_LABEL.booking}: ${price} is reserved when a booking is confirmed and used when the booking completes.`,
+        );
+        break;
+      case 'enquiry':
+        lines.push(
+          `${COMMERCE_MODE_LABEL.enquiry}: ${price} is used when a buyer sends a new enquiry.`,
+        );
+        break;
+      case 'contact':
+        lines.push(
+          `${COMMERCE_MODE_LABEL.contact}: ${price} is used on the first call or message from a buyer (repeats inside the admin window are free).`,
+        );
+        break;
+    }
+  }
+
+  if (lines.length === 0) {
+    return {
+      headline: 'Sociva Credits keep your store visible to nearby buyers.',
+      lines: [
+        'Recharge anytime. Admin Monetization rates will appear here once they are configured.',
+      ],
+    };
+  }
+
+  return {
+    headline: 'How Sociva Credits are used for your store',
+    lines,
+  };
+}
+
 /** Default contact debounce. Live billing reads seller_credit_settings.contact_debounce_hours. */
 export const CONTACT_DEBOUNCE_HOURS_INVARIANT = 24;
 
@@ -163,6 +261,7 @@ export type SellerCreditSummary = {
   healthyMin: number | null;
   lowMin: number | null;
   criticalMin: number | null;
+  billingRates: SellerBillingRate[];
 };
 
 export function emptySellerCreditSummary(): SellerCreditSummary {
@@ -183,6 +282,7 @@ export function emptySellerCreditSummary(): SellerCreditSummary {
     healthyMin: null,
     lowMin: null,
     criticalMin: null,
+    billingRates: [],
   };
 }
 
@@ -190,6 +290,23 @@ function optionalNumber(value: unknown): number | null {
   if (value == null || value === '') return null;
   const n = Number(value);
   return Number.isFinite(n) ? n : null;
+}
+
+function mapBillingRates(raw: unknown): SellerBillingRate[] {
+  if (!Array.isArray(raw)) return [];
+  const out: SellerBillingRate[] = [];
+  for (const row of raw) {
+    if (!row || typeof row !== 'object') continue;
+    const eventType = String((row as any).event_type || (row as any).eventType || '');
+    if (!BILLING_EVENT_TYPES.includes(eventType as BillingEventType)) continue;
+    const amount = Number((row as any).amount ?? 0);
+    out.push({
+      eventType: eventType as BillingEventType,
+      amount: Number.isFinite(amount) ? amount : 0,
+      enabled: Boolean((row as any).enabled),
+    });
+  }
+  return out;
 }
 
 export function mapSellerCreditSummary(row: Record<string, unknown> | null | undefined): SellerCreditSummary {
@@ -214,6 +331,7 @@ export function mapSellerCreditSummary(row: Record<string, unknown> | null | und
     healthyMin,
     lowMin,
     criticalMin,
+    billingRates: mapBillingRates(row?.billing_rates),
   };
 }
 

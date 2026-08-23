@@ -3,6 +3,8 @@ import { readFileSync } from 'fs';
 import { resolve } from 'path';
 import { pickNotificationRoute } from '@/lib/notification-routes';
 import {
+  buildSellerCreditUsageExplainer,
+  commerceModesFromProductHints,
   creditActivityDetails,
   creditEventForOrder,
   creditHealth,
@@ -80,6 +82,28 @@ describe('Sociva Credits', () => {
       lifetimeConsumed: 300,
       reserved: 15,
     })).toBe(685);
+  });
+
+  it('builds store-type credit usage copy from Admin rates', () => {
+    const explainer = buildSellerCreditUsageExplainer({
+      formatPrice: (n) => `₹${n}`,
+      rates: [
+        { eventType: 'ORDER_COMPLETED', amount: 10, enabled: true },
+        { eventType: 'SERVICE_BOOKING', amount: 15, enabled: true },
+        { eventType: 'ENQUIRY_CREATED', amount: 10, enabled: true },
+        { eventType: 'CONTACT_REQUEST', amount: 5, enabled: true },
+      ],
+      modes: ['cart', 'booking'],
+    });
+    expect(explainer.headline).toMatch(/How Sociva Credits are used/i);
+    expect(explainer.lines).toHaveLength(2);
+    expect(explainer.lines[0]).toMatch(/Add to cart \/ orders: ₹10/);
+    expect(explainer.lines[1]).toMatch(/Bookings: ₹15/);
+    expect(commerceModesFromProductHints([
+      { action_type: 'add_to_cart', listing_type: 'product' },
+      { action_type: 'book', listing_type: 'bookable' },
+      { action_type: 'contact', listing_type: 'contact_enquiry' },
+    ])).toEqual(expect.arrayContaining(['cart', 'booking', 'contact']));
   });
 
   it('uses admin-configured booking resolution and does not hard-code rates in new billing SQL', () => {

@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { SafeHeader } from '@/components/layout/SafeHeader';
 import { Card, CardContent } from '@/components/ui/card';
@@ -14,6 +15,8 @@ import {
   resolveOperationalSellerId,
 } from '@/lib/seller-order-board';
 import {
+  buildSellerCreditUsageExplainer,
+  commerceModesFromProductHints,
   creditActivityDetails,
   creditLedgerLabel,
   SELLER_CREDITS_EXHAUSTED,
@@ -82,6 +85,31 @@ export default function SellerCreditsPage() {
   const [creditedAmount, setCreditedAmount] = useState<number | null>(null);
   const [confirmedBalance, setConfirmedBalance] = useState<number | null>(null);
   const [statusMessage, setStatusMessage] = useState('');
+
+  const commerceModesQuery = useQuery({
+    queryKey: ['seller-commerce-modes', activeSellerId],
+    queryFn: async () => {
+      if (!activeSellerId || isPortfolio) return [];
+      const { data, error } = await supabase
+        .from('products')
+        .select('action_type, listing_type')
+        .eq('seller_id', activeSellerId)
+        .limit(200);
+      if (error) throw error;
+      return commerceModesFromProductHints(data || []);
+    },
+    enabled: Boolean(activeSellerId) && !isPortfolio,
+    staleTime: 60_000,
+  });
+
+  const usageExplainer = useMemo(
+    () => buildSellerCreditUsageExplainer({
+      formatPrice,
+      rates: summary?.billingRates || [],
+      modes: commerceModesQuery.data || [],
+    }),
+    [formatPrice, summary?.billingRates, commerceModesQuery.data],
+  );
 
   const presets = useMemo(() => {
     const packs = (packagesQuery.data || []).map((pack: { amount?: number; credits_amount?: number }) =>
@@ -267,10 +295,16 @@ export default function SellerCreditsPage() {
                 <p className="text-2xl font-bold tabular-nums">{formatPrice(confirmedBalance ?? summaryQuery.data?.available ?? 0)}</p>
               </div>
               <p className="text-xs text-muted-foreground">
-                {summaryQuery.data?.spendEnabled
-                  ? 'Your store is now activated and your products are eligible for buyer discovery based on your configured service radius.'
-                  : 'Credits were added. Your products can now appear to buyers nearby. Platform usage billing is not charging sellers yet.'}
+                {formatPrice(creditedAmount || 0)} was added. Your products can appear to nearby buyers.
+                {usageExplainer.lines[0] ? ` ${usageExplainer.lines[0]}` : ''}
               </p>
+              {usageExplainer.lines.length > 1 && (
+                <ul className="text-left text-xs text-muted-foreground space-y-1.5 px-1">
+                  {usageExplainer.lines.slice(1).map((line) => (
+                    <li key={line}>• {line}</li>
+                  ))}
+                </ul>
+              )}
               <Link to="/seller">
                 <Button className="w-full">Continue to Seller Dashboard</Button>
               </Link>
@@ -301,14 +335,27 @@ export default function SellerCreditsPage() {
             <CardContent className="p-4 space-y-1">
               <p className="font-semibold">Your store is approved!</p>
               <p className="text-sm text-muted-foreground">
-                Recharge Sociva Credits to make your products visible to buyers nearby
-                {summary?.spendEnabled
-                  ? ' and to keep receiving new orders.'
-                  : '. Platform usage billing is not charging sellers yet, but a positive credit balance is still required for discovery.'}
+                Recharge Sociva Credits to make your products visible to buyers nearby and to keep accepting new activity for your store.
               </p>
             </CardContent>
           </Card>
         )}
+
+        <Card>
+          <CardContent className="p-4 space-y-2">
+            <p className="font-semibold text-sm">{usageExplainer.headline}</p>
+            <ul className="space-y-1.5">
+              {usageExplainer.lines.map((line) => (
+                <li key={line} className="text-xs text-muted-foreground leading-relaxed">
+                  {line}
+                </li>
+              ))}
+            </ul>
+            <p className="text-[11px] text-muted-foreground pt-1">
+              Rates come from Admin → Monetization and apply to future activity for your listing types.
+            </p>
+          </CardContent>
+        </Card>
 
         <Card>
           <CardContent className="p-4 space-y-2">
@@ -324,10 +371,11 @@ export default function SellerCreditsPage() {
               <span className="font-semibold tabular-nums">{formatPrice(summary?.reserved || 0)}</span>
             </div>
             <p className="text-[11px] text-muted-foreground">Total available for new activity {formatPrice(summary?.available || 0)}</p>
-            {exhausted && summary?.spendEnabled && <p className="text-sm text-destructive">{SELLER_CREDITS_EXHAUSTED}</p>}
-            {exhausted && summary && !summary.spendEnabled && (
+            {exhausted && (
               <p className="text-sm text-destructive">
-                Recharge to make your store visible to buyers. Order acceptance billing is not active yet.
+                {summary?.spendEnabled
+                  ? SELLER_CREDITS_EXHAUSTED
+                  : 'Recharge to make your store visible to buyers nearby and stay ready for new orders, bookings, enquiries, and contacts.'}
               </p>
             )}
             <div className="grid grid-cols-3 gap-2 text-[11px] text-muted-foreground">
