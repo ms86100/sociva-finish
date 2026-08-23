@@ -52,21 +52,21 @@ jobs:
         run: |
           if [ "${{ github.ref_type }}" = "tag" ]; then
             echo "tag=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
-            echo "prerelease=false" >> "$GITHUB_OUTPUT"
           else
-            echo "tag=desktop-v1.0.0-${{ github.run_number }}" >> "$GITHUB_OUTPUT"
-            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+            # Stable tag name so /releases/latest/download/Sociva-mac.dmg keeps working
+            echo "tag=desktop-latest" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Create GitHub Release with DMG
+      - name: Create or update GitHub Release with DMG
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.meta.outputs.tag }}
-          name: Sociva Desktop macOS (${{ steps.meta.outputs.tag }})
+          name: Sociva Desktop macOS
           draft: false
-          prerelease: ${{ steps.meta.outputs.prerelease == 'true' }}
+          prerelease: false
           files: desktop/dist/Sociva-mac.dmg
           fail_on_unmatched_files: true
+          make_latest: true
           body: |
             ## Sociva for Mac
             Electron desktop shell → https://www.sociva.in (same cloud backend as web/mobile).
@@ -77,6 +77,6 @@ jobs:
             3. First launch: right-click Sociva → **Open** (unsigned BAT build)
 
             ### Direct download
-            https://github.com/${{ github.repository }}/releases/download/${{ steps.meta.outputs.tag }}/Sociva-mac.dmg
+            https://github.com/${{ github.repository }}/releases/latest/download/Sociva-mac.dmg
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
