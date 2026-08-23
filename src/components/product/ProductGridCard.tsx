@@ -78,7 +78,13 @@ export function ProductGridCard({ product, behavior, onTap, className, viewOnly 
     }
     addItem(product);
   };
-  const handleIncrement = (e: React.MouseEvent) => { e.stopPropagation(); e.preventDefault(); hapticImpact('light'); updateQuantity(product.id, quantity + 1); };
+  const handleIncrement = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    if (!canIncrement) return;
+    hapticImpact('light');
+    updateQuantity(product.id, quantity + 1);
+  };
   const handleDecrement = (e: React.MouseEvent) => { e.stopPropagation(); e.preventDefault(); hapticImpact('light'); updateQuantity(product.id, quantity - 1); };
   const handleCardClick = () => { hapticSelection(); if (onTap) { onTap(product); } else { navigate(`/seller/${product.seller_id}`); } };
 
@@ -225,10 +231,15 @@ export function ProductGridCard({ product, behavior, onTap, className, viewOnly 
           </div>
         )}
         <div className="flex-1 min-h-0.5" />
-        <div className="flex items-baseline gap-1.5 mt-auto pt-1">
+        <div className="flex items-baseline gap-1.5 mt-auto pt-1 flex-wrap">
           <span className="font-extrabold text-sm text-foreground leading-none tabular-nums">{formatPrice(product.price)}</span>
           {hasDiscount && (
             <span className="text-[10px] text-muted-foreground/80 line-through tabular-nums">{formatPrice((product as any).mrp)}</span>
+          )}
+          {(product as any).stock_quantity != null && (product as any).stock_quantity > 0 && (
+            <span className="text-[10px] font-semibold text-muted-foreground tabular-nums">
+              {(product as any).stock_quantity} left
+            </span>
           )}
         </div>
       </div>

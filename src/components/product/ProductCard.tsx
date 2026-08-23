@@ -63,7 +63,11 @@ export function ProductCard({ product, variant = 'horizontal', onTap }: ProductC
     addItem(product);
   }, [isCartAction, onTap, product, addItem, quantity]);
 
-  const handleIncrement = () => { hapticImpact('light'); updateQuantity(product.id, quantity + 1); };
+  const handleIncrement = () => {
+    if (!canIncrement) return;
+    hapticImpact('light');
+    updateQuantity(product.id, quantity + 1);
+  };
   const handleDecrement = () => { hapticImpact('light'); updateQuantity(product.id, quantity - 1); };
 
   const imageEl = (width: number, className?: string) => (
@@ -146,10 +150,15 @@ export function ProductCard({ product, variant = 'horizontal', onTap }: ProductC
             <VegBadge isVeg={product.is_veg} size="sm" className="mt-1" />
             <div className="flex-1 min-w-0">
               <h4 className="font-semibold text-sm line-clamp-2 leading-snug">{product.name}</h4>
-              <div className="flex items-baseline gap-1.5 mt-1.5">
+              <div className="flex items-baseline gap-1.5 mt-1.5 flex-wrap">
                 <p className="text-base font-extrabold text-foreground tabular-nums">{formatPrice(product.price)}</p>
                 {hasDiscount && (
                   <span className="text-xs text-muted-foreground line-through tabular-nums">{formatPrice((product as any).mrp)}</span>
+                )}
+                {(product as any).stock_quantity != null && (product as any).stock_quantity > 0 && (
+                  <span className="text-[11px] font-semibold text-muted-foreground tabular-nums">
+                    {(product as any).stock_quantity} left
+                  </span>
                 )}
               </div>
             </div>
@@ -198,10 +207,15 @@ export function ProductCard({ product, variant = 'horizontal', onTap }: ProductC
               )}
             </div>
             {product.description && (<p className="text-sm text-muted-foreground line-clamp-2 mt-1">{product.description}</p>)}
-            <div className="flex items-baseline gap-1.5 mt-2">
+            <div className="flex items-baseline gap-1.5 mt-2 flex-wrap">
               <p className="font-extrabold text-base tabular-nums">{formatPrice(product.price)}</p>
               {hasDiscount && (
                 <span className="text-xs text-muted-foreground line-through tabular-nums">{formatPrice((product as any).mrp)}</span>
+              )}
+              {(product as any).stock_quantity != null && (product as any).stock_quantity > 0 && (
+                <span className="text-[11px] font-semibold text-muted-foreground tabular-nums">
+                  {(product as any).stock_quantity} left
+                </span>
               )}
             </div>
             {isStoreClosed && (<p className="text-[10px] text-muted-foreground flex items-center gap-1 mt-1"><Clock size={9} /> {storeClosedMessage || 'Store closed'}</p>)}

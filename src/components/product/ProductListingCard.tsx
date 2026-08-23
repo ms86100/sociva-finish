@@ -92,6 +92,7 @@ function ProductListingCardInner({ product, layout = 'auto', onTap, onNavigate, 
   const handleIncrement = (e: React.MouseEvent) => {
     e.stopPropagation();
     e.preventDefault();
+    if (!canIncrement) return;
     impact('light');
     updateQuantity(product.id, quantity + 1);
   };
@@ -407,7 +408,7 @@ function ProductListingCardInner({ product, layout = 'auto', onTap, onNavigate, 
           !viewOnly && !isOutOfStock && !isStoreClosed ? 'pt-6' : 'pt-3'
         )}>
           <div className="flex h-full flex-col overflow-hidden">
-            <div className="min-h-[20px] flex items-baseline gap-1.5 overflow-hidden">
+            <div className="min-h-[20px] flex items-baseline gap-1.5 overflow-hidden flex-wrap">
               <span className="font-extrabold text-[15px] text-foreground leading-none tracking-tight tabular-nums">
                 {isServiceLayout && <span className="text-[10px] font-semibold text-muted-foreground mr-1">From</span>}
                 {formatPrice(isServiceLayout ? serviceStartingPrice : product.price)}
@@ -415,6 +416,11 @@ function ProductListingCardInner({ product, layout = 'auto', onTap, onNavigate, 
               {hasDiscount && (
                 <span className="text-[11px] text-muted-foreground/80 line-through leading-none tabular-nums">
                   {formatPrice(product.mrp!)}
+                </span>
+              )}
+              {product.stock_quantity != null && product.stock_quantity > 0 && (
+                <span className="text-[10px] font-semibold text-muted-foreground tabular-nums">
+                  {product.stock_quantity} left
                 </span>
               )}
             </div>
@@ -453,6 +459,11 @@ function ProductListingCardInner({ product, layout = 'auto', onTap, onNavigate, 
             {hasDiscount && discountPct > 0 && (
               <span className="text-[10px] font-bold text-badge-discount leading-none">
                 {discountPct}% off
+              </span>
+            )}
+            {product.stock_quantity != null && product.stock_quantity > 0 && (
+              <span className="text-[10px] font-semibold text-muted-foreground tabular-nums">
+                {product.stock_quantity} left
               </span>
             )}
           </div>

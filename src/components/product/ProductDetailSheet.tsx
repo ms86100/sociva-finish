@@ -232,8 +232,11 @@ export function ProductDetailSheet({ product, open, onOpenChange, onSelectProduc
                   </span>
                 )}
               </motion.div>
-              <motion.div variants={fadeSlideUp} className="flex items-baseline gap-2">
+              <motion.div variants={fadeSlideUp} className="flex items-baseline gap-2 flex-wrap">
                 {d.actionType === 'contact_seller' ? (<span className="text-sm font-medium text-muted-foreground">Contact for price</span>) : (<span className="text-xl font-bold text-foreground tabular-nums">{d.formatPrice(animatedPrice)}</span>)}
+                {d.canonicalStockQty != null && d.canonicalStockQty > 0 && (
+                  <span className="text-xs font-semibold text-muted-foreground tabular-nums">{d.canonicalStockQty} left</span>
+                )}
               </motion.div>
               <PriceStabilityBadge productId={product.product_id} />
               <RefundTierBadge amount={product.price} />
@@ -414,7 +417,18 @@ export function ProductDetailSheet({ product, open, onOpenChange, onSelectProduc
                         {d.quantity}
                       </motion.span>
                     </AnimatePresence>
-                    <button data-haptic="light" className="px-3 py-2.5 text-accent-foreground" onClick={() => { d.updateQuantity(product.product_id, d.quantity + 1); }}><Plus size={16} strokeWidth={3} /></button>
+                    <button
+                      data-haptic="light"
+                      className={`px-3 py-2.5 text-accent-foreground ${!d.canIncrement ? 'opacity-40 cursor-not-allowed' : ''}`}
+                      disabled={!d.canIncrement}
+                      aria-disabled={!d.canIncrement}
+                      onClick={() => {
+                        if (!d.canIncrement) return;
+                        d.updateQuantity(product.product_id, d.quantity + 1);
+                      }}
+                    >
+                      <Plus size={16} strokeWidth={3} />
+                    </button>
                   </div>
                 </div>
               )

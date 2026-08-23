@@ -361,7 +361,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         return;
       }
       if (existingQty >= maxQty) {
-        toast.error(`Only ${maxQty} available`, { id: 'stock-limit' });
+        // + should already be disabled in UI — no toast
         return;
       }
       quantity = Math.min(quantity, maxQty - existingQty);
@@ -471,9 +471,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
     const { data: stockCheck } = await supabase.from('products').select('stock_quantity').eq('id', productId).maybeSingle();
     if (stockCheck?.stock_quantity != null) maxQty = stockCheck.stock_quantity;
     if (quantity > maxQty) {
-      toast.error(`Only ${maxQty} available`, { id: 'stock-limit' });
+      // At stock ceiling — UI disables +; do not toast or show "Quantity updated"
+      return;
     }
-    const cappedQuantity = Math.min(quantity, maxQty);
+    const cappedQuantity = quantity;
     setPendingMutations(c => c + 1);
     await cancelCartQueries();
     const snap = snapshot();

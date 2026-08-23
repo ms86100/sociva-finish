@@ -500,8 +500,10 @@ function StepConfig({ sp }: { sp: ReturnType<typeof useSellerProducts> }) {
 
       <div className="flex items-center justify-between p-3 bg-muted/50 rounded-xl">
         <div>
-          <span className="text-sm font-medium block">Accept Pre-orders</span>
-          <span className="text-xs text-muted-foreground">Allow buyers to order for future dates</span>
+          <span className="text-sm font-medium block">Accept Pre-Orders</span>
+          <span className="text-xs text-muted-foreground">
+            Scheduled delivery only — no instant orders. Leave off to keep instant orders; buyers can still schedule either way.
+          </span>
         </div>
         <Switch checked={sp.formData.accepts_preorders} onCheckedChange={(checked) => sp.setFormData({ ...sp.formData, accepts_preorders: checked })} />
       </div>

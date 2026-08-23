@@ -119,6 +119,6 @@ export function useProductDetail(product: ProductDetail | null, open: boolean, o
     similarProducts, loadedSpecs, formatPrice,
     actionType, config, isCartAction, cartItem, quantity, stockLimit, canIncrement,
     handleAdd, isNewSeller, ActionIcon, viewAllLabel, isStockEmpty,
-    items, updateQuantity,
+    items, updateQuantity, canonicalStockQty,
   };
 }

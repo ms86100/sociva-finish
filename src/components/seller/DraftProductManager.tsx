@@ -828,8 +828,13 @@ export function DraftProductManager({
                     />
                     <p className="text-[10px] text-muted-foreground">Minimum advance notice buyers need to place an order</p>
                   </div>
-                  <label className="flex items-center justify-between cursor-pointer">
-                    <span className="text-sm font-medium">Accept Pre-orders</span>
+                  <label className="flex items-center justify-between gap-3 cursor-pointer">
+                    <div className="min-w-0">
+                      <span className="text-sm font-medium block">Accept Pre-Orders</span>
+                      <span className="text-[10px] text-muted-foreground">
+                        Scheduled delivery only — no instant orders. Leave off to keep instant orders; buyers can still schedule either way.
+                      </span>
+                    </div>
                     <Checkbox
                       checked={!!newProduct.accepts_preorders}
                       onCheckedChange={(checked) => setNewProduct({ ...newProduct, accepts_preorders: !!checked })}
