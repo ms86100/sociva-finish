@@ -57,14 +57,50 @@ export default defineConfig(({ mode }) => {
             cleanupOutdatedCaches: true,
             clientsClaim: true,
             skipWaiting: true,
-            navigateFallbackDenylist: [/^\/~oauth/, /^\/\.well-known\//],
-            globPatterns: ["**/*.{js,css,html,ico,png,svg,woff,woff2}"],
+            navigateFallback: "index.html",
+            navigateFallbackDenylist: [
+              /^\/~oauth/,
+              /^\/\.well-known\//,
+              /^\/downloads\//,
+            ],
+            // Shell-only precache. Globbing every JS chunk (~450 files / ~10MB)
+            // made each deploy reinstall the SW for 20–30s and race clients.claim().
+            globPatterns: [
+              "index.html",
+              "assets/index-*.css",
+              "assets/index-*.js",
+              "favicon.ico",
+              "apple-touch-icon.png",
+              "android-chrome-192x192.png",
+              "manifest.json",
+            ],
+            globIgnores: [
+              "**/downloads/**",
+              "**/*swagger*",
+              "**/DocumentationPage*",
+              "**/AdminPage*",
+            ],
+            maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
             runtimeCaching: [
               // Never cache Auth/REST/RPC through Workbox — NetworkFirst + status 0
               // previously prolonged cold starts and could stick empty/error responses.
               {
                 urlPattern: /^https:\/\/kkzkuyhgdvyecmxtmkpy\.supabase\.co\/.*/i,
                 handler: "NetworkOnly",
+              },
+              {
+                urlPattern: /\/assets\/.+\.js$/i,
+                handler: "StaleWhileRevalidate",
+                options: {
+                  cacheName: "js-runtime-v1",
+                  expiration: {
+                    maxEntries: 80,
+                    maxAgeSeconds: 60 * 60 * 24 * 7,
+                  },
+                  cacheableResponse: {
+                    statuses: [200],
+                  },
+                },
               },
               {
                 urlPattern: /\.(?:png|jpg|jpeg|svg|gif|webp)$/,

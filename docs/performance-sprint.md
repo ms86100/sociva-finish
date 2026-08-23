@@ -38,6 +38,7 @@
 - Lazy-load Cart, Orders, Profile, Society, Search; **Home stays eager**
 - Idle prefetch of bottom-nav + secondary routes (`route-prefetch.ts`)
 - Bump `BUILD_CACHE_VERSION` → `fast-first-paint-v2` (clears stale Workbox once)
+- **2026-08-23:** Slim SW precache to shell assets only (was ~447 JS chunks / ~10MB → 20–30s installs + `clients.claim` races). Bump → `slim-sw-precache-v3`.
 
 ### Phase B — Data
 - Persist **last browsing coords** (`sociva_last_browsing_coords`) so marketplace can start before society RPC

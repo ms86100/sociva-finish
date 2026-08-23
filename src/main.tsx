@@ -6,8 +6,8 @@ import { captureException, initObservability } from "./lib/observability";
 initObservability();
 
 // Bump when shipping bootstrap/critical-path fixes so returning users drop
-// stale Workbox caches that competed with first paint (e.g. splash-video).
-const BUILD_CACHE_VERSION = "2026-08-07-fast-first-paint-v2";
+// stale Workbox caches that competed with first paint (e.g. splash-video / fat precache).
+const BUILD_CACHE_VERSION = "2026-08-23-slim-sw-precache-v3";
 
 // Performance markers for landing page load analysis
 const perfMarks = {};
@@ -112,11 +112,18 @@ window.addEventListener("error", (event) => {
 });
 
 window.addEventListener("unhandledrejection", (event) => {
-  if (isChunkError(event.reason)) {
+  const reason = event.reason;
+  const msg = String(reason?.message || reason || "");
+  // Benign race while a waiting SW activates after skipWaiting / cache reset.
+  if (/Only the active worker can claim clients/i.test(msg)) {
+    event.preventDefault?.();
+    return;
+  }
+  if (isChunkError(reason)) {
     if (handleChunkError()) return;
   }
-  console.error("[Bootstrap] Unhandled rejection:", event.reason);
-  captureException(event.reason, { source: 'window.unhandledrejection' });
+  console.error("[Bootstrap] Unhandled rejection:", reason);
+  captureException(reason, { source: 'window.unhandledrejection' });
 });
 
 async function bootstrap() {
