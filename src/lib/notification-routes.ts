@@ -8,11 +8,32 @@ function getOrderId(payload?: Record<string, any>): string | undefined {
   return payload?.order_id || payload?.orderId || payload?.entity_id;
 }
 
+/**
+ * Seller-facing refund request → Disputes & Refunds on the seller dashboard.
+ * Prefer this over buyer "My Orders" paths when payload marks the target as seller.
+ */
+export function sellerRefundDisputeRoute(
+  payload?: Record<string, any> | null,
+): string | null {
+  if (!payload || typeof payload !== 'object') return null;
+  const status = String(payload.status || '').toLowerCase();
+  const role = String(payload.target_role || '').toLowerCase();
+  if (role !== 'seller') return null;
+  if (status !== 'refund_requested' && status !== 'refund_request') return null;
+  const refundId = payload.refundId || payload.refund_id;
+  return refundId
+    ? `/seller?tab=refunds&refundId=${encodeURIComponent(String(refundId))}`
+    : '/seller?tab=refunds';
+}
+
 export function resolveNotificationRoute(
   type: string | undefined | null,
   payload?: Record<string, any>,
 ): string {
   if (!type) return '/notifications/inbox';
+
+  const sellerRefundPath = sellerRefundDisputeRoute(payload);
+  if (sellerRefundPath) return sellerRefundPath;
 
   switch (type) {
     // Seller lifecycle
@@ -156,11 +177,19 @@ const DEAD_ROUTE_PATTERNS: RegExp[] = [
 export function pickNotificationRoute(n: {
   type?: string | null;
   reference_path?: string | null;
+  action_url?: string | null;
   payload?: Record<string, any> | null;
+  data?: Record<string, any> | null;
 }): string {
-  const ref = n.reference_path?.trim();
+  // Seller refund alerts must open Disputes & Refunds even when legacy rows
+  // still store a buyer-style /orders/{id} reference_path.
+  const payload = (n.payload || n.data || null) as Record<string, any> | null;
+  const sellerRefundPath = sellerRefundDisputeRoute(payload);
+  if (sellerRefundPath) return sellerRefundPath;
+
+  const ref = (n.reference_path || n.action_url)?.trim();
   if (ref && ref.startsWith('/') && !DEAD_ROUTE_PATTERNS.some(re => re.test(ref))) {
     return ref;
   }
-  return resolveNotificationRoute(n.type, (n.payload || undefined) as Record<string, any> | undefined);
+  return resolveNotificationRoute(n.type, payload || undefined);
 }

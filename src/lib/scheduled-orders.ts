@@ -233,6 +233,16 @@ export function getScheduledCountdownLabel(order: ScheduledOrderLike, now = new 
 export function canBuyerCancelScheduled(order: ScheduledOrderLike, now = new Date()): boolean {
   const cutoff = getCancellationCutoffAt(order);
   if (!cutoff) return true;
+  // Legacy rows stamped with cutoff already expired at creation stay cancellable
+  // until prep starts (or briefly after), matching buyer_cancel_order heal path.
+  if (order.created_at) {
+    const created = new Date(order.created_at);
+    if (!Number.isNaN(created.getTime()) && cutoff.getTime() <= created.getTime()) {
+      const prep = getPreparationStartAt(order);
+      if (!prep) return true;
+      return now.getTime() < prep.getTime() + 15 * 60_000;
+    }
+  }
   return now.getTime() < cutoff.getTime();
 }
 

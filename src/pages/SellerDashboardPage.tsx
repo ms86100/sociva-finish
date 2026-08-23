@@ -122,7 +122,8 @@ export default function SellerDashboardPage() {
   useEffect(() => {
     const tab = searchParams.get('tab');
     const filter = searchParams.get('filter') as OrderFilter | null;
-    if (tab === 'schedule') setDashboardTab('schedule');
+    const validTabs = new Set(['orders', 'support', 'refunds', 'schedule', 'tools', 'stats']);
+    if (tab && validTabs.has(tab)) setDashboardTab(tab);
     if (filter && FILTER_LABELS[filter as keyof typeof FILTER_LABELS]) {
       setOrderFilter(filter);
     }

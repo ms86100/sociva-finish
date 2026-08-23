@@ -9,7 +9,7 @@ import { hapticNotification } from '@/lib/haptics';
 import { pushLog, setLogUser, flushPushLogs } from '@/lib/pushLogger';
 import { LiveActivityManager } from '@/services/LiveActivityManager';
 import { getTerminalStatuses } from '@/services/statusFlowCache';
-import { resolveNotificationRoute } from '@/lib/notification-routes';
+import { pickNotificationRoute } from '@/lib/notification-routes';
 import { setPendingDeepLink } from '@/hooks/useDeepLinks';
 
 /**
@@ -566,7 +566,11 @@ export function usePushNotificationsInternal() {
           })();
         }
 
-        const route = data?.route || resolveNotificationRoute(data?.type, data);
+        const route = pickNotificationRoute({
+          type: data?.type,
+          reference_path: data?.route || data?.action_url || data?.reference_path,
+          payload: data,
+        });
         const toastOptions: Record<string, any> = {
           description: notification?.body,
         };
@@ -574,7 +578,9 @@ export function usePushNotificationsInternal() {
           toastOptions.id = `order-${orderId}-${data.status}`;
         }
         if (route && route !== '/notifications') {
-          const isSellerOrder = data?.type === 'order' || data?.type === 'order_created';
+          const isSellerRefund = String(data?.status || '').toLowerCase() === 'refund_requested'
+            && String(data?.target_role || '').toLowerCase() === 'seller';
+          const isSellerOrder = !isSellerRefund && (data?.type === 'order' || data?.type === 'order_created');
           const navState = isSellerOrder ? { state: { tab: 'selling' } } : undefined;
           toastOptions.action = {
             label: isStatusNudge ? 'Update Status' : 'View',
@@ -611,9 +617,15 @@ export function usePushNotificationsInternal() {
           }
         }
 
-        const route = data?.route || resolveNotificationRoute(data?.type, data);
+        const route = pickNotificationRoute({
+          type: data?.type,
+          reference_path: data?.route || data?.action_url || data?.reference_path,
+          payload: data,
+        });
         if (route && route !== '/notifications') {
-          const isSellerOrder = data?.type === 'order' || data?.type === 'order_created';
+          const isSellerRefund = String(data?.status || '').toLowerCase() === 'refund_requested'
+            && String(data?.target_role || '').toLowerCase() === 'seller';
+          const isSellerOrder = !isSellerRefund && (data?.type === 'order' || data?.type === 'order_created');
           const navState = isSellerOrder ? { state: { tab: 'selling' } } : undefined;
           // Store as pending deep link for retry after auth hydration (cold start safety)
           setPendingDeepLink(route);

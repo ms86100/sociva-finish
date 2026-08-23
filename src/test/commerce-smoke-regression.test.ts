@@ -234,6 +234,19 @@ describe('Category request notification routes', () => {
   it('routes category_request_rejected to seller category-requests', () => {
     expect(pickNotificationRoute({ type: 'category_request_rejected' })).toBe('/seller/category-requests');
   });
+
+  it('routes seller refund_requested to Disputes & Refunds even with /orders path', () => {
+    expect(pickNotificationRoute({
+      type: 'order',
+      reference_path: '/orders/4197bf51-da3f-4162-bab9-196829b0506f',
+      payload: {
+        status: 'refund_requested',
+        target_role: 'seller',
+        refundId: '20444614-a67b-4aeb-aefd-9881e4f8ff31',
+        orderId: '4197bf51-da3f-4162-bab9-196829b0506f',
+      },
+    })).toBe('/seller?tab=refunds&refundId=20444614-a67b-4aeb-aefd-9881e4f8ff31');
+  });
 });
 
 describe('Ship readiness P0 money-truth contracts', () => {

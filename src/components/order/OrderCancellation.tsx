@@ -98,12 +98,22 @@ export function OrderCancellation({ orderId, orderStatus, onCancelled, canCancel
       onCancelled();
     } catch (error: any) {
       console.error('Error cancelling order:', error);
-      const errMsg = error?.message || error?.details || '';
-      toast.error(errMsg.includes('Invalid status transition')
-        ? (isEnquiry ? 'This enquiry cannot be cancelled at this stage' : 'This order cannot be cancelled at this stage')
-        : errMsg.includes('notification_queue')
-          ? (isEnquiry ? 'Enquiry cancelled, but seller notification failed. Retrying in the background.' : 'Order cancelled, but seller notification failed. Retrying in the background.')
-          : (isEnquiry ? 'Failed to cancel enquiry' : 'Failed to cancel order'));
+      const errMsg = String(error?.message || error?.details || error?.hint || '');
+      if (errMsg.includes('Invalid status transition')) {
+        toast.error(isEnquiry ? 'This enquiry cannot be cancelled at this stage' : 'This order cannot be cancelled at this stage');
+      } else if (/cutoff has passed/i.test(errMsg)) {
+        toast.error('Cancellation cutoff has passed for this scheduled order');
+      } else if (/Scheduled time is in the past/i.test(errMsg)) {
+        toast.error('That scheduled time is no longer available');
+      } else if (errMsg.includes('notification_queue')) {
+        toast.error(isEnquiry
+          ? 'Enquiry cancelled, but seller notification failed. Retrying in the background.'
+          : 'Order cancelled, but seller notification failed. Retrying in the background.');
+      } else if (errMsg && !/^Failed to cancel/i.test(errMsg) && errMsg.length < 180) {
+        toast.error(errMsg);
+      } else {
+        toast.error(isEnquiry ? 'Failed to cancel enquiry' : 'Failed to cancel order');
+      }
     } finally {
       setIsSubmitting(false);
     }

@@ -18,9 +18,12 @@ function omitApkFromNativeDist(enabled: boolean): Plugin {
     apply: "build",
     closeBundle() {
       if (!enabled) return;
-      const apkPath = path.resolve(__dirname, "dist/downloads/sociva-android.apk");
-      if (fs.existsSync(apkPath)) {
-        fs.unlinkSync(apkPath);
+      const downloadsDir = path.resolve(__dirname, "dist/downloads");
+      if (!fs.existsSync(downloadsDir)) return;
+      for (const name of fs.readdirSync(downloadsDir)) {
+        if (name.toLowerCase().endsWith(".apk")) {
+          fs.unlinkSync(path.join(downloadsDir, name));
+        }
       }
     },
   };

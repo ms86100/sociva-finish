@@ -47,11 +47,25 @@ describe('scheduled-orders', () => {
       scheduled_date: '2026-08-25',
       scheduled_time_start: '10:00:00',
       cancellation_cutoff_at: '2026-08-24T12:00:00+05:30',
+      created_at: '2026-08-22T10:00:00+05:30',
     };
     const afterCutoff = new Date('2026-08-24T13:00:00+05:30');
     expect(canBuyerCancelScheduled(order, afterCutoff)).toBe(false);
     const beforeCutoff = new Date('2026-08-24T11:00:00+05:30');
     expect(canBuyerCancelScheduled(order, beforeCutoff)).toBe(true);
+  });
+
+  it('allows cancel when cutoff was already expired at creation (same-day late book)', () => {
+    const order = {
+      status: 'placed',
+      scheduled_date: '2026-08-23',
+      scheduled_time_start: '07:00:00',
+      cancellation_cutoff_at: '2026-08-22T07:00:00+05:30',
+      preparation_start_at: '2026-08-23T06:00:00+05:30',
+      created_at: '2026-08-23T09:23:00+05:30',
+    };
+    const justAfterPlace = new Date('2026-08-23T09:25:00+05:30');
+    expect(canBuyerCancelScheduled(order, justAfterPlace)).toBe(true);
   });
 
   it('moves to preparing phase when status is preparing', () => {

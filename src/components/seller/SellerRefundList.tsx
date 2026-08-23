@@ -1,13 +1,14 @@
 // @ts-nocheck
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { AlertTriangle, ChevronRight, Clock, CheckCircle2, XCircle, Loader2, ShieldAlert, ChevronDown } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cardEntrance, staggerContainer } from '@/lib/motion-variants';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useCurrency } from '@/hooks/useCurrency';
+import { cn } from '@/lib/utils';
 
 interface SellerRefundListProps {
   sellerId: string;
@@ -24,6 +25,9 @@ const STATUS_STYLES: Record<string, { label: string; color: string; icon: any }>
 
 export function SellerRefundList({ sellerId, forceExpanded = false }: SellerRefundListProps) {
   const { formatPrice } = useCurrency();
+  const [searchParams] = useSearchParams();
+  const highlightRefundId = searchParams.get('refundId');
+  const highlightRef = useRef<HTMLDivElement | null>(null);
   const [expanded, setExpanded] = useState(forceExpanded);
   const { data: refunds = [], isLoading, error } = useQuery({
     queryKey: ['seller-refund-requests', sellerId],
@@ -41,6 +45,15 @@ export function SellerRefundList({ sellerId, forceExpanded = false }: SellerRefu
     enabled: !!sellerId,
     staleTime: 60_000,
   });
+
+  useEffect(() => {
+    if (!highlightRefundId || !refunds.length) return;
+    setExpanded(true);
+    const t = window.setTimeout(() => {
+      highlightRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 120);
+    return () => window.clearTimeout(t);
+  }, [highlightRefundId, refunds.length]);
 
   // Loading & error states stay compact
   if (isLoading) return null;
@@ -114,11 +127,23 @@ export function SellerRefundList({ sellerId, forceExpanded = false }: SellerRefu
             const config = STATUS_STYLES[refund.status] || STATUS_STYLES.requested;
             const Icon = config.icon;
             const isPending = refund.status === 'requested';
+            const isHighlighted = highlightRefundId === refund.id;
 
             return (
-              <motion.div key={refund.id} variants={cardEntrance} layout>
+              <motion.div
+                key={refund.id}
+                variants={cardEntrance}
+                layout
+                ref={isHighlighted ? highlightRef : undefined}
+              >
                 <Link to={`/orders/${refund.order_id}`}>
-                  <div className={`rounded-lg border p-2.5 transition-colors hover:bg-accent/5 ${isPending ? 'border-warning/30 bg-warning/5' : 'border-border'}`}>
+                  <div
+                    className={cn(
+                      'rounded-lg border p-2.5 transition-colors hover:bg-accent/5',
+                      isPending ? 'border-warning/30 bg-warning/5' : 'border-border',
+                      isHighlighted && 'ring-2 ring-warning border-warning/50 bg-warning/10',
+                    )}
+                  >
                     <div className="flex items-center justify-between mb-1">
                       <div className="flex items-center gap-2">
                         <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium border flex items-center gap-1 ${config.color}`}>
