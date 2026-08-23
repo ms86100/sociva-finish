@@ -40,8 +40,8 @@ android {
         applicationId "app.sociva.community"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 32
-        versionName "2.0.32"
+        versionCode 33
+        versionName "2.0.33"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         manifestPlaceholders = [transistorsoftLicense: transistorsoftLicense]
         buildConfigField "boolean", "HAS_TRANSISTORSOFT_LICENSE", hasTransistorsoftLicense ? "true" : "false"
