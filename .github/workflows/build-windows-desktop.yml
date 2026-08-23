@@ -1,0 +1,96 @@
+name: Build Sociva Windows Desktop
+
+# Produces a signed installer when WIN_CSC_LINK (+ password) secrets exist.
+# Without secrets the job still builds, but SmartScreen will warn — do not publish those builds to customers.
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'desktop-win-v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-win:
+    name: Build Windows Setup.exe
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: desktop
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+
+      - name: Install dependencies
+        run: npm install --legacy-peer-deps
+
+      - name: Configure code signing (optional)
+        shell: bash
+        run: |
+          if [ -n "${{ secrets.WIN_CSC_LINK }}" ]; then
+            echo "CSC_LINK secret present — Authenticode signing enabled"
+            echo "HAS_WIN_CERT=true" >> "$GITHUB_ENV"
+          else
+            echo "HAS_WIN_CERT=false"
+            echo "WARNING: No WIN_CSC_LINK — build will be unsigned (SmartScreen will warn)."
+          fi
+
+      - name: Build NSIS installer
+        shell: bash
+        run: |
+          if [ "${HAS_WIN_CERT}" = "true" ]; then
+            # Enable executable signing for customer-safe installs
+            npm pkg delete build.win.signAndEditExecutable || true
+            npm pkg set build.win.signAndEditExecutable=true
+            export CSC_LINK="${{ secrets.WIN_CSC_LINK }}"
+            export CSC_KEY_PASSWORD="${{ secrets.WIN_CSC_KEY_PASSWORD }}"
+            unset CSC_IDENTITY_AUTO_DISCOVERY || true
+          else
+            export CSC_IDENTITY_AUTO_DISCOVERY=false
+          fi
+          npm run dist:win
+        env:
+          CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+
+      - name: Upload Setup.exe artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sociva-windows-setup
+          path: desktop/dist/Sociva-Setup-*.exe
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Fail if publishing unsigned to customers
+        if: ${{ env.HAS_WIN_CERT != 'true' && github.event_name == 'push' }}
+        shell: bash
+        run: |
+          echo "Refusing to create a customer Release without WIN_CSC_LINK (SmartScreen trust)."
+          echo "Add GitHub Secrets WIN_CSC_LINK + WIN_CSC_KEY_PASSWORD, then re-run."
+          exit 1
+
+      - name: Create GitHub Release (signed builds only)
+        if: ${{ env.HAS_WIN_CERT == 'true' }}
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || 'desktop-windows-latest' }}
+          name: Sociva Desktop Windows
+          draft: false
+          prerelease: false
+          make_latest: false
+          files: desktop/dist/Sociva-Setup-*.exe
+          body: |
+            Signed Windows installer for Sociva Desktop.
+            After uploading to `public/downloads/sociva-windows-setup.exe`, customers get a trusted install (no SmartScreen “uncommon download” once reputation/EV applies).
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
