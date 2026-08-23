@@ -45,5 +45,7 @@ export interface LiveActivityPlugin {
   endLiveActivity(opts: { activityId: string }): Promise<void>;
   getActiveActivities(): Promise<{ activities: ActiveActivityEntry[] }>;
   cleanupStaleActivities(opts: { validEntityIds: string[] }): Promise<void>;
+  /** Android: BuildConfig.HAS_TRANSISTORSOFT_LICENSE (+ platform). */
+  getNativeBuildFlags?(): Promise<{ hasTransistorsoftLicense: boolean; platform: string }>;
   addListener?(eventName: string, callback: (data: any) => void): any;
 }

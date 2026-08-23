@@ -113,10 +113,11 @@
         </provider>
 
         <!--
-          Transistorsoft Background Geolocation license (required for RELEASE builds).
+          Transistorsoft Background Geolocation license (required for licensed Android builds).
           Injected from android/transistorsoft.properties or TRANSISTORSOFT_LICENSE env.
-          Without a valid key the SDK shows a native "LICENSE VALIDATION FAILURE" toast
-          whenever delivery GPS calls BackgroundGeolocation.ready()/start().
+          Empty value → SDK evaluation toast "LICENSE VALIDATION FAILURE" (black bottom box).
+          App JS skips Transistorsoft on Android until a real key is configured; MainActivity
+          also dismisses residual license toasts during early resume.
         -->
         <meta-data
             android:name="com.transistorsoft.locationmanager.license"

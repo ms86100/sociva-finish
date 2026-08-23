@@ -18,6 +18,8 @@ import { Capacitor } from '@capacitor/core';
 import { useSystemSettingsRaw } from '@/hooks/useSystemSettingsRaw';
 import { getTerminalStatuses } from '@/services/statusFlowCache';
 import { supabase } from '@/integrations/supabase/client';
+import { AndroidLocationReadyPill } from '@/components/delivery/AndroidLocationReadyPill';
+
 
 interface SellerGPSTrackerProps {
   assignmentId?: string | null;
@@ -164,6 +166,7 @@ export function SellerGPSTracker({ assignmentId, orderId, autoStart = true, deli
 
   return (
     <div className="bg-card border border-border rounded-xl p-4 space-y-3">
+      <AndroidLocationReadyPill active={isTracking && !trackingPaused && !permissionDenied} />
       <AlertDialog open={disclosureOpen} onOpenChange={setDisclosureOpen}>
         <AlertDialogContent className="rounded-2xl max-w-md">
           <AlertDialogHeader>

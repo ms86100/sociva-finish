@@ -5,6 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { getTrackingConfig, type TrackingConfig } from '@/services/trackingConfig';
 import { showFeedback } from '@/components/FeedbackPopupProvider';
+import { shouldUseTransistorsoftBackgroundGeo, refreshNativeLocationEngineFlags } from '@/lib/native-location-engine';
 
 interface TrackingState {
   isTracking: boolean;
@@ -44,13 +45,20 @@ export function useBackgroundLocationTracking(assignmentId: string | null) {
   const configRef = useRef<TrackingConfig | null>(null);
   const healthTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const bgGeoRef = useRef<any>(null);
+  const capacitorGeoRef = useRef<any>(null);
   const stopTrackingRef = useRef<(() => void) | null>(null);
   const startingRef = useRef(false);
   const isNative = Capacitor.isNativePlatform();
+  const [useTransistorsoft, setUseTransistorsoft] = useState(() => shouldUseTransistorsoftBackgroundGeo());
 
   useEffect(() => {
     mountedRef.current = true;
     getTrackingConfig().then(c => { configRef.current = c; });
+    if (Capacitor.getPlatform() === 'android') {
+      refreshNativeLocationEngineFlags().then(() => {
+        if (mountedRef.current) setUseTransistorsoft(shouldUseTransistorsoftBackgroundGeo());
+      });
+    }
     return () => {
       mountedRef.current = false;
     };
@@ -180,16 +188,32 @@ export function useBackgroundLocationTracking(assignmentId: string | null) {
   // ─── Health watchdog ────────────────────────────────────
 
   const attemptRecovery = useCallback(async () => {
-    if (!isNative || !bgGeoRef.current) return;
+    if (!isNative) return;
     try {
-      const BG = bgGeoRef.current;
-      const pos = await BG.getCurrentPosition({ extras: { recovery: true } });
-      if (pos && pos.coords) {
-        sendLocation(
-          pos.coords.latitude, pos.coords.longitude,
-          pos.coords.speed, pos.coords.heading, pos.coords.accuracy,
-        );
-        console.log('[LocationTracking] Recovery position obtained');
+      if (bgGeoRef.current) {
+        const BG = bgGeoRef.current;
+        const pos = await BG.getCurrentPosition({ extras: { recovery: true } });
+        if (pos && pos.coords) {
+          sendLocation(
+            pos.coords.latitude, pos.coords.longitude,
+            pos.coords.speed, pos.coords.heading, pos.coords.accuracy,
+          );
+          console.log('[LocationTracking] Recovery position obtained');
+          return;
+        }
+      }
+      if (capacitorGeoRef.current) {
+        const pos = await capacitorGeoRef.current.getCurrentPosition({
+          enableHighAccuracy: true,
+          timeout: 15000,
+        });
+        if (pos?.coords) {
+          sendLocation(
+            pos.coords.latitude, pos.coords.longitude,
+            pos.coords.speed ?? null, pos.coords.heading ?? null, pos.coords.accuracy ?? null,
+          );
+          console.log('[LocationTracking] Capacitor recovery position obtained');
+        }
       }
     } catch (err) {
       console.error('[LocationTracking] Recovery getCurrentPosition failed:', err);
@@ -219,7 +243,71 @@ export function useBackgroundLocationTracking(assignmentId: string | null) {
     }
   }, []);
 
-  // ─── Native background geolocation (Transistorsoft) ─────
+  // ─── Android Capacitor Geolocation (no Transistorsoft license toast) ───
+
+  const startAndroidCapacitorTracking = useCallback(async () => {
+    try {
+      const { Geolocation } = await import('@capacitor/geolocation');
+      capacitorGeoRef.current = Geolocation;
+
+      const permStatus = await Geolocation.checkPermissions();
+      if (permStatus.location === 'prompt' || permStatus.location === 'prompt-with-rationale') {
+        const requested = await Geolocation.requestPermissions();
+        if (requested.location === 'denied') {
+          setState(s => ({ ...s, permissionDenied: true, permissionLevel: 'denied' }));
+          toast.error('Location permission denied. Enable it in device settings.', { duration: 8000 });
+          return;
+        }
+      } else if (permStatus.location === 'denied') {
+        setState(s => ({ ...s, permissionDenied: true, permissionLevel: 'denied' }));
+        toast.error('Location permission denied. Enable it in device settings.', { duration: 8000 });
+        return;
+      }
+
+      if (watchIdRef.current != null) {
+        try {
+          await Geolocation.clearWatch({ id: String(watchIdRef.current) });
+        } catch { /* noop */ }
+        watchIdRef.current = null;
+      }
+
+      const watchId = await Geolocation.watchPosition(
+        { enableHighAccuracy: true, timeout: 20000, maximumAge: 5000 },
+        (position, err) => {
+          if (err) {
+            console.error('[LocationTracking] Capacitor watch error:', err);
+            return;
+          }
+          if (!position?.coords) return;
+          sendLocation(
+            position.coords.latitude,
+            position.coords.longitude,
+            position.coords.speed ?? null,
+            position.coords.heading ?? null,
+            position.coords.accuracy ?? null,
+          );
+        },
+      );
+
+      watchIdRef.current = watchId;
+      if (mountedRef.current) {
+        setState(s => ({
+          ...s,
+          isTracking: true,
+          permissionDenied: false,
+          permissionLevel: 'when_in_use',
+        }));
+      }
+      startHealthCheck();
+      console.log('[LocationTracking] Android Capacitor Geolocation tracking started (Transistorsoft skipped — no license toast)');
+    } catch (err: any) {
+      const errMsg = err instanceof Error ? err.message : String(err);
+      console.error('[LocationTracking] Android Capacitor tracking failed:', errMsg, err);
+      toast.error(`Location error: ${errMsg || 'Unknown failure'}`, { duration: 8000 });
+    }
+  }, [sendLocation, startHealthCheck]);
+
+  // ─── Native background geolocation (Transistorsoft — iOS / licensed Android) ─────
 
   const startNativeTracking = useCallback(async () => {
     try {
@@ -348,7 +436,7 @@ export function useBackgroundLocationTracking(assignmentId: string | null) {
   // ─── Auto-restart on resume (Gap 2: background kill recovery) ───
 
   useEffect(() => {
-    if (!isNative || !state.isTracking) return;
+    if (!isNative || !useTransistorsoft || !state.isTracking) return;
 
     let cleanup: (() => void) | undefined;
 
@@ -380,7 +468,7 @@ export function useBackgroundLocationTracking(assignmentId: string | null) {
     })();
 
     return () => cleanup?.();
-  }, [isNative, state.isTracking, flushQueue]);
+  }, [isNative, useTransistorsoft, state.isTracking, flushQueue]);
 
   // ─── Web fallback ──────────────────────────────────────
 
@@ -417,7 +505,14 @@ export function useBackgroundLocationTracking(assignmentId: string | null) {
     startingRef.current = true;
 
     try {
-      if (isNative) {
+      let useTs = useTransistorsoft;
+      if (Capacitor.getPlatform() === 'android') {
+        await refreshNativeLocationEngineFlags();
+        useTs = shouldUseTransistorsoftBackgroundGeo();
+        if (useTs !== useTransistorsoft) setUseTransistorsoft(useTs);
+      }
+
+      if (isNative && useTs) {
         try {
           await startNativeTracking();
         } catch (firstErr) {
@@ -426,13 +521,24 @@ export function useBackgroundLocationTracking(assignmentId: string | null) {
           await new Promise(r => setTimeout(r, 1000));
           await startNativeTracking();
         }
+      } else if (isNative) {
+        // Android without Transistorsoft license: Capacitor Geolocation only.
+        await startAndroidCapacitorTracking();
       } else {
         startWebTracking();
       }
     } finally {
       startingRef.current = false;
     }
-  }, [assignmentId, isNative, startNativeTracking, startWebTracking, state.isTracking]);
+  }, [
+    assignmentId,
+    isNative,
+    useTransistorsoft,
+    startNativeTracking,
+    startAndroidCapacitorTracking,
+    startWebTracking,
+    state.isTracking,
+  ]);
 
   const stopTracking = useCallback(async () => {
     stopHealthCheck();
@@ -445,10 +551,21 @@ export function useBackgroundLocationTracking(assignmentId: string | null) {
         // noop
       }
       bgGeoRef.current = null;
-    } else if (watchIdRef.current != null) {
-      navigator.geolocation.clearWatch(watchIdRef.current as number);
+    }
+
+    if (watchIdRef.current != null) {
+      if (capacitorGeoRef.current) {
+        try {
+          await capacitorGeoRef.current.clearWatch({ id: String(watchIdRef.current) });
+        } catch {
+          // noop
+        }
+      } else if (typeof navigator !== 'undefined' && navigator.geolocation) {
+        navigator.geolocation.clearWatch(watchIdRef.current as number);
+      }
       watchIdRef.current = null;
     }
+    capacitorGeoRef.current = null;
 
     if (mountedRef.current) {
       setState(s => ({ ...s, isTracking: false, trackingPaused: false }));

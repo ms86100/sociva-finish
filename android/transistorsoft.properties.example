@@ -2,10 +2,13 @@
 # Generate a key bound to applicationId app.sociva.community at:
 #   https://www.transistorsoft.com/shop/customers
 #
-# Without this key, @transistorsoft/capacitor-background-geolocation shows a native
-# Android toast "LICENSE VALIDATION FAILURE" when delivery GPS starts (and again on
-# reopen while tracking). Debug builds still track; RELEASE builds require a valid key.
+# Without this key, the SDK may emit a native "LICENSE VALIDATION FAILURE" toast.
+# MainActivity intercepts that and shows a Sociva-branded status pill instead
+# ("Sociva is ready") so launch never feels like an error. App JS also skips
+# Transistorsoft on Android until a key is present (Capacitor Geolocation fallback).
+# iOS is unaffected.
 #
-# CI alternative: set env TRANSISTORSOFT_LICENSE (or BGGEO_LICENSE) instead of this file.
+# CI: set env TRANSISTORSOFT_LICENSE (or BGGEO_LICENSE) in Codemagic for real
+# background GPS on Android release builds.
 
 license=YOUR_TRANSISTORSOFT_LICENSE_KEY_HERE

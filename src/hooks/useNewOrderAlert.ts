@@ -36,8 +36,8 @@ const BACKOFF_FACTOR = 1.5;
 const DEFAULT_SNOOZE_MINUTES = 5;
 const MAX_SNOOZE_CYCLES = 3; // After this many re-triggers, stop the bell loop.
 const BELL_LOOP_GAP_MS = 1500;
-/** Prefer order_ring (shipped with Android channel); fall back to legacy gate_bell. */
-const BELL_SOUND_CANDIDATES = ['/sounds/order_ring.mp3', '/sounds/gate_bell.mp3'];
+/** Prefer gate_bell (shipped in iOS bundle + Android res/raw); fall back to order_ring alias. */
+const BELL_SOUND_CANDIDATES = ['/sounds/gate_bell.mp3', '/sounds/order_ring.mp3'];
 
 const SNOOZE_PREF_KEY = 'seller_snooze_pref_minutes';
 

@@ -12,7 +12,8 @@ import { logAudit } from '@/lib/audit';
 import { resolveTransactionType } from '@/lib/resolveTransactionType';
 import {
   canBuyerCancelScheduled,
-  isDueForPreparation,
+  isScheduledFulfillmentLocked,
+  isScheduledFulfillmentStatus,
   isScheduledOrder,
   isUpcomingScheduled,
 } from '@/lib/scheduled-orders';
@@ -191,7 +192,7 @@ export function useOrderDetail(id: string | undefined) {
 
   const isScheduledAwaitingPrep = useMemo(() => {
     if (!order || !isScheduledOrder(order)) return false;
-    return isUpcomingScheduled(order) && !isDueForPreparation(order);
+    return isScheduledFulfillmentLocked(order);
   }, [order]);
 
   // Invalidate cache helper
@@ -400,9 +401,8 @@ export function useOrderDetail(id: string | undefined) {
 
   const isBuyerView = order ? order.buyer_id === user?.id : false;
   const rawNextStatus = getNextStatus();
-  const fulfilmentBlockedStatuses = ['preparing', 'in_progress', 'ready', 'picked_up', 'on_the_way', 'at_gate', 'en_route', 'assigned', 'arrived'];
   const nextStatus =
-    isScheduledAwaitingPrep && rawNextStatus && fulfilmentBlockedStatuses.includes(rawNextStatus)
+    isScheduledAwaitingPrep && rawNextStatus && isScheduledFulfillmentStatus(rawNextStatus)
       ? null
       : rawNextStatus;
   const canReview = isBuyerView && order ? isSuccessfulTerminal(flow, order.status) && !hasReview : false;

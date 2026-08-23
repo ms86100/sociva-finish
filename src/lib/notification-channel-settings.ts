@@ -4,7 +4,8 @@
  */
 import { Capacitor } from '@capacitor/core';
 
-export const ORDERS_INCOMING_CHANNEL_ID = 'orders_incoming_v1';
+export const ORDERS_INCOMING_CHANNEL_ID = 'orders_incoming_v2';
+export const ORDERS_INCOMING_SOUND = 'gate_bell';
 export const ANDROID_PACKAGE_ID = 'app.sociva.community';
 
 /**

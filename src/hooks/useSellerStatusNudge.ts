@@ -9,7 +9,7 @@ import {
 } from '@/lib/local-order-notifications';
 
 const NUDGE_INTERVAL_MS = 5 * 60 * 1000;
-const BELL_SOUND_CANDIDATES = ['/sounds/order_ring.mp3', '/sounds/gate_bell.mp3'];
+const BELL_SOUND_CANDIDATES = ['/sounds/gate_bell.mp3', '/sounds/order_ring.mp3'];
 const BELL_LOOP_GAP_MS = 1500;
 
 function nudgeBucket(): number {

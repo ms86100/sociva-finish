@@ -351,9 +351,6 @@ export default function SellerCreditsPage() {
                 </li>
               ))}
             </ul>
-            <p className="text-[11px] text-muted-foreground pt-1">
-              Rates come from Admin → Monetization and apply to future activity for your listing types.
-            </p>
           </CardContent>
         </Card>
 
@@ -371,12 +368,8 @@ export default function SellerCreditsPage() {
               <span className="font-semibold tabular-nums">{formatPrice(summary?.reserved || 0)}</span>
             </div>
             <p className="text-[11px] text-muted-foreground">Total available for new activity {formatPrice(summary?.available || 0)}</p>
-            {exhausted && (
-              <p className="text-sm text-destructive">
-                {summary?.spendEnabled
-                  ? SELLER_CREDITS_EXHAUSTED
-                  : 'Recharge to make your store visible to buyers nearby and stay ready for new orders, bookings, enquiries, and contacts.'}
-              </p>
+            {exhausted && summary?.spendEnabled && (
+              <p className="text-sm text-destructive">{SELLER_CREDITS_EXHAUSTED}</p>
             )}
             <div className="grid grid-cols-3 gap-2 text-[11px] text-muted-foreground">
               <div>Purchased<br /><strong className="text-foreground">{formatPrice(summary?.lifetimePurchased || 0)}</strong></div>

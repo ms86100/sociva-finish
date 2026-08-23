@@ -35,6 +35,7 @@ import { postCheckoutPath } from '@/lib/checkout-groups';
 import { resolveCheckoutGroupId } from '@/hooks/useCheckoutGroup';
 import { isSellerCreditInsufficientError, sellerCreditCustomerMessage } from '@/lib/sellerCredits';
 import { resolvePlatformDeliveryFee } from '@/lib/delivery-fee';
+import { toScheduledDateParam } from '@/lib/scheduled-orders';
 // Store status validation now handled server-side in create_multi_vendor_orders RPC
 
 async function navigateAfterCheckout(
@@ -491,8 +492,9 @@ export function useCartPage() {
 
     // Bug 2 fix: Use 'card' for Razorpay payments instead of misleading 'upi'
     const effectivePaymentMethod = paymentMode.isRazorpay && paymentMethod === 'upi' ? 'online' : paymentMethod;
-    // Format scheduled date/time for pre-order items
-    const scheduledDateStr = scheduledDate ? scheduledDate.toISOString().split('T')[0] : null;
+    // Format scheduled date/time for pre-order items (IST wall-clock on server).
+    // Local Y-M-D — not toISOString(), which rolls back a day in IST.
+    const scheduledDateStr = scheduledDate ? toScheduledDateParam(scheduledDate) : null;
     const scheduledTimeStr = scheduledTime ? `${scheduledTime}:00` : null;
     const { data, error } = await supabase.rpc('create_multi_vendor_orders', {
       _buyer_id: user.id, _delivery_address: deliveryAddressText,
@@ -759,7 +761,7 @@ export function useCartPage() {
           const cartHash = items.map(i => `${i.product_id}:${i.quantity}`).sort().join('|');
           idempotencyKeyRef.current = `${user.id}_${Date.now()}_${simpleHash(cartHash)}`;
         }
-        const scheduledDateStr = scheduledDate ? scheduledDate.toISOString().split('T')[0] : null;
+        const scheduledDateStr = scheduledDate ? toScheduledDateParam(scheduledDate) : null;
         const scheduledTimeStr = scheduledTime ? `${scheduledTime}:00` : null;
         const { data, error } = await supabase.rpc('create_multi_vendor_orders', {
           _buyer_id: user.id,

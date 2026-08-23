@@ -4,8 +4,10 @@ import { supabase } from '@/integrations/supabase/client';
 import { addDays, format } from 'date-fns';
 import {
   groupUpcomingByDate,
+  isDueForPreparation,
   isScheduledOrder,
   isUpcomingScheduled,
+  resolveScheduledPhase,
   type ScheduledOrderLike,
 } from '@/lib/scheduled-orders';
 
@@ -63,11 +65,15 @@ export function useScheduledOrders(opts: { sellerId?: string | null; buyerId?: s
     staleTime: 30_000,
     select: (rows) => {
       const upcoming = rows.filter(r => isScheduledOrder(r) && isUpcomingScheduled(r));
+      const dueNow = rows.filter(r => isScheduledOrder(r) && isDueForPreparation(r));
+      const dueToday = rows.filter(r => resolveScheduledPhase(r) === 'due_today');
       return {
         all: rows,
         upcoming,
+        dueNow,
+        dueToday,
         grouped: groupUpcomingByDate(upcoming),
-        next: upcoming[0] ?? null,
+        next: dueNow[0] ?? upcoming[0] ?? null,
       };
     },
   });

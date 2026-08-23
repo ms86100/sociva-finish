@@ -70,7 +70,7 @@ async function sendApnsDirect(
   try {
     const cryptoKey = await importP8Key(p8Key);
     const jwt = await createApnsJwt(cryptoKey, keyId, teamId);
-    const apnsSound = highPriority ? "order_ring.mp3" : "default";
+    const apnsSound = highPriority ? "gate_bell.mp3" : "default";
     const apnsPayload: Record<string, unknown> = {
       aps: {
         alert: { title, body },
@@ -140,14 +140,15 @@ async function sendFcmDirect(
   threadId?: string, imageUrl?: string, highPriority = true,
 ): Promise<{ success: boolean; error?: string }> {
   // New channel id required when sound changes (Android channel settings are immutable).
-  const androidSound = highPriority ? "order_ring" : "default";
-  const androidChannel = highPriority ? "orders_incoming_v1" : "general";
+  // iOS bundle ships gate_bell.mp3 via Codemagic (ios-config → App resources).
+  const androidSound = highPriority ? "gate_bell" : "default";
+  const androidChannel = highPriority ? "orders_incoming_v2" : "general";
   const androidNotif: Record<string, unknown> = { sound: androidSound, channel_id: androidChannel, icon: "ic_stat_sociva" };
   if (threadId) androidNotif.tag = threadId;
   if (imageUrl) androidNotif.image = imageUrl;
   const fcmNotif: Record<string, unknown> = { title, body };
   if (imageUrl) fcmNotif.image = imageUrl;
-  const fcmApnsSound = highPriority ? "order_ring.mp3" : "default";
+  const fcmApnsSound = highPriority ? "gate_bell.mp3" : "default";
   const apnsAps: Record<string, unknown> = { alert: { title, body }, sound: fcmApnsSound, badge: 1 };
   if (imageUrl) apnsAps["mutable-content"] = 1;
   if (threadId) apnsAps["thread-id"] = threadId;
@@ -926,7 +927,7 @@ Deno.serve(async (req) => {
           target_role: targetRole || 'unknown',
           status: notifStatus || 'unknown',
           isHighPriority,
-          sound: isHighPriority ? 'order_ring' : 'default',
+          sound: isHighPriority ? 'gate_bell' : 'default',
         });
 
         // ── INLINE PUSH DELIVERY (no function-to-function call) ──

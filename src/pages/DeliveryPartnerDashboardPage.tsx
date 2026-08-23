@@ -28,6 +28,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Capacitor } from '@capacitor/core';
+import { AndroidLocationReadyPill } from '@/components/delivery/AndroidLocationReadyPill';
 
 const BG_LOCATION_DISCLOSURE =
   'Sociva collects your precise location in the background while this delivery is active so the buyer can track progress. Tracking stops when the delivery ends or you stop sharing. Location is not used for ads.';
@@ -267,6 +268,7 @@ export default function DeliveryPartnerDashboardPage() {
 
   return (
     <AppLayout headerTitle="My Deliveries" showLocation={false}>
+      <AndroidLocationReadyPill active={!!isTracking && !permissionDenied} />
       <FeatureGate feature="delivery_management">
       <AlertDialog open={locationDisclosureOpen} onOpenChange={(open) => {
         setLocationDisclosureOpen(open);

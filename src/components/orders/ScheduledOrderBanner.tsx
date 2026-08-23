@@ -39,6 +39,11 @@ export function ScheduledOrderBanner({ order, view }: ScheduledOrderBannerProps)
                   Your order will be prepared and fulfilled on the scheduled date.
                 </p>
               )}
+              {view === 'seller' && upcoming && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Accept anytime. Preparation and delivery unlock when the scheduled window opens.
+                </p>
+              )}
               {view === 'seller' && formatPreparationByLine(order) && (
                 <p className="text-xs text-amber-700 dark:text-amber-300 mt-1">{formatPreparationByLine(order)}</p>
               )}

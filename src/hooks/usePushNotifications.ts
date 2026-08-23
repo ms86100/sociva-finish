@@ -275,38 +275,44 @@ export function usePushNotificationsInternal() {
 
       // Create high-importance notification channels for order alerts (Android 8+).
       // Channel settings are immutable after first create — ship a new id when sound changes.
+      // iOS custom sound is gate_bell.mp3 in the app bundle (Codemagic copies ios-config/gate_bell.mp3).
       if (platform === 'android') {
         try {
           await PushNotifications.createChannel({
-            id: 'orders_incoming_v1',
+            id: 'orders_incoming_v2',
             name: 'Incoming Orders',
             description: 'High-priority ringing alerts for new seller orders',
             importance: 5,
             visibility: 1,
-            sound: 'order_ring',
+            sound: 'gate_bell',
             vibration: true,
             lights: true,
           });
-          pushLog('info', 'ANDROID_CHANNEL_CREATED', { channelId: 'orders_incoming_v1' });
+          pushLog('info', 'ANDROID_CHANNEL_CREATED', { channelId: 'orders_incoming_v2' });
         } catch (chErr) {
-          pushLog('warn', 'ANDROID_CHANNEL_CREATE_FAILED', { channelId: 'orders_incoming_v1', error: String(chErr) });
+          pushLog('warn', 'ANDROID_CHANNEL_CREATE_FAILED', { channelId: 'orders_incoming_v2', error: String(chErr) });
         }
 
-        // Keep legacy channel so older queued pushes still resolve (no sound upgrade)
-        try {
-          await PushNotifications.createChannel({
-            id: 'orders_alert',
-            name: 'Order Alerts (legacy)',
-            description: 'Legacy high-priority order alerts',
-            importance: 5,
-            visibility: 1,
-            sound: 'order_ring',
-            vibration: true,
-            lights: true,
-          });
-          pushLog('info', 'ANDROID_CHANNEL_CREATED', { channelId: 'orders_alert' });
-        } catch (chErr) {
-          pushLog('warn', 'ANDROID_CHANNEL_CREATE_FAILED', { channelId: 'orders_alert', error: String(chErr) });
+        // Keep legacy channels so older queued pushes still resolve
+        for (const legacy of [
+          { id: 'orders_incoming_v1', name: 'Incoming Orders (legacy)', sound: 'order_ring' },
+          { id: 'orders_alert', name: 'Order Alerts (legacy)', sound: 'gate_bell' },
+        ] as const) {
+          try {
+            await PushNotifications.createChannel({
+              id: legacy.id,
+              name: legacy.name,
+              description: 'Legacy high-priority order alerts',
+              importance: 5,
+              visibility: 1,
+              sound: legacy.sound,
+              vibration: true,
+              lights: true,
+            });
+            pushLog('info', 'ANDROID_CHANNEL_CREATED', { channelId: legacy.id });
+          } catch (chErr) {
+            pushLog('warn', 'ANDROID_CHANNEL_CREATE_FAILED', { channelId: legacy.id, error: String(chErr) });
+          }
         }
 
         // General channel for standard (non-urgent) notifications
@@ -330,16 +336,16 @@ export function usePushNotificationsInternal() {
         try {
           const { LocalNotifications } = await import('@capacitor/local-notifications');
           await LocalNotifications.createChannel({
-            id: 'orders_incoming_v1',
+            id: 'orders_incoming_v2',
             name: 'Incoming Orders',
             description: 'High-priority ringing alerts for new seller orders',
             importance: 5,
             visibility: 1,
-            sound: 'order_ring',
+            sound: 'gate_bell',
             vibration: true,
             lights: true,
           });
-          pushLog('info', 'LOCAL_NOTIF_CHANNEL_CREATED', { channelId: 'orders_incoming_v1' });
+          pushLog('info', 'LOCAL_NOTIF_CHANNEL_CREATED', { channelId: 'orders_incoming_v2' });
         } catch (lnErr) {
           pushLog('warn', 'LOCAL_NOTIF_CHANNEL_FAILED', { error: String(lnErr) });
         }
@@ -506,12 +512,10 @@ export function usePushNotificationsInternal() {
 
         hapticNotification('success');
 
-        // High-priority foreground: play professional ring asset (not synthetic beeps).
-        // Seller overlay owns looping buzz when pending — skip duplicate for seller incoming.
-        // Also skip sound/haptic for stale pushes (buffered by FCM/APNs for >10 min).
+        // High-priority foreground: play gate_bell (bundled on iOS + web).
+        // Always play once for sellers too — overlay may not be mounted yet on push-only delivery.
         const isHighPriority = data?.high_priority === 'true';
         const isStatusNudge = data?.type === 'seller_order_status_reminder' || data?.reminder_type === 'status_nudge';
-        const isSellerIncoming = data?.target_role === 'seller' && isHighPriority && !isStatusNudge;
         if (isStatusNudge && orderId) {
           window.dispatchEvent(new CustomEvent('seller-status-nudge', { detail: { orderId } }));
           void import('@/lib/local-order-notifications').then(({ scheduleIncomingOrderLocalNotification }) =>
@@ -522,11 +526,20 @@ export function usePushNotificationsInternal() {
             }),
           );
         }
-        if (soundsEnabledRef.current && isHighPriority && !isSellerIncoming && !isPushStale) {
+        if (soundsEnabledRef.current && isHighPriority && !isPushStale) {
+          if (orderId) {
+            void import('@/lib/local-order-notifications').then(({ scheduleIncomingOrderLocalNotification }) =>
+              scheduleIncomingOrderLocalNotification({
+                orderId,
+                title: notification?.title || 'New order',
+                body: notification?.body || 'Tap to review',
+              }),
+            );
+          }
           void (async () => {
             try {
               const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
-              const tryUrls = ['/sounds/order_ring.mp3', '/sounds/gate_bell.mp3'];
+              const tryUrls = ['/sounds/gate_bell.mp3', '/sounds/order_ring.mp3'];
               let played = false;
               for (const url of tryUrls) {
                 try {

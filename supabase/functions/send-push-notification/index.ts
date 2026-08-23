@@ -98,7 +98,7 @@ async function sendApnsDirectNotification(
     const cryptoKey = await importP8Key(p8Key);
     const jwt = await createApnsJwt(cryptoKey, keyId, teamId);
 
-    const apnsSound = highPriority ? "order_ring.mp3" : "default";
+    const apnsSound = highPriority ? "gate_bell.mp3" : "default";
     const apnsPayload: Record<string, unknown> = {
       aps: {
         alert: { title, body },
@@ -233,8 +233,8 @@ async function sendFCMNotification(
 ): Promise<{ success: boolean; error?: string }> {
   const fcmUrl = `https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`;
 
-  const androidSound = highPriority ? "order_ring" : "default";
-  const androidChannel = highPriority ? "orders_incoming_v1" : "general";
+  const androidSound = highPriority ? "gate_bell" : "default";
+  const androidChannel = highPriority ? "orders_incoming_v2" : "general";
   const androidNotification: Record<string, unknown> = {
     sound: androidSound,
     channel_id: androidChannel,
@@ -246,7 +246,7 @@ async function sendFCMNotification(
   const fcmNotification: Record<string, unknown> = { title, body };
   if (imageUrl) fcmNotification.image = imageUrl;
 
-  const fcmApnsSound = highPriority ? "order_ring.mp3" : "default";
+  const fcmApnsSound = highPriority ? "gate_bell.mp3" : "default";
   const apnsAps: Record<string, unknown> = {
     alert: { title, body },
     sound: fcmApnsSound,
@@ -378,7 +378,7 @@ Deno.serve(async (req) => {
     console.log(JSON.stringify({
       event: "push_priority", userId, isHighPriority: highPriority,
       target_role: data?.target_role || 'unknown', status: data?.status || 'unknown',
-      sound: highPriority ? 'order_ring' : 'default',
+      sound: highPriority ? 'gate_bell' : 'default',
     }));
 
     // Fetch device tokens for user

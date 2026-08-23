@@ -69,7 +69,9 @@ const config: CapacitorConfig = {
     },
     LocalNotifications: {
       smallIcon: 'ic_stat_sociva',
-      sound: 'order_ring.mp3',
+      // iOS: file must exist in app bundle (Codemagic copies ios-config/gate_bell.mp3).
+      // Android: res/raw/gate_bell.mp3 (extension omitted in channel sound).
+      sound: 'gate_bell.mp3',
     },
     Keyboard: {
       resize: 'body',

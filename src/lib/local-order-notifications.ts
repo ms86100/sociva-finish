@@ -1,11 +1,14 @@
 /**
  * Capacitor LocalNotifications for reliable foreground / app-open order ringing.
- * Uses channel orders_incoming_v1 + sound order_ring. Cancel on terminal.
+ * Uses channel orders_incoming_v2 + sound gate_bell. Cancel on terminal.
  */
 import { Capacitor } from '@capacitor/core';
-import { ORDERS_INCOMING_CHANNEL_ID } from '@/lib/notification-channel-settings';
+import {
+  ORDERS_INCOMING_CHANNEL_ID,
+  ORDERS_INCOMING_SOUND,
+} from '@/lib/notification-channel-settings';
 
-const CHANNEL_CREATED_KEY = 'sociva_ln_channel_v1';
+const CHANNEL_CREATED_KEY = 'sociva_ln_channel_v2';
 
 /** Stable positive 31-bit int from order UUID (LocalNotifications requires numeric id). */
 export function orderNotificationId(orderId: string): number {
@@ -32,7 +35,7 @@ async function ensureLocalChannel(): Promise<void> {
       description: 'High-priority ringing alerts for new seller orders',
       importance: 5,
       visibility: 1,
-      sound: 'order_ring',
+      sound: ORDERS_INCOMING_SOUND,
       vibration: true,
       lights: true,
     });
@@ -78,13 +81,18 @@ export async function scheduleIncomingOrderLocalNotification(opts: {
     const body = opts.body
       || (opts.amount != null && opts.amount > 0 ? `₹${Number(opts.amount).toFixed(0)} — tap to review` : 'Tap to review and accept');
 
+    const platform = Capacitor.getPlatform();
+    // iOS requires the extension and the file in the app bundle (gate_bell.mp3).
+    // Android channel/res/raw uses the base name without extension.
+    const sound = platform === 'ios' ? 'gate_bell.mp3' : ORDERS_INCOMING_SOUND;
+
     await LocalNotifications.schedule({
       notifications: [{
         id,
         title,
         body,
         channelId: ORDERS_INCOMING_CHANNEL_ID,
-        sound: 'order_ring',
+        sound,
         extra: { orderId: opts.orderId, type: 'order', high_priority: 'true' },
         schedule: { at: new Date(Date.now() + 250) },
         actionTypeId: 'OPEN_ORDER',

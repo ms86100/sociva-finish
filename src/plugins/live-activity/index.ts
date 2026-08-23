@@ -11,6 +11,7 @@ const noopImplementation: LiveActivityPlugin = {
   endLiveActivity: async () => {},
   getActiveActivities: async () => ({ activities: [] }),
   cleanupStaleActivities: async () => {},
+  getNativeBuildFlags: async () => ({ hasTransistorsoftLicense: false, platform: 'web' }),
 };
 
 /**

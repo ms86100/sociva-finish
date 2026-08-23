@@ -76,6 +76,14 @@ class LiveActivityPlugin : Plugin() {
         call.resolve()
     }
 
+    @PluginMethod
+    fun getNativeBuildFlags(call: PluginCall) {
+        val ret = JSObject()
+        ret.put("hasTransistorsoftLicense", BuildConfig.HAS_TRANSISTORSOFT_LICENSE)
+        ret.put("platform", "android")
+        call.resolve(ret)
+    }
+
     private fun sendServiceIntent(call: PluginCall, action: String) {
         val intent = Intent(context, LiveDeliveryService::class.java).apply {
             this.action = action

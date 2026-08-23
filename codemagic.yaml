@@ -4,6 +4,8 @@
 # Setup Instructions:
 # 1. Connect this repo to Codemagic (codemagic.io)
 # 2. Add required environment variables (see below)
+#    Optional Android: TRANSISTORSOFT_LICENSE (or BGGEO_LICENSE) for real-time
+#    background GPS — bound to applicationId app.sociva.community
 # 3. Trigger a build!
 
 workflows:
@@ -972,6 +974,16 @@ workflows:
             echo "WARNING: CM_KEYSTORE not set or file not found. Build will be unsigned."
           fi
 
+      - name: Inject Transistorsoft license (optional)
+        script: |
+          KEY="${TRANSISTORSOFT_LICENSE:-${BGGEO_LICENSE:-}}"
+          if [ -n "$KEY" ] && [ "$KEY" != "YOUR_TRANSISTORSOFT_LICENSE_KEY_HERE" ]; then
+            printf 'license=%s\n' "$KEY" > android/transistorsoft.properties
+            echo "=== Transistorsoft license written to android/transistorsoft.properties ==="
+          else
+            echo "WARNING: TRANSISTORSOFT_LICENSE not set — Android will use Capacitor Geolocation fallback (no background GPS)."
+          fi
+
       - name: Build Android release bundle
         script: cd android && ./gradlew clean bundleRelease --warning-mode all
 
@@ -1788,6 +1800,16 @@ workflows:
             head -40 "$GRADLE_FILE"
           else
             echo "WARNING: CM_KEYSTORE not set or file not found. Build will be unsigned."
+          fi
+
+      - name: Inject Transistorsoft license (optional)
+        script: |
+          KEY="${TRANSISTORSOFT_LICENSE:-${BGGEO_LICENSE:-}}"
+          if [ -n "$KEY" ] && [ "$KEY" != "YOUR_TRANSISTORSOFT_LICENSE_KEY_HERE" ]; then
+            printf 'license=%s\n' "$KEY" > android/transistorsoft.properties
+            echo "=== Transistorsoft license written to android/transistorsoft.properties ==="
+          else
+            echo "WARNING: TRANSISTORSOFT_LICENSE not set — Android will use Capacitor Geolocation fallback (no background GPS)."
           fi
 
       - name: Build Android AAB

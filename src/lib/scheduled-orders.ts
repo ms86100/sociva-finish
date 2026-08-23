@@ -80,6 +80,19 @@ export function istDateString(d = new Date()): string {
   }).format(d);
 }
 
+/**
+ * Date string for checkout RPCs / scheduled_date columns.
+ * Use the picker's local calendar day — NEVER `date.toISOString().split('T')[0]`,
+ * which shifts the day back for Asia/Kolkata (and any UTC+ offset) at local midnight.
+ * Server interprets this as an IST wall-clock day via compute_scheduled_order_times.
+ */
+export function toScheduledDateParam(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 /** Parse scheduled_date + time as an instant in IST. */
 export function getScheduledFulfilmentAt(order: ScheduledOrderLike): Date | null {
   if (!order.scheduled_date) return null;
@@ -152,6 +165,44 @@ export function isDueForPreparation(order: ScheduledOrderLike, now = new Date())
   const prepStart = getPreparationStartAt(order);
   if (!prepStart) return false;
   return now.getTime() >= prepStart.getTime();
+}
+
+/** Statuses blocked until preparation_start_at (mirrors DB guard). */
+export const SCHEDULED_FULFILMENT_LOCKED_STATUSES = [
+  'preparing',
+  'in_progress',
+  'ready',
+  'picked_up',
+  'on_the_way',
+  'at_gate',
+  'en_route',
+  'assigned',
+  'arrived',
+  'awaiting_cod_confirmation',
+] as const;
+
+export function isScheduledFulfillmentLocked(
+  order: ScheduledOrderLike,
+  now = new Date(),
+): boolean {
+  if (!isScheduledOrder(order)) return false;
+  if (TERMINAL_STATUSES.includes((order.status || '') as typeof TERMINAL_STATUSES[number])) return false;
+  if (FULFILMENT_STATUSES.includes((order.status || '') as typeof FULFILMENT_STATUSES[number])) {
+    return false; // already in fulfilment
+  }
+  return isUpcomingScheduled(order, now) && !isDueForPreparation(order, now);
+}
+
+export function isScheduledFulfillmentStatus(status: string | null | undefined): boolean {
+  if (!status) return false;
+  return (SCHEDULED_FULFILMENT_LOCKED_STATUSES as readonly string[]).includes(status);
+}
+
+/** True when seller may accept/confirm but not yet prepare / go transit. */
+export function canAcceptScheduledEarly(order: ScheduledOrderLike, now = new Date()): boolean {
+  if (!isScheduledOrder(order)) return false;
+  const status = order.status || '';
+  return ['placed', 'pending', 'requested'].includes(status) && isScheduledOrder(order);
 }
 
 export function resolveScheduledPhase(order: ScheduledOrderLike, now = new Date()): ScheduledOrderPhase {

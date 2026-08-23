@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/sociva_status_pill_root"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:paddingStart="20dp"
+    android:paddingEnd="20dp"
+    android:clipToPadding="false">
+
+    <LinearLayout
+        android:id="@+id/sociva_status_pill_card"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:background="@drawable/sociva_status_pill_bg"
+        android:elevation="12dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="16dp"
+        android:paddingTop="14dp"
+        android:paddingEnd="18dp"
+        android:paddingBottom="14dp">
+
+        <FrameLayout
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:layout_marginEnd="12dp">
+
+            <View
+                android:id="@+id/sociva_status_pill_pulse"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:background="@drawable/sociva_status_pill_pulse" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:gravity="center"
+                android:text="✦"
+                android:textColor="#E8F0FF"
+                android:textSize="14sp" />
+        </FrameLayout>
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/sociva_status_pill_title"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:fontFamily="sans-serif-medium"
+                android:letterSpacing="0.01"
+                android:text="Sociva is ready"
+                android:textColor="#F7F8FC"
+                android:textSize="15sp" />
+
+            <TextView
+                android:id="@+id/sociva_status_pill_subtitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:alpha="0.78"
+                android:text="Setting up a smooth experience for you"
+                android:textColor="#C8D0E0"
+                android:textSize="12sp" />
+        </LinearLayout>
+    </LinearLayout>
+</FrameLayout>
