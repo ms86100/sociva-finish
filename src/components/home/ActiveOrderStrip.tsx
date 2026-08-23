@@ -10,6 +10,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { jitteredStaleTime } from '@/lib/query-utils';
 import { compactETA } from '@/lib/etaEngine';
 import { getTransitStatuses } from '@/lib/visibilityEngine';
+import {
+  acknowledgeExpiredOrder,
+  getExpiredOrderAcks,
+  isOrderAcceptanceExpired,
+} from '@/lib/expired-order-acks';
 
 function CompactCountdown({ autoCancelAt, onExpire }: { autoCancelAt: string; onExpire?: () => void }) {
   const calc = useCallback(() => {
@@ -112,23 +117,32 @@ export function ActiveOrderStrip() {
         }
       }
 
-      return data.map((o: any) => {
-        const flow = flowMap.get(o.status);
-        const firstImage = o.order_items?.find((oi: any) => oi.product?.image_url)?.product?.image_url || null;
-        return {
-          id: o.id,
-          status: o.status,
-          created_at: o.created_at,
-          estimated_delivery_at: o.estimated_delivery_at,
-          auto_cancel_at: o.auto_cancel_at || null,
-          seller_name: o.seller?.business_name || '',
-          item_count: o.order_items?.length || 0,
-          display_label: flow?.display_label || o.status.replace(/_/g, ' '),
-          color: flow?.color || null,
-          icon: flow?.icon || null,
-          first_product_image: firstImage,
-        };
-      });
+      const expiredAcks = getExpiredOrderAcks();
+
+      return data
+        .map((o: any) => {
+          const flow = flowMap.get(o.status);
+          const firstImage = o.order_items?.find((oi: any) => oi.product?.image_url)?.product?.image_url || null;
+          return {
+            id: o.id,
+            status: o.status,
+            created_at: o.created_at,
+            estimated_delivery_at: o.estimated_delivery_at,
+            auto_cancel_at: o.auto_cancel_at || null,
+            seller_name: o.seller?.business_name || '',
+            item_count: o.order_items?.length || 0,
+            display_label: flow?.display_label || o.status.replace(/_/g, ' '),
+            color: flow?.color || null,
+            icon: flow?.icon || null,
+            first_product_image: firstImage,
+          };
+        })
+        .filter((o) => {
+          // Expired acceptance windows stay briefly so the buyer can open them,
+          // but disappear permanently once viewed/clicked.
+          if (!isOrderAcceptanceExpired(o.auto_cancel_at, o.status)) return true;
+          return !expiredAcks.has(o.id);
+        });
     },
     enabled: !!user?.id,
     staleTime: jitteredStaleTime(30_000),
@@ -178,7 +192,13 @@ export function ActiveOrderStrip() {
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.95 }}
-                onClick={() => navigate(`/orders/${order.id}`)}
+                onClick={() => {
+                  if (isOrderAcceptanceExpired(order.auto_cancel_at, order.status)) {
+                    acknowledgeExpiredOrder(order.id);
+                    queryClient.invalidateQueries({ queryKey: ['active-orders-strip'] });
+                  }
+                  navigate(`/orders/${order.id}`);
+                }}
                 className="flex items-center gap-2 rounded-xl bg-primary/[0.06] backdrop-blur-lg backdrop-saturate-150 border border-primary/[0.1] px-2.5 py-2 cursor-pointer active:scale-[0.97] transition-transform shrink-0 min-w-0"
                 style={{ maxWidth: activeOrders.length === 1 ? '100%' : '55vw' }}
               >

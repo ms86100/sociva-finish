@@ -213,7 +213,7 @@ export function CategoryManager() {
   );
 
   return (
-    <>
+    <div>
       <Card className="border-0 shadow-[var(--shadow-card)] rounded-2xl">
         <CardHeader className="pb-4">
           <div className="flex items-center justify-between">
@@ -592,6 +592,6 @@ export function CategoryManager() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </>
+    </div>
   );
 }

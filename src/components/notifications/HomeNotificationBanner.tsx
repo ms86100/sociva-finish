@@ -31,7 +31,7 @@ function addDismissedId(id: string) {
   } catch { /* quota exceeded — harmless */ }
 }
 
-export function HomeNotificationBanner() {
+export function HomeNotificationBanner({ embedded = false }: { embedded?: boolean }) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const { data: notification } = useLatestActionNotification(user?.id);
@@ -63,7 +63,7 @@ export function HomeNotificationBanner() {
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -12 }}
           transition={{ duration: 0.3 }}
-          className="px-4 mt-3 mb-3"
+          className={embedded ? undefined : 'px-4 mt-3 mb-3'}
         >
           <RichNotificationCard
             notification={notification}

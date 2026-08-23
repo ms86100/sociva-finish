@@ -51,11 +51,16 @@ import { getString, setString } from '@/lib/persistent-kv';
 import { cn } from '@/lib/utils';
 
 import { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { RefreshCw } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { LiveActivityManager } from '@/services/LiveActivityManager';
 import { Capacitor } from '@capacitor/core';
 import { useNewOrderAlertContext } from '@/contexts/NewOrderAlertContext';
+import {
+  acknowledgeExpiredOrder,
+  isOrderAcceptanceExpired,
+} from '@/lib/expired-order-acks';
 
 // ─── Zomato-level experience imports ─────────────────────────────────────────
 import { deriveDisplayStatus } from '@/lib/deriveDisplayStatus';
@@ -313,6 +318,7 @@ function CelebrationBanner({ order, isBuyerView, flow }: { order: any; isBuyerVi
 
 export default function OrderDetailPage() {
   const { id } = useParams();
+  const queryClient = useQueryClient();
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
@@ -387,6 +393,14 @@ export default function OrderDetailPage() {
   useEffect(() => {
     if (id) dismissById(id);
   }, [id, dismissById]);
+
+  // Buyer opened an expired acceptance-window order → remove from Home strip
+  useEffect(() => {
+    if (!id || !order) return;
+    if (!isOrderAcceptanceExpired(order.auto_cancel_at, order.status)) return;
+    acknowledgeExpiredOrder(id);
+    queryClient.invalidateQueries({ queryKey: ['active-orders-strip'] });
+  }, [id, order?.auto_cancel_at, order?.status, queryClient]);
 
   useEffect(() => {
     if (id && order?.status && !['placed', 'enquired', 'quoted'].includes(order.status)) {

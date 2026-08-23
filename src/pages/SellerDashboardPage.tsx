@@ -420,7 +420,7 @@ export default function SellerDashboardPage() {
 
   return (
     <AppLayout headerTitle="Seller Dashboard" showLocation={false}>
-      <div className="p-4 space-y-4">
+      <div className="p-4 stack-gap-lg">
         {isPortfolio ? (
           <PortfolioRollupStrip
             storeCount={portfolioSellerIds.length}
@@ -449,7 +449,7 @@ export default function SellerDashboardPage() {
             )}
 
             {sellerProfile.verification_status === 'approved' && (
-              <div className="flex flex-col gap-4">
+              <div className="stack-gap-lg">
                 <SellerTransferBanner
                   sellerId={activeSellerId}
                   portfolioIds={null}
@@ -490,7 +490,7 @@ export default function SellerDashboardPage() {
         )}
 
         {isPortfolio && (
-          <div className="flex flex-col gap-4">
+          <div className="stack-gap-lg">
             <SellerTransferBanner
               sellerId={activeSellerId}
               portfolioIds={portfolioSellerIds}

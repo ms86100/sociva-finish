@@ -39,8 +39,12 @@ export function SocivaCreditsCard({
             <ChevronRight size={16} className="text-muted-foreground" />
           </div>
         </div>
-        {exhausted && summary?.spendEnabled && (
-          <p className="text-xs text-destructive mt-2">{SELLER_CREDITS_EXHAUSTED}</p>
+        {exhausted && (
+          <p className="text-xs text-destructive mt-2">
+            {summary?.spendEnabled
+              ? SELLER_CREDITS_EXHAUSTED
+              : 'Recharge Sociva Credits to make your store visible to buyers nearby.'}
+          </p>
         )}
         <div className="flex items-center justify-between mt-2 text-[11px] text-muted-foreground">
           <span>Reserved {formatPrice(summary?.reserved || 0)}</span>

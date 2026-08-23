@@ -359,6 +359,15 @@
 }
 
 @layer utilities {
+  /* Sequential cards / banners / alerts — consistent vertical rhythm */
+  .stack-gap {
+    @apply flex flex-col gap-3;
+  }
+
+  .stack-gap-lg {
+    @apply flex flex-col gap-4;
+  }
+
   .animate-slide-up {
     animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   }

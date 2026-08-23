@@ -252,9 +252,11 @@ export function AdminCatalogManager() {
         </Collapsible>
 
         {/* Categories sub-tab */}
-        <TabsContent value="categories" className="mt-4 space-y-4">
-          <CategoryManager />
-          <SubcategoryManager />
+        <TabsContent value="categories" className="mt-4">
+          <div className="stack-gap-lg">
+            <CategoryManager />
+            <SubcategoryManager />
+          </div>
         </TabsContent>
 
         {/* Attributes sub-tab */}

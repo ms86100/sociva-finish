@@ -27,14 +27,18 @@ describe('seller activation, discovery, and location', () => {
     expect(notify).toMatch(/export async function notifySellerStatusChange[\s\S]*enqueue_seller_lifecycle_notification/);
   });
 
-  it('requires credit activation, configured radius, and buyer coordinates for discovery', () => {
+  it('requires credit activation regardless of spend kill-switch', () => {
     const helpers = read('supabase/migrations/20260822100000_seller_activation_discovery_notifications.sql');
+    const alwaysGated = read('supabase/migrations/20260823100000_seller_credit_discovery_always_gated.sql');
     const rpcs = read('supabase/migrations/20260822101000_seller_discovery_eligibility_rpcs.sql');
     expect(helpers).toMatch(/seller_credit_activation_satisfied/);
     expect(helpers).toMatch(/seller_is_eligible_for_discovery/);
     expect(helpers).toMatch(/delivery_radius_km, 0\) <= 0/);
     expect(helpers).toMatch(/seller_is_discoverable_to_buyer/);
     expect(helpers).toMatch(/trg_orders_enforce_seller_eligibility/);
+    expect(alwaysGated).toMatch(/seller_credit_activation_satisfied/);
+    expect(alwaysGated).not.toMatch(/seller_credit_spend_active\(\)/);
+    expect(alwaysGated).toMatch(/Anyone can view available products from approved sellers/);
     expect(rpcs).toMatch(/search_products_v2/);
     expect(rpcs).toMatch(/search_products_fts/);
     expect(rpcs).toMatch(/search_sellers_paginated/);
@@ -76,9 +80,10 @@ describe('seller activation, discovery, and location', () => {
     expect(confirmFn).toMatch(/confirm_seller_credit_purchase/);
     expect(confirmFn).toMatch(/pending: true/);
     expect(dashboard).toMatch(/SellerJourneyBanner/);
-    expect(dashboard).toMatch(/flex flex-col gap-4/);
+    expect(dashboard).toMatch(/stack-gap-lg|flex flex-col gap-4/);
     expect(dashboard).toMatch(/creditActivated/);
     expect(read('src/pages/HomePage.tsx')).toMatch(/SellerJourneyBanner/);
+    expect(read('src/pages/HomePage.tsx')).toMatch(/stack-gap/);
   });
 
   it('gates seller pages, reorder, enquiry, and booking through the same eligibility RPC', () => {

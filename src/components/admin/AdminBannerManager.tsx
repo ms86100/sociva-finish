@@ -714,8 +714,8 @@ export function AdminBannerManager() {
 
       {/* ── 4-Step Wizard Drawer ── */}
       <Drawer open={sheetOpen} onOpenChange={setSheetOpen}>
-        <DrawerContent className="max-h-[90vh] overflow-y-auto bg-background border-border">
-          <DrawerHeader className="pb-2">
+        <DrawerContent className="max-h-[90vh] overflow-hidden flex flex-col bg-background border-border">
+          <DrawerHeader className="pb-2 shrink-0">
             <DrawerTitle className="font-bold">{editingId ? 'Edit Banner' : 'Create Banner'}</DrawerTitle>
             {/* Step indicator */}
             <div className="flex items-center gap-1 mt-3">
@@ -743,7 +743,7 @@ export function AdminBannerManager() {
             </div>
           </DrawerHeader>
 
-          <div className="px-4 pb-6 space-y-5">
+          <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 pb-6 space-y-5">
             {/* ═══ STEP 1: Type & Theme ═══ */}
             {wizardStep === 0 && (
               <>

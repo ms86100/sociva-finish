@@ -73,12 +73,13 @@ describe('Seller credits monetization integrity', () => {
     expect(admin).toMatch(/Deactivate/);
   });
 
-  it('does not tell sellers they are blocked while spend is off', () => {
+  it('keeps spend-off messaging accurate: discovery still needs credits', () => {
     const credits = read('src/pages/SellerCreditsPage.tsx');
     const card = read('src/components/seller/SocivaCreditsCard.tsx');
     expect(credits).toMatch(/summary\?\.spendEnabled/);
-    expect(credits).toMatch(/not currently required to accept orders/);
+    expect(credits).toMatch(/positive credit balance is still required for discovery|make your products visible/);
     expect(card).toMatch(/summary\?\.spendEnabled/);
+    expect(card).toMatch(/make your store visible/);
   });
 
   it('labels refunds and routes refund notifications to credits', () => {

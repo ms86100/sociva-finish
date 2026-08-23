@@ -70,9 +70,11 @@ export default function HomePage() {
   return (
     <AppLayout>
       <div className="pb-4 space-y-0">
-        <SellerJourneyBanner className="mx-4 mt-3" />
-        <HomeNotificationBanner />
-        {needsPreciseLocation && <PreciseLocationRequiredCard className="mx-4 mt-3" />}
+        <div className="stack-gap mx-4 mt-3">
+          <SellerJourneyBanner />
+          <HomeNotificationBanner embedded />
+          {needsPreciseLocation && <PreciseLocationRequiredCard />}
+        </div>
         <div className="mt-1">
           <ActiveOrderStrip />
         </div>

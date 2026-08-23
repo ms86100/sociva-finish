@@ -493,7 +493,7 @@ export default function AdminSellerCreditsPage() {
             </div>
             {!spendOn && (
               <p className="text-xs text-amber-700">
-                Spend is OFF. Sellers are not charged and buyers are not blocked for insufficient credits. Marketplace behavior stays unchanged until Spend is deliberately enabled after go-live sign-off.
+                Spend is OFF. Sellers are not charged for platform usage events. Buyer discovery still requires a positive Sociva Credit balance (activation floor). Marketplace charging stays off until Spend is deliberately enabled after go-live sign-off.
               </p>
             )}
             {spendOn && (
@@ -513,7 +513,7 @@ export default function AdminSellerCreditsPage() {
           <CardContent className="p-4 space-y-3">
             <p className="text-sm font-semibold">Billing rates</p>
             <p className="text-xs text-muted-foreground">
-              Who pays: the seller, in Sociva Credits (not the buyer, not seller earnings). When Spend is OFF, rates are stored for future use but nothing is charged or blocked.
+              Who pays: the seller, in Sociva Credits (not the buyer, not seller earnings). When Spend is OFF, rates are stored for future use and nothing is charged — but stores still need credits to become discoverable.
               Changing a rate applies to future events only. Existing reservations keep their snapshot.
             </p>
             <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Change reason" />
@@ -669,7 +669,7 @@ export default function AdminSellerCreditsPage() {
               <p className="text-xs font-medium">Buyer visibility (Spend / gating)</p>
               {!spendOn ? (
                 <p className="text-[11px] text-muted-foreground">
-                  Spend is OFF — approved stores stay discoverable regardless of balance. Health labels below are seller-facing warnings only.
+                  Spend is OFF — sellers are not charged, but buyer discovery still requires available credits at or above the activation floor. Health labels below are seller-facing warnings only.
                 </p>
               ) : (
                 <>
