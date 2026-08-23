@@ -68,8 +68,8 @@ export function AndroidLocationReadyPill({
                 </span>
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-[15px] font-medium tracking-tight text-[#F7F8FC]">{title}</p>
-                <p className="mt-0.5 text-xs text-[#C8D0E0]/subtitle}</p>
+                <p className="text-[15px] font-medium tracking-tight text-white">{title}</p>
+                <p className="mt-0.5 text-xs text-slate-300">{subtitle}</p>
               </div>
             </div>
           </div>
