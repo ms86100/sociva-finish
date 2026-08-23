@@ -887,7 +887,10 @@ workflows:
     publishing:
       app_store_connect:
         auth: integration
-        submit_to_testflight: true
+        # Upload IPA to App Store Connect / TestFlight only.
+        # Skip auto Beta App Review — Apple limits submissions (~2/day) and Internal
+        # testers can install without review. Submit external Beta Review manually in ASC.
+        submit_to_testflight: false
 
   android-release:
     name: Android Release
@@ -1822,7 +1825,8 @@ workflows:
     publishing:
       app_store_connect:
         auth: integration
-        submit_to_testflight: true
+        # Upload only — no auto Beta App Review (see ios-release notes).
+        submit_to_testflight: false
       email:
         recipients:
           - support@sociva.in
