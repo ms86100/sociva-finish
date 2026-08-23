@@ -173,11 +173,11 @@ export function LandingDownload() {
                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Windows PC</p>
                 <h3 className="text-lg font-bold text-foreground">Windows Installer</h3>
                 <p className="text-sm text-muted-foreground leading-relaxed">
-                  Verified installer in progress. We are Authenticode-signing the Setup so Microsoft SmartScreen will not flag it for customers. Use the web app until then.
+                  Coming soon.
                 </p>
               </div>
               <Button className="relative w-full rounded-xl font-semibold" size="lg" disabled>
-                Verified build coming soon
+                Coming soon
               </Button>
             </motion.div>
           )}
@@ -241,18 +241,18 @@ export function LandingDownload() {
                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">MacBook &amp; Mac</p>
                 <h3 className="text-lg font-bold text-foreground">macOS Download</h3>
                 <p className="text-sm text-muted-foreground leading-relaxed">
-                  Notarized Mac installer in progress so Gatekeeper stays clean for customers. Use the web app or iPhone App Store until then.
+                  Coming soon.
                 </p>
               </div>
               <Button variant="outline" className="relative w-full rounded-xl font-semibold" size="lg" disabled>
-                Verified build coming soon
+                Coming soon
               </Button>
             </motion.div>
           )}
         </div>
 
         <p className="text-center text-xs text-muted-foreground mt-8 max-w-lg mx-auto">
-          Phone apps are available above. Desktop installers will open for download once Microsoft / Apple code signing is complete — no SmartScreen or Gatekeeper warnings for customers.
+          Android APK is for sideload testing and early access. Prefer Play Store when available for automatic updates.
         </p>
       </motion.div>
     </section>

@@ -13,6 +13,7 @@ import {
 } from '@/contexts/AppLayoutContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
+import { Capacitor } from '@capacitor/core';
 
 /**
  * Persistent chrome shell. Header / BottomNav stay mounted across route changes.
@@ -70,7 +71,8 @@ export function AppShell() {
 
 /**
  * Auth gate that renders the persistent shell for all nested protected routes.
- * `/` → landing when logged out; other paths → /auth.
+ * Web `/` → marketing landing when logged out.
+ * Native iOS/Android `/` → auth only (never the marketing website).
  */
 export function AppShellGate() {
   const { user, isSessionRestored } = useAuth();
@@ -90,7 +92,11 @@ export function AppShellGate() {
   }
 
   if (!user) {
-    const to = location.pathname === '/' ? '/landing' : '/auth';
+    // Capacitor apps must open on login — never the public marketing site.
+    const to =
+      Capacitor.isNativePlatform() || location.pathname !== '/'
+        ? '/auth'
+        : '/landing';
     return <Navigate to={to} replace />;
   }
 

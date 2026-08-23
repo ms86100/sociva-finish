@@ -54,6 +54,7 @@ import { ActionBlockedDialog } from "@/components/feedback/ActionBlockedDialog";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider, QueryCache, MutationCache } from "@tanstack/react-query";
 import { HashRouter, Routes, Route, Navigate, useNavigate } from "react-router-dom";
+import { Capacitor } from "@capacitor/core";
 import { syncStatusBarForTheme } from "@/lib/capacitor";
 
 /** Keeps native status-bar icon contrast aligned with app theme. */
@@ -517,8 +518,35 @@ function AppRoutes() {
     <PageTransitionWrapper>
     <Suspense fallback={<PageLoadingFallback />}>
       <Routes>
-        <Route path="/welcome" element={sessionPending ? <PageLoadingFallback /> : authedHome ? <Navigate to="/" replace /> : <WelcomeCarousel />} />
-        <Route path="/landing" element={sessionPending ? <PageLoadingFallback /> : authedHome ? <Navigate to="/" replace /> : <LandingPage />} />
+        {/* Native apps: never show marketing welcome/landing — fixed login only */}
+        <Route
+          path="/welcome"
+          element={
+            sessionPending ? (
+              <PageLoadingFallback />
+            ) : authedHome ? (
+              <Navigate to="/" replace />
+            ) : Capacitor.isNativePlatform() ? (
+              <Navigate to="/auth" replace />
+            ) : (
+              <WelcomeCarousel />
+            )
+          }
+        />
+        <Route
+          path="/landing"
+          element={
+            sessionPending ? (
+              <PageLoadingFallback />
+            ) : authedHome ? (
+              <Navigate to="/" replace />
+            ) : Capacitor.isNativePlatform() ? (
+              <Navigate to="/auth" replace />
+            ) : (
+              <LandingPage />
+            )
+          }
+        />
         <Route path="/auth" element={sessionPending ? <PageLoadingFallback /> : authedHome ? <Navigate to="/" replace /> : <RouteErrorBoundary sectionName="Authentication"><AuthPage /></RouteErrorBoundary>} />
         <Route path="/reset-password" element={<RouteErrorBoundary sectionName="Reset Password"><ResetPasswordPage /></RouteErrorBoundary>} />
         <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
