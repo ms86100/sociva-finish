@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerTrigger } from '@/components/ui/drawer';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,6 +10,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Megaphone, Loader2, AlertTriangle } from 'lucide-react';
 import { adminNotify } from '@/lib/admin-notify';
 import { friendlyError } from '@/lib/utils';
+import { useQuery } from '@tanstack/react-query';
 
 const BROADCAST_CATEGORIES = [
   { value: 'water_shutdown', label: '💧 Water Shutdown', emoji: '💧' },
@@ -20,8 +21,12 @@ const BROADCAST_CATEGORIES = [
   { value: 'general', label: '📢 General', emoji: '📢' },
 ];
 
+function isIntegrationTestSociety(name?: string | null) {
+  return !!name && /^Integration Test Society/i.test(name.trim());
+}
+
 export function EmergencyBroadcastSheet() {
-  const { user, profile, viewAsSocietyId } = useAuth();
+  const { user, profile, viewAsSocietyId, effectiveSociety } = useAuth();
   const [open, setOpen] = useState(false);
   const [sending, setSending] = useState(false);
   const [category, setCategory] = useState('general');
@@ -30,6 +35,31 @@ export function EmergencyBroadcastSheet() {
 
   // For broadcasts, use the viewed society (admin intent) or fall back to own society
   const targetSocietyId = viewAsSocietyId || profile?.society_id;
+
+  const { data: targetSocietyMeta } = useQuery({
+    queryKey: ['broadcast-target-society', targetSocietyId],
+    enabled: !!targetSocietyId && open,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('societies')
+        .select('id, name')
+        .eq('id', targetSocietyId!)
+        .maybeSingle();
+      if (error) throw error;
+      const { count } = await supabase
+        .from('profiles')
+        .select('id', { count: 'exact', head: true })
+        .eq('society_id', targetSocietyId!);
+      return { name: data?.name || effectiveSociety?.name || 'Selected society', residents: count || 0 };
+    },
+    staleTime: 30_000,
+  });
+
+  const societyLabel = targetSocietyMeta?.name || effectiveSociety?.name || null;
+  const isTestTarget = useMemo(
+    () => isIntegrationTestSociety(societyLabel),
+    [societyLabel],
+  );
 
   const handleSend = async () => {
     if (!user) return;
@@ -44,8 +74,6 @@ export function EmergencyBroadcastSheet() {
       const cat = BROADCAST_CATEGORIES.find(c => c.value === category);
       const emoji = cat?.emoji || '📢';
 
-      // SECURITY DEFINER RPC: inserts broadcast + enqueues pushes for all residents
-      // (client notification_queue RLS only allows user_id = auth.uid())
       const { data, error } = await supabase.rpc('admin_send_emergency_broadcast', {
         p_society_id: targetSocietyId,
         p_category: category,
@@ -64,15 +92,20 @@ export function EmergencyBroadcastSheet() {
 
       adminNotify.success(
         notified > 0
-          ? `Broadcast sent to ${notified} resident${notified === 1 ? '' : 's'}`
-          : 'Broadcast saved — no residents found in this society',
+          ? `Broadcast sent to ${notified} resident${notified === 1 ? '' : 's'} in ${societyLabel || 'the society'}`
+          : `Broadcast saved for ${societyLabel || 'society'} — no residents found to notify`,
       );
       setTitle('');
       setBody('');
       setCategory('general');
       setOpen(false);
     } catch (err: any) {
-      adminNotify.error(friendlyError(err));
+      const raw = err?.message || String(err || '');
+      if (/check|type|violates/i.test(raw)) {
+        adminNotify.error('That broadcast category is not allowed. Pick another category and try again.');
+      } else {
+        adminNotify.error(friendlyError(err));
+      }
     } finally {
       setSending(false);
     }
@@ -93,13 +126,29 @@ export function EmergencyBroadcastSheet() {
             Emergency Broadcast
           </DrawerTitle>
         </DrawerHeader>
-        <p className="text-xs text-muted-foreground mt-1 px-4">
-          This will send a push notification to ALL residents in {viewAsSocietyId ? 'the selected' : 'your'} society.
-          {!targetSocietyId && (
-            <span className="block text-destructive mt-1">Select a society in the admin switcher before sending.</span>
+        <div className="px-4 space-y-2">
+          <p className="text-xs text-muted-foreground">
+            Pushes go to residents of the society selected in the admin society switcher.
+          </p>
+          {!targetSocietyId ? (
+            <p className="text-xs text-destructive font-medium">
+              Select a society in the header switcher before sending.
+            </p>
+          ) : (
+            <p className="text-xs font-medium">
+              Target: <span className="text-foreground">{societyLabel || 'Selected society'}</span>
+              {typeof targetSocietyMeta?.residents === 'number' && (
+                <span className="text-muted-foreground font-normal"> · {targetSocietyMeta.residents} resident{targetSocietyMeta.residents === 1 ? '' : 's'}</span>
+              )}
+            </p>
           )}
-        </p>
-        <div className="space-y-4 px-4 pb-6">
+          {isTestTarget && (
+            <p className="text-[11px] text-amber-700 bg-amber-500/10 border border-amber-500/20 rounded-lg px-2.5 py-1.5">
+              This is an integration-test society (seed data). Real community societies must be created/verified under Admin → Societies, then residents join at signup.
+            </p>
+          )}
+        </div>
+        <div className="space-y-4 px-4 pb-6 pt-3">
           <div>
             <label className="text-sm font-medium">Category</label>
             <Select value={category} onValueChange={setCategory}>

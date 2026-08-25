@@ -71,7 +71,7 @@ export function SocietySwitcher() {
             .filter(s => s.id !== profile?.society_id)
             .map(s => (
               <SelectItem key={s.id} value={s.id} className="text-xs">
-                {s.name}
+                {/^Integration Test Society/i.test(s.name) ? `${s.name} (test)` : s.name}
               </SelectItem>
             ))}
         </SelectContent>
