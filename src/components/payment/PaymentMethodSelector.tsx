@@ -26,67 +26,56 @@ export function PaymentMethodSelector({
   onlineDisabledReason,
 }: PaymentMethodSelectorProps) {
   const { upiProviderLabel } = useSystemSettings();
-  const { isUpiDeepLink, isRazorpay } = usePaymentMode();
+  const { isUpiDeepLink, isRazorpay, isOff } = usePaymentMode();
 
-  const onlineEnabled = acceptsUpi && !multiSellerOnlineBlocked;
+  const onlineEnabled = !isOff && acceptsUpi && !multiSellerOnlineBlocked;
 
-  const methods = isRazorpay
-    ? [
-        {
-          id: 'upi' as PaymentMethod,
-          label: 'Pay Online',
-          description: multiSellerOnlineBlocked
-            ? 'One store at a time — use “Checkout this store” or COD for all'
-            : 'One payment to Sociva via Razorpay (UPI, Cards, Wallets). Multi-store carts are charged once; each store fulfills separately.',
-          icon: CreditCard,
-          enabled: onlineEnabled,
-          color: 'text-info',
-          bgColor: 'bg-info/10',
-          disabledReason: multiSellerOnlineBlocked
-            ? 'Online pay is limited to one store per checkout'
-            : onlineDisabledReason,
-        },
-        {
-          id: 'cod' as PaymentMethod,
-          label: 'Cash on Delivery',
-          description: multiSellerOnlineBlocked
-            ? 'Pay each store when you receive — separate orders per seller'
-            : 'Pay when you receive',
-          icon: Banknote,
-          enabled: acceptsCod,
-          color: 'text-success',
-          bgColor: 'bg-success/10',
-        },
-      ]
-    : [
-        {
-          id: 'upi' as PaymentMethod,
-          label: 'UPI Payment',
-          description: multiSellerOnlineBlocked
-            ? 'Pays one seller’s UPI ID only — checkout one store at a time'
-            : isUpiDeepLink
-              ? 'Pay directly via UPI app to this seller'
-              : `Pay via ${upiProviderLabel}`,
-          icon: Smartphone,
-          enabled: onlineEnabled,
-          color: 'text-info',
-          bgColor: 'bg-info/10',
-          disabledReason: multiSellerOnlineBlocked
-            ? 'UPI cannot split one payment across multiple sellers'
-            : onlineDisabledReason,
-        },
-        {
-          id: 'cod' as PaymentMethod,
-          label: 'Cash on Delivery',
-          description: multiSellerOnlineBlocked
-            ? 'Pay each store when you receive — separate orders per seller'
-            : 'Pay when you receive',
-          icon: Banknote,
-          enabled: acceptsCod,
-          color: 'text-success',
-          bgColor: 'bg-success/10',
-        },
-      ];
+  const onlineMethod = isRazorpay
+    ? {
+        id: 'upi' as PaymentMethod,
+        label: 'Pay Online',
+        description: multiSellerOnlineBlocked
+          ? 'One store at a time — use “Checkout this store” or COD for all'
+          : 'One payment to Sociva via Razorpay (UPI, Cards, Wallets). Multi-store carts are charged once; each store fulfills separately.',
+        icon: CreditCard,
+        enabled: onlineEnabled,
+        color: 'text-info',
+        bgColor: 'bg-info/10',
+        disabledReason: multiSellerOnlineBlocked
+          ? 'Online pay is limited to one store per checkout'
+          : onlineDisabledReason,
+      }
+    : {
+        id: 'upi' as PaymentMethod,
+        label: 'UPI Payment',
+        description: multiSellerOnlineBlocked
+          ? 'Pays one seller’s UPI ID only — checkout one store at a time'
+          : isUpiDeepLink
+            ? 'Pay directly via UPI app to this seller'
+            : `Pay via ${upiProviderLabel}`,
+        icon: Smartphone,
+        enabled: onlineEnabled,
+        color: 'text-info',
+        bgColor: 'bg-info/10',
+        disabledReason: multiSellerOnlineBlocked
+          ? 'UPI cannot split one payment across multiple sellers'
+          : onlineDisabledReason,
+      };
+
+  const codMethod = {
+    id: 'cod' as PaymentMethod,
+    label: 'Cash on Delivery',
+    description: multiSellerOnlineBlocked
+      ? 'Pay each store when you receive — separate orders per seller'
+      : 'Pay when you receive',
+    icon: Banknote,
+    enabled: acceptsCod,
+    color: 'text-success',
+    bgColor: 'bg-success/10',
+  };
+
+  // Platform off = COD-only; do not show an online rail at all
+  const methods = isOff ? [codMethod] : [onlineMethod, codMethod];
 
   return (
     <div className="space-y-3">

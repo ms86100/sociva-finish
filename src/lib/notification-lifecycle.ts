@@ -31,12 +31,15 @@ export async function createQueuedNotification(
     },
   });
 
+  // notification_queue has payload + action_url/reference_path (no `data` column)
   const { error } = await supabase.from('notification_queue').insert({
     user_id: input.userId,
     title: input.title,
     body: input.body,
     type: input.type,
-    ...cols,
+    reference_path: cols.reference_path,
+    action_url: cols.action_url,
+    payload: cols.payload,
   } as never);
 
   if (error) {
@@ -68,7 +71,9 @@ export async function createQueuedNotifications(
       title: input.title,
       body: input.body,
       type: input.type,
-      ...cols,
+      reference_path: cols.reference_path,
+      action_url: cols.action_url,
+      payload: cols.payload,
     };
   });
 

@@ -17,7 +17,7 @@ async function enqueueAndProcess(
   const type = data?.type || 'general';
   const path = data?.path || null;
 
-  await createQueuedNotifications(
+  const result = await createQueuedNotifications(
     targets.map((t) => ({
       userId: t.id,
       title,
@@ -29,6 +29,10 @@ async function enqueueAndProcess(
     })),
   );
 
+  if (!result.ok) {
+    throw new Error(result.error || 'Failed to enqueue society notifications');
+  }
+
   try {
     await supabase.functions.invoke('process-notification-queue');
   } catch (e) {
@@ -37,7 +41,8 @@ async function enqueueAndProcess(
 }
 
 /**
- * Notify all society members via push notification
+ * Notify all society members via push notification.
+ * Prefer admin RPC (bypasses notification_queue self-only RLS).
  */
 export async function notifySocietyMembers(
   societyId: string,
@@ -48,6 +53,34 @@ export async function notifySocietyMembers(
   options?: { includeUnapproved?: boolean }
 ): Promise<void> {
   try {
+    const type = data?.type || 'general';
+    const path = data?.path || null;
+
+    const { data: rpcData, error: rpcError } = await supabase.rpc('admin_notify_society_members', {
+      p_society_id: societyId,
+      p_title: title,
+      p_body: body,
+      p_type: type,
+      p_payload: data ? { ...data } : {},
+      p_include_unapproved: options?.includeUnapproved ?? false,
+      p_path: path,
+      p_exclude_user_id: excludeUserId ?? null,
+    });
+
+    if (!rpcError) {
+      const notified = Number((rpcData as any)?.notified_count ?? 0);
+      if (notified > 0) {
+        try {
+          await supabase.functions.invoke('process-notification-queue');
+        } catch (e) {
+          console.warn('Queue processing trigger failed (will retry via cron):', e);
+        }
+      }
+      return;
+    }
+
+    // Non-admin fallback: only works for self under RLS (legacy / limited)
+    console.warn('admin_notify_society_members unavailable, falling back:', rpcError.message);
     let query = supabase
       .from('profiles')
       .select('id')
@@ -67,6 +100,7 @@ export async function notifySocietyMembers(
     await enqueueAndProcess(targets, title, body, data);
   } catch (err) {
     console.error('Failed to notify society members:', err);
+    throw err;
   }
 }
 

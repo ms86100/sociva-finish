@@ -639,7 +639,7 @@ export default function OrderDetailPage() {
   const hasBuyerActionBar = o.isBuyerView && !o.isFlowLoading && o.flow.length > 0 && !isTerminalStatus(o.flow, order.status) && (o.buyerNextStatus || o.canBuyerCancel || canRescheduleBooking);
 
   // Show the prominent "Accept Order" hero card when the seller is on a fresh placed order.
-  const showAcceptHero = o.isSellerView && order.status === 'placed' && !!o.nextStatus && !o.isFlowLoading;
+  const showAcceptHero = o.isSellerView && order.status === 'placed' && !!o.nextStatus && !o.isFlowLoading && !o.isAcceptanceExpired;
   const isFutureScheduledAccept = isScheduledOrder(order as any) && isUpcomingScheduled(order as any);
 
   const getActionLabel = (status: string, otpRequired: boolean) => {
@@ -929,6 +929,18 @@ export default function OrderDetailPage() {
               onCancel={handleAbandonPayment}
               checkCount={paymentCheckCount}
             />
+          )}
+
+          {o.isSellerView && o.isAcceptanceExpired && order.status === 'placed' && (
+            <div className="bg-destructive/10 border border-destructive/20 rounded-xl p-3 flex items-start gap-2.5">
+              <AlertTriangle className="text-destructive shrink-0 mt-0.5" size={16} />
+              <div>
+                <p className="text-sm font-semibold text-destructive">Response time expired</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  You can no longer accept this order. It will be auto-cancelled shortly.
+                </p>
+              </div>
+            </div>
           )}
 
           {o.isSellerView && order.auto_cancel_at && !isTerminalStatus(o.flow, order.status) && !isUpcomingScheduled(order as any) && (
@@ -1478,6 +1490,10 @@ export default function OrderDetailPage() {
                   <span>{getSellerContextMessage() || 'Waiting for next step…'}</span>
                 </div>
               )
+            ) : o.isAcceptanceExpired && order.status === 'placed' ? (
+              <div className="flex-1 flex items-center justify-center h-12 px-3 rounded-lg bg-destructive/10 border border-destructive/20 text-xs text-destructive font-medium text-center">
+                Response time expired — accept is closed
+              </div>
             ) : (() => {
               // OTP requirement is driven entirely by the workflow editor (category_status_flows.otp_type).
               // No hardcoded fallbacks — if the workflow says no OTP, no OTP is shown.

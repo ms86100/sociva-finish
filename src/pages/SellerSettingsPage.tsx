@@ -380,6 +380,11 @@ export default function SellerSettingsPage() {
                     <Label>How customers pay you</Label>
                     <p className="text-xs text-muted-foreground mt-1">Choose cash and/or online for each fulfillment type. At least one method is required.</p>
                   </div>
+                  {paymentMode.isOff && (
+                    <div className="rounded-lg px-3 py-2 text-xs bg-muted text-muted-foreground border border-border/60">
+                      Platform online payments are currently off. Buyers can only pay cash at pickup or delivery. Your Online toggles are saved for when the platform turns an online rail back on.
+                    </div>
+                  )}
                   {(formData.fulfillment_mode === 'self_pickup' || formData.fulfillment_mode === 'pickup_and_seller_delivery' || formData.fulfillment_mode === 'pickup_and_platform_delivery') && (
                     <div className="p-4 bg-muted rounded-lg space-y-3">
                       <p className="font-medium text-sm">Self Pickup</p>
@@ -454,9 +459,11 @@ export default function SellerSettingsPage() {
                   <div>
                     <Label>How you get paid <span className="text-muted-foreground font-normal">(optional)</span></Label>
                     <p className="text-xs text-muted-foreground mt-1">
-                      {paymentMode.isUpiDeepLink
-                        ? 'Bank details are optional and are not used for customer UPI payments. If you accept online, buyers pay your UPI ID directly.'
-                        : 'Used when Sociva transfers your earnings. Not used for customer payments. Optional until transfers are enabled.'}
+                      {paymentMode.isOff
+                        ? 'Bank details are optional. Online customer payments are currently disabled by the platform.'
+                        : paymentMode.isUpiDeepLink
+                          ? 'Bank details are optional and are not used for customer UPI payments. If you accept online, buyers pay your UPI ID directly.'
+                          : 'Used when Sociva transfers your earnings. Not used for customer payments. Optional until transfers are enabled.'}
                     </p>
                   </div>
                   <div className="space-y-3 bg-muted rounded-lg p-4">

@@ -47,6 +47,14 @@ serve(async (req) => {
       return financialRuntimeUnavailableResponse(runtime, corsHeaders);
     }
 
+    const { getPaymentGatewayMode, paymentModeBlockedResponse } = await import(
+      "../_shared/payment-gateway-mode.ts"
+    );
+    const gatewayMode = await getPaymentGatewayMode(supabase);
+    if (gatewayMode !== "razorpay") {
+      return paymentModeBlockedResponse(gatewayMode, "razorpay", corsHeaders);
+    }
+
     const { withAuth } = await import("../_shared/auth.ts");
     const authResult = await withAuth(req, corsHeaders);
     if (authResult instanceof Response) return authResult;

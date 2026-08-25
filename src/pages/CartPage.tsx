@@ -36,14 +36,17 @@ export default function CartPage() {
   const [justCleared, setJustCleared] = useState(false);
 
   const shouldBlockCheckoutShell =
-    c.items.length === 0 &&
+    c.isResolvingPaymentSession ||
     (
-      c.isLoading ||
-      c.isFetching ||
-      !c.hasHydrated ||
-      !c.cartVerified ||
-      c.pendingMutations > 0 ||
-      c.isRecoveringCart
+      c.items.length === 0 &&
+      (
+        c.isLoading ||
+        c.isFetching ||
+        !c.hasHydrated ||
+        !c.cartVerified ||
+        c.pendingMutations > 0 ||
+        c.isRecoveringCart
+      )
     );
 
   if (shouldBlockCheckoutShell) {
@@ -53,14 +56,18 @@ export default function CartPage() {
           <button onClick={() => navigate(-1)} className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-muted mb-6"><ArrowLeft size={18} /></button>
           <div className="text-center py-16">
             <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-muted flex items-center justify-center animate-pulse"><span className="text-4xl">🛒</span></div>
-            <p className="text-sm text-muted-foreground">Loading your cart…</p>
+            <p className="text-sm text-muted-foreground">
+              {c.isResolvingPaymentSession
+                ? 'Clearing a previous unpaid checkout…'
+                : 'Loading your cart…'}
+            </p>
           </div>
         </div>
       </AppLayout>
     );
   }
 
-  if (c.items.length === 0 && !c.hasActivePaymentSession && c.pendingMutations === 0 && !c.isFetching && !c.isRecoveringCart && c.cartVerified) {
+  if (c.items.length === 0 && c.pendingMutations === 0 && !c.isFetching && !c.isRecoveringCart && c.cartVerified) {
     return (
       <AppLayout showHeader={false} showCart={false} safeTop={false}>
          <div className="p-4 safe-top">
@@ -86,34 +93,6 @@ export default function CartPage() {
               </motion.div>
             )}
           </AnimatePresence>
-        </div>
-      </AppLayout>
-    );
-  }
-
-  // Bug 9: Cart empty but pending payment session — show a clear escape hatch
-  if (c.items.length === 0 && c.hasActivePaymentSession && c.pendingMutations === 0 && !c.isFetching && !c.isRecoveringCart) {
-    return (
-      <AppLayout showHeader={false} showCart={false} safeTop={false}>
-        <div className="p-4 safe-top">
-          <button onClick={() => navigate(-1)} className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-muted mb-6"><ArrowLeft size={18} /></button>
-          <div className="text-center py-16">
-            <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-warning/10 flex items-center justify-center"><span className="text-4xl">⏳</span></div>
-            <h2 className="text-lg font-bold mb-1">Pending Payment</h2>
-            <p className="text-sm text-muted-foreground mb-6">You have an incomplete payment. Complete it or cancel to start fresh.</p>
-            <div className="flex gap-3 justify-center">
-              <Button variant="outline" onClick={async () => {
-                if (c.pendingOrderIds.length > 0) {
-                  const { supabase: sb } = await import('@/integrations/supabase/client');
-                  try { await sb.rpc('buyer_cancel_pending_orders', { _order_ids: c.pendingOrderIds }); } catch { /* Cancellation cleanup is best-effort here. */ }
-                }
-                c.clearPendingPayment();
-              }}>Cancel Payment</Button>
-              {c.paymentMode.isRazorpay && c.pendingOrderIds.length > 0 && (
-                <Button onClick={() => c.retryPendingPayment()}>Retry Payment</Button>
-              )}
-            </div>
-          </div>
         </div>
       </AppLayout>
     );
@@ -163,22 +142,6 @@ export default function CartPage() {
           <div className="mx-4 mt-3 bg-warning/10 border border-warning/30 rounded-xl p-3 flex items-start gap-3">
             <Bell className="text-warning shrink-0 mt-0.5" size={16} />
             <div className="text-xs"><p className="font-medium text-warning-foreground">Time-sensitive order</p><p className="text-muted-foreground mt-0.5">Seller must respond within 5 min or auto-cancelled</p></div>
-          </div>
-        )}
-
-        {c.hasActivePaymentSession && (
-          <div className="mx-4 mt-3 bg-primary/5 border border-primary/20 rounded-xl p-3">
-            <div className="flex items-start gap-3">
-              <AlertTriangle className="text-primary shrink-0 mt-0.5" size={16} />
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold">Pending payment in progress</p>
-                <p className="text-xs text-muted-foreground mt-0.5">Complete the pending payment for {c.sessionSellerName || 'this seller'} or cancel it before placing a fresh order.</p>
-                <div className="flex gap-2 mt-3">
-                  <Button size="sm" onClick={() => c.retryPendingPayment()}>Continue Payment</Button>
-                  <Button size="sm" variant="outline" onClick={() => c.clearPendingPayment()}>Cancel Pending Payment</Button>
-                </div>
-              </div>
-            </div>
           </div>
         )}
 

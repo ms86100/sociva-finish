@@ -171,21 +171,26 @@ export function useCartPage() {
   // Keep ref in sync
   useEffect(() => { pendingOrderIdsRef.current = pendingOrderIds; }, [pendingOrderIds]);
 
-  // ── Backend-verified payment session recovery on mount ──
+  // ── Abandoned checkout recovery ──
+  // Product decision: never resume a stuck Razorpay/UPI pending screen after force-close.
+  // Cancel unpaid payment_pending orders (restores stock), clear session, restore cart items.
+  const [isResolvingPaymentSession, setIsResolvingPaymentSession] = useState(() => !!loadPaymentSession());
+
   useEffect(() => {
     const session = loadPaymentSession();
-    if (!session || session.orderIds.length === 0) return;
+    if (!session || session.orderIds.length === 0) {
+      setIsResolvingPaymentSession(false);
+      return;
+    }
 
-    // Verify backend state before reopening any payment UI
     (async () => {
       try {
         const { data: orders } = await supabase
           .from('orders')
-          .select('id, status, payment_status')
+          .select('id, status, payment_status, society_id')
           .in('id', session.orderIds);
 
         if (!orders || orders.length === 0) {
-          // Orders don't exist — stale session
           clearPaymentSession();
           return;
         }
@@ -195,10 +200,9 @@ export function useCartPage() {
         );
 
         if (alreadyPaid) {
-          // Payment already processed — navigate to order page, don't reopen payment
           clearPaymentSession();
-          const dest = session.orderIds.length === 1 
-            ? `/orders/${session.orderIds[0]}` 
+          const dest = session.orderIds.length === 1
+            ? `/orders/${session.orderIds[0]}`
             : '/orders';
           navigate(dest);
           return;
@@ -206,14 +210,12 @@ export function useCartPage() {
 
         const allCancelled = orders.every(o => o.status === 'cancelled');
         if (allCancelled) {
-          // All orders cancelled — stale session
           clearPaymentSession();
           return;
         }
 
-        // Orders are genuinely unpaid and pending — allow resume
         const unpaid = orders.filter(
-          (o) => o.status === 'payment_pending' && o.payment_status !== 'paid',
+          (o) => o.status === 'payment_pending' && o.payment_status === 'pending',
         );
         const unpaidIds = unpaid.map((o) => o.id);
 
@@ -222,52 +224,87 @@ export function useCartPage() {
           return;
         }
 
-        // Phase 1: never resume a multi-store online session — UPI sheet won't mount
-        // for N>1, and Razorpay create now rejects multi-seller. Cancel + clear so
-        // the buyer is not stuck with invisible payment_pending orders.
-        const { data: unpaidWithSellers } = await supabase
-          .from('orders')
-          .select('id, seller_id')
-          .in('id', unpaidIds);
-        const sellerIds = new Set(
-          (unpaidWithSellers || []).map((o) => o.seller_id).filter(Boolean),
-        );
-        const isMultiStoreOnlineSession =
-          sellerIds.size > 1 ||
-          (session.paymentMethod === 'upi' && unpaidIds.length > 1);
-
-        // P5: Razorpay multi-store sessions are valid — reopen checkout.
-        // Only clear deep-link UPI multi sessions (cannot pay multiple VPAs).
-        if (isMultiStoreOnlineSession && session.paymentMethod !== 'razorpay') {
-          try {
-            await supabase.rpc('buyer_cancel_pending_orders', { _order_ids: unpaidIds });
-          } catch (cancelErr) {
-            console.warn('[Recovery] Failed to cancel multi-store pending orders:', cancelErr);
-          }
+        // Always cancel abandoned unpaid holds on return — never show stuck pending UI.
+        const { error: cancelErr } = await supabase.rpc('buyer_cancel_pending_orders', {
+          _order_ids: unpaidIds,
+        });
+        if (cancelErr) {
+          console.error('[Recovery] Failed to cancel abandoned unpaid orders:', cancelErr);
+          // Still clear local session so the broken pending screen does not trap the buyer.
           clearPaymentSession();
           setPendingOrderIds([]);
           toast.message(
-            'A previous multi-store UPI payment was cancelled. Checkout one store at a time, or use Cash on Delivery / Pay Online.',
-            { id: 'multi-store-session-cleared', duration: 7000 },
+            'Could not clear a previous unpaid checkout automatically. Open Orders to cancel it, or try again.',
+            { id: 'abandoned-checkout-cancel-failed', duration: 8000 },
           );
           return;
         }
 
-        setPendingOrderIds(unpaidIds);
-
-        if (session.paymentMethod === 'upi') {
-          setPaymentMethod('upi');
-          setTimeout(() => setShowUpiDeepLink(true), 100);
-        } else if (session.paymentMethod === 'razorpay') {
-          setPaymentMethod('upi'); // internal state for online payment
-          razorpaySuccessHandledRef.current = false;
-          // Do not auto-open the modal — the pending-payment banner on the cart
-          // page shows "Continue Payment" / "Cancel" so the user decides.
+        // Restore cart from cancelled order items (stock is restored by cancel trigger first).
+        try {
+          const societyId = (orders.find((o: any) => o.society_id)?.society_id as string | null)
+            || profile?.society_id
+            || society?.id
+            || null;
+          if (user?.id && societyId) {
+            const { data: orderItems } = await supabase
+              .from('order_items')
+              .select('product_id, quantity')
+              .in('order_id', unpaidIds);
+            if (orderItems?.length) {
+              const qtyByProduct = new Map<string, number>();
+              for (const row of orderItems) {
+                if (!row.product_id) continue;
+                qtyByProduct.set(
+                  row.product_id,
+                  (qtyByProduct.get(row.product_id) || 0) + Number(row.quantity || 0),
+                );
+              }
+              for (const [productId, quantity] of qtyByProduct) {
+                if (quantity <= 0) continue;
+                const { data: existing } = await supabase
+                  .from('cart_items')
+                  .select('id, quantity')
+                  .eq('user_id', user.id)
+                  .eq('product_id', productId)
+                  .maybeSingle();
+                if (existing?.id) {
+                  await supabase
+                    .from('cart_items')
+                    .update({ quantity: Number(existing.quantity || 0) + quantity })
+                    .eq('id', existing.id);
+                } else {
+                  await supabase.from('cart_items').insert({
+                    user_id: user.id,
+                    product_id: productId,
+                    quantity,
+                    society_id: societyId,
+                  });
+                }
+              }
+              await queryClient.invalidateQueries({ queryKey: ['cart-items'] });
+              await queryClient.invalidateQueries({ queryKey: ['cart-count'] });
+              await refresh?.();
+            }
+          }
+        } catch (restoreErr) {
+          console.warn('[Recovery] Cart restore after cancel failed (non-blocking):', restoreErr);
         }
-      } catch (err) {
-        console.error('[Recovery] Failed to verify payment session:', err);
-        // On error, don't blindly reopen — clear stale session
+
         clearPaymentSession();
+        setPendingOrderIds([]);
+        setShowRazorpayCheckout(false);
+        setShowUpiDeepLink(false);
+        idempotencyKeyRef.current = null;
+        toast.message(
+          'Previous unpaid checkout was cancelled. Your items are back in the cart — stock has been released.',
+          { id: 'abandoned-checkout-cleared', duration: 7000 },
+        );
+      } catch (err) {
+        console.error('[Recovery] Failed to resolve payment session:', err);
+        clearPaymentSession();
+      } finally {
+        setIsResolvingPaymentSession(false);
       }
     })();
   }, []); // Only on mount
@@ -320,6 +357,9 @@ export function useCartPage() {
   });
   const onlineDisabledReason = useMemo(() => {
     if (acceptsUpi) return undefined;
+    if (paymentMode.isOff) {
+      return 'Online payments are turned off by the platform. Pay cash at pickup or delivery.';
+    }
     const group = sellerGroups.find(g => {
       const seller = g.items[0]?.product?.seller as any;
       return !resolvePaymentConfig(seller, resolvedFulfillment, paymentMode).acceptsOnline;
@@ -332,7 +372,7 @@ export function useCartPage() {
     if (config && config.accepts_online === false) {
       return `${group.sellerName} has disabled online payment for ${resolvedFulfillment === 'delivery' ? 'delivery' : 'pickup'}`;
     }
-    if (!paymentMode.isRazorpay) {
+    if (paymentMode.isUpiDeepLink) {
       if (!seller?.upi_id || !seller?.accepts_upi) return `${group.sellerName} has not set up direct UPI`;
     }
     return `Online payment is unavailable for ${group.sellerName}`;
@@ -360,11 +400,16 @@ export function useCartPage() {
   const multiOrderConfirmHint = razorpayMultiStoreConfirmHint(sellerGroups.length);
 
   useEffect(() => {
+    // Platform offline: always prefer COD
+    if (paymentMode.isOff) {
+      if (paymentMethod !== 'cod') setPaymentMethod('cod');
+      return;
+    }
     // Never force online pay on a multi-store cart for deep-link UPI.
     if (isMultiSeller) return;
     if (!acceptsCod && acceptsUpi) setPaymentMethod('upi');
     else if (acceptsCod && !acceptsUpi) setPaymentMethod('cod');
-  }, [acceptsCod, acceptsUpi, isMultiSeller]);
+  }, [acceptsCod, acceptsUpi, isMultiSeller, paymentMode.isOff, paymentMethod]);
 
   // Deep-link UPI multi-store → prefer COD (cannot split one VPA). Razorpay multi stays online (P5).
   useEffect(() => {
@@ -821,6 +866,14 @@ export function useCartPage() {
     }
 
     if (paymentMethod === 'upi') {
+      if (paymentMode.isOff) {
+        notify.block('Online payments are turned off by the platform. Choose Cash on Delivery.', {
+          id: 'platform-online-off',
+          title: 'Payment method unavailable',
+        });
+        setIsPlacingOrder(false);
+        return;
+      }
       if (!acceptsUpi) {
         const unmetPayout = sellerGroups.some(g => {
           const s = g.items[0]?.product?.seller as any;
@@ -1186,12 +1239,11 @@ export function useCartPage() {
   const clearPendingPayment = useCallback(async () => {
     const ids = pendingOrderIdsRef.current;
     if (ids.length > 0) {
-      try {
-        await supabase.rpc('buyer_cancel_pending_orders', { _order_ids: ids });
-      } catch (err) {
-        console.error('Failed to cancel pending orders:', err);
-        notify.error(err, { id: 'clear-pending-fail', title: 'Could not cancel the pending order. Please try again.' });
-        return; // Don't clear local state if DB cancel failed
+      const { error } = await supabase.rpc('buyer_cancel_pending_orders', { _order_ids: ids });
+      if (error) {
+        console.error('Failed to cancel pending orders:', error);
+        notify.error(error, { id: 'clear-pending-fail', title: 'Could not cancel the pending order. Please try again.' });
+        return;
       }
     }
     setPendingOrderIds([]);
@@ -1232,6 +1284,11 @@ export function useCartPage() {
       setShowRazorpayCheckout(true);
     } else if (paymentMode.isUpiDeepLink) {
       setShowUpiDeepLink(true);
+    } else {
+      notify.block('Online payments are turned off by the platform. Choose Cash on Delivery.', {
+        id: 'platform-online-off-retry',
+        title: 'Payment method unavailable',
+      });
     }
   }, [paymentMode, navigate]);
 
@@ -1291,6 +1348,7 @@ export function useCartPage() {
     handlePlaceOrder, handleRazorpaySuccess, handleRazorpayFailed, handleRazorpayDismiss,
     handleUpiDeepLinkSuccess, handleUpiDeepLinkFailed,
     hasActivePaymentSession, sessionSellerUpiId, sessionSellerName, sessionAmount,
+    isResolvingPaymentSession,
     clearPendingPayment, retryPendingPayment, retryPaymentAfterFailure,
     paymentFailureInfo, dismissPaymentFailure: () => setPaymentFailureInfo(null),
     priceChangeInfo, dismissPriceChangeInfo, continueWithUpdatedPrices,

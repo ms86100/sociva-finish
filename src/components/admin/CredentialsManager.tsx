@@ -35,7 +35,7 @@ const CREDENTIAL_TABS = [
     label: 'Payment',
     icon: CreditCard,
     credentials: [
-      { key: 'payment_gateway_mode', label: 'Payment Mode', description: 'Toggle between UPI Deep Link (direct to seller) and Payment Gateway (Razorpay). UPI Deep Link is recommended until company registration is complete.', placeholder: 'upi_deep_link', isToggle: true },
+      { key: 'payment_gateway_mode', label: 'Payment Mode', description: 'Choose Off (COD-only), UPI Deep Link (direct to seller), or Razorpay gateway. Only one online rail can be active at a time.', placeholder: 'upi_deep_link', isToggle: true },
       { key: 'razorpay_key_id', label: 'Razorpay Key ID', description: 'Public key for UPI/card payments via Razorpay', placeholder: 'rzp_live_...' },
       { key: 'razorpay_key_secret', label: 'Razorpay Key Secret', description: 'Secret key for payment verification (keep private)', placeholder: 'Your secret key' },
       { key: 'razorpay_webhook_secret', label: 'Razorpay Webhook Secret', description: 'HMAC secret from Razorpay Dashboard → Webhooks (not the API key secret)', placeholder: 'whsec_...' },
@@ -214,12 +214,71 @@ export function CredentialsManager() {
     const isActive = setting?.is_active ?? false;
     const isSecret = !config.isToggle;
 
-    // Special payment mode toggle
+    // Special payment mode: Off | UPI Direct | Razorpay (one rail at a time)
     if (config.isToggle && config.key === 'payment_gateway_mode') {
       const currentMode = setting?.value || 'upi_deep_link';
       const isRazorpay = currentMode === 'razorpay';
+      const isOff = currentMode === 'off';
+      const isUpi = currentMode === 'upi_deep_link';
       const razorpayKeySet = !!configuredKeys['razorpay_key_id'];
       const webhookSecretSet = !!configuredKeys['razorpay_webhook_secret'] && !!settings.find(s => s.key === 'razorpay_webhook_secret')?.is_active;
+
+      const applyMode = async (newMode: 'off' | 'upi_deep_link' | 'razorpay') => {
+        if (newMode === currentMode) return;
+        if (newMode === 'razorpay' && !razorpayKeySet) {
+          adminNotify.warning('Configure the Razorpay Key ID and Key Secret before enabling gateway mode.', { id: 'razorpay-keys-required', title: 'Razorpay setup incomplete' });
+          return;
+        }
+        if (newMode === 'razorpay' && !webhookSecretSet) {
+          adminNotify.warning('Add and activate the Razorpay webhook secret before enabling gateway mode.', { id: 'razorpay-webhook-required', title: 'Webhook secret required' });
+          return;
+        }
+        const previousSettings = settings;
+        setEditValues(values => ({ ...values, [config.key]: newMode }));
+        setSettings(current => setting
+          ? current.map(row => row.key === config.key
+              ? { ...row, value: newMode, is_active: true }
+              : row)
+          : [...current, {
+              id: `optimistic:${config.key}`,
+              key: config.key,
+              value: newMode,
+              is_active: true,
+              description: config.description,
+            }]);
+        try {
+          const { error } = await supabase.rpc('set_payment_gateway_mode' as any, {
+            p_mode: newMode,
+          });
+          if (error) throw error;
+          await queryClient.invalidateQueries({ queryKey: ['payment-gateway-mode'] });
+          await fetchSettings();
+          const labels = { off: 'Off (COD-only)', upi_deep_link: 'UPI Direct', razorpay: 'Razorpay Gateway' } as const;
+          adminNotify.success(
+            `Payment mode is now ${labels[newMode]}.`,
+            { id: 'payment-mode-updated', title: 'Payment mode updated' },
+          );
+        } catch (err) {
+          setSettings(previousSettings);
+          setEditValues(values => ({ ...values, [config.key]: currentMode }));
+          adminNotify.error(err, { id: 'payment-mode-update-error', title: 'Could not switch payment mode' });
+        }
+      };
+
+      const modeBtn = (mode: 'off' | 'upi_deep_link' | 'razorpay', label: string, active: boolean) => (
+        <button
+          type="button"
+          key={mode}
+          onClick={() => applyMode(mode)}
+          className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+            active
+              ? 'bg-primary text-primary-foreground border-primary'
+              : 'bg-background text-muted-foreground border-border hover:border-primary/40'
+          }`}
+        >
+          {label}
+        </button>
+      );
 
       return (
         <div key={config.key} className="space-y-3 p-4 rounded-xl bg-primary/5 border border-primary/20">
@@ -228,61 +287,27 @@ export function CredentialsManager() {
               Razorpay webhook secret is empty. Paste the signing secret from Razorpay Dashboard → Webhooks before enabling gateway mode. Do not reuse the API key secret.
             </div>
           )}
-          <div className="flex items-center justify-between">
+          <div className="space-y-2">
             <Label className="font-semibold text-sm">{config.label}</Label>
-            <div className="flex items-center gap-2">
-              <span className={`text-xs font-medium ${!isRazorpay ? 'text-primary' : 'text-muted-foreground'}`}>UPI Direct</span>
-              <Switch
-                checked={isRazorpay}
-                onCheckedChange={async (checked) => {
-                  if (checked && !razorpayKeySet) {
-                    adminNotify.warning('Configure the Razorpay Key ID and Key Secret before enabling gateway mode.', { id: 'razorpay-keys-required', title: 'Razorpay setup incomplete' });
-                    return;
-                  }
-                  if (checked && !webhookSecretSet) {
-                    adminNotify.warning('Add and activate the Razorpay webhook secret before enabling gateway mode.', { id: 'razorpay-webhook-required', title: 'Webhook secret required' });
-                    return;
-                  }
-                  const newMode = checked ? 'razorpay' : 'upi_deep_link';
-                  const previousSettings = settings;
-                  setEditValues(values => ({ ...values, [config.key]: newMode }));
-                  setSettings(current => setting
-                    ? current.map(row => row.key === config.key
-                        ? { ...row, value: newMode, is_active: true }
-                        : row)
-                    : [...current, {
-                        id: `optimistic:${config.key}`,
-                        key: config.key,
-                        value: newMode,
-                        is_active: true,
-                        description: config.description,
-                      }]);
-                  try {
-                    const { error } = await supabase.rpc('set_payment_gateway_mode' as any, {
-                      p_mode: newMode,
-                    });
-                    if (error) throw error;
-                    await queryClient.invalidateQueries({ queryKey: ['payment-gateway-mode'] });
-                    await fetchSettings();
-                    adminNotify.success(
-                      `Payment mode is now ${checked ? 'Razorpay Gateway' : 'UPI Direct'}.`,
-                      { id: 'payment-mode-updated', title: 'Payment mode updated' },
-                    );
-                  } catch (err) {
-                    setSettings(previousSettings);
-                    setEditValues(values => ({ ...values, [config.key]: currentMode }));
-                    adminNotify.error(err, { id: 'payment-mode-update-error', title: 'Could not switch payment mode' });
-                  }
-                }}
-              />
-              <span className={`text-xs font-medium ${isRazorpay ? 'text-primary' : 'text-muted-foreground'}`}>Razorpay</span>
+            <div className="flex flex-wrap items-center gap-2">
+              {modeBtn('off', 'Off', isOff)}
+              {modeBtn('upi_deep_link', 'UPI Direct', isUpi)}
+              {modeBtn('razorpay', 'Razorpay', isRazorpay)}
             </div>
           </div>
           <p className="text-[11px] text-muted-foreground">{config.description}</p>
-          <div className={`rounded-lg px-3 py-2 text-xs ${isRazorpay ? 'bg-accent/10 text-accent' : 'bg-primary/10 text-primary'}`}>
-            {isRazorpay
-              ? '🏦 Payments routed through Razorpay API. Automatic verification.'
-              : '📱 Buyers pay directly to seller UPI ID. Manual verification via UTR + seller confirmation.'}
+          <div className={`rounded-lg px-3 py-2 text-xs ${
+            isOff
+              ? 'bg-muted text-muted-foreground'
+              : isRazorpay
+                ? 'bg-accent/10 text-accent'
+                : 'bg-primary/10 text-primary'
+          }`}>
+            {isOff
+              ? '💵 Online payments off. Buyers pay cash at pickup or delivery (seller fulfillment unchanged).'
+              : isRazorpay
+                ? '🏦 Payments routed through Razorpay API. Automatic verification.'
+                : '📱 Buyers pay directly to seller UPI ID. Manual verification via UTR + seller confirmation.'}
           </div>
           {!razorpayKeySet && (
             <p className="text-[10px] text-muted-foreground">⚠️ Razorpay keys not configured. Gateway mode requires valid API keys.</p>

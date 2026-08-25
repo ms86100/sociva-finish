@@ -17,6 +17,7 @@ import {
   isScheduledOrder,
   isUpcomingScheduled,
 } from '@/lib/scheduled-orders';
+import { isOrderAcceptanceExpired } from '@/lib/expired-order-acks';
 import { Order, OrderStatus } from '@/types/Database';
 import { toast } from 'sonner';
 import { showFeedback } from '@/components/FeedbackPopupProvider';
@@ -132,6 +133,12 @@ export function useOrderDetail(id: string | undefined) {
     return new Date(order.auto_cancel_at).getTime() > Date.now();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasAutoCancelAt, order?.status, order?.auto_cancel_at, flow, urgencyTick]);
+
+  /** Seller response window already passed — Accept must be blocked (server also enforces). */
+  const isAcceptanceExpired = useMemo(() => {
+    return isOrderAcceptanceExpired(order?.auto_cancel_at, order?.status);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [order?.auto_cancel_at, order?.status, urgencyTick]);
 
   const isUrgentSellerView = isUrgentOrder && isSellerView;
   const isUrgentBuyerView = isUrgentOrder && !isSellerView;
@@ -332,6 +339,17 @@ export function useOrderDetail(id: string | undefined) {
 
   const updateOrderStatus = async (newStatus: OrderStatus, rejectionReason?: string) => {
     if (!order || !user) return;
+    if (
+      isSellerView &&
+      isAcceptanceExpired &&
+      ['accepted', 'confirmed', 'scheduled', 'preparing'].includes(newStatus)
+    ) {
+      toast.error('Response time expired — this order can no longer be accepted', {
+        id: `order-${order.id}-expired`,
+      });
+      invalidateOrder();
+      return;
+    }
     setIsUpdating(true);
     try {
       let confirmedStatus: OrderStatus = newStatus;
@@ -370,6 +388,9 @@ export function useOrderDetail(id: string | undefined) {
       if (errMsg.includes('Delivery OTP verification required') || errMsg.includes('otp')) {
         window.dispatchEvent(new CustomEvent('delivery-otp-required', { detail: { orderId: order.id } }));
         toast.info('OTP verification required — please enter the delivery code', { id: `order-${order.id}-otp` });
+      } else if (/response time expired|can no longer be accepted/i.test(errMsg)) {
+        toast.error('Response time expired — this order can no longer be accepted', { id: `order-${order.id}-expired` });
+        invalidateOrder();
       } else {
         toast.error(
           errMsg.includes('Invalid seller transition') || errMsg.includes('Invalid status transition')
@@ -482,6 +503,7 @@ export function useOrderDetail(id: string | undefined) {
     isChatOpen, setIsChatOpen, unreadMessages, fetchUnreadCount,
     isRejectionDialogOpen, setIsRejectionDialogOpen,
     seller, isSellerView, isUrgentOrder, isUrgentSellerView, isUrgentBuyerView, isBuyerView, isEnquiryOrder,
+    isAcceptanceExpired,
     nextStatus, buyerNextStatus, canReview, canChat, canReorder,
     canSellerReject, canBuyerCancel, isScheduledAwaitingPrep, isInTransit, isFlowLoading,
     currentStepActor, resolvedTxnType, resolvedParentGroup,

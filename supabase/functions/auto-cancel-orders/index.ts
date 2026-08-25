@@ -418,7 +418,7 @@ app.post("/", async (c) => {
     const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
     const { data: reviewableOrders, error: reviewErr } = await supabase
       .from("orders")
-      .select("id, buyer_id, seller_id, updated_at, seller_profiles!orders_seller_id_fkey(business_name)")
+      .select("id, buyer_id, seller_id, updated_at, payment_type, payment_status, seller_profiles!orders_seller_id_fkey(business_name)")
       .eq("status", "delivered")
       .lt("updated_at", thirtyMinDelivered)
       .gt("updated_at", twoHoursAgo); // only process recent deliveries, not ancient ones
@@ -429,6 +429,16 @@ app.post("/", async (c) => {
 
     let reviewPromptsCreated = 0;
     for (const order of reviewableOrders || []) {
+      const payType = String((order as any).payment_type || "").toLowerCase();
+      const payStatus = String((order as any).payment_status || "");
+      if (
+        ["online", "razorpay", "upi", "upi_deep_link", "prepaid"].includes(payType) &&
+        payStatus !== "paid" &&
+        payStatus !== "buyer_confirmed"
+      ) {
+        continue;
+      }
+
       // Check if prompt already exists
       const { data: existing } = await supabase
         .from("review_prompts")

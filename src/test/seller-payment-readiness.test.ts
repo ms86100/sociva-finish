@@ -44,6 +44,7 @@ describe('sellerPaymentReadiness', () => {
     expect(requiresSellerUpi('upi_deep_link', false)).toBe(false);
     expect(requiresSellerUpi('razorpay', true)).toBe(false);
     expect(requiresSellerUpi('razorpay', false)).toBe(false);
+    expect(requiresSellerUpi('off', true)).toBe(false);
   });
 
   it('blocks missing UPI only when Deep UPI collection actually needs it', () => {
@@ -51,12 +52,14 @@ describe('sellerPaymentReadiness', () => {
     expect(isUpiRequiredAndMissing('upi_deep_link', onlineWithUpi)).toBe(false);
     expect(isUpiRequiredAndMissing('upi_deep_link', cashOnly)).toBe(false);
     expect(isUpiRequiredAndMissing('razorpay', onlineNoUpi)).toBe(false);
+    expect(isUpiRequiredAndMissing('off', onlineNoUpi)).toBe(false);
   });
 
   it('shows the UPI field only when Deep UPI and online are both on', () => {
     expect(shouldShowSellerUpiField('upi_deep_link', onlineNoUpi)).toBe(true);
     expect(shouldShowSellerUpiField('upi_deep_link', cashOnly)).toBe(false);
     expect(shouldShowSellerUpiField('razorpay', onlineNoUpi)).toBe(false);
+    expect(shouldShowSellerUpiField('off', onlineNoUpi)).toBe(false);
   });
 
   it('never validates UPI on Hours / general settings save', () => {

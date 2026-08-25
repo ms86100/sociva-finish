@@ -3,7 +3,7 @@
  * Matches checkout: Deep UPI collection needs a VPA; Razorpay does not.
  */
 
-export type PaymentGatewayMode = 'upi_deep_link' | 'razorpay';
+export type PaymentGatewayMode = 'off' | 'upi_deep_link' | 'razorpay';
 
 export type SellerSettingsSaveScope = 'hours' | 'payments' | 'general';
 

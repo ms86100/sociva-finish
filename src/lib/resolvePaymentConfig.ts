@@ -22,6 +22,8 @@ interface SellerPaymentInfo {
 
 interface PaymentModeInfo {
   isRazorpay: boolean;
+  /** When true, platform online rails are disabled (COD-only). */
+  isOff?: boolean;
 }
 
 /**
@@ -29,6 +31,7 @@ interface PaymentModeInfo {
  * Falls back to legacy `accepts_cod`/`accepts_upi` if JSONB config is null.
  * For online payments: Razorpay is always available when enabled; UPI deep link
  * requires the seller to have `accepts_upi && upi_id`.
+ * Platform mode `off` forces acceptsOnline=false regardless of seller config.
  */
 export function resolvePaymentConfig(
   seller: SellerPaymentInfo | null | undefined,
@@ -46,6 +49,11 @@ export function resolvePaymentConfig(
   const acceptsCod = config
     ? (config.accepts_cod ?? false)
     : (seller.accepts_cod ?? false);
+
+  // Platform offline: never offer online rails
+  if (paymentMode.isOff) {
+    return { acceptsCod, acceptsOnline: false };
+  }
 
   // Determine online payment
   let acceptsOnline: boolean;

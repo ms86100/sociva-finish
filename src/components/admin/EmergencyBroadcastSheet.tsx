@@ -7,7 +7,6 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { notifySocietyMembers } from '@/lib/society-notifications';
 import { Megaphone, Loader2, AlertTriangle } from 'lucide-react';
 import { adminNotify } from '@/lib/admin-notify';
 import { friendlyError } from '@/lib/utils';
@@ -33,38 +32,41 @@ export function EmergencyBroadcastSheet() {
   const targetSocietyId = viewAsSocietyId || profile?.society_id;
 
   const handleSend = async () => {
-    if (!user || !targetSocietyId || !title.trim() || !body.trim()) return;
+    if (!user) return;
+    if (!targetSocietyId) {
+      adminNotify.error('Select a society first (admin society switcher), then send the broadcast.');
+      return;
+    }
+    if (!title.trim() || !body.trim()) return;
     setSending(true);
 
     try {
       const cat = BROADCAST_CATEGORIES.find(c => c.value === category);
       const emoji = cat?.emoji || '📢';
 
-      // Save to database — use the target society
-      const { error } = await supabase.from('emergency_broadcasts').insert({
-        society_id: targetSocietyId,
-        sender_id: user.id,
-        sent_by: user.id,
-        type: category,
-        category,
-        title: title.trim(),
-        message: body.trim(),
-        body: body.trim(),
-      } as any);
+      // SECURITY DEFINER RPC: inserts broadcast + enqueues pushes for all residents
+      // (client notification_queue RLS only allows user_id = auth.uid())
+      const { data, error } = await supabase.rpc('admin_send_emergency_broadcast', {
+        p_society_id: targetSocietyId,
+        p_category: category,
+        p_title: `${emoji} ${title.trim()}`,
+        p_body: body.trim(),
+      });
 
       if (error) throw error;
 
-      // Send push to ALL members of the target society (routes through notification queue)
-      await notifySocietyMembers(
-        targetSocietyId,
-        `${emoji} ${title.trim()}`,
-        body.trim(),
-        { type: 'broadcast', category },
-        undefined,
-        { includeUnapproved: true }
-      );
+      const notified = Number((data as any)?.notified_count ?? 0);
+      try {
+        await supabase.functions.invoke('process-notification-queue');
+      } catch (e) {
+        console.warn('Broadcast queued; PNQ trigger deferred to cron:', e);
+      }
 
-      adminNotify.success('Broadcast sent to all residents');
+      adminNotify.success(
+        notified > 0
+          ? `Broadcast sent to ${notified} resident${notified === 1 ? '' : 's'}`
+          : 'Broadcast saved — no residents found in this society',
+      );
       setTitle('');
       setBody('');
       setCategory('general');
@@ -91,8 +93,11 @@ export function EmergencyBroadcastSheet() {
             Emergency Broadcast
           </DrawerTitle>
         </DrawerHeader>
-        <p className="text-xs text-muted-foreground mt-1">
+        <p className="text-xs text-muted-foreground mt-1 px-4">
           This will send a push notification to ALL residents in {viewAsSocietyId ? 'the selected' : 'your'} society.
+          {!targetSocietyId && (
+            <span className="block text-destructive mt-1">Select a society in the admin switcher before sending.</span>
+          )}
         </p>
         <div className="space-y-4 px-4 pb-6">
           <div>
@@ -126,7 +131,7 @@ export function EmergencyBroadcastSheet() {
           <Button
             variant="destructive"
             onClick={handleSend}
-            disabled={sending || !title.trim() || !body.trim()}
+            disabled={sending || !title.trim() || !body.trim() || !targetSocietyId}
             className="w-full"
           >
             {sending ? <Loader2 className="animate-spin mr-2" size={16} /> : <Megaphone size={16} className="mr-2" />}
