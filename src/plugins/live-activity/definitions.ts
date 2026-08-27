@@ -47,5 +47,12 @@ export interface LiveActivityPlugin {
   cleanupStaleActivities(opts: { validEntityIds: string[] }): Promise<void>;
   /** Android: BuildConfig.HAS_TRANSISTORSOFT_LICENSE (+ platform). */
   getNativeBuildFlags?(): Promise<{ hasTransistorsoftLicense: boolean; platform: string }>;
+  /**
+   * Android: after fine location is granted, request ACCESS_BACKGROUND_LOCATION
+   * or open app settings so the seller can choose "Allow all the time".
+   */
+  requestBackgroundLocation?(): Promise<{ status: string; detail?: string }>;
+  /** Android: open application details / location settings. */
+  openAppLocationSettings?(): Promise<{ status: string; detail?: string }>;
   addListener?(eventName: string, callback: (data: any) => void): any;
 }

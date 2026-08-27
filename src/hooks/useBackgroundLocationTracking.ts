@@ -245,6 +245,25 @@ export function useBackgroundLocationTracking(assignmentId: string | null) {
 
   // ─── Android Capacitor Geolocation (no Transistorsoft license toast) ───
 
+  const upgradeAndroidBackgroundPermission = useCallback(async () => {
+    if (Capacitor.getPlatform() !== 'android') return 'when_in_use' as const;
+    try {
+      const { LiveActivity } = await import('@/plugins/live-activity');
+      const result = await LiveActivity.requestBackgroundLocation?.();
+      const status = result?.status || '';
+      if (status === 'granted') return 'always' as const;
+      if (status === 'opened_settings') {
+        toast.info('In Location permission, choose “Allow all the time” so tracking continues when minimized.', {
+          id: 'bg-loc-settings',
+          duration: 12000,
+        });
+      }
+    } catch (err) {
+      console.warn('[LocationTracking] Background location upgrade failed:', err);
+    }
+    return 'when_in_use' as const;
+  }, []);
+
   const startAndroidCapacitorTracking = useCallback(async () => {
     try {
       const { Geolocation } = await import('@capacitor/geolocation');
@@ -290,22 +309,49 @@ export function useBackgroundLocationTracking(assignmentId: string | null) {
       );
 
       watchIdRef.current = watchId;
+
+      // Keep a foreground notification so Android is less aggressive about killing GPS.
+      try {
+        if (assignmentId) {
+          const { LiveActivity } = await import('@/plugins/live-activity');
+          await LiveActivity.startLiveActivity({
+            entity_type: 'delivery',
+            entity_id: assignmentId,
+            workflow_status: 'Sharing location',
+            eta_minutes: null,
+            driver_distance: null,
+            driver_name: null,
+            vehicle_type: null,
+            progress_stage: 'GPS live',
+            progress_percent: null,
+            seller_name: null,
+            item_count: null,
+            order_short_id: null,
+            seller_logo_url: null,
+          });
+        }
+      } catch (notifyErr) {
+        console.warn('[LocationTracking] Live delivery notification start failed:', notifyErr);
+      }
+
+      const level = await upgradeAndroidBackgroundPermission();
       if (mountedRef.current) {
         setState(s => ({
           ...s,
           isTracking: true,
           permissionDenied: false,
-          permissionLevel: 'when_in_use',
+          permissionLevel: level,
         }));
       }
       startHealthCheck();
+      toast.success('Location sharing started', { id: 'loc-started', duration: 4000 });
       console.log('[LocationTracking] Android Capacitor Geolocation tracking started (Transistorsoft skipped — no license toast)');
     } catch (err: any) {
       const errMsg = err instanceof Error ? err.message : String(err);
       console.error('[LocationTracking] Android Capacitor tracking failed:', errMsg, err);
       toast.error(`Location error: ${errMsg || 'Unknown failure'}`, { duration: 8000 });
     }
-  }, [sendLocation, startHealthCheck]);
+  }, [assignmentId, sendLocation, startHealthCheck, upgradeAndroidBackgroundPermission]);
 
   // ─── Native background geolocation (Transistorsoft — iOS / licensed Android) ─────
 
@@ -351,8 +397,9 @@ export function useBackgroundLocationTracking(assignmentId: string | null) {
         activityType: BackgroundGeolocation.ACTIVITY_TYPE_AUTOMOTIVE_NAVIGATION,
         showsBackgroundLocationIndicator: true,
         stationaryRadius: 25,
-        disableMotionActivityUpdates: false,
-        disableStopDetection: false,
+        // ACTIVITY_RECOGNITION is stripped for Play Health policy — do not require motion APIs.
+        disableMotionActivityUpdates: true,
+        disableStopDetection: true,
         locationAuthorizationRequest: 'Always',
         debug: false,
         logLevel: BackgroundGeolocation.LOG_LEVEL_WARNING,
@@ -421,17 +468,15 @@ export function useBackgroundLocationTracking(assignmentId: string | null) {
     } catch (err: any) {
       const errMsg = err instanceof Error ? err.message : String(err);
       console.error('[LocationTracking] Native tracking setup failed:', errMsg, err);
-      // Transistorsoft already shows a native "LICENSE VALIDATION FAILURE" toast when
-      // AndroidManifest lacks com.transistorsoft.locationmanager.license — don't echo it.
-      if (/license\s*validation/i.test(errMsg)) {
-        console.warn(
-          '[LocationTracking] Transistorsoft license missing/invalid. Add key for app.sociva.community via android/transistorsoft.properties (see .example).',
-        );
+      // Fall back to Capacitor GPS instead of failing silently (common without license / motion APIs).
+      if (Capacitor.getPlatform() === 'android') {
+        console.warn('[LocationTracking] Falling back to Capacitor Geolocation after Transistorsoft failure:', errMsg);
+        await startAndroidCapacitorTracking();
         return;
       }
       toast.error(`Location error: ${errMsg || 'Unknown failure'}`, { duration: 8000 });
     }
-  }, [sendLocation, startHealthCheck]);
+  }, [sendLocation, startHealthCheck, startAndroidCapacitorTracking]);
 
   // ─── Auto-restart on resume (Gap 2: background kill recovery) ───
 
@@ -501,7 +546,15 @@ export function useBackgroundLocationTracking(assignmentId: string | null) {
   // ─── Public API ────────────────────────────────────────
 
   const startTracking = useCallback(async () => {
-    if (state.isTracking || !assignmentId || startingRef.current) return;
+    if (state.isTracking || startingRef.current) return;
+    if (!assignmentId) {
+      console.warn('[LocationTracking] startTracking ignored — no delivery assignment id yet');
+      toast.error('Delivery assignment not ready yet. Open the order again and tap Start Sharing.', {
+        id: 'loc-no-assignment',
+        duration: 8000,
+      });
+      return;
+    }
     startingRef.current = true;
 
     try {
@@ -566,6 +619,18 @@ export function useBackgroundLocationTracking(assignmentId: string | null) {
       watchIdRef.current = null;
     }
     capacitorGeoRef.current = null;
+
+    if (isNative && Capacitor.getPlatform() === 'android') {
+      try {
+        const { LiveActivity } = await import('@/plugins/live-activity');
+        const active = await LiveActivity.getActiveActivities();
+        for (const entry of active?.activities || []) {
+          await LiveActivity.endLiveActivity({ activityId: entry.activityId });
+        }
+      } catch {
+        // noop
+      }
+    }
 
     if (mountedRef.current) {
       setState(s => ({ ...s, isTracking: false, trackingPaused: false }));

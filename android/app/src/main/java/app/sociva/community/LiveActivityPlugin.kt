@@ -1,17 +1,33 @@
 package app.sociva.community
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.os.Build
+import android.provider.Settings
+import androidx.core.content.ContextCompat
 import com.getcapacitor.JSArray
 import com.getcapacitor.JSObject
 import com.getcapacitor.Plugin
 import com.getcapacitor.PluginCall
 import com.getcapacitor.PluginMethod
 import com.getcapacitor.annotation.CapacitorPlugin
+import com.getcapacitor.annotation.Permission
+import com.getcapacitor.annotation.PermissionCallback
 
 /**
  * Capacitor bridge for Android foreground-service "live delivery" notifications.
  */
-@CapacitorPlugin(name = "LiveActivity")
+@CapacitorPlugin(
+    name = "LiveActivity",
+    permissions = [
+        Permission(
+            strings = [Manifest.permission.ACCESS_BACKGROUND_LOCATION],
+            alias = "backgroundLocation"
+        )
+    ]
+)
 class LiveActivityPlugin : Plugin() {
 
     @PluginMethod
@@ -82,6 +98,99 @@ class LiveActivityPlugin : Plugin() {
         ret.put("hasTransistorsoftLicense", BuildConfig.HAS_TRANSISTORSOFT_LICENSE)
         ret.put("platform", "android")
         call.resolve(ret)
+    }
+
+    /**
+     * Two-step Android background location:
+     * 1) Foreground (fine) must already be granted
+     * 2) Then request ACCESS_BACKGROUND_LOCATION, or open app location settings
+     *    (Android 11+ often will not show a second in-app dialog).
+     */
+    @PluginMethod
+    fun requestBackgroundLocation(call: PluginCall) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+            call.resolve(statusResult("granted", "pre_q"))
+            return
+        }
+
+        val fineGranted = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+                || ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.ACCESS_COARSE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+
+        if (!fineGranted) {
+            call.resolve(statusResult("needs_foreground_first", "fine_missing"))
+            return
+        }
+
+        val bgGranted = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.ACCESS_BACKGROUND_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+
+        if (bgGranted) {
+            call.resolve(statusResult("granted", "already"))
+            return
+        }
+
+        // Android 11+: system usually requires Settings → Location → Allow all the time
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            openAppLocationSettings()
+            call.resolve(statusResult("opened_settings", "android_11_plus"))
+            return
+        }
+
+        requestPermissionForAlias("backgroundLocation", call, "backgroundLocationPermsCallback")
+    }
+
+    @PermissionCallback
+    private fun backgroundLocationPermsCallback(call: PluginCall) {
+        val bgGranted = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.ACCESS_BACKGROUND_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+        if (bgGranted) {
+            call.resolve(statusResult("granted", "dialog"))
+        } else {
+            openAppLocationSettings()
+            call.resolve(statusResult("opened_settings", "denied_or_limited"))
+        }
+    }
+
+    @PluginMethod
+    fun openAppLocationSettings(call: PluginCall) {
+        openAppLocationSettings()
+        call.resolve(statusResult("opened_settings", "manual"))
+    }
+
+    private fun openAppLocationSettings() {
+        try {
+            val intent = Intent(
+                Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                Uri.fromParts("package", context.packageName, null)
+            )
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            context.startActivity(intent)
+        } catch (_: Exception) {
+            try {
+                val intent = Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS)
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                context.startActivity(intent)
+            } catch (_: Exception) {
+                // ignore
+            }
+        }
+    }
+
+    private fun statusResult(status: String, detail: String): JSObject {
+        val ret = JSObject()
+        ret.put("status", status)
+        ret.put("detail", detail)
+        return ret
     }
 
     private fun sendServiceIntent(call: PluginCall, action: String) {

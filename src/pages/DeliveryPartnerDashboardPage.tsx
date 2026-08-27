@@ -150,6 +150,8 @@ export default function DeliveryPartnerDashboardPage() {
     }
   }, [activeTrackingId]);
 
+  const acceptingDisclosureRef = useRef(false);
+
   // Prominent disclosure before background GPS (Play policy) — do not silently start on native
   useEffect(() => {
     if (!activeTrackingId || isTracking || permissionDenied) return;
@@ -157,13 +159,18 @@ export default function DeliveryPartnerDashboardPage() {
       setLocationDisclosureOpen(true);
       return;
     }
-    startTracking();
+    const delay = Capacitor.isNativePlatform() ? 700 : 0;
+    const timer = window.setTimeout(() => {
+      void startTracking();
+    }, delay);
+    return () => window.clearTimeout(timer);
   }, [activeTrackingId, isTracking, startTracking, permissionDenied, locationDisclosureAccepted]);
 
   const acceptLocationDisclosure = () => {
+    // Prevent onOpenChange(false) from clearing activeTrackingId before React commits accepted=true
+    acceptingDisclosureRef.current = true;
     setLocationDisclosureAccepted(true);
     setLocationDisclosureOpen(false);
-    setTimeout(() => startTracking(), 300);
   };
 
   const updateDeliveryStatus = async (assignmentId: string, newStatus: string) => {
@@ -272,7 +279,9 @@ export default function DeliveryPartnerDashboardPage() {
       <FeatureGate feature="delivery_management">
       <AlertDialog open={locationDisclosureOpen} onOpenChange={(open) => {
         setLocationDisclosureOpen(open);
-        if (!open && !locationDisclosureAccepted) setActiveTrackingId(null);
+        if (!open && !locationDisclosureAccepted && !acceptingDisclosureRef.current) {
+          setActiveTrackingId(null);
+        }
       }}>
         <AlertDialogContent className="rounded-2xl max-w-md">
           <AlertDialogHeader>
@@ -280,7 +289,7 @@ export default function DeliveryPartnerDashboardPage() {
             <AlertDialogDescription className="text-left space-y-2">
               <span className="block">{BG_LOCATION_DISCLOSURE}</span>
               <span className="block text-xs">
-                Choose <strong>Allow all the time</strong> / <strong>Always</strong> on the system prompt for tracking while the app is minimized.
+                Next, allow location access. On Android 11+, open Settings → Permissions → Location and choose <strong>Allow all the time</strong> for tracking while minimized.
               </span>
             </AlertDialogDescription>
           </AlertDialogHeader>

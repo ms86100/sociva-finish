@@ -12,6 +12,8 @@ const noopImplementation: LiveActivityPlugin = {
   getActiveActivities: async () => ({ activities: [] }),
   cleanupStaleActivities: async () => {},
   getNativeBuildFlags: async () => ({ hasTransistorsoftLicense: false, platform: 'web' }),
+  requestBackgroundLocation: async () => ({ status: 'unsupported', detail: 'web' }),
+  openAppLocationSettings: async () => ({ status: 'unsupported', detail: 'web' }),
 };
 
 /**

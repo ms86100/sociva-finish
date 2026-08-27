@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { useEffect, useRef, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
+import { toast } from 'sonner';
 import { useSystemSettingsRaw } from '@/hooks/useSystemSettingsRaw';
 import { getTerminalStatuses } from '@/services/statusFlowCache';
 import { supabase } from '@/integrations/supabase/client';
@@ -36,6 +37,7 @@ export function SellerGPSTracker({ assignmentId, orderId, autoStart = true, deli
   const [disclosureOpen, setDisclosureOpen] = useState(false);
   const [disclosureAccepted, setDisclosureAccepted] = useState(false);
   const [autoPrompted, setAutoPrompted] = useState(false);
+  const acceptingDisclosureRef = useRef(false);
 
   // Resolve assignmentId from orderId if not directly provided
   useEffect(() => {
@@ -99,19 +101,35 @@ export function SellerGPSTracker({ assignmentId, orderId, autoStart = true, deli
   }, [autoStart, effectiveAssignmentId, isTerminal, isTracking, permissionDenied, disclosureAccepted, autoPrompted, isNative, startTracking]);
 
   const beginTrackingAfterDisclosure = () => {
+    acceptingDisclosureRef.current = true;
     setDisclosureAccepted(true);
     setDisclosureOpen(false);
-    setTimeout(() => {
-      startTracking();
-    }, isNative ? 300 : 0);
+    // Delay so Android can dismiss the disclosure before the system permission sheet.
+    window.setTimeout(() => {
+      void (async () => {
+        try {
+          if (!effectiveAssignmentId) {
+            toast.error('Delivery assignment not ready yet. Wait a moment and tap Start Sharing again.');
+            return;
+          }
+          await startTracking();
+        } finally {
+          acceptingDisclosureRef.current = false;
+        }
+      })();
+    }, isNative ? 700 : 0);
   };
 
   const requestStartWithDisclosure = () => {
+    if (!effectiveAssignmentId) {
+      toast.error('Delivery assignment not ready yet. Wait a moment and try again.');
+      return;
+    }
     if (isNative) {
       setDisclosureOpen(true);
       return;
     }
-    startTracking();
+    void startTracking();
   };
 
   useEffect(() => {
@@ -174,7 +192,7 @@ export function SellerGPSTracker({ assignmentId, orderId, autoStart = true, deli
             <AlertDialogDescription className="text-left space-y-2">
               <span className="block">{BG_LOCATION_DISCLOSURE}</span>
               <span className="block text-xs">
-                On the next screen, choose <strong>Allow all the time</strong> / <strong>Always</strong> if you want tracking to continue when the app is minimized.
+                Next, allow location access. On Android 11+, open Settings → Permissions → Location and choose <strong>Allow all the time</strong> so tracking continues when the app is minimized.
               </span>
             </AlertDialogDescription>
           </AlertDialogHeader>
