@@ -28,7 +28,7 @@
     html, body {
       background: #525252;
       color: var(--fg);
-      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
     }
@@ -43,12 +43,16 @@
       box-shadow: 0 12px 40px rgba(0,0,0,0.45);
     }
 
-    .pad {
-      padding: 8mm 8mm 14mm;
-      height: 100%;
-      display: flex;
-      flex-direction: column;
-      gap: 4.2mm;
+    .corner-art {
+      position: absolute;
+      top: -3mm;
+      left: -3mm;
+      width: 30mm;
+      height: 30mm;
+      object-fit: contain;
+      z-index: 2;
+      pointer-events: none;
+      filter: drop-shadow(0 3px 10px rgba(0,0,0,0.35));
     }
 
     .glow {
@@ -62,28 +66,38 @@
       right: -18mm;
     }
 
+    .pad {
+      padding: 7.5mm 7.5mm 14mm;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 3.6mm;
+      position: relative;
+      z-index: 1;
+    }
+
     .header {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      position: relative;
-      z-index: 1;
+      padding-left: 24mm;
+      min-height: 10mm;
     }
 
     .brand {
       display: flex;
       align-items: center;
-      gap: 2.4mm;
+      gap: 2.2mm;
     }
 
     .brand img {
-      width: 8.5mm;
-      height: 8.5mm;
-      border-radius: 2mm;
+      width: 8mm;
+      height: 8mm;
+      border-radius: 1.8mm;
     }
 
     .wordmark {
-      font-size: 11pt;
+      font-size: 10.5pt;
       font-weight: 800;
       letter-spacing: 0.12em;
       background: linear-gradient(135deg, #f0f0f0 0%, var(--primary) 100%);
@@ -93,28 +107,32 @@
     }
 
     .tagline {
-      font-size: 6.5pt;
+      font-size: 5.8pt;
       color: var(--muted);
-      margin-top: 0.6mm;
+      margin-top: 0.5mm;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
     }
 
     .site-pill {
-      font-size: 6.5pt;
+      font-size: 6pt;
       color: var(--primary);
       border: 1px solid var(--primary-border);
       background: var(--primary-dim);
-      padding: 1.2mm 2.4mm;
+      padding: 1.1mm 2.2mm;
       border-radius: 999px;
-      font-weight: 600;
+      font-weight: 700;
     }
 
     .hero {
-      position: relative;
-      z-index: 1;
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr;
+      gap: 3.5mm;
+      align-items: stretch;
     }
 
     .hero h1 {
-      font-size: 18pt;
+      font-size: 15pt;
       font-weight: 800;
       line-height: 1.05;
       letter-spacing: -0.02em;
@@ -123,102 +141,151 @@
     .hero h1 span { color: var(--primary); }
 
     .hero-sub {
-      margin-top: 2mm;
-      font-size: 9pt;
-      font-weight: 650;
+      margin-top: 1.6mm;
+      font-size: 8pt;
+      font-weight: 700;
       line-height: 1.25;
     }
 
     .hero-body {
-      margin-top: 1.8mm;
-      font-size: 7.2pt;
-      line-height: 1.4;
+      margin-top: 1.4mm;
+      font-size: 6.6pt;
+      line-height: 1.35;
       color: var(--muted);
     }
 
-    .pillars {
-      margin-top: 2.2mm;
-      display: flex;
-      gap: 1.5mm;
-      flex-wrap: wrap;
-    }
-
-    .pillars span {
-      font-size: 6pt;
-      font-weight: 700;
-      letter-spacing: 0.05em;
+    .urgency {
+      margin-top: 2mm;
+      display: inline-flex;
+      font-size: 5.8pt;
+      font-weight: 800;
+      letter-spacing: 0.03em;
       text-transform: uppercase;
-      color: var(--primary);
-      border: 1px solid var(--primary-border);
-      background: var(--primary-dim);
-      padding: 1mm 2mm;
+      color: #04140c;
+      background: var(--primary);
+      padding: 1.2mm 2.2mm;
       border-radius: 999px;
     }
 
+    .hero-visual {
+      border-radius: 10px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      min-height: 34mm;
+      position: relative;
+    }
+
+    .hero-visual img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: 75% center;
+      display: block;
+    }
+
     .section-label {
-      font-size: 6pt;
-      font-weight: 700;
+      font-size: 5.8pt;
+      font-weight: 800;
       letter-spacing: 0.14em;
       text-transform: uppercase;
       color: var(--primary);
-      margin-bottom: 1.8mm;
+      margin-bottom: 1.5mm;
     }
 
     .why {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 2.2mm;
-      position: relative;
-      z-index: 1;
+      gap: 2mm;
     }
 
     .why-card {
       background: var(--card);
       border: 1px solid var(--border);
       border-radius: var(--radius);
-      padding: 2.6mm;
+      padding: 2.2mm 2.4mm;
     }
 
     .why-card h4 {
-      font-size: 7.2pt;
-      font-weight: 700;
-      margin-bottom: 0.8mm;
+      font-size: 7pt;
+      font-weight: 800;
+      margin-bottom: 0.6mm;
     }
 
     .why-card p {
-      font-size: 6.2pt;
+      font-size: 5.8pt;
       line-height: 1.3;
       color: var(--muted);
     }
 
+    .row {
+      display: grid;
+      grid-template-columns: 1fr 0.85fr;
+      gap: 2.8mm;
+      align-items: stretch;
+    }
+
     .cats h2 {
-      font-size: 10pt;
+      font-size: 9pt;
       font-weight: 800;
-      margin-bottom: 2mm;
+      margin-bottom: 1.8mm;
     }
 
     .cat-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 2mm;
+      gap: 1.8mm;
     }
 
     .cat {
       background: var(--card-elevated);
       border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 2.4mm 2.6mm;
+      border-radius: 8px;
+      padding: 2mm 2.2mm;
     }
 
     .cat h4 {
-      font-size: 7pt;
-      font-weight: 700;
-      margin-bottom: 0.6mm;
+      font-size: 6.4pt;
+      font-weight: 800;
+      margin-bottom: 0.4mm;
       color: var(--primary);
     }
 
     .cat p {
-      font-size: 6pt;
+      font-size: 5.5pt;
+      line-height: 1.25;
+      color: var(--muted);
+    }
+
+    .brand-panel {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .brand-panel img {
+      width: 100%;
+      height: 24mm;
+      object-fit: cover;
+      display: block;
+      background: #050505;
+    }
+
+    .brand-panel .copy {
+      padding: 2.2mm 2.4mm 2.4mm;
+    }
+
+    .brand-panel h3 {
+      font-size: 7.4pt;
+      font-weight: 800;
+      line-height: 1.2;
+      margin-bottom: 1mm;
+    }
+
+    .brand-panel p {
+      font-size: 5.8pt;
       line-height: 1.3;
       color: var(--muted);
     }
@@ -226,32 +293,32 @@
     .steps {
       display: grid;
       grid-template-columns: repeat(5, 1fr);
-      gap: 1.6mm;
+      gap: 1.4mm;
     }
 
     .step {
       background: var(--card);
       border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 2mm;
+      border-radius: 7px;
+      padding: 1.6mm;
     }
 
     .step .n {
-      font-size: 6.5pt;
+      font-size: 5.8pt;
       font-weight: 800;
       color: var(--primary);
-      margin-bottom: 0.8mm;
+      margin-bottom: 0.5mm;
     }
 
     .step h4 {
-      font-size: 6.4pt;
-      font-weight: 700;
-      margin-bottom: 0.6mm;
+      font-size: 6pt;
+      font-weight: 800;
+      margin-bottom: 0.4mm;
     }
 
     .step p {
-      font-size: 5.6pt;
-      line-height: 1.3;
+      font-size: 5.2pt;
+      line-height: 1.25;
       color: var(--muted);
     }
 
@@ -260,50 +327,57 @@
       margin-bottom: 1.5mm;
       display: grid;
       grid-template-columns: 1fr auto;
-      gap: 3.5mm;
+      gap: 3mm;
       align-items: center;
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 3mm 3.5mm;
-      position: relative;
-      z-index: 1;
+      background: linear-gradient(135deg, #1a2420 0%, #1f1c1b 55%, #262322 100%);
+      border: 1.5px solid var(--primary-border);
+      border-radius: 11px;
+      padding: 3mm 3.2mm;
+      box-shadow: 0 0 0 1px rgba(39,193,122,0.08);
     }
 
     .cta h2 {
       font-size: 10pt;
       font-weight: 800;
+      line-height: 1.15;
     }
 
+    .cta h2 span { color: var(--primary); }
+
     .cta .sub {
-      margin-top: 0.6mm;
-      font-size: 7pt;
+      margin-top: 1mm;
+      font-size: 6.6pt;
       font-weight: 700;
-      color: var(--primary);
-      letter-spacing: 0.06em;
+      color: #d8d8d8;
+      line-height: 1.3;
     }
 
     .cta .hint {
-      margin-top: 1.4mm;
-      font-size: 6.4pt;
+      margin-top: 1.2mm;
+      font-size: 5.8pt;
       color: var(--muted);
-      line-height: 1.35;
+      line-height: 1.3;
     }
+
+    .qr-box { text-align: center; }
 
     .qr-box img {
       width: 22mm;
       height: 22mm;
       background: #fff;
       padding: 1.2mm;
-      border-radius: 2mm;
+      border-radius: 3mm;
       display: block;
+      border: 2px solid var(--primary);
     }
 
     .qr-box figcaption {
       margin-top: 1mm;
-      font-size: 5.8pt;
-      color: var(--muted);
-      text-align: center;
+      font-size: 5.6pt;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--primary);
     }
 
     .toolbar {
@@ -341,9 +415,7 @@
         margin: 0;
         box-shadow: none;
       }
-      .pad {
-        padding-bottom: 16mm;
-      }
+      .pad { padding-bottom: 16mm; }
     }
   </style>
 </head>
@@ -351,9 +423,11 @@
   <div class="toolbar">
     <button type="button" onclick="window.print()">Print / Save A5 PDF</button>
     <a class="secondary" href="/pamphlets/a4.html">Open A4 version</a>
+    <a class="secondary" href="https://www.sociva.in/">sociva.in</a>
   </div>
 
   <article class="sheet" aria-label="Sociva A5 pamphlet">
+    <img class="corner-art" src="/pamphlets/corner-art.png" alt="" />
     <div class="glow"></div>
     <div class="pad">
       <header class="header">
@@ -368,81 +442,91 @@
       </header>
 
       <section class="hero">
-        <h1>TOGETHER, WE BUILD <span>BETTER LIVES.</span></h1>
-        <p class="hero-sub">Everything you need. Right inside your society.</p>
-        <p class="hero-body">Discover products, food, services and everyday help from people and businesses around your community.</p>
-        <div class="pillars">
-          <span>Buy local</span>
-          <span>Support local</span>
-          <span>Grow local</span>
+        <div>
+          <h1>YOUR SOCIETY<br />IS ALREADY<br /><span>SHOPPING.</span></h1>
+          <p class="hero-sub">Still ordering from far away?</p>
+          <p class="hero-body">Food, groceries, repairs &amp; help from people right around you. Discover your society — then download.</p>
+          <div class="urgency">Scan · Download free · Join in 60s</div>
+        </div>
+        <div class="hero-visual">
+          <img src="/pamphlets/community.png" alt="Neighbours and local community marketplace" />
         </div>
       </section>
 
       <section>
-        <div class="section-label">Why Sociva?</div>
+        <div class="section-label">Why download now</div>
         <div class="why">
           <div class="why-card">
-            <h4>Support your neighbours</h4>
-            <p>Buy from people and businesses around your community.</p>
+            <h4>Faster than far</h4>
+            <p>Get what you need from next door.</p>
           </div>
           <div class="why-card">
-            <h4>Close to home</h4>
-            <p>Discover local sellers and service providers in your society.</p>
+            <h4>People you trust</h4>
+            <p>Neighbours, cooks, and local sellers.</p>
           </div>
           <div class="why-card">
-            <h4>Save time &amp; money</h4>
-            <p>Find what you need close to home.</p>
+            <h4>Save every day</h4>
+            <p>Less waiting. More of what you need.</p>
           </div>
           <div class="why-card">
-            <h4>Stronger community</h4>
-            <p>Connect, exchange, recommend and grow together.</p>
+            <h4>Grow together</h4>
+            <p>Every order supports your community.</p>
           </div>
         </div>
       </section>
 
-      <section class="cats">
-        <div class="section-label">Everything you need</div>
-        <h2>Right next door.</h2>
-        <div class="cat-grid">
-          <div class="cat">
-            <h4>Food &amp; homemade</h4>
-            <p>Meals, snacks, tiffins and more.</p>
-          </div>
-          <div class="cat">
-            <h4>Groceries &amp; daily needs</h4>
-            <p>Essentials from your community.</p>
-          </div>
-          <div class="cat">
-            <h4>Home services</h4>
-            <p>Cleaning, repairs, electrical, plumbing.</p>
-          </div>
-          <div class="cat">
-            <h4>Local services &amp; products</h4>
-            <p>Skills, sellers and businesses nearby.</p>
+      <section class="row">
+        <div class="cats">
+          <div class="section-label">Inside the app</div>
+          <h2>Already waiting next door.</h2>
+          <div class="cat-grid">
+            <div class="cat">
+              <h4>Food &amp; homemade</h4>
+              <p>Meals &amp; tiffins nearby.</p>
+            </div>
+            <div class="cat">
+              <h4>Groceries</h4>
+              <p>Daily needs, close by.</p>
+            </div>
+            <div class="cat">
+              <h4>Home services</h4>
+              <p>Repairs &amp; help fast.</p>
+            </div>
+            <div class="cat">
+              <h4>Local sellers</h4>
+              <p>Skills &amp; products.</p>
+            </div>
           </div>
         </div>
+        <aside class="brand-panel">
+          <img src="/pamphlets/brand-hero.png" alt="Sociva brand" />
+          <div class="copy">
+            <h3>Don’t miss what’s next door.</h3>
+            <p>Your society store is live. Download and join.</p>
+          </div>
+        </aside>
       </section>
 
       <section>
-        <div class="section-label">How it works</div>
+        <div class="section-label">Get it in 5 steps</div>
         <div class="steps">
-          <div class="step"><div class="n">01</div><h4>Join</h4><p>Join your society.</p></div>
-          <div class="step"><div class="n">02</div><h4>Discover</h4><p>Explore nearby.</p></div>
-          <div class="step"><div class="n">03</div><h4>Order</h4><p>Buy or book.</p></div>
-          <div class="step"><div class="n">04</div><h4>Connect</h4><p>Message sellers.</p></div>
-          <div class="step"><div class="n">05</div><h4>Track</h4><p>Get updates.</p></div>
+          <div class="step"><div class="n">01</div><h4>Scan</h4><p>Open QR.</p></div>
+          <div class="step"><div class="n">02</div><h4>Download</h4><p>Get free.</p></div>
+          <div class="step"><div class="n">03</div><h4>Join</h4><p>Society.</p></div>
+          <div class="step"><div class="n">04</div><h4>Discover</h4><p>Nearby.</p></div>
+          <div class="step"><div class="n">05</div><h4>Order</h4><p>Enjoy.</p></div>
         </div>
       </section>
 
       <footer class="cta">
         <div>
-          <h2>Download Sociva</h2>
-          <div class="sub">YOUR SOCIETY. YOUR STORE.</div>
-          <p class="hint">Scan to open www.sociva.in · App Store &amp; Android download on the site.</p>
+          <h2>Download now.<br /><span>Your society is waiting.</span></h2>
+          <p class="sub">Scan → sociva.in → get the app.</p>
+          <p class="hint">Free download · App Store &amp; Android on the site</p>
         </div>
         <figure class="qr-box">
           <img src="/pamphlets/sociva-qr.png" width="220" height="220" alt="QR code to https://www.sociva.in/" />
-          <figcaption>sociva.in</figcaption>
+          <figcaption>Scan → Download</figcaption>
         </figure>
       </footer>
     </div>
