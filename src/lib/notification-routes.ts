@@ -18,12 +18,23 @@ export function sellerRefundDisputeRoute(
   if (!payload || typeof payload !== 'object') return null;
   const status = String(payload.status || '').toLowerCase();
   const role = String(payload.target_role || '').toLowerCase();
-  if (role !== 'seller') return null;
-  if (status !== 'refund_requested' && status !== 'refund_request') return null;
+  const typeHint = String(payload.type || '').toLowerCase();
   const refundId = payload.refundId || payload.refund_id;
-  return refundId
-    ? `/seller?tab=refunds&refundId=${encodeURIComponent(String(refundId))}`
-    : '/seller?tab=refunds';
+  const isRefundStatus = status === 'refund_requested' || status === 'refund_request';
+  const isRefundType = typeHint === 'refund_request' || typeHint === 'refund';
+
+  // Seller-targeted refund alerts (explicit role or refund type/status + refund id)
+  if (role === 'seller' && (isRefundStatus || isRefundType || !!refundId)) {
+    return refundId
+      ? `/seller?tab=refunds&refundId=${encodeURIComponent(String(refundId))}`
+      : '/seller?tab=refunds';
+  }
+  if (isRefundType || (isRefundStatus && refundId)) {
+    return refundId
+      ? `/seller?tab=refunds&refundId=${encodeURIComponent(String(refundId))}`
+      : '/seller?tab=refunds';
+  }
+  return null;
 }
 
 export function resolveNotificationRoute(
@@ -52,12 +63,25 @@ export function resolveNotificationRoute(
     case 'seller_daily_summary':
       return '/seller';
 
+    // Refund lifecycle (must not fall through to order/{id})
+    case 'refund_request':
+    case 'refund': {
+      const sellerRefund = sellerRefundDisputeRoute({
+        ...(payload || {}),
+        target_role: payload?.target_role || 'seller',
+        status: payload?.status || 'refund_requested',
+      });
+      return sellerRefund || '/seller?tab=refunds';
+    }
+
     // Order lifecycle
     case 'order':
     case 'order_created':
     case 'order_status':
     case 'order_update':
     case 'order_lifecycle': {
+      const sellerRefund = sellerRefundDisputeRoute(payload);
+      if (sellerRefund) return sellerRefund;
       const orderId = getOrderId(payload);
       return orderId ? `/orders/${orderId}` : '/orders';
     }

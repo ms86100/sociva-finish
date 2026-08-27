@@ -755,10 +755,20 @@ Deno.serve(async (req) => {
         }
 
         // Guards: staleness + terminal-state + state-mismatch
+        // Refund / dispute notifications use type=order historically with payload.status
+        // = refund_requested. That is NOT an order.status — treating it as a mismatch
+        // skipped push and marked the inbox row read. Exclude those explicitly.
         const isOrderNotif = ['order_status', 'order', 'order_update'].includes(item.type);
         const payloadOrderId = item.payload?.orderId || item.payload?.order_id;
         const payloadStatus = item.payload?.status || item.payload?.new_status;
-        if (isOrderNotif && payloadOrderId) {
+        const isRefundLifecycleNotif =
+          item.type === 'refund_request' ||
+          item.type === 'refund' ||
+          ['refund_requested', 'refund_request', 'refund_approved', 'refund_rejected', 'refund_completed'].includes(
+            String(payloadStatus || ''),
+          ) ||
+          String(item.title || '').toLowerCase().includes('refund');
+        if (isOrderNotif && payloadOrderId && !isRefundLifecycleNotif) {
           const ageMs = Date.now() - new Date(item.created_at).getTime();
           // Anything older than 4 hours is treated as stale regardless of terminal state —
           // it must not ring the bell or fire a push as if the event just happened.

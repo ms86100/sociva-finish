@@ -179,7 +179,15 @@ export function useSellerApplicationReview() {
     } catch (error: any) {
       const msg = error?.message || '';
       console.error('[Admin] updateSellerStatus error:', { msg, code: error?.code, details: error?.details, hint: error?.hint });
-      if (msg.includes('Cannot approve seller without location') || msg.includes('location')) {
+      if (msg.includes('LICENSE_MISSING') || msg.includes('mandatory') && msg.toLowerCase().includes('missing')) {
+        notify.block(msg.replace(/^.*LICENSE_MISSING:\s*/i, '') || 'Cannot approve: mandatory license is missing.');
+      } else if (msg.includes('LICENSE_EXPIRED') || msg.toLowerCase().includes('expired')) {
+        notify.block(msg.replace(/^.*LICENSE_EXPIRED:\s*/i, '') || 'Cannot approve: license is expired.');
+      } else if (msg.includes('LICENSE_REJECTED') || msg.toLowerCase().includes('rejected') && msg.toLowerCase().includes('license')) {
+        notify.block(msg.replace(/^.*LICENSE_REJECTED:\s*/i, '') || 'Cannot approve: license was rejected.');
+      } else if (msg.includes('LICENSE_NOT_VERIFIED') || msg.toLowerCase().includes('pending verification')) {
+        notify.block(msg.replace(/^.*LICENSE_NOT_VERIFIED:\s*/i, '') || 'Cannot approve: license is still pending verification.');
+      } else if (msg.includes('Cannot approve seller without location') || msg.includes('location')) {
         notify.block('Cannot approve: Store has no location coordinates. Ask seller to set their store location first.');
       } else if (msg.includes('Update did not persist')) {
         adminNotify.error('Approval failed — the update did not save. Please try again or check permissions.');

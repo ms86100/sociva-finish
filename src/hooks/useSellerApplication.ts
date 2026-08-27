@@ -482,6 +482,16 @@ export function useSellerApplication() {
       }
     }
 
+    // Mandatory license — frontend gate (DB also enforces on admin approval / live products)
+    try {
+      const { assertLicenseAllowsSellerSubmit, evaluateSellerLicenseEligibility } = await import('@/lib/seller-license');
+      const el = await evaluateSellerLicenseEligibility(draftSellerId);
+      assertLicenseAllowsSellerSubmit(el);
+    } catch (licErr: any) {
+      notify.block(licErr?.message || 'Please upload the required license before submitting');
+      return;
+    }
+
     setIsLoading(true);
     try {
       let storeActionType: string | null = null;

@@ -10,6 +10,10 @@
 import { supabase } from '@/integrations/supabase/client';
 import { logAudit } from '@/lib/audit';
 import { notifySellerStatusChange } from '@/lib/admin-notifications';
+import {
+  assertLicenseAllowsAdminApproval,
+  evaluateSellerLicenseEligibility,
+} from '@/lib/seller-license';
 
 interface ApproveSellerOptions {
   sellerId: string;
@@ -46,8 +50,8 @@ export async function validateSellerLocation(sellerId: string): Promise<{ valid:
 }
 
 /**
- * Full seller approval: updates status, sets is_available, adds role,
- * auto-approves products + licenses, sends notification.
+ * Full seller approval: validates location + mandatory license, approves licenses
+ * BEFORE products (so check_seller_license trigger can pass), then goes live.
  */
 export async function approveSeller({ sellerId, userId, businessName, societyId }: ApproveSellerOptions) {
   // 0. Validate location BEFORE any DB write — single source of truth for all admin paths
@@ -56,7 +60,28 @@ export async function approveSeller({ sellerId, userId, businessName, societyId 
     throw new Error(locCheck.message || 'Cannot approve: Store has no location set.');
   }
 
-  // 1. Update seller profile: approved + available
+  // 1. Mandatory license gate (missing/rejected/expired block; pending OK — we approve it next)
+  const licenseEl = await evaluateSellerLicenseEligibility(sellerId);
+  assertLicenseAllowsAdminApproval(licenseEl);
+
+  // 2. Approve pending licenses FIRST so product approval trigger sees valid licenses
+  const { error: licErr } = await supabase
+    .from('seller_licenses')
+    .update({ status: 'approved', reviewed_at: new Date().toISOString() } as any)
+    .eq('seller_id', sellerId)
+    .eq('status', 'pending');
+  if (licErr) throw new Error(`Failed to approve licenses: ${licErr.message}`);
+
+  // Re-check after promoting pending → approved (DB trigger requires approved)
+  const licenseAfter = await evaluateSellerLicenseEligibility(sellerId);
+  if (licenseAfter.mandatory && !licenseAfter.hasApproved) {
+    throw new Error(
+      licenseAfter.message ||
+        'Cannot approve: mandatory license is still not verified after review.',
+    );
+  }
+
+  // 3. Update seller profile: approved + available
   const { error: updateErr } = await supabase
     .from('seller_profiles')
     .update({
@@ -65,10 +90,18 @@ export async function approveSeller({ sellerId, userId, businessName, societyId 
       is_available: true,
     } as any)
     .eq('id', sellerId);
-  if (updateErr) throw updateErr;
+  if (updateErr) {
+    const msg = updateErr.message || '';
+    if (msg.includes('LICENSE_MISSING')) throw new Error(msg.replace(/^.*LICENSE_MISSING:\s*/i, '') || msg);
+    if (msg.includes('LICENSE_EXPIRED')) throw new Error(msg.replace(/^.*LICENSE_EXPIRED:\s*/i, '') || msg);
+    if (msg.includes('LICENSE_REJECTED')) throw new Error(msg.replace(/^.*LICENSE_REJECTED:\s*/i, '') || msg);
+    if (msg.includes('LICENSE_NOT_VERIFIED')) throw new Error(msg.replace(/^.*LICENSE_NOT_VERIFIED:\s*/i, '') || msg);
+    if (msg.includes('LICENSE_')) throw new Error(msg);
+    throw updateErr;
+  }
 
   try {
-  // 2. Ensure seller role exists (ignore duplicate)
+  // 4. Ensure seller role exists (ignore duplicate)
   const { error: roleErr } = await supabase
     .from('user_roles')
     .insert({ user_id: userId, role: 'seller' });
@@ -76,7 +109,7 @@ export async function approveSeller({ sellerId, userId, businessName, societyId 
     throw new Error(`Failed to grant seller role: ${roleErr.message}`);
   }
 
-  // 3. Auto-approve pending/draft products created before this moment
+  // 5. Auto-approve pending/draft products created before this moment
   const cutoff = new Date().toISOString();
   const { error: prodErr } = await supabase
     .from('products')
@@ -92,14 +125,6 @@ export async function approveSeller({ sellerId, userId, businessName, societyId 
     const { error: snapErr } = await supabase.from('product_edit_snapshots').delete().in('product_id', approvedProds.map(p => p.id));
     if (snapErr) console.warn('[SellerApproval] Snapshot cleanup failed:', snapErr);
   }
-
-  // 4. Auto-approve pending licenses
-  const { error: licErr } = await supabase
-    .from('seller_licenses')
-    .update({ status: 'approved', reviewed_at: new Date().toISOString() } as any)
-    .eq('seller_id', sellerId)
-    .eq('status', 'pending');
-  if (licErr) throw new Error(`Failed to approve licenses: ${licErr.message}`);
   } catch (err) {
     // Best-effort rollback so admin isn't told "approved" while products stay pending
     await supabase
@@ -109,13 +134,13 @@ export async function approveSeller({ sellerId, userId, businessName, societyId 
     throw err;
   }
 
-  // 5. Audit
+  // 6. Audit
   await logAudit('seller_approved', 'seller_profile', sellerId, societyId || '', { status: 'approved' });
 
-  // 6. Notify
+  // 7. Notify
   await notifySellerStatusChange(userId, businessName, 'approved', undefined, sellerId);
 
-  // 7. Invalidate marketplace caches so other users see the new seller immediately
+  // 8. Invalidate marketplace caches so other users see the new seller immediately
   invalidateMarketplaceCache();
 }
 

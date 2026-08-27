@@ -17,25 +17,35 @@ interface SellerRefundListProps {
 
 const STATUS_STYLES: Record<string, { label: string; color: string; icon: any }> = {
   requested: { label: 'Action Needed', color: 'bg-warning/10 text-warning border-warning/20', icon: Clock },
+  pending: { label: 'Action Needed', color: 'bg-warning/10 text-warning border-warning/20', icon: Clock },
+  needs_manual_review: { label: 'Action Needed', color: 'bg-warning/10 text-warning border-warning/20', icon: Clock },
   approved: { label: 'Approved', color: 'bg-primary/10 text-primary border-primary/20', icon: CheckCircle2 },
+  auto_approved: { label: 'Approved', color: 'bg-primary/10 text-primary border-primary/20', icon: CheckCircle2 },
   rejected: { label: 'Rejected', color: 'bg-destructive/10 text-destructive border-destructive/20', icon: XCircle },
   settled: { label: 'Settled', color: 'bg-success/10 text-success border-success/20', icon: CheckCircle2 },
+  refund_completed: { label: 'Settled', color: 'bg-success/10 text-success border-success/20', icon: CheckCircle2 },
   processing: { label: 'Processing', color: 'bg-blue-500/10 text-blue-500 border-blue-500/20', icon: Clock },
+  refund_processing: { label: 'Processing', color: 'bg-blue-500/10 text-blue-500 border-blue-500/20', icon: Clock },
+  refund_initiated: { label: 'Processing', color: 'bg-blue-500/10 text-blue-500 border-blue-500/20', icon: Clock },
 };
+
+const ACTION_NEEDED = new Set(['requested', 'pending', 'needs_manual_review']);
 
 export function SellerRefundList({ sellerId, forceExpanded = false }: SellerRefundListProps) {
   const { formatPrice } = useCurrency();
   const [searchParams] = useSearchParams();
   const highlightRefundId = searchParams.get('refundId');
   const highlightRef = useRef<HTMLDivElement | null>(null);
-  const [expanded, setExpanded] = useState(forceExpanded);
+  const [expanded, setExpanded] = useState(forceExpanded || !!highlightRefundId);
   const { data: refunds = [], isLoading, error } = useQuery({
     queryKey: ['seller-refund-requests', sellerId],
     queryFn: async () => {
+      // Prefer direct seller_id (source of truth on refund_requests) — orders join
+      // can hide rows when RLS/relationship filters disagree.
       const { data: refundData, error } = await supabase
         .from('refund_requests')
-        .select('id, order_id, status, category, reason, amount, created_at, orders!inner(seller_id)')
-        .eq('orders.seller_id', sellerId)
+        .select('id, order_id, status, refund_state, category, reason, amount, created_at, seller_id')
+        .eq('seller_id', sellerId)
         .order('created_at', { ascending: false })
         .limit(forceExpanded ? 100 : 10);
 
@@ -57,7 +67,16 @@ export function SellerRefundList({ sellerId, forceExpanded = false }: SellerRefu
 
   // Loading & error states stay compact
   if (isLoading) return null;
-  if (error) return null;
+  if (error) {
+    if (!forceExpanded) return null;
+    return (
+      <div className="text-center py-12 bg-card border border-border rounded-xl">
+        <ShieldAlert className="mx-auto text-muted-foreground mb-2" size={32} />
+        <p className="text-sm text-muted-foreground">Could not load refunds</p>
+        <p className="text-xs text-muted-foreground mt-1">{String((error as any)?.message || 'Try again')}</p>
+      </div>
+    );
+  }
 
   // Empty state — only render full empty card when forced (dedicated tab)
   if (refunds.length === 0) {
@@ -71,8 +90,11 @@ export function SellerRefundList({ sellerId, forceExpanded = false }: SellerRefu
     );
   }
 
-  const pendingCount = refunds.filter((r: any) => r.status === 'requested').length;
-  const totalRefundAmount = refunds.filter((r: any) => ['approved', 'settled', 'processing', 'auto_approved'].includes(r.status)).reduce((sum: number, r: any) => sum + (r.amount || 0), 0);
+  const pendingCount = refunds.filter((r: any) => {
+    const s = r.refund_state || r.status;
+    return ACTION_NEEDED.has(s) || ACTION_NEEDED.has(r.status);
+  }).length;
+  const totalRefundAmount = refunds.filter((r: any) => ['approved', 'settled', 'processing', 'auto_approved', 'refund_completed', 'refund_processing', 'refund_initiated'].includes(r.status) || ['approved', 'settled', 'processing', 'auto_approved', 'refund_completed', 'refund_processing', 'refund_initiated'].includes(r.refund_state)).reduce((sum: number, r: any) => sum + (r.amount || 0), 0);
 
   // When no pending: show collapsed single-line summary (skip when forceExpanded)
   if (pendingCount === 0 && !expanded && !forceExpanded) {
@@ -124,9 +146,10 @@ export function SellerRefundList({ sellerId, forceExpanded = false }: SellerRefu
       <motion.div variants={staggerContainer} initial="hidden" animate="show" className="space-y-1.5">
         <AnimatePresence>
           {refunds.map((refund: any) => {
-            const config = STATUS_STYLES[refund.status] || STATUS_STYLES.requested;
+            const stateKey = refund.refund_state || refund.status;
+            const config = STATUS_STYLES[stateKey] || STATUS_STYLES[refund.status] || STATUS_STYLES.requested;
             const Icon = config.icon;
-            const isPending = refund.status === 'requested';
+            const isPending = ACTION_NEEDED.has(stateKey) || ACTION_NEEDED.has(refund.status);
             const isHighlighted = highlightRefundId === refund.id;
 
             return (

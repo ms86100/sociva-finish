@@ -146,7 +146,20 @@ export function RefundRequestCard({ orderId, orderStatus, paymentStatus, isBuyer
         p_refund_destination: refundDestination,
       } as any);
 
-      if (error) throw error;
+      if (error) {
+        const msg = String(error.message || '');
+        if (/already exists/i.test(msg)) {
+          showFeedback({
+            title: 'Refund request already submitted',
+            variant: 'success',
+          });
+          setShowForm(false);
+          await fetchRefund();
+          onRefundRequested?.();
+          return;
+        }
+        throw error;
+      }
       showFeedback({
         title: 'Refund request submitted',
         variant: 'success',
@@ -157,6 +170,17 @@ export function RefundRequestCard({ orderId, orderStatus, paymentStatus, isBuyer
       await fetchRefund();
       onRefundRequested?.();
     } catch (err: any) {
+      const msg = String(err?.message || err || '');
+      if (/already exists/i.test(msg)) {
+        showFeedback({
+          title: 'Refund request already submitted',
+          variant: 'success',
+        });
+        setShowForm(false);
+        await fetchRefund();
+        onRefundRequested?.();
+        return;
+      }
       toast.error(friendlyError(err), { id: 'refund-request-error' });
     } finally {
       setSubmitting(false);
