@@ -4,7 +4,7 @@
   "framework": "vite",
   "rewrites": [
     {
-      "source": "/((?!\\.well-known/|downloads/).*)",
+      "source": "/((?!\\.well-known/|downloads/|delete-account(?:/|$)).*)",
       "destination": "/index.html"
     }
   ],
