@@ -44,23 +44,45 @@ export function SellerGPSTracker({ assignmentId, orderId, autoStart = true, deli
     if (assignmentId) { setResolvedAssignmentId(assignmentId); return; }
     if (!orderId) return;
 
-    const fetchAssignment = () => {
-      supabase.from('delivery_assignments').select('id').eq('order_id', orderId).maybeSingle()
-        .then(({ data }) => { if (data) setResolvedAssignmentId(data.id); });
+    let cancelled = false;
+    let attempt = 0;
+
+    const fetchAssignment = async () => {
+      const { data, error } = await supabase
+        .from('delivery_assignments')
+        .select('id')
+        .eq('order_id', orderId)
+        .maybeSingle();
+      if (cancelled) return;
+      if (error) {
+        console.warn('[SellerGPSTracker] Assignment fetch error:', error.message);
+      }
+      if (data?.id) {
+        setResolvedAssignmentId(data.id);
+        return;
+      }
+      if (attempt < 12) {
+        attempt += 1;
+        window.setTimeout(fetchAssignment, Math.min(1000 * attempt, 8000));
+      }
     };
     fetchAssignment();
 
     // Subscribe for when trigger creates it
     const channel = supabase
       .channel(`gps-assignment-${orderId}`)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'delivery_assignments', filter: `order_id=eq.${orderId}` },
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'delivery_assignments', filter: `order_id=eq.${orderId}` },
         (payload) => { const id = (payload.new as any)?.id; if (id) setResolvedAssignmentId(id); })
       .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
+    return () => {
+      cancelled = true;
+      supabase.removeChannel(channel);
+    };
   }, [assignmentId, orderId]);
 
   const effectiveAssignmentId = resolvedAssignmentId || '';
+  const assignmentReady = !!effectiveAssignmentId;
   const {
     isTracking, permissionDenied, permissionLevel, lastSentAt,
     trackingPaused, startTracking, stopTracking,
@@ -121,8 +143,11 @@ export function SellerGPSTracker({ assignmentId, orderId, autoStart = true, deli
   };
 
   const requestStartWithDisclosure = () => {
-    if (!effectiveAssignmentId) {
-      toast.error('Delivery assignment not ready yet. Wait a moment and try again.');
+    if (!assignmentReady) {
+      toast.message('Preparing delivery tracking…', {
+        description: 'Pull to refresh the order if this takes more than a few seconds.',
+        id: 'loc-waiting-assignment',
+      });
       return;
     }
     if (isNative) {
@@ -235,6 +260,13 @@ export function SellerGPSTracker({ assignmentId, orderId, autoStart = true, deli
         </div>
       )}
 
+      {!assignmentReady && !isTerminal && (
+        <div className="bg-muted/60 border border-border rounded-lg p-2.5 flex items-center gap-2">
+          <Loader2 size={14} className="animate-spin text-muted-foreground" />
+          <p className="text-xs text-muted-foreground">Preparing delivery tracking…</p>
+        </div>
+      )}
+
       {/* Tracking paused alert (native only — watchdog detected stale) */}
       {isNative && trackingPaused && (
         <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-2.5 space-y-2">
@@ -267,9 +299,9 @@ export function SellerGPSTracker({ assignmentId, orderId, autoStart = true, deli
       )}
 
       {!isTracking ? (
-        <Button onClick={requestStartWithDisclosure} disabled={permissionDenied || isTerminal} className="w-full bg-primary text-primary-foreground h-10 gap-2">
+        <Button onClick={requestStartWithDisclosure} disabled={permissionDenied || isTerminal || !assignmentReady} className="w-full bg-primary text-primary-foreground h-10 gap-2">
           <Navigation size={14} />
-          {startSharingLabel}
+          {!assignmentReady ? 'Preparing tracking…' : startSharingLabel}
         </Button>
       ) : (
         <div className="space-y-2">
