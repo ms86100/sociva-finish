@@ -62,6 +62,8 @@ export default defineConfig(({ mode }) => {
               /^\/downloads\//,
               /^\/pamphlets(\/|$)/,
               /^\/delete-account(\/|$)/,
+              /^\/a4\.html$/,
+              /^\/a5\.html$/,
             ],
             // Shell-only precache. Globbing every JS chunk (~450 files / ~10MB)
             // made each deploy reinstall the SW for 20–30s and race clients.claim().

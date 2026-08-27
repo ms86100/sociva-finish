@@ -20,7 +20,15 @@
       "destination": "/pamphlets/index.html"
     },
     {
-      "source": "/((?!\\.well-known/|downloads/|delete-account|pamphlets/).*)",
+      "source": "/a4.html",
+      "destination": "/pamphlets/a4.html"
+    },
+    {
+      "source": "/a5.html",
+      "destination": "/pamphlets/a5.html"
+    },
+    {
+      "source": "/((?!\\.well-known/|downloads/|delete-account|pamphlets/|a4\\.html|a5\\.html).*)",
       "destination": "/index.html"
     }
   ],
