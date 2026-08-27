@@ -69,7 +69,7 @@ async function fetchCountsClientFallback(sellerId: string): Promise<SellerBoardC
   const since = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
   const { data: orders } = await supabase
     .from('orders')
-    .select('id, status, created_at, payment_status, scheduled_date, scheduled_time_start, scheduled_time, preparation_start_at, scheduled_fulfilment_at')
+    .select('id, status, created_at, payment_status, scheduled_date, scheduled_time_start, scheduled_time, preparation_start_at, scheduled_fulfillment_at')
     .eq('seller_id', sellerId)
     .gte('created_at', since)
     .order('created_at', { ascending: false })
@@ -197,7 +197,7 @@ export function useSellerOrdersInfinite(
       let query = supabase
         .from('orders')
         .select(
-          `id, created_at, status, payment_status, total_amount, order_type, fulfillment_type, delivery_handled_by, transaction_type, auto_cancel_at, auto_accepted, seller_id, buyer_id, rejection_reason, delivery_address, delivery_lat, delivery_lng, scheduled_date, scheduled_time_start, scheduled_time, preparation_start_at, scheduled_fulfilment_at, cancellation_cutoff_at, buyer:profiles!orders_buyer_id_fkey(name, block, flat_number, phone, phase), items:order_items(id, product_name, quantity, unit_price, status)`,
+          `id, created_at, status, payment_status, total_amount, order_type, fulfillment_type, delivery_handled_by, transaction_type, auto_cancel_at, auto_accepted, seller_id, buyer_id, rejection_reason, delivery_address, delivery_lat, delivery_lng, scheduled_date, scheduled_time_start, scheduled_time, preparation_start_at, scheduled_fulfillment_at, cancellation_cutoff_at, buyer:profiles!orders_buyer_id_fkey(name, block, flat_number, phone, phase), items:order_items(id, product_name, quantity, unit_price, status)`,
         )
         .order('created_at', { ascending: false })
         .limit(PAGE_SIZE)

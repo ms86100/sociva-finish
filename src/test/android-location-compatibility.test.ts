@@ -86,14 +86,14 @@ describe('Scheduled fulfillment window (client rules)', () => {
     status: 'accepted',
     scheduled_date: '2099-06-15',
     scheduled_time_start: '18:00',
-    scheduled_fulfilment_at: '2099-06-15T18:00:00+05:30',
+    scheduled_fulfillment_at: '2099-06-15T18:00:00+05:30',
     preparation_start_at: '2099-06-15T17:00:00+05:30',
   };
 
   const dueOrder = {
     ...futureOrder,
     scheduled_date: '2020-01-01',
-    scheduled_fulfilment_at: '2020-01-01T18:00:00+05:30',
+    scheduled_fulfillment_at: '2020-01-01T18:00:00+05:30',
     preparation_start_at: '2020-01-01T17:00:00+05:30',
   };
 

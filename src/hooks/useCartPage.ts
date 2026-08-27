@@ -623,8 +623,11 @@ export function useCartPage() {
       if (result?.error === 'unauthorized') {
         throw new Error('Your session has expired. Please log in again.');
       }
-      if (result?.error === 'seller_credit_insufficient') {
-        throw new Error('This seller is currently unavailable for new orders.');
+      if (result?.error === 'seller_credit_insufficient' || result?.error === 'credit_blocked') {
+        throw new Error(result.message || 'This seller is currently unavailable for new orders.');
+      }
+      if (result?.error === 'buyer_location') {
+        throw new Error(result.message || 'Your selected address has no location coordinates. Please update it with a precise location.');
       }
       throw new Error(result?.message || result?.error || 'Failed to create orders');
     }

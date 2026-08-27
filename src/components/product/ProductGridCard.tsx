@@ -72,11 +72,13 @@ export function ProductGridCard({ product, behavior, onTap, className, viewOnly 
     e.preventDefault();
     if (!isCartAction) { if (onTap) onTap(product); return; }
     hapticImpact('medium');
-    if (quantity === 0) {
-      setJustAdded(true);
-      setTimeout(() => setJustAdded(false), 600);
-    }
-    addItem(product);
+    void (async () => {
+      const ok = await addItem(product);
+      if (ok && quantity === 0) {
+        setJustAdded(true);
+        setTimeout(() => setJustAdded(false), 600);
+      }
+    })();
   };
   const handleIncrement = (e: React.MouseEvent) => {
     e.stopPropagation();

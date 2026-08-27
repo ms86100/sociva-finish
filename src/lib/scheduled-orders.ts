@@ -24,7 +24,7 @@ export type ScheduledOrderLike = {
   scheduled_time?: string | null;
   scheduled_time_end?: string | null;
   preparation_start_at?: string | null;
-  scheduled_fulfilment_at?: string | null;
+  scheduled_fulfillment_at?: string | null;
   cancellation_cutoff_at?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
@@ -96,8 +96,8 @@ export function toScheduledDateParam(d: Date): string {
 /** Parse scheduled_date + time as an instant in IST. */
 export function getScheduledFulfilmentAt(order: ScheduledOrderLike): Date | null {
   if (!order.scheduled_date) return null;
-  if (order.scheduled_fulfilment_at) {
-    const parsed = new Date(order.scheduled_fulfilment_at);
+  if (order.scheduled_fulfillment_at) {
+    const parsed = new Date(order.scheduled_fulfillment_at);
     if (!Number.isNaN(parsed.getTime())) return parsed;
   }
   const rawTime = order.scheduled_time_start || order.scheduled_time || '12:00';

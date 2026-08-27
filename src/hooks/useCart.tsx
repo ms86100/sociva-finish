@@ -136,7 +136,7 @@ interface CartContextType {
   pendingMutations: number;
   /** True once the cart state has been positively confirmed (items arrived or server verified empty) */
   cartVerified: boolean;
-  addItem: (product: Product, quantity?: number, silent?: boolean, extras?: any[]) => Promise<void>;
+  addItem: (product: Product, quantity?: number, silent?: boolean, extras?: any[]) => Promise<boolean>;
   replaceCart: (inserts: { product_id: string; quantity: number }[]) => Promise<void>;
   updateQuantity: (productId: string, quantity: number) => Promise<void>;
   removeItem: (productId: string) => Promise<void>;
@@ -311,18 +311,41 @@ export function CartProvider({ children }: { children: ReactNode }) {
   // Per-product mutex to prevent race conditions on rapid taps
   const addItemLocksRef = useRef<Set<string>>(new Set());
 
-  const addItem = useCallback(async (product: Product, quantity = 1, silent = false, extras: any[] = []) => {
-    if (!user) { notify.block('Please sign in to add items to cart'); return; }
-    if (addItemLocksRef.current.has(product.id)) return;
+  const addItem = useCallback(async (product: Product, quantity = 1, silent = false, extras: any[] = []): Promise<boolean> => {
+    if (!user) { notify.block('Please sign in to add items to cart'); return false; }
+    if (addItemLocksRef.current.has(product.id)) return false;
     addItemLocksRef.current.add(product.id);
+    let mutationStarted = false;
 
     try {
       let pActionType = (product as any).action_type;
-      if (!pActionType) {
-        const { data: actionLookup } = await supabase.from('products').select('action_type').eq('id', product.id).maybeSingle();
-        pActionType = actionLookup?.action_type;
+      let pCategory = product.category as string | undefined;
+      if (!pActionType || !pCategory) {
+        const { data: actionLookup } = await supabase
+          .from('products')
+          .select('action_type, category')
+          .eq('id', product.id)
+          .maybeSingle();
+        pActionType = pActionType || actionLookup?.action_type;
+        pCategory = pCategory || (actionLookup?.category as string | undefined);
       }
-      if (pActionType && !['add_to_cart', 'buy_now'].includes(pActionType)) { toast.error('This item cannot be added to cart', { id: 'cart-not-allowed' }); return; }
+      if (pActionType && !['add_to_cart', 'buy_now'].includes(pActionType)) {
+        toast.error('This item cannot be added to cart', { id: 'cart-not-allowed' });
+        return false;
+      }
+
+      // Match DB trigger validate_cart_item_category — fail before optimistic UI.
+      if (pCategory) {
+        const { data: catRow } = await supabase
+          .from('category_config')
+          .select('supports_cart')
+          .eq('category', pCategory)
+          .maybeSingle();
+        if (catRow && catRow.supports_cart !== true) {
+          toast.error('This item uses a booking/enquiry flow — it cannot be added to cart.', { id: 'cart-category-block' });
+          return false;
+        }
+      }
 
       const eligibility = await buyerCanOrderFromSeller(
         product.seller_id,
@@ -331,18 +354,18 @@ export function CartProvider({ children }: { children: ReactNode }) {
       );
       if (!eligibility.ok) {
         toast.error(eligibility.reason === 'buyer_location' ? PRECISE_LOCATION_TITLE : eligibility.message, { id: 'cart-not-discoverable' });
-        return;
+        return false;
       }
 
       const inlineAvailability = getInlineSellerAvailability(product);
       let availability = computeStoreStatus(inlineAvailability.availabilityStart, inlineAvailability.availabilityEnd, inlineAvailability.operatingDays, inlineAvailability.isAvailable);
       if (!inlineAvailability.hasInlineAvailability) {
-        if (!product.seller_id) { toast.error('Unable to verify store availability right now. Please try again.', { id: 'cart-availability' }); return; }
+        if (!product.seller_id) { toast.error('Unable to verify store availability right now. Please try again.', { id: 'cart-availability' }); return false; }
         const { data: sellerSnapshot, error: sellerError } = await supabase.from('seller_profiles').select('availability_start, availability_end, operating_days, is_available').eq('id', product.seller_id).maybeSingle();
-        if (sellerError || !sellerSnapshot) { toast.error('Unable to verify store availability right now. Please try again.', { id: 'cart-availability' }); return; }
+        if (sellerError || !sellerSnapshot) { toast.error('Unable to verify store availability right now. Please try again.', { id: 'cart-availability' }); return false; }
         availability = computeStoreStatus(sellerSnapshot.availability_start, sellerSnapshot.availability_end, sellerSnapshot.operating_days, sellerSnapshot.is_available ?? true);
       }
-      if (availability.status !== 'open') { const msg = formatStoreClosedMessage(availability); toast.error(msg || 'This store is currently closed. Please try again later.', { id: 'cart-store-closed' }); return; }
+      if (availability.status !== 'open') { const msg = formatStoreClosedMessage(availability); toast.error(msg || 'This store is currently closed. Please try again later.', { id: 'cart-store-closed' }); return false; }
 
       // Stock validation — enforce stock ceiling
       let maxQty = 99;
@@ -358,15 +381,16 @@ export function CartProvider({ children }: { children: ReactNode }) {
       const existingQty = (currentItems || []).find(i => i.product_id === product.id)?.quantity || 0;
       if (maxQty <= 0) {
         toast.error('This item is out of stock', { id: 'stock-limit' });
-        return;
+        return false;
       }
       if (existingQty >= maxQty) {
         // + should already be disabled in UI — no toast
-        return;
+        return false;
       }
       quantity = Math.min(quantity, maxQty - existingQty);
 
       // Committed to mutation — track it
+      mutationStarted = true;
       setPendingMutations(c => c + 1);
 
       // Cancel + snapshot + optimistic
@@ -404,13 +428,12 @@ export function CartProvider({ children }: { children: ReactNode }) {
             product.image_url || undefined,
             product.price,
             () => {
-              // Navigate to cart page
               navigate('/cart', { replace: false });
             }
           );
         }
-        // Authoritative reconcile after success
         await reconcile();
+        return true;
       } catch (error: any) {
         rollback(snap);
         console.error('Cart addItem DB error:', error);
@@ -418,7 +441,6 @@ export function CartProvider({ children }: { children: ReactNode }) {
         if (availabilityError) {
           toast.error(availabilityError, { id: 'cart-availability-error' });
         } else {
-          // Surface specific DB trigger errors (e.g. category not supporting cart)
           const dbMsg = error?.message || error?.details || '';
           if (dbMsg.includes('does not support cart')) {
             toast.error('This item uses a booking/enquiry flow — it cannot be added to cart.', { id: 'cart-category-block' });
@@ -428,12 +450,13 @@ export function CartProvider({ children }: { children: ReactNode }) {
             feedbackAddItemFailed(product.name || 'Item');
           }
         }
+        return false;
       }
     } finally {
       addItemLocksRef.current.delete(product.id);
-      setPendingMutations(c => Math.max(0, c - 1));
+      if (mutationStarted) setPendingMutations(c => Math.max(0, c - 1));
     }
-  }, [user, browsingLocation?.lat, browsingLocation?.lng, setOptimistic, cancelCartQueries, snapshot, rollback, reconcile, queryClient, countKey]);
+  }, [user, browsingLocation?.lat, browsingLocation?.lng, setOptimistic, cancelCartQueries, snapshot, rollback, reconcile, queryClient, countKey, showAddPopup, navigate]);
 
   const removeItem = useCallback(async (productId: string) => {
     if (!user) return;

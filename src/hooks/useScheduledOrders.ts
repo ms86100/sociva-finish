@@ -34,7 +34,7 @@ async function fetchScheduledOrders(opts: {
     .from('orders')
     .select(`
       id, status, scheduled_date, scheduled_time_start, scheduled_time,
-      preparation_start_at, scheduled_fulfilment_at, cancellation_cutoff_at,
+      preparation_start_at, scheduled_fulfillment_at, cancellation_cutoff_at,
       total_amount, created_at, seller_id, buyer_id,
       buyer:profiles!orders_buyer_id_fkey(name),
       seller:seller_profiles!orders_seller_id_fkey(business_name),

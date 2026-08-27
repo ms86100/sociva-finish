@@ -45,7 +45,7 @@ Deno.serve(async (req) => {
         total_amount,
         seller_id,
         scheduled_date,
-        scheduled_fulfilment_at,
+        scheduled_fulfillment_at,
         preparation_start_at,
         status_changed_at,
         updated_at,

@@ -60,7 +60,27 @@ export function deriveActionType(
   categoryTransactionType: string | null | undefined,
   categoryFlags?: { supportsCart?: boolean; enquiryOnly?: boolean } | null,
 ): ProductActionType {
-  if (productActionType && productActionType in ACTION_CONFIG) return productActionType as ProductActionType;
+  const productAction =
+    productActionType && productActionType in ACTION_CONFIG
+      ? (productActionType as ProductActionType)
+      : null;
+
+  // Stale product.action_type=add_to_cart must not override a category that forbids cart.
+  // (DB trigger validate_cart_item_category rejects these inserts.)
+  if (
+    productAction &&
+    (productAction === 'add_to_cart' || productAction === 'buy_now') &&
+    categoryFlags?.supportsCart === false
+  ) {
+    if (categoryFlags.enquiryOnly) return 'contact_seller';
+    if (categoryTransactionType && TX_TO_ACTION[categoryTransactionType]) {
+      const mapped = TX_TO_ACTION[categoryTransactionType];
+      if (mapped !== 'add_to_cart' && mapped !== 'buy_now') return mapped;
+    }
+    return 'request_quote';
+  }
+
+  if (productAction) return productAction;
   if (categoryTransactionType && TX_TO_ACTION[categoryTransactionType]) return TX_TO_ACTION[categoryTransactionType];
   // Fallback: use category behavior flags when transaction_type is unmapped (e.g. 'self_fulfillment')
   if (categoryFlags) {

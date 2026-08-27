@@ -27,7 +27,7 @@ interface OrderRow {
   seller_id: string;
   scheduled_date: string;
   scheduled_time_start: string | null;
-  scheduled_fulfilment_at: string | null;
+  scheduled_fulfillment_at: string | null;
   preparation_start_at: string | null;
   status: string;
   reminder_state: Record<string, boolean> | null;
@@ -54,8 +54,8 @@ const WINDOWS: WindowSpec[] = [
     bodySeller: (ref, when) => `Order #${ref} is scheduled for ${when}.`,
     bodyBuyer: (store, when) => `Your order from ${store} is scheduled for ${when}.`,
     match: (o, now) => {
-      if (!o.scheduled_fulfilment_at) return false;
-      const fulfil = new Date(o.scheduled_fulfilment_at);
+      if (!o.scheduled_fulfillment_at) return false;
+      const fulfil = new Date(o.scheduled_fulfillment_at);
       const m = minsBetween(fulfil, now);
       return m >= 47 * 60 && m <= 49 * 60;
     },
@@ -66,8 +66,8 @@ const WINDOWS: WindowSpec[] = [
     bodySeller: (ref, when) => `Order #${ref} is scheduled for ${when}.`,
     bodyBuyer: (store, when) => `Your order from ${store} is scheduled for tomorrow · ${when.split(" · ")[1] || when}.`,
     match: (o, now) => {
-      if (!o.scheduled_fulfilment_at) return false;
-      const fulfil = new Date(o.scheduled_fulfilment_at);
+      if (!o.scheduled_fulfillment_at) return false;
+      const fulfil = new Date(o.scheduled_fulfillment_at);
       const m = minsBetween(fulfil, now);
       return m >= 23 * 60 && m <= 25 * 60;
     },
@@ -92,8 +92,8 @@ const WINDOWS: WindowSpec[] = [
     bodySeller: (ref, when) => `Order #${ref} is due in ~30 minutes (${when}). Fulfillment is unlocked — keep it moving.`,
     bodyBuyer: (store, _when) => `Your order from ${store} is coming up soon.`,
     match: (o, now) => {
-      if (!o.scheduled_fulfilment_at) return false;
-      const fulfil = new Date(o.scheduled_fulfilment_at);
+      if (!o.scheduled_fulfillment_at) return false;
+      const fulfil = new Date(o.scheduled_fulfillment_at);
       const m = (fulfil.getTime() - now.getTime()) / 60_000;
       return m >= 25 && m <= 35;
     },
@@ -106,8 +106,8 @@ const WINDOWS: WindowSpec[] = [
     bodyBuyer: (store, when) =>
       `Your scheduled order from ${store} (${when}) is delayed. The seller has been notified.`,
     match: (o, now) => {
-      if (!o.scheduled_fulfilment_at) return false;
-      const fulfil = new Date(o.scheduled_fulfilment_at);
+      if (!o.scheduled_fulfillment_at) return false;
+      const fulfil = new Date(o.scheduled_fulfillment_at);
       // Only for pre-fulfilment statuses (still waiting to start)
       if (["preparing", "in_progress", "ready", "picked_up", "on_the_way", "at_gate", "delivered", "completed"].includes(o.status)) {
         return false;
@@ -141,7 +141,7 @@ Deno.serve(async (req) => {
     .from("orders")
     .select(`
       id, buyer_id, seller_id, scheduled_date, scheduled_time_start,
-      scheduled_fulfilment_at, preparation_start_at, status, reminder_state,
+      scheduled_fulfillment_at, preparation_start_at, status, reminder_state,
       seller_profiles!inner(user_id, business_name)
     `)
     .not("scheduled_date", "is", null)

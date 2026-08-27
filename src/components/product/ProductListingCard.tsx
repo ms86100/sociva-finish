@@ -87,7 +87,13 @@ function ProductListingCardInner({ product, layout = 'auto', onTap, onNavigate, 
       return;
     }
     impact('medium');
-    addItem(product as any);
+    void (async () => {
+      const ok = await addItem(product as any);
+      if (ok) {
+        setJustAdded(true);
+        setTimeout(() => setJustAdded(false), 600);
+      }
+    })();
   };
   const handleIncrement = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -159,11 +165,7 @@ function ProductListingCardInner({ product, layout = 'auto', onTap, onNavigate, 
 
   const handleAddWithFeedback = useCallback((e: React.MouseEvent) => {
     handleAdd(e);
-    if (isCartAction) {
-      setJustAdded(true);
-      setTimeout(() => setJustAdded(false), 600);
-    }
-  }, [handleAdd, isCartAction]);
+  }, [handleAdd]);
 
   const imgSrc = product.image_url ? optimizedImageUrl(product.image_url, { width: 400, quality: 78 }) : '';
   const imgSrcSet = product.image_url ? imageSrcSet(product.image_url, 78) : '';
