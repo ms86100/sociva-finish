@@ -44,19 +44,6 @@
       box-shadow: 0 12px 40px rgba(0,0,0,0.45);
     }
 
-    .corner-art {
-      position: absolute;
-      top: -4mm;
-      left: -4mm;
-      width: 42mm;
-      height: 42mm;
-      object-fit: contain;
-      opacity: 0.95;
-      z-index: 2;
-      pointer-events: none;
-      filter: drop-shadow(0 4px 12px rgba(0,0,0,0.35));
-    }
-
     .glow {
       position: absolute;
       width: 120mm;
@@ -82,8 +69,7 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding-left: 34mm;
-      min-height: 14mm;
+      min-height: 12mm;
     }
 
     .brand {
@@ -159,18 +145,22 @@
       max-width: 92mm;
     }
 
-    .urgency {
+    .pillars {
       margin-top: 3.2mm;
-      display: inline-flex;
-      align-items: center;
+      display: flex;
       gap: 2mm;
-      font-size: 7.5pt;
-      font-weight: 800;
-      letter-spacing: 0.04em;
+      flex-wrap: wrap;
+    }
+
+    .pillars span {
+      font-size: 7pt;
+      font-weight: 700;
+      letter-spacing: 0.06em;
       text-transform: uppercase;
-      color: #04140c;
-      background: var(--primary);
-      padding: 1.8mm 3.2mm;
+      color: var(--primary);
+      border: 1px solid var(--primary-border);
+      background: var(--primary-dim);
+      padding: 1.4mm 2.6mm;
       border-radius: 999px;
     }
 
@@ -481,7 +471,6 @@
   </div>
 
   <article class="sheet" aria-label="Sociva A4 pamphlet">
-    <img class="corner-art" src="/pamphlets/corner-art.png" alt="" />
     <div class="glow glow-tr"></div>
     <div class="glow glow-bl"></div>
     <div class="pad">
@@ -504,7 +493,11 @@
             Homemade food, groceries, repairs, and everyday help — from people living right around you.
             Stop searching the city. Start discovering your society.
           </p>
-          <div class="urgency">Scan below · Download free · Join in 60 seconds</div>
+          <div class="pillars">
+            <span>Buy local</span>
+            <span>Support local</span>
+            <span>Grow local</span>
+          </div>
         </div>
         <div class="hero-visual">
           <img src="/pamphlets/community.png" alt="Neighbours and local community marketplace" />

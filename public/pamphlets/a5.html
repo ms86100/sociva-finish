@@ -43,18 +43,6 @@
       box-shadow: 0 12px 40px rgba(0,0,0,0.45);
     }
 
-    .corner-art {
-      position: absolute;
-      top: -3mm;
-      left: -3mm;
-      width: 30mm;
-      height: 30mm;
-      object-fit: contain;
-      z-index: 2;
-      pointer-events: none;
-      filter: drop-shadow(0 3px 10px rgba(0,0,0,0.35));
-    }
-
     .glow {
       position: absolute;
       width: 80mm;
@@ -80,8 +68,7 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding-left: 24mm;
-      min-height: 10mm;
+      min-height: 9mm;
     }
 
     .brand {
@@ -154,16 +141,22 @@
       color: var(--muted);
     }
 
-    .urgency {
+    .pillars {
       margin-top: 2mm;
-      display: inline-flex;
+      display: flex;
+      gap: 1.5mm;
+      flex-wrap: wrap;
+    }
+
+    .pillars span {
       font-size: 5.8pt;
-      font-weight: 800;
-      letter-spacing: 0.03em;
+      font-weight: 700;
+      letter-spacing: 0.05em;
       text-transform: uppercase;
-      color: #04140c;
-      background: var(--primary);
-      padding: 1.2mm 2.2mm;
+      color: var(--primary);
+      border: 1px solid var(--primary-border);
+      background: var(--primary-dim);
+      padding: 1mm 2mm;
       border-radius: 999px;
     }
 
@@ -427,7 +420,6 @@
   </div>
 
   <article class="sheet" aria-label="Sociva A5 pamphlet">
-    <img class="corner-art" src="/pamphlets/corner-art.png" alt="" />
     <div class="glow"></div>
     <div class="pad">
       <header class="header">
@@ -446,7 +438,11 @@
           <h1>YOUR SOCIETY<br />IS ALREADY<br /><span>SHOPPING.</span></h1>
           <p class="hero-sub">Still ordering from far away?</p>
           <p class="hero-body">Food, groceries, repairs &amp; help from people right around you. Discover your society — then download.</p>
-          <div class="urgency">Scan · Download free · Join in 60s</div>
+          <div class="pillars">
+            <span>Buy local</span>
+            <span>Support local</span>
+            <span>Grow local</span>
+          </div>
         </div>
         <div class="hero-visual">
           <img src="/pamphlets/community.png" alt="Neighbours and local community marketplace" />
