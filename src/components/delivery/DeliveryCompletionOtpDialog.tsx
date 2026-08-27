@@ -52,16 +52,22 @@ export function DeliveryCompletionOtpDialog({ orderId, open, onOpenChange, onVer
 
       if (error) throw error;
 
-      // Show inline success message instead of toast
+      // Dismiss keyboard before closing dialog (Android WebView crash guard)
+      try {
+        (document.activeElement as HTMLElement | null)?.blur?.();
+        const { Keyboard } = await import('@capacitor/keyboard');
+        await Keyboard.hide();
+      } catch { /* web / plugin missing */ }
+
       setSuccess(true);
       setOtp('');
       setErrorMessage(null);
 
-      // Update parent state and close after brief delay to show success
-      onVerified?.();
+      // Refresh parent AFTER dialog closes — avoids remount/teardown during OTP UI
       setTimeout(() => {
         setOpen(false);
-      }, 1200);
+        setTimeout(() => onVerified?.(), 100);
+      }, 900);
     } catch (error: any) {
       const msg = error?.message || 'Invalid delivery code';
       const friendly = msg.toLowerCase().includes('invalid delivery code')

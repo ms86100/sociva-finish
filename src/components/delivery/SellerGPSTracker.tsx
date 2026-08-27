@@ -158,9 +158,12 @@ export function SellerGPSTracker({ assignmentId, orderId, autoStart = true, deli
   };
 
   useEffect(() => {
-    if (isTerminal && isTracking) {
-      stopTracking();
-    }
+    if (!isTerminal || !isTracking) return;
+    // Defer so OTP dialog / keyboard can finish closing before native GPS teardown.
+    const t = window.setTimeout(() => {
+      void stopTracking();
+    }, 1500);
+    return () => window.clearTimeout(t);
   }, [isTerminal, isTracking, stopTracking]);
 
   useEffect(() => {

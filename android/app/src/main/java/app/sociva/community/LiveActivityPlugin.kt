@@ -46,10 +46,23 @@ class LiveActivityPlugin : Plugin() {
 
     @PluginMethod
     fun endLiveActivity(call: PluginCall) {
-        val intent = Intent(context, LiveDeliveryService::class.java).apply {
-            action = LiveDeliveryService.ACTION_STOP
+        // Prefer ACTION_STOP via startService so onStartCommand clears the FGS cleanly.
+        // stopService() alone often skips ACTION_STOP and can leave OEMs in a bad state.
+        try {
+            val intent = Intent(context, LiveDeliveryService::class.java).apply {
+                action = LiveDeliveryService.ACTION_STOP
+            }
+            context.startService(intent)
+        } catch (_: Exception) {
+            try {
+                val intent = Intent(context, LiveDeliveryService::class.java).apply {
+                    action = LiveDeliveryService.ACTION_STOP
+                }
+                context.stopService(intent)
+            } catch (_: Exception) {
+                // ignore
+            }
         }
-        context.stopService(intent)
         call.resolve()
     }
 

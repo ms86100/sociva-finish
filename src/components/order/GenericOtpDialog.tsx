@@ -49,16 +49,20 @@ export function GenericOtpDialog({ orderId, targetStatus, open, onOpenChange, on
       });
       if (error) throw error;
 
-      // Show inline success message instead of toast
+      try {
+        (document.activeElement as HTMLElement | null)?.blur?.();
+        const { Keyboard } = await import('@capacitor/keyboard');
+        await Keyboard.hide();
+      } catch { /* web / plugin missing */ }
+
       setSuccess(true);
       setOtp('');
       setErrorMessage(null);
 
-      // Update parent state and close after brief delay to show success
-      onVerified?.();
       setTimeout(() => {
         onOpenChange(false);
-      }, 1200);
+        setTimeout(() => onVerified?.(), 100);
+      }, 900);
     } catch (error: any) {
       const msg = error?.message || 'Invalid code';
       const friendly = msg.toLowerCase().includes('invalid otp') ? 'Invalid code, please try again'

@@ -310,29 +310,8 @@ export function useBackgroundLocationTracking(assignmentId: string | null) {
 
       watchIdRef.current = watchId;
 
-      // Keep a foreground notification so Android is less aggressive about killing GPS.
-      try {
-        if (assignmentId) {
-          const { LiveActivity } = await import('@/plugins/live-activity');
-          await LiveActivity.startLiveActivity({
-            entity_type: 'delivery',
-            entity_id: assignmentId,
-            workflow_status: 'Sharing location',
-            eta_minutes: null,
-            driver_distance: null,
-            driver_name: null,
-            vehicle_type: null,
-            progress_stage: 'GPS live',
-            progress_percent: null,
-            seller_name: null,
-            item_count: null,
-            order_short_id: null,
-            seller_logo_url: null,
-          });
-        }
-      } catch (notifyErr) {
-        console.warn('[LocationTracking] Live delivery notification start failed:', notifyErr);
-      }
+      // Do NOT start LiveDeliveryService here — SPECIAL_USE FGS start/stop during OTP
+      // completion has force-closed the Android WebView. Keep GPS via watchPosition only.
 
       const level = await upgradeAndroidBackgroundPermission();
       if (mountedRef.current) {
@@ -620,13 +599,11 @@ export function useBackgroundLocationTracking(assignmentId: string | null) {
     }
     capacitorGeoRef.current = null;
 
+    // End seller GPS keepalive notification if present (best-effort; never throw).
     if (isNative && Capacitor.getPlatform() === 'android') {
       try {
         const { LiveActivity } = await import('@/plugins/live-activity');
-        const active = await LiveActivity.getActiveActivities();
-        for (const entry of active?.activities || []) {
-          await LiveActivity.endLiveActivity({ activityId: entry.activityId });
-        }
+        await LiveActivity.endLiveActivity?.({ activityId: 'android' });
       } catch {
         // noop
       }
