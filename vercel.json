@@ -12,7 +12,15 @@
       "destination": "/delete-account/index.html"
     },
     {
-      "source": "/((?!\\.well-known/|downloads/|delete-account|pamphlets).*)",
+      "source": "/pamphlets",
+      "destination": "/pamphlets/index.html"
+    },
+    {
+      "source": "/pamphlets/",
+      "destination": "/pamphlets/index.html"
+    },
+    {
+      "source": "/((?!\\.well-known/|downloads/|delete-account|pamphlets/).*)",
       "destination": "/index.html"
     }
   ],

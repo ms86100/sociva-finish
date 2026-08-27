@@ -60,6 +60,8 @@ export default defineConfig(({ mode }) => {
               /^\/~oauth/,
               /^\/\.well-known\//,
               /^\/downloads\//,
+              /^\/pamphlets(\/|$)/,
+              /^\/delete-account(\/|$)/,
             ],
             // Shell-only precache. Globbing every JS chunk (~450 files / ~10MB)
             // made each deploy reinstall the SW for 20–30s and race clients.claim().
@@ -74,6 +76,7 @@ export default defineConfig(({ mode }) => {
             ],
             globIgnores: [
               "**/downloads/**",
+              "**/pamphlets/**",
               "**/*swagger*",
               "**/DocumentationPage*",
               "**/AdminPage*",
