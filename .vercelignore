@@ -1,0 +1,14 @@
+# Keep Vercel uploads small — build only needs app source + public web assets
+android/
+desktop/
+tmp/
+tmp-*
+_shared/
+public/downloads/*.aab
+*.aab
+node_modules/
+dist/
+dist-ssr/
+.cursor/
+supabase/.temp/
+# Allow website APK downloads under public/downloads (do not ignore *.apk globally)
