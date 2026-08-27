@@ -43,6 +43,7 @@ export function LandingFooter() {
             <h4 className="font-semibold text-foreground mb-3 text-sm">Legal</h4>
             <div className="space-y-2">
               <Link to="/privacy-policy" className="block text-sm text-muted-foreground hover:text-foreground">Privacy Policy</Link>
+              <Link to="/delete-account" className="block text-sm text-muted-foreground hover:text-foreground">Delete account</Link>
               <Link to="/terms" className="block text-sm text-muted-foreground hover:text-foreground">Terms & Conditions</Link>
               <Link to="/refund-policy" className="block text-sm text-muted-foreground hover:text-foreground">Refund Policy</Link>
               <Link to="/pricing" className="block text-sm text-muted-foreground hover:text-foreground">Pricing</Link>

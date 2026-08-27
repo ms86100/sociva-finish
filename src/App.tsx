@@ -135,6 +135,7 @@ const AdminSellerCreditsPage = lazyWithRetry(() => import("./pages/AdminSellerCr
 const NotFound = lazyWithRetry(() => import("./pages/NotFound"));
 const ProductDeepLinkPage = lazyWithRetry(() => import("./pages/ProductDeepLinkPage"));
 const PrivacyPolicyPage = lazyWithRetry(() => import("./pages/PrivacyPolicyPage"));
+const DeleteAccountPage = lazyWithRetry(() => import("./pages/DeleteAccountPage"));
 const TermsPage = lazyWithRetry(() => import("./pages/TermsPage"));
 const CategoryGroupPage = lazyWithRetry(() => import("./pages/CategoryGroupPage"));
 const CategoriesPage = lazyWithRetry(() => import("./pages/CategoriesPage"));
@@ -550,6 +551,7 @@ function AppRoutes() {
         <Route path="/auth" element={sessionPending ? <PageLoadingFallback /> : authedHome ? <Navigate to="/" replace /> : <RouteErrorBoundary sectionName="Authentication"><AuthPage /></RouteErrorBoundary>} />
         <Route path="/reset-password" element={<RouteErrorBoundary sectionName="Reset Password"><ResetPasswordPage /></RouteErrorBoundary>} />
         <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
+        <Route path="/delete-account" element={<DeleteAccountPage />} />
         <Route path="/terms" element={<TermsPage />} />
         <Route path="/pricing" element={<PricingPage />} />
         <Route path="/refund-policy" element={<RefundPolicyPage />} />
