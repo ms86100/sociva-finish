@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Sociva Pamphlet — A4</title>
+  <style>
+    /* Sociva design tokens from src/index.css (.dark + primary) */
+    :root {
+      --bg: #0d0d0d;
+      --fg: #f0f0f0;
+      --muted: #8a8a8a;
+      --card: #1f1c1b;
+      --card-elevated: #262322;
+      --border: #292929;
+      --primary: #27c17a; /* hsl(151 65% 44%) */
+      --primary-dim: rgba(39, 193, 122, 0.12);
+      --primary-border: rgba(39, 193, 122, 0.28);
+      --radius: 12px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    @page {
+      size: A4 portrait;
+      margin: 0;
+    }
+
+    html, body {
+      background: #525252;
+      color: var(--fg);
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    .sheet {
+      width: 210mm;
+      height: 297mm;
+      margin: 12mm auto;
+      background: var(--bg);
+      color: var(--fg);
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.45);
+    }
+
+    .pad {
+      padding: 12mm 12mm 11mm;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 6.5mm;
+    }
+
+    .glow {
+      position: absolute;
+      width: 120mm;
+      height: 120mm;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(39,193,122,0.16) 0%, transparent 68%);
+      pointer-events: none;
+    }
+    .glow-tr { top: -30mm; right: -25mm; }
+    .glow-bl { bottom: 40mm; left: -35mm; opacity: 0.7; }
+
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: relative;
+      z-index: 1;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 3.2mm;
+    }
+
+    .brand img {
+      width: 11mm;
+      height: 11mm;
+      border-radius: 2.4mm;
+    }
+
+    .wordmark {
+      font-size: 15pt;
+      font-weight: 800;
+      letter-spacing: 0.14em;
+      line-height: 1;
+      background: linear-gradient(135deg, #f0f0f0 0%, var(--primary) 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+
+    .tagline {
+      margin-top: 1.2mm;
+      font-size: 7.5pt;
+      color: var(--muted);
+      letter-spacing: 0.04em;
+    }
+
+    .site-pill {
+      font-size: 7.5pt;
+      color: var(--primary);
+      border: 1px solid var(--primary-border);
+      background: var(--primary-dim);
+      padding: 1.6mm 3.2mm;
+      border-radius: 999px;
+      font-weight: 600;
+    }
+
+    .hero {
+      position: relative;
+      z-index: 1;
+      display: grid;
+      grid-template-columns: 1.15fr 0.85fr;
+      gap: 6mm;
+      align-items: end;
+    }
+
+    .hero h1 {
+      font-size: 28pt;
+      font-weight: 800;
+      line-height: 1.05;
+      letter-spacing: -0.02em;
+    }
+
+    .hero h1 span {
+      color: var(--primary);
+    }
+
+    .hero-sub {
+      margin-top: 3.5mm;
+      font-size: 11pt;
+      font-weight: 600;
+      line-height: 1.25;
+      color: #e4e4e4;
+    }
+
+    .hero-body {
+      margin-top: 2.5mm;
+      font-size: 8.5pt;
+      line-height: 1.45;
+      color: var(--muted);
+      max-width: 88mm;
+    }
+
+    .pillars {
+      margin-top: 3.5mm;
+      display: flex;
+      gap: 2mm;
+      flex-wrap: wrap;
+    }
+
+    .pillars span {
+      font-size: 7pt;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--primary);
+      border: 1px solid var(--primary-border);
+      background: var(--primary-dim);
+      padding: 1.4mm 2.6mm;
+      border-radius: 999px;
+    }
+
+    .hero-panel {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 4.5mm;
+      min-height: 42mm;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .hero-panel h3 {
+      font-size: 9pt;
+      font-weight: 700;
+      margin-bottom: 2mm;
+    }
+
+    .hero-panel p {
+      font-size: 7.5pt;
+      line-height: 1.4;
+      color: var(--muted);
+    }
+
+    .hero-panel .quote {
+      margin-top: 3mm;
+      font-size: 8.5pt;
+      font-weight: 600;
+      color: var(--fg);
+      line-height: 1.35;
+    }
+
+    .section-label {
+      font-size: 7pt;
+      font-weight: 700;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--primary);
+      margin-bottom: 2.5mm;
+      position: relative;
+      z-index: 1;
+    }
+
+    .why {
+      position: relative;
+      z-index: 1;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 3mm;
+    }
+
+    .why-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 3.5mm;
+    }
+
+    .why-card .ico {
+      width: 7mm;
+      height: 7mm;
+      border-radius: 2mm;
+      background: var(--primary-dim);
+      color: var(--primary);
+      display: grid;
+      place-items: center;
+      font-size: 9pt;
+      font-weight: 800;
+      margin-bottom: 2mm;
+    }
+
+    .why-card h4 {
+      font-size: 8pt;
+      font-weight: 700;
+      margin-bottom: 1.4mm;
+    }
+
+    .why-card p {
+      font-size: 7pt;
+      line-height: 1.35;
+      color: var(--muted);
+    }
+
+    .cats {
+      position: relative;
+      z-index: 1;
+    }
+
+    .cats h2 {
+      font-size: 14pt;
+      font-weight: 800;
+      letter-spacing: -0.01em;
+      margin-bottom: 3mm;
+      line-height: 1.15;
+    }
+
+    .cat-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 3mm;
+    }
+
+    .cat {
+      background: var(--card-elevated);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 3.2mm 3.5mm;
+      display: flex;
+      gap: 2.8mm;
+      align-items: flex-start;
+    }
+
+    .cat .mark {
+      width: 8mm;
+      height: 8mm;
+      border-radius: 2.2mm;
+      background: var(--primary-dim);
+      border: 1px solid var(--primary-border);
+      color: var(--primary);
+      display: grid;
+      place-items: center;
+      font-size: 8pt;
+      font-weight: 800;
+      flex-shrink: 0;
+    }
+
+    .cat h4 {
+      font-size: 8pt;
+      font-weight: 700;
+      margin-bottom: 0.8mm;
+    }
+
+    .cat p {
+      font-size: 6.8pt;
+      line-height: 1.35;
+      color: var(--muted);
+    }
+
+    .how {
+      position: relative;
+      z-index: 1;
+    }
+
+    .how h2 {
+      font-size: 11pt;
+      font-weight: 800;
+      margin-bottom: 2.5mm;
+    }
+
+    .steps {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 2.5mm;
+    }
+
+    .step {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 3mm;
+      min-height: 28mm;
+    }
+
+    .step .n {
+      font-size: 8pt;
+      font-weight: 800;
+      color: var(--primary);
+      margin-bottom: 1.5mm;
+      letter-spacing: 0.04em;
+    }
+
+    .step h4 {
+      font-size: 7.5pt;
+      font-weight: 700;
+      margin-bottom: 1.2mm;
+    }
+
+    .step p {
+      font-size: 6.6pt;
+      line-height: 1.35;
+      color: var(--muted);
+    }
+
+    .community {
+      position: relative;
+      z-index: 1;
+      background: linear-gradient(135deg, rgba(39,193,122,0.12) 0%, var(--card) 55%);
+      border: 1px solid var(--primary-border);
+      border-radius: var(--radius);
+      padding: 4.5mm 5mm;
+      display: grid;
+      grid-template-columns: 1.3fr 0.7fr;
+      gap: 5mm;
+      align-items: center;
+    }
+
+    .community h2 {
+      font-size: 11pt;
+      font-weight: 800;
+      margin-bottom: 2mm;
+    }
+
+    .community ul {
+      list-style: none;
+      font-size: 8pt;
+      line-height: 1.55;
+      color: #d4d4d4;
+    }
+
+    .community .aside {
+      font-size: 9pt;
+      font-weight: 600;
+      line-height: 1.4;
+      color: var(--fg);
+    }
+
+    .cta {
+      position: relative;
+      z-index: 1;
+      margin-top: auto;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 5mm;
+      align-items: center;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 4mm 5mm;
+    }
+
+    .cta h2 {
+      font-size: 13pt;
+      font-weight: 800;
+      letter-spacing: 0.02em;
+    }
+
+    .cta .sub {
+      margin-top: 1mm;
+      font-size: 8.5pt;
+      font-weight: 700;
+      color: var(--primary);
+      letter-spacing: 0.08em;
+    }
+
+    .cta .hint {
+      margin-top: 2mm;
+      font-size: 7.5pt;
+      color: var(--muted);
+      line-height: 1.4;
+    }
+
+    .cta .stores {
+      margin-top: 2.5mm;
+      font-size: 7pt;
+      color: var(--muted);
+    }
+
+    .cta .stores strong { color: var(--fg); }
+
+    .qr-box {
+      text-align: center;
+    }
+
+    .qr-box img {
+      width: 28mm;
+      height: 28mm;
+      background: #fff;
+      padding: 1.5mm;
+      border-radius: 2.5mm;
+      display: block;
+    }
+
+    .qr-box figcaption {
+      margin-top: 1.5mm;
+      font-size: 6.5pt;
+      color: var(--muted);
+    }
+
+    .toolbar {
+      max-width: 210mm;
+      margin: 8mm auto 0;
+      display: flex;
+      gap: 8px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .toolbar a, .toolbar button {
+      appearance: none;
+      border: 0;
+      background: var(--primary);
+      color: #04140c;
+      font-weight: 700;
+      font-size: 13px;
+      padding: 10px 16px;
+      border-radius: 10px;
+      text-decoration: none;
+      cursor: pointer;
+    }
+
+    .toolbar a.secondary {
+      background: #222;
+      color: #eee;
+      border: 1px solid #444;
+    }
+
+    @media print {
+      html, body { background: #fff; }
+      .toolbar { display: none !important; }
+      .sheet {
+        margin: 0;
+        box-shadow: none;
+        width: 210mm;
+        height: 297mm;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="toolbar">
+    <button type="button" onclick="window.print()">Print / Save A4 PDF</button>
+    <a class="secondary" href="./a5.html">Open A5 version</a>
+    <a class="secondary" href="https://www.sociva.in/">sociva.in</a>
+  </div>
+
+  <article class="sheet" aria-label="Sociva A4 pamphlet">
+    <div class="glow glow-tr"></div>
+    <div class="glow glow-bl"></div>
+    <div class="pad">
+      <header class="header">
+        <div class="brand">
+          <img src="/app-icon-1024x1024.png" alt="Sociva app icon" />
+          <div>
+            <div class="wordmark">SOCIVA</div>
+            <div class="tagline">Your Society, Your Store</div>
+          </div>
+        </div>
+        <div class="site-pill">www.sociva.in</div>
+      </header>
+
+      <section class="hero">
+        <div>
+          <h1>TOGETHER,<br />WE BUILD<br /><span>BETTER LIVES.</span></h1>
+          <p class="hero-sub">Everything you need.<br />Right inside your society.</p>
+          <p class="hero-body">
+            Discover products, food, home services and everyday help from people and businesses around your community.
+          </p>
+          <div class="pillars">
+            <span>Buy local</span>
+            <span>Support local</span>
+            <span>Grow local</span>
+          </div>
+        </div>
+        <aside class="hero-panel">
+          <div>
+            <h3>Your community marketplace</h3>
+            <p>Food, groceries, home help, local skills and neighbourhood sellers — organised for your residential society.</p>
+          </div>
+          <p class="quote">Why search everywhere when it may already be right next door?</p>
+        </aside>
+      </section>
+
+      <section>
+        <div class="section-label">Why Sociva?</div>
+        <div class="why">
+          <div class="why-card">
+            <div class="ico">1</div>
+            <h4>Support your neighbours</h4>
+            <p>Buy from people and businesses around you and help your local community grow.</p>
+          </div>
+          <div class="why-card">
+            <div class="ico">2</div>
+            <h4>Close to home</h4>
+            <p>Discover sellers and service providers within your society community.</p>
+          </div>
+          <div class="why-card">
+            <div class="ico">3</div>
+            <h4>Save time &amp; money</h4>
+            <p>Find what you need close to home instead of searching everywhere.</p>
+          </div>
+          <div class="why-card">
+            <div class="ico">4</div>
+            <h4>Stronger community</h4>
+            <p>Connect, exchange, recommend and grow together.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="cats">
+        <div class="section-label">Everything you need</div>
+        <h2>Right next door.</h2>
+        <div class="cat-grid">
+          <div class="cat">
+            <div class="mark">F</div>
+            <div>
+              <h4>Food &amp; homemade specialities</h4>
+              <p>Meals, snacks, tiffins and more from people around you.</p>
+            </div>
+          </div>
+          <div class="cat">
+            <div class="mark">G</div>
+            <div>
+              <h4>Groceries &amp; daily needs</h4>
+              <p>Everyday essentials from your community.</p>
+            </div>
+          </div>
+          <div class="cat">
+            <div class="mark">H</div>
+            <div>
+              <h4>Home services</h4>
+              <p>Cleaning, repairs, electrical, plumbing and more.</p>
+            </div>
+          </div>
+          <div class="cat">
+            <div class="mark">P</div>
+            <div>
+              <h4>Professional &amp; local services</h4>
+              <p>Skills and businesses available around your society.</p>
+            </div>
+          </div>
+          <div class="cat">
+            <div class="mark">S</div>
+            <div>
+              <h4>Products &amp; local sellers</h4>
+              <p>Buy, sell and discover products within your community.</p>
+            </div>
+          </div>
+          <div class="cat">
+            <div class="mark">+</div>
+            <div>
+              <h4>And much more</h4>
+              <p>Sociva brings your society’s talent, products and services together.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="how">
+        <div class="section-label">How Sociva works</div>
+        <h2>From join to delivery — in five steps.</h2>
+        <div class="steps">
+          <div class="step">
+            <div class="n">01</div>
+            <h4>Join your society</h4>
+            <p>Download Sociva and join your residential community.</p>
+          </div>
+          <div class="step">
+            <div class="n">02</div>
+            <h4>Discover</h4>
+            <p>Explore products and services available around you.</p>
+          </div>
+          <div class="step">
+            <div class="n">03</div>
+            <h4>Order or book</h4>
+            <p>Buy a product or book a service in a few taps.</p>
+          </div>
+          <div class="step">
+            <div class="n">04</div>
+            <h4>Connect</h4>
+            <p>Message sellers and service providers when you need to.</p>
+          </div>
+          <div class="step">
+            <div class="n">05</div>
+            <h4>Track &amp; enjoy</h4>
+            <p>Follow your order, get updates and share your experience.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="community">
+        <div>
+          <h2>Your community has more to offer</h2>
+          <ul>
+            <li>A home-cooked meal.</li>
+            <li>A trusted electrician.</li>
+            <li>A tutor next door.</li>
+            <li>A local business.</li>
+            <li>A product you need.</li>
+            <li>A service you were searching for.</li>
+          </ul>
+        </div>
+        <p class="aside">Why search everywhere when it may already be right next door?</p>
+      </section>
+
+      <footer class="cta">
+        <div>
+          <h2>Download Sociva</h2>
+          <div class="sub">YOUR SOCIETY. YOUR STORE.</div>
+          <p class="hint">Scan the QR code to visit Sociva and get the app.</p>
+          <p class="stores">
+            <strong>www.sociva.in</strong>
+            · App Store:
+            <strong>apps.apple.com/in/app/sociva/id6759218504</strong>
+            · Android APK also available on the website
+          </p>
+        </div>
+        <figure class="qr-box">
+          <img src="./sociva-qr.png" width="256" height="256" alt="QR code to https://www.sociva.in/" />
+          <figcaption>Scan → sociva.in</figcaption>
+        </figure>
+      </footer>
+    </div>
+  </article>
+</body>
+</html>

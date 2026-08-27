@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Sociva Pamphlet — A5</title>
+  <style>
+    :root {
+      --bg: #0d0d0d;
+      --fg: #f0f0f0;
+      --muted: #8a8a8a;
+      --card: #1f1c1b;
+      --card-elevated: #262322;
+      --border: #292929;
+      --primary: #27c17a;
+      --primary-dim: rgba(39, 193, 122, 0.12);
+      --primary-border: rgba(39, 193, 122, 0.28);
+      --radius: 10px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    @page {
+      size: A5 portrait;
+      margin: 0;
+    }
+
+    html, body {
+      background: #525252;
+      color: var(--fg);
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    .sheet {
+      width: 148mm;
+      height: 210mm;
+      margin: 10mm auto;
+      background: var(--bg);
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.45);
+    }
+
+    .pad {
+      padding: 8mm 8mm 7.5mm;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 4.2mm;
+    }
+
+    .glow {
+      position: absolute;
+      width: 80mm;
+      height: 80mm;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(39,193,122,0.18) 0%, transparent 68%);
+      pointer-events: none;
+      top: -20mm;
+      right: -18mm;
+    }
+
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: relative;
+      z-index: 1;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 2.4mm;
+    }
+
+    .brand img {
+      width: 8.5mm;
+      height: 8.5mm;
+      border-radius: 2mm;
+    }
+
+    .wordmark {
+      font-size: 11pt;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      background: linear-gradient(135deg, #f0f0f0 0%, var(--primary) 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+
+    .tagline {
+      font-size: 6.5pt;
+      color: var(--muted);
+      margin-top: 0.6mm;
+    }
+
+    .site-pill {
+      font-size: 6.5pt;
+      color: var(--primary);
+      border: 1px solid var(--primary-border);
+      background: var(--primary-dim);
+      padding: 1.2mm 2.4mm;
+      border-radius: 999px;
+      font-weight: 600;
+    }
+
+    .hero {
+      position: relative;
+      z-index: 1;
+    }
+
+    .hero h1 {
+      font-size: 18pt;
+      font-weight: 800;
+      line-height: 1.05;
+      letter-spacing: -0.02em;
+    }
+
+    .hero h1 span { color: var(--primary); }
+
+    .hero-sub {
+      margin-top: 2mm;
+      font-size: 9pt;
+      font-weight: 650;
+      line-height: 1.25;
+    }
+
+    .hero-body {
+      margin-top: 1.8mm;
+      font-size: 7.2pt;
+      line-height: 1.4;
+      color: var(--muted);
+    }
+
+    .pillars {
+      margin-top: 2.2mm;
+      display: flex;
+      gap: 1.5mm;
+      flex-wrap: wrap;
+    }
+
+    .pillars span {
+      font-size: 6pt;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--primary);
+      border: 1px solid var(--primary-border);
+      background: var(--primary-dim);
+      padding: 1mm 2mm;
+      border-radius: 999px;
+    }
+
+    .section-label {
+      font-size: 6pt;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--primary);
+      margin-bottom: 1.8mm;
+    }
+
+    .why {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 2.2mm;
+      position: relative;
+      z-index: 1;
+    }
+
+    .why-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 2.6mm;
+    }
+
+    .why-card h4 {
+      font-size: 7.2pt;
+      font-weight: 700;
+      margin-bottom: 0.8mm;
+    }
+
+    .why-card p {
+      font-size: 6.2pt;
+      line-height: 1.3;
+      color: var(--muted);
+    }
+
+    .cats h2 {
+      font-size: 10pt;
+      font-weight: 800;
+      margin-bottom: 2mm;
+    }
+
+    .cat-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 2mm;
+    }
+
+    .cat {
+      background: var(--card-elevated);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 2.4mm 2.6mm;
+    }
+
+    .cat h4 {
+      font-size: 7pt;
+      font-weight: 700;
+      margin-bottom: 0.6mm;
+      color: var(--primary);
+    }
+
+    .cat p {
+      font-size: 6pt;
+      line-height: 1.3;
+      color: var(--muted);
+    }
+
+    .steps {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 1.6mm;
+    }
+
+    .step {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 2mm;
+    }
+
+    .step .n {
+      font-size: 6.5pt;
+      font-weight: 800;
+      color: var(--primary);
+      margin-bottom: 0.8mm;
+    }
+
+    .step h4 {
+      font-size: 6.4pt;
+      font-weight: 700;
+      margin-bottom: 0.6mm;
+    }
+
+    .step p {
+      font-size: 5.6pt;
+      line-height: 1.3;
+      color: var(--muted);
+    }
+
+    .cta {
+      margin-top: auto;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 3.5mm;
+      align-items: center;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 3mm 3.5mm;
+      position: relative;
+      z-index: 1;
+    }
+
+    .cta h2 {
+      font-size: 10pt;
+      font-weight: 800;
+    }
+
+    .cta .sub {
+      margin-top: 0.6mm;
+      font-size: 7pt;
+      font-weight: 700;
+      color: var(--primary);
+      letter-spacing: 0.06em;
+    }
+
+    .cta .hint {
+      margin-top: 1.4mm;
+      font-size: 6.4pt;
+      color: var(--muted);
+      line-height: 1.35;
+    }
+
+    .qr-box img {
+      width: 22mm;
+      height: 22mm;
+      background: #fff;
+      padding: 1.2mm;
+      border-radius: 2mm;
+      display: block;
+    }
+
+    .qr-box figcaption {
+      margin-top: 1mm;
+      font-size: 5.8pt;
+      color: var(--muted);
+      text-align: center;
+    }
+
+    .toolbar {
+      max-width: 148mm;
+      margin: 8mm auto 0;
+      display: flex;
+      gap: 8px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .toolbar a, .toolbar button {
+      appearance: none;
+      border: 0;
+      background: var(--primary);
+      color: #04140c;
+      font-weight: 700;
+      font-size: 13px;
+      padding: 10px 16px;
+      border-radius: 10px;
+      text-decoration: none;
+      cursor: pointer;
+    }
+
+    .toolbar a.secondary {
+      background: #222;
+      color: #eee;
+      border: 1px solid #444;
+    }
+
+    @media print {
+      html, body { background: #fff; }
+      .toolbar { display: none !important; }
+      .sheet {
+        margin: 0;
+        box-shadow: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="toolbar">
+    <button type="button" onclick="window.print()">Print / Save A5 PDF</button>
+    <a class="secondary" href="./a4.html">Open A4 version</a>
+  </div>
+
+  <article class="sheet" aria-label="Sociva A5 pamphlet">
+    <div class="glow"></div>
+    <div class="pad">
+      <header class="header">
+        <div class="brand">
+          <img src="/app-icon-1024x1024.png" alt="Sociva app icon" />
+          <div>
+            <div class="wordmark">SOCIVA</div>
+            <div class="tagline">Your Society, Your Store</div>
+          </div>
+        </div>
+        <div class="site-pill">www.sociva.in</div>
+      </header>
+
+      <section class="hero">
+        <h1>TOGETHER, WE BUILD <span>BETTER LIVES.</span></h1>
+        <p class="hero-sub">Everything you need. Right inside your society.</p>
+        <p class="hero-body">Discover products, food, services and everyday help from people and businesses around your community.</p>
+        <div class="pillars">
+          <span>Buy local</span>
+          <span>Support local</span>
+          <span>Grow local</span>
+        </div>
+      </section>
+
+      <section>
+        <div class="section-label">Why Sociva?</div>
+        <div class="why">
+          <div class="why-card">
+            <h4>Support your neighbours</h4>
+            <p>Buy from people and businesses around your community.</p>
+          </div>
+          <div class="why-card">
+            <h4>Close to home</h4>
+            <p>Discover local sellers and service providers in your society.</p>
+          </div>
+          <div class="why-card">
+            <h4>Save time &amp; money</h4>
+            <p>Find what you need close to home.</p>
+          </div>
+          <div class="why-card">
+            <h4>Stronger community</h4>
+            <p>Connect, exchange, recommend and grow together.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="cats">
+        <div class="section-label">Everything you need</div>
+        <h2>Right next door.</h2>
+        <div class="cat-grid">
+          <div class="cat">
+            <h4>Food &amp; homemade</h4>
+            <p>Meals, snacks, tiffins and more.</p>
+          </div>
+          <div class="cat">
+            <h4>Groceries &amp; daily needs</h4>
+            <p>Essentials from your community.</p>
+          </div>
+          <div class="cat">
+            <h4>Home services</h4>
+            <p>Cleaning, repairs, electrical, plumbing.</p>
+          </div>
+          <div class="cat">
+            <h4>Local services &amp; products</h4>
+            <p>Skills, sellers and businesses nearby.</p>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <div class="section-label">How it works</div>
+        <div class="steps">
+          <div class="step"><div class="n">01</div><h4>Join</h4><p>Join your society.</p></div>
+          <div class="step"><div class="n">02</div><h4>Discover</h4><p>Explore nearby.</p></div>
+          <div class="step"><div class="n">03</div><h4>Order</h4><p>Buy or book.</p></div>
+          <div class="step"><div class="n">04</div><h4>Connect</h4><p>Message sellers.</p></div>
+          <div class="step"><div class="n">05</div><h4>Track</h4><p>Get updates.</p></div>
+        </div>
+      </section>
+
+      <footer class="cta">
+        <div>
+          <h2>Download Sociva</h2>
+          <div class="sub">YOUR SOCIETY. YOUR STORE.</div>
+          <p class="hint">Scan to open www.sociva.in · App Store &amp; Android download on the site.</p>
+        </div>
+        <figure class="qr-box">
+          <img src="./sociva-qr.png" width="220" height="220" alt="QR code to https://www.sociva.in/" />
+          <figcaption>sociva.in</figcaption>
+        </figure>
+      </footer>
+    </div>
+  </article>
+</body>
+</html>
