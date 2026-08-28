@@ -292,7 +292,7 @@ export default function CartPage() {
             acceptsUpi={c.acceptsUpi}
             selectedMethod={c.paymentMethod}
             onSelect={c.setPaymentMethod}
-            multiSellerOnlineBlocked={c.blocksOnlineMultiSeller}
+            multiSellerOnlineBlocked={c.onlineBlockedForMultiCart}
             onlineDisabledReason={c.onlineDisabledReason}
           />
         </div>

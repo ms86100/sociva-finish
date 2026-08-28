@@ -130,7 +130,7 @@ export default function SellerProductFormPage() {
 
   if (sp.isLoading) {
     return (
-      <AppLayout showHeader={false}>
+      <AppLayout showHeader={false} showNav={false} showCart={false}>
         <div className="p-4 safe-top">
           <Skeleton className="h-8 w-48 mb-6" />
           {[1, 2, 3].map(i => <Skeleton key={i} className="h-40 w-full rounded-2xl mb-4" />)}
@@ -140,8 +140,8 @@ export default function SellerProductFormPage() {
   }
 
   return (
-    <AppLayout showHeader={false}>
-      <div className="max-w-5xl mx-auto px-3 sm:px-4 pb-[max(7rem,env(safe-area-inset-bottom,0px)+5.5rem)] sm:pb-8 pt-3 sm:pt-4 safe-top">
+    <AppLayout showHeader={false} showNav={false} showCart={false}>
+      <div className="max-w-5xl mx-auto px-3 sm:px-4 pb-[max(1.5rem,env(safe-area-inset-bottom,0px)+1rem)] sm:pb-8 pt-3 sm:pt-4 safe-top">
         {/* Header */}
         <div className="flex items-center gap-2 sm:gap-3 mb-4">
           <button
@@ -205,7 +205,7 @@ export default function SellerProductFormPage() {
                 exit={{ opacity: 0, x: -20 }}
                 transition={{ duration: 0.2 }}
               >
-                <div className="bg-card rounded-2xl border shadow-sm overflow-hidden">
+                <div className="bg-card rounded-2xl border shadow-sm">
                   <div className="flex items-center gap-3 px-4 sm:px-5 py-3 sm:py-4 border-b bg-muted/30">
                     <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
                       <step.icon size={16} className="text-primary" />
@@ -222,6 +222,32 @@ export default function SellerProductFormPage() {
                     {step.key === 'visibility' && <StepVisibility sp={sp} />}
                     {step.key === 'attributes' && <StepAttributes sp={sp} />}
                     {step.key === 'service' && <StepService sp={sp} />}
+                  </div>
+
+                  {/* Mobile step navigation — in-card so tab bar never covers Cancel/Next */}
+                  <div className="flex sm:hidden items-center justify-between gap-3 px-4 py-3 border-t bg-muted/20">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleBack}
+                      className="rounded-xl shrink-0"
+                    >
+                      <ArrowLeft size={14} className="mr-1" />
+                      {currentStep === 0 ? 'Cancel' : 'Back'}
+                    </Button>
+                    <span className="text-[11px] text-muted-foreground tabular-nums shrink-0">
+                      {currentStep + 1} / {activeSteps.length}
+                    </span>
+                    <Button
+                      size="sm"
+                      onClick={handleNext}
+                      disabled={sp.isSaving}
+                      className="rounded-xl px-4 font-semibold shrink-0"
+                    >
+                      {sp.isSaving && <Loader2 className="animate-spin mr-1.5" size={14} />}
+                      {isLastStep ? (isEditing ? 'Save' : 'Add') : 'Next'}
+                      {!isLastStep && <ArrowRight size={14} className="ml-1" />}
+                    </Button>
                   </div>
 
                   {/* Desktop / tablet step navigation inside card */}
@@ -261,32 +287,6 @@ export default function SellerProductFormPage() {
 
           {/* Desktop Preview — always visible */}
           <ProductFormPreviewPanel formData={sp.formData} sellerProfile={sp.sellerProfile} attributeBlocks={sp.attributeBlocks} />
-        </div>
-
-        {/* Mobile sticky bottom nav */}
-        <div className="fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur-sm border-t p-3 sm:hidden z-50 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-          <div className="max-w-5xl mx-auto flex items-center justify-between gap-3">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleBack}
-              className="rounded-xl shrink-0"
-            >
-              <ArrowLeft size={14} className="mr-1" />
-              {currentStep === 0 ? 'Cancel' : 'Back'}
-            </Button>
-
-            <Button
-              size="sm"
-              onClick={handleNext}
-              disabled={sp.isSaving}
-              className="rounded-xl px-4 font-semibold flex-1 max-w-[10rem]"
-            >
-              {sp.isSaving && <Loader2 className="animate-spin mr-1.5" size={14} />}
-              {isLastStep ? (isEditing ? 'Save' : 'Add') : 'Next'}
-              {!isLastStep && <ArrowRight size={14} className="ml-1" />}
-            </Button>
-          </div>
         </div>
       </div>
     </AppLayout>
@@ -391,6 +391,10 @@ function StepBasics({ sp }: { sp: ReturnType<typeof useSellerProducts> }) {
           </Select>
         </div>
       )}
+
+      <p className="text-xs text-muted-foreground sm:hidden pt-1">
+        Tap <span className="font-medium text-foreground">Next</span> below to set price and other details.
+      </p>
     </>
   );
 }

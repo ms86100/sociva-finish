@@ -91,7 +91,7 @@ describe('multi-store source contracts', () => {
   it('exposes Checkout this store on multi-seller cart UI', () => {
     expect(cartPageSrc).toMatch(/Checkout this store/);
     expect(cartPageSrc).toMatch(/checkoutThisStoreOnly/);
-    expect(cartPageSrc).toMatch(/multiSellerOnlineBlocked=\{c\.blocksOnlineMultiSeller\}/);
+    expect(cartPageSrc).toMatch(/multiSellerOnlineBlocked=\{c\.onlineBlockedForMultiCart/);
   });
 
   it('never mounts UPI deep-link for multi pending orders', () => {

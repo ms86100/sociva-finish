@@ -228,7 +228,7 @@ export function ProductFormPreviewMobile({ formData, sellerProfile, attributeBlo
         type="button"
         size="sm"
         variant="secondary"
-        className="lg:hidden fixed bottom-20 right-4 z-[60] rounded-full shadow-lg gap-1.5"
+        className="lg:hidden fixed bottom-[max(1rem,env(safe-area-inset-bottom,0px)+0.75rem)] right-4 z-40 rounded-full shadow-lg gap-1.5"
         onClick={() => setOpen(true)}
       >
         <Eye size={14} />

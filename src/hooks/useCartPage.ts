@@ -390,6 +390,8 @@ export function useCartPage() {
   const noPaymentMethodAvailable = !acceptsCod && !acceptsUpi;
 
   const isMultiSeller = sellerGroups.length > 1;
+  /** Stable flag for UI: hide/disable online on multi-seller carts when only single-VPA Deep UPI is available. */
+  const onlineBlockedForMultiCart = isMultiSeller && paymentMode.isUpiDeepLink;
   const blocksOnlineMultiSeller = requiresSingleSellerForOnline(
     sellerGroups.length,
     paymentMethod,
@@ -1355,7 +1357,7 @@ export function useCartPage() {
     effectiveWalletCredit, payableBeforeWallet, wallet,
     firstSellerFulfillmentMode,
     hasFulfillmentConflict, hasBelowMinimumOrder, noPaymentMethodAvailable,
-    isMultiSeller, blocksOnlineMultiSeller, multiStoreCopy, multiOrderConfirmHint,
+    isMultiSeller, blocksOnlineMultiSeller, onlineBlockedForMultiCart, multiStoreCopy, multiOrderConfirmHint,
     /** Multi-store cart with no COD and online blocked (deep-link) — must split */
     multiStoreRequiresSplit: isMultiSeller && !acceptsCod && blocksOnlineMultiSeller,
     checkoutThisStoreOnly,
