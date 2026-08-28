@@ -111,10 +111,27 @@ export function CommandCenterEnquiriesList({
                               {enquiry.order_type}
                             </Badge>
                           )}
+                          {enquiry.has_conversation && (
+                            <Badge variant="secondary" className="text-[10px] h-5">
+                              conversation
+                            </Badge>
+                          )}
+                          {enquiry.seller_responded ? (
+                            <Badge className="text-[10px] h-5 bg-emerald-100 text-emerald-800 hover:bg-emerald-100">
+                              responded
+                            </Badge>
+                          ) : enquiry.status === 'enquired' ? (
+                            <Badge variant="destructive" className="text-[10px] h-5">
+                              unanswered
+                            </Badge>
+                          ) : null}
                         </div>
                         <p className="text-sm font-semibold mt-1">
                           {enquiry.buyer_name || 'Buyer'} → {enquiry.seller_name || 'Seller'}
                         </p>
+                        {enquiry.product_summary && (
+                          <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{enquiry.product_summary}</p>
+                        )}
                         <p className="text-xs text-muted-foreground mt-0.5">
                           {enquiry.society_name || 'Society'} · {format(new Date(enquiry.created_at), 'dd MMM, h:mm a')}
                         </p>

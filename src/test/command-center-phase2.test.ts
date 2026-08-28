@@ -33,7 +33,7 @@ describe('admin command center phase 2', () => {
     expect(page).toMatch(/CommandCenterBookingsList/);
     expect(page).toMatch(/CommandCenterEnquiriesList/);
     expect(page).toMatch(/pending_products/);
-    expect(page).toMatch(/Phase 2/);
+    expect(page).toMatch(/complete/);
   });
 
   it('adds pending products KPI and society missing badge on stores', () => {

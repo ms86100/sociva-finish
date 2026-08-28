@@ -136,12 +136,21 @@ export function CommandCenterOrdersList({
                         >
                           {payInfo.label}
                         </span>
+                        {order.has_dispute && (
+                          <Badge variant="destructive" className="text-[10px] h-5 capitalize">
+                            dispute{order.dispute_status ? `: ${order.dispute_status}` : ''}
+                          </Badge>
+                        )}
                       </div>
                       <p className="text-sm font-semibold mt-1">
                         {order.buyer_name || 'Buyer'} → {order.seller_name || 'Seller'}
                       </p>
+                      {order.product_summary && (
+                        <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{order.product_summary}</p>
+                      )}
                       <p className="text-xs text-muted-foreground mt-0.5">
                         {order.society_name || 'Society'} · {format(new Date(order.created_at), 'dd MMM, h:mm a')}
+                        {order.fulfillment_type ? ` · ${order.fulfillment_type}` : ''}
                       </p>
                     </div>
                     <div className="text-right shrink-0">

@@ -30,6 +30,7 @@ export function CommandCenterSellersList({
   onActiveOnlyChange,
   onSearchChange,
   onSelectSeller,
+  onOpenStore360,
   isLoading,
 }: {
   rows: CommandCenterSellerRow[];
@@ -43,6 +44,7 @@ export function CommandCenterSellersList({
   onActiveOnlyChange: (value: string) => void;
   onSearchChange: (value: string) => void;
   onSelectSeller?: (sellerId: string) => void;
+  onOpenStore360?: (sellerId: string) => void;
   isLoading?: boolean;
 }) {
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
@@ -65,6 +67,8 @@ export function CommandCenterSellersList({
             <SelectItem value="pending">pending</SelectItem>
             <SelectItem value="approved">approved</SelectItem>
             <SelectItem value="rejected">rejected</SelectItem>
+            <SelectItem value="suspended">suspended</SelectItem>
+            <SelectItem value="draft">draft</SelectItem>
           </SelectContent>
         </Select>
         <Select value={activeOnly} onValueChange={onActiveOnlyChange}>
@@ -145,19 +149,35 @@ export function CommandCenterSellersList({
                       </p>
                       <p className="text-[11px] text-muted-foreground mt-1">
                         {seller.live_product_count}/{seller.product_count} live listings · {seller.orders_30d} orders (30d)
+                        {seller.rating != null ? ` · ★ ${Number(seller.rating).toFixed(1)}` : ''}
+                        {(seller.unanswered_enquiries ?? 0) > 0
+                          ? ` · ${seller.unanswered_enquiries} unanswered`
+                          : ''}
                       </p>
                     </div>
                   </div>
-                  {onSelectSeller && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-8 rounded-xl text-xs shrink-0"
-                      onClick={() => onSelectSeller(seller.seller_id)}
-                    >
-                      Orders
-                    </Button>
-                  )}
+                  <div className="flex flex-col gap-1.5 shrink-0">
+                    {onOpenStore360 && (
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        className="h-8 rounded-xl text-xs"
+                        onClick={() => onOpenStore360(seller.seller_id)}
+                      >
+                        360
+                      </Button>
+                    )}
+                    {onSelectSeller && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 rounded-xl text-xs"
+                        onClick={() => onSelectSeller(seller.seller_id)}
+                      >
+                        Orders
+                      </Button>
+                    )}
+                  </div>
                 </div>
               </CardContent>
             </Card>
