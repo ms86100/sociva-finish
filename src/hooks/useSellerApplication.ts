@@ -14,6 +14,10 @@ import { notifyAdminsNewStoreApplication } from '@/lib/admin-notifications';
 import { notify } from '@/lib/notify';
 import { migrateOnboardingStep, NEW_ONBOARDING_TOTAL_STEPS, commerceModelFromActionType } from '@/lib/listing-intent';
 import { showFeedback } from '@/components/FeedbackPopupProvider';
+import {
+  assertLicenseAllowsSellerSubmit,
+  evaluateSellerLicenseEligibility,
+} from '@/lib/seller-license';
 
 const ONBOARDING_VERSION_KEY = 'seller_onboarding_version';
 const ONBOARDING_VERSION = '2';
@@ -613,10 +617,14 @@ export function useSellerApplication() {
 
     // Mandatory license — frontend gate (DB also enforces on admin approval / live products)
     try {
-      const { assertLicenseAllowsSellerSubmit, evaluateSellerLicenseEligibility } = await import('@/lib/seller-license');
       const el = await evaluateSellerLicenseEligibility(draftSellerId);
       assertLicenseAllowsSellerSubmit(el);
     } catch (licErr: any) {
+      const msg = String(licErr?.message || '');
+      if (/failed to fetch dynamically imported module|importing a module script failed|chunkloaderror/i.test(msg)) {
+        toast.error('App update in progress. Please refresh the page and submit again.', { id: 'seller-license-chunk' });
+        return;
+      }
       notify.block(licErr?.message || 'Please upload the required license before submitting');
       return;
     }
