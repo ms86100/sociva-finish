@@ -1,7 +1,8 @@
 // @ts-nocheck
 import { useCallback, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Flame, Search, Sparkles, X, PackageSearch } from 'lucide-react';
+import { BackButton } from '@/components/navigation/BackButton';
+import { Flame, Search, Sparkles, X, PackageSearch } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { SafeHeader } from '@/components/layout/SafeHeader';
 import { Input } from '@/components/ui/input';
@@ -115,9 +116,7 @@ export default function DiscoveryListingsPage() {
       <SafeHeader bordered={false}>
         <div className="px-4 pt-2 pb-2 space-y-2.5">
           <div className="flex items-center gap-2.5">
-            <button onClick={() => navigate(-1)} className="h-10 w-10 rounded-full bg-muted flex items-center justify-center shrink-0">
-              <ArrowLeft size={18} className="text-foreground" />
-            </button>
+            <BackButton fallback="/" />
             <div className="min-w-0 flex-1">
               <h1 className="text-base font-bold text-foreground flex items-center gap-1.5">
                 {displayIcon}

@@ -1,14 +1,16 @@
 // @ts-nocheck
 import { useState, useCallback, memo } from 'react';
-import { ArrowLeft, Bell, MapPin, ChevronDown, Search } from 'lucide-react';
+import { Bell, MapPin, ChevronDown, Search } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
 
-import { useNavigate } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
 import { TypewriterPlaceholder } from '@/components/search/TypewriterPlaceholder';
 import { useImmediateNavigate } from '@/hooks/useImmediateNavigate';
+import { BackButton } from '@/components/navigation/BackButton';
+import { shouldShowHeaderBack } from '@/lib/navigation-stack';
 
 import { useUnreadNotificationCount } from '@/hooks/useUnreadNotificationCount';
 import { useBrowsingLocation } from '@/contexts/BrowsingLocationContext';
@@ -34,9 +36,10 @@ function HeaderInner({
   showBack,
   className,
 }: HeaderProps) {
-  const navigate = useNavigate();
+  const location = useLocation();
   const [locationSheetOpen, setLocationSheetOpen] = useState(false);
   const navigateImmediately = useImmediateNavigate('Header');
+  const showBackButton = title && shouldShowHeaderBack(location.pathname, showBack);
 
   const handleRouteNav = useCallback((to: string) => {
     navigateImmediately(to);
@@ -63,15 +66,6 @@ function HeaderInner({
       : null) ||
     'Set location';
 
-  const handleBack = useCallback(() => {
-    if (window.history.length > 1) {
-      navigate(-1);
-      return;
-    }
-    // Marketplace users must never land on society routes from back navigation.
-    navigate(effectiveSocietyId ? '/society' : '/');
-  }, [navigate, effectiveSocietyId]);
-
   return (
     <>
       <header
@@ -91,16 +85,13 @@ function HeaderInner({
           style={{ paddingTop: 'calc(var(--app-safe-top, 28px) + 8px)' }}
         >
           {title ? (
-            <div className="flex items-center gap-2 min-h-[44px]">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-10 w-10 rounded-full shrink-0"
-                onClick={handleBack}
-              >
-                <ArrowLeft size={20} />
-              </Button>
-              <span className="text-base font-bold text-foreground truncate">{title}</span>
+            <div className="flex items-center gap-3 min-h-[44px]">
+              {showBackButton ? (
+                <BackButton className="bg-muted/80 hover:bg-muted" />
+              ) : (
+                <span className="w-10 shrink-0" aria-hidden />
+              )}
+              <span className="text-base font-bold text-foreground truncate flex-1 min-w-0">{title}</span>
             </div>
           ) : (
             <>

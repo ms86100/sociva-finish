@@ -7,6 +7,8 @@ import { useActionTypeMap, useCategoryAllowedActions, getCheckoutModeDescription
 import { ActionTypeSelector } from '@/components/seller/ActionTypeSelector';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { LeadTimeField } from '@/components/seller/LeadTimeField';
+import { leadTimeFromHours, leadTimeToHours } from '@/lib/lead-time';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent } from '@/components/ui/card';
@@ -24,6 +26,7 @@ import { useCurrency } from '@/hooks/useCurrency';
 import { ServiceFieldsSection, INITIAL_SERVICE_FIELDS, type ServiceFieldsData } from '@/components/seller/ServiceFieldsSection';
 import { ProductFormPreviewPanel, ProductFormPreviewMobile } from '@/components/seller/ProductFormPreview';
 import { showFeedback } from '@/components/FeedbackPopupProvider';
+import { resolveStockSaveValues } from '@/lib/product-stock-form';
 
 interface DraftProduct {
   id?: string;
@@ -147,6 +150,20 @@ export function DraftProductManager({
     action_type: effectiveDefaultActionType || 'add_to_cart',
     subcategory_id: seedSubcategoryId || null,
   });
+  const [trackStock, setTrackStock] = useState(() => restoredDraft?.trackStock ?? (restoredDraft?.newProduct?.stock_quantity != null));
+  const [trackLowStockAlert, setTrackLowStockAlert] = useState(() => (
+    restoredDraft?.trackLowStockAlert ?? (restoredDraft?.newProduct?.low_stock_threshold != null)
+  ));
+  const [stockQuantityInput, setStockQuantityInput] = useState(() => {
+    if (restoredDraft?.stockQuantityInput != null) return restoredDraft.stockQuantityInput;
+    const qty = restoredDraft?.newProduct?.stock_quantity;
+    return qty != null ? String(qty) : '';
+  });
+  const [lowStockThresholdInput, setLowStockThresholdInput] = useState(() => {
+    if (restoredDraft?.lowStockThresholdInput != null) return restoredDraft.lowStockThresholdInput;
+    const threshold = restoredDraft?.newProduct?.low_stock_threshold;
+    return threshold != null ? String(threshold) : '';
+  });
 
   // Keep category in sync if categories arrive after mount (common on draft resume)
   useEffect(() => {
@@ -185,11 +202,12 @@ export function DraftProductManager({
       try {
         localStorage.setItem(DRAFT_KEY, JSON.stringify({
           isAdding, editingIndex, newProduct, attributeBlocks, serviceFields,
+          trackStock, trackLowStockAlert, stockQuantityInput, lowStockThresholdInput,
         }));
       } catch { /* quota exceeded — non-critical */ }
     }, 500);
     return () => clearTimeout(debounceRef.current);
-  }, [isAdding, editingIndex, newProduct, attributeBlocks, serviceFields, DRAFT_KEY]);
+  }, [isAdding, editingIndex, newProduct, attributeBlocks, serviceFields, trackStock, trackLowStockAlert, stockQuantityInput, lowStockThresholdInput, DRAFT_KEY]);
 
   // Get form hints for the selected category
   const activeConfig = useMemo(() => {
@@ -247,6 +265,14 @@ export function DraftProductManager({
     if (newProduct.mrp && newProduct.mrp > 0 && newProduct.price > newProduct.mrp) errors.price = 'Price cannot exceed MRP';
     if (!newProduct.image_url.trim()) errors.image_url = 'Product image is required';
 
+    const stockResolved = resolveStockSaveValues({
+      tracks_stock: trackStock,
+      stock_quantity: stockQuantityInput,
+      tracks_low_stock_alert: trackLowStockAlert,
+      low_stock_threshold: lowStockThresholdInput,
+    });
+    Object.assign(errors, stockResolved.errors);
+
     if (Object.keys(errors).length > 0) {
       setFieldErrors(errors);
       const count = Object.keys(errors).length;
@@ -283,8 +309,8 @@ export function DraftProductManager({
         approval_status: resolvedApprovalStatus,
         prep_time_minutes: newProduct.prep_time_minutes || null,
         specifications: attributeBlocks.length > 0 ? { blocks: attributeBlocks } : null,
-        stock_quantity: newProduct.stock_quantity && newProduct.stock_quantity > 0 ? newProduct.stock_quantity : null,
-        low_stock_threshold: newProduct.low_stock_threshold && newProduct.low_stock_threshold > 0 ? newProduct.low_stock_threshold : null,
+        stock_quantity: stockResolved.stockQty,
+        low_stock_threshold: stockResolved.lowStockThreshold,
         action_type: (() => {
           const resolvedActionType = effectiveDefaultActionType || newProduct.action_type || 'add_to_cart';
           if (effectiveDefaultActionType && newProduct.action_type && newProduct.action_type !== effectiveDefaultActionType) {
@@ -321,7 +347,7 @@ export function DraftProductManager({
         savedProductId = data.id;
       }
 
-      // Save service listing if service category
+      // Save service listing if service category — mandatory; roll back product on failure
       if (isService && savedProductId) {
         const { error: slError } = await supabase.from('service_listings').upsert({
           product_id: savedProductId,
@@ -336,10 +362,12 @@ export function DraftProductManager({
 
         if (slError) {
           console.error('Service listing upsert failed:', slError);
-          toast.error('Product saved but service settings failed.');
+          if (!isEditing) {
+            await supabase.from('products').delete().eq('id', savedProductId);
+          }
+          throw new Error(friendlyError(slError) || 'Could not save service settings. Please try again.');
         }
 
-        // Slot generation is handled via ServiceAvailabilityManager "Save & Generate Slots"
         toast.info('Save your Store Hours to generate booking slots', { id: 'slots-hint' });
       }
 
@@ -385,6 +413,10 @@ export function DraftProductManager({
   const handleEditProduct = async (index: number) => {
     const product = products[index];
     setNewProduct({ ...product });
+    setTrackStock(product.stock_quantity != null);
+    setTrackLowStockAlert(product.low_stock_threshold != null);
+    setStockQuantityInput(product.stock_quantity != null ? String(product.stock_quantity) : '');
+    setLowStockThresholdInput(product.low_stock_threshold != null ? String(product.low_stock_threshold) : '');
     setEditingIndex(index);
     setIsAdding(true);
 
@@ -450,6 +482,10 @@ export function DraftProductManager({
       action_type: effectiveDefaultActionType || 'add_to_cart',
       subcategory_id: seedSubcategoryId || null,
     });
+    setTrackStock(false);
+    setTrackLowStockAlert(false);
+    setStockQuantityInput('');
+    setLowStockThresholdInput('');
     setIsAdding(false);
     setFieldErrors({});
     setEditingIndex(null);
@@ -457,6 +493,11 @@ export function DraftProductManager({
     setServiceFields(INITIAL_SERVICE_FIELDS);
     localStorage.removeItem(DRAFT_KEY);
     sessionStorage.removeItem(DRAFT_KEY);
+  };
+
+  const beginAddProduct = () => {
+    resetForm();
+    setIsAdding(true);
   };
 
   return (
@@ -762,53 +803,63 @@ export function DraftProductManager({
                 <label className="flex items-center justify-between cursor-pointer">
                   <span className="text-sm font-medium">Track Stock</span>
                   <Checkbox
-                    checked={newProduct.stock_quantity != null && newProduct.stock_quantity > 0}
-                    onCheckedChange={(checked) =>
-                      setNewProduct({
-                        ...newProduct,
-                        stock_quantity: checked ? 10 : null,
-                        low_stock_threshold: checked ? 3 : null,
-                      })
-                    }
+                    checked={trackStock}
+                    onCheckedChange={(checked) => {
+                      const enabled = !!checked;
+                      setTrackStock(enabled);
+                      if (enabled) {
+                        setStockQuantityInput((prev) => prev || '10');
+                      } else {
+                        setStockQuantityInput('');
+                        setTrackLowStockAlert(false);
+                        setLowStockThresholdInput('');
+                      }
+                    }}
                   />
                 </label>
-                {newProduct.stock_quantity != null && newProduct.stock_quantity > 0 && (
-                   <div className="grid grid-cols-2 gap-3 pt-2 border-t border-border">
+                {trackStock && (
+                  <div className="space-y-3 pt-2 border-t border-border">
                     <div className="space-y-1">
                       <Label className="text-xs">Current Stock</Label>
                       <Input
-                        type="number"
-                        min={0}
-                        value={newProduct.stock_quantity || ''}
-                        onChange={(e) => {
-                          const val = e.target.value ? Number(e.target.value) : null;
-                          const updates: any = { ...newProduct, stock_quantity: val };
-                          if (val !== null && newProduct.low_stock_threshold !== null && newProduct.low_stock_threshold >= val) {
-                            updates.low_stock_threshold = Math.max(1, val - 1);
-                          }
-                          setNewProduct(updates);
-                        }}
+                        id="prod-stock_quantity"
+                        type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        value={stockQuantityInput}
+                        onChange={(e) => setStockQuantityInput(e.target.value.replace(/[^\d]/g, ''))}
                       />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs">Low Stock Alert</Label>
-                      <Input
-                        type="number"
-                        min={1}
-                        max={newProduct.stock_quantity ? newProduct.stock_quantity - 1 : undefined}
-                        value={newProduct.low_stock_threshold || ''}
-                        onChange={(e) => {
-                          let val = e.target.value ? Number(e.target.value) : null;
-                          if (val !== null && newProduct.stock_quantity && val >= newProduct.stock_quantity) {
-                            val = newProduct.stock_quantity - 1;
-                          }
-                          setNewProduct({ ...newProduct, low_stock_threshold: val && val > 0 ? val : null });
-                        }}
-                      />
-                      {newProduct.stock_quantity && newProduct.low_stock_threshold !== null && newProduct.low_stock_threshold >= newProduct.stock_quantity && (
-                        <p className="text-xs text-destructive">Must be less than current stock</p>
+                      {fieldErrors.stock_quantity && (
+                        <p className="text-xs text-destructive">{fieldErrors.stock_quantity}</p>
                       )}
                     </div>
+                    <label className="flex items-center justify-between cursor-pointer">
+                      <span className="text-sm font-medium">Low Stock Alert</span>
+                      <Checkbox
+                        checked={trackLowStockAlert}
+                        onCheckedChange={(checked) => {
+                          const enabled = !!checked;
+                          setTrackLowStockAlert(enabled);
+                          setLowStockThresholdInput((prev) => (enabled ? (prev || '5') : ''));
+                        }}
+                      />
+                    </label>
+                    {trackLowStockAlert && (
+                      <div className="space-y-1">
+                        <Label className="text-xs">Alert below this level</Label>
+                        <Input
+                          id="prod-low_stock_threshold"
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          value={lowStockThresholdInput}
+                          onChange={(e) => setLowStockThresholdInput(e.target.value.replace(/[^\d]/g, ''))}
+                        />
+                        {fieldErrors.low_stock_threshold && (
+                          <p className="text-xs text-destructive">{fieldErrors.low_stock_threshold}</p>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -817,17 +868,25 @@ export function DraftProductManager({
               {!isService && (
                 <div className="p-3 bg-muted/50 rounded-lg space-y-3">
                   <p className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">⏱ Preparation & Ordering</p>
-                  <div className="space-y-2">
-                    <Label className="text-xs">Order Lead Time (hours)</Label>
-                    <Input
-                      type="number"
-                      min={0}
-                      placeholder="e.g., 2"
-                      value={newProduct.lead_time_hours || ''}
-                      onChange={(e) => setNewProduct({ ...newProduct, lead_time_hours: e.target.value ? Number(e.target.value) : null })}
-                    />
-                    <p className="text-[10px] text-muted-foreground">Minimum advance notice buyers need to place an order</p>
-                  </div>
+                  <LeadTimeField
+                    value={leadTimeFromHours(newProduct.lead_time_hours).value}
+                    unit={leadTimeFromHours(newProduct.lead_time_hours).unit}
+                    onValueChange={(v) => {
+                      const parsed = parseFloat(v);
+                      const unit = leadTimeFromHours(newProduct.lead_time_hours).unit;
+                      setNewProduct({
+                        ...newProduct,
+                        lead_time_hours: leadTimeToHours(parsed, unit),
+                      });
+                    }}
+                    onUnitChange={(unit) => {
+                      const parsed = parseFloat(leadTimeFromHours(newProduct.lead_time_hours).value || '0');
+                      setNewProduct({
+                        ...newProduct,
+                        lead_time_hours: leadTimeToHours(parsed, unit),
+                      });
+                    }}
+                  />
                   <label className="flex items-center justify-between gap-3 cursor-pointer">
                     <div className="min-w-0">
                       <span className="text-sm font-medium block">Accept Pre-Orders</span>
@@ -861,7 +920,7 @@ export function DraftProductManager({
         <ProductFormPreviewMobile formData={previewFormData} sellerProfile={null} attributeBlocks={attributeBlocks} />
         </>
       ) : (
-        <Button variant="outline" className="w-full border-dashed" onClick={() => setIsAdding(true)}>
+        <Button variant="outline" className="w-full border-dashed" onClick={beginAddProduct}>
           <Plus size={16} className="mr-2" />
           Add Product / Service
         </Button>

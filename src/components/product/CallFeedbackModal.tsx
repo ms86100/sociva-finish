@@ -4,7 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { PhoneCall } from 'lucide-react';
+import { PhoneCall, MessageCircle, Phone } from 'lucide-react';
 import { showFeedback } from '@/components/FeedbackPopupProvider';
 
 const OUTCOMES = [
@@ -22,9 +22,15 @@ interface CallFeedbackModalProps {
   interactionId: string | null;
   buyerId: string;
   sellerId: string;
+  orderId?: string | null;
+  onMessage?: () => void;
+  onTryAgain?: () => void;
 }
 
-export function CallFeedbackModal({ open, onOpenChange, interactionId, buyerId, sellerId }: CallFeedbackModalProps) {
+export function CallFeedbackModal({
+  open, onOpenChange, interactionId, buyerId, sellerId,
+  orderId, onMessage, onTryAgain,
+}: CallFeedbackModalProps) {
   const [selected, setSelected] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -38,10 +44,13 @@ export function CallFeedbackModal({ open, onOpenChange, interactionId, buyerId, 
         seller_id: sellerId,
         outcome: selected,
       });
-      showFeedback({
-        title: 'Thanks for your feedback!',
-        variant: 'success',
-      });
+      if (interactionId) {
+        await supabase.rpc('mark_contact_interaction_status', {
+          p_interaction_id: interactionId,
+          p_status: 'contacted',
+        });
+      }
+      showFeedback({ title: 'Thanks for your feedback!', variant: 'success' });
       onOpenChange(false);
     } catch {
       toast.error('Could not save feedback');
@@ -49,6 +58,8 @@ export function CallFeedbackModal({ open, onOpenChange, interactionId, buyerId, 
       setSubmitting(false);
     }
   };
+
+  const handleSkip = () => onOpenChange(false);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -74,13 +85,26 @@ export function CallFeedbackModal({ open, onOpenChange, interactionId, buyerId, 
             </button>
           ))}
         </div>
-        <Button
-          onClick={handleSubmit}
-          disabled={!selected || submitting}
-          className="w-full mt-2"
-        >
-          {submitting ? 'Saving...' : 'Submit Feedback'}
-        </Button>
+        <div className="flex flex-col gap-2 mt-2">
+          <Button onClick={handleSubmit} disabled={!selected || submitting} className="w-full">
+            {submitting ? 'Saving...' : 'Submit Feedback'}
+          </Button>
+          <div className="flex gap-2">
+            {onTryAgain && (
+              <Button variant="outline" className="flex-1 gap-1" onClick={() => { onOpenChange(false); onTryAgain(); }}>
+                <Phone size={14} /> Call again
+              </Button>
+            )}
+            {onMessage && (
+              <Button variant="outline" className="flex-1 gap-1" onClick={() => { onOpenChange(false); onMessage(); }}>
+                <MessageCircle size={14} /> Message
+              </Button>
+            )}
+          </div>
+          <Button variant="ghost" size="sm" onClick={handleSkip} className="text-muted-foreground">
+            Skip for now
+          </Button>
+        </div>
       </DialogContent>
     </Dialog>
   );

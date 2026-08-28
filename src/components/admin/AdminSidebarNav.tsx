@@ -8,9 +8,11 @@ import {
   Store, Users, Building2, AlertCircle, LayoutGrid, Flag,
   CreditCard, Star, Megaphone, Layers, Settings2, Bot,
   Menu, ChevronRight, FileCode, Send, Package, Wrench, MessageSquare, KeyRound,
-  BarChart3, GitBranch,   FlaskConical, MessageCircle,
+  BarChart3, GitBranch,   FlaskConical, MessageCircle, Shield,
 } from 'lucide-react';
 import { useState } from 'react';
+import { Badge } from '@/components/ui/badge';
+import { useAdminFinancialPendingCount } from '@/hooks/useFinancialControls';
 
 const NAV_GROUPS = [
   {
@@ -20,6 +22,7 @@ const NAV_GROUPS = [
       { value: 'payments', label: 'Payments', icon: CreditCard },
       { value: 'refunds', label: 'Refunds', icon: CreditCard },
       { value: 'seller-payouts', label: 'Seller payouts', icon: CreditCard },
+      { value: 'financial-controls', label: 'Financial controls', icon: Shield },
       { value: 'seller-credits', label: 'Monetization', icon: CreditCard },
       { value: 'services', label: 'Services', icon: Wrench },
     ],
@@ -72,11 +75,13 @@ interface AdminSidebarNavProps {
 export function AdminSidebarNav({ activeTab, onTabChange }: AdminSidebarNavProps) {
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
+  const financialPending = useAdminFinancialPendingCount();
 
   const ROUTE_ITEMS: Record<string, string> = {
     'api-docs': '/api-docs',
     refunds: '/admin/refunds',
     'seller-payouts': '/admin/seller-payouts',
+    'financial-controls': '/admin/financial-controls',
     'seller-credits': '/admin/seller-credits',
   };
   const activeItem = NAV_GROUPS.flatMap(g => g.items).find(i => i.value === activeTab);
@@ -113,7 +118,17 @@ export function AdminSidebarNav({ activeTab, onTabChange }: AdminSidebarNavProps
                   >
                     <Icon size={16} className={isActive ? 'text-primary' : 'text-muted-foreground'} />
                     <span className="truncate">{item.label}</span>
-                    {isActive && <ChevronRight size={14} className="ml-auto text-primary/60" />}
+                    {item.value === 'financial-controls' && financialPending.total > 0 && (
+                      <Badge variant="destructive" className="h-5 px-1.5 text-[10px] ml-auto">
+                        {financialPending.total}
+                      </Badge>
+                    )}
+                    {isActive && item.value !== 'financial-controls' && (
+                      <ChevronRight size={14} className="ml-auto text-primary/60" />
+                    )}
+                    {isActive && item.value === 'financial-controls' && financialPending.total === 0 && (
+                      <ChevronRight size={14} className="ml-auto text-primary/60" />
+                    )}
                   </button>
                 );
               })}

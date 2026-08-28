@@ -46,7 +46,7 @@ import { isTerminalStatus, isSuccessfulTerminal, isFirstFlowStep, stepRequiresOt
 import { ArrowLeft, Phone, MapPin, Check, Star, MessageCircle, CreditCard, XCircle, Package, ChevronRight, Copy, Truck, Loader2, AlertTriangle, Clock, CircleCheckBig } from 'lucide-react';
 import { describeBuyerOrderLocation } from '@/lib/buyerOrderLocation';
 import { format } from 'date-fns';
-import { useNavigate } from 'react-router-dom';
+import { peekPreviousPath } from '@/lib/navigation-stack';
 import { getString, setString } from '@/lib/persistent-kv';
 import { cn } from '@/lib/utils';
 
@@ -73,6 +73,7 @@ import { PaymentStatusCard } from '@/components/order/PaymentStatusCard';
 import { OrderFailureRecovery } from '@/components/order/OrderFailureRecovery';
 import { RefundRequestCard } from '@/components/refund/RefundRequestCard';
 import { SellerRefundActions } from '@/components/refund/SellerRefundActions';
+import { OrderPaymentBreakdownCard } from '@/components/order/OrderPaymentBreakdownCard';
 import { motion } from 'framer-motion';
 import { staggerContainer, cardEntrance } from '@/lib/motion-variants';
 import { OrderSuccessOverlay } from '@/components/checkout/OrderSuccessOverlay';
@@ -687,11 +688,19 @@ export default function OrderDetailPage() {
           displayStatus={displayStatus}
           orderId={order.id}
           onBack={() => {
-            if (location.state?.from === 'deeplink' || window.history.length <= 2) {
-              navigate('/orders');
-            } else {
-              navigate(-1);
+            const returnTo = location.state?.returnTo;
+            if (typeof returnTo === 'string' && returnTo.startsWith('/')) {
+              navigate(returnTo);
+              return;
             }
+            if (location.state?.from !== 'deeplink') {
+              const previous = peekPreviousPath(location.pathname);
+              if (previous) {
+                navigate(previous);
+                return;
+              }
+            }
+            navigate('/orders', { state: o.isSellerView ? { tab: 'selling' } : undefined });
           }}
           onCopyId={o.copyOrderId}
           onRefresh={handleRefresh}
@@ -1218,18 +1227,27 @@ export default function OrderDetailPage() {
           )}
 
           {/* Payment */}
-          <motion.div variants={cardEntrance} className="bg-card/80 backdrop-blur-lg border border-border/50 rounded-xl px-4 py-3 shadow-sm">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2.5"><CreditCard size={16} className="text-muted-foreground" /><p className="text-sm font-medium">{(() => { const pt = (order as any).payment_type || (order as any).payment_method; if (pt === 'cod') return 'Cash on Delivery'; if (pt === 'upi' || pt === 'online' || pt === 'card') return 'Online Payment'; return 'Online Payment'; })()}</p></div>
-              <span className={`text-[11px] px-2 py-0.5 rounded-full ${paymentStatusInfo.color}`}>{paymentStatusInfo.label}</span>
+          <OrderPaymentBreakdownCard
+            order={{
+              total_amount: order.total_amount,
+              frozen_total: (order as any).frozen_total,
+              wallet_cash_amount: (order as any).wallet_cash_amount,
+              wallet_promo_amount: (order as any).wallet_promo_amount,
+              loyalty_discount_amount: (order as any).loyalty_discount_amount,
+              coupon_discount: (order as any).coupon_discount,
+              payment_type: (order as any).payment_type,
+              payment_method: (order as any).payment_method,
+              payment_status: (order as any).payment_status,
+            }}
+            settlementNet={o.isSellerView ? (order as any).settlement?.net_amount : undefined}
+            settlementStatus={o.isSellerView ? (order as any).settlement?.settlement_status : undefined}
+          />
+          {(order as any).upi_transaction_ref && (
+            <div className="bg-card/80 backdrop-blur-lg border border-border/50 rounded-xl px-4 py-2 shadow-sm">
+              <p className="text-[11px] text-muted-foreground uppercase tracking-wide">Transaction ID (UTR)</p>
+              <p className="text-sm font-mono font-medium mt-0.5">{(order as any).upi_transaction_ref}</p>
             </div>
-            {(order as any).upi_transaction_ref && (
-              <div className="mt-2 pt-2 border-t border-border">
-                <p className="text-[11px] text-muted-foreground uppercase tracking-wide">Transaction ID (UTR)</p>
-                <p className="text-sm font-mono font-medium mt-0.5">{(order as any).upi_transaction_ref}</p>
-              </div>
-            )}
-          </motion.div>
+          )}
 
           {/* Seller Payment Confirmation — show whenever buyer has claimed UPI payment and seller hasn't verified yet, regardless of order status (delivery may already be complete) */}
           {o.isSellerView && (order as any).payment_status === 'buyer_confirmed' && (order as any).payment_confirmed_by_seller === null && (
@@ -1267,6 +1285,9 @@ export default function OrderDetailPage() {
               orderId={order.id}
               orderStatus={order.status}
               paymentStatus={(order as any).payment_status || ''}
+              deliveredAt={(order as any).delivered_at}
+              completedAt={(order as any).completed_at}
+              statusChangedAt={(order as any).status_changed_at}
               isBuyerView={o.isBuyerView}
               totalAmount={order.total_amount}
               onRefundRequested={() => o.fetchOrder()}
@@ -1274,7 +1295,17 @@ export default function OrderDetailPage() {
           )}
 
           {/* Refund Request — Seller actions */}
-          {o.isSellerView && <SellerRefundSection orderId={order.id} onAction={() => o.fetchOrder()} />}
+          {o.isSellerView && (
+            <SellerRefundSection
+              orderId={order.id}
+              order={order as any}
+              buyerId={order.buyer_id}
+              buyerPhone={buyer?.phone}
+              canChat={o.canChat && !!o.chatRecipientId}
+              onChatOpen={() => o.setIsChatOpen(true)}
+              onAction={() => o.fetchOrder()}
+            />
+          )}
 
           {/* Support Tickets & Help */}
           {o.isBuyerView && !isTerminalStatus(o.flow, order.status) && (
@@ -1628,18 +1659,43 @@ export default function OrderDetailPage() {
 }
 
 /** Seller-side refund section — fetches refund for this order and shows action buttons */
-function SellerRefundSection({ orderId, onAction }: { orderId: string; onAction: () => void }) {
+function SellerRefundSection({
+  orderId,
+  order,
+  buyerId,
+  buyerPhone,
+  canChat,
+  onChatOpen,
+  onAction,
+}: {
+  orderId: string;
+  order: any;
+  buyerId: string;
+  buyerPhone?: string | null;
+  canChat?: boolean;
+  onChatOpen?: () => void;
+  onAction: () => void;
+}) {
   const [refund, setRefund] = useState<any>(null);
+  const [settlement, setSettlement] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   async function fetchRefund() {
-    const { data } = await supabase
-      .from('refund_requests')
-      .select('*')
-      .eq('order_id', orderId)
-      .order('created_at', { ascending: false })
-      .limit(1);
-    setRefund(data?.[0] || null);
+    const [{ data: refundData }, { data: settlementData }] = await Promise.all([
+      supabase
+        .from('refund_requests')
+        .select('*')
+        .eq('order_id', orderId)
+        .order('created_at', { ascending: false })
+        .limit(1),
+      supabase
+        .from('seller_settlements')
+        .select('net_amount, settlement_status')
+        .eq('order_id', orderId)
+        .maybeSingle(),
+    ]);
+    setRefund(refundData?.[0] || null);
+    setSettlement(settlementData || null);
     setLoading(false);
   }
 
@@ -1663,12 +1719,32 @@ function SellerRefundSection({ orderId, onAction }: { orderId: string; onAction:
   return (
     <SellerRefundActions
       refundId={refund.id}
+      orderId={orderId}
+      buyerId={buyerId}
       refundStatus={refund.refund_state || refund.status}
       refundAmount={refund.amount}
+      requestedAmount={refund.requested_amount}
+      approvedAmount={refund.approved_amount}
       refundReason={refund.reason}
       refundCategory={refund.category}
       createdAt={refund.created_at}
       evidenceUrls={refund.evidence_urls || []}
+      buyerPhone={buyerPhone}
+      canChat={canChat}
+      onChatOpen={onChatOpen}
+      order={{
+        total_amount: order.total_amount,
+        frozen_total: order.frozen_total,
+        wallet_cash_amount: order.wallet_cash_amount,
+        wallet_promo_amount: order.wallet_promo_amount,
+        loyalty_discount_amount: order.loyalty_discount_amount,
+        coupon_discount: order.coupon_discount,
+        payment_type: order.payment_type,
+        payment_method: order.payment_method,
+        payment_status: order.payment_status,
+      }}
+      settlementNet={settlement?.net_amount}
+      settlementStatus={settlement?.settlement_status}
       onActionComplete={() => { fetchRefund(); onAction(); }}
     />
   );

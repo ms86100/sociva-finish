@@ -1,13 +1,14 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Search } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, Search } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { SafeHeader } from '@/components/layout/SafeHeader';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AdminStoreSearchPicker } from '@/components/admin/AdminStoreSearchPicker';
 import { supabase } from '@/integrations/supabase/client';
 import { useCurrency } from '@/hooks/useCurrency';
@@ -47,6 +48,50 @@ const EVENT_EXPLAIN: Record<string, string> = {
   CONTACT_REQUEST: 'Seller pays on first call/message in the Admin-configured debounce window per buyer+product. Repeats inside the window are not charged.',
 };
 
+function PaginatedList<T>({
+  items,
+  pageSize = 12,
+  renderItem,
+  emptyLabel,
+  itemLabel = 'items',
+}: {
+  items: T[];
+  pageSize?: number;
+  renderItem: (item: T, index: number) => ReactNode;
+  emptyLabel: string;
+  itemLabel?: string;
+}) {
+  const [page, setPage] = useState(0);
+  const totalPages = Math.max(1, Math.ceil(items.length / pageSize) || 1);
+  const safePage = Math.min(page, totalPages - 1);
+  const slice = items.slice(safePage * pageSize, safePage * pageSize + pageSize);
+
+  if (items.length === 0) {
+    return <p className="text-xs text-muted-foreground">{emptyLabel}</p>;
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="space-y-2">{slice.map((item, i) => renderItem(item, safePage * pageSize + i))}</div>
+      {items.length > pageSize && (
+        <div className="flex items-center justify-between gap-2 pt-1">
+          <p className="text-[11px] text-muted-foreground">
+            {safePage * pageSize + 1}–{Math.min((safePage + 1) * pageSize, items.length)} of {items.length} {itemLabel}
+          </p>
+          <div className="flex gap-1">
+            <Button type="button" size="sm" variant="outline" className="h-7 px-2" disabled={safePage <= 0} onClick={() => setPage((p) => Math.max(0, p - 1))}>
+              <ChevronLeft size={14} />
+            </Button>
+            <Button type="button" size="sm" variant="outline" className="h-7 px-2" disabled={safePage >= totalPages - 1} onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}>
+              <ChevronRight size={14} />
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function AdminSellerCreditsPage() {
   const { formatPrice } = useCurrency();
   const queryClient = useQueryClient();
@@ -79,6 +124,7 @@ export default function AdminSellerCreditsPage() {
   const [activeStoreId, setActiveStoreId] = useState('');
   const [certRunning, setCertRunning] = useState(false);
   const [goLiveEvidence, setGoLiveEvidence] = useState<SellerCreditsGoLiveEvidence | null>(null);
+  const [activeTab, setActiveTab] = useState('overview');
 
   const debouncedStoreSearch = useDebouncedValue(storeSearch, 300);
   const debouncedPurchaseSearch = useDebouncedValue(purchaseSearch, 300);
@@ -466,7 +512,17 @@ export default function AdminSellerCreditsPage() {
           </div>
         </div>
       </SafeHeader>
-      <div className="p-4 space-y-4">
+      <div className="p-4 pb-8">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+          <TabsList className="flex h-auto w-full flex-wrap justify-start gap-1 bg-muted/60 p-1">
+            <TabsTrigger value="overview" className="text-xs sm:text-sm">Overview</TabsTrigger>
+            <TabsTrigger value="rates" className="text-xs sm:text-sm">Rates &amp; rules</TabsTrigger>
+            <TabsTrigger value="packages" className="text-xs sm:text-sm">Packages</TabsTrigger>
+            <TabsTrigger value="stores" className="text-xs sm:text-sm">Stores &amp; ops</TabsTrigger>
+            <TabsTrigger value="activity" className="text-xs sm:text-sm">Activity</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="overview" className="space-y-4 mt-0">
         <Card>
           <CardContent className="p-4 space-y-3">
             <p className="text-sm font-semibold">Feature flags</p>
@@ -515,6 +571,50 @@ export default function AdminSellerCreditsPage() {
           </CardContent>
         </Card>
 
+        <Card>
+          <CardContent className="p-4 space-y-2">
+            <p className="text-sm font-semibold">Spend go-live checklist</p>
+            <p className="text-xs text-muted-foreground">
+              Spend remains blocked in Admin until every item below is green. Purchase can stay ON while Spend is OFF.
+              Live purchase verification runs automatically; billing certification uses isolated CREDIT-VERIFY stores only.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" variant="outline" disabled={certRunning} onClick={() => void loadGoLiveEvidence(true)}>
+                {certRunning ? 'Running billing certification…' : 'Run billing certification'}
+              </Button>
+              <Button size="sm" variant="ghost" disabled={certRunning} onClick={() => void loadGoLiveEvidence(false)}>
+                Refresh live purchase proof
+              </Button>
+            </div>
+            <ul className="text-[11px] space-y-1.5">
+              {goLiveChecks.map((item) => (
+                <li key={item.id} className="flex items-start gap-2">
+                  <span className={
+                    item.status === 'pass' ? 'text-green-700'
+                      : item.status === 'fail' ? 'text-destructive'
+                        : item.status === 'blocked' ? 'text-muted-foreground'
+                          : 'text-amber-700'
+                  }>
+                    {item.status === 'pass' ? '✓' : item.status === 'fail' ? '✗' : item.status === 'blocked' ? '—' : '?'}
+                  </span>
+                  <span>
+                    {item.label}
+                    {item.detail ? ` — ${item.detail}` : ''}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            {!spendGoLiveReady && (
+              <p className="text-xs text-amber-700">Spend enable is disabled until all checklist items pass.</p>
+            )}
+            {spendGoLiveReady && !spendOn && (
+              <p className="text-xs text-green-700">Checklist is green — you can turn Spend / gating ON in Feature flags.</p>
+            )}
+          </CardContent>
+        </Card>
+          </TabsContent>
+
+          <TabsContent value="rates" className="space-y-4 mt-0">
         <Card>
           <CardContent className="p-4 space-y-3">
             <p className="text-sm font-semibold">Billing rates</p>
@@ -723,7 +823,9 @@ export default function AdminSellerCreditsPage() {
             <p className="text-[11px] text-muted-foreground">Critical max (`critical_min`): available at or below this (and above 0) is Critical (warning only — products stay visible).</p>
           </CardContent>
         </Card>
+          </TabsContent>
 
+          <TabsContent value="packages" className="space-y-4 mt-0">
         <Card>
           <CardContent className="p-4 space-y-3">
             <p className="text-sm font-semibold">Credit packages</p>
@@ -754,21 +856,25 @@ export default function AdminSellerCreditsPage() {
             <Button size="sm" onClick={() => savePackage(true)}>{editingPkg ? 'Update package' : 'Add package'}</Button>
           </CardContent>
         </Card>
+          </TabsContent>
 
+          <TabsContent value="activity" className="space-y-4 mt-0">
         <Card>
           <CardContent className="p-4 space-y-2">
             <p className="text-sm font-semibold">Configuration history</p>
             <p className="text-xs text-muted-foreground">Rate, setting, threshold, package, adjustment, refund, and reversal configuration events. This is not the full financial ledger.</p>
-            {(flagsQuery.data?.audit || []).map((row: any) => (
-              <p key={row.id} className="text-[11px] text-muted-foreground">
-                {row.created_at ? format(new Date(row.created_at), 'MMM d, yyyy · h:mm a') : ''} · {row.event_type}
-                {row.new_amount != null ? ` · ${formatPrice(Number(row.new_amount))}` : ''}
-                {row.reason ? ` · ${row.reason}` : ''}
-              </p>
-            ))}
-            {(flagsQuery.data?.audit || []).length === 0 && (
-              <p className="text-xs text-muted-foreground">No billing changes yet</p>
-            )}
+            <PaginatedList
+              items={flagsQuery.data?.audit || []}
+              emptyLabel="No billing changes yet"
+              itemLabel="events"
+              renderItem={(row: any) => (
+                <p key={row.id} className="text-[11px] text-muted-foreground rounded-md border px-2 py-1.5">
+                  {row.created_at ? format(new Date(row.created_at), 'MMM d, yyyy · h:mm a') : ''} · {row.event_type}
+                  {row.new_amount != null ? ` · ${formatPrice(Number(row.new_amount))}` : ''}
+                  {row.reason ? ` · ${row.reason}` : ''}
+                </p>
+              )}
+            />
           </CardContent>
         </Card>
 
@@ -776,19 +882,21 @@ export default function AdminSellerCreditsPage() {
           <CardContent className="p-4 space-y-2">
             <p className="text-sm font-semibold">Unified financial timeline</p>
             <p className="text-xs text-muted-foreground">
-              Merged ledger movements and captured purchases across all stores — use this for financial audit, not just configuration history above.
+              Merged ledger movements and captured purchases across all stores — use this for financial audit.
             </p>
-            {(flagsQuery.data?.timeline || []).map((row: any, index: number) => (
-              <p key={`${row.source}-${row.reference_id}-${row.occurred_at}-${index}`} className="text-[11px] text-muted-foreground">
-                {row.occurred_at ? format(new Date(row.occurred_at), 'MMM d, yyyy · h:mm a') : ''} · {row.business_name} · {row.source}/{row.event_kind}
-                {row.event_type ? `/${row.event_type}` : ''} · {formatPrice(Number(row.amount) || 0)}
-                {row.balance_after != null ? ` · after ${formatPrice(Number(row.balance_after) || 0)}` : ''}
-                {row.description ? ` · ${row.description}` : ''}
-              </p>
-            ))}
-            {(flagsQuery.data?.timeline || []).length === 0 && (
-              <p className="text-xs text-muted-foreground">No financial timeline entries yet</p>
-            )}
+            <PaginatedList
+              items={flagsQuery.data?.timeline || []}
+              emptyLabel="No financial timeline entries yet"
+              itemLabel="entries"
+              renderItem={(row: any, index) => (
+                <p key={`${row.source}-${row.reference_id}-${row.occurred_at}-${index}`} className="text-[11px] text-muted-foreground rounded-md border px-2 py-1.5">
+                  {row.occurred_at ? format(new Date(row.occurred_at), 'MMM d, yyyy · h:mm a') : ''} · {row.business_name} · {row.source}/{row.event_kind}
+                  {row.event_type ? `/${row.event_type}` : ''} · {formatPrice(Number(row.amount) || 0)}
+                  {row.balance_after != null ? ` · after ${formatPrice(Number(row.balance_after) || 0)}` : ''}
+                  {row.description ? ` · ${row.description}` : ''}
+                </p>
+              )}
+            />
           </CardContent>
         </Card>
 
@@ -796,19 +904,68 @@ export default function AdminSellerCreditsPage() {
           <CardContent className="p-4 space-y-2">
             <p className="text-sm font-semibold">Financial activity</p>
             <p className="text-xs text-muted-foreground">Ledger of purchases, charges, reservations, releases, refunds, reversals, and admin adjustments.</p>
-            {(flagsQuery.data?.ledger || []).map((row: any) => (
-              <p key={row.id} className="text-[11px] text-muted-foreground">
-                {row.created_at ? format(new Date(row.created_at), 'MMM d, yyyy · h:mm a') : ''} · {row.business_name} · {row.type}
-                {row.event_type ? `/${row.event_type}` : ''} · {formatPrice(Number(row.amount) || 0)} · after {formatPrice(Number(row.balance_after) || 0)}
-                {row.description ? ` · ${row.description}` : ''}
-              </p>
-            ))}
-            {(flagsQuery.data?.ledger || []).length === 0 && (
-              <p className="text-xs text-muted-foreground">No credit ledger entries yet</p>
-            )}
+            <PaginatedList
+              items={flagsQuery.data?.ledger || []}
+              emptyLabel="No credit ledger entries yet"
+              itemLabel="entries"
+              renderItem={(row: any) => (
+                <p key={row.id} className="text-[11px] text-muted-foreground rounded-md border px-2 py-1.5">
+                  {row.created_at ? format(new Date(row.created_at), 'MMM d, yyyy · h:mm a') : ''} · {row.business_name} · {row.type}
+                  {row.event_type ? `/${row.event_type}` : ''} · {formatPrice(Number(row.amount) || 0)} · after {formatPrice(Number(row.balance_after) || 0)}
+                  {row.description ? ` · ${row.description}` : ''}
+                </p>
+              )}
+            />
           </CardContent>
         </Card>
 
+        <Card>
+          <CardContent className="p-4 space-y-2">
+            <p className="text-sm font-semibold">Credit purchases</p>
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={purchaseSearch}
+                onChange={(e) => setPurchaseSearch(e.target.value)}
+                placeholder="Search store name, purchase id, or payment ref"
+                className="pl-9"
+              />
+            </div>
+            <PaginatedList
+              items={purchasesQuery.data || []}
+              emptyLabel={purchasesQuery.isLoading ? 'Loading purchases…' : 'No credit purchases yet'}
+              itemLabel="purchases"
+              renderItem={(row: any) => (
+                <div key={row.id} className="rounded-lg border p-2 text-[11px] space-y-0.5">
+                  <p className="font-medium text-sm">{row.business_name}</p>
+                  <p>Purchase {row.id}</p>
+                  <p>Paid {formatPrice(Number(row.amount) || 0)} · Credits {formatPrice(Number(row.credits_granted) || 0)} · {row.status}</p>
+                  <p>{row.provider} · {row.provider_payment_id || 'no payment ref'} · {row.provider_order_id || 'no order ref'}</p>
+                  <p>Created {row.created_at ? format(new Date(row.created_at), 'MMM d, yyyy · h:mm a') : '—'}</p>
+                  {row.captured_at && <p>Confirmed {format(new Date(row.captured_at), 'MMM d, yyyy · h:mm a')}</p>}
+                  {row.failure_reason && <p>Failed {row.failure_reason}</p>}
+                  {row.status === 'captured' && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="mt-1 h-7 text-xs"
+                      onClick={() => {
+                        setRefundPurchase(row.id);
+                        setRefundReason((prev) => prev || `Admin refund · ${row.business_name}`);
+                        setActiveTab('stores');
+                      }}
+                    >
+                      Use for refund
+                    </Button>
+                  )}
+                </div>
+              )}
+            />
+          </CardContent>
+        </Card>
+          </TabsContent>
+
+          <TabsContent value="stores" className="space-y-4 mt-0">
         <Card>
           <CardContent className="p-4 space-y-3">
             <p className="text-sm font-semibold">Store lookup</p>
@@ -864,48 +1021,11 @@ export default function AdminSellerCreditsPage() {
 
         <Card>
           <CardContent className="p-4 space-y-2">
-            <p className="text-sm font-semibold">Credit purchases</p>
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={purchaseSearch}
-                onChange={(e) => setPurchaseSearch(e.target.value)}
-                placeholder="Search store name, purchase id, or payment ref"
-                className="pl-9"
-              />
-            </div>
-            {(purchasesQuery.data || []).map((row: any) => (
-              <div key={row.id} className="rounded-lg border p-2 text-[11px] space-y-0.5">
-                <p className="font-medium text-sm">{row.business_name}</p>
-                <p>Purchase {row.id}</p>
-                <p>Paid {formatPrice(Number(row.amount) || 0)} · Credits {formatPrice(Number(row.credits_granted) || 0)} · {row.status}</p>
-                <p>{row.provider} · {row.provider_payment_id || 'no payment ref'} · {row.provider_order_id || 'no order ref'}</p>
-                <p>Created {row.created_at ? format(new Date(row.created_at), 'MMM d, yyyy · h:mm a') : '—'}</p>
-                {row.captured_at && <p>Confirmed {format(new Date(row.captured_at), 'MMM d, yyyy · h:mm a')}</p>}
-                {row.failure_reason && <p>Failed {row.failure_reason}</p>}
-                {row.status === 'captured' && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="mt-1 h-7 text-xs"
-                    onClick={() => {
-                      setRefundPurchase(row.id);
-                      setRefundReason((prev) => prev || `Admin refund · ${row.business_name}`);
-                    }}
-                  >
-                    Use for refund
-                  </Button>
-                )}
-              </div>
-            ))}
-            {!purchasesQuery.isLoading && (purchasesQuery.data || []).length === 0 && (
-              <p className="text-xs text-muted-foreground">No credit purchases yet</p>
-            )}
-            <p className="text-sm font-semibold pt-2">Admin refund of unused purchase</p>
+            <p className="text-sm font-semibold">Admin refund of unused purchase</p>
             <p className="text-xs text-muted-foreground">
-              V1: refunds a captured purchase only if the seller still has unused credits covering the granted amount. Spent credits cannot be clawed back here.
+              Pick a captured purchase from the Activity tab, or paste an id here. V1: refunds only if the seller still has unused credits covering the granted amount.
             </p>
-            <Input value={refundPurchase} onChange={(e) => setRefundPurchase(e.target.value)} placeholder="Captured purchase id (or pick from list above)" />
+            <Input value={refundPurchase} onChange={(e) => setRefundPurchase(e.target.value)} placeholder="Captured purchase id" />
             <Input value={refundReason} onChange={(e) => setRefundReason(e.target.value)} placeholder="Reason required" />
             <Button size="sm" variant="outline" onClick={refundCaptured}>Refund unused credits</Button>
           </CardContent>
@@ -981,48 +1101,8 @@ export default function AdminSellerCreditsPage() {
             </div>
           </CardContent>
         </Card>
-
-        <Card>
-          <CardContent className="p-4 space-y-2">
-            <p className="text-sm font-semibold">Spend go-live checklist</p>
-            <p className="text-xs text-muted-foreground">
-              Spend remains blocked in Admin until every item below is green. Purchase can stay ON while Spend is OFF.
-              Live purchase verification runs automatically; billing certification uses isolated CREDIT-VERIFY stores only.
-            </p>
-            <div className="flex flex-wrap gap-2">
-              <Button size="sm" variant="outline" disabled={certRunning} onClick={() => void loadGoLiveEvidence(true)}>
-                {certRunning ? 'Running billing certification…' : 'Run billing certification'}
-              </Button>
-              <Button size="sm" variant="ghost" disabled={certRunning} onClick={() => void loadGoLiveEvidence(false)}>
-                Refresh live purchase proof
-              </Button>
-            </div>
-            <ul className="text-[11px] space-y-1.5">
-              {goLiveChecks.map((item) => (
-                <li key={item.id} className="flex items-start gap-2">
-                  <span className={
-                    item.status === 'pass' ? 'text-green-700'
-                      : item.status === 'fail' ? 'text-destructive'
-                        : item.status === 'blocked' ? 'text-muted-foreground'
-                          : 'text-amber-700'
-                  }>
-                    {item.status === 'pass' ? '✓' : item.status === 'fail' ? '✗' : item.status === 'blocked' ? '—' : '?'}
-                  </span>
-                  <span>
-                    {item.label}
-                    {item.detail ? ` — ${item.detail}` : ''}
-                  </span>
-                </li>
-              ))}
-            </ul>
-            {!spendGoLiveReady && (
-              <p className="text-xs text-amber-700">Spend enable is disabled until all checklist items pass.</p>
-            )}
-            {spendGoLiveReady && !spendOn && (
-              <p className="text-xs text-green-700">Checklist is green — you can turn Spend / gating ON above.</p>
-            )}
-          </CardContent>
-        </Card>
+          </TabsContent>
+        </Tabs>
       </div>
     </AppLayout>
   );

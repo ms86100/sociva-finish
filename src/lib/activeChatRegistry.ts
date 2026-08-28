@@ -50,3 +50,20 @@ export function onSilenceChatBell(listener: Listener): () => void {
   listeners.add(listener);
   return () => { listeners.delete(listener); };
 }
+
+const CONV_PREFIX = 'conv:';
+
+export function setActiveConversation(conversationId: string) {
+  if (!conversationId) return;
+  setActiveChat(`${CONV_PREFIX}${conversationId}`);
+}
+
+export function clearActiveConversation(conversationId: string) {
+  if (!conversationId) return;
+  clearActiveChat(`${CONV_PREFIX}${conversationId}`);
+}
+
+export function isConversationActive(conversationId: string): boolean {
+  if (!conversationId) return false;
+  return isChatActive(`${CONV_PREFIX}${conversationId}`);
+}

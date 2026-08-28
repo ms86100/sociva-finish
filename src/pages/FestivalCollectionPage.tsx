@@ -1,5 +1,6 @@
 // @ts-nocheck
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
+import { useSmartBack } from '@/hooks/useSmartBack';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -24,7 +25,7 @@ const ProductDetailSheet = lazy(() =>
 
 export default function FestivalCollectionPage() {
   const { bannerId, sectionId } = useParams<{ bannerId: string; sectionId: string }>();
-  const navigate = useNavigate();
+  const goBack = useSmartBack('/');
   const { user, effectiveSocietyId } = useAuth();
   const { configs: categoryConfigs } = useCategoryConfigs();
   const marketplaceConfig = useMarketplaceConfig();
@@ -126,8 +127,8 @@ export default function FestivalCollectionPage() {
         <div className="flex items-start gap-3 px-4 pt-10 pb-6">
           <motion.button
             whileTap={{ scale: 0.9 }}
-            onClick={() => navigate(-1)}
-            className="w-9 h-9 mt-1 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center shrink-0"
+            onClick={() => goBack({ fallback: '/' })}
+            className="w-10 h-10 mt-0.5 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center shrink-0"
           >
             <ArrowLeft size={18} className="text-white" />
           </motion.button>

@@ -9,8 +9,8 @@ import {
   cancelAllIncomingOrderLocalNotifications,
 } from '@/lib/local-order-notifications';
 
-const ACTIONABLE_STATUSES = ['placed', 'enquired', 'quoted', 'requested', 'scheduled', 'preparing'] as const;
-const ACTIONABLE_STATUSES_INSERT = ['placed', 'enquired', 'quoted', 'booked', 'requested', 'scheduled', 'preparing'] as const;
+const ACTIONABLE_STATUSES = ['placed', 'enquired', 'quoted', 'requested', 'scheduled', 'preparing', 'confirmed', 'booked'] as const;
+const ACTIONABLE_STATUSES_INSERT = ['placed', 'enquired', 'quoted', 'booked', 'requested', 'scheduled', 'preparing', 'confirmed'] as const;
 
 export interface NewOrder {
   id: string;

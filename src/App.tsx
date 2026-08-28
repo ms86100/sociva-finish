@@ -129,6 +129,7 @@ const SellerPayoutsPage = lazyWithRetry(() => import("./pages/SellerPayoutsPage"
 const SellerMessagesPage = lazyWithRetry(() => import("./pages/SellerMessagesPage"));
 const AdminPage = lazyWithRetry(() => import("./pages/AdminPage"));
 const AdminFinancialTracePage = lazyWithRetry(() => import("./pages/AdminFinancialTracePage"));
+const AdminFinancialControlsPage = lazyWithRetry(() => import("./pages/AdminFinancialControlsPage"));
 const AdminRefundsPage = lazyWithRetry(() => import("./pages/AdminRefundsPage"));
 const AdminSellerPayoutsPage = lazyWithRetry(() => import("./pages/AdminSellerPayoutsPage"));
 const AdminSellerCreditsPage = lazyWithRetry(() => import("./pages/AdminSellerCreditsPage"));
@@ -631,6 +632,7 @@ function AppRoutes() {
           <Route path="/seller/payouts" element={<SellerRoute><RouteErrorBoundary sectionName="Payouts"><SellerPayoutsPage /></RouteErrorBoundary></SellerRoute>} />
           <Route path="/admin" element={<AdminRoute><RouteErrorBoundary sectionName="Admin"><AdminPage /></RouteErrorBoundary></AdminRoute>} />
           <Route path="/admin/financial-trace" element={<AdminRoute><RouteErrorBoundary sectionName="Financial Trace"><AdminFinancialTracePage /></RouteErrorBoundary></AdminRoute>} />
+          <Route path="/admin/financial-controls" element={<AdminRoute><RouteErrorBoundary sectionName="Financial Controls"><AdminFinancialControlsPage /></RouteErrorBoundary></AdminRoute>} />
           <Route path="/admin/refunds" element={<AdminRoute><RouteErrorBoundary sectionName="Refunds"><AdminRefundsPage /></RouteErrorBoundary></AdminRoute>} />
           <Route path="/admin/seller-payouts" element={<AdminRoute><RouteErrorBoundary sectionName="Seller Payouts"><AdminSellerPayoutsPage /></RouteErrorBoundary></AdminRoute>} />
           <Route path="/admin/seller-credits" element={<AdminRoute><RouteErrorBoundary sectionName="Monetization"><AdminSellerCreditsPage /></RouteErrorBoundary></AdminRoute>} />

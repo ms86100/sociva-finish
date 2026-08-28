@@ -15,6 +15,7 @@ import { MARKETPLACE_FALLBACKS, type MarketplaceConfig } from '@/hooks/useMarket
 import type { BadgeConfigRow } from '@/hooks/useBadgeConfig';
 import type { CategoryConfig } from '@/types/categories';
 import { cn } from '@/lib/utils';
+import { resolveProductAvailability } from '@/lib/product-availability';
 import { useCurrency } from '@/hooks/useCurrency';
 import { useMarketplaceLabels } from '@/hooks/useMarketplaceLabels';
 import { computeStoreStatus, formatStoreClosedMessage, type StoreAvailability } from '@/lib/store-availability';
@@ -110,12 +111,19 @@ function ProductListingCardInner({ product, layout = 'auto', onTap, onNavigate, 
   };
   const handleCardClick = () => { selectionChanged(); trackClick(); if (onTap) onTap(product); else onNavigate?.(`/seller/${product.seller_id}`); };
 
-  const isOutOfStock = !product.is_available || (product.stock_quantity != null && product.stock_quantity <= 0);
+  const availability = useMemo(
+    () => resolveProductAvailability(product),
+    [product.is_available, product.stock_quantity],
+  );
+  const isUnavailable = availability.state !== 'available';
+  const availabilityOverlayLabel = availability.overlayLabel;
   const isSellerInactive = useMemo(() => { if (!(product as any).last_active_at) return false; return Date.now() - new Date((product as any).last_active_at).getTime() > 7 * 24 * 60 * 60 * 1000; }, [(product as any).last_active_at]);
 
   const storeAvailability = useMemo((): StoreAvailability => computeStoreStatus(product.seller_availability_start, product.seller_availability_end, product.seller_operating_days, product.seller_is_available ?? true), [product.seller_availability_start, product.seller_availability_end, product.seller_operating_days, product.seller_is_available]);
   const isStoreClosed = storeAvailability.status !== 'open';
   const storeClosedMessage = isStoreClosed ? formatStoreClosedMessage(storeAvailability) : '';
+  const isContactAction = actionType === 'contact_seller';
+  const effectiveStoreClosed = isContactAction ? false : isStoreClosed;
 
   const isLowStock = mc.enableScarcity && product.stock_quantity != null && product.stock_quantity > 0 && product.stock_quantity <= mc.lowStockThreshold;
 
@@ -184,8 +192,8 @@ function ProductListingCardInner({ product, layout = 'auto', onTap, onNavigate, 
         'hover:shadow-elevated hover:border-border',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
         compact ? 'h-[260px]' : 'h-full',
-        isOutOfStock && 'opacity-45 grayscale-[40%]',
-        isStoreClosed && !isOutOfStock && 'opacity-55 grayscale-[25%]',
+        isUnavailable && 'opacity-45 grayscale-[40%]',
+        isStoreClosed && !isUnavailable && 'opacity-55 grayscale-[25%]',
         className
       )}
       style={{ contentVisibility: 'auto', containIntrinsicSize: compact ? '160px 260px' : '160px 280px' }}
@@ -265,15 +273,15 @@ function ProductListingCardInner({ product, layout = 'auto', onTap, onNavigate, 
             )}
           </AnimatePresence>
 
-          {isOutOfStock && (
+          {isUnavailable && (
             <div className="absolute inset-0 bg-background/55 flex items-center justify-center backdrop-blur-[1.5px] z-[5]">
               <span className="text-[10px] font-bold text-muted-foreground bg-card/95 px-3 py-1.5 rounded-full uppercase tracking-wider shadow-sm border border-border/50">
-                {mc.labels.outOfStock}
+                {availabilityOverlayLabel || mc.labels.outOfStock}
               </span>
             </div>
           )}
 
-          {isStoreClosed && !isOutOfStock && (
+          {isStoreClosed && !isUnavailable && (
             <div className="absolute inset-0 bg-background/45 flex items-center justify-center backdrop-blur-[1.5px] z-[5]">
               <span className="text-[10px] font-bold text-muted-foreground bg-card/95 px-3 py-1.5 rounded-full uppercase tracking-wider shadow-sm border border-border/50 flex items-center gap-1 max-w-[90%] truncate">
                 <Clock size={10} className="shrink-0" />
@@ -342,7 +350,7 @@ function ProductListingCardInner({ product, layout = 'auto', onTap, onNavigate, 
         </div>
 
         {/* ADD / quantity stepper — overlapping image edge */}
-        {!viewOnly && !isOutOfStock && !isStoreClosed && (
+        {!viewOnly && !isUnavailable && !effectiveStoreClosed && (
           <div className="absolute -bottom-4 right-2 z-20">
             {isCartAction && quantity > 0 ? (
               <div className="flex items-center bg-primary rounded-xl overflow-hidden shadow-cta border border-primary animate-stepper-pop">
@@ -407,18 +415,24 @@ function ProductListingCardInner({ product, layout = 'auto', onTap, onNavigate, 
       {compact ? (
         <div className={cn(
           'h-[112px] overflow-hidden px-2.5 pb-2.5',
-          !viewOnly && !isOutOfStock && !isStoreClosed ? 'pt-6' : 'pt-3'
+          !viewOnly && !isUnavailable && !isStoreClosed ? 'pt-6' : 'pt-3'
         )}>
           <div className="flex h-full flex-col overflow-hidden">
             <div className="min-h-[20px] flex items-baseline gap-1.5 overflow-hidden flex-wrap">
-              <span className="font-extrabold text-[15px] text-foreground leading-none tracking-tight tabular-nums">
-                {isServiceLayout && <span className="text-[10px] font-semibold text-muted-foreground mr-1">From</span>}
-                {formatPrice(isServiceLayout ? serviceStartingPrice : product.price)}
-              </span>
-              {hasDiscount && (
-                <span className="text-[11px] text-muted-foreground/80 line-through leading-none tabular-nums">
-                  {formatPrice(product.mrp!)}
-                </span>
+              {isContactAction ? (
+                <span className="text-sm font-medium text-muted-foreground leading-none">Contact for price</span>
+              ) : (
+                <>
+                  <span className="font-extrabold text-[15px] text-foreground leading-none tracking-tight tabular-nums">
+                    {isServiceLayout && <span className="text-[10px] font-semibold text-muted-foreground mr-1">From</span>}
+                    {formatPrice(isServiceLayout ? serviceStartingPrice : product.price)}
+                  </span>
+                  {hasDiscount && (
+                    <span className="text-[11px] text-muted-foreground/80 line-through leading-none tabular-nums">
+                      {formatPrice(product.mrp!)}
+                    </span>
+                  )}
+                </>
               )}
               {product.stock_quantity != null && product.stock_quantity > 0 && (
                 <span className="text-[10px] font-semibold text-muted-foreground tabular-nums">
@@ -445,23 +459,29 @@ function ProductListingCardInner({ product, layout = 'auto', onTap, onNavigate, 
       ) : (
         <div className={cn(
           'flex flex-1 flex-col min-h-0 overflow-hidden px-2.5 sm:px-3 pb-3',
-          !viewOnly && !isOutOfStock && !isStoreClosed ? 'pt-6' : 'pt-3'
+          !viewOnly && !isUnavailable && !isStoreClosed ? 'pt-6' : 'pt-3'
         )}>
           {/* Price row */}
           <div className="flex items-baseline gap-1.5 flex-wrap">
-            <span className="font-extrabold text-[15px] sm:text-base text-foreground leading-none tracking-tight tabular-nums">
-              {isServiceLayout && <span className="text-[10px] font-semibold text-muted-foreground mr-1">From</span>}
-              {formatPrice(isServiceLayout ? serviceStartingPrice : product.price)}
-            </span>
-            {hasDiscount && (
-              <span className="text-[11px] text-muted-foreground/80 line-through leading-none tabular-nums">
-                {formatPrice(product.mrp!)}
-              </span>
-            )}
-            {hasDiscount && discountPct > 0 && (
-              <span className="text-[10px] font-bold text-badge-discount leading-none">
-                {discountPct}% off
-              </span>
+            {isContactAction ? (
+              <span className="text-sm font-medium text-muted-foreground leading-none">Contact for price</span>
+            ) : (
+              <>
+                <span className="font-extrabold text-[15px] sm:text-base text-foreground leading-none tracking-tight tabular-nums">
+                  {isServiceLayout && <span className="text-[10px] font-semibold text-muted-foreground mr-1">From</span>}
+                  {formatPrice(isServiceLayout ? serviceStartingPrice : product.price)}
+                </span>
+                {hasDiscount && (
+                  <span className="text-[11px] text-muted-foreground/80 line-through leading-none tabular-nums">
+                    {formatPrice(product.mrp!)}
+                  </span>
+                )}
+                {hasDiscount && discountPct > 0 && (
+                  <span className="text-[10px] font-bold text-badge-discount leading-none">
+                    {discountPct}% off
+                  </span>
+                )}
+              </>
             )}
             {product.stock_quantity != null && product.stock_quantity > 0 && (
               <span className="text-[10px] font-semibold text-muted-foreground tabular-nums">
@@ -585,7 +605,7 @@ function ProductListingCardInner({ product, layout = 'auto', onTap, onNavigate, 
         </div>
       )}
 
-      {!viewOnly && isOutOfStock && (<NotifyMeButton productId={product.id} />)}
+      {!viewOnly && isUnavailable && (<NotifyMeButton productId={product.id} />)}
     </motion.div>
   );
 }

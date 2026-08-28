@@ -172,7 +172,7 @@ export function useSellerChat(buyerId: string | undefined, sellerId: string | un
           lastNotifRef.current[notifyUserId] = now;
           const referencePath =
             recipientProfileOrUserId === sellerId
-              ? '/seller/messages'
+              ? (cid ? `/seller/messages?tab=contacts&conv=${cid}` : '/seller/messages?tab=contacts')
               : productId
                 ? `/product/${productId}`
                 : '/seller/messages';
@@ -182,7 +182,13 @@ export function useSellerChat(buyerId: string | undefined, sellerId: string | un
             _title: '💬 New message',
             _body: text.slice(0, 100),
             _reference_path: referencePath,
-            _payload: { type: 'seller_chat', conversationId: cid },
+            _payload: {
+              type: 'seller_chat',
+              target_role: recipientProfileOrUserId === sellerId ? 'seller' : 'buyer',
+              conversationId: cid,
+              conversation_id: cid,
+              product_id: productId,
+            },
           });
           supabase.functions.invoke('process-notification-queue').catch(() => {});
         }

@@ -8,32 +8,37 @@ import { staggerGrid, cardEntrance, pulseRing } from '@/lib/motion-variants';
 
 interface DashboardStatsProps {
   pendingOrders: number;
+  pendingDisputes?: number;
   preparingOrders: number;
   inTransitOrders: number;
   doneToday: number;
   terminalFailOrders: number;
   onKpiClick?: (filter: SellerOrderFilter) => void;
+  onActionNeededClick?: () => void;
   refreshing?: boolean;
 }
 
 export function DashboardStats({
   pendingOrders,
+  pendingDisputes = 0,
   preparingOrders,
   inTransitOrders,
   doneToday,
   terminalFailOrders,
   onKpiClick,
+  onActionNeededClick,
   refreshing,
 }: DashboardStatsProps) {
+  const actionNeededTotal = pendingOrders + pendingDisputes;
   const stats = [
     {
       id: 'action_needed',
       icon: Hand,
-      value: pendingOrders,
+      value: actionNeededTotal,
       label: 'Action needed',
       borderColor: 'border-l-warning',
       color: 'text-warning',
-      pulse: pendingOrders > 0,
+      pulse: actionNeededTotal > 0,
     },
     {
       id: 'preparing',
@@ -80,16 +85,23 @@ export function DashboardStats({
     >
       {stats.map(({ id, icon: Icon, value, label, color, borderColor, pulse, dim }) => {
         const filter = KPI_TO_FILTER[id];
+        const handleClick = () => {
+          if (id === 'action_needed' && onActionNeededClick) {
+            onActionNeededClick();
+            return;
+          }
+          if (filter) onKpiClick?.(filter);
+        };
         return (
           <motion.div key={id} variants={cardEntrance}>
             <Card
-              role={onKpiClick && filter ? 'button' : undefined}
-              tabIndex={onKpiClick && filter ? 0 : undefined}
-              onClick={() => filter && onKpiClick?.(filter)}
+              role={onKpiClick && (filter || id === 'action_needed') ? 'button' : undefined}
+              tabIndex={onKpiClick && (filter || id === 'action_needed') ? 0 : undefined}
+              onClick={handleClick}
               onKeyDown={(e) => {
-                if ((e.key === 'Enter' || e.key === ' ') && filter) {
+                if (e.key === 'Enter' || e.key === ' ') {
                   e.preventDefault();
-                  onKpiClick?.(filter);
+                  handleClick();
                 }
               }}
               className={cn(

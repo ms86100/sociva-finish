@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
@@ -18,14 +18,23 @@ import { BulkProductUpload } from '@/components/seller/BulkProductUpload';
 import { useCurrency } from '@/hooks/useCurrency';
 import { useSellerProducts } from '@/hooks/useSellerProducts';
 import { ProductPerformanceBadge, getPerformanceLevel } from '@/components/seller/ProductPerformanceBadge';
+import { resolveProductAvailability } from '@/lib/product-availability';
 import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
 
 export default function SellerProductsPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const sp = useSellerProducts();
   const { formatPrice, currencySymbol } = useCurrency();
   const [viewCounts, setViewCounts] = useState<Record<string, number>>({});
   const [orderCounts, setOrderCounts] = useState<Record<string, number>>({});
+
+  // Fresh list after returning from add/edit product form
+  useEffect(() => {
+    if (!location.state?.productSaved || !sp.sellerProfile?.id) return;
+    sp.fetchData(sp.sellerProfile.id);
+    navigate(location.pathname, { replace: true, state: {} });
+  }, [location.state?.productSaved, sp.sellerProfile?.id]);
 
   // Fetch 7-day view counts + 14-day order counts
   useEffect(() => {
@@ -124,12 +133,22 @@ export default function SellerProductsPage() {
               const lowThreshold = (product as any).low_stock_threshold ?? 5;
               const isLowStock = stockQty != null && stockQty > 0 && stockQty <= lowThreshold;
               const perfLevel = getPerformanceLevel(product, orderCounts, sp.products);
+              const availability = resolveProductAvailability({
+                is_available: product.is_available,
+                stock_quantity: stockQty,
+              });
               return (
                 <div key={product.id} className={`bg-card rounded-xl p-4 shadow-sm transition-opacity ${!product.is_available ? 'opacity-60' : ''}`}>
                   <div className="flex items-start gap-3">
                     <div className="w-16 h-16 rounded-lg overflow-hidden shrink-0 relative">
                       {product.image_url ? <img src={product.image_url} alt={product.name} className="w-full h-full object-cover" /> : <div className="w-full h-full bg-muted flex items-center justify-center"><DynamicIcon name={sp.configs.find(c => c.category === product.category)?.icon || 'Package'} size={24} /></div>}
-                      {!product.is_available && <div className="absolute inset-0 bg-background/70 flex items-center justify-center"><span className="text-[10px] font-medium text-destructive">Out of Stock</span></div>}
+                      {!product.is_available && (
+                        <div className="absolute inset-0 bg-background/70 flex items-center justify-center">
+                          <span className="text-[10px] font-medium text-destructive text-center px-1">
+                            {availability.overlayLabel}
+                          </span>
+                        </div>
+                      )}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start gap-2 flex-wrap">

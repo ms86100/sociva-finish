@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { useLoyaltyBalance, useLoyaltyHistory } from '@/hooks/queries/useLoyalty';
+import { useFinancialCapabilities } from '@/hooks/useFinancialCapabilities';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -9,11 +10,13 @@ import { format } from 'date-fns';
 import { useState } from 'react';
 
 export function LoyaltyCard() {
-  const { data: balance, isLoading } = useLoyaltyBalance();
+  const { buyerLoyaltyRedeemEnabled, isLoading: capsLoading } = useFinancialCapabilities();
+  const { data: balance, isLoading: balanceLoading } = useLoyaltyBalance();
   const { data: history = [] } = useLoyaltyHistory(10);
   const [showHistory, setShowHistory] = useState(false);
 
-  if (isLoading) return <Skeleton className="h-24 w-full rounded-xl" />;
+  if (capsLoading || balanceLoading) return <Skeleton className="h-24 w-full rounded-xl" />;
+  if (!buyerLoyaltyRedeemEnabled) return null;
   if (balance === undefined || balance === null) return null;
 
   const sourceIcon = (source: string) => {

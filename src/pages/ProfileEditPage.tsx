@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useSmartBack } from '@/hooks/useSmartBack';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,6 +18,7 @@ import { useRef } from 'react';
 
 export default function ProfileEditPage() {
   const navigate = useNavigate();
+  const goBack = useSmartBack('/profile');
   const { user, profile, society, refreshProfile } = useAuth();
   const { showFeedback } = useFeedbackPopup();
   const { addresses, isLoading: addressesLoading, saveAddress, deleteAddress, setDefault, isSaving } = useDeliveryAddresses();
@@ -137,11 +139,11 @@ export default function ProfileEditPage() {
   };
 
   return (
-    <AppLayout headerTitle="Edit Profile" showNav={false}>
+    <AppLayout headerTitle="Edit Profile" showNav={false} showBack={false}>
       <div className="pb-8">
         {/* Back */}
         <div className="px-4 pt-3">
-          <button onClick={() => step === 2 ? setStep(1) : navigate(-1)} className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
+          <button onClick={() => step === 2 ? setStep(1) : goBack({ fallback: '/profile' })} className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
             <ArrowLeft size={16} /> {step === 2 ? 'Back to Address' : 'Back'}
           </button>
         </div>

@@ -63,6 +63,13 @@ export function resolveNotificationRoute(
     case 'seller_daily_summary':
       return '/seller';
 
+    case 'contact_request': {
+      const interactionId = payload?.interaction_id;
+      return interactionId
+        ? `/seller/messages?tab=contacts&lead=${interactionId}`
+        : '/seller/messages?tab=contacts';
+    }
+
     // Refund lifecycle (must not fall through to order/{id})
     case 'refund_request':
     case 'refund': {
@@ -98,10 +105,14 @@ export function resolveNotificationRoute(
       return orderId ? `/orders/${orderId}` : '/orders';
     }
 
-    // Chat / messages — live in the order context (open chat sheet)
     case 'chat':
     case 'chat_message':
-    case 'message': {
+    case 'message':
+    case 'seller_chat': {
+      const conversationId = payload?.conversationId || payload?.conversation_id;
+      if (conversationId && payload?.target_role === 'seller') {
+        return `/seller/messages?tab=contacts&conv=${conversationId}`;
+      }
       const orderId = getOrderId(payload);
       return orderId ? `/orders/${orderId}?chat=1` : '/notifications/inbox';
     }

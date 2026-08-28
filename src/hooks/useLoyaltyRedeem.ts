@@ -3,6 +3,7 @@ import { useState, useCallback } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useLoyaltyBalance } from '@/hooks/queries/useLoyalty';
+import { useFinancialCapabilities } from '@/hooks/useFinancialCapabilities';
 import { toast } from 'sonner';
 
 /**
@@ -10,10 +11,12 @@ import { toast } from 'sonner';
  * Authoritative redeem happens inside create_multi_vendor_orders (_loyalty_points).
  */
 export function useLoyaltyRedeem() {
+  const { buyerLoyaltyRedeemEnabled } = useFinancialCapabilities();
   const { data: balance = 0, isLoading: balanceLoading } = useLoyaltyBalance();
   const queryClient = useQueryClient();
   const [appliedPoints, setAppliedPoints] = useState(0);
   const [quotedMax, setQuotedMax] = useState<number | null>(null);
+  const redeemEnabled = buyerLoyaltyRedeemEnabled === true;
 
   const quoteMutation = useMutation({
     mutationFn: async (cartAmountAfterCoupon: number) => {
@@ -47,6 +50,11 @@ export function useLoyaltyRedeem() {
   });
 
   const refreshQuote = useCallback(async (orderSubtotal: number) => {
+    if (!redeemEnabled) {
+      setQuotedMax(0);
+      setAppliedPoints(0);
+      return 0;
+    }
     const amount = Math.max(0, orderSubtotal);
     try {
       const data = await quoteMutation.mutateAsync(amount);
@@ -61,25 +69,27 @@ export function useLoyaltyRedeem() {
       setQuotedMax(max);
       return max;
     }
-  }, [quoteMutation, appliedPoints, balance]);
+  }, [quoteMutation, appliedPoints, balance, redeemEnabled]);
 
   const applyPoints = useCallback((maxOrderAmount: number) => {
+    if (!redeemEnabled) return;
     const cap = quotedMax != null ? quotedMax : Math.min(balance, Math.floor(maxOrderAmount));
     setAppliedPoints(Math.min(balance, Math.floor(maxOrderAmount), cap));
-  }, [balance, quotedMax]);
+  }, [balance, quotedMax, redeemEnabled]);
 
   const clearAppliedPoints = useCallback(() => {
     setAppliedPoints(0);
   }, []);
 
   const togglePoints = useCallback(async (orderSubtotal: number) => {
+    if (!redeemEnabled) return;
     if (appliedPoints > 0) {
       setAppliedPoints(0);
       return;
     }
     const max = await refreshQuote(orderSubtotal);
     setAppliedPoints(max);
-  }, [appliedPoints, refreshQuote]);
+  }, [appliedPoints, refreshQuote, redeemEnabled]);
 
   /** @deprecated Redemption is server-side at checkout — kept as no-op for call-site safety */
   const redeemPoints = useCallback(async (_points: number, _orderId: string) => {
@@ -98,11 +108,12 @@ export function useLoyaltyRedeem() {
   }, [releaseMutation]);
 
   return {
-    balance,
+    balance: redeemEnabled ? balance : 0,
     balanceLoading,
-    appliedPoints,
-    loyaltyDiscount: appliedPoints, // 1 point = ₹1 (server-confirmed at checkout)
-    quotedMax,
+    appliedPoints: redeemEnabled ? appliedPoints : 0,
+    loyaltyDiscount: redeemEnabled ? appliedPoints : 0,
+    quotedMax: redeemEnabled ? quotedMax : 0,
+    redeemEnabled,
     applyPoints,
     clearAppliedPoints,
     togglePoints,

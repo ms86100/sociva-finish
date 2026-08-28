@@ -1,9 +1,11 @@
 // @ts-nocheck
 import { useBuyerWallet, useWalletHistory } from '@/hooks/queries/useWallet';
+import { useFinancialCapabilities } from '@/hooks/useFinancialCapabilities';
+import { resolveWalletCardMode } from '@/lib/buyer-balance-visibility';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Wallet, ArrowDown, ArrowUp, AlertTriangle } from 'lucide-react';
+import { Wallet, ArrowDown, ArrowUp, AlertTriangle, Clock } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { format } from 'date-fns';
 import { useState } from 'react';
@@ -13,15 +15,21 @@ function formatInr(n: number) {
 }
 
 export function WalletCard() {
-  const { data: wallet, isLoading } = useBuyerWallet();
+  const { data: wallet, isLoading: walletLoading } = useBuyerWallet();
+  const { onlinePaymentEnabled, isLoading: capsLoading } = useFinancialCapabilities();
   const { data: history = [] } = useWalletHistory(10);
   const [showHistory, setShowHistory] = useState(false);
 
-  if (isLoading) return <Skeleton className="h-24 w-full rounded-xl" />;
+  if (walletLoading || capsLoading) return <Skeleton className="h-24 w-full rounded-xl" />;
   if (!wallet) return null;
 
   const total = Number(wallet.total_available || 0);
   const frozen = wallet.status === 'frozen';
+  const mode = resolveWalletCardMode({ balance: total, onlinePaymentEnabled });
+
+  if (mode === 'hidden') return null;
+
+  const readonly = mode === 'readonly';
 
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="mb-3">
@@ -30,11 +38,12 @@ export function WalletCard() {
           <div className="flex items-center justify-between mb-1">
             <div className="flex items-center gap-2">
               <Wallet size={18} className="text-emerald-700" />
-              <span className="text-sm font-semibold">Sociva Credit</span>
+              <span className="text-sm font-semibold">Sociva Balance</span>
             </div>
             <button
               onClick={() => setShowHistory(!showHistory)}
               className="text-[10px] text-emerald-700 font-medium"
+              disabled={readonly}
             >
               {showHistory ? 'Hide' : 'History'}
             </button>
@@ -43,7 +52,7 @@ export function WalletCard() {
           <div className="flex items-baseline gap-1.5">
             <span className="text-3xl font-bold text-emerald-800">{formatInr(total)}</span>
             <Badge variant="outline" className="ml-auto text-[10px] border-emerald-500/30 text-emerald-800">
-              Store credit
+              Refund balance
             </Badge>
           </div>
 
@@ -59,8 +68,17 @@ export function WalletCard() {
           )}
 
           <p className="text-[10px] text-muted-foreground mt-1">
-            From refunds & promos · Usable on Sociva only · Not withdrawable · No top-up
+            {readonly
+              ? 'Saved from refunds & promos · Usable when online payments return · Not withdrawable'
+              : 'From refunds & promos · Usable on eligible online purchases · Not withdrawable'}
           </p>
+
+          {readonly && (
+            <div className="mt-2 flex items-center gap-1.5 text-[11px] text-muted-foreground">
+              <Clock size={12} />
+              Online checkout is off — your balance is safe and will apply on future online orders.
+            </div>
+          )}
 
           {frozen && (
             <div className="mt-2 flex items-center gap-1.5 text-[11px] text-destructive">
@@ -69,7 +87,7 @@ export function WalletCard() {
             </div>
           )}
 
-          {showHistory && history.length > 0 && (
+          {showHistory && !readonly && history.length > 0 && (
             <div className="mt-3 pt-3 border-t border-border space-y-1.5">
               {history.map((tx) => {
                 const amt = Number(tx.signed_amount || 0);

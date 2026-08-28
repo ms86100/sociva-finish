@@ -3,6 +3,7 @@ import { useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Capacitor } from '@capacitor/core';
 import { toast } from 'sonner';
+import { isTabRootPath, peekPreviousPath, resolveBackFallback } from '@/lib/navigation-stack';
 
 const ROOT_PATHS = new Set(['/', '/home', '/welcome', '/landing', '/auth']);
 
@@ -38,9 +39,19 @@ export function useAndroidBackButton() {
 
           // 2) In-app history
           const path = location.pathname || '/';
-          const atRoot = ROOT_PATHS.has(path);
-          if (!atRoot && (canGoBack || window.history.length > 1)) {
-            navigate(-1);
+          const atRoot = ROOT_PATHS.has(path) || isTabRootPath(path);
+          if (!atRoot) {
+            const returnTo = location.state?.returnTo;
+            if (typeof returnTo === 'string' && returnTo.startsWith('/')) {
+              navigate(returnTo);
+              return;
+            }
+            const previous = peekPreviousPath(path);
+            if (previous) {
+              navigate(previous);
+              return;
+            }
+            navigate(resolveBackFallback(path));
             return;
           }
 

@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
@@ -20,7 +20,7 @@ import { Switch } from '@/components/ui/switch';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Badge } from '@/components/ui/badge';
 import { DAYS_OF_WEEK } from '@/types/Database';
-import { ArrowLeft, Store, Loader2, ChevronRight, Settings, Shield, Save, Send, LayoutGrid, Tags, FileText, Package, CheckCircle2, ArrowRight, Truck, Smartphone, Banknote, Clock, ImageIcon, MapPin, Navigation, CheckCircle, Star, X, Search, ShoppingCart, Calendar, MessageCircle, Phone } from 'lucide-react';
+import { ArrowLeft, Store, Loader2, ChevronRight, Settings, Shield, Save, Send, LayoutGrid, Tags, FileText, Package, CheckCircle2, ArrowRight, Truck, Smartphone, Banknote, Clock, ImageIcon, MapPin, Navigation, CheckCircle, Star, X, Search, ShoppingCart, Calendar, MessageCircle, Phone, Coins } from 'lucide-react';
 import { useActionTypeMap, useCategoryAllowedActions } from '@/hooks/useActionTypeMap';
 import { OnboardingLocationSheet } from '@/components/seller/OnboardingLocationSheet';
 import { cn } from '@/lib/utils';
@@ -36,6 +36,8 @@ import { ListingIntentStep } from '@/components/seller/ListingIntentStep';
 import { CommerceModelStep } from '@/components/seller/CommerceModelStep';
 import { TaxonomySuggestCard } from '@/components/seller/TaxonomySuggestCard';
 import { RequestCategoryDialog } from '@/components/seller/RequestCategoryDialog';
+import { ExistingStoresOnboardingPanel } from '@/components/seller/ExistingStoresOnboardingPanel';
+import { resolveStoreCategoryLabel } from '@/lib/store-category-label';
 import { UpiVpaInput } from '@/components/payment/UpiVpaInput';
 import {
   resolveListingIntent,
@@ -483,7 +485,8 @@ function GuidedStep2({
 
 // ─── Main Page ──────────────────────────────────────────────────────────────
 export default function BecomeSellerPage() {
-  const { profile, sellerProfiles } = useAuth();
+  const navigate = useNavigate();
+  const { profile, sellerProfiles, setCurrentSellerId } = useAuth();
   const app = useSellerApplication();
   const { configs } = useCategoryConfigs();
   const { data: allActions = [] } = useActionTypeMap();
@@ -510,6 +513,7 @@ export default function BecomeSellerPage() {
     handleProceedToSettings, handleProceedToProducts, handleSaveDraftAndExit, handleSubmit,
     setExistingSeller, setDraftSellerId, handleStepBack, handleGroupSelect, submissionComplete,
     loadSellerDataIntoForm, reloadProducts, rejectionFeedback, setRejectionFeedback,
+    resumeExistingStore, startNewStoreOnboarding,
     listingIntentPhrase, setListingIntentPhrase,
     commerceModel, setCommerceModel,
     seedProductName, setSeedProductName,
@@ -667,12 +671,58 @@ export default function BecomeSellerPage() {
   const fulfillmentLabel = FULFILLMENT_OPTIONS.find(o => o.value === formData.fulfillment_mode)?.label || formData.fulfillment_mode;
   const paymentMethods = [formData.accepts_cod && 'COD', formData.accepts_upi && 'UPI'].filter(Boolean).join(', ') || 'None';
 
+  const liveSubmittedStore = draftSellerId
+    ? sellerProfiles.find((p) => p.id === draftSellerId)
+    : null;
+  const liveExistingStore = existingSeller?.id
+    ? sellerProfiles.find((p) => p.id === existingSeller.id)
+    : null;
+  const liveVerificationStatus =
+  (liveExistingStore as any)?.verification_status
+  ?? (liveSubmittedStore as any)?.verification_status
+  ?? (existingSeller as any)?.verification_status
+  ?? null;
+
   if (isCheckingExisting || groupsLoading) {
     return <AppLayout showHeader={false} showNav={false}><div className="flex items-center justify-center min-h-[100dvh]"><Loader2 className="animate-spin" size={32} /></div></AppLayout>;
   }
 
   // ─── Submission Success Screen ──────────────────────────────────────────────
   if (submissionComplete) {
+    const submittedApproved = liveSubmittedStore?.verification_status === 'approved';
+    const storeLabel = liveSubmittedStore?.business_name || formData.business_name || 'your store';
+
+    if (submittedApproved) {
+      return (
+        <AppLayout showHeader={false} showNav={false}>
+          <div className="p-4 flex flex-col items-center justify-center min-h-[80dvh] text-center safe-top">
+            <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ duration: 0.4 }}>
+              <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-success/20 flex items-center justify-center">
+                <CheckCircle2 className="text-success" size={40} />
+              </div>
+              <h1 className="text-2xl font-bold mb-2">Your store is approved!</h1>
+              <p className="text-muted-foreground mb-2 max-w-xs mx-auto">
+                <strong>{storeLabel}</strong> passed review.
+              </p>
+              <p className="text-sm text-muted-foreground mb-8 max-w-xs mx-auto">
+                Recharge Sociva Credits to make your store visible to buyers nearby.
+              </p>
+              <div className="flex flex-col gap-3 w-full max-w-xs">
+                <Link to="/seller/credits">
+                  <Button size="lg" className="w-full">
+                    <ArrowRight size={16} className="mr-2" />Recharge credits
+                  </Button>
+                </Link>
+                <Link to="/seller">
+                  <Button variant="outline" size="lg" className="w-full">Go to Seller Dashboard</Button>
+                </Link>
+              </div>
+            </motion.div>
+          </div>
+        </AppLayout>
+      );
+    }
+
     return (
       <AppLayout showHeader={false} showNav={false}>
         <div className="p-4 flex flex-col items-center justify-center min-h-[80dvh] text-center safe-top">
@@ -699,9 +749,55 @@ export default function BecomeSellerPage() {
   }
 
   if (existingSeller && selectedGroup) {
-    const isRejected = (existingSeller as any).verification_status === 'rejected';
-    const isPendingReview = (existingSeller as any).verification_status === 'pending';
+    const isRejected = liveVerificationStatus === 'rejected';
+    const isPendingReview = liveVerificationStatus === 'pending';
+    const isApproved = liveVerificationStatus === 'approved';
     const hasPendingCategoryRequest = pendingCategoryRequests.length > 0;
+    const displayStoreName = liveExistingStore?.business_name || existingSeller.business_name;
+    const conflictCategoryLabel = resolveStoreCategoryLabel(
+      {
+        primary_group: (existingSeller as any).primary_group || selectedGroup,
+        categories: (existingSeller as any).categories,
+      },
+      configs,
+    );
+
+    if (isApproved) {
+      return (
+        <AppLayout showHeader={false} showNav={false}>
+          <div className="p-4 safe-top max-w-md mx-auto">
+            <Link to="/" className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-muted shrink-0 mb-6"><ArrowLeft size={18} /></Link>
+            <div className="text-center py-4">
+              <div className="text-[44px] leading-none mb-3" aria-hidden>🏪</div>
+              <h1 className="text-2xl font-bold mb-2">You already have a store in this category</h1>
+              <p className="text-muted-foreground mb-3">
+                <strong>{displayStoreName}</strong> covers <strong>{conflictCategoryLabel}</strong>.
+              </p>
+              <p className="text-sm text-muted-foreground mb-5">
+                Sociva allows <strong>one store per category</strong>. Manage your existing store, or choose a different category to open another business.
+              </p>
+            </div>
+            <ExistingStoresOnboardingPanel
+              stores={sellerProfiles}
+              configs={configs}
+              currentDraftId={draftSellerId}
+              onResumeDraft={(store) => void resumeExistingStore(store.id)}
+              onAddNewStore={startNewStoreOnboarding}
+              onManageStore={(id) => { setCurrentSellerId(id); navigate('/seller'); }}
+            />
+            <div className="flex flex-col gap-3 mt-4">
+              <Button className="w-full" size="lg" onClick={() => { setCurrentSellerId(existingSeller.id); navigate('/seller'); }}>
+                <Store size={18} className="mr-2" />Manage {displayStoreName}
+              </Button>
+              <Button variant="outline" className="w-full" onClick={() => { setSelectedGroup(null); setExistingSeller(null); setStep(1); }}>
+                Choose a different category
+              </Button>
+            </div>
+          </div>
+        </AppLayout>
+      );
+    }
+
     return (
       <AppLayout showHeader={false} showNav={false}>
         <div className="p-4 safe-top">
@@ -844,6 +940,14 @@ export default function BecomeSellerPage() {
         {/* Step 1: What are you selling? */}
         {step === 1 && (
           <>
+            <ExistingStoresOnboardingPanel
+              stores={sellerProfiles}
+              configs={configs}
+              currentDraftId={draftSellerId}
+              onResumeDraft={(store) => void resumeExistingStore(store.id)}
+              onAddNewStore={startNewStoreOnboarding}
+              onManageStore={(id) => { setCurrentSellerId(id); navigate('/seller'); }}
+            />
             <PendingCategoryRequestsBanner variant="inline" />
             <ListingIntentStep
               value={listingIntentPhrase}
@@ -1074,6 +1178,25 @@ export default function BecomeSellerPage() {
 
             {storeSetupSubStep === 4 && (
               <div className="space-y-5">
+                {sellerProfiles.filter((s: any) => s.verification_status === 'draft' && s.id !== draftSellerId).length > 0 && (
+                  <div className="rounded-xl border border-border bg-muted/30 p-3 space-y-2">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Continue an existing draft</p>
+                    {sellerProfiles.filter((s: any) => s.verification_status === 'draft' && s.id !== draftSellerId).map((store: any) => (
+                      <button
+                        key={store.id}
+                        type="button"
+                        onClick={() => void resumeExistingStore(store.id)}
+                        className="w-full flex items-center justify-between p-2.5 rounded-lg border border-border bg-card hover:bg-accent/5 text-left"
+                      >
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium truncate">{store.business_name || 'Untitled draft'}</p>
+                          <p className="text-[11px] text-muted-foreground">{resolveStoreCategoryLabel(store, configs)}</p>
+                        </div>
+                        <ChevronRight size={14} className="text-muted-foreground shrink-0" />
+                      </button>
+                    ))}
+                  </div>
+                )}
                 <div className="space-y-2">
                   <Label htmlFor="business_name">Business / Store Name *</Label>
                   <Input id="business_name" placeholder={groups.find(g => g.slug === selectedGroup)?.placeholder_hint || "e.g., Your Store Name"} value={formData.business_name} onChange={(e) => setFormData({ ...formData, business_name: e.target.value })} />

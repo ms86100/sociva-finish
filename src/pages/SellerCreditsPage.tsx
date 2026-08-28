@@ -70,6 +70,7 @@ export default function SellerCreditsPage() {
   const isPortfolio = isPortfolioSellerId(currentSellerId);
   const portfolioIds = sellerProfiles.map((s) => s.id);
   const activeSellerId = resolveOperationalSellerId(currentSellerId, sellerProfiles);
+  const currentSeller = sellerProfiles.find((s) => s.id === activeSellerId);
   const statsKey = isPortfolio ? currentSellerId : activeSellerId;
   const scopeIds = resolveSellerFinancialIds(statsKey, isPortfolio ? portfolioIds : null);
   const summaryQuery = useSellerCreditSummary(statsKey, isPortfolio ? portfolioIds : null);
@@ -318,15 +319,19 @@ export default function SellerCreditsPage() {
   return (
     <AppLayout showHeader={false} safeTop={false}>
       <SafeHeader>
-        <div className="px-4 pb-3 flex items-center gap-3">
-          <Link to="/seller" className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-muted shrink-0">
-            <ArrowLeft size={18} />
-          </Link>
-          <div className="min-w-0 flex-1">
-            <h1 className="text-xl font-bold">Sociva Credits</h1>
-            <p className="text-xs text-muted-foreground">Prepaid platform usage — not customer earnings</p>
+        <div className="px-4 pb-3 space-y-2">
+          <div className="flex items-center gap-3">
+            <Link to="/seller" className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-muted shrink-0">
+              <ArrowLeft size={18} />
+            </Link>
+            <div className="min-w-0 flex-1">
+              <h1 className="text-lg font-bold leading-tight">Sociva Credits</h1>
+              {!isPortfolio && currentSeller?.business_name && (
+                <p className="text-[11px] text-muted-foreground truncate">{currentSeller.business_name}</p>
+              )}
+            </div>
           </div>
-          <SellerSwitcher />
+          {sellerProfiles.length > 1 && <SellerSwitcher variant="header" />}
         </div>
       </SafeHeader>
       <div className="p-4 space-y-4">
@@ -343,6 +348,7 @@ export default function SellerCreditsPage() {
 
         <Card>
           <CardContent className="p-4 space-y-2">
+            <p className="text-[11px] text-muted-foreground">Platform credits for listings and activity — not customer earnings.</p>
             <p className="font-semibold text-sm">{usageExplainer.headline}</p>
             <ul className="space-y-1.5">
               {usageExplainer.lines.map((line) => (

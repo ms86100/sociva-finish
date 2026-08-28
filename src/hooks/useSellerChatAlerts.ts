@@ -13,7 +13,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { hapticNotification } from '@/lib/haptics';
-import { isChatActive, onSilenceChatBell } from '@/lib/activeChatRegistry';
+import { isChatActive, onSilenceChatBell, isConversationActive } from '@/lib/activeChatRegistry';
 
 export function useChatAlerts(userId: string | null | undefined, enabled: boolean) {
   const navigate = useNavigate();
@@ -168,6 +168,69 @@ export function useChatAlerts(userId: string | null | undefined, enabled: boolea
           if (oldRow?.read_status === false && newRow?.read_status === true) {
             setUnreadCount((c) => Math.max(0, c - 1));
           }
+        },
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [enabled, userId, playBell, navigate]);
+
+  // Realtime: seller_conversation_messages (contact enquiry DMs)
+  useEffect(() => {
+    if (!enabled || !userId) return;
+
+    const channel = supabase
+      .channel(`seller-conv-alerts-${userId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'seller_conversation_messages',
+        },
+        async (payload) => {
+          const msg: any = payload.new;
+          if (!msg || msg.sender_id === userId) return;
+          if (isConversationActive(msg.conversation_id)) return;
+
+          const { data: conv } = await supabase
+            .from('seller_conversations')
+            .select('id, buyer_id, seller_id')
+            .eq('id', msg.conversation_id)
+            .maybeSingle();
+          if (!conv) return;
+
+          let isRecipient = conv.buyer_id === userId;
+          if (!isRecipient) {
+            const { data: sp } = await supabase
+              .from('seller_profiles')
+              .select('user_id')
+              .eq('id', conv.seller_id)
+              .maybeSingle();
+            isRecipient = sp?.user_id === userId;
+          }
+          if (!isRecipient) return;
+
+          setUnreadCount((c) => c + 1);
+          playBell(`conv:${msg.conversation_id}`);
+          hapticNotification('success');
+
+          let senderName = 'Someone';
+          try {
+            const { data } = await supabase.from('profiles').select('name').eq('id', msg.sender_id).maybeSingle();
+            if (data?.name) senderName = data.name;
+          } catch {/* noop */}
+
+          const preview = String(msg.message_text || '').slice(0, 80);
+          toast(`💬 ${senderName}`, {
+            id: `conv-${msg.conversation_id}`,
+            description: preview || 'New message',
+            duration: 7000,
+            action: {
+              label: 'Reply',
+              onClick: () => navigate(`/seller/messages?tab=contacts&conv=${msg.conversation_id}`),
+            },
+          });
         },
       )
       .subscribe();

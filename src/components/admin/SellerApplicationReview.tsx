@@ -183,6 +183,9 @@ function SellerCard({ seller, s, idx }: { seller: any; s: ReturnType<typeof useS
               {/* Store Info Grid */}
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-1.5 text-[11px] text-muted-foreground bg-muted/30 rounded-xl p-3">
                 {seller.primary_group && <div><span className="font-semibold text-foreground">Category:</span> {seller.primary_group.replace(/_/g, ' ')}</div>}
+                {seller.default_action_type && (
+                  <div><span className="font-semibold text-foreground">Store mode:</span> {seller.default_action_type.replace(/_/g, ' ')}</div>
+                )}
                 {seller.profile?.phone && <div className="flex items-center gap-1"><Phone size={9} /> {seller.profile.phone}</div>}
                 {(seller.availability_start || seller.availability_end) && <div className="flex items-center gap-1"><Calendar size={9} /> {seller.availability_start || '—'} – {seller.availability_end || '—'}</div>}
                 <div className="flex items-center gap-1"><CreditCard size={9} /> COD: {seller.accepts_cod ? '✓' : '✗'} | UPI: {seller.accepts_upi ? '✓' : '✗'}</div>
@@ -240,8 +243,18 @@ function SellerCard({ seller, s, idx }: { seller: any; s: ReturnType<typeof useS
                           {prod.image_url ? <img src={prod.image_url} alt="" className="w-8 h-8 rounded-lg object-cover shrink-0" /> : <div className="w-8 h-8 rounded-lg bg-background flex items-center justify-center shrink-0"><Package size={12} className="text-muted-foreground/50" /></div>}
                           <div className="flex-1 min-w-0">
                             <p className="text-xs font-semibold truncate">{prod.name}</p>
-                            <div className="flex items-center gap-1.5">
-                              {prod.price > 0 && <span className="text-[10px] text-primary font-bold">{s.formatPrice(prod.price)}</span>}
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              {prod.action_type === 'contact_seller' || prod.price <= 0 ? (
+                                <span className="text-[10px] text-muted-foreground font-medium">Contact for price</span>
+                              ) : prod.price > 0 ? (
+                                <span className="text-[10px] text-primary font-bold">{s.formatPrice(prod.price)}</span>
+                              ) : null}
+                              {prod.action_type && (
+                                <span className="text-[9px] text-muted-foreground capitalize">{prod.action_type.replace(/_/g, ' ')}</span>
+                              )}
+                              {prod.contact_phone && (
+                                <span className="text-[9px] text-muted-foreground flex items-center gap-0.5"><Phone size={8} />{prod.contact_phone}</span>
+                              )}
                               <span className="text-[9px] text-muted-foreground">{prod.category.replace(/_/g, ' ')}</span>
                             </div>
                           </div>

@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -14,11 +15,22 @@ import { RefundTimeline } from './RefundTimeline';
 import { notify } from '@/lib/notify';
 import { friendlyError } from '@/lib/utils';
 import { showFeedback } from '@/components/FeedbackPopupProvider';
+import {
+  buyerRefundWindowClosedMessage,
+  getBuyerRefundEligibility,
+} from '@/lib/buyer-refund-eligibility';
+import {
+  buyerDisputeCopy,
+  normalizeSocivaBalanceRefundEligibility,
+} from '@/lib/sociva-balance-refund-eligibility';
 
 interface RefundRequestCardProps {
   orderId: string;
   orderStatus: string;
   paymentStatus: string;
+  deliveredAt?: string | null;
+  completedAt?: string | null;
+  statusChangedAt?: string | null;
   isBuyerView: boolean;
   totalAmount: number;
   onRefundRequested?: () => void;
@@ -29,6 +41,8 @@ interface RefundRequest {
   status: string;
   refund_state: string;
   amount: number;
+  requested_amount?: number | null;
+  approved_amount?: number | null;
   reason: string;
   category: string;
   auto_approved: boolean;
@@ -53,7 +67,17 @@ const REFUND_CATEGORIES = [
 
 const VALID_REFUND_CATEGORIES = new Set(REFUND_CATEGORIES.map((item) => item.value));
 
-export function RefundRequestCard({ orderId, orderStatus, paymentStatus, isBuyerView, totalAmount, onRefundRequested }: RefundRequestCardProps) {
+export function RefundRequestCard({
+  orderId,
+  orderStatus,
+  paymentStatus,
+  deliveredAt,
+  completedAt,
+  statusChangedAt,
+  isBuyerView,
+  totalAmount,
+  onRefundRequested,
+}: RefundRequestCardProps) {
   const { user } = useAuth();
   const [existingRefund, setExistingRefund] = useState<RefundRequest | null>(null);
   const [auditLog, setAuditLog] = useState<any[]>([]);
@@ -61,14 +85,33 @@ export function RefundRequestCard({ orderId, orderStatus, paymentStatus, isBuyer
   const [showForm, setShowForm] = useState(false);
   const [reason, setReason] = useState('');
   const [category, setCategory] = useState('order_issue');
-  const [refundDestination, setRefundDestination] = useState<'original_payment' | 'wallet'>('original_payment');
-  const [walletRefundEnabled, setWalletRefundEnabled] = useState(false);
   const [evidenceUrls, setEvidenceUrls] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
 
-  const canRequestRefund = isBuyerView &&
-    ['paid', 'buyer_confirmed', 'seller_verified', 'completed'].includes(paymentStatus) &&
-    ['delivered', 'completed', 'cancelled', 'failed', 'buyer_received'].includes(orderStatus);
+  const { data: balanceRefundEligibility } = useQuery({
+    queryKey: ['sociva-balance-refund-eligibility', orderId],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('get_sociva_balance_refund_eligibility', {
+        p_order_id: orderId,
+      });
+      if (error) throw error;
+      return normalizeSocivaBalanceRefundEligibility(data);
+    },
+    enabled: !!orderId && isBuyerView,
+    staleTime: 30_000,
+  });
+
+  const canPromiseBalanceRefund = balanceRefundEligibility?.eligible === true;
+  const disputeCopy = buyerDisputeCopy(canPromiseBalanceRefund);
+
+  const refundEligibility = getBuyerRefundEligibility({
+    orderStatus,
+    paymentStatus,
+    deliveredAt,
+    completedAt,
+    statusChangedAt,
+  });
+  const canRequestRefund = isBuyerView && refundEligibility.eligible;
 
   async function fetchRefund() {
     const { data } = await supabase
@@ -89,11 +132,6 @@ export function RefundRequestCard({ orderId, orderStatus, paymentStatus, isBuyer
         .order('created_at', { ascending: true });
       setAuditLog(audit || []);
     }
-    const { data: capabilities } = await supabase.rpc('get_financial_capabilities');
-    setWalletRefundEnabled(
-      (capabilities as { wallet_refund_credit_enabled?: boolean } | null)
-        ?.wallet_refund_credit_enabled === true,
-    );
     setLoading(false);
   }
 
@@ -143,7 +181,6 @@ export function RefundRequestCard({ orderId, orderStatus, paymentStatus, isBuyer
         p_reason: reason.trim(),
         p_category: category,
         p_evidence_urls: evidenceUrls,
-        p_refund_destination: refundDestination,
       } as any);
 
       if (error) {
@@ -195,50 +232,46 @@ export function RefundRequestCard({ orderId, orderStatus, paymentStatus, isBuyer
     const isInFlight = ['approved', 'refund_initiated', 'refund_processing'].includes(state);
     const isCompleted = state === 'refund_completed';
     const isRejected = state === 'rejected';
+    const displayAmount = existingRefund.approved_amount ?? existingRefund.requested_amount ?? existingRefund.amount;
+    const isWalletRefund = existingRefund.refund_destination === 'wallet'
+      || (existingRefund.refund_method === 'wallet' && existingRefund.refund_destination !== 'seller_resolution');
 
     return (
       <motion.div variants={cardEntrance} className="bg-card/80 backdrop-blur-lg border border-border/50 rounded-xl px-4 py-3 shadow-sm space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <ShieldCheck size={16} className="text-primary" />
-            <p className="text-sm font-semibold">Refund</p>
+            <p className="text-sm font-semibold">{isWalletRefund ? 'Refund' : 'Dispute'}</p>
           </div>
-          <p className="text-sm font-bold">₹{existingRefund.amount}</p>
+          <p className="text-sm font-bold">₹{displayAmount}</p>
         </div>
 
         <RefundTimeline currentState={state} auditLog={auditLog} />
 
-        {(isInFlight || isCompleted) && (
+        {isWalletRefund && (isInFlight || isCompleted) && (
           <div className="flex items-start gap-2 bg-primary/5 border border-primary/10 rounded-lg px-3 py-2">
             <CreditCard size={14} className="text-primary shrink-0 mt-0.5" />
             <div className="flex-1">
-              {((existingRefund.refund_destination || existingRefund.refund_method) === 'wallet') ? (
-                <>
-                  <p className="text-[11px] font-medium">
-                    {isCompleted ? 'Credited as Sociva Credit' : 'Will credit as Sociva Credit (instant)'}
-                  </p>
-                  <p className="text-[10px] text-muted-foreground">
-                    Usable on Sociva only · Not withdrawable to bank
-                  </p>
-                </>
-              ) : (
-                <>
-                  <p className="text-[11px] font-medium">
-                    {isCompleted ? 'Refunded to your original payment method' : 'Returning to your original payment method'}
-                  </p>
-                  <p className="text-[10px] text-muted-foreground">
-                    {isCompleted
-                      ? 'Funds typically reflect in 3–5 business days depending on your bank.'
-                      : 'Auto-settled within 3–5 business days. No action needed.'}
-                  </p>
-                </>
-              )}
+              <p className="text-[11px] font-medium">
+                {isCompleted ? 'Added to Sociva Balance' : 'Will add to Sociva Balance (instant)'}
+              </p>
+              <p className="text-[10px] text-muted-foreground">
+                Usable on eligible online purchases · Not withdrawable to bank
+              </p>
               {existingRefund.gateway_refund_id && (
                 <p className="text-[10px] text-muted-foreground mt-1 font-mono">
                   Ref: {existingRefund.gateway_refund_id}
                 </p>
               )}
             </div>
+          </div>
+        )}
+
+        {!isWalletRefund && state === 'requested' && (
+          <div className="rounded-lg border border-border/50 bg-muted/40 px-3 py-2">
+            <p className="text-[11px] text-muted-foreground">
+              Your seller is reviewing this dispute. Use chat to follow up — Sociva Balance refunds are not available for this order.
+            </p>
           </div>
         )}
 
@@ -255,7 +288,23 @@ export function RefundRequestCard({ orderId, orderStatus, paymentStatus, isBuyer
     );
   }
 
-  if (!canRequestRefund) return null;
+  if (!canRequestRefund) {
+    if (
+      isBuyerView &&
+      ['delivered', 'completed', 'buyer_received'].includes(orderStatus) &&
+      refundEligibility.reason === 'window_closed'
+    ) {
+      return (
+        <motion.div variants={cardEntrance} className="bg-muted/40 border border-border/50 rounded-xl p-3">
+          <p className="text-sm font-medium text-muted-foreground">Refund window closed</p>
+          <p className="text-[11px] text-muted-foreground mt-1">
+            {buyerRefundWindowClosedMessage(refundEligibility.windowHours)}
+          </p>
+        </motion.div>
+      );
+    }
+    return null;
+  }
 
   if (!showForm) {
     return (
@@ -286,36 +335,9 @@ export function RefundRequestCard({ orderId, orderStatus, paymentStatus, isBuyer
           <p className="text-xs text-muted-foreground">Refund amount</p>
           <p className="text-lg font-bold">₹{totalAmount}</p>
         </div>
-        <div className="space-y-1.5">
-          <p className="text-[11px] font-medium text-muted-foreground">Where should we send it?</p>
-          <label className="flex items-start gap-2 text-xs cursor-pointer">
-            <input
-              type="radio"
-              name="refund-dest"
-              className="mt-0.5"
-              checked={refundDestination === 'original_payment'}
-              onChange={() => setRefundDestination('original_payment')}
-            />
-            <span>
-              <span className="font-medium">Original payment</span>
-              <span className="block text-[10px] text-muted-foreground">3–7 business days · default</span>
-            </span>
-          </label>
-          {walletRefundEnabled && (
-            <label className="flex items-start gap-2 text-xs cursor-pointer">
-              <input
-                type="radio"
-                name="refund-dest"
-                className="mt-0.5"
-                checked={refundDestination === 'wallet'}
-                onChange={() => setRefundDestination('wallet')}
-              />
-              <span>
-                <span className="font-medium">Instant Sociva Credit</span>
-                <span className="block text-[10px] text-muted-foreground">Usable on Sociva only · not withdrawable</span>
-              </span>
-            </label>
-          )}
+        <div className="rounded-md border border-primary/15 bg-primary/5 px-2.5 py-2">
+          <p className="text-[11px] font-medium">{disputeCopy.title}</p>
+          <p className="text-[10px] text-muted-foreground">{disputeCopy.body}</p>
         </div>
       </div>
 
@@ -350,7 +372,7 @@ export function RefundRequestCard({ orderId, orderStatus, paymentStatus, isBuyer
       </div>
 
       <p className="text-[10px] text-muted-foreground text-center">
-        Seller has 48 hours to respond. Auto-approved after deadline.
+        Submit within {refundEligibility.windowHours} hours of delivery. Seller has 48 hours to respond.
       </p>
     </motion.div>
   );

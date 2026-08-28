@@ -874,7 +874,7 @@ Deno.serve(async (req) => {
         const targetRole = rawPayload.target_role || '';
         const notifStatus = rawPayload.status || '';
 
-        const SELLER_HIGH_PRIORITY_STATUSES = ['placed', 'enquired', 'requested', 'quoted'];
+        const SELLER_HIGH_PRIORITY_STATUSES = ['placed', 'enquired', 'requested', 'quoted', 'payment_verify_pending', 'refund_requested'];
         const BUYER_HIGH_PRIORITY_STATUSES = ['payment_failed', 'refund_failed', 'otp'];
         const SELLER_LIFECYCLE_TYPES = [
           'seller_approved',
@@ -890,8 +890,12 @@ Deno.serve(async (req) => {
         const isHighPriority =
           (targetRole === 'seller' && SELLER_HIGH_PRIORITY_STATUSES.includes(notifStatus)) ||
           (targetRole === 'buyer' && BUYER_HIGH_PRIORITY_STATUSES.includes(notifStatus)) ||
+          (targetRole === 'seller' && item.type === 'refund_request') ||
           item.type === 'seller_order_status_reminder' ||
+          rawPayload.reminder_type === 'payment_verify' ||
           rawPayload.reminder_type === 'status_nudge' ||
+          rawPayload.high_priority === true ||
+          rawPayload.high_priority === 'true' ||
           SELLER_LIFECYCLE_TYPES.includes(item.type);
 
         // Quiet hours: suppress non-urgent push (inbox + WA already handled)

@@ -8,7 +8,6 @@ import { Switch } from '@/components/ui/switch';
 import { ImageUpload } from '@/components/ui/image-upload';
 import { DeleteAccountDialog } from '@/components/profile/DeleteAccountDialog';
 import { useAuth } from '@/contexts/AuthContext';
-import { useEffectiveFeatures } from '@/hooks/useEffectiveFeatures';
 import { useQuery } from '@tanstack/react-query';
 import {
   User,
@@ -45,7 +44,6 @@ export default function ProfilePage() {
     user, profile, society, isSeller, isAdmin, isBuilderMember, signOut, refreshProfile,
     isProfileLoading, profileError,
   } = useAuth();
-  const { isFeatureEnabled } = useEffectiveFeatures();
   const settings = useSystemSettings();
   const { theme, setTheme } = useTheme();
   const { showFeedback } = useFeedbackPopup();
@@ -259,20 +257,6 @@ export default function ProfilePage() {
 
         {/* Quick Access Cards */}
         <div className="px-4 mt-4 space-y-2">
-          {isFeatureEnabled('resident_identity_verification') && (
-            <Link to="/gate-entry">
-              <div className="bg-card border border-border/40 rounded-2xl p-3.5 flex items-center gap-3 transition-all active:scale-[0.98]">
-                <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center">
-                  <Shield className="text-primary-foreground" size={20} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <h4 className="font-bold text-sm text-foreground">Gate Entry</h4>
-                  <p className="text-[11px] text-muted-foreground">Show QR code to security</p>
-                </div>
-                <ChevronRight className="text-muted-foreground shrink-0" size={18} />
-              </div>
-            </Link>
-          )}
           {!isSeller && (
             <Link to="/become-seller">
               <div className="bg-accent rounded-2xl p-3.5 flex items-center gap-3 transition-all active:scale-[0.98]">

@@ -233,9 +233,34 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Sociva Credit path: skip Razorpay, credit wallet + complete
+    // Sociva Balance path: skip Razorpay, credit wallet + complete
     const destination = (refund as { refund_destination?: string }).refund_destination || "original_payment";
     if (destination === "wallet") {
+      const { data: elig, error: eligErr } = await supabase.rpc(
+        "get_sociva_balance_refund_eligibility",
+        { p_order_id: refund.order_id },
+      );
+      if (eligErr || elig?.eligible !== true) {
+        const msg = elig?.message || elig?.reason || eligErr?.message || "Sociva Balance refund not eligible";
+        await supabase
+          .from("refund_requests")
+          .update({
+            refund_state: "needs_manual_review",
+            notes: `needs_manual_review: ${msg}`,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", refund.id)
+          .eq("refund_state", "approved");
+        return new Response(
+          JSON.stringify({
+            ok: false,
+            state: "needs_manual_review",
+            error: "sociva_balance_refund_ineligible",
+            message: msg,
+          }),
+          { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
       const { data: walletFlag } = await supabase
         .from("financial_feature_flags")
         .select("enabled")
@@ -269,7 +294,7 @@ Deno.serve(async (req) => {
           p_refund_id: refund.id,
           p_provider_payment_id: `wallet:${refund.id}`,
           p_request_key: `wallet-refund-${refund.id}`,
-          p_amount_minor: Math.round(Number(refund.amount) * 100),
+          p_amount_minor: Math.round(Number((refund as { approved_amount?: number }).approved_amount ?? refund.amount) * 100),
         },
       );
       if (walletClaimErr) {

@@ -12,6 +12,7 @@ import { ACTION_CONFIG } from '@/lib/marketplace-constants';
 import { useCart } from '@/hooks/useCart';
 import { cn } from '@/lib/utils';
 import { useCurrency } from '@/hooks/useCurrency';
+import { resolveProductAvailability } from '@/lib/product-availability';
 import { computeStoreStatus, formatStoreClosedMessage } from '@/lib/store-availability';
 import { optimizedImageUrl, imageSrcSet, handleImageError } from '@/utils/imageHelpers';
 
@@ -30,6 +31,7 @@ export function ProductCard({ product, variant = 'horizontal', onTap }: ProductC
   const actionType: ProductActionType = (product.action_type as ProductActionType) || 'add_to_cart';
   const actionConfig = ACTION_CONFIG[actionType] || ACTION_CONFIG.add_to_cart;
   const isCartAction = actionConfig.isCart;
+  const isContactAction = actionType === 'contact_seller';
 
   const cartItem = isCartAction ? items.find((item) => item.product_id === product.id) : null;
   const quantity = cartItem?.quantity || 0;
@@ -48,9 +50,14 @@ export function ProductCard({ product, variant = 'horizontal', onTap }: ProductC
 
   const isStoreClosed = storeAvailability.status !== 'open';
   const storeClosedMessage = isStoreClosed ? formatStoreClosedMessage(storeAvailability) : '';
+  const effectiveStoreClosed = isContactAction ? false : isStoreClosed;
   const isStockEmpty = stockLimit <= 0 && (product as any).stock_quantity != null;
-  const isDisabled = !product.is_available || isStoreClosed || isStockEmpty;
-  const canIncrement = quantity < stockLimit && !isStoreClosed;
+  const availability = resolveProductAvailability({
+    is_available: product.is_available,
+    stock_quantity: (product as any).stock_quantity,
+  });
+  const isDisabled = !availability.canOrder || effectiveStoreClosed;
+  const canIncrement = quantity < stockLimit && !effectiveStoreClosed;
   const hasDiscount = (product as any).mrp && (product as any).mrp > product.price;
 
   const handleAdd = useCallback(() => {
@@ -101,10 +108,10 @@ export function ProductCard({ product, variant = 'horizontal', onTap }: ProductC
       )}>
         <div className="relative aspect-[4/3] product-image-bg">
           {imageEl(400)}
-          {(!product.is_available || isStockEmpty) && (
+          {availability.state !== 'available' && (
             <div className="absolute inset-0 bg-foreground/45 flex items-center justify-center backdrop-blur-[1px]">
               <span className="text-background text-sm font-medium bg-foreground/80 px-3 py-1.5 rounded-full">
-                {isStockEmpty && product.is_available ? 'Out of Stock' : 'Unavailable'}
+                {availability.overlayLabel}
               </span>
             </div>
           )}
@@ -151,7 +158,7 @@ export function ProductCard({ product, variant = 'horizontal', onTap }: ProductC
             <div className="flex-1 min-w-0">
               <h4 className="font-semibold text-sm line-clamp-2 leading-snug">{product.name}</h4>
               <div className="flex items-baseline gap-1.5 mt-1.5 flex-wrap">
-                <p className="text-base font-extrabold text-foreground tabular-nums">{formatPrice(product.price)}</p>
+                <p className="text-base font-extrabold text-foreground tabular-nums">{isContactAction ? 'Contact for price' : formatPrice(product.price)}</p>
                 {hasDiscount && (
                   <span className="text-xs text-muted-foreground line-through tabular-nums">{formatPrice((product as any).mrp)}</span>
                 )}
@@ -164,7 +171,7 @@ export function ProductCard({ product, variant = 'horizontal', onTap }: ProductC
             </div>
           </div>
           <div className="mt-3">
-            {isCartAction && quantity > 0 && !isStoreClosed ? (
+            {isCartAction && quantity > 0 && !effectiveStoreClosed ? (
               <div className="flex items-center justify-center gap-3 border-[1.5px] border-primary rounded-xl bg-primary/5">
                 <Button size="sm" variant="ghost" className="h-11 w-11 p-0 text-primary touch-manipulation" onClick={handleDecrement} aria-label="Decrease quantity"><Minus size={16} /></Button>
                 <AnimatePresence mode="popLayout">
@@ -183,7 +190,7 @@ export function ProductCard({ product, variant = 'horizontal', onTap }: ProductC
               </div>
             ) : (
               <Button variant="outline" className="w-full h-11 border-primary text-primary hover:bg-primary hover:text-primary-foreground font-bold rounded-xl touch-manipulation" onClick={handleAdd} disabled={isDisabled}>
-                {isStoreClosed ? (<><Clock size={14} className="mr-1" /> {storeClosedMessage || 'Closed'}</>) : (<>{isCartAction && <Plus size={14} className="mr-1" />}{justAdded ? 'ADDED' : actionConfig.shortLabel}</>)}
+                {effectiveStoreClosed ? (<><Clock size={14} className="mr-1" /> {storeClosedMessage || 'Closed'}</>) : (<>{isCartAction && <Plus size={14} className="mr-1" />}{justAdded ? 'ADDED' : actionConfig.shortLabel}</>)}
               </Button>
             )}
           </div>
@@ -208,7 +215,7 @@ export function ProductCard({ product, variant = 'horizontal', onTap }: ProductC
             </div>
             {product.description && (<p className="text-sm text-muted-foreground line-clamp-2 mt-1">{product.description}</p>)}
             <div className="flex items-baseline gap-1.5 mt-2 flex-wrap">
-              <p className="font-extrabold text-base tabular-nums">{formatPrice(product.price)}</p>
+              <p className="font-extrabold text-base tabular-nums">{isContactAction ? 'Contact for price' : formatPrice(product.price)}</p>
               {hasDiscount && (
                 <span className="text-xs text-muted-foreground line-through tabular-nums">{formatPrice((product as any).mrp)}</span>
               )}
@@ -269,7 +276,7 @@ export function ProductCard({ product, variant = 'horizontal', onTap }: ProductC
             onClick={handleAdd}
             disabled={isDisabled}
           >
-            {isStoreClosed ? 'Closed' : (justAdded ? 'ADDED' : (isCartAction ? 'ADD' : actionConfig.shortLabel))}
+            {effectiveStoreClosed ? 'Closed' : (justAdded ? 'ADDED' : (isCartAction ? 'ADD' : actionConfig.shortLabel))}
           </Button>
         )}
       </div>

@@ -1,12 +1,13 @@
 // @ts-nocheck
 import { useState, useCallback } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useBuyerWallet } from '@/hooks/queries/useWallet';
+import { useFinancialCapabilities } from '@/hooks/useFinancialCapabilities';
 import { toast } from 'sonner';
 
 /**
- * Sociva Credit — client is display/quote only.
+ * Sociva Balance — client is display/quote only.
  * Authoritative apply happens inside create_multi_vendor_orders (_wallet_amount).
  */
 export function useWalletCredit() {
@@ -14,19 +15,8 @@ export function useWalletCredit() {
   const queryClient = useQueryClient();
   const [appliedAmount, setAppliedAmount] = useState(0);
   const [quotedMax, setQuotedMax] = useState<number | null>(null);
-  const { data: capabilities, isLoading: capabilitiesLoading } = useQuery({
-    queryKey: ['financial-capabilities'],
-    queryFn: async () => {
-      const { data, error } = await supabase.rpc('get_financial_capabilities');
-      if (error) throw error;
-      return data as {
-        wallet_spend_enabled?: boolean;
-        wallet_refund_credit_enabled?: boolean;
-      };
-    },
-    staleTime: 30_000,
-  });
-  const spendEnabled = capabilities?.wallet_spend_enabled === true;
+  const { socivaBalanceSpendEnabled, isLoading: capabilitiesLoading } = useFinancialCapabilities();
+  const spendEnabled = socivaBalanceSpendEnabled === true;
 
   const balance = Number(wallet?.total_available || 0);
   const cashAvailable = Number(wallet?.cash_available || 0);
@@ -98,11 +88,11 @@ export function useWalletCredit() {
       return;
     }
     if (status !== 'active') {
-      toast.error('Sociva Credit is frozen on this account.');
+      toast.error('Sociva Balance is frozen on this account.');
       return;
     }
     if (!spendEnabled) {
-      toast.info('Sociva Credit spending is temporarily unavailable.');
+      toast.info('Sociva Balance spending is temporarily unavailable.');
       return;
     }
     const max = await refreshQuote(payableAfterCouponLoyalty);
@@ -114,7 +104,7 @@ export function useWalletCredit() {
       await releaseMutation.mutateAsync(orderIds);
     } catch (err: any) {
       console.error('[Wallet] release failed:', err);
-      toast.error('Could not release Sociva Credit hold. Contact support if balance stays pending.', {
+      toast.error('Could not release Sociva Balance hold. Contact support if balance stays pending.', {
         id: 'wallet-release-fail',
       });
     }

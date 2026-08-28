@@ -147,6 +147,8 @@ export function ProductDetailSheet({ product, open, onOpenChange, onSelectProduc
     : { status: 'open', nextOpenAt: null, minutesUntilOpen: 0 };
 
   const isStoreClosed = isStoreCheckPending || isStoreUnknown || storeAvailability.status !== 'open';
+  const isContactAction = d.actionType === 'contact_seller';
+  const blocksForStoreClosed = isStoreClosed && !isContactAction;
   const storeClosedMsg = isStoreCheckPending ? 'Checking store availability…' : isStoreUnknown ? 'Store unavailable right now' : isStoreClosed ? formatStoreClosedMessage(storeAvailability) : '';
 
   const distanceLabel = product?.distance_km != null
@@ -386,10 +388,10 @@ export function ProductDetailSheet({ product, open, onOpenChange, onSelectProduc
           >
             {creditsBlocked ? (
               <div className="w-full h-12 flex items-center justify-center bg-muted rounded-xl px-3 text-center"><span className="text-sm font-medium text-muted-foreground">{sellerCreditCustomerMessage(creditGate.data?.reason, creditEvent)}</span></div>
-            ) : isStoreClosed ? (
+            ) : blocksForStoreClosed ? (
               <div className="w-full h-12 flex items-center justify-center bg-muted rounded-xl"><Clock size={16} className="text-muted-foreground mr-2" /><span className="text-sm font-medium text-muted-foreground">{storeClosedMsg}</span></div>
-            ) : d.isStockEmpty ? (
-              <div className="w-full h-12 flex items-center justify-center bg-muted rounded-xl"><span className="text-sm font-medium text-muted-foreground">Out of Stock</span></div>
+            ) : d.isStockEmpty || d.isBuyerUnavailable ? (
+              <div className="w-full h-12 flex items-center justify-center bg-muted rounded-xl"><span className="text-sm font-medium text-muted-foreground">{d.availabilityOverlayLabel}</span></div>
             ) : d.isCartAction ? (
               d.quantity === 0 ? (
                 <Button data-haptic="medium" className="w-full h-12 text-base font-bold bg-accent hover:bg-accent/90 text-accent-foreground rounded-xl" onClick={() => {
@@ -440,7 +442,7 @@ export function ProductDetailSheet({ product, open, onOpenChange, onSelectProduc
           </motion.div>
         </DrawerContent>
       </Drawer>
-      {d.actionType === 'contact_seller' && <ContactSellerModal open={d.contactOpen} onOpenChange={d.setContactOpen} sellerName={product.seller_name} phone={product.contact_phone || ''} sellerId={product.seller_id} buyerId={user?.id ?? ''} productId={product.product_id} productName={product.product_name} />}
+      {d.actionType === 'contact_seller' && <ContactSellerModal open={d.contactOpen} onOpenChange={d.setContactOpen} sellerName={product.seller_name} sellerId={product.seller_id} buyerId={user?.id ?? ''} productId={product.product_id} productName={product.product_name} />}
       {!d.isCartAction && d.actionType !== 'contact_seller' && !isServiceBookingAction && <ProductEnquirySheet open={d.enquiryOpen} onOpenChange={d.setEnquiryOpen} productId={product.product_id} productName={product.product_name} sellerId={product.seller_id} sellerName={product.seller_name} actionType={d.actionType} price={product.price} specifications={d.loadedSpecs ?? product.specifications} />}
       {isServiceBookingAction && product && (
         <ServiceBookingFlow open={bookingOpen} onOpenChange={setBookingOpen} productId={product.product_id} productName={product.product_name} sellerId={product.seller_id} sellerName={product.seller_name} price={product.price} category={product.category || ''} imageUrl={product.image_url} durationMinutes={product.prep_time_minutes || undefined} locationType={(product as any).location_type || undefined} subcategoryId={(product as any).subcategory_id || undefined} />

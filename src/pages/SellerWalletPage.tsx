@@ -37,7 +37,6 @@ import {
   Banknote,
   Clock,
   LayoutGrid,
-  ShieldAlert,
   Wallet,
 } from 'lucide-react';
 
@@ -82,7 +81,7 @@ export default function SellerWalletPage() {
       return;
     }
     if (!readinessQuery.data?.canRequestWithdrawal) {
-      toast.error(readinessQuery.data?.reason || 'Withdrawals are not enabled yet.');
+      toast.error(readinessQuery.data?.reason || 'Bank withdrawals are not open yet. Your Available balance is still tracked in the wallet.');
       return;
     }
     setSubmitting(true);
@@ -204,11 +203,17 @@ export default function SellerWalletPage() {
                 </div>
               </>
             ) : (
-              <div className="rounded-lg bg-muted px-3 py-2 text-sm flex items-start gap-2">
-                <ShieldAlert size={16} className="mt-0.5 shrink-0" />
-                <p>
+              <div className="rounded-lg bg-muted px-3 py-2 text-sm space-y-1">
+                <p className="font-medium flex items-start gap-2">
+                  <Banknote size={16} className="mt-0.5 shrink-0 text-muted-foreground" />
+                  Bank withdrawals not open yet
+                </p>
+                <p className="text-xs text-muted-foreground pl-6">
                   {readinessQuery.data?.reason ||
-                    'Withdrawals are not enabled yet. Online earnings stay as Available until Razorpay Route payouts are production-ready.'}
+                    'Your online earnings are tracked in Available above. Sociva enables bank transfers platform-wide when payout controls are turned on — you will be notified when withdrawals open.'}
+                </p>
+                <p className="text-[11px] text-muted-foreground pl-6">
+                  COD cash you collect stays separate and is never withdrawable through Sociva.
                 </p>
               </div>
             )}

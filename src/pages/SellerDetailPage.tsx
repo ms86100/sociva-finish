@@ -34,7 +34,8 @@ import { useCart } from '@/hooks/useCart';
 import { useAuth } from '@/contexts/AuthContext';
 import { SellerProfile, Product, DAYS_OF_WEEK } from '@/types/Database';
 import { useCategoryConfigs } from '@/hooks/useCategoryBehavior';
-import { ArrowLeft, Clock, MapPin, Phone, Search, ShoppingCart, Star, Calendar, Flag, X, Zap, Users, ShieldCheck, AlertCircle } from 'lucide-react';
+import { Clock, MapPin, Phone, Search, ShoppingCart, Star, Calendar, Flag, X, Zap, Users, ShieldCheck, AlertCircle } from 'lucide-react';
+import { BackButton } from '@/components/navigation/BackButton';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
@@ -407,12 +408,11 @@ export default function SellerDetailPage() {
           className="absolute left-3 right-3 flex justify-between"
           style={{ top: 'max(1rem, var(--app-safe-top, 28px))' }}
         >
-          <button
-            onClick={() => navigate(-1)}
-            className="w-11 h-11 rounded-full bg-foreground/50 backdrop-blur-sm flex items-center justify-center shadow-md border border-primary-foreground/20"
-          >
-            <ArrowLeft size={20} className="text-primary-foreground" />
-          </button>
+          <BackButton
+            fallback="/"
+            className="w-11 h-11 bg-foreground/50 backdrop-blur-sm border border-primary-foreground/20 text-primary-foreground"
+            iconSize={20}
+          />
           <div className="flex gap-2">
             {user && (
               <Dialog open={isReportOpen} onOpenChange={setIsReportOpen}>

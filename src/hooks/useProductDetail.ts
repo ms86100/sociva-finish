@@ -1,6 +1,8 @@
 // @ts-nocheck
 import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 import { useCart } from '@/hooks/useCart';
 import { useSellerTrustSnapshot } from '@/hooks/queries/useProductTrustMetrics';
 import { ProductActionType } from '@/types/Database';
@@ -11,6 +13,7 @@ import { hapticImpact } from '@/lib/haptics';
 import { toast } from 'sonner';
 import { useBrowsingLocation } from '@/contexts/BrowsingLocationContext';
 import { filterDiscoverableProductIds } from '@/lib/sellerDiscoverability';
+import { resolveProductAvailability } from '@/lib/product-availability';
 
 export interface ProductDetail {
   product_id: string;
@@ -36,6 +39,8 @@ export interface ProductDetail {
 }
 
 export function useProductDetail(product: ProductDetail | null, open: boolean, onOpenChange?: (open: boolean) => void) {
+  const navigate = useNavigate();
+  const { user } = useAuth();
   const { browsingLocation } = useBrowsingLocation();
   const { items, addItem, updateQuantity } = useCart();
   const { data: trustSnapshot } = useSellerTrustSnapshot(product?.seller_id || null);
@@ -47,16 +52,18 @@ export function useProductDetail(product: ProductDetail | null, open: boolean, o
   const [similarProducts, setSimilarProducts] = useState<any[]>([]);
   const [loadedSpecs, setLoadedSpecs] = useState<Record<string, any> | null>(null);
   const [canonicalStockQty, setCanonicalStockQty] = useState<number | null>(null);
+  const [canonicalIsAvailable, setCanonicalIsAvailable] = useState(true);
   const { formatPrice } = useCurrency();
 
   useEffect(() => {
     if (!product || !open) return;
     setLoadedSpecs(null);
     setCanonicalStockQty(null);
+    setCanonicalIsAvailable(true);
 
     const fetchData = async () => {
       const [productRes, similarRes] = await Promise.all([
-        supabase.from('products').select('specifications, stock_quantity').eq('id', product.product_id).maybeSingle(),
+        supabase.from('products').select('specifications, stock_quantity, is_available').eq('id', product.product_id).maybeSingle(),
         supabase.from('products')
           .select('id, name, price, image_url, is_veg, seller_id, stock_quantity, seller:seller_profiles!products_seller_id_fkey(business_name, society_id)')
           .eq('category', product.category as string)
@@ -65,6 +72,7 @@ export function useProductDetail(product: ProductDetail | null, open: boolean, o
       ]);
       setLoadedSpecs(productRes.data?.specifications as Record<string, any> | null);
       setCanonicalStockQty(productRes.data?.stock_quantity ?? null);
+      setCanonicalIsAvailable(productRes.data?.is_available ?? true);
       const similar = similarRes.data || [];
       const allowed = await filterDiscoverableProductIds(
         similar.map((p: { id: string }) => p.id),
@@ -87,13 +95,31 @@ export function useProductDetail(product: ProductDetail | null, open: boolean, o
   const stockLimit = canonicalStockQty ?? 99;
   const canIncrement = quantity < stockLimit;
 
-  const isStockEmpty = isCartAction && canonicalStockQty != null && canonicalStockQty <= 0;
+  const availability = resolveProductAvailability({
+    is_available: canonicalIsAvailable,
+    stock_quantity: canonicalStockQty,
+  });
+  const isStockEmpty = isCartAction && availability.state === 'out_of_stock';
+  const isBuyerUnavailable = isCartAction && availability.state === 'unavailable';
+  const availabilityOverlayLabel = availability.overlayLabel;
 
   const handleAdd = useCallback(async (extras?: any[]) => {
     if (!product) return;
-    if (actionType === 'contact_seller') { setContactOpen(true); return; }
+    if (actionType === 'contact_seller') {
+      if (!user) {
+        toast.error('Please sign in to contact this seller');
+        onOpenChange?.(false);
+        navigate('/auth');
+        return;
+      }
+      setContactOpen(true);
+      return;
+    }
     if (!isCartAction) { setEnquiryOpen(true); return; }
-    if (canonicalStockQty != null && canonicalStockQty <= 0) { toast.error('This item is currently out of stock'); return; }
+    if (!availability.canOrder) {
+      toast.error(availability.overlayLabel || 'This item is not available right now');
+      return;
+    }
     hapticImpact('medium');
     await addItem({
       id: product.product_id, seller_id: product.seller_id,
@@ -107,7 +133,7 @@ export function useProductDetail(product: ProductDetail | null, open: boolean, o
     } as any, 1, false, extras);
     // Don't close drawer here - let the celebration popup handle navigation
     // onOpenChange?.(false);
-  }, [product, actionType, isCartAction, addItem, onOpenChange]);
+  }, [product, actionType, isCartAction, addItem, onOpenChange, user, navigate]);
 
   const isNewSeller = (product?.seller_reviews === 0) || (product?.seller_rating === 0);
   const ActionIcon = config.icon;
@@ -118,7 +144,7 @@ export function useProductDetail(product: ProductDetail | null, open: boolean, o
     showDetails, setShowDetails, reportOpen, setReportOpen, descExpanded, setDescExpanded,
     similarProducts, loadedSpecs, formatPrice,
     actionType, config, isCartAction, cartItem, quantity, stockLimit, canIncrement,
-    handleAdd, isNewSeller, ActionIcon, viewAllLabel, isStockEmpty,
+    handleAdd, isNewSeller, ActionIcon, viewAllLabel, isStockEmpty, isBuyerUnavailable, availabilityOverlayLabel,
     items, updateQuantity, canonicalStockQty,
   };
 }

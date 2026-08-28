@@ -6,6 +6,8 @@ import { SellerProfile } from '@/types/Database';
 import { Clock, Store, CheckCircle2, XCircle, FileEdit, Eye, ShieldCheck } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Badge } from '@/components/ui/badge';
+import { useCategoryConfigs } from '@/hooks/useCategoryBehavior';
+import { resolveStoreCategoryLabel } from '@/lib/store-category-label';
 
 interface StoreStatusCardProps {
   sellerProfile: SellerProfile;
@@ -17,6 +19,8 @@ interface StoreStatusCardProps {
 }
 
 export function StoreStatusCard({ sellerProfile, sellerProfiles, onToggleAvailability, healthPassed, healthTotal, onHealthClick }: StoreStatusCardProps) {
+  const { configs } = useCategoryConfigs();
+  const categoryLabel = resolveStoreCategoryLabel(sellerProfile as any, configs);
   const status = sellerProfile.verification_status;
 
   // Pending
@@ -110,6 +114,7 @@ export function StoreStatusCard({ sellerProfile, sellerProfiles, onToggleAvailab
           </div>
           <div className="min-w-0">
             <h3 className="font-semibold truncate">{sellerProfile.business_name}</h3>
+            <p className="text-[11px] text-muted-foreground truncate">{categoryLabel}</p>
             <div className="flex items-center gap-2 mt-0.5 flex-wrap">
               <span className="inline-flex items-center gap-1 text-xs font-medium text-accent">
                 <CheckCircle2 size={12} />

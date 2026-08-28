@@ -425,7 +425,7 @@ export default function SellerDashboardPage() {
         {isPortfolio ? (
           <PortfolioRollupStrip
             storeCount={portfolioSellerIds.length}
-            actionNeeded={pendingOrders}
+            actionNeeded={pendingOrders + pendingRefunds}
             settledTotal={stats?.totalEarnings || 0}
             settledToday={stats?.todayEarnings || 0}
           />
@@ -560,6 +560,18 @@ export default function SellerDashboardPage() {
 
           {/* ── Orders Tab ── */}
           <TabsContent value="orders" className="space-y-4 mt-3">
+            {!isPortfolio && sellerProfile && pendingRefunds > 0 && (
+              <button
+                type="button"
+                onClick={() => setDashboardTab('refunds')}
+                className="w-full rounded-xl border border-warning/30 bg-warning/10 px-3 py-2.5 text-left"
+              >
+                <p className="text-sm font-semibold text-warning">
+                  {pendingRefunds} refund{pendingRefunds !== 1 ? 's' : ''} need your response
+                </p>
+                <p className="text-[11px] text-muted-foreground mt-0.5">Tap to open Disputes &amp; Refunds</p>
+              </button>
+            )}
             {!isPortfolio && sellerProfile && (
               <AvailabilityPromptBanner sellerId={sellerProfile.id} />
             )}
@@ -578,11 +590,21 @@ export default function SellerDashboardPage() {
 
             <DashboardStats
               pendingOrders={pendingOrders}
+              pendingDisputes={pendingRefunds}
               preparingOrders={stats?.preparingOrders || 0}
               inTransitOrders={stats?.inTransitOrders || 0}
               doneToday={stats?.doneToday || 0}
               terminalFailOrders={stats?.terminalFailOrders || 0}
               onKpiClick={setOrderFilter}
+              onActionNeededClick={() => {
+                if (pendingOrders > 0) {
+                  setOrderFilter('pending');
+                  return;
+                }
+                if (pendingRefunds > 0) {
+                  setDashboardTab('refunds');
+                }
+              }}
               refreshing={statsFetching}
             />
 
@@ -710,8 +732,8 @@ export default function SellerDashboardPage() {
                       <MessageCircle size={16} className="text-primary" />
                     </div>
                     <div>
-                      <p className="text-sm font-semibold">Messages</p>
-                      <p className="text-[11px] text-muted-foreground">Customer conversations</p>
+                      <p className="text-sm font-semibold">Messages & leads</p>
+                      <p className="text-[11px] text-muted-foreground">Contact leads and order chats</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">

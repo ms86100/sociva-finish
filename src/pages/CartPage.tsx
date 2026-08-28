@@ -16,7 +16,7 @@ import { CouponInput } from '@/components/cart/CouponInput';
 import { FulfillmentSelector } from '@/components/delivery/FulfillmentSelector';
 import { OrderProgressOverlay } from '@/components/checkout/OrderProgressOverlay';
 import { PreorderDatePicker } from '@/components/checkout/PreorderDatePicker';
-import { useCartPage } from '@/hooks/useCartPage';
+import { BackButton } from '@/components/navigation/BackButton';
 import { BuyAgainRow } from '@/components/home/BuyAgainRow';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useMarketplaceLabels } from '@/hooks/useMarketplaceLabels';
@@ -53,7 +53,7 @@ export default function CartPage() {
     return (
       <AppLayout showHeader={false} showCart={false} safeTop={false}>
         <div className="p-4 safe-top">
-          <button onClick={() => navigate(-1)} className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-muted mb-6"><ArrowLeft size={18} /></button>
+          <BackButton fallback="/" className="mb-6" />
           <div className="text-center py-16">
             <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-muted flex items-center justify-center animate-pulse"><span className="text-4xl">🛒</span></div>
             <p className="text-sm text-muted-foreground">
@@ -71,7 +71,7 @@ export default function CartPage() {
     return (
       <AppLayout showHeader={false} showCart={false} safeTop={false}>
          <div className="p-4 safe-top">
-          <button onClick={() => navigate(-1)} className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-muted mb-6"><ArrowLeft size={18} /></button>
+          <BackButton fallback="/" className="mb-6" />
           <AnimatePresence mode="wait">
             {justCleared ? (
               <CartClearedAnimation key="cleared" onComplete={() => setJustCleared(false)} />
@@ -108,7 +108,7 @@ export default function CartPage() {
         {/* Sticky Header */}
         <SafeHeader>
         <div className="px-4 pb-3.5 flex items-center gap-3">
-          <button onClick={() => navigate(-1)} className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-muted shrink-0"><ArrowLeft size={18} /></button>
+          <BackButton fallback="/" />
           <div className="flex-1 min-w-0">
             <h1 className="text-base font-bold">Checkout</h1>
             <p className="text-xs text-muted-foreground">Shipment of {c.itemCount} item{c.itemCount !== 1 ? 's' : ''}</p>
@@ -356,7 +356,7 @@ export default function CartPage() {
         ) : null}
 
         {/* Loyalty Points */}
-        {c.loyalty.balance > 0 && (
+        {c.loyalty.redeemEnabled && c.loyalty.balance > 0 && (
           <div className="mt-5 px-4">
             <div className="flex items-center justify-between bg-primary/5 border border-primary/15 rounded-xl p-3">
               <div className="flex items-center gap-2">
@@ -379,14 +379,14 @@ export default function CartPage() {
           </div>
         )}
 
-        {/* Sociva Credit */}
-        {c.wallet.balance > 0 && c.wallet.status === 'active' && (
+        {/* Sociva Balance — online checkout only */}
+        {c.wallet.balance > 0 && c.wallet.status === 'active' && c.wallet.spendEnabled && c.paymentMethod !== 'cod' && !c.paymentMode.isOff && (
           <div className="mt-5 px-4">
             <div className="flex items-center justify-between bg-emerald-500/5 border border-emerald-500/15 rounded-xl p-3">
               <div className="flex items-center gap-2">
                 <span className="text-lg">💳</span>
                 <div>
-                  <p className="text-sm font-semibold">Use Sociva Credit</p>
+                  <p className="text-sm font-semibold">Use Sociva Balance</p>
                   <p className="text-[11px] text-muted-foreground">
                     {c.formatPrice(c.wallet.balance)} available
                     {c.wallet.promoAvailable > 0 ? ` · Promo ${c.formatPrice(c.wallet.promoAvailable)} first` : ''}
@@ -400,7 +400,7 @@ export default function CartPage() {
             </div>
             {c.effectiveWalletCredit > 0 && (
               <p className="text-xs text-emerald-700 font-medium mt-1.5 ml-1">
-                Applying {c.formatPrice(c.effectiveWalletCredit)} Sociva Credit
+                Applying {c.formatPrice(c.effectiveWalletCredit)} Sociva Balance
                 {c.finalAmount > 0 ? ` · pay ${c.formatPrice(c.finalAmount)} residual` : ' · covers full amount'}
               </p>
             )}
@@ -413,8 +413,8 @@ export default function CartPage() {
           <div className="space-y-2 text-sm">
             {c.sellerGroups.map((group) => (<div key={group.sellerId} className="flex justify-between"><span className="text-muted-foreground truncate mr-2">{group.sellerName}</span><span className="font-medium">{c.formatPrice(group.subtotal)}</span></div>))}
             {c.appliedCoupon && (<div className="flex justify-between text-primary"><span>Coupon ({c.appliedCoupon.code})</span><span>-{c.formatPrice(Math.min(c.effectiveCouponDiscount, c.totalAmount))}</span></div>)}
-            {c.effectiveLoyaltyDiscount > 0 && (<div className="flex justify-between text-primary"><span>Loyalty Points</span><span>-{c.formatPrice(c.effectiveLoyaltyDiscount)}</span></div>)}
-            {c.effectiveWalletCredit > 0 && (<div className="flex justify-between text-emerald-700"><span>Sociva Credit</span><span>-{c.formatPrice(c.effectiveWalletCredit)}</span></div>)}
+            {c.loyalty.redeemEnabled && c.effectiveLoyaltyDiscount > 0 && (<div className="flex justify-between text-primary"><span>Loyalty Points</span><span>-{c.formatPrice(c.effectiveLoyaltyDiscount)}</span></div>)}
+            {c.effectiveWalletCredit > 0 && (<div className="flex justify-between text-emerald-700"><span>Sociva Balance</span><span>-{c.formatPrice(c.effectiveWalletCredit)}</span></div>)}
             <div className="flex justify-between"><span className="text-muted-foreground">Delivery Fee</span><span className={`font-medium ${c.effectiveDeliveryFee === 0 ? 'text-primary' : ''}`}>{c.fulfillmentType === 'delivery' ? (c.effectiveDeliveryFee === 0 ? 'FREE' : c.formatPrice(c.effectiveDeliveryFee)) : 'Self Pickup'}</span></div>
             <div className="border-t border-border pt-2 mt-1 flex justify-between font-bold"><span>To Pay</span><span>{c.formatPrice(c.finalAmount)}</span></div>
           </div>

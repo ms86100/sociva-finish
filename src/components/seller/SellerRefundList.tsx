@@ -9,6 +9,7 @@ import { cardEntrance, staggerContainer } from '@/lib/motion-variants';
 import { useEffect, useRef, useState } from 'react';
 import { useCurrency } from '@/hooks/useCurrency';
 import { cn } from '@/lib/utils';
+import { paymentTypeLabel } from '@/lib/order-payment-breakdown';
 
 interface SellerRefundListProps {
   sellerId: string;
@@ -40,17 +41,11 @@ export function SellerRefundList({ sellerId, forceExpanded = false }: SellerRefu
   const { data: refunds = [], isLoading, error } = useQuery({
     queryKey: ['seller-refund-requests', sellerId],
     queryFn: async () => {
-      // Prefer direct seller_id (source of truth on refund_requests) — orders join
-      // can hide rows when RLS/relationship filters disagree.
-      const { data: refundData, error } = await supabase
-        .from('refund_requests')
-        .select('id, order_id, status, refund_state, category, reason, amount, created_at, seller_id')
-        .eq('seller_id', sellerId)
-        .order('created_at', { ascending: false })
-        .limit(forceExpanded ? 100 : 10);
-
-      if (error) throw error;
-      return refundData || [];
+      const { data, error: rpcError } = await supabase.rpc('list_seller_refund_requests', {
+        p_seller_ids: [sellerId],
+      });
+      if (rpcError) throw rpcError;
+      return Array.isArray(data) ? data : [];
     },
     enabled: !!sellerId,
     staleTime: 60_000,
@@ -151,6 +146,10 @@ export function SellerRefundList({ sellerId, forceExpanded = false }: SellerRefu
             const Icon = config.icon;
             const isPending = ACTION_NEEDED.has(stateKey) || ACTION_NEEDED.has(refund.status);
             const isHighlighted = highlightRefundId === refund.id;
+            const requested = refund.requested_amount ?? refund.amount;
+            const approved = refund.approved_amount;
+            const showPartial = approved != null && approved > 0 && approved !== requested;
+            const paymentLabel = refund.payment_type ? paymentTypeLabel(refund.payment_type) : null;
 
             return (
               <motion.div
@@ -175,6 +174,7 @@ export function SellerRefundList({ sellerId, forceExpanded = false }: SellerRefu
                         </span>
                         <span className="text-[10px] text-muted-foreground">
                           {refund.category?.replace(/_/g, ' ')}
+                          {paymentLabel ? ` · ${paymentLabel}` : ''}
                         </span>
                       </div>
                       <ChevronRight size={12} className="text-muted-foreground" />
@@ -183,7 +183,12 @@ export function SellerRefundList({ sellerId, forceExpanded = false }: SellerRefu
                       <p className="text-[11px] text-muted-foreground truncate max-w-[200px]">
                         "{refund.reason}"
                       </p>
-                      <p className="text-xs font-bold tabular-nums">{formatPrice(refund.amount)}</p>
+                      <div className="text-right">
+                        <p className="text-xs font-bold tabular-nums">{formatPrice(requested)}</p>
+                        {showPartial && (
+                          <p className="text-[10px] text-success tabular-nums">Approved {formatPrice(approved)}</p>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </Link>

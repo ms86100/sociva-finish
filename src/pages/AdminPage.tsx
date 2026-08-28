@@ -52,6 +52,7 @@ import OtpSettings from '@/components/admin/OtpSettings';
 import { AdminCronManager } from '@/components/admin/AdminCronManager';
 import AdminTestScenariosTab from '@/components/admin/AdminTestScenariosTab';
 import { useAdminData } from '@/hooks/useAdminData';
+import { useAdminFinancialPendingCount } from '@/hooks/useFinancialControls';
 import { supabase } from '@/integrations/supabase/client';
 import { adminNotify } from '@/lib/admin-notify';
 import { motion } from 'framer-motion';
@@ -83,6 +84,7 @@ function SectionHeader({ icon: Icon, title, count, action, color = 'bg-primary/1
 
 export default function AdminPage() {
   const admin = useAdminData();
+  const financialPending = useAdminFinancialPendingCount();
 
   if (admin.isLoading) {
     return (
@@ -117,6 +119,16 @@ export default function AdminPage() {
             <Button asChild size="sm" variant="outline" className="gap-1.5 shrink-0">
               <Link to="/admin/seller-payouts">
                 Payouts
+              </Link>
+            </Button>
+            <Button asChild size="sm" variant="outline" className="gap-1.5 shrink-0 relative">
+              <Link to="/admin/financial-controls">
+                Controls
+                {financialPending.total > 0 && (
+                  <Badge variant="destructive" className="h-5 min-w-5 px-1 text-[10px]">
+                    {financialPending.total}
+                  </Badge>
+                )}
               </Link>
             </Button>
             <Button asChild size="sm" variant="outline" className="gap-1.5 shrink-0">

@@ -17,7 +17,7 @@ import { useParentGroups } from '@/hooks/useParentGroups';
 import { useCategoryProducts } from '@/hooks/queries/usePopularProducts';
 import { ServiceCategory } from '@/types/categories';
 import { SORT_OPTIONS, SortKey } from '@/lib/marketplace-constants';
-import { ArrowLeft, Search, X } from 'lucide-react';
+import { BackButton } from '@/components/navigation/BackButton';
 import { cn } from '@/lib/utils';
 import { useQueryClient } from '@tanstack/react-query';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
@@ -227,9 +227,7 @@ export default function CategoryGroupPage() {
       <SafeHeader bordered={false}>
         <div className="px-4 pt-1 pb-2">
           <div className="flex items-center gap-2.5 mb-2.5">
-            <button onClick={() => navigate(-1)} className="h-10 w-10 rounded-full bg-muted flex items-center justify-center shrink-0">
-              <ArrowLeft size={18} className="text-foreground" />
-            </button>
+            <BackButton fallback="/" />
             <h1 className="text-base font-bold flex items-center gap-1.5 flex-1 min-w-0">
               <DynamicIcon name={parentGroup.icon} size={18} />
               <span className="truncate">{parentGroup.label}</span>

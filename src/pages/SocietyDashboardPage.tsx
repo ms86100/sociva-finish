@@ -15,10 +15,9 @@ import {
   MessageCircle, Radio, ChevronRight, CreditCard, Clock, BarChart3, Shield,
   Users, ClipboardCheck, Landmark, Package, UserCheck, ShieldCheck, Car,
   Wrench, Briefcase, Megaphone, Truck, UserPlus, CalendarDays, Wallet, ClipboardList,
-  Search, X, ArrowLeft
+  Search, X
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useNavigate } from 'react-router-dom';
 import { useSearchPlaceholder } from '@/hooks/useSearchPlaceholder';
 
 interface DashboardItem {
@@ -40,7 +39,6 @@ interface Section {
 }
 
 export default function SocietyDashboardPage() {
-  const navigate = useNavigate();
   const { profile, effectiveSociety, effectiveSocietyId, isAdmin, isSocietyAdmin } = useAuth();
   const { isFeatureEnabled } = useEffectiveFeatures();
   const [searchQuery, setSearchQuery] = useState('');
@@ -230,14 +228,6 @@ export default function SocietyDashboardPage() {
       <SafeHeader zIndex="z-40">
         <div className="px-3 pt-2.5 pb-2">
           <div className="flex items-center gap-2 mb-2">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-10 w-10 rounded-full shrink-0"
-              onClick={() => navigate(-1)}
-            >
-              <ArrowLeft size={18} />
-            </Button>
             <h1 className="text-base font-bold text-foreground flex-1 truncate">
               {effectiveSociety?.name || 'Society'}
             </h1>

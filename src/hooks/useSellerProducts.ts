@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
 import { useAuth } from '@/contexts/AuthContext';
@@ -17,6 +17,8 @@ import { deriveActionFromCategoryFlags } from '@/lib/marketplace-constants';
 import { notify } from '@/lib/notify';
 import { isPortfolioSellerId } from '@/lib/seller-order-board';
 import { showFeedback } from '@/components/FeedbackPopupProvider';
+import { leadTimeFromHours, leadTimeToHours, type LeadTimeUnit } from '@/lib/lead-time';
+import { resolveStockSaveValues } from '@/lib/product-stock-form';
 
 export interface ProductFormData {
   name: string;
@@ -33,10 +35,13 @@ export interface ProductFormData {
   image_url: string | null;
   action_type: ProductActionType;
   contact_phone: string;
+  tracks_stock: boolean;
   stock_quantity: string;
+  tracks_low_stock_alert: boolean;
   low_stock_threshold: string;
   subcategory_id: string;
-  lead_time_hours: string;
+  lead_time_value: string;
+  lead_time_unit: LeadTimeUnit;
   accepts_preorders: boolean;
 }
 
@@ -44,8 +49,8 @@ const INITIAL_FORM: ProductFormData = {
   name: '', description: '', price: '', mrp: '', prep_time_minutes: '',
   category: '', is_veg: true, is_available: true, is_bestseller: false,
   is_recommended: false, is_urgent: false, image_url: null,
-  action_type: 'add_to_cart', contact_phone: '', stock_quantity: '',
-  low_stock_threshold: '5', subcategory_id: '', lead_time_hours: '',
+  action_type: 'add_to_cart', contact_phone: '', tracks_stock: false, stock_quantity: '',
+  tracks_low_stock_alert: false, low_stock_threshold: '', subcategory_id: '', lead_time_value: '', lead_time_unit: 'hours',
   accepts_preorders: false,
 };
 
@@ -56,7 +61,10 @@ interface SellerProductDraft {
   editingProductId: string | null;
 }
 
-export function useSellerProducts() {
+export type SellerProductFormIntent = 'list' | 'new' | 'edit';
+
+export function useSellerProducts(opts?: { formIntent?: SellerProductFormIntent }) {
+  const formIntent = opts?.formIntent ?? 'list';
   const { user, sellerProfiles, currentSellerId } = useAuth();
   const { groupedConfigs, configs } = useCategoryConfigs();
   const { data: allActions = [] } = useActionTypeMap();
@@ -72,6 +80,14 @@ export function useSellerProducts() {
   const [isBulkOpen, setIsBulkOpen] = useState(false);
   const [attributeBlocks, setAttributeBlocks] = useState<BlockData[]>([]);
   const [formData, setFormData] = useState<ProductFormData>(INITIAL_FORM);
+  const patchFormData = useCallback((
+    patch: Partial<ProductFormData> | ((prev: ProductFormData) => Partial<ProductFormData>),
+  ) => {
+    setFormData((prev) => ({
+      ...prev,
+      ...(typeof patch === 'function' ? patch(prev) : patch),
+    }));
+  }, []);
   const [serviceFields, setServiceFields] = useState<ServiceFieldsData>(INITIAL_SERVICE_FIELDS);
   const [deleteTarget, setDeleteTarget] = useState<Product | null>(null);
   const [draftRestored, setDraftRestored] = useState(false);
@@ -120,10 +136,6 @@ export function useSellerProducts() {
 
   const allowedCategories = useMemo(() => {
     const sellerCats: string[] = (sellerProfile as any)?.categories || [];
-    // Fallback: if the seller skipped category selection during onboarding (no
-    // primary_group AND no categories), expose every active category so they
-    // can still list a product. The "Other <Group>" rows seeded by the
-    // category-fallback migration give them a safe catch-all.
     if (!primaryGroup) {
       if (sellerCats.length) {
         return configs.filter(c => sellerCats.includes(c.category));
@@ -132,7 +144,9 @@ export function useSellerProducts() {
     }
     const groupConfigs = groupedConfigs[primaryGroup] || [];
     if (!sellerCats.length) return groupConfigs;
-    return groupConfigs.filter(c => sellerCats.includes(c.category));
+    const matched = groupConfigs.filter(c => sellerCats.includes(c.category));
+    // Onboarding may sync primary_group without populating categories[] — don't block listing.
+    return matched.length > 0 ? matched : groupConfigs;
   }, [primaryGroup, groupedConfigs, configs, sellerProfile]);
 
 
@@ -145,9 +159,14 @@ export function useSellerProducts() {
   const isFormDirty = formData.name.trim() !== '' || formData.description.trim() !== '' || formData.price !== '' || (formData.image_url ?? '') !== '';
   const clearDraftFn = useAutoSaveDraft(draftKey, draftData, isDialogOpen && isFormDirty);
 
-  // Restore draft on mount (once seller profile is known)
+  // Restore draft on mount (once seller profile is known) — never on explicit "add new" route
   useEffect(() => {
     if (!sellerProfile || draftRestored) return;
+    // Dedicated add/edit routes manage their own form state — never restore list-dialog drafts.
+    if (formIntent === 'new' || formIntent === 'edit') {
+      setDraftRestored(true);
+      return;
+    }
     const key = buildDraftKey('seller-product-draft', sellerProfile.id);
     const saved = readDraft<SellerProductDraft>(key);
     if (saved && saved.formData && saved.formData.name?.trim()) {
@@ -169,7 +188,7 @@ export function useSellerProducts() {
       }
     }
     setDraftRestored(true);
-  }, [sellerProfile, products, configs, draftRestored]);
+  }, [sellerProfile, products, configs, draftRestored, formIntent]);
 
   useEffect(() => {
     if (user && currentSellerId && !isPortfolioSellerId(currentSellerId)) {
@@ -240,6 +259,12 @@ export function useSellerProducts() {
     clearDraftFn();
   };
 
+  /** Fresh add-product form — clears any stale edit draft from localStorage. */
+  const beginNewProduct = () => {
+    resetForm();
+    setIsDialogOpen(true);
+  };
+
   const openEditDialog = async (product: Product) => {
     setEditingProduct(product);
     setFormData({
@@ -248,9 +273,16 @@ export function useSellerProducts() {
       category: product.category, is_veg: product.is_veg, is_available: product.is_available,
       is_bestseller: product.is_bestseller, is_recommended: product.is_recommended, is_urgent: product.is_urgent || false,
       image_url: product.image_url, action_type: (product as any).action_type || 'add_to_cart',
-      contact_phone: (product as any).contact_phone || user?.phone || '', stock_quantity: (product as any).stock_quantity?.toString() || '',
-      low_stock_threshold: (product as any).low_stock_threshold?.toString() || '5',
-      subcategory_id: (product as any).subcategory_id || '', lead_time_hours: (product as any).lead_time_hours?.toString() || '',
+      contact_phone: (product as any).contact_phone || user?.phone || '',
+      tracks_stock: (product as any).stock_quantity != null,
+      stock_quantity: (product as any).stock_quantity?.toString() || '',
+      tracks_low_stock_alert: (product as any).low_stock_threshold != null,
+      low_stock_threshold: (product as any).low_stock_threshold?.toString() || '',
+      subcategory_id: (product as any).subcategory_id || '',
+      ...(() => {
+        const lt = leadTimeFromHours((product as any).lead_time_hours);
+        return { lead_time_value: lt.value, lead_time_unit: lt.unit };
+      })(),
       accepts_preorders: (product as any).accepts_preorders || false,
     });
     // Always re-fetch specifications — list cache must not wipe attribute blocks on save
@@ -276,8 +308,8 @@ export function useSellerProducts() {
     setIsDialogOpen(true);
   };
 
-  const handleSave = async () => {
-    if (!sellerProfile || !user || isSaving) return;
+  const handleSave = async (): Promise<boolean> => {
+    if (!sellerProfile || !user || isSaving) return false;
     const price = parseFloat(formData.price);
     const actionNeedsPrice = !['contact_seller', 'request_quote', 'make_offer'].includes(formData.action_type);
 
@@ -297,26 +329,44 @@ export function useSellerProducts() {
     }
     if (formData.contact_phone.trim() && !/^[\d+\-\s()]{7,15}$/.test(formData.contact_phone.trim())) errors.contact_phone = 'Please enter a valid phone number';
 
+    const stockResolved = resolveStockSaveValues(formData);
+    Object.assign(errors, stockResolved.errors);
+
     if (Object.keys(errors).length > 0) {
       setFieldErrors(errors);
       const fieldLabels: Record<string, string> = {
         name: 'Product Name', category: 'Category', image_url: 'Product Image',
         price: 'Price', contact_phone: 'Contact Phone',
+        stock_quantity: 'Current Stock', low_stock_threshold: 'Low Stock Alert',
       };
       const missingNames = Object.keys(errors).map(k => fieldLabels[k] || k);
       toast.error(`Missing: ${missingNames.join(', ')}`, { id: 'product-validation' });
       // Expose first error key for step navigation
       (window as any).__productFormFirstError = Object.keys(errors)[0];
-      return;
+      return false;
     }
     setFieldErrors({});
 
     setIsSaving(true);
     try {
+      const sellerCats: string[] = (sellerProfile as any)?.categories || [];
+      if (formData.category && !sellerCats.includes(formData.category)) {
+        const { error: catSyncErr } = await supabase
+          .from('seller_profiles')
+          .update({ categories: [...new Set([...sellerCats, formData.category])] } as any)
+          .eq('id', sellerProfile.id);
+        if (catSyncErr) {
+          console.error('Could not sync store categories before product save:', catSyncErr);
+          toast.error('Could not enable this category for your store. Try again or contact support.', { id: 'product-category-sync' });
+          return false;
+        }
+      }
+
       const prepTime = formData.prep_time_minutes ? parseInt(formData.prep_time_minutes) : null;
       const mrp = formData.mrp ? parseFloat(formData.mrp) : null;
-      const stockQty = formData.stock_quantity ? parseInt(formData.stock_quantity) : null;
-      const lowStockThreshold = formData.low_stock_threshold ? parseInt(formData.low_stock_threshold) : 5;
+      const leadVal = formData.lead_time_value ? parseFloat(formData.lead_time_value) : NaN;
+      const lead_time_hours = leadTimeToHours(leadVal, formData.lead_time_unit);
+      const { stockQty, lowStockThreshold } = stockResolved;
     // effectiveActionType (declared at hook scope) is the single source of truth
     // for buyer interaction — it uses the seller's configured default.
     const productData = {
@@ -327,8 +377,8 @@ export function useSellerProducts() {
         is_bestseller: formData.is_bestseller, is_recommended: formData.is_recommended, is_urgent: formData.is_urgent,
         image_url: formData.image_url, action_type: effectiveActionType, contact_phone: formData.contact_phone.trim() || null,
         stock_quantity: (stockQty !== null && !isNaN(stockQty) && stockQty >= 0) ? stockQty : null,
-        low_stock_threshold: lowStockThreshold, subcategory_id: formData.subcategory_id || null,
-        lead_time_hours: formData.lead_time_hours ? parseInt(formData.lead_time_hours) : null,
+        low_stock_threshold: (lowStockThreshold !== null && !isNaN(lowStockThreshold) && lowStockThreshold > 0) ? lowStockThreshold : null, subcategory_id: formData.subcategory_id || null,
+        lead_time_hours,
         accepts_preorders: formData.accepts_preorders,
         specifications: attributeBlocks.length > 0 ? { blocks: attributeBlocks } : null,
         ...(editingProduct
@@ -399,7 +449,7 @@ export function useSellerProducts() {
           if (snapErr) {
             console.error('Failed to save edit snapshot:', snapErr);
             toast.error('Could not save version history — product not updated. Try again.');
-            return;
+            return false;
           }
         }
         const { error } = await (supabase as any).rpc('update_product_with_service', {
@@ -428,7 +478,18 @@ export function useSellerProducts() {
         title: editingProduct ? 'Product updated' : 'Product saved successfully',
         variant: 'success',
       });
-    } catch (error: any) { console.error('Error saving product:', error); toast.error(friendlyError(error), { id: 'product-save-error' }); }
+      return true;
+    } catch (error: any) {
+      console.error('Error saving product:', error);
+      const msg = String(error?.message || '');
+      if (msg.includes('allowed categories')) {
+        const catLabel = configs.find((c) => c.category === formData.category)?.displayName || formData.category;
+        toast.error(`"${catLabel}" isn't enabled for this store yet. Pick a category from your store setup or contact support.`, { id: 'product-save-error' });
+      } else {
+        toast.error(friendlyError(error), { id: 'product-save-error' });
+      }
+      return false;
+    }
     finally { setIsSaving(false); }
   };
 
@@ -487,6 +548,8 @@ export function useSellerProducts() {
         if (!phone) errors.contact_phone = 'Phone number is required for Contact Seller action';
         else if (!/^[\d+\-\s()]{7,15}$/.test(phone)) errors.contact_phone = 'Please enter a valid phone number';
       }
+    } else if (stepKey === 'visibility') {
+      Object.assign(errors, resolveStockSaveValues(formData).errors);
     } else if (stepKey === 'service') {
       if (isCurrentCategoryService) {
         const dur = parseInt(serviceFields.duration_minutes);
@@ -497,7 +560,7 @@ export function useSellerProducts() {
     }
     setFieldErrors(prev => {
       // Clear stale errors for this step's fields, then merge new ones
-      const stepKeys = ['name','image_url','category','price','contact_phone','service_type','location_type','duration_minutes'];
+      const stepKeys = ['name','image_url','category','price','contact_phone','stock_quantity','low_stock_threshold','service_type','location_type','duration_minutes'];
       const next = { ...prev };
       stepKeys.forEach(k => { delete next[k]; });
       return { ...next, ...errors };
@@ -508,9 +571,9 @@ export function useSellerProducts() {
   return {
     user, sellerProfile, primaryGroup, products, isLoading, isDialogOpen, setIsDialogOpen,
     editingProduct, isSaving, licenseBlocked, isBulkOpen, setIsBulkOpen,
-    attributeBlocks, setAttributeBlocks, formData, setFormData, deleteTarget, setDeleteTarget,
+    attributeBlocks, setAttributeBlocks, formData, setFormData, patchFormData, deleteTarget, setDeleteTarget,
     activeCategoryConfig, showVegToggle, showDurationField, allowedCategories, subcategories,
-    configs, sellerProfiles, resetForm, openEditDialog, handleSave, confirmDelete,
+    configs, sellerProfiles, resetForm, beginNewProduct, openEditDialog, handleSave, confirmDelete,
     toggleAvailability, fetchData, serviceFields, setServiceFields, isCurrentCategoryService,
     currentCategorySupportsAddons, currentCategorySupportsRecurring, currentCategorySupportsStaffAssignment,
     draftRestored, clearDraftFn, fieldErrors, setFieldErrors, derivedActionType, effectiveActionType, validateStep,

@@ -1,6 +1,7 @@
 // @ts-nocheck
+import { BackButton } from '@/components/navigation/BackButton';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, MessageCircle, RefreshCw, Copy } from 'lucide-react';
+import { MessageCircle, RefreshCw, Copy } from 'lucide-react';
 import { SafeHeader } from '@/components/layout/SafeHeader';
 import { DisplayStatusResult } from '@/lib/deriveDisplayStatus';
 import { StatusPhaseIcon } from '@/components/order/StatusPhaseIcon';
@@ -45,12 +46,7 @@ export function ExperienceHeader({
       <div className="px-4 pb-3">
         {/* Top row: back, seller name, actions */}
         <div className="flex items-center gap-3">
-          <button
-            onClick={onBack}
-            className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-muted shrink-0"
-          >
-            <ArrowLeft size={18} />
-          </button>
+          <BackButton onClick={onBack} />
 
           <div className="flex-1 min-w-0">
             <h1 className="text-base font-bold truncate">{sellerName}</h1>

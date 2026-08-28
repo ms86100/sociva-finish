@@ -7,7 +7,8 @@ import { AppLayout } from '@/components/layout/AppLayout';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/contexts/AuthContext';
 import { SellerProfile } from '@/types/Database';
-import { Heart, ArrowLeft, Store, ShoppingBag } from 'lucide-react';
+import { BackButton } from '@/components/navigation/BackButton';
+import { Heart, Store, ShoppingBag } from 'lucide-react';
 import { LottieEmptyState } from '@/components/ui/LottieEmptyState';
 import { FavoriteButton } from '@/components/favorite/FavoriteButton';
 import { ProductFavoriteButton } from '@/components/favorite/ProductFavoriteButton';
@@ -78,11 +79,9 @@ export default function FavoritesPage() {
     <AppLayout showHeader={false} safeTop={false}>
       <SafeHeader>
         <div className="px-4 pb-3.5 flex items-center gap-3">
-        <button onClick={() => window.history.length > 1 ? navigate(-1) : navigate('/')} className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-muted shrink-0">
-          <ArrowLeft size={18} />
-        </button>
-        <h1 className="text-lg font-bold text-foreground">Favourites</h1>
-      </div>
+          <BackButton fallback="/profile" />
+          <h1 className="text-lg font-bold text-foreground">Favourites</h1>
+        </div>
       </SafeHeader>
 
       <div className="p-4">

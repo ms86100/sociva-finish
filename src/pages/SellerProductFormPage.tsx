@@ -5,6 +5,7 @@ import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { LeadTimeField } from '@/components/seller/LeadTimeField';
 import { Switch } from '@/components/ui/switch';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -40,7 +41,7 @@ export default function SellerProductFormPage() {
   const navigate = useNavigate();
   const { productId } = useParams<{ productId?: string }>();
   const isEditing = !!productId;
-  const sp = useSellerProducts();
+  const sp = useSellerProducts({ formIntent: isEditing ? 'edit' : 'new' });
   const { formatPrice, currencySymbol } = useCurrency();
   const [currentStep, setCurrentStep] = useState(0);
 
@@ -52,13 +53,21 @@ export default function SellerProductFormPage() {
   const isLastStep = currentStep >= activeSteps.length - 1;
   const step = activeSteps[currentStep];
 
-  // Load product data for editing
+  const preparedNewFormRef = useRef(false);
+
+  // Load product data for editing, or start a clean form for new products
   useEffect(() => {
-    if (isEditing && sp.products.length > 0 && !sp.editingProduct) {
-      const product = sp.products.find(p => p.id === productId);
-      if (product) sp.openEditDialog(product);
+    if (isEditing) {
+      if (sp.products.length > 0 && !sp.editingProduct) {
+        const product = sp.products.find(p => p.id === productId);
+        if (product) sp.openEditDialog(product);
+      }
+      return;
     }
-  }, [isEditing, productId, sp.products.length]);
+    if (!sp.draftRestored || preparedNewFormRef.current) return;
+    preparedNewFormRef.current = true;
+    sp.beginNewProduct();
+  }, [isEditing, productId, sp.products.length, sp.draftRestored, sp.editingProduct]);
 
   // Set default category for new products
   useEffect(() => {
@@ -71,34 +80,27 @@ export default function SellerProductFormPage() {
   const fieldToStepMap: Record<string, string> = {
     name: 'basics', image_url: 'basics', category: 'basics',
     price: 'pricing', contact_phone: 'config',
+    stock_quantity: 'visibility', low_stock_threshold: 'visibility',
   };
 
-  const handleSaveAndGoBack = () => {
-    // Clear any previous error marker
+  const handleSaveAndGoBack = async () => {
     delete (window as any).__productFormFirstError;
-    sp.handleSave();
-    // After save, check if there was a validation error and navigate to that step
-    setTimeout(() => {
-      const firstErrorField = (window as any).__productFormFirstError;
-      if (firstErrorField) {
-        const targetStepKey = fieldToStepMap[firstErrorField];
-        if (targetStepKey) {
-          const stepIdx = activeSteps.findIndex(s => s.key === targetStepKey);
-          if (stepIdx >= 0) setCurrentStep(stepIdx);
-        }
-        delete (window as any).__productFormFirstError;
-      }
-    }, 50);
-  };
-
-  // Navigate back after successful save
-  const prevDialogOpen = useRef(sp.isDialogOpen);
-  useEffect(() => {
-    if (prevDialogOpen.current && !sp.isDialogOpen && !sp.isSaving) {
-      navigate('/seller/products');
+    const saved = await sp.handleSave();
+    if (saved) {
+      navigate('/seller/products', { replace: true, state: { productSaved: true } });
+      return;
     }
-    prevDialogOpen.current = sp.isDialogOpen;
-  }, [sp.isDialogOpen, sp.isSaving]);
+    // Validation failed — jump to the step with the first error field
+    const firstErrorField = (window as any).__productFormFirstError;
+    if (firstErrorField) {
+      const targetStepKey = fieldToStepMap[firstErrorField];
+      if (targetStepKey) {
+        const stepIdx = activeSteps.findIndex(s => s.key === targetStepKey);
+        if (stepIdx >= 0) setCurrentStep(stepIdx);
+      }
+      delete (window as any).__productFormFirstError;
+    }
+  };
 
   const handleNext = () => {
     // Validate the current step before advancing or submitting
@@ -139,9 +141,9 @@ export default function SellerProductFormPage() {
 
   return (
     <AppLayout showHeader={false}>
-      <div className="max-w-5xl mx-auto p-4 pb-28 safe-top">
+      <div className="max-w-5xl mx-auto px-3 sm:px-4 pb-[max(7rem,env(safe-area-inset-bottom,0px)+5.5rem)] sm:pb-8 pt-3 sm:pt-4 safe-top">
         {/* Header */}
-        <div className="flex items-center gap-3 mb-5">
+        <div className="flex items-center gap-2 sm:gap-3 mb-4">
           <button
             onClick={handleBack}
             className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-muted shrink-0 hover:bg-muted/80 transition-colors"
@@ -149,18 +151,18 @@ export default function SellerProductFormPage() {
             <ArrowLeft size={18} />
           </button>
           <div className="flex-1 min-w-0">
-            <h1 className="text-lg font-bold">{isEditing ? 'Edit Product' : 'Add New Product'}</h1>
+            <h1 className="text-base sm:text-lg font-bold truncate">{isEditing ? 'Edit Product' : 'Add Product'}</h1>
             {sp.sellerProfile && (
-              <p className="text-xs text-muted-foreground">{sp.sellerProfile.business_name}</p>
+              <p className="text-[11px] text-muted-foreground truncate">{sp.sellerProfile.business_name}</p>
             )}
           </div>
-          <span className="text-xs text-muted-foreground font-medium">
-            Step {currentStep + 1} of {activeSteps.length}
+          <span className="text-[10px] sm:text-xs text-muted-foreground font-medium shrink-0">
+            {currentStep + 1}/{activeSteps.length}
           </span>
         </div>
 
-        {/* Step indicator */}
-        <div className="flex items-center gap-1 mb-6 overflow-x-auto pb-1">
+        {/* Step indicator — compact on phone */}
+        <div className="flex items-center gap-1 mb-4 overflow-x-auto pb-1 -mx-1 px-1">
           {activeSteps.map((s, idx) => {
             const Icon = s.icon;
             const isActive = idx === currentStep;
@@ -168,15 +170,24 @@ export default function SellerProductFormPage() {
             return (
               <button
                 key={s.key}
+                type="button"
                 onClick={() => setCurrentStep(idx)}
                 className={cn(
-                  'flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium transition-all shrink-0',
+                  'flex items-center justify-center gap-1 px-2.5 sm:px-3 py-1.5 rounded-xl text-[10px] sm:text-xs font-medium transition-all shrink-0 min-w-[2rem] sm:min-w-0',
                   isActive && 'bg-primary text-primary-foreground shadow-sm',
                   isDone && 'bg-primary/10 text-primary',
                   !isActive && !isDone && 'bg-muted text-muted-foreground hover:bg-muted/80'
                 )}
+                aria-label={s.label}
               >
-                {isDone ? <Check size={12} /> : <Icon size={12} />}
+                {isDone ? (
+                  <Check size={12} />
+                ) : (
+                  <>
+                    <Icon size={12} className="hidden sm:block" />
+                    <span className="sm:hidden tabular-nums">{idx + 1}</span>
+                  </>
+                )}
                 <span className="hidden sm:inline">{s.label}</span>
               </button>
             );
@@ -195,16 +206,16 @@ export default function SellerProductFormPage() {
                 transition={{ duration: 0.2 }}
               >
                 <div className="bg-card rounded-2xl border shadow-sm overflow-hidden">
-                  <div className="flex items-center gap-3 px-5 py-4 border-b bg-muted/30">
+                  <div className="flex items-center gap-3 px-4 sm:px-5 py-3 sm:py-4 border-b bg-muted/30">
                     <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
                       <step.icon size={16} className="text-primary" />
                     </div>
-                    <div>
+                    <div className="min-w-0">
                       <h3 className="text-sm font-bold">{step.label}</h3>
-                      <p className="text-xs text-muted-foreground">{step.description}</p>
+                      <p className="text-[11px] sm:text-xs text-muted-foreground">{step.description}</p>
                     </div>
                   </div>
-                  <div className="p-5 space-y-4">
+                  <div className="p-4 sm:p-5 space-y-4">
                     {step.key === 'basics' && <StepBasics sp={sp} />}
                     {step.key === 'pricing' && <StepPricing sp={sp} currencySymbol={currencySymbol} />}
                     {step.key === 'config' && <StepConfig sp={sp} />}
@@ -213,8 +224,8 @@ export default function SellerProductFormPage() {
                     {step.key === 'service' && <StepService sp={sp} />}
                   </div>
 
-                  {/* Inline step navigation */}
-                  <div className="flex items-center justify-between px-5 py-4 border-t bg-muted/20">
+                  {/* Desktop / tablet step navigation inside card */}
+                  <div className="hidden sm:flex items-center justify-between px-5 py-4 border-t bg-muted/20">
                     <Button
                       variant="ghost"
                       size="sm"
@@ -252,38 +263,28 @@ export default function SellerProductFormPage() {
           <ProductFormPreviewPanel formData={sp.formData} sellerProfile={sp.sellerProfile} attributeBlocks={sp.attributeBlocks} />
         </div>
 
-        {/* Sticky bottom nav bar */}
-        <div className="fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur-sm border-t p-4 z-50">
-          <div className="max-w-5xl mx-auto flex items-center justify-between gap-4">
+        {/* Mobile sticky bottom nav */}
+        <div className="fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur-sm border-t p-3 sm:hidden z-50 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+          <div className="max-w-5xl mx-auto flex items-center justify-between gap-3">
             <Button
               variant="outline"
+              size="sm"
               onClick={handleBack}
-              className="rounded-xl"
+              className="rounded-xl shrink-0"
             >
-              <ArrowLeft size={14} className="mr-1.5" />
+              <ArrowLeft size={14} className="mr-1" />
               {currentStep === 0 ? 'Cancel' : 'Back'}
             </Button>
 
-            <div className="flex items-center gap-1.5">
-              {activeSteps.map((_, idx) => (
-                <div
-                  key={idx}
-                  className={cn(
-                    'w-2 h-2 rounded-full transition-all',
-                    idx === currentStep ? 'bg-primary w-6' : idx < currentStep ? 'bg-primary/40' : 'bg-muted-foreground/20'
-                  )}
-                />
-              ))}
-            </div>
-
             <Button
+              size="sm"
               onClick={handleNext}
               disabled={sp.isSaving}
-              className="rounded-xl px-6 font-semibold"
+              className="rounded-xl px-4 font-semibold flex-1 max-w-[10rem]"
             >
-              {sp.isSaving && <Loader2 className="animate-spin mr-2" size={16} />}
-              {isLastStep ? (isEditing ? 'Save Changes' : 'Add Product') : 'Next'}
-              {!isLastStep && <ArrowRight size={14} className="ml-1.5" />}
+              {sp.isSaving && <Loader2 className="animate-spin mr-1.5" size={14} />}
+              {isLastStep ? (isEditing ? 'Save' : 'Add') : 'Next'}
+              {!isLastStep && <ArrowRight size={14} className="ml-1" />}
             </Button>
           </div>
         </div>
@@ -491,11 +492,12 @@ function StepConfig({ sp }: { sp: ReturnType<typeof useSellerProducts> }) {
             <p className="text-[10px] text-muted-foreground mt-1">Time to prepare once ordered</p>
           </div>
         )}
-        <div>
-          <Label className="text-sm font-semibold">Order Lead Time (hours)</Label>
-          <Input type="number" min="0" placeholder="e.g. 2" value={sp.formData.lead_time_hours} onChange={(e) => sp.setFormData({ ...sp.formData, lead_time_hours: e.target.value })} className="mt-1.5" />
-          <p className="text-[10px] text-muted-foreground mt-1">Minimum advance notice buyers need</p>
-        </div>
+        <LeadTimeField
+          value={sp.formData.lead_time_value}
+          unit={sp.formData.lead_time_unit}
+          onValueChange={(v) => sp.setFormData({ ...sp.formData, lead_time_value: v })}
+          onUnitChange={(u) => sp.setFormData({ ...sp.formData, lead_time_unit: u })}
+        />
       </div>
 
       <div className="flex items-center justify-between p-3 bg-muted/50 rounded-xl">
@@ -554,20 +556,63 @@ function StepVisibility({ sp }: { sp: ReturnType<typeof useSellerProducts> }) {
             <span className="text-sm font-medium block">Track Stock Quantity</span>
             <span className="text-xs text-muted-foreground">Auto-marks unavailable when stock hits zero</span>
           </div>
-          <Switch checked={sp.formData.stock_quantity !== ''} onCheckedChange={(checked) => sp.setFormData({ ...sp.formData, stock_quantity: checked ? '10' : '' })} />
+          <Switch
+            checked={sp.formData.tracks_stock}
+            onCheckedChange={(checked) => sp.patchFormData((prev) => ({
+              tracks_stock: !!checked,
+              stock_quantity: checked ? (prev.stock_quantity || '10') : '',
+              ...(!checked ? { tracks_low_stock_alert: false, low_stock_threshold: '' } : {}),
+            }))}
+          />
         </div>
-        {sp.formData.stock_quantity !== '' && (
-          <div className="grid grid-cols-2 gap-3 pt-3 border-t">
+        {sp.formData.tracks_stock && (
+          <div className="pt-3 border-t">
+            <Label className="text-xs">Current Stock</Label>
+            <Input
+              id="edit-prod-stock_quantity"
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              value={sp.formData.stock_quantity}
+              onChange={(e) => sp.patchFormData({ stock_quantity: e.target.value.replace(/[^\d]/g, '') })}
+              className="mt-1"
+            />
+            <p className="text-[10px] text-muted-foreground mt-1">Units available right now</p>
+            {sp.fieldErrors.stock_quantity && (
+              <p className="text-xs text-destructive mt-1">{sp.fieldErrors.stock_quantity}</p>
+            )}
+          </div>
+        )}
+        {sp.formData.tracks_stock && (
+          <div className="flex items-center justify-between pt-3 border-t">
             <div>
-              <Label className="text-xs">Current Stock</Label>
-              <Input type="number" min="0" value={sp.formData.stock_quantity} onChange={(e) => sp.setFormData({ ...sp.formData, stock_quantity: e.target.value })} className="mt-1" />
-              <p className="text-[10px] text-muted-foreground mt-1">Units available right now</p>
+              <span className="text-sm font-medium block">Low Stock Alert</span>
+              <span className="text-xs text-muted-foreground">Notify when stock drops below a level</span>
             </div>
-            <div>
-              <Label className="text-xs">Low Stock Alert</Label>
-              <Input type="number" min="1" value={sp.formData.low_stock_threshold} onChange={(e) => sp.setFormData({ ...sp.formData, low_stock_threshold: e.target.value })} className="mt-1" />
-              <p className="text-[10px] text-muted-foreground mt-1">Alert below this level</p>
-            </div>
+            <Switch
+              checked={sp.formData.tracks_low_stock_alert}
+              onCheckedChange={(checked) => sp.patchFormData((prev) => ({
+                tracks_low_stock_alert: !!checked,
+                low_stock_threshold: checked ? (prev.low_stock_threshold || '5') : '',
+              }))}
+            />
+          </div>
+        )}
+        {sp.formData.tracks_stock && sp.formData.tracks_low_stock_alert && (
+          <div className="pt-1">
+            <Label className="text-xs">Alert below this level</Label>
+            <Input
+              id="edit-prod-low_stock_threshold"
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              value={sp.formData.low_stock_threshold}
+              onChange={(e) => sp.patchFormData({ low_stock_threshold: e.target.value.replace(/[^\d]/g, '') })}
+              className="mt-1"
+            />
+            {sp.fieldErrors.low_stock_threshold && (
+              <p className="text-xs text-destructive mt-1">{sp.fieldErrors.low_stock_threshold}</p>
+            )}
           </div>
         )}
       </div>

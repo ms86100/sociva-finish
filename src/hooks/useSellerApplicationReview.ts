@@ -13,6 +13,7 @@ export interface SellerApplication {
   business_name: string;
   description: string | null;
   primary_group: string | null;
+  default_action_type: string | null;
   categories: string[];
   cover_image_url: string | null;
   profile_image_url: string | null;
@@ -57,6 +58,8 @@ export interface ProductSummary {
   image_url: string | null;
   approval_status: string;
   is_available: boolean;
+  action_type: string | null;
+  contact_phone: string | null;
 }
 
 export interface GroupConfig {
@@ -90,7 +93,7 @@ export function useSellerApplicationReview() {
     try {
       const sellerQuery = supabase
         .from('seller_profiles')
-        .select('id, user_id, business_name, description, verification_status, is_available, society_id, primary_group, latitude, longitude, rejection_note, categories, cover_image_url, profile_image_url, created_at, updated_at, sell_beyond_community, delivery_radius_km, operating_days, fulfillment_mode, profile:profiles!seller_profiles_user_id_fkey(name, phone, block, flat_number, phase), society:societies!seller_profiles_society_id_fkey(name, address)')
+        .select('id, user_id, business_name, description, verification_status, is_available, society_id, primary_group, default_action_type, latitude, longitude, rejection_note, categories, cover_image_url, profile_image_url, created_at, updated_at, sell_beyond_community, delivery_radius_km, operating_days, fulfillment_mode, profile:profiles!seller_profiles_user_id_fkey(name, phone, block, flat_number, phase), society:societies!seller_profiles_society_id_fkey(name, address)')
         .order('created_at', { ascending: false });
 
       const [sellersRes, groupsRes] = await Promise.all([
@@ -106,7 +109,7 @@ export function useSellerApplicationReview() {
           ? supabase.from('seller_licenses').select('*').in('seller_id', sellerIds).order('submitted_at', { ascending: false })
           : Promise.resolve({ data: [] }),
         sellerIds.length > 0
-          ? supabase.from('products').select('id, name, price, category, image_url, approval_status, is_available').in('seller_id', sellerIds).order('created_at', { ascending: false })
+          ? supabase.from('products').select('id, name, price, category, image_url, approval_status, is_available, action_type, contact_phone').in('seller_id', sellerIds).order('created_at', { ascending: false })
           : Promise.resolve({ data: [] }),
       ]);
 

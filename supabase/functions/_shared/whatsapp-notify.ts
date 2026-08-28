@@ -3,6 +3,9 @@
  * Called from process-notification-queue as an additional channel (never replaces push/in-app).
  */
 import {
+  resolveQueueDisplayCopy,
+} from "./notification-display-copy.ts";
+import {
   logWhatsAppMessage,
   normalizeWhatsAppPhone,
   sendWhatsAppTemplateOrText,
@@ -24,6 +27,10 @@ const WA_ELIGIBLE_TYPES = new Set([
   "seller_approved",
   "seller_rejected",
   "seller_suspended",
+  "seller_store_submitted",
+  "seller_store_under_review",
+  "refund_request",
+  "refund_request",
   "license_approved",
   "license_rejected",
   "product_approved",
@@ -73,6 +80,14 @@ export function shouldSendWhatsApp(opts: {
   return false;
 }
 
+function buildPushParityFallback(title: string, body: string): string {
+  const t = title.trim();
+  const b = body.trim();
+  if (t && b && t !== b) return `${t}\n\n${b}\n\n— Sociva`;
+  if (t) return `${t}\n\n— Sociva`;
+  return `${b || 'Update from Sociva'}\n\n— Sociva`;
+}
+
 function resolveTemplate(opts: {
   type: string;
   title: string;
@@ -80,15 +95,19 @@ function resolveTemplate(opts: {
   payload: Record<string, unknown>;
   userName: string;
 }): { templateName: string; bodyParams: string[]; fallbackText: string } {
+  const display = resolveQueueDisplayCopy({
+    title: opts.title,
+    body: opts.body,
+    type: opts.type,
+    payload: opts.payload,
+  });
   const status = String(opts.payload.status || opts.payload.new_status || "").toLowerCase();
   const targetRole = String(opts.payload.target_role || "");
   const name = opts.userName || "there";
-  const orderRef = shortOrderRef(opts.payload, opts.title);
-  const displayTitle = (opts.title || "").trim()
-    || (status === "accepted" ? "Order Accepted" : status === "placed" ? "New Order" : "Order Update");
-  const displayBody = (opts.body || "").trim()
-    || String(opts.payload.item_summary || opts.payload.sellerName || opts.payload.providerName || displayTitle);
-  const fallbackText = `${displayTitle}\n${displayBody}\n— Sociva`;
+  const orderRef = shortOrderRef(opts.payload, display.title);
+  const displayTitle = display.title;
+  const displayBody = display.body;
+  const fallbackText = buildPushParityFallback(displayTitle, displayBody);
 
   if (opts.payload.wa_template) {
     const tpl = String(opts.payload.wa_template);
@@ -134,8 +153,8 @@ function resolveTemplate(opts: {
       return {
         templateName: tpl,
         bodyParams: [
-          String(opts.payload.status || "order"),
-          `${orderRef} — ${opts.body}`.slice(0, 200),
+          displayTitle.slice(0, 120),
+          displayBody.slice(0, 600),
         ],
         fallbackText,
       };
@@ -156,7 +175,7 @@ function resolveTemplate(opts: {
   ) {
     return {
       templateName: "sociva_new_order_seller",
-      bodyParams: [status || "order", `${orderRef} — ${opts.body}`.slice(0, 200)],
+      bodyParams: [displayTitle.slice(0, 120), displayBody.slice(0, 600)],
       fallbackText,
     };
   }
@@ -203,30 +222,31 @@ function resolveTemplate(opts: {
     };
   }
 
-  if (status.startsWith("refund") || opts.title.toLowerCase().includes("refund")) {
+  if (status.startsWith("refund") || opts.type === "refund_request" || displayTitle.toLowerCase().includes("refund")) {
     return {
       templateName: "sociva_refund_update",
-      bodyParams: [name, orderRef, (opts.title || "Refund update").slice(0, 120)],
+      bodyParams: [name, orderRef, displayBody.slice(0, 600) || displayTitle.slice(0, 120)],
       fallbackText,
     };
   }
 
   if (
+    opts.type.startsWith("seller_store_") ||
     opts.type.startsWith("seller_") ||
     opts.type.startsWith("license_") ||
     opts.type.startsWith("product_")
   ) {
     return {
       templateName: "sociva_order_update",
-      bodyParams: [name, orderRef || opts.type, (opts.title || "Account update").slice(0, 120)],
+      bodyParams: [name, orderRef || opts.type, displayBody.slice(0, 600) || displayTitle.slice(0, 120)],
       fallbackText,
     };
   }
 
-  // Default utility order update
+  // Default utility order update — mirror push copy
   return {
     templateName: "sociva_order_update",
-    bodyParams: [name, orderRef, (opts.title || status || "Update").slice(0, 120)],
+    bodyParams: [name, orderRef, displayBody.slice(0, 600) || displayTitle.slice(0, 120)],
     fallbackText,
   };
 }

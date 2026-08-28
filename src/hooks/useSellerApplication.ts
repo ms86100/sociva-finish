@@ -394,9 +394,8 @@ export function useSellerApplication() {
   useEffect(() => {
     const checkGroupConflict = async () => {
       if (!user || !selectedGroup) return;
-      const { data } = await supabase
-        .from('seller_profiles')
-        .select('id, business_name, verification_status, rejection_note')
+      const { data } = await supabase.from('seller_profiles')
+        .select('id, business_name, verification_status, rejection_note, primary_group, categories')
         .eq('user_id', user.id)
         .eq('primary_group', selectedGroup)
         .neq('verification_status', 'draft')
@@ -681,6 +680,35 @@ export function useSellerApplication() {
   };
 
   // Safe group selection: warn if products exist before changing group (Bug 10)
+  const resumeExistingStore = useCallback(async (storeId: string) => {
+    try {
+      const { data: fullSeller } = await supabase.from('seller_profiles').select('*').eq('id', storeId).single();
+      if (!fullSeller) return;
+      setExistingSeller(null);
+      setDraftSellerId(fullSeller.id);
+      setSelectedGroup((fullSeller as any).primary_group || null);
+      loadSellerDataIntoForm(fullSeller);
+      await reloadProducts(fullSeller.id);
+      const savedStep = parseInt(localStorage.getItem('seller_onboarding_step') || '2', 10);
+      const nextStep = (fullSeller as any).verification_status === 'draft'
+        ? Math.max(2, Math.min(savedStep, NEW_ONBOARDING_TOTAL_STEPS))
+        : 2;
+      setStep(nextStep);
+    } catch (err) {
+      console.error('Failed to resume store:', err);
+      toast.error('Could not load that store. Please try again.');
+    }
+  }, [loadSellerDataIntoForm, reloadProducts, setStep]);
+
+  const startNewStoreOnboarding = useCallback(() => {
+    setExistingSeller(null);
+    setDraftSellerId(null);
+    setSelectedGroup(null);
+    setFormData(INITIAL_FORM);
+    setDraftProducts([]);
+    setStep(1);
+  }, [setStep]);
+
   const handleGroupSelect = async (group: string) => {
     if (group !== selectedGroup) {
       // Bug 10: If draft products exist from the old group, clean them up
@@ -725,6 +753,7 @@ export function useSellerApplication() {
     saveDraft, handleProceedToSettings, handleProceedToProducts, handleSaveDraftAndExit,
     handleSubmit, setExistingSeller, setDraftSellerId, handleStepBack, handleGroupSelect,
     reloadProducts, submissionComplete, loadSellerDataIntoForm, rejectionFeedback, setRejectionFeedback,
+    resumeExistingStore, startNewStoreOnboarding,
     listingIntentPhrase, setListingIntentPhrase,
     commerceModel, setCommerceModel,
     seedProductName, setSeedProductName,
