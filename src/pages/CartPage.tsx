@@ -27,6 +27,7 @@ import { AddressPicker } from '@/components/profile/AddressPicker';
 import { PreciseLocationRequiredCard } from '@/components/location/PreciseLocationRequiredCard';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
+import { useCartPage } from '@/hooks/useCartPage';
 
 export default function CartPage() {
   const c = useCartPage();
