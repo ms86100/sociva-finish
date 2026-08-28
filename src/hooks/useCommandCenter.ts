@@ -102,6 +102,89 @@ export type OrderListFilters = {
   pageSize?: number;
 };
 
+export type CommandCenterProductRow = {
+  product_id: string;
+  name: string;
+  category: string | null;
+  subcategory_id: string | null;
+  subcategory_name: string | null;
+  price: number;
+  approval_status: string;
+  is_available: boolean;
+  seller_id: string;
+  seller_name: string | null;
+  society_id: string | null;
+  society_name: string | null;
+  is_service: boolean;
+  created_at: string;
+  updated_at: string | null;
+};
+
+export type CommandCenterBookingRow = {
+  booking_id: string;
+  status: string;
+  booking_date: string;
+  start_time: string;
+  end_time: string;
+  location_type: string | null;
+  seller_id: string;
+  seller_name: string | null;
+  buyer_id: string;
+  buyer_name: string | null;
+  buyer_phone: string | null;
+  product_id: string | null;
+  product_name: string | null;
+  category: string | null;
+  order_id: string | null;
+  created_at: string;
+};
+
+export type CommandCenterEnquiryRow = {
+  enquiry_id: string;
+  status: string;
+  order_type: string | null;
+  total_amount: number;
+  society_id: string | null;
+  society_name: string | null;
+  seller_id: string;
+  seller_name: string | null;
+  buyer_id: string;
+  buyer_name: string | null;
+  buyer_phone: string | null;
+  created_at: string;
+  updated_at: string | null;
+};
+
+export type ProductListFilters = {
+  approvalStatus?: string | null;
+  category?: string | null;
+  sellerId?: string | null;
+  availableOnly?: boolean | null;
+  search?: string;
+  page?: number;
+  pageSize?: number;
+};
+
+export type BookingListFilters = {
+  status?: string | null;
+  sellerId?: string | null;
+  from?: string | null;
+  to?: string | null;
+  search?: string;
+  page?: number;
+  pageSize?: number;
+};
+
+export type EnquiryListFilters = {
+  status?: string | null;
+  sellerId?: string | null;
+  from?: string | null;
+  to?: string | null;
+  search?: string;
+  page?: number;
+  pageSize?: number;
+};
+
 export function useCommandCenterSnapshot(societyId: string | null | undefined) {
   return useQuery({
     queryKey: ['admin-command-center-snapshot', societyId ?? 'all'],
@@ -186,7 +269,129 @@ export function useCommandCenterOrders(
         p_offset: page * pageSize,
       });
       if (error) throw error;
-      const payload = (data || {}) as { total?: number; rows?: CommandCenterOrderRow[] };
+      return {
+        total: Number(payload.total || 0),
+        rows: Array.isArray(payload.rows) ? payload.rows : [],
+      };
+    },
+    staleTime: 20_000,
+  });
+}
+
+export function useCommandCenterProducts(
+  societyId: string | null | undefined,
+  filters: ProductListFilters,
+) {
+  const page = filters.page ?? 0;
+  const pageSize = filters.pageSize ?? 25;
+
+  return useQuery({
+    queryKey: [
+      'admin-command-center-products',
+      societyId ?? 'all',
+      filters.approvalStatus ?? 'all',
+      filters.category ?? 'all',
+      filters.sellerId ?? 'all',
+      filters.availableOnly ?? 'any',
+      filters.search ?? '',
+      page,
+      pageSize,
+    ],
+    queryFn: async () => {
+      const { data, error } = await adminRpc('admin_list_products_filtered', {
+        p_society_id: societyId || null,
+        p_approval_status: filters.approvalStatus || null,
+        p_category: filters.category || null,
+        p_seller_id: filters.sellerId || null,
+        p_available_only: filters.availableOnly ?? null,
+        p_search: filters.search?.trim() || null,
+        p_limit: pageSize,
+        p_offset: page * pageSize,
+      });
+      if (error) throw error;
+      const payload = (data || {}) as { total?: number; rows?: CommandCenterProductRow[] };
+      return {
+        total: Number(payload.total || 0),
+        rows: Array.isArray(payload.rows) ? payload.rows : [],
+      };
+    },
+    staleTime: 20_000,
+  });
+}
+
+export function useCommandCenterBookings(
+  societyId: string | null | undefined,
+  filters: BookingListFilters,
+) {
+  const page = filters.page ?? 0;
+  const pageSize = filters.pageSize ?? 25;
+
+  return useQuery({
+    queryKey: [
+      'admin-command-center-bookings',
+      societyId ?? 'all',
+      filters.status ?? 'all',
+      filters.sellerId ?? 'all',
+      filters.from ?? 'all',
+      filters.to ?? 'all',
+      filters.search ?? '',
+      page,
+      pageSize,
+    ],
+    queryFn: async () => {
+      const { data, error } = await adminRpc('admin_list_bookings_filtered', {
+        p_society_id: societyId || null,
+        p_status: filters.status || null,
+        p_seller_id: filters.sellerId || null,
+        p_from: filters.from || null,
+        p_to: filters.to || null,
+        p_search: filters.search?.trim() || null,
+        p_limit: pageSize,
+        p_offset: page * pageSize,
+      });
+      if (error) throw error;
+      const payload = (data || {}) as { total?: number; rows?: CommandCenterBookingRow[] };
+      return {
+        total: Number(payload.total || 0),
+        rows: Array.isArray(payload.rows) ? payload.rows : [],
+      };
+    },
+    staleTime: 20_000,
+  });
+}
+
+export function useCommandCenterEnquiries(
+  societyId: string | null | undefined,
+  filters: EnquiryListFilters,
+) {
+  const page = filters.page ?? 0;
+  const pageSize = filters.pageSize ?? 25;
+
+  return useQuery({
+    queryKey: [
+      'admin-command-center-enquiries',
+      societyId ?? 'all',
+      filters.status ?? 'all',
+      filters.sellerId ?? 'all',
+      filters.from ?? 'all',
+      filters.to ?? 'all',
+      filters.search ?? '',
+      page,
+      pageSize,
+    ],
+    queryFn: async () => {
+      const { data, error } = await adminRpc('admin_list_enquiries_filtered', {
+        p_society_id: societyId || null,
+        p_status: filters.status || null,
+        p_seller_id: filters.sellerId || null,
+        p_from: filters.from || null,
+        p_to: filters.to || null,
+        p_search: filters.search?.trim() || null,
+        p_limit: pageSize,
+        p_offset: page * pageSize,
+      });
+      if (error) throw error;
+      const payload = (data || {}) as { total?: number; rows?: CommandCenterEnquiryRow[] };
       return {
         total: Number(payload.total || 0),
         rows: Array.isArray(payload.rows) ? payload.rows : [],

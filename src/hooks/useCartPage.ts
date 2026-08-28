@@ -3,6 +3,10 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import {
+  assertBuyerCanCheckout,
+  checkoutErrorMessage,
+} from '@/lib/checkout-guards';
 import { PaymentMethod } from '@/types/Database';
 import { fetchStatusFlow, fetchStatusTransitions, statusFlowQueryKey, statusTransitionsQueryKey } from '@/hooks/useCategoryStatusFlow';
 import { resolveTransactionType } from '@/lib/resolveTransactionType';
@@ -646,9 +650,12 @@ export function useCartPage() {
         );
       }
       if (result?.error === 'buyer_location') {
-        throw new Error(result.message || 'Your selected address has no location coordinates. Please update it with a precise location.');
+        throw new Error(checkoutErrorMessage('buyer_location', result.message));
       }
-      throw new Error(result?.message || result?.error || 'Failed to create orders');
+      if (result?.error === 'buyer_society_required' || result?.error === 'seller_society_required' || result?.error === 'seller_location_required') {
+        throw new Error(checkoutErrorMessage(result.error, result.message));
+      }
+      throw new Error(checkoutErrorMessage(result?.error, result?.message || result?.error || 'Failed to create orders'));
     }
     // Reset idempotency key after successful (non-deduplicated) creation
     if (!result.deduplicated) idempotencyKeyRef.current = null;
@@ -743,9 +750,17 @@ export function useCartPage() {
     const selfSellerGroup = sellerGroups.find(g => { const sellerUserId = (g.items[0]?.product?.seller as any)?.user_id; return sellerUserId && sellerUserId === user.id; });
     if (selfSellerGroup) { notify.block("You cannot place an order from your own store."); return; }
     if (!navigator.onLine) { toast.error("You're offline. Please check your connection and try again.", { id: 'checkout-offline' }); return; }
-    if (fulfillmentType === 'delivery' && !selectedDeliveryAddress) { notify.block('Please add a delivery address to continue.'); return; }
-    if (fulfillmentType === 'delivery' && selectedDeliveryAddress && !hasPreciseCoordinates(selectedDeliveryAddress.latitude, selectedDeliveryAddress.longitude)) { notify.block('Your selected address has no location coordinates. Please update it with a precise location.'); return; }
-    if (!hasPreciseCoordinates(checkoutLat, checkoutLng)) { notify.block('Your selected address has no location coordinates. Please update it with a precise location.'); return; }
+
+    const checkoutBlock = assertBuyerCanCheckout({
+      profileSocietyId: profile.society_id,
+      fulfillmentType,
+      hasDeliveryAddress: !!selectedDeliveryAddress,
+      hasPreciseDeliveryCoords: hasPreciseCoordinates(checkoutLat, checkoutLng),
+    });
+    if (checkoutBlock) {
+      notify.block(checkoutBlock);
+      return;
+    }
 
     // GUARD: Pre-order items MUST have a scheduled date/time — cannot bypass via race condition
     if (hasPreorderItems && (!scheduledDate || !scheduledTime)) {

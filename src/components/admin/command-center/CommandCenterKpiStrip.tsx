@@ -7,6 +7,7 @@ type KpiKey =
   | 'stores'
   | 'pending_stores'
   | 'live_listings'
+  | 'pending_products'
   | 'orders_today'
   | 'open_disputes'
   | 'attention';
@@ -40,6 +41,12 @@ function buildCards(snapshot: CommandCenterSnapshot): KpiCard[] {
       value: snapshot.listings?.live_products ?? 0,
       hint: `${snapshot.listings?.pending_products ?? 0} awaiting approval`,
       color: 'bg-emerald-500',
+    },
+    {
+      key: 'pending_products',
+      label: 'Pending products',
+      value: snapshot.listings?.pending_products ?? 0,
+      color: 'bg-amber-500',
     },
     {
       key: 'orders_today',
@@ -79,7 +86,7 @@ export function CommandCenterKpiStrip({
   const cards = buildCards(snapshot);
 
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
       {cards.map((card) => (
         <button
           key={card.key}
