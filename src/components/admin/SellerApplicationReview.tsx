@@ -52,7 +52,7 @@ export function SellerApplicationReview() {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="applications" className="mt-4 space-y-3">
+        <TabsContent value="applications" className="mt-4">
           <SellerList sellers={pendingApps} s={s} emptyMsg="No pending seller applications" />
         </TabsContent>
 
@@ -60,7 +60,7 @@ export function SellerApplicationReview() {
           <AdminProductApprovals />
         </TabsContent>
 
-        <TabsContent value="all" className="mt-4 space-y-3">
+        <TabsContent value="all" className="mt-4">
           <SellerList sellers={allApps} s={s} emptyMsg="No sellers found" />
         </TabsContent>
       </Tabs>
@@ -115,11 +115,11 @@ function SellerList({ sellers, s, emptyMsg }: { sellers: any[]; s: ReturnType<ty
   }
 
   return (
-    <>
+    <div className="flex flex-col gap-4">
       {sellers.map((seller, idx) => (
         <SellerCard key={seller.id} seller={seller} s={s} idx={idx} />
       ))}
-    </>
+    </div>
   );
 }
 
