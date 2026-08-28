@@ -22,6 +22,8 @@ describe('marketplace listing UI contracts', () => {
     const src = readSrc('src/pages/CategoryGroupPage.tsx');
     expect(src).toContain('marketplace-stack');
     expect(src).not.toMatch(/Top Sellers[\s\S]{0,400}space-y-3/);
+    expect(src).toMatch(/from 'lucide-react'/);
+    expect(src).toMatch(/Search/);
   });
 
   it('Top Sellers mapping preserves trust + price fields from marketplace data', () => {

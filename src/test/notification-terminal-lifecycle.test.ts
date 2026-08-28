@@ -4,7 +4,7 @@
  */
 import { describe, it, expect } from 'vitest';
 
-const ACTIONABLE_STATUSES = ['placed', 'enquired', 'quoted', 'requested', 'scheduled', 'preparing', 'confirmed', 'booked'] as const;
+const ACTIONABLE_STATUSES = ['placed', 'enquired', 'quoted', 'requested', 'scheduled', 'preparing', 'confirmed'] as const;
 const TERMINAL_PUSH_STATUSES = [
   'cancelled', 'completed', 'delivered', 'rejected', 'no_show', 'returned', 'failed', 'expired',
 ];
@@ -18,9 +18,8 @@ function isTerminalPushStatus(status: string | null | undefined): boolean {
 }
 
 describe('notification terminal lifecycle (audit remediation)', () => {
-  it('treats service booking confirmed status as actionable for seller overlay', () => {
+  it('treats confirmed order status as actionable for seller overlay', () => {
     expect(isActionableStatus('confirmed')).toBe(true);
-    expect(isActionableStatus('booked')).toBe(true);
   });
 
   it('treats placed/requested as actionable for seller overlay', () => {

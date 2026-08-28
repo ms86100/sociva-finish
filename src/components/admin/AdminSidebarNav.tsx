@@ -5,10 +5,10 @@ import { useNavigate } from 'react-router-dom';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
-  Store, Users, Building2, AlertCircle, LayoutGrid, Flag,
+  Store, Users, Building2, AlertCircle,   LayoutGrid, Flag,
   CreditCard, Star, Megaphone, Layers, Settings2, Bot,
   Menu, ChevronRight, FileCode, Send, Package, Wrench, MessageSquare, KeyRound,
-  BarChart3, GitBranch,   FlaskConical, MessageCircle, Shield,
+  BarChart3, GitBranch,   FlaskConical, MessageCircle, Shield, Radar,
 } from 'lucide-react';
 import { useState } from 'react';
 import { Badge } from '@/components/ui/badge';
@@ -48,6 +48,7 @@ const NAV_GROUPS = [
   {
     label: 'Intelligence',
     items: [
+      { value: 'command-center', label: 'Command Center', icon: Radar },
       { value: 'analytics', label: 'Analytics', icon: BarChart3 },
     ],
   },
@@ -79,6 +80,7 @@ export function AdminSidebarNav({ activeTab, onTabChange }: AdminSidebarNavProps
 
   const ROUTE_ITEMS: Record<string, string> = {
     'api-docs': '/api-docs',
+    'command-center': '/admin/command-center',
     refunds: '/admin/refunds',
     'seller-payouts': '/admin/seller-payouts',
     'financial-controls': '/admin/financial-controls',

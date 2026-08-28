@@ -11,6 +11,7 @@ import {
   purgeLocalAuthTokens,
 } from '@/lib/capacitor-storage';
 import { hideSplashScreen } from '@/lib/capacitor';
+import { Capacitor } from '@capacitor/core';
 
 export function useAuthState() {
   const [state, setState] = useState<AuthState>(initialAuthState);
@@ -258,12 +259,18 @@ export function useAuthState() {
       }
     };
 
-    const withTimeout = <T,>(promise: Promise<T>, ms: number, label: string): Promise<T | null> =>
+    const withTimeout = <T,>(
+      promise: Promise<T>,
+      ms: number,
+      label: string,
+    ): Promise<T | null> =>
       Promise.race([
         promise,
         new Promise<null>((resolve) => {
           setTimeout(() => {
-            console.warn(`[Auth] ${label} timed out after ${ms}ms`);
+            if (!cancelled && !bootMarked.current) {
+              console.warn(`[Auth] ${label} timed out after ${ms}ms`);
+            }
             resolve(null);
           }, ms);
         }),
@@ -322,31 +329,42 @@ export function useAuthState() {
 
       unsubscribe = () => subscription.unsubscribe();
 
-      try {
-        const tokens = await withTimeout(restoreAuthSession(), 2500, 'restoreAuthSession');
-        if (tokens && !cancelled) {
-          const result = await withTimeout(
-            supabase.auth.setSession({
-              access_token: tokens.access_token,
-              refresh_token: tokens.refresh_token,
-            }),
-            4000,
-            'setSession',
-          );
-          if (result && (result as any).error) {
-            console.warn('[Auth] setSession from Preferences failed:', (result as any).error.message);
-          } else if (result) {
-            console.log('[Auth] Restored session via setSession from Preferences');
+      // Native-only: restore from Preferences when localStorage was purged.
+      // Web relies on localStorage + INITIAL_SESSION from onAuthStateChange.
+      if (Capacitor.isNativePlatform()) {
+        try {
+          const tokens = await withTimeout(restoreAuthSession(), 2500, 'restoreAuthSession');
+          if (tokens && !cancelled) {
+            const result = await withTimeout(
+              supabase.auth.setSession({
+                access_token: tokens.access_token,
+                refresh_token: tokens.refresh_token,
+              }),
+              4000,
+              'setSession',
+            );
+            if (result && (result as any).error) {
+              console.warn('[Auth] setSession from Preferences failed:', (result as any).error.message);
+            } else if (result) {
+              console.log('[Auth] Restored session via setSession from Preferences');
+            }
           }
+        } catch (e) {
+          console.warn('[Auth] Native restore failed:', e);
         }
-      } catch (e) {
-        console.warn('[Auth] Native restore failed:', e);
       }
 
-      // Backup if listener still has not unlocked the UI
+      // Let INITIAL_SESSION fire before any redundant getSession (parallel getSession
+      // can hang or race supabase-js init on slow mobile networks).
+      if (!cancelled && !bootMarked.current) {
+        await new Promise<void>((resolve) => {
+          setTimeout(resolve, Capacitor.isNativePlatform() ? 200 : 400);
+        });
+      }
+
       if (!cancelled && !bootMarked.current) {
         try {
-          const sessionResult = await withTimeout(supabase.auth.getSession(), 3000, 'getSession');
+          const sessionResult = await withTimeout(supabase.auth.getSession(), 5000, 'getSession');
           const session = (sessionResult as any)?.data?.session ?? null;
           if (session?.user) {
             prevUserIdRef.current = session.user.id;

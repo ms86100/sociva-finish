@@ -18,6 +18,7 @@ import { useCategoryProducts } from '@/hooks/queries/usePopularProducts';
 import { ServiceCategory } from '@/types/categories';
 import { SORT_OPTIONS, SortKey } from '@/lib/marketplace-constants';
 import { BackButton } from '@/components/navigation/BackButton';
+import { Search, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useQueryClient } from '@tanstack/react-query';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';

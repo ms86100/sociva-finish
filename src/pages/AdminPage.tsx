@@ -112,6 +112,11 @@ export default function AdminPage() {
           </motion.div>
           <div className="flex flex-wrap items-center gap-2">
             <Button asChild size="sm" variant="outline" className="gap-1.5 shrink-0">
+              <Link to="/admin/command-center">
+                Command Center
+              </Link>
+            </Button>
+            <Button asChild size="sm" variant="outline" className="gap-1.5 shrink-0">
               <Link to="/admin/refunds">
                 Refunds
               </Link>

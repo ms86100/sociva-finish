@@ -3,6 +3,8 @@
  * Guards session restore, logout bounce, and Profile loading UX.
  */
 import { describe, it, expect, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import {
   hasLocalAuthToken,
   purgeLocalAuthTokens,
@@ -110,6 +112,12 @@ describe('Sticky auth: Preferences restore → setSession', () => {
     const mustCallSetSession = true;
     const writeJsonOnlyIsInsufficient = true;
     expect(mustCallSetSession && writeJsonOnlyIsInsufficient).toBe(true);
+  });
+
+  it('boot only calls Preferences restore on native platforms', () => {
+    const src = readFileSync(resolve(__dirname, '../contexts/auth/useAuthState.ts'), 'utf8');
+    expect(src).toMatch(/Capacitor\.isNativePlatform\(\)/);
+    expect(src).toMatch(/if \(Capacitor\.isNativePlatform\(\)\)/);
   });
 });
 
