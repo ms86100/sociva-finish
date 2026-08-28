@@ -92,6 +92,10 @@ function PaginatedList<T>({
   );
 }
 
+function AdminCreditTabPanel({ children }: { children: ReactNode }) {
+  return <div className="flex flex-col gap-4">{children}</div>;
+}
+
 export default function AdminSellerCreditsPage() {
   const { formatPrice } = useCurrency();
   const queryClient = useQueryClient();
@@ -522,7 +526,8 @@ export default function AdminSellerCreditsPage() {
             <TabsTrigger value="activity" className="text-xs sm:text-sm">Activity</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="overview" className="space-y-4 mt-0">
+          <TabsContent value="overview" className="mt-4 focus-visible:outline-none">
+        <AdminCreditTabPanel>
         <Card>
           <CardContent className="p-4 space-y-3">
             <p className="text-sm font-semibold">Feature flags</p>
@@ -612,9 +617,11 @@ export default function AdminSellerCreditsPage() {
             )}
           </CardContent>
         </Card>
+        </AdminCreditTabPanel>
           </TabsContent>
 
-          <TabsContent value="rates" className="space-y-4 mt-0">
+          <TabsContent value="rates" className="mt-4 focus-visible:outline-none">
+        <AdminCreditTabPanel>
         <Card>
           <CardContent className="p-4 space-y-3">
             <p className="text-sm font-semibold">Billing rates</p>
@@ -823,9 +830,11 @@ export default function AdminSellerCreditsPage() {
             <p className="text-[11px] text-muted-foreground">Critical max (`critical_min`): available at or below this (and above 0) is Critical (warning only — products stay visible).</p>
           </CardContent>
         </Card>
+        </AdminCreditTabPanel>
           </TabsContent>
 
-          <TabsContent value="packages" className="space-y-4 mt-0">
+          <TabsContent value="packages" className="mt-4 focus-visible:outline-none">
+        <AdminCreditTabPanel>
         <Card>
           <CardContent className="p-4 space-y-3">
             <p className="text-sm font-semibold">Credit packages</p>
@@ -856,9 +865,11 @@ export default function AdminSellerCreditsPage() {
             <Button size="sm" onClick={() => savePackage(true)}>{editingPkg ? 'Update package' : 'Add package'}</Button>
           </CardContent>
         </Card>
+        </AdminCreditTabPanel>
           </TabsContent>
 
-          <TabsContent value="activity" className="space-y-4 mt-0">
+          <TabsContent value="activity" className="mt-4 focus-visible:outline-none">
+        <AdminCreditTabPanel>
         <Card>
           <CardContent className="p-4 space-y-2">
             <p className="text-sm font-semibold">Configuration history</p>
@@ -963,9 +974,11 @@ export default function AdminSellerCreditsPage() {
             />
           </CardContent>
         </Card>
+        </AdminCreditTabPanel>
           </TabsContent>
 
-          <TabsContent value="stores" className="space-y-4 mt-0">
+          <TabsContent value="stores" className="mt-4 focus-visible:outline-none">
+        <AdminCreditTabPanel>
         <Card>
           <CardContent className="p-4 space-y-3">
             <p className="text-sm font-semibold">Store lookup</p>
@@ -1101,6 +1114,7 @@ export default function AdminSellerCreditsPage() {
             </div>
           </CardContent>
         </Card>
+        </AdminCreditTabPanel>
           </TabsContent>
         </Tabs>
       </div>
