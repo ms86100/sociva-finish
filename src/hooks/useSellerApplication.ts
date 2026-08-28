@@ -852,10 +852,8 @@ export function useSellerApplication() {
       }
       resolvedSocietyId = societyResult.societyId;
       if (societyResult.linked) {
+        // Silent — never toast society names (users shouldn't see internal linking).
         await refreshProfile();
-        if (societyResult.societyName) {
-          toast.success(`Linked to ${societyResult.societyName}`, { id: 'seller-society-linked' });
-        }
       }
     }
 

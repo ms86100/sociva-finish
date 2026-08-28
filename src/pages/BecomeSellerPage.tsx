@@ -1139,10 +1139,8 @@ export default function BecomeSellerPage() {
                           longitude: lng,
                         });
                         if (result.linked) {
+                          // Silent link — no toast with society name
                           await refreshProfile();
-                          if (result.societyName) {
-                            toast.success(`Linked to ${result.societyName}`, { id: 'seller-society-linked' });
-                          }
                         }
                       } catch (e) {
                         console.warn('Society auto-link skipped:', e);
