@@ -33,6 +33,14 @@ const adminRpc = (name: string, args?: Record<string, unknown>) =>
     error: { message: string } | null;
   }>;
 
+function rpcErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof Error) return error.message;
+  if (error && typeof error === 'object' && 'message' in error) {
+    return String((error as { message: string }).message);
+  }
+  return fallback;
+}
+
 type BillingRule = {
   event_type: BillingEventType;
   enabled: boolean;
@@ -217,7 +225,8 @@ export default function AdminSellerCreditsPage() {
       .map((row) => ({ id: String((row as GoLiveCertCase).id), result: String((row as GoLiveCertCase).result) }));
   };
 
-  const loadGoLiveEvidence = async (runCert = false) => {
+  const loadGoLiveEvidence = async (runCert = false, opts?: { silent?: boolean }) => {
+    const silent = opts?.silent ?? false;
     try {
       const verify = await adminRpc('admin_verify_seller_credit_production_purchase', { p_purchase_id: null });
       if (verify.error) throw verify.error;
@@ -242,16 +251,27 @@ export default function AdminSellerCreditsPage() {
       if (runCert) {
         toast.success(isolated?.ok ? 'Billing certification passed (10/10).' : 'Billing certification finished with failures — see checklist.');
         refresh();
+      } else if (!silent && Boolean((verify.data as { ok?: boolean } | null)?.ok)) {
+        toast.success('Live purchase proof refreshed.');
       }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Could not load go-live evidence.');
+      const message = rpcErrorMessage(error, 'Could not load go-live evidence.');
+      if (!silent) {
+        if (runCert && /spend flag is on/i.test(message)) {
+          toast.error('Turn Spend / gating OFF before running billing certification.');
+        } else {
+          toast.error(message);
+        }
+      } else {
+        console.warn('[AdminSellerCredits] Go-live evidence load skipped:', message);
+      }
     } finally {
       setCertRunning(false);
     }
   };
 
   useEffect(() => {
-    void loadGoLiveEvidence(true);
+    void loadGoLiveEvidence(false, { silent: true });
   }, []);
 
   const thresholdValue = (key: string) => {
@@ -584,9 +604,14 @@ export default function AdminSellerCreditsPage() {
               Live purchase verification runs automatically; billing certification uses isolated CREDIT-VERIFY stores only.
             </p>
             <div className="flex flex-wrap gap-2">
-              <Button size="sm" variant="outline" disabled={certRunning} onClick={() => void loadGoLiveEvidence(true)}>
+              <Button size="sm" variant="outline" disabled={certRunning || spendOn} onClick={() => void loadGoLiveEvidence(true)}>
                 {certRunning ? 'Running billing certification…' : 'Run billing certification'}
               </Button>
+              {spendOn && (
+                <p className="text-[11px] text-muted-foreground w-full">
+                  Billing certification is blocked while Spend is ON. Turn Spend OFF first if you need to re-run the isolated harness.
+                </p>
+              )}
               <Button size="sm" variant="ghost" disabled={certRunning} onClick={() => void loadGoLiveEvidence(false)}>
                 Refresh live purchase proof
               </Button>
