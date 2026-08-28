@@ -243,11 +243,21 @@ describe('resolveListingIntent', () => {
 });
 
 describe('migrateOnboardingStep', () => {
-  it('maps old 5-step indices into intent-first steps', () => {
+  it('maps legacy 5-step indices into category-first steps', () => {
     expect(migrateOnboardingStep(1)).toBe(1);
-    expect(migrateOnboardingStep(2)).toBe(4);
-    expect(migrateOnboardingStep(3)).toBe(5);
-    expect(migrateOnboardingStep(4)).toBe(6);
-    expect(migrateOnboardingStep(5)).toBe(7);
+    expect(migrateOnboardingStep(2)).toBe(5);
+    expect(migrateOnboardingStep(3)).toBe(6);
+    expect(migrateOnboardingStep(4)).toBe(7);
+    expect(migrateOnboardingStep(5)).toBe(8);
+  });
+
+  it('maps intent-first v2 steps into category-first steps', () => {
+    expect(migrateOnboardingStep(1, '2')).toBe(1);
+    expect(migrateOnboardingStep(2, '2')).toBe(3);
+    expect(migrateOnboardingStep(3, '2')).toBe(2);
+    expect(migrateOnboardingStep(4, '2')).toBe(5);
+    expect(migrateOnboardingStep(5, '2')).toBe(6);
+    expect(migrateOnboardingStep(6, '2')).toBe(7);
+    expect(migrateOnboardingStep(7, '2')).toBe(8);
   });
 });

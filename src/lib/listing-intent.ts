@@ -513,18 +513,33 @@ export function resolveListingIntent(input: {
   };
 }
 
-/** Migrate legacy BecomeSeller step (1–5 taxonomy-first) → intent-first (1–7). */
-export function migrateOnboardingStep(savedStep: number): number {
-  const s = Math.max(1, Math.min(savedStep, 7));
-  // Old: 1 cat, 2 store, 3 config, 4 products, 5 review
-  // New: 1 intent, 2 model, 3 taxonomy, 4 store, 5 config, 6 products, 7 review
+/**
+ * Migrate persisted onboarding steps to category-first flow (v3, 8 steps).
+ * Pass `fromVersion` when known: `'2'` = intent-first 7-step, otherwise legacy 5-step taxonomy-first.
+ */
+export function migrateOnboardingStep(savedStep: number, fromVersion?: string | null): number {
+  const s = Math.max(1, Math.min(savedStep, 8));
+
+  if (fromVersion === '2') {
+    const intentToCategory: Record<number, number> = {
+      1: 1,
+      2: 3,
+      3: 2,
+      4: 5,
+      5: 6,
+      6: 7,
+      7: 8,
+    };
+    return intentToCategory[s] ?? Math.min(s, NEW_ONBOARDING_TOTAL_STEPS);
+  }
+
+  // Legacy taxonomy-first (5 steps) or unknown version
   if (s <= 1) return 1;
-  // Heuristic: persisted steps were often >=2 after draft save
-  if (s === 2) return 4;
-  if (s === 3) return 5;
-  if (s === 4) return 6;
-  if (s === 5) return 7;
-  return s;
+  if (s === 2) return 5;
+  if (s === 3) return 6;
+  if (s === 4) return 7;
+  if (s === 5) return 8;
+  return Math.min(s, NEW_ONBOARDING_TOTAL_STEPS);
 }
 
-export const NEW_ONBOARDING_TOTAL_STEPS = 7;
+export const NEW_ONBOARDING_TOTAL_STEPS = 8;

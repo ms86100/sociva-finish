@@ -144,7 +144,7 @@ export async function evaluateSellerLicenseEligibility(sellerId: string): Promis
       required: true,
       mandatory: true,
       reason: 'expired',
-      message: `Cannot approve: ${licenseTypeName} is expired. Ask the seller to upload a valid license.`,
+      message: adminLicenseApprovalMessage('expired', licenseTypeName),
       licenseTypeName,
       hasApproved: false,
       hasPending: false,
@@ -157,7 +157,7 @@ export async function evaluateSellerLicenseEligibility(sellerId: string): Promis
       required: true,
       mandatory: true,
       reason: 'rejected',
-      message: `Cannot approve: ${licenseTypeName} was rejected. Ask the seller to re-upload a valid license.`,
+      message: adminLicenseApprovalMessage('rejected', licenseTypeName),
       licenseTypeName,
       hasApproved: false,
       hasPending: false,
@@ -169,13 +169,48 @@ export async function evaluateSellerLicenseEligibility(sellerId: string): Promis
     required: true,
     mandatory: true,
     reason: 'missing',
-    message: `Cannot approve: mandatory ${licenseTypeName} is missing. Ask the seller to upload it first.`,
+    message: adminLicenseApprovalMessage('missing', licenseTypeName),
     licenseTypeName,
     hasApproved: false,
     hasPending: false,
     hasRejected: false,
     hasExpiredOnly: false,
   };
+}
+
+export function adminLicenseApprovalMessage(
+  reason: 'missing' | 'rejected' | 'expired',
+  licenseTypeName: string,
+): string {
+  switch (reason) {
+    case 'expired':
+      return `Cannot approve: ${licenseTypeName} is expired. Ask the seller to upload a valid license.`;
+    case 'rejected':
+      return `Cannot approve: ${licenseTypeName} was rejected. Ask the seller to re-upload a valid license.`;
+    default:
+      return `Cannot approve: mandatory ${licenseTypeName} is missing. Ask the seller to upload it first.`;
+  }
+}
+
+/** Direct seller-facing copy for onboarding submit gates. */
+export function sellerLicenseSubmitMessage(el: LicenseEligibility): string {
+  const name = el.licenseTypeName || 'license';
+  switch (el.reason) {
+    case 'missing':
+      return `Please upload your ${name} before submitting. Your progress is saved — you can return anytime to finish.`;
+    case 'rejected':
+      return `Your ${name} was rejected. Please upload a valid document before submitting.`;
+    case 'expired':
+      return `Your ${name} has expired. Please upload a valid document before submitting.`;
+    default:
+      return `Please upload your ${name} before submitting.`;
+  }
+}
+
+/** True when seller must upload/fix license before continuing or submitting. */
+export function licenseBlocksSellerProgress(el: LicenseEligibility): boolean {
+  if (!el.mandatory || el.reason === 'not_required') return false;
+  return el.reason !== 'ok_approved' && el.reason !== 'ok_pending_for_admin_approval';
 }
 
 /** Blocks store approval when mandatory license is missing/rejected/expired. Pending is allowed (admin approval covers it). */
@@ -188,10 +223,6 @@ export function assertLicenseAllowsAdminApproval(el: LicenseEligibility): void {
 
 /** Seller cannot submit for review without at least a pending/approved non-expired license when mandatory. */
 export function assertLicenseAllowsSellerSubmit(el: LicenseEligibility): void {
-  if (!el.mandatory || el.reason === 'not_required') return;
-  if (el.reason === 'ok_approved' || el.reason === 'ok_pending_for_admin_approval') return;
-  throw new Error(
-    el.message ||
-      `Please upload your ${el.licenseTypeName || 'license'} before submitting. It is mandatory for this store type.`,
-  );
+  if (!licenseBlocksSellerProgress(el)) return;
+  throw new Error(sellerLicenseSubmitMessage(el));
 }

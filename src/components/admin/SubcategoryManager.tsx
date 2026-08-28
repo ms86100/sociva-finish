@@ -19,7 +19,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { adminNotify } from '@/lib/admin-notify';
-import { Loader2, Plus, Edit2, Trash2, Tag, RefreshCw, Sparkles, ImageIcon } from 'lucide-react';
+import { Loader2, Plus, Edit2, Trash2, Tag, RefreshCw, ImageIcon, Upload } from 'lucide-react';
 import { DynamicIcon } from '@/components/ui/DynamicIcon';
 import { friendlyError, cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
@@ -88,21 +88,34 @@ const INITIAL_FORM: SubcategoryFormData = {
   supports_addons: null, supports_recurring: null, supports_staff_assignment: null,
 };
 
-function GenerateSubcategoryImageButton({ name, subcategoryId, parentCategoryName, imageUrl, onImageGenerated }: {
-  name: string; subcategoryId?: string; parentCategoryName?: string; imageUrl?: string | null; onImageGenerated: (url: string) => void;
+function SubcategoryImageUpload({ name, subcategoryId, imageUrl, onImageUploaded }: {
+  name: string; subcategoryId?: string; imageUrl?: string | null; onImageUploaded: (url: string) => void;
 }) {
-  const [isGenerating, setIsGenerating] = useState(false);
-  const handleGenerate = async () => {
-    if (!name.trim()) { adminNotify.error('Enter a name first'); return; }
-    setIsGenerating(true);
+  const [isUploading, setIsUploading] = useState(false);
+  const storageKey = subcategoryId || name.toLowerCase().replace(/[^a-z0-9]+/g, '_');
+
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) { notify.block('Please select an image file'); return; }
+    if (file.size > 5 * 1024 * 1024) { adminNotify.error('Image must be under 5MB'); return; }
+    setIsUploading(true);
     try {
-      const { data, error } = await supabase.functions.invoke('generate-category-image', {
-        body: { categoryName: name, categoryKey: `sub_${subcategoryId || name.toLowerCase().replace(/\s+/g, '_')}`, parentGroup: parentCategoryName || 'general', targetType: 'subcategory' },
-      });
-      if (!error && data?.image_url) { onImageGenerated(data.image_url); adminNotify.success('Image generated!'); }
-      else { adminNotify.error('Generation failed'); }
-    } catch { adminNotify.error('Generation failed'); } finally { setIsGenerating(false); }
+      const ext = file.name.split('.').pop() || 'jpg';
+      const filePath = `sub_${storageKey}.${ext}`;
+      const { error: uploadError } = await supabase.storage.from('category-images').upload(filePath, file, { contentType: file.type, upsert: true });
+      if (uploadError) throw uploadError;
+      const { data: urlData } = supabase.storage.from('category-images').getPublicUrl(filePath);
+      const publicUrl = `${urlData.publicUrl}?t=${Date.now()}`;
+      onImageUploaded(publicUrl);
+      adminNotify.success('Image uploaded!');
+    } catch (err: any) {
+      adminNotify.error(friendlyError(err) || 'Upload failed');
+    } finally {
+      setIsUploading(false);
+    }
   };
+
   return (
     <div className="space-y-2">
       <Label className="flex items-center gap-1.5 text-xs font-semibold"><ImageIcon size={14} />Subcategory Image</Label>
@@ -110,17 +123,23 @@ function GenerateSubcategoryImageButton({ name, subcategoryId, parentCategoryNam
         <div className="relative rounded-xl overflow-hidden border border-border aspect-square w-32">
           <img src={imageUrl} alt={name} className="w-full h-full object-cover" />
           <div className="absolute inset-0 bg-black/40 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center">
-            <Button type="button" size="sm" variant="secondary" onClick={handleGenerate} disabled={isGenerating} className="rounded-xl">
-              {isGenerating ? <Loader2 className="animate-spin mr-1" size={14} /> : <Sparkles size={14} className="mr-1" />}Regenerate
-            </Button>
+            <label>
+              <input type="file" accept="image/*" onChange={handleUpload} className="hidden" disabled={isUploading} />
+              <Button type="button" size="sm" variant="secondary" asChild disabled={isUploading} className="rounded-xl cursor-pointer">
+                <span>{isUploading ? <Loader2 className="animate-spin mr-1" size={14} /> : <Upload size={14} className="mr-1" />}Replace</span>
+              </Button>
+            </label>
           </div>
         </div>
       ) : (
-        <Button type="button" variant="outline" onClick={handleGenerate} disabled={isGenerating || !name.trim()} className="w-full gap-2 rounded-xl h-10">
-          {isGenerating ? <><Loader2 className="animate-spin" size={16} />Generating AI Image...</> : <><Sparkles size={16} />Generate AI Image</>}
-        </Button>
+        <label>
+          <input type="file" accept="image/*" onChange={handleUpload} className="hidden" disabled={isUploading} />
+          <Button type="button" variant="outline" asChild disabled={isUploading || !name.trim()} className="w-full gap-2 rounded-xl h-10 cursor-pointer">
+            <span>{isUploading ? <><Loader2 className="animate-spin" size={16} />Uploading...</> : <><Upload size={16} />Upload image</>}</span>
+          </Button>
+        </label>
       )}
-      {isGenerating && <p className="text-xs text-muted-foreground">This may take 10-15 seconds...</p>}
+      {isUploading && <p className="text-xs text-muted-foreground">Uploading...</p>}
     </div>
   );
 }
@@ -426,13 +445,11 @@ export function SubcategoryManager() {
                   />
                 </div>
 
-                {/* AI Image Generation */}
-                <GenerateSubcategoryImageButton
+                <SubcategoryImageUpload
                   name={formData.display_name}
                   subcategoryId={editingSub?.id}
-                  parentCategoryName={getParentCategoryName(activeConfigId)}
                   imageUrl={formData.image_url || null}
-                  onImageGenerated={(url) => setFormData({ ...formData, image_url: url })}
+                  onImageUploaded={(url) => setFormData({ ...formData, image_url: url })}
                 />
 
                 {/* Icon (Emoji or Lucide name) */}

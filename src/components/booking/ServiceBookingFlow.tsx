@@ -31,6 +31,11 @@ import { PRECISE_LOCATION_TITLE } from '@/lib/buyerLocation';
 import { scrollFocusedFieldInDrawer, useDrawerKeyboard } from '@/hooks/useChatViewport';
 import { ProductExtraPicker, useProductExtraGroups } from '@/components/product/ProductExtraPicker';
 import { extrasHaveRequiredGaps, sanitizeSelectedExtras, type SelectedExtra } from '@/lib/productExtras';
+import {
+  normalizeServiceLocationTypes,
+  serviceLocationLabel,
+  serviceLocationNeedsAddress,
+} from '@/lib/service-location';
 
 interface ServiceBookingFlowProps {
   open: boolean;
@@ -71,7 +76,7 @@ export function ServiceBookingFlow({
     queryFn: async () => {
       const { data } = await supabase
         .from('service_listings')
-        .select('location_type, duration_minutes')
+        .select('location_type, location_types, duration_minutes')
         .eq('product_id', productId)
         .maybeSingle();
       return data;
@@ -80,7 +85,17 @@ export function ServiceBookingFlow({
   });
 
   const resolvedDuration = serviceListing?.duration_minutes ?? durationMinutes;
-  const resolvedLocation = serviceListing?.location_type ?? locationType;
+  const allowedLocationTypes = useMemo(
+    () => normalizeServiceLocationTypes(serviceListing || { location_type: locationType }),
+    [serviceListing, locationType],
+  );
+  const [selectedLocationType, setSelectedLocationType] = useState<string>('at_seller');
+
+  useEffect(() => {
+    if (open && allowedLocationTypes.length > 0) {
+      setSelectedLocationType(allowedLocationTypes[0]);
+    }
+  }, [open, productId, allowedLocationTypes.join('|')]);
 
   const { data: serviceSlots = [], refetch: refetchSlots } = useServiceSlots(open ? productId : undefined);
   const availableSlots = useMemo(
@@ -112,6 +127,7 @@ export function ServiceBookingFlow({
       setSelectedAddons([]);
       setSelectedExtras([]);
       setRecurringConfig({ enabled: false, frequency: 'weekly' });
+      setSelectedLocationType(allowedLocationTypes[0] || 'at_seller');
       setIsLoading(false);
       isSubmittingRef.current = false;
       if (productId) {
@@ -153,7 +169,8 @@ export function ServiceBookingFlow({
   const resolvedSubcategory = activeSubcategory || directSubcategory;
   const supportsAddons = resolvedSubcategory?.supports_addons ?? config?.supportsAddons ?? false;
   const supportsRecurring = resolvedSubcategory?.supports_recurring ?? config?.supportsRecurring ?? false;
-  const needsAddress = resolvedLocation === 'home_visit' || resolvedLocation === 'at_buyer';
+  const effectiveLocationType = selectedLocationType || allowedLocationTypes[0] || locationType || 'at_seller';
+  const needsAddress = serviceLocationNeedsAddress(effectiveLocationType);
 
   const addonTotal = selectedAddons.reduce((s, a) => s + a.price, 0);
   const totalAmount = price + addonTotal;
@@ -274,7 +291,7 @@ export function ServiceBookingFlow({
       }
 
       const slot = freshSlots;
-      const effectiveLocationType = resolvedLocation || locationType || 'at_seller';
+      const effectiveLocationType = selectedLocationType || allowedLocationTypes[0] || locationType || 'at_seller';
       const idempotencyKey = `booking_${user.id}_${productId}_${dateStr}_${normalizedTime}`;
 
       const { data: bookResult, error: bookErr } = await supabase.rpc('create_service_booking_atomic', {
@@ -357,12 +374,7 @@ export function ServiceBookingFlow({
     }
   };
 
-  const resolvedLocationType = resolvedLocation || 'at_seller';
-  const locationLabel = resolvedLocationType === 'home_visit' || resolvedLocationType === 'at_buyer'
-    ? 'Home Visit'
-    : resolvedLocationType === 'online'
-    ? 'Online'
-    : 'At Seller Location';
+  const locationLabel = serviceLocationLabel(effectiveLocationType);
 
   return (
     <>
@@ -413,6 +425,30 @@ export function ServiceBookingFlow({
                   )}
                 </div>
               </div>
+
+              {allowedLocationTypes.length > 1 && (
+                <div className="space-y-2">
+                  <label className="text-sm font-medium flex items-center gap-2">
+                    <MapPin size={14} />Where should this happen?
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {allowedLocationTypes.map((loc) => (
+                      <button
+                        key={loc}
+                        type="button"
+                        onClick={() => setSelectedLocationType(loc)}
+                        className={`rounded-lg border px-3 py-2 text-xs font-medium text-left transition-colors ${
+                          effectiveLocationType === loc
+                            ? 'border-primary bg-primary/10 text-primary'
+                            : 'border-border hover:border-primary/30'
+                        }`}
+                      >
+                        {serviceLocationLabel(loc)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Time Slot Picker */}
               <TimeSlotPicker

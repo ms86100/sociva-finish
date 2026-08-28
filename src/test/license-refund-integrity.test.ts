@@ -39,9 +39,21 @@ describe('seller license eligibility gates', () => {
   });
 
   it('blocks seller submit when mandatory license missing', () => {
-    expect(() => assertLicenseAllowsSellerSubmit(el({ reason: 'missing', message: 'upload license' }))).toThrow(
-      /upload license/,
+    expect(() => assertLicenseAllowsSellerSubmit(el({ reason: 'missing', licenseTypeName: 'FSSAI Certificate' }))).toThrow(
+      /Please upload your FSSAI Certificate/,
     );
+    expect(() => assertLicenseAllowsSellerSubmit(el({ reason: 'missing', licenseTypeName: 'FSSAI Certificate' }))).toThrow(
+      /progress is saved/,
+    );
+  });
+
+  it('uses seller-facing copy, not admin copy', () => {
+    expect(() =>
+      assertLicenseAllowsSellerSubmit(el({ reason: 'missing', licenseTypeName: 'Trade License', message: 'Cannot approve: mandatory Trade License is missing. Ask the seller to upload it first.' })),
+    ).toThrow(/Please upload your Trade License/);
+    expect(() =>
+      assertLicenseAllowsSellerSubmit(el({ reason: 'missing', licenseTypeName: 'Trade License', message: 'Cannot approve: mandatory Trade License is missing. Ask the seller to upload it first.' })),
+    ).not.toThrow(/Ask the seller/);
   });
 
   it('allows seller submit with pending license', () => {

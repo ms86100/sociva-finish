@@ -177,16 +177,6 @@ export function useCategoryManagerData() {
       queryClient.invalidateQueries({ queryKey: ['category-configs'] });
       adminNotify.success('Category added — attach attribute blocks in the Attributes tab if needed');
       setIsAddDialogOpen(false);
-      if (!addForm.image_url) {
-        adminNotify.info('Generating AI image for the new category...');
-        try {
-          const { data: imgData, error: imgError } = await supabase.functions.invoke('generate-category-image', { body: { categoryName: addForm.display_name, categoryKey, parentGroup: addForm.parent_group } });
-          if (!imgError && imgData?.image_url) {
-            setCategories(prev => prev.map(c => c.category === categoryKey ? { ...c, image_url: imgData.image_url } : c));
-            adminNotify.success('AI image generated for ' + addForm.display_name);
-          }
-        } catch { console.log('Auto image generation failed'); }
-      }
     } catch (error: any) { adminNotify.error(friendlyError(error)); }
     finally { setIsSaving(false); }
   };

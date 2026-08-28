@@ -18,6 +18,7 @@ import { notify } from '@/lib/notify';
 import { isPortfolioSellerId } from '@/lib/seller-order-board';
 import { showFeedback } from '@/components/FeedbackPopupProvider';
 import { leadTimeFromHours, leadTimeToHours, parseLeadTimeInput } from '@/lib/lead-time';
+import { normalizeServiceLocationTypes, primaryServiceLocationType } from '@/lib/service-location';
 import { resolveStockSaveValues } from '@/lib/product-stock-form';
 import { parsePrepTimeMinutes } from '@/lib/prep-time-minutes';
 
@@ -299,8 +300,11 @@ export function useSellerProducts(opts?: { formIntent?: SellerProductFormIntent 
 
     const { data: sl } = await supabase.from('service_listings').select('*').eq('product_id', product.id).maybeSingle();
     if (sl) {
+      const locationTypes = normalizeServiceLocationTypes(sl as any);
       setServiceFields({
-        service_type: sl.service_type || 'scheduled', location_type: sl.location_type || 'at_seller',
+        service_type: sl.service_type || 'scheduled',
+        location_type: primaryServiceLocationType(locationTypes),
+        location_types: locationTypes,
         duration_minutes: sl.duration_minutes?.toString() || '60', buffer_minutes: sl.buffer_minutes?.toString() || '15',
         max_bookings_per_slot: sl.max_bookings_per_slot?.toString() || '1', cancellation_notice_hours: sl.cancellation_notice_hours?.toString() || '24',
         rescheduling_notice_hours: sl.rescheduling_notice_hours?.toString() || '12', preparation_instructions: (sl as any).preparation_instructions || '',
@@ -426,7 +430,8 @@ export function useSellerProducts(opts?: { formIntent?: SellerProductFormIntent 
       })();
       const servicePayload = actionRequiresAvailability ? {
         service_type: serviceFields.service_type,
-        location_type: serviceFields.location_type,
+        location_type: primaryServiceLocationType(serviceFields.location_types?.length ? serviceFields.location_types : [serviceFields.location_type]),
+        location_types: serviceFields.location_types?.length ? serviceFields.location_types : [serviceFields.location_type || 'at_seller'],
         duration_minutes: parseInt(serviceFields.duration_minutes) || 60,
         buffer_minutes: parseInt(serviceFields.buffer_minutes) || 0,
         max_bookings_per_slot: parseInt(serviceFields.max_bookings_per_slot) || 1,
@@ -574,7 +579,7 @@ export function useSellerProducts(opts?: { formIntent?: SellerProductFormIntent 
       if (isCurrentCategoryService) {
         const dur = parseInt(serviceFields.duration_minutes);
         if (!serviceFields.service_type) errors.service_type = 'Service type is required';
-        if (!serviceFields.location_type) errors.location_type = 'Location is required';
+        if (!serviceFields.location_types?.length && !serviceFields.location_type) errors.location_type = 'Select at least one service location';
         if (isNaN(dur) || dur < 5) errors.duration_minutes = 'Duration must be at least 5 minutes';
       }
     }

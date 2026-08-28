@@ -32,6 +32,7 @@ import { AttributeBlockBuilder } from '@/components/seller/AttributeBlockBuilder
 import { useBlockLibrary, filterByCategory, type BlockData } from '@/hooks/useAttributeBlocks';
 import { useCurrency } from '@/hooks/useCurrency';
 import { ServiceFieldsSection, INITIAL_SERVICE_FIELDS, type ServiceFieldsData } from '@/components/seller/ServiceFieldsSection';
+import { normalizeServiceLocationTypes, primaryServiceLocationType } from '@/lib/service-location';
 import { ProductFormPreviewPanel, ProductFormPreviewMobile } from '@/components/seller/ProductFormPreview';
 import { showFeedback } from '@/components/FeedbackPopupProvider';
 import { resolveStockSaveValues } from '@/lib/product-stock-form';
@@ -379,10 +380,14 @@ export function DraftProductManager({
 
       // Save service listing if service category — mandatory; roll back product on failure
       if (isService && savedProductId) {
+        const locationTypes = serviceFields.location_types?.length
+          ? serviceFields.location_types
+          : [serviceFields.location_type || 'at_seller'];
         const { error: slError } = await supabase.from('service_listings').upsert({
           product_id: savedProductId,
           service_type: serviceFields.service_type,
-          location_type: serviceFields.location_type,
+          location_type: primaryServiceLocationType(locationTypes),
+          location_types: locationTypes,
           duration_minutes: parseInt(serviceFields.duration_minutes) || 60,
           buffer_minutes: parseInt(serviceFields.buffer_minutes) || 0,
           max_bookings_per_slot: parseInt(serviceFields.max_bookings_per_slot) || 1,
@@ -479,9 +484,11 @@ export function DraftProductManager({
             .eq('product_id', product.id)
             .maybeSingle();
           if (sl) {
+            const locationTypes = normalizeServiceLocationTypes(sl as any);
             setServiceFields({
               service_type: sl.service_type || 'one_time',
-              location_type: sl.location_type || 'onsite',
+              location_type: primaryServiceLocationType(locationTypes),
+              location_types: locationTypes,
               duration_minutes: String(sl.duration_minutes || 60),
               buffer_minutes: String(sl.buffer_minutes || 0),
               max_bookings_per_slot: String(sl.max_bookings_per_slot || 1),

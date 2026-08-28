@@ -20,8 +20,6 @@ interface FeedbackPopupProps {
 
 const COPY_HINTS = [
   { match: /product image uploaded|image uploaded successfully/i, heading: 'Photo saved', body: 'Your product image is ready to use.' },
-  { match: /image generated/i, heading: 'Image ready', body: 'Tap Use This Image to apply it.' },
-  { match: /ai image applied/i, heading: 'Looking great', body: 'The generated photo is now on your product.' },
   { match: /product saved successfully|product added/i, heading: 'Product saved', body: 'Buyers will see this on your store.' },
   { match: /product updated/i, heading: 'Changes saved', body: 'Your listing is up to date.' },
   { match: /product deleted/i, heading: 'Product removed', body: 'It is no longer listed on your store.' },

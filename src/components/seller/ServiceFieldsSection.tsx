@@ -2,11 +2,14 @@
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Clock, MapPin, Users } from 'lucide-react';
+import { SERVICE_LOCATION_OPTIONS } from '@/lib/service-location';
 
 export interface ServiceFieldsData {
   service_type: string;
   location_type: string;
+  location_types: string[];
   duration_minutes: string;
   buffer_minutes: string;
   max_bookings_per_slot: string;
@@ -18,6 +21,7 @@ export interface ServiceFieldsData {
 export const INITIAL_SERVICE_FIELDS: ServiceFieldsData = {
   service_type: 'scheduled',
   location_type: 'at_seller',
+  location_types: ['at_seller'],
   duration_minutes: '60',
   buffer_minutes: '15',
   max_bookings_per_slot: '1',
@@ -34,6 +38,23 @@ interface ServiceFieldsSectionProps {
 
 export function ServiceFieldsSection({ data, onChange, errors = {} }: ServiceFieldsSectionProps) {
   const update = (field: keyof ServiceFieldsData, value: string) => onChange({ ...data, [field]: value });
+
+  const toggleLocationType = (value: string, checked: boolean) => {
+    const current = data.location_types?.length ? [...data.location_types] : [data.location_type || 'at_seller'];
+    const next = checked
+      ? Array.from(new Set([...current, value]))
+      : current.filter((v) => v !== value);
+    const normalized = next.length > 0 ? next : [value];
+    onChange({
+      ...data,
+      location_types: normalized,
+      location_type: normalized[0],
+    });
+  };
+
+  const selectedTypes = data.location_types?.length
+    ? data.location_types
+    : [data.location_type || 'at_seller'];
 
   return (
     <div className="space-y-3 p-3 bg-primary/5 border border-primary/20 rounded-lg">
@@ -53,16 +74,18 @@ export function ServiceFieldsSection({ data, onChange, errors = {} }: ServiceFie
           {errors.service_type && <p className="text-xs text-destructive">{errors.service_type}</p>}
         </div>
         <div className="space-y-1" id="edit-prod-location_type">
-          <Label className="text-xs flex items-center gap-1"><MapPin size={10} />Location *</Label>
-          <Select value={data.location_type} onValueChange={(v) => update('location_type', v)}>
-            <SelectTrigger className={`h-9 text-xs ${errors.location_type ? 'border-destructive' : ''}`}><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="at_seller">At Seller Location</SelectItem>
-              <SelectItem value="at_store">At Store Location</SelectItem>
-              <SelectItem value="home_visit">Home Visit</SelectItem>
-              <SelectItem value="online">Online</SelectItem>
-            </SelectContent>
-          </Select>
+          <Label className="text-xs flex items-center gap-1"><MapPin size={10} />Service locations *</Label>
+          <div className={`rounded-lg border p-2 space-y-1.5 ${errors.location_type ? 'border-destructive' : 'border-border'}`}>
+            {SERVICE_LOCATION_OPTIONS.map((opt) => (
+              <label key={opt.value} className="flex items-center gap-2 text-xs cursor-pointer">
+                <Checkbox
+                  checked={selectedTypes.includes(opt.value)}
+                  onCheckedChange={(checked) => toggleLocationType(opt.value, !!checked)}
+                />
+                <span>{opt.label}</span>
+              </label>
+            ))}
+          </div>
           {errors.location_type && <p className="text-xs text-destructive">{errors.location_type}</p>}
         </div>
       </div>

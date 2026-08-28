@@ -35,3 +35,22 @@ export function formatStoreLocationLabel(
   }
   return null;
 }
+
+/** True when selected store type requires a mandatory license upload before submit. */
+export function onboardingLicenseMandatory(
+  groupRow: { requires_license?: boolean; license_mandatory?: boolean } | null | undefined,
+  selectedCategories: string[],
+  configs: Array<{ category: string; requires_license?: boolean; license_mandatory?: boolean }>,
+): boolean {
+  if (groupRow?.requires_license && groupRow?.license_mandatory) return true;
+  return configs
+    .filter((c) => selectedCategories.includes(c.category))
+    .some((c) => c.requires_license && c.license_mandatory);
+}
+
+export const LICENSE_ONBOARDING_HINT =
+  'Your progress is saved automatically. You can leave and come back anytime to upload your license.';
+
+export function licenseStatusBlocksOnboarding(status: string | null): boolean {
+  return !status || status === 'rejected';
+}

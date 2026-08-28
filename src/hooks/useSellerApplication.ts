@@ -20,7 +20,7 @@ import {
 } from '@/lib/seller-license';
 
 const ONBOARDING_VERSION_KEY = 'seller_onboarding_version';
-const ONBOARDING_VERSION = '2';
+const ONBOARDING_VERSION = '3';
 const ONBOARDING_FORM_BACKUP_KEY = 'seller_onboarding_form_backup';
 const INTENT_PHRASE_KEY = 'listing_intent_phrase';
 const COMMERCE_MODEL_KEY = 'commerce_model';
@@ -253,7 +253,10 @@ export function useSellerApplication() {
             const version = localStorage.getItem(ONBOARDING_VERSION_KEY);
             const restoredStep = version === ONBOARDING_VERSION
               ? Math.max(1, Math.min(savedStep, NEW_ONBOARDING_TOTAL_STEPS))
-              : migrateOnboardingStep(Math.max(1, Math.min(savedStep, 5)));
+              : migrateOnboardingStep(
+                  Math.max(1, Math.min(savedStep, version === '2' ? 7 : 5)),
+                  version,
+                );
             localStorage.setItem(ONBOARDING_VERSION_KEY, ONBOARDING_VERSION);
             localStorage.setItem('seller_onboarding_step', String(restoredStep));
             setStep(restoredStep);
@@ -266,7 +269,7 @@ export function useSellerApplication() {
                 if (backup?.userId === user.id && backup.formData && backup.selectedGroup) {
                   setSelectedGroup(backup.selectedGroup);
                   setFormData((prev) => ({ ...prev, ...backup.formData }));
-                  const restoredStep = Math.max(4, Math.min(Number(backup.step) || 4, NEW_ONBOARDING_TOTAL_STEPS));
+                  const restoredStep = Math.max(5, Math.min(Number(backup.step) || 5, NEW_ONBOARDING_TOTAL_STEPS));
                   localStorage.setItem('seller_onboarding_step', String(restoredStep));
                   localStorage.setItem(ONBOARDING_VERSION_KEY, ONBOARDING_VERSION);
                   setStep(restoredStep);
@@ -296,7 +299,7 @@ export function useSellerApplication() {
               if (backup?.userId === user.id && backup.formData && backup.selectedGroup) {
                 setSelectedGroup(backup.selectedGroup);
                 setFormData((prev) => ({ ...prev, ...backup.formData }));
-                const restoredStep = Math.max(4, Math.min(Number(backup.step) || 4, NEW_ONBOARDING_TOTAL_STEPS));
+                const restoredStep = Math.max(5, Math.min(Number(backup.step) || 5, NEW_ONBOARDING_TOTAL_STEPS));
                 localStorage.setItem('seller_onboarding_step', String(restoredStep));
                 localStorage.setItem(ONBOARDING_VERSION_KEY, ONBOARDING_VERSION);
                 setStep(restoredStep);
@@ -486,7 +489,7 @@ export function useSellerApplication() {
 
   // Auto-save draft while onboarding (location, payments, products, license upload)
   useEffect(() => {
-    if (step < 4 || isCheckingExisting || !user || !selectedGroup || !formData.categories.length) return;
+    if (step < 5 || isCheckingExisting || !user || !selectedGroup || !formData.categories.length) return;
     persistFormBackup();
 
     const timer = setTimeout(async () => {
@@ -583,7 +586,7 @@ export function useSellerApplication() {
     } finally { if (!opts?.silent) setIsLoading(false); }
   };
 
-  const handleProceedToSettings = async () => { const id = await saveDraft(); if (id) setStep(5); };
+  const handleProceedToSettings = async () => { const id = await saveDraft(); if (id) setStep(6); };
   const handleProceedToProducts = async (storeActionType?: string) => {
     const id = await saveDraft();
     if (id) {
@@ -604,7 +607,7 @@ export function useSellerApplication() {
       await reloadProducts(id);
       if (!(await assertServiceProductsHaveListings(id, resolvedAction))) return;
 
-      setStep(6);
+      setStep(7);
     }
   };
 
@@ -805,7 +808,7 @@ export function useSellerApplication() {
       setSelectedGroup(group);
       setFormData(f => ({ ...f, categories: [], subcategory_preferences: { v: 1, data: {} } }));
     }
-    setTimeout(() => setStep(4), 350);
+    setTimeout(() => setStep(2), 350);
   };
 
   const selectedGroupInfo = parentGroupInfos.find(g => g.value === selectedGroup);
