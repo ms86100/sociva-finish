@@ -27,3 +27,12 @@ export function primaryServiceLocationType(types: string[]): string {
 export function serviceLocationNeedsAddress(locationType: string | null | undefined): boolean {
   return locationType === 'home_visit' || locationType === 'at_buyer';
 }
+
+/** Map service location → orders.fulfillment_type (self_pickup | delivery | seller_delivery). */
+export function serviceLocationToFulfillmentType(
+  locationType: string | null | undefined,
+): 'self_pickup' | 'delivery' | 'seller_delivery' {
+  if (locationType === 'home_visit' || locationType === 'at_buyer') return 'seller_delivery';
+  // at_store / at_seller / online / unknown → pickup-style fulfillment on the order row
+  return 'self_pickup';
+}

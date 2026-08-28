@@ -35,6 +35,7 @@ import {
   normalizeServiceLocationTypes,
   serviceLocationLabel,
   serviceLocationNeedsAddress,
+  serviceLocationToFulfillmentType,
 } from '@/lib/service-location';
 
 interface ServiceBookingFlowProps {
@@ -292,6 +293,7 @@ export function ServiceBookingFlow({
 
       const slot = freshSlots;
       const effectiveLocationType = selectedLocationType || allowedLocationTypes[0] || locationType || 'at_seller';
+      const orderFulfillmentType = serviceLocationToFulfillmentType(effectiveLocationType);
       const idempotencyKey = `booking_${user.id}_${productId}_${dateStr}_${normalizedTime}`;
 
       const { data: bookResult, error: bookErr } = await supabase.rpc('create_service_booking_atomic', {
@@ -310,7 +312,7 @@ export function ServiceBookingFlow({
           ? buyerAddress.trim().slice(0, MAX_ADDRESS_LENGTH)
           : null,
         _location_type: effectiveLocationType,
-        _fulfillment_type: effectiveLocationType,
+        _fulfillment_type: orderFulfillmentType,
         _addons: selectedAddons.map((a) => ({
           id: a.id,
           name: a.name || 'Add-on',
