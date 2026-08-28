@@ -337,7 +337,9 @@ export function useCartPage() {
     freeDeliveryThreshold: settings.freeDeliveryThreshold,
   });
   const amountAfterCoupon = appliedCoupon ? Math.max(0, totalAmount - effectiveCouponDiscount) : totalAmount;
-  const effectiveLoyaltyDiscount = Math.min(loyalty.appliedPoints, amountAfterCoupon);
+  const effectiveLoyaltyDiscount = loyalty.redeemEnabled
+    ? Math.min(loyalty.appliedPoints, amountAfterCoupon)
+    : 0;
   // Wallet applies after loyalty to remaining payable (includes delivery) — matches server
   const payableBeforeWallet = Math.max(0, amountAfterCoupon - effectiveLoyaltyDiscount) + effectiveDeliveryFee;
   const effectiveWalletCredit = Math.min(wallet.appliedAmount, payableBeforeWallet);
@@ -423,6 +425,12 @@ export function useCartPage() {
       duration: 5000,
     });
   }, [isMultiSeller, paymentMethod, acceptsCod, paymentMode.isRazorpay]);
+
+  useEffect(() => {
+    if (paymentMethod === 'cod' || paymentMode.isOff) {
+      wallet.clearApplied();
+    }
+  }, [paymentMethod, paymentMode.isOff, wallet.clearApplied]);
 
   // Track which seller the default was computed for — reset when seller changes
   const defaultFulfillmentSellerId = useRef<string | null>(null);
@@ -626,14 +634,19 @@ export function useCartPage() {
       if (result?.error === 'seller_credit_insufficient' || result?.error === 'credit_blocked') {
         throw new Error(result.message || 'This seller is currently unavailable for new orders.');
       }
+      if (result?.error === 'partial_checkout_blocked') {
+        const skipped = (result as any).skipped_sellers as string[] | undefined;
+        const detail = skipped?.length
+          ? `Unavailable: ${skipped.join(', ')}.`
+          : (result.message || '');
+        throw new Error(
+          detail || 'Checkout cannot complete for all stores in your cart. Remove unavailable stores or order from each store separately.',
+        );
+      }
       if (result?.error === 'buyer_location') {
         throw new Error(result.message || 'Your selected address has no location coordinates. Please update it with a precise location.');
       }
       throw new Error(result?.message || result?.error || 'Failed to create orders');
-    }
-    const creditBlocked = result.warnings?.credit_blocked_sellers?.filter(Boolean) || [];
-    if (creditBlocked.length) {
-      toast.warning('This seller is currently unavailable for new orders.');
     }
     // Reset idempotency key after successful (non-deduplicated) creation
     if (!result.deduplicated) idempotencyKeyRef.current = null;

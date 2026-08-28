@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -94,7 +94,7 @@ const INITIAL_FORM: SellerFormData = {
 
 export function useSellerApplication() {
   const navigate = useNavigate();
-  const { user, profile, refreshProfile } = useAuth();
+  const { user, profile, refreshProfile, sellerProfiles } = useAuth();
   const { parentGroupInfos, groups, isLoading: groupsLoading } = useParentGroups();
   const { groupedConfigs } = useCategoryConfigs();
   const { data: allActionsData = [] } = useActionTypeMap();
@@ -147,7 +147,6 @@ export function useSellerApplication() {
     writeSession(SOFT_TAG_KEY, tag);
   }, []);
 
-  // Reload products from DB
   const reloadProducts = useCallback(async (sellerId: string) => {
     try {
       const { data: prods } = await supabase.from('products').select('id, name, price, description, image_url, category, approval_status, seller_id, availability_status, action_type').eq('seller_id', sellerId);
@@ -156,6 +155,65 @@ export function useSellerApplication() {
       console.error('Error reloading products:', err);
     }
   }, []);
+
+  /** Resolve store action type: session → seller profile → draft product action types. */
+  const resolveOnboardingStoreActionType = useCallback(async (sellerId: string): Promise<string | null> => {
+    try {
+      const stored = sessionStorage.getItem('onboarding_store_action_type');
+      if (stored) return stored;
+    } catch { /* */ }
+    try {
+      const { data: profile } = await supabase
+        .from('seller_profiles')
+        .select('default_action_type')
+        .eq('id', sellerId)
+        .maybeSingle();
+      if (profile?.default_action_type) return profile.default_action_type;
+    } catch { /* */ }
+    const fromProduct = draftProducts.find((p) => p.action_type)?.action_type;
+    return fromProduct || null;
+  }, [draftProducts]);
+
+  const storeActionRequiresAvailability = useCallback((actionType: string | null): boolean => {
+    if (!actionType) {
+      return draftProducts.some((p) => {
+        const at = p.action_type;
+        if (!at) return false;
+        return allActionsData.find((a) => a.action_type === at)?.requires_availability ?? false;
+      });
+    }
+    return allActionsData.find((a) => a.action_type === actionType)?.requires_availability ?? false;
+  }, [allActionsData, draftProducts]);
+
+  const assertServiceProductsHaveListings = async (sellerId: string, storeActionType: string | null): Promise<boolean> => {
+    const resolvedAction = storeActionType || await resolveOnboardingStoreActionType(sellerId);
+    if (!storeActionRequiresAvailability(resolvedAction)) return true;
+
+    const { data: serverCheck, error: serverErr } = await supabase.rpc('validate_seller_service_products_ready', {
+      p_seller_id: sellerId,
+    });
+    if (!serverErr && serverCheck && serverCheck.ok === false) {
+      notify.block(serverCheck.reason || 'Service settings are missing. Open each product, save again, then continue.');
+      return false;
+    }
+
+    const productIds = draftProducts.map((p) => p.id).filter(Boolean);
+    if (productIds.length === 0) return true;
+
+    const { data: listings } = await supabase
+      .from('service_listings')
+      .select('product_id')
+      .in('product_id', productIds);
+
+    const listed = new Set((listings || []).map((row: any) => row.product_id));
+    const missing = draftProducts.filter((p) => p.id && !listed.has(p.id));
+    if (missing.length === 0) return true;
+
+    notify.block(
+      `Service settings are missing for "${missing[0].name}". Open it, save again, then continue.`,
+    );
+    return false;
+  };
 
   // Check for existing seller profile or draft
   useEffect(() => {
@@ -255,6 +313,82 @@ export function useSellerApplication() {
     if (stored && stored !== commerceModel) setCommerceModelState(stored);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draftSellerId]);
+
+  const approvalToastShownRef = useRef<Set<string>>(new Set());
+
+  // Keep existingSeller / submission UI in sync with auth sellerProfiles (realtime + refresh)
+  useEffect(() => {
+    if (!sellerProfiles?.length) return;
+
+    if (existingSeller?.id) {
+      const fresh = sellerProfiles.find((p) => p.id === existingSeller.id);
+      if (fresh) {
+        const prevStatus = (existingSeller as any).verification_status;
+        const nextStatus = (fresh as any).verification_status;
+        if (nextStatus && nextStatus !== prevStatus) {
+          setExistingSeller({
+            ...existingSeller,
+            business_name: fresh.business_name || existingSeller.business_name,
+            verification_status: nextStatus,
+            rejection_note: (fresh as any).rejection_note ?? (existingSeller as any).rejection_note,
+          });
+          if (nextStatus === 'approved' && !approvalToastShownRef.current.has(fresh.id)) {
+            approvalToastShownRef.current.add(fresh.id);
+            showFeedback({
+              title: '🎉 Your store is approved!',
+              description: `${fresh.business_name || 'Your store'} is ready. Recharge Sociva Credits to go live for buyers.`,
+              variant: 'success',
+            });
+          }
+        }
+      }
+    }
+
+    if (submissionComplete && draftSellerId) {
+      const submitted = sellerProfiles.find((p) => p.id === draftSellerId);
+      if (submitted?.verification_status === 'approved' && !approvalToastShownRef.current.has(draftSellerId)) {
+        approvalToastShownRef.current.add(draftSellerId);
+        showFeedback({
+          title: '🎉 Your store is approved!',
+          description: `${submitted.business_name || formData.business_name || 'Your store'} passed review. Recharge credits to start selling.`,
+          variant: 'success',
+        });
+      }
+    }
+  }, [sellerProfiles, existingSeller, submissionComplete, draftSellerId, formData.business_name]);
+
+  // Dedicated realtime channel so onboarding screens update without app restart
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const channel = supabase
+      .channel(`seller-onboarding-status-${user.id}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'seller_profiles', filter: `user_id=eq.${user.id}` },
+        (payload) => {
+          const row = payload.new as { id?: string; verification_status?: string; business_name?: string; rejection_note?: string | null };
+          if (!row?.id) return;
+
+          setExistingSeller((prev) => {
+            if (!prev || prev.id !== row.id) return prev;
+            return {
+              ...prev,
+              verification_status: row.verification_status ?? prev.verification_status,
+              business_name: row.business_name || prev.business_name,
+              rejection_note: row.rejection_note ?? prev.rejection_note,
+            };
+          });
+
+          void refreshProfile();
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id, refreshProfile]);
 
   // Check group conflict
   useEffect(() => {
@@ -399,27 +533,23 @@ export function useSellerApplication() {
   const handleProceedToProducts = async (storeActionType?: string) => {
     const id = await saveDraft();
     if (id) {
-      // Only block if the seller's chosen action_type requires availability
-      // Source of truth: action_type_workflow_map.requires_availability
-      // Safe default: if no action_type provided, do NOT block (DB trigger enforces at save)
-      if (storeActionType) {
-        const actionConfig = allActionsData.find(a => a.action_type === storeActionType);
-        if (actionConfig?.requires_availability) {
-          const { count } = await (supabase
-            .from('service_availability_schedules') as any)
-            .select('id', { count: 'exact', head: true })
-            .eq('seller_id', id)
-            .eq('is_active', true);
+      const resolvedAction = storeActionType || await resolveOnboardingStoreActionType(id);
+      if (storeActionRequiresAvailability(resolvedAction)) {
+        const { count } = await (supabase
+          .from('service_availability_schedules') as any)
+          .select('id', { count: 'exact', head: true })
+          .eq('seller_id', id)
+          .eq('is_active', true);
 
-          if (!count || count === 0) {
-            notify.block('Please save your availability schedule before continuing');
-            return;
-          }
+        if (!count || count === 0) {
+          notify.block('Please save your availability schedule before continuing');
+          return;
         }
       }
 
-      // Always reload products from DB when entering products step
       await reloadProducts(id);
+      if (!(await assertServiceProductsHaveListings(id, resolvedAction))) return;
+
       setStep(6);
     }
   };
@@ -494,8 +624,12 @@ export function useSellerApplication() {
 
     setIsLoading(true);
     try {
-      let storeActionType: string | null = null;
-      try { storeActionType = sessionStorage.getItem('onboarding_store_action_type') || null; } catch { /* */ }
+      const storeActionType = await resolveOnboardingStoreActionType(draftSellerId);
+
+      if (!(await assertServiceProductsHaveListings(draftSellerId, storeActionType))) {
+        setIsLoading(false);
+        return;
+      }
 
       const submitPayload: any = {
         verification_status: 'pending' as any, business_name: formData.business_name.trim(),
@@ -509,6 +643,8 @@ export function useSellerApplication() {
         cover_image_url: formData.cover_image_url, rejection_note: null,
         latitude: formData.latitude, longitude: formData.longitude, store_location_label: formData.store_location_label,
         subcategory_preferences: formData.subcategory_preferences,
+        pickup_payment_config: formData.pickup_payment_config,
+        delivery_payment_config: formData.delivery_payment_config,
       };
       if (storeActionType) submitPayload.default_action_type = storeActionType;
       const { error } = await supabase.from('seller_profiles').update(submitPayload).eq('id', draftSellerId);
