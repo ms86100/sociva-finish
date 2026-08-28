@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -12,7 +12,18 @@ import { toast } from 'sonner';
 import { friendlyError } from '@/lib/utils';
 import { notifyAdminsNewStoreApplication } from '@/lib/admin-notifications';
 import { notify } from '@/lib/notify';
-import { migrateOnboardingStep, NEW_ONBOARDING_TOTAL_STEPS, commerceModelFromActionType } from '@/lib/listing-intent';
+import { migrateOnboardingStep, NEW_ONBOARDING_TOTAL_STEPS, commerceModelFromActionType, commerceModelToDefaultAction } from '@/lib/listing-intent';
+import {
+  buildOnboardingMeta,
+  parseOnboardingMeta,
+  pruneSubcategoryPreferences,
+  restoreStepFromBackup,
+  validateStoreProductActionConsistency,
+} from '@/lib/onboarding-state';
+import {
+  findProductsMissingServiceListings,
+  syncDraftProductsToStoreAction,
+} from '@/lib/onboarding-product-sync';
 import { showFeedback } from '@/components/FeedbackPopupProvider';
 import {
   assertLicenseAllowsSellerSubmit,
@@ -101,7 +112,7 @@ export function useSellerApplication() {
   const navigate = useNavigate();
   const { user, profile, refreshProfile, sellerProfiles } = useAuth();
   const { parentGroupInfos, groups, isLoading: groupsLoading } = useParentGroups();
-  const { groupedConfigs } = useCategoryConfigs();
+  const { groupedConfigs, configs } = useCategoryConfigs();
   const { data: allActionsData = [] } = useActionTypeMap();
 
   const [isLoading, setIsLoading] = useState(false);
@@ -130,19 +141,6 @@ export function useSellerApplication() {
   const [licenseStatus, setLicenseStatus] = useState<string | null>(null);
   const autoSaveInFlightRef = useRef(false);
 
-  const persistFormBackup = useCallback(() => {
-    if (!user?.id || step < 4) return;
-    try {
-      localStorage.setItem(ONBOARDING_FORM_BACKUP_KEY, JSON.stringify({
-        userId: user.id,
-        formData,
-        selectedGroup,
-        step,
-        savedAt: Date.now(),
-      }));
-    } catch { /* */ }
-  }, [user?.id, step, formData, selectedGroup]);
-
   // Intent-first draft fields (sessionStorage — survive mid-flow refresh)
   const [listingIntentPhrase, setListingIntentPhraseState] = useState(() => readSession(INTENT_PHRASE_KEY));
   const [commerceModel, setCommerceModelState] = useState(() => readSession(COMMERCE_MODEL_KEY));
@@ -165,6 +163,24 @@ export function useSellerApplication() {
     setSoftListingTagState(tag);
     writeSession(SOFT_TAG_KEY, tag);
   }, []);
+
+  const persistFormBackup = useCallback(() => {
+    if (!user?.id || step < 2 || !selectedGroup) return;
+    try {
+      localStorage.setItem(ONBOARDING_FORM_BACKUP_KEY, JSON.stringify({
+        userId: user.id,
+        formData,
+        selectedGroup,
+        step,
+        commerceModel,
+        seedProductName,
+        listingIntentPhrase,
+        softListingTag,
+        onboardingVersion: ONBOARDING_VERSION,
+        savedAt: Date.now(),
+      }));
+    } catch { /* */ }
+  }, [user?.id, step, formData, selectedGroup, commerceModel, seedProductName, listingIntentPhrase, softListingTag]);
 
   const reloadProducts = useCallback(async (sellerId: string) => {
     try {
@@ -206,40 +222,98 @@ export function useSellerApplication() {
 
   const assertServiceProductsHaveListings = async (sellerId: string, storeActionType: string | null): Promise<boolean> => {
     const resolvedAction = storeActionType || await resolveOnboardingStoreActionType(sellerId);
-    if (!storeActionRequiresAvailability(resolvedAction)) return true;
+
+    const consistency = validateStoreProductActionConsistency(draftProducts, resolvedAction);
+    if (!consistency.ok) {
+      notify.block(consistency.message || 'Product buyer interaction does not match your store mode.');
+      return false;
+    }
 
     const { data: serverCheck, error: serverErr } = await supabase.rpc('validate_seller_service_products_ready', {
       p_seller_id: sellerId,
     });
-    if (!serverErr && serverCheck && serverCheck.ok === false) {
+    if (serverErr) {
+      console.error('validate_seller_service_products_ready error:', serverErr);
+      notify.block('Could not verify service settings. Please try again.');
+      return false;
+    }
+    if (serverCheck && serverCheck.ok === false) {
       notify.block(serverCheck.reason || 'Service settings are missing. Open each product, save again, then continue.');
       return false;
     }
 
+    if (!storeActionRequiresAvailability(resolvedAction)) return true;
+
     const productIds = draftProducts.map((p) => p.id).filter(Boolean);
     if (productIds.length === 0) return true;
 
-    const { data: listings } = await supabase
-      .from('service_listings')
-      .select('product_id')
-      .in('product_id', productIds);
+    const missingIds = await findProductsMissingServiceListings(sellerId, productIds);
+    if (missingIds.length === 0) return true;
 
-    const listed = new Set((listings || []).map((row: any) => row.product_id));
-    const missing = draftProducts.filter((p) => p.id && !listed.has(p.id));
-    if (missing.length === 0) return true;
-
+    const missingProduct = draftProducts.find((p) => p.id === missingIds[0]);
     notify.block(
-      `Service settings are missing for "${missing[0].name}". Open it, save again, then continue.`,
+      `Service settings are missing for "${missingProduct?.name || 'a product'}". Open it, save again, then continue.`,
     );
     return false;
   };
 
-  // Check for existing seller profile or draft
+  const hydrateOnboardingFromMeta = useCallback((seller: any) => {
+    const meta = parseOnboardingMeta(seller?.onboarding_meta);
+    if (meta?.commerce_model) {
+      setCommerceModelState(meta.commerce_model);
+      writeSession(COMMERCE_MODEL_KEY, meta.commerce_model);
+      const action = commerceModelToDefaultAction(meta.commerce_model as any);
+      try { sessionStorage.setItem('onboarding_store_action_type', action); } catch { /* */ }
+    }
+    if (meta?.seed_product_name) {
+      setSeedProductNameState(meta.seed_product_name);
+      writeSession(SEED_PRODUCT_KEY, meta.seed_product_name);
+    }
+    if (meta?.listing_intent_phrase) {
+      setListingIntentPhraseState(meta.listing_intent_phrase);
+      writeSession(INTENT_PHRASE_KEY, meta.listing_intent_phrase);
+    }
+    if (meta?.soft_listing_tag) {
+      setSoftListingTagState(meta.soft_listing_tag);
+      writeSession(SOFT_TAG_KEY, meta.soft_listing_tag);
+    }
+    if (meta?.step) {
+      localStorage.setItem('seller_onboarding_step', String(clampMetaStep(meta.step)));
+    }
+  }, []);
+
+  const clampMetaStep = (s: number) => Math.max(1, Math.min(s, NEW_ONBOARDING_TOTAL_STEPS));
+
+  const restoreFromBackup = useCallback((backup: any) => {
+    if (!backup?.userId || !backup?.selectedGroup) return;
+    setSelectedGroup(backup.selectedGroup);
+    setFormData((prev) => ({ ...prev, ...backup.formData }));
+    if (backup.commerceModel) {
+      setCommerceModelState(backup.commerceModel);
+      writeSession(COMMERCE_MODEL_KEY, backup.commerceModel);
+    }
+    if (backup.seedProductName) {
+      setSeedProductNameState(backup.seedProductName);
+      writeSession(SEED_PRODUCT_KEY, backup.seedProductName);
+    }
+    if (backup.listingIntentPhrase) {
+      setListingIntentPhraseState(backup.listingIntentPhrase);
+      writeSession(INTENT_PHRASE_KEY, backup.listingIntentPhrase);
+    }
+    if (backup.softListingTag) {
+      setSoftListingTagState(backup.softListingTag);
+      writeSession(SOFT_TAG_KEY, backup.softListingTag);
+    }
+    const restoredStep = restoreStepFromBackup(backup.step);
+    localStorage.setItem('seller_onboarding_step', String(restoredStep));
+    localStorage.setItem(ONBOARDING_VERSION_KEY, ONBOARDING_VERSION);
+    setStep(restoredStep);
+  }, [setStep]);
   useEffect(() => {
     const checkExisting = async () => {
       if (!user) { setIsCheckingExisting(false); return; }
       try {
-        const { data } = await supabase.from('seller_profiles').select('id, user_id, business_name, description, categories, primary_group, availability_start, availability_end, accepts_cod, sell_beyond_community, delivery_radius_km, fulfillment_mode, delivery_note, accepts_upi, upi_id, operating_days, profile_image_url, cover_image_url, latitude, longitude, store_location_label, subcategory_preferences, verification_status, rejection_note, society_id, pickup_payment_config, delivery_payment_config, default_action_type').eq('user_id', user.id);
+        const { data } = await supabase.from('seller_profiles').select('id, user_id, business_name, description, categories, primary_group, availability_start, availability_end, accepts_cod, sell_beyond_community, delivery_radius_km, fulfillment_mode, delivery_note, accepts_upi, upi_id, operating_days, profile_image_url, cover_image_url, latitude, longitude, store_location_label, subcategory_preferences, verification_status, rejection_note, society_id, pickup_payment_config, delivery_payment_config, default_action_type, onboarding_meta').eq('user_id', user.id);
         if (data && data.length > 0) {
           // Look for draft to resume directly
           const draft = data.find((s: any) => s.verification_status === 'draft');
@@ -247,12 +321,16 @@ export function useSellerApplication() {
             setDraftSellerId(draft.id);
             setSelectedGroup((draft as any).primary_group);
             loadSellerDataIntoForm(draft);
+            hydrateOnboardingFromMeta(draft);
             await reloadProducts(draft.id);
-            // Restore persisted step (survives WebView reload during image picker)
-            const savedStep = parseInt(localStorage.getItem('seller_onboarding_step') || '2', 10);
+            const meta = parseOnboardingMeta((draft as any).onboarding_meta);
+            const savedStep = parseInt(
+              localStorage.getItem('seller_onboarding_step') || String(meta?.step || 2),
+              10,
+            );
             const version = localStorage.getItem(ONBOARDING_VERSION_KEY);
             const restoredStep = version === ONBOARDING_VERSION
-              ? Math.max(1, Math.min(savedStep, NEW_ONBOARDING_TOTAL_STEPS))
+              ? clampMetaStep(savedStep)
               : migrateOnboardingStep(
                   Math.max(1, Math.min(savedStep, version === '2' ? 7 : 5)),
                   version,
@@ -267,12 +345,7 @@ export function useSellerApplication() {
               if (raw) {
                 const backup = JSON.parse(raw);
                 if (backup?.userId === user.id && backup.formData && backup.selectedGroup) {
-                  setSelectedGroup(backup.selectedGroup);
-                  setFormData((prev) => ({ ...prev, ...backup.formData }));
-                  const restoredStep = Math.max(5, Math.min(Number(backup.step) || 5, NEW_ONBOARDING_TOTAL_STEPS));
-                  localStorage.setItem('seller_onboarding_step', String(restoredStep));
-                  localStorage.setItem(ONBOARDING_VERSION_KEY, ONBOARDING_VERSION);
-                  setStep(restoredStep);
+                  restoreFromBackup(backup);
                 }
               }
             } catch { /* */ }
@@ -297,12 +370,7 @@ export function useSellerApplication() {
             if (raw) {
               const backup = JSON.parse(raw);
               if (backup?.userId === user.id && backup.formData && backup.selectedGroup) {
-                setSelectedGroup(backup.selectedGroup);
-                setFormData((prev) => ({ ...prev, ...backup.formData }));
-                const restoredStep = Math.max(5, Math.min(Number(backup.step) || 5, NEW_ONBOARDING_TOTAL_STEPS));
-                localStorage.setItem('seller_onboarding_step', String(restoredStep));
-                localStorage.setItem(ONBOARDING_VERSION_KEY, ONBOARDING_VERSION);
-                setStep(restoredStep);
+                restoreFromBackup(backup);
               }
             }
           } catch { /* */ }
@@ -356,6 +424,19 @@ export function useSellerApplication() {
           writeSession(COMMERCE_MODEL_KEY, model);
           setCommerceModelState(model);
         }
+      }
+      const meta = parseOnboardingMeta(seller.onboarding_meta);
+      if (meta?.commerce_model) {
+        writeSession(COMMERCE_MODEL_KEY, meta.commerce_model);
+        setCommerceModelState(meta.commerce_model);
+      }
+      if (meta?.seed_product_name) {
+        writeSession(SEED_PRODUCT_KEY, meta.seed_product_name);
+        setSeedProductNameState(meta.seed_product_name);
+      }
+      if (meta?.listing_intent_phrase) {
+        writeSession(INTENT_PHRASE_KEY, meta.listing_intent_phrase);
+        setListingIntentPhraseState(meta.listing_intent_phrase);
       }
     } catch { /* */ }
   }, []);
@@ -487,35 +568,44 @@ export function useSellerApplication() {
 
   useEffect(() => { fetchLicenseStatus(); }, [fetchLicenseStatus]);
 
-  // Auto-save draft while onboarding (location, payments, products, license upload)
+  // Auto-save draft while onboarding (from step 2 once group is chosen)
   useEffect(() => {
-    if (step < 5 || isCheckingExisting || !user || !selectedGroup || !formData.categories.length) return;
+    if (step < 2 || isCheckingExisting || !user || !selectedGroup) return;
     persistFormBackup();
 
     const timer = setTimeout(async () => {
       if (autoSaveInFlightRef.current) return;
       autoSaveInFlightRef.current = true;
       try {
-        await saveDraft({ silent: true });
+        await saveDraft({ silent: true, allowEmptyCategories: !formData.categories.length });
       } finally {
         autoSaveInFlightRef.current = false;
       }
     }, 1200);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, formData, selectedGroup, draftSellerId, isCheckingExisting, user, persistFormBackup]);
+  }, [step, formData, selectedGroup, draftSellerId, isCheckingExisting, user, persistFormBackup, commerceModel, seedProductName, listingIntentPhrase]);
+
+  const categorySlugToConfigId = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const c of configs) map[c.category] = c.id;
+    return map;
+  }, [configs]);
 
   const handleCategoryChange = (category: ServiceCategory, checked: boolean) => {
-    setFormData(f => {
-      const newCategories = checked ? [...f.categories, category] : f.categories.filter(c => c !== category);
-      // Clear subcategory preferences for unchecked category
-      const newPrefs = f.subcategory_preferences;
+    setFormData((f) => {
+      const newCategories = checked ? [...f.categories, category] : f.categories.filter((c) => c !== category);
+      let newPrefsData = { ...f.subcategory_preferences.data };
       if (!checked) {
-        // Find the category_config_id for this category slug to clear prefs
-        // We clear by matching — but since prefs are keyed by config id, we keep them
-        // The BecomeSellerPage handles the mapping
+        const cfgId = categorySlugToConfigId[category];
+        if (cfgId) delete newPrefsData[cfgId];
       }
-      return { ...f, categories: newCategories, subcategory_preferences: newPrefs };
+      const pruned = pruneSubcategoryPreferences(
+        { v: 1, data: newPrefsData },
+        newCategories,
+        categorySlugToConfigId,
+      );
+      return { ...f, categories: newCategories, subcategory_preferences: pruned };
     });
   };
 
@@ -526,50 +616,69 @@ export function useSellerApplication() {
     }));
   };
 
-  const saveDraft = async (opts?: { silent?: boolean }): Promise<string | null> => {
+  const saveDraft = async (opts?: {
+    silent?: boolean;
+    allowEmptyCategories?: boolean;
+    formOverrides?: Partial<SellerFormData>;
+  }): Promise<string | null> => {
     if (!user) return null;
     if (!selectedGroup) {
-      if (!opts?.silent) notify.block('Please choose a category before continuing');
+      if (!opts?.silent) notify.block('Please choose a store type before continuing');
       return null;
     }
-    if (!formData.categories.length) {
+    const effectiveForm = opts?.formOverrides ? { ...formData, ...opts.formOverrides } : formData;
+    if (!opts?.allowEmptyCategories && !effectiveForm.categories.length) {
       if (!opts?.silent) notify.block('Please select at least one category before continuing');
       return null;
     }
-    const businessName = formData.business_name.trim() || 'Untitled store';
-    if (!formData.business_name.trim() && !opts?.silent) {
+    const businessName = effectiveForm.business_name.trim() || 'Untitled store';
+    if (!effectiveForm.business_name.trim() && !opts?.silent && step >= 5) {
       notify.block('Please enter a business name');
       return null;
     }
     if (!opts?.silent) setIsLoading(true);
     try {
-      // Read the seller's chosen buyer-interaction mode from the onboarding session
-      // so it gets persisted to the seller profile (survives reloads / native restarts).
       let storeActionType: string | null = null;
       try { storeActionType = sessionStorage.getItem('onboarding_store_action_type') || null; } catch { /* */ }
+      const resolvedCommerceModel = readSession(COMMERCE_MODEL_KEY) || commerceModel;
+      const resolvedSeedName = readSession(SEED_PRODUCT_KEY) || seedProductName;
+      const resolvedIntentPhrase = readSession(INTENT_PHRASE_KEY) || listingIntentPhrase;
+      const resolvedSoftTag = readSession(SOFT_TAG_KEY) || softListingTag;
+      if (!storeActionType && resolvedCommerceModel) {
+        storeActionType = commerceModelToDefaultAction(resolvedCommerceModel as any);
+      }
 
       const draftPayload: any = {
-        business_name: businessName, description: formData.description.trim() || null,
-        categories: formData.categories, primary_group: selectedGroup,
-        availability_start: formData.availability_start, availability_end: formData.availability_end,
-        accepts_cod: formData.accepts_cod, sell_beyond_community: true,
-        delivery_radius_km: formData.delivery_radius_km || 1, fulfillment_mode: formData.fulfillment_mode,
-        delivery_note: formData.delivery_note.trim() || null, accepts_upi: formData.accepts_upi,
-        upi_id: formData.accepts_upi ? formData.upi_id.trim() || null : null,
-        operating_days: formData.operating_days, profile_image_url: formData.profile_image_url,
-        cover_image_url: formData.cover_image_url,
-        latitude: formData.latitude,
-        longitude: formData.longitude,
-        store_location_label: formData.store_location_label,
-        subcategory_preferences: formData.subcategory_preferences,
-        pickup_payment_config: formData.pickup_payment_config,
-        delivery_payment_config: formData.delivery_payment_config,
+        business_name: businessName, description: effectiveForm.description.trim() || null,
+        categories: effectiveForm.categories, primary_group: selectedGroup,
+        availability_start: effectiveForm.availability_start, availability_end: effectiveForm.availability_end,
+        accepts_cod: effectiveForm.accepts_cod, sell_beyond_community: true,
+        delivery_radius_km: effectiveForm.delivery_radius_km || 1, fulfillment_mode: effectiveForm.fulfillment_mode,
+        delivery_note: effectiveForm.delivery_note.trim() || null, accepts_upi: effectiveForm.accepts_upi,
+        upi_id: effectiveForm.accepts_upi ? effectiveForm.upi_id.trim() || null : null,
+        operating_days: effectiveForm.operating_days, profile_image_url: effectiveForm.profile_image_url,
+        cover_image_url: effectiveForm.cover_image_url,
+        latitude: effectiveForm.latitude,
+        longitude: effectiveForm.longitude,
+        store_location_label: effectiveForm.store_location_label,
+        subcategory_preferences: effectiveForm.subcategory_preferences,
+        pickup_payment_config: effectiveForm.pickup_payment_config,
+        delivery_payment_config: effectiveForm.delivery_payment_config,
+        onboarding_meta: buildOnboardingMeta({
+          step,
+          commerceModel: resolvedCommerceModel || undefined,
+          seedProductName: resolvedSeedName || undefined,
+          listingIntentPhrase: resolvedIntentPhrase || undefined,
+          softListingTag: resolvedSoftTag || undefined,
+          onboardingVersion: ONBOARDING_VERSION,
+        }),
       };
       if (storeActionType) draftPayload.default_action_type = storeActionType;
       if (profile?.society_id) draftPayload.society_id = profile.society_id;
       if (draftSellerId) {
         const { error } = await supabase.from('seller_profiles').update(draftPayload as any).eq('id', draftSellerId);
         if (error) throw error;
+        persistFormBackup();
         return draftSellerId;
       } else {
         const { data, error } = await supabase.from('seller_profiles').insert({
@@ -577,6 +686,7 @@ export function useSellerApplication() {
         } as any).select('id').single();
         if (error) throw error;
         setDraftSellerId(data.id);
+        persistFormBackup();
         return data.id;
       }
     } catch (error: any) {
@@ -631,9 +741,46 @@ export function useSellerApplication() {
     setStep(targetStep);
   };
 
+  /** Step 2 → 1: clear category selections so a new group cannot inherit stale prefs. */
+  const handleBackToGroupPicker = useCallback(async () => {
+    const clearedPrefs = { v: 1 as const, data: {} };
+    const clearedForm = {
+      ...formData,
+      categories: [] as string[],
+      subcategory_preferences: clearedPrefs,
+    };
+    setFormData(clearedForm);
+    if (draftSellerId) {
+      await saveDraft({
+        silent: true,
+        allowEmptyCategories: true,
+        formOverrides: { categories: [], subcategory_preferences: clearedPrefs },
+      });
+    } else if (user?.id && selectedGroup) {
+      try {
+        localStorage.setItem(ONBOARDING_FORM_BACKUP_KEY, JSON.stringify({
+          userId: user.id,
+          formData: clearedForm,
+          selectedGroup,
+          step: 1,
+          commerceModel,
+          seedProductName,
+          listingIntentPhrase,
+          softListingTag,
+          onboardingVersion: ONBOARDING_VERSION,
+          savedAt: Date.now(),
+        }));
+      } catch { /* */ }
+    }
+    setStep(1);
+  }, [
+    draftSellerId, setStep, formData, user?.id, selectedGroup,
+    commerceModel, seedProductName, listingIntentPhrase, softListingTag,
+  ]);
+
   const handleSaveDraftAndExit = async () => {
     if (step >= 2) {
-      const savedId = await saveDraft();
+      const savedId = await saveDraft({ silent: step < 5, allowEmptyCategories: !formData.categories.length });
       if (!savedId) {
         toast.error('Could not save draft. Please fix any errors and try again.', { id: 'seller-app-draft-error' });
         return;
@@ -694,6 +841,13 @@ export function useSellerApplication() {
       const storeActionType = await resolveOnboardingStoreActionType(draftSellerId);
 
       if (!(await assertServiceProductsHaveListings(draftSellerId, storeActionType))) {
+        setIsLoading(false);
+        return;
+      }
+
+      const consistency = validateStoreProductActionConsistency(draftProducts, storeActionType);
+      if (!consistency.ok) {
+        notify.block(consistency.message || 'Product buyer interaction does not match your store.');
         setIsLoading(false);
         return;
       }
@@ -779,6 +933,59 @@ export function useSellerApplication() {
     setStep(1);
   }, [setStep]);
 
+  const reloadProductsAndGet = useCallback(async (sellerId: string) => {
+    const { data: prods } = await supabase
+      .from('products')
+      .select('id, name, price, description, image_url, category, approval_status, seller_id, availability_status, action_type')
+      .eq('seller_id', sellerId);
+    setDraftProducts(prods || []);
+    return prods || [];
+  }, []);
+
+  const applyCommerceModelChange = useCallback(async (model: string): Promise<boolean> => {
+    const action = commerceModelToDefaultAction(model as any);
+    setCommerceModel(model);
+    try { sessionStorage.setItem('onboarding_store_action_type', action); } catch { /* */ }
+
+    if (draftSellerId && draftProducts.length > 0) {
+      const mismatched = draftProducts.filter((p) => p.action_type && p.action_type !== action);
+      if (mismatched.length > 0) {
+        const sync = await syncDraftProductsToStoreAction(draftSellerId, action, draftProducts);
+        if (!sync.ok) {
+          notify.block(sync.error || 'Could not update products for the new buyer interaction.');
+          return false;
+        }
+        const refreshed = await reloadProductsAndGet(draftSellerId);
+        if (storeActionRequiresAvailability(action)) {
+          const missing = await findProductsMissingServiceListings(
+            draftSellerId,
+            refreshed.map((p: any) => p.id).filter(Boolean),
+          );
+          if (missing.length > 0) {
+            notify.block(
+              'Your products need service settings for Book mode. Open each product, save again, then continue.',
+            );
+            return false;
+          }
+        }
+        if (sync.updatedCount > 0) {
+          toast.info(
+            `Updated ${sync.updatedCount} product${sync.updatedCount === 1 ? '' : 's'} to match your new buyer interaction.`,
+            { id: 'commerce-sync' },
+          );
+        }
+      }
+    }
+
+    if (draftSellerId || (selectedGroup && formData.categories.length)) {
+      await saveDraft({ silent: true, allowEmptyCategories: !formData.categories.length });
+    }
+    return true;
+  }, [
+    draftSellerId, draftProducts, selectedGroup, formData.categories.length,
+    setCommerceModel, storeActionRequiresAvailability, reloadProductsAndGet,
+  ]);
+
   const handleGroupSelect = async (group: string) => {
     if (group !== selectedGroup) {
       // Bug 10: If draft products exist from the old group, clean them up
@@ -808,6 +1015,7 @@ export function useSellerApplication() {
       setSelectedGroup(group);
       setFormData(f => ({ ...f, categories: [], subcategory_preferences: { v: 1, data: {} } }));
     }
+    await saveDraft({ silent: true, allowEmptyCategories: true });
     setTimeout(() => setStep(2), 350);
   };
 
@@ -821,11 +1029,11 @@ export function useSellerApplication() {
     licenseStatus, setLicenseStatus, parentGroupInfos, groups, groupedConfigs,
     selectedGroupInfo, selectedGroupRow, handleCategoryChange, toggleOperatingDay,
     saveDraft, handleProceedToSettings, handleProceedToProducts, handleSaveDraftAndExit,
-    handleSubmit, setExistingSeller, setDraftSellerId, handleStepBack, handleGroupSelect,
+    handleSubmit, setExistingSeller, setDraftSellerId, handleStepBack, handleBackToGroupPicker, handleGroupSelect,
     reloadProducts, submissionComplete, loadSellerDataIntoForm, rejectionFeedback, setRejectionFeedback,
     resumeExistingStore, startNewStoreOnboarding,
     listingIntentPhrase, setListingIntentPhrase,
-    commerceModel, setCommerceModel,
+    commerceModel, setCommerceModel, applyCommerceModelChange,
     seedProductName, setSeedProductName,
     softListingTag, setSoftListingTag,
   };

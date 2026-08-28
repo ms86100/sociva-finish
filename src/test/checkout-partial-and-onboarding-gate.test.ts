@@ -26,6 +26,12 @@ describe('onboarding service listing gate', () => {
     expect(sql).toMatch(/requires_availability/);
   });
 
+  it('action validation migration enforces store/product action_type match', () => {
+    const sql = read('../../supabase/migrations/20260829190000_onboarding_meta_and_action_validation.sql');
+    expect(sql).toMatch(/action_type IS DISTINCT FROM v_store_action/);
+    expect(sql).toMatch(/onboarding_meta jsonb/);
+  });
+
   it('useSellerApplication resolves action type from profile and calls server validator', () => {
     const src = read('../hooks/useSellerApplication.ts');
     expect(src).toMatch(/resolveOnboardingStoreActionType/);

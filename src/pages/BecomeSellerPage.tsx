@@ -572,11 +572,11 @@ export default function BecomeSellerPage() {
     licenseStatus, setLicenseStatus, parentGroupInfos, groups, groupedConfigs,
     selectedGroupInfo, selectedGroupRow, handleCategoryChange, toggleOperatingDay,
     handleProceedToSettings, handleProceedToProducts, handleSaveDraftAndExit, handleSubmit,
-    setExistingSeller, setDraftSellerId, handleStepBack, handleGroupSelect, submissionComplete,
+    setExistingSeller, setDraftSellerId, handleStepBack, handleBackToGroupPicker, handleGroupSelect, submissionComplete,
     loadSellerDataIntoForm, reloadProducts, rejectionFeedback, setRejectionFeedback,
     resumeExistingStore, startNewStoreOnboarding,
     listingIntentPhrase, setListingIntentPhrase,
-    commerceModel, setCommerceModel,
+    commerceModel, setCommerceModel, applyCommerceModelChange,
     seedProductName, setSeedProductName,
     softListingTag, setSoftListingTag,
   } = app;
@@ -621,11 +621,12 @@ export default function BecomeSellerPage() {
     subcategories: intentCatalogSubs,
   }), [listingIntentPhrase, commerceModel, softTag, intentCatalogCategories, intentCatalogSubs]);
 
-  const persistCommerceChoice = useCallback((model: BuyerJourneyId) => {
-    setCommerceModel(model);
-    const action = commerceModelToDefaultAction(model);
-    handleSetStoreActionType(action);
-  }, [setCommerceModel, handleSetStoreActionType]);
+  const persistCommerceChoice = useCallback(async (model: BuyerJourneyId) => {
+    const ok = await applyCommerceModelChange(model);
+    if (!ok) return false;
+    handleSetStoreActionType(commerceModelToDefaultAction(model));
+    return true;
+  }, [applyCommerceModelChange, handleSetStoreActionType]);
 
   // Resume: keep React storeActionType synced with session/DB after async draft load
   useEffect(() => {
@@ -994,12 +995,13 @@ export default function BecomeSellerPage() {
               setFormData={setFormData}
               groupedConfigs={groupedConfigs}
               handleCategoryChange={handleCategoryChange}
-              onBack={() => handleStepBack(1)}
-              onContinue={() => {
+              onBack={() => { void handleBackToGroupPicker(); }}
+              onContinue={async () => {
                 if (formData.categories.length === 0) {
                   notify.block('Select at least one category to continue');
                   return;
                 }
+                await app.saveDraft({ silent: true });
                 setStep(3);
               }}
               onSkip={() => setStep(3)}
@@ -1027,7 +1029,7 @@ export default function BecomeSellerPage() {
           <CommerceModelStep
             value={(commerceModel as BuyerJourneyId) || null}
             softTag={softTag}
-            onChange={persistCommerceChoice}
+            onChange={(model) => { void persistCommerceChoice(model); }}
             onSoftTagChange={(tag) => {
               setSoftListingTag(tag || '');
               const inferred = softTagToCommerceModel(tag);
@@ -1035,16 +1037,17 @@ export default function BecomeSellerPage() {
               else if (inferred && tag) persistCommerceChoice(inferred);
             }}
             onBack={() => handleStepBack(2)}
-            onContinue={() => {
+            onContinue={async () => {
               if (!commerceModel) {
                 const firstCat = formData.categories[0];
                 const cfg = configs.find((c: any) => c.category === firstCat);
                 const fromAction = cfg?.default_action_type
                   ? commerceModelFromActionType(cfg.default_action_type)
                   : null;
-                if (fromAction) persistCommerceChoice(fromAction);
-                else if (resolvedIntent.commerceModel) persistCommerceChoice(resolvedIntent.commerceModel);
+                if (fromAction) await persistCommerceChoice(fromAction);
+                else if (resolvedIntent.commerceModel) await persistCommerceChoice(resolvedIntent.commerceModel);
               }
+              await app.saveDraft({ silent: true });
               setStep(4);
             }}
           />
@@ -1065,7 +1068,7 @@ export default function BecomeSellerPage() {
               setListingIntentPhrase(titled);
             }}
             onBack={() => handleStepBack(3)}
-            onContinue={() => {
+            onContinue={async () => {
               const name = (seedProductName || listingIntentPhrase).trim();
               if (name.length < 2) {
                 notify.block('Enter what you are selling (at least 2 characters)');
@@ -1074,6 +1077,7 @@ export default function BecomeSellerPage() {
               const titled = name.charAt(0).toUpperCase() + name.slice(1);
               setSeedProductName(titled);
               setListingIntentPhrase(titled);
+              await app.saveDraft({ silent: true });
               setStep(5);
             }}
           />

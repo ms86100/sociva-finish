@@ -58,9 +58,10 @@ describe('category-first onboarding contracts', () => {
 
   it('draft hook persists intent fields and migrates steps', () => {
     const src = readSrc('src/hooks/useSellerApplication.ts');
-    expect(src).toContain('listing_intent_phrase');
-    expect(src).toContain('commerce_model');
-    expect(src).toContain('seed_product_name');
+    expect(src).toContain('onboarding_meta');
+    expect(src).toContain('buildOnboardingMeta');
+    expect(src).toContain('hydrateOnboardingFromMeta');
+    expect(src).toContain('restoreStepFromBackup');
     expect(src).toContain('migrateOnboardingStep');
     expect(src).toContain('setStep(6)');
     expect(src).toContain('setStep(7)');
