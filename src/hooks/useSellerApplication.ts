@@ -184,7 +184,7 @@ export function useSellerApplication() {
 
   const reloadProducts = useCallback(async (sellerId: string) => {
     try {
-      const { data: prods } = await supabase.from('products').select('id, name, price, description, image_url, category, approval_status, seller_id, availability_status, action_type').eq('seller_id', sellerId);
+      const { data: prods } = await supabase.from('products').select('id, name, price, description, image_url, category, approval_status, seller_id, action_type').eq('seller_id', sellerId);
       setDraftProducts(prods || []);
     } catch (err) {
       console.error('Error reloading products:', err);
@@ -936,7 +936,7 @@ export function useSellerApplication() {
   const reloadProductsAndGet = useCallback(async (sellerId: string) => {
     const { data: prods } = await supabase
       .from('products')
-      .select('id, name, price, description, image_url, category, approval_status, seller_id, availability_status, action_type')
+      .select('id, name, price, description, image_url, category, approval_status, seller_id, action_type')
       .eq('seller_id', sellerId);
     setDraftProducts(prods || []);
     return prods || [];
