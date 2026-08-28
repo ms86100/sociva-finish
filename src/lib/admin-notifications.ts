@@ -40,13 +40,13 @@ export async function notifyLicenseStatusChange(
 
   const type = status === 'approved' ? 'license_approved' : 'license_rejected';
 
-  const { error } = await supabase.from('notification_queue').insert({
-    user_id: userId,
-    title,
-    body,
-    type,
-    reference_path: '/seller',
-    payload: {
+  const { error } = await supabase.rpc('enqueue_notification_for_user', {
+    p_user_id: userId,
+    p_title: title,
+    p_body: body,
+    p_type: type,
+    p_reference_path: '/seller',
+    p_payload: {
       type,
       action: status === 'approved' ? 'LICENSE_APPROVED' : 'LICENSE_REJECTED',
       status: type,
@@ -63,28 +63,14 @@ export async function notifyLicenseStatusChange(
 export async function notifyAdminsNewStoreApplication(
   businessName: string,
   sellerUserId: string,
+  sellerId?: string,
 ) {
   try {
-    const { data: adminRoles } = await supabase
-      .from('user_roles')
-      .select('user_id')
-      .eq('role', 'admin');
-
-    if (!adminRoles || adminRoles.length === 0) return;
-
-    const rows = adminRoles
-      .filter((r) => r.user_id !== sellerUserId)
-      .map((r) => ({
-        user_id: r.user_id,
-        title: '🏪 New Store Application',
-        body: `"${businessName}" has been submitted for review. Tap to moderate.`,
-        type: 'moderation',
-        reference_path: '/admin',
-        payload: { type: 'new_store_application' },
-      }));
-
-    if (rows.length === 0) return;
-    const { error } = await supabase.from('notification_queue').insert(rows);
+    const { error } = await supabase.rpc('notify_platform_admins_new_store_application', {
+      p_seller_user_id: sellerUserId,
+      p_business_name: businessName,
+      p_seller_id: sellerId || null,
+    });
     if (error) console.error('Failed to enqueue admin store notification:', error);
   } catch (err) {
     console.error('notifyAdminsNewStoreApplication error:', err);
@@ -97,26 +83,10 @@ export async function notifyAdminsCategoryRequest(
   requesterUserId: string,
 ) {
   try {
-    const { data: adminRoles } = await supabase
-      .from('user_roles')
-      .select('user_id')
-      .eq('role', 'admin');
-
-    if (!adminRoles || adminRoles.length === 0) return;
-
-    const rows = adminRoles
-      .filter((r) => r.user_id !== requesterUserId)
-      .map((r) => ({
-        user_id: r.user_id,
-        title: '📂 New category request',
-        body: `A seller requested "${requestedName}". Tap to review in Catalog.`,
-        type: 'moderation',
-        reference_path: '/admin',
-        payload: { type: 'category_request', requested_name: requestedName },
-      }));
-
-    if (rows.length === 0) return;
-    const { error } = await supabase.from('notification_queue').insert(rows);
+    const { error } = await supabase.rpc('notify_platform_admins_category_request', {
+      p_requester_user_id: requesterUserId,
+      p_requested_name: requestedName,
+    });
     if (error) console.error('Failed to enqueue admin category-request notification:', error);
   } catch (err) {
     console.error('notifyAdminsCategoryRequest error:', err);
@@ -140,13 +110,13 @@ export async function notifyProductStatusChange(
 
   const type = status === 'approved' ? 'product_approved' : 'product_rejected';
 
-  const { error } = await supabase.from('notification_queue').insert({
-    user_id: userId,
-    title,
-    body,
-    type,
-    reference_path: '/seller',
-    payload: {
+  const { error } = await supabase.rpc('enqueue_notification_for_user', {
+    p_user_id: userId,
+    p_title: title,
+    p_body: body,
+    p_type: type,
+    p_reference_path: '/seller',
+    p_payload: {
       type,
       action: status === 'approved' ? 'PRODUCT_APPROVED' : 'PRODUCT_REJECTED',
       status: type,

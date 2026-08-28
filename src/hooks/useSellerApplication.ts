@@ -679,7 +679,7 @@ export function useSellerApplication() {
         if (error) console.error('Failed to enqueue store-submitted notification:', error);
       });
     // Notify admins about the new store application
-      notifyAdminsNewStoreApplication(formData.business_name.trim(), user.id).catch(console.error);
+      notifyAdminsNewStoreApplication(formData.business_name.trim(), user.id, draftSellerId).catch(console.error);
       setSubmissionComplete(true);
     } catch (error: any) {
       console.error('Error submitting application:', error);
