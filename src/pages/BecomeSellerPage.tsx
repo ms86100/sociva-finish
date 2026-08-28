@@ -26,7 +26,6 @@ import { OnboardingLocationSheet } from '@/components/seller/OnboardingLocationS
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
-import { toast } from 'sonner';
 import { useSellerApplication } from '@/hooks/useSellerApplication';
 import { ensureSellerSocietyForSubmit } from '@/lib/seller-society';
 import type { SellerFormData } from '@/hooks/useSellerApplication';
