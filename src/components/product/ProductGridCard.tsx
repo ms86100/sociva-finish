@@ -9,6 +9,7 @@ import { VegBadge } from '@/components/ui/veg-badge';
 import { useCart } from '@/hooks/useCart';
 import { Product, ProductActionType } from '@/types/Database';
 import { ACTION_CONFIG, deriveActionType } from '@/lib/marketplace-constants';
+import { formatLeadTime } from '@/lib/lead-time';
 import { cn } from '@/lib/utils';
 import { useCurrency } from '@/hooks/useCurrency';
 import { computeStoreStatus, formatStoreClosedMessage } from '@/lib/store-availability';
@@ -180,7 +181,7 @@ export function ProductGridCard({ product, behavior, onTap, className, viewOnly 
           )}
           {(product as any).accepts_preorders && !product.is_bestseller && (
             <Badge className="absolute top-1.5 left-1.5 z-10 bg-card/90 text-foreground text-[8px] px-1.5 py-0.5 font-bold shadow-sm rounded-md border border-border/50">
-              Pre-order{(product as any).lead_time_hours ? ` · ${(product as any).lead_time_hours}hr` : ''}
+              Pre-order{formatLeadTime((product as any).lead_time_hours) ? ` · ${formatLeadTime((product as any).lead_time_hours)}` : ''}
             </Badge>
           )}
           {showVegBadge && (

@@ -23,6 +23,14 @@ import { ProductFormPreviewPanel, ProductFormPreviewMobile } from '@/components/
 import { ServiceFieldsSection } from '@/components/seller/ServiceFieldsSection';
 import { useCurrency } from '@/hooks/useCurrency';
 import { cn } from '@/lib/utils';
+import { sanitizePrepTimeMinutesInput } from '@/lib/prep-time-minutes';
+import {
+  PREORDERS_TOGGLE_HELP,
+  PREORDERS_TOGGLE_LABEL,
+  PREP_TIME_HELP,
+  PREP_TIME_LABEL,
+  PREP_TIME_PLACEHOLDER,
+} from '@/lib/product-timing-copy';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // ── Step definitions ──
@@ -491,9 +499,32 @@ function StepConfig({ sp }: { sp: ReturnType<typeof useSellerProducts> }) {
       <div className="grid grid-cols-2 gap-4">
         {sp.showDurationField && (
           <div>
-            <Label className="text-sm font-semibold">{sp.activeCategoryConfig?.formHints.durationLabel || 'Prep Time (min)'}</Label>
-            <Input type="number" placeholder="e.g. 30" value={sp.formData.prep_time_minutes} onChange={(e) => sp.setFormData({ ...sp.formData, prep_time_minutes: e.target.value })} className="mt-1.5" />
-            <p className="text-[10px] text-muted-foreground mt-1">Time to prepare once ordered</p>
+            <Label className="text-sm font-semibold">
+              {sp.activeCategoryConfig?.formHints.durationLabel || PREP_TIME_LABEL}
+            </Label>
+            <Input
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              placeholder={PREP_TIME_PLACEHOLDER}
+              value={sp.formData.prep_time_minutes}
+              onChange={(e) => {
+                const v = sanitizePrepTimeMinutesInput(e.target.value);
+                sp.setFormData({ ...sp.formData, prep_time_minutes: v });
+                if (sp.fieldErrors.prep_time_minutes) {
+                  sp.setFieldErrors((prev) => {
+                    const { prep_time_minutes, ...rest } = prev;
+                    return rest;
+                  });
+                }
+              }}
+              className={cn('mt-1.5', sp.fieldErrors.prep_time_minutes && 'border-destructive')}
+            />
+            {sp.fieldErrors.prep_time_minutes ? (
+              <p className="text-xs text-destructive mt-1">{sp.fieldErrors.prep_time_minutes}</p>
+            ) : (
+              <p className="text-[10px] text-muted-foreground mt-1">{PREP_TIME_HELP}</p>
+            )}
           </div>
         )}
         <LeadTimeField
@@ -501,15 +532,15 @@ function StepConfig({ sp }: { sp: ReturnType<typeof useSellerProducts> }) {
           unit={sp.formData.lead_time_unit}
           onValueChange={(v) => sp.setFormData({ ...sp.formData, lead_time_value: v })}
           onUnitChange={(u) => sp.setFormData({ ...sp.formData, lead_time_unit: u })}
+          error={sp.fieldErrors.lead_time_value}
+          preordersEnabled={sp.formData.accepts_preorders}
         />
       </div>
 
       <div className="flex items-center justify-between p-3 bg-muted/50 rounded-xl">
         <div>
-          <span className="text-sm font-medium block">Accept Pre-Orders</span>
-          <span className="text-xs text-muted-foreground">
-            Scheduled delivery only — no instant orders. Leave off to keep instant orders; buyers can still schedule either way.
-          </span>
+          <span className="text-sm font-medium block">{PREORDERS_TOGGLE_LABEL}</span>
+          <span className="text-xs text-muted-foreground">{PREORDERS_TOGGLE_HELP}</span>
         </div>
         <Switch checked={sp.formData.accepts_preorders} onCheckedChange={(checked) => sp.setFormData({ ...sp.formData, accepts_preorders: checked })} />
       </div>

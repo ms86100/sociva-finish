@@ -192,6 +192,8 @@ export function useSellerApplicationReview() {
         notify.block(msg.replace(/^.*LICENSE_NOT_VERIFIED:\s*/i, '') || 'Cannot approve: license is still pending verification.');
       } else if (msg.includes('Cannot approve seller without location') || msg.includes('location')) {
         notify.block('Cannot approve: Store has no location coordinates. Ask seller to set their store location first.');
+      } else if (msg.includes('no society') || msg.includes('SELLER_SOCIETY_REQUIRED')) {
+        notify.block('Cannot approve: store has no society. Ask the seller to link their account to a society first.');
       } else if (msg.includes('Update did not persist')) {
         adminNotify.error('Approval failed — the update did not save. Please try again or check permissions.');
       } else {

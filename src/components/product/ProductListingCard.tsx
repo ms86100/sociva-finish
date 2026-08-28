@@ -10,6 +10,7 @@ import { useCart } from '@/hooks/useCart';
 import { ProductActionType } from '@/types/Database';
 import { NotifyMeButton } from './NotifyMeButton';
 import { ACTION_CONFIG, deriveActionType } from '@/lib/marketplace-constants';
+import { formatLeadTime } from '@/lib/lead-time';
 import { useCardAnalytics } from '@/hooks/useCardAnalytics';
 import { MARKETPLACE_FALLBACKS, type MarketplaceConfig } from '@/hooks/useMarketplaceConfig';
 import type { BadgeConfigRow } from '@/hooks/useBadgeConfig';
@@ -343,7 +344,7 @@ function ProductListingCardInner({ product, layout = 'auto', onTap, onNavigate, 
             <div className={cn('absolute z-10', showVegBadge ? 'bottom-2.5 left-8' : 'bottom-2.5 left-2')}>
               <span className="bg-card/90 text-foreground text-[8px] font-bold px-2 py-0.5 rounded-md shadow-sm border border-border/50 flex items-center gap-1 backdrop-blur-sm">
                 <Clock size={8} className="text-primary" />
-                Pre-order{product.lead_time_hours ? ` · ${product.lead_time_hours}hr` : ''}
+                Pre-order{formatLeadTime(product.lead_time_hours) ? ` · ${formatLeadTime(product.lead_time_hours)}` : ''}
               </span>
             </div>
           )}

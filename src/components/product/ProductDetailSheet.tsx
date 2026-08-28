@@ -33,6 +33,7 @@ import { useSellerCreditCanAccept } from '@/hooks/queries/useSellerCredits';
 import { sellerCreditCustomerMessage } from '@/lib/sellerCredits';
 import { useCountUp } from '@/hooks/useCountUp';
 import { notify } from '@/lib/notify';
+import { formatLeadTime } from '@/lib/lead-time';
 
 const PriceHistoryChart = lazy(() =>
   import('./PriceHistoryChart').then((m) => ({ default: m.PriceHistoryChart })),
@@ -202,7 +203,7 @@ export function ProductDetailSheet({ product, open, onOpenChange, onSelectProduc
                   <div className="flex items-center gap-1 bg-accent/10 border border-accent/20 rounded-md px-2 py-1">
                     <Clock size={12} className="text-accent" />
                     <span className="text-[11px] font-bold text-accent uppercase">
-                      Pre-order{(product as any).lead_time_hours ? ` · ${(product as any).lead_time_hours}hr advance` : ''}
+                      Pre-order{formatLeadTime((product as any).lead_time_hours) ? ` · ${formatLeadTime((product as any).lead_time_hours)} advance` : ''}
                     </span>
                   </div>
                 )}

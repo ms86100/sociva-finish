@@ -7,6 +7,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
+import { formatLeadTimeAdvanceNotice } from '@/lib/lead-time';
 
 /** Convert "14:00" → "2:00 PM", "09:30" → "9:30 AM" */
 function formatTime12h(time24: string): string {
@@ -78,7 +79,7 @@ export function PreorderDatePicker({ leadTimeHours, selectedDate, selectedTime, 
         <div>
           <p className="text-sm font-semibold text-foreground">Schedule Delivery</p>
           <p className="text-[11px] text-muted-foreground">
-            This order requires at least {leadTimeHours}hr advance notice
+            This order requires {formatLeadTimeAdvanceNotice(leadTimeHours)}
           </p>
         </div>
       </div>

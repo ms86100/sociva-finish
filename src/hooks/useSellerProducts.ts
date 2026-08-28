@@ -17,8 +17,9 @@ import { deriveActionFromCategoryFlags } from '@/lib/marketplace-constants';
 import { notify } from '@/lib/notify';
 import { isPortfolioSellerId } from '@/lib/seller-order-board';
 import { showFeedback } from '@/components/FeedbackPopupProvider';
-import { leadTimeFromHours, leadTimeToHours, type LeadTimeUnit } from '@/lib/lead-time';
+import { leadTimeFromHours, leadTimeToHours, parseLeadTimeInput } from '@/lib/lead-time';
 import { resolveStockSaveValues } from '@/lib/product-stock-form';
+import { parsePrepTimeMinutes } from '@/lib/prep-time-minutes';
 
 export interface ProductFormData {
   name: string;
@@ -332,15 +333,33 @@ export function useSellerProducts(opts?: { formIntent?: SellerProductFormIntent 
     const stockResolved = resolveStockSaveValues(formData);
     Object.assign(errors, stockResolved.errors);
 
+    if (showDurationField && formData.prep_time_minutes.trim()) {
+      const prepParsed = parsePrepTimeMinutes(formData.prep_time_minutes);
+      if (prepParsed.error) errors.prep_time_minutes = prepParsed.error;
+    }
+
+    if (formData.accepts_preorders) {
+      const leadParsed = parseLeadTimeInput(formData.lead_time_value, formData.lead_time_unit);
+      if (!leadParsed.hours) {
+        errors.lead_time_value = leadParsed.error || 'Set a pre-order lead time when Accept Pre-Orders is on.';
+      }
+    } else if (formData.lead_time_value.trim()) {
+      const leadParsed = parseLeadTimeInput(formData.lead_time_value, formData.lead_time_unit);
+      if (leadParsed.error) errors.lead_time_value = leadParsed.error;
+    }
+
     if (Object.keys(errors).length > 0) {
       setFieldErrors(errors);
       const fieldLabels: Record<string, string> = {
         name: 'Product Name', category: 'Category', image_url: 'Product Image',
         price: 'Price', contact_phone: 'Contact Phone',
         stock_quantity: 'Current Stock', low_stock_threshold: 'Low Stock Alert',
+        prep_time_minutes: 'Prep Time',
+        lead_time_value: 'Pre-order lead time',
       };
+      const firstMessage = Object.values(errors)[0];
       const missingNames = Object.keys(errors).map(k => fieldLabels[k] || k);
-      toast.error(`Missing: ${missingNames.join(', ')}`, { id: 'product-validation' });
+      toast.error(firstMessage || `Missing: ${missingNames.join(', ')}`, { id: 'product-validation' });
       // Expose first error key for step navigation
       (window as any).__productFormFirstError = Object.keys(errors)[0];
       return false;
@@ -362,17 +381,18 @@ export function useSellerProducts(opts?: { formIntent?: SellerProductFormIntent 
         }
       }
 
-      const prepTime = formData.prep_time_minutes ? parseInt(formData.prep_time_minutes) : null;
+      const prepParsed = parsePrepTimeMinutes(formData.prep_time_minutes);
+      const prepTime = prepParsed.minutes;
       const mrp = formData.mrp ? parseFloat(formData.mrp) : null;
-      const leadVal = formData.lead_time_value ? parseFloat(formData.lead_time_value) : NaN;
-      const lead_time_hours = leadTimeToHours(leadVal, formData.lead_time_unit);
+      const leadParsed = parseLeadTimeInput(formData.lead_time_value, formData.lead_time_unit);
+      const lead_time_hours = leadParsed.hours;
       const { stockQty, lowStockThreshold } = stockResolved;
     // effectiveActionType (declared at hook scope) is the single source of truth
     // for buyer interaction — it uses the seller's configured default.
     const productData = {
         seller_id: sellerProfile.id, name: formData.name.trim(), description: formData.description.trim() || null,
         price: isNaN(price) ? 0 : price, mrp: (mrp && !isNaN(mrp) && mrp > 0) ? mrp : null,
-        prep_time_minutes: (prepTime && !isNaN(prepTime) && prepTime > 0) ? prepTime : null,
+        prep_time_minutes: prepTime,
         category: formData.category, is_veg: formData.is_veg, is_available: formData.is_available,
         is_bestseller: formData.is_bestseller, is_recommended: formData.is_recommended, is_urgent: formData.is_urgent,
         image_url: formData.image_url, action_type: effectiveActionType, contact_phone: formData.contact_phone.trim() || null,

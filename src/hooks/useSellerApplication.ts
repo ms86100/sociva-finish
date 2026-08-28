@@ -21,6 +21,7 @@ import {
 
 const ONBOARDING_VERSION_KEY = 'seller_onboarding_version';
 const ONBOARDING_VERSION = '2';
+const ONBOARDING_FORM_BACKUP_KEY = 'seller_onboarding_form_backup';
 const INTENT_PHRASE_KEY = 'listing_intent_phrase';
 const COMMERCE_MODEL_KEY = 'commerce_model';
 const SEED_PRODUCT_KEY = 'seed_product_name';
@@ -127,6 +128,20 @@ export function useSellerApplication() {
   const [draftProducts, setDraftProducts] = useState<any[]>([]);
   const [acceptedDeclaration, setAcceptedDeclaration] = useState(false);
   const [licenseStatus, setLicenseStatus] = useState<string | null>(null);
+  const autoSaveInFlightRef = useRef(false);
+
+  const persistFormBackup = useCallback(() => {
+    if (!user?.id || step < 4) return;
+    try {
+      localStorage.setItem(ONBOARDING_FORM_BACKUP_KEY, JSON.stringify({
+        userId: user.id,
+        formData,
+        selectedGroup,
+        step,
+        savedAt: Date.now(),
+      }));
+    } catch { /* */ }
+  }, [user?.id, step, formData, selectedGroup]);
 
   // Intent-first draft fields (sessionStorage — survive mid-flow refresh)
   const [listingIntentPhrase, setListingIntentPhraseState] = useState(() => readSession(INTENT_PHRASE_KEY));
@@ -243,8 +258,22 @@ export function useSellerApplication() {
             localStorage.setItem('seller_onboarding_step', String(restoredStep));
             setStep(restoredStep);
           } else {
+            // No DB draft — restore local backup if seller left mid-onboarding
+            try {
+              const raw = localStorage.getItem(ONBOARDING_FORM_BACKUP_KEY);
+              if (raw) {
+                const backup = JSON.parse(raw);
+                if (backup?.userId === user.id && backup.formData && backup.selectedGroup) {
+                  setSelectedGroup(backup.selectedGroup);
+                  setFormData((prev) => ({ ...prev, ...backup.formData }));
+                  const restoredStep = Math.max(4, Math.min(Number(backup.step) || 4, NEW_ONBOARDING_TOTAL_STEPS));
+                  localStorage.setItem('seller_onboarding_step', String(restoredStep));
+                  localStorage.setItem(ONBOARDING_VERSION_KEY, ONBOARDING_VERSION);
+                  setStep(restoredStep);
+                }
+              }
+            } catch { /* */ }
             // For non-draft profiles, check status
-            // Approved sellers can proceed to create additional stores
             const existing = data.find((s: any) =>
               s.verification_status === 'rejected' ||
               s.verification_status === 'pending'
@@ -259,6 +288,21 @@ export function useSellerApplication() {
               });
             }
           }
+        } else {
+          try {
+            const raw = localStorage.getItem(ONBOARDING_FORM_BACKUP_KEY);
+            if (raw) {
+              const backup = JSON.parse(raw);
+              if (backup?.userId === user.id && backup.formData && backup.selectedGroup) {
+                setSelectedGroup(backup.selectedGroup);
+                setFormData((prev) => ({ ...prev, ...backup.formData }));
+                const restoredStep = Math.max(4, Math.min(Number(backup.step) || 4, NEW_ONBOARDING_TOTAL_STEPS));
+                localStorage.setItem('seller_onboarding_step', String(restoredStep));
+                localStorage.setItem(ONBOARDING_VERSION_KEY, ONBOARDING_VERSION);
+                setStep(restoredStep);
+              }
+            }
+          } catch { /* */ }
         }
       } catch (error) {
         console.error('Error checking existing seller:', error);
@@ -296,6 +340,8 @@ export function useSellerApplication() {
       longitude: seller.longitude ?? null,
       store_location_label: seller.store_location_label ?? null,
       subcategory_preferences: prefs,
+      pickup_payment_config: seller.pickup_payment_config || { ...DEFAULT_PAYMENT_CONFIG },
+      delivery_payment_config: seller.delivery_payment_config || { ...DEFAULT_PAYMENT_CONFIG },
     }));
     // Restore the seller's chosen Buyer Interaction into the onboarding session
     // so subsequent product creation reuses the same choice rather than re-asking.
@@ -438,29 +484,23 @@ export function useSellerApplication() {
 
   useEffect(() => { fetchLicenseStatus(); }, [fetchLicenseStatus]);
 
-  // Auto-save draft for license upload
+  // Auto-save draft while onboarding (location, payments, products, license upload)
   useEffect(() => {
-    if (step !== 4 || draftSellerId || isCheckingExisting || !formData.business_name.trim() || !selectedGroup) return;
-    const groupRow = groups.find(g => g.slug === selectedGroup);
-    if (!groupRow || !(groupRow as any).requires_license) return;
+    if (step < 4 || isCheckingExisting || !user || !selectedGroup || !formData.categories.length) return;
+    persistFormBackup();
 
     const timer = setTimeout(async () => {
-      if (!user || draftSellerId) return;
+      if (autoSaveInFlightRef.current) return;
+      autoSaveInFlightRef.current = true;
       try {
-        const { data: existing } = await supabase.from('seller_profiles').select('id').eq('user_id', user.id).eq('primary_group', selectedGroup).eq('verification_status', 'draft' as any).maybeSingle();
-        if (existing) { setDraftSellerId(existing.id); return; }
-        const { data, error } = await supabase.from('seller_profiles').insert({
-          user_id: user.id, business_name: formData.business_name.trim(), description: formData.description.trim() || null,
-          categories: formData.categories, primary_group: selectedGroup, availability_start: formData.availability_start,
-          availability_end: formData.availability_end, accepts_cod: formData.accepts_cod,
-          sell_beyond_community: true, delivery_radius_km: formData.delivery_radius_km || 1,
-          society_id: profile?.society_id || null, verification_status: 'draft' as any,
-        } as any).select('id').single();
-        if (!error && data) setDraftSellerId(data.id);
-      } catch (err) { console.error('Auto-save draft failed:', err); }
-    }, 800);
+        await saveDraft({ silent: true });
+      } finally {
+        autoSaveInFlightRef.current = false;
+      }
+    }, 1200);
     return () => clearTimeout(timer);
-  }, [step, formData.business_name, draftSellerId, selectedGroup, groups, user, profile]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, formData, selectedGroup, draftSellerId, isCheckingExisting, user, persistFormBackup]);
 
   const handleCategoryChange = (category: ServiceCategory, checked: boolean) => {
     setFormData(f => {
@@ -483,12 +523,22 @@ export function useSellerApplication() {
     }));
   };
 
-  const saveDraft = async (): Promise<string | null> => {
+  const saveDraft = async (opts?: { silent?: boolean }): Promise<string | null> => {
     if (!user) return null;
-    if (!formData.business_name.trim()) { notify.block('Please enter a business name'); return null; }
-    if (!selectedGroup) { notify.block('Please choose a category before continuing'); return null; }
-    if (!formData.categories.length) { notify.block('Please select at least one category before continuing'); return null; }
-    setIsLoading(true);
+    if (!selectedGroup) {
+      if (!opts?.silent) notify.block('Please choose a category before continuing');
+      return null;
+    }
+    if (!formData.categories.length) {
+      if (!opts?.silent) notify.block('Please select at least one category before continuing');
+      return null;
+    }
+    const businessName = formData.business_name.trim() || 'Untitled store';
+    if (!formData.business_name.trim() && !opts?.silent) {
+      notify.block('Please enter a business name');
+      return null;
+    }
+    if (!opts?.silent) setIsLoading(true);
     try {
       // Read the seller's chosen buyer-interaction mode from the onboarding session
       // so it gets persisted to the seller profile (survives reloads / native restarts).
@@ -496,7 +546,7 @@ export function useSellerApplication() {
       try { storeActionType = sessionStorage.getItem('onboarding_store_action_type') || null; } catch { /* */ }
 
       const draftPayload: any = {
-        business_name: formData.business_name.trim(), description: formData.description.trim() || null,
+        business_name: businessName, description: formData.description.trim() || null,
         categories: formData.categories, primary_group: selectedGroup,
         availability_start: formData.availability_start, availability_end: formData.availability_end,
         accepts_cod: formData.accepts_cod, sell_beyond_community: true,
@@ -513,6 +563,7 @@ export function useSellerApplication() {
         delivery_payment_config: formData.delivery_payment_config,
       };
       if (storeActionType) draftPayload.default_action_type = storeActionType;
+      if (profile?.society_id) draftPayload.society_id = profile.society_id;
       if (draftSellerId) {
         const { error } = await supabase.from('seller_profiles').update(draftPayload as any).eq('id', draftSellerId);
         if (error) throw error;
@@ -527,9 +578,9 @@ export function useSellerApplication() {
       }
     } catch (error: any) {
       console.error('Error saving draft:', error);
-      toast.error(friendlyError(error), { id: 'seller-app-draft-error' });
+      if (!opts?.silent) toast.error(friendlyError(error), { id: 'seller-app-draft-error' });
       return null;
-    } finally { setIsLoading(false); }
+    } finally { if (!opts?.silent) setIsLoading(false); }
   };
 
   const handleProceedToSettings = async () => { const id = await saveDraft(); if (id) setStep(5); };
@@ -586,6 +637,7 @@ export function useSellerApplication() {
       }
     }
     localStorage.removeItem('seller_onboarding_step');
+    localStorage.removeItem(ONBOARDING_FORM_BACKUP_KEY);
     showFeedback({
         title: 'Draft saved! You can resume later.',
         variant: 'success',
@@ -599,6 +651,11 @@ export function useSellerApplication() {
     if (!acceptedDeclaration) { notify.block('Please accept the seller declaration'); return; }
     if (formData.operating_days.length === 0) { notify.block('Please select at least one operating day'); return; }
     if (formData.accepts_upi && !formData.upi_id.trim()) { notify.block('Please enter your UPI ID or disable UPI payments'); return; }
+    if (!profile?.society_id) {
+      notify.block('Link your account to a society before submitting your store for review.');
+      setIsLoading(false);
+      return;
+    }
     // Check location: must have direct coords OR society with coords
     if (!formData.latitude) {
       if (!profile?.society_id) {
@@ -652,6 +709,7 @@ export function useSellerApplication() {
         subcategory_preferences: formData.subcategory_preferences,
         pickup_payment_config: formData.pickup_payment_config,
         delivery_payment_config: formData.delivery_payment_config,
+        society_id: profile.society_id,
       };
       if (storeActionType) submitPayload.default_action_type = storeActionType;
       const { error } = await supabase.from('seller_profiles').update(submitPayload).eq('id', draftSellerId);
@@ -665,6 +723,7 @@ export function useSellerApplication() {
       await refreshProfile();
       localStorage.setItem('seller_onboarding_completed', 'true');
     localStorage.removeItem('seller_onboarding_step');
+    localStorage.removeItem(ONBOARDING_FORM_BACKUP_KEY);
     showFeedback({
         title: "We're reviewing your store",
         variant: 'success',

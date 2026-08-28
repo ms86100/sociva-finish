@@ -8,7 +8,15 @@ import { ActionTypeSelector } from '@/components/seller/ActionTypeSelector';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { LeadTimeField } from '@/components/seller/LeadTimeField';
-import { leadTimeFromHours, leadTimeToHours } from '@/lib/lead-time';
+import { leadTimeFromHours, leadTimeToHours, parseLeadTimeInput } from '@/lib/lead-time';
+import { parsePrepTimeMinutes } from '@/lib/prep-time-minutes';
+import {
+  PREORDERS_TOGGLE_HELP,
+  PREORDERS_TOGGLE_LABEL,
+  PREP_TIME_HELP,
+  PREP_TIME_LABEL,
+  PREP_TIME_PLACEHOLDER,
+} from '@/lib/product-timing-copy';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent } from '@/components/ui/card';
@@ -164,6 +172,11 @@ export function DraftProductManager({
     const threshold = restoredDraft?.newProduct?.low_stock_threshold;
     return threshold != null ? String(threshold) : '';
   });
+  const [prepTimeInput, setPrepTimeInput] = useState(() => {
+    if (restoredDraft?.prepTimeInput != null) return restoredDraft.prepTimeInput;
+    const prep = restoredDraft?.newProduct?.prep_time_minutes;
+    return prep != null && prep > 0 ? String(prep) : '';
+  });
 
   // Keep category in sync if categories arrive after mount (common on draft resume)
   useEffect(() => {
@@ -202,12 +215,12 @@ export function DraftProductManager({
       try {
         localStorage.setItem(DRAFT_KEY, JSON.stringify({
           isAdding, editingIndex, newProduct, attributeBlocks, serviceFields,
-          trackStock, trackLowStockAlert, stockQuantityInput, lowStockThresholdInput,
+          trackStock, trackLowStockAlert, stockQuantityInput, lowStockThresholdInput, prepTimeInput,
         }));
       } catch { /* quota exceeded — non-critical */ }
     }, 500);
     return () => clearTimeout(debounceRef.current);
-  }, [isAdding, editingIndex, newProduct, attributeBlocks, serviceFields, trackStock, trackLowStockAlert, stockQuantityInput, lowStockThresholdInput, DRAFT_KEY]);
+  }, [isAdding, editingIndex, newProduct, attributeBlocks, serviceFields, trackStock, trackLowStockAlert, stockQuantityInput, lowStockThresholdInput, prepTimeInput, DRAFT_KEY]);
 
   // Get form hints for the selected category
   const activeConfig = useMemo(() => {
@@ -273,10 +286,23 @@ export function DraftProductManager({
     });
     Object.assign(errors, stockResolved.errors);
 
+    if (showDurationField && !isService && prepTimeInput.trim()) {
+      const prepParsed = parsePrepTimeMinutes(prepTimeInput);
+      if (prepParsed.error) errors.prep_time_minutes = prepParsed.error;
+    }
+
+    if (newProduct.accepts_preorders) {
+      const lt = leadTimeFromHours(newProduct.lead_time_hours);
+      const leadParsed = parseLeadTimeInput(lt.value, lt.unit);
+      if (!leadParsed.hours) {
+        errors.lead_time_hours = leadParsed.error || 'Set a pre-order lead time when Accept Pre-Orders is on.';
+      }
+    }
+
     if (Object.keys(errors).length > 0) {
       setFieldErrors(errors);
       const count = Object.keys(errors).length;
-      toast.error(`Please fix ${count} field${count > 1 ? 's' : ''} highlighted below`, { id: 'product-validation' });
+      toast.error(Object.values(errors)[0] || `Please fix ${count} field${count > 1 ? 's' : ''} highlighted below`, { id: 'product-validation' });
       const firstKey = Object.keys(errors)[0];
       document.getElementById(`prod-${firstKey}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       return;
@@ -296,6 +322,10 @@ export function DraftProductManager({
         return currentStatus;
       })();
 
+      const prepParsed = showDurationField && !isService && prepTimeInput.trim()
+        ? parsePrepTimeMinutes(prepTimeInput)
+        : { minutes: null as number | null };
+
       const productPayload = {
         seller_id: sellerId,
         name: newProduct.name.trim(),
@@ -307,7 +337,7 @@ export function DraftProductManager({
         image_url: newProduct.image_url.trim() || null,
         is_available: true,
         approval_status: resolvedApprovalStatus,
-        prep_time_minutes: newProduct.prep_time_minutes || null,
+        prep_time_minutes: prepParsed.minutes,
         specifications: attributeBlocks.length > 0 ? { blocks: attributeBlocks } : null,
         stock_quantity: stockResolved.stockQty,
         low_stock_threshold: stockResolved.lowStockThreshold,
@@ -319,7 +349,7 @@ export function DraftProductManager({
           return resolvedActionType;
         })(),
         subcategory_id: newProduct.subcategory_id || null,
-        lead_time_hours: newProduct.lead_time_hours ? parseInt(String(newProduct.lead_time_hours)) : null,
+        lead_time_hours: newProduct.lead_time_hours ?? null,
         accepts_preorders: newProduct.accepts_preorders || false,
         ...(isEditing ? { rejection_note: null } : {}),
       };
@@ -417,6 +447,7 @@ export function DraftProductManager({
     setTrackLowStockAlert(product.low_stock_threshold != null);
     setStockQuantityInput(product.stock_quantity != null ? String(product.stock_quantity) : '');
     setLowStockThresholdInput(product.low_stock_threshold != null ? String(product.low_stock_threshold) : '');
+    setPrepTimeInput(product.prep_time_minutes != null && product.prep_time_minutes > 0 ? String(product.prep_time_minutes) : '');
     setEditingIndex(index);
     setIsAdding(true);
 
@@ -486,6 +517,7 @@ export function DraftProductManager({
     setTrackLowStockAlert(false);
     setStockQuantityInput('');
     setLowStockThresholdInput('');
+    setPrepTimeInput('');
     setIsAdding(false);
     setFieldErrors({});
     setEditingIndex(null);
@@ -784,16 +816,36 @@ export function DraftProductManager({
 
               {showDurationField && !isService && (
                 <div className="space-y-2">
-                  <Label htmlFor="prod-prep" className="text-xs">{activeConfig?.formHints.durationLabel || 'Prep Time (min)'}</Label>
+                  <Label htmlFor="prod-prep" className="text-xs">
+                    {activeConfig?.formHints.durationLabel || PREP_TIME_LABEL}
+                  </Label>
                   <Input
                     id="prod-prep"
-                    type="number"
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
                     min={1}
-                    placeholder="e.g., 30"
-                    value={newProduct.prep_time_minutes || ''}
-                    onChange={(e) => setNewProduct({ ...newProduct, prep_time_minutes: e.target.value ? Number(e.target.value) : null })}
+                    placeholder={PREP_TIME_PLACEHOLDER}
+                    value={prepTimeInput}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      if (v === '' || /^\d+$/.test(v)) {
+                        setPrepTimeInput(v);
+                        if (fieldErrors.prep_time_minutes) {
+                          setFieldErrors((prev) => {
+                            const { prep_time_minutes, ...rest } = prev;
+                            return rest;
+                          });
+                        }
+                      }
+                    }}
+                    className={fieldErrors.prep_time_minutes ? 'border-destructive' : ''}
                   />
-                  <p className="text-[10px] text-muted-foreground">How long it takes to prepare once ordered</p>
+                  {fieldErrors.prep_time_minutes ? (
+                    <p className="text-[10px] text-destructive">{fieldErrors.prep_time_minutes}</p>
+                  ) : (
+                    <p className="text-[10px] text-muted-foreground">{PREP_TIME_HELP}</p>
+                  )}
                 </div>
               )}
 
@@ -871,6 +923,8 @@ export function DraftProductManager({
                   <LeadTimeField
                     value={leadTimeFromHours(newProduct.lead_time_hours).value}
                     unit={leadTimeFromHours(newProduct.lead_time_hours).unit}
+                    preordersEnabled={!!newProduct.accepts_preorders}
+                    error={fieldErrors.lead_time_hours}
                     onValueChange={(v) => {
                       const parsed = parseFloat(v);
                       const unit = leadTimeFromHours(newProduct.lead_time_hours).unit;
@@ -889,10 +943,8 @@ export function DraftProductManager({
                   />
                   <label className="flex items-center justify-between gap-3 cursor-pointer">
                     <div className="min-w-0">
-                      <span className="text-sm font-medium block">Accept Pre-Orders</span>
-                      <span className="text-[10px] text-muted-foreground">
-                        Scheduled delivery only — no instant orders. Leave off to keep instant orders; buyers can still schedule either way.
-                      </span>
+                      <span className="text-sm font-medium block">{PREORDERS_TOGGLE_LABEL}</span>
+                      <span className="text-[10px] text-muted-foreground">{PREORDERS_TOGGLE_HELP}</span>
                     </div>
                     <Checkbox
                       checked={!!newProduct.accepts_preorders}

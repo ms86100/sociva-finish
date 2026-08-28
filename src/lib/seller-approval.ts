@@ -50,6 +50,47 @@ export async function validateSellerLocation(sellerId: string): Promise<{ valid:
 }
 
 /**
+ * Ensures seller_profiles.society_id is set before approval.
+ * Backfills from profiles.society_id when possible; otherwise blocks approval.
+ */
+export async function ensureSellerSocietyLinked(sellerId: string): Promise<{ societyId: string }> {
+  const { data: sp, error } = await supabase
+    .from('seller_profiles')
+    .select('id, user_id, society_id')
+    .eq('id', sellerId)
+    .single();
+
+  if (error || !sp) {
+    throw new Error('Cannot approve: seller profile not found.');
+  }
+
+  if (sp.society_id) {
+    return { societyId: sp.society_id };
+  }
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('society_id')
+    .eq('id', sp.user_id)
+    .maybeSingle();
+
+  if (profile?.society_id) {
+    const { error: updateErr } = await supabase
+      .from('seller_profiles')
+      .update({ society_id: profile.society_id } as any)
+      .eq('id', sellerId);
+    if (updateErr) {
+      throw new Error('Cannot approve: failed to link store to seller society.');
+    }
+    return { societyId: profile.society_id };
+  }
+
+  throw new Error(
+    'Cannot approve: this store has no society. Ask the seller to link their account to a society before approval.',
+  );
+}
+
+/**
  * Full seller approval: validates location + mandatory license, approves licenses
  * BEFORE products (so check_seller_license trigger can pass), then goes live.
  */
@@ -59,6 +100,9 @@ export async function approveSeller({ sellerId, userId, businessName, societyId 
   if (!locCheck.valid) {
     throw new Error(locCheck.message || 'Cannot approve: Store has no location set.');
   }
+
+  const societyLink = await ensureSellerSocietyLinked(sellerId);
+  const resolvedSocietyId = societyId || societyLink.societyId;
 
   // 1. Mandatory license gate (missing/rejected/expired block; pending OK — we approve it next)
   const licenseEl = await evaluateSellerLicenseEligibility(sellerId);
@@ -97,6 +141,11 @@ export async function approveSeller({ sellerId, userId, businessName, societyId 
     if (msg.includes('LICENSE_REJECTED')) throw new Error(msg.replace(/^.*LICENSE_REJECTED:\s*/i, '') || msg);
     if (msg.includes('LICENSE_NOT_VERIFIED')) throw new Error(msg.replace(/^.*LICENSE_NOT_VERIFIED:\s*/i, '') || msg);
     if (msg.includes('LICENSE_')) throw new Error(msg);
+    if (msg.includes('SELLER_SOCIETY_REQUIRED')) {
+      throw new Error(
+        'Cannot approve: this store has no society. Ask the seller to link their account to a society before approval.',
+      );
+    }
     throw updateErr;
   }
 
@@ -135,7 +184,7 @@ export async function approveSeller({ sellerId, userId, businessName, societyId 
   }
 
   // 6. Audit
-  await logAudit('seller_approved', 'seller_profile', sellerId, societyId || '', { status: 'approved' });
+  await logAudit('seller_approved', 'seller_profile', sellerId, resolvedSocietyId, { status: 'approved' });
 
   // 7. Notify
   await notifySellerStatusChange(userId, businessName, 'approved', undefined, sellerId);
