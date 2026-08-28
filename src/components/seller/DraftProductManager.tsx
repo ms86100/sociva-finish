@@ -204,6 +204,20 @@ export function DraftProductManager({
     if (!isAdding && products.length === 0) setIsAdding(true);
   }, [seedProductName, seedSubcategoryId, restoredDraft, products.length, isAdding, effectiveDefaultActionType, categories]);
 
+  // If products load after we opened a seed-only empty form, close it so saved items show
+  useEffect(() => {
+    if (products.length === 0 || !isAdding || editingIndex !== null) return;
+    const looksLikeSeedOnly =
+      !!seedProductName?.trim() &&
+      newProduct.name.trim() === seedProductName.trim() &&
+      !newProduct.price &&
+      !newProduct.image_url &&
+      !(newProduct.description || '').trim();
+    if (looksLikeSeedOnly) {
+      setIsAdding(false);
+    }
+  }, [products.length, isAdding, editingIndex, seedProductName, newProduct.name, newProduct.price, newProduct.image_url, newProduct.description]);
+
   // Auto-persist product form draft to localStorage with debounce
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
   useEffect(() => {

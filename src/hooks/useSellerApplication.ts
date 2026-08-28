@@ -29,6 +29,7 @@ import {
   assertLicenseAllowsSellerSubmit,
   evaluateSellerLicenseEligibility,
 } from '@/lib/seller-license';
+import { ensureSellerSocietyForSubmit } from '@/lib/seller-society';
 
 const ONBOARDING_VERSION_KEY = 'seller_onboarding_version';
 const ONBOARDING_VERSION = '3';
@@ -184,7 +185,15 @@ export function useSellerApplication() {
 
   const reloadProducts = useCallback(async (sellerId: string) => {
     try {
-      const { data: prods } = await supabase.from('products').select('id, name, price, description, image_url, category, approval_status, seller_id, action_type').eq('seller_id', sellerId);
+      const { data: prods, error } = await supabase
+        .from('products')
+        .select('id, name, price, description, image_url, category, approval_status, seller_id, action_type')
+        .eq('seller_id', sellerId);
+      if (error) {
+        console.error('Error reloading products:', error);
+        // Do not wipe existing UI state on a failed fetch
+        return;
+      }
       setDraftProducts(prods || []);
     } catch (err) {
       console.error('Error reloading products:', err);
@@ -738,6 +747,9 @@ export function useSellerApplication() {
         } catch { /* non-critical */ }
       }
     }
+    if (draftSellerId && (targetStep === 7 || targetStep === 8)) {
+      await reloadProducts(draftSellerId);
+    }
     setStep(targetStep);
   };
 
@@ -797,27 +809,65 @@ export function useSellerApplication() {
 
   const handleSubmit = async () => {
     if (!user || !draftSellerId) return;
-    if (draftProducts.length === 0) { notify.block('Please add at least one product'); return; }
+    if (draftProducts.length === 0) {
+      // Re-fetch before blocking — resume can show empty list if products load failed
+      await reloadProducts(draftSellerId);
+      const { data: prods } = await supabase
+        .from('products')
+        .select('id')
+        .eq('seller_id', draftSellerId)
+        .in('approval_status', ['draft', 'pending'] as any);
+      if (!prods?.length) {
+        notify.block('Please add at least one product');
+        return;
+      }
+    }
     if (!acceptedDeclaration) { notify.block('Please accept the seller declaration'); return; }
     if (formData.operating_days.length === 0) { notify.block('Please select at least one operating day'); return; }
     if (formData.accepts_upi && !formData.upi_id.trim()) { notify.block('Please enter your UPI ID or disable UPI payments'); return; }
-    if (!profile?.society_id) {
-      notify.block('Link your account to a society before submitting your store for review.');
-      setIsLoading(false);
-      return;
-    }
-    // Check location: must have direct coords OR society with coords
-    if (!formData.latitude) {
-      if (!profile?.society_id) {
-        notify.block('Please set your store location before submitting');
-        setIsLoading(false);
+
+    // Society is required for approval (DB trigger). Map pin alone is not enough —
+    // try to link nearest registered society from store coordinates.
+    let resolvedSocietyId = profile?.society_id || null;
+    {
+      const { data: sellerRow } = await supabase
+        .from('seller_profiles')
+        .select('society_id')
+        .eq('id', draftSellerId)
+        .maybeSingle();
+      const societyResult = await ensureSellerSocietyForSubmit({
+        userId: user.id,
+        sellerId: draftSellerId,
+        profileSocietyId: profile?.society_id,
+        sellerSocietyId: (sellerRow as any)?.society_id || null,
+        latitude: formData.latitude,
+        longitude: formData.longitude,
+      });
+      if (!societyResult.ok || !societyResult.societyId) {
+        notify.block(
+          societyResult.error || 'Link your account to a society before submitting your store for review.',
+          { title: 'Society required', id: 'seller-society-required' },
+        );
         return;
       }
-      // Verify society actually has coordinates
-      const { data: society } = await supabase.from('societies').select('latitude, longitude').eq('id', profile.society_id).single();
+      resolvedSocietyId = societyResult.societyId;
+      if (societyResult.linked) {
+        await refreshProfile();
+        if (societyResult.societyName) {
+          toast.success(`Linked to ${societyResult.societyName}`, { id: 'seller-society-linked' });
+        }
+      }
+    }
+
+    // Check location: must have direct coords OR society with coords
+    if (!formData.latitude) {
+      if (!resolvedSocietyId) {
+        notify.block('Please set your store location before submitting');
+        return;
+      }
+      const { data: society } = await supabase.from('societies').select('latitude, longitude').eq('id', resolvedSocietyId).single();
       if (!society?.latitude || !society?.longitude) {
         notify.block('Your society has no location set. Please set your store location manually.');
-        setIsLoading(false);
         return;
       }
     }
@@ -866,7 +916,7 @@ export function useSellerApplication() {
         subcategory_preferences: formData.subcategory_preferences,
         pickup_payment_config: formData.pickup_payment_config,
         delivery_payment_config: formData.delivery_payment_config,
-        society_id: profile.society_id,
+        society_id: resolvedSocietyId,
       };
       if (storeActionType) submitPayload.default_action_type = storeActionType;
       const { error } = await supabase.from('seller_profiles').update(submitPayload).eq('id', draftSellerId);
@@ -934,13 +984,17 @@ export function useSellerApplication() {
   }, [setStep]);
 
   const reloadProductsAndGet = useCallback(async (sellerId: string) => {
-    const { data: prods } = await supabase
+    const { data: prods, error } = await supabase
       .from('products')
       .select('id, name, price, description, image_url, category, approval_status, seller_id, action_type')
       .eq('seller_id', sellerId);
+    if (error) {
+      console.error('Error reloading products:', error);
+      return draftProducts;
+    }
     setDraftProducts(prods || []);
     return prods || [];
-  }, []);
+  }, [draftProducts]);
 
   const applyCommerceModelChange = useCallback(async (model: string): Promise<boolean> => {
     const action = commerceModelToDefaultAction(model as any);

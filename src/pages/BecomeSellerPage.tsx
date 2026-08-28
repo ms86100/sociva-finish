@@ -26,7 +26,9 @@ import { OnboardingLocationSheet } from '@/components/seller/OnboardingLocationS
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
+import { toast } from 'sonner';
 import { useSellerApplication } from '@/hooks/useSellerApplication';
+import { ensureSellerSocietyForSubmit } from '@/lib/seller-society';
 import type { SellerFormData } from '@/hooks/useSellerApplication';
 import { useSubcategories } from '@/hooks/useSubcategories';
 import { SubcategoryPickerDialog, SubcategorySelection } from '@/components/seller/SubcategoryPickerDialog';
@@ -547,7 +549,7 @@ function GuidedStep2({
 // ─── Main Page ──────────────────────────────────────────────────────────────
 export default function BecomeSellerPage() {
   const navigate = useNavigate();
-  const { profile, sellerProfiles, setCurrentSellerId } = useAuth();
+  const { profile, sellerProfiles, setCurrentSellerId, refreshProfile } = useAuth();
   const app = useSellerApplication();
   const { configs } = useCategoryConfigs();
   const { data: allActions = [] } = useActionTypeMap();
@@ -580,6 +582,14 @@ export default function BecomeSellerPage() {
     seedProductName, setSeedProductName,
     softListingTag, setSoftListingTag,
   } = app;
+
+  // Resume / review can show "add a product" falsely if products weren't loaded yet
+  useEffect(() => {
+    if (!draftSellerId) return;
+    if (step === 7 || step === 8) {
+      void reloadProducts(draftSellerId);
+    }
+  }, [step, draftSellerId, reloadProducts]);
 
   const allSubsQuery = useSubcategories();
   const allSubs = allSubsQuery.data || [];
@@ -1109,7 +1119,36 @@ export default function BecomeSellerPage() {
                   latitude={formData.latitude}
                   longitude={formData.longitude}
                   label={formData.store_location_label}
-                  onLocationSet={(lat, lng, _name, formattedAddress) => setFormData({ ...formData, latitude: lat, longitude: lng, store_location_label: formattedAddress || _name || formData.store_location_label || null })}
+                  onLocationSet={async (lat, lng, _name, formattedAddress) => {
+                    setFormData({
+                      ...formData,
+                      latitude: lat,
+                      longitude: lng,
+                      store_location_label: formattedAddress || _name || formData.store_location_label || null,
+                    });
+                    // Map pin ≠ society membership. If account has no society yet, try to
+                    // auto-link nearest registered society / address society so submit works.
+                    if (!profile?.society_id && user && draftSellerId) {
+                      try {
+                        const result = await ensureSellerSocietyForSubmit({
+                          userId: user.id,
+                          sellerId: draftSellerId,
+                          profileSocietyId: profile?.society_id,
+                          sellerSocietyId: null,
+                          latitude: lat,
+                          longitude: lng,
+                        });
+                        if (result.linked) {
+                          await refreshProfile();
+                          if (result.societyName) {
+                            toast.success(`Linked to ${result.societyName}`, { id: 'seller-society-linked' });
+                          }
+                        }
+                      } catch (e) {
+                        console.warn('Society auto-link skipped:', e);
+                      }
+                    }
+                  }}
                   hasSociety={!!profile?.society_id}
                   existingStoreLocations={
                     (sellerProfiles || [])
@@ -1407,7 +1446,10 @@ export default function BecomeSellerPage() {
               })()}
             />
             <p className="text-xs text-muted-foreground text-center flex items-center justify-center gap-1"><ArrowRight size={12} />Next: Review everything and submit for approval</p>
-            <Button className="w-full" onClick={() => setStep(8)} disabled={draftProducts.length === 0}>Review & Submit<ChevronRight size={16} className="ml-1" /></Button>
+            <Button className="w-full" onClick={async () => {
+              if (draftSellerId) await reloadProducts(draftSellerId);
+              setStep(8);
+            }} disabled={draftProducts.length === 0}>Review & Submit<ChevronRight size={16} className="ml-1" /></Button>
           </div>
         )}
 
@@ -1419,6 +1461,13 @@ export default function BecomeSellerPage() {
           if (formData.accepts_upi && !formData.upi_id?.trim()) validationErrors.push({ key: 'upi', message: 'Enter your UPI ID or disable UPI payments', step: 6 });
           if (!formData.latitude && !profile?.society_id) validationErrors.push({ key: 'location', message: 'Set your store location', step: 5 });
           if (formData.categories.length === 0) validationErrors.push({ key: 'categories', message: 'Select at least one category', step: 2 });
+          if (!profile?.society_id && !formData.latitude) {
+            validationErrors.push({
+              key: 'society',
+              message: 'Link your account to a society (Profile) or set a store pin near a registered society',
+              step: 5,
+            });
+          }
           if (licenseBlocksContinue) {
             validationErrors.push({
               key: 'license',
