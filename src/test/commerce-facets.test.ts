@@ -138,6 +138,7 @@ describe('commerce facets extraction and filtering', () => {
     expect(chips.some((c) => c.type === 'food_mood' && c.id === 'mood:breakfast')).toBe(true);
     expect(chips.some((c) => c.type === 'food_mood' && c.id === 'mood:dessert')).toBe(true);
     expect(chips.some((c) => c.type === 'food_mood' && c.id === 'mood:north_indian')).toBe(true);
+    expect(chips.some((c) => c.type === 'food_mood' && c.id === 'mood:continental')).toBe(true);
     expect(chips.some((c) => c.type === 'action_type')).toBe(false);
   });
 
@@ -148,5 +149,8 @@ describe('commerce facets extraction and filtering', () => {
     expect(page).toContain('applyProductFacetRow');
     const rail = readFileSync(resolve(__dirname, '../components/discovery/CommerceFacetRail.tsx'), 'utf8');
     expect(rail).toContain("c.type === 'food_mood'");
+    expect(rail).toContain('FOOD_CUISINES');
+    expect(rail).toContain('FOOD_MEALS');
+    expect(rail).toContain('FOOD_COURSES');
   });
 });

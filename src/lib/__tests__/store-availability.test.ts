@@ -58,6 +58,12 @@ describe('computeStoreStatus', () => {
     expect(result.minutesUntilOpen).toBeNull();
   });
 
+  it('treats lowercase operating days as open (seed/form mixed case)', () => {
+    mockTime('2026-03-07T14:00:00');
+    const result = computeStoreStatus('09:00', '21:00', ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'], true);
+    expect(result.status).toBe('open');
+  });
+
   it('returns open when operating days is empty array and within hours', () => {
     mockTime('2026-03-07T14:00:00');
     const result = computeStoreStatus('09:00', '21:00', [], true);
@@ -87,7 +93,7 @@ describe('computeStoreStatus', () => {
     // Device may be in CET, but stored times are already IST; store-availability uses UTC+5:30 internally.
     // Test: mocked time = 10pm IST (so seller is inside the overnight window, should be "open")
     // mockTime sets the system time; computeStoreStatus converts to IST internally.
-    mockTime('2026-03-07T17:00:00'); // 5pm UTC → 10:30pm IST (5+5:30)
+    mockTime('2026-03-07T17:00:00.000Z'); // 5pm UTC → 10:30pm IST
     const result = computeStoreStatus('20:00', '03:00', ['Sat', 'Sun'], true);
     // At 10:30pm IST, the seller is within the 20:00–03:00 overnight window → open
     expect(result.status).toBe('open');

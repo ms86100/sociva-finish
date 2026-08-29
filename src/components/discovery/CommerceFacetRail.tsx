@@ -8,7 +8,18 @@ import {
   countActiveCommerceFacets,
   emptyCommerceFacetState,
 } from '@/lib/commerce-facets';
-import { isFoodParentGroup } from '@/lib/food-facets';
+import {
+  COURSE_EMOJI,
+  CUISINE_EMOJI,
+  FOOD_COURSES,
+  FOOD_CUISINES,
+  FOOD_MEALS,
+  MEAL_EMOJI,
+  isFoodParentGroup,
+  type FoodCourseId,
+  type FoodCuisineId,
+  type FoodMealId,
+} from '@/lib/food-facets';
 import {
   Drawer,
   DrawerContent,
@@ -45,6 +56,19 @@ export function CommerceFacetRail({
   const [sortOpen, setSortOpen] = useState(false);
   const isFood = isFoodParentGroup(parentGroup);
   const activeCount = countActiveCommerceFacets(value);
+
+  const foodMoodCount = (
+    facet: 'cuisine' | 'meal' | 'course',
+    moodVal: string,
+  ) => chips.find((c) => c.type === 'food_mood' && c.value?.facet === facet && c.value?.value === moodVal)?.count ?? 0;
+
+  const toggleFoodFacet = (facet: 'cuisine' | 'meal' | 'course', moodVal: string) => {
+    hapticSelection();
+    onChange({
+      ...value,
+      [facet]: value[facet] === moodVal ? null : moodVal,
+    });
+  };
 
   const toggleChip = (chip: DynamicFacetChip) => {
     hapticSelection();
@@ -224,7 +248,60 @@ export function CommerceFacetRail({
           </DrawerHeader>
 
           <div className="px-4 py-3 space-y-4">
-            {chips.some((c) => c.type === 'food_mood') && (
+            {isFood && (
+              <>
+                <TasteSheetSection label="Cuisine">
+                  {FOOD_CUISINES.filter((opt) => opt.id !== 'other').map((opt) => {
+                    const count = foodMoodCount('cuisine', opt.id);
+                    const active = value.cuisine === opt.id;
+                    return (
+                      <TasteSheetChip
+                        key={opt.id}
+                        emoji={CUISINE_EMOJI[opt.id as FoodCuisineId]}
+                        label={opt.label}
+                        count={count}
+                        active={active}
+                        onClick={() => toggleFoodFacet('cuisine', opt.id)}
+                      />
+                    );
+                  })}
+                </TasteSheetSection>
+                <TasteSheetSection label="Meal">
+                  {FOOD_MEALS.map((opt) => {
+                    const count = foodMoodCount('meal', opt.id);
+                    const active = value.meal === opt.id;
+                    return (
+                      <TasteSheetChip
+                        key={opt.id}
+                        emoji={MEAL_EMOJI[opt.id as FoodMealId]}
+                        label={opt.label}
+                        count={count}
+                        active={active}
+                        onClick={() => toggleFoodFacet('meal', opt.id)}
+                      />
+                    );
+                  })}
+                </TasteSheetSection>
+                <TasteSheetSection label="Course">
+                  {FOOD_COURSES.map((opt) => {
+                    const count = foodMoodCount('course', opt.id);
+                    const active = value.course === opt.id;
+                    return (
+                      <TasteSheetChip
+                        key={opt.id}
+                        emoji={COURSE_EMOJI[opt.id as FoodCourseId]}
+                        label={opt.label}
+                        count={count}
+                        active={active}
+                        onClick={() => toggleFoodFacet('course', opt.id)}
+                      />
+                    );
+                  })}
+                </TasteSheetSection>
+              </>
+            )}
+
+            {!isFood && chips.some((c) => c.type === 'food_mood') && (
               <div>
                 <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2">Cuisine, meal & course</p>
                 <div className="flex flex-wrap gap-2">
@@ -249,12 +326,6 @@ export function CommerceFacetRail({
                     ))}
                 </div>
               </div>
-            )}
-
-            {isFood && !chips.some((c) => c.type === 'food_mood') && (
-              <p className="text-xs text-muted-foreground rounded-xl bg-muted/50 px-3 py-2">
-                Taste filters appear when listings have cuisine, meal or course details. Open Now and Veg still work above.
-              </p>
             )}
 
             {/* Action Type / Booking Method */}
@@ -380,5 +451,46 @@ export function CommerceFacetRail({
         </Drawer>
       )}
     </div>
+  );
+}
+
+function TasteSheetSection({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2">{label}</p>
+      <div className="flex flex-wrap gap-2">{children}</div>
+    </div>
+  );
+}
+
+function TasteSheetChip({
+  emoji,
+  label,
+  count,
+  active,
+  onClick,
+}: {
+  emoji: string;
+  label: string;
+  count: number;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        'flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border transition-all',
+        active
+          ? 'bg-primary text-primary-foreground border-primary'
+          : 'bg-card border-border text-foreground hover:border-primary/40',
+        count === 0 && !active && 'opacity-50',
+      )}
+    >
+      <span>{emoji}</span>
+      <span>{label}</span>
+      <span className="text-[10px] opacity-75">({count})</span>
+    </button>
   );
 }

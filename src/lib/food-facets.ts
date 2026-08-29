@@ -316,6 +316,9 @@ export const TASTE_MOODS: readonly TasteMood[] = [
   { id: 'south_indian', emoji: CUISINE_EMOJI.south_indian, label: 'South', facet: 'cuisine', value: 'south_indian' },
   { id: 'chinese', emoji: CUISINE_EMOJI.chinese, label: 'Chinese', facet: 'cuisine', value: 'chinese' },
   { id: 'tandoori', emoji: CUISINE_EMOJI.tandoori, label: 'Tandoori', facet: 'cuisine', value: 'tandoori' },
+  { id: 'continental', emoji: CUISINE_EMOJI.continental, label: 'Continental', facet: 'cuisine', value: 'continental' },
+  { id: 'appetizer', emoji: COURSE_EMOJI.appetizer, label: 'Starters', facet: 'course', value: 'appetizer' },
+  { id: 'main', emoji: COURSE_EMOJI.main, label: 'Mains', facet: 'course', value: 'main' },
   { id: 'dessert', emoji: COURSE_EMOJI.dessert, label: 'Dessert', facet: 'course', value: 'dessert' },
 ] as const;
 

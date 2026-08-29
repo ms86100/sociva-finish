@@ -13,6 +13,12 @@ export interface StoreAvailability {
 
 const DAY_ABBREVS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
+/** Match Mon/mon/MONDAY — seller forms and seed data have used mixed case. */
+function operatingDayMatches(operatingDays: string[], currentDay: string): boolean {
+  const needle = currentDay.slice(0, 3).toLowerCase();
+  return operatingDays.some((d) => String(d || '').slice(0, 3).toLowerCase() === needle);
+}
+
 // Timezone handling: store timings are expected in IST (UTC+5:30).
 // If the device is in CET (UTC+1) or another timezone, we detect and convert
 // so the store hours always mean IST wall-clock time regardless of device TZ.
@@ -53,7 +59,7 @@ export function computeStoreStatus(
   const ist = new Date(nowUtc.getTime() + IST_OFFSET_MS);
   const currentDay = DAY_ABBREVS[ist.getUTCDay()];
 
-  if (operatingDays && operatingDays.length > 0 && !operatingDays.includes(currentDay)) {
+  if (operatingDays && operatingDays.length > 0 && !operatingDayMatches(operatingDays, currentDay)) {
     return { status: 'closed_today', nextOpenAt: null, minutesUntilOpen: null };
   }
 
