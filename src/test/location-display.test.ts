@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cleanLocationTitle, formatLocationDisplay } from '@/lib/location-label-resolver';
+import { cleanLocationTitle, formatLocationDisplay, shortStorePlaceLabel } from '@/lib/location-label-resolver';
 
 describe('Location label resolver & display formatting', () => {
   describe('cleanLocationTitle', () => {
@@ -20,6 +20,23 @@ describe('Location label resolver & display formatting', () => {
 
     it('strips plus codes', () => {
       expect(cleanLocationTitle('8J2V+4X Bengaluru, Karnataka')).toBe('Bengaluru');
+    });
+
+    it('skips a leading house number so a postal dump does not become "2"', () => {
+      expect(
+        cleanLocationTitle('2, Shriram Greenfield Phase 1 Rd, Bendiganahalli, Bommenahalli, Karnataka 560049, India'),
+      ).toBe('Shriram Greenfield Phase 1 Rd');
+    });
+  });
+
+  describe('shortStorePlaceLabel', () => {
+    it('prefers the society name over a full Google address', () => {
+      const result = shortStorePlaceLabel({
+        societyName: 'Shriram Greenfield Phase 1',
+        storeLocationLabel: '2, Shriram Greenfield Phase 1 Rd, Bendiganahalli, Bommenahalli, Karnataka 560049, India',
+      });
+      expect(result.short).toBe('Shriram Greenfield Phase 1');
+      expect(result.full).toMatch(/Bendiganahalli/);
     });
   });
 

@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { useBlockPullToRefresh } from '@/hooks/usePullToRefresh';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Minus, Plus, Clock, Store, MapPin, Bell, ChevronRight, Trash2, ShieldCheck, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Minus, Plus, Clock, Store, MapPin, Bell, ChevronRight, Trash2, AlertTriangle } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { SafeHeader } from '@/components/layout/SafeHeader';
 import { Button } from '@/components/ui/button';
@@ -20,7 +20,6 @@ import { PreorderDatePicker } from '@/components/checkout/PreorderDatePicker';
 import { BackButton } from '@/components/navigation/BackButton';
 import { BuyAgainRow } from '@/components/home/BuyAgainRow';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useMarketplaceLabels } from '@/hooks/useMarketplaceLabels';
 import { LottieEmptyState } from '@/components/ui/LottieEmptyState';
 import { AlertCircle } from 'lucide-react';
 import { CartClearedAnimation } from '@/components/cart/CartClearedAnimation';
@@ -32,7 +31,6 @@ import { useCartPage } from '@/hooks/useCartPage';
 
 export default function CartPage() {
   const c = useCartPage();
-  const ml = useMarketplaceLabels();
   const navigate = useNavigate();
   const [showReviewSheet, setShowReviewSheet] = useState(false);
   const [justCleared, setJustCleared] = useState(false);
@@ -105,10 +103,6 @@ export default function CartPage() {
       </AppLayout>
     );
   }
-
-  const communityText = ml.label('label_checkout_community_support')
-    .replace('{count}', String(c.sellerGroups.length))
-    .replace('{suffix}', c.sellerGroups.length !== 1 ? 'es' : '');
 
   return (
     <AppLayout showHeader={false} showNav={false} showCart={false} safeTop={false}>
@@ -443,7 +437,7 @@ export default function CartPage() {
                 <p className="text-sm font-medium mt-0.5">{c.selectedDeliveryAddress.label}</p>
                 <p className="text-xs text-muted-foreground">{[c.selectedDeliveryAddress.flat_number && `Flat ${c.selectedDeliveryAddress.flat_number}`, c.selectedDeliveryAddress.block && `Block ${c.selectedDeliveryAddress.block}`, c.selectedDeliveryAddress.building_name].filter(Boolean).join(', ')}</p>
                 {c.needsPreciseLocation && (
-                  <p className="text-[10px] text-warning flex items-center gap-1 mt-1"><AlertTriangle size={10} /> No location pin — update address for delivery</p>
+                  <p className="text-xs font-semibold text-warning flex items-center gap-1.5 mt-1.5"><AlertTriangle size={14} /> Add your map pin so delivery can find you</p>
                 )}
               </>
             ) : (
@@ -466,33 +460,11 @@ export default function CartPage() {
 
         {/* Multi-seller note moved to top — see #5 above */}
 
-        {/* Refund Promise */}
-        <div className="mx-4 mt-4 flex items-center gap-3 bg-primary/5 border border-primary/15 rounded-xl p-3">
-          <ShieldCheck size={18} className="text-primary shrink-0" />
-          <div>
-            <p className="text-xs text-muted-foreground leading-relaxed">{c.settings.refundPromiseText}</p>
-            <p className="text-[10px] text-muted-foreground mt-1">You can cancel for free before the seller accepts. UPI refunds process within 24 hours.</p>
-          </div>
-        </div>
-
-        {/* Neighborhood Guarantee */}
-        {/* Browse more shortcut */}
-        <div className="mx-4 mt-3 text-center">
-          <Link to="/search" className="text-xs font-semibold text-primary hover:underline">+ Browse more items</Link>
-        </div>
-
-        <div className="mx-4 mt-2 flex items-center gap-2 px-3 py-2 rounded-lg bg-muted/50">
-          <span className="text-sm">{ml.label('label_neighborhood_guarantee_emoji')}</span>
-          <p className="text-[10px] text-muted-foreground">
-            {(() => {
-              const badge = ml.label('label_neighborhood_guarantee_badge');
-              const guarantee = ml.label('label_neighborhood_guarantee');
-              const parts = badge.split(guarantee);
-              if (parts.length < 2) return badge;
-              return <>{parts[0]}<span className="font-semibold text-foreground">{guarantee}</span>{parts[1]}</>;
-            })()}
-          </p>
-        </div>
+        <p className="mx-4 mt-4 text-center">
+          <Link to="/terms" className="text-xs text-muted-foreground underline">
+            Refunds, cancellation, and neighbourhood guarantee
+          </Link>
+        </p>
       </div>
 
       {/* Sticky Footer */}
@@ -502,21 +474,6 @@ export default function CartPage() {
             <p className="text-xs text-destructive font-medium">No payment method available for this cart. Try ordering from each seller separately.</p>
           </div>
         )}
-        {c.sellerGroups.length > 0 && (
-          <p className="text-[11px] text-primary font-medium text-center pt-2.5 px-4 flex items-center justify-center gap-1.5">
-            <span className="text-base">{ml.label('label_checkout_community_emoji')}</span>
-            {communityText}
-          </p>
-        )}
-        {/* Checkout reinforcement micro-copy */}
-        {c.fulfillmentType === 'delivery' && c.settings.freeDeliveryThreshold > 0 && (
-          c.totalAmount >= c.settings.freeDeliveryThreshold ? (
-            <p className="text-[10px] text-accent font-semibold text-center pt-1 px-4">🎉 Free delivery unlocked!</p>
-          ) : (
-            <p className="text-[10px] text-muted-foreground text-center pt-1 px-4">Add {c.formatPrice(c.settings.freeDeliveryThreshold - c.totalAmount)} more for free delivery</p>
-          )
-        )}
-        <p className="text-[10px] text-muted-foreground text-center pt-1 px-4">Payments are processed by third-party providers and are not covered by Apple. <Link to="/terms" className="underline">Refund & Cancellation Policy</Link></p>
         <div className="px-4 py-3">
           {c.fulfillmentType === 'delivery' && !c.selectedDeliveryAddress && (
             <Button
@@ -529,11 +486,32 @@ export default function CartPage() {
               Add a delivery address to continue
             </Button>
           )}
+          {c.needsPreciseLocation && c.selectedDeliveryAddress && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full mb-2 border-warning text-warning hover:bg-warning/10"
+              onClick={() => navigate('/profile/addresses', { state: { returnTo: '/cart' } })}
+            >
+              <MapPin size={14} className="mr-1.5" />
+              Add your map pin to continue
+            </Button>
+          )}
           {c.preorderMissingSchedule && (
               <p className="text-xs text-destructive font-medium text-center mb-2">Please select a delivery date & time for pre-order items</p>
             )}
             <div className="flex items-center gap-3">
-              <div className="flex-1"><p className="text-xs text-muted-foreground">Total</p><motion.p className="text-lg font-bold tabular-nums" key={c.finalAmount} initial={{ scale: 0.9, opacity: 0.5 }} animate={{ scale: 1, opacity: 1 }} transition={{ duration: 0.2 }}>{c.formatPrice(c.finalAmount)}</motion.p></div>
+              <div className="flex-1">
+                <p className="text-xs text-muted-foreground">Total</p>
+                <motion.p className="text-lg font-bold tabular-nums" key={c.finalAmount} initial={{ scale: 0.9, opacity: 0.5 }} animate={{ scale: 1, opacity: 1 }} transition={{ duration: 0.2 }}>{c.formatPrice(c.finalAmount)}</motion.p>
+                {c.fulfillmentType === 'delivery' && c.settings.freeDeliveryThreshold > 0 && (
+                  c.totalAmount >= c.settings.freeDeliveryThreshold ? (
+                    <p className="text-[11px] text-accent font-semibold mt-0.5">Free delivery unlocked</p>
+                  ) : (
+                    <p className="text-[11px] text-muted-foreground mt-0.5">Add {c.formatPrice(c.settings.freeDeliveryThreshold - c.totalAmount)} more for free delivery</p>
+                  )
+                )}
+              </div>
               <Button
                 className="px-8 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 font-bold"
                 size="lg"

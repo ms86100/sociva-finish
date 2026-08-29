@@ -992,7 +992,7 @@ export function DraftProductManager({
                 const cfg = allActions.find(a => a.action_type === effectiveDefaultActionType);
                 return (
                   <div className="space-y-1.5">
-                    <Label className="text-xs">Buyer Interaction</Label>
+                    <Label className="text-xs">How customers buy this</Label>
                     <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-muted/50 border">
                       <span className="text-sm font-medium flex-1">{cfg?.cta_label || effectiveDefaultActionType}</span>
                       <span className="text-[10px] text-muted-foreground">Set during store configuration</span>

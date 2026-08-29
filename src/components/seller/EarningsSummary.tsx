@@ -31,7 +31,7 @@ export function EarningsSummary({
   financeError = false,
 }: EarningsSummaryProps) {
   const { formatPrice } = useCurrency();
-  const gmvTitle = allStores ? 'Settled GMV · All stores' : 'Settled GMV';
+  const gmvTitle = allStores ? 'Sales · All stores' : 'Sales';
 
   if (compact) {
     return (
@@ -63,7 +63,7 @@ export function EarningsSummary({
               <span className="text-destructive">Wallet totals unavailable</span>
             ) : (
               <span className="flex items-center gap-2">
-                <span>Available <strong>{formatPrice(available)}</strong></span>
+                <span>Ready to withdraw <strong>{formatPrice(available)}</strong></span>
                 <span className="text-muted-foreground">|</span>
                 <span>Pending <strong>{formatPrice(pending)}</strong></span>
                 <span className="text-muted-foreground">|</span>
@@ -82,15 +82,15 @@ export function EarningsSummary({
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <TrendingUp className="text-success" size={20} />
-            <h3 className="font-semibold">{allStores ? 'Settled GMV · All stores' : 'Settled GMV'}</h3>
+            <h3 className="font-semibold">{allStores ? 'Sales · All stores' : 'Sales'}</h3>
           </div>
           <ChevronRight className="text-muted-foreground" size={18} />
         </div>
         <p className="text-[10px] text-muted-foreground mb-3">
-          Completed sales value after refunds. Not the same as withdrawable earnings.
+          Completed sales after refunds — not money you can withdraw yet.
         </p>
         {kpiError ? (
-          <p className={cn('text-sm text-destructive mb-3')}>Settled GMV could not be loaded.</p>
+          <p className={cn('text-sm text-destructive mb-3')}>Sales totals could not be loaded.</p>
         ) : (
           <div className="grid grid-cols-3 gap-3">
             <div className="bg-background/50 rounded-lg p-3 text-center">
@@ -113,7 +113,7 @@ export function EarningsSummary({
           ) : (
             <>
               <div className="bg-background/50 rounded-lg p-3 text-center">
-                <p className="text-xs text-muted-foreground">Available</p>
+                <p className="text-xs text-muted-foreground">Ready to withdraw</p>
                 <p className="text-sm font-bold tabular-nums">{formatPrice(available)}</p>
               </div>
               <div className="bg-background/50 rounded-lg p-3 text-center">

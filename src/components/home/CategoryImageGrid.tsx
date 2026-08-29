@@ -218,7 +218,7 @@ function CategoryCard({
             {meta.newCount > 0 && (
               <div className="absolute top-1.5 left-1.5 px-2 py-0.5 rounded-full bg-primary text-primary-foreground flex items-center gap-0.5 shadow-md">
                 <Sparkles size={8} />
-                <span className="text-[8px] font-bold">{meta.newCount} new</span>
+                <span className="text-[10px] font-bold">{meta.newCount} new</span>
               </div>
             )}
           </div>

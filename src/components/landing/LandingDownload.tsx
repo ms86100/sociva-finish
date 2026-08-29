@@ -47,7 +47,7 @@ export function LandingDownload() {
             Download Sociva
           </h2>
           <p className="text-muted-foreground text-base md:text-lg leading-relaxed">
-            Same account, same orders, same cloud store — on your phone or your PC.
+            Same account, same orders, same society — on your phone.
           </p>
         </div>
 
@@ -152,35 +152,7 @@ export function LandingDownload() {
                 Download for Windows
               </Button>
             </motion.a>
-          ) : (
-            <motion.div
-              initial={{ opacity: 0, y: 16 }}
-              animate={inView ? { opacity: 1, y: 0 } : {}}
-              transition={{ delay: 0.22, duration: 0.45 }}
-              className="flex flex-col items-start gap-4 rounded-2xl border border-dashed border-border bg-muted/30 p-6 text-left overflow-hidden relative"
-            >
-              <img
-                src="/landing/desktop-windows.svg"
-                alt=""
-                className="absolute right-3 bottom-3 w-28 h-auto opacity-40 pointer-events-none select-none grayscale"
-                width={160}
-                height={100}
-              />
-              <div className="relative w-12 h-12 rounded-xl bg-[#0078D4]/80 text-white flex items-center justify-center">
-                <Monitor size={24} />
-              </div>
-              <div className="relative space-y-1 flex-1 pr-24">
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Windows PC</p>
-                <h3 className="text-lg font-bold text-foreground">Windows Installer</h3>
-                <p className="text-sm text-muted-foreground leading-relaxed">
-                  Coming soon.
-                </p>
-              </div>
-              <Button className="relative w-full rounded-xl font-semibold" size="lg" disabled>
-                Coming soon
-              </Button>
-            </motion.div>
-          )}
+          ) : null}
 
           {MACOS_DMG_AVAILABLE ? (
             <motion.a
@@ -220,39 +192,11 @@ export function LandingDownload() {
                 Download for Mac
               </Button>
             </motion.a>
-          ) : (
-            <motion.div
-              initial={{ opacity: 0, y: 16 }}
-              animate={inView ? { opacity: 1, y: 0 } : {}}
-              transition={{ delay: 0.28, duration: 0.45 }}
-              className="flex flex-col items-start gap-4 rounded-2xl border border-dashed border-border bg-muted/30 p-6 text-left overflow-hidden relative"
-            >
-              <img
-                src="/landing/desktop-macos.svg"
-                alt=""
-                className="absolute right-3 bottom-3 w-28 h-auto opacity-40 pointer-events-none select-none grayscale"
-                width={160}
-                height={100}
-              />
-              <div className="relative w-12 h-12 rounded-xl bg-foreground/80 text-background flex items-center justify-center">
-                <Laptop size={24} />
-              </div>
-              <div className="relative space-y-1 flex-1 pr-24">
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">MacBook &amp; Mac</p>
-                <h3 className="text-lg font-bold text-foreground">macOS Download</h3>
-                <p className="text-sm text-muted-foreground leading-relaxed">
-                  Coming soon.
-                </p>
-              </div>
-              <Button variant="outline" className="relative w-full rounded-xl font-semibold" size="lg" disabled>
-                Coming soon
-              </Button>
-            </motion.div>
-          )}
+          ) : null}
         </div>
 
         <p className="text-center text-xs text-muted-foreground mt-8 max-w-lg mx-auto">
-          Android APK is for sideload testing and early access. Prefer Play Store when available for automatic updates.
+          Download the Android app here. Prefer Play Store when listed, for automatic updates.
         </p>
       </motion.div>
     </section>

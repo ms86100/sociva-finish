@@ -80,8 +80,8 @@ describe('seller financial truth', () => {
     const earnings = read('src/pages/SellerEarningsPage.tsx');
     const finance = read('src/hooks/queries/useSellerFinancial.ts');
     const sql = read('supabase/migrations/20260822052544_seller_financial_truth_wallet.sql');
-    expect(summary).toMatch(/Settled GMV/);
-    expect(summary).toMatch(/Available/);
+    expect(summary).toMatch(/Sales/);
+    expect(summary).toMatch(/Ready to withdraw/);
     expect(wallet).toMatch(/get_seller_financial_summary|useSellerFinancialSummary/);
     expect(earnings).toMatch(/get_seller_dashboard_kpis/);
     expect(earnings).toMatch(/not seller payable|not withdrawable earnings/i);

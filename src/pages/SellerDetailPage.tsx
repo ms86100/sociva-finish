@@ -35,7 +35,8 @@ import { useCart } from '@/hooks/useCart';
 import { useAuth } from '@/contexts/AuthContext';
 import { SellerProfile, Product, DAYS_OF_WEEK } from '@/types/Database';
 import { useCategoryConfigs } from '@/hooks/useCategoryBehavior';
-import { Clock, MapPin, Phone, Search, ShoppingCart, Star, Calendar, Flag, X, Zap, Users, ShieldCheck, AlertCircle } from 'lucide-react';
+import { Clock, MapPin, Search, ShoppingCart, Calendar, Flag, X, ShieldCheck, AlertCircle, ChevronDown } from 'lucide-react';
+import { shortStorePlaceLabel } from '@/lib/location-label-resolver';
 import { BackButton } from '@/components/navigation/BackButton';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -69,6 +70,7 @@ export default function SellerDetailPage() {
   const [sellerUnavailable, setSellerUnavailable] = useState(false);
   const [productsError, setProductsError] = useState(false);
   const [needsLocation, setNeedsLocation] = useState(false);
+  const [showStoreDetails, setShowStoreDetails] = useState(false);
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const [activeTab, setActiveTab] = useState('menu');
   const tabsRef = useRef<HTMLDivElement>(null);
@@ -139,6 +141,7 @@ export default function SellerDetailPage() {
           last_active_at: marketplaceSeller.last_active_at ?? null,
           completed_order_count: marketplaceSeller.completed_order_count ?? null,
           verification_status: 'approved',
+          store_location_label: marketplaceSeller.store_location_label || null,
           society: marketplaceSeller.society_name
             ? {
                 name: marketplaceSeller.society_name,
@@ -182,6 +185,7 @@ export default function SellerDetailPage() {
           avg_response_minutes,
           last_active_at,
           verification_status,
+          store_location_label,
           society:societies!seller_profiles_society_id_fkey(name, address, city, state, pincode, latitude, longitude)
         `)
         .eq('id', id)
@@ -407,6 +411,20 @@ export default function SellerDetailPage() {
   }
 
   const operatingDays = seller.operating_days || DAYS_OF_WEEK;
+  const place = shortStorePlaceLabel({
+    societyName: (seller as any).society?.name,
+    storeLocationLabel: (seller as any).store_location_label,
+    societyAddress: (seller as any).society?.address,
+  });
+  const openDays = DAYS_OF_WEEK.filter((day) => operatingDays.includes(day));
+  const openDaysLabel = openDays.length === 7 ? 'Every day' : openDays.length === 0 ? 'Hours vary' : openDays.join(' · ');
+  const fulfillmentLabel = {
+    self_pickup: 'Pickup',
+    seller_delivery: 'Delivery',
+    platform_delivery: 'Delivery',
+    pickup_and_seller_delivery: 'Pickup & delivery',
+    pickup_and_platform_delivery: 'Pickup & delivery',
+  }[(seller as any).fulfillment_mode as string] || null;
 
   return (
     <AppLayout showHeader={false} showNav={true} showCart={true} safeTop={false}>
@@ -539,11 +557,10 @@ export default function SellerDetailPage() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.2, type: 'spring', stiffness: 260, damping: 24 }}
       >
-        <div className="bg-card rounded-xl shadow-elevated p-4 space-y-3">
-          {/* Row 1: Avatar + Name + Rating */}
+        <div className="bg-card rounded-xl shadow-elevated p-4 space-y-2.5">
           <div className="flex items-start gap-3">
             {seller.profile_image_url && (
-              <div className="w-14 h-14 rounded-full border-2 border-primary/30 overflow-hidden shadow-md shrink-0">
+              <div className="w-12 h-12 rounded-full border border-border overflow-hidden shrink-0">
                 <img
                   src={seller.profile_image_url}
                   alt={seller.business_name}
@@ -552,53 +569,47 @@ export default function SellerDetailPage() {
               </div>
             )}
             <div className="flex-1 min-w-0">
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <h1 className="text-xl font-bold">{seller.business_name}</h1>
-                  {/* Trust chips — visible without opening a second screen */}
-                  <div className="flex items-center gap-1.5 flex-wrap mt-1.5">
-                    {seller.verification_status === 'approved' && (
-                      <Badge variant="secondary" className="text-[10px] bg-primary/10 text-primary border-0 font-bold">
-                        <ShieldCheck size={10} className="mr-1" />
-                        Verified
-                      </Badge>
-                    )}
-                    {seller.society_id === effectiveSocietyId && (
-                      <Badge variant="secondary" className="text-[10px] bg-success/10 text-success border-0 font-bold">
-                        Your society
-                      </Badge>
-                    )}
-                    {(seller as any).avg_response_minutes != null && (seller as any).avg_response_minutes > 0 && (seller as any).avg_response_minutes <= 30 && (
-                      <Badge variant="secondary" className="text-[10px] bg-accent/10 text-accent-foreground border-0 font-bold">
-                        <Zap size={10} className="mr-1" />
-                        ~{(seller as any).avg_response_minutes} min ETA
-                      </Badge>
-                    )}
-                  </div>
-                  {seller.description && (
-                    <p className="text-sm text-muted-foreground mt-0.5 line-clamp-2">
-                      {seller.description}
-                    </p>
-                  )}
-                </div>
+              <h1 className="text-lg font-bold leading-tight line-clamp-2">{seller.business_name}</h1>
+              <div className="mt-1">
                 <RatingStars
                   rating={seller.rating}
                   totalReviews={seller.total_reviews}
-                  size="md"
+                  size="sm"
                 />
+              </div>
+              <div className="flex items-center gap-1.5 flex-wrap mt-1.5">
+                {seller.verification_status === 'approved' && (
+                  <Badge variant="secondary" className="text-[10px] bg-primary/10 text-primary border-0 font-semibold">
+                    <ShieldCheck size={10} className="mr-1" />
+                    Approved store
+                  </Badge>
+                )}
+                {seller.society_id === effectiveSocietyId && (
+                  <Badge variant="secondary" className="text-[10px] bg-success/10 text-success border-0 font-semibold">
+                    Your society
+                  </Badge>
+                )}
+                {fulfillmentLabel && (
+                  <Badge variant="outline" className="text-[10px] font-medium">
+                    {fulfillmentLabel}
+                  </Badge>
+                )}
               </div>
             </div>
           </div>
 
-          {/* Row 2: Location · Distance · Hours — compact info line */}
-          <div className="flex items-center gap-2 text-sm text-muted-foreground flex-wrap">
+          <div className="flex items-center gap-2 text-[13px] text-muted-foreground min-w-0">
             {(() => {
               const lat = (seller as any).latitude ?? (seller as any).society?.latitude;
               const lng = (seller as any).longitude ?? (seller as any).society?.longitude;
-              const locationName = (seller as any).society?.name || null;
-
-              if (!lat || !lng) return null;
-
+              if (!lat || !lng) {
+                return (
+                  <span className="truncate min-w-0 flex items-center gap-1">
+                    <MapPin size={13} className="text-primary shrink-0" />
+                    {place.short}
+                  </span>
+                );
+              }
               const openMaps = async (e: React.MouseEvent) => {
                 e.preventDefault();
                 e.stopPropagation();
@@ -615,141 +626,69 @@ export default function SellerDetailPage() {
                 }
                 window.open(mapsUrl, '_blank', 'noopener');
               };
-
               return (
                 <button
+                  type="button"
                   onClick={openMaps}
-                  className="flex items-center gap-1 hover:text-primary transition-colors"
-                  title="View on Google Maps"
+                  className="truncate min-w-0 flex items-center gap-1 hover:text-primary transition-colors text-left"
+                  title="Open in maps"
                 >
                   <MapPin size={13} className="text-primary shrink-0" />
-                  {locationName || 'View on Map'}
+                  <span className="truncate">{place.short}</span>
                 </button>
               );
             })()}
             {distanceKm !== null && (
-              <>
-                <span className="text-muted-foreground/40">·</span>
-                <span className="text-xs font-medium text-primary">📍 {distanceKm < 1 ? `${Math.round(distanceKm * 1000)} m` : `${distanceKm} km`}</span>
-              </>
+              <span className="shrink-0 text-xs font-medium text-primary">
+                {distanceKm < 1 ? `${Math.round(distanceKm * 1000)} m` : `${distanceKm} km`}
+              </span>
             )}
             {seller.availability_start && seller.availability_end && (
-              <>
-                <span className="text-muted-foreground/40">·</span>
-                <span className="flex items-center gap-1">
-                  <Clock size={13} className="shrink-0" />
-                  {seller.availability_start.slice(0, 5)} – {seller.availability_end.slice(0, 5)}
-                </span>
-              </>
+              <span className="shrink-0 flex items-center gap-1 text-xs">
+                <Clock size={12} />
+                {seller.availability_start.slice(0, 5)}–{seller.availability_end.slice(0, 5)}
+              </span>
             )}
           </div>
 
-          {/* Row 3: Status badges — Active + Fulfillment + Min order */}
-          <div className="flex items-center gap-2 flex-wrap">
-            {(seller as any).last_active_at && (() => {
-              const msAgo = Date.now() - new Date((seller as any).last_active_at).getTime();
-              const daysAgo = msAgo / (24 * 60 * 60 * 1000);
-              if (daysAgo < 1) return (
-                <Badge variant="secondary" className="text-[10px] bg-success/15 text-success border-0 font-medium">
-                  <span className="w-1.5 h-1.5 rounded-full bg-success animate-pulse mr-1" />
-                  Active today
-                </Badge>
-              );
-              if (daysAgo >= 7 && seller.is_available !== false) return (
-                <Badge variant="secondary" className="text-[10px] bg-destructive/10 text-destructive border-0 font-medium">
-                  <AlertCircle size={10} className="mr-1" />
-                  Store may be unresponsive
-                </Badge>
-              );
-              return (
-                <Badge variant="secondary" className="text-[10px] bg-muted text-muted-foreground border-0 font-medium">
-                  Active {Math.floor(daysAgo)}d ago
-                </Badge>
-              );
-            })()}
-            {(seller as any).fulfillment_mode && (
-              <Badge variant="outline" className="text-[10px] font-medium">
-                {(seller as any).fulfillment_mode === 'self_pickup' && '🏪 Self Pickup'}
-                {(seller as any).fulfillment_mode === 'seller_delivery' && '🚚 I Deliver'}
-                {(seller as any).fulfillment_mode === 'platform_delivery' && '🚴 Delivery Partner'}
-                {(seller as any).fulfillment_mode === 'pickup_and_seller_delivery' && '🏪🚚 Pickup & Delivery'}
-                {(seller as any).fulfillment_mode === 'pickup_and_platform_delivery' && '🏪🚴 Pickup & Partner'}
-              </Badge>
-            )}
-            {(seller as any).minimum_order_amount != null && (seller as any).minimum_order_amount > 0 && (
-              <Badge variant="outline" className="text-[10px] font-medium">
-                Min {formatPrice((seller as any).minimum_order_amount)}
-              </Badge>
-            )}
-            {(seller as any).delivery_note && (
-              <span className="text-[11px] text-muted-foreground italic">{(seller as any).delivery_note}</span>
-            )}
-          </div>
+          <button
+            type="button"
+            onClick={() => setShowStoreDetails((open) => !open)}
+            className="flex items-center gap-1 text-xs font-medium text-primary"
+          >
+            <ChevronDown size={14} className={showStoreDetails ? 'rotate-180 transition-transform' : 'transition-transform'} />
+            {showStoreDetails ? 'Hide store details' : 'Store details'}
+          </button>
 
-          {/* Row 4: Trust signals */}
-          {((seller as any).completed_order_count > 0 || ((seller as any).avg_response_minutes != null && (seller as any).avg_response_minutes > 0)) && (
-            <div className="flex items-center gap-2 flex-wrap">
+          {showStoreDetails && (
+            <div className="space-y-2 pt-1 border-t border-border/60">
+              {seller.description && (
+                <p className="text-sm text-muted-foreground leading-relaxed">{seller.description}</p>
+              )}
+              {place.full && (
+                <p className="text-xs text-muted-foreground leading-snug">{place.full}</p>
+              )}
+              <p className="text-xs text-muted-foreground">Open {openDaysLabel}</p>
+              {(seller as any).minimum_order_amount > 0 && (
+                <p className="text-xs text-muted-foreground">Minimum order {formatPrice((seller as any).minimum_order_amount)}</p>
+              )}
+              {(seller as any).delivery_note && (
+                <p className="text-xs text-muted-foreground">{(seller as any).delivery_note}</p>
+              )}
               {(seller as any).completed_order_count > 0 && (
-                <Badge variant="secondary" className="text-[10px] bg-primary/10 text-primary border-0">
-                  <Users size={10} className="mr-1" />
-                  {(seller as any).completed_order_count} orders
-                </Badge>
+                <p className="text-xs text-muted-foreground">{(seller as any).completed_order_count} orders completed</p>
               )}
-              {(seller as any).avg_response_minutes != null && (seller as any).avg_response_minutes > 0 && (
-                <Badge variant="secondary" className="text-[10px] bg-success/10 text-success border-0">
-                  <Zap size={10} className="mr-1" />
-                  ~{(seller as any).avg_response_minutes} min response
-                </Badge>
+              {(seller as any).avg_response_minutes > 0 && (
+                <p className="text-xs text-muted-foreground">Usually replies in about {(seller as any).avg_response_minutes} min</p>
               )}
-              {(seller as any).cancellation_rate !== undefined && (seller as any).cancellation_rate === 0 && (seller as any).completed_order_count > 2 && (
-                <button
-                  onClick={() => toast.info('Verified Seller', {
-                    description: `${seller.business_name} is a verified resident of your community, confirmed by society admins. They have completed ${(seller as any).completed_order_count} orders with 0% cancellation rate.`,
-                  })}
-                  className="cursor-pointer"
-                >
-                  <Badge variant="secondary" className="text-[10px] bg-success/10 text-success border-0">
-                    <ShieldCheck size={10} className="mr-1" />
-                    0% cancellation
-                  </Badge>
-                </button>
+              {seller.categories.length > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  {seller.categories.map((cat) => {
+                    const categoryInfo = allCategoryConfigs.find((c) => c.category === cat);
+                    return categoryInfo?.displayName || cat.replace(/_/g, ' ');
+                  }).join(' · ')}
+                </p>
               )}
-            </div>
-          )}
-
-          {/* Row 5: Operating days */}
-          <div className="flex items-center gap-2">
-            <Calendar size={14} className="text-muted-foreground shrink-0" />
-            <div className="flex gap-1">
-              {DAYS_OF_WEEK.map((day) => (
-                <span
-                  key={day}
-                  className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
-                    operatingDays.includes(day)
-                      ? 'bg-success/20 text-success'
-                      : 'bg-muted text-muted-foreground/50'
-                  }`}
-                >
-                  {day}
-                </span>
-              ))}
-            </div>
-          </div>
-
-          {/* Row 6: Category tags */}
-          {seller.categories.length > 0 && (
-            <div className="flex flex-wrap gap-1.5">
-              {seller.categories.map((cat) => {
-                const categoryInfo = allCategoryConfigs.find((c) => c.category === cat);
-                return (
-                  <span
-                    key={cat}
-                    className="text-xs px-2.5 py-1 rounded-full bg-secondary text-secondary-foreground font-medium"
-                  >
-                    <span className="inline-flex items-center gap-1"><DynamicIcon name={categoryInfo?.icon || 'Package'} size={12} /> {categoryInfo?.displayName || cat}</span>
-                  </span>
-                );
-              })}
             </div>
           )}
         </div>
@@ -770,7 +709,7 @@ export default function SellerDetailPage() {
             <div className="relative mb-3">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
               <Input
-                placeholder={`Search in ${seller.business_name}…`}
+                placeholder="Search the menu"
                 value={menuSearch}
                 onChange={(e) => setMenuSearch(e.target.value)}
                 className="pl-8 pr-8 h-9 bg-muted border-0 rounded-lg text-sm"

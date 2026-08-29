@@ -12,7 +12,7 @@ import { Loader2, MessageCircle, Calendar, Send, Home, Handshake } from 'lucide-
 import { useCurrency } from '@/hooks/useCurrency';
 import { notify } from '@/lib/notify';
 import { showFeedback } from '@/components/FeedbackPopupProvider';
-import { scrollFocusedFieldInDrawer, useDrawerKeyboard } from '@/hooks/useChatViewport';
+import { getDrawerKeyboardStyle, useKeepDrawerFieldVisible } from '@/hooks/useChatViewport';
 import { sellerCreditCustomerMessage } from '@/lib/sellerCredits';
 import { useBrowsingLocation } from '@/contexts/BrowsingLocationContext';
 import { buyerCanOrderFromSeller } from '@/lib/sellerDiscoverability';
@@ -93,7 +93,7 @@ export function ProductEnquirySheet({
   const [loadedSpecs, setLoadedSpecs] = useState<Record<string, any> | null>(specifications || null);
   const [isLoading, setIsLoading] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const { viewportHeight, keyboardInset } = useDrawerKeyboard(open);
+  const { viewportHeight, keyboardInset, isKeyboardOpen } = useKeepDrawerFieldVisible(open);
   const extraGroups = useProductExtraGroups(loadedSpecs);
 
   useEffect(() => {
@@ -107,17 +107,6 @@ export function ProductEnquirySheet({
     supabase.from('products').select('specifications').eq('id', productId).maybeSingle()
       .then(({ data }) => setLoadedSpecs((data as any)?.specifications || null));
   }, [open, productId, specifications]);
-
-  useEffect(() => {
-    if (!open) return;
-    const keepVisible = (event: Event) => {
-      const target = event.target;
-      if (!(target instanceof HTMLElement) || !target.matches('input, textarea, select')) return;
-      window.setTimeout(() => scrollFocusedFieldInDrawer(), 80);
-    };
-    document.addEventListener('focusin', keepVisible);
-    return () => document.removeEventListener('focusin', keepVisible);
-  }, [open, keyboardInset]);
 
   const meta = ACTION_META[actionType] || ACTION_META.request_service;
   const Icon = meta.icon;
@@ -214,7 +203,10 @@ export function ProductEnquirySheet({
       supabase.functions.invoke('process-notification-queue').catch(() => {});
 
       showFeedback({
-        title: 'Request sent! The seller will respond soon.',
+        title: actionType === 'request_quote' ? 'Quote sent' : 'Request sent',
+        description: actionType === 'request_quote'
+          ? 'The seller usually replies today. Follow it in Orders.'
+          : 'The seller will respond soon. Follow it in Orders.',
         variant: 'success',
       });
       onOpenChange(false);
@@ -229,15 +221,11 @@ export function ProductEnquirySheet({
   };
 
   return (
-    <Drawer open={open} onOpenChange={onOpenChange}>
+    <Drawer open={open} onOpenChange={onOpenChange} repositionInputs={false}>
       <DrawerContent
         data-drawer-scroll
         className="max-h-[min(92dvh,100%)] overflow-y-auto"
-        style={{
-          bottom: keyboardInset,
-          maxHeight: viewportHeight ? `${Math.max(viewportHeight - 12, 280)}px` : '92dvh',
-          paddingBottom: `calc(${keyboardInset}px + env(safe-area-inset-bottom, 0px))`,
-        }}
+        style={getDrawerKeyboardStyle({ viewportHeight, keyboardInset, isKeyboardOpen })}
       >
         <DrawerHeader className="pb-3">
           <DrawerTitle className="flex items-center gap-2">
@@ -263,7 +251,7 @@ export function ProductEnquirySheet({
           />
 
           {/* Message */}
-          <div className="space-y-2">
+          <div className="space-y-2" data-keyboard-field>
             <label className="text-sm font-medium">Your Message</label>
             <div>
               <p className="mb-1.5 text-[11px] text-muted-foreground">Quick questions · tap, then edit</p>

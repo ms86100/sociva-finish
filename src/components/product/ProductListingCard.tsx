@@ -298,9 +298,9 @@ function ProductListingCardInner({ product, layout = 'auto', onTap, onNavigate, 
           )}
 
           {isStoreClosed && !isUnavailable && (
-            <div className="absolute inset-0 bg-background/45 flex items-center justify-center backdrop-blur-[1.5px] z-[5]">
-              <span className="text-[10px] font-bold text-muted-foreground bg-card/95 px-3 py-1.5 rounded-full uppercase tracking-wider shadow-sm border border-border/50 flex items-center gap-1 max-w-[90%] truncate">
-                <Clock size={10} className="shrink-0" />
+            <div className="absolute inset-0 bg-background/55 flex items-center justify-center backdrop-blur-[1.5px] z-[5]">
+              <span className="text-[11px] font-bold text-warning-foreground bg-warning/90 px-3 py-1.5 rounded-full tracking-wide shadow-sm border border-warning/40 flex items-center gap-1 max-w-[90%] truncate">
+                <Clock size={11} className="shrink-0" />
                 <span className="truncate">{storeClosedMessage}</span>
               </span>
             </div>
@@ -309,11 +309,11 @@ function ProductListingCardInner({ product, layout = 'auto', onTap, onNavigate, 
           {/* Badges — top left */}
           {badges.length > 0 && (
             <div className="absolute top-2 left-2 flex flex-col gap-1 z-10 max-w-[70%]">
-              {badges.map((b, i) => (
+              {badges.slice(0, 1).map((b, i) => (
                 <Badge
                   key={i}
                   className={cn(
-                    'text-[8px] leading-none px-2 py-0.5 font-bold rounded-md border-0 shadow-sm truncate',
+                    'text-[10px] leading-none px-2 py-0.5 font-bold rounded-md border-0 shadow-sm truncate',
                     b.color
                   )}
                 >
@@ -394,7 +394,7 @@ function ProductListingCardInner({ product, layout = 'auto', onTap, onNavigate, 
                   whileTap={{ scale: 0.88 }}
                   onClick={handleIncrement}
                   disabled={!canIncrement}
-                  aria-label="Increase quantity"
+                  aria-label={canIncrement ? 'Increase quantity' : `Only ${stockLimit} available`}
                   className={cn(
                     'px-2.5 py-2 text-primary-foreground min-w-[40px] min-h-[36px] flex items-center justify-center touch-manipulation',
                     !canIncrement && 'opacity-40 cursor-not-allowed'
@@ -463,6 +463,9 @@ function ProductListingCardInner({ product, layout = 'auto', onTap, onNavigate, 
             <h4 className="mt-1 h-[34px] overflow-hidden font-semibold leading-snug text-foreground text-[12px] line-clamp-2">
               {product.name}
             </h4>
+            {isCartAction && quantity > 0 && !canIncrement && product.stock_quantity != null && (
+              <p className="text-[11px] text-warning font-medium mt-0.5">Only {product.stock_quantity} left</p>
+            )}
           </div>
         </div>
       ) : (
@@ -496,6 +499,9 @@ function ProductListingCardInner({ product, layout = 'auto', onTap, onNavigate, 
           <h4 className="font-semibold leading-snug text-foreground text-[12px] sm:text-[13px] line-clamp-2 mt-1 min-h-[2lh]">
             {product.name}
           </h4>
+          {isCartAction && quantity > 0 && !canIncrement && product.stock_quantity != null && (
+            <p className="text-[11px] text-warning font-medium mt-0.5">Only {product.stock_quantity} left</p>
+          )}
 
           {product.description && glanceKind === 'product' && glanceFacts.length === 0 && (
             <p className="text-[10px] text-muted-foreground line-clamp-1 mt-0.5">{product.description}</p>
@@ -519,8 +525,8 @@ function ProductListingCardInner({ product, layout = 'auto', onTap, onNavigate, 
                 </span>
               )}
               {product.seller_verified && (
-                <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-md bg-primary/10 text-primary shrink-0">
-                  Verified
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-primary/10 text-primary shrink-0">
+                  Approved
                 </span>
               )}
               {(product as any).is_same_society && (

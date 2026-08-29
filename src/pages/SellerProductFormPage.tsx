@@ -477,7 +477,7 @@ function StepConfig({ sp }: { sp: ReturnType<typeof useSellerProducts> }) {
     <>
       {/* Read-only buyer interaction — chosen during store configuration */}
       <div>
-        <Label className="text-sm font-semibold">Buyer Interaction</Label>
+        <Label className="text-sm font-semibold">How customers buy this</Label>
         <div className="mt-1.5 flex items-center gap-3 p-3 bg-muted/50 rounded-xl border">
           {ActionIcon && <ActionIcon size={18} className="text-primary shrink-0" />}
           <div className="flex-1 min-w-0">

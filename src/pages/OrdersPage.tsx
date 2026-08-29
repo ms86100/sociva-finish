@@ -31,6 +31,7 @@ import { groupBuyerOrdersForList } from '@/lib/checkout-groups';
 import { BuyerUpcomingOrders } from '@/components/orders/BuyerUpcomingOrders';
 import { ScheduledOrderCountdown } from '@/components/orders/ScheduledOrderCountdown';
 import { isScheduledOrder, isUpcomingScheduled } from '@/lib/scheduled-orders';
+import { orderPaymentChipLabel } from '@/lib/payment-method-label';
 
 function humanizeTime(iso: string): string {
   const d = new Date(iso);
@@ -59,6 +60,7 @@ function OrderCard({ order, type, successTerminals, unreadCounts }: { order: Ord
   }).progressPercent || (isActive ? 30 : 0);
   const firstItem = items[0];
   const itemImage = (firstItem as any)?.product_image || seller?.cover_image_url;
+  const paymentChip = orderPaymentChipLabel((order as any).payment_type, (order as any).payment_status);
   // Pull dot color from statusInfo.color (e.g. "bg-yellow-100 text-yellow-700")
   const dotColor = (statusInfo.color || '').split(' ').find((c: string) => c.startsWith('text-')) || 'text-muted-foreground';
 
@@ -112,9 +114,9 @@ function OrderCard({ order, type, successTerminals, unreadCounts }: { order: Ord
                   <Truck size={9} /> Delivery
                 </span>
               )}
-              {(order as any).payment_type && (
+              {paymentChip && (
                 <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-medium">
-                  {(order as any).payment_type === 'cod' ? 'COD' : (order as any).payment_type === 'card' ? 'Online ✓' : 'UPI ✓'}
+                  {paymentChip}
                 </span>
               )}
               {isUpcomingScheduledOrder && (
@@ -430,7 +432,7 @@ export default function OrdersPage() {
                       <Link to="/seller" className="text-primary underline underline-offset-2">
                         Seller Dashboard
                       </Link>{' '}
-                      portfolio board for summed action-needed &amp; settled GMV.
+                      portfolio board for summed action-needed and sales.
                     </p>
                   </div>
                 ) : (

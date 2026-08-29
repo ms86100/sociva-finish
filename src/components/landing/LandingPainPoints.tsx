@@ -12,8 +12,8 @@ const PAINS = [
   },
   {
     icon: Truck,
-    pain: "You've called 5 plumbers from Google. None showed up.",
-    solution: "The electrician in A-block and the carpenter in Tower 3 are verified residents. They live 2 minutes away. They can't ghost you — you'll see them in the elevator.",
+    pain: "Your nani's mango pickle sat in a steel jar. No brand. Just her hands, and love.",
+    solution: "Someone in your society still makes it that way — the same oil, the same patience, the same taste that waited for you after school. Buy it from her kitchen. Or sell the recipe your family is afraid will die with this generation.",
     color: 'bg-warning/10 text-warning',
   },
   {

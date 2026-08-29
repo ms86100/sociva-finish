@@ -288,7 +288,7 @@ export function ProductDetailSheet({ product, open, onOpenChange, onSelectProduc
                     <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                       {d.isNewSeller ? <Badge variant="secondary" className="text-[9px] px-1.5 py-0 h-4">New Seller</Badge> : null}
                       {(product as any).seller_verified && (
-                        <Badge variant="secondary" className="text-[9px] px-1.5 py-0 h-4 bg-primary/10 text-primary border-0 font-bold">Verified</Badge>
+                        <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 bg-primary/10 text-primary border-0 font-bold">Approved store</Badge>
                       )}
                       {product.is_same_society && (
                         <Badge variant="secondary" className="text-[9px] px-1.5 py-0 h-4 bg-success/10 text-success border-0 font-bold">Your society</Badge>

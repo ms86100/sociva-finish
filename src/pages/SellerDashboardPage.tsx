@@ -375,7 +375,7 @@ export default function SellerDashboardPage() {
       <div className="min-w-0 flex-1">
         <p className="text-sm font-medium">Select a store for this tab</p>
         <p className="text-[11px] text-muted-foreground mb-2">
-          Portfolio mode sums orders &amp; settled GMV. Store tools, refunds, and stats need one store.
+          Portfolio mode sums orders and sales. Store tools, refunds, and stats need one store.
         </p>
         <SellerSwitcher />
       </div>
@@ -451,7 +451,7 @@ export default function SellerDashboardPage() {
               onHealthClick={() => setHealthSheetOpen(true)}
             />
 
-            {sellerProfile.verification_status === 'approved' && (
+            {sellerProfile.verification_status === 'approved' && pendingOrders === 0 && pendingRefunds === 0 && (
               <SellerFestivalParticipation sellerId={sellerProfile.id} variant="dashboard" />
             )}
 
@@ -523,44 +523,44 @@ export default function SellerDashboardPage() {
         {/* Tab navigation */}
         <Tabs value={dashboardTab} onValueChange={setDashboardTab} className="w-full">
           <TabsList className={cn('sticky top-0 z-10 w-full h-11 bg-muted/80 backdrop-blur-sm grid grid-cols-6')}>
-            <TabsTrigger value="orders" className="gap-1.5 text-xs px-1 relative">
+            <TabsTrigger value="orders" className="gap-1 text-[10px] sm:text-xs px-0.5 relative flex-col sm:flex-row">
               <ShoppingBag size={14} />
-              <span className="hidden min-[420px]:inline">Orders</span>
+              <span>Orders</span>
               {pendingOrders > 0 && (
                 <Badge variant="destructive" className="absolute -top-1 -right-1 h-4 min-w-4 px-1 text-[9px] rounded-full">
                   {pendingOrders}
                 </Badge>
               )}
             </TabsTrigger>
-            <TabsTrigger value="support" className="gap-1.5 text-xs px-1 relative">
+            <TabsTrigger value="support" className="gap-1 text-[10px] sm:text-xs px-0.5 relative flex-col sm:flex-row">
               <HeadphonesIcon size={14} />
-              <span className="hidden min-[420px]:inline">Support</span>
+              <span>Help</span>
               {activeSupportCount > 0 && (
                 <Badge variant="destructive" className="absolute -top-1 -right-1 h-4 min-w-4 px-1 text-[9px] rounded-full">
                   {activeSupportCount}
                 </Badge>
               )}
             </TabsTrigger>
-            <TabsTrigger value="refunds" className="gap-1.5 text-xs px-1 relative">
+            <TabsTrigger value="refunds" className="gap-1 text-[10px] sm:text-xs px-0.5 relative flex-col sm:flex-row">
               <Receipt size={14} />
-              <span className="hidden min-[420px]:inline">Refunds</span>
+              <span>Refunds</span>
               {pendingRefunds > 0 && (
                 <Badge variant="destructive" className="absolute -top-1 -right-1 h-4 min-w-4 px-1 text-[9px] rounded-full animate-pulse">
                   {pendingRefunds}
                 </Badge>
               )}
             </TabsTrigger>
-            <TabsTrigger value="schedule" className="gap-1.5 text-xs px-1">
+            <TabsTrigger value="schedule" className="gap-1 text-[10px] sm:text-xs px-0.5 flex-col sm:flex-row">
               <CalendarDays size={14} />
-              <span className="hidden min-[420px]:inline">Schedule</span>
+              <span>Plan</span>
             </TabsTrigger>
-            <TabsTrigger value="tools" className="gap-1.5 text-xs px-1">
+            <TabsTrigger value="tools" className="gap-1 text-[10px] sm:text-xs px-0.5 flex-col sm:flex-row">
               <Wrench size={14} />
-              <span className="hidden min-[420px]:inline">Tools</span>
+              <span>Store</span>
             </TabsTrigger>
-            <TabsTrigger value="stats" className="gap-1.5 text-xs px-1">
+            <TabsTrigger value="stats" className="gap-1 text-[10px] sm:text-xs px-0.5 flex-col sm:flex-row">
               <BarChart3 size={14} />
-              <span className="hidden min-[420px]:inline">Stats</span>
+              <span>Stats</span>
             </TabsTrigger>
           </TabsList>
 

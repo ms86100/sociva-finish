@@ -331,7 +331,7 @@ export function useOrderDetail(id: string | undefined) {
     } catch (error: any) {
       console.error('Buyer advance order failed:', error);
       const errMsg = error?.message || error?.details || '';
-      toast.error(errMsg.includes('Invalid buyer transition') ? 'This action is no longer available' : errMsg.includes('notification_queue') ? 'Order updated, but seller notification failed. Retrying in the background.' : `Failed to update order: ${errMsg || 'Unknown error'}`, { id: `order-${order.id}-error` });
+      toast.error(errMsg.includes('Invalid buyer transition') ? 'This action is no longer available' : errMsg.includes('notification_queue') ? 'Order updated, but seller notification failed. Retrying in the background.' : 'Could not update this order. Pull to refresh, or try again in a minute.', { id: `order-${order.id}-error` });
       invalidateOrder();
       setIsUpdating(false);
     }

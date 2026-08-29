@@ -55,7 +55,7 @@ export default function DeleteAccountPage() {
             <ul className="list-disc list-inside space-y-1">
               <li>Profile and personal information (name, phone, email, flat/block/address)</li>
               <li>Login credentials and account access</li>
-              <li>Favorites, chat messages, and reviews you wrote</li>
+              <li>Favourites, chat messages, and reviews you wrote</li>
               <li>Seller profile, listings, and related seller data (if you were a seller)</li>
               <li>Order history linked to your account (subject to legal retention below)</li>
               <li>Push notification / device tokens for your account</li>

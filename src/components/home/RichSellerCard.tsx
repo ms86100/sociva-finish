@@ -93,26 +93,26 @@ export function RichSellerCard({
           )}
 
           {isFeatured && (
-            <span className="absolute top-1.5 left-1.5 text-[8px] font-bold bg-primary text-primary-foreground px-1.5 py-0.5 rounded-full">
-              Verified
+            <span className="absolute top-1.5 left-1.5 text-[10px] font-bold bg-primary text-primary-foreground px-1.5 py-0.5 rounded-full">
+              Featured
             </span>
           )}
 
-          <span className="absolute bottom-1 right-1 text-[8px] font-semibold bg-background/80 backdrop-blur-sm text-foreground px-1.5 py-0.5 rounded-full flex items-center gap-0.5">
-            {isNew ? (<><Store size={8} />New</>) : (<><Users size={8} />{totalReviews} reviews</>)}
+          <span className="absolute bottom-1 right-1 text-[10px] font-semibold bg-background/80 backdrop-blur-sm text-foreground px-1.5 py-0.5 rounded-full flex items-center gap-0.5">
+            {isNew ? (<><Store size={10} />New</>) : (<><Users size={10} />{totalReviews} reviews</>)}
           </span>
         </div>
 
         <div className="px-2 pt-1.5 pb-1">
-          <p className="font-bold text-foreground text-[11px] leading-tight line-clamp-1">{sanitized}</p>
+          <p className="font-bold text-foreground text-[12px] leading-tight line-clamp-2">{sanitized}</p>
           {categories && categories.length > 0 && (
             <div className="flex gap-1 mt-1 overflow-hidden">
               {categories.slice(0, 2).map(cat => (
                 <span
                   key={cat}
-                  className="text-[8px] px-1.5 py-0.5 rounded-full bg-secondary text-muted-foreground truncate max-w-[60px]"
+                  className="text-[10px] px-1.5 py-0.5 rounded-full bg-secondary text-muted-foreground truncate max-w-[88px]"
                 >
-                  {cat.replace(/_/g, ' ')}
+                  {cat.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())}
                 </span>
               ))}
             </div>
@@ -131,7 +131,7 @@ export function RichSellerCard({
               ))}
             </div>
             {minPrice !== null && (
-              <p className="text-[9px] font-semibold text-success mt-1 px-0.5">
+              <p className="text-[12px] font-semibold text-success mt-1 px-0.5 tabular-nums">
                 From {formatPrice(minPrice)}
               </p>
             )}
@@ -164,10 +164,10 @@ function ProductMini({ product, onTap }: { product: TopProduct; onTap?: (e: Reac
         </div>
       )}
       <div className="px-1 py-0.5">
-        <p className="text-[8px] text-foreground font-medium line-clamp-1">{product.name}</p>
+        <p className="text-[11px] text-foreground font-medium line-clamp-2">{product.name}</p>
         <div className="flex items-center gap-0.5">
           {product.is_veg !== null && <VegBadge isVeg={product.is_veg} size="sm" />}
-          <span className="text-[8px] font-bold text-foreground">{formatPrice(product.price)}</span>
+          <span className="text-[12px] font-bold text-foreground tabular-nums">{formatPrice(product.price)}</span>
         </div>
       </div>
     </div>

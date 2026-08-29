@@ -365,22 +365,22 @@ export default function SellerCreditsPage() {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Coins className="text-primary" size={20} />
-                <p className="font-semibold">Available</p>
+                <p className="font-semibold">Listing credits ready</p>
               </div>
               <p className="text-2xl font-bold tabular-nums">{formatPrice(summary?.available || 0)}</p>
             </div>
             <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">Reserved</span>
+              <span className="text-muted-foreground">Held on open orders</span>
               <span className="font-semibold tabular-nums">{formatPrice(summary?.reserved || 0)}</span>
             </div>
-            <p className="text-[11px] text-muted-foreground">Total available for new activity {formatPrice(summary?.available || 0)}</p>
+            <p className="text-[11px] text-muted-foreground">Ready credits can list or accept new activity. Held credits return after those orders finish.</p>
             {exhausted && summary?.spendEnabled && (
               <p className="text-sm text-destructive">{SELLER_CREDITS_EXHAUSTED}</p>
             )}
             <div className="grid grid-cols-3 gap-2 text-[11px] text-muted-foreground">
               <div>Purchased<br /><strong className="text-foreground">{formatPrice(summary?.lifetimePurchased || 0)}</strong></div>
               <div>Used<br /><strong className="text-foreground">{formatPrice(summary?.lifetimeConsumed || 0)}</strong></div>
-              <div>Reserved<br /><strong className="text-foreground">{formatPrice(summary?.reserved || 0)}</strong></div>
+              <div>Held<br /><strong className="text-foreground">{formatPrice(summary?.reserved || 0)}</strong></div>
             </div>
             <p className="text-[11px] text-muted-foreground">
               Used this month {formatPrice(summary?.usedThisMonth || 0)} · Orders {summary?.ordersThisMonth || 0} · Enquiries {summary?.enquiriesThisMonth || 0} · Bookings {summary?.bookingsThisMonth || 0} · Contacts {summary?.contactsThisMonth || 0}

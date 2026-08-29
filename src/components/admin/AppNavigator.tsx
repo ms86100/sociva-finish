@@ -49,7 +49,7 @@ const sections: NavSection[] = [
       { label: 'Categories', route: '/categories', icon: LayoutGrid, description: 'Browse all categories' },
       { label: 'Cart', route: '/cart', icon: ShoppingCart, description: 'Shopping cart & checkout' },
       { label: 'Orders', route: '/orders', icon: Package, description: 'Order history' },
-      { label: 'Favorites', route: '/favorites', icon: Heart, description: 'Saved sellers' },
+      { label: 'Favourites', route: '/favorites', icon: Heart, description: 'Saved sellers' },
       { label: 'Subscriptions', route: '/subscriptions', icon: Star, description: 'Active subscriptions' },
       { label: 'Trust Directory', route: '/directory', icon: Award, description: 'Verified sellers directory' },
     ],
@@ -64,7 +64,7 @@ const sections: NavSection[] = [
       { label: 'Seller Settings', route: '/seller/settings', icon: Settings, description: 'Store settings, coupons, license' },
       { label: 'Seller Wallet', route: '/seller/wallet', icon: DollarSign, description: 'Available, pending, paid out' },
       { label: 'Sociva Credits', route: '/seller/credits', icon: DollarSign, description: 'Prepaid platform usage' },
-      { label: 'Settled GMV', route: '/seller/earnings', icon: DollarSign, description: 'Completed sales value' },
+      { label: 'Sales', route: '/seller/earnings', icon: DollarSign, description: 'Completed sales value' },
     ],
   },
   {

@@ -122,7 +122,7 @@ export default function SellerEarningsPage() {
             <ArrowLeft size={18} className="text-foreground" />
           </Link>
           <h1 className="text-xl font-bold">
-            {isPortfolio ? 'Settled GMV · All stores' : 'Settled GMV'}
+            {isPortfolio ? 'Sales · All stores' : 'Sales'}
           </h1>
         </div>
       </SafeHeader>
@@ -133,7 +133,7 @@ export default function SellerEarningsPage() {
             {isPortfolio && (
               <p className="text-[11px] text-muted-foreground flex items-center gap-1.5">
                 <LayoutGrid size={12} />
-                Settled GMV summed across all stores you own
+                Completed sales summed across all stores you own
               </p>
             )}
           </div>
@@ -155,11 +155,11 @@ export default function SellerEarningsPage() {
           <div className="flex items-center gap-2 mb-1">
             <TrendingUp className="text-success" size={20} />
             <h3 className="font-semibold">
-              {isPortfolio ? 'Settled GMV · All stores' : 'Settled GMV'}
+              {isPortfolio ? 'Sales · All stores' : 'Sales'}
             </h3>
           </div>
           <p className="text-[10px] text-muted-foreground mb-3">
-            Completed sales value after refunds. Partial refunds reduce this by the refunded amount only — this is not withdrawable earnings.
+            Completed sales after refunds. Partial refunds reduce this by the refunded amount only — this is not withdrawable earnings.
           </p>
           <div className="grid grid-cols-2 gap-3">
             <div className="bg-background/50 rounded-lg p-3 text-center">
@@ -184,7 +184,7 @@ export default function SellerEarningsPage() {
         <div>
           <h3 className="font-semibold mb-3 mt-4">Recent transactions</h3>
           <p className="text-[10px] text-muted-foreground mb-3">
-            Payment records for reference — totals above use Settled GMV, not this list
+            Payment records for reference — totals above use completed sales, not this list
           </p>
           {payments.length > 0 ? (
             <div className="space-y-3">

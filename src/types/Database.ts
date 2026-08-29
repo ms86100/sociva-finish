@@ -332,7 +332,7 @@ const ORDER_STATUS_MAP: Record<string, { label: string; color: string }> = {
   delivered: { label: 'Delivered', color: 'bg-emerald-100 text-emerald-800' },
   completed: { label: 'Completed', color: 'bg-gray-100 text-gray-800' },
   cancelled: { label: 'Cancelled', color: 'bg-red-100 text-red-800' },
-  enquired: { label: 'Enquiry Sent', color: 'bg-purple-100 text-purple-800' },
+  enquired: { label: 'Quote sent', color: 'bg-purple-100 text-purple-800' },
   quoted: { label: 'Quote Received', color: 'bg-orange-100 text-orange-800' },
   scheduled: { label: 'Scheduled', color: 'bg-cyan-100 text-cyan-800' },
   in_progress: { label: 'In Progress', color: 'bg-amber-100 text-amber-800' },

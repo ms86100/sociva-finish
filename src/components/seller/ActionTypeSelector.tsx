@@ -39,10 +39,10 @@ export function ActionTypeSelector({ category, value, onChange, configs }: Actio
 
   return (
     <div className="space-y-2">
-      <Label className="text-xs">Buyer Interaction</Label>
+      <Label className="text-xs">How customers buy this</Label>
       <Select value={value} onValueChange={onChange}>
         <SelectTrigger className="h-10">
-          <SelectValue placeholder="Choose how buyers interact" />
+          <SelectValue placeholder="Add to cart, book, quote, or contact" />
         </SelectTrigger>
         <SelectContent>
           {options.map(opt => {

@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils';
 import { easings } from '@/lib/motion-variants';
 import { hapticNotification } from '@/lib/haptics';
 
-export const FEEDBACK_AUTO_DISMISS_MS = 2800;
+export const FEEDBACK_AUTO_DISMISS_MS = 4500;
 
 interface FeedbackPopupProps {
   isOpen: boolean;

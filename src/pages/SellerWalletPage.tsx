@@ -122,7 +122,7 @@ export default function SellerWalletPage() {
           </Link>
           <div>
             <h1 className="text-xl font-bold">{isPortfolio ? 'Seller Wallet · All stores' : 'Seller Wallet'}</h1>
-            <p className="text-[11px] text-muted-foreground">Payable earnings from settlements — not Settled GMV</p>
+            <p className="text-[11px] text-muted-foreground">Money you can withdraw after settlement</p>
           </div>
         </div>
       </SafeHeader>
@@ -169,7 +169,7 @@ export default function SellerWalletPage() {
         </Card>
 
         <Link to="/seller/earnings" className="block text-sm text-primary font-medium">
-          View Settled GMV (completed sales value) →
+          View completed sales →
         </Link>
         <Link to="/seller/payouts" className="block text-sm text-muted-foreground">
           Settlement ledger →

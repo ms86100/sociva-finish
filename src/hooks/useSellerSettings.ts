@@ -193,7 +193,7 @@ export function useSellerSettings() {
       if (error) throw error;
       notify.info(newAvailability ? 'Store is now open!' : 'Store paused temporarily', { title: newAvailability ? 'Store open' : 'Store paused' });
       if ((sellerProfile as any).society_id) logAudit(newAvailability ? 'store_resumed' : 'store_paused', 'seller_profile', sellerProfile.id, (sellerProfile as any).society_id);
-    } catch { setFormData(prev => ({ ...prev, is_available: !newAvailability })); toast.error('Failed to update store status', { id: 'settings-availability-error' }); }
+    } catch { setFormData(prev => ({ ...prev, is_available: !newAvailability })); toast.error('Could not update store status. Check your connection and try again.', { id: 'settings-availability-error' }); }
     finally { togglePauseRef.current = false; }
   };
 

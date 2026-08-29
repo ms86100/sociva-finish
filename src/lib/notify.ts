@@ -41,9 +41,9 @@ export interface NotifyState {
 }
 
 const DEFAULT_TITLES: Record<NotifyVariant, string> = {
-  block: 'Action not allowed',
+  block: 'Almost there',
   warn: 'Please review',
-  info: 'Heads up',
+  info: 'Just so you know',
 };
 
 let state: NotifyState = {

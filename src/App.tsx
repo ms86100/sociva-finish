@@ -600,7 +600,7 @@ function AppRoutes() {
           <Route path="/seller/messages" element={<RouteErrorBoundary sectionName="Seller Messages"><SellerMessagesPage /></RouteErrorBoundary>} />
           <Route path="/profile" element={<RouteErrorBoundary sectionName="Profile"><ProfilePage /></RouteErrorBoundary>} />
           <Route path="/profile/edit" element={<RouteErrorBoundary sectionName="Profile Edit"><ProfileEditPage /></RouteErrorBoundary>} />
-          <Route path="/favorites" element={<RouteErrorBoundary sectionName="Favorites"><FavoritesPage /></RouteErrorBoundary>} />
+          <Route path="/favorites" element={<RouteErrorBoundary sectionName="Favourites"><FavoritesPage /></RouteErrorBoundary>} />
           <Route path="/subscriptions" element={<RouteErrorBoundary sectionName="Subscriptions"><MySubscriptionsPage /></RouteErrorBoundary>} />
           <Route path="/directory" element={<RouteErrorBoundary sectionName="Directory"><TrustDirectoryPage /></RouteErrorBoundary>} />
           <Route path="/disputes" element={<RouteErrorBoundary sectionName="Disputes"><DisputesPage /></RouteErrorBoundary>} />

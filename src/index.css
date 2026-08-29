@@ -874,6 +874,17 @@ body.razorpay-active.razorpay-ios iframe[src*="checkout.razorpay"] {
   }
 }
 
+/* Bottom sheets: keep the caret just above the keyboard, not 12rem higher */
+[data-vaul-drawer] input:focus,
+[data-vaul-drawer] textarea:focus,
+[data-vaul-drawer] select:focus,
+[data-drawer-scroll] input:focus,
+[data-drawer-scroll] textarea:focus,
+[data-drawer-scroll] select:focus {
+  scroll-margin-top: 0.75rem;
+  scroll-margin-bottom: 0.75rem;
+}
+
 /* Scrollbar-hide utility for horizontal tab scrolling */
 .scrollbar-hide {
   -ms-overflow-style: none;

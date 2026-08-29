@@ -28,7 +28,7 @@ import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvid
 import { useBrowsingLocation } from '@/contexts/BrowsingLocationContext';
 import { buyerCanOrderFromSeller } from '@/lib/sellerDiscoverability';
 import { PRECISE_LOCATION_TITLE } from '@/lib/buyerLocation';
-import { scrollFocusedFieldInDrawer, useDrawerKeyboard } from '@/hooks/useChatViewport';
+import { getDrawerKeyboardStyle, useKeepDrawerFieldVisible } from '@/hooks/useChatViewport';
 import { ProductExtraPicker, useProductExtraGroups } from '@/components/product/ProductExtraPicker';
 import { extrasHaveRequiredGaps, sanitizeSelectedExtras, type SelectedExtra } from '@/lib/productExtras';
 import {
@@ -115,7 +115,7 @@ export function ServiceBookingFlow({
   const [recurringConfig, setRecurringConfig] = useState<RecurringConfig>({ enabled: false, frequency: 'weekly' });
   const [isLoading, setIsLoading] = useState(false);
   const [selfBookError, setSelfBookError] = useState(false);
-  const { viewportHeight, keyboardInset } = useDrawerKeyboard(open);
+  const { viewportHeight, keyboardInset, isKeyboardOpen } = useKeepDrawerFieldVisible(open);
   const extraGroups = useProductExtraGroups(productSpecs);
 
   useEffect(() => {
@@ -137,13 +137,6 @@ export function ServiceBookingFlow({
       }
     }
   }, [open, productId]);
-
-  useEffect(() => {
-    if (!open) return;
-    const onFocus = () => window.setTimeout(() => scrollFocusedFieldInDrawer(), 80);
-    document.addEventListener('focusin', onFocus);
-    return () => document.removeEventListener('focusin', onFocus);
-  }, [open, keyboardInset]);
 
   const { data: subcategories = [] } = useSubcategories(config?.id || null);
   const activeSubcategory = useMemo(() => {
@@ -380,17 +373,12 @@ export function ServiceBookingFlow({
 
   return (
     <>
-    <Drawer open={open} onOpenChange={onOpenChange}>
+    <Drawer open={open} onOpenChange={onOpenChange} repositionInputs={false}>
       <DrawerContent
-        data-drawer-scroll
-        className="max-h-[85vh] overflow-y-auto"
-        style={{
-          bottom: keyboardInset,
-          maxHeight: viewportHeight ? `${Math.max(viewportHeight - 12, 280)}px` : '85vh',
-          paddingBottom: `calc(${keyboardInset}px + env(safe-area-inset-bottom, 0px))`,
-        }}
+        className="max-h-[85dvh] overflow-hidden"
+        style={getDrawerKeyboardStyle({ viewportHeight, keyboardInset, isKeyboardOpen })}
       >
-        <DrawerHeader className="pb-4">
+        <DrawerHeader className="shrink-0 pb-4">
           <DrawerTitle className="flex items-center gap-2">
             {step === 'review' && (
               <Button variant="ghost" size="icon" className="h-7 w-7 -ml-1" onClick={handleBackToSelect}>
@@ -401,7 +389,7 @@ export function ServiceBookingFlow({
           </DrawerTitle>
         </DrawerHeader>
 
-        <div className="space-y-6 overflow-y-auto pb-24 px-4">
+        <div data-drawer-scroll className="min-h-0 flex-1 space-y-6 overflow-y-auto overscroll-contain px-4 pb-3">
           <AnimatePresence mode="wait">
           {step === 'select' && (
             <motion.div
@@ -410,6 +398,7 @@ export function ServiceBookingFlow({
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
               transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+              className="space-y-6"
             >
               {/* Summary */}
               <div className="flex gap-3 p-3 bg-muted rounded-lg">
@@ -464,7 +453,7 @@ export function ServiceBookingFlow({
 
               {/* Address for home visit */}
               {needsAddress && (
-                <div className="space-y-2">
+                <div className="space-y-2" data-keyboard-field>
                   <label className="text-sm font-medium flex items-center gap-2">
                     <MapPin size={14} />Your Address (required for home visit)
                   </label>
@@ -504,7 +493,7 @@ export function ServiceBookingFlow({
               )}
 
               {/* Notes */}
-              <div className="space-y-2">
+              <div className="space-y-2" data-keyboard-field>
                 <label className="text-sm font-medium flex items-center gap-2">
                   <MessageCircle size={14} />Special Requests (Optional)
                 </label>
@@ -635,8 +624,8 @@ export function ServiceBookingFlow({
           </AnimatePresence>
         </div>
 
-        {/* Bottom CTA */}
-        <div className="absolute bottom-0 left-0 right-0 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] bg-background border-t">
+        {/* Bottom CTA — stays just above the keyboard */}
+        <div className={`shrink-0 border-t bg-background px-4 pt-4 ${isKeyboardOpen ? 'pb-3' : 'pb-[calc(1rem+env(safe-area-inset-bottom))]'}`}>
           {step === 'select' ? (
             <Button className="w-full" size="lg" disabled={!isSelectValid} onClick={handleContinueToReview} whileTap={{ scale: 0.97 }} as={motion.button}>
               Continue · {formatPrice(totalAmount)}

@@ -461,7 +461,7 @@ export function getNextRenewalDate(startDate: string, intervalDays: number): Dat
 const ORDER_STATUS_LABEL_MAP: Record<string, string> = {
   placed: 'Order Placed', accepted: 'Accepted', preparing: 'Preparing',
   ready: 'Ready', picked_up: 'Picked Up', delivered: 'Delivered',
-  completed: 'Completed', cancelled: 'Cancelled', enquired: 'Enquiry Sent',
+  completed: 'Completed', cancelled: 'Cancelled', enquired: 'Quote sent',
   quoted: 'Quote Received', scheduled: 'Scheduled', in_progress: 'In Progress',
   returned: 'Returned',
 };

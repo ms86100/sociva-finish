@@ -8,6 +8,9 @@ function isEditable(el: Element | null): el is HTMLElement {
 function scrollFocusedIntoView() {
   const el = document.activeElement;
   if (!isEditable(el)) return;
+  // Drawers manage their own keyboard lift/scroll. Centering here throws the
+  // focused field off the top of the sheet.
+  if (el.closest('[data-drawer-scroll]')) return;
   el.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'smooth' });
 }
 

@@ -34,7 +34,7 @@ export function PortfolioRollupStrip({
               Portfolio · {storeCount} store{storeCount === 1 ? '' : 's'}
             </p>
             <p className="text-[11px] text-muted-foreground">
-              Summed settled GMV &amp; action-needed across stores you own
+              Summed sales and action-needed across stores you own
             </p>
           </div>
         </div>

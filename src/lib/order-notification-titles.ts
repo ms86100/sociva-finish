@@ -27,7 +27,7 @@ export const ORDER_NOTIF_TITLES_BUYER: Record<string, string> = {
 
 export const ORDER_NOTIF_TITLES_SELLER: Record<string, string> = {
   placed: '🆕 New Order Received!',
-  enquired: '📋 New Booking Request!',
+  enquired: '📋 New quote request',
   cancelled: '❌ Order Cancelled',
   requested: '📩 New Service Request!',
   no_show: '🚫 Customer No-Show',

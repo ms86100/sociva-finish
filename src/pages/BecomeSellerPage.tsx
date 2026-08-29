@@ -946,6 +946,13 @@ export default function BecomeSellerPage() {
           <p className="text-muted-foreground text-sm mt-1">
             {step === 5 ? STORE_SETUP_SUB_STEPS[storeSetupSubStep - 1].helper : step === 6 ? CONFIG_SUB_STEPS[configSubStep - 1].helper : STEP_META[step - 1].helper}
           </p>
+          <p className="text-xs text-muted-foreground mt-2">
+            {step === 5
+              ? `Store setup ${storeSetupSubStep} of ${STORE_SETUP_SUB_STEPS.length} · then payments, hours, and photos`
+              : step === 6
+                ? `Configure ${configSubStep} of ${CONFIG_SUB_STEPS.length} · then add products and submit`
+                : `Step ${step} of ${STEP_META.length}`}
+          </p>
         </div>
 
         {/* Progress Stepper */}
@@ -1249,8 +1256,7 @@ export default function BecomeSellerPage() {
                   <Label htmlFor="business_name">Business / Store Name *</Label>
                   <Input id="business_name" placeholder={groups.find(g => g.slug === selectedGroup)?.placeholder_hint || "e.g., Your Store Name"} value={formData.business_name} onChange={(e) => setFormData({ ...formData, business_name: e.target.value })} />
                   <p className="text-xs text-muted-foreground leading-relaxed">
-                    This is your shop title — buyers see it on your store page, products, orders, and invoices.
-                    The previous “you'll appear as” label is only your specialty (for example, Home Meal Provider), not this store name.
+                    Buyers see this name on your store, products, orders, and invoices.
                   </p>
                 </div>
                 <div className="space-y-2"><Label htmlFor="description">Description</Label><Textarea id="description" placeholder="Tell customers about what you offer..." value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} rows={3} /></div>

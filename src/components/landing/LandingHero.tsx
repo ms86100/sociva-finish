@@ -30,7 +30,7 @@ export function LandingHero() {
             className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20 mb-8"
           >
             <Shield className="text-primary" size={14} />
-            <span className="text-xs font-semibold text-primary">Only from verified neighbors</span>
+            <span className="text-xs font-semibold text-primary">From kitchens and hands in your society</span>
           </motion.div>
 
           <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold leading-[1.1] mb-6 text-foreground tracking-tight">

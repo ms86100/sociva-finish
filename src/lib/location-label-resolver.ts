@@ -57,6 +57,11 @@ export function cleanLocationTitle(raw: string): string {
   const first = parts[0];
   const second = parts[1];
 
+  // House number only ("2", "14A") is not a place name — skip to the locality.
+  if (/^\d+[A-Za-z]?$/.test(first) && second) {
+    return cleanLocationTitle(parts.slice(1).join(', '));
+  }
+
   // If first part is a flat/unit/tower/block indicator (e.g. "Flat 302", "Tower 4", "Block B", "Villa 12")
   // and second part is the building/society name (e.g. "Shriram Greenfield"), combine them
   const isUnitPrefix = /^(?:flat|apt|apartment|unit|tower|block|villa|house|room|no\.?|#)\s*[\w\d-]+$/i.test(first);
@@ -65,6 +70,21 @@ export function cleanLocationTitle(raw: string): string {
   }
 
   return first;
+}
+
+/** Buyer-facing store place: society first, never a wrapped postal dump. */
+export function shortStorePlaceLabel(input: {
+  societyName?: string | null;
+  storeLocationLabel?: string | null;
+  societyAddress?: string | null;
+}): { short: string; full?: string } {
+  const society = (input.societyName || '').trim();
+  const raw = (input.storeLocationLabel || input.societyAddress || '').trim();
+  const full = raw || undefined;
+  if (society) return { short: society, full: full && full !== society ? full : undefined };
+  if (!raw) return { short: 'View on map' };
+  const short = cleanLocationTitle(raw);
+  return { short: short || 'View on map', full: full !== short ? full : undefined };
 }
 
 /**
