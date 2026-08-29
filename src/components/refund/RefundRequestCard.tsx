@@ -233,8 +233,11 @@ export function RefundRequestCard({
     const isCompleted = state === 'refund_completed';
     const isRejected = state === 'rejected';
     const displayAmount = existingRefund.approved_amount ?? existingRefund.requested_amount ?? existingRefund.amount;
-    const isWalletRefund = existingRefund.refund_destination === 'wallet'
-      || (existingRefund.refund_method === 'wallet' && existingRefund.refund_destination !== 'seller_resolution');
+    const walletRefundEnabled = canPromiseBalanceRefund;
+    const isWalletRefund = walletRefundEnabled && (
+      existingRefund.refund_destination === 'wallet'
+      || (existingRefund.refund_method === 'wallet' && existingRefund.refund_destination !== 'seller_resolution')
+    );
 
     return (
       <motion.div variants={cardEntrance} className="bg-card/80 backdrop-blur-lg border border-border/50 rounded-xl px-4 py-3 shadow-sm space-y-3">

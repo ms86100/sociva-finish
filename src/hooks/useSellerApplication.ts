@@ -481,11 +481,11 @@ export function useSellerApplication(opts?: { forceNew?: boolean }) {
             const raw = localStorage.getItem(ONBOARDING_FORM_BACKUP_KEY);
             if (raw) {
               const backup = JSON.parse(raw);
-              if (backup?.userId === user.id && backup.formData) {
+              if (backup && typeof backup === 'object' && backup?.userId === user.id && backup.formData && typeof backup.formData === 'object') {
                 restoreFromBackup(backup);
               }
             }
-          } catch { /* */ }
+          } catch { /* clean corrupt backup */ localStorage.removeItem(ONBOARDING_FORM_BACKUP_KEY); }
           const existing = data.find((s: any) =>
             s.verification_status === 'rejected' ||
             s.verification_status === 'pending'
@@ -504,11 +504,11 @@ export function useSellerApplication(opts?: { forceNew?: boolean }) {
             const raw = localStorage.getItem(ONBOARDING_FORM_BACKUP_KEY);
             if (raw) {
               const backup = JSON.parse(raw);
-              if (backup?.userId === user.id && backup.formData) {
+              if (backup && typeof backup === 'object' && backup?.userId === user.id && backup.formData && typeof backup.formData === 'object') {
                 restoreFromBackup(backup);
               }
             }
-          } catch { /* */ }
+          } catch { /* clean corrupt backup */ localStorage.removeItem(ONBOARDING_FORM_BACKUP_KEY); }
         }
       } catch (error) {
         console.error('Error checking existing seller:', error);

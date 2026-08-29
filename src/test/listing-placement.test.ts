@@ -236,7 +236,7 @@ describe('taste moods and browse URLs', () => {
   it('only surfaces moods that exist in inventory', () => {
     const moods = availableTasteMoods([
       { name: 'Cakes', tags: ['course:dessert'] },
-      { name: 'Dal', tags: ['cuisine:north_indian'] },
+      { name: 'Pure Food', tags: ['cuisine:north_indian'] },
     ]);
     expect(moods.map((m) => m.id)).toEqual(['north_indian', 'dessert']);
   });

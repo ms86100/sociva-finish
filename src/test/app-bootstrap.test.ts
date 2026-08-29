@@ -86,7 +86,7 @@ describe('app bootstrap', () => {
     const first = await freshModule();
     await first.loadAppBootstrap();
     expect(rpc).toHaveBeenCalledTimes(1);
-    expect(localStorage.getItem('app-bootstrap-v1')).toBeTruthy();
+    expect(localStorage.getItem('app-bootstrap-v3')).toBeTruthy();
 
     // New page load: module re-evaluates, localStorage survives.
     rpc.mockClear();
@@ -106,7 +106,7 @@ describe('app bootstrap', () => {
       badgeConfigRows: [],
       fetchedAt: Date.now() - 60 * 60 * 1000, // 1h old, past the 30m TTL
     };
-    localStorage.setItem('app-bootstrap-v1', JSON.stringify(stale));
+    localStorage.setItem('app-bootstrap-v3', JSON.stringify(stale));
 
     const { loadAppBootstrap } = await freshModule();
     const boot = await loadAppBootstrap();
@@ -119,7 +119,7 @@ describe('app bootstrap', () => {
 
   it('discards a snapshot that is older than the max persist age', async () => {
     localStorage.setItem(
-      'app-bootstrap-v1',
+      'app-bootstrap-v3',
       JSON.stringify({ sysMap: { currency_symbol: 'ANCIENT' }, fetchedAt: Date.now() - 30 * 24 * 60 * 60 * 1000 })
     );
 

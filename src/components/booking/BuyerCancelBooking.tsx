@@ -98,20 +98,21 @@ export function BuyerCancelBooking({ bookingId, orderId, status }: BuyerCancelBo
 
       if (rpcError) throw rpcError;
 
-      // Update booking status if needed (order already cancelled by RPC;
-      // slot release is handled by sync_booking_status_on_order_update_impl)
-      const { error: bookingErr } = await supabase
-        .from('service_bookings')
-        .update({
-          status: 'cancelled',
-          cancelled_at: new Date().toISOString(),
-          cancellation_reason: reason.trim().slice(0, 500) || 'No reason provided',
-        })
-        .eq('id', bookingId)
-        .eq('buyer_id', user.id);
-      if (bookingErr) {
-        console.error('Order cancelled but booking status update failed:', bookingErr);
-        toast.error('Order cancelled, but booking status may still show active. Contact support if needed.');
+      // Direct booking status update is a best-effort client hint;
+      // the PostgreSQL DB trigger (sync_booking_status_on_order_update_impl) atomically
+      // updates service_bookings and releases slot on order cancellation.
+      try {
+        await supabase
+          .from('service_bookings')
+          .update({
+            status: 'cancelled',
+            cancelled_at: new Date().toISOString(),
+            cancellation_reason: reason.trim().slice(0, 500) || 'No reason provided',
+          })
+          .eq('id', bookingId)
+          .eq('buyer_id', user.id);
+      } catch (bookingErr) {
+        console.warn('Direct service_bookings update note (handled atomically by DB trigger):', bookingErr);
       }
 
       // Notify seller via SECURITY DEFINER enqueue (not direct notification_queue insert)

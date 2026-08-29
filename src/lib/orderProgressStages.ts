@@ -43,18 +43,18 @@ export interface OrderProgressResolution {
 }
 
 export const DELIVERY_PROGRESS_STAGES: OrderProgressStageDef[] = [
-  { id: 1, key: 'scheduled', label: 'Scheduled', shortLabel: 'Scheduled' },
-  { id: 2, key: 'confirmed', label: 'Confirmed', shortLabel: 'Confirmed' },
-  { id: 3, key: 'in_progress', label: 'In Progress', shortLabel: 'In Progress' },
-  { id: 4, key: 'completed', label: 'Completed', shortLabel: 'Completed' },
+  { id: 1, key: 'placed', label: 'Confirmed', shortLabel: 'Confirmed' },
+  { id: 2, key: 'preparing', label: 'Preparing', shortLabel: 'Prep' },
+  { id: 3, key: 'transit', label: 'On the way', shortLabel: 'Transit' },
+  { id: 4, key: 'delivered', label: 'Delivered', shortLabel: 'Delivered' },
 ];
 
 export const PICKUP_PROGRESS_STAGES: OrderProgressStageDef[] = [
-  { id: 1, key: 'scheduled', label: 'Scheduled', shortLabel: 'Scheduled' },
-  { id: 2, key: 'confirmed', label: 'Confirmed', shortLabel: 'Confirmed' },
-  { id: 3, key: 'in_progress', label: 'In Progress', shortLabel: 'In Progress' },
+  { id: 1, key: 'placed', label: 'Confirmed', shortLabel: 'Confirmed' },
+  { id: 2, key: 'preparing', label: 'Preparing', shortLabel: 'Prep' },
+  { id: 3, key: 'ready', label: 'Ready for pickup', shortLabel: 'Ready' },
   // Align with self_fulfillment terminal (completed), not delivery's delivered
-  { id: 4, key: 'completed', label: 'Completed', shortLabel: 'Completed' },
+  { id: 4, key: 'buyer_received', label: 'Picked up', shortLabel: 'Picked up' },
 ];
 
 const END_STATES = new Set<string>([

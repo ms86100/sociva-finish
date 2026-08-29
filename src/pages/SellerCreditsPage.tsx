@@ -366,6 +366,7 @@ export default function SellerCreditsPage() {
               <div className="flex items-center gap-2">
                 <Coins className="text-primary" size={20} />
                 <p className="font-semibold">Listing credits ready</p>
+                <span className="sr-only">Total available for new activity</span>
               </div>
               <p className="text-2xl font-bold tabular-nums">{formatPrice(summary?.available || 0)}</p>
             </div>

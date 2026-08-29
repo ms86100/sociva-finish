@@ -1740,7 +1740,7 @@ export default function OrderDetailPage() {
           transitStatuses={trackingConfig.transit_statuses}
           overlayDistanceMeters={trackingConfig.arrival_overlay_distance_meters}
           doorstepDistanceMeters={trackingConfig.arrival_doorstep_distance_meters}
-          proximityMessages={(() => {
+          proximityMessages={useMemo(() => {
             try {
               const raw = getSetting('proximity_thresholds');
               if (raw) {
@@ -1753,7 +1753,7 @@ export default function OrderDetailPage() {
               }
             } catch { /* use defaults */ }
             return undefined;
-          })()}
+          }, [getSetting])}
         />
       )}
     </AppLayout>
@@ -1802,17 +1802,25 @@ function SellerRefundSection({
   }
 
   useEffect(() => {
+    let isSubscribed = true;
     fetchRefund();
     // Realtime updates so seller card reflects buyer requests + state changes instantly
+    const channelName = `seller-refund-${orderId}`;
     const channel = supabase
-      .channel(`seller-refund-${orderId}`)
+      .channel(channelName)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'refund_requests', filter: `order_id=eq.${orderId}` },
-        () => { fetchRefund(); },
+        () => {
+          if (isSubscribed) fetchRefund();
+        },
       )
       .subscribe();
-    return () => { supabase.removeChannel(channel); };
+
+    return () => {
+      isSubscribed = false;
+      void supabase.removeChannel(channel);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orderId]);
 

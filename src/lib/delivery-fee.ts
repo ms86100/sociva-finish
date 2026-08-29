@@ -37,6 +37,8 @@ export function settingValueToString(value: unknown): string {
 
 export function parseSettingNumber(raw: string | null | undefined, fallback: number): number {
   if (raw == null || raw === '') return fallback;
-  const n = Number(settingValueToString(raw));
+  const str = settingValueToString(raw).trim();
+  if (!str) return fallback;
+  const n = Number(str);
   return Number.isFinite(n) ? n : fallback;
 }

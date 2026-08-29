@@ -17,14 +17,23 @@ function getStoredState(): AttemptState {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      return { count: parsed.count || 0, lockedUntil: parsed.lockedUntil || null };
+      if (parsed && typeof parsed === 'object') {
+        return {
+          count: typeof parsed.count === 'number' && !isNaN(parsed.count) ? parsed.count : 0,
+          lockedUntil: typeof parsed.lockedUntil === 'number' && !isNaN(parsed.lockedUntil) ? parsed.lockedUntil : null,
+        };
+      }
     }
-  } catch { /* ignore */ }
+  } catch {
+    try { localStorage.removeItem(STORAGE_KEY); } catch { /* ignore */ }
+  }
   return { count: 0, lockedUntil: null };
 }
 
 function persistState(state: AttemptState) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch { /* ignore */ }
 }
 
 /**

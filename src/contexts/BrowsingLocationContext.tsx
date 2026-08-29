@@ -40,12 +40,27 @@ const STORAGE_KEY = 'sociva_browsing_location';
 const LAST_KNOWN_KEY = 'sociva_last_browsing_coords';
 const CART_CLEAR_THRESHOLD_KM = 2;
 
+function isValidCoordinate(lat: unknown, lng: unknown): boolean {
+  return typeof lat === 'number' && !isNaN(lat) && lat >= -90 && lat <= 90 &&
+         typeof lng === 'number' && !isNaN(lng) && lng >= -180 && lng <= 180;
+}
+
 function loadFromStorage(): BrowsingLocation | null {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
-    if (parsed && parsed.lat && parsed.lng && parsed.label) return parsed;
+    if (parsed && typeof parsed === 'object' && isValidCoordinate(parsed.lat, parsed.lng) && typeof parsed.label === 'string') {
+      return {
+        id: String(parsed.id || 'storage-override'),
+        label: parsed.label,
+        fullAddress: parsed.fullAddress ? String(parsed.fullAddress) : undefined,
+        secondaryLabel: parsed.secondaryLabel ? String(parsed.secondaryLabel) : undefined,
+        lat: parsed.lat,
+        lng: parsed.lng,
+        source: parsed.source || 'address',
+      };
+    }
   } catch { /* ignore */ }
   return null;
 }
@@ -55,7 +70,7 @@ function loadLastKnownLocation(): BrowsingLocation | null {
     const raw = localStorage.getItem(LAST_KNOWN_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
-    if (parsed && typeof parsed.lat === 'number' && typeof parsed.lng === 'number') {
+    if (parsed && typeof parsed === 'object' && isValidCoordinate(parsed.lat, parsed.lng)) {
       return {
         id: parsed.id || 'last-known',
         label: parsed.label || 'Nearby',
@@ -70,13 +85,15 @@ function loadLastKnownLocation(): BrowsingLocation | null {
 
 function saveLastKnownLocation(loc: BrowsingLocation) {
   try {
-    localStorage.setItem(LAST_KNOWN_KEY, JSON.stringify({
-      id: loc.id,
-      label: loc.label,
-      lat: loc.lat,
-      lng: loc.lng,
-      source: loc.source,
-    }));
+    if (isValidCoordinate(loc.lat, loc.lng)) {
+      localStorage.setItem(LAST_KNOWN_KEY, JSON.stringify({
+        id: loc.id,
+        label: loc.label,
+        lat: loc.lat,
+        lng: loc.lng,
+        source: loc.source,
+      }));
+    }
   } catch { /* ignore */ }
 }
 
@@ -84,7 +101,8 @@ function loadStoredUserId(): string | null {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
-    return JSON.parse(raw)._user_id || null;
+    const parsed = JSON.parse(raw);
+    return (parsed && typeof parsed === 'object') ? parsed._user_id || null : null;
   } catch { return null; }
 }
 

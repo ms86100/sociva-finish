@@ -124,7 +124,7 @@ describe('multi-store source contracts', () => {
     expect(paymentTruthMigration).toMatch(/payment_capture_allocations/);
     expect(atomicConfirmMigration).toMatch(/INSERT INTO public\.payment_records/);
     expect(atomicConfirmMigration).toMatch(/seller_id[\s\S]*v_order\.seller_id/);
-    expect(atomicConfirmMigration).toMatch(/platform_fee[\s\S]*v_order\.platform_fee/);
+    expect(atomicConfirmMigration).toMatch(/platform_fee[\s\S]*v_platform_fee/);
     expect(atomicConfirmMigration).toMatch(/PERFORM public\.stamp_checkout_group_capture/);
   });
 

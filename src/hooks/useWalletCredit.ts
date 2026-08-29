@@ -1,9 +1,8 @@
 // @ts-nocheck
 import { useState, useCallback } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useBuyerWallet } from '@/hooks/queries/useWallet';
-import { useFinancialCapabilities } from '@/hooks/useFinancialCapabilities';
 import { toast } from 'sonner';
 
 /**
@@ -15,8 +14,17 @@ export function useWalletCredit() {
   const queryClient = useQueryClient();
   const [appliedAmount, setAppliedAmount] = useState(0);
   const [quotedMax, setQuotedMax] = useState<number | null>(null);
-  const { socivaBalanceSpendEnabled, isLoading: capabilitiesLoading } = useFinancialCapabilities();
-  const spendEnabled = socivaBalanceSpendEnabled === true;
+
+  const { data: capabilities, isLoading: capabilitiesLoading } = useQuery({
+    queryKey: ['financial-capabilities-wallet-spend'],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('get_financial_capabilities');
+      if (error) throw error;
+      return data as { wallet_spend_enabled?: boolean } | null;
+    },
+    staleTime: 60_000,
+  });
+  const spendEnabled = capabilities?.wallet_spend_enabled === true;
 
   const balance = Number(wallet?.total_available || 0);
   const cashAvailable = Number(wallet?.cash_available || 0);

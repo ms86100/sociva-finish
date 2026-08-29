@@ -243,7 +243,7 @@ export function UpiDeepLinkCheckout({
 
   const confirmSubmittedRef = useRef(false);
   const trimmedUtr = utrRef.trim();
-  const canSubmitProof = !!screenshotFile;
+  const canSubmitProof = !!screenshotFile && trimmedUtr.length > 0;
 
   const handleSubmitConfirmation = async () => {
     if (!canSubmitProof) return;
@@ -295,7 +295,7 @@ export function UpiDeepLinkCheckout({
 
       const { error } = await supabase.rpc('confirm_upi_payment', {
         _order_id: orderId,
-        _upi_transaction_ref: trimmedUtr || null,
+        _upi_transaction_ref: trimmedUtr,
         _payment_screenshot_url: screenshotUrl,
       });
       if (error) throw error;

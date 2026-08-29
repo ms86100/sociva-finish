@@ -7,16 +7,22 @@ const MAX_ITEMS = 10;
 export function useRecentlyViewed() {
   const [recentIds, setRecentIds] = useState<string[]>(() => {
     try {
-      return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return [];
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed.filter(id => typeof id === 'string').slice(0, MAX_ITEMS) : [];
     } catch {
       return [];
     }
   });
 
   const addViewed = useCallback((productId: string) => {
+    if (!productId || typeof productId !== 'string') return;
     setRecentIds(prev => {
       const next = [productId, ...prev.filter(id => id !== productId)].slice(0, MAX_ITEMS);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      } catch { /* storage full */ }
       return next;
     });
   }, []);

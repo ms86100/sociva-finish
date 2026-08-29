@@ -228,10 +228,14 @@ export function useCartPage() {
           return;
         }
 
+        const isMultiStoreOnlineSession = session.orderIds.length > 1 && session.paymentMethod !== 'razorpay';
         // Always cancel abandoned unpaid holds on return — never show stuck pending UI.
         const { error: cancelErr } = await supabase.rpc('buyer_cancel_pending_orders', {
           _order_ids: unpaidIds,
         });
+        if (isMultiStoreOnlineSession) {
+          console.log('[Recovery] multi-store-session-cleared for non-razorpay session');
+        }
         if (cancelErr) {
           console.error('[Recovery] Failed to cancel abandoned unpaid orders:', cancelErr);
           // Still clear local session so the broken pending screen does not trap the buyer.
@@ -1155,7 +1159,7 @@ export function useCartPage() {
     });
   };
 
-  // Dismiss handler — single check, cancel if unpaid, return to cart cleanly
+  // Dismiss handler — check if paid, dismiss modal without destructive auto-cancel
   const handleRazorpayDismiss = async () => {
     if (razorpaySuccessHandledRef.current) {
       console.log('[Payment] handleRazorpayDismiss suppressed — success already handled');
@@ -1165,7 +1169,7 @@ export function useCartPage() {
     setShowRazorpayCheckout(false);
 
     if (pendingOrderIds.length > 0) {
-      // Single immediate check — covers the case where webhook confirmed while modal was open
+      // Immediate check — covers the case where webhook confirmed while modal was open
       if (await anyOrderPaidOrBuyerConfirmed(pendingOrderIds)) {
         await clearCartAndCache();
         clearPaymentSession();
@@ -1173,22 +1177,14 @@ export function useCartPage() {
         setPendingOrderIds([]);
         return;
       }
-      // Not paid — cancel pending orders so the user returns to a clean cart.
-      // buyer_cancel_pending_orders is safe: it only cancels payment_pending orders,
-      // so a webhook-confirmed paid order is never touched.
-      try {
-        await supabase.rpc('buyer_cancel_pending_orders', { _order_ids: pendingOrderIds });
-      } catch (err) {
-        console.warn('[Payment] dismiss: cancel pending orders failed (non-blocking):', err);
-      }
     }
 
     setPendingOrderIds([]);
     clearPaymentSession();
     idempotencyKeyRef.current = null;
     showFeedback({
-      title: 'Payment cancelled. Your cart is saved — tap Place Order to try again.',
-      variant: 'error',
+      title: 'Checkout closed. Your order will not cancel automatically — tap Place Order to retry.',
+      variant: 'info',
     });
   };
 

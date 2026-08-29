@@ -25,7 +25,9 @@ export interface OperationLogEntry {
 const operationLog: OperationLogEntry[] = (() => {
   try {
     const raw = getString(OPS_LOG_KEY);
-    return raw ? JSON.parse(raw) : [];
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
   } catch { return []; }
 })();
 
@@ -145,8 +147,8 @@ class _LiveActivityManager {
       const raw = getString(STORAGE_KEY);
       if (!raw) return {};
       const parsed: PersistedMap = JSON.parse(raw);
-      if (parsed.version !== 1) return {};
-      return parsed.activities ?? {};
+      if (!parsed || typeof parsed !== 'object' || parsed.version !== 1) return {};
+      return (parsed.activities && typeof parsed.activities === 'object') ? parsed.activities : {};
     } catch {
       return {};
     }

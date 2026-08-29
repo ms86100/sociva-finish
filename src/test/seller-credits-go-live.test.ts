@@ -65,7 +65,7 @@ describe('Seller credits go-live safety', () => {
     expect(admin).toMatch(/Run billing certification/);
     expect(admin).toMatch(/Unified financial timeline/);
     expect(admin).toMatch(/admin_list_seller_credit_financial_timeline/);
-    expect(admin).toMatch(/Checklist is green — you can turn Spend \/ gating ON above/);
+    expect(admin).toMatch(/Checklist is green — you can turn Spend \/ gating ON/);
   });
 
   it('confirm RPC inserts ledger before marking captured', () => {

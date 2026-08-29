@@ -63,14 +63,12 @@ export function resolvePaymentConfig(
       // Razorpay is infra-level — if config says online, it's available
       acceptsOnline = configOnline;
     } else {
-      // UPI deep link — requires accepts_upi + a UPI ID to route to.
-      // Verification status (valid/stale/unverified) is a trust signal shown
-      // to the buyer as a badge, not a payment gate — the UPI ID itself is
-      // what matters for the money to reach the seller.
+      // UPI deep link — requires accepts_upi + a UPI ID + upi_verification_status === 'valid'
       acceptsOnline =
         configOnline &&
         !!(seller.accepts_upi) &&
-        !!(seller.upi_id);
+        !!(seller.upi_id) &&
+        seller.upi_verification_status === 'valid';
     }
   } else {
     // Legacy fallback
@@ -79,7 +77,8 @@ export function resolvePaymentConfig(
     } else {
       acceptsOnline =
         !!(seller.accepts_upi) &&
-        !!(seller.upi_id);
+        !!(seller.upi_id) &&
+        seller.upi_verification_status === 'valid';
     }
   }
 
