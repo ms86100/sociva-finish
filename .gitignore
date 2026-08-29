@@ -50,6 +50,7 @@ sociva-release-keystore-SECRET.txt
 
 # Large signed APKs are deployed via Vercel CLI, not git
 public/downloads/*.apk
+!public/downloads/sociva-android.apk
 .env*
 
 # Desktop Electron (build outputs only — source under desktop/ is tracked)
