@@ -883,6 +883,25 @@ body.razorpay-active.razorpay-ios iframe[src*="checkout.razorpay"] {
   display: none;
 }
 
+/* Horizontal mood/filter rails — never show a native scrollbar */
+.taste-rail-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  -ms-overflow-style: none !important;
+  scrollbar-width: none !important;
+}
+.taste-rail-scroll::-webkit-scrollbar,
+.taste-rail-scroll::-webkit-scrollbar-thumb,
+.taste-rail-scroll::-webkit-scrollbar-track,
+.taste-rail-scroll::-webkit-scrollbar-corner {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  background: transparent !important;
+}
+
 /* ═══════════════════════════════════════════════════
    Festival Banner — Premium Visual Layer
    ═══════════════════════════════════════════════════ */
@@ -2086,4 +2105,100 @@ body.razorpay-active.razorpay-ios iframe[src*="checkout.razorpay"] {
 @keyframes boot-pulse {
   0%, 100% { opacity: 0.3; transform: scale(0.85); }
   50% { opacity: 1; transform: scale(1.15); }
+}
+
+/* Native-feeling pull-to-refresh (Capacitor WebView — scroll lives on #root) */
+.ptr-host {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  overflow: hidden;
+  pointer-events: none;
+  flex-shrink: 0;
+  transition: height 0.2s ease-out;
+  z-index: 30;
+}
+
+.ptr-host[data-ptr-live="true"] {
+  transition: none;
+}
+
+.ptr-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 52px;
+}
+
+.ptr-ios {
+  position: relative;
+  width: 22px;
+  height: 22px;
+}
+
+.ptr-ios span {
+  position: absolute;
+  left: 10px;
+  top: 1px;
+  width: 2px;
+  height: 6px;
+  border-radius: 1px;
+  background: hsl(var(--muted-foreground));
+  transform-origin: 1px 10px;
+  opacity: 0.25;
+}
+
+.ptr-ios span:nth-child(1) { transform: rotate(0deg); }
+.ptr-ios span:nth-child(2) { transform: rotate(45deg); }
+.ptr-ios span:nth-child(3) { transform: rotate(90deg); }
+.ptr-ios span:nth-child(4) { transform: rotate(135deg); }
+.ptr-ios span:nth-child(5) { transform: rotate(180deg); }
+.ptr-ios span:nth-child(6) { transform: rotate(225deg); }
+.ptr-ios span:nth-child(7) { transform: rotate(270deg); }
+.ptr-ios span:nth-child(8) { transform: rotate(315deg); }
+
+.ptr-ios--spinning span:nth-child(1) { animation: ptr-ios-fade 0.8s linear infinite; }
+.ptr-ios--spinning span:nth-child(2) { animation: ptr-ios-fade 0.8s linear infinite -0.1s; }
+.ptr-ios--spinning span:nth-child(3) { animation: ptr-ios-fade 0.8s linear infinite -0.2s; }
+.ptr-ios--spinning span:nth-child(4) { animation: ptr-ios-fade 0.8s linear infinite -0.3s; }
+.ptr-ios--spinning span:nth-child(5) { animation: ptr-ios-fade 0.8s linear infinite -0.4s; }
+.ptr-ios--spinning span:nth-child(6) { animation: ptr-ios-fade 0.8s linear infinite -0.5s; }
+.ptr-ios--spinning span:nth-child(7) { animation: ptr-ios-fade 0.8s linear infinite -0.6s; }
+.ptr-ios--spinning span:nth-child(8) { animation: ptr-ios-fade 0.8s linear infinite -0.7s; }
+
+@keyframes ptr-ios-fade {
+  0% { opacity: 1; }
+  100% { opacity: 0.15; }
+}
+
+.ptr-android {
+  transform: rotate(-90deg);
+}
+
+.ptr-android-track {
+  fill: none;
+  stroke: hsl(var(--muted));
+  stroke-width: 2.5;
+}
+
+.ptr-android-arc {
+  fill: none;
+  stroke: hsl(var(--primary));
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.05s linear;
+}
+
+.ptr-android--spinning {
+  animation: ptr-android-spin 0.75s linear infinite;
+}
+
+.ptr-android--spinning .ptr-android-arc {
+  stroke-dasharray: 42 63;
+  stroke-dashoffset: 0;
+  transition: none;
+}
+
+@keyframes ptr-android-spin {
+  to { transform: rotate(270deg); }
 }

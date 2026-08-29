@@ -18,6 +18,7 @@ import { escapeIlike } from '@/lib/query-utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { Plus, Search, Loader2, Send, MessageCircle } from 'lucide-react';
+import { useRegisterScreenRefresh } from '@/hooks/usePullToRefresh';
 import { useSearchPlaceholder } from '@/hooks/useSearchPlaceholder';
 import { showFeedback } from '@/components/FeedbackPopupProvider';
 
@@ -42,9 +43,9 @@ export default function BulletinPage() {
   const [newResponse, setNewResponse] = useState('');
   const [sendingResponse, setSendingResponse] = useState(false);
 
-  const fetchPosts = useCallback(async () => {
+  const fetchPosts = useCallback(async (opts?: { silent?: boolean }) => {
     if (!effectiveSocietyId) return;
-    setLoading(true);
+    if (!opts?.silent) setLoading(true);
 
     let query = supabase
       .from('bulletin_posts')
@@ -110,6 +111,15 @@ export default function BulletinPage() {
     fetchUserVotes();
     fetchHelpRequests();
   }, [fetchPosts, fetchMostDiscussed, fetchUserVotes, fetchHelpRequests]);
+
+  useRegisterScreenRefresh(async () => {
+    await Promise.all([
+      fetchPosts({ silent: true }),
+      fetchMostDiscussed(),
+      fetchUserVotes(),
+      fetchHelpRequests(),
+    ]);
+  });
 
   // Realtime — BULLETIN-01 FIX: filter by society_id to avoid cross-society triggers
   useEffect(() => {

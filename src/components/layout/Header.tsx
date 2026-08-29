@@ -16,6 +16,7 @@ import { useUnreadNotificationCount } from '@/hooks/useUnreadNotificationCount';
 import { useBrowsingLocation } from '@/contexts/BrowsingLocationContext';
 import { LocationSelectorSheet } from '@/components/location/LocationSelectorSheet';
 import { useFestivalTakeover } from '@/hooks/queries/useActiveFestivals';
+import { formatLocationDisplay } from '@/lib/location-label-resolver';
 
 const IS_NATIVE = Capacitor.isNativePlatform();
 
@@ -58,13 +59,19 @@ function HeaderInner({
     ? profile.name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)
     : null;
 
-  const locationLabel =
+  const rawLocationLabel =
     browsingLocation?.label ||
     displaySociety?.name ||
     (profile?.flat_number
       ? [profile.block, profile.flat_number].filter(Boolean).join(' · ')
       : null) ||
     'Set location';
+
+  const fullAddress = browsingLocation?.fullAddress || displaySociety?.address || profile?.full_address;
+  const locationDisplay = useMemo(
+    () => formatLocationDisplay(rawLocationLabel, { fullAddress }),
+    [rawLocationLabel, fullAddress]
+  );
 
   return (
     <>
@@ -100,7 +107,7 @@ function HeaderInner({
                 <button
                   type="button"
                   onClick={() => setLocationSheetOpen(true)}
-                  className="min-w-0 flex-1 text-left active:opacity-80 transition-opacity"
+                  className="min-w-0 flex-1 text-left active:opacity-80 transition-opacity pr-1"
                 >
                   <p className={cn(
                     'text-[10px] font-bold uppercase tracking-wider leading-none mb-1',
@@ -116,10 +123,10 @@ function HeaderInner({
                       strokeWidth={2.5}
                     />
                     <span className={cn(
-                      'text-[15px] font-extrabold truncate',
+                      'text-[15px] font-extrabold truncate max-w-[210px] sm:max-w-[320px]',
                       festivalChrome ? 'text-white' : 'text-foreground'
                     )}>
-                      {locationLabel}
+                      {locationDisplay.primary}
                     </span>
                     <ChevronDown
                       size={14}
@@ -127,6 +134,14 @@ function HeaderInner({
                       strokeWidth={2.5}
                     />
                   </div>
+                  {locationDisplay.secondary && (
+                    <p className={cn(
+                      'text-[11px] truncate leading-tight mt-0.5 pl-[19px] max-w-[230px] sm:max-w-[340px]',
+                      festivalChrome ? 'text-white/80' : 'text-muted-foreground'
+                    )}>
+                      {locationDisplay.secondary}
+                    </p>
+                  )}
                 </button>
 
                 <div className="flex items-center gap-1 shrink-0 pt-0.5">

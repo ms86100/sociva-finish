@@ -7,14 +7,15 @@ import { useSystemSettings } from '@/hooks/useSystemSettings';
 interface FilterPresetsProps {
   activePreset: string | null;
   onPresetSelect: (preset: string | null, filters: Partial<FilterState>) => void;
+  includeVeg?: boolean;
 }
 
-export function FilterPresets({ activePreset, onPresetSelect }: FilterPresetsProps) {
+export function FilterPresets({ activePreset, onPresetSelect, includeVeg = true }: FilterPresetsProps) {
   const settings = useSystemSettings();
   const threshold = settings.budgetFilterThreshold;
 
   const PRESETS = [
-    {
+    includeVeg && {
       id: 'veg',
       label: 'Veg Only',
       icon: Leaf,
@@ -46,7 +47,7 @@ export function FilterPresets({ activePreset, onPresetSelect }: FilterPresetsPro
       bgColor: 'bg-primary/10',
       filters: { sortBy: 'rating' as const },
     },
-  ];
+  ].filter(Boolean);
 
   const handleClick = (presetId: string, filters: Partial<FilterState>) => {
     if (activePreset === presetId) {

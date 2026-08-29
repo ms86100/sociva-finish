@@ -19,6 +19,10 @@ import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Badge } from '@/components/ui/badge';
+import {
+  AlertDialog, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { DAYS_OF_WEEK } from '@/types/Database';
 import { ArrowLeft, Store, Loader2, ChevronRight, Settings, Shield, Save, Send, LayoutGrid, Tags, FileText, Package, CheckCircle2, ArrowRight, Truck, Smartphone, Banknote, Clock, ImageIcon, MapPin, Navigation, CheckCircle, Star, X, Search, ShoppingCart, Calendar, MessageCircle, Phone, Coins, Home } from 'lucide-react';
 import { useActionTypeMap, useCategoryAllowedActions } from '@/hooks/useActionTypeMap';
@@ -31,24 +35,30 @@ import { useSellerApplication } from '@/hooks/useSellerApplication';
 import { ensureSellerSocietyForSubmit } from '@/lib/seller-society';
 import type { SellerFormData } from '@/hooks/useSellerApplication';
 import { useSubcategories } from '@/hooks/useSubcategories';
-import { SubcategoryPickerDialog, SubcategorySelection } from '@/components/seller/SubcategoryPickerDialog';
 import { PendingCategoryRequestsBanner, useOpenCategoryRequests } from '@/components/seller/PendingCategoryRequestsBanner';
 import { ParentGroupPickerStep } from '@/components/seller/ParentGroupPickerStep';
 import { CommerceModelStep } from '@/components/seller/CommerceModelStep';
-import { ProductOfferingStep } from '@/components/seller/ProductOfferingStep';
+import { OfferingsStep } from '@/components/seller/OfferingsStep';
 import { RequestCategoryDialog } from '@/components/seller/RequestCategoryDialog';
 import { ExistingStoresOnboardingPanel } from '@/components/seller/ExistingStoresOnboardingPanel';
 import { resolveStoreCategoryLabel } from '@/lib/store-category-label';
 import { UpiVpaInput } from '@/components/payment/UpiVpaInput';
 import {
-  resolveListingIntent,
   commerceModelToDefaultAction,
-  commerceModelFromActionType,
   softTagToCommerceModel,
   NEW_ONBOARDING_TOTAL_STEPS,
+  INTENT_EXAMPLE_CHIPS,
   type SoftListingTag,
   type CommerceModel,
 } from '@/lib/listing-intent';
+import {
+  normalizeOfferingNames,
+  pickFallbackCategory,
+  resolveOfferingBatch,
+  type OfferingStamp,
+  type WorkflowConflict,
+} from '@/lib/offering-taxonomy';
+import { ensureDraftProductsForOfferings, pendingOfferingNamesForProducts } from '@/lib/onboarding-product-sync';
 import type { BuyerJourneyId } from '@/lib/buyer-journey';
 import { notify } from '@/lib/notify';
 import {
@@ -315,10 +325,10 @@ function GroupLicensePrompt({ groupId, groupName, licenseTypeName, licenseMandat
 
 const TOTAL_STEPS = NEW_ONBOARDING_TOTAL_STEPS;
 const STEP_META = [
-  { label: 'Store type', icon: LayoutGrid, title: 'What type of store?', helper: 'Food, education, services, and more — pick your lane first.' },
-  { label: 'Category', icon: Tags, title: 'Choose your category', helper: 'Pick the category and subcategory that best fits what you sell.' },
-  { label: 'Buyers', icon: ShoppingCart, title: 'How should buyers get it?', helper: 'This sets your store default — you can customize per product later.' },
-  { label: 'Offering', icon: Package, title: 'What exactly are you selling?', helper: 'Name your first product — you can add more details later.' },
+  { label: 'Buyers', icon: ShoppingCart, title: 'How should buyers interact?', helper: 'Cart, book, enquire, or contact — this is your store default. You can still customize later.' },
+  { label: 'Offerings', icon: Package, title: 'What do you offer?', helper: 'Name what you sell or provide. We match it to the right store type in the background.' },
+  { label: 'Store type', icon: LayoutGrid, title: 'Which best describes this?', helper: 'We could not match your offerings automatically. Pick one store type — one store stays in one type.' },
+  { label: 'Category', icon: Tags, title: 'Confirm your category', helper: 'Matched from what you offer. You can request a new category if this is wrong.' },
   { label: 'Store', icon: FileText, title: 'Set up your store', helper: 'Location first, then how you fulfil orders, then your store details.' },
   { label: 'Configure', icon: Settings, title: 'Configure your store', helper: 'A few quick decisions to get you up and running.' },
   { label: 'Products', icon: Package, title: 'Add your first products', helper: 'Buyers will see these once your store is approved. Start with 1-2 items.' },
@@ -360,245 +370,6 @@ const FULFILLMENT_OPTIONS = [
   { value: 'platform_delivery', label: 'Delivery Partner', description: 'Platform delivery partner delivers — available in future plans', icon: Truck, disabled: true },
   { value: 'pickup_and_platform_delivery', label: 'Pickup + Delivery Partner', description: 'Buyer can choose pickup or delivery partner — available in future plans', icon: Truck, disabled: true },
 ];
-
-// ─── Guided Step 2: Subcategory Picker ─────────────────────────────────────
-import type { SubcategoryPreferences } from '@/hooks/useSellerApplication';
-import type { CategoryConfig } from '@/types/categories';
-
-function GuidedStep2({
-  selectedGroup, selectedGroupInfo, formData, setFormData,
-  groupedConfigs, handleCategoryChange, onBack, onContinue, onSkip,
-}: {
-  selectedGroup: string;
-  selectedGroupInfo: { label: string; icon: string; color: string; description?: string } | undefined;
-  formData: SellerFormData;
-  setFormData: React.Dispatch<React.SetStateAction<SellerFormData>>;
-  groupedConfigs: Record<string, CategoryConfig[]>;
-  handleCategoryChange: (cat: ServiceCategory, checked: boolean) => void;
-  onBack: () => void;
-  onContinue: () => void;
-  onSkip: () => void;
-}) {
-  const { groupedConfigs: _, isLoading } = useCategoryConfigs();
-  const categories = groupedConfigs[selectedGroup as keyof typeof groupedConfigs] || [];
-  const [pickerOpen, setPickerOpen] = useState(false);
-  const [pickerCategoryId, setPickerCategoryId] = useState<string | null>(null);
-
-  const pickerCategory = categories.find(c => c.id === pickerCategoryId);
-
-  // Fetch subcategories for each category to know which have subs
-  const allSubsQuery = useSubcategories(); // fetch all active subcategories
-
-  const getSubCount = (configId: string) => {
-    return allSubsQuery.data?.filter(s => s.category_config_id === configId).length || 0;
-  };
-
-  const getSelectionCount = (configId: string): number => {
-    const pref = formData.subcategory_preferences.data[configId];
-    if (!pref) return 0;
-    return (pref.primary ? 1 : 0) + pref.others.length;
-  };
-
-  const handleCardTap = (config: CategoryConfig) => {
-    const subCount = getSubCount(config.id);
-    if (subCount === 0) {
-      // No subcategories → direct toggle
-      handleCategoryChange(config.category, !formData.categories.includes(config.category));
-    } else {
-      // Open picker dialog
-      setPickerCategoryId(config.id);
-      setPickerOpen(true);
-    }
-  };
-
-  const handlePickerSave = (configId: string, category: string, selection: SubcategorySelection) => {
-    setFormData(f => {
-      const newPrefsData = { ...f.subcategory_preferences.data };
-      if (selection.primary || selection.others.length > 0) {
-        newPrefsData[configId] = selection;
-      } else {
-        delete newPrefsData[configId];
-      }
-      // Auto-sync categories from preferences
-      const prefsCategories = Object.keys(newPrefsData);
-      const categorySlugMap = categories.reduce((acc, c) => { acc[c.id] = c.category; return acc; }, {} as Record<string, string>);
-      const catsFromPrefs = prefsCategories.map(id => categorySlugMap[id]).filter(Boolean);
-      // Merge with directly toggled categories (those without subcategories)
-      const directToggles = f.categories.filter(cat => {
-        const cfg = categories.find(c => c.category === cat);
-        return cfg && getSubCount(cfg.id) === 0;
-      });
-      const mergedCats = [...new Set([...catsFromPrefs, ...directToggles])];
-      // Add/remove the current category based on selection
-      if (selection.primary || selection.others.length > 0) {
-        if (!mergedCats.includes(category)) mergedCats.push(category);
-      } else {
-        const idx = mergedCats.indexOf(category);
-        if (idx >= 0) mergedCats.splice(idx, 1);
-      }
-      return {
-        ...f,
-        categories: mergedCats,
-        subcategory_preferences: { v: 1, data: newPrefsData },
-      };
-    });
-  };
-
-  const removeSubcategory = (configId: string, subId: string) => {
-    setFormData(f => {
-      const pref = f.subcategory_preferences.data[configId];
-      if (!pref) return f;
-      let newPref: SubcategorySelection;
-      if (pref.primary === subId) {
-        const [newPrimary, ...rest] = pref.others;
-        newPref = { primary: newPrimary || null, others: rest };
-      } else {
-        newPref = { ...pref, others: pref.others.filter(o => o !== subId) };
-      }
-      const newData = { ...f.subcategory_preferences.data };
-      if (!newPref.primary && newPref.others.length === 0) {
-        delete newData[configId];
-        // Also remove category
-        const cfg = categories.find(c => c.id === configId);
-        return {
-          ...f,
-          categories: cfg ? f.categories.filter(c => c !== cfg.category) : f.categories,
-          subcategory_preferences: { v: 1, data: newData },
-        };
-      }
-      newData[configId] = newPref;
-      return { ...f, subcategory_preferences: { v: 1, data: newData } };
-    });
-  };
-
-  // Collect all selected subcategory chips for display
-  const allSelectedChips: { configId: string; subId: string; isPrimary: boolean; displayName: string; categoryName: string }[] = [];
-  Object.entries(formData.subcategory_preferences.data).forEach(([configId, pref]) => {
-    const cfg = categories.find(c => c.id === configId);
-    const catName = cfg?.displayName || '';
-    if (pref.primary) {
-      const sub = allSubsQuery.data?.find(s => s.id === pref.primary);
-      allSelectedChips.push({ configId, subId: pref.primary, isPrimary: true, displayName: sub?.display_name || 'Selected', categoryName: catName });
-    }
-    pref.others.forEach(id => {
-      const sub = allSubsQuery.data?.find(s => s.id === id);
-      allSelectedChips.push({ configId, subId: id, isPrimary: false, displayName: sub?.display_name || 'Selected', categoryName: catName });
-    });
-  });
-
-  const hasAnySelection = formData.categories.length > 0;
-
-  return (
-    <div className="space-y-5">
-      <button onClick={onBack} className="flex items-center gap-1 text-sm text-muted-foreground">
-        <ArrowLeft size={16} />Change category
-      </button>
-
-      {/* Group header */}
-      <div className="flex items-center gap-3 p-3 bg-muted rounded-lg">
-        <div className={cn('w-12 h-12 rounded-xl flex items-center justify-center', selectedGroupInfo?.color)}>
-          <DynamicIcon name={selectedGroupInfo?.icon || ''} size={24} />
-        </div>
-        <div>
-          <h3 className="font-semibold">{selectedGroupInfo?.label}</h3>
-          <p className="text-xs text-muted-foreground">{selectedGroupInfo?.description}</p>
-        </div>
-      </div>
-
-      <p className="text-sm font-medium text-muted-foreground">What are you looking to sell?</p>
-
-      {/* Category cards grid */}
-      {isLoading ? (
-        <div className="text-center py-4 text-muted-foreground">Loading categories...</div>
-      ) : categories.length === 0 ? (
-        <div className="text-center py-4 text-muted-foreground">No categories available</div>
-      ) : (
-        <div className="grid grid-cols-2 gap-2">
-          {categories.map((config) => {
-            const isSelected = formData.categories.includes(config.category);
-            const selCount = getSelectionCount(config.id);
-            const subCount = getSubCount(config.id);
-            return (
-              <button
-                key={config.category}
-                onClick={() => handleCardTap(config)}
-                className={cn(
-                  'flex items-center gap-2 p-3 rounded-xl border-2 transition-all text-left relative',
-                  isSelected ? 'border-primary bg-primary/5' : 'border-border hover:border-muted-foreground/30'
-                )}
-              >
-                <DynamicIcon name={config.icon} size={18} />
-                <span className="text-sm font-medium flex-1">{config.displayName}</span>
-                {selCount > 0 && (
-                  <Badge variant="default" className="text-[10px] px-1.5 py-0 h-5 min-w-[20px] justify-center">
-                    {selCount}
-                  </Badge>
-                )}
-                {isSelected && subCount === 0 && (
-                  <CheckCircle size={16} className="text-primary shrink-0" />
-                )}
-              </button>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Selected subcategory chips */}
-      {allSelectedChips.length > 0 && (
-        <div className="space-y-2">
-          <p className="text-xs font-medium text-muted-foreground">Your selections:</p>
-          <div className="flex flex-wrap gap-1.5">
-            {allSelectedChips.map((chip) => (
-              <Badge
-                key={`${chip.configId}-${chip.subId}`}
-                variant={chip.isPrimary ? 'default' : 'secondary'}
-                className="text-xs py-1 px-2 gap-1"
-              >
-                {chip.isPrimary && <Star size={10} className="fill-current" />}
-                {chip.displayName}
-                <button
-                  onClick={() => removeSubcategory(chip.configId, chip.subId)}
-                  className="ml-0.5 hover:opacity-70"
-                >
-                  <X size={12} />
-                </button>
-              </Badge>
-            ))}
-          </div>
-        </div>
-      )}
-
-      <p className="text-xs text-muted-foreground text-center flex items-center justify-center gap-1">
-        <ArrowRight size={12} />Next: You'll name your store and set operating hours
-      </p>
-
-      <Button className="w-full" onClick={onContinue} disabled={!hasAnySelection}>
-        Continue<ChevronRight size={16} className="ml-1" />
-      </Button>
-
-      {!hasAnySelection && (
-        <p className="w-full text-center text-xs text-muted-foreground py-1">
-          Select a category to continue
-        </p>
-      )}
-
-      {/* Subcategory Picker Dialog */}
-      {pickerCategory && (
-        <SubcategoryPickerDialog
-          open={pickerOpen}
-          onOpenChange={setPickerOpen}
-          categoryConfigId={pickerCategory.id}
-          categoryName={pickerCategory.displayName}
-          categoryIcon={pickerCategory.icon}
-          categorySlug={pickerCategory.category}
-          parentGroupSlug={pickerCategory.parentGroup}
-          selected={formData.subcategory_preferences.data[pickerCategory.id] || { primary: null, others: [] }}
-          onSave={(sel) => handlePickerSave(pickerCategory.id, pickerCategory.category, sel)}
-        />
-      )}
-    </div>
-  );
-}
 
 // ─── Main Page ──────────────────────────────────────────────────────────────
 export default function BecomeSellerPage() {
@@ -666,6 +437,7 @@ export default function BecomeSellerPage() {
     listingIntentPhrase, setListingIntentPhrase,
     commerceModel, setCommerceModel, applyCommerceModelChange,
     seedProductName, setSeedProductName,
+    offeringNames, setOfferingNames,
     softListingTag, setSoftListingTag,
   } = app;
 
@@ -676,6 +448,14 @@ export default function BecomeSellerPage() {
       void reloadProducts(draftSellerId);
     }
   }, [step, draftSellerId, reloadProducts]);
+
+  const pendingOfferings = useMemo(
+    () => pendingOfferingNamesForProducts(
+      normalizeOfferingNames(offeringNames || []),
+      (draftProducts || []).map((p: { name?: string }) => p.name),
+    ),
+    [offeringNames, draftProducts],
+  );
 
   const allSubsQuery = useSubcategories();
   const allSubs = allSubsQuery.data || [];
@@ -708,43 +488,7 @@ export default function BecomeSellerPage() {
     })
   ), [allSubs, configs]);
 
-  // Collect selected subcategory display names from Step 2 to suggest in Step 4
-  const selectedSubcategoryDisplayNames = useMemo(() => {
-    const names: string[] = [];
-    Object.entries(formData.subcategory_preferences?.data || {}).forEach(([configId, pref]: [string, any]) => {
-      if (pref.primary) {
-        const sub = allSubs.find((s: any) => s.id === pref.primary);
-        if (sub?.display_name && !names.includes(sub.display_name)) {
-          names.push(sub.display_name);
-        }
-      }
-      (pref.others || []).forEach((id: string) => {
-        const sub = allSubs.find((s: any) => s.id === id);
-        if (sub?.display_name && !names.includes(sub.display_name)) {
-          names.push(sub.display_name);
-        }
-      });
-    });
-    return names;
-  }, [formData.subcategory_preferences, allSubs]);
-
-  // If seller picked subcategories but no seed offering phrase is set yet, pre-fill with the first chosen subcategory
-  useEffect(() => {
-    if (!seedProductName?.trim() && !listingIntentPhrase?.trim() && selectedSubcategoryDisplayNames.length > 0) {
-      const firstChoice = selectedSubcategoryDisplayNames[0];
-      setSeedProductName(firstChoice);
-      setListingIntentPhrase(firstChoice);
-    }
-  }, [selectedSubcategoryDisplayNames, seedProductName, listingIntentPhrase, setSeedProductName, setListingIntentPhrase]);
-
   const softTag = (softListingTag || null) as SoftListingTag;
-  const resolvedIntent = useMemo(() => resolveListingIntent({
-    phrase: listingIntentPhrase,
-    commerceModel: (commerceModel as CommerceModel) || null,
-    softTag,
-    categories: intentCatalogCategories,
-    subcategories: intentCatalogSubs,
-  }), [listingIntentPhrase, commerceModel, softTag, intentCatalogCategories, intentCatalogSubs]);
 
   const persistCommerceChoice = useCallback(async (model: BuyerJourneyId) => {
     const ok = await applyCommerceModelChange(model);
@@ -752,6 +496,136 @@ export default function BecomeSellerPage() {
     handleSetStoreActionType(commerceModelToDefaultAction(model));
     return true;
   }, [applyCommerceModelChange, handleSetStoreActionType]);
+
+  const offeringChips = useMemo(() => {
+    const catalogNames = (allSubs || []).map((s: any) => s.display_name).filter(Boolean);
+    const byLower = new Map(catalogNames.map((n: string) => [n.toLowerCase(), n]));
+    const chips: string[] = [];
+    for (const example of INTENT_EXAMPLE_CHIPS) {
+      const exact = byLower.get(example.toLowerCase());
+      if (exact && !chips.includes(exact)) {
+        chips.push(exact);
+        continue;
+      }
+      const partial = catalogNames.find((n: string) =>
+        n.toLowerCase().includes(example.toLowerCase()) || example.toLowerCase().includes(n.toLowerCase()),
+      );
+      if (partial && !chips.includes(partial)) chips.push(partial);
+    }
+    return chips.slice(0, 12);
+  }, [allSubs]);
+
+  const groupLabelBySlug = useMemo(() => {
+    const map: Record<string, string> = {};
+    parentGroupInfos.forEach((g) => { map[g.value] = g.label; });
+    return map;
+  }, [parentGroupInfos]);
+
+  const [offeringsError, setOfferingsError] = useState<string | null>(null);
+  const [taxonomyStampHint, setTaxonomyStampHint] = useState<string | null>(null);
+  const [workflowConflict, setWorkflowConflict] = useState<WorkflowConflict | null>(null);
+  const pendingStampRef = useRef<OfferingStamp | null>(null);
+  const pendingConflictRef = useRef<WorkflowConflict | null>(null);
+
+  const applyStampAndGoToStore = useCallback(async (stamp: OfferingStamp, usedGroupPicker: boolean) => {
+    const taken = sellerProfiles.some((p) =>
+      p.primary_group === stamp.primaryGroup &&
+      p.verification_status !== 'draft' &&
+      p.id !== draftSellerId,
+    );
+    if (taken) {
+      notify.block(
+        'You already have a store in this type. Manage that store, or offer these items from a different store type.',
+        { title: 'Store type already used', id: 'seller-group-taken' },
+      );
+      return;
+    }
+    setSelectedGroup(stamp.primaryGroup);
+    const overrides = {
+      categories: stamp.categories,
+      subcategory_preferences: stamp.subcategory_preferences,
+    };
+    setFormData((f) => ({ ...f, ...overrides }));
+    try { sessionStorage.setItem('onboarding_used_group_picker', usedGroupPicker ? '1' : '0'); } catch { /* */ }
+    const id = await app.saveDraft({
+      silent: true,
+      notifyOnError: true,
+      allowEmptyCategories: true,
+      groupOverride: stamp.primaryGroup,
+      formOverrides: overrides,
+    });
+    if (!id) return;
+    setTaxonomyStampHint(stamp.stampLabel);
+    const names = normalizeOfferingNames(offeringNames || []);
+    if (names[0]) setSeedProductName(names[0]);
+    const primaryCfgId = Object.keys(stamp.subcategory_preferences.data || {})[0];
+    const primarySub = primaryCfgId ? stamp.subcategory_preferences.data[primaryCfgId]?.primary : null;
+    const action = storeActionType || (commerceModel ? commerceModelToDefaultAction(commerceModel as BuyerJourneyId) : 'add_to_cart');
+    const seeded = await ensureDraftProductsForOfferings({
+      sellerId: id,
+      names,
+      category: stamp.categories[0],
+      actionType: action,
+      subcategoryId: primarySub || null,
+    });
+    if (!seeded.ok && seeded.error) {
+      notify.block(seeded.error, { title: 'Could not prefill products', id: 'seller-product-seed' });
+    }
+    await reloadProducts(id);
+    setStep(5);
+  }, [
+    sellerProfiles, draftSellerId, setSelectedGroup, setFormData, app, offeringNames,
+    setSeedProductName, storeActionType, commerceModel, reloadProducts, setStep,
+  ]);
+
+  const continueFromOfferings = useCallback(async () => {
+    setOfferingsError(null);
+    const batch = resolveOfferingBatch({
+      names: offeringNames || [],
+      commerceModel: (commerceModel as CommerceModel) || null,
+      categories: intentCatalogCategories,
+      subcategories: intentCatalogSubs,
+      groupLabelBySlug,
+    });
+    if (batch.status === 'empty') {
+      notify.block('Add at least one offering (2 characters or more)');
+      return;
+    }
+    if (batch.status === 'mixed_groups') {
+      const detail = batch.mixed.map((m) => `${m.name} (${groupLabelBySlug[m.group] || m.group})`).join(', ');
+      setOfferingsError(`These offerings belong to different store types: ${detail}. Keep one type here and open a second store for the other.`);
+      return;
+    }
+    if (batch.status === 'needs_group') {
+      setStep(3);
+      return;
+    }
+    if (batch.workflowConflict) {
+      pendingStampRef.current = batch.stamp;
+      pendingConflictRef.current = batch.workflowConflict;
+      setWorkflowConflict(batch.workflowConflict);
+      return;
+    }
+    if (batch.stamp) await applyStampAndGoToStore(batch.stamp, false);
+  }, [
+    offeringNames, commerceModel, intentCatalogCategories, intentCatalogSubs,
+    groupLabelBySlug, setStep, applyStampAndGoToStore,
+  ]);
+
+  const continueFromGroupPicker = useCallback(async (group: string) => {
+    const fallback = pickFallbackCategory(group, intentCatalogCategories);
+    if (!fallback) {
+      notify.block('No categories are available for that store type yet.');
+      return;
+    }
+    const stamp: OfferingStamp = {
+      primaryGroup: group,
+      categories: [fallback.slug],
+      subcategory_preferences: { v: 1, data: {} },
+      stampLabel: `Saved under ${groupLabelBySlug[group] || group} → ${fallback.displayName}`,
+    };
+    await applyStampAndGoToStore(stamp, true);
+  }, [intentCatalogCategories, groupLabelBySlug, applyStampAndGoToStore]);
 
   // Resume: keep React storeActionType synced with session/DB after async draft load
   useEffect(() => {
@@ -797,7 +671,7 @@ export default function BecomeSellerPage() {
     if (step === 6 && prev === 5) {
       handleSetConfigSubStep(1);
     }
-    if (step === 5 && prev === 4) {
+    if (step === 5 && prev < 5) {
       handleSetStoreSetupSubStep(1);
     }
     if (step === 1) {
@@ -805,6 +679,12 @@ export default function BecomeSellerPage() {
       handleSetStoreSetupSubStep(1);
     }
   }, [step, handleSetConfigSubStep, handleSetStoreSetupSubStep]);
+
+  useEffect(() => {
+    if (step !== 4) return;
+    if (selectedGroup && formData.categories.length) setStep(5);
+    else setStep(2);
+  }, [step, selectedGroup, formData.categories.length, setStep]);
 
   // Auto-save draft before opening native image picker (survives WebView reload)
   const beforeImagePick = useCallback(async () => {
@@ -842,7 +722,7 @@ export default function BecomeSellerPage() {
   // ─── Submission Success Screen ──────────────────────────────────────────────
   if (submissionComplete) {
     const submittedApproved = liveSubmittedStore?.verification_status === 'approved';
-    const storeLabel = liveSubmittedStore?.business_name || formData.business_name || 'your store';
+    const storeLabel = liveSubmittedStore?.business_name || existingSeller?.business_name || formData.business_name || 'your store';
 
     if (submittedApproved) {
       return (
@@ -884,7 +764,7 @@ export default function BecomeSellerPage() {
             </div>
             <h1 className="text-2xl font-bold mb-2">We're reviewing your store</h1>
             <p className="text-muted-foreground mb-2 max-w-xs mx-auto">
-              Thank you for submitting <strong>{formData.business_name}</strong>.
+              Thank you for submitting <strong>{storeLabel}</strong>.
             </p>
             <p className="text-sm text-muted-foreground mb-8 max-w-xs mx-auto">
               You'll get a notification as soon as the review is complete — usually within a day. Nothing more is needed from you right now.
@@ -894,6 +774,13 @@ export default function BecomeSellerPage() {
                 <ArrowRight size={16} className="mr-2" />Go to Home
               </Button>
             </Link>
+            <Button
+              variant="ghost"
+              className="w-full max-w-xs mt-2"
+              onClick={startNewStoreOnboarding}
+            >
+              Add another store
+            </Button>
           </motion.div>
         </div>
       </AppLayout>
@@ -995,7 +882,7 @@ export default function BecomeSellerPage() {
                 <p className="text-sm text-muted-foreground mb-6">You'll get a notification as soon as the review is complete — usually within a day. Nothing more is needed from you right now.</p>
                 <div className="space-y-3">
                   <Link to="/"><Button className="w-full" size="lg"><ArrowRight size={16} className="mr-2" />Go to Home</Button></Link>
-                  <Button variant="outline" className="w-full" onClick={() => { setSelectedGroup(null); setExistingSeller(null); setStep(1); }}>Register Another Category</Button>
+                  <Button variant="outline" className="w-full" onClick={startNewStoreOnboarding}>Register Another Category</Button>
                 </div>
               </>
             ) : (
@@ -1091,7 +978,7 @@ export default function BecomeSellerPage() {
           </div>
         )}
 
-        {/* Step 1: Store type (parent group) */}
+        {/* Step 1: Buyer workflow */}
         {step === 1 && (
           <>
             <ExistingStoresOnboardingPanel
@@ -1103,47 +990,45 @@ export default function BecomeSellerPage() {
               onManageStore={(id) => { setCurrentSellerId(id); navigate('/seller'); }}
             />
             <PendingCategoryRequestsBanner variant="inline" />
-            <ParentGroupPickerStep
-              groups={parentGroupInfos}
-              selectedGroup={selectedGroup}
-              isLoading={groupsLoading}
-              onSelect={(group) => { void handleGroupSelect(group); }}
+            <CommerceModelStep
+              value={(commerceModel as BuyerJourneyId) || null}
+              softTag={softTag}
+              showBack={false}
+              continueHint="Next: what you offer"
+              onChange={(model) => { void persistCommerceChoice(model); }}
+              onSoftTagChange={(tag) => {
+                setSoftListingTag(tag || '');
+                const inferred = softTagToCommerceModel(tag);
+                if (inferred && !commerceModel) persistCommerceChoice(inferred);
+                else if (inferred && tag) persistCommerceChoice(inferred);
+              }}
+              onContinue={async () => {
+                if (!commerceModel) {
+                  notify.block('Choose how buyers should interact');
+                  return;
+                }
+                setStep(2);
+              }}
             />
           </>
         )}
 
-        {/* Step 2: Category + subcategory */}
-        {step === 2 && selectedGroup && (
+        {/* Step 2: Offering names */}
+        {step === 2 && (
           <div className="space-y-4">
             <PendingCategoryRequestsBanner variant="inline" />
-            <GuidedStep2
-              selectedGroup={selectedGroup}
-              selectedGroupInfo={selectedGroupInfo}
-              formData={formData}
-              setFormData={setFormData}
-              groupedConfigs={groupedConfigs}
-              handleCategoryChange={handleCategoryChange}
-              onBack={() => { void handleBackToGroupPicker(); }}
-              onContinue={async () => {
-                if (formData.categories.length === 0) {
-                  notify.block('Select at least one category to continue');
-                  return;
-                }
-                // Auto-infer commerce model from selected categories if not already chosen
-                if (!commerceModel) {
-                  const firstCat = formData.categories[0];
-                  const cfg = configs.find((c: any) => c.category === firstCat);
-                  const fromAction = cfg?.default_action_type
-                    ? commerceModelFromActionType(cfg.default_action_type)
-                    : null;
-                  if (fromAction) {
-                    await persistCommerceChoice(fromAction);
-                  }
-                }
-                await app.saveDraft({ silent: true });
-                setStep(3);
+            <OfferingsStep
+              names={offeringNames?.length ? offeringNames : ['']}
+              suggestionChips={offeringChips}
+              stampHint={taxonomyStampHint}
+              error={offeringsError}
+              onChangeNames={(names) => {
+                setTaxonomyStampHint(null);
+                setOfferingsError(null);
+                setOfferingNames(names);
               }}
-              onSkip={() => setStep(3)}
+              onBack={() => handleStepBack(1)}
+              onContinue={() => { void continueFromOfferings(); }}
             />
             <Button variant="outline" className="w-full" onClick={() => setRequestCategoryOpen(true)}>
               Can&apos;t find your category? Request one
@@ -1151,7 +1036,7 @@ export default function BecomeSellerPage() {
             <RequestCategoryDialog
               open={requestCategoryOpen}
               onOpenChange={setRequestCategoryOpen}
-              initialName={seedProductName || listingIntentPhrase || ''}
+              initialName={normalizeOfferingNames(offeringNames || [])[0] || seedProductName || listingIntentPhrase || ''}
               parentGroupInfos={parentGroupInfos}
               sellerId={draftSellerId}
               onboardingMode
@@ -1163,69 +1048,23 @@ export default function BecomeSellerPage() {
           </div>
         )}
 
-        {/* Step 3: Commerce model */}
+        {/* Step 3: Parent group only when inference fails */}
         {step === 3 && (
-          <CommerceModelStep
-            value={(commerceModel as BuyerJourneyId) || null}
-            softTag={softTag}
-            onChange={(model) => { void persistCommerceChoice(model); }}
-            onSoftTagChange={(tag) => {
-              setSoftListingTag(tag || '');
-              const inferred = softTagToCommerceModel(tag);
-              if (inferred && !commerceModel) persistCommerceChoice(inferred);
-              else if (inferred && tag) persistCommerceChoice(inferred);
-            }}
+          <ParentGroupPickerStep
+            groups={parentGroupInfos}
+            selectedGroup={selectedGroup}
+            isLoading={groupsLoading}
+            onSelect={setSelectedGroup}
+            onContinue={(group) => { void continueFromGroupPicker(group); }}
             onBack={() => handleStepBack(2)}
-            onContinue={async () => {
-              if (!commerceModel) {
-                const firstCat = formData.categories[0];
-                const cfg = configs.find((c: any) => c.category === firstCat);
-                const fromAction = cfg?.default_action_type
-                  ? commerceModelFromActionType(cfg.default_action_type)
-                  : null;
-                if (fromAction) await persistCommerceChoice(fromAction);
-                else if (resolvedIntent.commerceModel) await persistCommerceChoice(resolvedIntent.commerceModel);
-              }
-              await app.saveDraft({ silent: true });
-              setStep(4);
-            }}
+            helper="We could not match your offerings automatically. Pick the one type that fits this store."
+            continueLabel="Continue to store setup"
           />
         )}
 
-        {/* Step 4: Product offering name */}
+        {/* Step 4: unused in v4 — auto-advance */}
         {step === 4 && (
-          <ProductOfferingStep
-            value={seedProductName || listingIntentPhrase}
-            categoryLabel={formData.categories.map((cat) => {
-              const config = configs.find((c: any) => c.category === cat);
-              return config?.displayName || cat;
-            }).join(', ')}
-            selectedSubcategoryNames={selectedSubcategoryDisplayNames}
-            onChange={(name) => {
-              const trimmed = name.trim();
-              const titled = trimmed ? trimmed.charAt(0).toUpperCase() + trimmed.slice(1) : '';
-              setSeedProductName(titled);
-              setListingIntentPhrase(titled);
-            }}
-            onSelectSuggestion={(name) => {
-              const titled = name.charAt(0).toUpperCase() + name.slice(1);
-              setSeedProductName(titled);
-              setListingIntentPhrase(titled);
-            }}
-            onBack={() => handleStepBack(3)}
-            onContinue={async () => {
-              const name = (seedProductName || listingIntentPhrase).trim();
-              if (name.length < 2) {
-                notify.block('Enter what you are selling (at least 2 characters)');
-                return;
-              }
-              const titled = name.charAt(0).toUpperCase() + name.slice(1);
-              setSeedProductName(titled);
-              setListingIntentPhrase(titled);
-              await app.saveDraft({ silent: true });
-              setStep(5);
-            }}
-          />
+          <div className="py-8 text-center text-sm text-muted-foreground">Matching your offerings…</div>
         )}
 
         {/* Step 5: Location → Fulfilment → Radius → Store information */}
@@ -1235,7 +1074,9 @@ export default function BecomeSellerPage() {
               if (storeSetupSubStep > 1) {
                 handleSetStoreSetupSubStep(storeSetupSubStep - 1);
               } else {
-                handleStepBack(4);
+                let usedPicker = false;
+                try { usedPicker = sessionStorage.getItem('onboarding_used_group_picker') === '1'; } catch { /* */ }
+                handleStepBack(usedPicker ? 3 : 2);
               }
             }} className="flex items-center gap-1 text-sm text-muted-foreground">
               <ArrowLeft size={16} />{storeSetupSubStep > 1 ? 'Back' : 'Change offering'}
@@ -1590,7 +1431,10 @@ export default function BecomeSellerPage() {
               onProductsChange={setDraftProducts}
               beforePick={beforeImagePick}
               defaultActionType={storeActionType || undefined}
-              seedProductName={seedProductName || undefined}
+              seedProductName={normalizeOfferingNames(offeringNames || [])[0] || seedProductName || undefined}
+              seedProductNames={normalizeOfferingNames(offeringNames || [])}
+              commerceModel={commerceModel}
+              onStoreCategoriesChange={(cats) => setFormData((f) => ({ ...f, categories: cats }))}
               seedSubcategoryId={(() => {
                 const cat = formData.categories[0];
                 if (!cat) return null;
@@ -1599,11 +1443,19 @@ export default function BecomeSellerPage() {
                 return formData.subcategory_preferences.data[cfg.id]?.primary || null;
               })()}
             />
-            <p className="text-xs text-muted-foreground text-center flex items-center justify-center gap-1"><ArrowRight size={12} />Next: Review everything and submit for approval</p>
+            <p className="text-xs text-muted-foreground text-center flex items-center justify-center gap-1">
+              <ArrowRight size={12} />
+              {pendingOfferings.length > 0
+                ? `Add remaining offerings before review: ${pendingOfferings.join(', ')}`
+                : 'Next: Review everything and submit for approval'}
+            </p>
             <Button className="w-full" onClick={async () => {
               if (draftSellerId) await reloadProducts(draftSellerId);
               setStep(8);
-            }} disabled={draftProducts.length === 0}>Review & Submit<ChevronRight size={16} className="ml-1" /></Button>
+            }} disabled={draftProducts.length === 0 || pendingOfferings.length > 0}>
+              {pendingOfferings.length > 0 ? `Add ${pendingOfferings.length} more offering${pendingOfferings.length === 1 ? '' : 's'}` : 'Review & Submit'}
+              <ChevronRight size={16} className="ml-1" />
+            </Button>
           </div>
         )}
 
@@ -1611,10 +1463,11 @@ export default function BecomeSellerPage() {
         {step === 8 && (() => {
           const validationErrors: { key: string; message: string; step: number }[] = [];
           if (draftProducts.length === 0) validationErrors.push({ key: 'products', message: 'Add at least one product before submitting', step: 7 });
+          if (pendingOfferings.length > 0) validationErrors.push({ key: 'offerings', message: `Add remaining offerings before submitting: ${pendingOfferings.join(', ')}`, step: 7 });
           if (formData.operating_days.length === 0) validationErrors.push({ key: 'days', message: 'Select at least one operating day', step: 6 });
           if (formData.accepts_upi && !formData.upi_id?.trim()) validationErrors.push({ key: 'upi', message: 'Enter your UPI ID or disable UPI payments', step: 6 });
           if (!formData.latitude || !formData.longitude) validationErrors.push({ key: 'location', message: 'Set your store location', step: 5 });
-          if (formData.categories.length === 0) validationErrors.push({ key: 'categories', message: 'Select at least one category', step: 2 });
+          if (formData.categories.length === 0) validationErrors.push({ key: 'categories', message: 'Select at least one category', step: 3 });
           if (!profile?.society_id && !formData.latitude) {
             validationErrors.push({
               key: 'society',
@@ -1684,6 +1537,48 @@ export default function BecomeSellerPage() {
           </div>
           );
         })()}
+        <AlertDialog open={!!workflowConflict} onOpenChange={(open) => {
+          if (!open) {
+            pendingStampRef.current = null;
+            pendingConflictRef.current = null;
+            setWorkflowConflict(null);
+          }
+        }}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>This offering does not support Cart</AlertDialogTitle>
+              <AlertDialogDescription>
+                {workflowConflict
+                  ? `"${workflowConflict.offeringName}" is listed under ${workflowConflict.categoryDisplayName}, which does not support add-to-cart. Switch to ${workflowConflict.recommended === 'book' ? 'Book' : workflowConflict.recommended} for this store, or open a second store for cart items.`
+                  : ''}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => {
+                pendingStampRef.current = null;
+                pendingConflictRef.current = null;
+                setWorkflowConflict(null);
+              }}>
+                Go back
+              </AlertDialogCancel>
+              <Button
+                type="button"
+                onClick={async () => {
+                  const conflict = pendingConflictRef.current;
+                  const stamp = pendingStampRef.current;
+                  if (!conflict || !stamp) return;
+                  await persistCommerceChoice(conflict.recommended);
+                  pendingStampRef.current = null;
+                  pendingConflictRef.current = null;
+                  setWorkflowConflict(null);
+                  await applyStampAndGoToStore(stamp, false);
+                }}
+              >
+                Use {workflowConflict?.recommended === 'book' ? 'Book' : (workflowConflict?.recommended || 'recommended')} instead
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </AppLayout>
   );

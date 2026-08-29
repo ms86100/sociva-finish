@@ -28,9 +28,9 @@ describe('category taxonomy and capability realignment', () => {
   });
 
   it('seller offering step reviews selected subcategories instead of a blank prompt', () => {
-    const offering = read('src/components/seller/ProductOfferingStep.tsx');
-    expect(offering).toContain('selectedSubcategoryNames');
-    expect(offering).toContain('Your Selected Offerings');
+    const offering = read('src/components/seller/OfferingsStep.tsx');
+    expect(offering).toContain('What do you offer?');
+    expect(offering).toContain('Add another');
     const bootstrap = read('src/lib/app-bootstrap.ts');
     expect(bootstrap).toMatch(/app-bootstrap-v3/);
   });

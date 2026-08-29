@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useRegisterScreenRefresh } from '@/hooks/usePullToRefresh';
 import { motion } from 'framer-motion';
 import { staggerContainer, cardEntrance, fadeSlideUp } from '@/lib/motion-variants';
 import { computeStoreStatus, formatStoreClosedMessage } from '@/lib/store-availability';
@@ -46,6 +47,9 @@ import { notify } from '@/lib/notify';
 import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
 import { PreciseLocationRequiredCard } from '@/components/location/PreciseLocationRequiredCard';
 import { buyerCanOrderFromSeller } from '@/lib/sellerDiscoverability';
+import { TasteRail } from '@/components/food/TasteRail';
+import { availableTasteMoods, countFoodFacets, isFoodParentGroup } from '@/lib/food-facets';
+import { emptyTasteBrowseState, productMatchesTasteBrowse } from '@/lib/food-taste';
 
 export default function SellerDetailPage() {
   const { id } = useParams();
@@ -57,6 +61,8 @@ export default function SellerDetailPage() {
   const { browsingLocation: browsingLoc } = useBrowsingLocation();
   const { data: marketplaceSellers = [] } = useMarketplaceData();
   const [seller, setSeller] = useState<SellerProfile | null>(null);
+  const sellerRef = useRef<SellerProfile | null>(null);
+  sellerRef.current = seller;
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [sellerNotFound, setSellerNotFound] = useState(false);
@@ -75,6 +81,7 @@ export default function SellerDetailPage() {
     }
   };
   const [menuSearch, setMenuSearch] = useState('');
+  const [taste, setTaste] = useState(emptyTasteBrowseState);
   const [distanceKm, setDistanceKm] = useState<number | null>(null);
   const [isReportOpen, setIsReportOpen] = useState(false);
   const [reportType, setReportType] = useState<string>('');
@@ -100,11 +107,14 @@ export default function SellerDetailPage() {
   const fetchSellerDetails = async () => {
     if (!id) return;
 
-    setIsLoading(true);
-    setSellerNotFound(false);
-    setSellerUnavailable(false);
-    setProductsError(false);
-    setNeedsLocation(false);
+    const keepVisible = !!sellerRef.current;
+    if (!keepVisible) {
+      setIsLoading(true);
+      setSellerNotFound(false);
+      setSellerUnavailable(false);
+      setProductsError(false);
+      setNeedsLocation(false);
+    }
 
     const canonicalSeller = marketplaceSeller
       ? ({
@@ -179,8 +189,10 @@ export default function SellerDetailPage() {
 
       if (sellerRes.error && !sellerData) {
         console.error('Seller fetch error:', sellerRes.error.message, sellerRes.error.code);
-        setSellerNotFound(true);
-        setIsLoading(false);
+        if (!sellerRef.current) {
+          setSellerNotFound(true);
+          setIsLoading(false);
+        }
         return;
       }
 
@@ -222,7 +234,7 @@ export default function SellerDetailPage() {
       try {
         const productsRes = await supabase
           .from('products')
-          .select('id, name, description, price, image_url, category, is_veg, is_bestseller, is_recommended, is_available, approval_status, seller_id, stock_quantity, discount_percentage, mrp, action_type, contact_phone, specifications, prep_time_minutes')
+          .select('id, name, description, price, image_url, category, is_veg, is_bestseller, is_recommended, is_available, approval_status, seller_id, stock_quantity, discount_percentage, mrp, action_type, contact_phone, specifications, prep_time_minutes, tags, cuisine_type')
           .eq('seller_id', id)
           .eq('is_available', true)
           .eq('approval_status', 'approved')
@@ -284,16 +296,28 @@ export default function SellerDetailPage() {
       }
     } catch (error) {
       console.error('Error fetching seller:', error);
-      setSellerNotFound(true);
-      setIsLoading(false);
+      if (!sellerRef.current) {
+        setSellerNotFound(true);
+        setIsLoading(false);
+      }
     }
   };
+
+  useRegisterScreenRefresh(() => fetchSellerDetails());
+
+  const isFoodStore = products.some((p) => {
+    const cfg = allCategoryConfigs.find((c) => c.category === p.category);
+    return isFoodParentGroup(cfg?.parentGroup);
+  });
 
   const filteredProducts = (() => {
     let result = activeCategory === 'all' ? products : products.filter((p) => p.category === activeCategory);
     if (menuSearch.trim()) {
       const q = menuSearch.toLowerCase();
       result = result.filter((p) => p.name.toLowerCase().includes(q) || p.description?.toLowerCase().includes(q));
+    }
+    if (isFoodStore && (countFoodFacets(taste) || taste.veg)) {
+      result = result.filter((p) => productMatchesTasteBrowse(p, { ...taste, openNow: false }));
     }
     return result;
   })();
@@ -757,6 +781,18 @@ export default function SellerDetailPage() {
                 </button>
               )}
             </div>
+            {isFoodStore && (
+              <div className="-mx-4 mb-3 border-y border-border/40">
+                <TasteRail
+                  value={taste}
+                  onChange={setTaste}
+                  showMoods
+                  showUtilities
+                  showOpenNow={false}
+                  moods={availableTasteMoods(products)}
+                />
+              </div>
+            )}
             {categories.length > 2 && (
               <div className="flex gap-2 overflow-x-auto scrollbar-hide mb-4 -mx-4 px-4 sticky top-0 z-10 bg-background py-2 border-b border-border/50">
                 {categories.map((cat) => {

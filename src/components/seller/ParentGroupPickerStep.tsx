@@ -9,6 +9,10 @@ interface ParentGroupPickerStepProps {
   selectedGroup: string | null;
   isLoading?: boolean;
   onSelect: (slug: string) => void;
+  onContinue?: (slug: string) => void;
+  onBack?: () => void;
+  helper?: string;
+  continueLabel?: string;
 }
 
 export function ParentGroupPickerStep({
@@ -16,6 +20,10 @@ export function ParentGroupPickerStep({
   selectedGroup,
   isLoading,
   onSelect,
+  onContinue,
+  onBack,
+  helper = 'Which of these best describes what you offer? One store stays in one type.',
+  continueLabel = 'Continue',
 }: ParentGroupPickerStepProps) {
   if (isLoading) {
     return (
@@ -28,8 +36,13 @@ export function ParentGroupPickerStep({
 
   return (
     <div className="space-y-5">
+      {onBack && (
+        <button type="button" onClick={onBack} className="flex items-center gap-1 text-sm text-muted-foreground">
+          ← What you offer
+        </button>
+      )}
       <p className="text-sm text-muted-foreground">
-        Choose the type of store you want to open. You&apos;ll pick your exact category next.
+        {helper}
       </p>
       <div className="grid grid-cols-2 gap-2">
         {groups.map((group) => {
@@ -60,9 +73,9 @@ export function ParentGroupPickerStep({
       <Button
         className="w-full"
         disabled={!selectedGroup}
-        onClick={() => selectedGroup && onSelect(selectedGroup)}
+        onClick={() => selectedGroup && (onContinue || onSelect)(selectedGroup)}
       >
-        Continue<ChevronRight size={16} className="ml-1" />
+        {continueLabel}<ChevronRight size={16} className="ml-1" />
       </Button>
     </div>
   );

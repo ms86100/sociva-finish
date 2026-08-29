@@ -156,7 +156,8 @@ async function fetchCartItems(userId: string) {
     .eq('user_id', userId);
   if (error) throw error;
   const items = (data as any as (CartItem & { product: Product })[]) || [];
-  const filtered = items.filter(item => item.product != null && item.product.is_available !== false);
+  // Keep unavailable products visible so a refresh can warn instead of silently dropping them.
+  const filtered = items.filter(item => item.product != null);
 
   // Layer 1 self-heal removed (perf): empty cart is overwhelmingly the common case
   // and the COUNT round-trip on every empty result doubles cart-fetch traffic.
@@ -169,9 +170,8 @@ async function fetchCartItems(userId: string) {
 async function fetchCartItemCount(userId: string) {
   const { data, error } = await supabase
     .from('cart_items')
-    .select('quantity, product:products!inner(is_available)')
-    .eq('user_id', userId)
-    .eq('product.is_available', true);
+    .select('quantity, product:products!inner(id)')
+    .eq('user_id', userId);
   if (error) throw error;
   return (data || []).reduce((sum, row) => sum + (row.quantity || 0), 0);
 }

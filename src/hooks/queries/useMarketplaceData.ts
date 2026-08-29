@@ -79,6 +79,9 @@ export function useMarketplaceData() {
           contact_phone: p.contact_phone,
           mrp: p.mrp,
           discount_percentage: p.discount_percentage,
+          tags: p.tags || null,
+          cuisine_type: p.cuisine_type || null,
+          subcategory_id: p.subcategory_id || null,
         });
         productsBySeller.set(p.seller_id, list);
       }

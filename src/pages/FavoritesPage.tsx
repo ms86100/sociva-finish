@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { useState, useEffect } from 'react';
+import { useRegisterScreenRefresh } from '@/hooks/usePullToRefresh';
 import { SafeHeader } from '@/components/layout/SafeHeader';
 import { Link, useLocation } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
@@ -38,10 +39,11 @@ export default function FavoritesPage() {
     }
   }, [user, location.key, browsingLocation?.lat, browsingLocation?.lng]);
 
-  const fetchFavorites = async () => {
+  const fetchFavorites = async (opts?: { silent?: boolean }) => {
     if (!user) return;
 
     try {
+      if (!opts?.silent) setIsLoading(true);
       const { data, error } = await supabase
         .from('favorites')
         .select(`
@@ -70,6 +72,8 @@ export default function FavoritesPage() {
       setIsLoading(false);
     }
   };
+
+  useRegisterScreenRefresh(() => fetchFavorites({ silent: true }));
 
   const handleRemoved = (sellerId: string) => {
     setFavorites(prev => prev.filter(s => s.id !== sellerId));

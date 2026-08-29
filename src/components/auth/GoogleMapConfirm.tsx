@@ -3,7 +3,9 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Button } from '@/components/ui/button';
-import { MapPin, Check, Loader2, ArrowLeft } from 'lucide-react';
+import { MapPin, Check, Loader2, ArrowLeft, LocateFixed } from 'lucide-react';
+import { toast } from 'sonner';
+import { getCurrentPosition } from '@/lib/native-location';
 import { cn } from '@/lib/utils';
 import {
   extractBestLabel,
@@ -11,6 +13,7 @@ import {
   findNearbyPlaceName,
   pickBetterLabel,
   formatCoords,
+  cleanLocationTitle,
   LabelQuality,
   type ResolvedLabel,
 } from '@/lib/location-label-resolver';
@@ -45,6 +48,7 @@ export function GoogleMapConfirm({ latitude, longitude, name, onConfirm, onBack 
   const [formattedAddress, setFormattedAddress] = useState('');
   const [isGeocoding, setIsGeocoding] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [isLocatingGps, setIsLocatingGps] = useState(false);
 
   const displayNameRef = useRef(name);
   const formattedAddressRef = useRef('');
@@ -107,7 +111,8 @@ export function GoogleMapConfirm({ latitude, longitude, name, onConfirm, onBack 
 
     if (!currentBest) currentBest = formatCoords(lat, lng);
 
-    setDisplayName(currentBest.name);
+    const cleanTitle = cleanLocationTitle(currentBest.name) || currentBest.name;
+    setDisplayName(cleanTitle);
     const finalAddress = bestAddress || currentBest.formattedAddress || '';
     setFormattedAddress(finalAddress);
     setIsGeocoding(false);
@@ -120,6 +125,26 @@ export function GoogleMapConfirm({ latitude, longitude, name, onConfirm, onBack 
     }
     resolveLabel(lat, lng, options?.preserveInitial ?? false);
   }, [resolveLabel]);
+
+  const handleGoToCurrentLocation = useCallback(async () => {
+    if (isLocatingGps) return;
+    setIsLocatingGps(true);
+    hasUserInteractedRef.current = true;
+    try {
+      const pos = await getCurrentPosition();
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.panTo({ lat: pos.latitude, lng: pos.longitude });
+        mapInstanceRef.current.setZoom(17);
+      }
+      commitCenter(pos.latitude, pos.longitude, { panMap: true, preserveInitial: false });
+      toast.success('Centered to present location', { duration: 1800 });
+    } catch (err) {
+      console.warn('[GoogleMapConfirm] GPS recenter failed:', err);
+      toast.error('Could not detect location. Please check GPS permissions.');
+    } finally {
+      setIsLocatingGps(false);
+    }
+  }, [isLocatingGps, commitCenter]);
 
   useEffect(() => {
     if (!mapRef.current || !(window as any).google?.maps) {
@@ -197,7 +222,7 @@ export function GoogleMapConfirm({ latitude, longitude, name, onConfirm, onBack 
   }, [latitude, longitude]);
 
   return createPortal(
-    <div className="fixed inset-0 z-50 bg-background flex flex-col" style={{ overscrollBehavior: 'contain' }}>
+    <div className="fixed inset-0 z-50 bg-background flex flex-col" style={{ overscrollBehavior: 'contain' }} data-ptr-block="true">
       <div className="shrink-0 flex items-center gap-3 px-4 pt-[max(env(safe-area-inset-top,0px),12px)] pb-3 bg-background/95 backdrop-blur-sm z-10">
         <button
           onClick={onBack}
@@ -225,15 +250,40 @@ export function GoogleMapConfirm({ latitude, longitude, name, onConfirm, onBack 
             Move the map to position the location
           </div>
         </div>
+
+        {/* Floating "Go to Current Location" GPS button (like Blinkit / Swiggy) */}
+        <button
+          type="button"
+          onClick={handleGoToCurrentLocation}
+          disabled={isLocatingGps}
+          className={cn(
+            'absolute bottom-4 right-4 z-20',
+            'h-12 w-12 rounded-full',
+            'bg-background/95 backdrop-blur-md text-primary',
+            'shadow-[0_4px_16px_rgba(0,0,0,0.18)] border border-border/80',
+            'flex items-center justify-center',
+            'hover:bg-background active:scale-95 transition-all duration-150',
+            'focus:outline-none focus:ring-2 focus:ring-primary/40',
+            isLocatingGps && 'opacity-80'
+          )}
+          aria-label="Go to current location"
+          title="Go to current location"
+        >
+          {isLocatingGps ? (
+            <Loader2 size={20} className="animate-spin text-primary" />
+          ) : (
+            <LocateFixed size={22} className="text-primary stroke-[2.25]" />
+          )}
+        </button>
       </div>
 
       <div className="shrink-0 bg-background border-t border-border px-4 pt-3 pb-[max(env(safe-area-inset-bottom,0px),16px)] space-y-3">
         <div className="flex items-start gap-2.5">
           <MapPin size={16} className="text-primary shrink-0 mt-0.5" />
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-foreground truncate">{displayName}</p>
+            <p className="text-sm font-bold text-foreground truncate">{displayName}</p>
             {formattedAddress && formattedAddress !== displayName && (
-              <p className="text-xs text-muted-foreground truncate mt-0.5">{formattedAddress}</p>
+              <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5 leading-relaxed">{formattedAddress}</p>
             )}
           </div>
           {isGeocoding && <Loader2 size={14} className="animate-spin text-muted-foreground shrink-0 mt-0.5" />}

@@ -260,4 +260,13 @@ describe('migrateOnboardingStep', () => {
     expect(migrateOnboardingStep(6, '2')).toBe(7);
     expect(migrateOnboardingStep(7, '2')).toBe(8);
   });
+
+  it('maps v3 category-first front-funnel onto workflow-first restart', () => {
+    expect(migrateOnboardingStep(1, '3')).toBe(1);
+    expect(migrateOnboardingStep(2, '3')).toBe(1);
+    expect(migrateOnboardingStep(3, '3')).toBe(1);
+    expect(migrateOnboardingStep(4, '3')).toBe(1);
+    expect(migrateOnboardingStep(5, '3')).toBe(5);
+    expect(migrateOnboardingStep(7, '3')).toBe(7);
+  });
 });

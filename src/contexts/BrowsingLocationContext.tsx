@@ -11,6 +11,8 @@ import {
 export interface BrowsingLocation {
   id: string; // 'gps' | 'society' | delivery_address.id
   label: string;
+  fullAddress?: string;
+  secondaryLabel?: string;
   lat: number;
   lng: number;
   source: 'gps' | 'address' | 'society';

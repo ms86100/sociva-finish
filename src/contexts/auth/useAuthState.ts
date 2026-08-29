@@ -460,6 +460,14 @@ export function useAuthState() {
     };
   }, [state.user?.id, fetchProfile]);
 
+  useEffect(() => {
+    const handleRefreshProfile = () => {
+      void refreshProfile();
+    };
+    window.addEventListener('app:refresh-profile', handleRefreshProfile);
+    return () => window.removeEventListener('app:refresh-profile', handleRefreshProfile);
+  }, [refreshProfile]);
+
   return {
     state,
     setPartial,

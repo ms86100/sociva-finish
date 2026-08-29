@@ -1,7 +1,10 @@
 // @ts-nocheck
 /// <reference types="@types/google.maps" />
 
-const PLUS_CODE_REGEX = /^[23456789CFGHJMPQRVWX]+\+/;
+const PLUS_CODE_REGEX = /^[23456789CFGHJMPQRVWX]{2,8}\+[23456789CFGHJMPQRVWX\d]*\s*,?\s*/i;
+const COUNTRY_REGEX = /,\s*(?:India|IN)\s*$/i;
+const PINCODE_REGEX = /\b\d{6}\b/g;
+const STATE_REGEX = /,\s*(?:Karnataka|Maharashtra|Tamil Nadu|Delhi|Telangana|Andhra Pradesh|Kerala|Goa|Gujarat|Haryana|Uttar Pradesh|West Bengal|Rajasthan|Madhya Pradesh|Punjab|Bihar|Odisha|Assam|Jharkhand)\b/gi;
 
 /** Labels considered too generic to be useful */
 const GENERIC_LABELS = [
@@ -23,6 +26,118 @@ export interface ResolvedLabel {
   name: string;
   quality: LabelQuality;
   formattedAddress?: string;
+}
+
+export interface FormattedLocationDisplay {
+  primary: string;
+  secondary?: string;
+  fullFormatted: string;
+}
+
+/**
+ * Cleans a raw location/address string to obtain a concise, meaningful title
+ * (e.g., "Shriram Greenfield Phase-2" rather than a 100-character postal string).
+ */
+export function cleanLocationTitle(raw: string): string {
+  if (!raw) return '';
+  let str = raw.trim();
+  // Strip leading plus code
+  str = str.replace(PLUS_CODE_REGEX, '').trim();
+  // Strip trailing country, state, pincode
+  str = str.replace(COUNTRY_REGEX, '').trim();
+  str = str.replace(STATE_REGEX, '').trim();
+  str = str.replace(PINCODE_REGEX, '').trim();
+  str = str.replace(/,\s*,/g, ',').replace(/,\s*$/, '').trim();
+
+  // If there are multiple comma-separated parts, take the first 1-2 distinct landmark parts
+  const parts = str.split(',').map(p => p.trim()).filter(Boolean);
+  if (parts.length === 0) return '';
+  if (parts.length === 1) return parts[0];
+
+  const first = parts[0];
+  const second = parts[1];
+
+  // If first part is a flat/unit/tower/block indicator (e.g. "Flat 302", "Tower 4", "Block B", "Villa 12")
+  // and second part is the building/society name (e.g. "Shriram Greenfield"), combine them
+  const isUnitPrefix = /^(?:flat|apt|apartment|unit|tower|block|villa|house|room|no\.?|#)\s*[\w\d-]+$/i.test(first);
+  if (isUnitPrefix && second) {
+    return `${first}, ${second}`;
+  }
+
+  return first;
+}
+
+/**
+ * Formats a location label (and optional full address) into primary (bold title)
+ * and secondary (subtext) fields suitable for the top navigation and address cards.
+ */
+export function formatLocationDisplay(
+  input: string | null | undefined,
+  options?: { fullAddress?: string; fallback?: string }
+): FormattedLocationDisplay {
+  const fallback = options?.fallback || 'Set location';
+  if (!input || !input.trim()) {
+    return { primary: fallback, fullFormatted: fallback };
+  }
+
+  const raw = input.trim();
+
+  // Check for coordinates pattern (e.g., "13.0715, 77.7530")
+  if (/^-?\d+\.\d+,\s*-?\d+\.\d+$/.test(raw)) {
+    return {
+      primary: 'Current Location',
+      secondary: raw,
+      fullFormatted: raw,
+    };
+  }
+
+  const cleanPrimary = cleanLocationTitle(raw);
+
+  // Derive secondary subtext if available
+  let secondary: string | undefined = undefined;
+  const fullAddress = options?.fullAddress?.trim();
+
+  if (fullAddress && fullAddress !== raw && fullAddress !== cleanPrimary) {
+    // If a distinct full address is provided, clean it for secondary display
+    let cleanedFull = fullAddress
+      .replace(PLUS_CODE_REGEX, '')
+      .replace(COUNTRY_REGEX, '')
+      .replace(STATE_REGEX, '')
+      .replace(PINCODE_REGEX, '')
+      .replace(/,\s*,/g, ',')
+      .replace(/,\s*$/, '')
+      .trim();
+
+    // Remove the primary part from the start of the secondary text if present
+    if (cleanedFull.toLowerCase().startsWith(cleanPrimary.toLowerCase())) {
+      cleanedFull = cleanedFull.slice(cleanPrimary.length).replace(/^[\s,·-]+/, '').trim();
+    }
+    if (cleanedFull && cleanedFull !== cleanPrimary) {
+      secondary = cleanedFull;
+    }
+  } else if (raw.includes(',')) {
+    // Extract remaining parts from raw string
+    const parts = raw.split(',').map(p => p.trim()).filter(Boolean);
+    if (parts.length > 1) {
+      const remaining = parts.slice(1)
+        .join(', ')
+        .replace(COUNTRY_REGEX, '')
+        .replace(STATE_REGEX, '')
+        .replace(PINCODE_REGEX, '')
+        .replace(/,\s*,/g, ',')
+        .replace(/,\s*$/, '')
+        .trim();
+      if (remaining && remaining !== cleanPrimary) {
+        secondary = remaining;
+      }
+    }
+  }
+
+  return {
+    primary: cleanPrimary || raw || fallback,
+    secondary: secondary || undefined,
+    fullFormatted: fullAddress || raw || fallback,
+  };
 }
 
 function isGeneric(label: string): boolean {
@@ -66,25 +181,25 @@ function scoreGeocoderResult(result: google.maps.GeocoderResult): ResolvedLabel 
 
   // POI-level
   const poi = get('point_of_interest') || get('establishment');
-  if (poi && !isGeneric(poi)) return { name: poi, quality: LabelQuality.POI, formattedAddress: formattedAddr };
+  if (poi && !isGeneric(poi)) return { name: cleanLocationTitle(poi), quality: LabelQuality.POI, formattedAddress: formattedAddr };
 
   const premise = get('premise');
-  if (premise && !isGeneric(premise)) return { name: premise, quality: LabelQuality.Premise, formattedAddress: formattedAddr };
+  if (premise && !isGeneric(premise)) return { name: cleanLocationTitle(premise), quality: LabelQuality.Premise, formattedAddress: formattedAddr };
 
   const neighborhood = get('neighborhood');
-  if (neighborhood && !isGeneric(neighborhood)) return { name: neighborhood, quality: LabelQuality.Neighborhood, formattedAddress: formattedAddr };
+  if (neighborhood && !isGeneric(neighborhood)) return { name: cleanLocationTitle(neighborhood), quality: LabelQuality.Neighborhood, formattedAddress: formattedAddr };
 
   const sublocality = get('sublocality_level_1') || get('sublocality');
-  if (sublocality && !isGeneric(sublocality)) return { name: sublocality, quality: LabelQuality.Sublocality, formattedAddress: formattedAddr };
+  if (sublocality && !isGeneric(sublocality)) return { name: cleanLocationTitle(sublocality), quality: LabelQuality.Sublocality, formattedAddress: formattedAddr };
 
   const route = get('route');
-  if (route && !isGeneric(route)) return { name: route, quality: LabelQuality.Route, formattedAddress: formattedAddr };
+  if (route && !isGeneric(route)) return { name: cleanLocationTitle(route), quality: LabelQuality.Route, formattedAddress: formattedAddr };
 
   // Fallback to first segment of formatted address (only if it's not a plus code)
   if (formattedAddr) {
     const firstSeg = formattedAddr.split(',')[0]?.trim();
     if (firstSeg && !isPlusCode(firstSeg) && !isGeneric(firstSeg)) {
-      return { name: firstSeg, quality: LabelQuality.Route, formattedAddress: formattedAddr };
+      return { name: cleanLocationTitle(firstSeg), quality: LabelQuality.Route, formattedAddress: formattedAddr };
     }
   }
 
@@ -224,7 +339,7 @@ export async function findNearbyPlaceName(
 
     const winner = candidates[0];
     console.info('[LocationResolver] (New) Places fallback:', winner.name, 'distance(m):', Math.round(winner.dist));
-    return { name: winner.name, quality: LabelQuality.POI };
+    return { name: cleanLocationTitle(winner.name), quality: LabelQuality.POI };
   } catch (err) {
     console.warn('[LocationResolver] Place.searchNearby failed:', err);
     return null;

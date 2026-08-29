@@ -21,6 +21,16 @@ import { leadTimeFromHours, leadTimeToHours, parseLeadTimeInput } from '@/lib/le
 import { normalizeServiceLocationTypes, primaryServiceLocationType } from '@/lib/service-location';
 import { resolveStockSaveValues } from '@/lib/product-stock-form';
 import { parsePrepTimeMinutes } from '@/lib/prep-time-minutes';
+import { useRegisterScreenRefresh } from '@/hooks/usePullToRefresh';
+import { mergeStoreCategories, resolveListingPlacement } from '@/lib/listing-placement';
+import type { IntentCatalogCategory, IntentCatalogSubcategory } from '@/lib/listing-intent';
+import {
+  inferFoodFacets,
+  isFoodParentGroup,
+  mergeInferredFoodFacets,
+  parseFoodFacets,
+  serializeFoodFacets,
+} from '@/lib/food-facets';
 
 export interface ProductFormData {
   name: string;
@@ -45,6 +55,8 @@ export interface ProductFormData {
   lead_time_value: string;
   lead_time_unit: LeadTimeUnit;
   accepts_preorders: boolean;
+  tags: string[];
+  cuisine_type: string | null;
 }
 
 const INITIAL_FORM: ProductFormData = {
@@ -53,7 +65,7 @@ const INITIAL_FORM: ProductFormData = {
   is_recommended: false, is_urgent: false, image_url: null,
   action_type: 'add_to_cart', contact_phone: '', tracks_stock: false, stock_quantity: '',
   tracks_low_stock_alert: false, low_stock_threshold: '', subcategory_id: '', lead_time_value: '', lead_time_unit: 'hours',
-  accepts_preorders: false,
+  accepts_preorders: false, tags: [], cuisine_type: null,
 };
 
 interface SellerProductDraft {
@@ -126,7 +138,11 @@ export function useSellerProducts(opts?: { formIntent?: SellerProductFormIntent 
   }, [effectiveActionType]);
 
   const activeCategoryConfigId = activeCategoryConfig?.id || null;
-  const { data: subcategories = [] } = useSubcategories(activeCategoryConfigId);
+  const { data: allSubs = [] } = useSubcategories();
+  const subcategories = useMemo(
+    () => (activeCategoryConfigId ? allSubs.filter((s: any) => s.category_config_id === activeCategoryConfigId) : allSubs),
+    [allSubs, activeCategoryConfigId],
+  );
 
   const activeSubcategory = useMemo(() => {
     if (!formData.subcategory_id) return null;
@@ -150,6 +166,63 @@ export function useSellerProducts(opts?: { formIntent?: SellerProductFormIntent 
     // Onboarding may sync primary_group without populating categories[] — don't block listing.
     return matched.length > 0 ? matched : groupConfigs;
   }, [primaryGroup, groupedConfigs, configs, sellerProfile]);
+
+  const applyListingPlacementFromName = useCallback((rawName: string) => {
+    const name = String(rawName || '').trim();
+    if (!name) return;
+    const sellerCats: string[] = (sellerProfile as any)?.categories || allowedCategories.map((c) => c.category);
+    const intentCategories: IntentCatalogCategory[] = configs.map((c: any) => ({
+      slug: c.category,
+      id: c.id,
+      displayName: c.displayName,
+      parentGroup: c.parentGroup,
+      transactionType: c.transactionType,
+      hasDateRange: c.behavior?.hasDateRange,
+      requiresTimeSlot: c.behavior?.requiresTimeSlot,
+      enquiryOnly: c.behavior?.enquiryOnly,
+      supportsCart: c.behavior?.supportsCart,
+    }));
+    const intentSubs: IntentCatalogSubcategory[] = (allSubs || []).map((s: any) => {
+      const cfg = configs.find((c: any) => c.id === s.category_config_id);
+      return {
+        id: s.id,
+        slug: s.slug,
+        displayName: s.display_name,
+        categoryConfigId: s.category_config_id,
+        categorySlug: cfg?.category || '',
+      };
+    });
+    const placement = resolveListingPlacement({
+      name,
+      storeCategories: sellerCats,
+      categories: intentCategories,
+      subcategories: intentSubs,
+      fallbackCategory: formData.category || sellerCats[0] || '',
+      fallbackSubcategoryId: formData.subcategory_id || null,
+    });
+    const nextCategory = placement.category || formData.category;
+    const nextSub = !editingProduct
+      ? (placement.subcategoryId || formData.subcategory_id || '')
+      : formData.subcategory_id;
+    const placedConfig = configs.find((c: any) => c.category === nextCategory);
+    const foodPersist = isFoodParentGroup(placedConfig?.parentGroup) || placedConfig?.layoutType === 'food'
+      ? serializeFoodFacets(
+          mergeInferredFoodFacets(
+            inferFoodFacets(name),
+            parseFoodFacets(formData.tags, formData.cuisine_type),
+          ),
+          formData.tags,
+        )
+      : { tags: formData.tags || [], cuisine_type: formData.cuisine_type || null };
+    setFormData((prev) => ({
+      ...prev,
+      category: (nextCategory || prev.category) as ProductCategory | '',
+      subcategory_id: nextSub || prev.subcategory_id,
+      tags: foodPersist.tags,
+      cuisine_type: foodPersist.cuisine_type,
+    }));
+  }, [sellerProfile, allowedCategories, configs, allSubs, formData.category, formData.subcategory_id, formData.tags, formData.cuisine_type, editingProduct]);
+
 
 
   // ── Draft persistence ──
@@ -204,9 +277,9 @@ export function useSellerProducts(opts?: { formIntent?: SellerProductFormIntent 
     }
   }, [user, currentSellerId, sellerProfiles]);
 
-  const fetchData = async (sellerId: string) => {
+  const fetchData = async (sellerId: string, opts?: { silent?: boolean }) => {
     if (!user) return;
-    setIsLoading(true);
+    if (!opts?.silent) setIsLoading(true);
     try {
       // Parallel fetch: profile + products at the same time
       const [profileRes, productRes] = await Promise.all([
@@ -214,7 +287,7 @@ export function useSellerProducts(opts?: { formIntent?: SellerProductFormIntent 
           .select('id, user_id, business_name, description, verification_status, is_available, rating, total_reviews, avg_response_minutes, completed_order_count, cancellation_rate, last_active_at, society_id, primary_group, latitude, longitude, rejection_note, operating_days, sell_beyond_community, delivery_radius_km, cover_image_url, profile_image_url, categories, is_featured, availability_start, availability_end, accepts_cod, accepts_upi, upi_id, created_at, updated_at, fulfillment_mode, minimum_order_amount, daily_order_limit, pickup_payment_config, delivery_payment_config, default_action_type')
           .eq('id', sellerId).single(),
         supabase.from('products')
-          .select('id, name, description, price, mrp, image_url, category, is_veg, is_available, is_bestseller, is_recommended, is_urgent, seller_id, action_type, contact_phone, stock_quantity, low_stock_threshold, prep_time_minutes, created_at, updated_at, approval_status, subcategory_id, lead_time_hours, accepts_preorders, specifications, discount_percentage')
+          .select('id, name, description, price, mrp, image_url, category, is_veg, is_available, is_bestseller, is_recommended, is_urgent, seller_id, action_type, contact_phone, stock_quantity, low_stock_threshold, prep_time_minutes, created_at, updated_at, approval_status, subcategory_id, lead_time_hours, accepts_preorders, specifications, discount_percentage, tags, cuisine_type')
           .eq('seller_id', sellerId)
           .order('is_bestseller', { ascending: false })
           .order('created_at', { ascending: false }),
@@ -254,6 +327,11 @@ export function useSellerProducts(opts?: { formIntent?: SellerProductFormIntent 
     finally { setIsLoading(false); }
   };
 
+  useRegisterScreenRefresh(async () => {
+    if (formIntent !== 'list') return;
+    if (sellerProfile?.id) await fetchData(sellerProfile.id, { silent: true });
+  }, formIntent === 'list');
+
   const resetForm = () => {
     const defaultCategory = allowedCategories.length === 1 ? allowedCategories[0].category as ProductCategory : '';
     setFormData({ ...INITIAL_FORM, category: defaultCategory });
@@ -286,17 +364,26 @@ export function useSellerProducts(opts?: { formIntent?: SellerProductFormIntent 
         return { lead_time_value: lt.value, lead_time_unit: lt.unit };
       })(),
       accepts_preorders: (product as any).accepts_preorders || false,
+      tags: (product as any).tags || [],
+      cuisine_type: (product as any).cuisine_type || null,
     });
     // Always re-fetch specifications — list cache must not wipe attribute blocks on save
     const { data: freshRow } = await supabase
       .from('products')
-      .select('specifications')
+      .select('specifications, tags, cuisine_type')
       .eq('id', product.id)
       .maybeSingle();
     const specs = freshRow?.specifications ?? (product as any).specifications;
     const blocks: BlockData[] =
       specs?.blocks && Array.isArray(specs.blocks) ? (specs.blocks as BlockData[]) : [];
     setAttributeBlocks(blocks);
+    if (freshRow) {
+      setFormData((prev) => ({
+        ...prev,
+        tags: (freshRow as any).tags || prev.tags || [],
+        cuisine_type: (freshRow as any).cuisine_type ?? prev.cuisine_type ?? null,
+      }));
+    }
 
     const { data: sl } = await supabase.from('service_listings').select('*').eq('product_id', product.id).maybeSingle();
     if (sl) {
@@ -373,10 +460,49 @@ export function useSellerProducts(opts?: { formIntent?: SellerProductFormIntent 
     setIsSaving(true);
     try {
       const sellerCats: string[] = (sellerProfile as any)?.categories || [];
-      if (formData.category && !sellerCats.includes(formData.category)) {
+      const intentCategories: IntentCatalogCategory[] = configs.map((c: any) => ({
+        slug: c.category,
+        id: c.id,
+        displayName: c.displayName,
+        parentGroup: c.parentGroup,
+        transactionType: c.transactionType,
+        hasDateRange: c.behavior?.hasDateRange,
+        requiresTimeSlot: c.behavior?.requiresTimeSlot,
+        enquiryOnly: c.behavior?.enquiryOnly,
+        supportsCart: c.behavior?.supportsCart,
+      }));
+      const intentSubs: IntentCatalogSubcategory[] = (allSubs || []).map((s: any) => {
+        const cfg = configs.find((c: any) => c.id === s.category_config_id);
+        return {
+          id: s.id,
+          slug: s.slug,
+          displayName: s.display_name,
+          categoryConfigId: s.category_config_id,
+          categorySlug: cfg?.category || '',
+        };
+      });
+      const placement = resolveListingPlacement({
+        name: formData.name.trim(),
+        storeCategories: sellerCats.length ? sellerCats : (formData.category ? [formData.category] : []),
+        categories: intentCategories,
+        subcategories: intentSubs,
+        fallbackCategory: formData.category || sellerCats[0] || '',
+        fallbackSubcategoryId: formData.subcategory_id || null,
+      });
+      const placedCategory = editingProduct
+        ? (formData.category || placement.category)
+        : (placement.category || formData.category);
+      const placedSubcategoryId = editingProduct
+        ? (formData.subcategory_id || null)
+        : (placement.subcategoryId || formData.subcategory_id || null);
+      const nextStoreCategories = mergeStoreCategories(
+        mergeStoreCategories(sellerCats, placedCategory),
+        editingProduct ? null : placement.extraCategory,
+      );
+      if (placedCategory && JSON.stringify(nextStoreCategories) !== JSON.stringify(sellerCats)) {
         const { error: catSyncErr } = await supabase
           .from('seller_profiles')
-          .update({ categories: [...new Set([...sellerCats, formData.category])] } as any)
+          .update({ categories: nextStoreCategories } as any)
           .eq('id', sellerProfile.id);
         if (catSyncErr) {
           console.error('Could not sync store categories before product save:', catSyncErr);
@@ -391,19 +517,31 @@ export function useSellerProducts(opts?: { formIntent?: SellerProductFormIntent 
       const leadParsed = parseLeadTimeInput(formData.lead_time_value, formData.lead_time_unit);
       const lead_time_hours = leadParsed.hours;
       const { stockQty, lowStockThreshold } = stockResolved;
+      const placedConfig = configs.find((c: any) => c.category === placedCategory);
+      const foodPersist = isFoodParentGroup(placedConfig?.parentGroup) || placedConfig?.layoutType === 'food'
+        ? serializeFoodFacets(
+            mergeInferredFoodFacets(
+              inferFoodFacets(formData.name.trim()),
+              parseFoodFacets(formData.tags, formData.cuisine_type),
+            ),
+            formData.tags,
+          )
+        : { tags: formData.tags || [], cuisine_type: formData.cuisine_type || null };
     // effectiveActionType (declared at hook scope) is the single source of truth
     // for buyer interaction — it uses the seller's configured default.
     const productData = {
         seller_id: sellerProfile.id, name: formData.name.trim(), description: formData.description.trim() || null,
         price: isNaN(price) ? 0 : price, mrp: (mrp && !isNaN(mrp) && mrp > 0) ? mrp : null,
         prep_time_minutes: prepTime,
-        category: formData.category, is_veg: formData.is_veg, is_available: formData.is_available,
+        category: placedCategory, is_veg: formData.is_veg, is_available: formData.is_available,
         is_bestseller: formData.is_bestseller, is_recommended: formData.is_recommended, is_urgent: formData.is_urgent,
         image_url: formData.image_url, action_type: effectiveActionType, contact_phone: formData.contact_phone.trim() || null,
         stock_quantity: (stockQty !== null && !isNaN(stockQty) && stockQty >= 0) ? stockQty : null,
-        low_stock_threshold: (lowStockThreshold !== null && !isNaN(lowStockThreshold) && lowStockThreshold > 0) ? lowStockThreshold : null, subcategory_id: formData.subcategory_id || null,
+        low_stock_threshold: (lowStockThreshold !== null && !isNaN(lowStockThreshold) && lowStockThreshold > 0) ? lowStockThreshold : null, subcategory_id: placedSubcategoryId || null,
         lead_time_hours,
         accepts_preorders: formData.accepts_preorders,
+        tags: foodPersist.tags,
+        cuisine_type: foodPersist.cuisine_type,
         specifications: attributeBlocks.length > 0 ? { blocks: attributeBlocks } : null,
         ...(editingProduct
           ? {
@@ -599,6 +737,10 @@ export function useSellerProducts(opts?: { formIntent?: SellerProductFormIntent 
     attributeBlocks, setAttributeBlocks, formData, setFormData, patchFormData, deleteTarget, setDeleteTarget,
     activeCategoryConfig, showVegToggle, showDurationField, allowedCategories, subcategories,
     configs, sellerProfiles, resetForm, beginNewProduct, openEditDialog, handleSave, confirmDelete,
+    toggleAvailability, fetchData, serviceFields, setServiceFields, isCurrentCategoryService,
+    currentCategorySupportsAddons, currentCategorySupportsRecurring, currentCategorySupportsStaffAssignment,
+    draftRestored, clearDraftFn, fieldErrors, setFieldErrors, derivedActionType, effectiveActionType, validateStep,
+    applyListingPlacementFromName,
     toggleAvailability, fetchData, serviceFields, setServiceFields, isCurrentCategoryService,
     currentCategorySupportsAddons, currentCategorySupportsRecurring, currentCategorySupportsStaffAssignment,
     draftRestored, clearDraftFn, fieldErrors, setFieldErrors, derivedActionType, effectiveActionType, validateStep,

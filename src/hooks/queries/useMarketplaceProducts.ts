@@ -24,6 +24,9 @@ export interface MarketplaceProduct {
   mrp: number | null;
   discount_percentage: number | null;
   description: string | null;
+  tags?: string[] | null;
+  cuisine_type?: string | null;
+  subcategory_id?: string | null;
 }
 
 const BATCH_SIZE = 25;

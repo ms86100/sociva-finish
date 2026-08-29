@@ -27,6 +27,7 @@ import { Plus, Trash2, Loader2, Package, Percent, CheckCircle2, Info, Pencil } f
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 import { useCategoryConfigs } from '@/hooks/useCategoryBehavior';
+import { useSubcategories } from '@/hooks/useSubcategories';
 import { friendlyError } from '@/lib/utils';
 import { AttributeBlockBuilder } from '@/components/seller/AttributeBlockBuilder';
 import { useBlockLibrary, filterByCategory, type BlockData } from '@/hooks/useAttributeBlocks';
@@ -36,6 +37,23 @@ import { normalizeServiceLocationTypes, primaryServiceLocationType } from '@/lib
 import { ProductFormPreviewPanel, ProductFormPreviewMobile } from '@/components/seller/ProductFormPreview';
 import { showFeedback } from '@/components/FeedbackPopupProvider';
 import { resolveStockSaveValues } from '@/lib/product-stock-form';
+import {
+  ensureDraftProductsForOfferings,
+  isStaleDraftProductName,
+  normalizeSeedOfferingNames,
+  pendingOfferingNamesForProducts,
+} from '@/lib/onboarding-product-sync';
+import { mergeStoreCategories, resolveListingPlacement } from '@/lib/listing-placement';
+import {
+  emptyFoodFacets,
+  inferFoodFacets,
+  isFoodParentGroup,
+  parseFoodFacets,
+  serializeFoodFacets,
+  type FoodFacets,
+} from '@/lib/food-facets';
+import { FoodFacetChips } from '@/components/seller/FoodFacetChips';
+import type { CommerceModel, IntentCatalogCategory, IntentCatalogSubcategory } from '@/lib/listing-intent';
 
 interface DraftProduct {
   id?: string;
@@ -55,6 +73,8 @@ interface DraftProduct {
   lead_time_hours?: number | null;
   accepts_preorders?: boolean;
   approval_status?: string;
+  tags?: string[] | null;
+  cuisine_type?: string | null;
 }
 
 interface DraftProductManagerProps {
@@ -66,8 +86,12 @@ interface DraftProductManagerProps {
   defaultActionType?: string;
   /** Prefill first draft product name from listing intent */
   seedProductName?: string;
+  /** Prefill additional draft listings from onboarding offering names */
+  seedProductNames?: string[];
   /** Prefill subcategory from onboarding taxonomy suggestion */
   seedSubcategoryId?: string | null;
+  commerceModel?: CommerceModel | null;
+  onStoreCategoriesChange?: (categories: string[]) => void;
 }
 
 // Action-type-driven check: does this product's action_type require availability?
@@ -85,10 +109,15 @@ export function DraftProductManager({
   beforePick,
   defaultActionType,
   seedProductName,
+  seedProductNames,
   seedSubcategoryId,
+  commerceModel,
+  onStoreCategoriesChange,
 }: DraftProductManagerProps) {
   const { user } = useAuth();
   const { data: allActions = [] } = useActionTypeMap();
+  const allSubsQuery = useSubcategories();
+  const allSubs = allSubsQuery.data || [];
   const { data: blockLibrary = [] } = useBlockLibrary();
   const DRAFT_KEY = `draft-product-form-${sellerId}`;
 
@@ -111,6 +140,10 @@ export function DraftProductManager({
     return () => { cancelled = true; };
   }, [sellerId, defaultActionType]);
   const effectiveDefaultActionType = defaultActionType || fetchedDefaultActionType || null;
+  const seedNames = useMemo(
+    () => normalizeSeedOfferingNames(seedProductNames, seedProductName),
+    [seedProductNames, seedProductName],
+  );
 
   // Restore persisted draft from localStorage on mount
   const restoredDraft = useMemo(() => {
@@ -121,6 +154,10 @@ export function DraftProductManager({
         // Clean up legacy sessionStorage
         sessionStorage.removeItem(DRAFT_KEY);
         const parsed = JSON.parse(raw);
+        if (isStaleDraftProductName(parsed?.newProduct?.name, seedNames)) {
+          localStorage.removeItem(DRAFT_KEY);
+          return null;
+        }
         // Validate editingIndex bounds
         if (parsed?.editingIndex != null && parsed.editingIndex >= products.length) {
           parsed.editingIndex = null; // out of bounds → treat as new
@@ -146,8 +183,56 @@ export function DraftProductManager({
   
   const { configs } = useCategoryConfigs();
   const { formatPrice, currencySymbol } = useCurrency();
+
+  const intentCatalogCategories = useMemo((): IntentCatalogCategory[] => (
+    configs.map((c: any) => ({
+      slug: c.category,
+      id: c.id,
+      displayName: c.displayName,
+      parentGroup: c.parentGroup,
+      transactionType: c.transactionType,
+      hasDateRange: c.behavior?.hasDateRange,
+      requiresTimeSlot: c.behavior?.requiresTimeSlot,
+      enquiryOnly: c.behavior?.enquiryOnly,
+      supportsCart: c.behavior?.supportsCart,
+    }))
+  ), [configs]);
+
+  const intentCatalogSubs = useMemo((): IntentCatalogSubcategory[] => (
+    allSubs.map((s: any) => {
+      const cfg = configs.find((c: any) => c.id === s.category_config_id);
+      return {
+        id: s.id,
+        slug: s.slug,
+        displayName: s.display_name,
+        categoryConfigId: s.category_config_id,
+        categorySlug: cfg?.category || '',
+      };
+    })
+  ), [allSubs, configs]);
+
+  const placeProduct = useCallback((name: string) => (
+    resolveListingPlacement({
+      name,
+      storeCategories: categories,
+      categories: intentCatalogCategories,
+      subcategories: intentCatalogSubs,
+      commerceModel: commerceModel || null,
+      fallbackCategory: categories[0] || '',
+      fallbackSubcategoryId: seedSubcategoryId || null,
+    })
+  ), [categories, intentCatalogCategories, intentCatalogSubs, commerceModel, seedSubcategoryId]);
+
+  const showFoodFacets = useMemo(() => {
+    const active = configs.find((c: any) => c.category === (categories[0] || ''));
+    if (isFoodParentGroup(active?.parentGroup)) return true;
+    return categories.some((slug) => {
+      const cfg = configs.find((c: any) => c.category === slug);
+      return isFoodParentGroup(cfg?.parentGroup) || cfg?.layoutType === 'food';
+    });
+  }, [configs, categories]);
   const [newProduct, setNewProduct] = useState<DraftProduct>(restoredDraft?.newProduct ?? {
-    name: seedProductName || '',
+    name: seedNames[0] || seedProductName || '',
     price: 0,
     mrp: null,
     discount_percentage: null,
@@ -190,33 +275,71 @@ export function DraftProductManager({
   const seededRef = useRef(false);
   useEffect(() => {
     if (seededRef.current) return;
-    if (!seedProductName?.trim() && !seedSubcategoryId) return;
-    if (restoredDraft?.newProduct?.name) return;
+    const firstSeed = seedNames[0] || seedProductName?.trim() || '';
+    if (!firstSeed && !seedSubcategoryId) return;
+    if (restoredDraft?.newProduct?.name && !isStaleDraftProductName(restoredDraft.newProduct.name, seedNames)) return;
     if (products.length > 0 && !isAdding) return;
     seededRef.current = true;
+    const placement = placeProduct(firstSeed);
+    const inferred = inferFoodFacets(firstSeed);
+    const persisted = serializeFoodFacets(inferred, []);
     setNewProduct((prev) => ({
       ...prev,
-      name: prev.name.trim() ? prev.name : (seedProductName?.trim() || prev.name),
-      subcategory_id: prev.subcategory_id || seedSubcategoryId || null,
+      name: prev.name.trim() && !isStaleDraftProductName(prev.name, seedNames)
+        ? prev.name
+        : (firstSeed || prev.name),
+      subcategory_id: placement.subcategoryId || prev.subcategory_id || seedSubcategoryId || null,
       action_type: prev.action_type || effectiveDefaultActionType || 'add_to_cart',
-      category: prev.category || categories[0] || '',
+      category: placement.category || prev.category || categories[0] || '',
+      tags: prev.tags?.length ? prev.tags : persisted.tags,
+      cuisine_type: prev.cuisine_type || persisted.cuisine_type,
     }));
     if (!isAdding && products.length === 0) setIsAdding(true);
-  }, [seedProductName, seedSubcategoryId, restoredDraft, products.length, isAdding, effectiveDefaultActionType, categories]);
+  }, [seedNames, seedProductName, seedSubcategoryId, restoredDraft, products.length, isAdding, effectiveDefaultActionType, categories, placeProduct]);
 
-  // If products load after we opened a seed-only empty form, close it so saved items show
+  const seededListRef = useRef(false);
+  useEffect(() => {
+    if (seededListRef.current) return;
+    if (!sellerId || seedNames.length === 0 || !categories[0] || products.length > 0) return;
+    seededListRef.current = true;
+    void ensureDraftProductsForOfferings({
+      sellerId,
+      names: seedNames,
+      category: categories[0],
+      actionType: effectiveDefaultActionType || 'add_to_cart',
+      subcategoryId: seedSubcategoryId || null,
+    }).then((result) => {
+      if (!result.ok && result.error) {
+        toast.error(result.error, { id: 'draft-offering-seed' });
+        return;
+      }
+      if (result.inserted === 0) return;
+      return supabase
+        .from('products')
+        .select('id, name, price, description, image_url, category, approval_status, seller_id, action_type, subcategory_id, tags, cuisine_type')
+        .eq('seller_id', sellerId)
+        .then(({ data }) => {
+          if (data) onProductsChange(data as DraftProduct[]);
+        });
+    });
+  }, [sellerId, seedNames, categories, products.length, effectiveDefaultActionType, seedSubcategoryId, onProductsChange]);
+
+  // Close a leftover empty form only when that name is already saved (not when starting the next offering)
   useEffect(() => {
     if (products.length === 0 || !isAdding || editingIndex !== null) return;
-    const looksLikeSeedOnly =
-      !!seedProductName?.trim() &&
-      newProduct.name.trim() === seedProductName.trim() &&
+    const name = newProduct.name.trim();
+    if (!name) return;
+    const alreadySaved = products.some(
+      (p) => String(p.name || '').trim().toLowerCase() === name.toLowerCase(),
+    );
+    const looksEmpty =
       !newProduct.price &&
       !newProduct.image_url &&
       !(newProduct.description || '').trim();
-    if (looksLikeSeedOnly) {
+    if (alreadySaved && looksEmpty) {
       setIsAdding(false);
     }
-  }, [products.length, isAdding, editingIndex, seedProductName, newProduct.name, newProduct.price, newProduct.image_url, newProduct.description]);
+  }, [products, isAdding, editingIndex, newProduct.name, newProduct.price, newProduct.image_url, newProduct.description]);
 
   // Auto-persist product form draft to localStorage with debounce
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
@@ -254,6 +377,20 @@ export function DraftProductManager({
     if (!activeConfig) return true;
     return activeConfig.behavior.supportsCart || !activeConfig.behavior.enquiryOnly;
   }, [activeConfig]);
+
+  const showFoodFacetEditor = showFoodFacets
+    || isFoodParentGroup(activeConfig?.parentGroup)
+    || activeConfig?.layoutType === 'food';
+
+  const foodFacets = useMemo(
+    () => parseFoodFacets(newProduct.tags, newProduct.cuisine_type),
+    [newProduct.tags, newProduct.cuisine_type],
+  );
+
+  const livePlacement = useMemo(
+    () => (newProduct.name.trim() ? placeProduct(newProduct.name.trim()) : null),
+    [newProduct.name, placeProduct],
+  );
 
   // Auto-compute discount when MRP or price changes
   const computedDiscount = useMemo(() => {
@@ -341,13 +478,28 @@ export function DraftProductManager({
         ? parsePrepTimeMinutes(prepTimeInput)
         : { minutes: null as number | null };
 
+      const placement = placeProduct(newProduct.name.trim());
+      const nextStoreCategories = mergeStoreCategories(categories, placement.extraCategory);
+      if (placement.extraCategory && nextStoreCategories !== categories) {
+        const { error: catErr } = await supabase
+          .from('seller_profiles')
+          .update({ categories: nextStoreCategories } as any)
+          .eq('id', sellerId);
+        if (!catErr) onStoreCategoriesChange?.(nextStoreCategories);
+      }
+
+      const foodPayload = serializeFoodFacets(
+        parseFoodFacets(newProduct.tags, newProduct.cuisine_type),
+        newProduct.tags,
+      );
+
       const productPayload = {
         seller_id: sellerId,
         name: newProduct.name.trim(),
         price: newProduct.price || 0,
         mrp: newProduct.mrp && newProduct.mrp > 0 ? newProduct.mrp : null,
         description: newProduct.description.trim() || null,
-        category: newProduct.category,
+        category: placement.category || newProduct.category,
         is_veg: newProduct.is_veg,
         image_url: newProduct.image_url.trim() || null,
         is_available: true,
@@ -363,9 +515,11 @@ export function DraftProductManager({
           }
           return resolvedActionType;
         })(),
-        subcategory_id: newProduct.subcategory_id || null,
+        subcategory_id: placement.subcategoryId,
         lead_time_hours: newProduct.lead_time_hours ?? null,
         accepts_preorders: newProduct.accepts_preorders || false,
+        tags: foodPayload.tags,
+        cuisine_type: foodPayload.cuisine_type,
         ...(isEditing ? { rejection_note: null } : {}),
       };
 
@@ -420,23 +574,30 @@ export function DraftProductManager({
         toast.info('Save your Store Hours to generate booking slots', { id: 'slots-hint' });
       }
 
-      if (isEditing) {
-        const updated = [...products];
-        updated[editingIndex] = { ...newProduct, id: savedProductId, discount_percentage: computedDiscount };
-        onProductsChange(updated);
-        showFeedback({
-        title: 'Product updated',
+      const savedRow = {
+        ...newProduct,
+        id: savedProductId,
+        discount_percentage: computedDiscount,
+        category: productPayload.category,
+        subcategory_id: productPayload.subcategory_id,
+        tags: productPayload.tags,
+        cuisine_type: productPayload.cuisine_type,
+      };
+      const nextProducts = isEditing
+        ? products.map((p, i) => (i === editingIndex ? savedRow : p))
+        : [...products, savedRow];
+      onProductsChange(nextProducts);
+      showFeedback({
+        title: isEditing ? 'Product updated' : 'Product added',
         variant: 'success',
       });
-      } else {
-        onProductsChange([...products, { ...newProduct, id: savedProductId, discount_percentage: computedDiscount }]);
-        showFeedback({
-        title: 'Product added',
-        variant: 'success',
-      });
-      }
 
-      resetForm();
+      const remaining = pendingOfferingNamesForProducts(seedNames, nextProducts.map((p) => p.name));
+      if (!isEditing && remaining[0]) {
+        startFreshForm(remaining[0]);
+      } else {
+        resetForm();
+      }
     } catch (error: any) {
       console.error('Error saving product:', error);
       toast.error(friendlyError(error));
@@ -475,7 +636,7 @@ export function DraftProductManager({
       try {
         const { data } = await supabase
           .from('products')
-          .select('specifications')
+          .select('specifications, tags, cuisine_type, subcategory_id, category')
           .eq('id', product.id)
           .single();
         const specs = data?.specifications as any;
@@ -485,6 +646,15 @@ export function DraftProductManager({
           blocks = defaultBlocks.map(b => ({ type: b.block_type, data: {} }));
         }
         setAttributeBlocks(blocks);
+        if (data) {
+          setNewProduct((prev) => ({
+            ...prev,
+            tags: (data as any).tags || prev.tags || [],
+            cuisine_type: (data as any).cuisine_type ?? prev.cuisine_type ?? null,
+            subcategory_id: (data as any).subcategory_id ?? prev.subcategory_id ?? null,
+            category: (data as any).category || prev.category,
+          }));
+        }
       } catch {
         setAttributeBlocks([]);
       }
@@ -518,28 +688,35 @@ export function DraftProductManager({
     }
   };
 
-  const resetForm = () => {
-    setNewProduct({
-      name: '',
+  const emptyDraft = (name = ''): DraftProduct => {
+    const placement = placeProduct(name);
+    const inferred = name ? inferFoodFacets(name) : emptyFoodFacets();
+    const persisted = serializeFoodFacets(inferred, []);
+    return {
+      name,
       price: 0,
       mrp: null,
       discount_percentage: null,
       description: '',
-      category: categories[0] || '',
+      category: placement.category || categories[0] || '',
       is_veg: true,
       image_url: '',
       prep_time_minutes: null,
       stock_quantity: null,
       low_stock_threshold: null,
       action_type: effectiveDefaultActionType || 'add_to_cart',
-      subcategory_id: seedSubcategoryId || null,
-    });
+      subcategory_id: placement.subcategoryId,
+      tags: persisted.tags,
+      cuisine_type: persisted.cuisine_type,
+    };
+  };
+
+  const clearAuxForm = () => {
     setTrackStock(false);
     setTrackLowStockAlert(false);
     setStockQuantityInput('');
     setLowStockThresholdInput('');
     setPrepTimeInput('');
-    setIsAdding(false);
     setFieldErrors({});
     setEditingIndex(null);
     setAttributeBlocks([]);
@@ -548,10 +725,36 @@ export function DraftProductManager({
     sessionStorage.removeItem(DRAFT_KEY);
   };
 
-  const beginAddProduct = () => {
-    resetForm();
+  const startFreshForm = (name = '') => {
+    setNewProduct(emptyDraft(name));
+    clearAuxForm();
     setIsAdding(true);
   };
+
+  const resetForm = () => {
+    setNewProduct(emptyDraft());
+    clearAuxForm();
+    setIsAdding(false);
+  };
+
+  const fillOffering = (name: string) => {
+    startFreshForm(name);
+  };
+
+  const beginAddProduct = () => {
+    startFreshForm();
+  };
+
+  const pendingOfferingNames = useMemo(
+    () => pendingOfferingNamesForProducts(seedNames, products.map((p) => p.name)),
+    [seedNames, products],
+  );
+
+  useEffect(() => {
+    if (isAdding || editingIndex !== null) return;
+    if (pendingOfferingNames.length === 0) return;
+    startFreshForm(pendingOfferingNames[0]);
+  }, [pendingOfferingNames, isAdding, editingIndex]);
 
   return (
     <div className="space-y-4">
@@ -560,8 +763,12 @@ export function DraftProductManager({
           <h3 className="font-semibold text-base">Your Products / Services</h3>
           <p className="text-xs text-muted-foreground mt-0.5">
             {products.length === 0
-              ? 'Add at least one item to continue'
-              : `${products.length} item${products.length !== 1 ? 's' : ''} added`}
+              ? pendingOfferingNames.length > 0
+                ? 'Add a price, photo, and details for each offering'
+                : 'Add at least one item to continue'
+              : pendingOfferingNames.length > 0
+                ? `${products.length} saved · ${pendingOfferingNames.length} left to add`
+                : `${products.length} item${products.length !== 1 ? 's' : ''} added`}
           </p>
         </div>
         <span className="text-sm font-medium text-muted-foreground">
@@ -569,8 +776,33 @@ export function DraftProductManager({
         </span>
       </div>
 
+      {pendingOfferingNames.length > 0 && (
+        <div className="rounded-xl border bg-muted/30 p-3 space-y-2">
+          <p className="text-sm font-medium">Offerings to add</p>
+          <p className="text-xs text-muted-foreground">
+            Add price, photo, and details for each name. Review stays locked until every offering is saved.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {pendingOfferingNames.map((name) => (
+              <button
+                key={name}
+                type="button"
+                onClick={() => fillOffering(name)}
+                className={`rounded-full border px-3 py-1.5 text-sm transition-colors ${
+                  isAdding && newProduct.name.trim().toLowerCase() === name.toLowerCase()
+                    ? 'border-primary bg-primary/10 text-primary'
+                    : 'border-border bg-background hover:border-primary/40'
+                }`}
+              >
+                {name}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Friendly empty state */}
-      {products.length === 0 && !isAdding && (
+      {products.length === 0 && !isAdding && pendingOfferingNames.length === 0 && (
         <div className="flex flex-col items-center justify-center py-8 px-4 rounded-xl border-2 border-dashed border-muted-foreground/20 bg-muted/30 text-center">
           <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center mb-3">
             <Package size={28} className="text-primary" />
@@ -582,14 +814,19 @@ export function DraftProductManager({
         </div>
       )}
 
-      {/* Success encouragement after first product */}
-      {products.length > 0 && products.length <= 2 && !isAdding && (
+      {products.length > 0 && pendingOfferingNames.length > 0 && !isAdding && (
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-primary/10 border border-primary/20">
+          <Info size={16} className="text-primary flex-shrink-0" />
+          <p className="text-xs text-primary">
+            {pendingOfferingNames.length} offering{pendingOfferingNames.length === 1 ? '' : 's'} still need details before review.
+          </p>
+        </div>
+      )}
+      {products.length > 0 && pendingOfferingNames.length === 0 && !isAdding && (
         <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-success/10 border border-success/20">
           <CheckCircle2 size={16} className="text-success flex-shrink-0" />
           <p className="text-xs text-success">
-            {products.length === 1
-              ? "Great start! Add more items or continue to review."
-              : "You're on your way! Add more or continue when ready."}
+            All named offerings are in your catalog. Continue to review when ready.
           </p>
         </div>
       )}
@@ -727,6 +964,27 @@ export function DraftProductManager({
                     })}
                   </select>
                 </div>
+              )}
+
+              {livePlacement?.category && (
+                <p className="text-[11px] text-muted-foreground">
+                  Listed under {configs.find((c) => c.category === livePlacement.category)?.displayName || livePlacement.category.replace(/_/g, ' ')}
+                  {livePlacement.subcategoryName ? ` → ${livePlacement.subcategoryName}` : ''}
+                </p>
+              )}
+
+              {showFoodFacetEditor && (
+                <FoodFacetChips
+                  value={foodFacets}
+                  onChange={(next: FoodFacets) => {
+                    const persisted = serializeFoodFacets(next, newProduct.tags);
+                    setNewProduct({
+                      ...newProduct,
+                      tags: persisted.tags,
+                      cuisine_type: persisted.cuisine_type,
+                    });
+                  }}
+                />
               )}
 
               {/* Buyer Interaction: read-only when seller already chose during store configuration */}

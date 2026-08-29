@@ -15,10 +15,11 @@ import { LottieEmptyState } from '@/components/ui/LottieEmptyState';
 import { DynamicIcon } from '@/components/ui/DynamicIcon';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { SafeHeader } from '@/components/layout/SafeHeader';
-import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { TypewriterPlaceholder } from '@/components/search/TypewriterPlaceholder';
 import { useCurrency } from '@/hooks/useCurrency';
 import { useSearchPage, ProductSearchResult } from '@/hooks/useSearchPage';
+import { applyProductFacetRow, useProductFacets, type ProductFacetRow } from '@/hooks/queries/useProductFacets';
+import { isFoodParentGroup } from '@/lib/food-facets';
 import { CommunitySuggestions } from '@/components/search/CommunitySuggestions';
 import { SearchAutocomplete } from '@/components/search/SearchAutocomplete';
 import { PreciseLocationRequiredCard } from '@/components/location/PreciseLocationRequiredCard';
@@ -28,8 +29,8 @@ const ProductDetailSheet = lazy(() =>
   import('@/components/product/ProductDetailSheet').then((m) => ({ default: m.ProductDetailSheet })),
 );
 
-function toProductWithSeller(p: ProductSearchResult): ProductWithSeller {
-  return {
+function toProductWithSeller(p: ProductSearchResult, row?: ProductFacetRow | null): ProductWithSeller {
+  return applyProductFacetRow({
     id: p.product_id, seller_id: p.seller_id, name: p.product_name, price: p.price,
     image_url: p.image_url, is_veg: p.is_veg ?? true, is_available: true,
     is_bestseller: (p as any).is_bestseller ?? false,
@@ -42,13 +43,23 @@ function toProductWithSeller(p: ProductSearchResult): ProductWithSeller {
     seller_name: p.seller_name, seller_rating: p.seller_rating,
     fulfillment_mode: p.fulfillment_mode || null, delivery_note: p.delivery_note || null,
     action_type: p.action_type || null, contact_phone: p.contact_phone || null,
-  } as ProductWithSeller;
+    tags: p.tags || null, cuisine_type: p.cuisine_type || null,
+    prep_time_minutes: p.prep_time_minutes || null,
+  } as ProductWithSeller, row);
 }
 
 export default function SearchPage() {
   const s = useSearchPage();
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [detailOpen, setDetailOpen] = useState(false);
+
+  const foodCategorySet = useMemo(
+    () => new Set(s.categoryConfigs.filter((c) => isFoodParentGroup(c.parentGroup)).map((c) => c.category)),
+    [s.categoryConfigs],
+  );
+  const hasFoodResults = s.displayProducts.some((p) => p.category && foodCategorySet.has(p.category));
+  const productIds = useMemo(() => s.displayProducts.map((p) => p.product_id), [s.displayProducts]);
+  const { data: facetRows = {} } = useProductFacets(productIds, productIds.length > 0);
 
   const handleProductTap = (product: ProductWithSeller) => {
     setSelectedProduct({
@@ -94,8 +105,8 @@ export default function SearchPage() {
           </div>
           {/* Filter bar */}
           <div className="px-4 pb-2">
-            <ScrollArea>
-              <div className="flex items-center gap-2 pb-1">
+            <div className="taste-rail-scroll">
+              <div className="flex items-center gap-2">
                 <SearchFilters
                   filters={s.filters}
                   onFiltersChange={s.handleFiltersChange}
@@ -106,18 +117,21 @@ export default function SearchPage() {
                   onSearchRadiusChange={s.setSearchRadiusLocal}
                   onSearchRadiusCommit={s.setSearchRadius}
                 />
-                <button onClick={() => s.setFilters({ ...s.filters, isVeg: s.filters.isVeg === true ? null : true })} className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap border transition-colors ${s.filters.isVeg === true ? 'border-accent bg-accent/10 text-accent' : 'border-border bg-background text-foreground'}`}>
-                  <div className="w-3 h-3 border-[1.5px] border-accent rounded-sm flex items-center justify-center"><div className="w-1.5 h-1.5 rounded-full bg-accent" /></div>Veg
-                </button>
-                <button onClick={() => s.setFilters({ ...s.filters, isVeg: s.filters.isVeg === false ? null : false })} className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap border transition-colors ${s.filters.isVeg === false ? 'border-destructive bg-destructive/10 text-destructive' : 'border-border bg-background text-foreground'}`}>
-                  <div className="w-3 h-3 border-[1.5px] border-destructive rounded-sm flex items-center justify-center"><div className="w-1.5 h-1.5 rounded-full bg-destructive" /></div>Non-veg
-                </button>
+                {hasFoodResults && (
+                  <>
+                    <button onClick={() => s.setFilters({ ...s.filters, isVeg: s.filters.isVeg === true ? null : true })} className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap border transition-colors ${s.filters.isVeg === true ? 'border-accent bg-accent/10 text-accent' : 'border-border bg-background text-foreground'}`}>
+                      <div className="w-3 h-3 border-[1.5px] border-accent rounded-sm flex items-center justify-center"><div className="w-1.5 h-1.5 rounded-full bg-accent" /></div>Veg
+                    </button>
+                    <button onClick={() => s.setFilters({ ...s.filters, isVeg: s.filters.isVeg === false ? null : false })} className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap border transition-colors ${s.filters.isVeg === false ? 'border-destructive bg-destructive/10 text-destructive' : 'border-border bg-background text-foreground'}`}>
+                      <div className="w-3 h-3 border-[1.5px] border-destructive rounded-sm flex items-center justify-center"><div className="w-1.5 h-1.5 rounded-full bg-destructive" /></div>Non-veg
+                    </button>
+                  </>
+                )}
                 {([{ value: 'rating' as const, label: 'Top Rated' }, { value: 'price_low' as const, label: 'Price ↑' }, { value: 'price_high' as const, label: 'Price ↓' }, { value: 'nearest' as const, label: 'Nearest' }]).map(({ value, label }) => (
                   <button key={value} onClick={() => s.setFilters({ ...s.filters, sortBy: s.filters.sortBy === value ? null : value })} className={`px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap border transition-colors ${s.filters.sortBy === value ? 'border-primary bg-primary/10 text-primary' : 'border-border bg-background text-foreground'}`}>{label}</button>
                 ))}
               </div>
-              <ScrollBar orientation="horizontal" />
-            </ScrollArea>
+            </div>
           </div>
         </SafeHeader>
 
@@ -133,7 +147,7 @@ export default function SearchPage() {
           <CategoryBubbleRow categories={s.categoryConfigs.filter(c => s.popularProducts.some(p => p.category === c.category))} selectedCategory={s.selectedCategory} onCategoryTap={s.handleCategoryTap} isLoading={s.categoriesLoading || s.isLoadingPopular} />
 
           {/* Filter presets */}
-          <FilterPresets activePreset={s.activePreset} onPresetSelect={s.handlePresetSelect} />
+          <FilterPresets activePreset={s.activePreset} onPresetSelect={s.handlePresetSelect} includeVeg={hasFoodResults} />
 
           {/* Active filter pills */}
           {s.pills.length > 0 && (
@@ -149,7 +163,7 @@ export default function SearchPage() {
               {[1, 2, 3, 4, 5, 6].map((i) => <Skeleton key={i} className="h-52 w-full rounded-xl" />)}
             </div>
           ) : s.displayProducts.length > 0 ? (
-            <ProductGridByCategory products={s.displayProducts} categoryMap={s.categoryMap} categoryConfigs={s.categoryConfigs} marketplaceConfig={s.mc} badgeConfigs={s.badgeConfigs} showCount={s.isSearchActive} onNavigate={s.navigate} onProductTap={handleProductTap} />
+            <ProductGridByCategory products={s.displayProducts} facetRows={facetRows} categoryMap={s.categoryMap} categoryConfigs={s.categoryConfigs} marketplaceConfig={s.mc} badgeConfigs={s.badgeConfigs} showCount={s.isSearchActive} onNavigate={s.navigate} onProductTap={handleProductTap} />
           ) : s.isSearchActive ? (
             <EmptyState browseBeyond={s.browseBeyond} onEnableBrowseBeyond={() => s.setBrowseBeyond(true)} />
           ) : (
@@ -196,8 +210,8 @@ function CategoryBubbleRow({ categories, selectedCategory, onCategoryTap, isLoad
 }) {
   if (isLoading) return <div className="flex gap-2 mb-3 overflow-hidden">{[1, 2, 3, 4, 5, 6].map((i) => <Skeleton key={i} className="h-16 w-16 rounded-2xl shrink-0" />)}</div>;
   return (
-    <ScrollArea className="mb-3">
-      <div className="flex gap-2 pb-2">
+    <div className="taste-rail-scroll scrollbar-hide mb-3">
+      <div className="flex gap-2">
         {categories.map((cat) => (
           <button key={cat.category} onClick={() => onCategoryTap(cat.category)} className={`flex flex-col items-center gap-1 px-3 py-2 rounded-2xl min-w-[68px] transition-all shrink-0 ${selectedCategory === cat.category ? 'bg-primary text-primary-foreground shadow-md scale-[1.03]' : 'bg-muted/60 hover:bg-muted'}`}>
             <span className="text-xl leading-none"><DynamicIcon name={cat.icon} size={20} /></span>
@@ -205,14 +219,14 @@ function CategoryBubbleRow({ categories, selectedCategory, onCategoryTap, isLoad
           </button>
         ))}
       </div>
-      <ScrollBar orientation="horizontal" />
-    </ScrollArea>
+    </div>
   );
 }
 
 // ── Product Grid By Category ──
-function ProductGridByCategory({ products, categoryMap, categoryConfigs, marketplaceConfig, badgeConfigs, showCount, onNavigate, onProductTap }: {
+function ProductGridByCategory({ products, facetRows, categoryMap, categoryConfigs, marketplaceConfig, badgeConfigs, showCount, onNavigate, onProductTap }: {
   products: ProductSearchResult[];
+  facetRows?: Record<string, ProductFacetRow>;
   categoryMap: Record<string, { icon: string; displayName: string; color: string }>;
   categoryConfigs: { category: string; displayName: string; icon: string; behavior?: any }[];
   marketplaceConfig?: MarketplaceConfig;
@@ -251,7 +265,7 @@ function ProductGridByCategory({ products, categoryMap, categoryConfigs, marketp
             >
               {items.map((p) => (
                 <motion.div key={p.product_id} variants={cardEntrance}>
-                  <ProductListingCard product={toProductWithSeller(p)} categoryConfigs={categoryConfigs as any} marketplaceConfig={marketplaceConfig} badgeConfigs={badgeConfigs} onNavigate={onNavigate} onTap={onProductTap} />
+                  <ProductListingCard product={toProductWithSeller(p, facetRows?.[p.product_id])} categoryConfigs={categoryConfigs as any} marketplaceConfig={marketplaceConfig} badgeConfigs={badgeConfigs} onNavigate={onNavigate} onTap={onProductTap} />
                 </motion.div>
               ))}
             </motion.div>

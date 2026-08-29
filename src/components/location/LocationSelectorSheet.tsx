@@ -39,6 +39,8 @@ export function LocationSelectorSheet({ open, onOpenChange }: LocationSelectorSh
     setBrowsingLocation({
       id: addr.id,
       label: addr.building_name || addr.label || 'Saved address',
+      fullAddress: addr.full_address || addr.building_name || '',
+      secondaryLabel: addr.full_address && addr.full_address !== addr.label ? addr.full_address : undefined,
       lat: addr.latitude,
       lng: addr.longitude,
       source: 'address',
@@ -77,10 +79,11 @@ export function LocationSelectorSheet({ open, onOpenChange }: LocationSelectorSh
     }
   };
 
-  const handleConfirmGps = useCallback((lat: number, lng: number, updatedName?: string) => {
+  const handleConfirmGps = useCallback((lat: number, lng: number, updatedName?: string, formattedAddress?: string) => {
     setBrowsingLocation({
       id: 'gps',
       label: updatedName || `${lat.toFixed(4)}, ${lng.toFixed(4)}`,
+      fullAddress: formattedAddress || undefined,
       lat,
       lng,
       source: 'gps',
@@ -119,7 +122,7 @@ export function LocationSelectorSheet({ open, onOpenChange }: LocationSelectorSh
         latitude={detectedLocation.lat}
         longitude={detectedLocation.lng}
         name={detectedLocation.label || 'Detected Location'}
-        onConfirm={(lat, lng, updatedName) => handleConfirmGps(lat, lng, updatedName)}
+        onConfirm={(lat, lng, updatedName, formattedAddress) => handleConfirmGps(lat, lng, updatedName, formattedAddress)}
         onBack={handleBackFromConfirm}
       />
     );

@@ -1,7 +1,6 @@
 // @ts-nocheck
 import { useState, useMemo, useCallback } from 'react';
 import { useParams, useSearchParams, Link, useNavigate } from 'react-router-dom';
-import { computeStoreStatus } from '@/lib/store-availability';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { SafeHeader } from '@/components/layout/SafeHeader';
 import { ProductListingCard, ProductWithSeller } from '@/components/product/ProductListingCard';
@@ -16,13 +15,27 @@ import { DynamicIcon } from '@/components/ui/DynamicIcon';
 import { useParentGroups } from '@/hooks/useParentGroups';
 import { useCategoryProducts } from '@/hooks/queries/usePopularProducts';
 import { ServiceCategory } from '@/types/categories';
-import { SORT_OPTIONS, SortKey } from '@/lib/marketplace-constants';
+import { SortKey } from '@/lib/marketplace-constants';
 import { BackButton } from '@/components/navigation/BackButton';
 import { Search, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useQueryClient } from '@tanstack/react-query';
-import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { useMarketplaceData } from '@/hooks/queries/useMarketplaceData';
+import { applyProductFacetRow, useProductFacets } from '@/hooks/queries/useProductFacets';
+import { CommerceFacetRail } from '@/components/discovery/CommerceFacetRail';
+import {
+  CommerceFacetState,
+  emptyCommerceFacetState,
+  hasActiveCommerceFacets,
+  productMatchesCommerceFacets,
+  extractAvailableCommerceFacets,
+} from '@/lib/commerce-facets';
+import {
+  isFoodParentGroup,
+  readFoodFacetsFromSearchParams,
+  writeFoodFacetsToSearchParams,
+  type FoodFacets,
+} from '@/lib/food-facets';
 
 export default function CategoryGroupPage() {
   const { category } = useParams<{ category: string }>();
@@ -75,7 +88,20 @@ export default function CategoryGroupPage() {
     category || null,
   );
 
-  
+  const [facets, setFacets] = useState<CommerceFacetState>(emptyCommerceFacetState());
+
+  const scopedProducts = useMemo(() => {
+    return activeSubCategory
+      ? productsWithFacets.filter((p) => p.category === activeSubCategory)
+      : productsWithFacets;
+  }, [productsWithFacets, activeSubCategory]);
+
+  const dynamicFacetChips = useMemo(() => {
+    return extractAvailableCommerceFacets(scopedProducts, {
+      parentGroup: category,
+      currentState: facets,
+    });
+  }, [scopedProducts, category, facets]);
 
   const activeCategorySet = useMemo(
     () => new Set(allProducts.map((p) => p.category)),
@@ -137,9 +163,7 @@ export default function CategoryGroupPage() {
   }, [marketplaceSellers, category, queryClient]);
 
   const displayProducts = useMemo(() => {
-    let filtered = activeSubCategory
-      ? allProducts.filter((p) => p.category === activeSubCategory)
-      : allProducts;
+    let filtered = scopedProducts;
 
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
@@ -148,21 +172,7 @@ export default function CategoryGroupPage() {
       );
     }
 
-    // Apply filters
-    if (filterVeg) {
-      filtered = filtered.filter((p) => p.is_veg === true);
-    }
-    if (filterOpenNow) {
-      filtered = filtered.filter((p) => {
-        const status = computeStoreStatus(
-          (p as any).seller_availability_start ?? null,
-          (p as any).seller_availability_end ?? null,
-          (p as any).seller_operating_days ?? null,
-          (p as any).seller_is_available ?? true
-        );
-        return status.status === 'open';
-      });
-    }
+    filtered = filtered.filter((p) => productMatchesCommerceFacets(p, facets));
 
     const sorted = [...filtered];
     switch (sortBy) {
@@ -174,15 +184,14 @@ export default function CategoryGroupPage() {
       case 'rating': sorted.sort((a, b) => (b.seller_rating ?? 0) - (a.seller_rating ?? 0)); break;
     }
     return sorted;
-  }, [allProducts, activeSubCategory, searchQuery, sortBy, filterVeg, filterOpenNow]);
+  }, [scopedProducts, searchQuery, sortBy, facets]);
 
   const handleSubCategorySelect = (cat: ServiceCategory | null) => {
     setActiveSubCategory(cat);
-    if (cat) {
-      setSearchParams({ sub: cat });
-    } else {
-      setSearchParams({});
-    }
+    const next = new URLSearchParams(searchParams);
+    if (cat) next.set('sub', cat);
+    else next.delete('sub');
+    setSearchParams(next, { replace: true });
   };
 
   const isLoading = groupsLoading || configsLoading;
@@ -259,8 +268,8 @@ export default function CategoryGroupPage() {
           </div>
 
           {subCategories.length > 0 && (
-            <ScrollArea className="pb-1">
-              <div className="flex gap-1.5 pb-1">
+            <div className="taste-rail-scroll pb-1">
+              <div className="flex gap-1.5">
                 {showAllTab && (
                   <button
                     onClick={() => handleSubCategorySelect(null)}
@@ -290,57 +299,17 @@ export default function CategoryGroupPage() {
                   </button>
                 ))}
               </div>
-              <ScrollBar orientation="horizontal" />
-            </ScrollArea>
+            </div>
           )}
         </div>
 
-        {/* Quick Filters */}
-        <div className="px-4 py-1.5 flex gap-1.5 border-t border-border/40">
-          <button
-            onClick={() => setFilterOpenNow(!filterOpenNow)}
-            className={cn(
-              'px-3 py-1 rounded-lg text-[11px] font-medium whitespace-nowrap border transition-colors',
-              filterOpenNow
-                ? 'bg-accent/10 text-accent border-accent'
-                : 'bg-background text-muted-foreground border-border'
-            )}
-          >
-            🟢 Open Now
-          </button>
-          <button
-            onClick={() => setFilterVeg(!filterVeg)}
-            className={cn(
-              'px-3 py-1 rounded-lg text-[11px] font-medium whitespace-nowrap border transition-colors',
-              filterVeg
-                ? 'bg-accent/10 text-accent border-accent'
-                : 'bg-background text-muted-foreground border-border'
-            )}
-          >
-            🥬 Veg Only
-          </button>
-        </div>
-
         <div className="border-t border-border/40">
-          <ScrollArea className="px-4 py-2">
-            <div className="flex gap-1.5">
-              {SORT_OPTIONS.map((opt) => (
-                <button
-                  key={opt.key}
-                  onClick={() => setSortBy(opt.key)}
-                  className={cn(
-                    'px-3 py-1 rounded-lg text-[11px] font-medium whitespace-nowrap border transition-colors',
-                    sortBy === opt.key
-                      ? 'bg-primary/10 text-primary border-primary'
-                      : 'bg-background text-muted-foreground border-border'
-                  )}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-            <ScrollBar orientation="horizontal" />
-          </ScrollArea>
+          <CommerceFacetRail
+            value={facets}
+            onChange={setFacets}
+            chips={dynamicFacetChips}
+            parentGroup={category}
+          />
         </div>
       </SafeHeader>
 

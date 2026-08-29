@@ -18,6 +18,7 @@ import {
   parseOnboardingMeta,
   pruneSubcategoryPreferences,
   restoreStepFromBackup,
+  resolveSameGroupStore,
   validateStoreProductActionConsistency,
 } from '@/lib/onboarding-state';
 import {
@@ -32,12 +33,14 @@ import {
 import { ensureSellerSocietyForSubmit } from '@/lib/seller-society';
 
 const ONBOARDING_VERSION_KEY = 'seller_onboarding_version';
-const ONBOARDING_VERSION = '3';
+const ONBOARDING_VERSION = '4';
 const ONBOARDING_FORM_BACKUP_KEY = 'seller_onboarding_form_backup';
 const INTENT_PHRASE_KEY = 'listing_intent_phrase';
 const COMMERCE_MODEL_KEY = 'commerce_model';
 const SEED_PRODUCT_KEY = 'seed_product_name';
 const SOFT_TAG_KEY = 'soft_listing_tag';
+const OFFERING_NAMES_KEY = 'offering_names';
+const SUBMITTED_STORE_KEY = 'seller_submitted_store_id';
 
 function readSession(key: string): string {
   try { return sessionStorage.getItem(key) || ''; } catch { return ''; }
@@ -46,6 +49,33 @@ function writeSession(key: string, value: string) {
   try {
     if (value) sessionStorage.setItem(key, value);
     else sessionStorage.removeItem(key);
+  } catch { /* */ }
+}
+
+function readSubmittedStoreId(): string {
+  return readSession(SUBMITTED_STORE_KEY);
+}
+
+function writeSubmittedStoreId(id: string | null) {
+  writeSession(SUBMITTED_STORE_KEY, id || '');
+}
+
+function readOfferingNames(): string[] {
+  try {
+    const raw = sessionStorage.getItem(OFFERING_NAMES_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((n) => typeof n === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeOfferingNames(names: string[]) {
+  try {
+    const cleaned = names.filter((n) => typeof n === 'string');
+    if (cleaned.some((n) => n.trim())) sessionStorage.setItem(OFFERING_NAMES_KEY, JSON.stringify(cleaned));
+    else sessionStorage.removeItem(OFFERING_NAMES_KEY);
   } catch { /* */ }
 }
 
@@ -124,7 +154,7 @@ export function useSellerApplication(opts?: { forceNew?: boolean }) {
   const { data: allActionsData = [] } = useActionTypeMap();
 
   const [isLoading, setIsLoading] = useState(false);
-  const [submissionComplete, setSubmissionComplete] = useState(false);
+  const [submissionComplete, setSubmissionComplete] = useState(() => !!readSubmittedStoreId());
   // forceNew skips the existing-store probe — paint the category picker immediately
   const [isCheckingExisting, setIsCheckingExisting] = useState(!forceNew);
   const [existingSeller, setExistingSeller] = useState<{ id: string; business_name: string; verification_status?: string; rejection_note?: string | null } | null>(null);
@@ -155,6 +185,12 @@ export function useSellerApplication(opts?: { forceNew?: boolean }) {
   const [commerceModel, setCommerceModelState] = useState(() => readSession(COMMERCE_MODEL_KEY));
   const [seedProductName, setSeedProductNameState] = useState(() => readSession(SEED_PRODUCT_KEY));
   const [softListingTag, setSoftListingTagState] = useState(() => readSession(SOFT_TAG_KEY));
+  const [offeringNames, setOfferingNamesState] = useState<string[]>(() => {
+    const stored = readOfferingNames();
+    if (stored.length) return stored;
+    const seed = readSession(SEED_PRODUCT_KEY);
+    return seed ? [seed] : [''];
+  });
 
   const setListingIntentPhrase = useCallback((phrase: string) => {
     setListingIntentPhraseState(phrase);
@@ -172,9 +208,20 @@ export function useSellerApplication(opts?: { forceNew?: boolean }) {
     setSoftListingTagState(tag);
     writeSession(SOFT_TAG_KEY, tag);
   }, []);
+  const setOfferingNames = useCallback((names: string[]) => {
+    setOfferingNamesState(names);
+    writeOfferingNames(names);
+    const first = names.map((n) => n.trim()).find((n) => n.length >= 2) || '';
+    if (first) {
+      setSeedProductNameState(first);
+      writeSession(SEED_PRODUCT_KEY, first);
+      setListingIntentPhraseState(first);
+      writeSession(INTENT_PHRASE_KEY, first);
+    }
+  }, []);
 
   const persistFormBackup = useCallback(() => {
-    if (!user?.id || step < 2 || !selectedGroup) return;
+    if (!user?.id) return;
     try {
       localStorage.setItem(ONBOARDING_FORM_BACKUP_KEY, JSON.stringify({
         userId: user.id,
@@ -185,17 +232,18 @@ export function useSellerApplication(opts?: { forceNew?: boolean }) {
         seedProductName,
         listingIntentPhrase,
         softListingTag,
+        offeringNames,
         onboardingVersion: ONBOARDING_VERSION,
         savedAt: Date.now(),
       }));
     } catch { /* */ }
-  }, [user?.id, step, formData, selectedGroup, commerceModel, seedProductName, listingIntentPhrase, softListingTag]);
+  }, [user?.id, step, formData, selectedGroup, commerceModel, seedProductName, listingIntentPhrase, softListingTag, offeringNames]);
 
   const reloadProducts = useCallback(async (sellerId: string) => {
     try {
       const { data: prods, error } = await supabase
         .from('products')
-        .select('id, name, price, description, image_url, category, approval_status, seller_id, action_type')
+        .select('id, name, price, description, image_url, category, approval_status, seller_id, action_type, subcategory_id, tags, cuisine_type')
         .eq('seller_id', sellerId);
       if (error) {
         console.error('Error reloading products:', error);
@@ -294,6 +342,13 @@ export function useSellerApplication(opts?: { forceNew?: boolean }) {
       setSoftListingTagState(meta.soft_listing_tag);
       writeSession(SOFT_TAG_KEY, meta.soft_listing_tag);
     }
+    if (meta?.offering_names?.length) {
+      setOfferingNamesState(meta.offering_names);
+      writeOfferingNames(meta.offering_names);
+    } else if (meta?.seed_product_name) {
+      setOfferingNamesState([meta.seed_product_name]);
+      writeOfferingNames([meta.seed_product_name]);
+    }
     if (meta?.step) {
       localStorage.setItem('seller_onboarding_step', String(clampMetaStep(meta.step)));
     }
@@ -302,9 +357,9 @@ export function useSellerApplication(opts?: { forceNew?: boolean }) {
   const clampMetaStep = (s: number) => Math.max(1, Math.min(s, NEW_ONBOARDING_TOTAL_STEPS));
 
   const restoreFromBackup = useCallback((backup: any) => {
-    if (!backup?.userId || !backup?.selectedGroup) return;
-    setSelectedGroup(backup.selectedGroup);
-    setFormData((prev) => ({ ...prev, ...backup.formData }));
+    if (!backup?.userId) return;
+    if (backup.selectedGroup) setSelectedGroup(backup.selectedGroup);
+    if (backup.formData) setFormData((prev) => ({ ...prev, ...backup.formData }));
     if (backup.commerceModel) {
       setCommerceModelState(backup.commerceModel);
       writeSession(COMMERCE_MODEL_KEY, backup.commerceModel);
@@ -321,6 +376,13 @@ export function useSellerApplication(opts?: { forceNew?: boolean }) {
       setSoftListingTagState(backup.softListingTag);
       writeSession(SOFT_TAG_KEY, backup.softListingTag);
     }
+    if (Array.isArray(backup.offeringNames) && backup.offeringNames.length) {
+      setOfferingNamesState(backup.offeringNames);
+      writeOfferingNames(backup.offeringNames);
+    } else if (backup.seedProductName) {
+      setOfferingNamesState([backup.seedProductName]);
+      writeOfferingNames([backup.seedProductName]);
+    }
     const restoredStep = restoreStepFromBackup(backup.step);
     localStorage.setItem('seller_onboarding_step', String(restoredStep));
     localStorage.setItem(ONBOARDING_VERSION_KEY, ONBOARDING_VERSION);
@@ -332,11 +394,18 @@ export function useSellerApplication(opts?: { forceNew?: boolean }) {
 
       // Dashboard "Add Business" — skip resume/probe so the picker paints immediately
       if (forceNew) {
+        writeSubmittedStoreId(null);
+        setSubmissionComplete(false);
         setExistingSeller(null);
         setDraftSellerId(null);
         setSelectedGroup(null);
         setFormData(INITIAL_FORM);
         setDraftProducts([]);
+        setOfferingNamesState(['']);
+        setCommerceModelState('');
+        setSeedProductNameState('');
+        setListingIntentPhraseState('');
+        setSoftListingTagState('');
         setStep(1);
         try {
           localStorage.setItem('seller_onboarding_step', '1');
@@ -347,6 +416,7 @@ export function useSellerApplication(opts?: { forceNew?: boolean }) {
           sessionStorage.removeItem(SEED_PRODUCT_KEY);
           sessionStorage.removeItem(INTENT_PHRASE_KEY);
           sessionStorage.removeItem(SOFT_TAG_KEY);
+          sessionStorage.removeItem(OFFERING_NAMES_KEY);
         } catch { /* */ }
         setIsCheckingExisting(false);
         return;
@@ -359,6 +429,24 @@ export function useSellerApplication(opts?: { forceNew?: boolean }) {
           .select(SELLER_STATUS_SELECT)
           .eq('user_id', user.id);
         if (data && data.length > 0) {
+          const submittedId = readSubmittedStoreId();
+          const submittedRow = submittedId
+            ? data.find((s: any) => s.id === submittedId && s.verification_status !== 'draft')
+            : null;
+          if (submittedRow) {
+            setDraftSellerId(submittedRow.id);
+            setSelectedGroup((submittedRow as any).primary_group || null);
+            setExistingSeller({
+              id: submittedRow.id,
+              business_name: (submittedRow as any).business_name,
+              verification_status: (submittedRow as any).verification_status,
+              rejection_note: (submittedRow as any).rejection_note,
+            });
+            setSubmissionComplete(true);
+            setIsCheckingExisting(false);
+            return;
+          }
+
           const draft = data.find((s: any) => s.verification_status === 'draft');
           if (draft) {
             const { data: fullDraft, error: fullErr } = await supabase
@@ -382,10 +470,7 @@ export function useSellerApplication(opts?: { forceNew?: boolean }) {
             const version = localStorage.getItem(ONBOARDING_VERSION_KEY);
             const restoredStep = version === ONBOARDING_VERSION
               ? clampMetaStep(savedStep)
-              : migrateOnboardingStep(
-                  Math.max(1, Math.min(savedStep, version === '2' ? 7 : 5)),
-                  version,
-                );
+              : migrateOnboardingStep(savedStep, version);
             localStorage.setItem(ONBOARDING_VERSION_KEY, ONBOARDING_VERSION);
             localStorage.setItem('seller_onboarding_step', String(restoredStep));
             setStep(restoredStep);
@@ -396,7 +481,7 @@ export function useSellerApplication(opts?: { forceNew?: boolean }) {
             const raw = localStorage.getItem(ONBOARDING_FORM_BACKUP_KEY);
             if (raw) {
               const backup = JSON.parse(raw);
-              if (backup?.userId === user.id && backup.formData && backup.selectedGroup) {
+              if (backup?.userId === user.id && backup.formData) {
                 restoreFromBackup(backup);
               }
             }
@@ -419,7 +504,7 @@ export function useSellerApplication(opts?: { forceNew?: boolean }) {
             const raw = localStorage.getItem(ONBOARDING_FORM_BACKUP_KEY);
             if (raw) {
               const backup = JSON.parse(raw);
-              if (backup?.userId === user.id && backup.formData && backup.selectedGroup) {
+              if (backup?.userId === user.id && backup.formData) {
                 restoreFromBackup(backup);
               }
             }
@@ -618,10 +703,11 @@ export function useSellerApplication(opts?: { forceNew?: boolean }) {
 
   useEffect(() => { fetchLicenseStatus(); }, [fetchLicenseStatus]);
 
-  // Auto-save draft while onboarding (from step 2 once group is chosen)
+  // Auto-save draft while onboarding (DB save once a store type is known)
   useEffect(() => {
-    if (step < 2 || isCheckingExisting || !user || !selectedGroup) return;
+    if (submissionComplete || step < 1 || isCheckingExisting || !user) return;
     persistFormBackup();
+    if (step < 2 || !selectedGroup) return;
 
     const timer = setTimeout(async () => {
       if (autoSaveInFlightRef.current) return;
@@ -634,7 +720,7 @@ export function useSellerApplication(opts?: { forceNew?: boolean }) {
     }, 1200);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, formData, selectedGroup, draftSellerId, isCheckingExisting, user, persistFormBackup, commerceModel, seedProductName, listingIntentPhrase]);
+  }, [step, formData, selectedGroup, draftSellerId, isCheckingExisting, user, persistFormBackup, commerceModel, seedProductName, listingIntentPhrase, offeringNames, submissionComplete]);
 
   const categorySlugToConfigId = useMemo(() => {
     const map: Record<string, string> = {};
@@ -670,9 +756,13 @@ export function useSellerApplication(opts?: { forceNew?: boolean }) {
     silent?: boolean;
     allowEmptyCategories?: boolean;
     formOverrides?: Partial<SellerFormData>;
+    groupOverride?: string | null;
+    draftIdOverride?: string | null;
+    notifyOnError?: boolean;
   }): Promise<string | null> => {
     if (!user) return null;
-    if (!selectedGroup) {
+    const group = opts?.groupOverride || selectedGroup;
+    if (!group) {
       if (!opts?.silent) notify.block('Please choose a store type before continuing');
       return null;
     }
@@ -687,6 +777,20 @@ export function useSellerApplication(opts?: { forceNew?: boolean }) {
       return null;
     }
     if (!opts?.silent) setIsLoading(true);
+    const fail = (error: unknown) => {
+      console.error('Error saving draft:', error);
+      const message = friendlyError(error);
+      const unique = /duplicate key|unique constraint|user_id_primary_group/i.test(String((error as any)?.message || message));
+      if (unique) {
+        notify.block(
+          'You already have a store in this type. Resume that store, or offer items from a different type.',
+          { title: 'Store type already used', id: 'seller-group-taken' },
+        );
+      } else if (!opts?.silent || opts?.notifyOnError) {
+        notify.block(message || 'Could not save your store draft. Please try again.');
+      }
+      return null;
+    };
     try {
       let storeActionType: string | null = null;
       try { storeActionType = sessionStorage.getItem('onboarding_store_action_type') || null; } catch { /* */ }
@@ -698,58 +802,113 @@ export function useSellerApplication(opts?: { forceNew?: boolean }) {
         storeActionType = commerceModelToDefaultAction(resolvedCommerceModel as any);
       }
 
-      // Never overwrite an existing store title with the Untitled placeholder during resume/edit.
-      // New drafts may still insert Untitled until the seller names the store.
-      const businessName = trimmedName || (draftSellerId ? null : 'Untitled store');
+      const { data: sameGroupRow, error: sameGroupErr } = await supabase
+        .from('seller_profiles')
+        .select('id, verification_status, business_name, latitude, longitude')
+        .eq('user_id', user.id)
+        .eq('primary_group', group)
+        .maybeSingle();
+      if (sameGroupErr) throw sameGroupErr;
 
-      const draftPayload: any = {
+      const resolution = resolveSameGroupStore(
+        sameGroupRow ? [{
+          id: sameGroupRow.id,
+          primary_group: group,
+          verification_status: (sameGroupRow as any).verification_status,
+          business_name: (sameGroupRow as any).business_name,
+        }] : [],
+        group,
+        opts?.draftIdOverride || draftSellerId,
+      );
+      if (resolution.action === 'blocked') {
+        notify.block(
+          `You already have "${resolution.businessName}" in this store type. Manage that store, or offer items from a different type.`,
+          { title: 'Store type already used', id: 'seller-group-taken' },
+        );
+        return null;
+      }
+
+      const targetId = resolution.action === 'adopt-draft'
+        ? resolution.id
+        : (opts?.draftIdOverride || draftSellerId || null);
+      const formLooksFresh = !trimmedName && !effectiveForm.latitude;
+      const onboardingMeta = buildOnboardingMeta({
+        step,
+        commerceModel: resolvedCommerceModel || undefined,
+        seedProductName: resolvedSeedName || undefined,
+        listingIntentPhrase: resolvedIntentPhrase || undefined,
+        softListingTag: resolvedSoftTag || undefined,
+        onboardingVersion: ONBOARDING_VERSION,
+        offeringNames: readOfferingNames().filter((n) => n.trim().length >= 2),
+      });
+
+      // Never overwrite an existing store title with the Untitled placeholder during resume/edit.
+      const businessName = trimmedName || (targetId ? null : 'Untitled store');
+
+      const taxonomyPayload: any = {
+        categories: effectiveForm.categories,
+        primary_group: group,
+        subcategory_preferences: effectiveForm.subcategory_preferences,
+        onboarding_meta: onboardingMeta,
+      };
+      if (storeActionType) taxonomyPayload.default_action_type = storeActionType;
+
+      const fullPayload: any = {
+        ...taxonomyPayload,
         description: effectiveForm.description.trim() || null,
-        categories: effectiveForm.categories, primary_group: selectedGroup,
-        availability_start: effectiveForm.availability_start, availability_end: effectiveForm.availability_end,
-        accepts_cod: effectiveForm.accepts_cod, sell_beyond_community: true,
-        delivery_radius_km: effectiveForm.delivery_radius_km || 1, fulfillment_mode: effectiveForm.fulfillment_mode,
-        delivery_note: effectiveForm.delivery_note.trim() || null, accepts_upi: effectiveForm.accepts_upi,
+        availability_start: effectiveForm.availability_start,
+        availability_end: effectiveForm.availability_end,
+        accepts_cod: effectiveForm.accepts_cod,
+        sell_beyond_community: true,
+        delivery_radius_km: effectiveForm.delivery_radius_km || 1,
+        fulfillment_mode: effectiveForm.fulfillment_mode,
+        delivery_note: effectiveForm.delivery_note.trim() || null,
+        accepts_upi: effectiveForm.accepts_upi,
         upi_id: effectiveForm.accepts_upi ? effectiveForm.upi_id.trim() || null : null,
-        operating_days: effectiveForm.operating_days, profile_image_url: effectiveForm.profile_image_url,
+        operating_days: effectiveForm.operating_days,
+        profile_image_url: effectiveForm.profile_image_url,
         cover_image_url: effectiveForm.cover_image_url,
         latitude: effectiveForm.latitude,
         longitude: effectiveForm.longitude,
         store_location_label: effectiveForm.store_location_label,
-        subcategory_preferences: effectiveForm.subcategory_preferences,
         pickup_payment_config: effectiveForm.pickup_payment_config,
         delivery_payment_config: effectiveForm.delivery_payment_config,
-        onboarding_meta: buildOnboardingMeta({
-          step,
-          commerceModel: resolvedCommerceModel || undefined,
-          seedProductName: resolvedSeedName || undefined,
-          listingIntentPhrase: resolvedIntentPhrase || undefined,
-          softListingTag: resolvedSoftTag || undefined,
-          onboardingVersion: ONBOARDING_VERSION,
-        }),
       };
-      if (businessName !== null) draftPayload.business_name = businessName;
-      if (storeActionType) draftPayload.default_action_type = storeActionType;
-      // Only attach society on draft create / when seller row has none — never silently
-      // move an existing store to a different society from a stale profile session.
-      if (profile?.society_id && !draftSellerId) draftPayload.society_id = profile.society_id;
-      if (draftSellerId) {
-        const { error } = await supabase.from('seller_profiles').update(draftPayload as any).eq('id', draftSellerId);
+      if (businessName !== null) fullPayload.business_name = businessName;
+      if (profile?.society_id && !targetId) fullPayload.society_id = profile.society_id;
+
+      if (targetId) {
+        const liveStatus = (sameGroupRow as any)?.verification_status;
+        if (opts?.silent && (liveStatus === 'pending' || liveStatus === 'approved')) {
+          return targetId;
+        }
+        const payload = (formLooksFresh || resolution.action === 'adopt-draft') ? taxonomyPayload : fullPayload;
+        const { error } = await supabase.from('seller_profiles').update(payload as any).eq('id', targetId);
         if (error) throw error;
+        if (targetId !== draftSellerId) {
+          setDraftSellerId(targetId);
+          const { data: fullRow } = await supabase.from('seller_profiles').select(SELLER_FULL_SELECT).eq('id', targetId).single();
+          if (fullRow) {
+            loadSellerDataIntoForm(fullRow);
+            hydrateOnboardingFromMeta(fullRow);
+          }
+          if (resolution.action === 'adopt-draft') {
+            toast.info(`Continuing your existing ${resolution.businessName} draft.`, { id: 'seller-adopt-draft' });
+          }
+        }
         persistFormBackup();
-        return draftSellerId;
-      } else {
-        const { data, error } = await supabase.from('seller_profiles').insert({
-          ...draftPayload, user_id: user.id, society_id: profile?.society_id || null, verification_status: 'draft' as any,
-        } as any).select('id').single();
-        if (error) throw error;
-        setDraftSellerId(data.id);
-        persistFormBackup();
-        return data.id;
+        return targetId;
       }
+
+      const { data, error } = await supabase.from('seller_profiles').insert({
+        ...fullPayload, user_id: user.id, society_id: profile?.society_id || null, verification_status: 'draft' as any,
+      } as any).select('id').single();
+      if (error) throw error;
+      setDraftSellerId(data.id);
+      persistFormBackup();
+      return data.id;
     } catch (error: any) {
-      console.error('Error saving draft:', error);
-      if (!opts?.silent) toast.error(friendlyError(error), { id: 'seller-app-draft-error' });
-      return null;
+      return fail(error);
     } finally { if (!opts?.silent) setIsLoading(false); }
   };
 
@@ -782,7 +941,7 @@ export function useSellerApplication(opts?: { forceNew?: boolean }) {
   const handleStepBack = async (targetStep: number) => {
     // Auto-save draft if going back from steps where data may have changed
     if (draftSellerId && step >= 2) {
-      const savedId = await saveDraft();
+      const savedId = await saveDraft({ silent: true, allowEmptyCategories: !formData.categories.length });
       // Bug 2: After saving, reload form data from DB to ensure consistency on re-mount
       if (savedId) {
         try {
@@ -839,12 +998,14 @@ export function useSellerApplication(opts?: { forceNew?: boolean }) {
   ]);
 
   const handleSaveDraftAndExit = async () => {
-    if (step >= 2) {
+    if (selectedGroup) {
       const savedId = await saveDraft({ silent: step < 5, allowEmptyCategories: !formData.categories.length });
-      if (!savedId) {
+      if (!savedId && step >= 5) {
         toast.error('Could not save draft. Please fix any errors and try again.', { id: 'seller-app-draft-error' });
         return;
       }
+    } else {
+      persistFormBackup();
     }
     localStorage.removeItem('seller_onboarding_step');
     localStorage.removeItem(ONBOARDING_FORM_BACKUP_KEY);
@@ -975,6 +1136,13 @@ export function useSellerApplication(opts?: { forceNew?: boolean }) {
       localStorage.setItem('seller_onboarding_completed', 'true');
     localStorage.removeItem('seller_onboarding_step');
     localStorage.removeItem(ONBOARDING_FORM_BACKUP_KEY);
+    writeSubmittedStoreId(draftSellerId);
+    setExistingSeller({
+      id: draftSellerId,
+      business_name: formData.business_name.trim() || 'your store',
+      verification_status: 'pending',
+      rejection_note: null,
+    });
     showFeedback({
         title: "We're reviewing your store",
         variant: 'success',
@@ -1019,18 +1187,22 @@ export function useSellerApplication(opts?: { forceNew?: boolean }) {
   }, [loadSellerDataIntoForm, reloadProducts, setStep]);
 
   const startNewStoreOnboarding = useCallback(() => {
+    writeSubmittedStoreId(null);
+    setSubmissionComplete(false);
     setExistingSeller(null);
     setDraftSellerId(null);
     setSelectedGroup(null);
     setFormData(INITIAL_FORM);
     setDraftProducts([]);
+    setOfferingNamesState(['']);
+    writeOfferingNames([]);
     setStep(1);
   }, [setStep]);
 
   const reloadProductsAndGet = useCallback(async (sellerId: string) => {
     const { data: prods, error } = await supabase
       .from('products')
-      .select('id, name, price, description, image_url, category, approval_status, seller_id, action_type')
+      .select('id, name, price, description, image_url, category, approval_status, seller_id, action_type, subcategory_id, tags, cuisine_type')
       .eq('seller_id', sellerId);
     if (error) {
       console.error('Error reloading products:', error);
@@ -1084,7 +1256,10 @@ export function useSellerApplication(opts?: { forceNew?: boolean }) {
     setCommerceModel, storeActionRequiresAvailability, reloadProductsAndGet,
   ]);
 
-  const handleGroupSelect = async (group: string) => {
+  const handleGroupSelect = async (group: string, opts?: {
+    nextStep?: number;
+    formOverrides?: Partial<SellerFormData>;
+  }) => {
     if (group !== selectedGroup) {
       // Bug 10: If draft products exist from the old group, clean them up
       if (draftSellerId && draftProducts.length > 0) {
@@ -1111,10 +1286,21 @@ export function useSellerApplication(opts?: { forceNew?: boolean }) {
         }
       }
       setSelectedGroup(group);
-      setFormData(f => ({ ...f, categories: [], subcategory_preferences: { v: 1, data: {} } }));
+      if (opts?.formOverrides) {
+        setFormData((f) => ({ ...f, ...opts.formOverrides }));
+      } else {
+        setFormData((f) => ({ ...f, categories: [], subcategory_preferences: { v: 1, data: {} } }));
+      }
+    } else if (opts?.formOverrides) {
+      setFormData((f) => ({ ...f, ...opts.formOverrides }));
     }
-    await saveDraft({ silent: true, allowEmptyCategories: true });
-    setTimeout(() => setStep(2), 350);
+    await saveDraft({
+      silent: true,
+      allowEmptyCategories: true,
+      groupOverride: group,
+      formOverrides: opts?.formOverrides,
+    });
+    setTimeout(() => setStep(opts?.nextStep ?? 5), 350);
   };
 
   const selectedGroupInfo = parentGroupInfos.find(g => g.value === selectedGroup);
@@ -1133,6 +1319,7 @@ export function useSellerApplication(opts?: { forceNew?: boolean }) {
     listingIntentPhrase, setListingIntentPhrase,
     commerceModel, setCommerceModel, applyCommerceModelChange,
     seedProductName, setSeedProductName,
+    offeringNames, setOfferingNames,
     softListingTag, setSoftListingTag,
   };
 }

@@ -74,7 +74,11 @@ function OrderProgressOverlayInner({ isVisible, step }: OrderProgressOverlayProp
   const progress = ((currentIdx + 1) / STEPS.length) * 100;
 
   return (
-    <div className="fixed inset-0 z-[100] bg-background/80 backdrop-blur-sm flex items-center justify-center safe-bottom">
+    <div
+      className="fixed inset-0 z-[100] bg-background/80 backdrop-blur-sm flex items-center justify-center safe-bottom"
+      data-checkout-in-progress="true"
+      data-ptr-block="true"
+    >
       <div className="bg-card border border-border rounded-2xl p-6 mx-6 w-full max-w-sm shadow-lg">
         <div className="flex items-center justify-center mb-5">
           <ProgressRing progress={progress} />

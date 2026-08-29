@@ -90,6 +90,7 @@ import { FeedbackPopupProvider } from "@/components/FeedbackPopupProvider";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PageTransitionWrapper } from "@/components/layout/PageTransitionWrapper";
 import { AppShellGate } from "@/components/layout/AppShell";
+import { PullToRefreshHost } from "@/components/layout/PullToRefreshHost";
 import { AppSplashScreen } from "@/components/splash/AppSplashScreen";
 
 // Cold-start guard: module-level flag resets only on full page reload
@@ -772,6 +773,7 @@ function App() {
             <OfflineBanner />
             <Sonner />
             <HashRouter>
+              <PullToRefreshHost />
               <ActionBlockedDialog />
               <GlobalHapticListener />
               <KeyboardAwareInputs />

@@ -27,7 +27,9 @@ interface CommerceModelStepProps {
   onChange: (model: BuyerJourneyId) => void;
   onSoftTagChange: (tag: SoftListingTag) => void;
   onContinue: () => void;
-  onBack: () => void;
+  onBack?: () => void;
+  showBack?: boolean;
+  continueHint?: string;
 }
 
 export function CommerceModelStep({
@@ -37,12 +39,16 @@ export function CommerceModelStep({
   onSoftTagChange,
   onContinue,
   onBack,
+  showBack = true,
+  continueHint = 'Next: what you offer',
 }: CommerceModelStepProps) {
   return (
     <div className="space-y-5">
-      <button onClick={onBack} className="flex items-center gap-1 text-sm text-muted-foreground">
-        ← Edit what you sell
-      </button>
+      {showBack && onBack && (
+        <button type="button" onClick={onBack} className="flex items-center gap-1 text-sm text-muted-foreground">
+          ← Back
+        </button>
+      )}
 
       <div className="grid grid-cols-2 gap-3">
         {BUYER_JOURNEYS.map((journey) => {
@@ -105,7 +111,7 @@ export function CommerceModelStep({
 
       <div className="space-y-2">
         <p className="text-xs text-muted-foreground text-center flex items-center justify-center gap-1">
-          <ArrowRight size={12} />Next: We&apos;ll suggest a category home
+          <ArrowRight size={12} />{continueHint}
         </p>
         <Button className="w-full" onClick={onContinue} disabled={!value}>
           Continue<ChevronRight size={16} className="ml-1" />

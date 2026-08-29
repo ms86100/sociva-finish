@@ -32,6 +32,8 @@ import {
   PREP_TIME_PLACEHOLDER,
 } from '@/lib/product-timing-copy';
 import { motion, AnimatePresence } from 'framer-motion';
+import { FoodFacetChips } from '@/components/seller/FoodFacetChips';
+import { isFoodParentGroup, parseFoodFacets, serializeFoodFacets } from '@/lib/food-facets';
 
 // ── Step definitions ──
 const STEPS = [
@@ -335,6 +337,7 @@ function StepBasics({ sp }: { sp: ReturnType<typeof useSellerProducts> }) {
             sp.setFormData({ ...sp.formData, name: e.target.value });
             if (sp.fieldErrors.name) sp.setFieldErrors((prev) => { const { name, ...rest } = prev; return rest; });
           }}
+          onBlur={(e) => sp.applyListingPlacementFromName(e.target.value)}
           className={`mt-1.5 ${sp.fieldErrors.name ? 'border-destructive' : ''}`}
         />
         {sp.fieldErrors.name && <p className="text-xs text-destructive mt-1">{sp.fieldErrors.name}</p>}
@@ -398,6 +401,20 @@ function StepBasics({ sp }: { sp: ReturnType<typeof useSellerProducts> }) {
             </SelectContent>
           </Select>
         </div>
+      )}
+
+      {(isFoodParentGroup(sp.activeCategoryConfig?.parentGroup) || sp.activeCategoryConfig?.layoutType === 'food') && (
+        <FoodFacetChips
+          value={parseFoodFacets(sp.formData.tags, sp.formData.cuisine_type)}
+          onChange={(next) => {
+            const persisted = serializeFoodFacets(next, sp.formData.tags);
+            sp.setFormData({
+              ...sp.formData,
+              tags: persisted.tags,
+              cuisine_type: persisted.cuisine_type,
+            });
+          }}
+        />
       )}
 
       <p className="text-xs text-muted-foreground sm:hidden pt-1">

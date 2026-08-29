@@ -8,6 +8,7 @@ import {
   restoreStepFromBackup,
   validateStoreProductActionConsistency,
   findActionMismatchedProducts,
+  resolveSameGroupStore,
 } from '@/lib/onboarding-state';
 import { commerceModelToDefaultAction } from '@/lib/listing-intent';
 
@@ -50,16 +51,16 @@ describe('onboarding meta persistence (Tests 2, 3, 5)', () => {
 
   it('saveDraft writes onboarding_meta and allows Untitled store', () => {
     const src = readSrc('src/hooks/useSellerApplication.ts');
-    expect(src).toContain('onboarding_meta: buildOnboardingMeta');
+    expect(src).toContain('onboarding_meta: onboardingMeta');
     expect(src).toContain("'Untitled store'");
-    expect(src).toMatch(/step < 2 \|\| !selectedGroup/); // backup from step 2
+    expect(src).toContain('if (!user?.id) return;');
     expect(src).toContain('readSession(COMMERCE_MODEL_KEY)');
   });
 
   it('saveDraft does not overwrite existing business_name with Untitled on resume', () => {
     const src = readSrc('src/hooks/useSellerApplication.ts');
-    expect(src).toContain('draftSellerId ? null : \'Untitled store\'');
-    expect(src).toContain('if (businessName !== null) draftPayload.business_name = businessName');
+    expect(src).toContain('targetId ? null : \'Untitled store\'');
+    expect(src).toContain('if (businessName !== null) fullPayload.business_name = businessName');
   });
 
   it('submit does not blank business_name when form was reset', () => {
@@ -69,13 +70,21 @@ describe('onboarding meta persistence (Tests 2, 3, 5)', () => {
 
   it('saveDraft does not relocate existing store society from profile', () => {
     const src = readSrc('src/hooks/useSellerApplication.ts');
-    expect(src).toContain('if (profile?.society_id && !draftSellerId) draftPayload.society_id = profile.society_id');
+    expect(src).toContain('if (profile?.society_id && !targetId) fullPayload.society_id = profile.society_id');
   });
 
   it('Update & Resubmit jumps to store details not category restart', () => {
     const src = readSrc('src/pages/BecomeSellerPage.tsx');
     expect(src).toContain('Update & Resubmit');
     expect(src).toMatch(/setStep\(5\);[\s\S]{0,80}Update & Resubmit/);
+  });
+
+  it('keeps the submitted-review screen instead of resuming another leftover draft', () => {
+    const src = readSrc('src/hooks/useSellerApplication.ts');
+    expect(src).toContain('SUBMITTED_STORE_KEY');
+    expect(src).toContain('writeSubmittedStoreId(draftSellerId)');
+    expect(src).toContain('if (submissionComplete || step < 1');
+    expect(src).toContain("opts?.silent && (liveStatus === 'pending' || liveStatus === 'approved')");
   });
 
   it('Add Business uses forceNew so onboarding does not block on draft probe', () => {
@@ -187,14 +196,40 @@ describe('service location persistence (Test 12)', () => {
 describe('silent failure prevention (Tests 14–15)', () => {
   it('Save Draft shows error when save fails', () => {
     const src = readSrc('src/hooks/useSellerApplication.ts');
-    expect(src).toMatch(/if \(!savedId\)[\s\S]*Could not save draft/);
-    expect(src).toMatch(/if \(!opts\?\.silent\) toast\.error/);
+    expect(src).toContain('notifyOnError');
+    expect(src).toContain('Could not save your store draft');
+    expect(src).toContain('resolveSameGroupStore');
   });
 
   it('submit rolls back profile when product promotion fails', () => {
     const src = readSrc('src/hooks/useSellerApplication.ts');
     expect(src).toMatch(/verification_status: 'draft'/);
     expect(src).toContain('throw prodError');
+  });
+});
+
+describe('same-group draft adoption', () => {
+  it('creates when no store exists for the group', () => {
+    expect(resolveSameGroupStore([], 'food_beverages', null)).toEqual({ action: 'create' });
+  });
+
+  it('updates the current draft when it already owns the group', () => {
+    expect(resolveSameGroupStore([
+      { id: 'd1', primary_group: 'food_beverages', verification_status: 'draft', business_name: 'laeM' },
+    ], 'food_beverages', 'd1')).toEqual({ action: 'update-current', id: 'd1' });
+  });
+
+  it('adopts an existing draft instead of inserting a duplicate group', () => {
+    expect(resolveSameGroupStore([
+      { id: 'd1', primary_group: 'food_beverages', verification_status: 'draft', business_name: 'laeM' },
+    ], 'food_beverages', null)).toEqual({ action: 'adopt-draft', id: 'd1', businessName: 'laeM' });
+  });
+
+  it('blocks a live store of the same group', () => {
+    const result = resolveSameGroupStore([
+      { id: 's1', primary_group: 'food_beverages', verification_status: 'approved', business_name: 'Kitchen' },
+    ], 'food_beverages', null);
+    expect(result.action).toBe('blocked');
   });
 });
 

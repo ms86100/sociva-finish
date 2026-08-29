@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { useState } from 'react';
+import { useBlockPullToRefresh } from '@/hooks/usePullToRefresh';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Minus, Plus, Clock, Store, MapPin, Bell, ChevronRight, Trash2, ShieldCheck, AlertTriangle } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -35,6 +36,12 @@ export default function CartPage() {
   const navigate = useNavigate();
   const [showReviewSheet, setShowReviewSheet] = useState(false);
   const [justCleared, setJustCleared] = useState(false);
+  useBlockPullToRefresh(
+    !!c.showRazorpayCheckout ||
+    !!c.isPlacingOrder ||
+    !!c.isResolvingPaymentSession ||
+    !!c.showUpiDeepLink,
+  );
 
   const shouldBlockCheckoutShell =
     c.isResolvingPaymentSession ||
@@ -223,6 +230,9 @@ export default function CartPage() {
                         </div>
                         <p className="text-sm font-bold mt-0.5">{c.formatPrice(item.product.price * item.quantity)}</p>
                         <p className="text-[11px] text-muted-foreground">{c.formatPrice(item.product.price)} × {item.quantity}</p>
+                        {item.product.is_available === false && (
+                          <p className="text-[11px] text-destructive font-medium mt-0.5">This item is currently unavailable</p>
+                        )}
                         {Array.isArray((item as any).selected_extras) && (item as any).selected_extras.length > 0 && (
                           <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-2">
                             {(item as any).selected_extras.map((extra: any) => `${extra.fieldLabel}: ${Array.isArray(extra.value) ? extra.value.join(', ') : extra.value}`).join(' · ')}

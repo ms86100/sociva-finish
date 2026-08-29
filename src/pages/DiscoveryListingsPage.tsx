@@ -6,7 +6,6 @@ import { Flame, Search, Sparkles, X, PackageSearch } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { SafeHeader } from '@/components/layout/SafeHeader';
 import { Input } from '@/components/ui/input';
-import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { ProductListingCard, ProductWithSeller } from '@/components/product/ProductListingCard';
 import { ProductCardSkeleton } from '@/components/product/ProductCardSkeleton';
 import { ProductDetailSheet } from '@/components/product/ProductDetailSheet';
@@ -15,8 +14,11 @@ import { useProductsByCategory } from '@/hooks/queries/useProductsByCategory';
 import { useCategoryConfigs } from '@/hooks/useCategoryBehavior';
 import { useMarketplaceLabels } from '@/hooks/useMarketplaceLabels';
 import { useBrowsingLocation } from '@/contexts/BrowsingLocationContext';
-import { SORT_OPTIONS, type SortKey } from '@/lib/marketplace-constants';
-import { cn } from '@/lib/utils';
+import { type SortKey } from '@/lib/marketplace-constants';
+import { TasteRail } from '@/components/food/TasteRail';
+import { applyProductFacetRow, useProductFacets } from '@/hooks/queries/useProductFacets';
+import { availableTasteMoods, countFoodFacets, isFoodParentGroup } from '@/lib/food-facets';
+import { emptyTasteBrowseState, productMatchesTasteBrowse } from '@/lib/food-taste';
 
 export default function DiscoveryListingsPage() {
   const { type } = useParams<{ type: string }>();
@@ -27,10 +29,17 @@ export default function DiscoveryListingsPage() {
   const { data: localCategories = [], isLoading } = useProductsByCategory(120);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<SortKey>('relevance');
+  const [taste, setTaste] = useState(emptyTasteBrowseState);
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [detailOpen, setDetailOpen] = useState(false);
 
-  const allProducts = useMemo(() => localCategories.flatMap(c => c.products), [localCategories]);
+  const allProductsRaw = useMemo(() => localCategories.flatMap(c => c.products), [localCategories]);
+  const productIds = useMemo(() => allProductsRaw.map((p) => p.id), [allProductsRaw]);
+  const { data: facetRows = {} } = useProductFacets(productIds, productIds.length > 0);
+  const allProducts = useMemo(
+    () => allProductsRaw.map((p) => applyProductFacetRow(p, facetRows[p.id])),
+    [allProductsRaw, facetRows],
+  );
   const newThisWeekDays = ml.threshold('new_this_week_days');
   const discoveryMaxItems = Math.max(ml.threshold('discovery_max_items') || 10, 30);
 
@@ -60,6 +69,13 @@ export default function DiscoveryListingsPage() {
     ? <Sparkles size={16} className="text-primary" />
     : <Flame size={16} className="text-destructive" />;
 
+  const foodCategorySet = useMemo(
+    () => new Set(categoryConfigs.filter((c) => isFoodParentGroup(c.parentGroup)).map((c) => c.category)),
+    [categoryConfigs],
+  );
+  const foodDominated = baseProducts.length > 0 && baseProducts.every((p) => p.category && foodCategorySet.has(p.category));
+  const foodMoods = useMemo(() => availableTasteMoods(baseProducts), [baseProducts]);
+
   const displayProducts = useMemo(() => {
     let filtered = baseProducts;
 
@@ -68,6 +84,13 @@ export default function DiscoveryListingsPage() {
       filtered = filtered.filter(
         (p) => p.name.toLowerCase().includes(q) || p.seller_name?.toLowerCase().includes(q) || p.category?.toLowerCase().includes(q)
       );
+    }
+
+    if (countFoodFacets(taste) || taste.veg || taste.openNow) {
+      filtered = filtered.filter((p) => {
+        if (countFoodFacets(taste) && (!p.category || !foodCategorySet.has(p.category))) return false;
+        return productMatchesTasteBrowse(p, taste);
+      });
     }
 
     const sorted = [...filtered];
@@ -80,7 +103,7 @@ export default function DiscoveryListingsPage() {
       case 'rating': sorted.sort((a, b) => (b.seller_rating ?? 0) - (a.seller_rating ?? 0)); break;
     }
     return sorted;
-  }, [baseProducts, searchQuery, sortBy]);
+  }, [baseProducts, searchQuery, sortBy, taste, foodCategorySet]);
 
   const handleProductTap = useCallback((product: ProductWithSeller) => {
     const catConfig = categoryConfigs.find(c => c.category === product.category);
@@ -143,25 +166,16 @@ export default function DiscoveryListingsPage() {
         </div>
 
         <div className="border-t border-border/40">
-          <ScrollArea className="px-4 py-2">
-            <div className="flex gap-1.5">
-              {SORT_OPTIONS.map((opt) => (
-                <button
-                  key={opt.key}
-                  onClick={() => setSortBy(opt.key)}
-                  className={cn(
-                    'px-3 py-1 rounded-lg text-[11px] font-medium whitespace-nowrap border transition-colors',
-                    sortBy === opt.key
-                      ? 'bg-primary/10 text-primary border-primary'
-                      : 'bg-background text-muted-foreground border-border'
-                  )}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-            <ScrollBar orientation="horizontal" />
-          </ScrollArea>
+          <TasteRail
+            value={taste}
+            onChange={setTaste}
+            showMoods={foodDominated && foodMoods.length > 0}
+            showUtilities={foodDominated}
+            showOpenNow
+            moods={foodMoods}
+            sortBy={sortBy}
+            onSortChange={setSortBy}
+          />
         </div>
       </SafeHeader>
 

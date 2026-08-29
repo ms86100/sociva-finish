@@ -17,21 +17,17 @@ function readSrc(rel: string) {
 }
 
 describe('category-first onboarding contracts', () => {
-  it('BecomeSeller uses 8-step group → category → commerce → offering order', () => {
+  it('BecomeSeller uses 8-step workflow-first order', () => {
     const src = readSrc('src/pages/BecomeSellerPage.tsx');
     expect(src).toContain('NEW_ONBOARDING_TOTAL_STEPS');
     expect(src).toContain('ParentGroupPickerStep');
-    expect(src).toContain('GuidedStep2');
     expect(src).toContain('CommerceModelStep');
-    expect(src).toContain('ProductOfferingStep');
-    expect(src).toMatch(/step === 1[\s\S]*ParentGroupPickerStep/);
-    expect(src).toMatch(/step === 2[\s\S]*GuidedStep2/);
-    expect(src).toMatch(/step === 3[\s\S]*CommerceModelStep/);
-    expect(src).toMatch(/step === 4[\s\S]*ProductOfferingStep/);
-    expect(src).toContain('selectedSubcategoryNames');
-    expect(src).toContain('selectedSubcategoryDisplayNames');
-    expect(src).toContain('commerceModelFromActionType');
-    expect(src).toMatch(/if \(!commerceModel\)[\s\S]*persistCommerceChoice/);
+    expect(src).toContain('OfferingsStep');
+    expect(src).toMatch(/step === 1[\s\S]*CommerceModelStep/);
+    expect(src).toMatch(/step === 2[\s\S]*OfferingsStep/);
+    expect(src).toMatch(/step === 3[\s\S]*ParentGroupPickerStep/);
+    expect(src).toContain('resolveOfferingBatch');
+    expect(src).toContain('ensureDraftProductsForOfferings');
     expect(src).toMatch(/step === 7[\s\S]*DraftProductManager/);
     expect(src).toMatch(/step === 8/);
     expect(src).not.toMatch(/configSubStep === 1[\s\S]*key="interaction"/);
@@ -69,12 +65,14 @@ describe('category-first onboarding contracts', () => {
     expect(src).toContain('migrateOnboardingStep');
     expect(src).toContain('setStep(6)');
     expect(src).toContain('setStep(7)');
-    expect(src).toContain("ONBOARDING_VERSION = '3'");
+    expect(src).toContain("ONBOARDING_VERSION = '4'");
   });
 
-  it('DraftProductManager accepts seedProductName', () => {
+  it('DraftProductManager accepts seedProductName and seedProductNames', () => {
     const src = readSrc('src/components/seller/DraftProductManager.tsx');
     expect(src).toContain('seedProductName');
+    expect(src).toContain('seedProductNames');
+    expect(src).toContain('ensureDraftProductsForOfferings');
   });
 
   it('commerce models map 1:1 to buyer journeys / default_action_type', () => {
@@ -84,6 +82,9 @@ describe('category-first onboarding contracts', () => {
     expect(NEW_ONBOARDING_TOTAL_STEPS).toBe(8);
     expect(migrateOnboardingStep(7, '2')).toBe(8);
     expect(migrateOnboardingStep(3, '2')).toBe(2);
+    expect(migrateOnboardingStep(2, '3')).toBe(1);
+    expect(migrateOnboardingStep(5, '3')).toBe(5);
+    expect(migrateOnboardingStep(8, '3')).toBe(8);
   });
 
   it('T-shirt intent never hard-fails without category suggestion path', () => {

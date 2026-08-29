@@ -22,6 +22,11 @@ export type SoftListingTag = 'rental' | 'appointment' | 'digital' | null;
 
 /** Category-level aliases (product nouns → category slug). */
 export const CATEGORY_ALIAS_MAP: Record<string, string[]> = {
+  home_food: [
+    'home food', 'homemade', 'home cooked', 'home-cooked', 'rajma', 'chawal', 'chole', 'thali',
+    'sabzi', 'curry', 'dal', 'roti', 'paratha', 'khichdi', 'pulao', 'fried rice', 'home meal',
+    'rajma chawal', 'chole bhature', 'paneer', 'dal makhani',
+  ],
   daily_tiffin: ['home food', 'dabba', 'meal service', 'lunch delivery', 'tiffin', 'food delivery', 'home cooked'],
   one_time_meals: [
     'special meals', 'party food', 'bulk food', 'catering food',
@@ -31,6 +36,7 @@ export const CATEGORY_ALIAS_MAP: Record<string, string[]> = {
   ],
   breakfast_items: ['breakfast', 'morning food', 'idli', 'dosa', 'paratha', 'poha'],
   cakes: ['cake', 'birthday cake', 'baking', 'pastry', 'bakery'],
+  bakery: ['bakery', 'cake', 'cakes', 'birthday cake', 'pastry', 'baking', 'cookie', 'biscuit'],
   cookies_biscuits: ['cookies', 'biscuits', 'baked snacks'],
   traditional_sweets: ['sweets', 'mithai', 'laddu', 'barfi', 'halwa'],
   fresh_juices: ['juice', 'fresh juice', 'fruit juice'],
@@ -51,6 +57,7 @@ export const CATEGORY_ALIAS_MAP: Record<string, string[]> = {
   masala_spices: ['masala', 'spice', 'spices', 'garam masala'],
   papad_fryums: ['papad', 'fryums', 'appalam'],
   yoga: ['meditation', 'wellness', 'mindfulness', 'pranayama', 'fitness class', 'yoga therapy', 'mind body', 'stress relief', 'hatha', 'power yoga', 'prenatal yoga'],
+  medical_specialist: ['doctor', 'clinic', 'physician', 'gp', 'general physician', 'medical', 'mbbs', 'consultation'],
   ayurveda: ['panchakarma', 'ayurvedic therapy', 'ayurveda treatment', 'detox therapy', 'oil massage', 'shirodhara', 'naturopathy', 'holistic healing', 'body detox', 'wellness retreat', 'ayurvedic massage', 'herbal therapy', 'stress relief therapy', 'therapy', 'ayurveda', 'rejuvenation therapy', 'steam therapy'],
   panchakarma_detox: ['panchakarma', 'detox program', 'body detox', 'cleansing therapy', 'detox'],
   abhyanga: ['oil massage', 'body massage', 'ayurvedic massage', 'full body massage'],
@@ -514,11 +521,23 @@ export function resolveListingIntent(input: {
 }
 
 /**
- * Migrate persisted onboarding steps to category-first flow (v3, 8 steps).
- * Pass `fromVersion` when known: `'2'` = intent-first 7-step, otherwise legacy 5-step taxonomy-first.
+ * Migrate persisted onboarding steps.
+ * `'4'` = workflow-first 8-step (current). `'3'` = category-first 8-step.
+ * `'2'` = intent-first 7-step. Otherwise legacy 5-step taxonomy-first.
  */
 export function migrateOnboardingStep(savedStep: number, fromVersion?: string | null): number {
   const s = Math.max(1, Math.min(savedStep, 8));
+
+  if (fromVersion === '4') {
+    return Math.min(s, NEW_ONBOARDING_TOTAL_STEPS);
+  }
+
+  // v3 front funnel (group → category → buyers → offering) no longer matches v4
+  // (buyers → offerings → optional group). Restart early steps; keep store setup+.
+  if (fromVersion === '3') {
+    if (s < 5) return 1;
+    return Math.min(s, NEW_ONBOARDING_TOTAL_STEPS);
+  }
 
   if (fromVersion === '2') {
     const intentToCategory: Record<number, number> = {

@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import { useBrowsingLocation } from '@/contexts/BrowsingLocationContext';
 import { useNavigate } from 'react-router-dom';
 import { useProductsByCategory } from '@/hooks/queries/useProductsByCategory';
+import { useProductFacets } from '@/hooks/queries/useProductFacets';
 import { useParentGroups } from '@/hooks/useParentGroups';
 import { useSocialProof } from '@/hooks/queries/useSocialProof';
 import { ParentGroupTabs } from '@/components/home/ParentGroupTabs';
@@ -26,6 +27,18 @@ import { useMarketplaceConfig } from '@/hooks/useMarketplaceConfig';
 import { useBadgeConfig } from '@/hooks/useBadgeConfig';
 import { useMarketplaceLabels } from '@/hooks/useMarketplaceLabels';
 import { cn } from '@/lib/utils';
+import { DiscoveryChipRail } from '@/components/home/DiscoveryChipRail';
+import { CommerceFacetRail } from '@/components/discovery/CommerceFacetRail';
+import { buildDiscoveryIntents } from '@/lib/discovery-intents';
+import { applyProductFacetRow } from '@/hooks/queries/useProductFacets';
+import {
+  CommerceFacetState,
+  emptyCommerceFacetState,
+  hasActiveCommerceFacets,
+  productMatchesCommerceFacets,
+  extractAvailableCommerceFacets,
+} from '@/lib/commerce-facets';
+import { isFoodParentGroup } from '@/lib/food-facets';
 
 function getPublicOrigin() {
   const origin = window.location.origin || '';
@@ -83,6 +96,7 @@ export function MarketplaceSection() {
   const { browsingLocation } = useBrowsingLocation();
 
   const [activeGroup, setActiveGroup] = useState<string | null>(null);
+  const [commerceFacets, setCommerceFacets] = useState<CommerceFacetState>(emptyCommerceFacetState());
   const { festivals } = useActiveFestivals();
   const takeover = useFestivalTakeover();
   const festivalTabs = useMemo(
@@ -104,8 +118,39 @@ export function MarketplaceSection() {
   const { data: localCategories = [], isLoading: loadingLocal } = useProductsByCategory(40);
   const { parentGroupInfos } = useParentGroups();
 
-  const allProducts = useMemo(() => localCategories.flatMap(c => c.products), [localCategories]);
-  const allProductIds = useMemo(() => allProducts.map(p => p.id), [allProducts]);
+  const allProductsRaw = useMemo(() => localCategories.flatMap(c => c.products), [localCategories]);
+  const allProductIds = useMemo(() => allProductsRaw.map(p => p.id), [allProductsRaw]);
+  const { data: facetRows = {} } = useProductFacets(allProductIds, allProductIds.length > 0);
+  const localCategoriesWithFacets = useMemo(() => localCategories.map((group) => ({
+    ...group,
+    products: group.products.map((p) => applyProductFacetRow(p, facetRows[p.id])),
+  })), [localCategories, facetRows]);
+  const allProducts = useMemo(
+    () => localCategoriesWithFacets.flatMap((c) => c.products),
+    [localCategoriesWithFacets],
+  );
+
+  const scopedProducts = useMemo(() => {
+    if (!activeGroup) return allProducts;
+    return allProducts.filter((p) => (p as any).parentGroup === activeGroup || (isFoodParentGroup(activeGroup) && isFoodParentGroup(p.category)));
+  }, [allProducts, activeGroup]);
+
+  const dynamicFacetChips = useMemo(
+    () => extractAvailableCommerceFacets(scopedProducts, { parentGroup: activeGroup, currentState: commerceFacets }),
+    [scopedProducts, activeGroup, commerceFacets]
+  );
+
+  const isFacetFilterActive = hasActiveCommerceFacets(commerceFacets);
+
+  const facetFilteredProducts = useMemo(() => {
+    if (!isFacetFilterActive) return [];
+    return scopedProducts.filter((p) => productMatchesCommerceFacets(p, commerceFacets));
+  }, [isFacetFilterActive, scopedProducts, commerceFacets]);
+
+  const discoveryIntents = useMemo(
+    () => (isFestivalTab ? [] : buildDiscoveryIntents(localCategoriesWithFacets, { activeGroup })),
+    [isFestivalTab, localCategoriesWithFacets, activeGroup],
+  );
 
   // Social proof only after scroll / idle — never blocks first paint
   const [socialProofReady, setSocialProofReady] = useState(false);
@@ -254,11 +299,77 @@ export function MarketplaceSection() {
       >
         <ParentGroupTabs
           activeGroup={activeGroup}
-          onGroupChange={setActiveGroup}
+          onGroupChange={(g) => {
+            setActiveGroup(g);
+            setCommerceFacets(emptyCommerceFacetState());
+          }}
           activeParentGroups={activeParentGroupSet}
           festivalTabs={festivalTabs}
         />
       </div>
+
+      {!isFestivalTab && (
+        <CommerceFacetRail
+          value={commerceFacets}
+          onChange={setCommerceFacets}
+          chips={dynamicFacetChips}
+          parentGroup={activeGroup}
+          className="py-1"
+        />
+      )}
+
+      {!isFestivalTab && <DiscoveryChipRail intents={discoveryIntents} />}
+
+      {isFacetFilterActive && (
+        <div className="px-4 py-2">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <p className="text-sm font-bold text-foreground">
+                Filtered Results ({facetFilteredProducts.length})
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {commerceFacets.veg ? 'Veg · ' : ''}
+                {commerceFacets.openNow ? 'Open Now · ' : ''}
+                {commerceFacets.actionType ? `${commerceFacets.actionType} · ` : ''}
+                {commerceFacets.serviceMode ? `${commerceFacets.serviceMode} · ` : ''}
+                {commerceFacets.durationMax ? `≤ ${commerceFacets.durationMax} min · ` : ''}
+                {commerceFacets.priceMax ? `≤ ₹${commerceFacets.priceMax} · ` : ''}
+                {[commerceFacets.meal, commerceFacets.cuisine, commerceFacets.course].filter(Boolean).join(' · ')}
+              </p>
+            </div>
+            <button
+              onClick={() => setCommerceFacets(emptyCommerceFacetState())}
+              className="text-xs text-primary font-semibold hover:underline"
+            >
+              Clear filters
+            </button>
+          </div>
+          {facetFilteredProducts.length > 0 ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+              {facetFilteredProducts.map((product) => (
+                <ProductListingCard
+                  key={product.id}
+                  product={product}
+                  onTap={handleProductTap}
+                  onNavigate={navigate}
+                  categoryConfigs={categoryConfigs as any}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="p-6 rounded-2xl bg-muted/40 text-center border border-dashed border-border">
+              <p className="text-sm font-medium text-foreground">No listings matching active filters</p>
+              <button
+                onClick={() => setCommerceFacets(emptyCommerceFacetState())}
+                className="mt-2 text-xs text-primary font-semibold hover:underline"
+              >
+                Reset filters
+              </button>
+            </div>
+          )}
+          <SectionDivider />
+        </div>
+      )}
 
       {(!activeGroup || isFestivalTab) && festivals.map((f) => (
         <FestivalBannerModule

@@ -19,9 +19,8 @@ export function useCartCount() {
       if (!user) return 0;
       const { data, error } = await supabase
         .from('cart_items')
-        .select('quantity, product:products!inner(is_available)')
-        .eq('user_id', user.id)
-        .eq('product.is_available', true);
+        .select('quantity, product:products!inner(id)')
+        .eq('user_id', user.id);
       if (error) return 0;
       return (data || []).reduce((sum, row) => sum + (row.quantity || 0), 0);
     },

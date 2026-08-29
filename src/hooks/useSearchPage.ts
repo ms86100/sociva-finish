@@ -15,6 +15,7 @@ import { useCurrency } from '@/hooks/useCurrency';
 import { MARKETPLACE_RADIUS_KM } from '@/lib/marketplace-constants';
 import { committedSearchKey, getSessionQueryId } from '@/lib/searchTelemetry';
 import { hasPreciseCoordinates } from '@/lib/buyerLocation';
+import { useRegisterScreenRefresh } from '@/hooks/usePullToRefresh';
 
 export interface ProductSearchResult {
   product_id: string;
@@ -31,6 +32,8 @@ export interface ProductSearchResult {
   contact_phone?: string | null;
   mrp?: number | null;
   discount_percentage?: number | null;
+  tags?: string[] | null;
+  cuisine_type?: string | null;
   seller_id: string;
   seller_name: string;
   seller_rating: number;
@@ -63,6 +66,7 @@ function mapSellerRpcProducts(seller: any): ProductSearchResult[] {
       is_veg: p.is_veg, category: p.category, description: null, prep_time_minutes: null,
       fulfillment_mode: null, delivery_note: null, action_type: p.action_type || 'add_to_cart',
       contact_phone: p.contact_phone || null, mrp: p.mrp || null, discount_percentage: p.discount_percentage || null,
+      tags: p.tags || null, cuisine_type: p.cuisine_type || null,
       seller_id: seller.seller_id, seller_name: seller.business_name || '', seller_rating: seller.rating || 0,
       seller_reviews: seller.total_reviews || 0, society_name: seller.society_name || null,
       distance_km: seller.distance_km || null, is_same_society: (seller.distance_km ?? 99) < 0.5,
@@ -78,6 +82,7 @@ function mapSearchRpcProduct(p: any): ProductSearchResult {
     description: p.description, prep_time_minutes: null, fulfillment_mode: null,
     delivery_note: null, action_type: p.action_type || 'add_to_cart',
     contact_phone: null, mrp: p.mrp || null, discount_percentage: p.discount_percentage || null,
+    tags: p.tags || null, cuisine_type: p.cuisine_type || null,
     seller_id: p.seller_id, seller_name: p.seller_name || '',
     seller_rating: p.seller_rating || 0, seller_reviews: p.seller_total_reviews || 0,
     society_name: p.society_name || null, distance_km: p.distance_km ?? null,
@@ -291,6 +296,10 @@ export function useSearchPage() {
     } catch (err) { if (!controller.signal.aborted) console.error('Search error:', err); }
     finally { if (!controller.signal.aborted) setIsLoading(false); }
   };
+
+  useRegisterScreenRefresh(async () => {
+    if (isSearchActive) await runSearch(debouncedQuery);
+  });
 
   const clearFilters = () => { setQuery(''); setFilters(defaultFilters); setActivePreset(null); setSelectedCategory(null); setResults([]); setHasSearched(false); localStorage.removeItem(getFilterStorageKey(user?.id)); };
   const handleFiltersChange = (f: FilterState) => { setFilters(f); setActivePreset(null); };

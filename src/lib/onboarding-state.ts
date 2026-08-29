@@ -14,18 +14,20 @@ export interface OnboardingMeta {
   listing_intent_phrase?: string;
   soft_listing_tag?: string;
   onboarding_version?: string;
+  offering_names?: string[];
 }
 
 export interface OnboardingFormBackup {
   userId: string;
   formData: Record<string, unknown>;
-  selectedGroup: string;
+  selectedGroup: string | null;
   step: number;
   commerceModel?: string;
   seedProductName?: string;
   listingIntentPhrase?: string;
   softListingTag?: string;
   onboardingVersion?: string;
+  offeringNames?: string[];
   savedAt: number;
 }
 
@@ -45,6 +47,7 @@ export function buildOnboardingMeta(input: {
   listingIntentPhrase?: string;
   softListingTag?: string;
   onboardingVersion?: string;
+  offeringNames?: string[];
 }): OnboardingMeta {
   return {
     v: ONBOARDING_META_VERSION,
@@ -54,6 +57,7 @@ export function buildOnboardingMeta(input: {
     listing_intent_phrase: input.listingIntentPhrase || undefined,
     soft_listing_tag: input.softListingTag || undefined,
     onboarding_version: input.onboardingVersion || undefined,
+    offering_names: input.offeringNames?.length ? input.offeringNames : undefined,
   };
 }
 
@@ -69,6 +73,9 @@ export function parseOnboardingMeta(raw: unknown): OnboardingMeta | null {
     listing_intent_phrase: typeof o.listing_intent_phrase === 'string' ? o.listing_intent_phrase : undefined,
     soft_listing_tag: typeof o.soft_listing_tag === 'string' ? o.soft_listing_tag : undefined,
     onboarding_version: typeof o.onboarding_version === 'string' ? o.onboarding_version : undefined,
+    offering_names: Array.isArray(o.offering_names)
+      ? o.offering_names.filter((n): n is string => typeof n === 'string' && n.trim().length >= 2)
+      : undefined,
   };
 }
 
@@ -128,5 +135,38 @@ export function validateStoreProductActionConsistency(
     ok: false,
     mismatched,
     message: `"${name}" uses a different buyer interaction than your store. Re-save products or change your store mode.`,
+  };
+}
+
+export interface SameGroupStoreRow {
+  id: string;
+  primary_group?: string | null;
+  verification_status?: string | null;
+  business_name?: string | null;
+}
+
+export type SameGroupStoreResolution =
+  | { action: 'create' }
+  | { action: 'update-current'; id: string }
+  | { action: 'adopt-draft'; id: string; businessName: string }
+  | { action: 'blocked'; id: string; businessName: string; status: string };
+
+/** One seller can have only one store per parent group. */
+export function resolveSameGroupStore(
+  stores: SameGroupStoreRow[],
+  group: string,
+  currentDraftId: string | null,
+): SameGroupStoreResolution {
+  const hit = stores.find((s) => s.primary_group === group);
+  if (!hit) return { action: 'create' };
+  if (currentDraftId && hit.id === currentDraftId) return { action: 'update-current', id: hit.id };
+  if (hit.verification_status === 'draft') {
+    return { action: 'adopt-draft', id: hit.id, businessName: hit.business_name?.trim() || 'Untitled store' };
+  }
+  return {
+    action: 'blocked',
+    id: hit.id,
+    businessName: hit.business_name?.trim() || 'your store',
+    status: hit.verification_status || 'pending',
   };
 }
