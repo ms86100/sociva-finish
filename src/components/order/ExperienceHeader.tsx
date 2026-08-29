@@ -110,7 +110,7 @@ export function ExperienceHeader({
           </motion.div>
           <AnimatePresence mode="wait">
             <motion.p
-              key={displayStatus.phase}
+              key={displayStatus.text}
               variants={statusTransition}
               initial="initial"
               animate="animate"

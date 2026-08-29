@@ -11,6 +11,7 @@ interface OrderTotalsCardProps {
   discount?: number;
   deliveryFee?: number;
   isDeliveryOrder: boolean;
+  isEnquiryOrder?: boolean;
   savings?: number;
   itemCount: number;
 }
@@ -21,6 +22,7 @@ export function OrderTotalsCard({
   discount = 0,
   deliveryFee = 0,
   isDeliveryOrder,
+  isEnquiryOrder = false,
   savings = 0,
   itemCount,
 }: OrderTotalsCardProps) {
@@ -40,7 +42,9 @@ export function OrderTotalsCard({
           <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center">
             <Receipt size={14} className="text-primary" />
           </div>
-          <p className="text-xs font-semibold text-foreground tracking-wide">Bill Details</p>
+          <p className="text-xs font-semibold text-foreground tracking-wide">
+            {isEnquiryOrder ? 'Quote / Pricing Details' : 'Bill Details'}
+          </p>
           <span className="ml-auto text-[10px] text-muted-foreground">
             {itemCount} item{itemCount !== 1 ? 's' : ''}
           </span>
@@ -48,7 +52,9 @@ export function OrderTotalsCard({
 
         <div className="space-y-2 text-sm">
           <div className="flex justify-between">
-            <span className="text-muted-foreground">Subtotal</span>
+            <span className="text-muted-foreground">
+              {isEnquiryOrder ? 'Estimated Price' : 'Subtotal'}
+            </span>
             <span className="tabular-nums">{formatPrice(subtotal)}</span>
           </div>
 
@@ -61,22 +67,26 @@ export function OrderTotalsCard({
             </div>
           )}
 
-          <div className="flex justify-between">
-            <span className="text-muted-foreground flex items-center gap-1.5">
-              <Truck size={12} /> Delivery
-            </span>
-            {isDeliveryOrder ? (
-              <span className={`tabular-nums font-medium ${deliveryFee > 0 ? '' : 'text-primary'}`}>
-                {deliveryFee > 0 ? formatPrice(deliveryFee) : 'FREE'}
+          {!isEnquiryOrder && (
+            <div className="flex justify-between">
+              <span className="text-muted-foreground flex items-center gap-1.5">
+                <Truck size={12} /> Delivery
               </span>
-            ) : (
-              <span className="text-muted-foreground text-xs">Self pickup</span>
-            )}
-          </div>
+              {isDeliveryOrder ? (
+                <span className={`tabular-nums font-medium ${deliveryFee > 0 ? '' : 'text-primary'}`}>
+                  {deliveryFee > 0 ? formatPrice(deliveryFee) : 'FREE'}
+                </span>
+              ) : (
+                <span className="text-muted-foreground text-xs">Self pickup</span>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="mt-3 pt-3 border-t border-dashed border-border/70 flex items-baseline justify-between">
-          <span className="text-sm font-semibold text-foreground">Total</span>
+          <span className="text-sm font-semibold text-foreground">
+            {isEnquiryOrder ? 'Estimated Total' : 'Total'}
+          </span>
           <motion.span
             key={total}
             initial={{ opacity: 0, y: 4 }}

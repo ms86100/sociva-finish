@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { ClipboardList, ChefHat, PackageCheck, Bike, CircleCheckBig, XCircle, Package } from 'lucide-react';
+import { ClipboardList, ChefHat, PackageCheck, Bike, CircleCheckBig, XCircle, Package, MessageCircle, Receipt } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const ICON_MAP: Record<string, React.ComponentType<any>> = {
@@ -10,6 +10,8 @@ const ICON_MAP: Record<string, React.ComponentType<any>> = {
   CircleCheckBig,
   XCircle,
   Package,
+  MessageCircle,
+  Receipt,
 };
 
 interface StatusPhaseIconProps {

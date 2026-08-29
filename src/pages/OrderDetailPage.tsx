@@ -43,7 +43,7 @@ import { PaymentProofReadonly } from '@/components/payment/PaymentProofReadonly'
 import { useOrderDetail } from '@/hooks/useOrderDetail';
 import { OrderItem, OrderStatus, PaymentStatus, ItemStatus } from '@/types/Database';
 import { isTerminalStatus, isSuccessfulTerminal, isFirstFlowStep, stepRequiresOtp, getStepOtpType } from '@/hooks/useCategoryStatusFlow';
-import { ArrowLeft, Phone, MapPin, Check, Star, MessageCircle, CreditCard, XCircle, Package, ChevronRight, Copy, Truck, Loader2, AlertTriangle, Clock, CircleCheckBig } from 'lucide-react';
+import { ArrowLeft, Phone, MapPin, Check, Star, MessageCircle, CreditCard, XCircle, Package, ChevronRight, Copy, Truck, Loader2, AlertTriangle, Clock, CircleCheckBig, Receipt } from 'lucide-react';
 import { describeBuyerOrderLocation } from '@/lib/buyerOrderLocation';
 import { format } from 'date-fns';
 import { peekPreviousPath } from '@/lib/navigation-stack';
@@ -615,6 +615,8 @@ export default function OrderDetailPage() {
     orderStatus: order.status,
     flow: o.flow,
     isBuyerView: o.isBuyerView,
+    orderType: (order as any).order_type,
+    isEnquiryOrder: o.isEnquiryOrder,
     fulfillmentType: fulfillmentType,
     roadEtaMinutes,
     estimatedDeliveryAt: (order as any).estimated_delivery_at,
@@ -639,8 +641,9 @@ export default function OrderDetailPage() {
   const canRescheduleBooking = !o.isEnquiryOrder && !!serviceBooking && ['booked', 'scheduled', 'rescheduled'].includes(serviceBooking.status);
   const hasBuyerActionBar = o.isBuyerView && !o.isFlowLoading && o.flow.length > 0 && !isTerminalStatus(o.flow, order.status) && (o.buyerNextStatus || o.canBuyerCancel || canRescheduleBooking);
 
-  // Show the prominent "Accept Order" hero card when the seller is on a fresh placed order.
-  const showAcceptHero = o.isSellerView && order.status === 'placed' && !!o.nextStatus && !o.isFlowLoading && !o.isAcceptanceExpired;
+  // Show the prominent action hero card when the seller is on a fresh placed order or enquiry.
+  const showAcceptHero = o.isSellerView && (order.status === 'placed' || order.status === 'enquired') && !!o.nextStatus && !o.isFlowLoading && !o.isAcceptanceExpired;
+  const showBuyerQuoteHero = o.isBuyerView && order.status === 'quoted' && !!o.buyerNextStatus && !o.isFlowLoading;
   const isFutureScheduledAccept = isScheduledOrder(order as any) && isUpcomingScheduled(order as any);
 
   const getActionLabel = (status: string, otpRequired: boolean) => {
@@ -653,12 +656,16 @@ export default function OrderDetailPage() {
     const label = roleLabel || status.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
     const isEnd = step?.is_terminal === true;
     if (otpRequired) return isEnd ? 'Verify & Complete' : `Verify & ${label}`;
+    if (status === 'quoted' && viewRole === 'seller') return 'Send Quote';
+    if (status === 'accepted' && (o.isEnquiryOrder || order.status === 'quoted') && viewRole === 'buyer') return 'Accept Quote';
     return isEnd ? 'Complete Order' : `Mark ${label}`;
   };
 
   // Seller context message (Condition #5: no ambiguity)
   const getSellerContextMessage = () => {
     if (!o.isSellerView) return null;
+    if (order.status === 'enquired') return 'New quote request — review and send quote';
+    if (order.status === 'quoted') return 'Quote sent — waiting for customer to accept or respond';
     const step = o.flow.find(s => s.status_key === order.status);
     if (step?.seller_hint) return step.seller_hint;
 
@@ -732,7 +739,61 @@ export default function OrderDetailPage() {
             </motion.div>
           )}
 
-          {/* ═══ Seller: Prominent Accept Order hero (above the fold) ═══ */}
+          {/* ═══ Buyer: Quote Received Action Hero ═══ */}
+          {showBuyerQuoteHero && (
+            <motion.div
+              initial={{ opacity: 0, y: -8, scale: 0.97 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              transition={{ type: 'spring', stiffness: 240, damping: 22 }}
+              className="bg-gradient-to-r from-amber-500/10 via-primary/5 to-emerald-500/10 border-2 border-amber-500/30 rounded-2xl p-4 shadow-sm"
+            >
+              <div className="flex items-start gap-3">
+                <div className="w-11 h-11 rounded-full bg-amber-500/15 flex items-center justify-center shrink-0">
+                  <Receipt size={22} className="text-amber-600 dark:text-amber-400" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold text-foreground">
+                    Quote Received — Review & Accept
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {seller?.business_name || 'Seller'} sent a quote for {formatPrice(order.total_amount)}. Accept the quote to confirm the service booking, or chat to discuss details.
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-2 mt-3">
+                {o.canBuyerCancel && (
+                  <Button
+                    variant="outline"
+                    className="flex-1 border-destructive/40 text-destructive hover:bg-destructive hover:text-destructive-foreground h-11 text-xs"
+                    onClick={() => o.handleReject('Buyer declined quote')}
+                    disabled={o.isUpdating}
+                  >
+                    <XCircle size={15} className="mr-1" /> Decline
+                  </Button>
+                )}
+                {o.canChat && o.chatRecipientId && (
+                  <Button
+                    variant="outline"
+                    className="border-border/80 h-11 px-3 text-xs"
+                    onClick={() => o.setIsChatOpen(true)}
+                  >
+                    <MessageCircle size={15} className="mr-1" /> Chat
+                  </Button>
+                )}
+                <Button
+                  className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90 h-11 font-semibold text-xs"
+                  onClick={() => o.buyerAdvanceOrder(o.buyerNextStatus!)}
+                  disabled={o.isUpdating}
+                >
+                  {o.isUpdating ? <Loader2 size={15} className="mr-1.5 animate-spin" /> : <Check size={15} className="mr-1.5" />}
+                  Accept Quote
+                  <ChevronRight size={14} className="ml-1" />
+                </Button>
+              </div>
+            </motion.div>
+          )}
+
+          {/* ═══ Seller: Prominent Accept Order / Enquiry Hero (above the fold) ═══ */}
           {showAcceptHero && (
             <motion.div
               ref={acceptHeroRef}
@@ -746,14 +807,26 @@ export default function OrderDetailPage() {
             >
               <div className="flex items-start gap-3">
                 <div className="w-11 h-11 rounded-full bg-primary/15 flex items-center justify-center shrink-0">
-                  <CircleCheckBig size={22} className="text-primary" />
+                  {order.status === 'enquired' ? (
+                    <MessageCircle size={22} className="text-primary" />
+                  ) : (
+                    <CircleCheckBig size={22} className="text-primary" />
+                  )}
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-bold text-foreground">
-                    {isFutureScheduledAccept ? 'Scheduled Order — Confirm Slot' : 'New Order — Action Required'}
+                    {order.status === 'enquired'
+                      ? 'New Quote Request — Action Required'
+                      : isFutureScheduledAccept
+                        ? 'Scheduled Order — Confirm Slot'
+                        : 'New Order — Action Required'}
                   </p>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    {isFutureScheduledAccept ? (
+                    {order.status === 'enquired' ? (
+                      <>
+                        {buyer?.name ? `${buyer.name} requested a quote` : 'Customer requested a quote'} · Review notes, send quote, or chat to discuss
+                      </>
+                    ) : isFutureScheduledAccept ? (
                       <>
                         Fulfilment on {formatScheduledDateTime(order as any)} · {getScheduledCountdownLabel(order as any)}.
                         Confirming reserves the slot — you do not need to prepare until the prep window.
@@ -804,20 +877,34 @@ export default function OrderDetailPage() {
                 {o.canSellerReject && (
                   <Button
                     variant="outline"
-                    className="flex-1 border-destructive/40 text-destructive hover:bg-destructive hover:text-destructive-foreground h-11"
+                    className="flex-1 border-destructive/40 text-destructive hover:bg-destructive hover:text-destructive-foreground h-11 text-xs"
                     onClick={() => o.setIsRejectionDialogOpen(true)}
                     disabled={o.isUpdating}
                   >
-                    <XCircle size={15} className="mr-1.5" /> Reject
+                    <XCircle size={15} className="mr-1.5" />
+                    {order.status === 'enquired' ? 'Decline Request' : 'Reject'}
+                  </Button>
+                )}
+                {order.status === 'enquired' && o.canChat && o.chatRecipientId && (
+                  <Button
+                    variant="outline"
+                    className="border-border/80 h-11 px-3 text-xs"
+                    onClick={() => o.setIsChatOpen(true)}
+                  >
+                    <MessageCircle size={15} className="mr-1" /> Chat
                   </Button>
                 )}
                 <Button
-                  className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90 h-11 font-semibold"
+                  className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90 h-11 font-semibold text-xs"
                   onClick={() => o.updateOrderStatus(o.nextStatus!)}
                   disabled={o.isUpdating}
                 >
                   {o.isUpdating ? <Loader2 size={15} className="mr-1.5 animate-spin" /> : <Check size={15} className="mr-1.5" />}
-                  {isFutureScheduledAccept ? 'Confirm Scheduled Order' : 'Accept Order'}
+                  {order.status === 'enquired'
+                    ? (order.total_amount > 0 ? `Send Quote (${formatPrice(order.total_amount)})` : 'Send Quote')
+                    : isFutureScheduledAccept
+                      ? 'Confirm Scheduled Order'
+                      : 'Accept Order'}
                   <ChevronRight size={14} className="ml-1" />
                 </Button>
               </div>
@@ -882,7 +969,7 @@ export default function OrderDetailPage() {
           {/* Celebration banner */}
           <CelebrationBanner order={order} isBuyerView={o.isBuyerView} flow={o.flow} />
 
-          {/* Order placed celebration */}
+          {/* Order placed / enquiry sent celebration */}
           {o.isBuyerView && isFirstFlowStep(o.flow, order.status) && order.status !== 'payment_pending' && (Date.now() - new Date(order.created_at).getTime() < 60000) && (
             <motion.div
               initial={{ opacity: 0, y: -6, scale: 0.97 }}
@@ -891,10 +978,20 @@ export default function OrderDetailPage() {
               className="bg-primary/10 border border-primary/20 rounded-xl p-4 text-center"
             >
               <div className="mx-auto w-10 h-10 rounded-full bg-primary/15 flex items-center justify-center mb-2">
-                <CircleCheckBig size={20} className="text-primary" />
+                {o.isEnquiryOrder || order.status === 'enquired' ? (
+                  <MessageCircle size={20} className="text-primary" />
+                ) : (
+                  <CircleCheckBig size={20} className="text-primary" />
+                )}
               </div>
-              <p className="text-sm font-bold text-primary">Order Placed Successfully!</p>
-              <p className="text-xs text-muted-foreground mt-0.5">Your order is being reviewed by the seller</p>
+              <p className="text-sm font-bold text-primary">
+                {o.isEnquiryOrder || order.status === 'enquired' ? 'Quote Request Sent!' : 'Order Placed Successfully!'}
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {o.isEnquiryOrder || order.status === 'enquired'
+                  ? 'Your requirements have been sent. The seller will review and respond with a quote.'
+                  : 'Your order is being reviewed by the seller'}
+              </p>
               {(order as any).estimated_delivery_at && (
                 <p className="text-xs font-medium text-primary mt-1">
                   Estimated delivery: {format(new Date((order as any).estimated_delivery_at), 'h:mm a')}
@@ -920,7 +1017,11 @@ export default function OrderDetailPage() {
             <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-muted/50">
               <Loader2 size={14} className="animate-spin text-primary" />
               <p className="text-xs text-muted-foreground">
-                Waiting for {seller?.business_name || 'seller'} to confirm…
+                {o.isEnquiryOrder || order.status === 'enquired' ? (
+                  <>Waiting for {seller?.business_name || 'seller'} to send a quote…</>
+                ) : (
+                  <>Waiting for {seller?.business_name || 'seller'} to confirm…</>
+                )}
                 {(seller as any)?.avg_response_minutes > 0
                   ? <span className="font-medium text-foreground"> Usually responds in ~{(seller as any).avg_response_minutes} min</span>
                   : <span className="font-medium text-foreground"> Sellers typically respond within a few minutes</span>
@@ -1007,6 +1108,7 @@ export default function OrderDetailPage() {
                 discount={(order as any).discount_amount || 0}
                 deliveryFee={(order as any).delivery_fee || 0}
                 isDeliveryOrder={isDeliveryOrder}
+                isEnquiryOrder={o.isEnquiryOrder || order.status === 'enquired' || order.status === 'quoted'}
                 savings={totalSavings}
                 itemCount={items.length}
               />

@@ -44,6 +44,8 @@ interface DeriveOptions {
   orderStatus: string;
   flow: FlowStep[];
   isBuyerView: boolean;
+  orderType?: string | null;
+  isEnquiryOrder?: boolean;
   /** Order fulfillment_type — drives delivery vs pickup stage mapping */
   fulfillmentType?: string | null;
   /** OSRM-based road ETA in minutes */
@@ -137,6 +139,8 @@ export function deriveDisplayStatus(options: DeriveOptions): DisplayStatusResult
     orderStatus,
     flow,
     isBuyerView,
+    orderType,
+    isEnquiryOrder,
     fulfillmentType,
     roadEtaMinutes,
     estimatedDeliveryAt,
@@ -200,11 +204,25 @@ export function deriveDisplayStatus(options: DeriveOptions): DisplayStatusResult
     cancelled: { icon: 'XCircle', iconColor: 'text-red-500 bg-red-500/15' },
   };
 
-  const phaseIcon = PHASE_ICONS[phase] || { icon: 'Package', iconColor: 'text-muted-foreground bg-muted' };
+  let phaseIcon = PHASE_ICONS[phase] || { icon: 'Package', iconColor: 'text-muted-foreground bg-muted' };
+
+  const isEnquiry = isEnquiryOrder || orderType === 'enquiry' || orderStatus === 'enquired' || orderStatus === 'quoted';
+
+  if (orderStatus === 'quoted') {
+    phaseIcon = { icon: 'Receipt', iconColor: 'text-amber-500 bg-amber-500/15' };
+  } else if (orderStatus === 'enquired' || (phase === 'placed' && isEnquiry)) {
+    phaseIcon = { icon: 'MessageCircle', iconColor: 'text-blue-500 bg-blue-500/15' };
+  }
 
   switch (phase) {
     case 'placed':
-      text = isBuyerView ? 'Order placed' : 'New order received';
+      if (orderStatus === 'quoted') {
+        text = isBuyerView ? 'Quote received — review and accept' : 'Quote sent to buyer';
+      } else if (orderStatus === 'enquired' || isEnquiry) {
+        text = isBuyerView ? 'Quote request sent' : 'New quote request received';
+      } else {
+        text = isBuyerView ? 'Order placed' : 'New order received';
+      }
       break;
     case 'preparing':
       text = isBuyerView
