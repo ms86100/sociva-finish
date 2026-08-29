@@ -26,6 +26,8 @@ workflows:
         WIDGET_BUNDLE_ID: "app.sociva.community.LiveDeliveryWidget"
         APP_NAME: "Sociva"
         CAPACITOR_ENV: "production"
+        VITE_SUPABASE_URL: "https://kkzkuyhgdvyecmxtmkpy.supabase.co"
+        VITE_SUPABASE_PUBLISHABLE_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imtremt1eWhnZHZ5ZWNteHRta3B5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM4MzIyMTEsImV4cCI6MjA4OTQwODIxMX0.-dmjGjRYs7u8TkR14oPwOXWipNXgSxZRjuwc6q98VkA"
       node: 22
       xcode: latest
       cocoapods: 1.16.2
@@ -904,6 +906,8 @@ workflows:
         BUNDLE_ID: "app.sociva.community"
         APP_NAME: "Sociva"
         CAPACITOR_ENV: "production"
+        VITE_SUPABASE_URL: "https://kkzkuyhgdvyecmxtmkpy.supabase.co"
+        VITE_SUPABASE_PUBLISHABLE_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imtremt1eWhnZHZ5ZWNteHRta3B5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM4MzIyMTEsImV4cCI6MjA4OTQwODIxMX0.-dmjGjRYs7u8TkR14oPwOXWipNXgSxZRjuwc6q98VkA"
       node: 22
       java: 21
 
@@ -1021,6 +1025,8 @@ workflows:
         WIDGET_BUNDLE_ID: "app.sociva.community.LiveDeliveryWidget"
         APP_NAME: "Sociva"
         CAPACITOR_ENV: "production"
+        VITE_SUPABASE_URL: "https://kkzkuyhgdvyecmxtmkpy.supabase.co"
+        VITE_SUPABASE_PUBLISHABLE_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imtremt1eWhnZHZ5ZWNteHRta3B5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM4MzIyMTEsImV4cCI6MjA4OTQwODIxMX0.-dmjGjRYs7u8TkR14oPwOXWipNXgSxZRjuwc6q98VkA"
       node: 22
       xcode: latest
       cocoapods: 1.16.2

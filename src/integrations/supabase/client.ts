@@ -3,15 +3,25 @@ import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 import { capacitorStorage } from '@/lib/capacitor-storage';
 
-// Prefer VITE_* when present; always fall back to project defaults.
-// Native/CI builds often lack .env (gitignored), which previously made OTP call
-// `undefined/functions/...` and immediately toast "Failed to send OTP".
-export const SUPABASE_URL =
-  (import.meta.env.VITE_SUPABASE_URL as string | undefined)?.replace(/^["']|["']$/g, "").trim() ||
-  "https://kkzkuyhgdvyecmxtmkpy.supabase.co";
-export const SUPABASE_PUBLISHABLE_KEY =
-  (import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined)?.replace(/^["']|["']$/g, "").trim() ||
+// Prefer VITE_* when present; always fall back to active project defaults.
+// Native/CI builds often lack .env or may have outdated environment variables.
+const LIVE_SUPABASE_URL = "https://kkzkuyhgdvyecmxtmkpy.supabase.co";
+const LIVE_SUPABASE_KEY =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imtremt1eWhnZHZ5ZWNteHRta3B5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM4MzIyMTEsImV4cCI6MjA4OTQwODIxMX0.-dmjGjRYs7u8TkR14oPwOXWipNXgSxZRjuwc6q98VkA";
+
+const rawEnvUrl = (import.meta.env.VITE_SUPABASE_URL as string | undefined)?.replace(/^["']|["']$/g, "").trim();
+const rawEnvKey = (import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined)?.replace(/^["']|["']$/g, "").trim();
+
+// Defunct or non-resolving project hostnames from older migrations/CI setups
+const isDefunctUrl = (url: string) =>
+  url.includes("ywhlqsgvbkvcvqlsniad") ||
+  url.includes("wyljabsdluxvcjiztmez");
+
+export const SUPABASE_URL =
+  rawEnvUrl && !isDefunctUrl(rawEnvUrl) ? rawEnvUrl : LIVE_SUPABASE_URL;
+
+export const SUPABASE_PUBLISHABLE_KEY =
+  rawEnvKey && SUPABASE_URL === rawEnvUrl ? rawEnvKey : LIVE_SUPABASE_KEY;
 
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";

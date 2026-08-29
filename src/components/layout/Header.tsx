@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { useState, useCallback, memo } from 'react';
+import { useState, useCallback, useMemo, memo } from 'react';
 import { Bell, MapPin, ChevronDown, Search } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
 
