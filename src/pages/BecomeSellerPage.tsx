@@ -708,6 +708,35 @@ export default function BecomeSellerPage() {
     })
   ), [allSubs, configs]);
 
+  // Collect selected subcategory display names from Step 2 to suggest in Step 4
+  const selectedSubcategoryDisplayNames = useMemo(() => {
+    const names: string[] = [];
+    Object.entries(formData.subcategory_preferences?.data || {}).forEach(([configId, pref]: [string, any]) => {
+      if (pref.primary) {
+        const sub = allSubs.find((s: any) => s.id === pref.primary);
+        if (sub?.display_name && !names.includes(sub.display_name)) {
+          names.push(sub.display_name);
+        }
+      }
+      (pref.others || []).forEach((id: string) => {
+        const sub = allSubs.find((s: any) => s.id === id);
+        if (sub?.display_name && !names.includes(sub.display_name)) {
+          names.push(sub.display_name);
+        }
+      });
+    });
+    return names;
+  }, [formData.subcategory_preferences, allSubs]);
+
+  // If seller picked subcategories but no seed offering phrase is set yet, pre-fill with the first chosen subcategory
+  useEffect(() => {
+    if (!seedProductName?.trim() && !listingIntentPhrase?.trim() && selectedSubcategoryDisplayNames.length > 0) {
+      const firstChoice = selectedSubcategoryDisplayNames[0];
+      setSeedProductName(firstChoice);
+      setListingIntentPhrase(firstChoice);
+    }
+  }, [selectedSubcategoryDisplayNames, seedProductName, listingIntentPhrase, setSeedProductName, setListingIntentPhrase]);
+
   const softTag = (softListingTag || null) as SoftListingTag;
   const resolvedIntent = useMemo(() => resolveListingIntent({
     phrase: listingIntentPhrase,
@@ -1100,6 +1129,17 @@ export default function BecomeSellerPage() {
                   notify.block('Select at least one category to continue');
                   return;
                 }
+                // Auto-infer commerce model from selected categories if not already chosen
+                if (!commerceModel) {
+                  const firstCat = formData.categories[0];
+                  const cfg = configs.find((c: any) => c.category === firstCat);
+                  const fromAction = cfg?.default_action_type
+                    ? commerceModelFromActionType(cfg.default_action_type)
+                    : null;
+                  if (fromAction) {
+                    await persistCommerceChoice(fromAction);
+                  }
+                }
                 await app.saveDraft({ silent: true });
                 setStep(3);
               }}
@@ -1160,9 +1200,15 @@ export default function BecomeSellerPage() {
               const config = configs.find((c: any) => c.category === cat);
               return config?.displayName || cat;
             }).join(', ')}
+            selectedSubcategoryNames={selectedSubcategoryDisplayNames}
             onChange={(name) => {
               const trimmed = name.trim();
               const titled = trimmed ? trimmed.charAt(0).toUpperCase() + trimmed.slice(1) : '';
+              setSeedProductName(titled);
+              setListingIntentPhrase(titled);
+            }}
+            onSelectSuggestion={(name) => {
+              const titled = name.charAt(0).toUpperCase() + name.slice(1);
               setSeedProductName(titled);
               setListingIntentPhrase(titled);
             }}

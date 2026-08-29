@@ -34,6 +34,86 @@ export type ResolveSocietyFail = {
 
 export type ResolveSocietyResult = ResolveSocietyOk | ResolveSocietyInviteNeeded | ResolveSocietyFail;
 
+/**
+ * Automatically ensures profile.society_id is set using an existing delivery address.
+ * 1. If address.society_id is already set, assigns it to user profile.
+ * 2. Otherwise resolves or creates society via resolveOrCreateSocietyForProfile,
+ *    assigns to user profile, and updates the address row with the society_id.
+ */
+export async function ensureProfileSocietyFromAddress(
+  userId: string,
+  address: {
+    id?: string;
+    society_id?: string | null;
+    building_name?: string | null;
+    full_address?: string | null;
+    pincode?: string | null;
+    latitude?: number | null;
+    longitude?: number | null;
+    google_place_id?: string | null;
+  },
+  options?: { inviteCode?: string },
+): Promise<ResolveSocietyResult> {
+  if (address.society_id) {
+    const inviteCheck = await checkInviteGate(
+      address.society_id,
+      address.building_name || 'Society',
+      options?.inviteCode,
+    );
+    if (!inviteCheck.ok) return inviteCheck;
+
+    const assigned = await assignSocietyIdToProfile(userId, address.society_id);
+    if (!assigned.ok) {
+      return { ok: false, error: assigned.error };
+    }
+    return {
+      ok: true,
+      societyId: address.society_id,
+      matched: true,
+      societyName: address.building_name || 'Society',
+    };
+  }
+
+  const name = (address.building_name || address.full_address || '').trim();
+  if (!name && !(address.latitude && address.longitude)) {
+    return { ok: false, error: 'Please enter building name or location on map' };
+  }
+
+  const resolved = await resolveOrCreateSocietyForProfile(
+    {
+      name: name || 'My society',
+      address: address.full_address || '',
+      city: '',
+      state: '',
+      pincode: address.pincode || '',
+      latitude: address.latitude,
+      longitude: address.longitude,
+      google_place_id: address.google_place_id || null,
+    },
+    options,
+  );
+
+  if (!resolved.ok) return resolved;
+
+  const assigned = await assignSocietyIdToProfile(userId, resolved.societyId);
+  if (!assigned.ok) {
+    return { ok: false, error: assigned.error };
+  }
+
+  if (address.id) {
+    try {
+      await supabase
+        .from('delivery_addresses')
+        .update({ society_id: resolved.societyId })
+        .eq('id', address.id);
+    } catch {
+      // Non-critical
+    }
+  }
+
+  return resolved;
+}
+
 function slugFromName(name: string): string {
   const base = name
     .toLowerCase()

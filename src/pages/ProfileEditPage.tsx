@@ -13,17 +13,18 @@ import { useDeliveryAddresses } from '@/hooks/useDeliveryAddresses';
 import { supabase } from '@/integrations/supabase/client';
 import {
   assignSocietyIdToProfile,
+  ensureProfileSocietyFromAddress,
   resolveOrCreateSocietyForProfile,
 } from '@/lib/resolve-profile-society';
 import { toast } from 'sonner';
 import { useFeedbackPopup } from '@/components/FeedbackPopupProvider';
-import { ArrowLeft, Plus, Loader2, Mail, MapPin, Phone, User, ChevronRight, KeyRound } from 'lucide-react';
-import { useRef } from 'react';
+import { ArrowLeft, Plus, Loader2, Mail, MapPin, Phone, User, ChevronRight, KeyRound, LogOut } from 'lucide-react';
+import { useEffect, useRef } from 'react';
 
 export default function ProfileEditPage() {
   const navigate = useNavigate();
   const goBack = useSmartBack('/profile');
-  const { user, profile, society, refreshProfile } = useAuth();
+  const { user, profile, society, refreshProfile, signOut } = useAuth();
   const { showFeedback } = useFeedbackPopup();
   const { addresses, isLoading: addressesLoading, saveAddress, deleteAddress, setDefault, isSaving } = useDeliveryAddresses();
 
@@ -51,15 +52,57 @@ export default function ProfileEditPage() {
   // Auto-open address form if no addresses exist (unless user dismissed it)
   const shouldAutoOpen = !addressesLoading && addresses.length === 0 && !showAddressForm && !dismissedAutoOpen;
 
+  // If user already has delivery addresses but no society_id on profile, auto-link from default address
+  useEffect(() => {
+    if (!user || addressesLoading || addresses.length === 0 || profile?.society_id) return;
+    const defaultAddr = addresses.find(a => a.is_default) || addresses[0];
+    if (defaultAddr && (defaultAddr.society_id || defaultAddr.latitude || defaultAddr.building_name || defaultAddr.full_address)) {
+      ensureProfileSocietyFromAddress(user.id, defaultAddr).then(res => {
+        if (res.ok) {
+          refreshProfile();
+        }
+      }).catch(console.error);
+    }
+  }, [user, addressesLoading, addresses, profile?.society_id]);
+
   const handleSaveProfile = async () => {
     if (!user || !name.trim()) {
       toast.error('Name is required');
       return;
     }
     if (needsSociety) {
-      toast.error('Please save a delivery address first so we can link your society');
-      setStep(1);
-      return;
+      if (addresses.length === 0) {
+        toast.error('Please save a delivery address first so we can link your society');
+        setStep(1);
+        return;
+      }
+      setSavingProfile(true);
+      try {
+        const defaultAddr = addresses.find(a => a.is_default) || addresses[0];
+        const resolved = await ensureProfileSocietyFromAddress(user.id, defaultAddr);
+        if (!resolved.ok) {
+          if (resolved.error === 'invite_required') {
+            setPendingInvite({
+              societyId: resolved.societyId,
+              societyName: resolved.societyName,
+              addressData: defaultAddr,
+            });
+            toast.info(`${resolved.societyName} requires an invite code`);
+          } else {
+            toast.error(resolved.error || 'Could not link your society');
+          }
+          setStep(1);
+          return;
+        }
+        await refreshProfile();
+      } catch (err) {
+        console.error('Failed to link society before saving profile', err);
+        toast.error('Could not link your society');
+        setStep(1);
+        return;
+      } finally {
+        setSavingProfile(false);
+      }
     }
     setSavingProfile(true);
     try {
@@ -251,10 +294,44 @@ export default function ProfileEditPage() {
     setShowAddressForm(true);
   };
 
-  const handleContinueToDetails = () => {
+  const handleContinueToDetails = async () => {
+    if (!user) return;
     if (needsSociety) {
-      toast.error('Please save a delivery address first so we can link your society');
-      return;
+      if (addresses.length === 0) {
+        toast.error('Please add a delivery address first so we can link your society');
+        setShowAddressForm(true);
+        return;
+      }
+      setResolvingSociety(true);
+      try {
+        const defaultAddr = addresses.find(a => a.is_default) || addresses[0];
+        const resolved = await ensureProfileSocietyFromAddress(user.id, defaultAddr, {
+          inviteCode: inviteCode || undefined,
+        });
+
+        if (!resolved.ok && resolved.error === 'invite_required') {
+          setPendingInvite({
+            societyId: resolved.societyId,
+            societyName: resolved.societyName,
+            addressData: defaultAddr,
+          });
+          toast.info(`${resolved.societyName} requires an invite code`);
+          return;
+        }
+
+        if (!resolved.ok) {
+          toast.error(resolved.error || 'Could not link your society');
+          return;
+        }
+
+        await refreshProfile();
+      } catch (err) {
+        console.error('Failed to link society from address', err);
+        toast.error('Could not link your society');
+        return;
+      } finally {
+        setResolvingSociety(false);
+      }
     }
     setStep(2);
     setTimeout(() => {
@@ -265,11 +342,33 @@ export default function ProfileEditPage() {
   return (
     <AppLayout headerTitle="Edit Profile" showNav={false} showBack={false}>
       <div className="pb-8">
-        {/* Back */}
-        <div className="px-4 pt-3">
-          <button onClick={() => step === 2 ? setStep(1) : goBack({ fallback: '/profile' })} className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
+        {/* Back and optional Sign Out */}
+        <div className="px-4 pt-3 flex items-center justify-between">
+          <button
+            onClick={() => {
+              if (step === 2) {
+                setStep(1);
+              } else if (profile?.society_id) {
+                goBack({ fallback: '/profile' });
+              } else {
+                goBack({ fallback: '/' });
+              }
+            }}
+            className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+          >
             <ArrowLeft size={16} /> {step === 2 ? 'Back to Address' : 'Back'}
           </button>
+          {needsSociety && (
+            <button
+              onClick={async () => {
+                await signOut();
+                navigate('/auth', { replace: true });
+              }}
+              className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-destructive transition-colors"
+            >
+              <LogOut size={13} /> Sign Out
+            </button>
+          )}
         </div>
 
         {needsSociety && (

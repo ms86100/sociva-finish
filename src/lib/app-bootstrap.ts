@@ -54,7 +54,7 @@ const TTL_MS = 30 * 60 * 1000;
 const MAX_PERSIST_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
 /** Bump when the snapshot shape changes so old payloads are ignored. */
-const STORAGE_KEY = 'app-bootstrap-v2';
+const STORAGE_KEY = 'app-bootstrap-v3';
 
 let cache: AppBootstrap | null = null;
 let inflight: Promise<AppBootstrap> | null = null;

@@ -28,6 +28,10 @@ describe('category-first onboarding contracts', () => {
     expect(src).toMatch(/step === 2[\s\S]*GuidedStep2/);
     expect(src).toMatch(/step === 3[\s\S]*CommerceModelStep/);
     expect(src).toMatch(/step === 4[\s\S]*ProductOfferingStep/);
+    expect(src).toContain('selectedSubcategoryNames');
+    expect(src).toContain('selectedSubcategoryDisplayNames');
+    expect(src).toContain('commerceModelFromActionType');
+    expect(src).toMatch(/if \(!commerceModel\)[\s\S]*persistCommerceChoice/);
     expect(src).toMatch(/step === 7[\s\S]*DraftProductManager/);
     expect(src).toMatch(/step === 8/);
     expect(src).not.toMatch(/configSubStep === 1[\s\S]*key="interaction"/);
