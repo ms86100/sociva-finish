@@ -23,7 +23,7 @@ export function AuthOnboardingDocs() {
             'Rate limiting: After too many failed attempts, a lockout timer displays "Too many attempts. Try again in Xs" with countdown',
             'Sign In button — disabled until both email and password are filled; shows spinner during loading',
             '"New here? Create an account" link switches to signup mode',
-            'On successful login, redirects to Home (/). If user has profile but no society, shows society setup step',
+            'On successful login, redirects to Home (/). If user has profile but no society_id, redirects to /profile/edit where society membership is resolved from the delivery address',
           ]} />
         </DocSubSection>
 

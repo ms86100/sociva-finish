@@ -77,6 +77,7 @@ export function useAuthState() {
             block: meta.block || '',
             phase: meta.phase || null,
             society_id: sanitizedSocietyId,
+            browse_beyond_community: true,
           }, { onConflict: 'id' });
           if (!insertError) {
             await supabase.from('user_roles').insert({ user_id: userId, role: 'buyer' });

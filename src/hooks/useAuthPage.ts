@@ -61,6 +61,23 @@ export function useAuthPage() {
     fetchSocieties();
   }, []);
 
+  // Incomplete membership → delivery-address onboarding (society_id set there).
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (cancelled || !user) return;
+      const { data: prof } = await supabase
+        .from('profiles')
+        .select('society_id')
+        .eq('id', user.id)
+        .maybeSingle();
+      if (cancelled || prof?.society_id) return;
+      navigate('/profile/edit', { replace: true });
+    })();
+    return () => { cancelled = true; };
+  }, [navigate]);
+
   // Cooldown timer — chained timeout avoids re-creating intervals every tick
   useEffect(() => {
     if (resendCooldown <= 0) return;
@@ -226,6 +243,14 @@ export function useAuthPage() {
       const { token_hash, is_new_user } = data;
       setIsNewUser(is_new_user);
 
+      // Drop any stale session (e.g. Google/email account) before phone magic-link
+      // so OTP cannot leave the user on the wrong identity.
+      try {
+        await supabase.auth.signOut({ scope: 'local' });
+      } catch {
+        /* ignore */
+      }
+
       // Establish session using the magic link token.
       // GoTrue's /verify endpoint occasionally 504s under DB pool contention —
       // retry once after a brief backoff before surfacing failure to the user.
@@ -257,6 +282,23 @@ export function useAuthPage() {
         return;
       }
 
+      // Guard: session must be the phone identity we just verified
+      const expectedSynthetic = `91${phone}@phone.sociva.app`;
+      const sessionEmail = (authUser?.email || '').toLowerCase();
+      const sessionPhone = String(authUser?.phone || '').replace(/\D/g, '');
+      const phoneOk =
+        sessionEmail === expectedSynthetic ||
+        sessionPhone.endsWith(phone) ||
+        sessionPhone === `91${phone}`;
+      if (authUser && !phoneOk) {
+        console.error('[Auth] OTP session mismatch', { sessionEmail, sessionPhone, phone });
+        await supabase.auth.signOut({ scope: 'local' });
+        const msg = 'Signed into the wrong account. Please try OTP again.';
+        setOtpError(msg);
+        toast.error(msg);
+        return;
+      }
+
       // Request push notification permission right after login
       setTimeout(() => {
         requestFullPermission().catch(e =>
@@ -281,9 +323,11 @@ export function useAuthPage() {
         if (resolvedNew && prof?.society_id) resolvedNew = false;
       }
 
-      if (resolvedNew) {
-        showFeedback({ title: 'Phone verified! Now select your society.', variant: 'success' });
-        setStep('society');
+      // Society membership is assigned on delivery-address onboarding (one location pick).
+      if (resolvedNew || !prof?.society_id) {
+        showFeedback({ title: 'Phone verified! Add your delivery address to continue.', variant: 'success' });
+        setIsNewUser(true);
+        navigate('/profile/edit', { replace: true });
       } else {
         const isIncomplete = !prof?.name || prof.name === 'User';
         navigate(isIncomplete ? '/profile/edit' : '/');

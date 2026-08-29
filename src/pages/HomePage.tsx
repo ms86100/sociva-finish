@@ -55,6 +55,11 @@ export default function HomePage() {
     prefetchBuyerRoutes();
   }, []);
 
+  // Society membership is set on delivery-address onboarding.
+  if (profile && !profile.society_id) {
+    return <Navigate to="/profile/edit" replace />;
+  }
+
   if (profile && (!profile.name || profile.name === 'User')) {
     return <Navigate to="/profile/edit" replace />;
   }

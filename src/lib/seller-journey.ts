@@ -113,7 +113,7 @@ export function resolveSellerJourney(
     };
   }
 
-  if (store.status === 'approved' && creditActivated === false) {
+  if (store.status === 'approved' && creditActivated !== true) {
     return {
       kind: 'approved_recharge',
       sellerId: store.sellerId,
@@ -127,6 +127,26 @@ export function resolveSellerJourney(
   }
 
   return EMPTY_JOURNEY;
+}
+
+/** Inbox types already covered by SellerJourneyBanner — hide to avoid duplicate / stale home cards. */
+export function isSellerJourneyDuplicateNotification(
+  journeyKind: SellerJourneyKind,
+  notificationType: string | null | undefined,
+  profiles?: JourneySellerProfile[] | null,
+): boolean {
+  if (!notificationType) return false;
+  if (journeyKind === 'pending' && notificationType === 'seller_store_submitted') return true;
+  if (journeyKind === 'approved_recharge' && notificationType === 'seller_approved') return true;
+  if (journeyKind === 'rejected' && notificationType === 'seller_rejected') return true;
+  // Submit notice is stale once admin has decided (or credits are already live)
+  if (notificationType === 'seller_store_submitted') {
+    const list = profiles || [];
+    if (list.some((p) => p.verification_status === 'approved' || p.verification_status === 'rejected')) {
+      return true;
+    }
+  }
+  return false;
 }
 
 export const SELLER_JOURNEY_ACTION_LABELS: Record<string, string> = {

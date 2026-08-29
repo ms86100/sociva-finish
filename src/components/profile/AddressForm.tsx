@@ -25,6 +25,7 @@ interface AddressData {
   pincode: string;
   phase: string;
   is_default: boolean;
+  google_place_id?: string | null;
 }
 
 interface AddressFormProps {
@@ -54,6 +55,7 @@ export function AddressForm({ initial, onSave, onCancel, saving }: AddressFormPr
     pincode: initial?.pincode || '',
     phase: initial?.phase || '',
     is_default: initial?.is_default ?? false,
+    google_place_id: initial?.google_place_id ?? null,
   });
   const [detecting, setDetecting] = useState(false);
   const [showMap, setShowMap] = useState(false);
@@ -118,6 +120,7 @@ export function AddressForm({ initial, onSave, onCancel, saving }: AddressFormPr
       full_address: details.formattedAddress,
       building_name: details.name || f.building_name,
       pincode: details.pincode || f.pincode,
+      google_place_id: placeId,
     }));
     setSearchQuery(details.name || details.formattedAddress);
     setShowMap(true);
@@ -128,7 +131,7 @@ export function AddressForm({ initial, onSave, onCancel, saving }: AddressFormPr
     try {
       const pos = await getCurrentPosition();
       // Clear stale society/building data from previous autocomplete selection
-      setForm(f => ({ ...f, latitude: pos.latitude, longitude: pos.longitude, building_name: '' }));
+      setForm(f => ({ ...f, latitude: pos.latitude, longitude: pos.longitude, building_name: '', google_place_id: null }));
       setSearchQuery('');
       clearPredictions();
       setShowMap(true);

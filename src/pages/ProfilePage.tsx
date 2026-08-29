@@ -201,10 +201,10 @@ export default function ProfilePage() {
                       {[profile?.flat_number, profile?.block && `Block ${profile.block}`, profile?.phase].filter(Boolean).join(', ') || '—'}
                     </span>
                   </div>
-                  {profile?.phone && (
+                  {((profile?.phone) || (user as any)?.phone) && (
                     <div className="flex items-center gap-1 text-xs text-muted-foreground">
                       <Phone size={12} />
-                      <span>{profile.phone}</span>
+                      <span>{profile?.phone || (user as any)?.phone}</span>
                     </div>
                   )}
                   {profile?.email && (

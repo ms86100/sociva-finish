@@ -106,7 +106,12 @@ Deno.serve(async (req) => {
         );
       }
 
-      if (phone === "0123456789" && country_code === "91") {
+      // Apple Review + QA phones (OTP always 1234 via apple-review-bypass reqId)
+      // 9876543201 = Integration Admin (browser QA only)
+      if (
+        (phone === "0123456789" || phone === "0987654321" || phone === "9876543201") &&
+        country_code === "91"
+      ) {
         return new Response(
           JSON.stringify({ success: true, message: "OTP sent", reqId: "apple-review-bypass" }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } },

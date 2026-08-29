@@ -39,20 +39,49 @@ describe('Sticky auth: Profile loading guard', () => {
 });
 
 describe('Sticky auth: /auth bounce guard', () => {
-  it('blocks home redirect while signing out even if user+profile still stale', () => {
-    const user = { id: 'u1' };
-    const profile = { name: 'Ada' };
-    const isSigningOut = true;
-    const authedHome = !!(user && profile && !isSigningOut);
-    expect(authedHome).toBe(false);
+  /** Mirrors App.tsx — home requires society_id; incomplete users go to profile/edit. */
+  const computeAuthedHome = (
+    user: { id: string } | null,
+    profile: { society_id?: string | null } | null,
+    isSigningOut: boolean,
+  ) => !!(user && profile?.society_id && !isSigningOut);
+
+  const computeNeedsSocietyOnboarding = (
+    user: { id: string } | null,
+    profile: { society_id?: string | null } | null,
+    isSigningOut: boolean,
+  ) => !!(user && !isSigningOut && profile && !profile.society_id);
+
+  it('blocks home redirect while signing out even if user+society still stale', () => {
+    expect(computeAuthedHome({ id: 'u1' }, { society_id: 's1' }, true)).toBe(false);
   });
 
-  it('allows home redirect when fully signed in and not signing out', () => {
-    const user = { id: 'u1' };
-    const profile = { name: 'Ada' };
-    const isSigningOut = false;
-    const authedHome = !!(user && profile && !isSigningOut);
-    expect(authedHome).toBe(true);
+  it('allows home redirect when signed in with society and not signing out', () => {
+    expect(computeAuthedHome({ id: 'u1' }, { society_id: 's1' }, false)).toBe(true);
+  });
+
+  it('does not treat null profile hydration as society onboarding', () => {
+    expect(computeNeedsSocietyOnboarding({ id: 'u1' }, null, false)).toBe(false);
+    expect(computeAuthedHome({ id: 'u1' }, null, false)).toBe(false);
+  });
+
+  it('flags society onboarding when profile loaded without society_id', () => {
+    expect(computeNeedsSocietyOnboarding({ id: 'u1' }, { society_id: null }, false)).toBe(true);
+    expect(computeAuthedHome({ id: 'u1' }, { society_id: null }, false)).toBe(false);
+  });
+
+  it('App.tsx gate requires society_id for authedHome and sends incomplete users to profile edit', () => {
+    const src = readFileSync(resolve(__dirname, '../App.tsx'), 'utf8');
+    expect(src).toMatch(/authedHome\s*=\s*!!\(user\s*&&\s*profile\?\.society_id\s*&&\s*!isSigningOut\)/);
+    expect(src).toMatch(/needsSocietyOnboarding/);
+    expect(src).toMatch(/needsSocietyOnboarding\s*\?\s*\([\s\S]*?Navigate to="\/profile\/edit"/);
+  });
+
+  it('useAuthPage sends users without society_id to profile edit after OTP', () => {
+    const src = readFileSync(resolve(__dirname, '../hooks/useAuthPage.ts'), 'utf8');
+    expect(src).toMatch(/navigate\('\/profile\/edit'/);
+    expect(src).toMatch(/Add your delivery address/);
+    expect(src).not.toMatch(/setStep\('society'\)/);
   });
 });
 

@@ -3,6 +3,12 @@ import { useState, useEffect, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLatestActionNotification, useMarkNotificationRead } from '@/hooks/queries/useNotifications';
+import { useSellerCreditActivation } from '@/hooks/queries/useSellerCredits';
+import {
+  isSellerJourneyDuplicateNotification,
+  pickSellerJourneyStore,
+  resolveSellerJourney,
+} from '@/lib/seller-journey';
 import { RichNotificationCard } from './RichNotificationCard';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -32,11 +38,23 @@ function addDismissedId(id: string) {
 }
 
 export function HomeNotificationBanner({ embedded = false }: { embedded?: boolean }) {
-  const { user } = useAuth();
+  const { user, sellerProfiles } = useAuth();
   const queryClient = useQueryClient();
   const { data: notification } = useLatestActionNotification(user?.id);
   const markRead = useMarkNotificationRead();
   const [localDismissed, setLocalDismissed] = useState<Set<string>>(getDismissedIds);
+  const journeyStore = pickSellerJourneyStore(sellerProfiles);
+  const needsCreditCheck = journeyStore?.status === 'approved';
+  const activationQuery = useSellerCreditActivation(needsCreditCheck ? journeyStore.sellerId : null);
+  const journey = resolveSellerJourney(
+    sellerProfiles,
+    needsCreditCheck ? activationQuery.data : undefined,
+  );
+  const duplicateOfJourney = isSellerJourneyDuplicateNotification(
+    journey.kind,
+    notification?.type,
+    sellerProfiles,
+  );
 
   // Sync from localStorage on mount and when notification changes
   useEffect(() => {
@@ -52,7 +70,8 @@ export function HomeNotificationBanner({ embedded = false }: { embedded?: boolea
     queryClient.invalidateQueries({ queryKey: ['latest-action-notification'] });
   }, [notification, markRead, queryClient]);
 
-  const showBanner = !!notification && !localDismissed.has(notification.id);
+  const showBanner =
+    !!notification && !localDismissed.has(notification.id) && !duplicateOfJourney;
 
   return (
     <AnimatePresence>

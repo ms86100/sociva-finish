@@ -97,22 +97,52 @@ async function lookupExistingUser(
   syntheticEmail: string,
   mobile: string,
   fullPhone: string,
+  /** 10-digit national number, e.g. 9876543201 — profiles often store this without +91 */
+  nationalPhone: string,
 ): Promise<{ id: string; email: string } | null> {
   try {
-    const { data: prof } = await withTimeout(
+    // Match common phone storage formats: +91XXXXXXXXXX, 91XXXXXXXXXX, XXXXXXXXXX
+    const phoneOr = [
+      `email.eq."${syntheticEmail}"`,
+      `phone.eq."${fullPhone}"`,
+      `phone.eq."${mobile}"`,
+      `phone.eq."${nationalPhone}"`,
+    ].join(",");
+    const { data: profs } = await withTimeout(
       Promise.resolve(
         admin
           .from("profiles")
-          .select("id, email, phone")
-          .or(`email.eq."${syntheticEmail}",phone.eq."${fullPhone}",phone.eq."${mobile}"`)
-          .limit(1)
-          .maybeSingle(),
-      ) as Promise<{ data: { id: string; email: string | null; phone: string | null } | null }>,
+          .select("id, email, phone, created_at")
+          .or(phoneOr)
+          .order("created_at", { ascending: true })
+          .limit(5),
+      ) as Promise<{ data: { id: string; email: string | null; phone: string | null; created_at?: string }[] | null }>,
       AUTH_LOOKUP_TIMEOUT_MS,
       "profile-lookup",
     );
-    if (prof?.id) {
-      return { id: prof.id, email: prof.email || syntheticEmail };
+    if (profs?.length) {
+      // Prefer an existing admin profile when duplicate phone formats exist
+      const { data: adminRoles } = await admin
+        .from("user_roles")
+        .select("user_id")
+        .eq("role", "admin")
+        .in(
+          "user_id",
+          profs.map((p) => p.id),
+        );
+      const adminIds = new Set((adminRoles || []).map((r: { user_id: string }) => r.user_id));
+      const preferred = profs.find((p) => adminIds.has(p.id)) || profs[0];
+      // CRITICAL: magic-link session email must come from auth.users, never profiles.email.
+      // profiles.email can be a personal Gmail that belongs to a *different* GoTrue user
+      // (e.g. phone account 6b7d… has profile email ms86100@gmail.com → wrong session, no phone/admin).
+      let authEmail = syntheticEmail;
+      try {
+        const { data: authRow } = await admin.auth.admin.getUserById(preferred.id);
+        if (authRow?.user?.email) authEmail = authRow.user.email;
+      } catch (e) {
+        console.warn("getUserById for session email failed:", e);
+      }
+      return { id: preferred.id, email: authEmail };
     }
   } catch (e) {
     console.warn("profile lookup error:", e);
@@ -161,7 +191,10 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: "Invalid phone number." }), { status: 400, headers: jsonHeaders });
     }
 
-    const isAppleReviewBypass = phone === "0123456789" && reqId === "apple-review-bypass" && otp === "1234";
+    const isAppleReviewBypass =
+      (phone === "0123456789" || phone === "0987654321" || phone === "9876543201") &&
+      reqId === "apple-review-bypass" &&
+      otp === "1234";
     const mobile = `${country_code}${phone}`;
     const fullPhone = `+${mobile}`;
     const syntheticEmail = `${mobile}@phone.sociva.app`;
@@ -222,7 +255,7 @@ Deno.serve(async (req) => {
           });
           return await verifyRes.json();
         })(),
-        lookupExistingUser(admin, syntheticEmail, mobile, fullPhone),
+        lookupExistingUser(admin, syntheticEmail, mobile, fullPhone, phone),
       ]);
 
       if (verifyOutcome.status === "rejected") {
@@ -267,7 +300,7 @@ Deno.serve(async (req) => {
       } catch {
         /* allow */
       }
-      authUser = await lookupExistingUser(admin, syntheticEmail, mobile, fullPhone);
+      authUser = await lookupExistingUser(admin, syntheticEmail, mobile, fullPhone, phone);
     }
 
     // ─── Find or create Supabase user ───
@@ -279,13 +312,26 @@ Deno.serve(async (req) => {
 
     if (authUser) {
       userId = authUser.id;
-      userEmail = authUser.email || syntheticEmail;
-      console.log("Found existing user:", userId);
-      // Non-blocking self-heal — do not add RTT on the login hot path
-      void admin.from("profiles").upsert(
-        { id: userId, email: userEmail, phone: fullPhone, name: "User", flat_number: "", block: "" },
-        { onConflict: "id", ignoreDuplicates: true },
-      );
+      // ALWAYS magic-link the phone synthetic email — never auth.users.email nor profiles.email.
+      // Personal Gmail on a phone profile previously signed users into a different GoTrue account
+      // (no phone, no admin) while they thought they logged in with OTP.
+      userEmail = syntheticEmail;
+      console.log("Found existing user:", userId, "sessionEmail:", userEmail);
+      // Keep auth.users.email aligned with the phone identity used for magic links
+      void (async () => {
+        try {
+          await admin.auth.admin.updateUserById(userId!, {
+            email: syntheticEmail,
+            email_confirm: true,
+            phone: fullPhone,
+            phone_confirm: true,
+          });
+        } catch (e) {
+          console.warn("auth phone/email self-heal skipped:", e);
+        }
+      })();
+      // Heal phone on profile without wiping name/email/flat
+      void admin.from("profiles").update({ phone: fullPhone }).eq("id", userId);
     } else {
       isNewUser = true;
       const createResult = await withTimeout(
@@ -322,7 +368,15 @@ Deno.serve(async (req) => {
         userId = newUser.user.id;
         const [profileRes, roleRes] = await Promise.all([
           admin.from("profiles").upsert(
-            { id: userId, email: syntheticEmail, phone: fullPhone, name: "User", flat_number: "", block: "" },
+            {
+              id: userId,
+              email: syntheticEmail,
+              phone: fullPhone,
+              name: "User",
+              flat_number: "",
+              block: "",
+              browse_beyond_community: true,
+            },
             { onConflict: "id" },
           ),
           admin.from("user_roles").insert({ user_id: userId, role: "buyer" }),

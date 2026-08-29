@@ -512,10 +512,12 @@ function AppRoutes() {
     return () => clearTimeout(timer);
   }, [user, profile, deferredNavigate]);
 
-  // Gate public routes on session restore only — waiting on profile caused
-  // auth/landing skeletons to linger after splash while get_user_auth_context ran.
+  // Session restore only for splash — do not wait on profile for the shell.
+  // Incomplete users (profile loaded, no society_id) complete delivery-address onboarding.
+  // Require `profile` so a null hydration state does not bounce returning users to edit.
   const sessionPending = !isSessionRestored;
-  const authedHome = !!(user && !isSigningOut);
+  const authedHome = !!(user && profile?.society_id && !isSigningOut);
+  const needsSocietyOnboarding = !!(user && !isSigningOut && profile && !profile.society_id);
 
   return (
     <PageTransitionWrapper>
@@ -529,6 +531,8 @@ function AppRoutes() {
               <PageLoadingFallback />
             ) : authedHome ? (
               <Navigate to="/" replace />
+            ) : needsSocietyOnboarding ? (
+              <Navigate to="/profile/edit" replace />
             ) : Capacitor.isNativePlatform() ? (
               <Navigate to="/auth" replace />
             ) : (
@@ -543,6 +547,8 @@ function AppRoutes() {
               <PageLoadingFallback />
             ) : authedHome ? (
               <Navigate to="/" replace />
+            ) : needsSocietyOnboarding ? (
+              <Navigate to="/profile/edit" replace />
             ) : Capacitor.isNativePlatform() ? (
               <Navigate to="/auth" replace />
             ) : (
@@ -550,7 +556,20 @@ function AppRoutes() {
             )
           }
         />
-        <Route path="/auth" element={sessionPending ? <PageLoadingFallback /> : authedHome ? <Navigate to="/" replace /> : <RouteErrorBoundary sectionName="Authentication"><AuthPage /></RouteErrorBoundary>} />
+        <Route
+          path="/auth"
+          element={
+            sessionPending ? (
+              <PageLoadingFallback />
+            ) : authedHome ? (
+              <Navigate to="/" replace />
+            ) : needsSocietyOnboarding ? (
+              <Navigate to="/profile/edit" replace />
+            ) : (
+              <RouteErrorBoundary sectionName="Authentication"><AuthPage /></RouteErrorBoundary>
+            )
+          }
+        />
         <Route path="/reset-password" element={<RouteErrorBoundary sectionName="Reset Password"><ResetPasswordPage /></RouteErrorBoundary>} />
         <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
         <Route path="/delete-account" element={<DeleteAccountPage />} />

@@ -161,4 +161,14 @@ describe('seller activation, discovery, and location', () => {
     expect(sql).toMatch(/cert_isolated_proof_no_live_push/);
     expect(sql).toMatch(/GRANT EXECUTE ON FUNCTION public\.seller_credit_run_golive_proof\(\) TO service_role/);
   });
+
+  it('defaults new profiles to browse beyond community', () => {
+    const sql = read('supabase/migrations/20260829070605_profiles_browse_beyond_default_on.sql');
+    expect(sql).toMatch(/ALTER COLUMN browse_beyond_community SET DEFAULT true/);
+    expect(sql).toMatch(/NEW\.browse_beyond_community := true/);
+    expect(sql).toMatch(/trg_profiles_browse_beyond_on_insert/);
+    expect(sql).toMatch(/browse_beyond_community\)\s*VALUES \([\s\S]*true/);
+    const otp = read('supabase/functions/msg91-verify-otp/index.ts');
+    expect(otp).toMatch(/browse_beyond_community:\s*true/);
+  });
 });

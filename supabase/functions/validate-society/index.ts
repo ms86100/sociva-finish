@@ -53,24 +53,34 @@ Deno.serve(async (req) => {
       }
 
       // Smart dedup: check resolve_society RPC before creating
-      const { data: matches } = await adminClient.rpc('resolve_society', {
-        _input_name: sanitizedName,
-        _lat: latitude || null,
-        _lng: longitude || null,
-        _google_place_id: google_place_id || null,
-      });
+      let matches: any[] | null = null;
+      try {
+        const { data } = await adminClient.rpc('resolve_society', {
+          _input_name: sanitizedName,
+          _lat: latitude || null,
+          _lng: longitude || null,
+          _google_place_id: google_place_id || null,
+        });
+        matches = data;
+      } catch (rpcErr) {
+        console.warn('resolve_society skipped:', rpcErr);
+      }
 
       if (matches && matches.length > 0 && matches[0].confidence >= 0.8) {
         // Auto-merge: return existing society + save alias
         const normalized = sanitizedName.toLowerCase()
           .replace(/\s*(phase|ph|tower|block|wing|sec|sector)\s*[\d-]*/gi, '')
           .replace(/\s+/g, ' ').trim();
-        await adminClient.from('society_aliases').upsert({
-          society_id: matches[0].society_id,
-          alias_name: sanitizedName,
-          normalized_alias: normalized,
-          google_place_id: google_place_id || null,
-        }, { onConflict: 'normalized_alias' }).throwOnError().catch(() => {});
+        try {
+          await adminClient.from('society_aliases').upsert({
+            society_id: matches[0].society_id,
+            alias_name: sanitizedName,
+            normalized_alias: normalized,
+            google_place_id: google_place_id || null,
+          }, { onConflict: 'normalized_alias' });
+        } catch (aliasErr) {
+          console.warn('society_aliases upsert skipped:', aliasErr);
+        }
 
         return new Response(
           JSON.stringify({
@@ -132,16 +142,20 @@ Deno.serve(async (req) => {
         );
       }
 
-      // Auto-create alias for the new society
-      const aliasNormalized = sanitizedName.toLowerCase()
-        .replace(/\s*(phase|ph|tower|block|wing|sec|sector)\s*[\d-]*/gi, '')
-        .replace(/\s+/g, ' ').trim();
-      await adminClient.from('society_aliases').upsert({
-        society_id: created.id,
-        alias_name: sanitizedName,
-        normalized_alias: aliasNormalized,
-        google_place_id: google_place_id || null,
-      }, { onConflict: 'normalized_alias' }).catch(() => {});
+      // Auto-create alias for the new society (best-effort; never fail create)
+      try {
+        const aliasNormalized = sanitizedName.toLowerCase()
+          .replace(/\s*(phase|ph|tower|block|wing|sec|sector)\s*[\d-]*/gi, '')
+          .replace(/\s+/g, ' ').trim();
+        await adminClient.from('society_aliases').upsert({
+          society_id: created.id,
+          alias_name: sanitizedName,
+          normalized_alias: aliasNormalized,
+          google_place_id: google_place_id || null,
+        }, { onConflict: 'normalized_alias' });
+      } catch (aliasErr) {
+        console.warn('society_aliases upsert skipped:', aliasErr);
+      }
 
       return new Response(
         JSON.stringify({

@@ -11,7 +11,7 @@ import {
   sellingRadiusCopy,
 } from '@/lib/seller-onboarding-copy';
 import { functionInvokeErrorMessage, parseFunctionInvokeError } from '@/lib/function-invoke-error';
-import { resolveSellerJourney } from '@/lib/seller-journey';
+import { isSellerJourneyDuplicateNotification, resolveSellerJourney } from '@/lib/seller-journey';
 
 const read = (path: string) => readFileSync(resolve(__dirname, '../..', path), 'utf8');
 
@@ -90,10 +90,26 @@ describe('seller onboarding lifecycle', () => {
     expect(recharge.href).toBe('/seller/credits');
     expect(recharge.cta).toMatch(/Recharge credits/);
 
+    // Treat unknown activation as "need recharge" so approval updates the card without waiting
+    const rechargeWhileLoading = resolveSellerJourney([
+      { id: 's1', business_name: 'Geeta Store', verification_status: 'approved' },
+    ], undefined);
+    expect(rechargeWhileLoading.kind).toBe('approved_recharge');
+
     const live = resolveSellerJourney([
       { id: 's1', business_name: 'Geeta Store', verification_status: 'approved' },
     ], true);
     expect(live.kind).toBe('none');
+  });
+
+  it('hides home inbox cards that duplicate the seller journey banner', () => {
+    expect(isSellerJourneyDuplicateNotification('pending', 'seller_store_submitted')).toBe(true);
+    expect(isSellerJourneyDuplicateNotification('approved_recharge', 'seller_approved')).toBe(true);
+    expect(isSellerJourneyDuplicateNotification('rejected', 'seller_rejected')).toBe(true);
+    expect(isSellerJourneyDuplicateNotification('none', 'seller_store_submitted', [
+      { id: 's1', verification_status: 'approved' },
+    ])).toBe(true);
+    expect(isSellerJourneyDuplicateNotification('none', 'order_placed')).toBe(false);
   });
 
   it('surfaces the real credit recharge error instead of the generic non-2xx wrapper', async () => {

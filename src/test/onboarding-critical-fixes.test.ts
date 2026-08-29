@@ -56,6 +56,38 @@ describe('onboarding meta persistence (Tests 2, 3, 5)', () => {
     expect(src).toContain('readSession(COMMERCE_MODEL_KEY)');
   });
 
+  it('saveDraft does not overwrite existing business_name with Untitled on resume', () => {
+    const src = readSrc('src/hooks/useSellerApplication.ts');
+    expect(src).toContain('draftSellerId ? null : \'Untitled store\'');
+    expect(src).toContain('if (businessName !== null) draftPayload.business_name = businessName');
+  });
+
+  it('submit does not blank business_name when form was reset', () => {
+    const src = readSrc('src/hooks/useSellerApplication.ts');
+    expect(src).toContain('...(submitName ? { business_name: submitName } : {})');
+  });
+
+  it('saveDraft does not relocate existing store society from profile', () => {
+    const src = readSrc('src/hooks/useSellerApplication.ts');
+    expect(src).toContain('if (profile?.society_id && !draftSellerId) draftPayload.society_id = profile.society_id');
+  });
+
+  it('Update & Resubmit jumps to store details not category restart', () => {
+    const src = readSrc('src/pages/BecomeSellerPage.tsx');
+    expect(src).toContain('Update & Resubmit');
+    expect(src).toMatch(/setStep\(5\);[\s\S]{0,80}Update & Resubmit/);
+  });
+
+  it('Add Business uses forceNew so onboarding does not block on draft probe', () => {
+    const hook = readSrc('src/hooks/useSellerApplication.ts');
+    const page = readSrc('src/pages/BecomeSellerPage.tsx');
+    const quick = readSrc('src/components/seller/QuickActions.tsx');
+    expect(hook).toContain('forceNew');
+    expect(hook).toContain('SELLER_STATUS_SELECT');
+    expect(page).toContain("searchParams.get('new') === '1'");
+    expect(quick).toContain('/become-seller?new=1');
+  });
+
   it('persists commerce model to DB not only sessionStorage', () => {
     const src = readSrc('src/hooks/useSellerApplication.ts');
     expect(src).toContain('hydrateOnboardingFromMeta');
@@ -163,5 +195,22 @@ describe('silent failure prevention (Tests 14–15)', () => {
     const src = readSrc('src/hooks/useSellerApplication.ts');
     expect(src).toMatch(/verification_status: 'draft'/);
     expect(src).toContain('throw prodError');
+  });
+});
+
+describe('store location required on location step (not only at submit)', () => {
+  it('location Continue requires store coords even when society is linked', () => {
+    const page = readSrc('src/pages/BecomeSellerPage.tsx');
+    expect(page).toContain('societyHasCoords');
+    expect(page).toContain('existingStoreLocations');
+    expect(page).toContain('Use an existing location');
+    expect(page).toMatch(/if \(!formData\.latitude \|\| !formData\.longitude\)/);
+    expect(page).toMatch(/Your society has no location set\. Please set your store location on this page/);
+  });
+
+  it('submit requires store pin and does not rely on society coords alone', () => {
+    const hook = readSrc('src/hooks/useSellerApplication.ts');
+    expect(hook).toContain('Please set your store location before submitting');
+    expect(hook).not.toContain('Your society has no location set. Please set your store location manually.');
   });
 });

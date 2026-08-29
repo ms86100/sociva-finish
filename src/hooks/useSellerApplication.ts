@@ -109,7 +109,14 @@ const INITIAL_FORM: SellerFormData = {
   delivery_payment_config: { ...DEFAULT_PAYMENT_CONFIG },
 };
 
-export function useSellerApplication() {
+const SELLER_STATUS_SELECT =
+  'id, business_name, verification_status, primary_group, rejection_note, onboarding_meta, categories, default_action_type';
+
+const SELLER_FULL_SELECT =
+  'id, user_id, business_name, description, categories, primary_group, availability_start, availability_end, accepts_cod, sell_beyond_community, delivery_radius_km, fulfillment_mode, delivery_note, accepts_upi, upi_id, operating_days, profile_image_url, cover_image_url, latitude, longitude, store_location_label, subcategory_preferences, verification_status, rejection_note, society_id, pickup_payment_config, delivery_payment_config, default_action_type, onboarding_meta';
+
+export function useSellerApplication(opts?: { forceNew?: boolean }) {
+  const forceNew = !!opts?.forceNew;
   const navigate = useNavigate();
   const { user, profile, refreshProfile, sellerProfiles } = useAuth();
   const { parentGroupInfos, groups, isLoading: groupsLoading } = useParentGroups();
@@ -118,7 +125,8 @@ export function useSellerApplication() {
 
   const [isLoading, setIsLoading] = useState(false);
   const [submissionComplete, setSubmissionComplete] = useState(false);
-  const [isCheckingExisting, setIsCheckingExisting] = useState(true);
+  // forceNew skips the existing-store probe — paint the category picker immediately
+  const [isCheckingExisting, setIsCheckingExisting] = useState(!forceNew);
   const [existingSeller, setExistingSeller] = useState<{ id: string; business_name: string; verification_status?: string; rejection_note?: string | null } | null>(null);
   const [rejectionFeedback, setRejectionFeedback] = useState<string | null>(null);
   const [draftSellerId, setDraftSellerId] = useState<string | null>(null);
@@ -321,18 +329,52 @@ export function useSellerApplication() {
   useEffect(() => {
     const checkExisting = async () => {
       if (!user) { setIsCheckingExisting(false); return; }
+
+      // Dashboard "Add Business" — skip resume/probe so the picker paints immediately
+      if (forceNew) {
+        setExistingSeller(null);
+        setDraftSellerId(null);
+        setSelectedGroup(null);
+        setFormData(INITIAL_FORM);
+        setDraftProducts([]);
+        setStep(1);
+        try {
+          localStorage.setItem('seller_onboarding_step', '1');
+          localStorage.setItem(ONBOARDING_VERSION_KEY, ONBOARDING_VERSION);
+          localStorage.removeItem(ONBOARDING_FORM_BACKUP_KEY);
+          sessionStorage.removeItem('onboarding_store_action_type');
+          sessionStorage.removeItem(COMMERCE_MODEL_KEY);
+          sessionStorage.removeItem(SEED_PRODUCT_KEY);
+          sessionStorage.removeItem(INTENT_PHRASE_KEY);
+          sessionStorage.removeItem(SOFT_TAG_KEY);
+        } catch { /* */ }
+        setIsCheckingExisting(false);
+        return;
+      }
+
       try {
-        const { data } = await supabase.from('seller_profiles').select('id, user_id, business_name, description, categories, primary_group, availability_start, availability_end, accepts_cod, sell_beyond_community, delivery_radius_km, fulfillment_mode, delivery_note, accepts_upi, upi_id, operating_days, profile_image_url, cover_image_url, latitude, longitude, store_location_label, subcategory_preferences, verification_status, rejection_note, society_id, pickup_payment_config, delivery_payment_config, default_action_type, onboarding_meta').eq('user_id', user.id);
+        // Lightweight status probe first — full row + products only when resuming a draft
+        const { data } = await supabase
+          .from('seller_profiles')
+          .select(SELLER_STATUS_SELECT)
+          .eq('user_id', user.id);
         if (data && data.length > 0) {
-          // Look for draft to resume directly
           const draft = data.find((s: any) => s.verification_status === 'draft');
           if (draft) {
-            setDraftSellerId(draft.id);
-            setSelectedGroup((draft as any).primary_group);
-            loadSellerDataIntoForm(draft);
-            hydrateOnboardingFromMeta(draft);
-            await reloadProducts(draft.id);
-            const meta = parseOnboardingMeta((draft as any).onboarding_meta);
+            const { data: fullDraft, error: fullErr } = await supabase
+              .from('seller_profiles')
+              .select(SELLER_FULL_SELECT)
+              .eq('id', draft.id)
+              .single();
+            if (fullErr) throw fullErr;
+            const row = fullDraft || draft;
+            setDraftSellerId(row.id);
+            setSelectedGroup((row as any).primary_group);
+            loadSellerDataIntoForm(row);
+            hydrateOnboardingFromMeta(row);
+            // Unlock UI before products finish — review step refreshes products anyway
+            setIsCheckingExisting(false);
+            const meta = parseOnboardingMeta((row as any).onboarding_meta);
             const savedStep = parseInt(
               localStorage.getItem('seller_onboarding_step') || String(meta?.step || 2),
               10,
@@ -347,31 +389,30 @@ export function useSellerApplication() {
             localStorage.setItem(ONBOARDING_VERSION_KEY, ONBOARDING_VERSION);
             localStorage.setItem('seller_onboarding_step', String(restoredStep));
             setStep(restoredStep);
-          } else {
-            // No DB draft — restore local backup if seller left mid-onboarding
-            try {
-              const raw = localStorage.getItem(ONBOARDING_FORM_BACKUP_KEY);
-              if (raw) {
-                const backup = JSON.parse(raw);
-                if (backup?.userId === user.id && backup.formData && backup.selectedGroup) {
-                  restoreFromBackup(backup);
-                }
+            void reloadProducts(row.id);
+            return;
+          }
+          try {
+            const raw = localStorage.getItem(ONBOARDING_FORM_BACKUP_KEY);
+            if (raw) {
+              const backup = JSON.parse(raw);
+              if (backup?.userId === user.id && backup.formData && backup.selectedGroup) {
+                restoreFromBackup(backup);
               }
-            } catch { /* */ }
-            // For non-draft profiles, check status
-            const existing = data.find((s: any) =>
-              s.verification_status === 'rejected' ||
-              s.verification_status === 'pending'
-            );
-            if (existing) {
-              setSelectedGroup((existing as any).primary_group);
-              setExistingSeller({
-                id: existing.id,
-                business_name: (existing as any).business_name,
-                verification_status: (existing as any).verification_status,
-                rejection_note: (existing as any).rejection_note,
-              });
             }
+          } catch { /* */ }
+          const existing = data.find((s: any) =>
+            s.verification_status === 'rejected' ||
+            s.verification_status === 'pending'
+          );
+          if (existing) {
+            setSelectedGroup((existing as any).primary_group);
+            setExistingSeller({
+              id: existing.id,
+              business_name: (existing as any).business_name,
+              verification_status: (existing as any).verification_status,
+              rejection_note: (existing as any).rejection_note,
+            });
           }
         } else {
           try {
@@ -391,7 +432,7 @@ export function useSellerApplication() {
       }
     };
     checkExisting();
-  }, [user, reloadProducts]);
+  }, [user, forceNew, reloadProducts]);
 
   // Helper to populate formData from an existing seller profile
   const loadSellerDataIntoForm = useCallback((seller: any) => {
@@ -640,8 +681,8 @@ export function useSellerApplication() {
       if (!opts?.silent) notify.block('Please select at least one category before continuing');
       return null;
     }
-    const businessName = effectiveForm.business_name.trim() || 'Untitled store';
-    if (!effectiveForm.business_name.trim() && !opts?.silent && step >= 5) {
+    const trimmedName = effectiveForm.business_name.trim();
+    if (!trimmedName && !opts?.silent && step >= 5) {
       notify.block('Please enter a business name');
       return null;
     }
@@ -657,8 +698,12 @@ export function useSellerApplication() {
         storeActionType = commerceModelToDefaultAction(resolvedCommerceModel as any);
       }
 
+      // Never overwrite an existing store title with the Untitled placeholder during resume/edit.
+      // New drafts may still insert Untitled until the seller names the store.
+      const businessName = trimmedName || (draftSellerId ? null : 'Untitled store');
+
       const draftPayload: any = {
-        business_name: businessName, description: effectiveForm.description.trim() || null,
+        description: effectiveForm.description.trim() || null,
         categories: effectiveForm.categories, primary_group: selectedGroup,
         availability_start: effectiveForm.availability_start, availability_end: effectiveForm.availability_end,
         accepts_cod: effectiveForm.accepts_cod, sell_beyond_community: true,
@@ -682,8 +727,11 @@ export function useSellerApplication() {
           onboardingVersion: ONBOARDING_VERSION,
         }),
       };
+      if (businessName !== null) draftPayload.business_name = businessName;
       if (storeActionType) draftPayload.default_action_type = storeActionType;
-      if (profile?.society_id) draftPayload.society_id = profile.society_id;
+      // Only attach society on draft create / when seller row has none — never silently
+      // move an existing store to a different society from a stale profile session.
+      if (profile?.society_id && !draftSellerId) draftPayload.society_id = profile.society_id;
       if (draftSellerId) {
         const { error } = await supabase.from('seller_profiles').update(draftPayload as any).eq('id', draftSellerId);
         if (error) throw error;
@@ -826,10 +874,10 @@ export function useSellerApplication() {
     if (formData.operating_days.length === 0) { notify.block('Please select at least one operating day'); return; }
     if (formData.accepts_upi && !formData.upi_id.trim()) { notify.block('Please enter your UPI ID or disable UPI payments'); return; }
 
-    // Society is required for approval (DB trigger). Map pin alone is not enough —
-    // try to link nearest registered society from store coordinates.
+    // Primary path (backup model): society comes from signup → profiles.society_id.
+    // Silent nearby/address link is last-resort for legacy accounts that skipped Auth society.
     let resolvedSocietyId = profile?.society_id || null;
-    {
+    if (!resolvedSocietyId) {
       const { data: sellerRow } = await supabase
         .from('seller_profiles')
         .select('society_id')
@@ -845,29 +893,21 @@ export function useSellerApplication() {
       });
       if (!societyResult.ok || !societyResult.societyId) {
         notify.block(
-          societyResult.error || 'Link your account to a society before submitting your store for review.',
+          'Join or request your society from the login society step (or Profile), then submit again. A map pin alone is not enough.',
           { title: 'Society required', id: 'seller-society-required' },
         );
         return;
       }
       resolvedSocietyId = societyResult.societyId;
       if (societyResult.linked) {
-        // Silent — never toast society names (users shouldn't see internal linking).
         await refreshProfile();
       }
     }
 
-    // Check location: must have direct coords OR society with coords
-    if (!formData.latitude) {
-      if (!resolvedSocietyId) {
-        notify.block('Please set your store location before submitting');
-        return;
-      }
-      const { data: society } = await supabase.from('societies').select('latitude, longitude').eq('id', resolvedSocietyId).single();
-      if (!society?.latitude || !society?.longitude) {
-        notify.block('Your society has no location set. Please set your store location manually.');
-        return;
-      }
+    // Store pin is required — society membership alone is not enough (society may lack coords).
+    if (!formData.latitude || !formData.longitude) {
+      notify.block('Please set your store location before submitting');
+      return;
     }
 
     // Mandatory license — frontend gate (DB also enforces on admin approval / live products)
@@ -900,8 +940,11 @@ export function useSellerApplication() {
         return;
       }
 
+      const submitName = formData.business_name.trim();
       const submitPayload: any = {
-        verification_status: 'pending' as any, business_name: formData.business_name.trim(),
+        verification_status: 'pending' as any,
+        // Never blank an existing title on resubmit if form state was reset mid-flow
+        ...(submitName ? { business_name: submitName } : {}),
         description: formData.description.trim() || null, categories: formData.categories,
         availability_start: formData.availability_start, availability_end: formData.availability_end,
         accepts_cod: formData.accepts_cod, sell_beyond_community: true,
@@ -910,7 +953,10 @@ export function useSellerApplication() {
         upi_id: formData.accepts_upi ? formData.upi_id.trim() || null : null,
         operating_days: formData.operating_days, profile_image_url: formData.profile_image_url,
         cover_image_url: formData.cover_image_url, rejection_note: null,
-        latitude: formData.latitude, longitude: formData.longitude, store_location_label: formData.store_location_label,
+        // Preserve existing pin if the form lost location during a mid-flow restart
+        ...(formData.latitude != null && formData.longitude != null
+          ? { latitude: formData.latitude, longitude: formData.longitude, store_location_label: formData.store_location_label }
+          : {}),
         subcategory_preferences: formData.subcategory_preferences,
         pickup_payment_config: formData.pickup_payment_config,
         delivery_payment_config: formData.delivery_payment_config,

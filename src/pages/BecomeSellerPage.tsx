@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
@@ -20,12 +20,13 @@ import { Switch } from '@/components/ui/switch';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Badge } from '@/components/ui/badge';
 import { DAYS_OF_WEEK } from '@/types/Database';
-import { ArrowLeft, Store, Loader2, ChevronRight, Settings, Shield, Save, Send, LayoutGrid, Tags, FileText, Package, CheckCircle2, ArrowRight, Truck, Smartphone, Banknote, Clock, ImageIcon, MapPin, Navigation, CheckCircle, Star, X, Search, ShoppingCart, Calendar, MessageCircle, Phone, Coins } from 'lucide-react';
+import { ArrowLeft, Store, Loader2, ChevronRight, Settings, Shield, Save, Send, LayoutGrid, Tags, FileText, Package, CheckCircle2, ArrowRight, Truck, Smartphone, Banknote, Clock, ImageIcon, MapPin, Navigation, CheckCircle, Star, X, Search, ShoppingCart, Calendar, MessageCircle, Phone, Coins, Home } from 'lucide-react';
 import { useActionTypeMap, useCategoryAllowedActions } from '@/hooks/useActionTypeMap';
 import { OnboardingLocationSheet } from '@/components/seller/OnboardingLocationSheet';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
+import { useDeliveryAddresses } from '@/hooks/useDeliveryAddresses';
 import { useSellerApplication } from '@/hooks/useSellerApplication';
 import { ensureSellerSocietyForSubmit } from '@/lib/seller-society';
 import type { SellerFormData } from '@/hooks/useSellerApplication';
@@ -62,27 +63,41 @@ import {
   sellingRadiusCopy,
 } from '@/lib/seller-onboarding-copy';
 // ─── Store Location Picker ──────────────────────────────────────────────────
-function StoreLocationPicker({ latitude, longitude, label, onLocationSet, hasSociety, existingStoreLocations = [] }: {
+function StoreLocationPicker({ latitude, longitude, label, onLocationSet, hasSociety, societyHasCoords, existingStoreLocations = [], societyLocation = null, deliveryLocations = [] }: {
   latitude: number | null;
   longitude: number | null;
   label?: string | null;
   onLocationSet: (lat: number, lng: number, name?: string, formattedAddress?: string) => void;
   hasSociety: boolean;
+  /** False when society membership exists but society row has no lat/lng — pin is mandatory. */
+  societyHasCoords: boolean | null;
   existingStoreLocations?: { id: string; business_name: string; latitude: number; longitude: number; store_location_label?: string | null }[];
+  societyLocation?: { name: string; latitude: number; longitude: number } | null;
+  deliveryLocations?: { id: string; label: string; latitude: number; longitude: number; building_name?: string | null }[];
 }) {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [locationName, setLocationName] = useState<string | null>(label ?? null);
   const [locationAddress, setLocationAddress] = useState<string | null>(null);
   useEffect(() => { if (label) setLocationName(label); }, [label]);
   const hasCoords = !!(latitude && longitude);
+  const locationRequired = true;
+  const showSocietyWarning = hasSociety && societyHasCoords === false;
 
   return (
     <div className="border rounded-lg p-4 space-y-3">
       <div className="flex items-center gap-2">
         <MapPin size={16} className="text-primary" />
-        <h3 className="font-semibold text-sm">Set your selling location {!hasSociety && <span className="text-destructive">*</span>}</h3>
+        <h3 className="font-semibold text-sm">Set your selling location {locationRequired && <span className="text-destructive">*</span>}</h3>
       </div>
       <p className="text-xs text-muted-foreground leading-relaxed">{HOME_SELLER_LOCATION_HINT}</p>
+      {showSocietyWarning && (
+        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2.5">
+          <p className="text-xs font-medium text-foreground">Your society has no map location on file</p>
+          <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">
+            Set your store pin here before continuing — you won&apos;t be able to submit without it.
+          </p>
+        </div>
+      )}
       {hasCoords ? (
         <div className="flex items-center gap-2 p-3 bg-success/10 rounded-lg">
           <CheckCircle size={16} className="text-success shrink-0" />
@@ -99,17 +114,17 @@ function StoreLocationPicker({ latitude, longitude, label, onLocationSet, hasSoc
         </div>
       ) : (
         <div className="space-y-3">
-          {existingStoreLocations.length > 0 && (
+          {(existingStoreLocations.length > 0 || societyLocation || deliveryLocations.length > 0) && (
             <>
-              <p className="text-xs font-medium text-muted-foreground">Use location from another store</p>
+              <p className="text-xs font-medium text-muted-foreground">Use an existing location</p>
               <div className="space-y-2">
-                {existingStoreLocations.map((store) => (
+                {societyLocation && (
                   <button
-                    key={store.id}
+                    type="button"
                     onClick={() => {
-                      setLocationName(store.business_name);
-                      setLocationAddress(store.store_location_label || null);
-                      onLocationSet(store.latitude, store.longitude, store.business_name);
+                      setLocationName(societyLocation.name);
+                      setLocationAddress(null);
+                      onLocationSet(societyLocation.latitude, societyLocation.longitude, societyLocation.name, societyLocation.name);
                     }}
                     className="w-full flex items-center gap-3 p-3 rounded-lg border border-border hover:bg-accent/50 active:bg-accent/70 transition-colors text-left"
                   >
@@ -117,8 +132,52 @@ function StoreLocationPicker({ latitude, longitude, label, onLocationSet, hasSoc
                       <MapPin size={14} className="text-primary" />
                     </div>
                     <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium truncate">Society — {societyLocation.name}</p>
+                      <p className="text-[10px] text-muted-foreground truncate">
+                        {societyLocation.latitude.toFixed(4)}, {societyLocation.longitude.toFixed(4)}
+                      </p>
+                    </div>
+                  </button>
+                )}
+                {existingStoreLocations.map((store) => (
+                  <button
+                    type="button"
+                    key={store.id}
+                    onClick={() => {
+                      const placeLabel = store.store_location_label || store.business_name;
+                      setLocationName(placeLabel);
+                      setLocationAddress(store.store_location_label || null);
+                      onLocationSet(store.latitude, store.longitude, placeLabel, store.store_location_label || undefined);
+                    }}
+                    className="w-full flex items-center gap-3 p-3 rounded-lg border border-border hover:bg-accent/50 active:bg-accent/70 transition-colors text-left"
+                  >
+                    <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                      <Store size={14} className="text-primary" />
+                    </div>
+                    <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium truncate">{store.business_name}</p>
                       <p className="text-[10px] text-muted-foreground truncate">{store.store_location_label || `${store.latitude.toFixed(4)}, ${store.longitude.toFixed(4)}`}</p>
+                    </div>
+                  </button>
+                ))}
+                {deliveryLocations.map((addr) => (
+                  <button
+                    type="button"
+                    key={addr.id}
+                    onClick={() => {
+                      const placeLabel = addr.building_name || addr.label;
+                      setLocationName(placeLabel);
+                      setLocationAddress(addr.building_name || null);
+                      onLocationSet(addr.latitude, addr.longitude, placeLabel, addr.building_name || addr.label);
+                    }}
+                    className="w-full flex items-center gap-3 p-3 rounded-lg border border-border hover:bg-accent/50 active:bg-accent/70 transition-colors text-left"
+                  >
+                    <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                      <Home size={14} className="text-primary" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium truncate">Delivery — {addr.label}</p>
+                      <p className="text-[10px] text-muted-foreground truncate">{addr.building_name || `${addr.latitude.toFixed(4)}, ${addr.longitude.toFixed(4)}`}</p>
                     </div>
                   </button>
                 ))}
@@ -131,17 +190,13 @@ function StoreLocationPicker({ latitude, longitude, label, onLocationSet, hasSoc
             </>
           )}
           <p className="text-xs text-muted-foreground">
-            {hasSociety
-              ? 'The Google location result does not need to be a formal business listing.'
-              : 'Set your store location so buyers can find you. The Google result does not need to be a formal business listing.'}
+            Set your store location so buyers can find you. The Google result does not need to be a formal business listing.
           </p>
           <Button variant="outline" className="w-full h-10" onClick={() => setSheetOpen(true)}>
             <Navigation size={14} className="mr-2" />
             Set selling location
           </Button>
-          {!hasSociety && (
-            <p className="text-[10px] text-destructive">Required — your store won't be visible without a location</p>
-          )}
+          <p className="text-[10px] text-destructive">Required — your store won&apos;t be visible without a location</p>
         </div>
       )}
       <OnboardingLocationSheet
@@ -548,9 +603,41 @@ function GuidedStep2({
 // ─── Main Page ──────────────────────────────────────────────────────────────
 export default function BecomeSellerPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const forceNew = searchParams.get('new') === '1';
   const { profile, sellerProfiles, setCurrentSellerId, refreshProfile } = useAuth();
-  const app = useSellerApplication();
+  const { addresses: deliveryAddresses } = useDeliveryAddresses();
+  const app = useSellerApplication({ forceNew });
   const { configs } = useCategoryConfigs();
+  const [societyLoc, setSocietyLoc] = useState<{ name: string; latitude: number; longitude: number } | null>(null);
+  const [societyHasCoords, setSocietyHasCoords] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!profile?.society_id) {
+        setSocietyLoc(null);
+        setSocietyHasCoords(null);
+        return;
+      }
+      const { data } = await supabase
+        .from('societies')
+        .select('name, latitude, longitude')
+        .eq('id', profile.society_id)
+        .maybeSingle();
+      if (cancelled) return;
+      const lat = data?.latitude != null ? Number(data.latitude) : null;
+      const lng = data?.longitude != null ? Number(data.longitude) : null;
+      if (lat && lng) {
+        setSocietyLoc({ name: data?.name || 'Your society', latitude: lat, longitude: lng });
+        setSocietyHasCoords(true);
+      } else {
+        setSocietyLoc(null);
+        setSocietyHasCoords(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [profile?.society_id]);
   const { data: allActions = [] } = useActionTypeMap();
   const { data: openCategoryRequests = [] } = useOpenCategoryRequests();
   const pendingCategoryRequests = openCategoryRequests.filter((r: any) => r.status === 'pending');
@@ -718,7 +805,8 @@ export default function BecomeSellerPage() {
   ?? (existingSeller as any)?.verification_status
   ?? null;
 
-  if (isCheckingExisting || groupsLoading) {
+  // Don't block the first paint when parent groups are already cached from bootstrap
+  if (isCheckingExisting || (groupsLoading && parentGroupInfos.length === 0)) {
     return <AppLayout showHeader={false} showNav={false}><div className="flex items-center justify-center min-h-[100dvh]"><Loader2 className="animate-spin" size={32} /></div></AppLayout>;
   }
 
@@ -863,7 +951,9 @@ export default function BecomeSellerPage() {
                     }
                     setExistingSeller(null);
                     setDraftSellerId((existingSeller as any).id);
-                    setStep(2);
+                    // Jump to store details (step 5) so rejection edits keep loaded name/products
+                    // instead of restarting at category and risking an empty-form draft overwrite.
+                    setStep(5);
                   }}>Update & Resubmit</Button>
                   <Button variant="outline" className="w-full" onClick={() => { setSelectedGroup(null); setExistingSeller(null); setStep(1); }}>Choose Different Category</Button>
                 </div>
@@ -1125,8 +1215,7 @@ export default function BecomeSellerPage() {
                       longitude: lng,
                       store_location_label: formattedAddress || _name || formData.store_location_label || null,
                     });
-                    // Map pin ≠ society membership. If account has no society yet, try to
-                    // auto-link nearest registered society / address society so submit works.
+                    // Last-resort only: primary society comes from Auth signup.
                     if (!profile?.society_id && user && draftSellerId) {
                       try {
                         const result = await ensureSellerSocietyForSubmit({
@@ -1138,7 +1227,6 @@ export default function BecomeSellerPage() {
                           longitude: lng,
                         });
                         if (result.linked) {
-                          // Silent link — no toast with society name
                           await refreshProfile();
                         }
                       } catch (e) {
@@ -1147,15 +1235,38 @@ export default function BecomeSellerPage() {
                     }
                   }}
                   hasSociety={!!profile?.society_id}
+                  societyHasCoords={societyHasCoords}
+                  societyLocation={societyLoc}
+                  deliveryLocations={
+                    (deliveryAddresses || [])
+                      .filter((a: any) => a.latitude && a.longitude)
+                      .map((a: any) => ({
+                        id: a.id,
+                        label: a.label || 'Home',
+                        latitude: a.latitude,
+                        longitude: a.longitude,
+                        building_name: a.building_name || a.full_address || null,
+                      }))
+                  }
                   existingStoreLocations={
                     (sellerProfiles || [])
                       .filter((sp: any) => sp.latitude && sp.longitude && sp.id !== draftSellerId)
-                      .map((sp: any) => ({ id: sp.id, business_name: sp.business_name || 'Store', latitude: sp.latitude, longitude: sp.longitude, store_location_label: sp.store_location_label || null }))
+                      .map((sp: any) => ({
+                        id: sp.id,
+                        business_name: sp.business_name || 'Store',
+                        latitude: sp.latitude,
+                        longitude: sp.longitude,
+                        store_location_label: sp.store_location_label || null,
+                      }))
                   }
                 />
                 <Button className="w-full" onClick={() => {
-                  if (!formData.latitude && !profile?.society_id) {
-                    notify.block('Please set your selling location');
+                  if (!formData.latitude || !formData.longitude) {
+                    notify.block(
+                      societyHasCoords === false
+                        ? 'Your society has no location set. Please set your store location on this page before continuing.'
+                        : 'Please set your selling location before continuing.',
+                    );
                     return;
                   }
                   handleSetStoreSetupSubStep(2);
@@ -1456,7 +1567,7 @@ export default function BecomeSellerPage() {
           if (draftProducts.length === 0) validationErrors.push({ key: 'products', message: 'Add at least one product before submitting', step: 7 });
           if (formData.operating_days.length === 0) validationErrors.push({ key: 'days', message: 'Select at least one operating day', step: 6 });
           if (formData.accepts_upi && !formData.upi_id?.trim()) validationErrors.push({ key: 'upi', message: 'Enter your UPI ID or disable UPI payments', step: 6 });
-          if (!formData.latitude && !profile?.society_id) validationErrors.push({ key: 'location', message: 'Set your store location', step: 5 });
+          if (!formData.latitude || !formData.longitude) validationErrors.push({ key: 'location', message: 'Set your store location', step: 5 });
           if (formData.categories.length === 0) validationErrors.push({ key: 'categories', message: 'Select at least one category', step: 2 });
           if (!profile?.society_id && !formData.latitude) {
             validationErrors.push({
@@ -1497,7 +1608,7 @@ export default function BecomeSellerPage() {
                 <div className="flex justify-between"><span className="text-muted-foreground">Category</span><span className="font-medium">{selectedGroupInfo?.label}</span></div>
                 <div className="flex justify-between"><span className="text-muted-foreground">Products</span><span className="font-medium">{draftProducts.length} item(s)</span></div>
                 <div className="flex justify-between"><span className="text-muted-foreground">Hours</span><span className="font-medium">{formData.availability_start} – {formData.availability_end}</span></div>
-                <div className="flex justify-between gap-3"><span className="text-muted-foreground shrink-0">Location</span><span className="font-medium text-right">{formatStoreLocationLabel(formData.store_location_label) || (formData.latitude ? 'Location selected' : profile?.society_id ? 'Society default' : '⚠️ Not set')}</span></div>
+                <div className="flex justify-between gap-3"><span className="text-muted-foreground shrink-0">Location</span><span className="font-medium text-right">{formatStoreLocationLabel(formData.store_location_label) || (formData.latitude ? 'Location selected' : '⚠️ Not set')}</span></div>
                 <div className="border-t pt-2 mt-2 space-y-2">
                   <div className="flex justify-between"><span className="text-muted-foreground">Fulfillment</span><span className="font-medium">{fulfillmentLabel}</span></div>
                   <div className="flex justify-between"><span className="text-muted-foreground">Payments</span><span className="font-medium">{paymentMethods}</span></div>

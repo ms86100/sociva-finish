@@ -13,7 +13,7 @@ export function QuickActions() {
         <div className="grid grid-cols-3 gap-2">
           <ActionCard to="/seller/products" icon={Plus} iconBg="bg-primary/10" iconColor="text-primary" label="Products" sub="Add or edit" />
           <ActionCard to="/seller/settings" icon={Settings} iconBg="bg-secondary" iconColor="text-secondary-foreground" label="Settings" sub="Payment & hours" />
-          <ActionCard to="/become-seller" icon={PlusCircle} iconBg="bg-accent/10" iconColor="text-accent" label="Add Business" sub="New store" dashed />
+          <ActionCard to="/become-seller?new=1" icon={PlusCircle} iconBg="bg-accent/10" iconColor="text-accent" label="Add Business" sub="New store" dashed />
         </div>
       </div>
 

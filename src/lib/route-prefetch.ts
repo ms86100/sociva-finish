@@ -51,3 +51,10 @@ export function prefetchBuyerRoutes() {
   whenIdle(() => prefetch('favorites', () => import('@/pages/FavoritesPage')), 2600);
   whenIdle(() => prefetch('become-seller', () => import('@/pages/BecomeSellerPage')), 3000);
 }
+
+/** Warm the become-seller chunk while the seller is on their dashboard. */
+export function prefetchSellerRoutes() {
+  whenIdle(() => prefetch('become-seller', () => import('@/pages/BecomeSellerPage')), 200);
+  whenIdle(() => prefetch('seller-products', () => import('@/pages/SellerProductsPage')), 600);
+  whenIdle(() => prefetch('seller-settings', () => import('@/pages/SellerSettingsPage')), 900);
+}

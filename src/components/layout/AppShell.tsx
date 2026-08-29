@@ -77,7 +77,7 @@ export function AppShell() {
  * Native iOS/Android `/` → auth only (never the marketing website).
  */
 export function AppShellGate() {
-  const { user, isSessionRestored } = useAuth();
+  const { user, profile, isSessionRestored } = useAuth();
   const location = useLocation();
   const [bootGaveUp, setBootGaveUp] = useState(false);
 
@@ -100,6 +100,11 @@ export function AppShellGate() {
         ? '/auth'
         : '/landing';
     return <Navigate to={to} replace />;
+  }
+
+  // Society membership is set from delivery address — keep users on profile edit until then.
+  if (profile && !profile.society_id && location.pathname !== '/profile/edit') {
+    return <Navigate to="/profile/edit" replace />;
   }
 
   return <AppShell />;

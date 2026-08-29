@@ -35,6 +35,7 @@ import { AvailabilityPromptBanner } from '@/components/seller/AvailabilityPrompt
 import { MissingLocationBanner } from '@/components/seller/MissingLocationBanner';
 import { SellerDashboardLoadingState } from '@/components/seller/SellerDashboardLoadingState';
 import { useSellerOrderStats, useSellerOrdersInfinite, useSellerOrderFilterCounts } from '@/hooks/queries/useSellerOrders';
+import { prefetchSellerRoutes } from '@/lib/route-prefetch';
 import {
   resolveSellerFinancialIds,
   useSellerFinancialRealtime,
@@ -128,6 +129,11 @@ export default function SellerDashboardPage() {
       setOrderFilter(filter);
     }
   }, [searchParams]);
+
+  // Warm become-seller chunk so "Add Business" does not wait on lazy import
+  useEffect(() => {
+    prefetchSellerRoutes();
+  }, []);
 
   const isPortfolio = isPortfolioSellerId(currentSellerId);
   const portfolioSellerIds = sellerProfiles.map((s) => s.id);

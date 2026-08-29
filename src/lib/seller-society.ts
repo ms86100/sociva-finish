@@ -1,5 +1,6 @@
 /**
- * Resolve / attach a society for seller onboarding.
+ * Last-resort society attach for seller submit when signup society was skipped.
+ * Primary path: Auth "Find Your Society" → profiles.society_id → seller draft copies it.
  * Store map location ≠ society membership — approval requires society_id.
  */
 import { supabase } from '@/integrations/supabase/client';

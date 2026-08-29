@@ -145,7 +145,7 @@ export function SellerSwitcher({
         ))}
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
-          <Link to="/become-seller" className="flex items-center gap-2 text-primary cursor-pointer">
+          <Link to="/become-seller?new=1" className="flex items-center gap-2 text-primary cursor-pointer">
             <Plus size={16} />
             <span>Add another business</span>
           </Link>
