@@ -123,7 +123,7 @@ export function MarketplaceSection() {
   const { data: facetRows = {} } = useProductFacets(allProductIds, allProductIds.length > 0);
   const localCategoriesWithFacets = useMemo(() => localCategories.map((group) => ({
     ...group,
-    products: group.products.map((p) => applyProductFacetRow(p, facetRows[p.id])),
+    products: group.products.map((p) => applyProductFacetRow({ ...p, parentGroup: group.parentGroup }, facetRows[p.id])),
   })), [localCategories, facetRows]);
   const allProducts = useMemo(
     () => localCategoriesWithFacets.flatMap((c) => c.products),
@@ -132,7 +132,12 @@ export function MarketplaceSection() {
 
   const scopedProducts = useMemo(() => {
     if (!activeGroup) return allProducts;
-    return allProducts.filter((p) => (p as any).parentGroup === activeGroup || (isFoodParentGroup(activeGroup) && isFoodParentGroup(p.category)));
+    return allProducts.filter((p) => {
+      const group = (p as any).parentGroup;
+      if (group === activeGroup) return true;
+      if (isFoodParentGroup(activeGroup) && (isFoodParentGroup(group) || isFoodParentGroup(p.category))) return true;
+      return false;
+    });
   }, [allProducts, activeGroup]);
 
   const dynamicFacetChips = useMemo(

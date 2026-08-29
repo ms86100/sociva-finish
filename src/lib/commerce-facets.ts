@@ -177,11 +177,61 @@ export function productMatchesCommerceFacets(
   return true;
 }
 
+function appendPriceChips(
+  products: Array<{ price?: number | string | null }>,
+  current: CommerceFacetState,
+  chips: DynamicFacetChip[],
+) {
+  const validPrices = products
+    .map((p) => Number(p.price))
+    .filter((pr) => !isNaN(pr) && pr > 0);
+
+  if (validPrices.length < 2) return;
+
+  const maxP = Math.max(...validPrices);
+  const minP = Math.min(...validPrices);
+
+  if (minP <= 300 && maxP > 300) {
+    chips.push({
+      id: 'price:300',
+      label: 'Under ₹300',
+      emoji: '🏷️',
+      count: validPrices.filter((p) => p <= 300).length,
+      type: 'price',
+      value: 300,
+      isActive: current.priceMax === 300,
+    });
+  }
+  if (minP <= 600 && maxP > 600) {
+    chips.push({
+      id: 'price:600',
+      label: 'Under ₹600',
+      emoji: '🏷️',
+      count: validPrices.filter((p) => p <= 600).length,
+      type: 'price',
+      value: 600,
+      isActive: current.priceMax === 600,
+    });
+  }
+  if (maxP >= 1500) {
+    chips.push({
+      id: 'price:1500',
+      label: 'Under ₹1,500',
+      emoji: '🏷️',
+      count: validPrices.filter((p) => p <= 1500).length,
+      type: 'price',
+      value: 1500,
+      isActive: current.priceMax === 1500,
+    });
+  }
+}
+
 /**
  * Derives available dynamic facet chips strictly from non-empty inventory.
  */
 export function extractAvailableCommerceFacets(
   products: Array<{
+    name?: string;
     category?: string | null;
     parentGroup?: string | null;
     tags?: string[] | null;
@@ -205,8 +255,7 @@ export function extractAvailableCommerceFacets(
   const current = options?.currentState || emptyCommerceFacetState();
   const chips: DynamicFacetChip[] = [];
 
-  // 1. If food group or all products are food, surface food moods
-  if (isFood) {
+  const pushFoodMoods = () => {
     for (const mood of TASTE_MOODS) {
       const count = products.filter((p) =>
         productMatchesFoodFacets(p, {
@@ -227,6 +276,16 @@ export function extractAvailableCommerceFacets(
         });
       }
     }
+  };
+
+  // Food groups: moods first. Mixed/home "all" still surfaces food moods when food exists.
+  const foodish = isFood || products.some((p) => isFoodParentGroup(p.parentGroup) || isFoodParentGroup(p.category));
+  if (isFood || foodish) {
+    pushFoodMoods();
+  }
+
+  if (isFood) {
+    appendPriceChips(products, current, chips);
     return chips;
   }
 
@@ -321,52 +380,7 @@ export function extractAvailableCommerceFacets(
     });
   }
 
-  // 5. Budget/Price brackets from actual prices
-  const validPrices = products
-    .map((p) => Number(p.price))
-    .filter((pr) => !isNaN(pr) && pr > 0);
-
-  if (validPrices.length >= 2) {
-    const maxP = Math.max(...validPrices);
-    const minP = Math.min(...validPrices);
-
-    if (minP <= 300 && maxP > 300) {
-      const count = validPrices.filter((p) => p <= 300).length;
-      chips.push({
-        id: 'price:300',
-        label: 'Under ₹300',
-        emoji: '🏷️',
-        count,
-        type: 'price',
-        value: 300,
-        isActive: current.priceMax === 300,
-      });
-    }
-    if (minP <= 600 && maxP > 600) {
-      const count = validPrices.filter((p) => p <= 600).length;
-      chips.push({
-        id: 'price:600',
-        label: 'Under ₹600',
-        emoji: '🏷️',
-        count,
-        type: 'price',
-        value: 600,
-        isActive: current.priceMax === 600,
-      });
-    }
-    if (maxP >= 1500) {
-      const count = validPrices.filter((p) => p <= 1500).length;
-      chips.push({
-        id: 'price:1500',
-        label: 'Under ₹1,500',
-        emoji: '🏷️',
-        count,
-        type: 'price',
-        value: 1500,
-        isActive: current.priceMax === 1500,
-      });
-    }
-  }
+  appendPriceChips(products, current, chips);
 
   return chips;
 }

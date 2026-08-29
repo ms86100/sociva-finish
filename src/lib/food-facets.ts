@@ -81,18 +81,21 @@ function readPrefixed(
 export function parseFoodFacets(
   tags: string[] | null | undefined,
   cuisineType?: string | null,
+  name?: string | null,
 ): FoodFacets {
   const cuisineTag = readPrefixed(tags, CUISINE_TAG_PREFIX);
-  const cuisineRaw = cuisineTag || cuisineType || null;
-  const cuisine = cuisineRaw && CUISINE_IDS.has(cuisineRaw as FoodCuisineId)
-    ? (cuisineRaw as FoodCuisineId)
-    : null;
   const mealRaw = readPrefixed(tags, MEAL_TAG_PREFIX);
   const courseRaw = readPrefixed(tags, COURSE_TAG_PREFIX);
+  const collected = collectFoodFacetIds({ tags, cuisine_type: cuisineType, name: name || undefined });
+  const cuisineFromId = cuisineTag && CUISINE_IDS.has(cuisineTag as FoodCuisineId)
+    ? (cuisineTag as FoodCuisineId)
+    : null;
+  const mealFromId = mealRaw && MEAL_IDS.has(mealRaw as FoodMealId) ? (mealRaw as FoodMealId) : null;
+  const courseFromId = courseRaw && COURSE_IDS.has(courseRaw as FoodCourseId) ? (courseRaw as FoodCourseId) : null;
   return {
-    cuisine,
-    meal: mealRaw && MEAL_IDS.has(mealRaw as FoodMealId) ? (mealRaw as FoodMealId) : null,
-    course: courseRaw && COURSE_IDS.has(courseRaw as FoodCourseId) ? (courseRaw as FoodCourseId) : null,
+    cuisine: cuisineFromId || [...collected.cuisine][0] || null,
+    meal: mealFromId || [...collected.meal][0] || null,
+    course: courseFromId || [...collected.course][0] || null,
   };
 }
 
@@ -111,25 +114,123 @@ export function serializeFoodFacets(
 }
 
 const CUISINE_HINTS: Array<{ id: FoodCuisineId; hints: string[] }> = [
-  { id: 'south_indian', hints: ['south indian', 'idli', 'dosa', 'sambar', 'rasam', 'uttapam', 'vada', 'filter coffee'] },
-  { id: 'north_indian', hints: ['north indian', 'rajma', 'dal makhani', 'butter chicken', 'chole', 'paneer', 'roti', 'naan', 'paratha', 'makhani'] },
+  { id: 'south_indian', hints: ['south indian', 'idli', 'dosa', 'sambar', 'rasam', 'uttapam', 'vada', 'filter coffee', 'hyderabadi'] },
+  { id: 'north_indian', hints: ['north indian', 'rajma', 'dal makhani', 'butter chicken', 'chole', 'paneer', 'roti', 'naan', 'paratha', 'makhani', 'punjabi'] },
   { id: 'chinese', hints: ['chinese', 'noodles', 'manchurian', 'hakka', 'fried rice', 'chilli chicken', 'schezwan'] },
   { id: 'tandoori', hints: ['tandoori', 'tandoor', 'tikka', 'kebab', 'seekh'] },
-  { id: 'continental', hints: ['pasta', 'pizza', 'burger', 'sandwich', 'continental'] },
+  { id: 'continental', hints: ['pasta', 'pizza', 'burger', 'sandwich', 'continental', 'belgian'] },
 ];
 
 const MEAL_HINTS: Array<{ id: FoodMealId; hints: string[] }> = [
   { id: 'breakfast', hints: ['breakfast', 'idli', 'dosa', 'poha', 'upma', 'paratha'] },
-  { id: 'lunch', hints: ['lunch', 'tiffin', 'thali'] },
-  { id: 'dinner', hints: ['dinner'] },
-  { id: 'snack', hints: ['snack', 'chaat', 'samosa', 'pakora', 'namkeen'] },
+  { id: 'lunch', hints: ['lunch', 'tiffin', 'thali', 'biryani', 'meal box'] },
+  { id: 'dinner', hints: ['dinner', 'biryani'] },
+  { id: 'snack', hints: ['snack', 'snacks', 'chaat', 'samosa', 'pakora', 'namkeen', 'evening tea'] },
 ];
 
 const COURSE_HINTS: Array<{ id: FoodCourseId; hints: string[] }> = [
-  { id: 'dessert', hints: ['cake', 'pastry', 'dessert', 'sweet', 'mithai', 'ice cream', 'brownie'] },
+  { id: 'dessert', hints: ['cake', 'pastry', 'dessert', 'sweet', 'mithai', 'ice cream', 'brownie', 'ganache', 'bakery'] },
   { id: 'appetizer', hints: ['starter', 'appetizer', 'soup', 'tikka'] },
-  { id: 'main', hints: ['curry', 'biryani', 'thali', 'rajma', 'dal', 'chawal', 'rice'] },
+  { id: 'main', hints: ['curry', 'biryani', 'thali', 'rajma', 'dal', 'chawal', 'rice', 'meal box'] },
 ];
+
+const CUISINE_ALIASES: Record<string, FoodCuisineId> = {
+  'north indian': 'north_indian',
+  punjabi: 'north_indian',
+  'south indian': 'south_indian',
+  hyderabadi: 'south_indian',
+  chinese: 'chinese',
+  tandoori: 'tandoori',
+  continental: 'continental',
+};
+
+const MEAL_ALIASES: Record<string, FoodMealId> = {
+  snacks: 'snack',
+  snack: 'snack',
+  'evening tea': 'snack',
+  tiffin: 'lunch',
+  breakfast: 'breakfast',
+  lunch: 'lunch',
+  dinner: 'dinner',
+};
+
+const COURSE_ALIASES: Record<string, FoodCourseId> = {
+  dessert: 'dessert',
+  cake: 'dessert',
+  bakery: 'dessert',
+  sweet: 'dessert',
+  thali: 'main',
+  biryani: 'main',
+  appetizer: 'appetizer',
+  starter: 'appetizer',
+  main: 'main',
+};
+
+function tokenizeFoodValue(raw: string): string {
+  return raw
+    .toLowerCase()
+    .trim()
+    .replace(/^(cuisine|meal|course):/, '')
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ');
+}
+
+function cuisineFromToken(token: string): FoodCuisineId | null {
+  const t = tokenizeFoodValue(token);
+  const asId = t.replace(/ /g, '_') as FoodCuisineId;
+  if (CUISINE_IDS.has(asId) && asId !== 'other') return asId;
+  if (CUISINE_ALIASES[t]) return CUISINE_ALIASES[t];
+  return firstHintMatch(t, CUISINE_HINTS);
+}
+
+function mealFromToken(token: string): FoodMealId | null {
+  const t = tokenizeFoodValue(token);
+  const asId = t.replace(/ /g, '_') as FoodMealId;
+  if (MEAL_IDS.has(asId)) return asId;
+  if (MEAL_ALIASES[t]) return MEAL_ALIASES[t];
+  return firstHintMatch(t, MEAL_HINTS);
+}
+
+function courseFromToken(token: string): FoodCourseId | null {
+  const t = tokenizeFoodValue(token);
+  const asId = t.replace(/ /g, '_') as FoodCourseId;
+  if (COURSE_IDS.has(asId)) return asId;
+  if (COURSE_ALIASES[t]) return COURSE_ALIASES[t];
+  return firstHintMatch(t, COURSE_HINTS);
+}
+
+export function collectFoodFacetIds(product: {
+  tags?: string[] | null;
+  cuisine_type?: string | null;
+  name?: string;
+}): {
+  cuisine: Set<FoodCuisineId>;
+  meal: Set<FoodMealId>;
+  course: Set<FoodCourseId>;
+} {
+  const cuisine = new Set<FoodCuisineId>();
+  const meal = new Set<FoodMealId>();
+  const course = new Set<FoodCourseId>();
+
+  const addFromToken = (raw: string) => {
+    const c = cuisineFromToken(raw);
+    if (c) cuisine.add(c);
+    const m = mealFromToken(raw);
+    if (m) meal.add(m);
+    const co = courseFromToken(raw);
+    if (co) course.add(co);
+  };
+
+  for (const tag of product.tags || []) addFromToken(String(tag || ''));
+  if (product.cuisine_type) addFromToken(product.cuisine_type);
+  if (product.name) {
+    const inferred = inferFoodFacets(product.name);
+    if (inferred.cuisine) cuisine.add(inferred.cuisine);
+    if (inferred.meal) meal.add(inferred.meal);
+    if (inferred.course) course.add(inferred.course);
+  }
+  return { cuisine, meal, course };
+}
 
 function firstHintMatch<T extends string>(
   q: string,
@@ -166,10 +267,10 @@ export function productMatchesFoodFacets(
   product: { tags?: string[] | null; cuisine_type?: string | null; name?: string },
   selected: Partial<FoodFacets>,
 ): boolean {
-  const parsed = parseFoodFacets(product.tags, product.cuisine_type);
-  if (selected.cuisine && parsed.cuisine !== selected.cuisine) return false;
-  if (selected.meal && parsed.meal !== selected.meal) return false;
-  if (selected.course && parsed.course !== selected.course) return false;
+  const collected = collectFoodFacetIds(product);
+  if (selected.cuisine && !collected.cuisine.has(selected.cuisine as FoodCuisineId)) return false;
+  if (selected.meal && !collected.meal.has(selected.meal as FoodMealId)) return false;
+  if (selected.course && !collected.course.has(selected.course as FoodCourseId)) return false;
   return true;
 }
 

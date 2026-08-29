@@ -54,12 +54,23 @@ export interface ProductSummary {
   id: string;
   name: string;
   price: number;
+  mrp?: number | null;
+  discount_percentage?: number | null;
   category: string;
   image_url: string | null;
   approval_status: string;
   is_available: boolean;
+  is_veg?: boolean;
   action_type: string | null;
   contact_phone: string | null;
+  description?: string | null;
+  specifications?: Record<string, any> | null;
+  tags?: string[] | null;
+  cuisine_type?: string | null;
+  prep_time_minutes?: number | null;
+  service_duration_minutes?: number | null;
+  delivery_time_text?: string | null;
+  created_at?: string;
 }
 
 export interface GroupConfig {
@@ -109,7 +120,7 @@ export function useSellerApplicationReview() {
           ? supabase.from('seller_licenses').select('*').in('seller_id', sellerIds).order('submitted_at', { ascending: false })
           : Promise.resolve({ data: [] }),
         sellerIds.length > 0
-          ? supabase.from('products').select('id, name, price, category, image_url, approval_status, is_available, action_type, contact_phone').in('seller_id', sellerIds).order('created_at', { ascending: false })
+          ? supabase.from('products').select('id, name, price, mrp, discount_percentage, category, image_url, approval_status, is_available, is_veg, action_type, contact_phone, description, specifications, tags, cuisine_type, prep_time_minutes, service_duration_minutes, delivery_time_text, created_at').in('seller_id', sellerIds).order('created_at', { ascending: false })
           : Promise.resolve({ data: [] }),
       ]);
 
@@ -257,7 +268,12 @@ export function useSellerApplicationReview() {
   };
 
   const pendingCount = applications.filter(a => a.verification_status === 'pending').length;
-  const pendingProductCount = applications.reduce((sum, a) => sum + a.products.filter(p => p.approval_status === 'pending').length, 0);
+  const pendingProductCount = applications
+    .filter((a) => a.verification_status === 'approved')
+    .reduce((sum, a) => sum + a.products.filter((p) => p.approval_status === 'pending').length, 0);
+  const pendingApplicationCatalogCountValue = applications
+    .filter((a) => a.verification_status !== 'approved')
+    .reduce((sum, a) => sum + a.products.filter((p) => p.approval_status === 'pending' || p.approval_status === 'draft').length, 0);
 
   const [productActionId, setProductActionId] = useState<string | null>(null);
   const [productRejectingId, setProductRejectingId] = useState<string | null>(null);
@@ -310,7 +326,7 @@ export function useSellerApplicationReview() {
     actionId, rejectionNote, setRejectionNote, rejectingId, setRejectingId,
     licenseAdminNotes, setLicenseAdminNotes, previewUrl, setPreviewUrl,
     statusFilter, setStatusFilter, editingGroup, setEditingGroup,
-    editForm, setEditForm, pendingCount, pendingProductCount, formatPrice,
+    editForm, setEditForm, pendingCount, pendingProductCount, pendingApplicationCatalogCountValue, formatPrice,
     updateSellerStatus, updateLicenseStatus, toggleRequiresLicense,
     toggleMandatory, saveGroupConfig,
     productActionId, productRejectingId, setProductRejectingId,

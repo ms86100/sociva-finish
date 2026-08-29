@@ -23,7 +23,6 @@ import { CampaignSender } from '@/components/admin/CampaignSender';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { AdminSidebarNav } from '@/components/admin/AdminSidebarNav';
 import { SellerApplicationReview } from '@/components/admin/SellerApplicationReview';
-import { AdminProductApprovals } from '@/components/admin/AdminProductApprovals';
 import { AdminWorkflowManager } from '@/components/admin/AdminWorkflowManager';
 import { WorkflowSimulator } from '@/components/admin/workflow/WorkflowSimulator';
 

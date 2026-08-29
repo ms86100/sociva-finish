@@ -14,6 +14,7 @@ import {
   emptyFoodFacets,
   isTasteMoodActive,
   toggleTasteMood,
+  productMatchesFoodFacets,
   type FoodFacets,
   type TasteMood,
 } from '@/lib/food-facets';
@@ -38,6 +39,7 @@ interface TasteRailProps {
   sortBy?: SortKey;
   onSortChange?: (key: SortKey) => void;
   moods?: readonly TasteMood[];
+  inventory?: Array<{ tags?: string[] | null; cuisine_type?: string | null; name?: string }>;
   className?: string;
 }
 
@@ -54,6 +56,7 @@ export function TasteRail({
   sortBy,
   onSortChange,
   moods = TASTE_MOODS,
+  inventory,
   className,
 }: TasteRailProps) {
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -179,7 +182,7 @@ export function TasteRail({
           </DrawerHeader>
           <div className="space-y-5 overflow-y-auto px-4 pb-2">
             <SheetSection label="Cuisine">
-              {FOOD_CUISINES.map((opt) => (
+              {FOOD_CUISINES.filter((opt) => !inventory?.length || inventory.some((p) => productMatchesFoodFacets(p, { cuisine: opt.id }))).map((opt) => (
                 <SheetTile
                   key={opt.id}
                   emoji={CUISINE_EMOJI[opt.id]}
@@ -193,7 +196,7 @@ export function TasteRail({
               ))}
             </SheetSection>
             <SheetSection label="Meal">
-              {FOOD_MEALS.map((opt) => (
+              {FOOD_MEALS.filter((opt) => !inventory?.length || inventory.some((p) => productMatchesFoodFacets(p, { meal: opt.id }))).map((opt) => (
                 <SheetTile
                   key={opt.id}
                   emoji={MEAL_EMOJI[opt.id]}
@@ -207,7 +210,7 @@ export function TasteRail({
               ))}
             </SheetSection>
             <SheetSection label="Course">
-              {FOOD_COURSES.map((opt) => (
+              {FOOD_COURSES.filter((opt) => !inventory?.length || inventory.some((p) => productMatchesFoodFacets(p, { course: opt.id }))).map((opt) => (
                 <SheetTile
                   key={opt.id}
                   emoji={COURSE_EMOJI[opt.id]}

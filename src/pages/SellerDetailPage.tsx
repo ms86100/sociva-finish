@@ -790,6 +790,7 @@ export default function SellerDetailPage() {
                   showUtilities
                   showOpenNow={false}
                   moods={availableTasteMoods(products)}
+                  inventory={products}
                 />
               </div>
             )}

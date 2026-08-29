@@ -240,4 +240,24 @@ describe('taste moods and browse URLs', () => {
     ]);
     expect(moods.map((m) => m.id)).toEqual(['north_indian', 'dessert']);
   });
+
+  it('matches human tags, cuisine labels, and dish names used by live and dummy listings', () => {
+    const dal = {
+      name: 'Dal Makhani & Jeera Rice Meal Box',
+      tags: ['Lunch', 'Dinner', 'North Indian', 'Thali'],
+      cuisine_type: 'North Indian',
+    };
+    const dosa = {
+      name: 'Crispy Masala Dosa with Sambar & Chutney',
+      tags: ['Breakfast', 'South Indian'],
+      cuisine_type: 'south_indian',
+    };
+    expect(productMatchesFoodFacets(dal, { meal: 'lunch' })).toBe(true);
+    expect(productMatchesFoodFacets(dal, { cuisine: 'north_indian' })).toBe(true);
+    expect(productMatchesFoodFacets(dosa, { meal: 'breakfast' })).toBe(true);
+    expect(productMatchesFoodFacets(dosa, { cuisine: 'south_indian' })).toBe(true);
+    expect(availableTasteMoods([dal, dosa]).map((m) => m.id)).toEqual(
+      expect.arrayContaining(['breakfast', 'lunch', 'dinner', 'north_indian', 'south_indian']),
+    );
+  });
 });

@@ -1,21 +1,23 @@
 // @ts-nocheck
+import { useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import {
   Check, X, Loader2, Store, Package, FileText, Eye, Clock,
-  ChevronDown, ChevronUp, MapPin, Phone, Calendar, CreditCard, Truck,
+  ChevronDown, ChevronUp, MapPin, Phone, Calendar, CreditCard, Truck, Sparkles,
 } from 'lucide-react';
 import { DynamicIcon } from '@/components/ui/DynamicIcon';
 import { format } from 'date-fns';
 import { useSellerApplicationReview } from '@/hooks/useSellerApplicationReview';
 import { AdminProductApprovals } from './AdminProductApprovals';
+import { ApplicationCatalogPreview } from './ApplicationCatalogPreview';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
+import { isApprovedLiveStore, pendingApplicationCatalogCount } from '@/lib/admin-catalog-queue';
 
 function statusBadge(status: string) {
   switch (status) {
@@ -28,6 +30,7 @@ function statusBadge(status: string) {
 
 export function SellerApplicationReview() {
   const s = useSellerApplicationReview();
+  const [reviewTab, setReviewTab] = useState('applications');
 
   if (s.isLoading) {
     return <div className="flex justify-center py-12"><Loader2 className="animate-spin text-muted-foreground" size={20} /></div>;
@@ -38,7 +41,7 @@ export function SellerApplicationReview() {
 
   return (
     <div className="space-y-4">
-      <Tabs defaultValue="applications" className="w-full">
+      <Tabs value={reviewTab} onValueChange={setReviewTab} className="w-full">
         <TabsList className="w-full h-9 rounded-xl bg-muted/60 p-0.5">
           <TabsTrigger value="applications" className="flex-1 text-xs rounded-lg font-semibold data-[state=active]:shadow-sm gap-1.5">
             <Store size={13} /> Applications
@@ -46,6 +49,7 @@ export function SellerApplicationReview() {
           </TabsTrigger>
           <TabsTrigger value="products" className="flex-1 text-xs rounded-lg font-semibold data-[state=active]:shadow-sm gap-1.5">
             <Package size={13} /> Products
+            {s.pendingProductCount > 0 && <Badge variant="secondary" className="text-[9px] h-4 px-1.5 rounded-full ml-0.5">{s.pendingProductCount}</Badge>}
           </TabsTrigger>
           <TabsTrigger value="all" className="flex-1 text-xs rounded-lg font-semibold data-[state=active]:shadow-sm gap-1.5">
             All
@@ -57,7 +61,7 @@ export function SellerApplicationReview() {
         </TabsContent>
 
         <TabsContent value="products" className="mt-4">
-          <AdminProductApprovals />
+          <AdminProductApprovals onSwitchToApplications={() => setReviewTab('applications')} />
         </TabsContent>
 
         <TabsContent value="all" className="mt-4">
@@ -127,9 +131,14 @@ function SellerList({ sellers, s, emptyMsg }: { sellers: any[]; s: ReturnType<ty
 function SellerCard({ seller, s, idx }: { seller: any; s: ReturnType<typeof useSellerApplicationReview>; idx: number }) {
   const isExpanded = s.expandedId === seller.id;
   const pendingLicenses = seller.licenses.filter((l: any) => l.status === 'pending').length;
-  const totalProducts = seller.products.length;
-  const approvedProducts = seller.products.filter((p: any) => p.approval_status === 'approved').length;
-  const pendingProducts = seller.products.filter((p: any) => p.approval_status === 'pending').length;
+  const isLiveStore = isApprovedLiveStore(seller.verification_status);
+  const openingCatalog = isLiveStore
+    ? seller.products.filter((p: any) => p.approval_status === 'approved')
+    : seller.products;
+  const openingPendingCount = pendingApplicationCatalogCount(openingCatalog);
+  const liveUpdateCount = isLiveStore
+    ? seller.products.filter((p: any) => p.approval_status === 'pending').length
+    : 0;
   const isPending = seller.verification_status === 'pending';
 
   // Location status
@@ -171,8 +180,16 @@ function SellerCard({ seller, s, idx }: { seller: any; s: ReturnType<typeof useS
             </div>
             <div className="flex items-center gap-1.5 shrink-0">
               {pendingLicenses > 0 && <Badge variant="outline" className="text-[9px] text-warning border-warning rounded-md h-5"><FileText size={8} className="mr-0.5" />{pendingLicenses}</Badge>}
-              {pendingProducts > 0 && <Badge variant="outline" className="text-[9px] text-amber-600 border-amber-300 rounded-md h-5"><Package size={8} className="mr-0.5" />{pendingProducts}</Badge>}
-              <Badge variant="secondary" className="text-[9px] rounded-md h-5">{approvedProducts}/{totalProducts}</Badge>
+              {!isLiveStore && openingCatalog.length > 0 && (
+                <Badge variant="outline" className="text-[9px] text-primary border-primary/30 rounded-md h-5">
+                  <Sparkles size={8} className="mr-0.5" />{openingCatalog.length}
+                </Badge>
+              )}
+              {liveUpdateCount > 0 && (
+                <Badge variant="outline" className="text-[9px] text-amber-600 border-amber-300 rounded-md h-5">
+                  <Package size={8} className="mr-0.5" />{liveUpdateCount}
+                </Badge>
+              )}
               {isExpanded ? <ChevronUp size={14} className="text-muted-foreground" /> : <ChevronDown size={14} className="text-muted-foreground" />}
             </div>
           </div>
@@ -229,65 +246,29 @@ function SellerCard({ seller, s, idx }: { seller: any; s: ReturnType<typeof useS
                 </div>
               )}
 
-              {/* Products — compact grid */}
-              {seller.products.length > 0 && (
-                <div className="space-y-2">
-                  <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest px-1">
-                    Products ({seller.products.length})
-                    {pendingProducts > 0 && <span className="text-warning ml-1">• {pendingProducts} pending</span>}
+              {/* Opening catalog — clubbed with first-time application */}
+              <ApplicationCatalogPreview
+                products={openingCatalog}
+                formatPrice={s.formatPrice}
+                storePending={!isLiveStore}
+              />
+
+              {isLiveStore && liveUpdateCount > 0 && (
+                <div className="rounded-xl border border-amber-200/70 bg-amber-50/70 px-3 py-2">
+                  <p className="text-[11px] font-semibold text-amber-800">
+                    {liveUpdateCount} later listing{liveUpdateCount === 1 ? '' : 's'} waiting in the Products tab
                   </p>
-                  <ScrollArea className="max-h-[240px]">
-                    <div className="space-y-1.5 pr-2">
-                      {seller.products.map((prod: any) => (
-                        <div key={prod.id} className="bg-muted/40 rounded-xl p-2 flex items-center gap-2.5">
-                          {prod.image_url ? <img src={prod.image_url} alt="" className="w-8 h-8 rounded-lg object-cover shrink-0" /> : <div className="w-8 h-8 rounded-lg bg-background flex items-center justify-center shrink-0"><Package size={12} className="text-muted-foreground/50" /></div>}
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs font-semibold truncate">{prod.name}</p>
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              {prod.action_type === 'contact_seller' || prod.price <= 0 ? (
-                                <span className="text-[10px] text-muted-foreground font-medium">Contact for price</span>
-                              ) : prod.price > 0 ? (
-                                <span className="text-[10px] text-primary font-bold">{s.formatPrice(prod.price)}</span>
-                              ) : null}
-                              {prod.action_type && (
-                                <span className="text-[9px] text-muted-foreground capitalize">{prod.action_type.replace(/_/g, ' ')}</span>
-                              )}
-                              {prod.contact_phone && (
-                                <span className="text-[9px] text-muted-foreground flex items-center gap-0.5"><Phone size={8} />{prod.contact_phone}</span>
-                              )}
-                              <span className="text-[9px] text-muted-foreground">{prod.category.replace(/_/g, ' ')}</span>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-1 shrink-0">
-                            {statusBadge(prod.approval_status)}
-                            {prod.approval_status === 'pending' && seller.verification_status === 'approved' && (
-                              <>
-                                <Button size="sm" variant="outline" className="h-6 w-6 p-0 rounded-lg text-destructive" onClick={(e) => { e.stopPropagation(); s.setProductRejectingId(prod.id); }}><X size={10} /></Button>
-                                <Button size="sm" className="h-6 w-6 p-0 rounded-lg" onClick={(e) => { e.stopPropagation(); s.updateProductStatus(prod.id, 'approved'); }} disabled={!!s.productActionId}><Check size={10} /></Button>
-                              </>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </ScrollArea>
-                  {s.productRejectingId && (
-                    <div className="space-y-2 p-2.5 bg-destructive/5 rounded-xl">
-                      <Textarea placeholder="Rejection reason (required)..." value={s.productRejectionNote} onChange={(e) => s.setProductRejectionNote(e.target.value)} rows={2} className="text-xs rounded-xl" onClick={(e) => e.stopPropagation()} />
-                      <div className="flex gap-2">
-                        <Button size="sm" variant="outline" className="flex-1 h-7 text-[10px] rounded-xl" onClick={() => { s.setProductRejectingId(null); s.setProductRejectionNote(''); }}>Cancel</Button>
-                        <Button size="sm" variant="destructive" className="flex-1 h-7 text-[10px] rounded-xl font-semibold" disabled={s.productActionId !== null || !s.productRejectionNote.trim()} onClick={() => s.updateProductStatus(s.productRejectingId!, 'rejected')}>Reject</Button>
-                      </div>
-                    </div>
-                  )}
+                  <p className="text-[10px] text-amber-700/80 mt-0.5">
+                    New products and edits after the store went live are reviewed separately so the original application stays intact.
+                  </p>
                 </div>
               )}
 
               {/* Seller Approve/Reject */}
               {isPending && (
                 <div className="pt-2 border-t border-border/30 space-y-2">
-                  <p className="text-[10px] text-muted-foreground bg-muted/60 rounded-lg px-3 py-1.5">
-                    ℹ️ Approving will also approve all pending products and licenses.
+                  <p className="text-[10px] text-muted-foreground bg-primary/5 border border-primary/10 rounded-lg px-3 py-1.5 leading-relaxed">
+                    Approving this store also approves the opening catalog{openingPendingCount > 0 ? ` (${openingPendingCount} listing${openingPendingCount === 1 ? '' : 's'})` : ''} and pending licenses in one step.
                   </p>
                   {s.rejectingId === seller.id ? (
                     <div className="space-y-2">
@@ -302,8 +283,10 @@ function SellerCard({ seller, s, idx }: { seller: any; s: ReturnType<typeof useS
                   ) : (
                     <div className="flex gap-2">
                       <Button size="sm" variant="outline" className="text-destructive flex-1 rounded-xl h-8 text-xs font-semibold" onClick={() => s.setRejectingId(seller.id)} disabled={!!s.actionId}><X size={12} className="mr-1" /> Reject</Button>
-                      <Button size="sm" className="flex-1 rounded-xl h-8 text-xs font-semibold shadow-sm" onClick={() => s.updateSellerStatus(seller, 'approved')} disabled={!!s.actionId}>
-                        {s.actionId === seller.id && <Loader2 size={12} className="animate-spin mr-1" />}<Check size={12} className="mr-1" /> Approve
+                      <Button size="sm" className="flex-1 rounded-xl h-9 text-xs font-semibold shadow-sm" onClick={() => s.updateSellerStatus(seller, 'approved')} disabled={!!s.actionId}>
+                        {s.actionId === seller.id && <Loader2 size={12} className="animate-spin mr-1" />}
+                        <Check size={12} className="mr-1" />
+                        {openingPendingCount > 0 ? `Approve store & ${openingPendingCount} listing${openingPendingCount === 1 ? '' : 's'}` : 'Approve store'}
                       </Button>
                     </div>
                   )}

@@ -31,10 +31,7 @@ import {
   extractAvailableCommerceFacets,
 } from '@/lib/commerce-facets';
 import {
-  isFoodParentGroup,
   readFoodFacetsFromSearchParams,
-  writeFoodFacetsToSearchParams,
-  type FoodFacets,
 } from '@/lib/food-facets';
 
 export default function CategoryGroupPage() {
@@ -52,8 +49,6 @@ export default function CategoryGroupPage() {
   const [sortBy, setSortBy] = useState<SortKey>('relevance');
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [detailOpen, setDetailOpen] = useState(false);
-  const [filterOpenNow, setFilterOpenNow] = useState(false);
-  const [filterVeg, setFilterVeg] = useState(false);
   const { configs: categoryConfigs } = useCategoryConfigs();
 
   const handleProductTap = useCallback((product: ProductWithSeller) => {
@@ -88,7 +83,20 @@ export default function CategoryGroupPage() {
     category || null,
   );
 
-  const [facets, setFacets] = useState<CommerceFacetState>(emptyCommerceFacetState());
+  const productIds = useMemo(() => allProducts.map((p) => p.id), [allProducts]);
+  const { data: facetRows = {} } = useProductFacets(productIds, productIds.length > 0);
+  const productsWithFacets = useMemo(
+    () => allProducts.map((p) => applyProductFacetRow(p, facetRows[p.id])),
+    [allProducts, facetRows],
+  );
+
+  const foodFromUrl = readFoodFacetsFromSearchParams(searchParams);
+  const [facets, setFacets] = useState<CommerceFacetState>(() => ({
+    ...emptyCommerceFacetState(),
+    cuisine: foodFromUrl.cuisine,
+    meal: foodFromUrl.meal,
+    course: foodFromUrl.course,
+  }));
 
   const scopedProducts = useMemo(() => {
     return activeSubCategory

@@ -158,7 +158,8 @@ export async function approveSeller({ sellerId, userId, businessName, societyId 
     throw new Error(`Failed to grant seller role: ${roleErr.message}`);
   }
 
-  // 5. Auto-approve pending/draft products created before this moment
+  // 5. Club the opening catalog with this first-time approval.
+  //    Later additions/edits on a live store stay pending for the Products tab.
   const cutoff = new Date().toISOString();
   const { error: prodErr } = await supabase
     .from('products')

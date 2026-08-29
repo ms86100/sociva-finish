@@ -1,5 +1,5 @@
-import { useState, type ReactNode } from 'react';
-import { Sparkles, SlidersHorizontal, Check, X, RotateCcw } from 'lucide-react';
+import { useState } from 'react';
+import { Sparkles, SlidersHorizontal, RotateCcw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { hapticSelection } from '@/lib/haptics';
 import {
@@ -8,7 +8,7 @@ import {
   countActiveCommerceFacets,
   emptyCommerceFacetState,
 } from '@/lib/commerce-facets';
-import { isFoodParentGroup, TASTE_MOODS, countFoodFacets } from '@/lib/food-facets';
+import { isFoodParentGroup } from '@/lib/food-facets';
 import {
   Drawer,
   DrawerContent,
@@ -18,6 +18,7 @@ import {
   DrawerTitle,
 } from '@/components/ui/drawer';
 import { Button } from '@/components/ui/button';
+import { SORT_OPTIONS, type SortKey } from '@/lib/marketplace-constants';
 
 interface CommerceFacetRailProps {
   value: CommerceFacetState;
@@ -26,6 +27,8 @@ interface CommerceFacetRailProps {
   parentGroup?: string | null;
   className?: string;
   showFilterButton?: boolean;
+  sortBy?: SortKey;
+  onSortChange?: (key: SortKey) => void;
 }
 
 export function CommerceFacetRail({
@@ -35,8 +38,11 @@ export function CommerceFacetRail({
   parentGroup,
   className,
   showFilterButton = true,
+  sortBy,
+  onSortChange,
 }: CommerceFacetRailProps) {
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [sortOpen, setSortOpen] = useState(false);
   const isFood = isFoodParentGroup(parentGroup);
   const activeCount = countActiveCommerceFacets(value);
 
@@ -176,6 +182,24 @@ export function CommerceFacetRail({
               </span>
             </button>
           ))}
+
+          {onSortChange && sortBy && (
+            <button
+              type="button"
+              onClick={() => {
+                hapticSelection();
+                setSortOpen(true);
+              }}
+              className={cn(
+                'shrink-0 rounded-full border px-2.5 py-1.5 text-[11px] font-semibold',
+                sortBy !== 'relevance'
+                  ? 'border-primary/40 bg-primary/10 text-primary'
+                  : 'border-border/70 bg-background/80 text-muted-foreground',
+              )}
+            >
+              {SORT_OPTIONS.find((o) => o.key === sortBy)?.label || 'Sort'}
+            </button>
+          )}
         </div>
       </div>
 
@@ -200,6 +224,39 @@ export function CommerceFacetRail({
           </DrawerHeader>
 
           <div className="px-4 py-3 space-y-4">
+            {chips.some((c) => c.type === 'food_mood') && (
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2">Cuisine, meal & course</p>
+                <div className="flex flex-wrap gap-2">
+                  {chips
+                    .filter((c) => c.type === 'food_mood')
+                    .map((chip) => (
+                      <button
+                        key={chip.id}
+                        type="button"
+                        onClick={() => toggleChip(chip)}
+                        className={cn(
+                          'flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border transition-all',
+                          chip.isActive
+                            ? 'bg-primary text-primary-foreground border-primary'
+                            : 'bg-card border-border text-foreground hover:border-primary/40'
+                        )}
+                      >
+                        {chip.emoji && <span>{chip.emoji}</span>}
+                        <span>{chip.label}</span>
+                        <span className="text-[10px] opacity-75">({chip.count})</span>
+                      </button>
+                    ))}
+                </div>
+              </div>
+            )}
+
+            {isFood && !chips.some((c) => c.type === 'food_mood') && (
+              <p className="text-xs text-muted-foreground rounded-xl bg-muted/50 px-3 py-2">
+                Taste filters appear when listings have cuisine, meal or course details. Open Now and Veg still work above.
+              </p>
+            )}
+
             {/* Action Type / Booking Method */}
             {chips.some((c) => c.type === 'action_type') && (
               <div>
@@ -292,6 +349,36 @@ export function CommerceFacetRail({
           </DrawerFooter>
         </DrawerContent>
       </Drawer>
+
+      {onSortChange && (
+        <Drawer open={sortOpen} onOpenChange={setSortOpen}>
+          <DrawerContent>
+            <DrawerHeader className="text-left">
+              <DrawerTitle>Sort</DrawerTitle>
+            </DrawerHeader>
+            <div className="grid gap-1.5 px-4 pb-6">
+              {SORT_OPTIONS.map((opt) => (
+                <button
+                  key={opt.key}
+                  type="button"
+                  onClick={() => {
+                    onSortChange(opt.key);
+                    setSortOpen(false);
+                  }}
+                  className={cn(
+                    'rounded-xl border px-3 py-2.5 text-left text-sm font-medium',
+                    sortBy === opt.key
+                      ? 'border-primary bg-primary/10 text-primary'
+                      : 'border-border bg-background text-foreground',
+                  )}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </DrawerContent>
+        </Drawer>
+      )}
     </div>
   );
 }
