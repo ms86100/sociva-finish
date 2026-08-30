@@ -18,6 +18,7 @@ import {
   type FoodFacets,
   type TasteMood,
 } from '@/lib/food-facets';
+import { CUISINE_IMAGES, MEAL_IMAGES, COURSE_IMAGES } from '@/lib/filter-images';
 import type { TasteBrowseState } from '@/lib/food-taste';
 import { SORT_OPTIONS, type SortKey } from '@/lib/marketplace-constants';
 import {
@@ -130,13 +131,19 @@ export function TasteRail({
                   setFacets(toggleTasteMood(mood, value));
                 }}
                 className={cn(
-                  'flex shrink-0 items-center gap-1 rounded-full border px-2.5 py-1.5 text-[11px] font-medium',
+                  'flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-all',
                   active
-                    ? 'border-amber-500/60 bg-amber-500/15 text-foreground'
-                    : 'border-border/70 bg-background/80 text-muted-foreground backdrop-blur-sm',
+                    ? 'border-amber-500/60 bg-amber-500/15 text-foreground shadow-sm'
+                    : 'border-border/70 bg-background/80 text-muted-foreground backdrop-blur-sm hover:border-border',
                 )}
               >
-                <span>{mood.emoji}</span>
+                {mood.imageUrl ? (
+                  <span className="w-4 h-4 rounded-full overflow-hidden shrink-0 flex items-center justify-center border border-white/40">
+                    <img src={mood.imageUrl} alt="" className="w-full h-full object-cover" />
+                  </span>
+                ) : (
+                  <span>{mood.emoji}</span>
+                )}
                 {mood.label}
               </button>
             );
@@ -186,6 +193,7 @@ export function TasteRail({
                 <SheetTile
                   key={opt.id}
                   emoji={CUISINE_EMOJI[opt.id]}
+                  imageUrl={CUISINE_IMAGES[opt.id]}
                   label={opt.label}
                   active={value.cuisine === opt.id}
                   onClick={() => setFacets({
@@ -200,6 +208,7 @@ export function TasteRail({
                 <SheetTile
                   key={opt.id}
                   emoji={MEAL_EMOJI[opt.id]}
+                  imageUrl={MEAL_IMAGES[opt.id]}
                   label={opt.label}
                   active={value.meal === opt.id}
                   onClick={() => setFacets({
@@ -214,6 +223,7 @@ export function TasteRail({
                 <SheetTile
                   key={opt.id}
                   emoji={COURSE_EMOJI[opt.id]}
+                  imageUrl={COURSE_IMAGES[opt.id]}
                   label={opt.label}
                   active={value.course === opt.id}
                   onClick={() => setFacets({
@@ -312,11 +322,13 @@ function SheetSection({ label, children }: { label: string; children: ReactNode 
 
 function SheetTile({
   emoji,
+  imageUrl,
   label,
   active,
   onClick,
 }: {
   emoji: string;
+  imageUrl?: string;
   label: string;
   active: boolean;
   onClick: () => void;
@@ -336,7 +348,13 @@ function SheetTile({
           : 'border-border/70 bg-muted/30',
       )}
     >
-      <span className="text-2xl leading-none">{emoji}</span>
+      {imageUrl ? (
+        <span className="w-8 h-8 rounded-full overflow-hidden shrink-0 inline-flex items-center justify-center border border-white/40 shadow-sm">
+          <img src={imageUrl} alt="" className="w-full h-full object-cover" />
+        </span>
+      ) : (
+        <span className="text-2xl leading-none">{emoji}</span>
+      )}
       <span className="text-[11px] font-semibold leading-tight">{label}</span>
     </button>
   );

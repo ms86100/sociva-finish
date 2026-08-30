@@ -55,12 +55,21 @@ export function CategoryBrowseGrid({ activeCategories }: CategoryBrowseGridProps
           >
             <div
               className={cn(
-                'w-14 h-14 rounded-2xl flex items-center justify-center',
+                'w-14 h-14 rounded-2xl flex items-center justify-center overflow-hidden',
                 'bg-accent/50 border border-border/20',
                 'transition-all group-hover:scale-105 group-hover:shadow-md group-active:scale-95'
               )}
             >
-              <DynamicIcon name={cat.icon} size={22} />
+              {cat.imageUrl || cat.image_url ? (
+                <img
+                  src={cat.imageUrl || cat.image_url}
+                  alt={cat.displayName}
+                  className="w-full h-full object-cover"
+                  loading="lazy"
+                />
+              ) : (
+                <DynamicIcon name={cat.icon} size={22} />
+              )}
             </div>
             <span className="text-[10px] font-medium text-center leading-tight text-muted-foreground line-clamp-2 max-w-[60px]">
               {cat.displayName}

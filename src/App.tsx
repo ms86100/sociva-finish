@@ -33,6 +33,7 @@ function lazyWithRetry<T extends ComponentType<any>>(
         return mod;
       } catch (err) {
         lastError = err;
+        console.error('[lazyWithRetry] Error importing page chunk:', err);
         const canRetry =
           attempt < retries &&
           String(err).includes('Failed to fetch dynamically imported module');
@@ -115,7 +116,7 @@ const RefundPolicyPage = lazyWithRetry(() => import("./pages/RefundPolicyPage"))
 const SellerDetailPage = lazyWithRetry(() => import("./pages/SellerDetailPage"));
 const OrderDetailPage = lazyWithRetry(() => import("./pages/OrderDetailPage"));
 const CheckoutDetailPage = lazyWithRetry(() => import("./pages/CheckoutDetailPage"));
-const ProfileEditPage = lazyWithRetry(() => import("./pages/ProfileEditPage"));
+import ProfileEditPage from "./pages/ProfileEditPage";
 const FavoritesPage = lazyWithRetry(() => import("./pages/FavoritesPage"));
 const BecomeSellerPage = lazyWithRetry(() => import("./pages/BecomeSellerPage"));
 const SellerDashboardPage = lazyWithRetry(() => import("./pages/SellerDashboardPage"));
@@ -140,8 +141,8 @@ const ProductDeepLinkPage = lazyWithRetry(() => import("./pages/ProductDeepLinkP
 const PrivacyPolicyPage = lazyWithRetry(() => import("./pages/PrivacyPolicyPage"));
 const DeleteAccountPage = lazyWithRetry(() => import("./pages/DeleteAccountPage"));
 const TermsPage = lazyWithRetry(() => import("./pages/TermsPage"));
-const CategoryGroupPage = lazyWithRetry(() => import("./pages/CategoryGroupPage"));
-const CategoriesPage = lazyWithRetry(() => import("./pages/CategoriesPage"));
+import CategoryGroupPage from "./pages/CategoryGroupPage";
+import CategoriesPage from "./pages/CategoriesPage";
 const DiscoveryListingsPage = lazyWithRetry(() => import("./pages/DiscoveryListingsPage"));
 const PricingPage = lazyWithRetry(() => import("./pages/PricingPage"));
 const HelpPage = lazyWithRetry(() => import("./pages/HelpPage"));

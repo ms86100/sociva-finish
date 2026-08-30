@@ -315,8 +315,12 @@ export function SearchAutocomplete({ query, onSelect }: Props) {
             </div>
             {matchedCategories.map((cat) => (
               <button key={cat.slug} {...optionProps()} onClick={() => navigate(`/category/${cat.parentGroup}?sub=${cat.slug}`)}>
-                <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                  <DynamicIcon name={cat.icon || 'Tag'} size={16} className="text-primary" />
+                <div className="w-8 h-8 rounded-lg bg-primary/10 overflow-hidden flex items-center justify-center shrink-0">
+                  {cat.imageUrl ? (
+                    <img src={cat.imageUrl} alt="" className="w-full h-full object-cover" />
+                  ) : (
+                    <DynamicIcon name={cat.icon || 'Tag'} size={16} className="text-primary" />
+                  )}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5">

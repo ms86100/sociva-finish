@@ -211,7 +211,11 @@ export default function CartPage() {
                     className="flex items-center gap-3 px-3 py-3 border-b border-border last:border-0"
                   >
                     <div className="w-14 h-14 rounded-lg overflow-hidden shrink-0 bg-muted">
-                      {item.product?.image_url ? <img src={item.product.image_url} alt={item.product.name} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-lg">🛍️</div>}
+                      {item.product?.image_url ? (
+                        <img src={item.product.image_url} alt={item.product.name} className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-lg">📦</div>
+                      )}
                     </div>
                     <div className="flex-1 min-w-0">
                       {item.product ? (<>

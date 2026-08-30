@@ -213,8 +213,14 @@ function CategoryBubbleRow({ categories, selectedCategory, onCategoryTap, isLoad
     <div className="taste-rail-scroll scrollbar-hide mb-3">
       <div className="flex gap-2">
         {categories.map((cat) => (
-          <button key={cat.category} onClick={() => onCategoryTap(cat.category)} className={`flex flex-col items-center gap-1 px-3 py-2 rounded-2xl min-w-[68px] transition-all shrink-0 ${selectedCategory === cat.category ? 'bg-primary text-primary-foreground shadow-md scale-[1.03]' : 'bg-muted/60 hover:bg-muted'}`}>
-            <span className="text-xl leading-none"><DynamicIcon name={cat.icon} size={20} /></span>
+          <button key={cat.category} onClick={() => onCategoryTap(cat.category)} className={`flex flex-col items-center gap-1.5 px-3 py-2 rounded-2xl min-w-[68px] transition-all shrink-0 ${selectedCategory === cat.category ? 'bg-primary text-primary-foreground shadow-md scale-[1.03]' : 'bg-muted/60 hover:bg-muted'}`}>
+            <div className="w-9 h-9 rounded-full overflow-hidden flex items-center justify-center bg-background/40 border border-white/20">
+              {cat.imageUrl || (cat as any).image_url ? (
+                <img src={cat.imageUrl || (cat as any).image_url} alt="" className="w-full h-full object-cover" />
+              ) : (
+                <span className="text-xl leading-none"><DynamicIcon name={cat.icon} size={20} /></span>
+              )}
+            </div>
             <span className={`text-[10px] font-medium leading-tight text-center line-clamp-1 ${selectedCategory === cat.category ? 'text-primary-foreground' : 'text-foreground'}`}>{cat.displayName}</span>
           </button>
         ))}
@@ -227,8 +233,8 @@ function CategoryBubbleRow({ categories, selectedCategory, onCategoryTap, isLoad
 function ProductGridByCategory({ products, facetRows, categoryMap, categoryConfigs, marketplaceConfig, badgeConfigs, showCount, onNavigate, onProductTap }: {
   products: ProductSearchResult[];
   facetRows?: Record<string, ProductFacetRow>;
-  categoryMap: Record<string, { icon: string; displayName: string; color: string }>;
-  categoryConfigs: { category: string; displayName: string; icon: string; behavior?: any }[];
+  categoryMap: Record<string, { icon: string; displayName: string; color: string; imageUrl?: string | null }>;
+  categoryConfigs: { category: string; displayName: string; icon: string; imageUrl?: string; behavior?: any }[];
   marketplaceConfig?: MarketplaceConfig;
   badgeConfigs?: BadgeConfigRow[];
   showCount?: boolean;
@@ -251,7 +257,13 @@ function ProductGridByCategory({ products, facetRows, categoryMap, categoryConfi
         return (
           <div key={cat}>
             <div className="flex items-center gap-2 mb-2">
-              <span className="text-base leading-none"><DynamicIcon name={catInfo?.icon || 'Package'} size={18} /></span>
+              <div className="w-6 h-6 rounded-md overflow-hidden flex items-center justify-center shrink-0 bg-muted">
+                {catInfo?.imageUrl ? (
+                  <img src={catInfo.imageUrl} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  <span className="text-base leading-none"><DynamicIcon name={catInfo?.icon || 'Package'} size={14} /></span>
+                )}
+              </div>
               <h3 className="font-bold text-sm text-foreground">{catInfo?.displayName || cat}</h3>
               <span className="text-xs text-muted-foreground">({items.length})</span>
               <span className="text-[11px] font-semibold text-accent ml-auto">From {formatPrice(Math.min(...items.map(p => p.price)))}</span>

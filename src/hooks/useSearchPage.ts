@@ -108,9 +108,9 @@ export function useSearchPage() {
   const needsPreciseLocation = !hasCoords;
 
   const categoryMap = useMemo(() => {
-    const m: Record<string, { icon: string; displayName: string; color: string; supportsCart?: boolean; enquiryOnly?: boolean; requiresTimeSlot?: boolean }> = {};
+    const m: Record<string, { icon: string; displayName: string; color: string; imageUrl?: string | null; supportsCart?: boolean; enquiryOnly?: boolean; requiresTimeSlot?: boolean }> = {};
     categoryConfigs.forEach((c) => {
-      m[c.category] = { icon: c.icon, displayName: c.displayName, color: c.color, supportsCart: c.behavior?.supportsCart ?? false, enquiryOnly: c.behavior?.enquiryOnly ?? false, requiresTimeSlot: c.behavior?.requiresTimeSlot ?? false };
+      m[c.category] = { icon: c.icon, displayName: c.displayName, color: c.color, imageUrl: (c as any).imageUrl || (c as any).image_url || null, supportsCart: c.behavior?.supportsCart ?? false, enquiryOnly: c.behavior?.enquiryOnly ?? false, requiresTimeSlot: c.behavior?.requiresTimeSlot ?? false };
     });
     return m;
   }, [categoryConfigs]);

@@ -32,6 +32,6 @@ describe('category taxonomy and capability realignment', () => {
     expect(offering).toContain('What do you offer?');
     expect(offering).toContain('Add another');
     const bootstrap = read('src/lib/app-bootstrap.ts');
-    expect(bootstrap).toMatch(/app-bootstrap-v3/);
+    expect(bootstrap).toMatch(/app-bootstrap-v4/);
   });
 });

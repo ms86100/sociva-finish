@@ -11,6 +11,7 @@ export interface DiscoveryCategoryInput {
   parentGroup: string;
   displayName: string;
   icon: string;
+  imageUrl?: string | null;
   products: Array<{
     id?: string;
     image_url?: string | null;
@@ -63,7 +64,7 @@ export function buildDiscoveryIntents(
       id: `cat:${g.category}`,
       label: g.displayName,
       icon: g.icon,
-      imageUrl: firstImage(g.products),
+      imageUrl: firstImage(g.products) || g.imageUrl || null,
       count: g.products.length,
       href: `/category/${g.parentGroup}?sub=${encodeURIComponent(g.category)}`,
       kind: 'category' as const,
@@ -84,7 +85,7 @@ export function buildDiscoveryIntents(
         id: `mood:${mood.id}`,
         label: mood.label,
         icon: mood.emoji,
-        imageUrl: firstImage(foodProducts.filter((p) => productMatchesFoodFacets(p, facet as any))),
+        imageUrl: firstImage(foodProducts.filter((p) => productMatchesFoodFacets(p, facet as any))) || mood.imageUrl || null,
         count,
         href: foodFacetsBrowsePath('food_beverages', { [mood.facet]: mood.value }),
         kind: 'food_mood',

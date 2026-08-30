@@ -191,8 +191,9 @@ function ProductListingCardInner({ product, layout = 'auto', onTap, onNavigate, 
     handleAdd(e);
   }, [handleAdd]);
 
-  const imgSrc = product.image_url ? optimizedImageUrl(product.image_url, { width: 400, quality: 78 }) : '';
-  const imgSrcSet = product.image_url ? imageSrcSet(product.image_url, 78) : '';
+  const fallbackCatImage = catConfig?.imageUrl || (catConfig as any)?.image_url || null;
+  const imgSrc = (product.image_url || fallbackCatImage) ? optimizedImageUrl(product.image_url || fallbackCatImage, { width: 400, quality: 78 }) : '';
+  const imgSrcSet = (product.image_url || fallbackCatImage) ? imageSrcSet(product.image_url || fallbackCatImage, 78) : '';
 
   return (
     <motion.div
@@ -224,11 +225,11 @@ function ProductListingCardInner({ product, layout = 'auto', onTap, onNavigate, 
           compact ? 'h-[148px]' : 'aspect-[4/5] sm:aspect-square'
         )}>
           {/* Shimmer placeholder until image loads */}
-          {product.image_url && !imgLoaded && (
+          {(product.image_url || fallbackCatImage) && !imgLoaded && (
             <div className="absolute inset-0 product-image-shimmer" aria-hidden />
           )}
 
-          {product.image_url ? (
+          {(product.image_url || fallbackCatImage) ? (
             <img
               src={imgSrc}
               srcSet={imgSrcSet || undefined}

@@ -304,22 +304,23 @@ export interface TasteMood {
   label: string;
   facet: TasteMoodFacet;
   value: FoodCuisineId | FoodMealId | FoodCourseId;
+  imageUrl?: string;
 }
 
 /** Curated one-tap moods for browse. Full cuisine × meal × course lives in the Taste sheet. */
 export const TASTE_MOODS: readonly TasteMood[] = [
-  { id: 'breakfast', emoji: MEAL_EMOJI.breakfast, label: 'Breakfast', facet: 'meal', value: 'breakfast' },
-  { id: 'lunch', emoji: MEAL_EMOJI.lunch, label: 'Lunch', facet: 'meal', value: 'lunch' },
-  { id: 'dinner', emoji: MEAL_EMOJI.dinner, label: 'Dinner', facet: 'meal', value: 'dinner' },
-  { id: 'snack', emoji: MEAL_EMOJI.snack, label: 'Snacks', facet: 'meal', value: 'snack' },
-  { id: 'north_indian', emoji: CUISINE_EMOJI.north_indian, label: 'North', facet: 'cuisine', value: 'north_indian' },
-  { id: 'south_indian', emoji: CUISINE_EMOJI.south_indian, label: 'South', facet: 'cuisine', value: 'south_indian' },
-  { id: 'chinese', emoji: CUISINE_EMOJI.chinese, label: 'Chinese', facet: 'cuisine', value: 'chinese' },
-  { id: 'tandoori', emoji: CUISINE_EMOJI.tandoori, label: 'Tandoori', facet: 'cuisine', value: 'tandoori' },
-  { id: 'continental', emoji: CUISINE_EMOJI.continental, label: 'Continental', facet: 'cuisine', value: 'continental' },
-  { id: 'appetizer', emoji: COURSE_EMOJI.appetizer, label: 'Starters', facet: 'course', value: 'appetizer' },
-  { id: 'main', emoji: COURSE_EMOJI.main, label: 'Mains', facet: 'course', value: 'main' },
-  { id: 'dessert', emoji: COURSE_EMOJI.dessert, label: 'Dessert', facet: 'course', value: 'dessert' },
+  { id: 'breakfast', emoji: MEAL_EMOJI.breakfast, label: 'Breakfast', facet: 'meal', value: 'breakfast', imageUrl: 'https://images.unsplash.com/photo-1589301760014-d929f3979dbc?auto=format&fit=crop&w=120&q=75' },
+  { id: 'lunch', emoji: MEAL_EMOJI.lunch, label: 'Lunch', facet: 'meal', value: 'lunch', imageUrl: 'https://images.unsplash.com/photo-1546833999-b9f581a1996d?auto=format&fit=crop&w=120&q=75' },
+  { id: 'dinner', emoji: MEAL_EMOJI.dinner, label: 'Dinner', facet: 'meal', value: 'dinner', imageUrl: 'https://images.unsplash.com/photo-1631452180519-c014fe946bc7?auto=format&fit=crop&w=120&q=75' },
+  { id: 'snack', emoji: MEAL_EMOJI.snack, label: 'Snacks', facet: 'meal', value: 'snack', imageUrl: 'https://images.unsplash.com/photo-1599599810769-bcde5a160d32?auto=format&fit=crop&w=120&q=75' },
+  { id: 'north_indian', emoji: CUISINE_EMOJI.north_indian, label: 'North', facet: 'cuisine', value: 'north_indian', imageUrl: 'https://images.unsplash.com/photo-1565557623262-b51c2513a641?auto=format&fit=crop&w=120&q=75' },
+  { id: 'south_indian', emoji: CUISINE_EMOJI.south_indian, label: 'South', facet: 'cuisine', value: 'south_indian', imageUrl: 'https://images.unsplash.com/photo-1668236543090-82eba5ee5976?auto=format&fit=crop&w=120&q=75' },
+  { id: 'chinese', emoji: CUISINE_EMOJI.chinese, label: 'Chinese', facet: 'cuisine', value: 'chinese', imageUrl: 'https://images.unsplash.com/photo-1612927601601-6638404737ce?auto=format&fit=crop&w=120&q=75' },
+  { id: 'tandoori', emoji: CUISINE_EMOJI.tandoori, label: 'Tandoori', facet: 'cuisine', value: 'tandoori', imageUrl: 'https://images.unsplash.com/photo-1599488615731-7e5c2823ff28?auto=format&fit=crop&w=120&q=75' },
+  { id: 'continental', emoji: CUISINE_EMOJI.continental, label: 'Continental', facet: 'cuisine', value: 'continental', imageUrl: 'https://images.unsplash.com/photo-1606313564200-e75d5e30476c?auto=format&fit=crop&w=120&q=75' },
+  { id: 'appetizer', emoji: COURSE_EMOJI.appetizer, label: 'Starters', facet: 'course', value: 'appetizer', imageUrl: 'https://images.unsplash.com/photo-1599488615731-7e5c2823ff28?auto=format&fit=crop&w=120&q=75' },
+  { id: 'main', emoji: COURSE_EMOJI.main, label: 'Mains', facet: 'course', value: 'main', imageUrl: 'https://images.unsplash.com/photo-1546833999-b9f581a1996d?auto=format&fit=crop&w=120&q=75' },
+  { id: 'dessert', emoji: COURSE_EMOJI.dessert, label: 'Dessert', facet: 'course', value: 'dessert', imageUrl: 'https://images.unsplash.com/photo-1606313564200-e75d5e30476c?auto=format&fit=crop&w=120&q=75' },
 ] as const;
 
 export function availableTasteMoods(

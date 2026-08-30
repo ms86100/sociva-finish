@@ -41,15 +41,13 @@ export default function CategoryGroupPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const subCategory = searchParams.get('sub') as ServiceCategory | null;
 
-  
-  const { groupedConfigs, configs, isLoading: configsLoading } = useCategoryConfigs();
+  const { groupedConfigs, configs: categoryConfigs, isLoading: configsLoading } = useCategoryConfigs();
   const { getGroupBySlug, isLoading: groupsLoading } = useParentGroups();
   const [activeSubCategory, setActiveSubCategory] = useState<ServiceCategory | null>(subCategory);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<SortKey>('relevance');
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [detailOpen, setDetailOpen] = useState(false);
-  const { configs: categoryConfigs } = useCategoryConfigs();
 
   const handleProductTap = useCallback((product: ProductWithSeller) => {
     const catConfig = categoryConfigs.find(c => c.category === product.category);
@@ -246,16 +244,22 @@ export default function CategoryGroupPage() {
         <div className="px-4 pt-1 pb-2">
           <div className="flex items-center gap-2.5 mb-2.5">
             <BackButton fallback="/" />
-            <h1 className="text-base font-bold flex items-center gap-1.5 flex-1 min-w-0">
-              <DynamicIcon name={parentGroup.icon} size={18} />
-              <span className="truncate">{parentGroup.label}</span>
+            <h1 className="text-base font-bold flex items-center gap-2 flex-1 min-w-0">
+              {parentGroup && (parentGroup.imageUrl || (parentGroup as any).image_url) ? (
+                <span className="w-6 h-6 rounded-lg overflow-hidden shrink-0 inline-flex items-center justify-center border border-border/30">
+                  <img src={parentGroup.imageUrl || (parentGroup as any).image_url} alt="" className="w-full h-full object-cover" />
+                </span>
+              ) : (
+                <DynamicIcon name={parentGroup?.icon || 'Package'} size={18} />
+              )}
+              <span className="truncate">{parentGroup?.label || category}</span>
             </h1>
           </div>
 
           <div className="relative mb-2">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <Input
-              placeholder={`Search in ${parentGroup.label}…`}
+              placeholder={`Search in ${parentGroup?.label || 'category'}…`}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-9 pr-8 h-9 bg-muted border-0 rounded-xl text-sm focus-visible:ring-1"
@@ -296,13 +300,19 @@ export default function CategoryGroupPage() {
                     key={config.category}
                     onClick={() => handleSubCategorySelect(config.category)}
                     className={cn(
-                      'px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap border transition-colors flex items-center gap-1',
+                      'px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap border transition-colors flex items-center gap-1.5',
                       activeSubCategory === config.category
                         ? 'bg-foreground text-background border-foreground'
                         : 'bg-background text-foreground border-border'
                     )}
                   >
-                    <DynamicIcon name={config.icon} size={12} />
+                    {config.imageUrl || (config as any).image_url ? (
+                      <span className="w-3.5 h-3.5 rounded-full overflow-hidden shrink-0 inline-flex items-center justify-center">
+                        <img src={config.imageUrl || (config as any).image_url} alt="" className="w-full h-full object-cover" />
+                      </span>
+                    ) : (
+                      <DynamicIcon name={config.icon} size={12} />
+                    )}
                     {config.displayName}
                   </button>
                 ))}
@@ -349,7 +359,13 @@ export default function CategoryGroupPage() {
         ) : (
           <div className="text-center py-16">
             <div className="mb-4 flex justify-center">
-              <DynamicIcon name={parentGroup.icon} size={40} className="text-muted-foreground" />
+              {parentGroup && (parentGroup.imageUrl || (parentGroup as any).image_url) ? (
+                <div className="w-16 h-16 rounded-2xl overflow-hidden shadow-sm border border-border/40">
+                  <img src={parentGroup.imageUrl || (parentGroup as any).image_url} alt="" className="w-full h-full object-cover" />
+                </div>
+              ) : (
+                <DynamicIcon name={parentGroup?.icon || 'Package'} size={40} className="text-muted-foreground" />
+              )}
             </div>
             <h3 className="font-semibold text-sm mb-2">No items found</h3>
             <p className="text-xs text-muted-foreground mb-4">
@@ -371,7 +387,7 @@ export default function CategoryGroupPage() {
             <div className="flex items-center gap-2 mb-4 px-0.5">
               <span className="text-base" aria-hidden>⭐</span>
               <h3 className="font-extrabold text-sm tracking-tight text-foreground">
-                Top Sellers in {parentGroup.label}
+                Top Sellers in {parentGroup?.label || ''}
               </h3>
             </div>
             {/* marketplace-stack uses gap — space-y margins do not apply to inline <a>/Link roots */}

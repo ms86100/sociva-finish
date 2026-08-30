@@ -11,6 +11,7 @@ interface CategoryGroup {
   parentGroup: string;
   displayName: string;
   icon: string;
+  imageUrl?: string | null;
   products: ProductWithSeller[];
 }
 
@@ -31,7 +32,12 @@ export function useProductsByCategory(limit = 50) {
     const configMap = new Map(
       (configs || []).map((c: any) => [
         c.category,
-        { parent_group: c.parent_group || c.parentGroup, display_name: c.display_name || c.displayName, icon: c.icon },
+        {
+          parent_group: c.parent_group || c.parentGroup,
+          display_name: c.display_name || c.displayName,
+          icon: c.icon,
+          imageUrl: c.image_url || c.imageUrl || null,
+        },
       ])
     );
 
@@ -61,6 +67,7 @@ export function useProductsByCategory(limit = 50) {
         parentGroup: cfg?.parent_group || category,
         displayName: cfg?.display_name || category,
         icon: cfg?.icon || '📦',
+        imageUrl: cfg?.imageUrl || null,
         products: items,
       });
     }

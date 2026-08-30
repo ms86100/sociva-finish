@@ -282,7 +282,17 @@ export function ProductDetailSheet({ product, open, onOpenChange, onSelectProduc
               {/* Seller card with slide-in */}
               <motion.div variants={slideFromLeft}>
                 <Link to={`/seller/${product.seller_id}`} onClick={() => onOpenChange(false)} className="flex items-center gap-3 bg-muted rounded-xl p-3">
-                  <div className="w-10 h-10 rounded-xl bg-card flex items-center justify-center border border-border/30"><Store size={18} className="text-muted-foreground" /></div>
+                  <div className="w-10 h-10 rounded-xl bg-card overflow-hidden flex items-center justify-center border border-border/30">
+                    {(product as any).seller_profile_image_url || (product as any).seller?.profile_image_url ? (
+                      <img
+                        src={(product as any).seller_profile_image_url || (product as any).seller?.profile_image_url}
+                        alt=""
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <Store size={18} className="text-muted-foreground" />
+                    )}
+                  </div>
                   <div className="flex-1 min-w-0">
                     <p className="font-semibold text-sm text-foreground truncate">{product.seller_name}</p>
                     <div className="flex items-center gap-2 mt-0.5 flex-wrap">

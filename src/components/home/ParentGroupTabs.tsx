@@ -135,7 +135,7 @@ export function ParentGroupTabs({ activeGroup, onGroupChange, activeParentGroups
               )}
 
               <div className={cn(
-                'relative w-6 h-6 rounded-full flex items-center justify-center transition-colors duration-300',
+                'relative w-6 h-6 rounded-full flex items-center justify-center transition-colors duration-300 overflow-hidden',
                 takeover.active
                   ? isActive ? 'bg-white/20' : 'bg-white/10'
                   : isActive ? accent.iconBg : 'bg-muted/40'
@@ -144,6 +144,8 @@ export function ParentGroupTabs({ activeGroup, onGroupChange, activeParentGroups
                   <DynamicIcon name="LayoutGrid" size={12} />
                 ) : isFestival ? (
                   <DynamicIcon name="Sparkles" size={12} />
+                ) : tab.imageUrl ? (
+                  <img src={tab.imageUrl} alt="" className="w-full h-full object-cover" />
                 ) : (
                   <span className="text-xs">{tab.icon || '📦'}</span>
                 )}

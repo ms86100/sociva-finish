@@ -86,7 +86,7 @@ describe('app bootstrap', () => {
     const first = await freshModule();
     await first.loadAppBootstrap();
     expect(rpc).toHaveBeenCalledTimes(1);
-    expect(localStorage.getItem('app-bootstrap-v3')).toBeTruthy();
+    expect(localStorage.getItem('app-bootstrap-v4')).toBeTruthy();
 
     // New page load: module re-evaluates, localStorage survives.
     rpc.mockClear();
@@ -106,7 +106,7 @@ describe('app bootstrap', () => {
       badgeConfigRows: [],
       fetchedAt: Date.now() - 60 * 60 * 1000, // 1h old, past the 30m TTL
     };
-    localStorage.setItem('app-bootstrap-v3', JSON.stringify(stale));
+    localStorage.setItem('app-bootstrap-v4', JSON.stringify(stale));
 
     const { loadAppBootstrap } = await freshModule();
     const boot = await loadAppBootstrap();

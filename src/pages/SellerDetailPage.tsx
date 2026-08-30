@@ -737,6 +737,7 @@ export default function SellerDetailPage() {
               <div className="flex gap-2 overflow-x-auto scrollbar-hide mb-4 -mx-4 px-4 sticky top-0 z-10 bg-background py-2 border-b border-border/50">
                 {categories.map((cat) => {
                   const categoryInfo = allCategoryConfigs.find((c) => c.category === cat);
+                  const catImage = categoryInfo?.imageUrl || (categoryInfo as any)?.image_url;
                   return (
                     <button
                       key={cat}
@@ -746,12 +747,17 @@ export default function SellerDetailPage() {
                         const el = document.getElementById(`seller-cat-${cat}`);
                         if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
                       }}
-                      className={`px-3 py-1.5 rounded-full text-sm whitespace-nowrap transition-colors ${
+                      className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-colors flex items-center gap-1.5 ${
                         activeCategory === cat
                           ? 'bg-primary text-primary-foreground'
                           : 'bg-muted text-muted-foreground'
                       }`}
                     >
+                      {cat !== 'all' && catImage && (
+                        <span className="w-3.5 h-3.5 rounded-full overflow-hidden shrink-0 inline-flex items-center justify-center border border-white/40">
+                          <img src={catImage} alt="" className="w-full h-full object-cover" />
+                        </span>
+                      )}
                       {cat === 'all' ? 'All' : categoryInfo?.displayName || cat}
                     </button>
                   );

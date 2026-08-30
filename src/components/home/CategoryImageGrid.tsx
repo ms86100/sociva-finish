@@ -140,7 +140,7 @@ function CategoryCard({
 }) {
   const images = meta.images.length > 0
     ? meta.images
-    : cat.imageUrl ? [cat.imageUrl] : [];
+    : (cat.imageUrl || (cat as any).image_url) ? [cat.imageUrl || (cat as any).image_url] : [];
 
   const isWide = variant === 'wide';
 

@@ -1,5 +1,6 @@
 import { isFoodParentGroup, productMatchesFoodFacets, TASTE_MOODS, type TasteMood } from './food-facets';
 import { computeStoreStatus } from './store-availability';
+import { ACTION_MODE_IMAGES, SERVICE_MODE_IMAGES, DURATION_IMAGES } from './filter-images';
 
 export interface CommerceFacetState {
   // Food facets
@@ -66,6 +67,7 @@ export interface DynamicFacetChip {
   label: string;
   emoji?: string;
   icon?: string;
+  imageUrl?: string;
   count: number;
   type: 'food_mood' | 'action_type' | 'service_mode' | 'duration' | 'price' | 'subcategory';
   value: any;
@@ -269,6 +271,7 @@ export function extractAvailableCommerceFacets(
           id: `mood:${mood.id}`,
           label: mood.label,
           emoji: mood.emoji,
+          imageUrl: (mood as any).imageUrl,
           count,
           type: 'food_mood',
           value: { facet: mood.facet, value: mood.value },
@@ -309,6 +312,7 @@ export function extractAvailableCommerceFacets(
         id: `action:${action}`,
         label: actionLabels[action].label,
         emoji: actionLabels[action].emoji,
+        imageUrl: ACTION_MODE_IMAGES[action],
         count,
         type: 'action_type',
         value: action,
@@ -343,6 +347,7 @@ export function extractAvailableCommerceFacets(
         id: `mode:${mode}`,
         label: modeLabels[mode].label,
         emoji: modeLabels[mode].emoji,
+        imageUrl: SERVICE_MODE_IMAGES[mode],
         count,
         type: 'service_mode',
         value: mode,
@@ -361,6 +366,7 @@ export function extractAvailableCommerceFacets(
       id: 'dur:30',
       label: '≤ 30 min',
       emoji: '⚡',
+      imageUrl: DURATION_IMAGES['30'],
       count,
       type: 'duration',
       value: 30,
@@ -373,6 +379,7 @@ export function extractAvailableCommerceFacets(
       id: 'dur:60',
       label: '≤ 60 min',
       emoji: '⏱️',
+      imageUrl: DURATION_IMAGES['60'],
       count,
       type: 'duration',
       value: 60,

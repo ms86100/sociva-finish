@@ -50,7 +50,7 @@ export function CategoryGroupGrid({
     const visibleGroups = filteredGroups.filter(g => groupedConfigs[g.value]?.length > 0);
     return (
       <div className="flex gap-3 overflow-x-auto scrollbar-hide -mx-4 px-4 py-1">
-        {visibleGroups.map(({ value, label, icon, color }) => (
+        {visibleGroups.map(({ value, label, icon, color, imageUrl }) => (
           <Link
             key={value}
             to={`/category/${value}`}
@@ -58,11 +58,15 @@ export function CategoryGroupGrid({
           >
             <div
               className={cn(
-                'w-14 h-14 rounded-xl flex items-center justify-center text-2xl transition-transform group-hover:scale-105',
+                'w-14 h-14 rounded-xl flex items-center justify-center text-2xl transition-transform group-hover:scale-105 overflow-hidden',
                 'bg-muted/60 border border-border/30'
               )}
             >
-              <DynamicIcon name={icon} size={24} />
+              {imageUrl ? (
+                <img src={imageUrl} alt={label} className="w-full h-full object-cover" />
+              ) : (
+                <DynamicIcon name={icon} size={24} />
+              )}
             </div>
             <span className="text-[10px] font-medium text-center leading-tight text-foreground line-clamp-2 max-w-[64px]">
               {label}
@@ -77,15 +81,19 @@ export function CategoryGroupGrid({
   if (variant === 'expanded') {
     return (
       <div className="space-y-6">
-        {filteredGroups.filter(g => groupedConfigs[g.value]?.length > 0).map(({ value, label, icon, color, description }) => (
+        {filteredGroups.filter(g => groupedConfigs[g.value]?.length > 0).map(({ value, label, icon, color, description, imageUrl }) => (
           <div key={value} className="space-y-3">
             <button
               onClick={() => setExpandedGroup(expandedGroup === value ? null : value)}
               className="w-full flex items-center justify-between"
             >
               <div className="flex items-center gap-3">
-                <div className={cn('w-10 h-10 rounded-xl flex items-center justify-center text-lg', color)}>
-                  <DynamicIcon name={icon} size={18} />
+                <div className={cn('w-10 h-10 rounded-xl flex items-center justify-center text-lg overflow-hidden', color)}>
+                  {imageUrl ? (
+                    <img src={imageUrl} alt={label} className="w-full h-full object-cover" />
+                  ) : (
+                    <DynamicIcon name={icon} size={18} />
+                  )}
                 </div>
                 <div className="text-left">
                   <h3 className="font-semibold">{label}</h3>
@@ -105,9 +113,15 @@ export function CategoryGroupGrid({
                   <Link
                     key={config.category}
                     to={`/category/${value}?sub=${config.category}`}
-                    className="flex flex-col items-center gap-1 p-2 rounded-lg bg-muted hover:bg-muted/80 transition-colors"
+                    className="flex flex-col items-center gap-1.5 p-2 rounded-lg bg-muted hover:bg-muted/80 transition-colors"
                   >
-                    <DynamicIcon name={config.icon} size={20} />
+                    <div className="w-8 h-8 rounded-md overflow-hidden flex items-center justify-center bg-background/50">
+                      {config.imageUrl || config.image_url ? (
+                        <img src={config.imageUrl || config.image_url} alt={config.displayName} className="w-full h-full object-cover" />
+                      ) : (
+                        <DynamicIcon name={config.icon} size={20} />
+                      )}
+                    </div>
                     <span className="text-xs font-medium text-center">{config.displayName}</span>
                   </Link>
                 ))}
@@ -124,7 +138,7 @@ export function CategoryGroupGrid({
     return (
       <div className="space-y-4">
         <div className="grid grid-cols-2 gap-3">
-          {filteredGroups.filter(g => groupedConfigs[g.value]?.length > 0).map(({ value, label, icon, color }) => (
+          {filteredGroups.filter(g => groupedConfigs[g.value]?.length > 0).map(({ value, label, icon, color, imageUrl }) => (
             <button
               key={value}
               onClick={() => onGroupSelect?.(value)}
@@ -135,8 +149,12 @@ export function CategoryGroupGrid({
                   : 'border-border hover:border-muted-foreground/30'
               )}
             >
-              <div className={cn('w-10 h-10 rounded-lg flex items-center justify-center text-lg', color)}>
-                <DynamicIcon name={icon} size={20} />
+              <div className={cn('w-10 h-10 rounded-lg flex items-center justify-center text-lg overflow-hidden', color)}>
+                {imageUrl ? (
+                  <img src={imageUrl} alt={label} className="w-full h-full object-cover" />
+                ) : (
+                  <DynamicIcon name={icon} size={20} />
+                )}
               </div>
               <span className="font-medium text-sm">{label}</span>
             </button>
@@ -160,7 +178,13 @@ export function CategoryGroupGrid({
                         : 'border-border hover:border-muted-foreground/30'
                     )}
                   >
-                    <DynamicIcon name={config.icon} size={18} />
+                    <div className="w-6 h-6 rounded-md overflow-hidden flex items-center justify-center shrink-0 bg-background/50">
+                      {config.imageUrl || config.image_url ? (
+                        <img src={config.imageUrl || config.image_url} alt="" className="w-full h-full object-cover" />
+                      ) : (
+                        <DynamicIcon name={config.icon} size={16} />
+                      )}
+                    </div>
                     <span className="text-sm font-medium">{config.displayName}</span>
                   </button>
                 );

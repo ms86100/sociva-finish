@@ -9,6 +9,7 @@ export interface ParentGroupRow {
   slug: string;
   name: string;
   icon: string;
+  image_url?: string | null;
   color: string;
   description: string;
   is_active: boolean;
@@ -28,6 +29,7 @@ export interface ParentGroupInfo {
   value: string;
   label: string;
   icon: string;
+  imageUrl?: string | null;
   color: string;
   description: string;
   layoutType: 'ecommerce' | 'food' | 'service';
@@ -81,6 +83,7 @@ export function useParentGroups() {
       value: g.slug,
       label: g.name,
       icon: g.icon,
+      imageUrl: g.image_url || (g as any).imageUrl || null,
       color: g.color,
       description: g.description,
       layoutType: (g.layout_type as 'ecommerce' | 'food' | 'service') || 'ecommerce',
@@ -99,6 +102,7 @@ export function useParentGroups() {
       value: raw.slug,
       label: raw.name,
       icon: raw.icon,
+      imageUrl: raw.image_url || (raw as any).imageUrl || null,
       color: raw.color,
       description: raw.description,
       layoutType: (raw.layout_type as 'ecommerce' | 'food' | 'service') || 'ecommerce',

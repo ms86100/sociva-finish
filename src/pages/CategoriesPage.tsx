@@ -77,15 +77,19 @@ function ImageCollage({ images, fallbackIcon, fallbackUrl, alt, color }: {
   if (images.length === 0) {
     return (
       <div
-        className="absolute inset-0 flex items-center justify-center"
+        className="absolute inset-0 flex items-center justify-center overflow-hidden"
         style={{ backgroundColor: color ? `${color}20` : 'hsl(var(--secondary))' }}
       >
-        <div
-          className="w-14 h-14 rounded-2xl flex items-center justify-center"
-          style={{ backgroundColor: color ? `${color}30` : undefined }}
-        >
-          <DynamicIcon name={fallbackIcon} size={28} className="text-foreground/60" style={color ? { color } : undefined} />
-        </div>
+        {fallbackUrl ? (
+          <img src={fallbackUrl} alt={alt} className="w-full h-full object-cover" loading="lazy" />
+        ) : (
+          <div
+            className="w-14 h-14 rounded-2xl flex items-center justify-center"
+            style={{ backgroundColor: color ? `${color}30` : undefined }}
+          >
+            <DynamicIcon name={fallbackIcon} size={28} className="text-foreground/60" style={color ? { color } : undefined} />
+          </div>
+        )}
       </div>
     );
   }
@@ -228,13 +232,19 @@ export default function CategoriesPage() {
               key={g.slug}
               onClick={() => handlePillClick(g.slug)}
               className={cn(
-                'px-3 py-1.5 rounded-full text-[11px] font-semibold whitespace-nowrap transition-all border snap-start min-w-[auto] flex items-center gap-1',
+                'px-3 py-1.5 rounded-full text-[11px] font-semibold whitespace-nowrap transition-all border snap-start min-w-[auto] flex items-center gap-1.5',
                 activeGroup === g.slug
                   ? 'bg-primary text-primary-foreground border-primary scale-105'
                   : 'bg-card text-muted-foreground border-border active:scale-[0.97]'
               )}
             >
-              <DynamicIcon name={g.icon || 'Package'} size={12} />
+              {g.imageUrl || (g as any).image_url ? (
+                <span className="w-3.5 h-3.5 rounded-full overflow-hidden shrink-0 inline-flex items-center justify-center">
+                  <img src={g.imageUrl || (g as any).image_url} alt="" className="w-full h-full object-cover" />
+                </span>
+              ) : (
+                <DynamicIcon name={g.icon || 'Package'} size={12} />
+              )}
               {g.name}
             </button>
           ))}
@@ -317,7 +327,14 @@ export default function CategoriesPage() {
                       color: group.color || 'hsl(var(--primary))',
                     }}
                   >
-                    <DynamicIcon name={group.icon || 'Package'} size={13} /> {group.name}
+                    {group.imageUrl || (group as any).image_url ? (
+                      <span className="w-4 h-4 rounded-full overflow-hidden shrink-0 inline-flex items-center justify-center">
+                        <img src={group.imageUrl || (group as any).image_url} alt="" className="w-full h-full object-cover" />
+                      </span>
+                    ) : (
+                      <DynamicIcon name={group.icon || 'Package'} size={13} />
+                    )}
+                    {group.name}
                   </span>
                   <span className="text-[10px] text-muted-foreground">({group.categories.length})</span>
                   <div className="flex-1 h-px bg-border" />
@@ -330,7 +347,7 @@ export default function CategoriesPage() {
                     const pastelColor = getCategoryPastel(cat.category, cat.color);
                     const images = meta.collageImages.length > 0
                       ? meta.collageImages
-                      : cat.imageUrl ? [cat.imageUrl] : [];
+                      : (cat.imageUrl || (cat as any).image_url) ? [cat.imageUrl || (cat as any).image_url] : [];
                     return (
                       <motion.div
                         key={cat.category}
@@ -357,8 +374,12 @@ export default function CategoriesPage() {
                                   <img src={images[0]} alt={cat.displayName} className="w-full h-full object-cover" loading="lazy" />
                                 </div>
                               ) : (
-                                <div className="flex-1 h-full flex items-center justify-center rounded-xl bg-white/40">
-                                  <DynamicIcon name={cat.icon} size={36} className="text-gray-400" />
+                                <div className="flex-1 h-full flex items-center justify-center rounded-xl bg-white/40 overflow-hidden">
+                                  {cat.imageUrl || (cat as any).image_url ? (
+                                    <img src={cat.imageUrl || (cat as any).image_url} alt={cat.displayName} className="w-full h-full object-cover" loading="lazy" />
+                                  ) : (
+                                    <DynamicIcon name={cat.icon} size={36} className="text-gray-400" />
+                                  )}
                                 </div>
                               )}
                             </div>

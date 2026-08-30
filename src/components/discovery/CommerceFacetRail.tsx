@@ -20,6 +20,7 @@ import {
   type FoodCuisineId,
   type FoodMealId,
 } from '@/lib/food-facets';
+import { CUISINE_IMAGES, MEAL_IMAGES, COURSE_IMAGES } from '@/lib/filter-images';
 import {
   Drawer,
   DrawerContent,
@@ -170,13 +171,15 @@ export function CommerceFacetRail({
                 onChange({ ...value, veg: !value.veg });
               }}
               className={cn(
-                'flex shrink-0 items-center gap-1 rounded-full border px-2.5 py-1.5 text-[11px] font-semibold transition-colors',
+                'flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-[11px] font-semibold transition-colors',
                 value.veg
                   ? 'border-emerald-500/60 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-bold'
                   : 'border-border/70 bg-background/80 text-muted-foreground'
               )}
             >
-              <span className="text-[11px]">🥬</span>
+              <span className="w-3.5 h-3.5 rounded-full overflow-hidden shrink-0 flex items-center justify-center border border-emerald-500/40">
+                <img src="https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=80&q=75" alt="" className="w-full h-full object-cover" />
+              </span>
               Veg Only
             </button>
           )}
@@ -194,7 +197,13 @@ export function CommerceFacetRail({
                   : 'border-border/80 bg-background/90 text-foreground hover:border-primary/40'
               )}
             >
-              {chip.emoji && <span className="text-xs">{chip.emoji}</span>}
+              {chip.imageUrl ? (
+                <span className="w-4 h-4 rounded-full overflow-hidden shrink-0 flex items-center justify-center border border-white/40">
+                  <img src={chip.imageUrl} alt="" className="w-full h-full object-cover" />
+                </span>
+              ) : chip.emoji ? (
+                <span className="text-xs">{chip.emoji}</span>
+              ) : null}
               <span>{chip.label}</span>
               <span
                 className={cn(
@@ -258,6 +267,7 @@ export function CommerceFacetRail({
                       <TasteSheetChip
                         key={opt.id}
                         emoji={CUISINE_EMOJI[opt.id as FoodCuisineId]}
+                        imageUrl={CUISINE_IMAGES[opt.id]}
                         label={opt.label}
                         count={count}
                         active={active}
@@ -274,6 +284,7 @@ export function CommerceFacetRail({
                       <TasteSheetChip
                         key={opt.id}
                         emoji={MEAL_EMOJI[opt.id as FoodMealId]}
+                        imageUrl={MEAL_IMAGES[opt.id]}
                         label={opt.label}
                         count={count}
                         active={active}
@@ -290,6 +301,7 @@ export function CommerceFacetRail({
                       <TasteSheetChip
                         key={opt.id}
                         emoji={COURSE_EMOJI[opt.id as FoodCourseId]}
+                        imageUrl={COURSE_IMAGES[opt.id]}
                         label={opt.label}
                         count={count}
                         active={active}
@@ -319,7 +331,13 @@ export function CommerceFacetRail({
                             : 'bg-card border-border text-foreground hover:border-primary/40'
                         )}
                       >
-                        {chip.emoji && <span>{chip.emoji}</span>}
+                        {chip.imageUrl ? (
+                          <span className="w-4 h-4 rounded-full overflow-hidden shrink-0 inline-flex items-center justify-center border border-white/40">
+                            <img src={chip.imageUrl} alt="" className="w-full h-full object-cover" />
+                          </span>
+                        ) : chip.emoji ? (
+                          <span>{chip.emoji}</span>
+                        ) : null}
                         <span>{chip.label}</span>
                         <span className="text-[10px] opacity-75">({chip.count})</span>
                       </button>
@@ -347,7 +365,13 @@ export function CommerceFacetRail({
                             : 'bg-card border-border text-foreground hover:border-primary/40'
                         )}
                       >
-                        {chip.emoji && <span>{chip.emoji}</span>}
+                        {chip.imageUrl ? (
+                          <span className="w-4 h-4 rounded-full overflow-hidden shrink-0 inline-flex items-center justify-center border border-white/40">
+                            <img src={chip.imageUrl} alt="" className="w-full h-full object-cover" />
+                          </span>
+                        ) : chip.emoji ? (
+                          <span>{chip.emoji}</span>
+                        ) : null}
                         <span>{chip.label}</span>
                         <span className="text-[10px] opacity-75">({chip.count})</span>
                       </button>
@@ -375,7 +399,13 @@ export function CommerceFacetRail({
                             : 'bg-card border-border text-foreground hover:border-primary/40'
                         )}
                       >
-                        {chip.emoji && <span>{chip.emoji}</span>}
+                        {chip.imageUrl ? (
+                          <span className="w-4 h-4 rounded-full overflow-hidden shrink-0 inline-flex items-center justify-center border border-white/40">
+                            <img src={chip.imageUrl} alt="" className="w-full h-full object-cover" />
+                          </span>
+                        ) : chip.emoji ? (
+                          <span>{chip.emoji}</span>
+                        ) : null}
                         <span>{chip.label}</span>
                         <span className="text-[10px] opacity-75">({chip.count})</span>
                       </button>
@@ -403,7 +433,13 @@ export function CommerceFacetRail({
                             : 'bg-card border-border text-foreground hover:border-primary/40'
                         )}
                       >
-                        {chip.emoji && <span>{chip.emoji}</span>}
+                        {chip.imageUrl ? (
+                          <span className="w-4 h-4 rounded-full overflow-hidden shrink-0 inline-flex items-center justify-center border border-white/40">
+                            <img src={chip.imageUrl} alt="" className="w-full h-full object-cover" />
+                          </span>
+                        ) : chip.emoji ? (
+                          <span>{chip.emoji}</span>
+                        ) : null}
                         <span>{chip.label}</span>
                         <span className="text-[10px] opacity-75">({chip.count})</span>
                       </button>
@@ -465,12 +501,14 @@ function TasteSheetSection({ label, children }: { label: string; children: React
 
 function TasteSheetChip({
   emoji,
+  imageUrl,
   label,
   count,
   active,
   onClick,
 }: {
   emoji: string;
+  imageUrl?: string;
   label: string;
   count: number;
   active: boolean;
@@ -488,7 +526,13 @@ function TasteSheetChip({
         count === 0 && !active && 'opacity-50',
       )}
     >
-      <span>{emoji}</span>
+      {imageUrl ? (
+        <span className="w-4 h-4 rounded-full overflow-hidden shrink-0 inline-flex items-center justify-center border border-white/40">
+          <img src={imageUrl} alt="" className="w-full h-full object-cover" />
+        </span>
+      ) : (
+        <span>{emoji}</span>
+      )}
       <span>{label}</span>
       <span className="text-[10px] opacity-75">({count})</span>
     </button>
