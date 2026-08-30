@@ -26,14 +26,24 @@ export function ShopByStoreDiscovery({ sectionTitle }: { sectionTitle?: string }
   const { data: localGrouped = {}, isLoading: loadingLocal } = useLocalSellers();
   const { data: nearbyBands = [], isLoading: loadingNearby } = useNearbySocietySellers(radiusKm, browseBeyond);
 
-  // Collect local seller IDs for deduplication
-  const localSellerIds = useMemo(() => {
-    const ids = new Set<string>();
+  // Collect local seller IDs for deduplication and flat list for single-row presentation
+  const localSellersList = useMemo(() => {
+    const seen = new Set<string>();
+    const list: LocalSeller[] = [];
     for (const sellers of Object.values(localGrouped)) {
-      for (const s of sellers) ids.add(s.id);
+      for (const s of sellers) {
+        if (!seen.has(s.id)) {
+          seen.add(s.id);
+          list.push(s);
+        }
+      }
     }
-    return ids;
+    return list;
   }, [localGrouped]);
+
+  const localSellerIds = useMemo(() => {
+    return new Set(localSellersList.map(s => s.id));
+  }, [localSellersList]);
 
   // Filter nearby bands to remove sellers already shown in local section
   const dedupedBands = useMemo(() => {
@@ -88,11 +98,20 @@ export function ShopByStoreDiscovery({ sectionTitle }: { sectionTitle?: string }
               variants={staggerContainer}
               initial="hidden"
               animate="show"
-              className="space-y-3"
+              className="flex gap-3 overflow-x-auto scrollbar-hide px-4 pb-2"
             >
-              {Object.entries(localGrouped).map(([group, sellers]) => (
-                <motion.div key={group} variants={cardEntrance}>
-                  <CategorySellerRow groupLabel={group} sellers={sellers} />
+              {localSellersList.map(seller => (
+                <motion.div key={seller.id} variants={cardEntrance} className="shrink-0">
+                  <RichSellerCard
+                    id={seller.id}
+                    name={seller.business_name}
+                    profileImage={seller.profile_image_url}
+                    coverImage={seller.cover_image_url}
+                    categories={seller.categories}
+                    topProducts={seller.topProducts}
+                    totalReviews={seller.total_reviews}
+                    isFeatured={seller.is_featured}
+                  />
                 </motion.div>
               ))}
             </motion.div>
