@@ -203,7 +203,7 @@ function ProductListingCardInner({ product, layout = 'auto', onTap, onNavigate, 
       variants={{ hidden: { opacity: 0, y: 12, scale: 0.98 }, show: { opacity: 1, y: 0, scale: 1 } }}
       transition={{ type: 'spring', stiffness: 420, damping: 28 }}
       className={cn(
-        'group/card w-full min-w-0 bg-card rounded-2xl cursor-pointer flex flex-col relative overflow-hidden',
+        'group/card w-full min-w-0 bg-card rounded-2xl cursor-pointer flex flex-col relative',
         'border border-border/60 shadow-card',
         'transition-[box-shadow,border-color,transform] duration-200 ease-out',
         'hover:shadow-elevated hover:border-border',
@@ -510,10 +510,10 @@ function ProductListingCardInner({ product, layout = 'auto', onTap, onNavigate, 
 
           {/* Store + trust row */}
           {product.seller_name && (
-            <div className="flex items-center gap-1 mt-1.5 overflow-hidden min-w-0">
+            <div className="flex items-center gap-1.5 mt-1.5 overflow-hidden min-w-0">
               <span
                 className={cn(
-                  'text-[10px] truncate min-w-0',
+                  'text-[10px] truncate min-w-0 max-w-[110px]',
                   product.distance_km && product.distance_km > 0 ? 'text-foreground font-medium' : 'text-muted-foreground'
                 )}
               >
@@ -525,22 +525,16 @@ function ProductListingCardInner({ product, layout = 'auto', onTap, onNavigate, 
                   {Number(product.seller_rating).toFixed(1)}
                 </span>
               )}
-              {product.seller_verified && (
-                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-primary/10 text-primary shrink-0">
-                  Approved
+              {(product as any).is_same_society ? (
+                <span className="text-[8.5px] font-bold px-1.5 py-0.5 rounded-md bg-success/10 text-success shrink-0">
+                  Verified Neighbor
                 </span>
-              )}
-              {(product as any).is_same_society && (
-                <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-md bg-success/10 text-success shrink-0">
-                  Your society
+              ) : product.seller_verified ? (
+                <span className="text-[8.5px] font-bold px-1.5 py-0.5 rounded-md bg-primary/10 text-primary shrink-0">
+                  Verified Store
                 </span>
-              )}
+              ) : null}
               {product.seller_id && <SellerTrustBadge sellerId={product.seller_id} size="sm" />}
-              {glanceKind !== 'enquiry' && glanceKind !== 'contact' && (product as any).avg_response_minutes != null && (product as any).avg_response_minutes > 0 && (product as any).avg_response_minutes <= 15 && (
-                <span className="text-[9px] px-1 py-0.5 rounded-md bg-success/10 text-success flex items-center gap-0.5 shrink-0">
-                  ⚡~{(product as any).avg_response_minutes}m
-                </span>
-              )}
             </div>
           )}
 

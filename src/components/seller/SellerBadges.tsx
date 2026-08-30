@@ -36,7 +36,7 @@ export function SellerBadges({
             textSize
           )}>
             <Shield size={iconSize} />
-            Approved store
+            Verified Store
           </span>
         )}
         {isTopSeller && (

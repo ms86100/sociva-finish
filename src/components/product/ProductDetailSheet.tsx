@@ -297,12 +297,11 @@ export function ProductDetailSheet({ product, open, onOpenChange, onSelectProduc
                     <p className="font-semibold text-sm text-foreground truncate">{product.seller_name}</p>
                     <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                       {d.isNewSeller ? <Badge variant="secondary" className="text-[9px] px-1.5 py-0 h-4">New Seller</Badge> : null}
-                      {(product as any).seller_verified && (
-                        <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 bg-primary/10 text-primary border-0 font-bold">Approved store</Badge>
-                      )}
-                      {product.is_same_society && (
-                        <Badge variant="secondary" className="text-[9px] px-1.5 py-0 h-4 bg-success/10 text-success border-0 font-bold">Your society</Badge>
-                      )}
+                      {product.is_same_society ? (
+                        <Badge variant="secondary" className="text-[10px] px-2 py-0.5 h-4.5 bg-success/15 text-success border-0 font-bold">Verified Neighbor</Badge>
+                      ) : (product as any).seller_verified ? (
+                        <Badge variant="secondary" className="text-[10px] px-2 py-0.5 h-4.5 bg-primary/10 text-primary border-0 font-bold">Verified Store</Badge>
+                      ) : null}
                       {(product as any).delivery_time_text && (
                         <span className="flex items-center gap-0.5 text-[10px] text-primary font-semibold"><Clock size={9} />{(product as any).delivery_time_text}</span>
                       )}

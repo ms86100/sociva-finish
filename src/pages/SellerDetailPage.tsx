@@ -578,17 +578,17 @@ export default function SellerDetailPage() {
                 />
               </div>
               <div className="flex items-center gap-1.5 flex-wrap mt-1.5">
-                {seller.verification_status === 'approved' && (
+                {seller.society_id === effectiveSocietyId ? (
+                  <Badge variant="secondary" className="text-[10px] bg-success/15 text-success border-0 font-semibold">
+                    <ShieldCheck size={10} className="mr-1" />
+                    Verified Neighbor · Your Society
+                  </Badge>
+                ) : seller.verification_status === 'approved' ? (
                   <Badge variant="secondary" className="text-[10px] bg-primary/10 text-primary border-0 font-semibold">
                     <ShieldCheck size={10} className="mr-1" />
-                    Approved store
+                    Verified Store
                   </Badge>
-                )}
-                {seller.society_id === effectiveSocietyId && (
-                  <Badge variant="secondary" className="text-[10px] bg-success/10 text-success border-0 font-semibold">
-                    Your society
-                  </Badge>
-                )}
+                ) : null}
                 {fulfillmentLabel && (
                   <Badge variant="outline" className="text-[10px] font-medium">
                     {fulfillmentLabel}

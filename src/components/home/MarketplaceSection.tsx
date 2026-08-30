@@ -18,7 +18,7 @@ import { ShopByStoreDiscovery } from '@/components/home/ShopByStoreDiscovery';
 import { NearbySellersSection } from '@/components/marketplace/NearbySellersSection';
 import { showFeedback } from '@/components/FeedbackPopupProvider';
 import { LazySection } from '@/components/home/LazySection';
-import { ProductWithSeller } from '@/components/product/ProductListingCard';
+import { ProductListingCard, ProductWithSeller } from '@/components/product/ProductListingCard';
 import { GroupedSellerRow } from '@/components/home/GroupedSellerRow';
 import { ProductCardSkeleton } from '@/components/product/ProductCardSkeleton';
 import { ShoppingBag, Sparkles, Flame, UtensilsCrossed, Wrench, Heart, Users } from 'lucide-react';

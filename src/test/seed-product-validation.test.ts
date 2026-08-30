@@ -95,8 +95,9 @@ async function probeSeed(): Promise<boolean> {
   }
 }
 
-const seeded = await probeSeed();
-const describeSeeded = seeded ? describe : describe.skip;
+// Integration test disabled to prevent accidental reset of live demo/video seed data
+const seeded = false;
+const describeSeeded = describe.skip;
 
 describeSeeded("Seed Product Validation", () => {
 
