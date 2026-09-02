@@ -12,7 +12,7 @@ import type { BlockData } from '@/hooks/useAttributeBlocks';
 import { INITIAL_SERVICE_FIELDS, type ServiceFieldsData } from '@/components/seller/ServiceFieldsSection';
 import { toast } from 'sonner';
 import { friendlyError } from '@/lib/utils';
-import { buildDraftKey, readDraft, useAutoSaveDraft } from '@/hooks/useProductFormDraft';
+import { buildDraftKey, readDraft, sellerProductDraftHasWork, useAutoSaveDraft, writeDraft } from '@/hooks/useProductFormDraft';
 import { deriveActionFromCategoryFlags } from '@/lib/marketplace-constants';
 import { notify } from '@/lib/notify';
 import { isPortfolioSellerId } from '@/lib/seller-order-board';
@@ -77,8 +77,9 @@ interface SellerProductDraft {
 
 export type SellerProductFormIntent = 'list' | 'new' | 'edit';
 
-export function useSellerProducts(opts?: { formIntent?: SellerProductFormIntent }) {
+export function useSellerProducts(opts?: { formIntent?: SellerProductFormIntent; editingProductId?: string }) {
   const formIntent = opts?.formIntent ?? 'list';
+  const routeEditingProductId = opts?.editingProductId;
   const { user, sellerProfiles, currentSellerId } = useAuth();
   const { groupedConfigs, configs } = useCategoryConfigs();
   const { data: allActions = [] } = useActionTypeMap();
@@ -232,38 +233,70 @@ export function useSellerProducts(opts?: { formIntent?: SellerProductFormIntent 
   }), [formData, attributeBlocks, serviceFields, editingProduct]);
 
   const isFormDirty = formData.name.trim() !== '' || formData.description.trim() !== '' || formData.price !== '' || (formData.image_url ?? '') !== '';
-  const clearDraftFn = useAutoSaveDraft(draftKey, draftData, isDialogOpen && isFormDirty);
+  const formPageOpen = formIntent === 'new' || formIntent === 'edit' || isDialogOpen;
+  const clearDraftFn = useAutoSaveDraft(draftKey, draftData, formPageOpen && isFormDirty);
 
-  // Restore draft on mount (once seller profile is known) — never on explicit "add new" route
+  const persistDraftNow = useCallback(() => {
+    if (!sellerProfile?.id) return;
+    writeDraft(buildDraftKey('seller-product-draft', sellerProfile.id), {
+      formData,
+      attributeBlocks,
+      serviceFields,
+      editingProductId: editingProduct?.id || null,
+    });
+  }, [sellerProfile?.id, formData, attributeBlocks, serviceFields, editingProduct]);
+
+  const attachEditingProduct = useCallback((product: Product) => {
+    setEditingProduct(product);
+    setIsDialogOpen(true);
+  }, []);
+
+  // Restore draft on mount (once seller profile is known). Dedicated add/edit
+  // routes also restore so a native photo-picker WebView reload does not wipe work.
   useEffect(() => {
     if (!sellerProfile || draftRestored) return;
-    // Dedicated add/edit routes manage their own form state — never restore list-dialog drafts.
-    if (formIntent === 'new' || formIntent === 'edit') {
-      setDraftRestored(true);
-      return;
-    }
     const key = buildDraftKey('seller-product-draft', sellerProfile.id);
     const saved = readDraft<SellerProductDraft>(key);
-    if (saved && saved.formData && saved.formData.name?.trim()) {
-      // Validate category is still allowed
-      const validCategory = !saved.formData.category ||
-        configs.some(c => c.category === saved.formData.category);
-      if (validCategory) {
+    const validCategory = !saved?.formData?.category ||
+      configs.some(c => c.category === saved.formData.category);
+    const hasWork = validCategory && sellerProductDraftHasWork(saved?.formData);
+
+    if (formIntent === 'new') {
+      if (hasWork && !saved?.editingProductId) {
         setFormData(saved.formData);
         setAttributeBlocks(saved.attributeBlocks || []);
         setServiceFields(saved.serviceFields || INITIAL_SERVICE_FIELDS);
-        if (saved.editingProductId) {
-          // Verify the product still exists in the loaded list
-          const existing = products.find(p => p.id === saved.editingProductId);
-          if (existing) setEditingProduct(existing);
-          // If product no longer exists, treat as new product (don't set editingProduct)
-        }
         setIsDialogOpen(true);
-        setDraftRestored(true);
       }
+      setDraftRestored(true);
+      return;
+    }
+
+    if (formIntent === 'edit') {
+      if (hasWork && saved?.editingProductId && saved.editingProductId === routeEditingProductId) {
+        setFormData(saved.formData);
+        setAttributeBlocks(saved.attributeBlocks || []);
+        setServiceFields(saved.serviceFields || INITIAL_SERVICE_FIELDS);
+        const existing = products.find(p => p.id === saved.editingProductId);
+        if (existing) setEditingProduct(existing);
+        setIsDialogOpen(true);
+      }
+      setDraftRestored(true);
+      return;
+    }
+
+    if (saved && saved.formData && saved.formData.name?.trim() && validCategory) {
+      setFormData(saved.formData);
+      setAttributeBlocks(saved.attributeBlocks || []);
+      setServiceFields(saved.serviceFields || INITIAL_SERVICE_FIELDS);
+      if (saved.editingProductId) {
+        const existing = products.find(p => p.id === saved.editingProductId);
+        if (existing) setEditingProduct(existing);
+      }
+      setIsDialogOpen(true);
     }
     setDraftRestored(true);
-  }, [sellerProfile, products, configs, draftRestored, formIntent]);
+  }, [sellerProfile, products, configs, draftRestored, formIntent, routeEditingProductId]);
 
   useEffect(() => {
     if (user && currentSellerId && !isPortfolioSellerId(currentSellerId)) {
@@ -736,13 +769,10 @@ export function useSellerProducts(opts?: { formIntent?: SellerProductFormIntent 
     editingProduct, isSaving, licenseBlocked, isBulkOpen, setIsBulkOpen,
     attributeBlocks, setAttributeBlocks, formData, setFormData, patchFormData, deleteTarget, setDeleteTarget,
     activeCategoryConfig, showVegToggle, showDurationField, allowedCategories, subcategories,
-    configs, sellerProfiles, resetForm, beginNewProduct, openEditDialog, handleSave, confirmDelete,
+    configs, sellerProfiles, resetForm, beginNewProduct, openEditDialog, attachEditingProduct, handleSave, confirmDelete,
     toggleAvailability, fetchData, serviceFields, setServiceFields, isCurrentCategoryService,
     currentCategorySupportsAddons, currentCategorySupportsRecurring, currentCategorySupportsStaffAssignment,
-    draftRestored, clearDraftFn, fieldErrors, setFieldErrors, derivedActionType, effectiveActionType, validateStep,
+    draftRestored, clearDraftFn, persistDraftNow, fieldErrors, setFieldErrors, derivedActionType, effectiveActionType, validateStep,
     applyListingPlacementFromName,
-    toggleAvailability, fetchData, serviceFields, setServiceFields, isCurrentCategoryService,
-    currentCategorySupportsAddons, currentCategorySupportsRecurring, currentCategorySupportsStaffAssignment,
-    draftRestored, clearDraftFn, fieldErrors, setFieldErrors, derivedActionType, effectiveActionType, validateStep,
   };
 }

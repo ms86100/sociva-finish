@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
@@ -8,6 +8,12 @@ import { cn, friendlyError } from '@/lib/utils';
 import { ImageCropDialog } from './image-crop-dialog';
 import { Capacitor } from '@capacitor/core';
 import { showFeedback } from '@/components/FeedbackPopupProvider';
+import {
+  blobToDataUrl,
+  clearPendingImageCrop,
+  readPendingImageCrop,
+  writePendingImageCrop,
+} from '@/lib/pending-image-crop';
 
 interface CroppableImageUploadProps {
   value?: string | null;
@@ -37,8 +43,39 @@ export function CroppableImageUpload({
   const [cropSrc, setCropSrc] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
+  const cropOpenedAtRef = useRef(0);
+  const cropOpenTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const effectiveCropAspect = cropAspect ?? (aspectRatio === 'video' ? 16 / 9 : aspectRatio === 'portrait' ? 3 / 4 : 1);
+
+  const cropSlot = `${folder}:${aspectRatio}`;
+
+  const openCrop = useCallback((dataUrl: string) => {
+    cropOpenedAtRef.current = Date.now();
+    setCropSrc(dataUrl);
+  }, []);
+
+  const queueCrop = useCallback(async (blob: Blob) => {
+    const dataUrl = await blobToDataUrl(blob);
+    if (!dataUrl.startsWith('data:image/')) {
+      toast.error('Could not read the selected image');
+      return;
+    }
+    writePendingImageCrop({ dataUrl, folder, slot: cropSlot });
+    if (cropOpenTimerRef.current) clearTimeout(cropOpenTimerRef.current);
+    // Delay so the file-picker's leftover click cannot dismiss the crop dialog.
+    cropOpenTimerRef.current = setTimeout(() => openCrop(dataUrl), 280);
+  }, [folder, cropSlot, openCrop]);
+
+  useEffect(() => {
+    const pending = readPendingImageCrop();
+    if (pending?.dataUrl && pending.slot === cropSlot) {
+      openCrop(pending.dataUrl);
+    }
+    return () => {
+      if (cropOpenTimerRef.current) clearTimeout(cropOpenTimerRef.current);
+    };
+  }, [cropSlot, openCrop]);
 
   const aspectClasses = {
     square: 'aspect-square',
@@ -58,6 +95,7 @@ export function CroppableImageUpload({
       if (error) throw error;
       const { data: urlData } = supabase.storage.from('app-images').getPublicUrl(data.path);
       onChange(urlData.publicUrl);
+      clearPendingImageCrop();
       showFeedback({
         title: 'Product image uploaded successfully',
         variant: 'success',
@@ -74,10 +112,7 @@ export function CroppableImageUpload({
     try {
       const { pickOrCaptureImage } = await import('@/lib/native-media');
       const blob = await pickOrCaptureImage();
-      if (blob) {
-        const objectUrl = URL.createObjectURL(blob);
-        setCropSrc(objectUrl);
-      }
+      if (blob) await queueCrop(blob);
     } catch (err: any) {
       if (err?.message?.includes('cancelled') || err?.message?.includes('canceled') || err?.message?.includes('User cancelled')) return;
       console.error('Native pick error:', err);
@@ -87,7 +122,7 @@ export function CroppableImageUpload({
         toast.error(friendlyError(err) || 'Failed to select image');
       }
     }
-  }, []);
+  }, [queueCrop]);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -105,8 +140,7 @@ export function CroppableImageUpload({
       return;
     }
 
-    const objectUrl = URL.createObjectURL(file);
-    setCropSrc(objectUrl);
+    void queueCrop(file);
     if (inputRef.current) inputRef.current.value = '';
     if (cameraInputRef.current) cameraInputRef.current.value = '';
   };
@@ -114,6 +148,13 @@ export function CroppableImageUpload({
   const handleCropComplete = async (blob: Blob) => {
     setCropSrc(null);
     await handleUploadBlob(blob);
+  };
+
+  const handleCropOpenChange = (open: boolean) => {
+    if (open) return;
+    if (Date.now() - cropOpenedAtRef.current < 600) return;
+    clearPendingImageCrop();
+    setCropSrc(null);
   };
 
   const handleRemove = async () => {
@@ -268,7 +309,7 @@ export function CroppableImageUpload({
       {cropSrc && (
         <ImageCropDialog
           open={!!cropSrc}
-          onOpenChange={(open) => { if (!open) { URL.revokeObjectURL(cropSrc); setCropSrc(null); } }}
+          onOpenChange={handleCropOpenChange}
           imageSrc={cropSrc}
           aspectRatio={effectiveCropAspect}
           onCropComplete={handleCropComplete}

@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { useCallback, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { canRecordMarketplaceEvent } from '@/lib/marketplace-event-ids';
 
 /**
  * DB-backed analytics tracking for ProductListingCard.
@@ -37,7 +38,10 @@ async function getUserId(): Promise<string | null> {
 
 async function flushImpressions() {
   if (impressionQueue.length === 0) return;
-  const batch = impressionQueue.splice(0);
+  const batch = impressionQueue.splice(0).filter((data) =>
+    canRecordMarketplaceEvent(data.productId, data.sellerId),
+  );
+  if (batch.length === 0) return;
   const userId = await getUserId();
 
   try {
@@ -70,6 +74,7 @@ function queueImpression(data: CardEvent) {
 }
 
 async function emitSingle(eventType: string, data: CardEvent) {
+  if (!canRecordMarketplaceEvent(data.productId, data.sellerId)) return;
   try {
     const userId = await getUserId();
     await supabase.from('marketplace_events').insert({
@@ -125,9 +130,10 @@ function unobserveElement(element: Element) {
   sharedObserver?.unobserve(element);
 }
 
-export function useCardAnalytics(product: CardEvent) {
+export function useCardAnalytics(product: CardEvent, enabled = true) {
   const impressionFired = useRef(false);
   const ref = useRef<HTMLDivElement>(null);
+  const canTrack = enabled && canRecordMarketplaceEvent(product.productId, product.sellerId);
 
   const payload: CardEvent = {
     productId: product.productId,
@@ -140,7 +146,7 @@ export function useCardAnalytics(product: CardEvent) {
   // Fix #3: Register with shared observer instead of creating individual one
   useEffect(() => {
     const el = ref.current;
-    if (!el || impressionFired.current) return;
+    if (!el || impressionFired.current || !canTrack) return;
 
     observeElement(el, () => {
       if (!impressionFired.current) {
@@ -151,22 +157,25 @@ export function useCardAnalytics(product: CardEvent) {
 
     return () => { unobserveElement(el); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [product.productId]);
+  }, [product.productId, canTrack]);
 
   const onCardClick = useCallback(() => {
+    if (!canTrack) return;
     emitSingle('click', payload);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [product.productId]);
+  }, [product.productId, canTrack]);
 
   const onAddClick = useCallback(() => {
+    if (!canTrack) return;
     emitSingle('add_to_cart', payload);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [product.productId]);
+  }, [product.productId, canTrack]);
 
   const onWishlistClick = useCallback(() => {
+    if (!canTrack) return;
     emitSingle('wishlist', payload);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [product.productId]);
+  }, [product.productId, canTrack]);
 
   return { ref, onCardClick, onAddClick, onWishlistClick };
 }

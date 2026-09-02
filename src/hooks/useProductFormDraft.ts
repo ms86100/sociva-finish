@@ -35,6 +35,21 @@ export function clearDraft(key: string): void {
   try { sessionStorage.removeItem(key); } catch { /* ignore */ }
 }
 
+export function sellerProductDraftHasWork(formData?: {
+  name?: string;
+  image_url?: string | null;
+  price?: string;
+  description?: string;
+} | null): boolean {
+  if (!formData) return false;
+  return !!(
+    formData.name?.trim() ||
+    formData.image_url ||
+    formData.price?.trim() ||
+    formData.description?.trim()
+  );
+}
+
 /**
  * Hook that auto-persists data to localStorage with debounce.
  * Returns a clear function.

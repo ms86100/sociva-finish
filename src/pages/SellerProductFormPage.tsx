@@ -51,7 +51,7 @@ export default function SellerProductFormPage() {
   const navigate = useNavigate();
   const { productId } = useParams<{ productId?: string }>();
   const isEditing = !!productId;
-  const sp = useSellerProducts({ formIntent: isEditing ? 'edit' : 'new' });
+  const sp = useSellerProducts({ formIntent: isEditing ? 'edit' : 'new', editingProductId: productId });
   const { formatPrice, currencySymbol } = useCurrency();
   const [currentStep, setCurrentStep] = useState(0);
 
@@ -65,17 +65,28 @@ export default function SellerProductFormPage() {
 
   const preparedNewFormRef = useRef(false);
 
-  // Load product data for editing, or start a clean form for new products
+  // Load product data for editing, or start a clean form for new products.
+  // If a draft was restored after a photo-picker reload, keep it instead of wiping.
   useEffect(() => {
     if (isEditing) {
       if (sp.products.length > 0 && !sp.editingProduct) {
         const product = sp.products.find(p => p.id === productId);
-        if (product) sp.openEditDialog(product);
+        if (product) {
+          if (sp.draftRestored && (sp.formData.name.trim() || sp.formData.image_url)) {
+            sp.attachEditingProduct(product);
+          } else {
+            sp.openEditDialog(product);
+          }
+        }
       }
       return;
     }
     if (!sp.draftRestored || preparedNewFormRef.current) return;
     preparedNewFormRef.current = true;
+    if (sp.formData.name.trim() || sp.formData.image_url || sp.formData.price) {
+      sp.setIsDialogOpen(true);
+      return;
+    }
     sp.beginNewProduct();
   }, [isEditing, productId, sp.products.length, sp.draftRestored, sp.editingProduct]);
 
@@ -322,6 +333,7 @@ function StepBasics({ sp }: { sp: ReturnType<typeof useSellerProducts> }) {
               productName={sp.formData.name}
               categoryName={sp.activeCategoryConfig?.displayName || sp.formData.category || undefined}
               description={sp.formData.description || undefined}
+              beforePick={sp.persistDraftNow}
             />
           </div>
         )}

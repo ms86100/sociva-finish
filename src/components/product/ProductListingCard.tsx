@@ -79,7 +79,10 @@ function ProductListingCardInner({ product, layout = 'auto', onTap, onNavigate, 
   const showVegBadge = catConfig?.formHints?.showVegToggle ?? false;
   const placeholderEmoji = catConfig?.formHints?.placeholderEmoji || mc.labels.defaultPlaceholderEmoji;
 
-  const { ref: cardRef, onCardClick: trackClick, onAddClick: trackAdd } = useCardAnalytics({ productId: product.id, category: product.category, price: product.price, sellerId: product.seller_id, layout: resolvedLayout });
+  const { ref: cardRef, onCardClick: trackClick, onAddClick: trackAdd } = useCardAnalytics(
+    { productId: product.id, category: product.category, price: product.price, sellerId: product.seller_id, layout: resolvedLayout },
+    !viewOnly,
+  );
 
   const handleAdd = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -333,8 +336,8 @@ function ProductListingCardInner({ product, layout = 'auto', onTap, onNavigate, 
             </div>
           )}
 
-          {/* Favorite — always available; sits below discount when both present */}
-          {user && (
+          {/* Favorite — hide on form previews (fake product ids) */}
+          {user && !viewOnly && (
             <div
               className={cn(
                 'absolute right-1.5 z-10',

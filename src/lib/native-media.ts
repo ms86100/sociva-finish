@@ -33,6 +33,34 @@ async function ensureCameraPermissions(source: 'camera' | 'photos' | 'prompt'): 
   }
 }
 
+/** Uri avoids stuffing a huge DataUrl into the WebView heap (which can reload the page). */
+function cameraPhotoOptions(overrides: Record<string, unknown> = {}) {
+  return {
+    resultType: 'uri' as const,
+    quality: 80,
+    width: 1600,
+    correctOrientation: true,
+    saveToGallery: false,
+    ...overrides,
+  };
+}
+
+async function photoToBlob(photo: { webPath?: string; dataUrl?: string; base64String?: string }): Promise<Blob> {
+  if (photo.webPath) {
+    const response = await fetch(photo.webPath);
+    return response.blob();
+  }
+  if (photo.dataUrl) {
+    const response = await fetch(photo.dataUrl);
+    return response.blob();
+  }
+  if (photo.base64String) {
+    const response = await fetch(`data:image/jpeg;base64,${photo.base64String}`);
+    return response.blob();
+  }
+  throw new Error('No image selected');
+}
+
 /**
  * Pick a photo from the gallery using native Camera plugin on iOS/Android.
  * Returns a Blob ready for upload.
@@ -55,19 +83,10 @@ export async function pickImageFromGallery(): Promise<Blob | null> {
 
   const photo = await Camera.getPhoto({
     source: CameraSource.Photos,
-    resultType: CameraResultType.DataUrl,
-    quality: 85,
+    ...cameraPhotoOptions({ resultType: CameraResultType.Uri }),
   });
 
-  if (photo.dataUrl) {
-    const response = await fetch(photo.dataUrl);
-    return response.blob();
-  }
-  if (photo.webPath) {
-    const response = await fetch(photo.webPath);
-    return response.blob();
-  }
-  throw new Error('No image selected');
+  return photoToBlob(photo);
 }
 
 /**
@@ -92,21 +111,10 @@ export async function capturePhotoFromCamera(): Promise<Blob | null> {
 
   const photo = await Camera.getPhoto({
     source: CameraSource.Camera,
-    resultType: CameraResultType.DataUrl,
-    quality: 85,
-    width: 640,
-    height: 480,
+    ...cameraPhotoOptions({ resultType: CameraResultType.Uri, width: 1600 }),
   });
 
-  if (photo.dataUrl) {
-    const response = await fetch(photo.dataUrl);
-    return response.blob();
-  }
-  if (photo.webPath) {
-    const response = await fetch(photo.webPath);
-    return response.blob();
-  }
-  throw new Error('No photo captured');
+  return photoToBlob(photo);
 }
 
 /**
@@ -146,19 +154,8 @@ export async function pickOrCaptureImage(): Promise<Blob | null> {
 
   const photo = await Camera.getPhoto({
     source: CameraSource.Prompt,
-    resultType: CameraResultType.DataUrl,
-    quality: 85,
+    ...cameraPhotoOptions({ resultType: CameraResultType.Uri }),
   });
 
-  if (photo.dataUrl) {
-    const response = await fetch(photo.dataUrl);
-    return response.blob();
-  }
-
-  if (photo.webPath) {
-    const response = await fetch(photo.webPath);
-    return response.blob();
-  }
-
-  throw new Error('No image selected');
+  return photoToBlob(photo);
 }

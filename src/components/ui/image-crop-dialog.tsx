@@ -41,7 +41,9 @@ export function ImageCropDialog({
   useEffect(() => {
     if (!open || !imageSrc) return;
     const img = new Image();
-    img.crossOrigin = 'anonymous';
+    if (imageSrc.startsWith('http')) {
+      img.crossOrigin = 'anonymous';
+    }
     img.onload = () => {
       imageRef.current = img;
       setZoom(1);
@@ -208,7 +210,12 @@ export function ImageCropDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg p-0 gap-0 overflow-hidden">
+      <DialogContent
+        className="sm:max-w-lg p-0 gap-0 overflow-hidden"
+        onPointerDownOutside={(e) => e.preventDefault()}
+        onInteractOutside={(e) => e.preventDefault()}
+        onOpenAutoFocus={(e) => e.preventDefault()}
+      >
         <DialogHeader className="p-4 pb-2">
           <DialogTitle className="text-base">Crop Image</DialogTitle>
         </DialogHeader>
@@ -242,17 +249,17 @@ export function ImageCropDialog({
               className="flex-1"
             />
             <ZoomIn size={14} className="text-muted-foreground flex-shrink-0" />
-            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleReset}>
+            <Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick={handleReset}>
               <RotateCcw size={14} />
             </Button>
           </div>
         </div>
 
         <DialogFooter className="p-4 pt-0">
-          <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
+          <Button type="button" variant="outline" size="sm" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button size="sm" onClick={handleCrop}>
+          <Button type="button" size="sm" onClick={handleCrop}>
             Apply Crop
           </Button>
         </DialogFooter>
