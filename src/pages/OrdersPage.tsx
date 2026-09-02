@@ -57,6 +57,7 @@ function OrderCard({ order, type, successTerminals, unreadCounts }: { order: Ord
   const progress = resolveOrderProgress({
     status: order.status,
     fulfillmentType: (order as any).fulfillment_type,
+    transactionType: (order as any).transaction_type,
   }).progressPercent || (isActive ? 30 : 0);
   const firstItem = items[0];
   const itemImage = (firstItem as any)?.product_image || seller?.cover_image_url;

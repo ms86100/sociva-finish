@@ -8,6 +8,7 @@
 import {
   progressStageToPhase,
   resolveOrderProgress,
+  isContactEnquiryTransaction,
 } from '@/lib/orderProgressStages';
 
 export interface DisplayStatusResult {
@@ -46,6 +47,7 @@ interface DeriveOptions {
   isBuyerView: boolean;
   orderType?: string | null;
   isEnquiryOrder?: boolean;
+  transactionType?: string | null;
   /** Order fulfillment_type — drives delivery vs pickup stage mapping */
   fulfillmentType?: string | null;
   /** OSRM-based road ETA in minutes */
@@ -66,16 +68,17 @@ function getPhase(
   status: string,
   flow: FlowStep[],
   fulfillmentType?: string | null,
+  transactionType?: string | null,
 ): DisplayStatusResult['phase'] {
   const step = flow.find(s => s.status_key === status);
   if (step?.is_terminal && step?.is_success) return 'delivered';
   if (step?.is_terminal && !step?.is_success) return 'cancelled';
 
-  // Shared 4-stage presentation (buyer + seller identical)
   const progress = resolveOrderProgress({
     status,
     fulfillmentType,
     flowIsTransit: step?.is_transit === true,
+    transactionType,
   });
   if (progress.kind === 'end_state') return 'cancelled';
   return progressStageToPhase(progress);
@@ -141,6 +144,7 @@ export function deriveDisplayStatus(options: DeriveOptions): DisplayStatusResult
     isBuyerView,
     orderType,
     isEnquiryOrder,
+    transactionType,
     fulfillmentType,
     roadEtaMinutes,
     estimatedDeliveryAt,
@@ -176,7 +180,7 @@ export function deriveDisplayStatus(options: DeriveOptions): DisplayStatusResult
     };
   }
 
-  const phase = getPhase(orderStatus, flow, fulfillmentType);
+  const phase = getPhase(orderStatus, flow, fulfillmentType, transactionType);
   const progressPercent = computeProgressPercent(phase, orderStatus, flow, totalRouteDistance, remainingDistance);
   const etaFlag = phase === 'transit' ? computeEtaFlag(roadEtaMinutes, estimatedDeliveryAt) : null;
 
@@ -206,7 +210,8 @@ export function deriveDisplayStatus(options: DeriveOptions): DisplayStatusResult
 
   let phaseIcon = PHASE_ICONS[phase] || { icon: 'Package', iconColor: 'text-muted-foreground bg-muted' };
 
-  const isEnquiry = isEnquiryOrder || orderType === 'enquiry' || orderStatus === 'enquired' || orderStatus === 'quoted';
+  const isContactEnquiry = isContactEnquiryTransaction(transactionType);
+  const isEnquiry = isContactEnquiry || isEnquiryOrder || orderType === 'enquiry' || orderStatus === 'enquired' || orderStatus === 'quoted';
 
   if (orderStatus === 'quoted') {
     phaseIcon = { icon: 'Receipt', iconColor: 'text-amber-500 bg-amber-500/15' };
@@ -216,7 +221,9 @@ export function deriveDisplayStatus(options: DeriveOptions): DisplayStatusResult
 
   switch (phase) {
     case 'placed':
-      if (orderStatus === 'quoted') {
+      if (isContactEnquiry) {
+        text = isBuyerView ? 'Enquiry sent' : 'New enquiry received';
+      } else if (orderStatus === 'quoted') {
         text = isBuyerView ? 'Quote received — review and accept' : 'Quote sent to buyer';
       } else if (orderStatus === 'enquired' || isEnquiry) {
         text = isBuyerView ? 'Quote request sent' : 'New quote request received';
@@ -225,9 +232,13 @@ export function deriveDisplayStatus(options: DeriveOptions): DisplayStatusResult
       }
       break;
     case 'preparing':
-      text = isBuyerView
-        ? `${name} is preparing your order`
-        : 'Preparing order';
+      if (isContactEnquiry) {
+        text = isBuyerView ? `${name} accepted your enquiry` : 'Enquiry accepted — mark delivered when done';
+      } else {
+        text = isBuyerView
+          ? `${name} is preparing your order`
+          : 'Preparing order';
+      }
       break;
     case 'ready':
       text = isBuyerView
@@ -244,9 +255,13 @@ export function deriveDisplayStatus(options: DeriveOptions): DisplayStatusResult
       }
       break;
     case 'delivered':
-      text = isBuyerView
-        ? (fulfillmentType === 'self_pickup' || fulfillmentType === 'pickup' ? 'Picked up' : 'Delivered')
-        : 'Order completed';
+      if (isContactEnquiry) {
+        text = isBuyerView ? 'Enquiry delivered' : 'Enquiry completed';
+      } else {
+        text = isBuyerView
+          ? (fulfillmentType === 'self_pickup' || fulfillmentType === 'pickup' ? 'Picked up' : 'Delivered')
+          : 'Order completed';
+      }
       break;
     case 'cancelled':
       text = 'Cancelled';

@@ -20,6 +20,7 @@ interface LiveActivityCardProps {
   currentStatus?: string;
   fulfillmentType?: string | null;
   flowIsTransit?: boolean;
+  transactionType?: string | null;
   /** Optional seller/buyer hint under the rail */
   stageHint?: string | null;
 }
@@ -35,6 +36,7 @@ export function LiveActivityCard({
   currentStatus,
   fulfillmentType,
   flowIsTransit,
+  transactionType,
   stageHint,
 }: LiveActivityCardProps) {
   const [prevEta, setPrevEta] = useState(displayStatus.etaText);
@@ -60,8 +62,9 @@ export function LiveActivityCard({
       status: currentStatus,
       fulfillmentType,
       flowIsTransit,
+      transactionType,
     });
-  }, [currentStatus, fulfillmentType, flowIsTransit]);
+  }, [currentStatus, fulfillmentType, flowIsTransit, transactionType]);
 
   const staleMinutes = lastUpdateAt
     ? Math.floor((Date.now() - new Date(lastUpdateAt).getTime()) / 60000)

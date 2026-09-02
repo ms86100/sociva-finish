@@ -64,7 +64,7 @@ import {
 
 // ─── Zomato-level experience imports ─────────────────────────────────────────
 import { deriveDisplayStatus } from '@/lib/deriveDisplayStatus';
-import { resolveOrderProgress } from '@/lib/orderProgressStages';
+import { resolveOrderProgress, isContactEnquiryTransaction } from '@/lib/orderProgressStages';
 import { ExperienceHeader } from '@/components/order/ExperienceHeader';
 import { LiveActivityCard } from '@/components/order/LiveActivityCard';
 import { OrderProgressRail } from '@/components/order/OrderProgressRail';
@@ -617,6 +617,7 @@ export default function OrderDetailPage() {
     isBuyerView: o.isBuyerView,
     orderType: (order as any).order_type,
     isEnquiryOrder: o.isEnquiryOrder,
+    transactionType: o.resolvedTxnType,
     fulfillmentType: fulfillmentType,
     roadEtaMinutes,
     estimatedDeliveryAt: (order as any).estimated_delivery_at,
@@ -626,10 +627,13 @@ export default function OrderDetailPage() {
     hasRiderLocation: !!deliveryTracking.riderLocation,
   });
 
+  const isContactEnquiry = isContactEnquiryTransaction(o.resolvedTxnType);
+
   const orderProgress = resolveOrderProgress({
     status: order.status,
     fulfillmentType,
     flowIsTransit: o.flow.find((s: any) => s.status_key === order.status)?.is_transit === true,
+    transactionType: o.resolvedTxnType,
   });
 
   const showArrivalOverlay = o.isBuyerView && !isTerminalStatus(o.flow, order.status) && deliveryAssignmentId && deliveryTracking.riderLocation && deliveryTracking.distance != null && deliveryTracking.distance < trackingConfig.arrival_overlay_distance_meters;
@@ -656,14 +660,23 @@ export default function OrderDetailPage() {
     const label = roleLabel || status.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
     const isEnd = step?.is_terminal === true;
     if (otpRequired) return isEnd ? 'Verify & Complete' : `Verify & ${label}`;
+    if (isContactEnquiry && (status === 'quoted' || status === 'accepted') && viewRole === 'seller' && order.status === 'enquired') {
+      return 'Accept Enquiry';
+    }
+    if (isContactEnquiry && status === 'completed' && viewRole === 'seller') return 'Mark Delivered';
     if (status === 'quoted' && viewRole === 'seller') return 'Send Quote';
     if (status === 'accepted' && (o.isEnquiryOrder || order.status === 'quoted') && viewRole === 'buyer') return 'Accept Quote';
+    if (isContactEnquiry && isEnd) return 'Mark Delivered';
     return isEnd ? 'Complete Order' : `Mark ${label}`;
   };
 
   // Seller context message (Condition #5: no ambiguity)
   const getSellerContextMessage = () => {
     if (!o.isSellerView) return null;
+    if (isContactEnquiry && order.status === 'enquired') return 'New enquiry — accept it, then mark delivered when done';
+    if (isContactEnquiry && (order.status === 'quoted' || order.status === 'accepted')) {
+      return 'Enquiry accepted — mark delivered when the request is fulfilled';
+    }
     if (order.status === 'enquired') return 'New quote request — review and send quote';
     if (order.status === 'quoted') return 'Quote sent — waiting for customer to accept or respond';
     const step = o.flow.find(s => s.status_key === order.status);
@@ -816,16 +829,22 @@ export default function OrderDetailPage() {
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-bold text-foreground">
                     {order.status === 'enquired'
-                      ? 'New Quote Request — Action Required'
+                      ? (isContactEnquiry ? 'New Enquiry — Action Required' : 'New Quote Request — Action Required')
                       : isFutureScheduledAccept
                         ? 'Scheduled Order — Confirm Slot'
                         : 'New Order — Action Required'}
                   </p>
                   <p className="text-xs text-muted-foreground mt-0.5">
                     {order.status === 'enquired' ? (
-                      <>
-                        {buyer?.name ? `${buyer.name} requested a quote` : 'Customer requested a quote'} · Review notes, send quote, or chat to discuss
-                      </>
+                      isContactEnquiry ? (
+                        <>
+                          {buyer?.name ? `${buyer.name} contacted you` : 'A buyer contacted you'} · Accept the enquiry, then mark delivered when done
+                        </>
+                      ) : (
+                        <>
+                          {buyer?.name ? `${buyer.name} requested a quote` : 'Customer requested a quote'} · Review notes, send quote, or chat to discuss
+                        </>
+                      )
                     ) : isFutureScheduledAccept ? (
                       <>
                         Fulfilment on {formatScheduledDateTime(order as any)} · {getScheduledCountdownLabel(order as any)}.
@@ -882,7 +901,7 @@ export default function OrderDetailPage() {
                     disabled={o.isUpdating}
                   >
                     <XCircle size={15} className="mr-1.5" />
-                    {order.status === 'enquired' ? 'Decline Request' : 'Reject'}
+                    {order.status === 'enquired' ? (isContactEnquiry ? 'Decline' : 'Decline Request') : 'Reject'}
                   </Button>
                 )}
                 {order.status === 'enquired' && o.canChat && o.chatRecipientId && (
@@ -901,7 +920,9 @@ export default function OrderDetailPage() {
                 >
                   {o.isUpdating ? <Loader2 size={15} className="mr-1.5 animate-spin" /> : <Check size={15} className="mr-1.5" />}
                   {order.status === 'enquired'
-                    ? (order.total_amount > 0 ? `Send Quote (${formatPrice(order.total_amount)})` : 'Send Quote')
+                    ? (isContactEnquiry
+                      ? 'Accept Enquiry'
+                      : (order.total_amount > 0 ? `Send Quote (${formatPrice(order.total_amount)})` : 'Send Quote'))
                     : isFutureScheduledAccept
                       ? 'Confirm Scheduled Order'
                       : 'Accept Order'}
@@ -917,7 +938,7 @@ export default function OrderDetailPage() {
               <OrderProgressRail
                 stages={orderProgress.stages}
                 currentIndex={orderProgress.stageIndex}
-                title="Order Progress"
+                title={isContactEnquiry ? 'Enquiry Progress' : 'Order Progress'}
                 hint={
                   o.getSellerHint(order.status) ||
                   orderProgress.subtext ||
@@ -941,6 +962,7 @@ export default function OrderDetailPage() {
               currentStatus={order.status}
               fulfillmentType={fulfillmentType}
               flowIsTransit={o.flow.find((s: any) => s.status_key === order.status)?.is_transit === true}
+              transactionType={o.resolvedTxnType}
               stageHint={o.getBuyerHint(order.status)}
             /></motion.div>
           )}
@@ -1232,7 +1254,7 @@ export default function OrderDetailPage() {
           )}
 
           {/* Self-pickup OTP card — buyer sees the code to share with seller */}
-          {o.isBuyerView && fulfillmentType === 'self_pickup' && !isTerminalStatus(o.flow, order.status) && (() => {
+          {o.isBuyerView && fulfillmentType === 'self_pickup' && !isContactEnquiry && !isTerminalStatus(o.flow, order.status) && (() => {
             const nextStatus = o.buyerNextStatus || o.nextStatus;
             if (!nextStatus) return null;
             const nextOtpType = getStepOtpType(o.flow, nextStatus);

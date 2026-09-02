@@ -5,7 +5,13 @@
 
 export type OrderFulfillmentKind = 'delivery' | 'pickup';
 
+export type ProgressJourney = 'fulfillment' | 'contact_enquiry';
+
 export type ProgressStageId = 1 | 2 | 3 | 4;
+
+export function isContactEnquiryTransaction(transactionType?: string | null): boolean {
+  return transactionType === 'contact_enquiry';
+}
 
 export type ProgressEndState =
   | 'cancelled'
@@ -25,6 +31,8 @@ export interface OrderProgressStageDef {
 export interface OrderProgressResolution {
   kind: 'stages' | 'end_state';
   fulfillment: OrderFulfillmentKind;
+  /** Cart/book rails vs contact-enquiry accept → delivered. */
+  journey: ProgressJourney;
   /** 1–4 when kind === 'stages' */
   stageId: ProgressStageId | null;
   /** 0-based index into `stages` */
@@ -55,6 +63,13 @@ export const PICKUP_PROGRESS_STAGES: OrderProgressStageDef[] = [
   { id: 3, key: 'ready', label: 'Ready for pickup', shortLabel: 'Ready' },
   // Align with self_fulfillment terminal (completed), not delivery's delivered
   { id: 4, key: 'buyer_received', label: 'Picked up', shortLabel: 'Picked up' },
+];
+
+/** Seller closes contact enquiry in two actions: accept, then delivered. */
+export const CONTACT_ENQUIRY_PROGRESS_STAGES: OrderProgressStageDef[] = [
+  { id: 1, key: 'enquired', label: 'Enquiry', shortLabel: 'Enquiry' },
+  { id: 2, key: 'quoted', label: 'Accepted', shortLabel: 'Accepted' },
+  { id: 3, key: 'completed', label: 'Delivered', shortLabel: 'Delivered' },
 ];
 
 const END_STATES = new Set<string>([
@@ -196,27 +211,36 @@ function deliverySubtext(status: string): string | null {
   return null;
 }
 
+function resolveEnquiryStageId(status: string): ProgressStageId {
+  if (status === 'completed' || status === 'delivered') return 3;
+  if (status === 'quoted' || status === 'accepted') return 2;
+  return 1;
+}
+
 /**
- * Resolve the shared 4-stage progress presentation for an order status.
+ * Resolve the shared progress presentation for an order status.
+ * Contact enquiry uses a 3-stage rail; cart/book/pickup stay on the 4-stage rails.
  */
 export function resolveOrderProgress(options: {
   status: string;
   fulfillmentType?: string | null;
   /** From category_status_flows.is_transit for the current step */
   flowIsTransit?: boolean;
+  transactionType?: string | null;
 }): OrderProgressResolution {
   const fulfillment = resolveFulfillmentKind(options.fulfillmentType);
-  const stages = getOrderProgressStages(fulfillment);
   const status = options.status;
+  const isEnquiryJourney = isContactEnquiryTransaction(options.transactionType);
 
   if (END_STATES.has(status)) {
     const endState = status as ProgressEndState;
     return {
       kind: 'end_state',
       fulfillment,
+      journey: isEnquiryJourney ? 'contact_enquiry' : 'fulfillment',
       stageId: null,
       stageIndex: -1,
-      stages,
+      stages: isEnquiryJourney ? CONTACT_ENQUIRY_PROGRESS_STAGES : getOrderProgressStages(fulfillment),
       label: status.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
       subtext: null,
       endState,
@@ -226,6 +250,27 @@ export function resolveOrderProgress(options: {
     };
   }
 
+  if (isEnquiryJourney) {
+    const stageId = resolveEnquiryStageId(status);
+    const stages = CONTACT_ENQUIRY_PROGRESS_STAGES;
+    const stageDef = stages[stageId - 1];
+    return {
+      kind: 'stages',
+      fulfillment,
+      journey: 'contact_enquiry',
+      stageId,
+      stageIndex: stageId - 1,
+      stages,
+      label: stageDef.label,
+      subtext: null,
+      endState: null,
+      showCodBanner: false,
+      progressPercent: stageId === 1 ? 20 : stageId === 2 ? 60 : 100,
+      isTransitStage: false,
+    };
+  }
+
+  const stages = getOrderProgressStages(fulfillment);
   const stageId = resolveStageId(status, fulfillment, options.flowIsTransit);
   const stageIndex = stageId - 1;
   const stageDef = stages[stageIndex];
@@ -246,6 +291,7 @@ export function resolveOrderProgress(options: {
   return {
     kind: 'stages',
     fulfillment,
+    journey: 'fulfillment',
     stageId,
     stageIndex,
     stages,
@@ -263,12 +309,17 @@ export function progressStageToPhase(
   resolution: OrderProgressResolution,
 ): 'placed' | 'preparing' | 'ready' | 'transit' | 'delivered' | 'cancelled' {
   if (resolution.kind === 'end_state') return 'cancelled';
+  if (resolution.journey === 'contact_enquiry') {
+    if (resolution.stageId === 1) return 'placed';
+    if (resolution.stageId === 2) return 'preparing';
+    return 'delivered';
+  }
   switch (resolution.stageId) {
     case 1: return 'placed';
     case 2: return 'preparing';
     case 3:
       return resolution.fulfillment === 'pickup' ? 'ready' : 'transit';
-    case 4: return 'completed';
+    case 4: return 'delivered';
     default: return 'preparing';
   }
 }

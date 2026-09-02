@@ -6,6 +6,7 @@ import {
   progressStageToPhase,
   DELIVERY_PROGRESS_STAGES,
   PICKUP_PROGRESS_STAGES,
+  CONTACT_ENQUIRY_PROGRESS_STAGES,
 } from '@/lib/orderProgressStages';
 
 describe('orderProgressStages', () => {
@@ -99,6 +100,55 @@ describe('orderProgressStages', () => {
       const completed = resolveOrderProgress({ status: 'completed', fulfillmentType: 'self_pickup' });
       expect(completed.stageId).toBe(4);
       expect(completed.label).toBe('Picked up');
+    });
+  });
+
+  describe('contact enquiry rail', () => {
+    it('uses Enquiry → Accepted → Delivered instead of cart pickup stages', () => {
+      const r = resolveOrderProgress({
+        status: 'enquired',
+        fulfillmentType: 'self_pickup',
+        transactionType: 'contact_enquiry',
+      });
+      expect(r.journey).toBe('contact_enquiry');
+      expect(CONTACT_ENQUIRY_PROGRESS_STAGES.map((s) => s.label)).toEqual([
+        'Enquiry',
+        'Accepted',
+        'Delivered',
+      ]);
+      expect(r.stages.map((s) => s.label)).toEqual(['Enquiry', 'Accepted', 'Delivered']);
+      expect(r.stageId).toBe(1);
+      expect(r.label).toBe('Enquiry');
+      expect(r.isTransitStage).toBe(false);
+    });
+
+    it('maps quoted/accepted to Accepted and completed to Delivered', () => {
+      const accepted = resolveOrderProgress({
+        status: 'quoted',
+        fulfillmentType: 'self_pickup',
+        transactionType: 'contact_enquiry',
+      });
+      expect(accepted.stageId).toBe(2);
+      expect(accepted.label).toBe('Accepted');
+      const done = resolveOrderProgress({
+        status: 'completed',
+        fulfillmentType: 'self_pickup',
+        transactionType: 'contact_enquiry',
+      });
+      expect(done.stageId).toBe(3);
+      expect(done.label).toBe('Delivered');
+      expect(progressStageToPhase(done)).toBe('delivered');
+    });
+
+    it('does not change cart pickup labels when transactionType is omitted', () => {
+      const r = resolveOrderProgress({ status: 'enquired', fulfillmentType: 'self_pickup' });
+      expect(r.journey).toBe('fulfillment');
+      expect(r.stages.map((s) => s.label)).toEqual([
+        'Confirmed',
+        'Preparing',
+        'Ready for pickup',
+        'Picked up',
+      ]);
     });
   });
 

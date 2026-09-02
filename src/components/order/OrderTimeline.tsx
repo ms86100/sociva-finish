@@ -38,6 +38,8 @@ const STATUS_LABELS: Record<string, string> = {
   completed: 'Order completed',
   cancelled: 'Order cancelled',
   rejected: 'Seller could not fulfill this order',
+  enquired: 'Enquiry sent to the seller',
+  quoted: 'Seller accepted the enquiry',
 };
 
 function getTimelineLabel(action: string, metadata: any): string {
