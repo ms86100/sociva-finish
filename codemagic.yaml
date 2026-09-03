@@ -79,7 +79,8 @@ workflows:
           # Keep the Capacitor-generated plugin list (including Transistorsoft).
           # Overwriting it with a hardcoded subset shipped iOS binaries without
           # BackgroundGeolocation ("plugin is not implemented on iOS").
-          node ../../scripts/patch-ios-podfile.cjs
+          # Always patch ios/App/Podfile (CI cwd is already ios/App).
+          node ../../scripts/patch-ios-podfile.cjs --podfile=Podfile
           echo "=== Final Podfile ==="
           cat Podfile
           if ! grep -q "TransistorsoftCapacitorBackgroundGeolocation" Podfile; then
@@ -1043,7 +1044,7 @@ workflows:
           project.save
           RUBY
           # Keep Capacitor-generated plugin pods (including Transistorsoft).
-          node ../../scripts/patch-ios-podfile.cjs
+          node ../../scripts/patch-ios-podfile.cjs --podfile=Podfile
           echo "=== Final Podfile ==="
           cat Podfile
           if ! grep -q "TransistorsoftCapacitorBackgroundGeolocation" Podfile; then

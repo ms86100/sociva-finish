@@ -10,8 +10,12 @@ import {
 } from '@/lib/location-tracking-errors';
 
 const require = createRequire(import.meta.url);
-const { patch } = require('../../scripts/patch-ios-podfile.cjs') as {
+const { patch, resolvePaths } = require('../../scripts/patch-ios-podfile.cjs') as {
   patch: (content: string) => string;
+  resolvePaths: (cwd?: string, scriptDir?: string, argv?: string[]) => {
+    repoRoot: string;
+    podfilePath: string;
+  };
 };
 
 const ordersPage = readFileSync(resolve(__dirname, '../pages/OrdersPage.tsx'), 'utf8');
@@ -38,6 +42,22 @@ end
     expect(patched).toMatch(/pod 'FirebaseCore'/);
     expect(patched).toMatch(/SWIFT_ENABLE_EXPLICIT_MODULES/);
     expect(patch(patched)).toMatch(/TransistorsoftCapacitorBackgroundGeolocation/);
+  });
+
+  it('writes ios/App/Podfile even when CI cwd is already ios/App', () => {
+    const repo = resolve(__dirname, '../..');
+    const scriptDir = resolve(repo, 'scripts');
+    const fromIosApp = resolvePaths(resolve(repo, 'ios', 'App'), scriptDir, ['node', 'patch-ios-podfile.cjs']);
+    expect(fromIosApp.repoRoot).toBe(repo);
+    expect(fromIosApp.podfilePath).toBe(resolve(repo, 'ios', 'App', 'Podfile'));
+    expect(fromIosApp.podfilePath.replace(/\\/g, '/')).not.toMatch(/ios\/App\/ios\/App/);
+
+    const explicit = resolvePaths(resolve(repo, 'ios', 'App'), scriptDir, [
+      'node',
+      'patch-ios-podfile.cjs',
+      '--podfile=Podfile',
+    ]);
+    expect(explicit.podfilePath).toBe(resolve(repo, 'ios', 'App', 'Podfile'));
   });
 });
 

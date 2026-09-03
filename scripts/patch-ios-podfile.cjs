@@ -10,22 +10,39 @@
 const fs = require('fs');
 const path = require('path');
 
-const root = process.cwd();
-
-function resolvePodfilePath() {
-  const fromArg = process.argv.find((a) => a.startsWith('--podfile='));
-  if (fromArg) return path.resolve(fromArg.slice('--podfile='.length));
-  const inCwd = path.join(root, 'Podfile');
-  if (fs.existsSync(inCwd)) return inCwd;
-  return path.join(root, 'ios', 'App', 'Podfile');
+function findRepoRoot(startDir) {
+  let dir = path.resolve(startDir);
+  for (let i = 0; i < 10; i++) {
+    const pkg = path.join(dir, 'package.json');
+    const script = path.join(dir, 'scripts', 'patch-ios-podfile.cjs');
+    if (fs.existsSync(pkg) && fs.existsSync(script)) return dir;
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return null;
 }
 
-function resolveRepoRoot(podfilePath) {
-  const appDir = path.dirname(podfilePath);
-  if (path.basename(appDir) === 'App' && path.basename(path.dirname(appDir)) === 'ios') {
-    return path.dirname(path.dirname(appDir));
+/**
+ * Always resolve from this file's location so `cd ios/App && node ../../scripts/...`
+ * cannot nest ios/App/ios/App/Podfile.
+ */
+function resolvePaths(cwd = process.cwd(), scriptDir = __dirname, argv = process.argv) {
+  const repoRoot =
+    findRepoRoot(scriptDir) ||
+    findRepoRoot(cwd) ||
+    cwd;
+  const fromArg = argv.find((a) => a.startsWith('--podfile='));
+  if (fromArg) {
+    return {
+      repoRoot,
+      podfilePath: path.resolve(cwd, fromArg.slice('--podfile='.length)),
+    };
   }
-  return root;
+  return {
+    repoRoot,
+    podfilePath: path.join(repoRoot, 'ios', 'App', 'Podfile'),
+  };
 }
 
 const REQUIRED_PLUGIN_PODS = [
@@ -161,8 +178,12 @@ function patch(content) {
 }
 
 function main() {
-  const podfilePath = resolvePodfilePath();
-  const repoRoot = resolveRepoRoot(podfilePath);
+  const { repoRoot, podfilePath } = resolvePaths();
+  const expectedPodfile = path.join(repoRoot, 'ios', 'App', 'Podfile');
+  if (path.normalize(podfilePath) !== path.normalize(expectedPodfile) && !process.argv.some((a) => a.startsWith('--podfile='))) {
+    throw new Error(`patch-ios-podfile: refusing unexpected Podfile path ${podfilePath}`);
+  }
+
   const existing = fs.existsSync(podfilePath) ? fs.readFileSync(podfilePath, 'utf8') : '';
   const source = existing.trim() ? existing : skeletonPodfile();
   const patched = patch(source);
@@ -178,15 +199,25 @@ function main() {
     'capacitor-background-geolocation',
   );
   if (!fs.existsSync(tsPath)) {
-    console.warn('patch-ios-podfile: Transistorsoft package not in node_modules yet');
+    throw new Error(`patch-ios-podfile: Transistorsoft missing at ${tsPath}`);
   }
 
-  fs.mkdirSync(path.dirname(podfilePath), { recursive: true });
+  const podDir = path.dirname(podfilePath);
+  if (!fs.existsSync(podDir)) {
+    throw new Error(`patch-ios-podfile: iOS app directory missing: ${podDir}`);
+  }
   fs.writeFileSync(podfilePath, patched.endsWith('\n') ? patched : `${patched}\n`, 'utf8');
   console.log(`Patched ${podfilePath}`);
 }
 
-module.exports = { patch, skeletonPodfile, REQUIRED_PLUGIN_PODS, SKELETON_PLUGIN_PODS };
+module.exports = {
+  patch,
+  skeletonPodfile,
+  REQUIRED_PLUGIN_PODS,
+  SKELETON_PLUGIN_PODS,
+  resolvePaths,
+  findRepoRoot,
+};
 
 if (require.main === module) {
   main();
