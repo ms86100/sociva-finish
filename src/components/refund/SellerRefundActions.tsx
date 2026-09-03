@@ -97,7 +97,10 @@ export function SellerRefundActions({
       const { data, error } = await supabase.rpc('get_sociva_balance_refund_eligibility', {
         p_order_id: orderId,
       });
-      if (error) throw error;
+      if (error) {
+        console.warn('[Refund] eligibility lookup failed', error.message);
+        return null;
+      }
       return normalizeSocivaBalanceRefundEligibility(data);
     },
     enabled: !!orderId && isPending,

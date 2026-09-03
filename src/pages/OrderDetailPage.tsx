@@ -83,6 +83,7 @@ import { WhatsAppUpdatesCta } from '@/components/notifications/WhatsAppUpdatesCt
 import { CheckoutSiblingsStrip } from '@/components/order/CheckoutSiblingsStrip';
 import { useCheckoutSiblings } from '@/hooks/useCheckoutGroup';
 import { checkoutKeyPrefix } from '@/lib/checkout-groups';
+import { parseProximityOverlayMessages } from '@/lib/proximity-overlay-messages';
 import { useAuth } from '@/contexts/AuthContext';
 import { ScheduledOrderBanner } from '@/components/orders/ScheduledOrderBanner';
 import { formatScheduledDateTime, getScheduledCountdownLabel, isScheduledOrder, isUpcomingScheduled } from '@/lib/scheduled-orders';
@@ -750,16 +751,18 @@ export default function OrderDetailPage() {
         >
           {o.isBuyerView && siblingOrders.length > 1 && (
             <motion.div variants={cardEntrance}>
-              <CheckoutSiblingsStrip
-                siblings={siblingOrders}
-                currentOrderId={order.id}
-                checkoutGroupId={
-                  (order as any).checkout_group_id ||
-                  (checkoutKeyPrefix((order as any).idempotency_key)
-                    ? `soft:${checkoutKeyPrefix((order as any).idempotency_key)}`
-                    : null)
-                }
-              />
+              <SafeSectionWrapper name="CheckoutSiblings" resetKey={order.id}>
+                <CheckoutSiblingsStrip
+                  siblings={siblingOrders}
+                  currentOrderId={order.id}
+                  checkoutGroupId={
+                    (order as any).checkout_group_id ||
+                    (checkoutKeyPrefix((order as any).idempotency_key)
+                      ? `soft:${checkoutKeyPrefix((order as any).idempotency_key)}`
+                      : null)
+                  }
+                />
+              </SafeSectionWrapper>
             </motion.div>
           )}
 
@@ -1165,27 +1168,29 @@ export default function OrderDetailPage() {
                 const destLat = (order as any).delivery_lat || (buyer as any)?.latitude || null;
                 const destLng = (order as any).delivery_lng || (buyer as any)?.longitude || null;
                 return destLat && destLng ? (
-                  <div className="-mx-4 border-y border-border/40 overflow-hidden bg-[#f3f3f1]">
-                    <Suspense fallback={<Skeleton className="h-[min(56vh,520px)] w-full" />}>
-                    <DeliveryMapView
-                      riderLat={originLat || sellerLatVal || destLat}
-                      riderLng={originLng || sellerLngVal || destLng}
-                      destinationLat={destLat}
-                      destinationLng={destLng}
-                      riderName={deliveryTracking.riderName || (seller as any)?.business_name || ''}
-                      heading={riderLoc?.heading}
-                      onRoadEtaChange={setRoadEtaMinutes}
-                      sellerLat={sellerLatVal}
-                      sellerLng={sellerLngVal}
-                      sellerName={seller?.business_name}
-                      isPickedUp={['picked_up', 'on_the_way', 'at_gate', 'en_route', 'arrived'].includes(order.status)}
-                      tall={true}
-                      onRouteInfo={handleRouteInfo}
-                      proximityStatus={deliveryTracking.proximityStatus}
-                      distanceMeters={deliveryTracking.distance}
-                    />
-                    </Suspense>
-                  </div>
+                  <SafeSectionWrapper name="DeliveryMap" resetKey={order.id}>
+                    <div className="-mx-4 border-y border-border/40 overflow-hidden bg-[#f3f3f1]">
+                      <Suspense fallback={<Skeleton className="h-[min(56vh,520px)] w-full" />}>
+                      <DeliveryMapView
+                        riderLat={originLat || sellerLatVal || destLat}
+                        riderLng={originLng || sellerLngVal || destLng}
+                        destinationLat={destLat}
+                        destinationLng={destLng}
+                        riderName={deliveryTracking.riderName || (seller as any)?.business_name || ''}
+                        heading={riderLoc?.heading}
+                        onRoadEtaChange={setRoadEtaMinutes}
+                        sellerLat={sellerLatVal}
+                        sellerLng={sellerLngVal}
+                        sellerName={seller?.business_name}
+                        isPickedUp={['picked_up', 'on_the_way', 'at_gate', 'en_route', 'arrived'].includes(order.status)}
+                        tall={true}
+                        onRouteInfo={handleRouteInfo}
+                        proximityStatus={deliveryTracking.proximityStatus}
+                        distanceMeters={deliveryTracking.distance}
+                      />
+                      </Suspense>
+                    </div>
+                  </SafeSectionWrapper>
                 ) : null;
               })()}
 
@@ -1421,30 +1426,34 @@ export default function OrderDetailPage() {
 
           {/* Refund Request — Buyer view (hide for seller to avoid duplicate) */}
           {!o.isSellerView && (
-            <RefundRequestCard
-              orderId={order.id}
-              orderStatus={order.status}
-              paymentStatus={(order as any).payment_status || ''}
-              deliveredAt={(order as any).delivered_at}
-              completedAt={(order as any).completed_at}
-              statusChangedAt={(order as any).status_changed_at}
-              isBuyerView={o.isBuyerView}
-              totalAmount={order.total_amount}
-              onRefundRequested={() => o.fetchOrder()}
-            />
+            <SafeSectionWrapper name="BuyerRefund" resetKey={order.id}>
+              <RefundRequestCard
+                orderId={order.id}
+                orderStatus={order.status}
+                paymentStatus={(order as any).payment_status || ''}
+                deliveredAt={(order as any).delivered_at}
+                completedAt={(order as any).completed_at}
+                statusChangedAt={(order as any).status_changed_at}
+                isBuyerView={o.isBuyerView}
+                totalAmount={order.total_amount}
+                onRefundRequested={() => o.fetchOrder()}
+              />
+            </SafeSectionWrapper>
           )}
 
           {/* Refund Request — Seller actions */}
           {o.isSellerView && (
-            <SellerRefundSection
-              orderId={order.id}
-              order={order as any}
-              buyerId={order.buyer_id}
-              buyerPhone={buyer?.phone}
-              canChat={o.canChat && !!o.chatRecipientId}
-              onChatOpen={() => o.setIsChatOpen(true)}
-              onAction={() => o.fetchOrder()}
-            />
+            <SafeSectionWrapper name="SellerRefund" resetKey={order.id}>
+              <SellerRefundSection
+                orderId={order.id}
+                order={order as any}
+                buyerId={order.buyer_id}
+                buyerPhone={buyer?.phone}
+                canChat={o.canChat && !!o.chatRecipientId}
+                onChatOpen={() => o.setIsChatOpen(true)}
+                onAction={() => o.fetchOrder()}
+              />
+            </SafeSectionWrapper>
           )}
 
           {/* Support Tickets & Help */}
@@ -1769,32 +1778,21 @@ export default function OrderDetailPage() {
       )}
 
       {showArrivalOverlay && (
-        <DeliveryArrivalOverlay
-          distance={deliveryTracking.distance}
-          eta={deliveryTracking.distance != null && deliveryTracking.distance < 500 ? Math.max(1, Math.ceil(deliveryTracking.distance / 1000 * 4)) : (roadEtaMinutes ?? deliveryTracking.eta)}
-          riderName={deliveryTracking.riderName}
-          riderPhone={deliveryTracking.riderPhone}
-          status={deliveryTracking.status}
-          onDismiss={() => {}}
-          deliveryCode={buyerOtp}
-          transitStatuses={trackingConfig.transit_statuses}
-          overlayDistanceMeters={trackingConfig.arrival_overlay_distance_meters}
-          doorstepDistanceMeters={trackingConfig.arrival_doorstep_distance_meters}
-          proximityMessages={useMemo(() => {
-            try {
-              const raw = getSetting('proximity_thresholds');
-              if (raw) {
-                const cfg = JSON.parse(raw);
-                return {
-                  at_doorstep_title: cfg.at_doorstep?.buyer_message,
-                  arriving_title: cfg.arriving?.buyer_message,
-                  subtitle: undefined,
-                };
-              }
-            } catch { /* use defaults */ }
-            return undefined;
-          }, [getSetting])}
-        />
+        <SafeSectionWrapper name="ArrivalOverlay" resetKey={order.id}>
+          <DeliveryArrivalOverlay
+            distance={deliveryTracking.distance}
+            eta={deliveryTracking.distance != null && deliveryTracking.distance < 500 ? Math.max(1, Math.ceil(deliveryTracking.distance / 1000 * 4)) : (roadEtaMinutes ?? deliveryTracking.eta)}
+            riderName={deliveryTracking.riderName}
+            riderPhone={deliveryTracking.riderPhone}
+            status={deliveryTracking.status}
+            onDismiss={() => {}}
+            deliveryCode={buyerOtp}
+            transitStatuses={trackingConfig.transit_statuses}
+            overlayDistanceMeters={trackingConfig.arrival_overlay_distance_meters}
+            doorstepDistanceMeters={trackingConfig.arrival_doorstep_distance_meters}
+            proximityMessages={parseProximityOverlayMessages(getSetting('proximity_thresholds'))}
+          />
+        </SafeSectionWrapper>
       )}
     </AppLayout>
   );
