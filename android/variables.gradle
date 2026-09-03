@@ -1,8 +1,10 @@
 ext {
     kotlin_version = '2.2.20'
     minSdkVersion = 24
-    compileSdkVersion = 37
-    targetSdkVersion = 37
+    // API 37 installs as platforms/android-37.0 on some SDKs; AGP then fails
+    // looking for android-37 on Codemagic. Stay on 35 until that path is stable.
+    compileSdkVersion = 35
+    targetSdkVersion = 35
     androidxActivityVersion = '1.11.0'
     androidxAppCompatVersion = '1.7.1'
     androidxCoordinatorLayoutVersion = '1.3.0'
