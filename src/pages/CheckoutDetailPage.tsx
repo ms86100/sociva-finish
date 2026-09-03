@@ -12,6 +12,8 @@ import { resolveOrderProgress } from '@/lib/orderProgressStages';
 import { OrderProgressRail } from '@/components/order/OrderProgressRail';
 import { ArrowLeft, ChevronRight, Package, Store } from 'lucide-react';
 import { format } from 'date-fns';
+import { parseTimestamp } from '@/lib/relative-time';
+import { firstEmbed } from '@/lib/supabase-embed';
 import { motion } from 'framer-motion';
 
 export default function CheckoutDetailPage() {
@@ -23,6 +25,7 @@ export default function CheckoutDetailPage() {
   const orders = data?.orders || [];
   const group = data?.group;
   const total = group?.total_amount != null ? Number(group.total_amount) : sumOrderAmounts(orders);
+  const created = parseTimestamp(group?.created_at) || parseTimestamp(orders[0]?.created_at);
 
   return (
     <AppLayout showHeader={false} safeTop={false}>
@@ -69,9 +72,7 @@ export default function CheckoutDetailPage() {
                     {orders.length} store{orders.length === 1 ? '' : 's'}
                   </h1>
                   <p className="text-xs text-muted-foreground mt-1">
-                    {group?.created_at
-                      ? format(new Date(group.created_at), 'MMM d, yyyy · h:mm a')
-                      : format(new Date(orders[0].created_at), 'MMM d, yyyy · h:mm a')}
+                    {created ? format(created, 'MMM d, yyyy · h:mm a') : ''}
                   </p>
                 </div>
                 <div className="text-right">
@@ -100,12 +101,13 @@ export default function CheckoutDetailPage() {
                   { failureOwner: order.failure_owner, rejectionReason: order.rejection_reason },
                 );
                 const progress = resolveOrderProgress({
-                  status: order.status,
+                  status: order.status || '',
                   fulfillmentType: order.fulfillment_type,
                 });
                 const items = order.items || [];
-                const name = order.seller?.business_name || 'Store';
-                const img = items[0]?.product_image || order.seller?.cover_image_url;
+                const seller = firstEmbed(order.seller) || order.seller;
+                const name = seller?.business_name || 'Store';
+                const img = items[0]?.product_image || seller?.cover_image_url;
 
                 return (
                   <Link

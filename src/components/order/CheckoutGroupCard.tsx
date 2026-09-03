@@ -8,16 +8,8 @@ import {
   sumOrderAmounts,
   type CheckoutChildOrder,
 } from '@/lib/checkout-groups';
-import { format, formatDistanceToNow, isYesterday, differenceInDays } from 'date-fns';
-
-function humanizeTime(iso: string): string {
-  const d = new Date(iso);
-  const days = differenceInDays(new Date(), d);
-  if (days < 1) return formatDistanceToNow(d, { addSuffix: true });
-  if (isYesterday(d)) return 'Yesterday';
-  if (days < 7) return format(d, 'EEEE');
-  return format(d, 'MMM d');
-}
+import { humanizeRelativeTime } from '@/lib/relative-time';
+import { firstEmbed } from '@/lib/supabase-embed';
 
 function statusTone(label: string): string {
   if (label.includes('Waiting')) return 'text-amber-700';
@@ -39,12 +31,14 @@ export function CheckoutGroupCard({
   orders: CheckoutChildOrder[];
 }) {
   const { formatPrice } = useCurrency();
-  const total = sumOrderAmounts(orders);
-  const summary = groupSummaryLabel(orders);
-  const createdAt = orders[0]?.created_at;
-  const paymentType = orders[0]?.payment_type;
+  const kids = (orders || []).filter((o) => o?.id);
+  if (kids.length === 0) return null;
+  const total = sumOrderAmounts(kids);
+  const summary = groupSummaryLabel(kids);
+  const createdAt = kids[0]?.created_at;
+  const paymentType = kids[0]?.payment_type;
   const href = groupId.startsWith('soft:')
-    ? `/orders/${orders[0].id}`
+    ? `/orders/${kids[0].id}`
     : `/checkouts/${groupId}`;
 
   return (
@@ -61,7 +55,7 @@ export function CheckoutGroupCard({
               <div className="flex items-center gap-1.5">
                 <Store size={14} className="text-primary shrink-0" />
                 <h3 className="text-sm font-semibold truncate">
-                  Checkout · {orders.length} stores
+                  Checkout · {kids.length} stores
                 </h3>
               </div>
               <p className="text-[11px] text-muted-foreground mt-0.5">{summary}</p>
@@ -73,10 +67,11 @@ export function CheckoutGroupCard({
           </div>
 
           <div className="space-y-1.5">
-            {orders.map((o) => {
+            {kids.map((o) => {
               const label = buyerStoreStatusLabel(o.status, o.payment_status);
-              const name = o.seller?.business_name || 'Store';
-              const img = o.items?.[0]?.product_image || o.seller?.cover_image_url;
+              const seller = firstEmbed(o.seller as any) || o.seller;
+              const name = seller?.business_name || 'Store';
+              const img = o.items?.[0]?.product_image || seller?.cover_image_url;
               return (
                 <div
                   key={o.id}
@@ -111,7 +106,7 @@ export function CheckoutGroupCard({
                     ? 'Online payment'
                     : 'Checkout'}
             </span>
-            {createdAt ? <span>{humanizeTime(createdAt)}</span> : null}
+            {createdAt ? <span>{humanizeRelativeTime(createdAt)}</span> : null}
           </div>
         </div>
       </motion.div>

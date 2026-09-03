@@ -5,7 +5,7 @@ const SIBLING_SELECT = `
   id, created_at, status, payment_status, payment_type, total_amount,
   fulfillment_type, checkout_group_id, idempotency_key, seller_id,
   failure_owner, rejection_reason,
-  seller:seller_profiles(business_name, cover_image_url),
+  seller:seller_profiles!orders_seller_id_fkey(business_name, cover_image_url),
   items:order_items(id, product_name, quantity, unit_price, subtotal, product_image)
 `;
 

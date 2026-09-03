@@ -229,7 +229,7 @@ export function resolveOrderProgress(options: {
   transactionType?: string | null;
 }): OrderProgressResolution {
   const fulfillment = resolveFulfillmentKind(options.fulfillmentType);
-  const status = options.status;
+  const status = String(options.status || '');
   const isEnquiryJourney = isContactEnquiryTransaction(options.transactionType);
 
   if (END_STATES.has(status)) {

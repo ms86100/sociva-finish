@@ -3,6 +3,9 @@
  * Pure mappers (no I/O) so list/detail UI and tests stay deterministic.
  */
 
+import { firstEmbed } from '@/lib/supabase-embed';
+import { compareIsoAsc, compareIsoDesc } from '@/lib/relative-time';
+
 export type CheckoutChildOrder = {
   id: string;
   checkout_group_id?: string | null;
@@ -43,7 +46,7 @@ export function buyerStoreStatusLabel(
   paymentStatus?: string | null,
   opts?: { failureOwner?: string | null; rejectionReason?: string | null },
 ): string {
-  const s = (status || '').toLowerCase();
+  const s = String(status || '').toLowerCase();
   const pay = (paymentStatus || '').toLowerCase();
 
   if (s === 'payment_pending' || (s === 'placed' && pay === 'pending' && false)) {
@@ -79,7 +82,7 @@ export function buyerStoreStatusLabel(
     if (s === 'awaiting_cod') return 'Delivered · pay cash';
     return 'Completed';
   }
-  return status.replace(/_/g, ' ');
+  return s.replace(/_/g, ' ') || 'Updating';
 }
 
 export function groupSummaryLabel(orders: CheckoutChildOrder[]): string {
@@ -107,16 +110,62 @@ export function sumOrderAmounts(orders: CheckoutChildOrder[]): number {
   return orders.reduce((sum, o) => sum + Number(o.total_amount || 0), 0);
 }
 
+export function normalizeCheckoutChild(raw: unknown): CheckoutChildOrder | null {
+  if (raw == null || typeof raw !== 'object') return null;
+  const row = raw as Record<string, unknown>;
+  const id = row.id != null ? String(row.id) : '';
+  if (!id) return null;
+  const seller = firstEmbed(row.seller as { business_name?: string | null; cover_image_url?: string | null } | null);
+  const items = Array.isArray(row.items) ? row.items : [];
+  const createdAt = typeof row.created_at === 'string' && row.created_at
+    ? row.created_at
+    : '';
+  return {
+    ...(row as unknown as CheckoutChildOrder),
+    id,
+    created_at: createdAt,
+    status: row.status == null ? '' : String(row.status),
+    total_amount: Number(row.total_amount || 0),
+    seller,
+    items: items as CheckoutChildOrder['items'],
+  };
+}
+
+function sortKids(kids: CheckoutChildOrder[]): CheckoutChildOrder[] {
+  return [...kids].sort((a, b) => compareIsoAsc(a.created_at, b.created_at));
+}
+
+function pushGroupOrSingle(
+  items: BuyerCheckoutListItem[],
+  groupId: string,
+  kids: CheckoutChildOrder[],
+) {
+  const ordered = sortKids(kids);
+  if (ordered.length === 1) {
+    items.push({ kind: 'single', order: ordered[0] });
+    return;
+  }
+  items.push({
+    kind: 'group',
+    groupId,
+    orders: ordered,
+    createdAt: ordered[0]?.created_at || '',
+  });
+}
+
 /**
  * Collapse flat buyer order rows into list items.
  * Prefers checkout_group_id; falls back to idempotency_key prefix for soft-linked history.
+ * Skips malformed rows and never throws on mixed/partial sibling status updates.
  */
-export function groupBuyerOrdersForList(orders: CheckoutChildOrder[]): BuyerCheckoutListItem[] {
+export function groupBuyerOrdersForList(orders: CheckoutChildOrder[] | null | undefined): BuyerCheckoutListItem[] {
   const byGroup = new Map<string, CheckoutChildOrder[]>();
   const singles: CheckoutChildOrder[] = [];
   const softBuckets = new Map<string, CheckoutChildOrder[]>();
 
-  for (const order of orders) {
+  for (const raw of orders || []) {
+    const order = normalizeCheckoutChild(raw);
+    if (!order) continue;
     if (order.checkout_group_id) {
       const list = byGroup.get(order.checkout_group_id) || [];
       list.push(order);
@@ -136,31 +185,11 @@ export function groupBuyerOrdersForList(orders: CheckoutChildOrder[]): BuyerChec
   const items: BuyerCheckoutListItem[] = [];
 
   for (const [groupId, kids] of byGroup) {
-    kids.sort((a, b) => a.created_at.localeCompare(b.created_at));
-    if (kids.length === 1) {
-      items.push({ kind: 'single', order: kids[0] });
-    } else {
-      items.push({
-        kind: 'group',
-        groupId,
-        orders: kids,
-        createdAt: kids[0].created_at,
-      });
-    }
+    pushGroupOrSingle(items, groupId, kids);
   }
 
   for (const [prefix, kids] of softBuckets) {
-    kids.sort((a, b) => a.created_at.localeCompare(b.created_at));
-    if (kids.length === 1) {
-      items.push({ kind: 'single', order: kids[0] });
-    } else {
-      items.push({
-        kind: 'group',
-        groupId: `soft:${prefix}`,
-        orders: kids,
-        createdAt: kids[0].created_at,
-      });
-    }
+    pushGroupOrSingle(items, `soft:${prefix}`, kids);
   }
 
   for (const order of singles) {
@@ -170,7 +199,7 @@ export function groupBuyerOrdersForList(orders: CheckoutChildOrder[]): BuyerChec
   items.sort((a, b) => {
     const aTs = a.kind === 'single' ? a.order.created_at : a.createdAt;
     const bTs = b.kind === 'single' ? b.order.created_at : b.createdAt;
-    return bTs.localeCompare(aTs);
+    return compareIsoDesc(aTs, bTs);
   });
 
   return items;

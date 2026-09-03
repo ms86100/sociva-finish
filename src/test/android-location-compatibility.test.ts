@@ -65,6 +65,9 @@ describe('Android location dependency compatibility', () => {
   it('injects Transistorsoft license from Codemagic env', () => {
     expect(codemagic).toMatch(/TRANSISTORSOFT_LICENSE/);
     expect(codemagic).toMatch(/transistorsoft\.properties/);
+    expect(codemagic).toMatch(/TSLocationManagerLicense/);
+    expect(codemagic).toMatch(/patch-ios-podfile/);
+    expect(codemagic).not.toMatch(/cat > Podfile/);
   });
 
   it('replaces license toast with branded Sociva status pill', () => {
@@ -168,7 +171,13 @@ describe('GPS regression matrix (source contracts)', () => {
   });
 
   it('Android Capacitor fallback only when unlicensed', () => {
-    expect(hook).toMatch(/without Transistorsoft license|startAndroidCapacitorTracking/);
+    expect(hook).toMatch(/without Transistorsoft license|startAndroidCapacitorTracking|startCapacitorGeolocationTracking/);
     expect(engine).toMatch(/androidLicensedCache === true/);
+  });
+
+  it('falls back to Capacitor Geolocation on iOS when Transistorsoft is unimplemented', () => {
+    expect(hook).toMatch(/Falling back to Capacitor Geolocation after Transistorsoft failure/);
+    expect(hook).toMatch(/androidBackgroundUpgrade: platform === 'android'/);
+    expect(hook).not.toMatch(/Location error: \$\{errMsg/);
   });
 });

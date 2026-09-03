@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { supabase } from '@/integrations/supabase/client';
 import { ReviewPromptBanner } from '@/components/order/ReviewPromptBanner';
 import { LoyaltyCard } from '@/components/loyalty/LoyaltyCard';
@@ -23,39 +23,35 @@ import { useFlowStepLabels } from '@/hooks/useFlowStepLabels';
 import { useCurrency } from '@/hooks/useCurrency';
 import { Order } from '@/types/Database';
 import { Package, ChevronRight, Loader2, CheckCircle, Truck, MessageCircle } from 'lucide-react';
-import { format, formatDistanceToNow, isToday, isYesterday, differenceInDays } from 'date-fns';
-import { staggerContainer, cardEntrance, emptyState, fadeSlideUp } from '@/lib/motion-variants';
+import { staggerContainer, cardEntrance, emptyState } from '@/lib/motion-variants';
 import { ALL_STORES_ID, isPortfolioSellerId, resolveOperationalSellerId } from '@/lib/seller-order-board';
 import { resolveOrderProgress } from '@/lib/orderProgressStages';
 import { groupBuyerOrdersForList } from '@/lib/checkout-groups';
+import { CheckoutGroupCard } from '@/components/order/CheckoutGroupCard';
+import { firstEmbed } from '@/lib/supabase-embed';
+import { humanizeRelativeTime } from '@/lib/relative-time';
 import { BuyerUpcomingOrders } from '@/components/orders/BuyerUpcomingOrders';
 import { ScheduledOrderCountdown } from '@/components/orders/ScheduledOrderCountdown';
 import { isScheduledOrder, isUpcomingScheduled } from '@/lib/scheduled-orders';
 import { orderPaymentChipLabel } from '@/lib/payment-method-label';
 
-function humanizeTime(iso: string): string {
-  const d = new Date(iso);
-  const days = differenceInDays(new Date(), d);
-  if (days < 1) return formatDistanceToNow(d, { addSuffix: true });
-  if (isYesterday(d)) return 'Yesterday';
-  if (days < 7) return format(d, 'EEEE');
-  return format(d, 'MMM d');
-}
-
 function OrderCard({ order, type, successTerminals, unreadCounts }: { order: Order; type: 'buyer' | 'seller'; successTerminals: Set<string>; unreadCounts?: Map<string, number> }) {
   const { getFlowLabel } = useFlowStepLabels();
   const { formatPrice } = useCurrency();
-  const statusInfo = getFlowLabel(order.status, type);
-  const seller = (order as any).seller;
-  const buyer = (order as any).buyer;
-  const items = (order as any).items || [];
-  const canReorder = type === 'buyer' && successTerminals.has(order.status);
-  const isCompleted = successTerminals.has(order.status);
-  const unread = unreadCounts?.get(order.id) || 0;
+  const orderId = order?.id ? String(order.id) : '';
+  const status = order?.status == null ? '' : String(order.status);
+  const statusInfo = getFlowLabel(status, type);
+  const seller = firstEmbed((order as any).seller);
+  const buyer = firstEmbed((order as any).buyer);
+  const items = Array.isArray((order as any).items) ? (order as any).items : [];
+  const canReorder = type === 'buyer' && successTerminals.has(status);
+  const isCompleted = successTerminals.has(status);
+  const unread = unreadCounts?.get(orderId) || 0;
+  if (!orderId) return null;
   const isUpcomingScheduledOrder = isScheduledOrder(order as any) && isUpcomingScheduled(order as any);
-  const isActive = !isCompleted && !['cancelled', 'rejected'].includes(order.status) && !isUpcomingScheduledOrder;
+  const isActive = !isCompleted && !['cancelled', 'rejected'].includes(status) && !isUpcomingScheduledOrder;
   const progress = resolveOrderProgress({
-    status: order.status,
+    status,
     fulfillmentType: (order as any).fulfillment_type,
     transactionType: (order as any).transaction_type,
   }).progressPercent || (isActive ? 30 : 0);
@@ -66,7 +62,7 @@ function OrderCard({ order, type, successTerminals, unreadCounts }: { order: Ord
   const dotColor = (statusInfo.color || '').split(' ').find((c: string) => c.startsWith('text-')) || 'text-muted-foreground';
 
   return (
-    <Link to={`/orders/${order.id}`} className="block">
+    <Link to={`/orders/${orderId}`} className="block">
       <motion.div
         whileTap={{ scale: 0.985 }}
         whileHover={{ y: -1 }}
@@ -92,7 +88,7 @@ function OrderCard({ order, type, successTerminals, unreadCounts }: { order: Ord
                   {type === 'buyer' ? (seller?.business_name || 'Seller') : (buyer?.name || 'Customer')}
                 </h3>
                 <p className="text-[10px] text-muted-foreground font-mono truncate">
-                  #{order.id.slice(0, 8)}
+                  #{orderId.slice(0, 8)}
                 </p>
               </div>
               <div className="flex items-center gap-1.5 shrink-0">
@@ -124,7 +120,7 @@ function OrderCard({ order, type, successTerminals, unreadCounts }: { order: Ord
                 <ScheduledOrderCountdown order={order as any} size="sm" />
               )}
               <span className="text-[11px] text-muted-foreground ml-auto">
-                {humanizeTime(order.created_at)}
+                {humanizeRelativeTime(order.created_at)}
               </span>
             </div>
 
@@ -154,7 +150,7 @@ function OrderCard({ order, type, successTerminals, unreadCounts }: { order: Ord
 
         {canReorder && (
           <div className="px-3 pb-3 pt-2.5 border-t border-border/60 flex justify-end" onClick={(e) => e.stopPropagation()}>
-            <ReorderButton orderItems={items} orderId={order.id} sellerId={order.seller_id} variant="outline" size="sm" />
+            <ReorderButton orderItems={items} orderId={orderId} sellerId={order.seller_id} variant="outline" size="sm" />
           </div>
         )}
       </motion.div>
@@ -211,7 +207,7 @@ function OrderList({ type, userId, sellerId }: { type: 'buyer' | 'seller'; userI
   const queryClient = useQueryClient();
 
   // Fetch unread chat message counts per order
-  const orderIds = orders.map(o => o.id);
+  const orderIds = orders.filter(Boolean).map(o => o.id).filter(Boolean);
   const { data: unreadCounts } = useQuery({
     queryKey: ['unread-chat-counts', userId, orderIds.join(',')],
     queryFn: async () => {
@@ -307,9 +303,10 @@ function OrderList({ type, userId, sellerId }: { type: 'buyer' | 'seller'; userI
     );
   }
 
-  const visibleOrders = buyerFilter === 'active'
-    ? orders.filter(o => !isUpcomingScheduled(o as any))
-    : orders;
+  const visibleOrders = (buyerFilter === 'active'
+    ? orders.filter(o => o && !isUpcomingScheduled(o as any))
+    : orders
+  ).filter(Boolean);
 
   if (visibleOrders.length === 0 && buyerFilter === 'all') {
     return <EmptyState message={type === 'buyer' ? "You haven't placed any orders yet" : "No orders received yet"} type={type} />;
@@ -352,31 +349,57 @@ function OrderList({ type, userId, sellerId }: { type: 'buyer' | 'seller'; userI
           key={buyerFilter}
         >
           {type === 'buyer'
-            ? groupBuyerOrdersForList(visibleOrders as any).map((item) => (
+            ? groupBuyerOrdersForList(visibleOrders as any).map((item) => {
+                const cardKey = item.kind === 'group' ? item.groupId : item.order.id;
+                const resetKey = item.kind === 'group'
+                  ? item.orders.map((o) => `${o.id}:${o.status}`).join('|')
+                  : `${item.order.id}:${item.order.status}`;
+                return (
                 <motion.div
-                  key={item.kind === 'group' ? item.groupId : item.order.id}
+                  key={cardKey}
                   variants={cardEntrance}
                 >
-                  {item.kind === 'group' ? (
-                    <CheckoutGroupCard groupId={item.groupId} orders={item.orders} />
-                  ) : (
+                  <SafeSectionWrapper
+                    name={`orders-card-${cardKey}`}
+                    resetKey={resetKey}
+                    fallback={
+                      <div className="rounded-2xl border border-border/50 bg-muted/40 p-3 mb-2.5 text-xs text-muted-foreground">
+                        This order couldn’t be shown. Other orders are unaffected.
+                      </div>
+                    }
+                  >
+                    {item.kind === 'group' ? (
+                      <CheckoutGroupCard groupId={item.groupId} orders={item.orders} />
+                    ) : (
+                      <OrderCard
+                        order={item.order as any}
+                        type={type}
+                        successTerminals={successSet}
+                        unreadCounts={unreadCounts}
+                      />
+                    )}
+                  </SafeSectionWrapper>
+                </motion.div>
+                );
+              })
+            : visibleOrders.map((order) => (
+                <motion.div key={order.id} variants={cardEntrance}>
+                  <SafeSectionWrapper
+                    name={`orders-card-${order.id}`}
+                    resetKey={`${order.id}:${order.status}`}
+                    fallback={
+                      <div className="rounded-2xl border border-border/50 bg-muted/40 p-3 mb-2.5 text-xs text-muted-foreground">
+                        This order couldn’t be shown. Other orders are unaffected.
+                      </div>
+                    }
+                  >
                     <OrderCard
-                      order={item.order as any}
+                      order={order}
                       type={type}
                       successTerminals={successSet}
                       unreadCounts={unreadCounts}
                     />
-                  )}
-                </motion.div>
-              ))
-            : visibleOrders.map((order) => (
-                <motion.div key={order.id} variants={cardEntrance}>
-                  <OrderCard
-                    order={order}
-                    type={type}
-                    successTerminals={successSet}
-                    unreadCounts={unreadCounts}
-                  />
+                  </SafeSectionWrapper>
                 </motion.div>
               ))}
         </motion.div>

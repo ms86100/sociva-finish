@@ -52,6 +52,7 @@ export function CheckoutSiblingsStrip({
             rejectionReason: s.rejection_reason,
           });
           const isCurrent = s.id === currentOrderId;
+          const seller = Array.isArray(s.seller) ? s.seller[0] : s.seller;
           const inner = (
             <div
               className={`flex items-center justify-between gap-2 rounded-xl px-2.5 py-2 text-xs ${
@@ -60,7 +61,7 @@ export function CheckoutSiblingsStrip({
             >
               <div className="min-w-0">
                 <p className="font-medium truncate">
-                  {s.seller?.business_name || 'Store'}
+                  {seller?.business_name || 'Store'}
                   {isCurrent ? ' · this store' : ''}
                 </p>
                 <p className="text-[10px] text-muted-foreground mt-0.5">{label}</p>

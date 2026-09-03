@@ -93,6 +93,7 @@ const config: CapacitorConfig = {
       NSPhotoLibraryUsageDescription: 'Sociva needs photo library access to let you select images for product listings and your profile.',
       NSPhotoLibraryAddUsageDescription: 'Sociva needs permission to save images to your photo library.',
       NSLocationAlwaysAndWhenInUseUsageDescription: 'Sociva uses your location in the background to provide real-time delivery tracking when you are making deliveries as a seller.',
+      NSLocationAlwaysUsageDescription: 'Sociva uses your location in the background to provide real-time delivery tracking when you are making deliveries as a seller.',
       // Calendar — required for @ebarooni/capacitor-calendar (iOS 13–16 + write-only / full on iOS 17+)
       NSCalendarsUsageDescription: 'Sociva needs calendar access so you can save service bookings to your calendar.',
       NSCalendarsWriteOnlyAccessUsageDescription: 'Sociva needs calendar access so you can save service bookings to your calendar.',

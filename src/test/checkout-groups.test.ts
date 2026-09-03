@@ -72,4 +72,56 @@ describe('checkout-groups', () => {
     expect(postCheckoutPath(['a'], 'g1').path).toBe('/orders/a');
     expect(postCheckoutPath(['a', 'b'], null).path).toBe('/orders/a');
   });
+
+  it('keeps mixed sibling statuses after one store updates', () => {
+    const rows = [
+      order({ id: 'a', checkout_group_id: 'g1', created_at: '2026-08-07T12:00:00Z', status: 'picked_up' }),
+      order({ id: 'b', checkout_group_id: 'g1', created_at: '2026-08-07T12:01:00Z', status: 'placed' }),
+    ];
+    const items = groupBuyerOrdersForList(rows);
+    expect(items).toHaveLength(1);
+    expect(items[0].kind).toBe('group');
+    if (items[0].kind === 'group') {
+      expect(groupSummaryLabel(items[0].orders)).toMatch(/2 stores/);
+      expect(groupSummaryLabel(items[0].orders)).toMatch(/active|waiting/i);
+    }
+  });
+
+  it('does not throw when created_at or status is missing, and skips rows without id', () => {
+    const rows = [
+      { id: 'a', checkout_group_id: 'g1', status: 'accepted' } as any,
+      { id: 'b', checkout_group_id: 'g1', created_at: 'not-a-date', status: null } as any,
+      { checkout_group_id: 'g1', status: 'placed' } as any,
+      null as any,
+    ];
+    expect(() => groupBuyerOrdersForList(rows)).not.toThrow();
+    const items = groupBuyerOrdersForList(rows);
+    expect(items).toHaveLength(1);
+    expect(items[0].kind).toBe('group');
+    if (items[0].kind === 'group') {
+      expect(items[0].orders).toHaveLength(2);
+      expect(buyerStoreStatusLabel(items[0].orders[1].status)).toBe('Updating');
+    }
+  });
+
+  it('flattens seller embeds that arrive as arrays', () => {
+    const rows = [
+      order({
+        id: 'a',
+        checkout_group_id: 'g9',
+        seller: [{ business_name: 'Ramdev' }] as any,
+      }),
+      order({
+        id: 'b',
+        checkout_group_id: 'g9',
+        seller: { business_name: 'Mountain High' },
+      }),
+    ];
+    const items = groupBuyerOrdersForList(rows);
+    expect(items[0].kind).toBe('group');
+    if (items[0].kind === 'group') {
+      expect(items[0].orders[0].seller?.business_name).toBe('Ramdev');
+      expect(items[0].orders[1].seller?.business_name).toBe('Mountain High');
+    }
+  });
 });

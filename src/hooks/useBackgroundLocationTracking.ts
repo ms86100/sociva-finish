@@ -6,6 +6,10 @@ import { toast } from 'sonner';
 import { getTrackingConfig, type TrackingConfig } from '@/services/trackingConfig';
 import { showFeedback } from '@/components/FeedbackPopupProvider';
 import { shouldUseTransistorsoftBackgroundGeo, refreshNativeLocationEngineFlags } from '@/lib/native-location-engine';
+import {
+  isNativePluginUnimplemented,
+  sellerLocationErrorMessage,
+} from '@/lib/location-tracking-errors';
 
 interface TrackingState {
   isTracking: boolean;
@@ -264,7 +268,8 @@ export function useBackgroundLocationTracking(assignmentId: string | null) {
     return 'when_in_use' as const;
   }, []);
 
-  const startAndroidCapacitorTracking = useCallback(async () => {
+  const startCapacitorGeolocationTracking = useCallback(async (opts?: { androidBackgroundUpgrade?: boolean }) => {
+    const androidBackgroundUpgrade = opts?.androidBackgroundUpgrade === true;
     try {
       const { Geolocation } = await import('@capacitor/geolocation');
       capacitorGeoRef.current = Geolocation;
@@ -274,12 +279,12 @@ export function useBackgroundLocationTracking(assignmentId: string | null) {
         const requested = await Geolocation.requestPermissions();
         if (requested.location === 'denied') {
           setState(s => ({ ...s, permissionDenied: true, permissionLevel: 'denied' }));
-          toast.error('Location permission denied. Enable it in device settings.', { duration: 8000 });
+          toast.error(sellerLocationErrorMessage({ message: 'permission denied' }), { duration: 8000 });
           return;
         }
       } else if (permStatus.location === 'denied') {
         setState(s => ({ ...s, permissionDenied: true, permissionLevel: 'denied' }));
-        toast.error('Location permission denied. Enable it in device settings.', { duration: 8000 });
+        toast.error(sellerLocationErrorMessage({ message: 'permission denied' }), { duration: 8000 });
         return;
       }
 
@@ -295,6 +300,10 @@ export function useBackgroundLocationTracking(assignmentId: string | null) {
         (position, err) => {
           if (err) {
             console.error('[LocationTracking] Capacitor watch error:', err);
+            if (mountedRef.current) {
+              setState(s => ({ ...s, trackingPaused: true }));
+              toast.error(sellerLocationErrorMessage(err), { id: 'loc-watch-err', duration: 8000 });
+            }
             return;
           }
           if (!position?.coords) return;
@@ -313,7 +322,11 @@ export function useBackgroundLocationTracking(assignmentId: string | null) {
       // Do NOT start LiveDeliveryService here — SPECIAL_USE FGS start/stop during OTP
       // completion has force-closed the Android WebView. Keep GPS via watchPosition only.
 
-      const level = await upgradeAndroidBackgroundPermission();
+      let level: TrackingState['permissionLevel'] = 'when_in_use';
+      if (androidBackgroundUpgrade) {
+        level = await upgradeAndroidBackgroundPermission();
+      }
+
       if (mountedRef.current) {
         setState(s => ({
           ...s,
@@ -323,14 +336,26 @@ export function useBackgroundLocationTracking(assignmentId: string | null) {
         }));
       }
       startHealthCheck();
-      toast.success('Location sharing started', { id: 'loc-started', duration: 4000 });
-      console.log('[LocationTracking] Android Capacitor Geolocation tracking started (Transistorsoft skipped — no license toast)');
+      const keepOpen = Capacitor.getPlatform() === 'ios' && level !== 'always';
+      toast.success(
+        keepOpen
+          ? 'Location sharing started. Keep Sociva open so the buyer can track this delivery.'
+          : 'Location sharing started',
+        { id: 'loc-started', duration: keepOpen ? 8000 : 4000 },
+      );
+      console.log('[LocationTracking] Capacitor Geolocation tracking started', {
+        platform: Capacitor.getPlatform(),
+        androidBackgroundUpgrade,
+      });
     } catch (err: any) {
-      const errMsg = err instanceof Error ? err.message : String(err);
-      console.error('[LocationTracking] Android Capacitor tracking failed:', errMsg, err);
-      toast.error(`Location error: ${errMsg || 'Unknown failure'}`, { duration: 8000 });
+      console.error('[LocationTracking] Capacitor tracking failed:', err);
+      toast.error(sellerLocationErrorMessage(err), { duration: 8000 });
     }
   }, [assignmentId, sendLocation, startHealthCheck, upgradeAndroidBackgroundPermission]);
+
+  const startAndroidCapacitorTracking = useCallback(async () => {
+    await startCapacitorGeolocationTracking({ androidBackgroundUpgrade: true });
+  }, [startCapacitorGeolocationTracking]);
 
   // ─── Native background geolocation (Transistorsoft — iOS / licensed Android) ─────
 
@@ -348,12 +373,12 @@ export function useBackgroundLocationTracking(assignmentId: string | null) {
           console.log('[LocationTracking] Permission result:', requested.location);
           if (requested.location === 'denied') {
             setState(s => ({ ...s, permissionDenied: true, permissionLevel: 'denied' }));
-            toast.error('Location permission denied. Enable it in device settings.', { duration: 8000 });
+            toast.error(sellerLocationErrorMessage({ message: 'permission denied' }), { duration: 8000 });
             return;
           }
         } else if (permStatus.location === 'denied') {
           setState(s => ({ ...s, permissionDenied: true, permissionLevel: 'denied' }));
-          toast.error('Location permission denied. Enable it in device settings.', { duration: 8000 });
+          toast.error(sellerLocationErrorMessage({ message: 'permission denied' }), { duration: 8000 });
           return;
         }
       } catch (preflightErr) {
@@ -427,11 +452,11 @@ export function useBackgroundLocationTracking(assignmentId: string | null) {
           }));
         }
         if (level === 'denied') {
-          toast.error('Location permission denied. Enable it in device settings.');
+          toast.error(sellerLocationErrorMessage({ message: 'permission denied' }));
           return;
         }
         if (level === 'when_in_use') {
-          toast.info('For uninterrupted tracking, enable "Always" in Settings → Location', {
+          toast.info('For tracking while the app is in the background, set Location to Always in Settings.', {
             id: 'perm-upgrade',
             duration: 10000,
           });
@@ -447,15 +472,22 @@ export function useBackgroundLocationTracking(assignmentId: string | null) {
     } catch (err: any) {
       const errMsg = err instanceof Error ? err.message : String(err);
       console.error('[LocationTracking] Native tracking setup failed:', errMsg, err);
-      // Fall back to Capacitor GPS instead of failing silently (common without license / motion APIs).
-      if (Capacitor.getPlatform() === 'android') {
+      if (isNativePluginUnimplemented(err)) {
+        console.warn('[LocationTracking] BackgroundGeolocation native plugin is not linked in this iOS/Android binary');
+      }
+      // Native plugin missing (typical when iOS Podfile dropped Transistorsoft) or
+      // license/init failure: keep sharing working via Capacitor Geolocation.
+      const platform = Capacitor.getPlatform();
+      if (platform === 'android' || platform === 'ios') {
         console.warn('[LocationTracking] Falling back to Capacitor Geolocation after Transistorsoft failure:', errMsg);
-        await startAndroidCapacitorTracking();
+        await startCapacitorGeolocationTracking({
+          androidBackgroundUpgrade: platform === 'android',
+        });
         return;
       }
-      toast.error(`Location error: ${errMsg || 'Unknown failure'}`, { duration: 8000 });
+      toast.error(sellerLocationErrorMessage(err), { duration: 8000 });
     }
-  }, [sendLocation, startHealthCheck, startAndroidCapacitorTracking]);
+  }, [sendLocation, startHealthCheck, startCapacitorGeolocationTracking]);
 
   // ─── Auto-restart on resume (Gap 2: background kill recovery) ───
 
@@ -512,7 +544,7 @@ export function useBackgroundLocationTracking(assignmentId: string | null) {
       (err) => {
         if (err.code === err.PERMISSION_DENIED) {
           setState(s => ({ ...s, permissionDenied: true, permissionLevel: 'denied' }));
-          toast.error('Location permission denied.');
+          toast.error(sellerLocationErrorMessage({ message: 'permission denied' }));
         }
       },
       { enableHighAccuracy: true },
@@ -554,8 +586,10 @@ export function useBackgroundLocationTracking(assignmentId: string | null) {
           await startNativeTracking();
         }
       } else if (isNative) {
-        // Android without Transistorsoft license: Capacitor Geolocation only.
-        await startAndroidCapacitorTracking();
+        // Android without Transistorsoft license (or iOS if selector is off): Capacitor Geolocation.
+        await startCapacitorGeolocationTracking({
+          androidBackgroundUpgrade: Capacitor.getPlatform() === 'android',
+        });
       } else {
         startWebTracking();
       }
@@ -568,6 +602,7 @@ export function useBackgroundLocationTracking(assignmentId: string | null) {
     useTransistorsoft,
     startNativeTracking,
     startAndroidCapacitorTracking,
+    startCapacitorGeolocationTracking,
     startWebTracking,
     state.isTracking,
   ]);

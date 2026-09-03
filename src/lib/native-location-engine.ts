@@ -3,7 +3,8 @@
  *
  * Transistorsoft requires a paid license for applicationId `app.sociva.community`.
  * Android BuildConfig.HAS_TRANSISTORSOFT_LICENSE is exposed via LiveActivity.getNativeBuildFlags.
- * - iOS: always Transistorsoft
+ * - iOS: Transistorsoft when the native plugin is linked (Codemagic Podfile);
+ *   Capacitor Geolocation fallback if the plugin is missing or init fails
  * - Android licensed: Transistorsoft (real-time background GPS)
  * - Android unlicensed / debug: Capacitor Geolocation only (no license toast)
  */

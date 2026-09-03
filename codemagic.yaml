@@ -4,8 +4,10 @@
 # Setup Instructions:
 # 1. Connect this repo to Codemagic (codemagic.io)
 # 2. Add required environment variables (see below)
-#    Optional Android: TRANSISTORSOFT_LICENSE (or BGGEO_LICENSE) for real-time
-#    background GPS — bound to applicationId app.sociva.community
+#    Optional: TRANSISTORSOFT_LICENSE (or BGGEO_LICENSE) for real-time
+#    background GPS on Android (applicationId app.sociva.community) and iOS
+#    (Info.plist TSLocationManagerLicense). iOS also requires the Transistorsoft
+#    CocoaPod — never overwrite the Capacitor-generated Podfile plugin list.
 # 3. Trigger a build!
 
 workflows:
@@ -74,60 +76,16 @@ workflows:
           project.root_object.package_references.to_a.each { |ref| ref.remove_from_project }
           project.save
           RUBY
-          # Generate Podfile with all Capacitor plugins + Firebase
-          # CRITICAL: Capacitor 8 requires iOS 16.0 minimum
-          cat > Podfile << 'PODFILE'
-          require_relative '../../node_modules/@capacitor/ios/scripts/pods_helpers'
-
-          platform :ios, '16.1'
-          use_frameworks! :linkage => :static
-
-          # workaround to avoid Xcode caching of Pods that requires
-          # temporary clearing of the project's build directory
-          install! 'cocoapods', :disable_input_output_paths => true
-
-          def capacitor_pods
-            pod 'Capacitor', :path => '../../node_modules/@capacitor/ios'
-            pod 'CapacitorCordova', :path => '../../node_modules/@capacitor/ios'
-            pod 'CapacitorCommunityFcm', :path => '../../node_modules/@capacitor-community/fcm'
-            pod 'CapacitorApp', :path => '../../node_modules/@capacitor/app'
-            pod 'CapacitorCamera', :path => '../../node_modules/@capacitor/camera'
-            pod 'CapacitorGeolocation', :path => '../../node_modules/@capacitor/geolocation'
-            pod 'CapacitorHaptics', :path => '../../node_modules/@capacitor/haptics'
-            pod 'CapacitorKeyboard', :path => '../../node_modules/@capacitor/keyboard'
-            pod 'CapacitorPreferences', :path => '../../node_modules/@capacitor/preferences'
-            pod 'CapacitorPushNotifications', :path => '../../node_modules/@capacitor/push-notifications'
-            pod 'CapacitorSplashScreen', :path => '../../node_modules/@capacitor/splash-screen'
-            pod 'CapacitorStatusBar', :path => '../../node_modules/@capacitor/status-bar'
-          end
-
-          target 'App' do
-            capacitor_pods
-            pod 'FirebaseCore'
-            pod 'FirebaseMessaging'
-            pod 'FirebaseCrashlytics'
-          end
-
-          post_install do |installer|
-            assertDeploymentTarget(installer)
-            installer.pods_project.targets.each do |target|
-              target.build_configurations.each do |config|
-                config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '16.1'
-                config.build_settings['SWIFT_ENABLE_EXPLICIT_MODULES'] = 'NO'
-                # Prevent pod targets from conflicting with main app's install
-                config.build_settings['SKIP_INSTALL'] = 'YES'
-              end
-              # Xcode 16 creates duplicate ExtractAppIntentsMetadata phases
-              # for Firebase pods — remove all but the first to fix
-              # "Multiple commands produce … Metadata.appintents" error.
-              dupes = target.build_phases.select { |p|
-                p.respond_to?(:name) && p.name&.include?("AppIntents")
-              }
-              dupes.drop(1).each { |p| p.remove_from_project }
-            end
-          end
-          PODFILE
+          # Keep the Capacitor-generated plugin list (including Transistorsoft).
+          # Overwriting it with a hardcoded subset shipped iOS binaries without
+          # BackgroundGeolocation ("plugin is not implemented on iOS").
+          node ../../scripts/patch-ios-podfile.cjs
           echo "=== Final Podfile ==="
+          cat Podfile
+          if ! grep -q "TransistorsoftCapacitorBackgroundGeolocation" Podfile; then
+            echo "ERROR: Transistorsoft iOS pod missing from Podfile"
+            exit 1
+          fi
           # deterministic resolver on clean CI nodes
           pod install --repo-update
 
@@ -399,6 +357,16 @@ workflows:
             /usr/libexec/PlistBuddy -c "Add :NSLocationWhenInUseUsageDescription string 'Sociva uses your location to verify your residential society membership and show nearby sellers.'" App/Info.plist
           /usr/libexec/PlistBuddy -c "Set :NSLocationAlwaysAndWhenInUseUsageDescription 'Sociva uses your location in the background to provide real-time delivery tracking when you are making deliveries as a seller.'" App/Info.plist 2>/dev/null || \
             /usr/libexec/PlistBuddy -c "Add :NSLocationAlwaysAndWhenInUseUsageDescription string 'Sociva uses your location in the background to provide real-time delivery tracking when you are making deliveries as a seller.'" App/Info.plist
+          /usr/libexec/PlistBuddy -c "Set :NSLocationAlwaysUsageDescription 'Sociva uses your location in the background to provide real-time delivery tracking when you are making deliveries as a seller.'" App/Info.plist 2>/dev/null || \
+            /usr/libexec/PlistBuddy -c "Add :NSLocationAlwaysUsageDescription string 'Sociva uses your location in the background to provide real-time delivery tracking when you are making deliveries as a seller.'" App/Info.plist
+          KEY="${TRANSISTORSOFT_LICENSE:-${BGGEO_LICENSE:-}}"
+          if [ -n "$KEY" ] && [ "$KEY" != "YOUR_TRANSISTORSOFT_LICENSE_KEY_HERE" ]; then
+            plutil -replace TSLocationManagerLicense -string "$KEY" App/Info.plist 2>/dev/null || \
+              plutil -insert TSLocationManagerLicense -string "$KEY" App/Info.plist
+            echo "=== TSLocationManagerLicense injected ==="
+          else
+            echo "WARNING: TRANSISTORSOFT_LICENSE not set — iOS Transistorsoft may show a license notice; JS falls back to foreground location sharing."
+          fi
           echo "=== Privacy strings injected ==="
 
       - name: Copy GoogleService-Info.plist
@@ -1074,52 +1042,14 @@ workflows:
           project.root_object.package_references.to_a.each { |ref| ref.remove_from_project }
           project.save
           RUBY
-          cat > Podfile << 'PODFILE'
-          require_relative '../../node_modules/@capacitor/ios/scripts/pods_helpers'
-
-          platform :ios, '16.1'
-          use_frameworks! :linkage => :static
-
-          install! 'cocoapods', :disable_input_output_paths => true
-
-          def capacitor_pods
-            pod 'Capacitor', :path => '../../node_modules/@capacitor/ios'
-            pod 'CapacitorCordova', :path => '../../node_modules/@capacitor/ios'
-            pod 'CapacitorCommunityFcm', :path => '../../node_modules/@capacitor-community/fcm'
-            pod 'CapacitorApp', :path => '../../node_modules/@capacitor/app'
-            pod 'CapacitorCamera', :path => '../../node_modules/@capacitor/camera'
-            pod 'CapacitorGeolocation', :path => '../../node_modules/@capacitor/geolocation'
-            pod 'CapacitorHaptics', :path => '../../node_modules/@capacitor/haptics'
-            pod 'CapacitorKeyboard', :path => '../../node_modules/@capacitor/keyboard'
-            pod 'CapacitorPreferences', :path => '../../node_modules/@capacitor/preferences'
-            pod 'CapacitorPushNotifications', :path => '../../node_modules/@capacitor/push-notifications'
-            pod 'CapacitorSplashScreen', :path => '../../node_modules/@capacitor/splash-screen'
-            pod 'CapacitorStatusBar', :path => '../../node_modules/@capacitor/status-bar'
-          end
-
-          target 'App' do
-            capacitor_pods
-            pod 'FirebaseCore'
-            pod 'FirebaseMessaging'
-          end
-
-          post_install do |installer|
-            assertDeploymentTarget(installer)
-            installer.pods_project.targets.each do |target|
-              target.build_configurations.each do |config|
-                config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '16.1'
-                config.build_settings['SWIFT_ENABLE_EXPLICIT_MODULES'] = 'NO'
-                config.build_settings['SKIP_INSTALL'] = 'YES'
-              end
-              dupes = target.build_phases.select { |p|
-                p.respond_to?(:name) && p.name&.include?("AppIntents")
-              }
-              dupes.drop(1).each { |p| p.remove_from_project }
-            end
-          end
-          PODFILE
+          # Keep Capacitor-generated plugin pods (including Transistorsoft).
+          node ../../scripts/patch-ios-podfile.cjs
           echo "=== Final Podfile ==="
           cat Podfile
+          if ! grep -q "TransistorsoftCapacitorBackgroundGeolocation" Podfile; then
+            echo "ERROR: Transistorsoft iOS pod missing from Podfile"
+            exit 1
+          fi
           pod install --repo-update
 
       - name: Generate App Icon from source
@@ -1322,6 +1252,16 @@ workflows:
             /usr/libexec/PlistBuddy -c "Add :NSLocationWhenInUseUsageDescription string 'Sociva uses your location to verify your residential society membership and show nearby sellers.'" App/Info.plist
           /usr/libexec/PlistBuddy -c "Set :NSLocationAlwaysAndWhenInUseUsageDescription 'Sociva uses your location to verify your residential society membership and show nearby sellers, even in the background.'" App/Info.plist 2>/dev/null || \
             /usr/libexec/PlistBuddy -c "Add :NSLocationAlwaysAndWhenInUseUsageDescription string 'Sociva uses your location to verify your residential society membership and show nearby sellers, even in the background.'" App/Info.plist
+          /usr/libexec/PlistBuddy -c "Set :NSLocationAlwaysUsageDescription 'Sociva uses your location in the background to provide real-time delivery tracking when you are making deliveries as a seller.'" App/Info.plist 2>/dev/null || \
+            /usr/libexec/PlistBuddy -c "Add :NSLocationAlwaysUsageDescription string 'Sociva uses your location in the background to provide real-time delivery tracking when you are making deliveries as a seller.'" App/Info.plist
+          KEY="${TRANSISTORSOFT_LICENSE:-${BGGEO_LICENSE:-}}"
+          if [ -n "$KEY" ] && [ "$KEY" != "YOUR_TRANSISTORSOFT_LICENSE_KEY_HERE" ]; then
+            plutil -replace TSLocationManagerLicense -string "$KEY" App/Info.plist 2>/dev/null || \
+              plutil -insert TSLocationManagerLicense -string "$KEY" App/Info.plist
+            echo "=== TSLocationManagerLicense injected ==="
+          else
+            echo "WARNING: TRANSISTORSOFT_LICENSE not set — iOS Transistorsoft may show a license notice; JS falls back to foreground location sharing."
+          fi
           echo "=== Privacy strings injected ==="
 
       - name: Copy GoogleService-Info.plist
