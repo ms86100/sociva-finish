@@ -939,7 +939,10 @@ workflows:
           fi
 
       - name: Build Android release bundle
-        script: cd android && ./gradlew clean bundleRelease --warning-mode all
+        script: |
+          cd android
+          chmod +x ./gradlew
+          ./gradlew clean bundleRelease --warning-mode all
 
     artifacts:
       - android/app/build/outputs/**/*.aab
@@ -1722,7 +1725,10 @@ workflows:
           fi
 
       - name: Build Android AAB
-        script: cd android && ./gradlew clean bundleRelease --warning-mode all
+        script: |
+          cd android
+          chmod +x ./gradlew
+          ./gradlew clean bundleRelease --warning-mode all
 
     artifacts:
       - ios/App/build/ios/ipa/*.ipa
