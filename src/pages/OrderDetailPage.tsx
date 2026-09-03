@@ -317,6 +317,17 @@ function CelebrationBanner({ order, isBuyerView, flow }: { order: any; isBuyerVi
   );
 }
 
+const WORKFLOW_HERO_ACTIONS = 'flex flex-col gap-2 mt-3 min-w-0 w-full';
+const WORKFLOW_HERO_SECONDARY = 'flex flex-wrap gap-2 min-w-0 w-full';
+const WORKFLOW_HERO_CTA =
+  'w-full min-w-0 h-auto min-h-11 !whitespace-normal break-words text-center leading-snug px-3 py-2.5';
+const WORKFLOW_BAR =
+  'fixed inset-x-0 bottom-0 z-[60] bg-background/80 backdrop-blur-xl border-t border-border/50 overflow-x-hidden';
+const WORKFLOW_BAR_INNER =
+  'px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] flex flex-col gap-2 min-w-0 w-full';
+const WORKFLOW_BAR_BTN =
+  'w-full min-w-0 h-auto min-h-12 !whitespace-normal break-words text-center leading-snug px-3 py-2.5';
+
 export default function OrderDetailPage() {
   const { id } = useParams();
   const queryClient = useQueryClient();
@@ -701,7 +712,7 @@ export default function OrderDetailPage() {
           orderCount={checkoutOrderCount}
         />
       )}
-      <div className={`${(hasSellerActionBar || hasBuyerActionBar) ? 'pb-40' : 'pb-56'}`}>
+      <div className={`${(hasSellerActionBar || hasBuyerActionBar) ? 'pb-[calc(12rem+env(safe-area-inset-bottom))]' : 'pb-56'}`}>
         {/* ═══ Experience Header (replaces old header) ═══ */}
         <ExperienceHeader
           sellerName={o.isSellerView ? (buyer?.name || 'Customer') : (seller?.business_name || 'Seller')}
@@ -773,11 +784,21 @@ export default function OrderDetailPage() {
                   </p>
                 </div>
               </div>
-              <div className="flex gap-2 mt-3">
+              <div className={WORKFLOW_HERO_ACTIONS}>
+                <Button
+                  className={`${WORKFLOW_HERO_CTA} bg-primary text-primary-foreground hover:bg-primary/90 font-semibold text-xs`}
+                  onClick={() => o.buyerAdvanceOrder(o.buyerNextStatus!)}
+                  disabled={o.isUpdating}
+                >
+                  {o.isUpdating ? <Loader2 size={15} className="mr-1.5 animate-spin" /> : <Check size={15} className="mr-1.5" />}
+                  Accept Quote
+                  <ChevronRight size={14} className="ml-1 shrink-0" />
+                </Button>
+                <div className={WORKFLOW_HERO_SECONDARY}>
                 {o.canBuyerCancel && (
                   <Button
                     variant="outline"
-                    className="flex-1 border-destructive/40 text-destructive hover:bg-destructive hover:text-destructive-foreground h-11 text-xs"
+                    className="flex-1 min-w-[8.5rem] border-destructive/40 text-destructive hover:bg-destructive hover:text-destructive-foreground h-11 text-xs"
                     onClick={() => o.handleReject('Buyer declined quote')}
                     disabled={o.isUpdating}
                   >
@@ -787,21 +808,13 @@ export default function OrderDetailPage() {
                 {o.canChat && o.chatRecipientId && (
                   <Button
                     variant="outline"
-                    className="border-border/80 h-11 px-3 text-xs"
+                    className="border-border/80 h-11 px-3 text-xs shrink-0"
                     onClick={() => o.setIsChatOpen(true)}
                   >
                     <MessageCircle size={15} className="mr-1" /> Chat
                   </Button>
                 )}
-                <Button
-                  className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90 h-11 font-semibold text-xs"
-                  onClick={() => o.buyerAdvanceOrder(o.buyerNextStatus!)}
-                  disabled={o.isUpdating}
-                >
-                  {o.isUpdating ? <Loader2 size={15} className="mr-1.5 animate-spin" /> : <Check size={15} className="mr-1.5" />}
-                  Accept Quote
-                  <ChevronRight size={14} className="ml-1" />
-                </Button>
+                </div>
               </div>
             </motion.div>
           )}
@@ -892,29 +905,9 @@ export default function OrderDetailPage() {
                   </div>
                 );
               })()}
-              <div className="flex gap-2 mt-3">
-                {o.canSellerReject && (
-                  <Button
-                    variant="outline"
-                    className="flex-1 border-destructive/40 text-destructive hover:bg-destructive hover:text-destructive-foreground h-11 text-xs"
-                    onClick={() => o.setIsRejectionDialogOpen(true)}
-                    disabled={o.isUpdating}
-                  >
-                    <XCircle size={15} className="mr-1.5" />
-                    {order.status === 'enquired' ? (isContactEnquiry ? 'Decline' : 'Decline Request') : 'Reject'}
-                  </Button>
-                )}
-                {order.status === 'enquired' && o.canChat && o.chatRecipientId && (
-                  <Button
-                    variant="outline"
-                    className="border-border/80 h-11 px-3 text-xs"
-                    onClick={() => o.setIsChatOpen(true)}
-                  >
-                    <MessageCircle size={15} className="mr-1" /> Chat
-                  </Button>
-                )}
+              <div className={WORKFLOW_HERO_ACTIONS}>
                 <Button
-                  className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90 h-11 font-semibold text-xs"
+                  className={`${WORKFLOW_HERO_CTA} bg-primary text-primary-foreground hover:bg-primary/90 font-semibold text-xs`}
                   onClick={() => o.updateOrderStatus(o.nextStatus!)}
                   disabled={o.isUpdating}
                 >
@@ -926,8 +919,30 @@ export default function OrderDetailPage() {
                     : isFutureScheduledAccept
                       ? 'Confirm Scheduled Order'
                       : 'Accept Order'}
-                  <ChevronRight size={14} className="ml-1" />
+                  <ChevronRight size={14} className="ml-1 shrink-0" />
                 </Button>
+                <div className={WORKFLOW_HERO_SECONDARY}>
+                {o.canSellerReject && (
+                  <Button
+                    variant="outline"
+                    className="flex-1 min-w-[8.5rem] border-destructive/40 text-destructive hover:bg-destructive hover:text-destructive-foreground h-11 text-xs"
+                    onClick={() => o.setIsRejectionDialogOpen(true)}
+                    disabled={o.isUpdating}
+                  >
+                    <XCircle size={15} className="mr-1.5" />
+                    {order.status === 'enquired' ? (isContactEnquiry ? 'Decline' : 'Decline Request') : 'Reject'}
+                  </Button>
+                )}
+                {order.status === 'enquired' && o.canChat && o.chatRecipientId && (
+                  <Button
+                    variant="outline"
+                    className="border-border/80 h-11 px-3 text-xs shrink-0"
+                    onClick={() => o.setIsChatOpen(true)}
+                  >
+                    <MessageCircle size={15} className="mr-1" /> Chat
+                  </Button>
+                )}
+                </div>
               </div>
             </motion.div>
           )}
@@ -1111,6 +1126,7 @@ export default function OrderDetailPage() {
               whenISO={order.status_updated_at || order.updated_at || order.created_at}
               items={items}
               sellerId={order.seller_id}
+              orderId={order.id}
               showReorder={o.isBuyerView}
             />
           )}
@@ -1467,7 +1483,7 @@ export default function OrderDetailPage() {
           {o.canReorder && (
             <div className="bg-accent/10 border border-accent/20 rounded-xl p-3 flex items-center justify-between">
               <div className="flex items-center gap-2.5"><Package className="text-accent" size={18} /><div><p className="text-sm font-semibold">Order again?</p><p className="text-[11px] text-muted-foreground">Same items, one tap</p></div></div>
-              <ReorderButton orderItems={items} sellerId={order.seller_id} size="sm" />
+              <ReorderButton orderItems={items} orderId={order.id} sellerId={order.seller_id} size="sm" />
             </div>
           )}
 
@@ -1616,8 +1632,8 @@ export default function OrderDetailPage() {
 
       {/* Seller Action Bar — loading state */}
       {o.isSellerView && o.isFlowLoading && !isTerminalStatus(o.flow, order.status) && (
-        <div className="fixed bottom-[env(safe-area-inset-bottom)] left-0 right-0 z-40 bg-background/80 backdrop-blur-xl border-t border-border/50">
-          <div className="px-4 py-3 flex items-center justify-center gap-2 h-12 text-sm text-muted-foreground">
+        <div className={WORKFLOW_BAR}>
+          <div className="px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] flex flex-row items-center justify-center gap-2 min-h-12 text-sm text-muted-foreground">
             <Loader2 size={16} className="animate-spin" />
             <span>Loading actions…</span>
           </div>
@@ -1626,27 +1642,27 @@ export default function OrderDetailPage() {
 
       {/* Seller Action Bar — Condition #5: clear CTA, no ambiguity */}
       {hasSellerActionBar && (
-        <div className="fixed bottom-[env(safe-area-inset-bottom)] left-0 right-0 z-[60] bg-background/80 backdrop-blur-xl border-t border-border/50">
-          <div className="px-4 py-3 flex gap-3">
-            {o.canSellerReject && <Button variant="outline" className="flex-1 border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground h-12" onClick={() => o.setIsRejectionDialogOpen(true)} disabled={o.isUpdating}><XCircle size={16} className="mr-1.5" />Reject</Button>}
+        <div className={WORKFLOW_BAR}>
+          <div className={WORKFLOW_BAR_INNER}>
+            {o.canSellerReject && <Button variant="outline" className={`${WORKFLOW_BAR_BTN} border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground`} onClick={() => o.setIsRejectionDialogOpen(true)} disabled={o.isUpdating}><XCircle size={16} className="mr-1.5 shrink-0" />Reject</Button>}
             {!o.nextStatus ? (
               o.isUpdating ? (
-                <div className="flex-1 flex items-center justify-center gap-2 h-12 text-sm text-muted-foreground">
+                <div className="w-full flex items-center justify-center gap-2 min-h-12 text-sm text-muted-foreground">
                   <Loader2 size={14} className="animate-spin text-primary" />
                   <span>Updating…</span>
                 </div>
               ) : o.isScheduledAwaitingPrep ? (
-                <div className="flex-1 flex items-center justify-center h-12 px-3 rounded-lg bg-primary/10 border border-primary/20 text-xs text-primary font-medium text-center">
+                <div className="w-full flex items-center justify-center min-h-12 px-3 py-2 rounded-lg bg-primary/10 border border-primary/20 text-xs text-primary font-medium text-center whitespace-normal">
                   Scheduled · {formatScheduledDateTime(order as any)} · {getScheduledCountdownLabel(order as any)}
                 </div>
               ) : (
-                <div className="flex-1 flex items-center justify-center gap-2 h-12 text-sm text-muted-foreground">
-                  <Check size={14} className="text-primary" />
-                  <span>{getSellerContextMessage() || 'Waiting for next step…'}</span>
+                <div className="w-full flex items-center justify-center gap-2 min-h-12 px-2 text-sm text-muted-foreground text-center">
+                  <Check size={14} className="text-primary shrink-0" />
+                  <span className="whitespace-normal leading-snug">{getSellerContextMessage() || 'Waiting for next step…'}</span>
                 </div>
               )
             ) : o.isAcceptanceExpired && order.status === 'placed' ? (
-              <div className="flex-1 flex items-center justify-center h-12 px-3 rounded-lg bg-destructive/10 border border-destructive/20 text-xs text-destructive font-medium text-center">
+              <div className="w-full flex items-center justify-center min-h-12 px-3 py-2 rounded-lg bg-destructive/10 border border-destructive/20 text-xs text-destructive font-medium text-center whitespace-normal">
                 Response time expired — accept is closed
               </div>
             ) : (() => {
@@ -1656,19 +1672,20 @@ export default function OrderDetailPage() {
               const isPlatformDelivery = (order as any).delivery_handled_by === 'platform';
               const needsDeliveryOtp = nextOtpType === 'delivery' && !!deliveryAssignmentId && isPlatformDelivery;
               const needsGenericOtp = nextOtpType === 'generic' || (nextOtpType === 'delivery' && !isPlatformDelivery);
+              const ctaClass = `${WORKFLOW_BAR_BTN} bg-accent text-accent-foreground hover:bg-accent/90`;
 
               return needsDeliveryOtp ? (
-                <Button className="flex-1 bg-accent text-accent-foreground hover:bg-accent/90 h-12" onClick={() => setIsOtpDialogOpen(true)} disabled={o.isUpdating}>
+                <Button className={ctaClass} onClick={() => setIsOtpDialogOpen(true)} disabled={o.isUpdating}>
                   {o.isUpdating ? 'Updating...' : getActionLabel(o.nextStatus!, true)}
-                  <ChevronRight size={14} className="ml-1" />
+                  <ChevronRight size={14} className="ml-1 shrink-0" />
                 </Button>
               ) : needsGenericOtp ? (
-                <Button className="flex-1 bg-accent text-accent-foreground hover:bg-accent/90 h-12" onClick={() => { setGenericOtpTargetStatus(o.nextStatus!); setIsGenericOtpDialogOpen(true); }} disabled={o.isUpdating}>
+                <Button className={ctaClass} onClick={() => { setGenericOtpTargetStatus(o.nextStatus!); setIsGenericOtpDialogOpen(true); }} disabled={o.isUpdating}>
                   {o.isUpdating ? 'Updating...' : getActionLabel(o.nextStatus!, true)}
-                  <ChevronRight size={14} className="ml-1" />
+                  <ChevronRight size={14} className="ml-1 shrink-0" />
                 </Button>
               ) : (
-                <Button className="flex-1 bg-accent text-accent-foreground hover:bg-accent/90 h-12" onClick={() => o.updateOrderStatus(o.nextStatus!)} disabled={o.isUpdating}>{o.isUpdating ? 'Updating...' : getActionLabel(o.nextStatus!, false)}<ChevronRight size={14} className="ml-1" /></Button>
+                <Button className={ctaClass} onClick={() => o.updateOrderStatus(o.nextStatus!)} disabled={o.isUpdating}>{o.isUpdating ? 'Updating...' : getActionLabel(o.nextStatus!, false)}<ChevronRight size={14} className="ml-1 shrink-0" /></Button>
               );
             })()}
           </div>
@@ -1677,8 +1694,8 @@ export default function OrderDetailPage() {
 
       {/* Buyer Action Bar */}
       {hasBuyerActionBar && (
-        <div className="fixed bottom-[calc(4rem+env(safe-area-inset-bottom))] left-0 right-0 z-[60] bg-background/80 backdrop-blur-xl border-t border-border/50">
-          <div className="px-4 py-3 flex gap-3">
+        <div className={cn(WORKFLOW_BAR, 'bottom-[calc(4rem+env(safe-area-inset-bottom))]')}>
+          <div className="px-4 py-3 flex flex-col gap-2 min-w-0 w-full">
             {serviceBooking && !o.isEnquiryOrder ? (
               <>
                 {o.canBuyerCancel && (
@@ -1709,20 +1726,21 @@ export default function OrderDetailPage() {
               const buyerNextOtpType = getStepOtpType(o.flow, o.buyerNextStatus);
               const buyerNeedsDeliveryOtp = buyerNextOtpType === 'delivery' && !!deliveryAssignmentId;
               const buyerNeedsGenericOtp = buyerNextOtpType === 'generic';
+              const ctaClass = `${WORKFLOW_BAR_BTN} bg-accent text-accent-foreground hover:bg-accent/90`;
               return buyerNeedsDeliveryOtp ? (
-                <Button className="flex-1 bg-accent text-accent-foreground hover:bg-accent/90 h-12" onClick={() => setIsOtpDialogOpen(true)} disabled={o.isUpdating}>
+                <Button className={ctaClass} onClick={() => setIsOtpDialogOpen(true)} disabled={o.isUpdating}>
                   {o.isUpdating ? 'Updating...' : getActionLabel(o.buyerNextStatus!, true)}
-                  <ChevronRight size={14} className="ml-1" />
+                  <ChevronRight size={14} className="ml-1 shrink-0" />
                 </Button>
               ) : buyerNeedsGenericOtp ? (
-                <Button className="flex-1 bg-accent text-accent-foreground hover:bg-accent/90 h-12" onClick={() => { setGenericOtpTargetStatus(o.buyerNextStatus!); setIsGenericOtpDialogOpen(true); }} disabled={o.isUpdating}>
+                <Button className={ctaClass} onClick={() => { setGenericOtpTargetStatus(o.buyerNextStatus!); setIsGenericOtpDialogOpen(true); }} disabled={o.isUpdating}>
                   {o.isUpdating ? 'Updating...' : getActionLabel(o.buyerNextStatus!, true)}
-                  <ChevronRight size={14} className="ml-1" />
+                  <ChevronRight size={14} className="ml-1 shrink-0" />
                 </Button>
               ) : (
-                <Button className="flex-1 bg-accent text-accent-foreground hover:bg-accent/90 h-12" onClick={() => o.buyerAdvanceOrder(o.buyerNextStatus!)} disabled={o.isUpdating}>
+                <Button className={ctaClass} onClick={() => o.buyerAdvanceOrder(o.buyerNextStatus!)} disabled={o.isUpdating}>
                   {o.isUpdating ? 'Updating...' : getActionLabel(o.buyerNextStatus!, false)}
-                  <ChevronRight size={14} className="ml-1" />
+                  <ChevronRight size={14} className="ml-1 shrink-0" />
                 </Button>
               );
             })()}

@@ -154,7 +154,7 @@ function OrderCard({ order, type, successTerminals, unreadCounts }: { order: Ord
 
         {canReorder && (
           <div className="px-3 pb-3 pt-2.5 border-t border-border/60 flex justify-end" onClick={(e) => e.stopPropagation()}>
-            <ReorderButton orderItems={items} sellerId={order.seller_id} variant="outline" size="sm" />
+            <ReorderButton orderItems={items} orderId={order.id} sellerId={order.seller_id} variant="outline" size="sm" />
           </div>
         )}
       </motion.div>

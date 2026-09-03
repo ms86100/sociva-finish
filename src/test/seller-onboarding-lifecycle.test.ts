@@ -90,11 +90,11 @@ describe('seller onboarding lifecycle', () => {
     expect(recharge.href).toBe('/seller/credits');
     expect(recharge.cta).toMatch(/Recharge credits/);
 
-    // Treat unknown activation as "need recharge" so approval updates the card without waiting
+    // Unknown/loading credits must not flash "Your store is approved" for live stores
     const rechargeWhileLoading = resolveSellerJourney([
       { id: 's1', business_name: 'Geeta Store', verification_status: 'approved' },
     ], undefined);
-    expect(rechargeWhileLoading.kind).toBe('approved_recharge');
+    expect(rechargeWhileLoading.kind).toBe('none');
 
     const live = resolveSellerJourney([
       { id: 's1', business_name: 'Geeta Store', verification_status: 'approved' },
@@ -107,6 +107,9 @@ describe('seller onboarding lifecycle', () => {
     expect(isSellerJourneyDuplicateNotification('approved_recharge', 'seller_approved')).toBe(true);
     expect(isSellerJourneyDuplicateNotification('rejected', 'seller_rejected')).toBe(true);
     expect(isSellerJourneyDuplicateNotification('none', 'seller_store_submitted', [
+      { id: 's1', verification_status: 'approved' },
+    ])).toBe(true);
+    expect(isSellerJourneyDuplicateNotification('none', 'seller_approved', [
       { id: 's1', verification_status: 'approved' },
     ])).toBe(true);
     expect(isSellerJourneyDuplicateNotification('none', 'order_placed')).toBe(false);

@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useSearchParams, useNavigate, useNavigationType } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useBrowsingLocation } from '@/contexts/BrowsingLocationContext';
@@ -14,6 +14,7 @@ import { useMarketplaceData } from '@/hooks/queries/useMarketplaceData';
 import { useCurrency } from '@/hooks/useCurrency';
 import { MARKETPLACE_RADIUS_KM } from '@/lib/marketplace-constants';
 import { committedSearchKey, getSessionQueryId } from '@/lib/searchTelemetry';
+import { readSearchQueryParam, resolveSearchQueryFromUrl } from '@/lib/searchQuery';
 import { hasPreciseCoordinates } from '@/lib/buyerLocation';
 import { useRegisterScreenRefresh } from '@/hooks/usePullToRefresh';
 
@@ -94,6 +95,7 @@ export function useSearchPage() {
   const { user, effectiveSocietyId, profile } = useAuth();
   const { browsingLocation } = useBrowsingLocation();
   const navigate = useNavigate();
+  const navigationType = useNavigationType();
   const { items: cartItems, addItem, updateQuantity } = useCart();
   const [searchParams, setSearchParams] = useSearchParams();
   const { configs: categoryConfigs, isLoading: categoriesLoading } = useCategoryConfigs();
@@ -115,7 +117,7 @@ export function useSearchPage() {
     return m;
   }, [categoryConfigs]);
 
-  const [query, setQuery] = useState(() => searchParams.get('q')?.trim() || '');
+  const [query, setQuery] = useState(() => readSearchQueryParam(searchParams));
   const debouncedQuery = useDebounce(query, 300);
   const [filters, setFilters] = useState<FilterState>(() => loadSavedFilters(user?.id));
   const [activePreset, setActivePreset] = useState<string | null>(null);
@@ -124,14 +126,19 @@ export function useSearchPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
 
-  // Hydrate from back/forward navigation, then keep shareable search URLs current.
+  // Hydrate from the URL without trimming live input. Trimming "jhol " back to
+  // "jhol" concatenates the next word into "jholmomo".
   useEffect(() => {
-    const urlQuery = searchParams.get('q')?.trim() || '';
-    setQuery((current) => current === urlQuery ? current : urlQuery);
-  }, [searchParams]);
+    const urlQuery = readSearchQueryParam(searchParams);
+    if (navigationType === 'POP') {
+      setQuery(urlQuery);
+      return;
+    }
+    setQuery((current) => resolveSearchQueryFromUrl(current, urlQuery));
+  }, [searchParams, navigationType]);
 
   useEffect(() => {
-    const currentUrlQuery = searchParams.get('q') || '';
+    const currentUrlQuery = readSearchQueryParam(searchParams);
     if (currentUrlQuery === query) return;
     const next = new URLSearchParams(searchParams);
     if (query.trim()) next.set('q', query);

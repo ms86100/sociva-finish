@@ -103,6 +103,37 @@ export function useChatViewport(enabled: boolean) {
   return useKeyboardViewport(enabled);
 }
 
+/** Search results/autocomplete: pad only for keyboard that still overlaps the layout. */
+export function useSearchKeyboardInset(enabled: boolean) {
+  const viewport = useKeyboardViewport(enabled);
+  const baselineRef = useRef(0);
+
+  useEffect(() => {
+    if (!enabled) {
+      baselineRef.current = 0;
+      return;
+    }
+    if (!viewport.isKeyboardOpen) {
+      baselineRef.current = window.innerHeight;
+    }
+  }, [enabled, viewport.isKeyboardOpen]);
+
+  const innerHeight = typeof window === 'undefined' ? 0 : window.innerHeight;
+  const overlap = drawerKeyboardLiftPx({
+    baselineInnerHeight: baselineRef.current || innerHeight,
+    innerHeight,
+    visualKeyboardHeight: viewport.visualKeyboardHeight,
+    nativeKeyboardHeight: viewport.nativeKeyboardHeight,
+  });
+  const visualHeight = viewport.viewportHeight || innerHeight;
+
+  return {
+    ...viewport,
+    resultsPaddingBottom: overlap > 0 ? overlap + 16 : undefined,
+    autocompleteMaxHeight: Math.max(140, Math.round(visualHeight * 0.42)),
+  };
+}
+
 /**
  * How far a `position:fixed` bottom sheet should lift for the keyboard.
  * If Capacitor already resized the WebView (`resize: 'body'`), lifting again

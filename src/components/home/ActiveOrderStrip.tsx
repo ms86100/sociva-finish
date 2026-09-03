@@ -5,7 +5,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { getTerminalStatuses, invalidateStatusFlowCache } from '@/services/statusFlowCache';
-import { ChevronRight, Clock } from 'lucide-react';
+import { ChevronRight, Clock, X } from 'lucide-react';
+import { dismissHomeOrderStrip, getDismissedHomeOrderIds } from '@/lib/home-order-strip';
 import { motion, AnimatePresence } from 'framer-motion';
 import { jitteredStaleTime } from '@/lib/query-utils';
 import { compactETA } from '@/lib/etaEngine';
@@ -118,6 +119,7 @@ export function ActiveOrderStrip() {
       }
 
       const expiredAcks = getExpiredOrderAcks();
+      const dismissedIds = getDismissedHomeOrderIds();
 
       return data
         .map((o: any) => {
@@ -138,6 +140,7 @@ export function ActiveOrderStrip() {
           };
         })
         .filter((o) => {
+          if (dismissedIds.has(o.id)) return false;
           // Expired acceptance windows stay briefly so the buyer can open them,
           // but disappear permanently once viewed/clicked.
           if (!isOrderAcceptanceExpired(o.auto_cancel_at, o.status)) return true;
@@ -160,15 +163,23 @@ export function ActiveOrderStrip() {
     return () => window.removeEventListener('order-terminal-push', handler);
   }, [queryClient]);
 
+  const [dismissedIds, setDismissedIds] = useState(() => getDismissedHomeOrderIds());
+  const visibleOrders = activeOrders.filter((order) => !dismissedIds.has(order.id));
+
+  const hideFromHome = useCallback((orderId: string) => {
+    dismissHomeOrderStrip(orderId);
+    setDismissedIds(getDismissedHomeOrderIds());
+  }, []);
+
   // Delayed appearance — don't block above-fold marketplace content
   const [visible, setVisible] = useState(false);
   useEffect(() => {
-    if (activeOrders.length === 0) { setVisible(false); return; }
+    if (visibleOrders.length === 0) { setVisible(false); return; }
     const t = setTimeout(() => setVisible(true), 500);
     return () => clearTimeout(t);
-  }, [activeOrders.length]);
+  }, [visibleOrders.length]);
 
-  if (activeOrders.length === 0 || !visible) return null;
+  if (visibleOrders.length === 0 || !visible) return null;
 
   return (
     <motion.div
@@ -177,12 +188,12 @@ export function ActiveOrderStrip() {
       transition={{ duration: 0.25, ease: 'easeOut' }}
       className="mt-2 px-4"
     >
-      {activeOrders.length > 1 && (
-        <p className="text-[10px] text-muted-foreground mb-1 font-medium">{activeOrders.length} active orders</p>
+      {visibleOrders.length > 1 && (
+        <p className="text-[10px] text-muted-foreground mb-1 font-medium">{visibleOrders.length} active orders</p>
       )}
       <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1">
         <AnimatePresence>
-          {activeOrders.map((order) => {
+          {visibleOrders.map((order) => {
             const isTransit = getTransitStatuses().has(order.status);
             const hasEta = !!order.estimated_delivery_at;
             const etaText = hasEta ? compactETA(order.estimated_delivery_at!) : null;
@@ -199,8 +210,8 @@ export function ActiveOrderStrip() {
                   }
                   navigate(`/orders/${order.id}`);
                 }}
-                className="flex items-center gap-2 rounded-xl bg-primary/[0.06] backdrop-blur-lg backdrop-saturate-150 border border-primary/[0.1] px-2.5 py-2 cursor-pointer active:scale-[0.97] transition-transform shrink-0 min-w-0"
-                style={{ maxWidth: activeOrders.length === 1 ? '100%' : '55vw' }}
+                className="flex items-center gap-2 rounded-xl bg-primary/[0.06] backdrop-blur-lg backdrop-saturate-150 border border-primary/[0.1] pl-2.5 pr-1 py-2 cursor-pointer active:scale-[0.97] transition-transform shrink-0 min-w-0"
+                style={{ maxWidth: visibleOrders.length === 1 ? '100%' : '55vw' }}
               >
                 {/* Thumbnail */}
                 <div className="w-9 h-9 rounded-xl bg-primary/10 shrink-0 overflow-hidden flex items-center justify-center">
@@ -245,6 +256,18 @@ export function ActiveOrderStrip() {
                       {order.item_count} item{order.item_count > 1 ? 's' : ''}
                     </span>
                   ) : null}
+                  <button
+                    type="button"
+                    aria-label="Hide this order from Home"
+                    className="flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground/70 hover:text-foreground hover:bg-foreground/10 shrink-0"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      hideFromHome(order.id);
+                    }}
+                  >
+                    <X size={13} strokeWidth={2.25} />
+                  </button>
                   <ChevronRight size={14} className="text-muted-foreground/40 shrink-0" />
                 </div>
               </motion.div>

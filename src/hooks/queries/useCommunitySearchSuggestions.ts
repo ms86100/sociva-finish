@@ -11,7 +11,7 @@ export interface SearchSuggestion {
 
 /**
  * Fetches popular search terms from the user's society via DB-side aggregation.
- * Powers "People in your society also searched for..." suggestions.
+ * Powers "Popular in your society" — other residents only, never the viewer's own history.
  */
 export function useCommunitySearchSuggestions(limit = 8) {
   const { effectiveSocietyId } = useAuth();

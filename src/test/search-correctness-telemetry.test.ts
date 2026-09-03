@@ -84,6 +84,11 @@ describe('search correctness and committed telemetry', () => {
     );
   });
 
+  it('preserves typed spaces instead of hydrating a trimmed URL query', () => {
+    expect(searchHook).toMatch(/resolveSearchQueryFromUrl/);
+    expect(searchHook).not.toMatch(/searchParams\.get\('q'\)\?\.trim\(\)/);
+  });
+
   it('deduplicates telemetry at the database boundary', () => {
     expect(migration).toMatch(
       /CREATE UNIQUE INDEX IF NOT EXISTS idx_search_demand_session_query/,

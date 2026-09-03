@@ -14,10 +14,13 @@ import { notify } from '@/lib/notify';
 import { useBrowsingLocation } from '@/contexts/BrowsingLocationContext';
 import { buyerCanOrderFromSeller, filterDiscoverableProductIds } from '@/lib/sellerDiscoverability';
 import { PRECISE_LOCATION_TITLE } from '@/lib/buyerLocation';
+import { getClosedStoreReorderMessage, resolveReorderLines } from '@/lib/reorder';
+import { parseStoreClosedBuyerError } from '@/lib/store-availability';
 
 interface ReorderButtonProps {
   orderItems: OrderItem[];
   sellerId: string;
+  orderId?: string;
   variant?: 'default' | 'outline' | 'ghost';
   size?: 'default' | 'sm' | 'lg' | 'icon';
   className?: string;
@@ -25,7 +28,8 @@ interface ReorderButtonProps {
 
 export function ReorderButton({ 
   orderItems, 
-  sellerId, 
+  sellerId,
+  orderId,
   variant = 'default',
   size = 'sm',
   className 
@@ -69,9 +73,14 @@ export function ReorderButton({
     setShowConfirm(false);
     setIsLoading(true);
     try {
-      const productIds = orderItems
-        .filter(item => item.product_id)
-        .map(item => item.product_id);
+      const lines = await resolveReorderLines(orderItems, orderId);
+      const productIds = lines.map((item) => item.product_id);
+
+      if (productIds.length === 0) {
+        notify.block('This order has no reusable items.', { id: 'reorder-empty', title: 'Nothing to reorder' });
+        setIsLoading(false);
+        return;
+      }
 
       // Check product availability and approval status
       const { data: availableProducts } = await supabase
@@ -105,22 +114,30 @@ export function ReorderButton({
         return;
       }
 
+      const closedMessage = await getClosedStoreReorderMessage([
+        sellerId,
+        ...discoverableProducts.map((p) => p.seller_id).filter(Boolean),
+      ]);
+      if (closedMessage) {
+        notify.block(closedMessage, { id: 'reorder-store-closed', title: 'Store closed' });
+        setIsLoading(false);
+        return;
+      }
+
       // Warn buyer if any prices changed since original order
       const priceChanged = discoverableProducts.some(p => {
-        const original = orderItems.find(oi => oi.product_id === p.id);
-        return original?.unit_price != null && p.price !== original.unit_price;
+        const original = orderItems.find(oi => oi.product_id === p.id) || lines.find(oi => oi.product_id === p.id);
+        return original && 'unit_price' in (original as any) && (original as any).unit_price != null && p.price !== (original as any).unit_price;
       });
       if (priceChanged) {
         toast.info('Heads up: Some prices may have changed since your last order');
       }
 
-      const cartInserts = orderItems
-        .filter(item => 
-          item.product_id && 
-          discoverableProducts.some(p => p.id === item.product_id)
-        )
-        .map(item => ({
-          product_id: item.product_id!,
+      const availableSet = new Set(discoverableProducts.map((p) => p.id));
+      const cartInserts = lines
+        .filter((item) => availableSet.has(item.product_id))
+        .map((item) => ({
+          product_id: item.product_id,
           quantity: item.quantity,
         }));
 
@@ -133,7 +150,7 @@ export function ReorderButton({
       // Use the cart provider's replaceCart — seeds cache before navigation
       await replaceCart(cartInserts);
 
-      const unavailableCount = orderItems.length - cartInserts.length;
+      const unavailableCount = lines.length - cartInserts.length;
       if (unavailableCount > 0) {
         toast.info(`${unavailableCount} item(s) were unavailable and skipped`);
       }
@@ -141,7 +158,12 @@ export function ReorderButton({
       navigate('/cart');
     } catch (error) {
       console.error('Error reordering:', error);
-      toast.error('Failed to reorder. Please try again.');
+      const closed = parseStoreClosedBuyerError(error);
+      if (closed) {
+        notify.block(closed, { id: 'reorder-store-closed', title: 'Store closed' });
+      } else {
+        toast.error('Failed to reorder. Please try again.');
+      }
     } finally {
       setIsLoading(false);
     }

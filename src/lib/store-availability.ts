@@ -113,3 +113,41 @@ export function formatStoreClosedMessage(availability: StoreAvailability): strin
   const hours = Math.round(mins / 60);
   return `Opens in ${hours} hrs`;
 }
+
+function reopenDuration(mins: number): string {
+  if (mins < 60) return `${mins} minute${mins === 1 ? '' : 's'}`;
+  const hours = Math.floor(mins / 60);
+  const rest = mins % 60;
+  if (rest === 0) return `${hours} hour${hours === 1 ? '' : 's'}`;
+  return `${hours} hour${hours === 1 ? '' : 's'} ${rest} minutes`;
+}
+
+/** Buyer-facing copy for reorder/cart — not a generic system failure. */
+export function formatStoreClosedBuyerMessage(availability: StoreAvailability): string {
+  if (availability.status === 'paused') {
+    return 'This store is currently paused. Your items may still be available when it reopens.';
+  }
+  if (availability.status === 'closed_today') {
+    return 'This store is closed today. Your items may still be available when it reopens.';
+  }
+  if (availability.status !== 'closed') return '';
+
+  const mins = availability.minutesUntilOpen;
+  if (mins == null || mins < 0) {
+    return 'This store is currently closed. Your items may still be available when it reopens.';
+  }
+  return `This store is currently closed. It will reopen in ${reopenDuration(mins)}.`;
+}
+
+export function parseStoreClosedBuyerError(error: unknown): string | null {
+  const msg = String((error as any)?.message || '');
+  const statusMatch = msg.match(/STORE_CLOSED:([a-z_]+)/i);
+  if (statusMatch?.[1]) {
+    const status = statusMatch[1].toLowerCase() as StoreStatus;
+    return formatStoreClosedBuyerMessage({ status, nextOpenAt: null, minutesUntilOpen: null });
+  }
+  if (/currently closed|store closed/i.test(msg)) {
+    return 'This store is currently closed. Your items may still be available when it reopens.';
+  }
+  return null;
+}

@@ -11,6 +11,7 @@ interface OrderTerminalHeroProps {
   whenISO?: string | null;
   items?: any[];
   sellerId?: string;
+  orderId?: string;
   showReorder?: boolean;
 }
 
@@ -20,6 +21,7 @@ export function OrderTerminalHero({
   whenISO,
   items = [],
   sellerId,
+  orderId,
   showReorder = true,
 }: OrderTerminalHeroProps) {
   const isCancelled = variant === 'cancelled';
@@ -100,7 +102,7 @@ export function OrderTerminalHero({
           transition={{ delay: 0.45 }}
           className="relative mt-4 flex justify-end"
         >
-          <ReorderButton orderItems={items} sellerId={sellerId} size="sm" />
+          <ReorderButton orderItems={items} orderId={orderId} sellerId={sellerId} size="sm" />
         </motion.div>
       )}
     </motion.div>

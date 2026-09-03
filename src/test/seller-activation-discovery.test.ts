@@ -84,6 +84,7 @@ describe('seller activation, discovery, and location', () => {
     expect(dashboard).toMatch(/creditActivated/);
     expect(read('src/pages/HomePage.tsx')).toMatch(/SellerJourneyBanner/);
     expect(read('src/pages/HomePage.tsx')).toMatch(/stack-gap/);
+    expect(read('src/pages/HomePage.tsx')).not.toMatch(/SocietyQuickLinks/);
   });
 
   it('gates seller pages, reorder, enquiry, and booking through the same eligibility RPC', () => {

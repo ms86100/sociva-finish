@@ -113,17 +113,21 @@ export function resolveSellerJourney(
     };
   }
 
-  if (store.status === 'approved' && creditActivated !== true) {
-    return {
-      kind: 'approved_recharge',
-      sellerId: store.sellerId,
-      storeName: store.storeName,
-      rejectionNote: null,
-      title: 'Your store is approved',
-      body: `Welcome to selling on Sociva. Recharge Sociva Credits to make ${store.storeName} visible to buyers nearby.`,
-      cta: 'Recharge credits',
-      href: SELLER_CREDITS_ROUTE,
-    };
+  if (store.status === 'approved') {
+    // Unknown/loading must not flash "approved" for stores that are already live.
+    if (creditActivated == null) return EMPTY_JOURNEY;
+    if (creditActivated !== true) {
+      return {
+        kind: 'approved_recharge',
+        sellerId: store.sellerId,
+        storeName: store.storeName,
+        rejectionNote: null,
+        title: 'Your store is approved',
+        body: `Welcome to selling on Sociva. Recharge Sociva Credits to make ${store.storeName} visible to buyers nearby.`,
+        cta: 'Recharge credits',
+        href: SELLER_CREDITS_ROUTE,
+      };
+    }
   }
 
   return EMPTY_JOURNEY;
@@ -138,6 +142,10 @@ export function isSellerJourneyDuplicateNotification(
   if (!notificationType) return false;
   if (journeyKind === 'pending' && notificationType === 'seller_store_submitted') return true;
   if (journeyKind === 'approved_recharge' && notificationType === 'seller_approved') return true;
+  if (notificationType === 'seller_approved') {
+    const list = profiles || [];
+    if (list.some((p) => p.verification_status === 'approved')) return true;
+  }
   if (journeyKind === 'rejected' && notificationType === 'seller_rejected') return true;
   // Submit notice is stale once admin has decided (or credits are already live)
   if (notificationType === 'seller_store_submitted') {

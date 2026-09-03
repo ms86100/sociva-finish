@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { useMemo, useState, lazy, Suspense } from 'react';
+import { useEffect, useMemo, useState, lazy, Suspense } from 'react';
 import { motion } from 'framer-motion';
 import { staggerGrid, cardEntrance } from '@/lib/motion-variants';
 import { Link, useNavigate } from 'react-router-dom';
@@ -24,6 +24,8 @@ import { CommunitySuggestions } from '@/components/search/CommunitySuggestions';
 import { SearchAutocomplete } from '@/components/search/SearchAutocomplete';
 import { PreciseLocationRequiredCard } from '@/components/location/PreciseLocationRequiredCard';
 import { type ProductDetail } from '@/hooks/useProductDetail';
+import { useSearchKeyboardInset } from '@/hooks/useChatViewport';
+import { selectSearchResultsForDisplay } from '@/lib/searchRanking';
 
 const ProductDetailSheet = lazy(() =>
   import('@/components/product/ProductDetailSheet').then((m) => ({ default: m.ProductDetailSheet })),
@@ -50,8 +52,14 @@ function toProductWithSeller(p: ProductSearchResult, row?: ProductFacetRow | nul
 
 export default function SearchPage() {
   const s = useSearchPage();
+  const keyboard = useSearchKeyboardInset(true);
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [detailOpen, setDetailOpen] = useState(false);
+  const [showAllResults, setShowAllResults] = useState(false);
+
+  useEffect(() => {
+    setShowAllResults(false);
+  }, [s.query, s.selectedCategory, s.filters]);
 
   const foodCategorySet = useMemo(
     () => new Set(s.categoryConfigs.filter((c) => isFoodParentGroup(c.parentGroup)).map((c) => c.category)),
@@ -60,6 +68,14 @@ export default function SearchPage() {
   const hasFoodResults = s.displayProducts.some((p) => p.category && foodCategorySet.has(p.category));
   const productIds = useMemo(() => s.displayProducts.map((p) => p.product_id), [s.displayProducts]);
   const { data: facetRows = {} } = useProductFacets(productIds, productIds.length > 0);
+
+  const rankedSearch = useMemo(
+    () => selectSearchResultsForDisplay(s.query, s.displayProducts, s.isSearchActive && s.query.trim().length >= 2),
+    [s.query, s.displayProducts, s.isSearchActive],
+  );
+  const visibleProducts = s.isSearchActive && s.query.trim().length >= 2 && !showAllResults
+    ? rankedSearch.preview
+    : rankedSearch.items;
 
   const handleProductTap = (product: ProductWithSeller) => {
     setSelectedProduct({
@@ -87,8 +103,16 @@ export default function SearchPage() {
   };
 
   return (
-    <AppLayout showHeader={false} safeTop={false}>
-      <div className="pb-24">
+    <AppLayout
+      showHeader={false}
+      showNav={!keyboard.isKeyboardOpen}
+      safeTop={false}
+      className={keyboard.isKeyboardOpen ? 'pb-3' : undefined}
+    >
+      <div
+        className={keyboard.isKeyboardOpen ? undefined : 'pb-24'}
+        style={keyboard.resultsPaddingBottom ? { paddingBottom: keyboard.resultsPaddingBottom } : undefined}
+      >
         {/* Sticky search header */}
         <SafeHeader zIndex="z-40" bordered={false} className="overflow-visible">
           <div className="px-4 pt-3 pb-2">
@@ -97,9 +121,24 @@ export default function SearchPage() {
               <div className="flex-1 relative">
                 <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={15} />
                 {!s.query && <div className="absolute left-9 top-1/2 -translate-y-1/2 pointer-events-none pr-16 overflow-hidden whitespace-nowrap max-w-[calc(100%-4rem)]"><TypewriterPlaceholder context="search" /></div>}
-                <Input placeholder="" value={s.query} onChange={(e) => s.setQuery(e.target.value)} className="pl-9 pr-16 h-10 rounded-xl text-sm bg-muted border-0 focus-visible:ring-1" ref={(el) => { if (el) setTimeout(() => el.focus(), 300); }} />
+                <Input
+                  placeholder=""
+                  value={s.query}
+                  onChange={(e) => s.setQuery(e.target.value)}
+                  autoCorrect="off"
+                  autoCapitalize="off"
+                  spellCheck={false}
+                  enterKeyHint="search"
+                  inputMode="search"
+                  className="pl-9 pr-16 h-10 rounded-xl text-sm bg-muted border-0 focus-visible:ring-1"
+                  ref={(el) => { if (el) setTimeout(() => el.focus(), 300); }}
+                />
                 {s.query && <button onClick={() => s.setQuery('')} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-foreground"><X size={14} /></button>}
-                <SearchAutocomplete query={s.query} onSelect={(p) => { s.setQuery(''); setSelectedProduct(p); setDetailOpen(true); }} />
+                <SearchAutocomplete
+                  query={s.query}
+                  maxHeight={keyboard.autocompleteMaxHeight}
+                  onSelect={(p) => { s.setQuery(''); setSelectedProduct(p); setDetailOpen(true); }}
+                />
               </div>
             </div>
           </div>
@@ -162,8 +201,19 @@ export default function SearchPage() {
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5 mt-2">
               {[1, 2, 3, 4, 5, 6].map((i) => <Skeleton key={i} className="h-52 w-full rounded-xl" />)}
             </div>
-          ) : s.displayProducts.length > 0 ? (
-            <ProductGridByCategory products={s.displayProducts} facetRows={facetRows} categoryMap={s.categoryMap} categoryConfigs={s.categoryConfigs} marketplaceConfig={s.mc} badgeConfigs={s.badgeConfigs} showCount={s.isSearchActive} onNavigate={s.navigate} onProductTap={handleProductTap} />
+          ) : visibleProducts.length > 0 ? (
+            <>
+              <ProductGridByCategory products={visibleProducts} facetRows={facetRows} categoryMap={s.categoryMap} categoryConfigs={s.categoryConfigs} marketplaceConfig={s.mc} badgeConfigs={s.badgeConfigs} showCount={s.isSearchActive} totalCount={rankedSearch.items.length} onNavigate={s.navigate} onProductTap={handleProductTap} />
+              {rankedSearch.hiddenCount > 0 && !showAllResults && (
+                <button
+                  type="button"
+                  onClick={() => setShowAllResults(true)}
+                  className="w-full mt-4 mb-2 h-11 rounded-xl border border-border bg-card text-sm font-semibold text-foreground"
+                >
+                  Show {rankedSearch.hiddenCount} more result{rankedSearch.hiddenCount === 1 ? '' : 's'}
+                </button>
+              )}
+            </>
           ) : s.isSearchActive ? (
             <EmptyState browseBeyond={s.browseBeyond} onEnableBrowseBeyond={() => s.setBrowseBeyond(true)} />
           ) : (
@@ -230,7 +280,7 @@ function CategoryBubbleRow({ categories, selectedCategory, onCategoryTap, isLoad
 }
 
 // ── Product Grid By Category ──
-function ProductGridByCategory({ products, facetRows, categoryMap, categoryConfigs, marketplaceConfig, badgeConfigs, showCount, onNavigate, onProductTap }: {
+function ProductGridByCategory({ products, facetRows, categoryMap, categoryConfigs, marketplaceConfig, badgeConfigs, showCount, totalCount, onNavigate, onProductTap }: {
   products: ProductSearchResult[];
   facetRows?: Record<string, ProductFacetRow>;
   categoryMap: Record<string, { icon: string; displayName: string; color: string; imageUrl?: string | null }>;
@@ -238,6 +288,7 @@ function ProductGridByCategory({ products, facetRows, categoryMap, categoryConfi
   marketplaceConfig?: MarketplaceConfig;
   badgeConfigs?: BadgeConfigRow[];
   showCount?: boolean;
+  totalCount?: number;
   onNavigate?: (path: string) => void;
   onProductTap?: (product: ProductWithSeller) => void;
 }) {
@@ -250,7 +301,7 @@ function ProductGridByCategory({ products, facetRows, categoryMap, categoryConfi
 
   return (
     <div className="mt-2 space-y-5">
-      {showCount && <p className="text-xs text-muted-foreground">{products.length} item{products.length !== 1 ? 's' : ''} found</p>}
+      {showCount && <p className="text-xs text-muted-foreground">{(totalCount ?? products.length)} item{(totalCount ?? products.length) !== 1 ? 's' : ''} found{totalCount != null && totalCount > products.length ? ` · showing top ${products.length}` : ''}</p>}
       {Object.keys(grouped).map((cat) => {
         const items = grouped[cat];
         const catInfo = categoryMap[cat];

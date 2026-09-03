@@ -5,7 +5,6 @@ import { AppLayout } from '@/components/layout/AppLayout';
 import { OnboardingWalkthrough, useOnboarding } from '@/components/onboarding/OnboardingWalkthrough';
 
 import { MarketplaceSection } from '@/components/home/MarketplaceSection';
-import { SocietyQuickLinks } from '@/components/home/SocietyQuickLinks';
 
 import { CommunityTeaser } from '@/components/home/CommunityTeaser';
 import { LazySection } from '@/components/home/LazySection';
@@ -124,9 +123,6 @@ export default function HomePage() {
         </LazySection>
         <LazySection>
           <WhatsNewSection />
-        </LazySection>
-        <LazySection>
-          <SocietyQuickLinks />
         </LazySection>
         <LazySection className="mt-2">
           <SocietyLeaderboard />

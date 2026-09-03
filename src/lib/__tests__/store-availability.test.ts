@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { computeStoreStatus, formatStoreClosedMessage, type StoreAvailability } from '../store-availability';
+import { computeStoreStatus, formatStoreClosedMessage, formatStoreClosedBuyerMessage, parseStoreClosedBuyerError, type StoreAvailability } from '../store-availability';
 
 function mockTime(dateStr: string) {
   vi.useFakeTimers();
@@ -152,5 +152,42 @@ describe('formatStoreClosedMessage', () => {
 
   it('returns "Opens in X hrs" when >2 hrs and no nextOpenAt', () => {
     expect(formatStoreClosedMessage({ status: 'closed', nextOpenAt: null, minutesUntilOpen: 300 })).toBe('Opens in 5 hrs');
+  });
+});
+
+describe('formatStoreClosedBuyerMessage', () => {
+  it('explains paused without sounding like a system failure', () => {
+    expect(formatStoreClosedBuyerMessage({ status: 'paused', nextOpenAt: null, minutesUntilOpen: null }))
+      .toBe('This store is currently paused. Your items may still be available when it reopens.');
+  });
+
+  it('explains closed today', () => {
+    expect(formatStoreClosedBuyerMessage({ status: 'closed_today', nextOpenAt: null, minutesUntilOpen: null }))
+      .toBe('This store is closed today. Your items may still be available when it reopens.');
+  });
+
+  it('includes minutes until reopen', () => {
+    expect(formatStoreClosedBuyerMessage({ status: 'closed', nextOpenAt: null, minutesUntilOpen: 30 }))
+      .toBe('This store is currently closed. It will reopen in 30 minutes.');
+  });
+
+  it('includes hours until reopen', () => {
+    expect(formatStoreClosedBuyerMessage({ status: 'closed', nextOpenAt: null, minutesUntilOpen: 120 }))
+      .toBe('This store is currently closed. It will reopen in 2 hours.');
+  });
+
+  it('is empty when the store is open', () => {
+    expect(formatStoreClosedBuyerMessage({ status: 'open', nextOpenAt: null, minutesUntilOpen: 0 })).toBe('');
+  });
+});
+
+describe('parseStoreClosedBuyerError', () => {
+  it('reads STORE_CLOSED codes from cart insert errors', () => {
+    expect(parseStoreClosedBuyerError(new Error('STORE_CLOSED:paused'))).toMatch(/currently paused/);
+    expect(parseStoreClosedBuyerError(new Error('STORE_CLOSED:closed'))).toMatch(/currently closed/);
+  });
+
+  it('returns null for unrelated failures', () => {
+    expect(parseStoreClosedBuyerError(new Error('network timeout'))).toBeNull();
   });
 });

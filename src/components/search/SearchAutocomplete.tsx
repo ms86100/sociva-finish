@@ -17,6 +17,7 @@ import { useEffect, useId, useMemo, useRef, useState } from 'react';
 interface Props {
   query: string;
   onSelect: (product: any) => void;
+  maxHeight?: number;
 }
 
 interface CategoryMatch {
@@ -46,7 +47,7 @@ function canonicalIntent(actionType?: string | null) {
  * Replaces former ILIKE pattern matching for dramatically better
  * performance at scale (GIN index vs sequential scan).
  */
-export function SearchAutocomplete({ query, onSelect }: Props) {
+export function SearchAutocomplete({ query, onSelect, maxHeight }: Props) {
   const { profile } = useAuth();
   const { formatPrice } = useCurrency();
   const { browsingLocation } = useBrowsingLocation();
@@ -238,7 +239,8 @@ export function SearchAutocomplete({ query, onSelect }: Props) {
         initial={{ opacity: 0, y: -4 }}
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: -4 }}
-        className="absolute left-0 right-0 top-full mt-1 z-50 bg-card border border-border rounded-xl shadow-lg overflow-hidden max-h-[60vh] overflow-y-auto"
+        className="absolute left-0 right-0 top-full mt-1 z-50 bg-card border border-border rounded-xl shadow-lg overflow-hidden overflow-y-auto overscroll-contain"
+        style={{ maxHeight: maxHeight ? `${maxHeight}px` : '42dvh' }}
       >
         {INTENT_GROUPS.map(({ key, label, icon: GroupIcon }) => groupedProducts[key].length > 0 && (
           <div key={key} role="group" aria-label={label}>

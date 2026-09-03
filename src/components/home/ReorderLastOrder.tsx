@@ -131,12 +131,12 @@ export function ReorderLastOrder() {
             .select('id, availability_start, availability_end, operating_days, is_available')
             .in('id', sellerIds);
           if (sellers) {
-            const { computeStoreStatus, formatStoreClosedMessage } = await import('@/lib/store-availability');
+            const { computeStoreStatus, formatStoreClosedBuyerMessage } = await import('@/lib/store-availability');
             for (const seller of sellers) {
               const status = computeStoreStatus(seller.availability_start, seller.availability_end, seller.operating_days, seller.is_available ?? true);
               if (status.status !== 'open') {
-                const msg = formatStoreClosedMessage(status);
-                notify.block(msg || 'This store is currently closed. Please try later.', { id: 'reorder-store-closed', title: 'Store unavailable' });
+                const msg = formatStoreClosedBuyerMessage(status);
+                notify.block(msg || 'This store is currently closed. Your items may still be available when it reopens.', { id: 'reorder-store-closed', title: 'Store closed' });
                 setIsLoading(false);
                 return;
               }
