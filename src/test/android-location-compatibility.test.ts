@@ -14,9 +14,6 @@ import {
   getAndroidTransistorsoftLicensedCache,
 } from '@/lib/native-location-engine';
 
-const packageJson = JSON.parse(
-  readFileSync(resolve(__dirname, '../../package.json'), 'utf8'),
-);
 const patchScript = readFileSync(
   resolve(__dirname, '../../scripts/patch-android-builds.cjs'),
   'utf8',
@@ -44,43 +41,39 @@ const reminders = readFileSync(
 );
 
 describe('Android location dependency compatibility', () => {
-  it('uses the Capacitor 8 compatible Transistorsoft generation', () => {
-    expect(packageJson.dependencies['@transistorsoft/capacitor-background-geolocation'])
-      .toMatch(/^\^9\./);
+  it('does not require Transistorsoft in the shipped Android binary', () => {
+    expect(patchScript).toMatch(/stripNativeTransistorsoft/);
+    expect(patchScript).toMatch(/stripTransistorsoftFromNativeGradle/);
+    expect(codemagic).toMatch(/Transistorsoft must not be registered/);
+    expect(codemagic).toMatch(/Transistorsoft iOS pod must not be present/);
   });
 
-  it('supports the remote Maven layout used by Transistorsoft 9', () => {
-    expect(patchScript).toMatch(/Transistorsoft Google Play Services 21 compatibility/);
-    expect(patchScript).toMatch(/tslocationmanager-gms20/);
-    expect(patchScript).toMatch(/maven\.transistorsoft\.com/);
+  it('never enables the Transistorsoft JS engine', () => {
+    expect(engine).toMatch(/shouldUseTransistorsoftBackgroundGeo/);
+    expect(engine).toMatch(/return false/);
+    expect(hook).not.toMatch(/@transistorsoft\/capacitor-background-geolocation/);
+    expect(hook).not.toMatch(/BackgroundGeolocation\.ready/);
+    expect(hook).toMatch(/startCapacitorGeolocationTracking/);
   });
 
-  it('gates Android Transistorsoft on BuildConfig license flag', () => {
-    expect(engine).toMatch(/refreshNativeLocationEngineFlags/);
-    expect(engine).toMatch(/hasTransistorsoftLicense/);
-    expect(hook).toMatch(/refreshNativeLocationEngineFlags/);
-    expect(hook).toMatch(/startAndroidCapacitorTracking/);
-  });
-
-  it('injects Transistorsoft license from Codemagic env', () => {
-    expect(codemagic).toMatch(/TRANSISTORSOFT_LICENSE/);
-    expect(codemagic).toMatch(/transistorsoft\.properties/);
-    expect(codemagic).toMatch(/TSLocationManagerLicense/);
+  it('does not inject a Transistorsoft license in Codemagic', () => {
     expect(codemagic).toMatch(/patch-ios-podfile/);
     expect(codemagic).not.toMatch(/cat > Podfile/);
+    expect(codemagic).not.toMatch(/TSLocationManagerLicense/);
+    expect(codemagic).not.toMatch(/transistorsoft\.properties/);
     expect(codemagic).toMatch(/NSMotionUsageDescription/);
   });
 
-  it('replaces license toast with branded Sociva status pill', () => {
-    expect(mainActivity).toMatch(/Sociva is ready/);
-    expect(mainActivity).toMatch(/sociva_status_pill/);
-    expect(mainActivity).toMatch(/license validation/);
+  it('does not intercept license toasts or show a launch pill', () => {
+    expect(mainActivity).not.toMatch(/Sociva is ready/);
+    expect(mainActivity).not.toMatch(/sociva_status_pill/);
+    expect(mainActivity).not.toMatch(/license validation/i);
+    expect(mainActivity).toMatch(/registerPlugin\(LiveActivityPlugin\.class\)/);
   });
 
-  it('defaults sync selector off Android until licensed cache is warm', () => {
-    // Without Capacitor native platform, should be false
+  it('keeps the Transistorsoft selector permanently off', () => {
     expect(shouldUseTransistorsoftBackgroundGeo()).toBe(false);
-    expect(getAndroidTransistorsoftLicensedCache()).toBeNull();
+    expect(getAndroidTransistorsoftLicensedCache()).toBe(false);
   });
 });
 
@@ -161,9 +154,10 @@ describe('Scheduled fulfillment zero-regression cert (source)', () => {
 });
 
 describe('GPS regression matrix (source contracts)', () => {
-  it('documents cold-start branded pill instead of black license toast', () => {
-    expect(mainActivity).toMatch(/Setting up a smooth experience/);
-    expect(mainActivity).toMatch(/Sociva is ready/);
+  it('does not show a launch toast or branded status pill', () => {
+    expect(mainActivity).not.toMatch(/Setting up a smooth experience/);
+    expect(mainActivity).not.toMatch(/Sociva is ready/);
+    expect(mainActivity).not.toMatch(/LICENSE VALIDATION/);
   });
 
   it('stops tracking path exists for terminal assignment clear', () => {
@@ -171,14 +165,16 @@ describe('GPS regression matrix (source contracts)', () => {
     expect(hook).toMatch(/assignmentId becomes null|!assignmentId && state\.isTracking/);
   });
 
-  it('Android Capacitor fallback only when unlicensed', () => {
-    expect(hook).toMatch(/without Transistorsoft license|startAndroidCapacitorTracking|startCapacitorGeolocationTracking/);
-    expect(engine).toMatch(/androidLicensedCache === true/);
+  it('uses Capacitor Geolocation for native seller sharing', () => {
+    expect(hook).toMatch(/startCapacitorGeolocationTracking/);
+    expect(hook).toMatch(/androidBackgroundUpgrade: Capacitor.getPlatform\(\) === 'android'/);
+    expect(hook).not.toMatch(/@transistorsoft\/capacitor-background-geolocation/);
+    expect(engine).not.toMatch(/androidLicensedCache === true/);
   });
 
-  it('falls back to Capacitor Geolocation on iOS when Transistorsoft is unimplemented', () => {
-    expect(hook).toMatch(/Falling back to Capacitor Geolocation after Transistorsoft failure/);
-    expect(hook).toMatch(/androidBackgroundUpgrade: platform === 'android'/);
+  it('never calls BackgroundGeolocation.ready', () => {
+    expect(hook).not.toMatch(/BackgroundGeolocation\.ready/);
+    expect(hook).not.toMatch(/Falling back to Capacitor Geolocation after Transistorsoft failure/);
     expect(hook).not.toMatch(/Location error: \$\{errMsg/);
   });
 });

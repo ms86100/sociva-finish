@@ -2,10 +2,10 @@
  * Keep the Capacitor-generated iOS Podfile plugin list and inject the extras
  * Codemagic needs (static linkage, Firebase, Xcode 16 post_install).
  *
- * Historically ios-release overwrote Podfile with a hardcoded plugin list that
- * omitted TransistorsoftCapacitorBackgroundGeolocation. The App Store binary
- * then had no BackgroundGeolocation native class, so sellers saw:
- *   "BackgroundGeolocation" Plugin is not implemented on iOS
+ * Sociva does not ship Transistorsoft. Capacitor sync may re-add
+ * TransistorsoftCapacitorBackgroundGeolocation from node_modules; this patch
+ * always strips that pod so release IPAs never link TSLocationManager
+ * (native LICENSE VALIDATION banner on every cold start).
  */
 const fs = require('fs');
 const path = require('path');
@@ -45,12 +45,7 @@ function resolvePaths(cwd = process.cwd(), scriptDir = __dirname, argv = process
   };
 }
 
-const REQUIRED_PLUGIN_PODS = [
-  [
-    'TransistorsoftCapacitorBackgroundGeolocation',
-    '../../node_modules/@transistorsoft/capacitor-background-geolocation',
-  ],
-];
+const REQUIRED_PLUGIN_PODS = [];
 
 const SKELETON_PLUGIN_PODS = [
   ['Capacitor', '../../node_modules/@capacitor/ios'],
@@ -67,7 +62,6 @@ const SKELETON_PLUGIN_PODS = [
   ['CapacitorPushNotifications', '../../node_modules/@capacitor/push-notifications'],
   ['CapacitorSplashScreen', '../../node_modules/@capacitor/splash-screen'],
   ['CapacitorStatusBar', '../../node_modules/@capacitor/status-bar'],
-  ...REQUIRED_PLUGIN_PODS,
 ];
 
 const POST_INSTALL = `post_install do |installer|
@@ -127,6 +121,12 @@ function ensureLineInCapacitorPods(content, name, rel) {
   );
 }
 
+function stripTransistorsoftPod(content) {
+  return content
+    .replace(/^[ \t]*pod ['"]TransistorsoftCapacitorBackgroundGeolocation['"].*\n?/gm, '')
+    .replace(/\n{3,}/g, '\n\n');
+}
+
 function ensureFirebase(content) {
   if (content.includes("pod 'FirebaseCore'")) return content;
   return content.replace(
@@ -172,6 +172,7 @@ function patch(content) {
   for (const [name, rel] of REQUIRED_PLUGIN_PODS) {
     next = ensureLineInCapacitorPods(next, name, rel);
   }
+  next = stripTransistorsoftPod(next);
   next = ensureFirebase(next);
   next = rewritePostInstall(next);
   return next;
@@ -188,18 +189,8 @@ function main() {
   const source = existing.trim() ? existing : skeletonPodfile();
   const patched = patch(source);
 
-  if (!patched.includes('TransistorsoftCapacitorBackgroundGeolocation')) {
-    throw new Error('patch-ios-podfile: Transistorsoft pod missing after patch');
-  }
-
-  const tsPath = path.join(
-    repoRoot,
-    'node_modules',
-    '@transistorsoft',
-    'capacitor-background-geolocation',
-  );
-  if (!fs.existsSync(tsPath)) {
-    throw new Error(`patch-ios-podfile: Transistorsoft missing at ${tsPath}`);
+  if (patched.includes('TransistorsoftCapacitorBackgroundGeolocation')) {
+    throw new Error('patch-ios-podfile: Transistorsoft pod still present after strip');
   }
 
   const podDir = path.dirname(podfilePath);
@@ -213,6 +204,7 @@ function main() {
 module.exports = {
   patch,
   skeletonPodfile,
+  stripTransistorsoftPod,
   REQUIRED_PLUGIN_PODS,
   SKELETON_PLUGIN_PODS,
   resolvePaths,

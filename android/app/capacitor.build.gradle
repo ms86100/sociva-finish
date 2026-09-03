@@ -22,7 +22,6 @@ dependencies {
     implementation project(':capacitor-splash-screen')
     implementation project(':capacitor-status-bar')
     implementation project(':ebarooni-capacitor-calendar')
-    implementation project(':transistorsoft-capacitor-background-geolocation')
     implementation project(':capacitor-native-settings')
     implementation project(':capacitor-rate-app')
 

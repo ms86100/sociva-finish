@@ -4,12 +4,7 @@ import { Capacitor } from '@capacitor/core';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { getTrackingConfig, type TrackingConfig } from '@/services/trackingConfig';
-import { showFeedback } from '@/components/FeedbackPopupProvider';
-import { shouldUseTransistorsoftBackgroundGeo, refreshNativeLocationEngineFlags } from '@/lib/native-location-engine';
-import {
-  isNativePluginUnimplemented,
-  sellerLocationErrorMessage,
-} from '@/lib/location-tracking-errors';
+import { sellerLocationErrorMessage } from '@/lib/location-tracking-errors';
 
 interface TrackingState {
   isTracking: boolean;
@@ -48,21 +43,14 @@ export function useBackgroundLocationTracking(assignmentId: string | null) {
   const flushingRef = useRef(false);
   const configRef = useRef<TrackingConfig | null>(null);
   const healthTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const bgGeoRef = useRef<any>(null);
   const capacitorGeoRef = useRef<any>(null);
   const stopTrackingRef = useRef<(() => void) | null>(null);
   const startingRef = useRef(false);
   const isNative = Capacitor.isNativePlatform();
-  const [useTransistorsoft, setUseTransistorsoft] = useState(() => shouldUseTransistorsoftBackgroundGeo());
 
   useEffect(() => {
     mountedRef.current = true;
     getTrackingConfig().then(c => { configRef.current = c; });
-    if (Capacitor.getPlatform() === 'android') {
-      refreshNativeLocationEngineFlags().then(() => {
-        if (mountedRef.current) setUseTransistorsoft(shouldUseTransistorsoftBackgroundGeo());
-      });
-    }
     return () => {
       mountedRef.current = false;
     };
@@ -194,18 +182,6 @@ export function useBackgroundLocationTracking(assignmentId: string | null) {
   const attemptRecovery = useCallback(async () => {
     if (!isNative) return;
     try {
-      if (bgGeoRef.current) {
-        const BG = bgGeoRef.current;
-        const pos = await BG.getCurrentPosition({ extras: { recovery: true } });
-        if (pos && pos.coords) {
-          sendLocation(
-            pos.coords.latitude, pos.coords.longitude,
-            pos.coords.speed, pos.coords.heading, pos.coords.accuracy,
-          );
-          console.log('[LocationTracking] Recovery position obtained');
-          return;
-        }
-      }
       if (capacitorGeoRef.current) {
         const pos = await capacitorGeoRef.current.getCurrentPosition({
           enableHighAccuracy: true,
@@ -353,179 +329,6 @@ export function useBackgroundLocationTracking(assignmentId: string | null) {
     }
   }, [assignmentId, sendLocation, startHealthCheck, upgradeAndroidBackgroundPermission]);
 
-  const startAndroidCapacitorTracking = useCallback(async () => {
-    await startCapacitorGeolocationTracking({ androidBackgroundUpgrade: true });
-  }, [startCapacitorGeolocationTracking]);
-
-  // ─── Native background geolocation (Transistorsoft — iOS / licensed Android) ─────
-
-  const startNativeTracking = useCallback(async () => {
-    try {
-      // Pre-flight: Request location permission via Capacitor Geolocation plugin first
-      // This ensures the iOS permission dialog is shown to the user before BackgroundGeolocation starts
-      try {
-        const { Geolocation } = await import('@capacitor/geolocation');
-        const permStatus = await Geolocation.checkPermissions();
-        console.log('[LocationTracking] Pre-flight permission status:', permStatus.location);
-        if (permStatus.location === 'prompt' || permStatus.location === 'prompt-with-rationale') {
-          console.log('[LocationTracking] Requesting location permission via Capacitor...');
-          const requested = await Geolocation.requestPermissions();
-          console.log('[LocationTracking] Permission result:', requested.location);
-          if (requested.location === 'denied') {
-            setState(s => ({ ...s, permissionDenied: true, permissionLevel: 'denied' }));
-            toast.error(sellerLocationErrorMessage({ message: 'permission denied' }), { duration: 8000 });
-            return;
-          }
-        } else if (permStatus.location === 'denied') {
-          setState(s => ({ ...s, permissionDenied: true, permissionLevel: 'denied' }));
-          toast.error(sellerLocationErrorMessage({ message: 'permission denied' }), { duration: 8000 });
-          return;
-        }
-      } catch (preflightErr) {
-        console.warn('[LocationTracking] Pre-flight permission check failed, continuing with BG plugin:', preflightErr);
-      }
-
-      const BackgroundGeolocation = (await import('@transistorsoft/capacitor-background-geolocation')).default;
-      bgGeoRef.current = BackgroundGeolocation;
-
-      await BackgroundGeolocation.ready({
-        desiredAccuracy: BackgroundGeolocation.DESIRED_ACCURACY_HIGH,
-        distanceFilter: 10,
-        stopOnTerminate: true,
-        startOnBoot: false,
-        preventSuspend: false,
-        heartbeatInterval: 60,
-        isMoving: true,
-        stopTimeout: 3,
-        desiredOdometerAccuracy: 20,
-        activityType: BackgroundGeolocation.ACTIVITY_TYPE_AUTOMOTIVE_NAVIGATION,
-        showsBackgroundLocationIndicator: true,
-        stationaryRadius: 25,
-        // ACTIVITY_RECOGNITION is stripped for Play Health policy — do not require motion APIs.
-        disableMotionActivityUpdates: true,
-        disableStopDetection: true,
-        locationAuthorizationRequest: 'Always',
-        debug: false,
-        logLevel: BackgroundGeolocation.LOG_LEVEL_WARNING,
-      });
-
-      // Listen for location updates
-      BackgroundGeolocation.onLocation((location) => {
-        if (!location.coords) return;
-        sendLocation(
-          location.coords.latitude, location.coords.longitude,
-          location.coords.speed, location.coords.heading, location.coords.accuracy,
-        );
-      }, (error) => {
-        console.error('[LocationTracking] onLocation error:', error);
-      });
-
-      // Listen for provider/permission changes
-      BackgroundGeolocation.onProviderChange((event) => {
-        console.log('[LocationTracking] Provider change:', event);
-        if (mountedRef.current) {
-          const level = event.accuracyAuthorization === 0 ? 'always' :
-            event.status === 3 ? 'always' :
-            event.status === 2 ? 'when_in_use' :
-            event.status === 0 ? 'denied' : 'unknown';
-          setState(s => ({ ...s, permissionLevel: level, permissionDenied: level === 'denied' }));
-        }
-      });
-
-      // Start tracking
-      const bgState = await BackgroundGeolocation.start();
-      console.log('[LocationTracking] Native tracking started:', bgState.enabled);
-
-      // Request "Always" permission upgrade
-      try {
-        await BackgroundGeolocation.requestPermission();
-        const providerState = await BackgroundGeolocation.getProviderState();
-        const level = providerState.status === 3 ? 'always' :
-          providerState.status === 2 ? 'when_in_use' :
-          providerState.status === 0 ? 'denied' : 'unknown';
-        if (mountedRef.current) {
-          setState(s => ({
-            ...s,
-            isTracking: true,
-            permissionDenied: level === 'denied',
-            permissionLevel: level,
-          }));
-        }
-        if (level === 'denied') {
-          toast.error(sellerLocationErrorMessage({ message: 'permission denied' }));
-          return;
-        }
-        if (level === 'when_in_use') {
-          toast.info('For tracking while the app is in the background, set Location to Always in Settings.', {
-            id: 'perm-upgrade',
-            duration: 10000,
-          });
-        }
-      } catch {
-        // Permission request failed, tracking may still work with WhenInUse
-        if (mountedRef.current) {
-          setState(s => ({ ...s, isTracking: true, permissionLevel: 'when_in_use' }));
-        }
-      }
-
-      startHealthCheck();
-    } catch (err: any) {
-      const errMsg = err instanceof Error ? err.message : String(err);
-      console.error('[LocationTracking] Native tracking setup failed:', errMsg, err);
-      if (isNativePluginUnimplemented(err)) {
-        console.warn('[LocationTracking] BackgroundGeolocation native plugin is not linked in this iOS/Android binary');
-      }
-      // Native plugin missing (typical when iOS Podfile dropped Transistorsoft) or
-      // license/init failure: keep sharing working via Capacitor Geolocation.
-      const platform = Capacitor.getPlatform();
-      if (platform === 'android' || platform === 'ios') {
-        console.warn('[LocationTracking] Falling back to Capacitor Geolocation after Transistorsoft failure:', errMsg);
-        await startCapacitorGeolocationTracking({
-          androidBackgroundUpgrade: platform === 'android',
-        });
-        return;
-      }
-      toast.error(sellerLocationErrorMessage(err), { duration: 8000 });
-    }
-  }, [sendLocation, startHealthCheck, startCapacitorGeolocationTracking]);
-
-  // ─── Auto-restart on resume (Gap 2: background kill recovery) ───
-
-  useEffect(() => {
-    if (!isNative || !useTransistorsoft || !state.isTracking) return;
-
-    let cleanup: (() => void) | undefined;
-
-    (async () => {
-      try {
-        const { App } = await import('@capacitor/app');
-        const listener = await App.addListener('appStateChange', async ({ isActive }) => {
-          if (!isActive || !bgGeoRef.current || !mountedRef.current) return;
-          try {
-            const providerState = await bgGeoRef.current.getProviderState();
-            if (!providerState.enabled) {
-              console.log('[LocationTracking] Detected stopped tracking on resume — restarting');
-              await bgGeoRef.current.start();
-              await flushQueue();
-              showFeedback({
-        title: 'Tracking resumed',
-        variant: 'success',
-      });
-              if (mountedRef.current) setState(s => ({ ...s, trackingPaused: false }));
-            }
-          } catch (err) {
-            console.error('[LocationTracking] Resume restart failed:', err);
-          }
-        });
-        cleanup = () => listener.remove();
-      } catch {
-        // Capacitor App plugin not available
-      }
-    })();
-
-    return () => cleanup?.();
-  }, [isNative, useTransistorsoft, state.isTracking, flushQueue]);
-
   // ─── Web fallback ──────────────────────────────────────
 
   const startWebTracking = useCallback(() => {
@@ -569,24 +372,7 @@ export function useBackgroundLocationTracking(assignmentId: string | null) {
     startingRef.current = true;
 
     try {
-      let useTs = useTransistorsoft;
-      if (Capacitor.getPlatform() === 'android') {
-        await refreshNativeLocationEngineFlags();
-        useTs = shouldUseTransistorsoftBackgroundGeo();
-        if (useTs !== useTransistorsoft) setUseTransistorsoft(useTs);
-      }
-
-      if (isNative && useTs) {
-        try {
-          await startNativeTracking();
-        } catch (firstErr) {
-          // Single retry after 1s for transient native bridge readiness issues
-          console.warn('[LocationTracking] First attempt failed, retrying in 1s...', firstErr);
-          await new Promise(r => setTimeout(r, 1000));
-          await startNativeTracking();
-        }
-      } else if (isNative) {
-        // Android without Transistorsoft license (or iOS if selector is off): Capacitor Geolocation.
+      if (isNative) {
         await startCapacitorGeolocationTracking({
           androidBackgroundUpgrade: Capacitor.getPlatform() === 'android',
         });
@@ -599,9 +385,6 @@ export function useBackgroundLocationTracking(assignmentId: string | null) {
   }, [
     assignmentId,
     isNative,
-    useTransistorsoft,
-    startNativeTracking,
-    startAndroidCapacitorTracking,
     startCapacitorGeolocationTracking,
     startWebTracking,
     state.isTracking,
@@ -609,16 +392,6 @@ export function useBackgroundLocationTracking(assignmentId: string | null) {
 
   const stopTracking = useCallback(async () => {
     stopHealthCheck();
-
-    if (isNative && bgGeoRef.current) {
-      try {
-        await bgGeoRef.current.stop();
-        await bgGeoRef.current.removeListeners();
-      } catch {
-        // noop
-      }
-      bgGeoRef.current = null;
-    }
 
     if (watchIdRef.current != null) {
       if (capacitorGeoRef.current) {

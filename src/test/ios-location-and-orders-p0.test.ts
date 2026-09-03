@@ -21,8 +21,8 @@ const { patch, resolvePaths } = require('../../scripts/patch-ios-podfile.cjs') a
 const ordersPage = readFileSync(resolve(__dirname, '../pages/OrdersPage.tsx'), 'utf8');
 const hook = readFileSync(resolve(__dirname, '../hooks/useBackgroundLocationTracking.ts'), 'utf8');
 
-describe('iOS BackgroundGeolocation native wiring', () => {
-  it('restores Transistorsoft when CI used to overwrite the Podfile', () => {
+describe('iOS native location wiring without Transistorsoft', () => {
+  it('strips Transistorsoft when Capacitor re-adds it to the Podfile', () => {
     const stale = `
 require_relative '../../node_modules/@capacitor/ios/scripts/pods_helpers'
 platform :ios, '15.0'
@@ -30,18 +30,19 @@ use_frameworks!
 def capacitor_pods
     pod 'Capacitor', :path => '../../node_modules/@capacitor/ios'
     pod 'CapacitorGeolocation', :path => '../../node_modules/@capacitor/geolocation'
+    pod 'TransistorsoftCapacitorBackgroundGeolocation', :path => '../../node_modules/@transistorsoft/capacitor-background-geolocation'
 end
 target 'App' do
   capacitor_pods
 end
 `;
     const patched = patch(stale);
-    expect(patched).toMatch(/pod 'TransistorsoftCapacitorBackgroundGeolocation'/);
+    expect(patched).not.toMatch(/TransistorsoftCapacitorBackgroundGeolocation/);
     expect(patched).toMatch(/use_frameworks! :linkage => :static/);
     expect(patched).toMatch(/platform :ios, '16.1'/);
     expect(patched).toMatch(/pod 'FirebaseCore'/);
     expect(patched).toMatch(/SWIFT_ENABLE_EXPLICIT_MODULES/);
-    expect(patch(patched)).toMatch(/TransistorsoftCapacitorBackgroundGeolocation/);
+    expect(patch(patched)).not.toMatch(/TransistorsoftCapacitorBackgroundGeolocation/);
   });
 
   it('declares NSMotionUsageDescription for App Store ITMS-90683', () => {
@@ -50,6 +51,9 @@ end
     expect(cap).toMatch(/NSMotionUsageDescription/);
     expect(yaml).toMatch(/NSMotionUsageDescription/);
     expect(yaml.match(/NSMotionUsageDescription/g)?.length).toBeGreaterThanOrEqual(4);
+    expect(yaml).not.toMatch(/ERROR: Transistorsoft iOS pod missing/);
+    expect(yaml).toMatch(/Transistorsoft iOS pod must not be present/);
+    expect(yaml).not.toMatch(/TSLocationManagerLicense/);
   });
 
   it('writes ios/App/Podfile even when CI cwd is already ios/App', () => {

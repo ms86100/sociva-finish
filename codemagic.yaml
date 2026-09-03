@@ -4,10 +4,9 @@
 # Setup Instructions:
 # 1. Connect this repo to Codemagic (codemagic.io)
 # 2. Add required environment variables (see below)
-#    Optional: TRANSISTORSOFT_LICENSE (or BGGEO_LICENSE) for real-time
-#    background GPS on Android (applicationId app.sociva.community) and iOS
-#    (Info.plist TSLocationManagerLicense). iOS also requires the Transistorsoft
-#    CocoaPod — never overwrite the Capacitor-generated Podfile plugin list.
+#    Sociva never ships Transistorsoft. Location sharing uses Capacitor
+#    Geolocation only (sellers keep the app open). Do not inject a
+#    TSLocationManager license or require that CocoaPod.
 # 3. Trigger a build!
 
 workflows:
@@ -76,15 +75,14 @@ workflows:
           project.root_object.package_references.to_a.each { |ref| ref.remove_from_project }
           project.save
           RUBY
-          # Keep the Capacitor-generated plugin list (including Transistorsoft).
-          # Overwriting it with a hardcoded subset shipped iOS binaries without
-          # BackgroundGeolocation ("plugin is not implemented on iOS").
+          # Capacitor sync may re-add Transistorsoft from node_modules.
+          # Always strip it so release IPAs never link TSLocationManager.
           # Always patch ios/App/Podfile (CI cwd is already ios/App).
           node ../../scripts/patch-ios-podfile.cjs --podfile=Podfile
           echo "=== Final Podfile ==="
           cat Podfile
-          if ! grep -q "TransistorsoftCapacitorBackgroundGeolocation" Podfile; then
-            echo "ERROR: Transistorsoft iOS pod missing from Podfile"
+          if grep -q "TransistorsoftCapacitorBackgroundGeolocation" Podfile; then
+            echo "ERROR: Transistorsoft iOS pod must not be present in Podfile"
             exit 1
           fi
           # deterministic resolver on clean CI nodes
@@ -360,17 +358,8 @@ workflows:
             /usr/libexec/PlistBuddy -c "Add :NSLocationAlwaysAndWhenInUseUsageDescription string 'Sociva uses your location in the background to provide real-time delivery tracking when you are making deliveries as a seller.'" App/Info.plist
           /usr/libexec/PlistBuddy -c "Set :NSLocationAlwaysUsageDescription 'Sociva uses your location in the background to provide real-time delivery tracking when you are making deliveries as a seller.'" App/Info.plist 2>/dev/null || \
             /usr/libexec/PlistBuddy -c "Add :NSLocationAlwaysUsageDescription string 'Sociva uses your location in the background to provide real-time delivery tracking when you are making deliveries as a seller.'" App/Info.plist
-          # ITMS-90683: TSLocationManager links Core Motion even with activity updates disabled.
           /usr/libexec/PlistBuddy -c "Set :NSMotionUsageDescription 'Sociva uses motion activity (for example walking, driving, or being still) to keep live delivery tracking accurate and to save battery while you are making a delivery as a seller.'" App/Info.plist 2>/dev/null || \
             /usr/libexec/PlistBuddy -c "Add :NSMotionUsageDescription string 'Sociva uses motion activity (for example walking, driving, or being still) to keep live delivery tracking accurate and to save battery while you are making a delivery as a seller.'" App/Info.plist
-          KEY="${TRANSISTORSOFT_LICENSE:-${BGGEO_LICENSE:-}}"
-          if [ -n "$KEY" ] && [ "$KEY" != "YOUR_TRANSISTORSOFT_LICENSE_KEY_HERE" ]; then
-            plutil -replace TSLocationManagerLicense -string "$KEY" App/Info.plist 2>/dev/null || \
-              plutil -insert TSLocationManagerLicense -string "$KEY" App/Info.plist
-            echo "=== TSLocationManagerLicense injected ==="
-          else
-            echo "WARNING: TRANSISTORSOFT_LICENSE not set — iOS Transistorsoft may show a license notice; JS falls back to foreground location sharing."
-          fi
           echo "=== Privacy strings injected ==="
 
       - name: Copy GoogleService-Info.plist
@@ -901,12 +890,8 @@ workflows:
       - name: Verify native Android dependency patch
         script: |
           node scripts/patch-android-builds.cjs --verify
-          if ! grep -q "project(':transistorsoft-capacitor-background-geolocation').projectDir}/libs" android/build.gradle; then
-            echo "ERROR: Root Android Gradle config is missing the Transistorsoft local Maven repo"
-            exit 1
-          fi
-          if ! grep -q "transistorsoft-capacitor-background-geolocation" android/capacitor.settings.gradle; then
-            echo "ERROR: Capacitor sync did not register the background geolocation plugin"
+          if grep -q "transistorsoft" android/capacitor.settings.gradle android/app/capacitor.build.gradle android/build.gradle; then
+            echo "ERROR: Transistorsoft must not be registered in native Android Gradle after patch"
             exit 1
           fi
           echo "=== Android dependency and Kotlin patches verified ==="
@@ -951,16 +936,6 @@ workflows:
             head -40 "$GRADLE_FILE"
           else
             echo "WARNING: CM_KEYSTORE not set or file not found. Build will be unsigned."
-          fi
-
-      - name: Inject Transistorsoft license (optional)
-        script: |
-          KEY="${TRANSISTORSOFT_LICENSE:-${BGGEO_LICENSE:-}}"
-          if [ -n "$KEY" ] && [ "$KEY" != "YOUR_TRANSISTORSOFT_LICENSE_KEY_HERE" ]; then
-            printf 'license=%s\n' "$KEY" > android/transistorsoft.properties
-            echo "=== Transistorsoft license written to android/transistorsoft.properties ==="
-          else
-            echo "WARNING: TRANSISTORSOFT_LICENSE not set — Android will use Capacitor Geolocation fallback (no background GPS)."
           fi
 
       - name: Build Android release bundle
@@ -1046,12 +1021,13 @@ workflows:
           project.root_object.package_references.to_a.each { |ref| ref.remove_from_project }
           project.save
           RUBY
-          # Keep Capacitor-generated plugin pods (including Transistorsoft).
+          # Capacitor sync may re-add Transistorsoft from node_modules.
+          # Always strip it so release IPAs never link TSLocationManager.
           node ../../scripts/patch-ios-podfile.cjs --podfile=Podfile
           echo "=== Final Podfile ==="
           cat Podfile
-          if ! grep -q "TransistorsoftCapacitorBackgroundGeolocation" Podfile; then
-            echo "ERROR: Transistorsoft iOS pod missing from Podfile"
+          if grep -q "TransistorsoftCapacitorBackgroundGeolocation" Podfile; then
+            echo "ERROR: Transistorsoft iOS pod must not be present in Podfile"
             exit 1
           fi
           pod install --repo-update
@@ -1258,17 +1234,8 @@ workflows:
             /usr/libexec/PlistBuddy -c "Add :NSLocationAlwaysAndWhenInUseUsageDescription string 'Sociva uses your location to verify your residential society membership and show nearby sellers, even in the background.'" App/Info.plist
           /usr/libexec/PlistBuddy -c "Set :NSLocationAlwaysUsageDescription 'Sociva uses your location in the background to provide real-time delivery tracking when you are making deliveries as a seller.'" App/Info.plist 2>/dev/null || \
             /usr/libexec/PlistBuddy -c "Add :NSLocationAlwaysUsageDescription string 'Sociva uses your location in the background to provide real-time delivery tracking when you are making deliveries as a seller.'" App/Info.plist
-          # ITMS-90683: TSLocationManager links Core Motion even with activity updates disabled.
           /usr/libexec/PlistBuddy -c "Set :NSMotionUsageDescription 'Sociva uses motion activity (for example walking, driving, or being still) to keep live delivery tracking accurate and to save battery while you are making a delivery as a seller.'" App/Info.plist 2>/dev/null || \
             /usr/libexec/PlistBuddy -c "Add :NSMotionUsageDescription string 'Sociva uses motion activity (for example walking, driving, or being still) to keep live delivery tracking accurate and to save battery while you are making a delivery as a seller.'" App/Info.plist
-          KEY="${TRANSISTORSOFT_LICENSE:-${BGGEO_LICENSE:-}}"
-          if [ -n "$KEY" ] && [ "$KEY" != "YOUR_TRANSISTORSOFT_LICENSE_KEY_HERE" ]; then
-            plutil -replace TSLocationManagerLicense -string "$KEY" App/Info.plist 2>/dev/null || \
-              plutil -insert TSLocationManagerLicense -string "$KEY" App/Info.plist
-            echo "=== TSLocationManagerLicense injected ==="
-          else
-            echo "WARNING: TRANSISTORSOFT_LICENSE not set — iOS Transistorsoft may show a license notice; JS falls back to foreground location sharing."
-          fi
           echo "=== Privacy strings injected ==="
 
       - name: Copy GoogleService-Info.plist
@@ -1706,12 +1673,8 @@ workflows:
       - name: Verify native Android dependency patch
         script: |
           node scripts/patch-android-builds.cjs --verify
-          if ! grep -q "project(':transistorsoft-capacitor-background-geolocation').projectDir}/libs" android/build.gradle; then
-            echo "ERROR: Root Android Gradle config is missing the Transistorsoft local Maven repo"
-            exit 1
-          fi
-          if ! grep -q "transistorsoft-capacitor-background-geolocation" android/capacitor.settings.gradle; then
-            echo "ERROR: Capacitor sync did not register the background geolocation plugin"
+          if grep -q "transistorsoft" android/capacitor.settings.gradle android/app/capacitor.build.gradle android/build.gradle; then
+            echo "ERROR: Transistorsoft must not be registered in native Android Gradle after patch"
             exit 1
           fi
           echo "=== Android dependency and Kotlin patches verified ==="
@@ -1756,16 +1719,6 @@ workflows:
             head -40 "$GRADLE_FILE"
           else
             echo "WARNING: CM_KEYSTORE not set or file not found. Build will be unsigned."
-          fi
-
-      - name: Inject Transistorsoft license (optional)
-        script: |
-          KEY="${TRANSISTORSOFT_LICENSE:-${BGGEO_LICENSE:-}}"
-          if [ -n "$KEY" ] && [ "$KEY" != "YOUR_TRANSISTORSOFT_LICENSE_KEY_HERE" ]; then
-            printf 'license=%s\n' "$KEY" > android/transistorsoft.properties
-            echo "=== Transistorsoft license written to android/transistorsoft.properties ==="
-          else
-            echo "WARNING: TRANSISTORSOFT_LICENSE not set — Android will use Capacitor Geolocation fallback (no background GPS)."
           fi
 
       - name: Build Android AAB

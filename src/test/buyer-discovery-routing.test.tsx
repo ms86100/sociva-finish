@@ -1,38 +1,15 @@
-import { fireEvent, render, screen } from '@testing-library/react';
-import { MemoryRouter, useLocation } from 'react-router-dom';
-import { describe, expect, it, vi } from 'vitest';
-import { HomeSearchSuggestions } from '@/components/home/HomeSearchSuggestions';
+import { readFileSync } from 'fs';
+import { resolve } from 'path';
+import { describe, expect, it } from 'vitest';
 import { ACTION_CONFIG, deriveActionType } from '@/lib/marketplace-constants';
 
-vi.mock('@/hooks/queries/useCommunitySearchSuggestions', () => ({
-  useCommunitySearchSuggestions: () => ({
-    data: [{ term: 'Fresh paneer & bread', count: 12 }],
-  }),
-}));
-
-vi.mock('@/hooks/useMarketplaceLabels', () => ({
-  useMarketplaceLabels: () => ({ label: () => 'Popular searches' }),
-}));
-
-function CurrentLocation() {
-  const location = useLocation();
-  return <output data-testid="location">{`${location.pathname}${location.search}`}</output>;
-}
+const homePage = readFileSync(resolve(__dirname, '../pages/HomePage.tsx'), 'utf8');
 
 describe('buyer discovery routing contracts', () => {
-  it('routes a discovery suggestion to an encoded search URL', () => {
-    render(
-      <MemoryRouter initialEntries={['/']}>
-        <HomeSearchSuggestions />
-        <CurrentLocation />
-      </MemoryRouter>,
-    );
-
-    fireEvent.click(screen.getByRole('button', { name: /Fresh paneer & bread/i }));
-
-    expect(screen.getByTestId('location')).toHaveTextContent(
-      '/search?q=Fresh%20paneer%20%26%20bread',
-    );
+  it('does not show Home popular-search chips or route them into /search', () => {
+    expect(homePage).not.toMatch(/HomeSearchSuggestions/);
+    expect(homePage).not.toMatch(/label_section_search_popular/);
+    expect(homePage).not.toMatch(/\/search\?q=/);
   });
 
   it.each([
