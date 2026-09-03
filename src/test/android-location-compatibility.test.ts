@@ -68,6 +68,7 @@ describe('Android location dependency compatibility', () => {
     expect(codemagic).toMatch(/TSLocationManagerLicense/);
     expect(codemagic).toMatch(/patch-ios-podfile/);
     expect(codemagic).not.toMatch(/cat > Podfile/);
+    expect(codemagic).toMatch(/NSMotionUsageDescription/);
   });
 
   it('replaces license toast with branded Sociva status pill', () => {

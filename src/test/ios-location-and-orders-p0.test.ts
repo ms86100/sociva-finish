@@ -44,6 +44,14 @@ end
     expect(patch(patched)).toMatch(/TransistorsoftCapacitorBackgroundGeolocation/);
   });
 
+  it('declares NSMotionUsageDescription for App Store ITMS-90683', () => {
+    const cap = readFileSync(resolve(__dirname, '../../capacitor.config.ts'), 'utf8');
+    const yaml = readFileSync(resolve(__dirname, '../../codemagic.yaml'), 'utf8');
+    expect(cap).toMatch(/NSMotionUsageDescription/);
+    expect(yaml).toMatch(/NSMotionUsageDescription/);
+    expect(yaml.match(/NSMotionUsageDescription/g)?.length).toBeGreaterThanOrEqual(4);
+  });
+
   it('writes ios/App/Podfile even when CI cwd is already ios/App', () => {
     const repo = resolve(__dirname, '../..');
     const scriptDir = resolve(repo, 'scripts');

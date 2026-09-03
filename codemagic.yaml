@@ -360,6 +360,9 @@ workflows:
             /usr/libexec/PlistBuddy -c "Add :NSLocationAlwaysAndWhenInUseUsageDescription string 'Sociva uses your location in the background to provide real-time delivery tracking when you are making deliveries as a seller.'" App/Info.plist
           /usr/libexec/PlistBuddy -c "Set :NSLocationAlwaysUsageDescription 'Sociva uses your location in the background to provide real-time delivery tracking when you are making deliveries as a seller.'" App/Info.plist 2>/dev/null || \
             /usr/libexec/PlistBuddy -c "Add :NSLocationAlwaysUsageDescription string 'Sociva uses your location in the background to provide real-time delivery tracking when you are making deliveries as a seller.'" App/Info.plist
+          # ITMS-90683: TSLocationManager links Core Motion even with activity updates disabled.
+          /usr/libexec/PlistBuddy -c "Set :NSMotionUsageDescription 'Sociva uses motion activity (for example walking, driving, or being still) to keep live delivery tracking accurate and to save battery while you are making a delivery as a seller.'" App/Info.plist 2>/dev/null || \
+            /usr/libexec/PlistBuddy -c "Add :NSMotionUsageDescription string 'Sociva uses motion activity (for example walking, driving, or being still) to keep live delivery tracking accurate and to save battery while you are making a delivery as a seller.'" App/Info.plist
           KEY="${TRANSISTORSOFT_LICENSE:-${BGGEO_LICENSE:-}}"
           if [ -n "$KEY" ] && [ "$KEY" != "YOUR_TRANSISTORSOFT_LICENSE_KEY_HERE" ]; then
             plutil -replace TSLocationManagerLicense -string "$KEY" App/Info.plist 2>/dev/null || \
@@ -1255,6 +1258,9 @@ workflows:
             /usr/libexec/PlistBuddy -c "Add :NSLocationAlwaysAndWhenInUseUsageDescription string 'Sociva uses your location to verify your residential society membership and show nearby sellers, even in the background.'" App/Info.plist
           /usr/libexec/PlistBuddy -c "Set :NSLocationAlwaysUsageDescription 'Sociva uses your location in the background to provide real-time delivery tracking when you are making deliveries as a seller.'" App/Info.plist 2>/dev/null || \
             /usr/libexec/PlistBuddy -c "Add :NSLocationAlwaysUsageDescription string 'Sociva uses your location in the background to provide real-time delivery tracking when you are making deliveries as a seller.'" App/Info.plist
+          # ITMS-90683: TSLocationManager links Core Motion even with activity updates disabled.
+          /usr/libexec/PlistBuddy -c "Set :NSMotionUsageDescription 'Sociva uses motion activity (for example walking, driving, or being still) to keep live delivery tracking accurate and to save battery while you are making a delivery as a seller.'" App/Info.plist 2>/dev/null || \
+            /usr/libexec/PlistBuddy -c "Add :NSMotionUsageDescription string 'Sociva uses motion activity (for example walking, driving, or being still) to keep live delivery tracking accurate and to save battery while you are making a delivery as a seller.'" App/Info.plist
           KEY="${TRANSISTORSOFT_LICENSE:-${BGGEO_LICENSE:-}}"
           if [ -n "$KEY" ] && [ "$KEY" != "YOUR_TRANSISTORSOFT_LICENSE_KEY_HERE" ]; then
             plutil -replace TSLocationManagerLicense -string "$KEY" App/Info.plist 2>/dev/null || \
