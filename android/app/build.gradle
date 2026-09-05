@@ -14,8 +14,8 @@ android {
         applicationId "app.sociva.community"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 49
-        versionName "2.0.49"
+        versionCode 50
+        versionName "2.0.50"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField "boolean", "HAS_TRANSISTORSOFT_LICENSE", "false"
         aaptOptions {
