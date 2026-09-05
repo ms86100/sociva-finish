@@ -12,10 +12,10 @@ import { logAudit } from '@/lib/audit';
 import { resolveTransactionType } from '@/lib/resolveTransactionType';
 import {
   canBuyerCancelScheduled,
+  isDueForPreparation,
   isScheduledFulfillmentLocked,
   isScheduledFulfillmentStatus,
   isScheduledOrder,
-  isUpcomingScheduled,
 } from '@/lib/scheduled-orders';
 import { isOrderAcceptanceExpired } from '@/lib/expired-order-acks';
 import { Order, OrderStatus } from '@/types/Database';
@@ -197,10 +197,25 @@ export function useOrderDetail(id: string | undefined) {
     return true;
   }, [order, transitions]);
 
+  // Tick so prep-window unlock flips CTAs without requiring a manual refresh.
+  const [scheduleNowMs, setScheduleNowMs] = useState(() => Date.now());
+  useEffect(() => {
+    if (!order || !isScheduledOrder(order)) return;
+    const id = window.setInterval(() => setScheduleNowMs(Date.now()), 15_000);
+    return () => window.clearInterval(id);
+  }, [order?.id, order?.status, order?.preparation_start_at, order?.scheduled_fulfillment_at]);
+
+  const scheduleNow = useMemo(() => new Date(scheduleNowMs), [scheduleNowMs]);
+
   const isScheduledAwaitingPrep = useMemo(() => {
     if (!order || !isScheduledOrder(order)) return false;
-    return isScheduledFulfillmentLocked(order);
-  }, [order]);
+    return isScheduledFulfillmentLocked(order, scheduleNow);
+  }, [order, scheduleNow]);
+
+  const isPrepDueNow = useMemo(() => {
+    if (!order || !isScheduledOrder(order)) return false;
+    return isDueForPreparation(order, scheduleNow);
+  }, [order, scheduleNow]);
 
   // Invalidate cache helper
   const invalidateOrder = () => {
@@ -410,7 +425,12 @@ export function useOrderDetail(id: string | undefined) {
     }
   };
 
-  const handleReject = async (reason: string) => { await updateOrderStatus('cancelled', reason); };
+  const handleReject = async (reason: string) => {
+    const stamped = reason?.startsWith('Rejected by seller:')
+      ? reason
+      : `Rejected by seller: ${reason || 'No reason provided'}`;
+    await updateOrderStatus('cancelled', stamped);
+  };
   const handleTimeout = () => {
     // Server expires the order by id at auto_cancel_at (edge waitUntil +
     // one-shot cron). Client cannot cancel; refresh until status updates.
@@ -422,10 +442,36 @@ export function useOrderDetail(id: string | undefined) {
 
   const isBuyerView = order ? order.buyer_id === user?.id : false;
   const rawNextStatus = getNextStatus();
-  const nextStatus =
+  let nextStatus: OrderStatus | null =
     isScheduledAwaitingPrep && rawNextStatus && isScheduledFulfillmentStatus(rawNextStatus)
       ? null
       : rawNextStatus;
+
+  // BUG-UI-01: when prep window opens, ensure seller still gets a Start Preparing CTA
+  // even if workflow edges omit scheduled→preparing or cache was stale.
+  if (
+    isSellerView &&
+    order &&
+    isPrepDueNow &&
+    !isScheduledAwaitingPrep &&
+    (!nextStatus || !isScheduledFulfillmentStatus(nextStatus))
+  ) {
+    const prepEdge = transitions.find(
+      (t) =>
+        !t.is_side_action &&
+        t.allowed_actor === 'seller' &&
+        t.from_status === order.status &&
+        isScheduledFulfillmentStatus(t.to_status),
+    );
+    if (prepEdge) {
+      nextStatus = prepEdge.to_status as OrderStatus;
+    } else if (['scheduled', 'accepted', 'confirmed'].includes(order.status)) {
+      const hasPreparingStep = flow.some((s) => s.status_key === 'preparing')
+        || transitions.some((t) => t.to_status === 'preparing');
+      if (hasPreparingStep) nextStatus = 'preparing' as OrderStatus;
+    }
+  }
+
   const canReview = isBuyerView && order ? isSuccessfulTerminal(flow, order.status) && !hasReview : false;
   const canChat = order ? !isTerminalStatus(flow, order.status) : false;
   const canReorder = isBuyerView && order ? isSuccessfulTerminal(flow, order.status) : false;

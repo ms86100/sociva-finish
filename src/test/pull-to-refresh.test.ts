@@ -232,6 +232,12 @@ describe('pull-to-refresh wiring', () => {
     expect(cart).not.toMatch(/item\.product\.is_available !== false/);
   });
 
+  it('refetches cart on mount and does not clobber a just-added cart with empty', () => {
+    const cart = read('src/hooks/useCart.tsx');
+    expect(cart).toMatch(/refetchOnMount: 'always'/);
+    expect(cart).toMatch(/optimistic\.length > 0/);
+  });
+
   it('blocks checkout and onboarding pulls', () => {
     const cartPage = read('src/pages/CartPage.tsx');
     expect(cartPage).toMatch(/useBlockPullToRefresh/);

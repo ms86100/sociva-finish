@@ -64,6 +64,12 @@ describe('computeStoreStatus', () => {
     expect(result.status).toBe('open');
   });
 
+  it('treats numeric 0–6 operating days as Sun–Sat', () => {
+    mockTime('2026-03-07T14:00:00'); // Saturday
+    const result = computeStoreStatus('09:00', '21:00', ['0', '1', '2', '3', '4', '5', '6'], true);
+    expect(result.status).toBe('open');
+  });
+
   it('returns open when operating days is empty array and within hours', () => {
     mockTime('2026-03-07T14:00:00');
     const result = computeStoreStatus('09:00', '21:00', [], true);

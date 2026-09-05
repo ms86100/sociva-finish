@@ -34,6 +34,7 @@ import { sellerCreditCustomerMessage } from '@/lib/sellerCredits';
 import { useCountUp } from '@/hooks/useCountUp';
 import { notify } from '@/lib/notify';
 import { formatLeadTime } from '@/lib/lead-time';
+import { displaySellerStoreName } from '@/lib/seller-journey';
 
 const PriceHistoryChart = lazy(() =>
   import('./PriceHistoryChart').then((m) => ({ default: m.PriceHistoryChart })),
@@ -220,7 +221,7 @@ export function ProductDetailSheet({ product, open, onOpenChange, onSelectProduc
                   <span className="inline-flex items-center gap-1 font-semibold text-foreground">
                     <Star size={13} className="fill-warning text-warning" aria-hidden="true" />
                     {Number(product.seller_rating).toFixed(1)}
-                    {product.seller_reviews > 0 && <span className="font-normal text-muted-foreground">· {product.seller_reviews} reviews</span>}
+                    {product.seller_reviews > 0 && <span className="font-normal text-muted-foreground">· {product.seller_reviews} {product.seller_reviews === 1 ? 'review' : 'reviews'}</span>}
                   </span>
                 )}
                 {!isStoreCheckPending && !isStoreUnknown && (
@@ -350,7 +351,11 @@ export function ProductDetailSheet({ product, open, onOpenChange, onSelectProduc
                     >
                       <div className="w-28 h-28 rounded-xl bg-muted overflow-hidden mb-1.5">{sp.image_url ? <img src={sp.image_url} alt={sp.name} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-2xl">🛍️</div>}</div>
                       <p className="text-[11px] font-medium line-clamp-1">{sp.name}</p>
-                      {sp.seller?.business_name && <p className="text-[11px] text-muted-foreground">{sp.seller.business_name}</p>}
+                      {sp.seller?.business_name && (
+                        <p className="text-[11px] text-muted-foreground">
+                          {displaySellerStoreName(sp.seller.business_name)}
+                        </p>
+                      )}
                       {sp.price > 0 && <p className="text-xs font-bold">{d.formatPrice(sp.price)}</p>}
                     </motion.button>
                   ))}
@@ -397,7 +402,18 @@ export function ProductDetailSheet({ product, open, onOpenChange, onSelectProduc
             transition={{ delay: 0.2, duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
           >
             {creditsBlocked ? (
-              <div className="w-full h-12 flex items-center justify-center bg-muted rounded-xl px-3 text-center"><span className="text-sm font-medium text-muted-foreground">{sellerCreditCustomerMessage(creditGate.data?.reason, creditEvent)}</span></div>
+              <div className="w-full space-y-2">
+                <div className="w-full min-h-12 flex items-center justify-center bg-muted rounded-xl px-3 py-2 text-center">
+                  <span className="text-sm font-medium text-muted-foreground">
+                    {sellerCreditCustomerMessage(creditGate.data?.reason, creditEvent)}
+                  </span>
+                </div>
+                <Link to="/search" onClick={() => onOpenChange(false)} className="block">
+                  <Button variant="outline" className="w-full h-10 rounded-xl text-sm">
+                    Browse other stores
+                  </Button>
+                </Link>
+              </div>
             ) : blocksForStoreClosed ? (
               <div className="w-full h-12 flex items-center justify-center bg-muted rounded-xl"><Clock size={16} className="text-muted-foreground mr-2" /><span className="text-sm font-medium text-muted-foreground">{storeClosedMsg}</span></div>
             ) : d.isStockEmpty || d.isBuyerUnavailable ? (

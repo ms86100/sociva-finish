@@ -1,6 +1,6 @@
 // @ts-nocheck
 // Re-export from refactored modules for backward compatibility
-export { AuthProvider, useAuth } from './auth/AuthProvider';
+export { AuthProvider, useAuth, useOptionalAuth } from './auth/AuthProvider';
 export type { AuthContextType } from './auth/types';
 
 // New focused hooks — prefer these over useAuth() for better performance

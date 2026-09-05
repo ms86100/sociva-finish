@@ -84,5 +84,14 @@ export function useTypewriterPlaceholder(
     setIsTyping(true);
   }, [words.length]);
 
+  // Avoid flashing Search "" while the typewriter is between words / still loading.
+  if (!displayed) {
+    return contextFallback(prefix);
+  }
   return `${prefix}${displayed}${suffix}`;
+}
+
+function contextFallback(prefix: string): string {
+  if (prefix.startsWith('Search')) return 'Search products, services…';
+  return prefix.replace(/["']?\s*$/, '').trim() || 'Search…';
 }

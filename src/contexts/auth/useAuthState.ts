@@ -12,6 +12,8 @@ import {
 } from '@/lib/capacitor-storage';
 import { hideSplashScreen } from '@/lib/capacitor';
 import { Capacitor } from '@capacitor/core';
+import { pickDefaultSellerStoreId } from '@/lib/seller-journey';
+import { ALL_STORES_ID } from '@/lib/seller-order-board';
 
 export function useAuthState() {
   const [state, setState] = useState<AuthState>(initialAuthState);
@@ -93,7 +95,7 @@ export function useAuthState() {
                 societyAdminRole: retryCtx.society_admin_role as SocietyAdmin | null,
                 roles: ((retryCtx.roles || []) as any[]).map((r: any) => typeof r === 'string' ? r : r.role) as UserRole[],
                 sellerProfiles: retrySellers,
-                currentSellerId: retrySellers.length > 0 ? retrySellers[0].id : null,
+                currentSellerId: pickDefaultSellerStoreId(retrySellers),
                 managedBuilderIds: (retryCtx.builder_ids as string[]) || [],
                 isSecurityOfficer: !!retryCtx.is_security_officer,
                 isWorker: !!retryCtx.is_worker,
@@ -120,11 +122,11 @@ export function useAuthState() {
       setState(prev => {
         if (gen !== profileFetchGen.current) return prev;
         const newSellerId =
-          sellers.length > 0 && !prev.currentSellerId
-            ? sellers[0].id
-            : sellers.length === 0
+          sellers.length === 0
             ? null
-            : prev.currentSellerId;
+            : prev.currentSellerId === ALL_STORES_ID
+              ? ALL_STORES_ID
+              : pickDefaultSellerStoreId(sellers, prev.currentSellerId);
 
         return {
           ...prev,

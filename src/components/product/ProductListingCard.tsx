@@ -25,6 +25,7 @@ import { SellerTrustBadge } from '@/components/trust/SellerTrustBadge';
 import { ProductFavoriteButton } from '@/components/favorite/ProductFavoriteButton';
 import { useAuth } from '@/contexts/AuthContext';
 import { optimizedImageUrl, imageSrcSet, handleImageError } from '@/utils/imageHelpers';
+import { displaySellerStoreName } from '@/lib/seller-journey';
 
 export interface ProductWithSeller {
   id: string; seller_id: string; name: string; price: number; image_url: string | null; category: string;
@@ -520,7 +521,7 @@ function ProductListingCardInner({ product, layout = 'auto', onTap, onNavigate, 
                   product.distance_km && product.distance_km > 0 ? 'text-foreground font-medium' : 'text-muted-foreground'
                 )}
               >
-                {product.seller_name}
+                {displaySellerStoreName(product.seller_name)}
               </span>
               {showRating && (
                 <span className="inline-flex items-center gap-0.5 shrink-0 text-[9px] font-bold text-foreground bg-secondary px-1.5 py-0.5 rounded-md">

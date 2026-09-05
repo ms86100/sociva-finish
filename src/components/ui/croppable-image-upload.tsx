@@ -14,6 +14,11 @@ import {
   readPendingImageCrop,
   writePendingImageCrop,
 } from '@/lib/pending-image-crop';
+import {
+  PRODUCT_IMAGE_MIN_PX,
+  productImageDimensionError,
+  validateProductImageDimensions,
+} from '@/lib/image-dimensions';
 
 interface CroppableImageUploadProps {
   value?: string | null;
@@ -26,6 +31,8 @@ interface CroppableImageUploadProps {
   cropAspect?: number;
   /** Called before opening the native image picker — use to persist state before WebView may reload */
   beforePick?: () => void | Promise<void>;
+  /** Enforce min dimensions (default: products folder only) */
+  enforceMinDimensions?: boolean;
 }
 
 export function CroppableImageUpload({
@@ -38,6 +45,7 @@ export function CroppableImageUpload({
   placeholder = 'Upload Image',
   cropAspect,
   beforePick,
+  enforceMinDimensions,
 }: CroppableImageUploadProps) {
   const [isUploading, setIsUploading] = useState(false);
   const [cropSrc, setCropSrc] = useState<string | null>(null);
@@ -47,6 +55,7 @@ export function CroppableImageUpload({
   const cropOpenTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const effectiveCropAspect = cropAspect ?? (aspectRatio === 'video' ? 16 / 9 : aspectRatio === 'portrait' ? 3 / 4 : 1);
+  const requireMinDimensions = enforceMinDimensions ?? folder === 'products';
 
   const cropSlot = `${folder}:${aspectRatio}`;
 
@@ -55,7 +64,19 @@ export function CroppableImageUpload({
     setCropSrc(dataUrl);
   }, []);
 
+  const assertUsableImage = useCallback(async (source: Blob | File | string) => {
+    if (!requireMinDimensions) return true;
+    const result = await validateProductImageDimensions(source);
+    const error = productImageDimensionError(result);
+    if (error) {
+      toast.error(error);
+      return false;
+    }
+    return true;
+  }, [requireMinDimensions]);
+
   const queueCrop = useCallback(async (blob: Blob) => {
+    if (!(await assertUsableImage(blob))) return;
     const dataUrl = await blobToDataUrl(blob);
     if (!dataUrl.startsWith('data:image/')) {
       toast.error('Could not read the selected image');
@@ -65,7 +86,7 @@ export function CroppableImageUpload({
     if (cropOpenTimerRef.current) clearTimeout(cropOpenTimerRef.current);
     // Delay so the file-picker's leftover click cannot dismiss the crop dialog.
     cropOpenTimerRef.current = setTimeout(() => openCrop(dataUrl), 280);
-  }, [folder, cropSlot, openCrop]);
+  }, [folder, cropSlot, openCrop, assertUsableImage]);
 
   useEffect(() => {
     const pending = readPendingImageCrop();
@@ -291,7 +312,11 @@ export function CroppableImageUpload({
                   </div>
                   <div className="text-center min-w-0">
                     <span className="text-xs font-medium block truncate">{placeholder}</span>
-                    <span className="text-[10px]">JPG, PNG, WebP</span>
+                    <span className="text-[10px]">
+                      {requireMinDimensions
+                        ? `JPG, PNG, WebP · Min ${PRODUCT_IMAGE_MIN_PX}×${PRODUCT_IMAGE_MIN_PX}px`
+                        : 'JPG, PNG, WebP'}
+                    </span>
                   </div>
                 </>
               )}

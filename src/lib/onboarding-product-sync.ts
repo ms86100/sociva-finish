@@ -78,17 +78,34 @@ export function normalizeSeedOfferingNames(
   return out;
 }
 
-/** Offerings the seller named that are not yet saved as catalog products. */
+/**
+ * Offerings the seller named that are not yet saved as catalog products.
+ * Exact name matches consume a seed. Renamed products (saved under a different
+ * name than the seed) also consume leftover seeds 1:1 so editing "Daily Tiffin"
+ * → "Rajma Chawal" does not leave a phantom pending offering.
+ */
 export function pendingOfferingNamesForProducts(
   seedNames: string[],
   productNames: Array<string | undefined | null>,
 ): string[] {
-  const have = new Set(
-    productNames
-      .map((n) => String(n || '').trim().toLowerCase())
-      .filter(Boolean),
-  );
-  return normalizeSeedOfferingNames(seedNames).filter((n) => !have.has(n.toLowerCase()));
+  const seeds = normalizeSeedOfferingNames(seedNames);
+  const products = productNames
+    .map((n) => String(n || '').trim())
+    .filter((n) => n.length > 0);
+  const seedKeys = new Set(seeds.map((n) => n.toLowerCase()));
+  const exactHave = new Set(products.map((n) => n.toLowerCase()));
+
+  const remaining = seeds.filter((n) => !exactHave.has(n.toLowerCase()));
+  const unmatchedProductCount = products.filter((n) => !seedKeys.has(n.toLowerCase())).length;
+
+  let absorb = unmatchedProductCount;
+  return remaining.filter(() => {
+    if (absorb > 0) {
+      absorb -= 1;
+      return false;
+    }
+    return true;
+  });
 }
 
 /** Drop leftover product-form names from a previous store/session. */

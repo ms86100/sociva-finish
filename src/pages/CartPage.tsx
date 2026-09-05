@@ -194,7 +194,10 @@ export default function CartPage() {
                 <span className="text-sm font-semibold flex-1 truncate">{group.sellerName}</span>
                 {/* #6: Seller contact shortcut */}
                 <Link to={`/seller/${group.sellerId}`} className="text-[10px] text-primary font-medium shrink-0">View Store</Link>
-                <span className="text-xs text-muted-foreground">{group.items.length} item{group.items.length > 1 ? 's' : ''}</span>
+                {(() => {
+                  const qty = group.items.reduce((sum, item) => sum + (item.quantity || 1), 0);
+                  return <span className="text-xs text-muted-foreground">{qty} item{qty !== 1 ? 's' : ''}</span>;
+                })()}
               </div>
               {c.profile?.society_id && (group.items[0]?.product?.seller as any)?.society_id && (group.items[0]?.product?.seller as any)?.society_id !== c.profile.society_id && (
                 <div className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-muted-foreground bg-muted"><MapPin size={11} /><span>Seller from another community</span></div>
@@ -434,20 +437,17 @@ export default function CartPage() {
           <MapPin size={16} className="text-primary shrink-0" />
           <div className="flex-1 min-w-0">
             {c.fulfillmentType === 'self_pickup' ? (
-              <><p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Pickup from</p><p className="text-sm font-medium mt-0.5">{c.sellerGroups[0]?.sellerName || ''}</p><p className="text-xs text-muted-foreground">{c.society?.name || 'Your Society'}</p></>
-            ) : c.selectedDeliveryAddress ? (
-              <>
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Deliver to</p>
-                <p className="text-sm font-medium mt-0.5">{c.selectedDeliveryAddress.label}</p>
-                <p className="text-xs text-muted-foreground">{[c.selectedDeliveryAddress.flat_number && `Flat ${c.selectedDeliveryAddress.flat_number}`, c.selectedDeliveryAddress.block && `Block ${c.selectedDeliveryAddress.block}`, c.selectedDeliveryAddress.building_name].filter(Boolean).join(', ')}</p>
-                {c.needsPreciseLocation && (
-                  <p className="text-xs font-semibold text-warning flex items-center gap-1.5 mt-1.5"><AlertTriangle size={14} /> Add your map pin so delivery can find you</p>
-                )}
-              </>
+              <><p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Pickup from</p><p className="text-sm font-medium mt-0.5">{c.sellerGroups[0]?.sellerName || ''}</p><p className="text-xs text-muted-foreground">{c.pickupLocationLabel}</p></>
             ) : (
               <>
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Deliver to</p>
-                <p className="text-sm text-muted-foreground mt-0.5">{c.addresses.length === 0 ? 'No saved addresses' : 'Select a delivery address'}</p>
+                <p className="text-sm font-medium mt-0.5">{c.checkoutAddressLabel}</p>
+                {c.checkoutAddressDetail ? (
+                  <p className="text-xs text-muted-foreground">{c.checkoutAddressDetail}</p>
+                ) : null}
+                {c.needsPreciseLocation && (
+                  <p className="text-xs font-semibold text-warning flex items-center gap-1.5 mt-1.5"><AlertTriangle size={14} /> Add your map pin so delivery can find you</p>
+                )}
               </>
             )}
           </div>
@@ -479,7 +479,7 @@ export default function CartPage() {
           </div>
         )}
         <div className="px-4 py-3">
-          {c.fulfillmentType === 'delivery' && !c.selectedDeliveryAddress && (
+          {c.fulfillmentType === 'delivery' && !c.hasCheckoutDestination && (
             <Button
               variant="outline"
               size="sm"
@@ -540,7 +540,7 @@ export default function CartPage() {
                   c.blocksOnlineMultiSeller ||
                   c.multiStoreRequiresSplit ||
                   c.hasFulfillmentConflict ||
-                  (c.fulfillmentType === 'delivery' && !c.selectedDeliveryAddress) ||
+                  (c.fulfillmentType === 'delivery' && !c.hasCheckoutDestination) ||
                   c.needsPreciseLocation ||
                   c.preorderMissingSchedule
                 }
@@ -568,15 +568,15 @@ export default function CartPage() {
                 <div className="flex justify-between"><span className="text-muted-foreground">Payment</span><span className="font-medium">{c.paymentMethod === 'cod' ? 'Cash on Delivery' : (c.paymentMode.isRazorpay ? 'Online Payment' : 'UPI')}</span></div>
                 {/* #9: Prominent delivery address in confirm dialog */}
                 {c.fulfillmentType === 'self_pickup' ? (
-                  <div className="flex justify-between"><span className="text-muted-foreground">Pickup from</span><span className="font-medium text-right">{c.sellerGroups[0]?.sellerName || 'Seller'}</span></div>
-                ) : c.selectedDeliveryAddress ? (
+                  <div className="flex justify-between"><span className="text-muted-foreground">Pickup from</span><span className="font-medium text-right">{c.pickupLocationLabel}</span></div>
+                ) : (
                   <div className="bg-muted rounded-lg p-2.5">
                     <p className="text-xs font-semibold text-muted-foreground mb-1">Deliver to</p>
-                    <p className="font-medium">{c.selectedDeliveryAddress.label}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">{[c.selectedDeliveryAddress.flat_number && `Flat ${c.selectedDeliveryAddress.flat_number}`, c.selectedDeliveryAddress.block && `Block ${c.selectedDeliveryAddress.block}`, c.selectedDeliveryAddress.building_name].filter(Boolean).join(', ')}</p>
+                    <p className="font-medium">{c.checkoutAddressLabel}</p>
+                    {c.checkoutAddressDetail ? (
+                      <p className="text-xs text-muted-foreground mt-0.5">{c.checkoutAddressDetail}</p>
+                    ) : null}
                   </div>
-                ) : (
-                  <div className="flex justify-between"><span className="text-muted-foreground">Deliver to</span><span className="font-medium text-right text-warning">Not set</span></div>
                 )}
                 {c.sellerGroups.length > 1 && (
                   <p className="text-xs text-muted-foreground">
@@ -681,10 +681,10 @@ export default function CartPage() {
                 <span className="text-lg">{c.fulfillmentType === 'delivery' ? '🚚' : '📦'}</span>
                 <span className="text-sm font-medium">{c.fulfillmentType === 'delivery' ? 'Delivery' : 'Self Pickup'}</span>
               </div>
-              {c.fulfillmentType === 'delivery' && c.selectedDeliveryAddress && (
+              {c.fulfillmentType === 'delivery' && (
                 <div className="px-1">
                   <p className="text-xs text-muted-foreground">
-                    {[c.selectedDeliveryAddress.label, c.selectedDeliveryAddress.flat_number && `Flat ${c.selectedDeliveryAddress.flat_number}`, c.selectedDeliveryAddress.building_name].filter(Boolean).join(' • ')}
+                    {[c.checkoutAddressLabel, c.checkoutAddressDetail].filter(Boolean).join(' • ')}
                   </p>
                 </div>
               )}

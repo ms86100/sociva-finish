@@ -106,7 +106,7 @@ export function FloatingCartBar({ className }: FloatingCartBarProps) {
                         exit={{ opacity: 0, y: -6 }}
                         className="text-primary-foreground text-sm font-extrabold leading-tight"
                       >
-                        {itemCount} item{itemCount !== 1 ? 's' : ''} · {formatPrice(totalAmount)}
+                        {`${itemCount} ${itemCount === 1 ? 'item' : 'items'} · ${formatPrice(totalAmount)}`}
                       </motion.span>
                     )}
                   </AnimatePresence>

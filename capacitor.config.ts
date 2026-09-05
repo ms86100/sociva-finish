@@ -88,14 +88,13 @@ const config: CapacitorConfig = {
     preferredContentMode: 'mobile',
     plistOverrides: {
       ITSAppUsesNonExemptEncryption: false,
-      NSLocationWhenInUseUsageDescription: 'Sociva uses your location to verify your residential society membership and show nearby sellers.',
+      NSLocationWhenInUseUsageDescription: 'Sociva uses your location to verify your residential society membership, show nearby sellers, and share live delivery progress while you keep the app open as a seller.',
       NSCameraUsageDescription: 'Sociva needs camera access to let you photograph products for listing and upload profile pictures.',
       NSPhotoLibraryUsageDescription: 'Sociva needs photo library access to let you select images for product listings and your profile.',
       NSPhotoLibraryAddUsageDescription: 'Sociva needs permission to save images to your photo library.',
-      NSLocationAlwaysAndWhenInUseUsageDescription: 'Sociva uses your location in the background to provide real-time delivery tracking when you are making deliveries as a seller.',
-      NSLocationAlwaysUsageDescription: 'Sociva uses your location in the background to provide real-time delivery tracking when you are making deliveries as a seller.',
-      // TSLocationManager links Core Motion even when activity updates are disabled in JS.
-      NSMotionUsageDescription: 'Sociva uses motion activity (for example walking, driving, or being still) to keep live delivery tracking accurate and to save battery while you are making a delivery as a seller.',
+      // No NSLocationAlways* — App Store 2.5.4; delivery tracking is foreground when-in-use only.
+      // Motion is optional accuracy assist while the app is open during an active delivery.
+      NSMotionUsageDescription: 'Sociva may use motion activity while the app is open to keep live delivery progress accurate and save battery during an active seller delivery.',
       // Calendar — required for @ebarooni/capacitor-calendar (iOS 13–16 + write-only / full on iOS 17+)
       NSCalendarsUsageDescription: 'Sociva needs calendar access so you can save service bookings to your calendar.',
       NSCalendarsWriteOnlyAccessUsageDescription: 'Sociva needs calendar access so you can save service bookings to your calendar.',

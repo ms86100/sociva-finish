@@ -41,12 +41,30 @@ describe('offering product seed helpers', () => {
       ['Rajma Chawal', 'Dal Makhani', 'Cakes'],
     )).toEqual([]);
   });
+
+  it('treats a renamed single seed as fulfilled (no phantom pending offering)', () => {
+    expect(pendingOfferingNamesForProducts(
+      ['Daily Tiffin'],
+      ['Rajma Chawal'],
+    )).toEqual([]);
+  });
+
+  it('absorbs renamed products 1:1 against leftover seeds', () => {
+    expect(pendingOfferingNamesForProducts(
+      ['Daily Tiffin', 'Breakfast Items'],
+      ['Rajma Chawal'],
+    )).toEqual(['Breakfast Items']);
+    expect(pendingOfferingNamesForProducts(
+      ['Daily Tiffin', 'Breakfast Items'],
+      ['Rajma Chawal', 'Poha Bowl'],
+    )).toEqual([]);
+  });
 });
 
 describe('onboarding product seed contracts', () => {
-  it('products step prefers typed offerings over leftover seed names', () => {
+  it('products step seeds from offering names when present', () => {
     const src = readFileSync(join(process.cwd(), 'src/pages/BecomeSellerPage.tsx'), 'utf8');
-    expect(src).toContain('normalizeOfferingNames(offeringNames || [])[0] || seedProductName');
+    expect(src).toContain('normalizeOfferingNames(offeringNames || [])');
     expect(src).toContain('if (names[0]) setSeedProductName(names[0])');
   });
 

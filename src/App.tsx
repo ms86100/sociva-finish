@@ -66,7 +66,7 @@ function ThemeStatusBarSync() {
   }, [resolvedTheme, theme]);
   return null;
 }
-import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { AuthProvider, useAuth, useOptionalAuth } from "@/contexts/AuthContext";
 import { CartProvider } from "@/hooks/useCart";
 import { CartPopupProvider } from "@/components/CartPopupProvider";
 import { BrowsingLocationProvider } from "@/contexts/BrowsingLocationContext";
@@ -589,7 +589,6 @@ function AppRoutes() {
           <Route path="/categories" element={<RouteErrorBoundary sectionName="Categories"><CategoriesPage /></RouteErrorBoundary>} />
           <Route path="/category/:category" element={<RouteErrorBoundary sectionName="Category"><CategoryGroupPage /></RouteErrorBoundary>} />
           <Route path="/discovery/:type" element={<RouteErrorBoundary sectionName="Discovery"><DiscoveryListingsPage /></RouteErrorBoundary>} />
-          <Route path="/seller/:id" element={<RouteErrorBoundary sectionName="Seller Store"><SellerDetailPage /></RouteErrorBoundary>} />
           <Route path="/product/:productId" element={<RouteErrorBoundary sectionName="Product"><ProductDeepLinkPage /></RouteErrorBoundary>} />
           <Route path="/festival-collection/:bannerId/:sectionId" element={<RouteErrorBoundary sectionName="Festival Collection"><FestivalCollectionPage /></RouteErrorBoundary>} />
           <Route path="/cart" element={<RouteErrorBoundary sectionName="Cart"><CartPage /></RouteErrorBoundary>} />
@@ -600,6 +599,7 @@ function AppRoutes() {
           <Route path="/seller/orders/:id" element={<RouteErrorBoundary sectionName="Order Details"><OrderDetailPage /></RouteErrorBoundary>} />
           <Route path="/seller/messages" element={<RouteErrorBoundary sectionName="Seller Messages"><SellerMessagesPage /></RouteErrorBoundary>} />
           <Route path="/profile" element={<RouteErrorBoundary sectionName="Profile"><ProfilePage /></RouteErrorBoundary>} />
+          <Route path="/account" element={<Navigate to="/profile" replace />} />
           <Route path="/profile/edit" element={<RouteErrorBoundary sectionName="Profile Edit"><ProfileEditPage /></RouteErrorBoundary>} />
           <Route path="/favorites" element={<RouteErrorBoundary sectionName="Favourites"><FavoritesPage /></RouteErrorBoundary>} />
           <Route path="/subscriptions" element={<RouteErrorBoundary sectionName="Subscriptions"><MySubscriptionsPage /></RouteErrorBoundary>} />
@@ -652,6 +652,10 @@ function AppRoutes() {
           <Route path="/seller/wallet" element={<SellerRoute><RouteErrorBoundary sectionName="Seller Wallet"><SellerWalletPage /></RouteErrorBoundary></SellerRoute>} />
           <Route path="/seller/credits" element={<SellerRoute><RouteErrorBoundary sectionName="Sociva Credits"><SellerCreditsPage /></RouteErrorBoundary></SellerRoute>} />
           <Route path="/seller/payouts" element={<SellerRoute><RouteErrorBoundary sectionName="Payouts"><SellerPayoutsPage /></RouteErrorBoundary></SellerRoute>} />
+          {/* Coupons live on dashboard Store tab — avoid /seller/:id swallowing /seller/coupons */}
+          <Route path="/seller/coupons" element={<Navigate to="/seller" replace />} />
+          {/* Public storefront — must stay after all static /seller/* routes */}
+          <Route path="/seller/:id" element={<RouteErrorBoundary sectionName="Seller Store"><SellerDetailPage /></RouteErrorBoundary>} />
           <Route path="/admin" element={<AdminRoute><RouteErrorBoundary sectionName="Admin"><AdminPage /></RouteErrorBoundary></AdminRoute>} />
           <Route path="/admin/financial-trace" element={<AdminRoute><RouteErrorBoundary sectionName="Financial Trace"><AdminFinancialTracePage /></RouteErrorBoundary></AdminRoute>} />
           <Route path="/admin/financial-controls" element={<AdminRoute><RouteErrorBoundary sectionName="Financial Controls"><AdminFinancialControlsPage /></RouteErrorBoundary></AdminRoute>} />
@@ -675,7 +679,8 @@ function AppRoutes() {
 }
 
 function SplashGate({ children }: { children: React.ReactNode }) {
-  const { isSessionRestored } = useAuth();
+  const auth = useOptionalAuth();
+  const isSessionRestored = auth?.isSessionRestored ?? false;
   const [splashDone, setSplashDone] = useState(splashShown);
 
   useEffect(() => {

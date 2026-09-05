@@ -40,12 +40,11 @@ export function assertBuyerCanCheckout(opts: {
     return BUYER_SOCIETY_REQUIRED_MSG;
   }
   if (opts.fulfillmentType === 'delivery') {
+    if (opts.hasPreciseDeliveryCoords) return null;
     if (!opts.hasDeliveryAddress) {
       return DELIVERY_ADDRESS_REQUIRED_MSG;
     }
-    if (!opts.hasPreciseDeliveryCoords) {
-      return BUYER_DELIVERY_LOCATION_MSG;
-    }
+    return BUYER_DELIVERY_LOCATION_MSG;
   }
   return null;
 }

@@ -1,5 +1,7 @@
 export const SEARCH_PREVIEW_LIMIT = 12;
 const STRONG_MATCH_SCORE = 70;
+/** Typed queries must beat proximity-only browse rows (baseline used to be 20). */
+export const MIN_TEXT_SEARCH_SCORE = 36;
 
 export type SearchRankable = {
   product_name: string;
@@ -31,7 +33,7 @@ export function scoreSearchHit(query: string, item: SearchRankable): number {
   const nameCollapsed = collapseSearchText(name);
   const meaningfulTokens = tokens.filter((token) => token.length >= 2);
 
-  let score = 20;
+  let score = 0;
   if (name === q) score = 100;
   else if (name.startsWith(q)) score = 92;
   else if (name.includes(q)) score = 86;
@@ -54,6 +56,7 @@ export function scoreSearchHit(query: string, item: SearchRankable): number {
     score = 36;
   }
 
+  if (score === 0) return 0;
   if (item.is_same_society) score += 6;
   const distance = item.distance_km;
   if (distance != null && distance < 2) score += 3;
@@ -73,8 +76,13 @@ export function selectSearchResultsForDisplay<T extends SearchRankable>(
 
   const scored = items
     .map((item) => ({ item, score: scoreSearchHit(query, item) }))
+    .filter((entry) => entry.score >= MIN_TEXT_SEARCH_SCORE)
     .sort((a, b) => b.score - a.score);
   const sorted = scored.map((entry) => entry.item);
+
+  if (sorted.length === 0) {
+    return { items: [], preview: [], hiddenCount: 0 };
+  }
 
   if (sorted.length <= SEARCH_PREVIEW_LIMIT) {
     return { items: sorted, preview: sorted, hiddenCount: 0 };

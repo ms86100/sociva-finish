@@ -28,6 +28,7 @@ import { adminNotify } from '@/lib/admin-notify';
 import { motion } from 'framer-motion';
 import { notify } from '@/lib/notify';
 import { BUYER_JOURNEYS, getJourney, type BuyerJourneyId } from '@/lib/buyer-journey';
+import { SELLER_DOMAIN_LABEL, type SellerDomain } from '@/lib/seller-domain';
 
 const COLOR_PRESETS = [
   { label: 'Orange', value: 'bg-orange-100 text-orange-600' }, { label: 'Blue', value: 'bg-blue-100 text-blue-600' },
@@ -174,6 +175,11 @@ function SortableCategoryItem({ cat, groupIsActive, onToggle, onEdit, onDelete, 
             <span className="text-[10px] text-muted-foreground">
               {(cat.transaction_type || 'cart_purchase').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
             </span>
+            {cat.seller_domain && (
+              <span className="text-[10px] font-semibold text-primary/80">
+                · {SELLER_DOMAIN_LABEL[cat.seller_domain as SellerDomain] || cat.seller_domain}
+              </span>
+            )}
             <span className="text-[10px] text-muted-foreground font-mono">({cat.category})</span>
             {!cat.image_url && <span className="text-[10px] text-amber-500 font-semibold">No image</span>}
           </div>
@@ -317,6 +323,23 @@ export function CategoryManager() {
                   ))}
                 </SelectContent>
               </Select>
+              <div className="space-y-2">
+                <Label className="text-xs font-semibold">Seller domain</Label>
+                <p className="text-[10px] text-muted-foreground">
+                  Product / Service / Listing — controls which onboarding form family sellers see.
+                </p>
+                <Select
+                  value={cm.editForm.seller_domain}
+                  onValueChange={(value: SellerDomain) => cm.setEditForm({ ...cm.editForm, seller_domain: value })}
+                >
+                  <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {(Object.keys(SELLER_DOMAIN_LABEL) as SellerDomain[]).map((d) => (
+                      <SelectItem key={d} value={d}>{SELLER_DOMAIN_LABEL[d]}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               {cm.editingCategory && (
                 <CategoryWorkflowPreview
                   workflowKey={cm.editForm.transaction_type}

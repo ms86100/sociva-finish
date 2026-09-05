@@ -37,12 +37,13 @@ import { getFlag, setFlag, getString, removeKey } from '@/lib/persistent-kv';
 import { useTheme } from 'next-themes';
 import { Moon, Sun, RefreshCw } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
+import { actionableSellerProfiles } from '@/lib/seller-journey';
 
 export default function ProfilePage() {
   const navigate = useNavigate();
   const {
-    user, profile, society, isSeller, isAdmin, isBuilderMember, signOut, refreshProfile,
-    isProfileLoading, profileError,
+    user, profile, society, isSeller, hasSellerProfile, isAdmin, isBuilderMember, signOut, refreshProfile,
+    isProfileLoading, profileError, sellerProfiles,
   } = useAuth();
   const settings = useSystemSettings();
   const { theme, setTheme } = useTheme();
@@ -53,6 +54,22 @@ export default function ProfilePage() {
   const [isSigningOut, setIsSigningOutLocal] = useState(false);
 
   const showProfileSkeleton = !!user && !profile && !profileError;
+
+  const incompleteSellerBanner = (() => {
+    if (!hasSellerProfile || isSeller) return null;
+    const live = actionableSellerProfiles(sellerProfiles as any);
+    const statuses = live.map((s) => String((s as any).verification_status || 'draft'));
+    if (statuses.includes('pending')) {
+      return { title: 'Finish your store', body: 'Open Seller Dashboard — review still in progress' };
+    }
+    if (statuses.includes('rejected')) {
+      return { title: 'Update your store', body: 'Open Seller Dashboard — changes needed before approval' };
+    }
+    if (statuses.includes('draft')) {
+      return { title: 'Finish your store setup', body: 'Open Seller Dashboard — complete your draft and submit' };
+    }
+    return { title: 'Finish your store', body: 'Open Seller Dashboard to continue setup' };
+  })();
 
   useEffect(() => {
     if (getString('seller_onboarding_completed') === 'true') {
@@ -114,14 +131,15 @@ export default function ProfilePage() {
     { icon: Package, label: 'Orders', to: '/orders', key: 'orders' },
     { icon: Heart, label: 'Favourites', to: '/favorites', key: 'favorites' },
     { icon: Repeat, label: 'Reorder', to: '/search', key: 'reorder' },
-    ...(isSeller ? [{ icon: Store, label: 'My Store', to: '/seller', key: 'seller' }] : []),
+    // Pending/draft sellers also need dashboard access — isSeller is approved-only.
+    ...(hasSellerProfile ? [{ icon: Store, label: 'My Store', to: '/seller', key: 'seller' }] : []),
   ];
 
   const menuItems = [
     ...(isBuilderMember
       ? [{ icon: Building2, label: 'Builder Dashboard', to: '/builder' }]
       : []),
-    ...(isSeller
+    ...(hasSellerProfile
       ? [{ icon: Store, label: 'Seller Dashboard', to: '/seller' }]
       : []),
     { icon: Bell, label: 'Notifications', to: '/notifications' },
@@ -257,7 +275,7 @@ export default function ProfilePage() {
 
         {/* Quick Access Cards */}
         <div className="px-4 mt-4 space-y-2">
-          {!isSeller && (
+          {!hasSellerProfile && (
             <Link to="/become-seller">
               <div className="bg-accent rounded-2xl p-3.5 flex items-center gap-3 transition-all active:scale-[0.98]">
                 <div className="w-10 h-10 rounded-xl bg-accent-foreground/20 flex items-center justify-center">
@@ -266,6 +284,20 @@ export default function ProfilePage() {
                 <div className="flex-1 min-w-0">
                   <h4 className="font-bold text-sm text-accent-foreground">Start Selling</h4>
                   <p className="text-[11px] text-accent-foreground/80">Start selling to your community</p>
+                </div>
+                <ChevronRight className="text-accent-foreground/60 shrink-0" size={18} />
+              </div>
+            </Link>
+          )}
+          {incompleteSellerBanner && (
+            <Link to="/seller">
+              <div className="bg-accent rounded-2xl p-3.5 flex items-center gap-3 transition-all active:scale-[0.98]">
+                <div className="w-10 h-10 rounded-xl bg-accent-foreground/20 flex items-center justify-center">
+                  <Store className="text-accent-foreground" size={20} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h4 className="font-bold text-sm text-accent-foreground">{incompleteSellerBanner.title}</h4>
+                  <p className="text-[11px] text-accent-foreground/80">{incompleteSellerBanner.body}</p>
                 </div>
                 <ChevronRight className="text-accent-foreground/60 shrink-0" size={18} />
               </div>

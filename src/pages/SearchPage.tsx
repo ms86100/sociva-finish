@@ -301,7 +301,15 @@ function ProductGridByCategory({ products, facetRows, categoryMap, categoryConfi
 
   return (
     <div className="mt-2 space-y-5">
-      {showCount && <p className="text-xs text-muted-foreground">{(totalCount ?? products.length)} item{(totalCount ?? products.length) !== 1 ? 's' : ''} found{totalCount != null && totalCount > products.length ? ` · showing top ${products.length}` : ''}</p>}
+      {showCount && (() => {
+        const n = totalCount ?? products.length;
+        return (
+          <p className="text-xs text-muted-foreground">
+            {`${n} ${n === 1 ? 'item' : 'items'} found`}
+            {totalCount != null && totalCount > products.length ? ` · showing top ${products.length}` : ''}
+          </p>
+        );
+      })()}
       {Object.keys(grouped).map((cat) => {
         const items = grouped[cat];
         const catInfo = categoryMap[cat];
@@ -351,10 +359,10 @@ function EmptyState({ browseBeyond, onEnableBrowseBeyond }: { browseBeyond?: boo
       <LottieEmptyState
         emoji="🔍"
         title="No results found"
-        description="Some services may not be available in your community yet."
+        description="Nothing nearby matches this search yet."
       >
         <div className="space-y-2">
-          <p className="text-sm text-muted-foreground">Try browsing by category, or <Link to="/become-seller" className="text-primary font-semibold hover:underline">become the first to offer this service</Link>.</p>
+          <p className="text-sm text-muted-foreground">Try browsing by category, or <Link to="/become-seller" className="text-primary font-semibold hover:underline">become the first to offer it</Link>.</p>
           {!browseBeyond && onEnableBrowseBeyond && (
             <button onClick={onEnableBrowseBeyond} className="text-sm text-primary font-medium hover:underline flex items-center gap-1 mx-auto"><Globe size={14} /> Search nearby societies too</button>
           )}

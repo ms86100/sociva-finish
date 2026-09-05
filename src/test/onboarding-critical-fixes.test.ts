@@ -23,7 +23,7 @@ describe('onboarding resume (Test 4)', () => {
     expect(restoreStepFromBackup(2)).toBe(2);
     expect(restoreStepFromBackup(3)).toBe(3);
     expect(restoreStepFromBackup(4)).toBe(4);
-    expect(restoreStepFromBackup(7)).toBe(7);
+    expect(restoreStepFromBackup(7)).toBe(4);
     expect(restoreStepFromBackup(undefined)).toBe(1);
   });
 
@@ -76,7 +76,8 @@ describe('onboarding meta persistence (Tests 2, 3, 5)', () => {
   it('Update & Resubmit jumps to store details not category restart', () => {
     const src = readSrc('src/pages/BecomeSellerPage.tsx');
     expect(src).toContain('Update & Resubmit');
-    expect(src).toMatch(/setStep\(5\);[\s\S]{0,80}Update & Resubmit/);
+    // v5 short onboarding: store name + submit is step 4 (not legacy step 5).
+    expect(src).toMatch(/setStep\(4\);[\s\S]{0,120}Update & Resubmit/);
   });
 
   it('keeps the submitted-review screen instead of resuming another leftover draft', () => {
@@ -95,6 +96,39 @@ describe('onboarding meta persistence (Tests 2, 3, 5)', () => {
     expect(hook).toContain('SELLER_STATUS_SELECT');
     expect(page).toContain("searchParams.get('new') === '1'");
     expect(quick).toContain('/become-seller?new=1');
+  });
+
+  it('startNewStoreOnboarding clears leftover seed / intent session state', () => {
+    const hook = readSrc('src/hooks/useSellerApplication.ts');
+    const startIdx = hook.indexOf('const startNewStoreOnboarding');
+    expect(startIdx).toBeGreaterThan(-1);
+    const slice = hook.slice(startIdx, startIdx + 1400);
+    expect(slice).toContain('SEED_PRODUCT_KEY');
+    expect(slice).toContain('INTENT_PHRASE_KEY');
+    expect(slice).toContain("setSeedProductNameState('')");
+    expect(slice).toContain("setListingIntentPhraseState('')");
+  });
+
+  it('become-seller?seller= deep link resumes that store', () => {
+    const page = readSrc('src/pages/BecomeSellerPage.tsx');
+    expect(page).toContain("searchParams.get('seller')");
+    expect(page).toContain('resumeExistingStore');
+  });
+  it('does not show reviewing-success under a duplicate store-type block', () => {
+    const page = readSrc('src/pages/BecomeSellerPage.tsx');
+    const hook = readSrc('src/hooks/useSellerApplication.ts');
+    const intent = readSrc('src/components/seller/IntentCategoryStep.tsx');
+    expect(page).toContain('existingSeller && selectedGroup && !forceNew');
+    expect(page).toContain('takenStore');
+    expect(hook).toMatch(/if \(forceNew\) return;/);
+    expect(intent).toContain('shouldSurfaceListingSuggestion');
+    expect(intent).toContain('Pick a category above to continue');
+  });
+
+  it('pending dashboard switcher does not say Active store', () => {
+    const src = readSrc('src/components/seller/SellerSwitcher.tsx');
+    expect(src).toContain('Store under review');
+    expect(src).not.toContain('Active store');
   });
 
   it('persists commerce model to DB not only sessionStorage', () => {
@@ -233,19 +267,18 @@ describe('same-group draft adoption', () => {
   });
 });
 
-describe('store location required on location step (not only at submit)', () => {
-  it('location Continue requires store coords even when society is linked', () => {
+describe('store location defaults for short onboarding', () => {
+  it('keeps StoreLocationPicker helpers available for dashboard/settings override', () => {
     const page = readSrc('src/pages/BecomeSellerPage.tsx');
     expect(page).toContain('societyHasCoords');
     expect(page).toContain('existingStoreLocations');
     expect(page).toContain('Use an existing location');
-    expect(page).toMatch(/if \(!formData\.latitude \|\| !formData\.longitude\)/);
-    expect(page).toMatch(/Your society has no location set\. Please set your store location on this page/);
   });
 
-  it('submit requires store pin and does not rely on society coords alone', () => {
+  it('submit falls back to profile/society location then blocks if still missing', () => {
     const hook = readSrc('src/hooks/useSellerApplication.ts');
-    expect(hook).toContain('Please set your store location before submitting');
+    expect(hook).toContain('resolveDefaultStoreLocation');
+    expect(hook).toContain('Please set your store location in Seller Settings before submitting');
     expect(hook).not.toContain('Your society has no location set. Please set your store location manually.');
   });
 });

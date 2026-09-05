@@ -11,6 +11,7 @@ import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvid
 import { toast } from 'sonner';
 import { jitteredStaleTime } from '@/lib/query-utils';
 import { slideFromLeft, pulseRing } from '@/lib/motion-variants';
+import { displaySellerStoreName } from '@/lib/seller-journey';
 
 export function WelcomeBackStrip() {
   const { user } = useAuth();
@@ -86,7 +87,7 @@ export function WelcomeBackStrip() {
       >
         <Package size={14} className="text-muted-foreground shrink-0" />
         <span className="text-muted-foreground truncate">
-          Last order: <span className="font-medium text-foreground">{lastOrder.seller.business_name}</span> · {dateLabel}
+          Last order: <span className="font-medium text-foreground">{displaySellerStoreName(lastOrder.seller.business_name)}</span> · {dateLabel}
         </span>
       </Link>
       <motion.button

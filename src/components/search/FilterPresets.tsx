@@ -59,18 +59,18 @@ export function FilterPresets({ activePreset, onPresetSelect, includeVeg = true 
 
   return (
     <div className="flex gap-2 overflow-x-auto scrollbar-hide py-1">
-      {PRESETS.map(({ id, label, icon: Icon, color, bgColor, filters }) => (
+      {PRESETS.map(({ id, label, icon: Icon, color, filters }) => (
         <button
           key={id}
           onClick={() => handleClick(id, filters)}
           className={cn(
             'flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm whitespace-nowrap transition-all shrink-0',
             activePreset === id
-              ? 'bg-primary text-primary-foreground'
-              : `${bgColor} ${color}`
+              ? 'bg-primary text-primary-foreground border border-primary'
+              : 'bg-background text-muted-foreground border border-border hover:border-foreground/30 hover:text-foreground'
           )}
         >
-          <Icon size={14} />
+          <Icon size={14} className={activePreset === id ? undefined : color} />
           {label}
         </button>
       ))}

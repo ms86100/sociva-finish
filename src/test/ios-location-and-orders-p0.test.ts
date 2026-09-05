@@ -56,6 +56,17 @@ end
     expect(yaml).not.toMatch(/TSLocationManagerLicense/);
   });
 
+  it('does not declare persistent background location (App Store 2.5.4)', () => {
+    const cap = readFileSync(resolve(__dirname, '../../capacitor.config.ts'), 'utf8');
+    const yaml = readFileSync(resolve(__dirname, '../../codemagic.yaml'), 'utf8');
+    expect(yaml).not.toMatch(/UIBackgroundModes:2 string location/);
+    expect(yaml).toMatch(/Do NOT declare "location"/);
+    expect(cap).not.toMatch(/NSLocationAlwaysAndWhenInUseUsageDescription/);
+    expect(cap).not.toMatch(/NSLocationAlwaysUsageDescription/);
+    expect(yaml).toMatch(/Delete :NSLocationAlwaysAndWhenInUseUsageDescription/);
+    expect(yaml).toMatch(/Delete :NSLocationAlwaysUsageDescription/);
+  });
+
   it('writes ios/App/Podfile even when CI cwd is already ios/App', () => {
     const repo = resolve(__dirname, '../..');
     const scriptDir = resolve(repo, 'scripts');

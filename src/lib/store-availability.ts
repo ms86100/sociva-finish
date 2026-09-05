@@ -13,10 +13,17 @@ export interface StoreAvailability {
 
 const DAY_ABBREVS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-/** Match Mon/mon/MONDAY — seller forms and seed data have used mixed case. */
+/** Match Mon/mon/MONDAY — and numeric 0–6 (Sun–Sat) used by some seed/DB rows. */
 function operatingDayMatches(operatingDays: string[], currentDay: string): boolean {
   const needle = currentDay.slice(0, 3).toLowerCase();
-  return operatingDays.some((d) => String(d || '').slice(0, 3).toLowerCase() === needle);
+  const dayIdx = DAY_ABBREVS.findIndex((d) => d.toLowerCase() === needle);
+  return operatingDays.some((d) => {
+    const s = String(d ?? '').trim();
+    if (!s) return false;
+    if (s.slice(0, 3).toLowerCase() === needle) return true;
+    if (/^\d+$/.test(s) && Number(s) === dayIdx) return true;
+    return false;
+  });
 }
 
 // Timezone handling: store timings are expected in IST (UTC+5:30).

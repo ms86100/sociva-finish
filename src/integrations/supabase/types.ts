@@ -1357,6 +1357,7 @@ export type Database = {
           review_dimensions: string[] | null
           show_duration_field: boolean | null
           show_veg_toggle: boolean
+          seller_domain: string | null
           supports_addons: boolean
           supports_brand_display: boolean
           supports_cart: boolean
@@ -1410,6 +1411,7 @@ export type Database = {
           review_dimensions?: string[] | null
           show_duration_field?: boolean | null
           show_veg_toggle?: boolean
+          seller_domain?: string | null
           supports_addons?: boolean
           supports_brand_display?: boolean
           supports_cart?: boolean
@@ -1463,6 +1465,7 @@ export type Database = {
           review_dimensions?: string[] | null
           show_duration_field?: boolean | null
           show_veg_toggle?: boolean
+          seller_domain?: string | null
           supports_addons?: boolean
           supports_brand_display?: boolean
           supports_cart?: boolean
@@ -9605,7 +9608,11 @@ export type Database = {
           image_url: string | null
           is_active: boolean
           name_placeholder: string | null
+          normalized_key: string | null
+          origin: string
           price_label: string | null
+          proposed_by: string | null
+          review_status: string
           show_duration_field: boolean | null
           show_veg_toggle: boolean | null
           slug: string
@@ -9627,7 +9634,11 @@ export type Database = {
           image_url?: string | null
           is_active?: boolean
           name_placeholder?: string | null
+          normalized_key?: string | null
+          origin?: string
           price_label?: string | null
+          proposed_by?: string | null
+          review_status?: string
           show_duration_field?: boolean | null
           show_veg_toggle?: boolean | null
           slug: string
@@ -9649,7 +9660,11 @@ export type Database = {
           image_url?: string | null
           is_active?: boolean
           name_placeholder?: string | null
+          normalized_key?: string | null
+          origin?: string
           price_label?: string | null
+          proposed_by?: string | null
+          review_status?: string
           show_duration_field?: boolean | null
           show_veg_toggle?: boolean | null
           slug?: string
@@ -11635,6 +11650,7 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      cleanup_user_proposed_subcategories: { Args: never; Returns: number }
       commit_loyalty_for_orders: {
         Args: { _order_ids: string[] }
         Returns: Json
@@ -12646,6 +12662,30 @@ export type Database = {
           society_count: number
           source_type: string
           source_value: string
+        }[]
+      }
+      propose_subcategory: {
+        Args: {
+          p_category_config_id: string
+          p_display_name: string
+          p_draft_product_id?: string | null
+          p_seller_id?: string | null
+        }
+        Returns: {
+          category_slug: string
+          created_new: boolean
+          display_name: string
+          parent_group: string
+          slug: string
+          subcategory_id: string
+        }[]
+      }
+      get_member_society_location: {
+        Args: { p_society_id: string }
+        Returns: {
+          latitude: number
+          longitude: number
+          name: string
         }[]
       }
       quote_loyalty_redemption: {

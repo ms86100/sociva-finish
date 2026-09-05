@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 import { ALL_STORES_ID, isPortfolioSellerId } from '@/lib/seller-order-board';
+import { actionableSellerProfiles } from '@/lib/seller-journey';
 
 type SellerSwitcherVariant = 'default' | 'header';
 
@@ -25,16 +26,19 @@ export function SellerSwitcher({
 }) {
   const { sellerProfiles, currentSellerId, setCurrentSellerId } = useAuth();
   const { configs } = useCategoryConfigs();
+  const switchableStores = actionableSellerProfiles(sellerProfiles);
 
-  if (sellerProfiles.length === 0) {
+  if (switchableStores.length === 0) {
     return null;
   }
 
   const portfolio = isPortfolioSellerId(currentSellerId);
-  const currentSeller = sellerProfiles.find((s) => s.id === currentSellerId);
+  const currentSeller =
+    switchableStores.find((s) => s.id === currentSellerId) ||
+    sellerProfiles.find((s) => s.id === currentSellerId);
   const isHeader = variant === 'header';
 
-  if (sellerProfiles.length === 1) {
+  if (switchableStores.length === 1) {
     if (compact || isHeader) return null;
     return (
       <div className="flex items-center gap-2.5 px-3 py-2.5 bg-primary/10 border border-primary/20 rounded-xl">
@@ -42,7 +46,13 @@ export function SellerSwitcher({
           <Store size={16} className="text-primary" />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-xs text-muted-foreground leading-none mb-0.5">Active store</p>
+          <p className="text-xs text-muted-foreground leading-none mb-0.5">
+            {currentSeller?.verification_status === 'pending'
+              ? 'Store under review'
+              : currentSeller?.verification_status === 'draft'
+                ? 'Draft store'
+                : 'Current store'}
+          </p>
           <p className="font-semibold text-sm truncate text-foreground">
             {currentSeller?.business_name || 'Your Business'}
           </p>
@@ -82,7 +92,13 @@ export function SellerSwitcher({
           <div className="flex-1 min-w-0">
             {!isHeader && (
               <p className="text-[10px] text-muted-foreground leading-none mb-0.5">
-                {portfolio ? 'Portfolio view' : 'Active store'}
+                {portfolio
+                  ? 'Portfolio view'
+                  : currentSeller?.verification_status === 'pending'
+                    ? 'Store under review'
+                    : currentSeller?.verification_status === 'draft'
+                      ? 'Draft store'
+                      : 'Current store'}
               </p>
             )}
             <p className={cn('font-semibold truncate text-foreground', isHeader ? 'text-xs' : 'text-sm')}>
@@ -107,13 +123,13 @@ export function SellerSwitcher({
           <div className="flex-1 min-w-0">
             <p className="font-medium text-sm">All stores</p>
             <p className="text-xs text-muted-foreground">
-              Summed totals · {sellerProfiles.length} stores
+              Summed totals · {switchableStores.length} stores
             </p>
           </div>
           {portfolio && <Check size={16} className="text-primary shrink-0" />}
         </DropdownMenuItem>
         <DropdownMenuSeparator />
-        {sellerProfiles.map((seller) => (
+        {switchableStores.map((seller) => (
           <DropdownMenuItem
             key={seller.id}
             onClick={() => setCurrentSellerId(seller.id)}

@@ -10,6 +10,7 @@ import {
 } from '@/lib/checkout-groups';
 import { humanizeRelativeTime } from '@/lib/relative-time';
 import { firstEmbed } from '@/lib/supabase-embed';
+import { displaySellerStoreName } from '@/lib/seller-journey';
 
 function statusTone(label: string): string {
   if (label.includes('Waiting')) return 'text-amber-700';
@@ -70,7 +71,7 @@ export function CheckoutGroupCard({
             {kids.map((o) => {
               const label = buyerStoreStatusLabel(o.status, o.payment_status);
               const seller = firstEmbed(o.seller as any) || o.seller;
-              const name = seller?.business_name || 'Store';
+              const name = displaySellerStoreName(seller?.business_name, 'Store');
               const img = o.items?.[0]?.product_image || seller?.cover_image_url;
               return (
                 <div

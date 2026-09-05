@@ -102,7 +102,7 @@ export function CartAddPopup({
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium text-foreground">{productName}</p>
               {typeof price === 'number' && price > 0 && (
-                <p className="text-sm font-semibold text-primary">Rs {price}</p>
+                <p className="text-sm font-semibold text-primary">₹{price}</p>
               )}
             </div>
           </div>

@@ -26,6 +26,21 @@ function hasCoords(lat?: number | null, lng?: number | null): boolean {
     && !(Math.abs(lat) < 0.0001 && Math.abs(lng) < 0.0001);
 }
 
+/** Saved delivery pin must be near the marketplace browse pin (same as cart-clear threshold). */
+export const BROWSE_ADDRESS_ALIGN_KM = 2;
+
+export function locationAlignsWithBrowse(
+  lat: number | null | undefined,
+  lng: number | null | undefined,
+  browseLat: number | null | undefined,
+  browseLng: number | null | undefined,
+  thresholdKm = BROWSE_ADDRESS_ALIGN_KM,
+): boolean {
+  if (!hasCoords(browseLat, browseLng)) return true;
+  if (!hasCoords(lat, lng)) return false;
+  return haversineKm(Number(lat), Number(lng), Number(browseLat), Number(browseLng)) <= thresholdKm;
+}
+
 export function haversineKm(
   lat1: number, lng1: number, lat2: number, lng2: number,
 ): number {

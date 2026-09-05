@@ -515,11 +515,33 @@ export function isPortfolioSellerId(sellerId: string | null | undefined): boolea
 /** Real store UUID for ops pages, or null when portfolio / unset. */
 export function resolveOperationalSellerId(
   currentSellerId: string | null | undefined,
-  sellerProfiles: { id: string }[],
+  sellerProfiles: {
+    id: string;
+    business_name?: string | null;
+    verification_status?: string | null;
+  }[],
 ): string | null {
   if (isPortfolioSellerId(currentSellerId)) return null;
-  if (currentSellerId) return currentSellerId;
-  return sellerProfiles[0]?.id ?? null;
+  if (currentSellerId) {
+    const match = sellerProfiles.find((s) => s.id === currentSellerId);
+    if (match) {
+      const shelved = /^\[(ARCHIVED|HOLD)\]/i.test((match.business_name || '').trim());
+      const hasLive = sellerProfiles.some(
+        (s) => !/^\[(ARCHIVED|HOLD)\]/i.test((s.business_name || '').trim()),
+      );
+      if (!shelved || !hasLive) return currentSellerId;
+    }
+  }
+  const liveApproved = sellerProfiles.find(
+    (s) =>
+      s.verification_status === 'approved' &&
+      !/^\[(ARCHIVED|HOLD)\]/i.test((s.business_name || '').trim()),
+  );
+  if (liveApproved) return liveApproved.id;
+  const liveAny = sellerProfiles.find(
+    (s) => !/^\[(ARCHIVED|HOLD)\]/i.test((s.business_name || '').trim()),
+  );
+  return liveAny?.id ?? sellerProfiles[0]?.id ?? null;
 }
 
 export function sumDashboardKpis(parts: SellerDashboardKpis[]): SellerDashboardKpis {

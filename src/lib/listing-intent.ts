@@ -26,6 +26,7 @@ export const CATEGORY_ALIAS_MAP: Record<string, string[]> = {
     'home food', 'homemade', 'home cooked', 'home-cooked', 'rajma', 'chawal', 'chole', 'thali',
     'sabzi', 'curry', 'dal', 'roti', 'paratha', 'khichdi', 'pulao', 'fried rice', 'home meal',
     'rajma chawal', 'chole bhature', 'paneer', 'dal makhani',
+    'gujiya', 'gujia',
   ],
   daily_tiffin: ['home food', 'dabba', 'meal service', 'lunch delivery', 'tiffin', 'food delivery', 'home cooked'],
   one_time_meals: [
@@ -38,7 +39,7 @@ export const CATEGORY_ALIAS_MAP: Record<string, string[]> = {
   cakes: ['cake', 'birthday cake', 'baking', 'pastry', 'bakery'],
   bakery: ['bakery', 'cake', 'cakes', 'birthday cake', 'pastry', 'baking', 'cookie', 'biscuit'],
   cookies_biscuits: ['cookies', 'biscuits', 'baked snacks'],
-  traditional_sweets: ['sweets', 'mithai', 'laddu', 'barfi', 'halwa'],
+  traditional_sweets: ['sweets', 'mithai', 'laddu', 'barfi', 'halwa', 'gujiya', 'gujia'],
   fresh_juices: ['juice', 'fresh juice', 'fruit juice'],
   pickles: ['pickle', 'achar', 'homemade pickle'],
   party_catering: ['catering', 'party food', 'event food', 'bulk order'],
@@ -204,6 +205,15 @@ export interface ResolvedListingIntent {
   matchBand: ListingMatchBand;
 }
 
+/** Sparkle "Suggested match" only for real alias/sub hits — never Other-* dump buckets. */
+export function shouldSurfaceListingSuggestion(
+  resolved: Pick<ResolvedListingIntent, 'suggestedCategorySlug' | 'matchBand'>,
+): boolean {
+  const slug = resolved.suggestedCategorySlug;
+  if (!slug || slug.startsWith('other-')) return false;
+  return resolved.matchBand === 'strong' || resolved.matchBand === 'reasonable';
+}
+
 function normalize(q: string): string {
   return q.toLowerCase().trim().replace(/\s+/g, ' ');
 }
@@ -306,6 +316,7 @@ const FOOD_FALLBACK_HINTS = [
   'paneer', 'masala', 'pickle', 'achar', 'snack', 'sweet', 'bakery', 'juice',
   'fermented', 'soybean', 'paste', 'sauce', 'stew', 'soup', 'biryani', 'biriyani',
   'tandoor', 'tikka', 'kebab', 'meal', 'thali', 'paratha',
+  'gujiya', 'gujia', 'mithai',
 ];
 
 const SERVICE_FALLBACK_HINTS = [
@@ -344,8 +355,7 @@ function findOtherFallback(
     const svcOther = others.find((c) => isServiceishGroup(c.parentGroup) || c.slug.includes('service'));
     if (svcOther) return svcOther;
   }
-  return others.find((c) => c.slug.includes('marketplace') || c.parentGroup.includes('marketplace'))
-    || others[0];
+  return null;
 }
 
 function inferModelFromCategory(cat: IntentCatalogCategory | null, softTag: SoftListingTag): CommerceModel {
@@ -522,43 +532,42 @@ export function resolveListingIntent(input: {
 
 /**
  * Migrate persisted onboarding steps.
- * `'4'` = workflow-first 8-step (current). `'3'` = category-first 8-step.
+ * `'5'` = intent → subcategory → listing → store name (4 steps).
+ * `'4'` = workflow-first 8-step. `'3'` = category-first 8-step.
  * `'2'` = intent-first 7-step. Otherwise legacy 5-step taxonomy-first.
  */
 export function migrateOnboardingStep(savedStep: number, fromVersion?: string | null): number {
   const s = Math.max(1, Math.min(savedStep, 8));
 
-  if (fromVersion === '4') {
+  if (fromVersion === '5') {
     return Math.min(s, NEW_ONBOARDING_TOTAL_STEPS);
   }
 
-  // v3 front funnel (group → category → buyers → offering) no longer matches v4
-  // (buyers → offerings → optional group). Restart early steps; keep store setup+.
+  // v4 (buyers → offerings → … → products → review) → compact v5
+  if (fromVersion === '4') {
+    if (s <= 4) return 1;
+    if (s === 7) return 3;
+    return 4;
+  }
+
+  // v3 front funnel — restart early; keep late steps as store name
   if (fromVersion === '3') {
     if (s < 5) return 1;
-    return Math.min(s, NEW_ONBOARDING_TOTAL_STEPS);
+    if (s === 7) return 3;
+    return 4;
   }
 
   if (fromVersion === '2') {
-    const intentToCategory: Record<number, number> = {
-      1: 1,
-      2: 3,
-      3: 2,
-      4: 5,
-      5: 6,
-      6: 7,
-      7: 8,
-    };
-    return intentToCategory[s] ?? Math.min(s, NEW_ONBOARDING_TOTAL_STEPS);
+    if (s <= 2) return 1;
+    if (s === 3 || s === 6) return 3;
+    return 4;
   }
 
   // Legacy taxonomy-first (5 steps) or unknown version
   if (s <= 1) return 1;
-  if (s === 2) return 5;
-  if (s === 3) return 6;
-  if (s === 4) return 7;
-  if (s === 5) return 8;
-  return Math.min(s, NEW_ONBOARDING_TOTAL_STEPS);
+  if (s === 4) return 3;
+  return 4;
 }
 
-export const NEW_ONBOARDING_TOTAL_STEPS = 8;
+export const NEW_ONBOARDING_TOTAL_STEPS = 4;
+export const ONBOARDING_FLOW_VERSION = '5';

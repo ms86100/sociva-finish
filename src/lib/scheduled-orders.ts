@@ -26,6 +26,8 @@ export type ScheduledOrderLike = {
   preparation_start_at?: string | null;
   scheduled_fulfillment_at?: string | null;
   cancellation_cutoff_at?: string | null;
+  /** Set when seller first accepts / confirms / schedules the order. */
+  accepted_at?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
 };
@@ -54,6 +56,23 @@ export const FULFILMENT_STATUSES = [
   'arrived',
   'awaiting_cod_confirmation',
 ] as const;
+
+/** Statuses that imply the seller has already accepted (or later). */
+export const SELLER_ACCEPTED_STATUSES = [
+  'accepted',
+  'confirmed',
+  'scheduled',
+  ...FULFILMENT_STATUSES,
+  'completed',
+  'delivered',
+  'buyer_received',
+] as const;
+
+export function hasSellerAccepted(order: ScheduledOrderLike): boolean {
+  const status = order.status || '';
+  if ((SELLER_ACCEPTED_STATUSES as readonly string[]).includes(status)) return true;
+  return !!order.accepted_at;
+}
 
 export const TERMINAL_STATUSES = [
   'completed',
@@ -335,10 +354,9 @@ export function buildScheduledTimeline(
     {
       id: 'confirmed',
       label: 'Seller accepted',
-      state: ['accepted', 'confirmed', 'scheduled'].includes(order.status || '') || phase !== 'upcoming'
-        ? 'done'
-        : stepState(['upcoming']),
-      at: order.updated_at,
+      // BUG-21: cancelled phase must not imply accepted. Use status / accepted_at only.
+      state: hasSellerAccepted(order) ? 'done' : 'upcoming',
+      at: hasSellerAccepted(order) ? (order.accepted_at || order.updated_at) : undefined,
     },
     {
       id: 'scheduled',

@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { motion } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
+import { useBrowsingLocation } from '@/contexts/BrowsingLocationContext';
 import {
   useLocalSellers,
   useNearbySocietySellers,
@@ -21,6 +22,7 @@ import { RichSellerCard } from './RichSellerCard';
 
 export function ShopByStoreDiscovery({ sectionTitle }: { sectionTitle?: string }) {
   const { effectiveSociety, profile } = useAuth();
+  const { browsingLocation, hasOverride } = useBrowsingLocation();
   const browseBeyond = profile?.browse_beyond_community ?? true;
   const radiusKm = profile?.search_radius_km ?? 10;
   const { data: localGrouped = {}, isLoading: loadingLocal } = useLocalSellers();
@@ -66,7 +68,8 @@ export function ShopByStoreDiscovery({ sectionTitle }: { sectionTitle?: string }
 
   if (!loadingLocal && !loadingNearby && !hasLocal && !hasNearby) return null;
 
-  const localSectionLabel = effectiveSociety ? 'In Your Society' : 'Stores Near You';
+  const localSectionLabel = hasOverride || !effectiveSociety ? 'Stores near you' : 'In Your Society';
+  const localSectionName = hasOverride ? browsingLocation?.label : effectiveSociety?.name;
 
   return (
     <div className="py-2 mt-1">
@@ -83,9 +86,9 @@ export function ShopByStoreDiscovery({ sectionTitle }: { sectionTitle?: string }
             <Building2 size={16} className="text-primary" />
             <h3 className="font-bold text-sm text-foreground">
               {localSectionLabel}
-              {effectiveSociety?.name && (
+              {localSectionName && (
                 <span className="font-normal text-muted-foreground ml-1">
-                  – {effectiveSociety.name}
+                  – {localSectionName}
                 </span>
               )}
             </h3>
@@ -98,7 +101,7 @@ export function ShopByStoreDiscovery({ sectionTitle }: { sectionTitle?: string }
               variants={staggerContainer}
               initial="hidden"
               animate="show"
-              className="flex gap-3 overflow-x-auto scrollbar-hide px-4 pb-2"
+              className="flex gap-3 overflow-x-auto scrollbar-hide px-4 pb-2 items-stretch"
             >
               {localSellersList.map(seller => (
                 <motion.div key={seller.id} variants={cardEntrance} className="shrink-0">

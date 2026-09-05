@@ -49,6 +49,9 @@ interface CategoryConfigRow {
   supports_addons: boolean;
   supports_recurring: boolean;
   supports_staff_assignment: boolean;
+  transaction_type?: string | null;
+  default_action_type?: string | null;
+  seller_domain?: string | null;
 }
 
 /** Pure snake_case row -> camelCase CategoryConfig mapper. */
@@ -85,7 +88,9 @@ export const mapCategoryConfigRows = (rows: CategoryConfigRow[]): CategoryConfig
       pricePrefix: row.price_prefix || null,
       placeholderEmoji: row.placeholder_emoji || null,
     },
-    transactionType: (row as any).transaction_type || null,
+    transactionType: row.transaction_type || (row as any).transaction_type || null,
+    defaultActionType: row.default_action_type || (row as any).default_action_type || null,
+    sellerDomain: (row.seller_domain as any) || (row as any).seller_domain || null,
     imageUrl: row.image_url || null,
     display: {
       supportsBrandDisplay: row.supports_brand_display,

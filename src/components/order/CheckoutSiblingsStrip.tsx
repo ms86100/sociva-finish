@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { buyerStoreStatusLabel } from '@/lib/checkout-groups';
 import { useCurrency } from '@/hooks/useCurrency';
+import { displaySellerStoreName } from '@/lib/seller-journey';
 import { ChevronRight, Store } from 'lucide-react';
 
 type Sibling = {
@@ -61,7 +62,7 @@ export function CheckoutSiblingsStrip({
             >
               <div className="min-w-0">
                 <p className="font-medium truncate">
-                  {seller?.business_name || 'Store'}
+                  {displaySellerStoreName(seller?.business_name, 'Store')}
                   {isCurrent ? ' · this store' : ''}
                 </p>
                 <p className="text-[10px] text-muted-foreground mt-0.5">{label}</p>

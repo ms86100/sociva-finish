@@ -57,4 +57,10 @@ describe('admin catalog queue', () => {
     expect(approval).toContain(".in('approval_status', ['pending', 'draft'])");
     expect(approval).toContain('Club the opening catalog with this first-time approval');
   });
+
+  it('fetches seller_id on application products so opening catalog can attach', () => {
+    const hook = read('src/hooks/useSellerApplicationReview.ts');
+    expect(hook).toMatch(/from\('products'\)\.select\('id, seller_id,/);
+    expect(hook).toContain('productsBySeller[p.seller_id]');
+  });
 });

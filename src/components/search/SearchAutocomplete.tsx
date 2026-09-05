@@ -13,6 +13,7 @@ import { Store, Package, Tag, Wrench, Calendar, MessageCircle } from 'lucide-rea
 import { DynamicIcon } from '@/components/ui/DynamicIcon';
 import { useNavigate } from 'react-router-dom';
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { displaySellerStoreName } from '@/lib/seller-journey';
 
 interface Props {
   query: string;
@@ -280,7 +281,7 @@ export function SearchAutocomplete({ query, onSelect, maxHeight }: Props) {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-[13px] font-medium text-foreground truncate">{product.product_name}</p>
-                  {product.seller_name && <p className="text-[11px] text-muted-foreground truncate">{product.seller_name}</p>}
+                  {product.seller_name && <p className="text-[11px] text-muted-foreground truncate">{displaySellerStoreName(product.seller_name)}</p>}
                 </div>
                 <span className="text-[12px] font-bold text-primary shrink-0">{formatPrice(product.price)}</span>
               </button>
@@ -300,7 +301,7 @@ export function SearchAutocomplete({ query, onSelect, maxHeight }: Props) {
                   {seller.profile_image_url ? <img src={seller.profile_image_url} alt="" className="w-full h-full object-cover" /> : <Store size={14} className="text-primary" />}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-[13px] font-medium text-foreground truncate">{seller.business_name}</p>
+                  <p className="text-[13px] font-medium text-foreground truncate">{displaySellerStoreName(seller.business_name)}</p>
                   {seller.description && <p className="text-[11px] text-muted-foreground truncate">{seller.description}</p>}
                 </div>
                 <span className="text-[10px] font-medium text-primary shrink-0 bg-primary/10 px-2 py-0.5 rounded-full">Visit</span>

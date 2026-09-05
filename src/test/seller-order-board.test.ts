@@ -156,6 +156,12 @@ describe('seller-order-board taxonomy', () => {
     expect(isPortfolioSellerId('uuid')).toBe(false);
     expect(resolveOperationalSellerId(ALL_STORES_ID, [{ id: 'a' }, { id: 'b' }])).toBeNull();
     expect(resolveOperationalSellerId('a', [{ id: 'a' }, { id: 'b' }])).toBe('a');
+    expect(
+      resolveOperationalSellerId('arch', [
+        { id: 'arch', business_name: '[ARCHIVED] Old', verification_status: 'rejected' },
+        { id: 'live', business_name: 'Biryani', verification_status: 'approved' },
+      ]),
+    ).toBe('live');
 
     const a = {
       ...emptyDashboardKpis(),

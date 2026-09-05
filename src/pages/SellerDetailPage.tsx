@@ -5,6 +5,7 @@ import { useRegisterScreenRefresh } from '@/hooks/usePullToRefresh';
 import { motion } from 'framer-motion';
 import { staggerContainer, cardEntrance, fadeSlideUp } from '@/lib/motion-variants';
 import { computeStoreStatus, formatStoreClosedMessage } from '@/lib/store-availability';
+import { displaySellerStoreName } from '@/lib/seller-journey';
 import { supabase } from '@/integrations/supabase/client';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { ProductCard } from '@/components/product/ProductCard';
@@ -569,7 +570,7 @@ export default function SellerDetailPage() {
               </div>
             )}
             <div className="flex-1 min-w-0">
-              <h1 className="text-lg font-bold leading-tight line-clamp-2">{seller.business_name}</h1>
+              <h1 className="text-lg font-bold leading-tight line-clamp-2">{displaySellerStoreName(seller.business_name)}</h1>
               <div className="mt-1">
                 <RatingStars
                   rating={seller.rating}

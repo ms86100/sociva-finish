@@ -13,6 +13,8 @@ import { friendlyError } from '@/lib/utils';
 import { notifyAdminsNewStoreApplication } from '@/lib/admin-notifications';
 import { notify } from '@/lib/notify';
 import { migrateOnboardingStep, NEW_ONBOARDING_TOTAL_STEPS, commerceModelFromActionType, commerceModelToDefaultAction } from '@/lib/listing-intent';
+import { resolveDefaultStoreLocation } from '@/lib/default-store-location';
+import { commerceModelFromCategory } from '@/lib/seller-domain';
 import {
   buildOnboardingMeta,
   parseOnboardingMeta,
@@ -31,9 +33,10 @@ import {
   evaluateSellerLicenseEligibility,
 } from '@/lib/seller-license';
 import { ensureSellerSocietyForSubmit } from '@/lib/seller-society';
+import { isShelvedSellerStore, pickBecomeSellerBlockingStore } from '@/lib/seller-journey';
 
 const ONBOARDING_VERSION_KEY = 'seller_onboarding_version';
-const ONBOARDING_VERSION = '4';
+const ONBOARDING_VERSION = '5';
 const ONBOARDING_FORM_BACKUP_KEY = 'seller_onboarding_form_backup';
 const INTENT_PHRASE_KEY = 'listing_intent_phrase';
 const COMMERCE_MODEL_KEY = 'commerce_model';
@@ -429,9 +432,11 @@ export function useSellerApplication(opts?: { forceNew?: boolean }) {
           .select(SELLER_STATUS_SELECT)
           .eq('user_id', user.id);
         if (data && data.length > 0) {
+          const actionable = data.filter((s: any) => !isShelvedSellerStore(s));
+
           const submittedId = readSubmittedStoreId();
           const submittedRow = submittedId
-            ? data.find((s: any) => s.id === submittedId && s.verification_status !== 'draft')
+            ? actionable.find((s: any) => s.id === submittedId && s.verification_status !== 'draft')
             : null;
           if (submittedRow) {
             setDraftSellerId(submittedRow.id);
@@ -447,7 +452,8 @@ export function useSellerApplication(opts?: { forceNew?: boolean }) {
             return;
           }
 
-          const draft = data.find((s: any) => s.verification_status === 'draft');
+          // Never resume a shelved [ARCHIVED]/[HOLD] draft — those are cleanup leftovers.
+          const draft = actionable.find((s: any) => s.verification_status === 'draft');
           if (draft) {
             const { data: fullDraft, error: fullErr } = await supabase
               .from('seller_profiles')
@@ -486,10 +492,9 @@ export function useSellerApplication(opts?: { forceNew?: boolean }) {
               }
             }
           } catch { /* clean corrupt backup */ localStorage.removeItem(ONBOARDING_FORM_BACKUP_KEY); }
-          const existing = data.find((s: any) =>
-            s.verification_status === 'rejected' ||
-            s.verification_status === 'pending'
-          );
+          // Ignore shelved rejects (e.g. [ARCHIVED] Ramdev Medical) so default
+          // #/become-seller opens normal onboarding when a live store also exists.
+          const existing = pickBecomeSellerBlockingStore(actionable);
           if (existing) {
             setSelectedGroup((existing as any).primary_group);
             setExistingSeller({
@@ -591,7 +596,10 @@ export function useSellerApplication(opts?: { forceNew?: boolean }) {
 
     if (existingSeller?.id) {
       const fresh = sellerProfiles.find((p) => p.id === existingSeller.id);
-      if (fresh) {
+      if (fresh && isShelvedSellerStore(fresh)) {
+        // Store was shelved after load — drop status screen so onboarding can continue.
+        setExistingSeller(null);
+      } else if (fresh) {
         const prevStatus = (existingSeller as any).verification_status;
         const nextStatus = (fresh as any).verification_status;
         if (nextStatus && nextStatus !== prevStatus) {
@@ -613,15 +621,12 @@ export function useSellerApplication(opts?: { forceNew?: boolean }) {
       }
     }
 
+    // submissionComplete already renders the full-screen "Your store is approved!" hero —
+    // do not stack a duplicate toast on top of it.
     if (submissionComplete && draftSellerId) {
       const submitted = sellerProfiles.find((p) => p.id === draftSellerId);
-      if (submitted?.verification_status === 'approved' && !approvalToastShownRef.current.has(draftSellerId)) {
+      if (submitted?.verification_status === 'approved') {
         approvalToastShownRef.current.add(draftSellerId);
-        showFeedback({
-          title: '🎉 Your store is approved!',
-          description: `${submitted.business_name || formData.business_name || 'Your store'} passed review. Recharge credits to start selling.`,
-          variant: 'success',
-        });
       }
     }
   }, [sellerProfiles, existingSeller, submissionComplete, draftSellerId, formData.business_name]);
@@ -659,9 +664,11 @@ export function useSellerApplication(opts?: { forceNew?: boolean }) {
     };
   }, [user?.id, refreshProfile]);
 
-  // Check group conflict
+  // Check group conflict — skip on Add Business (?new=1) so picking a taken type
+  // cannot swap the picker for the "we're reviewing" success screen.
   useEffect(() => {
     const checkGroupConflict = async () => {
+      if (forceNew) return;
       if (!user || !selectedGroup) return;
       const { data } = await supabase.from('seller_profiles')
         .select('id, business_name, verification_status, rejection_note, primary_group, categories')
@@ -672,7 +679,7 @@ export function useSellerApplication(opts?: { forceNew?: boolean }) {
       setExistingSeller(data ? data as any : null);
     };
     checkGroupConflict();
-  }, [user, selectedGroup]);
+  }, [user, selectedGroup, forceNew]);
 
   // Fetch license status
   const fetchLicenseStatus = useCallback(async () => {
@@ -912,7 +919,7 @@ export function useSellerApplication(opts?: { forceNew?: boolean }) {
     } finally { if (!opts?.silent) setIsLoading(false); }
   };
 
-  const handleProceedToSettings = async () => { const id = await saveDraft(); if (id) setStep(6); };
+  const handleProceedToSettings = async () => { const id = await saveDraft(); if (id) setStep(4); };
   const handleProceedToProducts = async (storeActionType?: string) => {
     const id = await saveDraft();
     if (id) {
@@ -933,7 +940,7 @@ export function useSellerApplication(opts?: { forceNew?: boolean }) {
       await reloadProducts(id);
       if (!(await assertServiceProductsHaveListings(id, resolvedAction))) return;
 
-      setStep(7);
+      setStep(3);
     }
   };
 
@@ -1065,9 +1072,35 @@ export function useSellerApplication(opts?: { forceNew?: boolean }) {
       }
     }
 
+    // Default store pin from profile / society when seller skipped location during short onboarding.
+    let submitLat = formData.latitude;
+    let submitLng = formData.longitude;
+    let submitLabel = formData.store_location_label;
+    if (submitLat == null || submitLng == null) {
+      const fallback = await resolveDefaultStoreLocation({
+        latitude: formData.latitude,
+        longitude: formData.longitude,
+        storeLocationLabel: formData.store_location_label,
+        profileLatitude: (profile as any)?.latitude ?? null,
+        profileLongitude: (profile as any)?.longitude ?? null,
+        societyId: resolvedSocietyId || profile?.society_id || null,
+      });
+      if (fallback) {
+        submitLat = fallback.latitude;
+        submitLng = fallback.longitude;
+        submitLabel = fallback.store_location_label;
+        setFormData((f) => ({
+          ...f,
+          latitude: fallback.latitude,
+          longitude: fallback.longitude,
+          store_location_label: fallback.store_location_label,
+        }));
+      }
+    }
+
     // Store pin is required — society membership alone is not enough (society may lack coords).
-    if (!formData.latitude || !formData.longitude) {
-      notify.block('Please set your store location before submitting');
+    if (submitLat == null || submitLng == null) {
+      notify.block('Please set your store location in Seller Settings before submitting, or join a society with a map pin.');
       return;
     }
 
@@ -1114,10 +1147,9 @@ export function useSellerApplication(opts?: { forceNew?: boolean }) {
         upi_id: formData.accepts_upi ? formData.upi_id.trim() || null : null,
         operating_days: formData.operating_days, profile_image_url: formData.profile_image_url,
         cover_image_url: formData.cover_image_url, rejection_note: null,
-        // Preserve existing pin if the form lost location during a mid-flow restart
-        ...(formData.latitude != null && formData.longitude != null
-          ? { latitude: formData.latitude, longitude: formData.longitude, store_location_label: formData.store_location_label }
-          : {}),
+        latitude: submitLat,
+        longitude: submitLng,
+        store_location_label: submitLabel,
         subcategory_preferences: formData.subcategory_preferences,
         pickup_payment_config: formData.pickup_payment_config,
         delivery_payment_config: formData.delivery_payment_config,
@@ -1166,26 +1198,6 @@ export function useSellerApplication(opts?: { forceNew?: boolean }) {
   };
 
   // Safe group selection: warn if products exist before changing group (Bug 10)
-  const resumeExistingStore = useCallback(async (storeId: string) => {
-    try {
-      const { data: fullSeller } = await supabase.from('seller_profiles').select('*').eq('id', storeId).single();
-      if (!fullSeller) return;
-      setExistingSeller(null);
-      setDraftSellerId(fullSeller.id);
-      setSelectedGroup((fullSeller as any).primary_group || null);
-      loadSellerDataIntoForm(fullSeller);
-      await reloadProducts(fullSeller.id);
-      const savedStep = parseInt(localStorage.getItem('seller_onboarding_step') || '2', 10);
-      const nextStep = (fullSeller as any).verification_status === 'draft'
-        ? Math.max(2, Math.min(savedStep, NEW_ONBOARDING_TOTAL_STEPS))
-        : 2;
-      setStep(nextStep);
-    } catch (err) {
-      console.error('Failed to resume store:', err);
-      toast.error('Could not load that store. Please try again.');
-    }
-  }, [loadSellerDataIntoForm, reloadProducts, setStep]);
-
   const startNewStoreOnboarding = useCallback(() => {
     writeSubmittedStoreId(null);
     setSubmissionComplete(false);
@@ -1196,8 +1208,46 @@ export function useSellerApplication(opts?: { forceNew?: boolean }) {
     setDraftProducts([]);
     setOfferingNamesState(['']);
     writeOfferingNames([]);
+    setCommerceModelState('');
+    setSeedProductNameState('');
+    setListingIntentPhraseState('');
+    setSoftListingTagState('');
     setStep(1);
+    try {
+      localStorage.setItem('seller_onboarding_step', '1');
+      localStorage.setItem(ONBOARDING_VERSION_KEY, ONBOARDING_VERSION);
+      sessionStorage.removeItem('onboarding_store_action_type');
+      sessionStorage.removeItem(COMMERCE_MODEL_KEY);
+      sessionStorage.removeItem(SEED_PRODUCT_KEY);
+      sessionStorage.removeItem(INTENT_PHRASE_KEY);
+      sessionStorage.removeItem(SOFT_TAG_KEY);
+      sessionStorage.removeItem(OFFERING_NAMES_KEY);
+    } catch { /* */ }
   }, [setStep]);
+
+  const resumeExistingStore = useCallback(async (storeId: string) => {
+    try {
+      const { data: fullSeller } = await supabase.from('seller_profiles').select('*').eq('id', storeId).single();
+      if (!fullSeller) return;
+      setExistingSeller(null);
+      setDraftSellerId(fullSeller.id);
+      setSelectedGroup((fullSeller as any).primary_group || null);
+      loadSellerDataIntoForm(fullSeller);
+      await reloadProducts(fullSeller.id);
+      const metaStep = Number((fullSeller as any).onboarding_meta?.step);
+      const savedStep = Number.isFinite(metaStep) && metaStep > 0
+        ? metaStep
+        : parseInt(localStorage.getItem('seller_onboarding_step') || '2', 10);
+      const nextStep = (fullSeller as any).verification_status === 'draft'
+        ? Math.max(2, Math.min(savedStep, NEW_ONBOARDING_TOTAL_STEPS))
+        : 2;
+      localStorage.setItem('seller_onboarding_step', String(nextStep));
+      setStep(nextStep);
+    } catch (err) {
+      console.error('Failed to resume store:', err);
+      toast.error('Could not load that store. Please try again.');
+    }
+  }, [loadSellerDataIntoForm, reloadProducts, setStep]);
 
   const reloadProductsAndGet = useCallback(async (sellerId: string) => {
     const { data: prods, error } = await supabase
@@ -1300,7 +1350,7 @@ export function useSellerApplication(opts?: { forceNew?: boolean }) {
       groupOverride: group,
       formOverrides: opts?.formOverrides,
     });
-    setTimeout(() => setStep(opts?.nextStep ?? 5), 350);
+    setTimeout(() => setStep(opts?.nextStep ?? 3), 350);
   };
 
   const selectedGroupInfo = parentGroupInfos.find(g => g.value === selectedGroup);

@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { useEffect, useState, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { ProductDetailSheet } from '@/components/product/ProductDetailSheet';
@@ -14,6 +14,7 @@ import { buyerCanOrderFromSeller } from '@/lib/sellerDiscoverability';
 export default function ProductDeepLinkPage() {
   const { productId } = useParams<{ productId: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const { browsingLocation } = useBrowsingLocation();
   const [product, setProduct] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -127,7 +128,7 @@ export default function ProductDeepLinkPage() {
     if (!open) {
       // Only navigate to seller page if we haven't already navigated elsewhere
       // (e.g., add-to-cart celebration popup navigates to /cart)
-      const currentPath = window.location.pathname;
+      const currentPath = location.pathname;
       if (currentPath === '/' || currentPath.startsWith('/product/')) {
         if (product?.seller_id) {
           navigate(`/seller/${product.seller_id}`, { replace: true });
@@ -136,7 +137,7 @@ export default function ProductDeepLinkPage() {
         }
       }
     }
-  }, [product, navigate]);
+  }, [product, navigate, location.pathname]);
 
   if (isLoading) {
     return (

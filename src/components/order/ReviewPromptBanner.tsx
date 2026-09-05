@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Star, X } from 'lucide-react';
 import { ReviewForm } from '@/components/review/ReviewForm';
 import { slideUp } from '@/lib/motion-variants';
+import { displaySellerStoreName } from '@/lib/seller-journey';
 
 export function ReviewPromptBanner() {
   const { user } = useAuth();
@@ -52,7 +53,7 @@ export function ReviewPromptBanner() {
         id: null,
         order_id: unreviewed.id,
         seller_id: unreviewed.seller_id,
-        seller_name: (unreviewed as any).seller?.business_name || 'Seller',
+        seller_name: displaySellerStoreName((unreviewed as any).seller?.business_name),
       }];
     },
     enabled: !!user?.id,
@@ -77,6 +78,7 @@ export function ReviewPromptBanner() {
   if (!prompts || prompts.length === 0) return null;
 
   const prompt = prompts[0];
+  const promptSellerName = displaySellerStoreName(prompt.seller_name);
 
   return (
     <AnimatePresence>
@@ -93,7 +95,7 @@ export function ReviewPromptBanner() {
             <div>
               <p className="text-sm font-semibold">Rate your recent order</p>
               <p className="text-[11px] text-muted-foreground">
-                from {prompt.seller_name || 'a seller'} — help your community!
+                from {promptSellerName || 'a seller'} — help your community!
               </p>
             </div>
           </div>
@@ -101,7 +103,7 @@ export function ReviewPromptBanner() {
             <ReviewForm
               orderId={prompt.order_id}
               sellerId={prompt.seller_id}
-              sellerName={prompt.seller_name || 'Seller'}
+              sellerName={promptSellerName}
               onSuccess={handleReviewSuccess}
             />
             <button

@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { useEffect, useState, useMemo, useCallback } from 'react';
+import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { supabase } from '@/integrations/supabase/client';
@@ -14,7 +14,6 @@ import { formatDistanceToNow } from 'date-fns';
 import { motion } from 'framer-motion';
 import { staggerContainer, cardEntrance } from '@/lib/motion-variants';
 import { SellerContactChatSheet } from '@/components/seller/SellerContactChatSheet';
-import { resolveOperationalSellerId } from '@/lib/seller-order-board';
 
 interface ConversationRow {
   order_id: string;
@@ -39,15 +38,15 @@ interface ContactLeadRow {
 }
 
 export default function SellerMessagesPage() {
-  const { user, sellerProfiles = [], currentSellerId } = useAuth();
+  const { user, sellerProfiles = [] } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
-  const tab = searchParams.get('tab') === 'orders' ? 'orders' : 'contacts';
+  const tabParam = searchParams.get('tab');
+  const tab = tabParam === 'orders' ? 'orders' : 'contacts';
 
-  const activeSellerId = resolveOperationalSellerId(currentSellerId, sellerProfiles);
-  const sellerIds = useMemo(() => {
-    if (activeSellerId) return [activeSellerId];
-    return sellerProfiles.map((s) => s.id).filter(Boolean);
-  }, [activeSellerId, sellerProfiles]);
+  const sellerIds = useMemo(
+    () => sellerProfiles.map((s) => s.id).filter(Boolean) as string[],
+    [sellerProfiles],
+  );
 
   const [orderRows, setOrderRows] = useState<ConversationRow[]>([]);
   const [contactRows, setContactRows] = useState<ContactLeadRow[]>([]);
@@ -55,9 +54,11 @@ export default function SellerMessagesPage() {
   const [loadingContacts, setLoadingContacts] = useState(true);
   const [chatOpen, setChatOpen] = useState(false);
   const [activeLead, setActiveLead] = useState<ContactLeadRow | null>(null);
+  const didAutoTabRef = useRef(false);
 
   const setTab = (next: string) => {
-    setSearchParams(next === 'orders' ? { tab: 'orders' } : {}, { replace: true });
+    didAutoTabRef.current = true;
+    setSearchParams(next === 'orders' ? { tab: 'orders' } : { tab: 'contacts' }, { replace: true });
   };
 
   const loadOrders = useCallback(async () => {
@@ -117,29 +118,37 @@ export default function SellerMessagesPage() {
 
     const { data, error } = await supabase
       .from('seller_contact_interactions')
-      .select('id, buyer_id, product_id, interaction_type, order_id, conversation_id, status, created_at, products(name)')
+      .select('id, buyer_id, product_id, interaction_type, order_id, conversation_id, status, created_at')
       .in('seller_id', sellerIds)
       .order('created_at', { ascending: false })
       .limit(100);
 
     if (error || !data) {
+      console.warn('[SellerMessages] contact leads query failed:', error?.message);
       setContactRows([]);
       setLoadingContacts(false);
       return;
     }
 
     const buyerIds = Array.from(new Set(data.map((r: any) => r.buyer_id))).filter(Boolean);
-    const { data: profiles } = buyerIds.length
-      ? await supabase.from('profiles').select('id, name').in('id', buyerIds)
-      : { data: [] };
+    const productIds = Array.from(new Set(data.map((r: any) => r.product_id))).filter(Boolean);
+    const [{ data: profiles }, { data: products }] = await Promise.all([
+      buyerIds.length
+        ? supabase.from('profiles').select('id, name').in('id', buyerIds)
+        : Promise.resolve({ data: [] as { id: string; name: string | null }[] }),
+      productIds.length
+        ? supabase.from('products').select('id, name').in('id', productIds)
+        : Promise.resolve({ data: [] as { id: string; name: string | null }[] }),
+    ]);
     const nameById = new Map((profiles || []).map((p: any) => [p.id, p.name]));
+    const productNameById = new Map((products || []).map((p: any) => [p.id, p.name]));
 
     const rows: ContactLeadRow[] = data.map((r: any) => ({
       id: r.id,
       buyer_id: r.buyer_id,
       buyer_name: nameById.get(r.buyer_id) || 'Customer',
       product_id: r.product_id,
-      product_name: r.products?.name || null,
+      product_name: (r.product_id && productNameById.get(r.product_id)) || null,
       interaction_type: r.interaction_type,
       order_id: r.order_id,
       conversation_id: r.conversation_id,
@@ -165,6 +174,17 @@ export default function SellerMessagesPage() {
 
     return () => { supabase.removeChannel(channel); };
   }, [user?.id, loadOrders, loadContacts]);
+
+  // If Contact leads are empty but order chats exist, land on Order messages so the inbox
+  // never looks falsely empty when buyers already messaged via enquiry/order threads.
+  useEffect(() => {
+    if (loadingContacts || loadingOrders) return;
+    if (didAutoTabRef.current || tabParam) return;
+    if (contactRows.length === 0 && orderRows.length > 0) {
+      didAutoTabRef.current = true;
+      setSearchParams({ tab: 'orders' }, { replace: true });
+    }
+  }, [loadingContacts, loadingOrders, contactRows.length, orderRows.length, tabParam, setSearchParams]);
 
   useEffect(() => {
     const conv = searchParams.get('conv');
@@ -224,7 +244,14 @@ export default function SellerMessagesPage() {
             {loadingContacts ? (
               <div className="space-y-2">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-16 w-full rounded-xl" />)}</div>
             ) : contactRows.length === 0 ? (
-              <EmptyState title="No contact leads yet" subtitle="When buyers call or message about your listings, they'll appear here." />
+              <EmptyState
+                title="No contact leads yet"
+                subtitle={
+                  orderRows.length > 0
+                    ? 'Call/message leads from Contact buttons appear here. Buyer chats on orders are under the Order messages tab.'
+                    : "When buyers call or message about your listings, they'll appear here."
+                }
+              />
             ) : (
               <motion.div className="space-y-2" variants={staggerContainer} initial="hidden" animate="show">
                 {contactRows.map((row) => (

@@ -23,6 +23,7 @@ import { useWalletCredit } from '@/hooks/useWalletCredit';
 import { useDeliveryAddresses } from '@/hooks/useDeliveryAddresses';
 import { useBrowsingLocation } from '@/contexts/BrowsingLocationContext';
 import { hasPreciseCoordinates } from '@/lib/buyerLocation';
+import { locationAlignsWithBrowse } from '@/lib/buyerOrderLocation';
 import { hapticImpact, hapticNotification, hapticSelection } from '@/lib/haptics';
 import { toast } from 'sonner';
 import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
@@ -37,7 +38,7 @@ import {
 } from '@/lib/multi-store-checkout';
 import { postCheckoutPath } from '@/lib/checkout-groups';
 import { resolveCheckoutGroupId } from '@/hooks/useCheckoutGroup';
-import { isSellerCreditInsufficientError, sellerCreditCustomerMessage } from '@/lib/sellerCredits';
+import { isSellerCreditInsufficientError, sellerCreditCustomerNotifyOptions } from '@/lib/sellerCredits';
 import { resolvePlatformDeliveryFee } from '@/lib/delivery-fee';
 import { toScheduledDateParam } from '@/lib/scheduled-orders';
 // Store status validation now handled server-side in create_multi_vendor_orders RPC
@@ -321,8 +322,13 @@ export function useCartPage() {
   useEffect(() => {
     if (!appliedCoupon || !appliedCoupon.min_order_amount) return;
     if (totalAmount < appliedCoupon.min_order_amount) {
+      const code = appliedCoupon.code;
+      const min = appliedCoupon.min_order_amount;
       setAppliedCoupon(null);
-      toast.info(`Coupon "${appliedCoupon.code}" removed — minimum order of ${formatPrice(appliedCoupon.min_order_amount)} not met.`, { id: 'coupon-below-min' });
+      // Skip toast when cart is empty (post-checkout clear) — order already placed with coupon
+      if (totalAmount > 0) {
+        toast.info(`Coupon "${code}" removed — minimum order of ${formatPrice(min)} not met.`, { id: 'coupon-below-min' });
+      }
     }
   }, [totalAmount, appliedCoupon?.min_order_amount]);
 
@@ -354,6 +360,10 @@ export function useCartPage() {
   const finalAmount = Math.max(0, payableBeforeWallet - effectiveWalletCredit);
 
   const firstSeller = sellerGroups[0]?.items[0]?.product?.seller;
+  const pickupLocationLabel = (firstSeller as any)?.society?.name
+    || (firstSeller as any)?.store_location_label
+    || sellerGroups[0]?.sellerName
+    || 'Seller';
   const firstSellerFulfillmentMode = (firstSeller as any)?.fulfillment_mode as 'self_pickup' | 'seller_delivery' | 'platform_delivery' | 'pickup_and_seller_delivery' | 'pickup_and_platform_delivery' | undefined;
   // Per-seller, per-fulfillment payment resolution
   const resolvedFulfillment = fulfillmentType === 'delivery' ? 'delivery' : 'self_pickup';
@@ -470,30 +480,54 @@ export function useCartPage() {
     prevSellerIdRef.current = currentSellerId;
   }, [currentSellerId]);
 
-  // Auto-select default delivery address
+  // Prefer a saved pin near the marketplace browse location. A default
+  // address in another city (e.g. Apple Review Mountain View) must not
+  // win over "Delivering to Shriram" or checkout looks in-range on Home
+  // and then fails as delivery_out_of_range.
   useEffect(() => {
-    if (!selectedDeliveryAddress && defaultAddress) {
-      setSelectedDeliveryAddress(defaultAddress);
-    }
-  }, [defaultAddress, selectedDeliveryAddress]);
+    const browseLat = browsingLocation?.lat;
+    const browseLng = browsingLocation?.lng;
+    const hasBrowse = hasPreciseCoordinates(browseLat, browseLng);
 
-  useEffect(() => {
-    if (browsingLocation?.source === 'address' && browsingLocation.id) {
-      const addr = addresses.find((a: { id: string }) => a.id === browsingLocation.id);
-      if (addr && hasPreciseCoordinates(addr.latitude, addr.longitude)) {
-        setSelectedDeliveryAddress(addr);
-      }
+    if (!hasBrowse) {
+      setSelectedDeliveryAddress((cur) => cur || defaultAddress || cur);
+      return;
     }
-  }, [browsingLocation, addresses]);
 
-  const needsPreciseLocation = fulfillmentType === 'delivery'
-    && (!selectedDeliveryAddress || !hasPreciseCoordinates(selectedDeliveryAddress.latitude, selectedDeliveryAddress.longitude));
-  const checkoutLat = hasPreciseCoordinates(selectedDeliveryAddress?.latitude, selectedDeliveryAddress?.longitude)
+    const nearby = addresses.find((a: { id: string; latitude?: number | null; longitude?: number | null }) =>
+      locationAlignsWithBrowse(a.latitude, a.longitude, browseLat, browseLng),
+    );
+    if (nearby) {
+      setSelectedDeliveryAddress((cur) => (cur?.id === nearby.id ? cur : nearby));
+      return;
+    }
+
+    setSelectedDeliveryAddress((cur) => {
+      if (!cur) return cur;
+      return locationAlignsWithBrowse(cur.latitude, cur.longitude, browseLat, browseLng) ? cur : null;
+    });
+  }, [addresses, browsingLocation, defaultAddress]);
+
+  const selectedAlignsWithBrowse = locationAlignsWithBrowse(
+    selectedDeliveryAddress?.latitude,
+    selectedDeliveryAddress?.longitude,
+    browsingLocation?.lat,
+    browsingLocation?.lng,
+  );
+  const checkoutLat = selectedAlignsWithBrowse && hasPreciseCoordinates(selectedDeliveryAddress?.latitude, selectedDeliveryAddress?.longitude)
     ? Number(selectedDeliveryAddress.latitude)
     : browsingLocation?.lat;
-  const checkoutLng = hasPreciseCoordinates(selectedDeliveryAddress?.latitude, selectedDeliveryAddress?.longitude)
+  const checkoutLng = selectedAlignsWithBrowse && hasPreciseCoordinates(selectedDeliveryAddress?.latitude, selectedDeliveryAddress?.longitude)
     ? Number(selectedDeliveryAddress.longitude)
     : browsingLocation?.lng;
+  const needsPreciseLocation = fulfillmentType === 'delivery'
+    && !hasPreciseCoordinates(checkoutLat, checkoutLng);
+  const checkoutAddressLabel = selectedAlignsWithBrowse && selectedDeliveryAddress
+    ? selectedDeliveryAddress.label
+    : (browsingLocation?.label || 'Selected location');
+  const checkoutAddressDetail = selectedAlignsWithBrowse && selectedDeliveryAddress
+    ? [selectedDeliveryAddress.flat_number && `Flat ${selectedDeliveryAddress.flat_number}`, selectedDeliveryAddress.block && `Block ${selectedDeliveryAddress.block}`, selectedDeliveryAddress.building_name].filter(Boolean).join(', ')
+    : (browsingLocation?.fullAddress || browsingLocation?.secondaryLabel || '');
 
   const hasUrgentItem = items.some((item) => (item.product as any)?.is_urgent);
   const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
@@ -543,8 +577,10 @@ export function useCartPage() {
 
     // Price + availability validation is now handled server-side in the RPC
 
-    const deliveryAddressText = fulfillmentType === 'delivery' && selectedDeliveryAddress
-      ? [selectedDeliveryAddress.flat_number && `Flat ${selectedDeliveryAddress.flat_number}`, selectedDeliveryAddress.block && `Block ${selectedDeliveryAddress.block}`, selectedDeliveryAddress.building_name, selectedDeliveryAddress.landmark].filter(Boolean).join(', ')
+    const deliveryAddressText = fulfillmentType === 'delivery'
+      ? (selectedAlignsWithBrowse && selectedDeliveryAddress
+        ? [selectedDeliveryAddress.flat_number && `Flat ${selectedDeliveryAddress.flat_number}`, selectedDeliveryAddress.block && `Block ${selectedDeliveryAddress.block}`, selectedDeliveryAddress.building_name, selectedDeliveryAddress.landmark].filter(Boolean).join(', ')
+        : (browsingLocation?.fullAddress || browsingLocation?.label || 'Selected location'))
       : [profile.block && `Block ${profile.block}`, profile.flat_number].filter(Boolean).join(', ') || profile?.name || 'Self Pickup';
 
     // Generate idempotency key if not already set for this attempt
@@ -565,9 +601,9 @@ export function useCartPage() {
       _coupon_id: appliedCoupon?.id || null,
       _coupon_discount: effectiveCouponDiscount,
       _seller_groups: sellerGroupsPayload, _fulfillment_type: fulfillmentType, _delivery_fee: effectiveDeliveryFee,
-      _delivery_address_id: selectedDeliveryAddress?.id || null,
-      _delivery_lat: checkoutLat || selectedDeliveryAddress?.latitude || null,
-      _delivery_lng: checkoutLng || selectedDeliveryAddress?.longitude || null,
+      _delivery_address_id: selectedAlignsWithBrowse ? (selectedDeliveryAddress?.id || null) : null,
+      _delivery_lat: checkoutLat ?? null,
+      _delivery_lng: checkoutLng ?? null,
       _idempotency_key: idempotencyKeyRef.current,
       _scheduled_date: scheduledDateStr,
       _scheduled_time_start: scheduledTimeStr,
@@ -836,8 +872,10 @@ export function useCartPage() {
             unit_price: item.product?.price || 0,
           })),
         }));
-        const deliveryAddressText = fulfillmentType === 'delivery' && selectedDeliveryAddress
-          ? [selectedDeliveryAddress.flat_number && `Flat ${selectedDeliveryAddress.flat_number}`, selectedDeliveryAddress.block && `Block ${selectedDeliveryAddress.block}`, selectedDeliveryAddress.building_name, selectedDeliveryAddress.landmark].filter(Boolean).join(', ')
+        const deliveryAddressText = fulfillmentType === 'delivery'
+          ? (selectedAlignsWithBrowse && selectedDeliveryAddress
+            ? [selectedDeliveryAddress.flat_number && `Flat ${selectedDeliveryAddress.flat_number}`, selectedDeliveryAddress.block && `Block ${selectedDeliveryAddress.block}`, selectedDeliveryAddress.building_name, selectedDeliveryAddress.landmark].filter(Boolean).join(', ')
+            : (browsingLocation?.fullAddress || browsingLocation?.label || 'Selected location'))
           : [profile.block && `Block ${profile.block}`, profile.flat_number].filter(Boolean).join(', ') || profile?.name || 'Self Pickup';
         if (!idempotencyKeyRef.current) {
           const cartHash = items.map(i => `${i.product_id}:${i.quantity}`).sort().join('|');
@@ -856,9 +894,9 @@ export function useCartPage() {
           _seller_groups: sellerGroupsPayload,
           _fulfillment_type: fulfillmentType,
           _delivery_fee: effectiveDeliveryFee,
-          _delivery_address_id: selectedDeliveryAddress?.id || null,
-          _delivery_lat: checkoutLat || selectedDeliveryAddress?.latitude || null,
-          _delivery_lng: checkoutLng || selectedDeliveryAddress?.longitude || null,
+          _delivery_address_id: selectedAlignsWithBrowse ? (selectedDeliveryAddress?.id || null) : null,
+          _delivery_lat: checkoutLat ?? null,
+          _delivery_lng: checkoutLng ?? null,
           _idempotency_key: idempotencyKeyRef.current,
           _scheduled_date: scheduledDateStr,
           _scheduled_time_start: scheduledTimeStr,
@@ -890,12 +928,18 @@ export function useCartPage() {
         console.error('Error placing wallet-only order:', error);
         // Extract actual RPC error message instead of letting friendlyError sanitize it
         const rawMessage = error?.message ?? error?.details ?? error?.hint ?? String(error);
-        const displayMessage = isSellerCreditInsufficientError(rawMessage)
-          ? sellerCreditCustomerMessage(rawMessage, 'ORDER_COMPLETED')
-          : ((rawMessage.startsWith('{') || rawMessage.includes('rpc') || rawMessage.includes('P0001'))
+        if (
+          isSellerCreditInsufficientError(rawMessage)
+          || /unavailable for new orders|isn['’]t accepting new orders|seller_credit|credit_blocked/i.test(rawMessage)
+        ) {
+          const creditOpts = sellerCreditCustomerNotifyOptions(rawMessage, 'ORDER_COMPLETED');
+          notify.block(creditOpts.message, { id: creditOpts.id, title: creditOpts.title });
+        } else {
+          const displayMessage = ((rawMessage.startsWith('{') || rawMessage.includes('rpc') || rawMessage.includes('P0001'))
             ? friendlyError(error)
             : rawMessage);
-        notify.error(displayMessage, { id: 'checkout-wallet-error' });
+          notify.error(displayMessage, { id: 'checkout-wallet-error' });
+        }
       } finally {
         setIsPlacingOrder(false);
       }
@@ -984,12 +1028,18 @@ export function useCartPage() {
         console.error('Error creating orders:', error);
         // Extract actual RPC error message instead of letting friendlyError sanitize it
         const rawMessage = error?.message ?? error?.details ?? error?.hint ?? String(error);
-        const displayMessage = isSellerCreditInsufficientError(rawMessage)
-          ? sellerCreditCustomerMessage(rawMessage, 'ORDER_COMPLETED')
-          : ((rawMessage.startsWith('{') || rawMessage.includes('rpc') || rawMessage.includes('P0001'))
+        if (
+          isSellerCreditInsufficientError(rawMessage)
+          || /unavailable for new orders|isn['’]t accepting new orders|seller_credit|credit_blocked/i.test(rawMessage)
+        ) {
+          const creditOpts = sellerCreditCustomerNotifyOptions(rawMessage, 'ORDER_COMPLETED');
+          notify.block(creditOpts.message, { id: creditOpts.id, title: creditOpts.title });
+        } else {
+          const displayMessage = ((rawMessage.startsWith('{') || rawMessage.includes('rpc') || rawMessage.includes('P0001'))
             ? friendlyError(error)
             : rawMessage);
-        notify.error(displayMessage, { id: 'checkout-create-error' });
+          notify.error(displayMessage, { id: 'checkout-create-error' });
+        }
       }
       finally { setIsPlacingOrder(false); }
       return;
@@ -1024,12 +1074,18 @@ export function useCartPage() {
       console.error('Error placing COD order:', error);
       // Extract actual RPC error message instead of letting friendlyError sanitize it
       const rawMessage = error?.message ?? error?.details ?? error?.hint ?? String(error);
-      const displayMessage = isSellerCreditInsufficientError(rawMessage)
-        ? sellerCreditCustomerMessage(rawMessage, 'ORDER_COMPLETED')
-        : ((rawMessage.startsWith('{') || rawMessage.includes('rpc') || rawMessage.includes('P0001'))
+      if (
+        isSellerCreditInsufficientError(rawMessage)
+        || /unavailable for new orders|isn['’]t accepting new orders|seller_credit|credit_blocked/i.test(rawMessage)
+      ) {
+        const creditOpts = sellerCreditCustomerNotifyOptions(rawMessage, 'ORDER_COMPLETED');
+        notify.block(creditOpts.message, { id: creditOpts.id, title: creditOpts.title });
+      } else {
+        const displayMessage = ((rawMessage.startsWith('{') || rawMessage.includes('rpc') || rawMessage.includes('P0001'))
           ? friendlyError(error)
           : rawMessage);
-      notify.error(displayMessage, { id: 'checkout-error' });
+        notify.error(displayMessage, { id: 'checkout-error' });
+      }
     }
     finally { setIsPlacingOrder(false); }
   };
@@ -1373,7 +1429,8 @@ export function useCartPage() {
     multiStoreRequiresSplit: isMultiSeller && !acceptsCod && blocksOnlineMultiSeller,
     checkoutThisStoreOnly,
     selectedDeliveryAddress, setSelectedDeliveryAddress, addresses, addressesLoading,
-    needsPreciseLocation,
+    needsPreciseLocation, pickupLocationLabel, checkoutAddressLabel, checkoutAddressDetail,
+    hasCheckoutDestination: hasPreciseCoordinates(checkoutLat, checkoutLng),
     handlePlaceOrder, handleRazorpaySuccess, handleRazorpayFailed, handleRazorpayDismiss,
     handleUpiDeepLinkSuccess, handleUpiDeepLinkFailed,
     hasActivePaymentSession, sessionSellerUpiId, sessionSellerName, sessionAmount,

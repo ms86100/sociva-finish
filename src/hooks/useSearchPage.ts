@@ -308,18 +308,27 @@ export function useSearchPage() {
     if (isSearchActive) await runSearch(debouncedQuery);
   });
 
-  const clearFilters = () => { setQuery(''); setFilters(defaultFilters); setActivePreset(null); setSelectedCategory(null); setResults([]); setHasSearched(false); localStorage.removeItem(getFilterStorageKey(user?.id)); };
+  // Clear chips/filters only — keep the search query (BUG-04)
+  const clearFilters = () => {
+    setFilters(defaultFilters);
+    setActivePreset(null);
+    setSelectedCategory(null);
+    localStorage.removeItem(getFilterStorageKey(user?.id));
+  };
   const handleFiltersChange = (f: FilterState) => { setFilters(f); setActivePreset(null); };
   const handlePresetSelect = (id: string | null, pf: Partial<FilterState>) => { setActivePreset(id); setFilters(id ? { ...defaultFilters, ...pf } : defaultFilters); };
   const handleCategoryTap = (cat: string) => { setSelectedCategory(prev => prev === cat ? null : cat); };
 
   const pills: string[] = [];
-  if (query) pills.push(`"${query}"`);
+  // Query lives in the search box — don't duplicate it as a Clearable pill (BUG-04)
   if (selectedCategory) pills.push(categoryMap[selectedCategory]?.displayName || selectedCategory);
   if (filters.minRating > 0) pills.push(`${filters.minRating}+★`);
   if (filters.isVeg === true) pills.push('Veg');
   if (filters.isVeg === false) pills.push('Non-veg');
   if (filters.categories.length) pills.push(...filters.categories.map((c) => categoryMap[c]?.displayName || c));
+  if (filters.priceRange[0] > 0 || filters.priceRange[1] < settings.maxPriceFilter) {
+    pills.push(`Under ${currencySymbol}${filters.priceRange[1]}`);
+  }
   if (filters.sortBy) { const labels: Record<string, string> = { rating: 'Top Rated', newest: 'Newest', price_low: `${currencySymbol} Low→High`, price_high: `${currencySymbol} High→Low`, nearest: 'Nearest' }; pills.push(labels[filters.sortBy]); }
 
   const displayProducts = isSearchActive ? results : popularProducts;

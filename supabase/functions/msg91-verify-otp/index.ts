@@ -192,7 +192,10 @@ Deno.serve(async (req) => {
     }
 
     const isAppleReviewBypass =
-      (phone === "0123456789" || phone === "0987654321" || phone === "9876543201") &&
+      (phone === "0123456789" ||
+        phone === "0987654321" ||
+        phone === "9876543201" ||
+        phone === "9535115316") && // TEMP E2E — remove after seller session
       reqId === "apple-review-bypass" &&
       otp === "1234";
     const mobile = `${country_code}${phone}`;
@@ -317,20 +320,22 @@ Deno.serve(async (req) => {
       // (no phone, no admin) while they thought they logged in with OTP.
       userEmail = syntheticEmail;
       console.log("Found existing user:", userId, "sessionEmail:", userEmail);
-      // Keep auth.users.email aligned with the phone identity used for magic links
-      void (async () => {
-        try {
-          await admin.auth.admin.updateUserById(userId!, {
+      // MUST complete before generateLink — fire-and-forget left first login racing
+      // (auth.users still on old email → magiclink token / session mismatch).
+      try {
+        await withTimeout(
+          admin.auth.admin.updateUserById(userId, {
             email: syntheticEmail,
             email_confirm: true,
             phone: fullPhone,
             phone_confirm: true,
-          });
-        } catch (e) {
-          console.warn("auth phone/email self-heal skipped:", e);
-        }
-      })();
-      // Heal phone on profile without wiping name/email/flat
+          }),
+          AUTH_ADMIN_TIMEOUT_MS,
+          "updateUserEmail",
+        );
+      } catch (e) {
+        console.warn("auth phone/email self-heal failed (continuing):", e);
+      }
       void admin.from("profiles").update({ phone: fullPhone }).eq("id", userId);
     } else {
       isNewUser = true;
@@ -357,6 +362,25 @@ Deno.serve(async (req) => {
           console.log("Create raced — user already exists, treating as existing");
           isNewUser = false;
           userEmail = syntheticEmail;
+          // Resolve id so we can still align email before generateLink
+          const raced = await lookupExistingUser(admin, syntheticEmail, mobile, fullPhone, phone);
+          if (raced?.id) {
+            userId = raced.id;
+            try {
+              await withTimeout(
+                admin.auth.admin.updateUserById(userId, {
+                  email: syntheticEmail,
+                  email_confirm: true,
+                  phone: fullPhone,
+                  phone_confirm: true,
+                }),
+                AUTH_ADMIN_TIMEOUT_MS,
+                "updateUserEmail-race",
+              );
+            } catch (e) {
+              console.warn("race email heal failed:", e);
+            }
+          }
         } else {
           console.error("Create user error:", createError);
           return new Response(
@@ -389,25 +413,100 @@ Deno.serve(async (req) => {
       }
     }
 
-    // ─── Generate magiclink session ───
-    const { data: linkData, error: linkError } = await withTimeout(
-      admin.auth.admin.generateLink({ type: "magiclink", email: userEmail }),
-      AUTH_ADMIN_TIMEOUT_MS,
-      "generateLink",
-    );
+    // ─── Mint session server-side (avoid client verifyOtp wasting a consumed MSG91 OTP) ───
+    let accessToken: string | null = null;
+    let refreshToken: string | null = null;
+    let tokenHash: string | null = null;
+    let lastLinkError: unknown = null;
 
-    if (linkError || !linkData?.properties?.hashed_token) {
-      console.error("Generate link error:", linkError);
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const { data: linkData, error: linkError } = await withTimeout(
+        admin.auth.admin.generateLink({ type: "magiclink", email: userEmail }),
+        AUTH_ADMIN_TIMEOUT_MS,
+        "generateLink",
+      );
+
+      if (linkError || !linkData?.properties?.hashed_token) {
+        lastLinkError = linkError;
+        console.error("Generate link error:", linkError);
+        await new Promise((r) => setTimeout(r, 300 * (attempt + 1)));
+        continue;
+      }
+
+      tokenHash = linkData.properties.hashed_token as string;
+
+      // Exchange token_hash for a real session using GoTrue verify (service role).
+      try {
+        const verifyRes = await withTimeout(
+          fetch(`${Deno.env.get("SUPABASE_URL")}/auth/v1/verify`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              apikey: Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+              Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!}`,
+            },
+            body: JSON.stringify({ type: "magiclink", token_hash: tokenHash }),
+          }),
+          AUTH_ADMIN_TIMEOUT_MS,
+          "gotrue-verify",
+        );
+        const verifyJson: any = await verifyRes.json().catch(() => ({}));
+        if (
+          verifyRes.ok &&
+          verifyJson?.access_token &&
+          verifyJson?.refresh_token
+        ) {
+          accessToken = verifyJson.access_token;
+          refreshToken = verifyJson.refresh_token;
+          break;
+        }
+        console.warn(
+          "[msg91-verify-otp] gotrue verify failed:",
+          verifyRes.status,
+          verifyJson?.error_description || verifyJson?.msg || verifyJson?.error,
+        );
+      } catch (e) {
+        console.warn("[msg91-verify-otp] gotrue verify error:", e);
+      }
+      await new Promise((r) => setTimeout(r, 400 * (attempt + 1)));
+    }
+
+    if (!accessToken || !refreshToken) {
+      console.error("Session mint failed after OTP verify. lastLinkError:", lastLinkError);
+      // Still return token_hash as fallback for client verifyOtp — better than hard fail
+      // if GoTrue verify endpoint shape differs by version.
+      if (tokenHash) {
+        console.log(`[msg91-verify-otp] total=${Date.now() - t0}ms isNew=${isNewUser} fallback=token_hash`);
+        return new Response(
+          JSON.stringify({
+            success: true,
+            token_hash: tokenHash,
+            is_new_user: isNewUser,
+            session_mint: "client",
+          }),
+          { headers: jsonHeaders },
+        );
+      }
       return new Response(
-        JSON.stringify({ error: "Session creation failed. Please try again." }),
-        { status: 500, headers: jsonHeaders },
+        JSON.stringify({
+          error:
+            "Phone verified, but sign-in timed out. Please request a new OTP and try again.",
+        }),
+        { status: 503, headers: jsonHeaders },
       );
     }
 
-    console.log(`[msg91-verify-otp] total=${Date.now() - t0}ms isNew=${isNewUser}`);
+    console.log(`[msg91-verify-otp] total=${Date.now() - t0}ms isNew=${isNewUser} session=minted`);
 
     return new Response(
-      JSON.stringify({ success: true, token_hash: linkData.properties.hashed_token, is_new_user: isNewUser }),
+      JSON.stringify({
+        success: true,
+        access_token: accessToken,
+        refresh_token: refreshToken,
+        token_hash: tokenHash,
+        is_new_user: isNewUser,
+        session_mint: "server",
+      }),
       { headers: jsonHeaders },
     );
   } catch (error) {

@@ -29,6 +29,7 @@ import { toast } from 'sonner';
 import { useCategoryConfigs } from '@/hooks/useCategoryBehavior';
 import { useSubcategories } from '@/hooks/useSubcategories';
 import { friendlyError } from '@/lib/utils';
+import { inferSellerDomain, domainFormFlags, offeringCopy } from '@/lib/seller-domain';
 import { AttributeBlockBuilder } from '@/components/seller/AttributeBlockBuilder';
 import { useBlockLibrary, filterByCategory, type BlockData } from '@/hooks/useAttributeBlocks';
 import { useCurrency } from '@/hooks/useCurrency';
@@ -367,20 +368,39 @@ export function DraftProductManager({
 
   const showVegToggle = activeConfig?.formHints.showVegToggle ?? false;
   const showDurationField = activeConfig?.formHints.showDurationField ?? false;
-  const isService = useMemo(() => doesActionRequireAvailability(newProduct.action_type || effectiveDefaultActionType, allActions), [newProduct.action_type, effectiveDefaultActionType, allActions]);
+  const sellerDomain = useMemo(() => inferSellerDomain({
+    sellerDomain: (activeConfig as any)?.sellerDomain,
+    parentGroup: activeConfig?.parentGroup,
+    category: activeConfig?.category,
+    supportsCart: activeConfig?.behavior?.supportsCart,
+    isPhysicalProduct: activeConfig?.behavior?.isPhysicalProduct,
+    enquiryOnly: activeConfig?.behavior?.enquiryOnly,
+    requiresTimeSlot: activeConfig?.behavior?.requiresTimeSlot,
+    defaultActionType: (activeConfig as any)?.defaultActionType || effectiveDefaultActionType,
+    transactionType: activeConfig?.transactionType,
+  }), [activeConfig, effectiveDefaultActionType]);
+  const domainFlags = useMemo(() => domainFormFlags(sellerDomain), [sellerDomain]);
+  const copy = useMemo(() => offeringCopy(sellerDomain), [sellerDomain]);
+  const isService = useMemo(
+    () => domainFlags.showServiceFields || doesActionRequireAvailability(newProduct.action_type || effectiveDefaultActionType, allActions),
+    [domainFlags.showServiceFields, newProduct.action_type, effectiveDefaultActionType, allActions],
+  );
 
   const supportsAddons = (activeConfig as any)?.supportsAddons ?? false;
   const supportsRecurring = (activeConfig as any)?.supportsRecurring ?? false;
   const supportsStaffAssignment = (activeConfig as any)?.supportsStaffAssignment ?? false;
 
   const requiresPrice = useMemo(() => {
+    if (domainFlags.allowZeroPrice) return false;
     if (!activeConfig) return true;
     return activeConfig.behavior.supportsCart || !activeConfig.behavior.enquiryOnly;
-  }, [activeConfig]);
+  }, [activeConfig, domainFlags.allowZeroPrice]);
 
-  const showFoodFacetEditor = showFoodFacets
+  const showFoodFacetEditor = domainFlags.showFoodFacets && (
+    showFoodFacets
     || isFoodParentGroup(activeConfig?.parentGroup)
-    || activeConfig?.layoutType === 'food';
+    || activeConfig?.layoutType === 'food'
+  );
 
   const foodFacets = useMemo(
     () => parseFoodFacets(newProduct.tags, newProduct.cuisine_type),
@@ -425,10 +445,10 @@ export function DraftProductManager({
 
   const handleAddProduct = async () => {
     const errors: Record<string, string> = {};
-    if (!newProduct.name.trim()) errors.name = 'Product name is required';
+    if (!newProduct.name.trim()) errors.name = copy.nameRequired;
     if (requiresPrice && newProduct.price <= 0) errors.price = 'Price must be greater than 0';
     if (newProduct.mrp && newProduct.mrp > 0 && newProduct.price > newProduct.mrp) errors.price = 'Price cannot exceed MRP';
-    if (!newProduct.image_url.trim()) errors.image_url = 'Product image is required';
+    if (!newProduct.image_url.trim()) errors.image_url = copy.imageRequired;
 
     const stockResolved = resolveStockSaveValues({
       tracks_stock: trackStock,
@@ -760,7 +780,7 @@ export function DraftProductManager({
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="font-semibold text-base">Your Products / Services</h3>
+          <h3 className="font-semibold text-base">{copy.catalogHeading}</h3>
           <p className="text-xs text-muted-foreground mt-0.5">
             {products.length === 0
               ? pendingOfferingNames.length > 0
@@ -809,7 +829,7 @@ export function DraftProductManager({
           </div>
           <p className="font-medium text-sm mb-1">Your catalog is empty</p>
           <p className="text-xs text-muted-foreground max-w-[240px]">
-            Add your first product — even one item is enough to get started!
+            {copy.emptyHint}
           </p>
         </div>
       )}
@@ -888,12 +908,12 @@ export function DraftProductManager({
         <div className="flex gap-6 items-start">
           <Card className="border-primary/30 flex-1 min-w-0">
             <CardContent className="p-4 space-y-3">
-              <h4 className="font-medium text-sm">{editingIndex !== null ? 'Edit Product / Service' : 'New Product / Service'}</h4>
+              <h4 className="font-medium text-sm">{editingIndex !== null ? copy.formTitleEdit : copy.formTitleNew}</h4>
               <div className="space-y-2">
                 <Label htmlFor="prod-name" className="text-xs">Name *</Label>
                 <Input
                   id="prod-name"
-                  placeholder={activeConfig?.formHints.namePlaceholder || "e.g., Product Name"}
+                  placeholder={activeConfig?.formHints.namePlaceholder || copy.namePlaceholder}
                   value={newProduct.name}
                   onChange={(e) => {
                     setNewProduct({ ...newProduct, name: e.target.value });
@@ -1025,7 +1045,7 @@ export function DraftProductManager({
 
               {/* Product Image */}
               <div className="space-y-2" id="prod-image_url">
-                <Label className="text-xs">Product Image <span className="text-destructive">*</span></Label>
+                <Label className="text-xs">{copy.imageLabel} <span className="text-destructive">*</span></Label>
                 {user ? (
                   <div className={fieldErrors.image_url ? 'rounded-md ring-2 ring-destructive' : ''}>
                     <ProductImageUpload
@@ -1038,6 +1058,7 @@ export function DraftProductManager({
                       productName={newProduct.name}
                       categoryName={newProduct.category}
                       description={newProduct.description}
+                      placeholder={copy.imagePlaceholder}
                       beforePick={beforePick}
                     />
                   </div>
@@ -1129,6 +1150,7 @@ export function DraftProductManager({
               )}
 
               {/* Stock Management */}
+              {domainFlags.showStock && (
               <div className="p-3 bg-muted/50 rounded-lg space-y-3">
                 <p className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">📦 Stock Management</p>
                 <label className="flex items-center justify-between cursor-pointer">
@@ -1194,9 +1216,10 @@ export function DraftProductManager({
                   </div>
                 )}
               </div>
+              )}
 
               {/* Lead Time & Pre-orders */}
-              {!isService && (
+              {!isService && sellerDomain === 'product' && (
                 <div className="p-3 bg-muted/50 rounded-lg space-y-3">
                   <p className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">⏱ Preparation & Ordering</p>
                   <LeadTimeField
@@ -1237,31 +1260,31 @@ export function DraftProductManager({
                 <Button variant="outline" size="sm" className="flex-1" onClick={resetForm}>Cancel</Button>
                 <Button size="sm" className="flex-1" onClick={handleAddProduct} disabled={isSaving}>
                   {isSaving && <Loader2 size={14} className="animate-spin mr-1" />}
-                  {editingIndex !== null ? 'Update Product' : 'Save Product'}
+                  {editingIndex !== null ? copy.update : copy.save}
                 </Button>
               </div>
             </CardContent>
           </Card>
 
           {/* Desktop sticky preview */}
-          <ProductFormPreviewPanel formData={previewFormData} sellerProfile={null} attributeBlocks={attributeBlocks} />
+          <ProductFormPreviewPanel formData={previewFormData} sellerProfile={null} attributeBlocks={attributeBlocks} sellerDomain={sellerDomain} />
         </div>
 
         {/* Mobile floating preview */}
-        <ProductFormPreviewMobile formData={previewFormData} sellerProfile={null} attributeBlocks={attributeBlocks} />
+        <ProductFormPreviewMobile formData={previewFormData} sellerProfile={null} attributeBlocks={attributeBlocks} sellerDomain={sellerDomain} />
         </>
       ) : (
         <Button variant="outline" className="w-full border-dashed" onClick={beginAddProduct}>
           <Plus size={16} className="mr-2" />
-          Add Product / Service
+          {copy.addAnother}
         </Button>
       )}
 
       <AlertDialog open={deleteTarget !== null} onOpenChange={(open) => !open && setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Product?</AlertDialogTitle>
-            <AlertDialogDescription>This will permanently remove this product. This action cannot be undone.</AlertDialogDescription>
+            <AlertDialogTitle>{copy.deleteTitle}</AlertDialogTitle>
+            <AlertDialogDescription>This will permanently remove it. This cannot be undone.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>

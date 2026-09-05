@@ -57,6 +57,8 @@ export interface CategoryDisplayConfig {
   imageObjectFit: string;
 }
 
+export type SellerDomain = 'product' | 'service' | 'listing';
+
 export interface CategoryConfig {
   id: string;
   category: ServiceCategory;
@@ -72,6 +74,9 @@ export interface CategoryConfig {
   displayOrder: number;
   isActive: boolean;
   transactionType?: string;
+  defaultActionType?: string | null;
+  /** Seller-facing Product / Service / Listing domain (additive; may be inferred when null). */
+  sellerDomain?: SellerDomain | null;
   supportsAddons: boolean;
   supportsRecurring: boolean;
   supportsStaffAssignment: boolean;

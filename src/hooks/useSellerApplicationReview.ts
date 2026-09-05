@@ -120,7 +120,7 @@ export function useSellerApplicationReview() {
           ? supabase.from('seller_licenses').select('*').in('seller_id', sellerIds).order('submitted_at', { ascending: false })
           : Promise.resolve({ data: [] }),
         sellerIds.length > 0
-          ? supabase.from('products').select('id, name, price, mrp, discount_percentage, category, image_url, approval_status, is_available, is_veg, action_type, contact_phone, description, specifications, tags, cuisine_type, prep_time_minutes, service_duration_minutes, delivery_time_text, created_at').in('seller_id', sellerIds).order('created_at', { ascending: false })
+          ? supabase.from('products').select('id, seller_id, name, price, mrp, discount_percentage, category, image_url, approval_status, is_available, is_veg, action_type, contact_phone, description, specifications, tags, cuisine_type, prep_time_minutes, service_duration_minutes, delivery_time_text, created_at').in('seller_id', sellerIds).order('created_at', { ascending: false })
           : Promise.resolve({ data: [] }),
       ]);
 

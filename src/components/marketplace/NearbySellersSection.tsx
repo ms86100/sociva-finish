@@ -7,6 +7,8 @@ import { MapPin, Store } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { staggerContainer, cardEntrance } from '@/lib/motion-variants';
 
+import { displaySellerStoreName, isShelvedSellerStore } from '@/lib/seller-journey';
+
 export function NearbySellersSection() {
   const { profile } = useAuth();
   const { data: sellers } = useMarketplaceData();
@@ -22,7 +24,7 @@ export function NearbySellersSection() {
     if (localSellers.length >= 5) return [];
 
     return sellers
-      .filter((s: any) => s.distance_km && s.distance_km > 0 && s.is_available)
+      .filter((s: any) => s.distance_km && s.distance_km > 0 && s.is_available && !isShelvedSellerStore(s))
       .sort((a: any, b: any) => (a.distance_km || 999) - (b.distance_km || 999))
       .slice(0, 6);
   }, [sellers, profile?.society_id]);
@@ -50,7 +52,9 @@ export function NearbySellersSection() {
         initial="hidden"
         animate="show"
       >
-        {nearbySellers.map((seller: any) => (
+        {nearbySellers.map((seller: any) => {
+          const storeName = displaySellerStoreName(seller.business_name);
+          return (
           <motion.button
             key={seller.seller_id}
             variants={cardEntrance}
@@ -63,7 +67,7 @@ export function NearbySellersSection() {
               {seller.cover_image_url ? (
                 <img
                   src={seller.cover_image_url}
-                  alt={seller.business_name}
+                  alt={storeName}
                   className="w-full h-full object-cover"
                 />
               ) : (
@@ -72,7 +76,7 @@ export function NearbySellersSection() {
                 </div>
               )}
             </div>
-            <p className="text-xs font-semibold truncate">{seller.business_name}</p>
+            <p className="text-xs font-semibold truncate">{storeName}</p>
             {seller.society_name && (
               <p className="text-[10px] text-muted-foreground truncate mt-0.5">
                 {seller.society_name}
@@ -91,7 +95,8 @@ export function NearbySellersSection() {
               )}
             </div>
           </motion.button>
-        ))}
+          );
+        })}
       </motion.div>
     </motion.div>
   );

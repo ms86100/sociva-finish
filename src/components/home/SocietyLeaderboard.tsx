@@ -14,6 +14,7 @@ import { staggerContainer, cardEntrance, listItem } from '@/lib/motion-variants'
 import { useCountUp } from '@/hooks/useCountUp';
 import { useBrowsingLocation } from '@/contexts/BrowsingLocationContext';
 import { filterDiscoverableProductIds, filterDiscoverableSellerIds } from '@/lib/sellerDiscoverability';
+import { displaySellerStoreName, isShelvedSellerStore } from '@/lib/seller-journey';
 
 interface TopSeller {
   id: string;
@@ -129,8 +130,9 @@ export function SocietyLeaderboard() {
             animate="show"
             className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide"
           >
-            {topSellers.map((s) => {
+            {topSellers.filter((s) => !isShelvedSellerStore(s)).map((s) => {
               const hue = hashToHue(s.id);
+              const storeName = displaySellerStoreName(s.business_name);
               return (
                 <motion.div
                   key={s.id}
@@ -147,12 +149,12 @@ export function SocietyLeaderboard() {
                         className="w-full h-full flex items-center justify-center font-bold text-white text-lg"
                         style={{ backgroundColor: `hsl(${hue}, 50%, 45%)` }}
                       >
-                        {s.business_name.charAt(0).toUpperCase()}
+                        {storeName.charAt(0).toUpperCase()}
                       </div>
                     )}
                   </div>
                   <p className="text-[10px] font-semibold text-foreground truncate text-center w-full leading-tight">
-                    {s.business_name}
+                    {storeName}
                   </p>
                   <div className="flex items-center gap-0.5 -mt-0.5">
                     <Star size={10} className="text-warning fill-warning" />

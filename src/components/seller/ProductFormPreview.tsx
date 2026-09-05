@@ -9,6 +9,7 @@ import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '@/components/u
 import { useCategoryConfigs } from '@/hooks/useCategoryBehavior';
 import { useCurrency } from '@/hooks/useCurrency';
 import { deriveActionType, ACTION_CONFIG } from '@/lib/marketplace-constants';
+import { offeringCopy, type SellerDomain } from '@/lib/seller-domain';
 import type { ProductFormData } from '@/hooks/useSellerProducts';
 import type { SellerProfile } from '@/types/Database';
 import type { BlockData } from '@/hooks/useAttributeBlocks';
@@ -17,9 +18,10 @@ interface ProductFormPreviewProps {
   formData: ProductFormData;
   sellerProfile: SellerProfile | null;
   attributeBlocks?: BlockData[];
+  sellerDomain?: SellerDomain;
 }
 
-function buildMockProduct(formData: ProductFormData, sellerProfile: SellerProfile | null): ProductWithSeller {
+function buildMockProduct(formData: ProductFormData, sellerProfile: SellerProfile | null, fallbackName: string): ProductWithSeller {
   const price = parseFloat(formData.price) || 0;
   const mrp = formData.mrp ? parseFloat(formData.mrp) : null;
   const now = new Date().toISOString();
@@ -27,7 +29,7 @@ function buildMockProduct(formData: ProductFormData, sellerProfile: SellerProfil
   return {
     id: 'preview',
     seller_id: sellerProfile?.id || 'preview-seller',
-    name: formData.name.trim() || 'Product Name',
+    name: formData.name.trim() || fallbackName,
     price,
     mrp: mrp && mrp > price ? mrp : null,
     image_url: formData.image_url,
@@ -45,7 +47,7 @@ function buildMockProduct(formData: ProductFormData, sellerProfile: SellerProfil
     lead_time_hours: formData.lead_time_hours ? parseInt(formData.lead_time_hours) : null,
     accepts_preorders: formData.accepts_preorders,
     seller_name: sellerProfile?.business_name || 'Your Store',
-    seller_verified: true,
+    seller_verified: sellerProfile?.verification_status === 'approved',
     seller_is_available: true,
     created_at: now,
     updated_at: now,
@@ -59,17 +61,20 @@ function ProductDetailPreview({
   formData,
   sellerProfile,
   attributeBlocks,
+  fallbackName,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   formData: ProductFormData;
   sellerProfile: SellerProfile | null;
   attributeBlocks?: BlockData[];
+  fallbackName: string;
+  pageHint?: string;
 }) {
   const { formatPrice } = useCurrency();
   const price = parseFloat(formData.price) || 0;
   const mrp = formData.mrp ? parseFloat(formData.mrp) : null;
-  const name = formData.name.trim() || 'Product Name';
+  const name = formData.name.trim() || fallbackName;
   const specs = attributeBlocks && attributeBlocks.length > 0 ? { blocks: attributeBlocks } : null;
 
   return (
@@ -169,13 +174,14 @@ function ProductDetailPreview({
 }
 
 /** Desktop sticky preview panel */
-export function ProductFormPreviewPanel({ formData, sellerProfile, attributeBlocks }: ProductFormPreviewProps) {
+export function ProductFormPreviewPanel({ formData, sellerProfile, attributeBlocks, sellerDomain = 'product' }: ProductFormPreviewProps) {
   const { configs } = useCategoryConfigs();
   const [detailOpen, setDetailOpen] = useState(false);
+  const copy = offeringCopy(sellerDomain);
 
   const mockProduct = useMemo(
-    () => buildMockProduct(formData, sellerProfile),
-    [formData, sellerProfile],
+    () => buildMockProduct(formData, sellerProfile, copy.previewFallbackName),
+    [formData, sellerProfile, copy.previewFallbackName],
   );
 
   return (
@@ -197,7 +203,7 @@ export function ProductFormPreviewPanel({ formData, sellerProfile, attributeBloc
       </div>
 
       <p className="text-[10px] text-muted-foreground mt-2 text-center max-w-[180px] leading-tight">
-        Tap "View Details" to preview the full product page
+        {copy.previewPageHint}
       </p>
 
       <ProductDetailPreview
@@ -206,20 +212,22 @@ export function ProductFormPreviewPanel({ formData, sellerProfile, attributeBloc
         formData={formData}
         sellerProfile={sellerProfile}
         attributeBlocks={attributeBlocks}
+        fallbackName={copy.previewFallbackName}
       />
     </div>
   );
 }
 
 /** Mobile floating preview button + drawer */
-export function ProductFormPreviewMobile({ formData, sellerProfile, attributeBlocks }: ProductFormPreviewProps) {
+export function ProductFormPreviewMobile({ formData, sellerProfile, attributeBlocks, sellerDomain = 'product' }: ProductFormPreviewProps) {
   const [open, setOpen] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
   const { configs } = useCategoryConfigs();
+  const copy = offeringCopy(sellerDomain);
 
   const mockProduct = useMemo(
-    () => buildMockProduct(formData, sellerProfile),
-    [formData, sellerProfile],
+    () => buildMockProduct(formData, sellerProfile, copy.previewFallbackName),
+    [formData, sellerProfile, copy.previewFallbackName],
   );
 
   return (
@@ -262,6 +270,7 @@ export function ProductFormPreviewMobile({ formData, sellerProfile, attributeBlo
         formData={formData}
         sellerProfile={sellerProfile}
         attributeBlocks={attributeBlocks}
+        fallbackName={copy.previewFallbackName}
       />
     </>
   );

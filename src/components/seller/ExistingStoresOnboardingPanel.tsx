@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { resolveStoreCategoryLabel } from '@/lib/store-category-label';
+import { isShelvedSellerStore, displaySellerStoreName } from '@/lib/seller-journey';
 import type { CategoryConfig } from '@/types/categories';
 
 interface StoreRow {
@@ -32,7 +33,8 @@ export function ExistingStoresOnboardingPanel({
   onAddNewStore,
   onManageStore,
 }: ExistingStoresOnboardingPanelProps) {
-  if (!stores.length) return null;
+  const visibleStores = (stores || []).filter((s) => !isShelvedSellerStore(s));
+  if (!visibleStores.length) return null;
 
   return (
     <div className="mb-6 rounded-2xl border border-border bg-card p-4 space-y-3">
@@ -43,7 +45,7 @@ export function ExistingStoresOnboardingPanel({
         </p>
       </div>
       <div className="space-y-2">
-        {stores.map((store) => {
+        {visibleStores.map((store) => {
           const status = store.verification_status || 'draft';
           const categoryLabel = resolveStoreCategoryLabel(store, configs);
           const isDraft = status === 'draft';
@@ -61,7 +63,9 @@ export function ExistingStoresOnboardingPanel({
                 <Store size={18} className="text-primary" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold truncate">{store.business_name || 'Untitled store'}</p>
+                <p className="text-sm font-semibold truncate">
+                  {displaySellerStoreName(store.business_name, 'Untitled store')}
+                </p>
                 <p className="text-[11px] text-muted-foreground truncate">{categoryLabel}</p>
                 <div className="mt-1">
                   {status === 'approved' && (
@@ -101,7 +105,8 @@ export function ExistingStoresOnboardingPanel({
         <Plus size={16} className="mr-2" />Add store in a new category
       </Button>
       <p className="text-[10px] text-center text-muted-foreground">
-        Already live? <Link to="/seller" className="text-primary underline">Open seller dashboard</Link>
+        Manage stores anytime from the{' '}
+        <Link to="/seller" className="text-primary underline">Seller Dashboard</Link>
       </p>
     </div>
   );

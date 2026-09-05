@@ -45,6 +45,8 @@ import { OrderItem, OrderStatus, PaymentStatus, ItemStatus } from '@/types/Datab
 import { isTerminalStatus, isSuccessfulTerminal, isFirstFlowStep, stepRequiresOtp, getStepOtpType } from '@/hooks/useCategoryStatusFlow';
 import { ArrowLeft, Phone, MapPin, Check, Star, MessageCircle, CreditCard, XCircle, Package, ChevronRight, Copy, Truck, Loader2, AlertTriangle, Clock, CircleCheckBig, Receipt } from 'lucide-react';
 import { describeBuyerOrderLocation } from '@/lib/buyerOrderLocation';
+import { formatOrderCancellationHeroReason } from '@/lib/order-cancellation-copy';
+import { displaySellerStoreName } from '@/lib/seller-journey';
 import { format } from 'date-fns';
 import { peekPreviousPath } from '@/lib/navigation-stack';
 import { getString, setString } from '@/lib/persistent-kv';
@@ -621,6 +623,7 @@ export default function OrderDetailPage() {
   const paymentStatusInfo = o.getPaymentStatus((order.payment_status as PaymentStatus) || 'pending');
   const isInTransit = o.isInTransit;
   const currentActors = (o.currentStepActor || '').split(',').map(a => a.trim());
+  const storeDisplayName = displaySellerStoreName(seller?.business_name);
 
   // ─── Derive display status (Zomato engine) ───────────────────────────────
   const displayStatus = deriveDisplayStatus({
@@ -633,7 +636,7 @@ export default function OrderDetailPage() {
     fulfillmentType: fulfillmentType,
     roadEtaMinutes,
     estimatedDeliveryAt: (order as any).estimated_delivery_at,
-    sellerName: seller?.business_name,
+    sellerName: storeDisplayName,
     totalRouteDistance: routeInfo?.totalDistance,
     remainingDistance: routeInfo?.remainingDistance,
     hasRiderLocation: !!deliveryTracking.riderLocation,
@@ -652,7 +655,7 @@ export default function OrderDetailPage() {
 
   // Defensive guard: render the seller action bar even when flow rows are missing,
   // as long as we have a resolvable next status (via transitions-only fallback in useOrderDetail).
-  const hasResolvableSellerCTA = !!o.nextStatus || o.canSellerReject;
+  const hasResolvableSellerCTA = !!o.nextStatus || o.canSellerReject || o.isScheduledAwaitingPrep;
   const hasSellerActionBar = o.isSellerView && !o.isFlowLoading && !isTerminalStatus(o.flow, order.status) && (o.flow.length > 0 || hasResolvableSellerCTA);
   const canRescheduleBooking = !o.isEnquiryOrder && !!serviceBooking && ['booked', 'scheduled', 'rescheduled'].includes(serviceBooking.status);
   const hasBuyerActionBar = o.isBuyerView && !o.isFlowLoading && o.flow.length > 0 && !isTerminalStatus(o.flow, order.status) && (o.buyerNextStatus || o.canBuyerCancel || canRescheduleBooking);
@@ -691,6 +694,9 @@ export default function OrderDetailPage() {
     }
     if (order.status === 'enquired') return 'New quote request — review and send quote';
     if (order.status === 'quoted') return 'Quote sent — waiting for customer to accept or respond';
+    if (order.status === 'scheduled' || order.status === 'rescheduled') {
+      return 'Scheduled — preparation unlocks when the window opens';
+    }
     const step = o.flow.find(s => s.status_key === order.status);
     if (step?.seller_hint) return step.seller_hint;
 
@@ -716,7 +722,7 @@ export default function OrderDetailPage() {
       <div className={`${(hasSellerActionBar || hasBuyerActionBar) ? 'pb-[calc(12rem+env(safe-area-inset-bottom))]' : 'pb-56'}`}>
         {/* ═══ Experience Header (replaces old header) ═══ */}
         <ExperienceHeader
-          sellerName={o.isSellerView ? (buyer?.name || 'Customer') : (seller?.business_name || 'Seller')}
+          sellerName={o.isSellerView ? (buyer?.name || 'Customer') : storeDisplayName}
           displayStatus={displayStatus}
           orderId={order.id}
           onBack={() => {
@@ -783,7 +789,7 @@ export default function OrderDetailPage() {
                     Quote Received — Review & Accept
                   </p>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    {seller?.business_name || 'Seller'} sent a quote for {formatPrice(order.total_amount)}. Accept the quote to confirm the service booking, or chat to discuss details.
+                    {storeDisplayName} sent a quote for {formatPrice(order.total_amount)}. Accept the quote to confirm the service booking, or chat to discuss details.
                   </p>
                 </div>
               </div>
@@ -970,7 +976,7 @@ export default function OrderDetailPage() {
           {o.isBuyerView && orderProgress.kind === 'stages' && !isTerminalStatus(o.flow, order.status) && order.status !== 'cancelled' && (
             <motion.div variants={cardEntrance}><LiveActivityCard
               displayStatus={displayStatus}
-              sellerName={seller?.business_name || 'Seller'}
+              sellerName={storeDisplayName}
               riderName={deliveryTracking.riderName}
               riderPhone={deliveryTracking.riderPhone}
               hasGps={!!deliveryTracking.riderLocation}
@@ -1058,9 +1064,9 @@ export default function OrderDetailPage() {
               <Loader2 size={14} className="animate-spin text-primary" />
               <p className="text-xs text-muted-foreground">
                 {o.isEnquiryOrder || order.status === 'enquired' ? (
-                  <>Waiting for {seller?.business_name || 'seller'} to send a quote…</>
+                  <>Waiting for {storeDisplayName.toLowerCase() === 'seller' ? 'seller' : storeDisplayName} to send a quote…</>
                 ) : (
-                  <>Waiting for {seller?.business_name || 'seller'} to confirm…</>
+                  <>Waiting for {storeDisplayName.toLowerCase() === 'seller' ? 'seller' : storeDisplayName} to confirm…</>
                 )}
                 {(seller as any)?.avg_response_minutes > 0
                   ? <span className="font-medium text-foreground"> Usually responds in ~{(seller as any).avg_response_minutes} min</span>
@@ -1116,16 +1122,10 @@ export default function OrderDetailPage() {
           {order.rejection_reason && isTerminalStatus(o.flow, order.status) && !isSuccessfulTerminal(o.flow, order.status) && (
             <OrderTerminalHero
               variant="cancelled"
-              reason={(() => {
-                const r = order.rejection_reason || '';
-                const cleaned = r.replace(/^Cancelled by buyer:\s*/i, '');
-                const who = r.startsWith('Cancelled by buyer:')
-                  ? (o.isBuyerView ? 'You cancelled this order' : 'Cancelled by buyer')
-                  : /not completed in time|seller didn't respond|payment was not completed/i.test(r)
-                    ? 'Auto-cancelled'
-                    : (o.isSellerView ? 'You cancelled this order' : 'Cancelled by seller');
-                return `${who}${cleaned ? ` — ${cleaned}` : ''}`;
-              })()}
+              reason={formatOrderCancellationHeroReason(
+                order as any,
+                o.isBuyerView ? 'buyer' : o.isSellerView ? 'seller' : 'other',
+              )}
               whenISO={order.status_updated_at || order.updated_at || order.created_at}
               items={items}
               sellerId={order.seller_id}
@@ -1146,7 +1146,7 @@ export default function OrderDetailPage() {
               <OrderTotalsCard
                 subtotal={subtotal}
                 total={order.total_amount}
-                discount={(order as any).discount_amount || 0}
+                discount={Number((order as any).coupon_discount || (order as any).discount_amount || 0)}
                 deliveryFee={(order as any).delivery_fee || 0}
                 isDeliveryOrder={isDeliveryOrder}
                 isEnquiryOrder={o.isEnquiryOrder || order.status === 'enquired' || order.status === 'quoted'}
@@ -1181,7 +1181,7 @@ export default function OrderDetailPage() {
                         onRoadEtaChange={setRoadEtaMinutes}
                         sellerLat={sellerLatVal}
                         sellerLng={sellerLngVal}
-                        sellerName={seller?.business_name}
+                        sellerName={storeDisplayName}
                         isPickedUp={['picked_up', 'on_the_way', 'at_gate', 'en_route', 'arrived'].includes(order.status)}
                         tall={true}
                         onRouteInfo={handleRouteInfo}
@@ -1308,7 +1308,10 @@ export default function OrderDetailPage() {
             return <GenericOtpCard orderId={order.id} targetStatus={nextStatus} targetStatusLabel={o.getFlowStepLabel(nextStatus, viewRole).label} />;
           })()}
 
-          {isDeliveryOrder && !isInTransit && !o.isBuyerView && <DeliveryStatusCard orderId={order.id} isBuyerView={o.isBuyerView} flow={o.flow} />}
+          {/* Hide after success — scheduled/lifecycle Timeline already shows Delivered */}
+          {isDeliveryOrder && !isInTransit && !o.isBuyerView && !isSuccessfulTerminal(o.flow, order.status) && (
+            <DeliveryStatusCard orderId={order.id} isBuyerView={o.isBuyerView} flow={o.flow} />
+          )}
 
           {o.isBuyerView && isDeliveryOrder && (order as any).estimated_delivery_at && !isTerminalStatus(o.flow, order.status) && !(deliveryAssignmentId && deliveryTracking.eta) && (
             <DeliveryETABanner estimatedDeliveryAt={(order as any).estimated_delivery_at} />
@@ -1358,7 +1361,7 @@ export default function OrderDetailPage() {
               <AppointmentDetailsCard
                 booking={serviceBooking}
                 title={items[0]?.product_name || 'Service appointment'}
-                sellerName={seller?.business_name}
+                sellerName={storeDisplayName}
                 notes={(order as any).notes || (order as any).delivery_notes || null}
               />
             )}
@@ -1464,7 +1467,7 @@ export default function OrderDetailPage() {
               paymentStatus={(order as any).payment_status}
               estimatedDeliveryAt={(order as any).estimated_delivery_at}
               sellerId={order.seller_id}
-              sellerName={seller?.business_name}
+              sellerName={storeDisplayName}
               societyId={(order as any).society_id}
               onChatOpen={o.chatRecipientId ? () => o.setIsChatOpen(true) : undefined}
             />
@@ -1517,11 +1520,11 @@ export default function OrderDetailPage() {
                     <Star className="text-warning fill-warning" size={20} />
                   </div>
                   <div>
-                    <p className="text-sm font-bold">Rate {seller?.business_name || 'this order'}</p>
+                    <p className="text-sm font-bold">Rate {storeDisplayName || 'this order'}</p>
                     <p className="text-[11px] text-muted-foreground">Your review helps your neighbors discover great sellers</p>
                   </div>
                 </div>
-                <ReviewForm orderId={order.id} sellerId={order.seller_id} sellerName={seller?.business_name || 'Seller'} onSuccess={() => o.setHasReview(true)} />
+                <ReviewForm orderId={order.id} sellerId={order.seller_id} sellerName={storeDisplayName} onSuccess={() => o.setHasReview(true)} />
               </div>
             </motion.div>
           )}
@@ -1545,7 +1548,7 @@ export default function OrderDetailPage() {
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">{o.isSellerView ? 'Customer' : 'Seller'}</p>
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-semibold">{o.isSellerView ? (buyer?.name || 'Customer') : (seller?.business_name || 'Seller')}</p>
+                <p className="text-sm font-semibold">{o.isSellerView ? (buyer?.name || 'Customer') : storeDisplayName}</p>
                 {(() => {
                    const block = o.isSellerView ? buyer?.block : sellerProfile?.block;
                    const flat = o.isSellerView ? buyer?.flat_number : sellerProfile?.flat_number;
@@ -1634,8 +1637,8 @@ export default function OrderDetailPage() {
           {/* Order Failure Recovery */}
           <OrderFailureRecovery orderId={order.id} orderStatus={order.status} />
 
-          {/* Order Timeline */}
-          <OrderTimeline orderId={order.id} />
+          {/* Audit timeline — skip when ScheduledOrderBanner already shows the lifecycle Timeline */}
+          {!(order as any).scheduled_date && <OrderTimeline orderId={order.id} />}
         </motion.div>
       </div>
 
@@ -1678,9 +1681,10 @@ export default function OrderDetailPage() {
               // OTP requirement is driven entirely by the workflow editor (category_status_flows.otp_type).
               // No hardcoded fallbacks — if the workflow says no OTP, no OTP is shown.
               const nextOtpType = getStepOtpType(o.flow, o.nextStatus);
-              const isPlatformDelivery = (order as any).delivery_handled_by === 'platform';
-              const needsDeliveryOtp = nextOtpType === 'delivery' && !!deliveryAssignmentId && isPlatformDelivery;
-              const needsGenericOtp = nextOtpType === 'generic' || (nextOtpType === 'delivery' && !isPlatformDelivery);
+              // Seller-delivery and platform-delivery both use delivery_assignments.delivery_code
+              // via verify_delivery_otp_and_complete — never GenericOtp (order_otp_codes).
+              const needsDeliveryOtp = nextOtpType === 'delivery' && !!deliveryAssignmentId;
+              const needsGenericOtp = nextOtpType === 'generic';
               const ctaClass = `${WORKFLOW_BAR_BTN} bg-accent text-accent-foreground hover:bg-accent/90`;
 
               return needsDeliveryOtp ? (

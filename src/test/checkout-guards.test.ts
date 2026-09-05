@@ -57,6 +57,17 @@ describe('checkout guards', () => {
     ).toBe(BUYER_DELIVERY_LOCATION_MSG);
   });
 
+  it('allows delivery when the browse pin has precise coords even without a saved address', () => {
+    expect(
+      assertBuyerCanCheckout({
+        profileSocietyId: 'soc-1',
+        fulfillmentType: 'delivery',
+        hasDeliveryAddress: false,
+        hasPreciseDeliveryCoords: true,
+      }),
+    ).toBeNull();
+  });
+
   it('maps server error codes to user-facing copy', () => {
     expect(checkoutErrorMessage('buyer_society_required')).toBe(BUYER_SOCIETY_REQUIRED_MSG);
     expect(checkoutErrorMessage('seller_society_required', 'Store X')).toBe('Store X');

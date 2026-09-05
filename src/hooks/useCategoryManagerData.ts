@@ -34,6 +34,7 @@ export interface CategoryConfigRow {
   supports_addons?: boolean;
   supports_recurring?: boolean;
   supports_staff_assignment?: boolean;
+  seller_domain?: string | null;
 }
 
 export function useCategoryManagerData() {
@@ -49,6 +50,7 @@ export function useCategoryManagerData() {
     show_veg_toggle: false, show_duration_field: false,
     transaction_type: 'cart_purchase', buyer_journey: 'cart' as BuyerJourneyId,
     supports_addons: false, supports_recurring: false, supports_staff_assignment: false,
+    seller_domain: 'product' as 'product' | 'service' | 'listing',
   });
   const [isSaving, setIsSaving] = useState(false);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -57,6 +59,7 @@ export function useCategoryManagerData() {
     display_name: '', icon: '', color: 'bg-blue-100 text-blue-600', parent_group: '',
     image_url: null as string | null, transaction_type: 'cart_purchase',
     buyer_journey: 'cart' as BuyerJourneyId,
+    seller_domain: 'product' as 'product' | 'service' | 'listing',
   });
   const [deleteCategory, setDeleteCategory] = useState<CategoryConfigRow | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -106,6 +109,7 @@ export function useCategoryManagerData() {
       supports_addons: category.supports_addons ?? false,
       supports_recurring: category.supports_recurring ?? false,
       supports_staff_assignment: category.supports_staff_assignment ?? false,
+      seller_domain: (category.seller_domain as any) || 'product',
     });
   };
 
@@ -129,6 +133,7 @@ export function useCategoryManagerData() {
         supports_addons: editForm.supports_addons,
         supports_recurring: editForm.supports_recurring,
         supports_staff_assignment: editForm.supports_staff_assignment,
+        seller_domain: editForm.seller_domain,
         ...journeyFields,
       }).eq('id', editingCategory.id);
       if (error) throw error;
@@ -147,6 +152,7 @@ export function useCategoryManagerData() {
     setAddForm({
       display_name: '', icon: '', color: 'bg-blue-100 text-blue-600', parent_group: groupSlug,
       image_url: null, transaction_type: 'cart_purchase', buyer_journey: 'cart',
+      seller_domain: 'product',
     });
     setIsAddDialogOpen(true);
   };
@@ -170,6 +176,7 @@ export function useCategoryManagerData() {
         display_order: maxOrder + 1,
         is_active: true,
         image_url: addForm.image_url || null,
+        seller_domain: addForm.seller_domain || 'product',
         ...journeyFields,
       } as any).select().single();
       if (error) throw error;

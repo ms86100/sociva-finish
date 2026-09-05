@@ -4,6 +4,7 @@ import {
   findBestSubcategoryMatch,
   migrateOnboardingStep,
   commerceModelToDefaultAction,
+  shouldSurfaceListingSuggestion,
   type IntentCatalogCategory,
   type IntentCatalogSubcategory,
 } from '@/lib/listing-intent';
@@ -228,6 +229,90 @@ describe('resolveListingIntent', () => {
     expect(r.suggestedCategorySlug).toBe('other-food');
     expect(r.matchBand).toBe('weak');
     expect(r.seedProductName).toBe('Korean fermented soybean paste');
+    expect(shouldSurfaceListingSuggestion(r)).toBe(false);
+  });
+
+  it('does not dump unknown or garbage phrases onto the first other-* category', () => {
+    const dumpCatalog: IntentCatalogCategory[] = [
+      ...categories,
+      {
+        slug: 'other-rentals',
+        id: 'cfg-other-rentals',
+        displayName: 'Other Rentals',
+        parentGroup: 'rentals',
+        transactionType: 'request_service',
+        supportsCart: false,
+      },
+      {
+        slug: 'other-food',
+        id: 'cfg-other-food',
+        displayName: 'Other Food',
+        parentGroup: 'food_beverages',
+        transactionType: 'cart_purchase',
+        supportsCart: true,
+      },
+    ];
+    for (const phrase of ['somethingxyz123noMatch', 'quantum widget fabrication']) {
+      const r = resolveListingIntent({ phrase, categories: dumpCatalog, subcategories });
+      expect(r.suggestedCategorySlug).toBeNull();
+      expect(r.matchBand).toBe('none');
+      expect(shouldSurfaceListingSuggestion(r)).toBe(false);
+    }
+  });
+
+  it('maps gujiya to a food category instead of Other Rentals', () => {
+    const foodCatalog: IntentCatalogCategory[] = [
+      ...categories,
+      {
+        slug: 'home_food',
+        id: 'cfg-home-food',
+        displayName: 'Home Food',
+        parentGroup: 'food_beverages',
+        transactionType: 'cart_purchase',
+        supportsCart: true,
+      },
+      {
+        slug: 'traditional_sweets',
+        id: 'cfg-sweets',
+        displayName: 'Traditional Sweets',
+        parentGroup: 'food_beverages',
+        transactionType: 'cart_purchase',
+        supportsCart: true,
+      },
+      {
+        slug: 'other-rentals',
+        id: 'cfg-other-rentals',
+        displayName: 'Other Rentals',
+        parentGroup: 'rentals',
+        transactionType: 'request_service',
+        supportsCart: false,
+      },
+    ];
+    const r = resolveListingIntent({ phrase: 'gujiya', categories: foodCatalog, subcategories });
+    expect(['traditional_sweets', 'home_food']).toContain(r.suggestedCategorySlug);
+    expect(r.suggestedCategorySlug).not.toBe('other-rentals');
+    expect(shouldSurfaceListingSuggestion(r)).toBe(true);
+  });
+
+  it('still sparkles a real food match such as homemade tiffin or Rajma Chawal', () => {
+    const foodCatalog: IntentCatalogCategory[] = [
+      ...categories,
+      {
+        slug: 'home_food',
+        id: 'cfg-home-food',
+        displayName: 'Home Food',
+        parentGroup: 'food_beverages',
+        transactionType: 'cart_purchase',
+        supportsCart: true,
+      },
+    ];
+    const tiffin = resolveListingIntent({ phrase: 'homemade tiffin', categories: foodCatalog, subcategories });
+    expect(['daily_tiffin', 'home_food']).toContain(tiffin.suggestedCategorySlug);
+    expect(shouldSurfaceListingSuggestion(tiffin)).toBe(true);
+
+    const rajma = resolveListingIntent({ phrase: 'Rajma Chawal', categories: foodCatalog, subcategories });
+    expect(rajma.suggestedCategorySlug).toBe('home_food');
+    expect(shouldSurfaceListingSuggestion(rajma)).toBe(true);
   });
 
   it('empty input keeps previous validation behavior', () => {
@@ -243,30 +328,32 @@ describe('resolveListingIntent', () => {
 });
 
 describe('migrateOnboardingStep', () => {
-  it('maps legacy 5-step indices into category-first steps', () => {
+  it('maps legacy 5-step indices into compact v5 steps', () => {
     expect(migrateOnboardingStep(1)).toBe(1);
-    expect(migrateOnboardingStep(2)).toBe(5);
-    expect(migrateOnboardingStep(3)).toBe(6);
-    expect(migrateOnboardingStep(4)).toBe(7);
-    expect(migrateOnboardingStep(5)).toBe(8);
+    expect(migrateOnboardingStep(2)).toBe(4);
+    expect(migrateOnboardingStep(3)).toBe(4);
+    expect(migrateOnboardingStep(4)).toBe(3);
+    expect(migrateOnboardingStep(5)).toBe(4);
   });
 
-  it('maps intent-first v2 steps into category-first steps', () => {
+  it('maps intent-first v2 steps into compact v5 steps', () => {
     expect(migrateOnboardingStep(1, '2')).toBe(1);
-    expect(migrateOnboardingStep(2, '2')).toBe(3);
-    expect(migrateOnboardingStep(3, '2')).toBe(2);
-    expect(migrateOnboardingStep(4, '2')).toBe(5);
-    expect(migrateOnboardingStep(5, '2')).toBe(6);
-    expect(migrateOnboardingStep(6, '2')).toBe(7);
-    expect(migrateOnboardingStep(7, '2')).toBe(8);
+    expect(migrateOnboardingStep(2, '2')).toBe(1);
+    expect(migrateOnboardingStep(3, '2')).toBe(3);
+    expect(migrateOnboardingStep(4, '2')).toBe(4);
+    expect(migrateOnboardingStep(5, '2')).toBe(4);
+    expect(migrateOnboardingStep(6, '2')).toBe(3);
+    expect(migrateOnboardingStep(7, '2')).toBe(4);
   });
 
-  it('maps v3 category-first front-funnel onto workflow-first restart', () => {
+  it('maps v3/v4 funnels onto compact v5', () => {
     expect(migrateOnboardingStep(1, '3')).toBe(1);
     expect(migrateOnboardingStep(2, '3')).toBe(1);
     expect(migrateOnboardingStep(3, '3')).toBe(1);
     expect(migrateOnboardingStep(4, '3')).toBe(1);
-    expect(migrateOnboardingStep(5, '3')).toBe(5);
-    expect(migrateOnboardingStep(7, '3')).toBe(7);
+    expect(migrateOnboardingStep(5, '3')).toBe(4);
+    expect(migrateOnboardingStep(7, '3')).toBe(3);
+    expect(migrateOnboardingStep(7, '4')).toBe(3);
+    expect(migrateOnboardingStep(8, '4')).toBe(4);
   });
 });

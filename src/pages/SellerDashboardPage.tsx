@@ -45,6 +45,7 @@ import { SellerTransferBanner } from '@/components/seller/SellerTransferBanner';
 import { SellerActivationBanner } from '@/components/seller/SellerActivationBanner';
 import { SellerJourneyBanner } from '@/components/seller/SellerJourneyBanner';
 import { SocivaCreditsCard } from '@/components/seller/SocivaCreditsCard';
+import { StoreCompletionCard } from '@/components/seller/StoreCompletionCard';
 import { useSellerCreditActivation, useSellerCreditRealtime, useSellerCreditSummary } from '@/hooks/queries/useSellerCredits';
 import { useSellerHasBookableServices } from '@/hooks/useSellerHasBookableServices';
 import {
@@ -450,6 +451,23 @@ export default function SellerDashboardPage() {
               healthTotal={healthTotal}
               onHealthClick={() => setHealthSheetOpen(true)}
             />
+
+            {(sellerProfile.verification_status === 'pending' || sellerProfile.verification_status === 'draft') && (
+              <StoreCompletionCard
+                sellerId={sellerProfile.id}
+                businessName={sellerProfile.business_name}
+                latitude={(sellerProfile as any).latitude}
+                longitude={(sellerProfile as any).longitude}
+                societyId={sellerProfile.society_id}
+                profileImageUrl={(sellerProfile as any).profile_image_url}
+                coverImageUrl={(sellerProfile as any).cover_image_url}
+                acceptsUpi={(sellerProfile as any).accepts_upi}
+                upiId={(sellerProfile as any).upi_id}
+                fulfillmentMode={(sellerProfile as any).fulfillment_mode}
+                verificationStatus={sellerProfile.verification_status}
+                defaultActionType={(sellerProfile as any).default_action_type}
+              />
+            )}
 
             {sellerProfile.verification_status === 'approved' && pendingOrders === 0 && pendingRefunds === 0 && (
               <SellerFestivalParticipation sellerId={sellerProfile.id} variant="dashboard" />

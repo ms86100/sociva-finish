@@ -53,9 +53,16 @@ describe('search ranking', () => {
     expect(selected.hiddenCount).toBeGreaterThan(0);
   });
 
-  it('does not hide results when there are only a few matches', () => {
+  it('keeps a small set of real text matches', () => {
     const selected = selectSearchResultsForDisplay('jhol momo', [jhol, paneer], true);
     expect(selected.hiddenCount).toBe(0);
-    expect(selected.preview).toHaveLength(2);
+    expect(selected.preview.map((item) => item.product_name)).toEqual(['Veg Jhol Momos (Fried 4pcs)']);
+  });
+
+  it('returns empty for unmatched typed queries instead of nearby browse rows', () => {
+    const selected = selectSearchResultsForDisplay('somethingxyz123noMatch', [jhol, paneer], true);
+    expect(selected.items).toHaveLength(0);
+    expect(selected.preview).toHaveLength(0);
+    expect(scoreSearchHit('somethingxyz123noMatch', jhol)).toBe(0);
   });
 });

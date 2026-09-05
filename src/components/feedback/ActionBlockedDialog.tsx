@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { AlertTriangle, Info, ShieldAlert } from 'lucide-react';
 import {
   AlertDialog,
@@ -12,6 +13,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import {
   acknowledgeNotify,
+  clearNotifyQueue,
   closeNotify,
   getNotifyState,
   subscribeNotify,
@@ -42,13 +44,24 @@ const VARIANT_STYLES: Record<
 
 export function ActionBlockedDialog() {
   const [s, setS] = useState<NotifyState>(getNotifyState());
+  const location = useLocation();
 
   useEffect(() => subscribeNotify(setS), []);
+
+  // Global dialog must not follow the user onto another route.
+  useEffect(() => {
+    clearNotifyQueue();
+  }, [location.pathname]);
 
   const { Icon, iconWrap, iconColor } = VARIANT_STYLES[s.variant];
 
   return (
-    <AlertDialog open={s.open}>
+    <AlertDialog
+      open={s.open}
+      onOpenChange={(open) => {
+        if (!open) acknowledgeNotify();
+      }}
+    >
       <AlertDialogContent className="sm:max-w-sm rounded-[1.75rem] border-border/80 shadow-[0_24px_60px_-18px_hsl(var(--foreground)/0.35)] max-h-[calc(100dvh-var(--app-safe-top,0px)-var(--app-safe-bottom,0px)-2rem)]">
         <AlertDialogHeader className="items-center text-center">
           <div className={`mx-auto mb-2 flex h-14 w-14 items-center justify-center rounded-full ${iconWrap}`}>

@@ -10,6 +10,7 @@ import { useSystemSettings } from '@/hooks/useSystemSettings';
 import { usePushNotifications } from '@/contexts/PushNotificationContext';
 import { notify } from '@/lib/notify';
 import { showFeedback } from '@/components/FeedbackPopupProvider';
+import { QA_OTP_REQ_ID } from '@/lib/qa-otp-bypass';
 
 export type AuthStep = 'phone' | 'otp' | 'society';
 export type SocietySubStep = 'search' | 'map-confirm' | 'request-form';
@@ -30,8 +31,10 @@ export function useAuthPage() {
   const [resendCooldown, setResendCooldown] = useState(0);
   const [otpReqId, setOtpReqId] = useState<string | null>(null);
   const [otpError, setOtpError] = useState<string | null>(null);
+  /** MSG91 OTP was consumed but GoTrue session not established — resend must start a fresh send. */
+  const otpConsumedNeedsFreshRef = useRef(false);
   const OTP_SEND_TIMEOUT_MS = 28_000;
-  const OTP_VERIFY_TIMEOUT_MS = 25_000;
+  const OTP_VERIFY_TIMEOUT_MS = 35_000;
 
   // Society selection state
   const [societies, setSocieties] = useState<Society[]>([]);
@@ -121,13 +124,22 @@ export function useAuthPage() {
     }
     if (isSendingOtp) return;
 
+    // After a consumed OTP / failed session, MSG91 retryOtp on the old reqId returns
+    // "already verified". Always start a brand-new send in that case.
+    // Never treat the first send as a resend just because the phone is a special case.
+    const forceFresh =
+      otpConsumedNeedsFreshRef.current ||
+      (resend && (!otpReqId || otpReqId === QA_OTP_REQ_ID));
+    const actuallyResend = resend && !forceFresh && !!otpReqId;
+
     setIsSendingOtp(true);
-    if (!resend) {
+    if (!resend || forceFresh) {
       // Optimistic UX: show OTP screen immediately; verify stays gated on otpReqId
       setOtpReqId(null);
       setOtp('');
       setStep('otp');
       setResendCooldown(30);
+      setOtpError(null);
     }
 
     const controller = new AbortController();
@@ -146,8 +158,8 @@ export function useAuthPage() {
           body: JSON.stringify({
             phone,
             country_code: '91',
-            resend,
-            reqId: resend ? otpReqId : undefined,
+            resend: actuallyResend,
+            reqId: actuallyResend ? otpReqId : undefined,
           }),
           signal: controller.signal,
         },
@@ -159,31 +171,75 @@ export function useAuthPage() {
         throw new Error('Failed to send OTP');
       }
       if (!response.ok || data?.error) {
-        throw new Error(data?.error || data?.message || 'Failed to send OTP');
+        const errMsg = String(data?.error || data?.message || 'Failed to send OTP');
+        const alreadyUsed =
+          /already verif|already been used|request a new|fetching record/i.test(errMsg);
+        if (actuallyResend && alreadyUsed) {
+          // Stale reqId — start a brand-new send (not recursive retryOtp).
+          otpConsumedNeedsFreshRef.current = true;
+          setOtpReqId(null);
+          clearTimeout(timeoutId);
+          setIsSendingOtp(false);
+          const fresh = await fetch(
+            `${SUPABASE_URL}/functions/v1/msg91-send-otp`,
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                apikey: SUPABASE_PUBLISHABLE_KEY,
+                Authorization: `Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
+              },
+              body: JSON.stringify({
+                phone,
+                country_code: '91',
+                resend: false,
+              }),
+            },
+          );
+          let freshData: any = null;
+          try {
+            freshData = await fresh.json();
+          } catch {
+            throw new Error('Failed to send OTP');
+          }
+          if (!fresh.ok || freshData?.error || !freshData?.reqId) {
+            throw new Error(freshData?.error || 'Failed to send OTP');
+          }
+          setOtpReqId(freshData.reqId);
+          otpConsumedNeedsFreshRef.current = false;
+          setResendCooldown(30);
+          setOtp('');
+          showFeedback({ title: 'New OTP sent', variant: 'success' });
+          return;
+        }
+        throw new Error(errMsg);
       }
 
       if (data?.reqId) {
         setOtpReqId(data.reqId);
+        otpConsumedNeedsFreshRef.current = false;
       } else {
         throw new Error('Failed to send OTP. Please try again.');
       }
 
       if (resend) {
         setResendCooldown(30);
+        setOtp('');
+        showFeedback({ title: 'New OTP sent', variant: 'success' });
       }
     } catch (error: any) {
-      if (!resend) {
+      if (!resend || forceFresh) {
         setStep('phone');
         setOtpReqId(null);
         setResendCooldown(0);
       }
       const timedOut = error?.name === 'AbortError';
       showFeedback({
-      title: timedOut
-        ? 'OTP is taking too long. Please try again.'
-        : (error.message || 'Failed to send OTP'),
-      variant: 'success',
-    });
+        title: timedOut
+          ? 'OTP is taking too long. Please try again.'
+          : (error.message || 'Failed to send OTP'),
+        variant: 'warning',
+      });
     } finally {
       clearTimeout(timeoutId);
       setIsSendingOtp(false);
@@ -235,13 +291,20 @@ export function useAuthPage() {
 
       if (!response.ok || data.error) {
         const msg = data.error || 'Verification failed. Please try again.';
+        const alreadyUsed = /already verif|already been used|request a new/i.test(String(msg));
+        if (alreadyUsed) {
+          otpConsumedNeedsFreshRef.current = true;
+          setOtpReqId(null);
+        }
         setOtpError(msg);
         toast.error(msg);
         return;
       }
 
-      const { token_hash, is_new_user } = data;
+      const { token_hash, is_new_user, access_token, refresh_token } = data;
       setIsNewUser(is_new_user);
+      // MSG91 (or Apple bypass) accepted this code — do not retry the same reqId.
+      otpConsumedNeedsFreshRef.current = true;
 
       // Drop any stale session (e.g. Google/email account) before phone magic-link
       // so OTP cannot leave the user on the wrong identity.
@@ -251,36 +314,54 @@ export function useAuthPage() {
         /* ignore */
       }
 
-      // Establish session using the magic link token.
-      // GoTrue's /verify endpoint occasionally 504s under DB pool contention —
-      // retry once after a brief backoff before surfacing failure to the user.
+      // Prefer server-minted session (avoids client verifyOtp 504 after OTP already spent).
       let verifyError: any = null;
       let authUser: any = null;
-      for (let attempt = 0; attempt < 2; attempt++) {
-        if (controller.signal.aborted) throw new DOMException('Aborted', 'AbortError');
-        const res = await supabase.auth.verifyOtp({ token_hash, type: 'magiclink' });
-        verifyError = res.error;
-        authUser = res.data?.user ?? res.data?.session?.user ?? null;
-        if (!verifyError) break;
-        const msg = String(verifyError?.message || '').toLowerCase();
-        const isTransient =
-          verifyError?.status === 504 ||
-          verifyError?.status === 503 ||
-          verifyError?.status === 0 ||
-          msg.includes('timeout') ||
-          msg.includes('timed out') ||
-          msg.includes('failed to fetch') ||
-          msg.includes('network');
-        if (!isTransient || attempt === 1) break;
-        await new Promise((r) => setTimeout(r, 800));
+
+      if (access_token && refresh_token) {
+        const { data: sessData, error: sessErr } = await supabase.auth.setSession({
+          access_token,
+          refresh_token,
+        });
+        verifyError = sessErr;
+        authUser = sessData?.user ?? sessData?.session?.user ?? null;
+      } else if (token_hash) {
+        // Fallback: establish session using the magic link token.
+        // GoTrue's /verify endpoint occasionally 504s under DB pool contention —
+        // retry with backoff before surfacing failure to the user.
+        for (let attempt = 0; attempt < 4; attempt++) {
+          if (controller.signal.aborted) throw new DOMException('Aborted', 'AbortError');
+          const res = await supabase.auth.verifyOtp({ token_hash, type: 'magiclink' });
+          verifyError = res.error;
+          authUser = res.data?.user ?? res.data?.session?.user ?? null;
+          if (!verifyError) break;
+          const msg = String(verifyError?.message || '').toLowerCase();
+          const isTransient =
+            verifyError?.status === 504 ||
+            verifyError?.status === 503 ||
+            verifyError?.status === 0 ||
+            msg.includes('timeout') ||
+            msg.includes('timed out') ||
+            msg.includes('failed to fetch') ||
+            msg.includes('network');
+          if (!isTransient || attempt === 3) break;
+          await new Promise((r) => setTimeout(r, 600 * (attempt + 1)));
+        }
+      } else {
+        verifyError = { message: 'missing session tokens' };
       }
 
       if (verifyError) {
-        const msg = 'Session could not be created. Please try again.';
+        // Clear spent reqId so Resend starts a fresh MSG91 send (not retryOtp).
+        setOtpReqId(null);
+        const msg =
+          'Phone verified, but sign-in timed out. Tap Resend OTP for a new code.';
         setOtpError(msg);
         toast.error(msg);
         return;
       }
+
+      otpConsumedNeedsFreshRef.current = false;
 
       // Guard: session must be the phone identity we just verified
       const expectedSynthetic = `91${phone}@phone.sociva.app`;
@@ -539,6 +620,8 @@ export function useAuthPage() {
     setPhone('');
     setOtp('');
     setOtpReqId(null);
+    setOtpError(null);
+    otpConsumedNeedsFreshRef.current = false;
     setSelectedSociety(null);
     setSelectedPlace(null);
     setAdjustedCoords(null);
@@ -583,6 +666,9 @@ export function useAuthPage() {
     handleSearchChange, handleSelectDbSociety, handleSelectGooglePlace,
     verifyGpsLocation, handleRequestNewSociety, handleSocietyComplete,
     formatPhone, resetFlow,
+    resetOtpSessionGuards: () => {
+      otpConsumedNeedsFreshRef.current = false;
+    },
   };
 }
 

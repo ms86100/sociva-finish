@@ -52,8 +52,9 @@ function OtpStep({ auth }: { auth: ReturnType<typeof useAuthPage> }) {
   const verifyDisabled =
     auth.otp.length < 4 || !auth.otpReqId || auth.isVerifyingOtp;
 
+  // Plain div — parent step switch no longer uses AnimatePresence (BUG-22).
   return (
-    <motion.div key="otp" initial={{ opacity: 0, x: 30 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -30 }} transition={{ duration: 0.25 }} className="space-y-5 pb-48">
+    <div className="space-y-5 pb-48">
       <div className="text-center space-y-1">
         <p className="text-sm text-muted-foreground">
           {auth.isSendingOtp && !auth.otpReqId ? 'Sending OTP to' : 'OTP sent to'}
@@ -93,20 +94,20 @@ function OtpStep({ auth }: { auth: ReturnType<typeof useAuthPage> }) {
         {auth.isSendingOtp && !auth.otpReqId ? 'Waiting for OTP…' : 'Verify & Continue'}
       </Button>
       <div className="flex items-center justify-between">
-        <button type="button" onClick={() => { auth.setStep('phone'); auth.setOtp(''); auth.setOtpReqId(null); auth.setOtpError(null); }} className="text-xs text-muted-foreground hover:text-foreground transition-colors inline-flex items-center gap-1">
+        <button type="button" onClick={() => { auth.setStep('phone'); auth.setOtp(''); auth.setOtpReqId(null); auth.setOtpError(null); auth.resetOtpSessionGuards?.(); }} className="text-xs text-muted-foreground hover:text-foreground transition-colors inline-flex items-center gap-1">
           <ArrowLeft size={12} /> Change number
         </button>
         <div>
           {auth.resendCooldown > 0 ? (
             <p className="text-xs text-muted-foreground">Resend in <span className="font-semibold text-primary">{auth.resendCooldown}s</span></p>
           ) : (
-            <button type="button" onClick={() => auth.handleSendOtp(true)} disabled={auth.isSendingOtp || auth.isVerifyingOtp || !auth.otpReqId} className="text-xs text-primary font-medium hover:underline inline-flex items-center gap-1">
+            <button type="button" onClick={() => auth.handleSendOtp(true)} disabled={auth.isSendingOtp || auth.isVerifyingOtp} className="text-xs text-primary font-medium hover:underline inline-flex items-center gap-1">
               <RefreshCw size={12} /> Resend OTP
             </button>
           )}
         </div>
       </div>
-    </motion.div>
+    </div>
   );
 }
 
@@ -156,12 +157,10 @@ export default function AuthPage() {
             <StepHeader step={auth.step} societySubStep={auth.societySubStep} />
           </div>
 
-          {/* Form Content */}
-          <div className="px-6 pb-6 overflow-visible">
-            <AnimatePresence mode="wait">
-              {/* Step 1: Phone */}
-              {auth.step === 'phone' && (
-                <motion.div key="phone" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} transition={{ duration: 0.25 }} className="space-y-4">
+          {/* Form Content — no outer AnimatePresence: exit stalls caused BUG-22 (OTP header + phone form). */}
+          <div className="px-6 pb-6 overflow-visible" key={auth.step}>
+              {auth.step === 'phone' ? (
+                <div className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="phone">Phone Number</Label>
                     <div className="flex gap-2">
@@ -215,17 +214,11 @@ export default function AuthPage() {
                     <p>📱 We'll send a 4-digit OTP to verify your number</p>
                     <p className="mt-1 text-muted-foreground/70">Same process for new & existing users</p>
                   </div>
-                </motion.div>
-              )}
-
-              {/* Step 2: OTP Verification */}
-              {auth.step === 'otp' && (
-                <OtpStep auth={auth} />
-              )}
-
-              {/* Step 3: Society Selection (new users) */}
-              {auth.step === 'society' && (
-                <motion.div key="society" initial={{ opacity: 0, x: 30 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -30 }} transition={{ duration: 0.25 }} className="space-y-4">
+                </div>
+              ) : auth.step === 'otp' ? (
+                <OtpStep key="otp" auth={auth} />
+              ) : (
+                <div key="society" className="space-y-4">
                   <AnimatePresence mode="wait">
                     {auth.societySubStep === 'request-form' && (
                       <motion.div key="request-form" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="space-y-3">
@@ -378,9 +371,8 @@ export default function AuthPage() {
                       </motion.div>
                     )}
                   </AnimatePresence>
-                </motion.div>
+                </div>
               )}
-            </AnimatePresence>
           </div>
         </div>
 

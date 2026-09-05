@@ -310,10 +310,19 @@ workflows:
         script: |
           cd ios/App
           # Add UIBackgroundModes to Info.plist
+          # Do NOT declare "location" — App Store 2.5.4. Delivery tracking uses
+          # foreground when-in-use geolocation while the seller keeps the app open.
           /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes array" App/Info.plist 2>/dev/null || true
           /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes:0 string remote-notification" App/Info.plist 2>/dev/null || true
           /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes:1 string fetch" App/Info.plist 2>/dev/null || true
-          /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes:2 string location" App/Info.plist 2>/dev/null || true
+          # Strip legacy location background mode if a prior build left it behind
+          /usr/libexec/PlistBuddy -c "Delete :UIBackgroundModes:2" App/Info.plist 2>/dev/null || true
+          for i in 0 1 2 3 4 5; do
+            MODE=$(/usr/libexec/PlistBuddy -c "Print :UIBackgroundModes:$i" App/Info.plist 2>/dev/null || true)
+            if [ "$MODE" = "location" ]; then
+              /usr/libexec/PlistBuddy -c "Delete :UIBackgroundModes:$i" App/Info.plist 2>/dev/null || true
+            fi
+          done
           # CRITICAL: Disable Firebase method swizzling so our manual APNs token
           # forwarding in AppDelegate.swift doesn't conflict with Firebase's auto-swizzling.
           # Without this, the permission prompt can silently fail to appear.
@@ -352,14 +361,13 @@ workflows:
             /usr/libexec/PlistBuddy -c "Add :NSPhotoLibraryAddUsageDescription string 'Sociva needs permission to save images to your photo library.'" App/Info.plist
           /usr/libexec/PlistBuddy -c "Set :NSCameraUsageDescription 'Sociva needs camera access to let you photograph products for listing and upload profile pictures.'" App/Info.plist 2>/dev/null || \
             /usr/libexec/PlistBuddy -c "Add :NSCameraUsageDescription string 'Sociva needs camera access to let you photograph products for listing and upload profile pictures.'" App/Info.plist
-          /usr/libexec/PlistBuddy -c "Set :NSLocationWhenInUseUsageDescription 'Sociva uses your location to verify your residential society membership and show nearby sellers.'" App/Info.plist 2>/dev/null || \
-            /usr/libexec/PlistBuddy -c "Add :NSLocationWhenInUseUsageDescription string 'Sociva uses your location to verify your residential society membership and show nearby sellers.'" App/Info.plist
-          /usr/libexec/PlistBuddy -c "Set :NSLocationAlwaysAndWhenInUseUsageDescription 'Sociva uses your location in the background to provide real-time delivery tracking when you are making deliveries as a seller.'" App/Info.plist 2>/dev/null || \
-            /usr/libexec/PlistBuddy -c "Add :NSLocationAlwaysAndWhenInUseUsageDescription string 'Sociva uses your location in the background to provide real-time delivery tracking when you are making deliveries as a seller.'" App/Info.plist
-          /usr/libexec/PlistBuddy -c "Set :NSLocationAlwaysUsageDescription 'Sociva uses your location in the background to provide real-time delivery tracking when you are making deliveries as a seller.'" App/Info.plist 2>/dev/null || \
-            /usr/libexec/PlistBuddy -c "Add :NSLocationAlwaysUsageDescription string 'Sociva uses your location in the background to provide real-time delivery tracking when you are making deliveries as a seller.'" App/Info.plist
-          /usr/libexec/PlistBuddy -c "Set :NSMotionUsageDescription 'Sociva uses motion activity (for example walking, driving, or being still) to keep live delivery tracking accurate and to save battery while you are making a delivery as a seller.'" App/Info.plist 2>/dev/null || \
-            /usr/libexec/PlistBuddy -c "Add :NSMotionUsageDescription string 'Sociva uses motion activity (for example walking, driving, or being still) to keep live delivery tracking accurate and to save battery while you are making a delivery as a seller.'" App/Info.plist
+          /usr/libexec/PlistBuddy -c "Set :NSLocationWhenInUseUsageDescription 'Sociva uses your location to verify your residential society membership, show nearby sellers, and share live delivery progress while you keep the app open as a seller.'" App/Info.plist 2>/dev/null || \
+            /usr/libexec/PlistBuddy -c "Add :NSLocationWhenInUseUsageDescription string 'Sociva uses your location to verify your residential society membership, show nearby sellers, and share live delivery progress while you keep the app open as a seller.'" App/Info.plist
+          # App Store 2.5.4: no persistent background location — remove Always keys from prior builds
+          /usr/libexec/PlistBuddy -c "Delete :NSLocationAlwaysAndWhenInUseUsageDescription" App/Info.plist 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Delete :NSLocationAlwaysUsageDescription" App/Info.plist 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Set :NSMotionUsageDescription 'Sociva may use motion activity while the app is open to keep live delivery progress accurate and save battery during an active seller delivery.'" App/Info.plist 2>/dev/null || \
+            /usr/libexec/PlistBuddy -c "Add :NSMotionUsageDescription string 'Sociva may use motion activity while the app is open to keep live delivery progress accurate and save battery during an active seller delivery.'" App/Info.plist
           echo "=== Privacy strings injected ==="
 
       - name: Copy GoogleService-Info.plist
@@ -1197,10 +1205,17 @@ workflows:
       - name: Enable Push Notification & Background Modes capabilities
         script: |
           cd ios/App
+          # Do NOT declare "location" — App Store 2.5.4 (foreground when-in-use only).
           /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes array" App/Info.plist 2>/dev/null || true
           /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes:0 string remote-notification" App/Info.plist 2>/dev/null || true
           /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes:1 string fetch" App/Info.plist 2>/dev/null || true
-          /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes:2 string location" App/Info.plist 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Delete :UIBackgroundModes:2" App/Info.plist 2>/dev/null || true
+          for i in 0 1 2 3 4 5; do
+            MODE=$(/usr/libexec/PlistBuddy -c "Print :UIBackgroundModes:$i" App/Info.plist 2>/dev/null || true)
+            if [ "$MODE" = "location" ]; then
+              /usr/libexec/PlistBuddy -c "Delete :UIBackgroundModes:$i" App/Info.plist 2>/dev/null || true
+            fi
+          done
           # CRITICAL: Disable Firebase method swizzling (same as ios-release workflow)
           /usr/libexec/PlistBuddy -c "Add :FirebaseAppDelegateProxyEnabled bool false" App/Info.plist 2>/dev/null || \
             /usr/libexec/PlistBuddy -c "Set :FirebaseAppDelegateProxyEnabled false" App/Info.plist
@@ -1231,14 +1246,13 @@ workflows:
             /usr/libexec/PlistBuddy -c "Add :NSPhotoLibraryAddUsageDescription string 'Sociva needs permission to save images to your photo library.'" App/Info.plist
           /usr/libexec/PlistBuddy -c "Set :NSCameraUsageDescription 'Sociva needs camera access to let you photograph products for listing and upload profile pictures.'" App/Info.plist 2>/dev/null || \
             /usr/libexec/PlistBuddy -c "Add :NSCameraUsageDescription string 'Sociva needs camera access to let you photograph products for listing and upload profile pictures.'" App/Info.plist
-          /usr/libexec/PlistBuddy -c "Set :NSLocationWhenInUseUsageDescription 'Sociva uses your location to verify your residential society membership and show nearby sellers.'" App/Info.plist 2>/dev/null || \
-            /usr/libexec/PlistBuddy -c "Add :NSLocationWhenInUseUsageDescription string 'Sociva uses your location to verify your residential society membership and show nearby sellers.'" App/Info.plist
-          /usr/libexec/PlistBuddy -c "Set :NSLocationAlwaysAndWhenInUseUsageDescription 'Sociva uses your location to verify your residential society membership and show nearby sellers, even in the background.'" App/Info.plist 2>/dev/null || \
-            /usr/libexec/PlistBuddy -c "Add :NSLocationAlwaysAndWhenInUseUsageDescription string 'Sociva uses your location to verify your residential society membership and show nearby sellers, even in the background.'" App/Info.plist
-          /usr/libexec/PlistBuddy -c "Set :NSLocationAlwaysUsageDescription 'Sociva uses your location in the background to provide real-time delivery tracking when you are making deliveries as a seller.'" App/Info.plist 2>/dev/null || \
-            /usr/libexec/PlistBuddy -c "Add :NSLocationAlwaysUsageDescription string 'Sociva uses your location in the background to provide real-time delivery tracking when you are making deliveries as a seller.'" App/Info.plist
-          /usr/libexec/PlistBuddy -c "Set :NSMotionUsageDescription 'Sociva uses motion activity (for example walking, driving, or being still) to keep live delivery tracking accurate and to save battery while you are making a delivery as a seller.'" App/Info.plist 2>/dev/null || \
-            /usr/libexec/PlistBuddy -c "Add :NSMotionUsageDescription string 'Sociva uses motion activity (for example walking, driving, or being still) to keep live delivery tracking accurate and to save battery while you are making a delivery as a seller.'" App/Info.plist
+          /usr/libexec/PlistBuddy -c "Set :NSLocationWhenInUseUsageDescription 'Sociva uses your location to verify your residential society membership, show nearby sellers, and share live delivery progress while you keep the app open as a seller.'" App/Info.plist 2>/dev/null || \
+            /usr/libexec/PlistBuddy -c "Add :NSLocationWhenInUseUsageDescription string 'Sociva uses your location to verify your residential society membership, show nearby sellers, and share live delivery progress while you keep the app open as a seller.'" App/Info.plist
+          # App Store 2.5.4: no persistent background location — remove Always keys from prior builds
+          /usr/libexec/PlistBuddy -c "Delete :NSLocationAlwaysAndWhenInUseUsageDescription" App/Info.plist 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Delete :NSLocationAlwaysUsageDescription" App/Info.plist 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Set :NSMotionUsageDescription 'Sociva may use motion activity while the app is open to keep live delivery progress accurate and save battery during an active seller delivery.'" App/Info.plist 2>/dev/null || \
+            /usr/libexec/PlistBuddy -c "Add :NSMotionUsageDescription string 'Sociva may use motion activity while the app is open to keep live delivery progress accurate and save battery during an active seller delivery.'" App/Info.plist
           echo "=== Privacy strings injected ==="
 
       - name: Copy GoogleService-Info.plist

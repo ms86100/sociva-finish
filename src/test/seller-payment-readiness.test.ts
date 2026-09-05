@@ -141,7 +141,7 @@ describe('seller payment / vacation source contracts', () => {
   it('new-seller defaults do not force online / UPI', () => {
     expect(settingsHook).toMatch(/accepts_online: false/);
     expect(application).toMatch(/accepts_online: false/);
-    expect(becomeSeller).toMatch(/pickup_payment_config: \{ \.\.\.formData\.pickup_payment_config, accepts_online: checked \}/);
+    expect(becomeSeller).not.toMatch(/accepts_online:\s*true/);
   });
 
   it('go-live and health use the same readiness helper', () => {

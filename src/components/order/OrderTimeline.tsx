@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 import { ChevronDown, ChevronUp } from 'lucide-react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { cardEntrance, staggerContainer } from '@/lib/motion-variants';
@@ -25,16 +25,18 @@ const STATUS_LABELS: Record<string, string> = {
   payment_pending: 'Complete payment',
   awaiting_cod_confirmation: 'Awaiting cash confirmation',
   pending: 'Order received — waiting for seller',
-  placed: 'Order placed — waiting for seller to accept',
-  accepted: 'Seller accepted — they are getting it ready',
-  preparing: 'Seller is preparing your order',
-  ready: 'Ready — pick up or wait for delivery',
-  picked_up: 'Picked up by delivery partner',
-  on_the_way: 'On the way to you',
+  placed: 'Order placed',
+  accepted: 'Seller accepted',
+  confirmed: 'Seller confirmed',
+  scheduled: 'Scheduled',
+  preparing: 'Preparing',
+  ready: 'Ready / Out for delivery',
+  picked_up: 'Picked up',
+  on_the_way: 'On the way',
   out_for_delivery: 'Out for delivery',
-  arrived: 'Delivery partner has arrived',
+  arrived: 'Arrived',
   at_gate: 'At your society gate',
-  delivered: 'Delivered successfully',
+  delivered: 'Delivered',
   completed: 'Order completed',
   cancelled: 'Order cancelled',
   rejected: 'Seller could not fulfill this order',
@@ -42,11 +44,74 @@ const STATUS_LABELS: Record<string, string> = {
   quoted: 'Seller accepted the enquiry',
 };
 
-function getTimelineLabel(action: string, metadata: any): string {
+type TimelineEvent = {
+  id: string;
+  action: string;
+  actor_id: string | null;
+  metadata: any;
+  created_at: string;
+};
+
+/** Prefer friendly lifecycle labels (same tone as ScheduledOrderTimeline). */
+export function getTimelineLabel(action: string, metadata: any): string {
+  const status =
+    metadata?.new_status ||
+    metadata?.to_status ||
+    (typeof action === 'string' && action.startsWith('order_status_') && action !== 'order_status_changed'
+      ? action.replace(/^order_status_/, '')
+      : null);
+
+  if (status && STATUS_LABELS[status]) return STATUS_LABELS[status];
+  if (status) return status.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase());
+
   if (action === 'order_status_changed' && metadata?.new_status) {
     return STATUS_LABELS[metadata.new_status] || `Status: ${metadata.new_status.replace(/_/g, ' ')}`;
   }
   return ACTION_LABELS[action] || action.replace(/_/g, ' ');
+}
+
+function getStatusKey(action: string, metadata: any): string | null {
+  if (metadata?.new_status) return String(metadata.new_status);
+  if (metadata?.to_status) return String(metadata.to_status);
+  if (action?.startsWith('order_status_') && action !== 'order_status_changed') {
+    return action.replace(/^order_status_/, '');
+  }
+  return null;
+}
+
+/**
+ * Audit logs often emit both `order_status_changed` and `order_status_<status>`
+ * for the same transition. Keep one friendly row per status (+ non-status events).
+ */
+export function dedupeTimelineEvents(events: TimelineEvent[]): TimelineEvent[] {
+  const seenStatus = new Set<string>();
+  const out: TimelineEvent[] = [];
+
+  // Prefer `order_status_changed` over bare `order_status_*` when both exist.
+  const ranked = [...events].sort((a, b) => {
+    const ta = new Date(a.created_at).getTime();
+    const tb = new Date(b.created_at).getTime();
+    if (ta !== tb) return ta - tb;
+    const score = (e: TimelineEvent) => (e.action === 'order_status_changed' ? 0 : e.action.startsWith('order_status_') ? 1 : 2);
+    return score(a) - score(b);
+  });
+
+  for (const event of ranked) {
+    const status = getStatusKey(event.action, event.metadata);
+    if (status) {
+      const key = `${status}@${new Date(event.created_at).getTime()}`;
+      // Also collapse same status within 2s (clock skew / dual writers)
+      const nearKey = [...seenStatus].find((k) => {
+        const [s, t] = k.split('@');
+        return s === status && Math.abs(Number(t) - new Date(event.created_at).getTime()) <= 2000;
+      });
+      if (nearKey || seenStatus.has(key)) continue;
+      seenStatus.add(key);
+    }
+    out.push(event);
+  }
+
+  return out.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
 }
 
 function getActorLabel(actorId: string | null, metadata: any): string {
@@ -78,14 +143,16 @@ export function OrderTimeline({ orderId }: OrderTimelineProps) {
         .eq('target_type', 'order')
         .eq('target_id', orderId)
         .order('created_at', { ascending: true });
-      return (data || []) as { id: string; action: string; actor_id: string | null; metadata: any; created_at: string }[];
+      return (data || []) as TimelineEvent[];
     },
     staleTime: 60_000,
   });
 
-  if (events.length === 0) return null;
+  const cleaned = useMemo(() => dedupeTimelineEvents(events), [events]);
 
-  const visibleEvents = isExpanded ? events : events.slice(-3);
+  if (cleaned.length === 0) return null;
+
+  const visibleEvents = isExpanded ? cleaned : cleaned.slice(-3);
 
   return (
     <motion.div
@@ -101,9 +168,9 @@ export function OrderTimeline({ orderId }: OrderTimelineProps) {
         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
           Order Timeline
         </p>
-        {events.length > 3 && (
+        {cleaned.length > 3 && (
           <span className="flex items-center gap-1 text-xs text-muted-foreground">
-            {isExpanded ? 'Show less' : `Show all (${events.length})`}
+            {isExpanded ? 'Show less' : `Show all (${cleaned.length})`}
             {isExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
           </span>
         )}

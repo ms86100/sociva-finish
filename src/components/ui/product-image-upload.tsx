@@ -10,6 +10,7 @@ interface ProductImageUploadProps {
   description?: string;
   className?: string;
   beforePick?: () => void | Promise<void>;
+  placeholder?: string;
 }
 
 export function ProductImageUpload({
@@ -18,6 +19,7 @@ export function ProductImageUpload({
   userId,
   className,
   beforePick,
+  placeholder = 'Upload product photo',
 }: ProductImageUploadProps) {
   return (
     <CroppableImageUpload
@@ -26,7 +28,7 @@ export function ProductImageUpload({
       folder="products"
       userId={userId}
       aspectRatio="square"
-      placeholder="Upload product photo"
+      placeholder={placeholder}
       className={className}
       cropAspect={1}
       beforePick={beforePick}

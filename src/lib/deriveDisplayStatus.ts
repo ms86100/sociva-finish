@@ -154,6 +154,20 @@ export function deriveDisplayStatus(options: DeriveOptions): DisplayStatusResult
     hasRiderLocation,
   } = options;
 
+  // Scheduled / rescheduled are already accepted into a future slot — not a fresh "new order".
+  if (orderStatus === 'scheduled' || orderStatus === 'rescheduled') {
+    return {
+      text: isBuyerView ? 'Order scheduled' : 'Scheduled order',
+      etaText: null,
+      etaFlag: null,
+      progressPercent: 10,
+      phase: 'placed',
+      icon: 'CalendarClock',
+      iconColor: 'text-emerald-500 bg-emerald-500/15',
+      emoji: '',
+    };
+  }
+
   // Honest labels for payment holds (before phase copy)
   if (orderStatus === 'payment_pending') {
     return {

@@ -34,6 +34,7 @@ import { BuyerUpcomingOrders } from '@/components/orders/BuyerUpcomingOrders';
 import { ScheduledOrderCountdown } from '@/components/orders/ScheduledOrderCountdown';
 import { isScheduledOrder, isUpcomingScheduled } from '@/lib/scheduled-orders';
 import { orderPaymentChipLabel } from '@/lib/payment-method-label';
+import { displaySellerStoreName } from '@/lib/seller-journey';
 
 function OrderCard({ order, type, successTerminals, unreadCounts }: { order: Order; type: 'buyer' | 'seller'; successTerminals: Set<string>; unreadCounts?: Map<string, number> }) {
   const { getFlowLabel } = useFlowStepLabels();
@@ -73,7 +74,7 @@ function OrderCard({ order, type, successTerminals, unreadCounts }: { order: Ord
           {/* Thumbnail 56x56 */}
           <div className="w-14 h-14 rounded-2xl overflow-hidden shrink-0 bg-muted border border-border/60">
             {itemImage ? (
-              <img src={itemImage} alt={firstItem?.product_name || seller?.business_name} className="w-full h-full object-cover" loading="lazy" />
+              <img src={itemImage} alt={firstItem?.product_name || displaySellerStoreName(seller?.business_name)} className="w-full h-full object-cover" loading="lazy" />
             ) : (
               <div className="w-full h-full flex items-center justify-center">
                 <Package size={22} className="text-muted-foreground/70" />
@@ -85,7 +86,7 @@ function OrderCard({ order, type, successTerminals, unreadCounts }: { order: Ord
             <div className="flex items-center justify-between gap-2">
               <div className="min-w-0">
                 <h3 className="text-sm font-semibold truncate">
-                  {type === 'buyer' ? (seller?.business_name || 'Seller') : (buyer?.name || 'Customer')}
+                  {type === 'buyer' ? displaySellerStoreName(seller?.business_name) : (buyer?.name || 'Customer')}
                 </h3>
                 <p className="text-[10px] text-muted-foreground font-mono truncate">
                   #{orderId.slice(0, 8)}

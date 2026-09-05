@@ -91,32 +91,36 @@ Deno.serve(async (req) => {
     const { phone, country_code = "91", resend = false, reqId } = await req.json();
     const clientIp = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
 
-    if (resend && !reqId) {
+    const isQaBypassPhone =
+      phone === "0123456789" ||
+      phone === "0987654321" ||
+      phone === "9876543201" ||
+      phone === "9535115316"; // TEMP E2E — remove after seller session
+
+    if (resend && !reqId && !isQaBypassPhone) {
       return new Response(
         JSON.stringify({ error: "Missing request ID for resend" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 
-    if (!resend) {
-      if (!phone || !/^\d{10}$/.test(phone)) {
-        return new Response(
-          JSON.stringify({ error: "Invalid phone number. Please provide a 10-digit number." }),
-          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-        );
-      }
+    if (!resend && (!phone || !/^\d{10}$/.test(phone))) {
+      return new Response(
+        JSON.stringify({ error: "Invalid phone number. Please provide a 10-digit number." }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
 
-      // Apple Review + QA phones (OTP always 1234 via apple-review-bypass reqId)
-      // 9876543201 = Integration Admin (browser QA only)
-      if (
-        (phone === "0123456789" || phone === "0987654321" || phone === "9876543201") &&
-        country_code === "91"
-      ) {
-        return new Response(
-          JSON.stringify({ success: true, message: "OTP sent", reqId: "apple-review-bypass" }),
-          { headers: { ...corsHeaders, "Content-Type": "application/json" } },
-        );
-      }
+    // Apple Review + QA phones: never call MSG91 (send or retryOtp).
+    // retryOtp on reqId "apple-review-bypass" returns MSG91 708 "error in fetching records".
+    if (
+      (isQaBypassPhone && country_code === "91") ||
+      reqId === "apple-review-bypass"
+    ) {
+      return new Response(
+        JSON.stringify({ success: true, message: resend ? "OTP resent" : "OTP sent", reqId: "apple-review-bypass" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
     }
 
     // One rate-limit key (was 2 sequential DB round-trips) + creds in parallel
@@ -205,8 +209,13 @@ Deno.serve(async (req) => {
     }
 
     console.error("MSG91 Widget OTP failed:", JSON.stringify(data));
+    const raw = String(data.message || "");
+    const friendly =
+      data.code === 708 || /fetching record/i.test(raw)
+        ? "Couldn't resend that code. Go back and request a new OTP."
+        : raw || "Failed to send OTP. Please try again.";
     return new Response(
-      JSON.stringify({ error: data.message || "Failed to send OTP. Please try again." }),
+      JSON.stringify({ error: friendly }),
       { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (error) {

@@ -43,7 +43,7 @@ export function SocivaCreditsCard({
           <p className="text-xs text-destructive mt-2">
             {summary?.spendEnabled
               ? SELLER_CREDITS_EXHAUSTED
-              : 'Recharge Sociva Credits to make your store visible to buyers nearby.'}
+              : 'Buyers cannot find your store in search until you recharge Sociva Credits.'}
           </p>
         )}
         <div className="flex items-center justify-between mt-2 text-[11px] text-muted-foreground">

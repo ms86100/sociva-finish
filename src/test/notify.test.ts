@@ -76,4 +76,11 @@ describe('important message queue', () => {
     adminNotify.error({ code: '42703', message: 'column secret_value does not exist' }, { id: 'admin-error' });
     expect(getNotifyState().message).not.toContain('secret_value');
   });
+
+  it('clears a leftover block so a later route does not keep showing it', () => {
+    notify.block('You already have a store in this type.', { id: 'seller-group-taken' });
+    expect(getNotifyState().open).toBe(true);
+    clearNotifyQueue();
+    expect(getNotifyState().open).toBe(false);
+  });
 });

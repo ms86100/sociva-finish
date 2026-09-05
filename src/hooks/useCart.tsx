@@ -149,20 +149,39 @@ const CartContext = createContext<CartContextType | undefined>(undefined);
 const CART_QUERY_KEY = ['cart-items'] as const;
 
 // ── Shared authoritative fetch ──
+const CART_ITEM_EMBED =
+  `*, product:products(*, seller:seller_profiles(id, business_name, user_id, is_available, availability_start, availability_end, operating_days, profile_image_url, cover_image_url, primary_group, accepts_cod, accepts_upi, upi_id, upi_verification_status, fulfillment_mode, minimum_order_amount, daily_order_limit, pickup_payment_config, delivery_payment_config, store_location_label, society:societies(name)))`;
+
+function withProducts<T extends { product?: Product | null }>(rows: T[] | null | undefined) {
+  // Keep unavailable products visible so a refresh can warn instead of silently dropping them.
+  return ((rows || []) as (CartItem & { product: Product })[]).filter((item) => item.product != null);
+}
+
 async function fetchCartItems(userId: string) {
   const { data, error } = await supabase
     .from('cart_items')
-    .select(`*, product:products(*, seller:seller_profiles(id, business_name, user_id, is_available, availability_start, availability_end, operating_days, profile_image_url, cover_image_url, primary_group, accepts_cod, accepts_upi, upi_id, upi_verification_status, fulfillment_mode, minimum_order_amount, daily_order_limit, pickup_payment_config, delivery_payment_config))`)
+    .select(CART_ITEM_EMBED)
     .eq('user_id', userId);
   if (error) throw error;
-  const items = (data as any as (CartItem & { product: Product })[]) || [];
-  // Keep unavailable products visible so a refresh can warn instead of silently dropping them.
-  const filtered = items.filter(item => item.product != null);
+  const filtered = withProducts(data as any);
 
-  // Layer 1 self-heal removed (perf): empty cart is overwhelmingly the common case
-  // and the COUNT round-trip on every empty result doubles cart-fetch traffic.
-  // Layers 2-4 (reconcile, mismatch recovery, CartPage veto) still cover the
-  // rare PostgREST glitch case.
+  // Embed/RLS can drop the product join while the cart row still exists.
+  // A cheap head-count recovers that case without paying COUNT on every empty cart.
+  if (filtered.length === 0) {
+    const { count, error: countError } = await supabase
+      .from('cart_items')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', userId);
+    if (!countError && (count ?? 0) > 0) {
+      const { data: retry, error: retryError } = await supabase
+        .from('cart_items')
+        .select('*, product:products(*)')
+        .eq('user_id', userId);
+      if (retryError) throw retryError;
+      const recovered = withProducts(retry as any);
+      if (recovered.length > 0) return recovered;
+    }
+  }
 
   return filtered;
 }
@@ -198,16 +217,16 @@ export function CartProvider({ children }: { children: ReactNode }) {
   // which is lightweight.
   const cartRouteActive = useIsCartActiveRoute();
 
-  const { data: items = [], isLoading, isFetching, isFetched } = useQuery({
+  const { data: items = [], isLoading, isFetching, isFetched, isError } = useQuery({
     queryKey: [...CART_QUERY_KEY, userId],
     queryFn: async () => {
       if (!userId) return [];
       return fetchCartItems(userId);
     },
     enabled: isSessionRestored && !!userId && cartRouteActive,
-    staleTime: 2 * 60 * 1000,
+    staleTime: 30 * 1000,
     gcTime: 60 * 60 * 1000,
-    
+    refetchOnMount: 'always',
     refetchOnWindowFocus: false,
   });
 
@@ -218,7 +237,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
       return fetchCartItemCount(userId);
     },
     enabled: isSessionRestored && !!userId,
-    staleTime: 2 * 60 * 1000,
+    staleTime: 30 * 1000,
+    refetchOnMount: 'always',
   });
 
   // ── Mutation helpers ──
@@ -249,27 +269,47 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const reconcile = useCallback(async () => {
     if (!user) return;
     const seq = ++mutationSeqRef.current;
+    const stillCurrent = () => mutationSeqRef.current === seq;
     try {
-      const freshItems = await fetchCartItems(user.id);
-      // Only apply if no newer mutation has started
-      if (mutationSeqRef.current !== seq) return;
+      let freshItems = await fetchCartItems(user.id);
+      if (!stillCurrent()) return;
 
-      // RULE 1: NEVER trust empty without server count verification
+      // RULE 1: NEVER trust empty without server count verification + a short
+      // read-your-writes retry. A successful insert can otherwise flash
+      // "Added to cart" and then wipe the cache before the replica is visible.
       if (freshItems.length === 0) {
+        const optimistic = (queryClient.getQueryData(cartKey()) as (CartItem & { product: Product })[] | undefined) || [];
         try {
-          const verifyCount = await fetchCartItemCount(user.id);
+          let verifyCount = await fetchCartItemCount(user.id);
+          if (!stillCurrent()) return;
+          if (verifyCount === 0) {
+            await new Promise((r) => setTimeout(r, 280));
+            if (!stillCurrent()) return;
+            freshItems = await fetchCartItems(user.id);
+            if (!stillCurrent()) return;
+            if (freshItems.length > 0) {
+              queryClient.setQueryData(cartKey(), freshItems);
+              queryClient.setQueryData(countKey(), freshItems.reduce((s, i) => s + i.quantity, 0));
+              setCartVerified(true);
+              return;
+            }
+            verifyCount = await fetchCartItemCount(user.id);
+            if (!stillCurrent()) return;
+          }
           if (verifyCount > 0) {
-            // Server has items — don't trust the empty result, force refetch
             queryClient.refetchQueries({ queryKey: cartKey(), exact: true });
             queryClient.refetchQueries({ queryKey: countKey(), exact: true });
             return;
           }
-          // Genuinely empty — safe to write (server count confirms 0)
+          if (optimistic.length > 0) {
+            queryClient.invalidateQueries({ queryKey: CART_QUERY_KEY, exact: false });
+            queryClient.invalidateQueries({ queryKey: ['cart-count'], exact: false });
+            return;
+          }
           queryClient.setQueryData(cartKey(), []);
           queryClient.setQueryData(countKey(), 0);
           setCartVerified(true);
         } catch {
-          // Count check failed — be safe, invalidate (don't overwrite with empty)
           queryClient.invalidateQueries({ queryKey: CART_QUERY_KEY, exact: false });
         }
         return;
@@ -279,7 +319,6 @@ export function CartProvider({ children }: { children: ReactNode }) {
       queryClient.setQueryData(countKey(), freshItems.reduce((s, i) => s + i.quantity, 0));
       setCartVerified(true);
     } catch {
-      // If reconcile fails, just invalidate — react-query will retry
       queryClient.invalidateQueries({ queryKey: CART_QUERY_KEY, exact: false });
     }
   }, [user, queryClient, cartKey, countKey]);
@@ -632,10 +671,11 @@ export function CartProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!hasHydrated) return;
     if (items.length > 0) { setCartVerified(true); return; }
+    if (isError) return;
     if (items.length === 0 && fallbackItemCount === 0 && isFetched && !isFetching) {
       setCartVerified(true);
     }
-  }, [hasHydrated, items.length, fallbackItemCount, isFetched, isFetching]);
+  }, [hasHydrated, items.length, fallbackItemCount, isFetched, isFetching, isError]);
 
   const contextValue = useMemo<CartContextType>(() => ({
     items, itemCount, totalAmount, sellerGroups, isLoading, isFetching, hasHydrated, isRecoveringCart, pendingMutations, addItem, replaceCart, updateQuantity, removeItem, clearCart, cartVerified,

@@ -27,16 +27,18 @@ export function StoreStatusCard({ sellerProfile, sellerProfiles, onToggleAvailab
   if (status === 'pending') {
     return (
       <div className="bg-warning/10 border border-warning/20 rounded-xl p-4">
-        <div className="flex items-center gap-3">
-          <Clock className="text-warning" size={24} />
-          <div className="flex-1">
-            <div className="flex items-center justify-between">
-              <h3 className="font-semibold">Verification Pending</h3>
-              {sellerProfiles.length > 1 && <SellerSwitcher />}
-            </div>
+        <div className="flex items-start gap-3">
+          <Clock className="text-warning shrink-0 mt-0.5" size={24} />
+          <div className="flex-1 min-w-0 space-y-2">
+            <h3 className="font-semibold">Verification Pending</h3>
             <p className="text-sm text-muted-foreground">
               {sellerProfile.business_name} is being reviewed by admin
             </p>
+            {sellerProfiles.length > 1 && (
+              <div className="min-w-0 max-w-full pt-0.5">
+                <SellerSwitcher />
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -47,16 +49,18 @@ export function StoreStatusCard({ sellerProfile, sellerProfiles, onToggleAvailab
   if (status === 'rejected') {
     return (
       <div className="bg-destructive/10 border border-destructive/20 rounded-xl p-4">
-        <div className="flex items-center gap-3">
-          <XCircle className="text-destructive" size={24} />
-          <div className="flex-1">
-            <div className="flex items-center justify-between">
-              <h3 className="font-semibold text-destructive">Store Rejected</h3>
-              {sellerProfiles.length > 1 && <SellerSwitcher />}
-            </div>
+        <div className="flex items-start gap-3">
+          <XCircle className="text-destructive shrink-0 mt-0.5" size={24} />
+          <div className="flex-1 min-w-0 space-y-2">
+            <h3 className="font-semibold text-destructive">Store Rejected</h3>
             <p className="text-sm text-muted-foreground">
               {sellerProfile.business_name} was not approved. Please update and resubmit.
             </p>
+            {sellerProfiles.length > 1 && (
+              <div className="min-w-0 max-w-full">
+                <SellerSwitcher />
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -67,16 +71,18 @@ export function StoreStatusCard({ sellerProfile, sellerProfiles, onToggleAvailab
   if (status === 'draft') {
     return (
       <div className="bg-muted border border-border rounded-xl p-4">
-        <div className="flex items-center gap-3">
-          <FileEdit className="text-muted-foreground" size={24} />
-          <div className="flex-1">
-            <div className="flex items-center justify-between">
-              <h3 className="font-semibold">Store Draft</h3>
-              {sellerProfiles.length > 1 && <SellerSwitcher />}
-            </div>
+        <div className="flex items-start gap-3">
+          <FileEdit className="text-muted-foreground shrink-0 mt-0.5" size={24} />
+          <div className="flex-1 min-w-0 space-y-2">
+            <h3 className="font-semibold">Store Draft</h3>
             <p className="text-sm text-muted-foreground">
               {sellerProfile.business_name} is still in draft. Complete setup and submit for review.
             </p>
+            {sellerProfiles.length > 1 && (
+              <div className="min-w-0 max-w-full">
+                <SellerSwitcher />
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -87,16 +93,18 @@ export function StoreStatusCard({ sellerProfile, sellerProfiles, onToggleAvailab
   if (status === 'suspended') {
     return (
       <div className="bg-destructive/10 border border-destructive/20 rounded-xl p-4">
-        <div className="flex items-center gap-3">
-          <XCircle className="text-destructive" size={24} />
-          <div className="flex-1">
-            <div className="flex items-center justify-between">
-              <h3 className="font-semibold text-destructive">Store Suspended</h3>
-              {sellerProfiles.length > 1 && <SellerSwitcher />}
-            </div>
+        <div className="flex items-start gap-3">
+          <XCircle className="text-destructive shrink-0 mt-0.5" size={24} />
+          <div className="flex-1 min-w-0 space-y-2">
+            <h3 className="font-semibold text-destructive">Store Suspended</h3>
             <p className="text-sm text-muted-foreground">
               {sellerProfile.business_name} has been suspended. Contact support for details.
             </p>
+            {sellerProfiles.length > 1 && (
+              <div className="min-w-0 max-w-full">
+                <SellerSwitcher />
+              </div>
+            )}
           </div>
         </div>
       </div>

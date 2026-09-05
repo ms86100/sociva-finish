@@ -285,6 +285,40 @@ export function useSellerSettings() {
       }
       const { error } = await supabase.from('seller_profiles').update(updatePayload).eq('id', sellerProfile.id);
       if (error) throw error;
+
+      // Keep booking schedules in sync with Hours tab. Without this, Book Now has
+      // zero service_slots even when operating hours look set on the store profile.
+      const dayToDow: Record<string, number> = {
+        sunday: 0, monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6,
+        sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6,
+      };
+      const activeDows = new Set(
+        formData.operating_days
+          .map((d) => dayToDow[String(d).toLowerCase()])
+          .filter((n): n is number => typeof n === 'number'),
+      );
+      const scheduleRows = [0, 1, 2, 3, 4, 5, 6].map((dow) => ({
+        seller_id: sellerProfile.id,
+        product_id: null,
+        day_of_week: dow,
+        start_time: availabilityStart.length === 5 ? `${availabilityStart}:00` : availabilityStart,
+        end_time: availabilityEnd.length === 5 ? `${availabilityEnd}:00` : availabilityEnd,
+        is_active: activeDows.has(dow),
+      }));
+      await (supabase.from('service_availability_schedules') as any)
+        .delete()
+        .eq('seller_id', sellerProfile.id)
+        .is('product_id', null);
+      const { error: schedErr } = await (supabase.from('service_availability_schedules') as any)
+        .insert(scheduleRows);
+      if (schedErr) console.warn('Booking schedule sync failed:', schedErr.message);
+      else {
+        await supabase.rpc('generate_service_slots_for_seller' as any, {
+          p_seller_id: sellerProfile.id,
+          p_horizon_days: 30,
+        });
+      }
+
       showFeedback({
         title: 'Settings saved successfully',
         variant: 'success',

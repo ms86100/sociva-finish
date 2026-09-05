@@ -39,6 +39,8 @@ import {
   extractAvailableCommerceFacets,
 } from '@/lib/commerce-facets';
 import { isFoodParentGroup } from '@/lib/food-facets';
+import { useSellerContext } from '@/contexts/auth/contexts';
+import { pickSellerJourneyStore } from '@/lib/seller-journey';
 
 function getPublicOrigin() {
   const origin = window.location.origin || '';
@@ -94,6 +96,24 @@ export function MarketplaceSection() {
   const navigate = useNavigate();
   const ml = useMarketplaceLabels();
   const { browsingLocation } = useBrowsingLocation();
+  const { sellerProfiles } = useSellerContext();
+  const sellerAttention = pickSellerJourneyStore(sellerProfiles);
+  const emptyMarketplacePrimary = useMemo(() => {
+    if (sellerAttention?.status === 'pending') {
+      return { label: 'Finish store details', href: '/seller' };
+    }
+    if (sellerAttention?.status === 'rejected') {
+      return { label: 'Update & resubmit store', href: '/become-seller' };
+    }
+    if (sellerAttention?.status === 'approved') {
+      return { label: 'Open Seller Dashboard', href: '/seller' };
+    }
+    const hasDraft = (sellerProfiles || []).some((p: any) => p.verification_status === 'draft');
+    if (hasDraft) {
+      return { label: 'Continue store setup', href: '/become-seller' };
+    }
+    return { label: 'Start selling to your neighbors', href: '/become-seller' };
+  }, [sellerAttention, sellerProfiles]);
 
   const [activeGroup, setActiveGroup] = useState<string | null>(null);
   const [commerceFacets, setCommerceFacets] = useState<CommerceFacetState>(emptyCommerceFacetState());
@@ -278,10 +298,10 @@ export function MarketplaceSection() {
 
           <div className="flex flex-col gap-2 max-w-xs mx-auto">
             <button
-              onClick={() => navigate('/become-seller')}
+              onClick={() => navigate(emptyMarketplacePrimary.href)}
               className="w-full px-4 py-3 rounded-xl bg-primary text-primary-foreground text-sm font-semibold active:scale-[0.98] transition-transform"
             >
-              Start selling to your neighbors
+              {emptyMarketplacePrimary.label}
             </button>
             <button
               onClick={() => { inviteNeighborToSell(); }}

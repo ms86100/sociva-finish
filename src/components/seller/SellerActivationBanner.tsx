@@ -17,11 +17,11 @@ export function SellerActivationBanner({
       <div className="flex items-start gap-3">
         <Coins size={18} className="text-primary shrink-0 mt-0.5" />
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold">Your store is approved</p>
+          <p className="text-sm font-semibold">Approved — not visible to buyers yet</p>
           <p className="text-xs text-muted-foreground mt-1">
             {allStores
-              ? 'Recharge Sociva Credits to make your stores visible to buyers nearby.'
-              : 'Recharge Sociva Credits to make your store visible to buyers nearby.'}
+              ? 'Buyers cannot find your stores in search until you recharge Sociva Credits.'
+              : 'Buyers cannot find your store in search until you recharge Sociva Credits.'}
           </p>
           <Link to={SELLER_CREDITS_ROUTE}>
             <Button size="sm" className="mt-3 h-8 text-xs">

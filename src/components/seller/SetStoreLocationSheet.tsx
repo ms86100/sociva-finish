@@ -14,6 +14,7 @@ import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { friendlyError } from '@/lib/utils';
 import { showFeedback } from '@/components/FeedbackPopupProvider';
+import { isShelvedSellerStore } from '@/lib/seller-journey';
 
 interface SetStoreLocationSheetProps {
   open: boolean;
@@ -36,7 +37,7 @@ export function SetStoreLocationSheet({ open, onOpenChange, sellerId, onSuccess 
   const { sellerProfiles } = useAuth();
 
   const existingStoreLocations = (sellerProfiles || [])
-    .filter((sp: any) => sp.latitude && sp.longitude && sp.id !== sellerId)
+    .filter((sp: any) => sp.latitude && sp.longitude && sp.id !== sellerId && !isShelvedSellerStore(sp))
     .map((sp: any) => ({ id: sp.id, business_name: sp.business_name || 'Store', latitude: sp.latitude as number, longitude: sp.longitude as number, store_location_label: sp.store_location_label as string | null }));
 
   // Auto-focus input when pick overlay opens

@@ -25,6 +25,7 @@ export type JourneySellerProfile = {
   business_name?: string | null;
   verification_status?: string | null;
   rejection_note?: string | null;
+  is_available?: boolean | null;
 };
 
 const EMPTY_JOURNEY: SellerJourney = {
@@ -43,11 +44,86 @@ function storeNameOf(profile: JourneySellerProfile): string {
   return name || 'your store';
 }
 
+/**
+ * QA / multi-store cleanup often renames dead stores with [ARCHIVED] / [HOLD].
+ * Those must never drive the home "Update application" / recharge journey —
+ * otherwise a live store is ignored while a shelved reject loops forever.
+ */
+export function isShelvedSellerStore(
+  profile: Pick<JourneySellerProfile, 'business_name'> | null | undefined,
+): boolean {
+  const name = (profile?.business_name || '').trim();
+  return /^\[(ARCHIVED|HOLD)\]/i.test(name);
+}
+
+/** Active stores only — excludes shelved [ARCHIVED]/ [HOLD] names. */
+export function actionableSellerProfiles(
+  profiles: JourneySellerProfile[] | null | undefined,
+): JourneySellerProfile[] {
+  return (profiles || []).filter((p) => !isShelvedSellerStore(p));
+}
+
+/**
+ * Pending/rejected store that should block default `#/become-seller` with a status screen.
+ * Shelved [ARCHIVED]/[HOLD] rows must never win — otherwise multi-store sellers land on
+ * “Application Not Approved” for cleanup leftovers (Wave 9 residual).
+ */
+export function pickBecomeSellerBlockingStore(
+  profiles: JourneySellerProfile[] | null | undefined,
+): JourneySellerProfile | null {
+  return (
+    actionableSellerProfiles(profiles).find(
+      (s) => s.verification_status === 'rejected' || s.verification_status === 'pending',
+    ) ?? null
+  );
+}
+
+/** Buyer/seller-facing label without internal [ARCHIVED] / [HOLD] prefixes. */
+export function displaySellerStoreName(
+  name: string | null | undefined,
+  fallback = 'Seller',
+): string {
+  const raw = (name || '').trim();
+  if (!raw) return fallback;
+  const cleaned = raw.replace(/^\[(ARCHIVED|HOLD)\]\s*/i, '').trim();
+  return cleaned || fallback;
+}
+
+/**
+ * Default store for seller dashboard / auth bootstrap.
+ * Prefer non-shelved approved → pending → any actionable; never sticky-default to [ARCHIVED]/[HOLD]
+ * when a live store exists. Portfolio sentinel must be handled by the caller.
+ */
+export function pickDefaultSellerStoreId(
+  profiles: JourneySellerProfile[] | null | undefined,
+  preferredId?: string | null,
+): string | null {
+  const list = profiles || [];
+  if (list.length === 0) return null;
+
+  const actionable = actionableSellerProfiles(list);
+  const pool = actionable.length > 0 ? actionable : list;
+
+  if (preferredId) {
+    const preferred = list.find((p) => p.id === preferredId);
+    if (preferred && !isShelvedSellerStore(preferred)) return preferred.id;
+    if (preferred && isShelvedSellerStore(preferred) && actionable.length === 0) {
+      return preferred.id;
+    }
+  }
+
+  const approved = pool.find((p) => p.verification_status === 'approved');
+  if (approved) return approved.id;
+  const pending = pool.find((p) => p.verification_status === 'pending');
+  if (pending) return pending.id;
+  return pool[0]?.id ?? null;
+}
+
 /** Pick the store that needs the seller's attention first. */
 export function pickSellerJourneyStore(
   profiles: JourneySellerProfile[] | null | undefined,
 ): SellerJourneyStore | null {
-  const list = profiles || [];
+  const list = actionableSellerProfiles(profiles);
   const rejected = list.find((p) => p.verification_status === 'rejected');
   if (rejected) {
     return {
@@ -92,9 +168,9 @@ export function resolveSellerJourney(
       storeName: store.storeName,
       rejectionNote: null,
       title: "We're reviewing your store",
-      body: `${store.storeName} is with our team. You'll get a notification as soon as it's ready — usually within a day. Nothing more is needed from you right now.`,
-      cta: 'See application',
-      href: '/become-seller',
+      body: `${store.storeName} is with our team. You'll get a notification when review finishes — usually within a day. Open the Seller Dashboard anytime to finish location, payments, and photos.`,
+      cta: 'Finish store details',
+      href: '/seller',
     };
   }
 
@@ -109,7 +185,7 @@ export function resolveSellerJourney(
         ? `We couldn't approve ${store.storeName} yet. ${store.rejectionNote}`
         : `We couldn't approve ${store.storeName} yet. Update your application and resubmit when you're ready.`,
       cta: 'Update application',
-      href: '/become-seller',
+      href: `/become-seller?seller=${encodeURIComponent(store.sellerId)}`,
     };
   }
 
@@ -123,7 +199,7 @@ export function resolveSellerJourney(
         storeName: store.storeName,
         rejectionNote: null,
         title: 'Your store is approved',
-        body: `Welcome to selling on Sociva. Recharge Sociva Credits to make ${store.storeName} visible to buyers nearby.`,
+    body: `Welcome to selling on Sociva. Buyers cannot find ${store.storeName} in search until you recharge Sociva Credits.`,
         cta: 'Recharge credits',
         href: SELLER_CREDITS_ROUTE,
       };
@@ -143,13 +219,13 @@ export function isSellerJourneyDuplicateNotification(
   if (journeyKind === 'pending' && notificationType === 'seller_store_submitted') return true;
   if (journeyKind === 'approved_recharge' && notificationType === 'seller_approved') return true;
   if (notificationType === 'seller_approved') {
-    const list = profiles || [];
+    const list = actionableSellerProfiles(profiles);
     if (list.some((p) => p.verification_status === 'approved')) return true;
   }
   if (journeyKind === 'rejected' && notificationType === 'seller_rejected') return true;
   // Submit notice is stale once admin has decided (or credits are already live)
   if (notificationType === 'seller_store_submitted') {
-    const list = profiles || [];
+    const list = actionableSellerProfiles(profiles);
     if (list.some((p) => p.verification_status === 'approved' || p.verification_status === 'rejected')) {
       return true;
     }

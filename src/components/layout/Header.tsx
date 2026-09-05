@@ -48,7 +48,7 @@ function HeaderInner({
 
   const { profile, society, user, viewAsSocietyId, effectiveSociety, effectiveSocietyId, setViewAsSociety, isAdmin, isBuilderMember, isProfileLoading } = useAuth();
   const unreadCount = useUnreadNotificationCount();
-  const { browsingLocation } = useBrowsingLocation();
+  const { browsingLocation, hasOverride } = useBrowsingLocation();
   const takeover = useFestivalTakeover();
   const festivalChrome = takeover.active && !title;
 
@@ -67,7 +67,8 @@ function HeaderInner({
       : null) ||
     'Set location';
 
-  const fullAddress = browsingLocation?.fullAddress || displaySociety?.address || profile?.full_address;
+  const fullAddress = browsingLocation?.fullAddress
+    || (!hasOverride ? (displaySociety?.address || (profile as { full_address?: string } | null)?.full_address) : undefined);
   const locationDisplay = useMemo(
     () => formatLocationDisplay(rawLocationLabel, { fullAddress }),
     [rawLocationLabel, fullAddress]

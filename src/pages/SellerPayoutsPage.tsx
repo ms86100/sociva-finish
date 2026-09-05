@@ -74,8 +74,8 @@ export default function SellerPayoutsPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const isPortfolio = isPortfolioSellerId(currentSellerId);
-  const portfolioIds = sellerProfiles.map((s) => s.id);
-  const activeSellerId = resolveOperationalSellerId(currentSellerId, sellerProfiles);
+  const portfolioIds = (sellerProfiles || []).map((s) => s.id);
+  const activeSellerId = resolveOperationalSellerId(currentSellerId, sellerProfiles || []);
   const scopeIds = isPortfolio ? portfolioIds : activeSellerId ? [activeSellerId] : [];
 
   const fetchSettlementPage = useCallback(async (sellerIds: string[], before?: string) => {

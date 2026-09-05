@@ -8,10 +8,12 @@ export const SELLER_CREDITS_ROUTE = '/seller/credits';
 export const SELLER_EARNINGS_WALLET_ROUTE = '/seller/wallet';
 
 export const CUSTOMER_UNAVAILABLE_ORDERS =
-  'This seller is currently unavailable for new orders.';
+  'This seller isn’t accepting new orders right now. Try another store nearby, or check back later.';
 
 export const CUSTOMER_UNAVAILABLE_REQUESTS =
-  'This seller is currently unavailable for new requests.';
+  'This seller isn’t accepting new requests right now. Try another store nearby, or check back later.';
+
+export const CUSTOMER_UNAVAILABLE_TITLE = 'Seller unavailable';
 
 /** @deprecated Use CUSTOMER_UNAVAILABLE_ORDERS or sellerCreditCustomerMessage */
 export const CUSTOMER_STORE_UNAVAILABLE = CUSTOMER_UNAVAILABLE_ORDERS;
@@ -233,15 +235,32 @@ export function sellerCreditCustomerMessage(
 ): string {
   if (eventType === 'ORDER_COMPLETED') return CUSTOMER_UNAVAILABLE_ORDERS;
   if (eventType && eventType !== 'ORDER_COMPLETED') return CUSTOMER_UNAVAILABLE_REQUESTS;
-  if (/unavailable for new requests/i.test(message || '')) return CUSTOMER_UNAVAILABLE_REQUESTS;
+  if (/unavailable for new requests|isn['’]t accepting new requests/i.test(message || '')) {
+    return CUSTOMER_UNAVAILABLE_REQUESTS;
+  }
   if (
     isSellerCreditInsufficientError(message)
     || /temporarily unavailable for new/i.test(message || '')
     || /unavailable for new orders/i.test(message || '')
+    || /isn['’]t accepting new orders/i.test(message || '')
   ) {
     return CUSTOMER_UNAVAILABLE_ORDERS;
   }
   return message || CUSTOMER_UNAVAILABLE_ORDERS;
+}
+
+/** Title + body for ActionBlockedDialog when buyer hits a credit/activation gate. */
+export function sellerCreditCustomerNotifyOptions(
+  message?: string | null,
+  eventType?: string | null,
+): { title: string; message: string; id: string } {
+  return {
+    title: CUSTOMER_UNAVAILABLE_TITLE,
+    message: sellerCreditCustomerMessage(message, eventType),
+    id: eventType === 'ORDER_COMPLETED' || !eventType
+      ? 'seller-credit-orders-blocked'
+      : 'seller-credit-requests-blocked',
+  };
 }
 
 export type SellerCreditSummary = {

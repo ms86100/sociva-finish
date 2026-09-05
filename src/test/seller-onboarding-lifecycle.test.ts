@@ -11,22 +11,21 @@ import {
   sellingRadiusCopy,
 } from '@/lib/seller-onboarding-copy';
 import { functionInvokeErrorMessage, parseFunctionInvokeError } from '@/lib/function-invoke-error';
-import { isSellerJourneyDuplicateNotification, resolveSellerJourney } from '@/lib/seller-journey';
+import { isSellerJourneyDuplicateNotification, pickSellerJourneyStore, isShelvedSellerStore, resolveSellerJourney, pickDefaultSellerStoreId, displaySellerStoreName, pickBecomeSellerBlockingStore } from '@/lib/seller-journey';
 
 const read = (path: string) => readFileSync(resolve(__dirname, '../..', path), 'utf8');
 
 describe('seller onboarding lifecycle', () => {
-  it('asks fulfilment before radius and shows free-delivery plus home-seller copy', () => {
+  it('uses short v5 store submit with location defaults instead of multi-step store setup', () => {
     const page = read('src/pages/BecomeSellerPage.tsx');
-    expect(page).toContain('STORE_SETUP_SUB_STEPS');
-    expect(page.indexOf('storeSetupSubStep === 1')).toBeLessThan(page.indexOf('storeSetupSubStep === 2'));
-    expect(page.indexOf('storeSetupSubStep === 2')).toBeLessThan(page.indexOf('storeSetupSubStep === 3'));
-    expect(page.indexOf('How will customers receive their orders?')).toBeLessThan(page.indexOf('Set your selling radius'));
-    expect(page).toContain('HOME_SELLER_LOCATION_HINT');
-    expect(page).toContain('FREE_DELIVERY_NOTICE');
-    expect(page).toContain('formatStoreLocationLabel');
+    expect(page).toContain('Name your store and submit');
+    expect(page).toContain('Store location defaults from your profile/society');
+    expect(page).toContain('Submit for review');
+    expect(page).toContain('NEW_ONBOARDING_TOTAL_STEPS');
     expect(page).not.toMatch(/📍 Set/);
     expect(page).not.toMatch(/Location set with a pin/);
+    const hook = read('src/hooks/useSellerApplication.ts');
+    expect(hook).toContain('resolveDefaultStoreLocation');
   });
 
   it('uses a fixed center location dot instead of a draggable dropped pin', () => {
@@ -81,7 +80,10 @@ describe('seller onboarding lifecycle', () => {
     ]);
     expect(pending.kind).toBe('pending');
     expect(pending.title).toMatch(/reviewing your store/i);
-    expect(pending.body).toMatch(/Nothing more is needed/);
+    expect(pending.body).toMatch(/Seller Dashboard/);
+    expect(pending.body).not.toMatch(/Nothing more is needed/);
+    expect(pending.href).toBe('/seller');
+    expect(pending.cta).toMatch(/Finish store details/);
 
     const recharge = resolveSellerJourney([
       { id: 's1', business_name: 'Geeta Store', verification_status: 'approved' },
@@ -100,6 +102,82 @@ describe('seller onboarding lifecycle', () => {
       { id: 's1', business_name: 'Geeta Store', verification_status: 'approved' },
     ], true);
     expect(live.kind).toBe('none');
+  });
+
+  it('ignores shelved [ARCHIVED]/ [HOLD] stores so live multi-store sellers are not stuck', () => {
+    expect(isShelvedSellerStore({ business_name: '[ARCHIVED] Old Studio' })).toBe(true);
+    expect(isShelvedSellerStore({ business_name: '[HOLD] Homestyle' })).toBe(true);
+    expect(isShelvedSellerStore({ business_name: 'Biryani and Kebab' })).toBe(false);
+
+    const picked = pickSellerJourneyStore([
+      { id: 'arch', business_name: '[ARCHIVED] Dr. Sagar Wellness', verification_status: 'rejected' },
+      { id: 'hold', business_name: '[HOLD] Sagar Homestyle Kitchen', verification_status: 'approved' },
+      { id: 'live', business_name: 'Biryani and Kebab', verification_status: 'approved' },
+    ]);
+    expect(picked?.sellerId).toBe('live');
+    expect(picked?.status).toBe('approved');
+
+    const journey = resolveSellerJourney([
+      { id: 'arch', business_name: '[ARCHIVED] Dr. Sagar Wellness', verification_status: 'rejected' },
+      { id: 'live', business_name: 'Biryani and Kebab', verification_status: 'approved' },
+    ], true);
+    expect(journey.kind).toBe('none');
+
+    const realReject = resolveSellerJourney([
+      { id: 'arch', business_name: '[ARCHIVED] Old', verification_status: 'rejected' },
+      { id: 'bad', business_name: 'Real Rejected Kitchen', verification_status: 'rejected' },
+    ]);
+    expect(realReject.kind).toBe('rejected');
+    expect(realReject.sellerId).toBe('bad');
+    expect(realReject.storeName).toBe('Real Rejected Kitchen');
+    expect(realReject.href).toContain('seller=bad');
+  });
+
+  it('does not block become-seller on shelved [ARCHIVED] rejects when a live store exists', () => {
+    expect(
+      pickBecomeSellerBlockingStore([
+        { id: 'arch', business_name: '[ARCHIVED] Ramdev Medical', verification_status: 'rejected' },
+        { id: 'live', business_name: 'Biryani and Kebab', verification_status: 'approved' },
+      ]),
+    ).toBeNull();
+
+    expect(
+      pickBecomeSellerBlockingStore([
+        { id: 'arch', business_name: '[ARCHIVED] Ramdev Medical', verification_status: 'rejected' },
+        { id: 'pend', business_name: 'New Cafe', verification_status: 'pending' },
+      ])?.id,
+    ).toBe('pend');
+
+    expect(
+      pickBecomeSellerBlockingStore([
+        { id: 'bad', business_name: 'Real Rejected Kitchen', verification_status: 'rejected' },
+      ])?.id,
+    ).toBe('bad');
+
+    const hook = read('src/hooks/useSellerApplication.ts');
+    expect(hook).toContain('pickBecomeSellerBlockingStore');
+    expect(hook).toContain('isShelvedSellerStore');
+    const page = read('src/pages/BecomeSellerPage.tsx');
+    expect(page).toContain('isShelvedSellerStore(existingSeller)');
+  });
+
+  it('picks a live approved store as dashboard default instead of [ARCHIVED]', () => {
+    expect(
+      pickDefaultSellerStoreId([
+        { id: 'arch', business_name: '[ARCHIVED] Dr. Sagar Wellness', verification_status: 'rejected' },
+        { id: 'live', business_name: 'Biryani and Kebab', verification_status: 'approved' },
+      ]),
+    ).toBe('live');
+    expect(
+      pickDefaultSellerStoreId(
+        [
+          { id: 'arch', business_name: '[ARCHIVED] Old', verification_status: 'rejected' },
+          { id: 'live', business_name: 'Biryani and Kebab', verification_status: 'approved' },
+        ],
+        'arch',
+      ),
+    ).toBe('live');
+    expect(displaySellerStoreName('[HOLD] Sagar Homestyle Kitchen')).toBe('Sagar Homestyle Kitchen');
   });
 
   it('hides home inbox cards that duplicate the seller journey banner', () => {

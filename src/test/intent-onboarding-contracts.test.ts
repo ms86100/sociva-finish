@@ -17,20 +17,15 @@ function readSrc(rel: string) {
 }
 
 describe('category-first onboarding contracts', () => {
-  it('BecomeSeller uses 8-step workflow-first order', () => {
+  it('BecomeSeller uses 4-step intent-first order (v5)', () => {
     const src = readSrc('src/pages/BecomeSellerPage.tsx');
     expect(src).toContain('NEW_ONBOARDING_TOTAL_STEPS');
-    expect(src).toContain('ParentGroupPickerStep');
-    expect(src).toContain('CommerceModelStep');
-    expect(src).toContain('OfferingsStep');
-    expect(src).toMatch(/step === 1[\s\S]*CommerceModelStep/);
-    expect(src).toMatch(/step === 2[\s\S]*OfferingsStep/);
-    expect(src).toMatch(/step === 3[\s\S]*ParentGroupPickerStep/);
-    expect(src).toContain('resolveOfferingBatch');
+    expect(src).toContain('IntentCategoryStep');
+    expect(src).toContain('SubcategorySelectStep');
+    expect(src).toContain('CommerceModelStep'); // kept in repo, not shown on happy path
+    expect(src).toMatch(/step === 1[\s\S]*IntentCategoryStep/);
+    expect(src).toMatch(/step === 3[\s\S]*DraftProductManager/);
     expect(src).toContain('ensureDraftProductsForOfferings');
-    expect(src).toMatch(/step === 7[\s\S]*DraftProductManager/);
-    expect(src).toMatch(/step === 8/);
-    expect(src).not.toMatch(/configSubStep === 1[\s\S]*key="interaction"/);
   });
 
   it('existing-store confirmation does not claim the store is fully live when a category is under review', () => {
@@ -63,9 +58,9 @@ describe('category-first onboarding contracts', () => {
     expect(src).toContain('hydrateOnboardingFromMeta');
     expect(src).toContain('restoreStepFromBackup');
     expect(src).toContain('migrateOnboardingStep');
-    expect(src).toContain('setStep(6)');
-    expect(src).toContain('setStep(7)');
-    expect(src).toContain("ONBOARDING_VERSION = '4'");
+    expect(src).toContain('setStep(3)');
+    expect(src).toContain('setStep(4)');
+    expect(src).toContain("ONBOARDING_VERSION = '5'");
   });
 
   it('DraftProductManager accepts seedProductName and seedProductNames', () => {
@@ -79,12 +74,12 @@ describe('category-first onboarding contracts', () => {
     for (const j of BUYER_JOURNEYS) {
       expect(commerceModelToDefaultAction(j.id)).toBe(j.default_action_type);
     }
-    expect(NEW_ONBOARDING_TOTAL_STEPS).toBe(8);
-    expect(migrateOnboardingStep(7, '2')).toBe(8);
-    expect(migrateOnboardingStep(3, '2')).toBe(2);
+    expect(NEW_ONBOARDING_TOTAL_STEPS).toBe(4);
+    expect(migrateOnboardingStep(7, '2')).toBe(4);
+    expect(migrateOnboardingStep(3, '2')).toBe(3);
     expect(migrateOnboardingStep(2, '3')).toBe(1);
-    expect(migrateOnboardingStep(5, '3')).toBe(5);
-    expect(migrateOnboardingStep(8, '3')).toBe(8);
+    expect(migrateOnboardingStep(5, '3')).toBe(4);
+    expect(migrateOnboardingStep(8, '4')).toBe(4);
   });
 
   it('T-shirt intent never hard-fails without category suggestion path', () => {

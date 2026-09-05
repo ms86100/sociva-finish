@@ -13,10 +13,9 @@ import {
   SocietyContext, SocietyContextType,
   SellerContext, SellerContextType,
 } from './contexts';
-import { createContext, useContext } from 'react';
-
-// Legacy combined context — kept for backward compatibility
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+import { useContext } from 'react';
+import { AuthContext } from './auth-context';
+import { actionableSellerProfiles } from '@/lib/seller-journey';
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const { state, setPartial, refreshProfile, setViewAsSociety, signOut } = useAuthState();
@@ -30,10 +29,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   } = state;
 
   const isApproved = profile?.verification_status === 'approved';
-  // Derive seller flags from sellerProfiles state — don't gate on role alone
-  // This ensures the UI updates immediately when seller_profiles changes via realtime
-  const isSeller = sellerProfiles.some(s => (s as any).verification_status === 'approved');
-  const hasSellerProfile = sellerProfiles.length > 0;
+  // Exclude shelved [ARCHIVED]/[HOLD] stores so profile banners / seller flags track live portfolio only
+  const liveSellerProfiles = useMemo(
+    () => actionableSellerProfiles(sellerProfiles as any),
+    [sellerProfiles],
+  );
+  const isSeller = liveSellerProfiles.some(s => (s as any).verification_status === 'approved');
+  const hasSellerProfile = liveSellerProfiles.length > 0;
   const isAdmin = roles.includes('admin');
   const isSocietyAdmin = !!societyAdminRole || isAdmin;
   const isBuilderMember = managedBuilderIds.length > 0;
@@ -156,4 +158,9 @@ export function useAuth() {
     throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;
+}
+
+/** Soft read for boot gates / HMR — returns null outside provider instead of throwing. */
+export function useOptionalAuth() {
+  return useContext(AuthContext) ?? null;
 }

@@ -11,11 +11,13 @@ import {
   creditsReconcile,
   CUSTOMER_UNAVAILABLE_ORDERS,
   CUSTOMER_UNAVAILABLE_REQUESTS,
+  CUSTOMER_UNAVAILABLE_TITLE,
   isSellerCreditInsufficientError,
   SELLER_CREDITS_EXHAUSTED,
   SELLER_CREDITS_ROUTE,
   SELLER_EARNINGS_WALLET_ROUTE,
   sellerCreditCustomerMessage,
+  sellerCreditCustomerNotifyOptions,
   shouldChargeOrderCompleted,
 } from '@/lib/sellerCredits';
 
@@ -43,8 +45,10 @@ describe('Sociva Credits', () => {
   });
 
   it('uses action-specific customer copy and seller exhausted copy', () => {
-    expect(CUSTOMER_UNAVAILABLE_ORDERS).toBe('This seller is currently unavailable for new orders.');
-    expect(CUSTOMER_UNAVAILABLE_REQUESTS).toBe('This seller is currently unavailable for new requests.');
+    expect(CUSTOMER_UNAVAILABLE_ORDERS).toMatch(/isn['’]t accepting new orders/i);
+    expect(CUSTOMER_UNAVAILABLE_ORDERS).toMatch(/Try another store nearby/i);
+    expect(CUSTOMER_UNAVAILABLE_REQUESTS).toMatch(/isn['’]t accepting new requests/i);
+    expect(CUSTOMER_UNAVAILABLE_REQUESTS).toMatch(/Try another store nearby/i);
     expect(SELLER_CREDITS_EXHAUSTED).toBe(
       'Your Sociva Credits are exhausted. Recharge to start accepting new orders again.',
     );
@@ -58,6 +62,17 @@ describe('Sociva Credits', () => {
     expect(creditHealth(75, { healthyMin: 100, lowMin: 50 })).toBe('low');
     expect(creditHealth(120, { healthyMin: 100, lowMin: 50 })).toBe('healthy');
     expect(creditHealth(25)).toBe('healthy');
+  });
+
+  it('surfaces credit blocks via ActionBlockedDialog options for buyers', () => {
+    const opts = sellerCreditCustomerNotifyOptions('SELLER_CREDIT_INSUFFICIENT: x', 'ORDER_COMPLETED');
+    expect(opts.title).toBe(CUSTOMER_UNAVAILABLE_TITLE);
+    expect(opts.message).toBe(CUSTOMER_UNAVAILABLE_ORDERS);
+    expect(opts.id).toBe('seller-credit-orders-blocked');
+    expect(read('src/hooks/useCartPage.ts')).toMatch(/sellerCreditCustomerNotifyOptions/);
+    expect(read('src/hooks/useCartPage.ts')).toMatch(/notify\.block\(creditOpts\.message/);
+    expect(read('src/components/product/ProductDetailSheet.tsx')).toMatch(/Browse other stores/);
+    expect(read('src/components/seller/SellerActivationBanner.tsx')).toMatch(/not visible to buyers yet/);
   });
 
   it('explains activity without hard-coded prices', () => {
