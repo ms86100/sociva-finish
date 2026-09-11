@@ -835,6 +835,28 @@ workflows:
             exit 1
           fi
           echo "=== IPA push entitlement verified ==="
+          PLIST="Payload/App.app/Info.plist"
+          echo "=== Archived UIBackgroundModes ==="
+          /usr/libexec/PlistBuddy -c "Print :UIBackgroundModes" "$PLIST" || true
+          MODES=$(/usr/libexec/PlistBuddy -c "Print :UIBackgroundModes" "$PLIST" 2>/dev/null || true)
+          if echo "$MODES" | grep -q "location"; then
+            echo "ERROR: App Store 2.5.4 — archived Info.plist still declares UIBackgroundModes location"
+            exit 1
+          fi
+          if /usr/libexec/PlistBuddy -c "Print :NSLocationAlwaysAndWhenInUseUsageDescription" "$PLIST" >/dev/null 2>&1; then
+            echo "ERROR: NSLocationAlwaysAndWhenInUseUsageDescription still present"
+            exit 1
+          fi
+          if /usr/libexec/PlistBuddy -c "Print :NSLocationAlwaysUsageDescription" "$PLIST" >/dev/null 2>&1; then
+            echo "ERROR: NSLocationAlwaysUsageDescription still present"
+            exit 1
+          fi
+          WHEN_IN_USE=$(/usr/libexec/PlistBuddy -c "Print :NSLocationWhenInUseUsageDescription" "$PLIST" 2>/dev/null || true)
+          if [ -z "$WHEN_IN_USE" ]; then
+            echo "ERROR: NSLocationWhenInUseUsageDescription missing"
+            exit 1
+          fi
+          echo "=== App Store 2.5.4 archived Info.plist verified (no background location) ==="
 
       - name: Validate IPA contains a single widget extension
         script: |
@@ -927,30 +949,76 @@ workflows:
       - name: Inject release signing config
         script: |
           GRADLE_FILE="android/app/build.gradle"
-          if [ -n "$CM_KEYSTORE" ] && [ -f "$CM_KEYSTORE" ]; then
-            echo "=== Injecting signing config into build.gradle ==="
-            python3 - "$GRADLE_FILE" <<'PYEOF'
-          import sys
-          f = sys.argv[1]
-          with open(f) as fh:
-              content = fh.read()
-          signing_block = '    signingConfigs {\n        release {\n            storeFile file(System.getenv("CM_KEYSTORE"))\n            storePassword System.getenv("CM_KEYSTORE_PASSWORD")\n            keyAlias System.getenv("CM_KEY_ALIAS")\n            keyPassword System.getenv("CM_KEY_PASSWORD")\n        }\n    }\n'
-          content = content.replace('    buildTypes {', signing_block + '    buildTypes {')
-          content = content.replace('            minifyEnabled false', '            signingConfig signingConfigs.release\n            minifyEnabled false')
-          with open(f, 'w') as fh:
-              fh.write(content)
-          print("=== Signing config injected successfully ===")
-          PYEOF
-            head -40 "$GRADLE_FILE"
-          else
-            echo "WARNING: CM_KEYSTORE not set or file not found. Build will be unsigned."
+          # Codemagic Android keystores export CM_KEYSTORE_PATH (not CM_KEYSTORE).
+          if [ -n "${CM_KEYSTORE_PATH:-}" ] && [ -f "$CM_KEYSTORE_PATH" ]; then
+            export CM_KEYSTORE="$CM_KEYSTORE_PATH"
           fi
+          if [ -z "${CM_KEYSTORE:-}" ] || [ ! -f "$CM_KEYSTORE" ]; then
+            echo "ERROR: Android upload keystore missing (expected CM_KEYSTORE_PATH from sociva_keystore)."
+            echo "CM_KEYSTORE_PATH=${CM_KEYSTORE_PATH:-<unset>} CM_KEYSTORE=${CM_KEYSTORE:-<unset>}"
+            exit 1
+          fi
+          echo "=== Rewriting build.gradle to use Codemagic upload keystore ==="
+          python3 - "$GRADLE_FILE" <<'PYEOF'
+          import os, re, sys
+          path = sys.argv[1]
+          content = open(path, encoding='utf-8').read()
+          signing = '''    signingConfigs {
+        release {
+            storeFile file(System.getenv("CM_KEYSTORE_PATH") ?: System.getenv("CM_KEYSTORE"))
+            storePassword System.getenv("CM_KEYSTORE_PASSWORD")
+            keyAlias System.getenv("CM_KEY_ALIAS")
+            keyPassword System.getenv("CM_KEY_PASSWORD")
+        }
+    }
+'''
+          release_type = '''    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            signingConfig signingConfigs.release
+        }
+    }
+'''
+          content2, n1 = re.subn(
+              r'    signingConfigs \{.*?^\    \}',
+              signing.rstrip(),
+              content,
+              count=1,
+              flags=re.M | re.S,
+          )
+          content3, n2 = re.subn(
+              r'    buildTypes \{.*?^\    \}',
+              release_type.rstrip(),
+              content2,
+              count=1,
+              flags=re.M | re.S,
+          )
+          if n1 != 1 or n2 != 1:
+              raise SystemExit(f'Failed to rewrite signing blocks (signing={n1}, buildTypes={n2})')
+          open(path, 'w', encoding='utf-8').write(content3)
+          print('=== Signing config rewritten successfully ===')
+          print('keystore_path=', os.environ.get('CM_KEYSTORE_PATH') or os.environ.get('CM_KEYSTORE'))
+          PYEOF
+          head -55 "$GRADLE_FILE"
 
       - name: Build Android release bundle
         script: |
+          # Ensure Gradle sees the Codemagic keystore path
+          if [ -n "${CM_KEYSTORE_PATH:-}" ] && [ -f "$CM_KEYSTORE_PATH" ]; then
+            export CM_KEYSTORE="$CM_KEYSTORE_PATH"
+          fi
+          if [ -z "${CM_KEYSTORE_PATH:-}${CM_KEYSTORE:-}" ]; then
+            echo "ERROR: Refusing to build an unsigned Play AAB"
+            exit 1
+          fi
           cd android
           chmod +x ./gradlew
           ./gradlew clean bundleRelease --warning-mode all
+          AAB=$(ls -1 app/build/outputs/bundle/release/*.aab | head -1)
+          echo "=== Verifying AAB signature: $AAB ==="
+          jarsigner -verify "$AAB"
+          echo "=== AAB signature OK ==="
 
     artifacts:
       - android/app/build/outputs/**/*.aab
@@ -1665,6 +1733,28 @@ workflows:
             exit 1
           fi
           echo "=== IPA push entitlement verified ==="
+          PLIST="Payload/App.app/Info.plist"
+          echo "=== Archived UIBackgroundModes ==="
+          /usr/libexec/PlistBuddy -c "Print :UIBackgroundModes" "$PLIST" || true
+          MODES=$(/usr/libexec/PlistBuddy -c "Print :UIBackgroundModes" "$PLIST" 2>/dev/null || true)
+          if echo "$MODES" | grep -q "location"; then
+            echo "ERROR: App Store 2.5.4 — archived Info.plist still declares UIBackgroundModes location"
+            exit 1
+          fi
+          if /usr/libexec/PlistBuddy -c "Print :NSLocationAlwaysAndWhenInUseUsageDescription" "$PLIST" >/dev/null 2>&1; then
+            echo "ERROR: NSLocationAlwaysAndWhenInUseUsageDescription still present"
+            exit 1
+          fi
+          if /usr/libexec/PlistBuddy -c "Print :NSLocationAlwaysUsageDescription" "$PLIST" >/dev/null 2>&1; then
+            echo "ERROR: NSLocationAlwaysUsageDescription still present"
+            exit 1
+          fi
+          WHEN_IN_USE=$(/usr/libexec/PlistBuddy -c "Print :NSLocationWhenInUseUsageDescription" "$PLIST" 2>/dev/null || true)
+          if [ -z "$WHEN_IN_USE" ]; then
+            echo "ERROR: NSLocationWhenInUseUsageDescription missing"
+            exit 1
+          fi
+          echo "=== App Store 2.5.4 archived Info.plist verified (no background location) ==="
 
       - name: Validate IPA contains a single widget extension (release-all)
         script: |
@@ -1719,30 +1809,72 @@ workflows:
       - name: Inject release signing config (release-all)
         script: |
           GRADLE_FILE="android/app/build.gradle"
-          if [ -n "$CM_KEYSTORE" ] && [ -f "$CM_KEYSTORE" ]; then
-            echo "=== Injecting signing config into build.gradle ==="
-            python3 - "$GRADLE_FILE" <<'PYEOF'
-          import sys
-          f = sys.argv[1]
-          with open(f) as fh:
-              content = fh.read()
-          signing_block = '    signingConfigs {\n        release {\n            storeFile file(System.getenv("CM_KEYSTORE"))\n            storePassword System.getenv("CM_KEYSTORE_PASSWORD")\n            keyAlias System.getenv("CM_KEY_ALIAS")\n            keyPassword System.getenv("CM_KEY_PASSWORD")\n        }\n    }\n'
-          content = content.replace('    buildTypes {', signing_block + '    buildTypes {')
-          content = content.replace('            minifyEnabled false', '            signingConfig signingConfigs.release\n            minifyEnabled false')
-          with open(f, 'w') as fh:
-              fh.write(content)
-          print("=== Signing config injected successfully ===")
-          PYEOF
-            head -40 "$GRADLE_FILE"
-          else
-            echo "WARNING: CM_KEYSTORE not set or file not found. Build will be unsigned."
+          if [ -n "${CM_KEYSTORE_PATH:-}" ] && [ -f "$CM_KEYSTORE_PATH" ]; then
+            export CM_KEYSTORE="$CM_KEYSTORE_PATH"
           fi
+          if [ -z "${CM_KEYSTORE:-}" ] || [ ! -f "$CM_KEYSTORE" ]; then
+            echo "ERROR: Android upload keystore missing (expected CM_KEYSTORE_PATH from sociva_keystore)."
+            exit 1
+          fi
+          echo "=== Rewriting build.gradle to use Codemagic upload keystore ==="
+          python3 - "$GRADLE_FILE" <<'PYEOF'
+          import os, re, sys
+          path = sys.argv[1]
+          content = open(path, encoding='utf-8').read()
+          signing = '''    signingConfigs {
+        release {
+            storeFile file(System.getenv("CM_KEYSTORE_PATH") ?: System.getenv("CM_KEYSTORE"))
+            storePassword System.getenv("CM_KEYSTORE_PASSWORD")
+            keyAlias System.getenv("CM_KEY_ALIAS")
+            keyPassword System.getenv("CM_KEY_PASSWORD")
+        }
+    }
+'''
+          release_type = '''    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            signingConfig signingConfigs.release
+        }
+    }
+'''
+          content2, n1 = re.subn(
+              r'    signingConfigs \{.*?^\    \}',
+              signing.rstrip(),
+              content,
+              count=1,
+              flags=re.M | re.S,
+          )
+          content3, n2 = re.subn(
+              r'    buildTypes \{.*?^\    \}',
+              release_type.rstrip(),
+              content2,
+              count=1,
+              flags=re.M | re.S,
+          )
+          if n1 != 1 or n2 != 1:
+              raise SystemExit(f'Failed to rewrite signing blocks (signing={n1}, buildTypes={n2})')
+          open(path, 'w', encoding='utf-8').write(content3)
+          print('=== Signing config rewritten successfully ===')
+          print('keystore_path=', os.environ.get('CM_KEYSTORE_PATH') or os.environ.get('CM_KEYSTORE'))
+          PYEOF
+          head -55 "$GRADLE_FILE"
 
       - name: Build Android AAB
         script: |
+          if [ -n "${CM_KEYSTORE_PATH:-}" ] && [ -f "$CM_KEYSTORE_PATH" ]; then
+            export CM_KEYSTORE="$CM_KEYSTORE_PATH"
+          fi
+          if [ -z "${CM_KEYSTORE_PATH:-}${CM_KEYSTORE:-}" ]; then
+            echo "ERROR: Refusing to build an unsigned Play AAB"
+            exit 1
+          fi
           cd android
           chmod +x ./gradlew
           ./gradlew clean bundleRelease --warning-mode all
+          AAB=$(ls -1 app/build/outputs/bundle/release/*.aab | head -1)
+          jarsigner -verify "$AAB"
+          echo "=== AAB signature OK: $AAB ==="
 
     artifacts:
       - ios/App/build/ios/ipa/*.ipa
