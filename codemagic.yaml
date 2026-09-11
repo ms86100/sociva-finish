@@ -955,7 +955,7 @@ workflows:
           fi
           if [ -z "${CM_KEYSTORE:-}" ] || [ ! -f "$CM_KEYSTORE" ]; then
             echo "ERROR: Android upload keystore missing (expected CM_KEYSTORE_PATH from sociva_keystore)."
-            echo "CM_KEYSTORE_PATH=${CM_KEYSTORE_PATH:-<unset>} CM_KEYSTORE=${CM_KEYSTORE:-<unset>}"
+            echo "CM_KEYSTORE_PATH is missing or empty"
             exit 1
           fi
           echo "=== Rewriting build.gradle to use Codemagic upload keystore ==="
@@ -963,42 +963,44 @@ workflows:
           import os, re, sys
           path = sys.argv[1]
           content = open(path, encoding='utf-8').read()
-          signing = '''    signingConfigs {
-        release {
-            storeFile file(System.getenv("CM_KEYSTORE_PATH") ?: System.getenv("CM_KEYSTORE"))
-            storePassword System.getenv("CM_KEYSTORE_PASSWORD")
-            keyAlias System.getenv("CM_KEY_ALIAS")
-            keyPassword System.getenv("CM_KEY_PASSWORD")
-        }
-    }
-'''
-          release_type = '''    buildTypes {
-        release {
-            minifyEnabled false
-            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
-            signingConfig signingConfigs.release
-        }
-    }
-'''
+          signing = (
+              "    signingConfigs {\n"
+              "        release {\n"
+              "            storeFile file(System.getenv(\"CM_KEYSTORE_PATH\") ?: System.getenv(\"CM_KEYSTORE\"))\n"
+              "            storePassword System.getenv(\"CM_KEYSTORE_PASSWORD\")\n"
+              "            keyAlias System.getenv(\"CM_KEY_ALIAS\")\n"
+              "            keyPassword System.getenv(\"CM_KEY_PASSWORD\")\n"
+              "        }\n"
+              "    }\n"
+          )
+          release_type = (
+              "    buildTypes {\n"
+              "        release {\n"
+              "            minifyEnabled false\n"
+              "            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'\n"
+              "            signingConfig signingConfigs.release\n"
+              "        }\n"
+              "    }\n"
+          )
           content2, n1 = re.subn(
-              r'    signingConfigs \{.*?^\    \}',
+              r"    signingConfigs \{.*?^    \}",
               signing.rstrip(),
               content,
               count=1,
               flags=re.M | re.S,
           )
           content3, n2 = re.subn(
-              r'    buildTypes \{.*?^\    \}',
+              r"    buildTypes \{.*?^    \}",
               release_type.rstrip(),
               content2,
               count=1,
               flags=re.M | re.S,
           )
           if n1 != 1 or n2 != 1:
-              raise SystemExit(f'Failed to rewrite signing blocks (signing={n1}, buildTypes={n2})')
-          open(path, 'w', encoding='utf-8').write(content3)
-          print('=== Signing config rewritten successfully ===')
-          print('keystore_path=', os.environ.get('CM_KEYSTORE_PATH') or os.environ.get('CM_KEYSTORE'))
+              raise SystemExit("Failed to rewrite signing blocks signing=%s buildTypes=%s" % (n1, n2))
+          open(path, "w", encoding="utf-8").write(content3)
+          print("=== Signing config rewritten successfully ===")
+          print("keystore_path=", os.environ.get("CM_KEYSTORE_PATH") or os.environ.get("CM_KEYSTORE"))
           PYEOF
           head -55 "$GRADLE_FILE"
 
@@ -1821,42 +1823,44 @@ workflows:
           import os, re, sys
           path = sys.argv[1]
           content = open(path, encoding='utf-8').read()
-          signing = '''    signingConfigs {
-        release {
-            storeFile file(System.getenv("CM_KEYSTORE_PATH") ?: System.getenv("CM_KEYSTORE"))
-            storePassword System.getenv("CM_KEYSTORE_PASSWORD")
-            keyAlias System.getenv("CM_KEY_ALIAS")
-            keyPassword System.getenv("CM_KEY_PASSWORD")
-        }
-    }
-'''
-          release_type = '''    buildTypes {
-        release {
-            minifyEnabled false
-            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
-            signingConfig signingConfigs.release
-        }
-    }
-'''
+          signing = (
+              "    signingConfigs {\n"
+              "        release {\n"
+              "            storeFile file(System.getenv(\"CM_KEYSTORE_PATH\") ?: System.getenv(\"CM_KEYSTORE\"))\n"
+              "            storePassword System.getenv(\"CM_KEYSTORE_PASSWORD\")\n"
+              "            keyAlias System.getenv(\"CM_KEY_ALIAS\")\n"
+              "            keyPassword System.getenv(\"CM_KEY_PASSWORD\")\n"
+              "        }\n"
+              "    }\n"
+          )
+          release_type = (
+              "    buildTypes {\n"
+              "        release {\n"
+              "            minifyEnabled false\n"
+              "            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'\n"
+              "            signingConfig signingConfigs.release\n"
+              "        }\n"
+              "    }\n"
+          )
           content2, n1 = re.subn(
-              r'    signingConfigs \{.*?^\    \}',
+              r"    signingConfigs \{.*?^    \}",
               signing.rstrip(),
               content,
               count=1,
               flags=re.M | re.S,
           )
           content3, n2 = re.subn(
-              r'    buildTypes \{.*?^\    \}',
+              r"    buildTypes \{.*?^    \}",
               release_type.rstrip(),
               content2,
               count=1,
               flags=re.M | re.S,
           )
           if n1 != 1 or n2 != 1:
-              raise SystemExit(f'Failed to rewrite signing blocks (signing={n1}, buildTypes={n2})')
-          open(path, 'w', encoding='utf-8').write(content3)
-          print('=== Signing config rewritten successfully ===')
-          print('keystore_path=', os.environ.get('CM_KEYSTORE_PATH') or os.environ.get('CM_KEYSTORE'))
+              raise SystemExit("Failed to rewrite signing blocks signing=%s buildTypes=%s" % (n1, n2))
+          open(path, "w", encoding="utf-8").write(content3)
+          print("=== Signing config rewritten successfully ===")
+          print("keystore_path=", os.environ.get("CM_KEYSTORE_PATH") or os.environ.get("CM_KEYSTORE"))
           PYEOF
           head -55 "$GRADLE_FILE"
 
