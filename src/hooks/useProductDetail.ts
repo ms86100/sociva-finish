@@ -65,7 +65,8 @@ export function useProductDetail(product: ProductDetail | null, open: boolean, o
       const [productRes, similarRes] = await Promise.all([
         supabase.from('products').select('specifications, stock_quantity, is_available').eq('id', product.product_id).maybeSingle(),
         supabase.from('products')
-          .select('id, name, price, image_url, is_veg, seller_id, stock_quantity, seller:seller_profiles!products_seller_id_fkey(business_name, society_id)')
+          // action_type + category required so similar tap keeps Contact Seller (not default add_to_cart)
+          .select('id, name, price, image_url, is_veg, seller_id, stock_quantity, category, description, action_type, seller:seller_profiles!products_seller_id_fkey(business_name, society_id)')
           .eq('category', product.category as string)
           .eq('is_available', true).eq('approval_status', 'approved')
           .neq('id', product.product_id).limit(6),

@@ -1,7 +1,9 @@
 // @ts-nocheck
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'fs';
+import { resolve } from 'path';
 import { resolveNotificationRoute } from '@/lib/notification-routes';
-import { ACTION_CONFIG } from '@/lib/marketplace-constants';
+import { ACTION_CONFIG, deriveActionType } from '@/lib/marketplace-constants';
 
 describe('contact enquiry robust fix', () => {
   it('routes contact_request notifications to seller contact leads inbox', () => {
@@ -31,5 +33,16 @@ describe('contact enquiry robust fix', () => {
 
     const cartClosed = false ? false : isStoreClosed;
     expect(cartClosed).toBe(true);
+  });
+
+  it('similar products fetch keeps action_type so Contact Seller is not lost', () => {
+    const hook = readFileSync(resolve(__dirname, '../hooks/useProductDetail.ts'), 'utf8');
+    const sheet = readFileSync(resolve(__dirname, '../components/product/ProductDetailSheet.tsx'), 'utf8');
+    expect(hook).toMatch(/\.select\([^)]*action_type[^)]*\)/);
+    expect(hook).toMatch(/category/);
+    expect(deriveActionType('contact_seller', null, null)).toBe('contact_seller');
+    expect(deriveActionType(undefined, null, null)).toBe('add_to_cart'); // lossy path we must not hit
+    expect(sheet).toMatch(/Contact for price/);
+    expect(sheet).toMatch(/sp\.action_type === 'contact_seller'/);
   });
 });

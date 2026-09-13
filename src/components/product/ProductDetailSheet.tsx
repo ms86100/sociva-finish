@@ -356,7 +356,11 @@ export function ProductDetailSheet({ product, open, onOpenChange, onSelectProduc
                           {displaySellerStoreName(sp.seller.business_name)}
                         </p>
                       )}
-                      {sp.price > 0 && <p className="text-xs font-bold">{d.formatPrice(sp.price)}</p>}
+                      {sp.action_type === 'contact_seller' || sp.action_type === 'request_quote' || sp.action_type === 'make_offer' ? (
+                        <p className="text-[11px] font-medium text-muted-foreground">Contact for price</p>
+                      ) : (
+                        sp.price > 0 && <p className="text-xs font-bold">{d.formatPrice(sp.price)}</p>
+                      )}
                     </motion.button>
                   ))}
                 </motion.div>
