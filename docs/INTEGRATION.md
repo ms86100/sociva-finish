@@ -19,7 +19,7 @@ Integration URL: `https://hfeuskcehglyqllvrxyu.supabase.co`
 
 ## Frontend env (integration only)
 
-Copy to `.env.integration.local` or set on the Vercel **sociva-integration** project:
+Copy from `docs/env.integration.example` to `.env.integration.local`, or set on the Vercel **sociva-integration** project:
 
 ```
 VITE_SUPABASE_URL=https://hfeuskcehglyqllvrxyu.supabase.co
@@ -30,8 +30,10 @@ Never put these keys on the production `sociva-finish` Vercel project.
 
 ## Vercel
 
-Create / use project name: `sociva-integration`  
-Production branch for that project: `feat/onboarding-domain-reach`  
+Project: `sociva-integration`  
+URL: https://sociva-integration.vercel.app  
+Deploy with: `vercel deploy --prod --yes --project sociva-integration`  
+Local `.vercel/project.json` must stay linked to **sociva-finish** (production).  
 Do **not** run `vercel --prod` against `sociva-finish` for this feature.
 
 ## Feature under test
