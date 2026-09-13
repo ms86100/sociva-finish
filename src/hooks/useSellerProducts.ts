@@ -77,10 +77,22 @@ interface SellerProductDraft {
 
 export type SellerProductFormIntent = 'list' | 'new' | 'edit';
 
-export function useSellerProducts(opts?: { formIntent?: SellerProductFormIntent; editingProductId?: string }) {
+export function useSellerProducts(opts?: {
+  formIntent?: SellerProductFormIntent;
+  editingProductId?: string;
+  /** Admin store manager: target seller when isAdmin */
+  sellerIdOverride?: string | null;
+}) {
   const formIntent = opts?.formIntent ?? 'list';
   const routeEditingProductId = opts?.editingProductId;
-  const { user, sellerProfiles, currentSellerId } = useAuth();
+  const sellerIdOverride = opts?.sellerIdOverride ?? null;
+  const { user, sellerProfiles, currentSellerId, isAdmin } = useAuth();
+  const effectiveSellerId = useMemo(() => {
+    if (isAdmin && sellerIdOverride) return sellerIdOverride;
+    if (currentSellerId && !isPortfolioSellerId(currentSellerId)) return currentSellerId;
+    if (!currentSellerId && sellerProfiles.length > 0) return sellerProfiles[0].id;
+    return null;
+  }, [isAdmin, sellerIdOverride, currentSellerId, sellerProfiles]);
   const { groupedConfigs, configs } = useCategoryConfigs();
   const { data: allActions = [] } = useActionTypeMap();
 
@@ -299,16 +311,18 @@ export function useSellerProducts(opts?: { formIntent?: SellerProductFormIntent;
   }, [sellerProfile, products, configs, draftRestored, formIntent, routeEditingProductId]);
 
   useEffect(() => {
-    if (user && currentSellerId && !isPortfolioSellerId(currentSellerId)) {
-      fetchData(currentSellerId);
-    } else if (user && !currentSellerId && sellerProfiles.length > 0) {
-      fetchData(sellerProfiles[0].id);
-    } else if (user && isPortfolioSellerId(currentSellerId)) {
+    if (user && effectiveSellerId) {
+      fetchData(effectiveSellerId);
+    } else if (user && isPortfolioSellerId(currentSellerId) && !sellerIdOverride) {
+      setSellerProfile(null);
+      setProducts([]);
+      setIsLoading(false);
+    } else if (user && !effectiveSellerId) {
       setSellerProfile(null);
       setProducts([]);
       setIsLoading(false);
     }
-  }, [user, currentSellerId, sellerProfiles]);
+  }, [user, effectiveSellerId, currentSellerId, sellerIdOverride]);
 
   const fetchData = async (sellerId: string, opts?: { silent?: boolean }) => {
     if (!user) return;

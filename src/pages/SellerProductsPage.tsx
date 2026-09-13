@@ -20,14 +20,21 @@ import { useSellerProducts } from '@/hooks/useSellerProducts';
 import { ProductPerformanceBadge, getPerformanceLevel } from '@/components/seller/ProductPerformanceBadge';
 import { resolveProductAvailability } from '@/lib/product-availability';
 import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
+import { adminStorePaths, SELLER_STORE_PATHS } from '@/contexts/AdminManagedSellerContext';
 
-export default function SellerProductsPage() {
+export default function SellerProductsPage({
+  sellerIdOverride,
+}: {
+  sellerIdOverride?: string | null;
+} = {}) {
   const navigate = useNavigate();
   const location = useLocation();
-  const sp = useSellerProducts();
+  const sp = useSellerProducts({ sellerIdOverride });
   const { formatPrice, currencySymbol } = useCurrency();
   const [viewCounts, setViewCounts] = useState<Record<string, number>>({});
   const [orderCounts, setOrderCounts] = useState<Record<string, number>>({});
+  const paths = sellerIdOverride ? adminStorePaths(sellerIdOverride) : SELLER_STORE_PATHS;
+  const isAdminManage = !!sellerIdOverride;
 
   // Fresh list after returning from add/edit product form
   useEffect(() => {
@@ -76,7 +83,7 @@ export default function SellerProductsPage() {
     <AppLayout showHeader={false}>
       <div className="p-4">
         <div className="flex items-center justify-between gap-2 mb-6">
-          <Link to="/seller" className="shrink-0 inline-flex items-center justify-center w-10 h-10 rounded-full bg-muted text-muted-foreground">
+          <Link to={paths.back} className="shrink-0 inline-flex items-center justify-center w-10 h-10 rounded-full bg-muted text-muted-foreground">
             <ArrowLeft size={18} />
           </Link>
           <div className="flex items-center gap-2 shrink-0">
@@ -85,7 +92,7 @@ export default function SellerProductsPage() {
               <Upload size={14} className="mr-1" />Bulk Add
             </Button>
             {/* Add Product: desktop/tablet only — mobile uses FAB below */}
-            <Button size="sm" onClick={() => navigate('/seller/products/new')} className="shrink-0 hidden md:inline-flex">
+            <Button size="sm" onClick={() => navigate(paths.productsNew)} className="shrink-0 hidden md:inline-flex">
               <Plus size={14} className="mr-1" />Add Product
             </Button>
           </div>
@@ -94,10 +101,10 @@ export default function SellerProductsPage() {
         {sp.sellerProfile && <BulkProductUpload isOpen={sp.isBulkOpen} onClose={() => sp.setIsBulkOpen(false)} sellerId={sp.sellerProfile.id} allowedCategories={sp.allowedCategories} onSuccess={() => sp.sellerProfile && sp.fetchData(sp.sellerProfile.id)} />}
 
         {sp.sellerProfile && (
-          <div className="mb-4 p-3 bg-card rounded-xl shadow-sm border"><div className="flex items-center justify-between"><div className="flex items-center gap-3"><div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center"><Store size={18} className="text-primary" /></div><div><h2 className="font-semibold text-sm">{sp.sellerProfile.business_name}</h2><p className="text-xs text-muted-foreground capitalize">{sp.primaryGroup?.replace('_', ' ')} • {sp.products.length} products</p></div></div>{sp.sellerProfiles.length > 1 && <SellerSwitcher />}</div></div>
+          <div className="mb-4 p-3 bg-card rounded-xl shadow-sm border"><div className="flex items-center justify-between"><div className="flex items-center gap-3"><div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center"><Store size={18} className="text-primary" /></div><div><h2 className="font-semibold text-sm">{sp.sellerProfile.business_name}</h2><p className="text-xs text-muted-foreground capitalize">{sp.primaryGroup?.replace('_', ' ')} • {sp.products.length} products{isAdminManage ? ' · admin manage' : ''}</p></div></div>{!isAdminManage && sp.sellerProfiles.length > 1 && <SellerSwitcher />}</div></div>
         )}
 
-        {!sp.sellerProfile && sp.sellerProfiles.length > 1 && (
+        {!isAdminManage && !sp.sellerProfile && sp.sellerProfiles.length > 1 && (
           <div className="mb-4 p-4 bg-card rounded-xl shadow-sm border space-y-3">
             <p className="text-sm font-medium">Select a store to manage products</p>
             <p className="text-xs text-muted-foreground">Portfolio / All stores is for order &amp; earnings rollups only.</p>
@@ -190,7 +197,7 @@ export default function SellerProductsPage() {
                         </div>
                       </div>
                       <div className="flex items-center gap-2 mt-2 flex-wrap">
-                        <Button size="sm" variant="outline" onClick={() => navigate(`/seller/products/${product.id}/edit`)}><Edit size={14} className="mr-1" />Edit</Button>
+                        <Button size="sm" variant="outline" onClick={() => navigate(paths.productEdit(product.id))}><Edit size={14} className="mr-1" />Edit</Button>
                         <Button size="sm" variant="ghost" className="text-destructive" onClick={() => sp.setDeleteTarget(product)}><Trash2 size={14} /></Button>
                         {approvalStatus === 'draft' && <Button size="sm" variant="secondary" onClick={async () => { if (!product.image_url) { toast.error('Add an image before submitting for approval'); return; } const { error } = await supabase.from('products').update({ approval_status: 'pending' } as any).eq('id', product.id); if (error) { toast.error(`Could not submit ${product.name}. Add a photo if it is missing, then try again.`); return; } const { showFeedback } = useFeedbackPopup(); showFeedback({ title: 'Submitted for approval', variant: 'success' }); if (sp.sellerProfile) sp.fetchData(sp.sellerProfile.id); }}><Send size={14} className="mr-1" />Submit</Button>}
                         {showPendingHint && <span className="text-xs text-muted-foreground italic">Under review — edits are still allowed</span>}
@@ -214,12 +221,12 @@ export default function SellerProductsPage() {
               <>
                 <p className="text-foreground font-medium mb-1">Upload your license to start listing</p>
                 <p className="text-sm text-muted-foreground mb-4">New products stay hidden until {sp.licenseBlocked.licenseName || 'your license'} is approved.</p>
-                <Button onClick={() => navigate('/seller/settings')}><ShieldAlert size={16} className="mr-1" />Finish license</Button>
+                <Button onClick={() => navigate(paths.settings)}><ShieldAlert size={16} className="mr-1" />Finish license</Button>
               </>
             ) : (
               <>
                 <p className="text-muted-foreground mb-4">No products yet</p>
-                <Button onClick={() => navigate('/seller/products/new')}><Plus size={16} className="mr-1" />Add Your First Product</Button>
+                <Button onClick={() => navigate(paths.productsNew)}><Plus size={16} className="mr-1" />Add Your First Product</Button>
               </>
             )}
           </div>
@@ -230,7 +237,7 @@ export default function SellerProductsPage() {
         <button
           type="button"
           aria-label="Add Product"
-          onClick={() => navigate('/seller/products/new')}
+          onClick={() => navigate(paths.productsNew)}
           className="md:hidden fixed right-4 bottom-20 z-40 h-14 px-5 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center gap-2 font-semibold active:scale-95 transition-transform"
           style={{ marginBottom: 'env(safe-area-inset-bottom)' }}
         >

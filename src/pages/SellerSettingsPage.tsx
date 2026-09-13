@@ -33,6 +33,7 @@ import {
   shouldShowSellerUpiField,
   type SellerSettingsSaveScope,
 } from '@/lib/sellerPaymentReadiness';
+import { adminStorePaths, SELLER_STORE_PATHS } from '@/contexts/AdminManagedSellerContext';
 
 function LicenseUploadSection({ sellerId, primaryGroup }: { sellerId: string; primaryGroup: string }) {
   const [groupId, setGroupId] = useState<string | null>(null);
@@ -112,14 +113,20 @@ function saveScopeForTab(tab: TabKey): SellerSettingsSaveScope {
   return 'general';
 }
 
-export default function SellerSettingsPage() {
+export default function SellerSettingsPage({
+  sellerIdOverride,
+}: {
+  sellerIdOverride?: string | null;
+} = {}) {
   const {
     user, sellerProfile, primaryGroup, isLoading, isSaving,
     formData, setFormData, currencySymbol,
     groupedConfigs, getGroupBySlug,
     paymentMode,
     handleCategoryChange, handleDayChange, togglePauseShop, handleSave,
-  } = useSellerSettings();
+  } = useSellerSettings({ sellerIdOverride });
+  const paths = sellerIdOverride ? adminStorePaths(sellerIdOverride) : SELLER_STORE_PATHS;
+  const isAdminManage = !!sellerIdOverride;
   const { data: allActions = [] } = useActionTypeMap();
   const { parentGroupInfos } = useParentGroups();
   const [requestCategoryOpen, setRequestCategoryOpen] = useState(false);
@@ -157,7 +164,11 @@ export default function SellerSettingsPage() {
       <AppLayout showHeader={false} safeTop={false}>
         <div className="p-4 text-center py-12 safe-top">
           <p className="text-muted-foreground">Seller profile not found</p>
-          <Link to="/become-seller"><Button className="mt-4">Become a Seller</Button></Link>
+          {isAdminManage ? (
+            <Link to="/admin/stores"><Button className="mt-4">Back to store manager</Button></Link>
+          ) : (
+            <Link to="/become-seller"><Button className="mt-4">Become a Seller</Button></Link>
+          )}
         </div>
       </AppLayout>
     );
@@ -167,8 +178,13 @@ export default function SellerSettingsPage() {
     <AppLayout showHeader={false} showNav={false} safeTop={false}>
       <SafeHeader>
         <div className="px-4 pb-3 flex items-center gap-3">
-          <Link to="/seller" className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-muted shrink-0"><ArrowLeft size={18} /></Link>
-          <h1 className="text-xl font-bold">Store Settings</h1>
+          <Link to={paths.back} className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-muted shrink-0"><ArrowLeft size={18} /></Link>
+          <div className="min-w-0">
+            <h1 className="text-xl font-bold">{isAdminManage ? 'Admin · Store Settings' : 'Store Settings'}</h1>
+            {isAdminManage && (
+              <p className="text-xs text-muted-foreground truncate">Managing {sellerProfile.business_name}</p>
+            )}
+          </div>
         </div>
       </SafeHeader>
       <div className="p-4 pb-44">

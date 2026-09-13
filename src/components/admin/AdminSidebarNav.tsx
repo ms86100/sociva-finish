@@ -19,6 +19,7 @@ const NAV_GROUPS = [
     label: 'Commerce',
     items: [
       { value: 'sellers', label: 'Moderation', icon: Store },
+      { value: 'store-manager', label: 'Store manager', icon: Package },
       { value: 'payments', label: 'Payments', icon: CreditCard },
       { value: 'refunds', label: 'Refunds', icon: CreditCard },
       { value: 'seller-payouts', label: 'Seller payouts', icon: CreditCard },
@@ -81,6 +82,7 @@ export function AdminSidebarNav({ activeTab, onTabChange }: AdminSidebarNavProps
   const ROUTE_ITEMS: Record<string, string> = {
     'api-docs': '/api-docs',
     'command-center': '/admin/command-center',
+    'store-manager': '/admin/stores',
     refunds: '/admin/refunds',
     'seller-payouts': '/admin/seller-payouts',
     'financial-controls': '/admin/financial-controls',

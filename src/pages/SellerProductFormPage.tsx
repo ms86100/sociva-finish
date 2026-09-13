@@ -34,6 +34,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { FoodFacetChips } from '@/components/seller/FoodFacetChips';
 import { isFoodParentGroup, parseFoodFacets, serializeFoodFacets } from '@/lib/food-facets';
+import { adminStorePaths, SELLER_STORE_PATHS } from '@/contexts/AdminManagedSellerContext';
 
 // ── Step definitions ──
 const STEPS = [
@@ -47,11 +48,20 @@ const STEPS = [
 
 type StepKey = typeof STEPS[number]['key'];
 
-export default function SellerProductFormPage() {
+export default function SellerProductFormPage({
+  sellerIdOverride,
+}: {
+  sellerIdOverride?: string | null;
+} = {}) {
   const navigate = useNavigate();
   const { productId } = useParams<{ productId?: string }>();
   const isEditing = !!productId;
-  const sp = useSellerProducts({ formIntent: isEditing ? 'edit' : 'new', editingProductId: productId });
+  const paths = sellerIdOverride ? adminStorePaths(sellerIdOverride) : SELLER_STORE_PATHS;
+  const sp = useSellerProducts({
+    formIntent: isEditing ? 'edit' : 'new',
+    editingProductId: productId,
+    sellerIdOverride,
+  });
   const { formatPrice, currencySymbol } = useCurrency();
   const [currentStep, setCurrentStep] = useState(0);
 
@@ -108,7 +118,7 @@ export default function SellerProductFormPage() {
     delete (window as any).__productFormFirstError;
     const saved = await sp.handleSave();
     if (saved) {
-      navigate('/seller/products', { replace: true, state: { productSaved: true } });
+      navigate(paths.products, { replace: true, state: { productSaved: true } });
       return;
     }
     // Validation failed — jump to the step with the first error field
@@ -143,7 +153,7 @@ export default function SellerProductFormPage() {
   const handleBack = () => {
     if (currentStep === 0) {
       sp.resetForm();
-      navigate('/seller/products');
+      navigate(paths.products);
     } else {
       setCurrentStep(prev => prev - 1);
     }

@@ -67,6 +67,7 @@ function ThemeStatusBarSync() {
   return null;
 }
 import { AuthProvider, useAuth, useOptionalAuth } from "@/contexts/AuthContext";
+import { AdminManagedSellerProvider } from "@/contexts/AdminManagedSellerContext";
 import { CartProvider } from "@/hooks/useCart";
 import { CartPopupProvider } from "@/components/CartPopupProvider";
 import { BrowsingLocationProvider } from "@/contexts/BrowsingLocationContext";
@@ -136,6 +137,16 @@ const AdminRefundsPage = lazyWithRetry(() => import("./pages/AdminRefundsPage"))
 const AdminSellerPayoutsPage = lazyWithRetry(() => import("./pages/AdminSellerPayoutsPage"));
 const AdminSellerCreditsPage = lazyWithRetry(() => import("./pages/AdminSellerCreditsPage"));
 const AdminCommandCenterPage = lazyWithRetry(() => import("./pages/AdminCommandCenterPage"));
+const AdminStoreManagerPage = lazyWithRetry(() => import("./pages/AdminStoreManagerPage"));
+const AdminManagedSellerProductsPage = lazyWithRetry(() =>
+  import("./pages/AdminManagedSellerPages").then((m) => ({ default: m.AdminManagedSellerProductsPage })),
+);
+const AdminManagedSellerProductFormPage = lazyWithRetry(() =>
+  import("./pages/AdminManagedSellerPages").then((m) => ({ default: m.AdminManagedSellerProductFormPage })),
+);
+const AdminManagedSellerSettingsPage = lazyWithRetry(() =>
+  import("./pages/AdminManagedSellerPages").then((m) => ({ default: m.AdminManagedSellerSettingsPage })),
+);
 const NotFound = lazyWithRetry(() => import("./pages/NotFound"));
 const ProductDeepLinkPage = lazyWithRetry(() => import("./pages/ProductDeepLinkPage"));
 const PrivacyPolicyPage = lazyWithRetry(() => import("./pages/PrivacyPolicyPage"));
@@ -663,6 +674,12 @@ function AppRoutes() {
           <Route path="/admin/seller-payouts" element={<AdminRoute><RouteErrorBoundary sectionName="Seller Payouts"><AdminSellerPayoutsPage /></RouteErrorBoundary></AdminRoute>} />
           <Route path="/admin/seller-credits" element={<AdminRoute><RouteErrorBoundary sectionName="Monetization"><AdminSellerCreditsPage /></RouteErrorBoundary></AdminRoute>} />
           <Route path="/admin/command-center" element={<AdminRoute><RouteErrorBoundary sectionName="Command Center"><AdminCommandCenterPage /></RouteErrorBoundary></AdminRoute>} />
+          <Route path="/admin/stores" element={<AdminRoute><RouteErrorBoundary sectionName="Store Manager"><AdminStoreManagerPage /></RouteErrorBoundary></AdminRoute>} />
+          <Route path="/admin/stores/:sellerId" element={<AdminRoute><RouteErrorBoundary sectionName="Store Manager"><AdminStoreManagerPage /></RouteErrorBoundary></AdminRoute>} />
+          <Route path="/admin/stores/:sellerId/products" element={<AdminRoute><RouteErrorBoundary sectionName="Managed Products"><AdminManagedSellerProductsPage /></RouteErrorBoundary></AdminRoute>} />
+          <Route path="/admin/stores/:sellerId/products/new" element={<AdminRoute><RouteErrorBoundary sectionName="Managed Add Product"><AdminManagedSellerProductFormPage /></RouteErrorBoundary></AdminRoute>} />
+          <Route path="/admin/stores/:sellerId/products/:productId/edit" element={<AdminRoute><RouteErrorBoundary sectionName="Managed Edit Product"><AdminManagedSellerProductFormPage /></RouteErrorBoundary></AdminRoute>} />
+          <Route path="/admin/stores/:sellerId/settings" element={<AdminRoute><RouteErrorBoundary sectionName="Managed Settings"><AdminManagedSellerSettingsPage /></RouteErrorBoundary></AdminRoute>} />
           <Route path="/test-results" element={<AdminRoute><TestResultsPage /></AdminRoute>} />
           <Route path="/api-docs" element={<AdminRoute><ApiDocsPage /></AdminRoute>} />
           <Route path="/docs" element={<DocumentationPage />} />
@@ -785,6 +802,7 @@ function App() {
               <KeyboardAwareInputs />
               <FeedbackPopupProvider>
                 <AuthProvider>
+                  <AdminManagedSellerProvider>
                   <SplashGate>
                     <NavigationHandler />
                 <BrowsingLocationProvider>
@@ -801,6 +819,7 @@ function App() {
                   </CartPopupProvider>
                 </BrowsingLocationProvider>
                 </SplashGate>
+                  </AdminManagedSellerProvider>
               </AuthProvider>
             </FeedbackPopupProvider>
             </HashRouter>

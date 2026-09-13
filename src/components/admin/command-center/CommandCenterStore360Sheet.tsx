@@ -92,6 +92,13 @@ export function CommandCenterStore360Sheet({
             </div>
 
             <div className="flex gap-2 flex-wrap">
+              {sellerId && (
+                <Button size="sm" className="rounded-xl text-xs" asChild>
+                  <Link to={`/admin/stores/${sellerId}`} onClick={() => onOpenChange(false)}>
+                    Manage store
+                  </Link>
+                </Button>
+              )}
               {onViewOrders && (
                 <Button size="sm" variant="outline" className="rounded-xl text-xs" onClick={() => onViewOrders(store.seller_id)}>
                   View orders

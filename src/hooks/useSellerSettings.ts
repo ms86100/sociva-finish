@@ -96,8 +96,9 @@ function parseTimeInput(timeStr: string): [number, number] | null {
   return [h, m];
 }
 
-export function useSellerSettings() {
-  const { user, currentSellerId, sellerProfiles } = useAuth();
+export function useSellerSettings(opts?: { sellerIdOverride?: string | null }) {
+  const sellerIdOverride = opts?.sellerIdOverride ?? null;
+  const { user, currentSellerId, sellerProfiles, isAdmin } = useAuth();
   const { currencySymbol } = useCurrency();
   const { groupedConfigs } = useCategoryConfigs();
   const { getGroupBySlug } = useParentGroups();
@@ -108,16 +109,23 @@ export function useSellerSettings() {
   const [isSaving, setIsSaving] = useState(false);
   const [formData, setFormData] = useState<SellerSettingsFormData>(DEFAULT_FORM);
 
+  const effectiveSellerId =
+    isAdmin && sellerIdOverride
+      ? sellerIdOverride
+      : currentSellerId && !isPortfolioSellerId(currentSellerId)
+        ? currentSellerId
+        : !currentSellerId && sellerProfiles.length > 0
+          ? sellerProfiles[0].id
+          : null;
+
   useEffect(() => {
-    if (currentSellerId && !isPortfolioSellerId(currentSellerId)) {
-      fetchProfileById(currentSellerId);
-    } else if (!currentSellerId && sellerProfiles.length > 0) {
-      fetchProfileById(sellerProfiles[0].id);
+    if (effectiveSellerId) {
+      fetchProfileById(effectiveSellerId);
     } else {
       setSellerProfile(null);
       setIsLoading(false);
     }
-  }, [currentSellerId, sellerProfiles]);
+  }, [effectiveSellerId]);
 
   const fetchProfileById = async (sellerId: string) => {
     try {
