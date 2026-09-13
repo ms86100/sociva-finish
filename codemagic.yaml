@@ -86,6 +86,11 @@ workflows:
             echo "ERROR: Transistorsoft iOS pod must not be present in Podfile"
             exit 1
           fi
+          if ! grep -q "EbarooniCapacitorCalendar" Podfile; then
+            echo "ERROR: EbarooniCapacitorCalendar must be in Podfile for Add to Calendar on iOS"
+            exit 1
+          fi
+          echo "=== CapacitorCalendar pod present ==="
           # deterministic resolver on clean CI nodes
           pod install --repo-update
 
@@ -369,6 +374,12 @@ workflows:
           /usr/libexec/PlistBuddy -c "Delete :NSLocationAlwaysUsageDescription" App/Info.plist 2>/dev/null || true
           /usr/libexec/PlistBuddy -c "Set :NSMotionUsageDescription 'Sociva may use motion activity while the app is open to keep live delivery progress accurate and save battery during an active seller delivery.'" App/Info.plist 2>/dev/null || \
             /usr/libexec/PlistBuddy -c "Add :NSMotionUsageDescription string 'Sociva may use motion activity while the app is open to keep live delivery progress accurate and save battery during an active seller delivery.'" App/Info.plist
+          /usr/libexec/PlistBuddy -c "Set :NSCalendarsUsageDescription 'Sociva needs calendar access so you can save service bookings to your calendar.'" App/Info.plist 2>/dev/null || \
+            /usr/libexec/PlistBuddy -c "Add :NSCalendarsUsageDescription string 'Sociva needs calendar access so you can save service bookings to your calendar.'" App/Info.plist
+          /usr/libexec/PlistBuddy -c "Set :NSCalendarsWriteOnlyAccessUsageDescription 'Sociva needs calendar access so you can save service bookings to your calendar.'" App/Info.plist 2>/dev/null || \
+            /usr/libexec/PlistBuddy -c "Add :NSCalendarsWriteOnlyAccessUsageDescription string 'Sociva needs calendar access so you can save service bookings to your calendar.'" App/Info.plist
+          /usr/libexec/PlistBuddy -c "Set :NSCalendarsFullAccessUsageDescription 'Sociva needs calendar access so you can save service bookings to your calendar.'" App/Info.plist 2>/dev/null || \
+            /usr/libexec/PlistBuddy -c "Add :NSCalendarsFullAccessUsageDescription string 'Sociva needs calendar access so you can save service bookings to your calendar.'" App/Info.plist
           echo "=== Privacy strings injected ==="
 
       - name: Copy GoogleService-Info.plist
@@ -1116,6 +1127,11 @@ workflows:
             echo "ERROR: Transistorsoft iOS pod must not be present in Podfile"
             exit 1
           fi
+          if ! grep -q "EbarooniCapacitorCalendar" Podfile; then
+            echo "ERROR: EbarooniCapacitorCalendar must be in Podfile for Add to Calendar on iOS"
+            exit 1
+          fi
+          echo "=== CapacitorCalendar pod present ==="
           pod install --repo-update
 
       - name: Generate App Icon from source
@@ -1328,6 +1344,12 @@ workflows:
           /usr/libexec/PlistBuddy -c "Delete :NSLocationAlwaysUsageDescription" App/Info.plist 2>/dev/null || true
           /usr/libexec/PlistBuddy -c "Set :NSMotionUsageDescription 'Sociva may use motion activity while the app is open to keep live delivery progress accurate and save battery during an active seller delivery.'" App/Info.plist 2>/dev/null || \
             /usr/libexec/PlistBuddy -c "Add :NSMotionUsageDescription string 'Sociva may use motion activity while the app is open to keep live delivery progress accurate and save battery during an active seller delivery.'" App/Info.plist
+          /usr/libexec/PlistBuddy -c "Set :NSCalendarsUsageDescription 'Sociva needs calendar access so you can save service bookings to your calendar.'" App/Info.plist 2>/dev/null || \
+            /usr/libexec/PlistBuddy -c "Add :NSCalendarsUsageDescription string 'Sociva needs calendar access so you can save service bookings to your calendar.'" App/Info.plist
+          /usr/libexec/PlistBuddy -c "Set :NSCalendarsWriteOnlyAccessUsageDescription 'Sociva needs calendar access so you can save service bookings to your calendar.'" App/Info.plist 2>/dev/null || \
+            /usr/libexec/PlistBuddy -c "Add :NSCalendarsWriteOnlyAccessUsageDescription string 'Sociva needs calendar access so you can save service bookings to your calendar.'" App/Info.plist
+          /usr/libexec/PlistBuddy -c "Set :NSCalendarsFullAccessUsageDescription 'Sociva needs calendar access so you can save service bookings to your calendar.'" App/Info.plist 2>/dev/null || \
+            /usr/libexec/PlistBuddy -c "Add :NSCalendarsFullAccessUsageDescription string 'Sociva needs calendar access so you can save service bookings to your calendar.'" App/Info.plist
           echo "=== Privacy strings injected ==="
 
       - name: Copy GoogleService-Info.plist

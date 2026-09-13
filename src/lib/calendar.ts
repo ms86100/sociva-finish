@@ -52,9 +52,15 @@ function isValidDate(d: Date): boolean {
   return d instanceof Date && !Number.isNaN(d.getTime());
 }
 
+function isUnimplementedPluginError(error: unknown): boolean {
+  const msg = error instanceof Error ? error.message : String(error ?? '');
+  return /not implemented|UNIMPLEMENTED|plugin is not implemented/i.test(msg);
+}
+
 /**
  * Add a booking to the device calendar.
- * - Native Android/iOS: Capacitor Calendar plugin (system UI / EventKit / Calendar Provider)
+ * - Native (plugin present): Capacitor Calendar (EventKit / Calendar Provider)
+ * - Native without plugin / plugin failure: .ics handoff (opens Calendar)
  * - Web: download / open an .ics file with reminders
  */
 export async function addToCalendar(data: CalendarEventData): Promise<AddToCalendarResult> {
@@ -66,7 +72,22 @@ export async function addToCalendar(data: CalendarEventData): Promise<AddToCalen
   }
 
   if (Capacitor.isNativePlatform()) {
-    return addToNativeCalendar(data);
+    // Avoid calling a missing native bridge — older IPAs may not ship CapacitorCalendar.
+    if (!Capacitor.isPluginAvailable('CapacitorCalendar')) {
+      return await openICS(data);
+    }
+    try {
+      return await addToNativeCalendar(data);
+    } catch (error) {
+      console.warn('[Calendar] Native calendar failed, falling back to ICS:', error);
+      if (isUnimplementedPluginError(error) || Capacitor.getPlatform() === 'ios') {
+        return await openICS(data);
+      }
+      return {
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Could not open calendar',
+      };
+    }
   }
   return openICS(data);
 }
@@ -75,49 +96,39 @@ async function addToNativeCalendar(data: CalendarEventData): Promise<AddToCalend
   const alerts = data.alerts ?? [...DEFAULT_CALENDAR_ALERTS];
   const platform = Capacitor.getPlatform();
 
-  try {
-    const { CapacitorCalendar } = await import('@ebarooni/capacitor-calendar');
+  const { CapacitorCalendar } = await import('@ebarooni/capacitor-calendar');
 
-    const base = {
-      title: data.title,
-      startDate: data.startDate.getTime(),
-      endDate: data.endDate.getTime(),
-      location: data.location || undefined,
-      description: data.description || undefined,
-    };
+  const base = {
+    title: data.title,
+    startDate: data.startDate.getTime(),
+    endDate: data.endDate.getTime(),
+    location: data.location || undefined,
+    description: data.description || undefined,
+  };
 
-    if (platform === 'android') {
-      return addToAndroidCalendar(CapacitorCalendar, base, alerts);
-    }
+  if (platform === 'android') {
+    return addToAndroidCalendar(CapacitorCalendar, base, alerts);
+  }
 
-    // iOS — write-only access + system event editor (supports alerts + cancel)
-    const permResult = await CapacitorCalendar.requestWriteOnlyCalendarAccess();
-    if (permResult?.result === 'denied') {
-      return {
-        status: 'denied',
-        message: 'Calendar access is required. Enable it in Settings to add bookings.',
-      };
-    }
-
-    const { id } = await CapacitorCalendar.createEventWithPrompt({
-      ...base,
-      alerts,
-    });
-
-    // null = user cancelled the system editor
-    if (id === null) {
-      return { status: 'cancelled' };
-    }
-    return { status: 'added' };
-  } catch (error) {
-    console.warn('[Calendar] Native calendar failed:', error);
-    // Last-resort: never silently "succeed" — surface a clear error on native.
-    // ICS blob downloads are unreliable inside Capacitor WebViews.
+  // iOS — write-only access + system event editor (supports alerts + cancel)
+  const permResult = await CapacitorCalendar.requestWriteOnlyCalendarAccess();
+  if (permResult?.result === 'denied') {
     return {
-      status: 'error',
-      message: error instanceof Error ? error.message : 'Could not open calendar',
+      status: 'denied',
+      message: 'Calendar access is required. Enable it in Settings to add bookings.',
     };
   }
+
+  const { id } = await CapacitorCalendar.createEventWithPrompt({
+    ...base,
+    alerts,
+  });
+
+  // null = user cancelled the system editor
+  if (id === null) {
+    return { status: 'cancelled' };
+  }
+  return { status: 'added' };
 }
 
 async function addToAndroidCalendar(
@@ -236,16 +247,23 @@ function isMedianOrMobileWeb(): boolean {
 }
 
 /**
- * Opens / downloads an ICS file on web (and Median webviews).
+ * Opens / downloads an ICS file on web (and as iOS native fallback).
  *
  * Median Calendar plugin intercepts `data:text/calendar` / `.ics` links —
  * blob: URLs with a `download` attribute are NOT intercepted and fail silently
  * inside native webviews.
  */
-function openICS(data: CalendarEventData): AddToCalendarResult {
+async function openICS(data: CalendarEventData): Promise<AddToCalendarResult> {
   try {
     const content = buildICSContent(data);
     const filename = `${sanitizeFilename(data.title) || 'appointment'}.ics`;
+
+    // Capacitor iOS / Android WebView: prefer in-app browser / system handoff
+    // when native calendar plugin is missing.
+    if (Capacitor.isNativePlatform()) {
+      await openNativeICS(content, filename);
+      return { status: 'downloaded' };
+    }
 
     if (isMedianOrMobileWeb()) {
       // data URI (not blob) so Median / mobile OS can hand off to Calendar
@@ -280,6 +298,27 @@ function openICS(data: CalendarEventData): AddToCalendarResult {
       message: error instanceof Error ? error.message : 'Could not download calendar file',
     };
   }
+}
+
+async function openNativeICS(content: string, filename: string): Promise<void> {
+  const dataUri = `data:text/calendar;charset=utf-8,${encodeURIComponent(content)}`;
+  try {
+    const { Browser } = await import('@capacitor/browser');
+    await Browser.open({ url: dataUri });
+    return;
+  } catch (browserErr) {
+    console.warn('[Calendar] Browser.open ICS failed, using anchor:', browserErr);
+  }
+  const link = document.createElement('a');
+  link.href = dataUri;
+  link.rel = 'noopener';
+  // Keep download hint for Android WebView file handling; iOS Calendar prefers no download attr.
+  if (Capacitor.getPlatform() === 'android') {
+    link.download = filename;
+  }
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
 }
 
 function sanitizeFilename(name: string): string {
