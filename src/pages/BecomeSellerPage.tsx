@@ -687,7 +687,10 @@ export default function BecomeSellerPage() {
     try { sessionStorage.setItem('onboarding_store_substep', String(val)); } catch { /* */ }
   }, []);
 
-  const continueFromIntentCategory = useCallback(async (categorySlug: string) => {
+  const continueFromIntentCategory = useCallback(async (
+    categorySlug: string,
+    reachOverride?: import('@/lib/buyer-reach').BuyerReachId,
+  ) => {
     const cfg = configs.find((c: any) => c.category === categorySlug);
     if (!cfg) {
       notify.block('Category not found');
@@ -705,17 +708,19 @@ export default function BecomeSellerPage() {
       );
       return;
     }
-    const model = commerceModelFromCategory({
-      sellerDomain: (cfg as any).sellerDomain,
-      parentGroup: cfg.parentGroup,
-      category: cfg.category,
-      supportsCart: cfg.behavior?.supportsCart,
-      isPhysicalProduct: cfg.behavior?.isPhysicalProduct,
-      enquiryOnly: cfg.behavior?.enquiryOnly,
-      requiresTimeSlot: cfg.behavior?.requiresTimeSlot,
-      defaultActionType: (cfg as any).defaultActionType,
-      transactionType: cfg.transactionType,
-    });
+    const model = reachOverride
+      ? reachOverride
+      : commerceModelFromCategory({
+          sellerDomain: (cfg as any).sellerDomain,
+          parentGroup: cfg.parentGroup,
+          category: cfg.category,
+          supportsCart: cfg.behavior?.supportsCart,
+          isPhysicalProduct: cfg.behavior?.isPhysicalProduct,
+          enquiryOnly: cfg.behavior?.enquiryOnly,
+          requiresTimeSlot: cfg.behavior?.requiresTimeSlot,
+          defaultActionType: (cfg as any).defaultActionType,
+          transactionType: cfg.transactionType,
+        });
     const action = commerceModelToDefaultAction(model);
     await persistCommerceChoice(model as BuyerJourneyId);
     handleSetStoreActionType(action);
@@ -1132,14 +1137,10 @@ export default function BecomeSellerPage() {
               }}
               selectedCategorySlug={selectedCategorySlug}
               onSelectCategory={(slug) => {
-                setFormData((f) => ({ ...f, categories: [slug] }));
+                setFormData((f) => ({ ...f, categories: slug ? [slug] : [] }));
               }}
-              onContinue={() => {
-                if (!selectedCategorySlug) {
-                  notify.block('Select a category to continue');
-                  return;
-                }
-                void continueFromIntentCategory(selectedCategorySlug);
+              onContinue={(payload) => {
+                void continueFromIntentCategory(payload.categorySlug, payload.reach);
               }}
             />
           </>

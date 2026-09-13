@@ -33,6 +33,11 @@ describe('v5 intent-first onboarding contracts', () => {
     expect(src).toMatch(/step === 4[\s\S]*business_name/);
     expect(src).toContain('Go to Seller Dashboard');
     expect(src).not.toMatch(/step === 1[\s\S]*CommerceModelStep/);
+    // Domain → reach → category lives inside IntentCategoryStep (not CommerceModel as step 1)
+    const intent = readSrc('src/components/seller/IntentCategoryStep.tsx');
+    expect(intent).toMatch(/phase === 'domain'/);
+    expect(intent).toMatch(/phase === 'reach'/);
+    expect(intent).toMatch(/phase === 'category'/);
   });
 
   it('draft hook uses onboarding version 5 and 4 steps', () => {
