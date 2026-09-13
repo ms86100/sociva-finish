@@ -1869,7 +1869,7 @@ workflows:
           PYEOF
           head -55 "$GRADLE_FILE"
 
-      - name: Build Android AAB
+      - name: Build Android AAB and APK
         script: |
           if [ -n "${CM_KEYSTORE_PATH:-}" ] && [ -f "$CM_KEYSTORE_PATH" ]; then
             export CM_KEYSTORE="$CM_KEYSTORE_PATH"
@@ -1880,14 +1880,18 @@ workflows:
           fi
           cd android
           chmod +x ./gradlew
-          ./gradlew clean bundleRelease --warning-mode all
+          ./gradlew clean bundleRelease assembleRelease --warning-mode all
           AAB=$(ls -1 app/build/outputs/bundle/release/*.aab | head -1)
+          APK=$(ls -1 app/build/outputs/apk/release/*.apk | head -1)
           jarsigner -verify "$AAB"
           echo "=== AAB signature OK: $AAB ==="
+          jarsigner -verify "$APK"
+          echo "=== APK signature OK: $APK ==="
 
     artifacts:
       - ios/App/build/ios/ipa/*.ipa
       - android/app/build/outputs/**/*.aab
+      - android/app/build/outputs/**/*.apk
 
     publishing:
       app_store_connect:
