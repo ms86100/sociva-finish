@@ -346,6 +346,9 @@ export function usePushNotificationsInternal() {
             lights: true,
           });
           pushLog('info', 'LOCAL_NOTIF_CHANNEL_CREATED', { channelId: 'orders_incoming_v2' });
+          void import('@/lib/local-order-notifications').then(({ ensureLocalOrderNotificationAckListener }) => {
+            void ensureLocalOrderNotificationAckListener();
+          }).catch(() => {});
         } catch (lnErr) {
           pushLog('warn', 'LOCAL_NOTIF_CHANNEL_FAILED', { error: String(lnErr) });
         }
@@ -614,6 +617,15 @@ export function usePushNotificationsInternal() {
         const orderId = data?.orderId ?? data?.order_id ?? data?.entity_id;
         const pushStatus = data?.status;
         const isTerminalPush = data?.is_terminal === 'true' || (data as any)?.is_terminal === true;
+        if (orderId) {
+          // Tapping the notification means the seller is on it — stop looping bell immediately.
+          void import('@/lib/order-alert-ack').then(({ acknowledgeOrderAlert }) => {
+            acknowledgeOrderAlert(orderId);
+          }).catch(() => {});
+          void import('@/lib/local-order-notifications').then(({ cancelIncomingOrderLocalNotification }) => {
+            void cancelIncomingOrderLocalNotification(orderId);
+          }).catch(() => {});
+        }
         if (orderId && (isTerminalPush || pushStatus)) {
           if (isTerminalPush) {
             window.dispatchEvent(new CustomEvent('order-terminal-push', {

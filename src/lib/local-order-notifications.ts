@@ -98,6 +98,7 @@ export async function scheduleIncomingOrderLocalNotification(opts: {
         actionTypeId: 'OPEN_ORDER',
       }],
     });
+    void ensureLocalOrderNotificationAckListener();
   } catch (e) {
     console.warn('[LocalNotif] schedule failed:', e);
   }
@@ -128,5 +129,27 @@ export async function cancelAllIncomingOrderLocalNotifications(): Promise<void> 
     }
   } catch (e) {
     console.warn('[LocalNotif] cancelAll failed:', e);
+  }
+}
+
+let localActionListenerReady = false;
+
+/** Register once: tapping a local order notification stops the in-app bell. */
+export async function ensureLocalOrderNotificationAckListener(): Promise<void> {
+  if (!Capacitor.isNativePlatform() || localActionListenerReady) return;
+  localActionListenerReady = true;
+  try {
+    const { LocalNotifications } = await import('@capacitor/local-notifications');
+    const { acknowledgeOrderAlert } = await import('@/lib/order-alert-ack');
+    await LocalNotifications.addListener('localNotificationActionPerformed', (event) => {
+      const extra = event.notification?.extra as { orderId?: string; type?: string } | undefined;
+      const orderId = extra?.orderId;
+      if (!orderId) return;
+      void cancelIncomingOrderLocalNotification(orderId);
+      acknowledgeOrderAlert(orderId);
+    });
+  } catch (e) {
+    localActionListenerReady = false;
+    console.warn('[LocalNotif] action listener failed:', e);
   }
 }

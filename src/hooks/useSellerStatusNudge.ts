@@ -26,6 +26,7 @@ export function useSellerStatusNudge(sellerIds: string[], paused: boolean) {
 
   const audioContextRef = useRef<AudioContext | null>(null);
   const audioBufferRef = useRef<AudioBuffer | null>(null);
+  const activeBellSourcesRef = useRef<AudioBufferSourceNode[]>([]);
   const bellLoopTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isBuzzingRef = useRef(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -55,24 +56,34 @@ export function useSellerStatusNudge(sellerIds: string[], paused: boolean) {
   }, []);
 
   const playBellOnce = useCallback(async () => {
+    if (!isBuzzingRef.current || paused) return;
     const ok = await ensureAudioLoaded();
-    if (!ok) return;
+    if (!ok || !isBuzzingRef.current || paused) return;
     const ctx = audioContextRef.current;
     const buffer = audioBufferRef.current;
     if (!ctx || !buffer) return;
     try {
       if (ctx.state === 'suspended') await ctx.resume();
+      if (!isBuzzingRef.current || paused) return;
       const source = ctx.createBufferSource();
       source.buffer = buffer;
       source.connect(ctx.destination);
+      activeBellSourcesRef.current.push(source);
+      source.onended = () => {
+        activeBellSourcesRef.current = activeBellSourcesRef.current.filter((s) => s !== source);
+      };
       source.start(0);
     } catch { /* optional */ }
-  }, [ensureAudioLoaded]);
+  }, [ensureAudioLoaded, paused]);
 
   const stopBuzzing = useCallback(() => {
     isBuzzingRef.current = false;
     if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
     if (bellLoopTimerRef.current) { clearTimeout(bellLoopTimerRef.current); bellLoopTimerRef.current = null; }
+    for (const source of activeBellSourcesRef.current) {
+      try { source.stop(0); } catch { /* already stopped */ }
+    }
+    activeBellSourcesRef.current = [];
   }, []);
 
   const startBuzzing = useCallback(() => {
@@ -234,6 +245,22 @@ export function useSellerStatusNudge(sellerIds: string[], paused: boolean) {
   }, [enabled, enqueueNudge]);
 
   useEffect(() => () => stopBuzzing(), [stopBuzzing]);
+
+  // Same ack bus as incoming alerts — opening the order / tapping notification stops nudge ring
+  useEffect(() => {
+    if (!sellerIds.length) return;
+    const onAck = (event: Event) => {
+      const orderId = (event as CustomEvent)?.detail?.orderId;
+      if (orderId) dismissById(orderId);
+    };
+    const onAckAll = () => dismissAll();
+    window.addEventListener('order-alert-ack', onAck);
+    window.addEventListener('order-alert-ack-all', onAckAll);
+    return () => {
+      window.removeEventListener('order-alert-ack', onAck);
+      window.removeEventListener('order-alert-ack-all', onAckAll);
+    };
+  }, [sellerIds.length, dismissById, dismissAll]);
 
   return { pendingNudges, dismiss, dismissById, dismissAll, snooze };
 }

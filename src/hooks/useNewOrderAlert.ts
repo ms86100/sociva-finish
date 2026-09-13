@@ -8,9 +8,13 @@ import {
   cancelIncomingOrderLocalNotification,
   cancelAllIncomingOrderLocalNotifications,
 } from '@/lib/local-order-notifications';
+import {
+  isInsertAlertStatus,
+  shouldKeepIncomingOrderAlert,
+} from '@/lib/order-alert-ack';
 
+/** Poll / reconcile: include one-shot insert statuses so we can clear stale overlays. */
 const ACTIONABLE_STATUSES = ['placed', 'enquired', 'quoted', 'requested', 'scheduled', 'preparing', 'confirmed'] as const;
-const ACTIONABLE_STATUSES_INSERT = ['placed', 'enquired', 'quoted', 'requested', 'scheduled', 'preparing', 'confirmed'] as const;
 
 export interface NewOrder {
   id: string;
@@ -59,7 +63,7 @@ export function clearSnoozePreference() {
 }
 
 function isActionableStatus(status: string | null | undefined): boolean {
-  return !!status && ACTIONABLE_STATUSES.includes(status as typeof ACTIONABLE_STATUSES[number]);
+  return isInsertAlertStatus(status);
 }
 
 export function useNewOrderAlert(sellerIds: string[]) {
@@ -80,6 +84,7 @@ export function useNewOrderAlert(sellerIds: string[]) {
 
   const audioContextRef = useRef<AudioContext | null>(null);
   const audioBufferRef = useRef<AudioBuffer | null>(null);
+  const activeBellSourcesRef = useRef<AudioBufferSourceNode[]>([]);
   const bellLoopTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isBuzzingRef = useRef(false);
 
@@ -190,16 +195,23 @@ export function useNewOrderAlert(sellerIds: string[]) {
   }, [invalidateSellerOrderCaches]);
 
   const playBellOnce = useCallback(async () => {
+    if (!isBuzzingRef.current) return;
     const isLoaded = await ensureAudioLoaded();
-    if (!isLoaded) return;
+    // User may have acknowledged while the buffer was loading.
+    if (!isLoaded || !isBuzzingRef.current) return;
     const ctx = audioContextRef.current;
     const buffer = audioBufferRef.current;
     if (!ctx || !buffer) return;
     try {
-      if (ctx.state === 'suspended') ctx.resume();
+      if (ctx.state === 'suspended') await ctx.resume();
+      if (!isBuzzingRef.current) return;
       const source = ctx.createBufferSource();
       source.buffer = buffer;
       source.connect(ctx.destination);
+      activeBellSourcesRef.current.push(source);
+      source.onended = () => {
+        activeBellSourcesRef.current = activeBellSourcesRef.current.filter((s) => s !== source);
+      };
       source.start(0);
     } catch (e) {
       console.warn('[OrderAlert] Web Audio play failed:', e);
@@ -210,6 +222,10 @@ export function useNewOrderAlert(sellerIds: string[]) {
     isBuzzingRef.current = false;
     if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
     if (bellLoopTimerRef.current) { clearTimeout(bellLoopTimerRef.current); bellLoopTimerRef.current = null; }
+    for (const source of activeBellSourcesRef.current) {
+      try { source.stop(0); } catch { /* already stopped */ }
+    }
+    activeBellSourcesRef.current = [];
   }, []);
 
   const startBuzzing = useCallback(() => {
@@ -361,7 +377,7 @@ export function useNewOrderAlert(sellerIds: string[]) {
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'orders', filter }, (payload) => {
         const n = payload.new as any;
         if (!sellerIdsRef.current.has(n.seller_id)) return;
-        if (!ACTIONABLE_STATUSES_INSERT.includes(n.status)) return;
+        if (!isInsertAlertStatus(n.status)) return;
         handleNewOrder({
           id: n.id, status: n.status, created_at: n.created_at,
           total_amount: n.total_amount, seller_id: n.seller_id,
@@ -376,7 +392,9 @@ export function useNewOrderAlert(sellerIds: string[]) {
         // Always refresh board/stats/analytics on any status change — even when
         // handleNewOrder early-returns (seenIds) for placed→preparing etc.
         invalidateSellerOrderCaches(n.seller_id);
-        if (isActionableStatus(n.status)) {
+        // Accept / prepare / reject / complete / schedule-confirm → seller is on it: stop ringing.
+        // Only keep looping for statuses that still need a first response.
+        if (shouldKeepIncomingOrderAlert(n.status)) {
           handleNewOrder({
             id: n.id, status: n.status, created_at: n.created_at,
             total_amount: n.total_amount, seller_id: n.seller_id,
@@ -385,7 +403,6 @@ export function useNewOrderAlert(sellerIds: string[]) {
             delivery_lng: n.delivery_lng, society_id: n.society_id,
           });
         } else {
-          // Cancelled / expired / accepted / rejected / completed / etc. — stop overlay
           handleTerminalOrder(n.id, n.seller_id);
         }
       })
@@ -417,6 +434,23 @@ export function useNewOrderAlert(sellerIds: string[]) {
     return () => window.removeEventListener('order-terminal-push', onTerminalPush);
   }, [enabled, handleTerminalOrder]);
 
+  // View / accept / notification tap — hard-stop ring for that order (or all)
+  useEffect(() => {
+    if (!enabled) return;
+    const onAck = (event: Event) => {
+      const orderId = (event as CustomEvent)?.detail?.orderId;
+      if (!orderId) return;
+      dismissById(orderId);
+    };
+    const onAckAll = () => { dismissAll(); };
+    window.addEventListener('order-alert-ack', onAck);
+    window.addEventListener('order-alert-ack-all', onAckAll);
+    return () => {
+      window.removeEventListener('order-alert-ack', onAck);
+      window.removeEventListener('order-alert-ack-all', onAckAll);
+    };
+  }, [enabled, dismissById, dismissAll]);
+
   // Reconcile pending overlays against live DB (resume / tab focus)
   useEffect(() => {
     if (!enabled) return;
@@ -434,9 +468,16 @@ export function useNewOrderAlert(sellerIds: string[]) {
         const byId = new Map(data.map((o: any) => [o.id, o]));
         for (const alert of curr) {
           const live = byId.get(alert.id);
-          if (!live || !isActionableStatus(live.status)) {
-            handleTerminalOrder(alert.id, live?.seller_id ?? alert.seller_id);
+          if (!live) {
+            handleTerminalOrder(alert.id, alert.seller_id);
+            continue;
           }
+          // Still waiting for first seller response
+          if (shouldKeepIncomingOrderAlert(live.status)) continue;
+          // One-shot insert alert (auto-accepted preparing / scheduled / booking):
+          // keep until the seller opens it or the status moves on.
+          if (isInsertAlertStatus(live.status) && live.status === alert.status) continue;
+          handleTerminalOrder(alert.id, live.seller_id ?? alert.seller_id);
         }
       } catch {
         // Reconciliation will retry on the next visibility change.

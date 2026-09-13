@@ -365,6 +365,12 @@ export function useOrderDetail(id: string | undefined) {
       invalidateOrder();
       return;
     }
+    // Any seller action on this order stops the incoming ring immediately (don't wait for realtime).
+    if (isSellerView) {
+      void import('@/lib/order-alert-ack').then(({ acknowledgeOrderAlert }) => {
+        acknowledgeOrderAlert(order.id);
+      }).catch(() => {});
+    }
     setIsUpdating(true);
     try {
       let confirmedStatus: OrderStatus = newStatus;

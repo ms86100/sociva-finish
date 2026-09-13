@@ -126,6 +126,9 @@ export function NewOrderAlertOverlay({ orders, onDismiss, onDismissAll, onSnooze
       onDismiss();
       return;
     }
+    void import('@/lib/order-alert-ack').then(({ acknowledgeOrderAlert }) => {
+      acknowledgeOrderAlert(orderId);
+    }).catch(() => {});
     try {
       navigate(`/orders/${orderId}`);
     } catch (e) {
