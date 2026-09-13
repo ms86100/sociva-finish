@@ -47,8 +47,28 @@ end
     expect(patched).toMatch(/use_frameworks! :linkage => :static/);
     expect(patched).toMatch(/platform :ios, '16.1'/);
     expect(patched).toMatch(/pod 'FirebaseCore'/);
+    expect(patched).toMatch(/pod 'EbarooniCapacitorCalendar'/);
     expect(patched).toMatch(/SWIFT_ENABLE_EXPLICIT_MODULES/);
     expect(patch(patched)).not.toMatch(/TransistorsoftCapacitorBackgroundGeolocation/);
+  });
+
+  it('injects CapacitorCalendar when Cap sync omits it from Podfile', () => {
+    const withoutCalendar = `
+require_relative '../../node_modules/@capacitor/ios/scripts/pods_helpers'
+platform :ios, '16.1'
+use_frameworks! :linkage => :static
+def capacitor_pods
+    pod 'Capacitor', :path => '../../node_modules/@capacitor/ios'
+    pod 'CapacitorBrowser', :path => '../../node_modules/@capacitor/browser'
+end
+target 'App' do
+  capacitor_pods
+end
+`;
+    const patched = patch(withoutCalendar);
+    expect(patched).toMatch(
+      /pod 'EbarooniCapacitorCalendar', :path => '\.\.\/\.\.\/node_modules\/@ebarooni\/capacitor-calendar'/,
+    );
   });
 
   it('declares NSMotionUsageDescription for App Store ITMS-90683', () => {

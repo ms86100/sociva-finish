@@ -45,7 +45,10 @@ function resolvePaths(cwd = process.cwd(), scriptDir = __dirname, argv = process
   };
 }
 
-const REQUIRED_PLUGIN_PODS = [];
+const REQUIRED_PLUGIN_PODS = [
+  // Cap sync sometimes omits scoped @ebarooni packages from the CocoaPods Podfile.
+  ['EbarooniCapacitorCalendar', '../../node_modules/@ebarooni/capacitor-calendar'],
+];
 
 const SKELETON_PLUGIN_PODS = [
   ['Capacitor', '../../node_modules/@capacitor/ios'],
@@ -54,6 +57,7 @@ const SKELETON_PLUGIN_PODS = [
   ['CapacitorApp', '../../node_modules/@capacitor/app'],
   ['CapacitorBrowser', '../../node_modules/@capacitor/browser'],
   ['CapacitorCamera', '../../node_modules/@capacitor/camera'],
+  ['EbarooniCapacitorCalendar', '../../node_modules/@ebarooni/capacitor-calendar'],
   ['CapacitorGeolocation', '../../node_modules/@capacitor/geolocation'],
   ['CapacitorHaptics', '../../node_modules/@capacitor/haptics'],
   ['CapacitorKeyboard', '../../node_modules/@capacitor/keyboard'],
