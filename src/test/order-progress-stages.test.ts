@@ -7,6 +7,7 @@ import {
   DELIVERY_PROGRESS_STAGES,
   PICKUP_PROGRESS_STAGES,
   CONTACT_ENQUIRY_PROGRESS_STAGES,
+  SERVICE_BOOKING_PROGRESS_STAGES,
 } from '@/lib/orderProgressStages';
 
 describe('orderProgressStages', () => {
@@ -24,7 +25,7 @@ describe('orderProgressStages', () => {
   });
 
   describe('delivery rail', () => {
-    it('uses Confirmed → Preparing → On the way → Delivered', () => {
+    it('uses Confirmed â†’ Preparing â†’ On the way â†’ Delivered', () => {
       expect(DELIVERY_PROGRESS_STAGES.map((s) => s.label)).toEqual([
         'Confirmed',
         'Preparing',
@@ -76,7 +77,7 @@ describe('orderProgressStages', () => {
   });
 
   describe('pickup rail', () => {
-    it('uses Confirmed → Preparing → Ready for pickup → Picked up', () => {
+    it('uses Confirmed â†’ Preparing â†’ Ready for pickup â†’ Picked up', () => {
       expect(PICKUP_PROGRESS_STAGES.map((s) => s.label)).toEqual([
         'Confirmed',
         'Preparing',
@@ -104,7 +105,7 @@ describe('orderProgressStages', () => {
   });
 
   describe('contact enquiry rail', () => {
-    it('uses Enquiry → Accepted → Delivered instead of cart pickup stages', () => {
+    it('uses Enquiry â†’ Accepted â†’ Delivered instead of cart pickup stages', () => {
       const r = resolveOrderProgress({
         status: 'enquired',
         fulfillmentType: 'self_pickup',
@@ -152,6 +153,53 @@ describe('orderProgressStages', () => {
     });
   });
 
+
+  describe('service booking rail', () => {
+    it('uses Booked → In progress → Completed instead of pickup food stages', () => {
+      const r = resolveOrderProgress({
+        status: 'confirmed',
+        fulfillmentType: 'self_pickup',
+        transactionType: 'service_booking',
+      });
+      expect(r.journey).toBe('service_booking');
+      expect(SERVICE_BOOKING_PROGRESS_STAGES.map((s) => s.label)).toEqual([
+        'Booked',
+        'In progress',
+        'Completed',
+      ]);
+      expect(r.stages.map((s) => s.label)).toEqual(['Booked', 'In progress', 'Completed']);
+      expect(r.stageId).toBe(1);
+      expect(r.label).toBe('Booked');
+      expect(r.isTransitStage).toBe(false);
+    });
+
+    it('maps in_progress and completed correctly', () => {
+      const mid = resolveOrderProgress({
+        status: 'in_progress',
+        fulfillmentType: 'self_pickup',
+        transactionType: 'service_booking',
+      });
+      expect(mid.stageId).toBe(2);
+      expect(mid.label).toBe('In progress');
+      const done = resolveOrderProgress({
+        status: 'completed',
+        fulfillmentType: 'self_pickup',
+        transactionType: 'service_booking',
+      });
+      expect(done.stageId).toBe(3);
+      expect(done.label).toBe('Completed');
+      expect(progressStageToPhase(done)).toBe('delivered');
+    });
+
+    it('leaves cart pickup rail unchanged when transactionType is cart/self_fulfillment', () => {
+      const r = resolveOrderProgress({
+        status: 'ready',
+        fulfillmentType: 'self_pickup',
+      });
+      expect(r.journey).toBe('fulfillment');
+      expect(r.label).toBe('Ready for pickup');
+    });
+  });
   describe('end states', () => {
     it('does not force cancelled/rejected/failed into the 4 stages', () => {
       for (const status of ['cancelled', 'rejected', 'failed']) {

@@ -9,6 +9,7 @@ import {
   progressStageToPhase,
   resolveOrderProgress,
   isContactEnquiryTransaction,
+  isServiceBookingTransaction,
 } from '@/lib/orderProgressStages';
 
 export interface DisplayStatusResult {
@@ -225,18 +226,25 @@ export function deriveDisplayStatus(options: DeriveOptions): DisplayStatusResult
   let phaseIcon = PHASE_ICONS[phase] || { icon: 'Package', iconColor: 'text-muted-foreground bg-muted' };
 
   const isContactEnquiry = isContactEnquiryTransaction(transactionType);
+  const isServiceBooking = isServiceBookingTransaction(transactionType);
   const isEnquiry = isContactEnquiry || isEnquiryOrder || orderType === 'enquiry' || orderStatus === 'enquired' || orderStatus === 'quoted';
 
   if (orderStatus === 'quoted') {
     phaseIcon = { icon: 'Receipt', iconColor: 'text-amber-500 bg-amber-500/15' };
   } else if (orderStatus === 'enquired' || (phase === 'placed' && isEnquiry)) {
     phaseIcon = { icon: 'MessageCircle', iconColor: 'text-blue-500 bg-blue-500/15' };
+  } else if (isServiceBooking && phase === 'placed') {
+    phaseIcon = { icon: 'CalendarClock', iconColor: 'text-emerald-500 bg-emerald-500/15' };
+  } else if (isServiceBooking && phase === 'preparing') {
+    phaseIcon = { icon: 'PlayCircle', iconColor: 'text-purple-500 bg-purple-500/15' };
   }
 
   switch (phase) {
     case 'placed':
       if (isContactEnquiry) {
         text = isBuyerView ? 'Enquiry sent' : 'New enquiry received';
+      } else if (isServiceBooking) {
+        text = isBuyerView ? 'Appointment booked' : 'New booking received';
       } else if (orderStatus === 'quoted') {
         text = isBuyerView ? 'Quote received — review and accept' : 'Quote sent to buyer';
       } else if (orderStatus === 'enquired' || isEnquiry) {
@@ -248,6 +256,8 @@ export function deriveDisplayStatus(options: DeriveOptions): DisplayStatusResult
     case 'preparing':
       if (isContactEnquiry) {
         text = isBuyerView ? `${name} accepted your enquiry` : 'Enquiry accepted — mark delivered when done';
+      } else if (isServiceBooking) {
+        text = isBuyerView ? 'Your session is in progress' : 'Session in progress';
       } else {
         text = isBuyerView
           ? `${name} is preparing your order`
@@ -271,6 +281,8 @@ export function deriveDisplayStatus(options: DeriveOptions): DisplayStatusResult
     case 'delivered':
       if (isContactEnquiry) {
         text = isBuyerView ? 'Enquiry delivered' : 'Enquiry completed';
+      } else if (isServiceBooking) {
+        text = isBuyerView ? 'Session completed' : 'Session completed';
       } else {
         text = isBuyerView
           ? (fulfillmentType === 'self_pickup' || fulfillmentType === 'pickup' ? 'Picked up' : 'Delivered')

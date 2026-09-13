@@ -22,6 +22,12 @@ const ordersPage = readFileSync(resolve(__dirname, '../pages/OrdersPage.tsx'), '
 const hook = readFileSync(resolve(__dirname, '../hooks/useBackgroundLocationTracking.ts'), 'utf8');
 
 describe('iOS native location wiring without Transistorsoft', () => {
+  it('does not list Transistorsoft in package.json', () => {
+    const pkg = JSON.parse(readFileSync(resolve(__dirname, '../../package.json'), 'utf8'));
+    const deps = { ...(pkg.dependencies || {}), ...(pkg.devDependencies || {}) };
+    expect(Object.keys(deps).some((n) => /transistorsoft/i.test(n))).toBe(false);
+  });
+
   it('strips Transistorsoft when Capacitor re-adds it to the Podfile', () => {
     const stale = `
 require_relative '../../node_modules/@capacitor/ios/scripts/pods_helpers'

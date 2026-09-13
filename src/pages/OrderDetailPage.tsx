@@ -406,7 +406,11 @@ export default function OrderDetailPage() {
 
   // Dismiss bell sound when this order is opened
   useEffect(() => {
-    if (id) dismissById(id);
+    if (!id) return;
+    dismissById(id);
+    void import('@/lib/order-alert-ack').then(({ acknowledgeOrderAlert }) => {
+      acknowledgeOrderAlert(id);
+    }).catch(() => {});
   }, [id, dismissById]);
 
   // Buyer opened an expired acceptance-window order → remove from Home strip

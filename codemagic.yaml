@@ -4,9 +4,10 @@
 # Setup Instructions:
 # 1. Connect this repo to Codemagic (codemagic.io)
 # 2. Add required environment variables (see below)
-#    Sociva never ships Transistorsoft. Location sharing uses Capacitor
-#    Geolocation only (sellers keep the app open). Do not inject a
-#    TSLocationManager license or require that CocoaPod.
+#    Sociva never ships Transistorsoft (npm package removed). Location sharing
+#    uses Capacitor Geolocation only. Guards fail the build if a stale Cap sync
+#    reintroduces Android Gradle modules or the iOS CocoaPod that would trigger
+#    a TSLocationManager LICENSE VALIDATION notice.
 # 3. Trigger a build!
 
 workflows:

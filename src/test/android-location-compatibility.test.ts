@@ -41,7 +41,13 @@ const reminders = readFileSync(
 );
 
 describe('Android location dependency compatibility', () => {
-  it('does not require Transistorsoft in the shipped Android binary', () => {
+  it('fully removes Transistorsoft from package and hard-fails if native Gradle reintroduces it', () => {
+    const pkg = JSON.parse(
+      readFileSync(resolve(__dirname, '../../package.json'), 'utf8'),
+    );
+    const deps = { ...(pkg.dependencies || {}), ...(pkg.devDependencies || {}) };
+    expect(Object.keys(deps).some((n) => /transistorsoft/i.test(n))).toBe(false);
+    expect(patchScript).toMatch(/assertNoTransistorsoftInNativeGradle/);
     expect(patchScript).toMatch(/stripNativeTransistorsoft/);
     expect(patchScript).toMatch(/stripTransistorsoftFromNativeGradle/);
     expect(codemagic).toMatch(/Transistorsoft must not be registered/);

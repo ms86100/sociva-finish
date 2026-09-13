@@ -133,7 +133,7 @@
     </application>
 
     <!--
-      Explicit app-level permissions (Transistorsoft / Capacitor also merge theirs).
+      Explicit app-level permissions (Capacitor Geolocation / FCM merge theirs too).
       Declared here so Play review / auditors see them in the source manifest.
     -->
     <uses-permission android:name="android.permission.INTERNET" />

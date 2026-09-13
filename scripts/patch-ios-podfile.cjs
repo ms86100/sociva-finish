@@ -2,10 +2,10 @@
  * Keep the Capacitor-generated iOS Podfile plugin list and inject the extras
  * Codemagic needs (static linkage, Firebase, Xcode 16 post_install).
  *
- * Sociva does not ship Transistorsoft. Capacitor sync may re-add
- * TransistorsoftCapacitorBackgroundGeolocation from node_modules; this patch
- * always strips that pod so release IPAs never link TSLocationManager
- * (native LICENSE VALIDATION banner on every cold start).
+ * Sociva does not ship Transistorsoft. The npm package is removed; this patch
+ * still strips TransistorsoftCapacitorBackgroundGeolocation if an old Cap sync
+ * or cached Podfile ever reintroduces it, so release IPAs never link
+ * TSLocationManager (native LICENSE VALIDATION banner on cold start).
  */
 const fs = require('fs');
 const path = require('path');

@@ -47,6 +47,7 @@ export function SessionFeedbackPrompt({ bookingId, bookingStatus }: SessionFeedb
       const { error } = await supabase.from('session_feedback').insert({
         booking_id: bookingId,
         buyer_id: user.id,
+        user_id: user.id, // required by NOT NULL + RLS (user_id = auth.uid())
         rating,
         comment: comment.trim() || null,
       });

@@ -1,16 +1,24 @@
 /**
- * Shared order progress presentation — same 4 visible stages for buyer and seller.
+ * Shared order progress presentation — same visible stages for buyer and seller.
  * Internal order_status / workflow transitions are unchanged; this is display-only.
+ *
+ * Note: stage labels here are presentation rails (not admin category_status_flows).
+ * Action buttons come from DB transitions; rails only summarize journey shape.
  */
 
 export type OrderFulfillmentKind = 'delivery' | 'pickup';
 
-export type ProgressJourney = 'fulfillment' | 'contact_enquiry';
+export type ProgressJourney = 'fulfillment' | 'contact_enquiry' | 'service_booking';
 
 export type ProgressStageId = 1 | 2 | 3 | 4;
 
 export function isContactEnquiryTransaction(transactionType?: string | null): boolean {
   return transactionType === 'contact_enquiry';
+}
+
+/** Clinic / slot bookings — not cart pickup/delivery vocabulary. */
+export function isServiceBookingTransaction(transactionType?: string | null): boolean {
+  return transactionType === 'service_booking';
 }
 
 export type ProgressEndState =
@@ -70,6 +78,13 @@ export const CONTACT_ENQUIRY_PROGRESS_STAGES: OrderProgressStageDef[] = [
   { id: 1, key: 'enquired', label: 'Enquiry', shortLabel: 'Enquiry' },
   { id: 2, key: 'quoted', label: 'Accepted', shortLabel: 'Accepted' },
   { id: 3, key: 'completed', label: 'Delivered', shortLabel: 'Delivered' },
+];
+
+/** Bookable services (health clinics, etc.): slot already set at create. */
+export const SERVICE_BOOKING_PROGRESS_STAGES: OrderProgressStageDef[] = [
+  { id: 1, key: 'confirmed', label: 'Booked', shortLabel: 'Booked' },
+  { id: 2, key: 'in_progress', label: 'In progress', shortLabel: 'In progress' },
+  { id: 3, key: 'completed', label: 'Completed', shortLabel: 'Done' },
 ];
 
 const END_STATES = new Set<string>([
@@ -217,9 +232,38 @@ function resolveEnquiryStageId(status: string): ProgressStageId {
   return 1;
 }
 
+function resolveBookingStageId(status: string): ProgressStageId {
+  if (status === 'completed' || status === 'delivered' || status === 'buyer_received') return 3;
+  if (
+    status === 'in_progress' ||
+    status === 'preparing' ||
+    status === 'processing' ||
+    status === 'ready' ||
+    status === 'accepted'
+  ) {
+    return 2;
+  }
+  return 1;
+}
+
+function journeyForTransaction(transactionType?: string | null): ProgressJourney {
+  if (isContactEnquiryTransaction(transactionType)) return 'contact_enquiry';
+  if (isServiceBookingTransaction(transactionType)) return 'service_booking';
+  return 'fulfillment';
+}
+
+function stagesForJourney(
+  journey: ProgressJourney,
+  fulfillment: OrderFulfillmentKind,
+): OrderProgressStageDef[] {
+  if (journey === 'contact_enquiry') return CONTACT_ENQUIRY_PROGRESS_STAGES;
+  if (journey === 'service_booking') return SERVICE_BOOKING_PROGRESS_STAGES;
+  return getOrderProgressStages(fulfillment);
+}
+
 /**
  * Resolve the shared progress presentation for an order status.
- * Contact enquiry uses a 3-stage rail; cart/book/pickup stay on the 4-stage rails.
+ * Contact enquiry and service bookings use 3-stage rails; cart pickup/delivery stay on 4-stage rails.
  */
 export function resolveOrderProgress(options: {
   status: string;
@@ -230,17 +274,17 @@ export function resolveOrderProgress(options: {
 }): OrderProgressResolution {
   const fulfillment = resolveFulfillmentKind(options.fulfillmentType);
   const status = String(options.status || '');
-  const isEnquiryJourney = isContactEnquiryTransaction(options.transactionType);
+  const journey = journeyForTransaction(options.transactionType);
 
   if (END_STATES.has(status)) {
     const endState = status as ProgressEndState;
     return {
       kind: 'end_state',
       fulfillment,
-      journey: isEnquiryJourney ? 'contact_enquiry' : 'fulfillment',
+      journey,
       stageId: null,
       stageIndex: -1,
-      stages: isEnquiryJourney ? CONTACT_ENQUIRY_PROGRESS_STAGES : getOrderProgressStages(fulfillment),
+      stages: stagesForJourney(journey, fulfillment),
       label: status.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
       subtext: null,
       endState,
@@ -250,7 +294,7 @@ export function resolveOrderProgress(options: {
     };
   }
 
-  if (isEnquiryJourney) {
+  if (journey === 'contact_enquiry') {
     const stageId = resolveEnquiryStageId(status);
     const stages = CONTACT_ENQUIRY_PROGRESS_STAGES;
     const stageDef = stages[stageId - 1];
@@ -263,6 +307,26 @@ export function resolveOrderProgress(options: {
       stages,
       label: stageDef.label,
       subtext: null,
+      endState: null,
+      showCodBanner: false,
+      progressPercent: stageId === 1 ? 20 : stageId === 2 ? 60 : 100,
+      isTransitStage: false,
+    };
+  }
+
+  if (journey === 'service_booking') {
+    const stageId = resolveBookingStageId(status);
+    const stages = SERVICE_BOOKING_PROGRESS_STAGES;
+    const stageDef = stages[stageId - 1];
+    return {
+      kind: 'stages',
+      fulfillment,
+      journey: 'service_booking',
+      stageId,
+      stageIndex: stageId - 1,
+      stages,
+      label: stageDef.label,
+      subtext: status === 'payment_pending' ? 'Complete payment' : null,
       endState: null,
       showCodBanner: false,
       progressPercent: stageId === 1 ? 20 : stageId === 2 ? 60 : 100,
@@ -309,7 +373,7 @@ export function progressStageToPhase(
   resolution: OrderProgressResolution,
 ): 'placed' | 'preparing' | 'ready' | 'transit' | 'delivered' | 'cancelled' {
   if (resolution.kind === 'end_state') return 'cancelled';
-  if (resolution.journey === 'contact_enquiry') {
+  if (resolution.journey === 'contact_enquiry' || resolution.journey === 'service_booking') {
     if (resolution.stageId === 1) return 'placed';
     if (resolution.stageId === 2) return 'preparing';
     return 'delivered';

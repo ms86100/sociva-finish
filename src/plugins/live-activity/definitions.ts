@@ -45,8 +45,8 @@ export interface LiveActivityPlugin {
   endLiveActivity(opts: { activityId: string }): Promise<void>;
   getActiveActivities(): Promise<{ activities: ActiveActivityEntry[] }>;
   cleanupStaleActivities(opts: { validEntityIds: string[] }): Promise<void>;
-  /** Android: BuildConfig.HAS_TRANSISTORSOFT_LICENSE (+ platform). */
-  getNativeBuildFlags?(): Promise<{ hasTransistorsoftLicense: boolean; platform: string }>;
+  /** Android/web: reports that no third-party background-geo vendor is linked. */
+  getNativeBuildFlags?(): Promise<{ backgroundGeoVendor: 'none'; platform: string }>;
   /**
    * Android: after fine location is granted, request ACCESS_BACKGROUND_LOCATION
    * or open app settings so the seller can choose "Allow all the time".
