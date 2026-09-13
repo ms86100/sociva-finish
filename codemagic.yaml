@@ -1005,7 +1005,7 @@ workflows:
           PYEOF
           head -55 "$GRADLE_FILE"
 
-      - name: Build Android release bundle
+      - name: Build Android release AAB and APK
         script: |
           # Ensure Gradle sees the Codemagic keystore path
           if [ -n "${CM_KEYSTORE_PATH:-}" ] && [ -f "$CM_KEYSTORE_PATH" ]; then
@@ -1017,11 +1017,15 @@ workflows:
           fi
           cd android
           chmod +x ./gradlew
-          ./gradlew clean bundleRelease --warning-mode all
+          ./gradlew clean bundleRelease assembleRelease --warning-mode all
           AAB=$(ls -1 app/build/outputs/bundle/release/*.aab | head -1)
+          APK=$(ls -1 app/build/outputs/apk/release/*.apk | head -1)
           echo "=== Verifying AAB signature: $AAB ==="
           jarsigner -verify "$AAB"
           echo "=== AAB signature OK ==="
+          echo "=== Verifying APK signature: $APK ==="
+          jarsigner -verify "$APK"
+          echo "=== APK signature OK ==="
 
     artifacts:
       - android/app/build/outputs/**/*.aab
