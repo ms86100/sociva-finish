@@ -12,17 +12,22 @@ Isolated stack for `feat/onboarding-domain-reach`. **Do not deploy this work to 
 | Role | Project | Ref |
 |---|---|---|
 | Production (do not touch for this work) | Sociva | `kkzkuyhgdvyecmxtmkpy` |
-| Integration (use this) | Branch `onboarding-integration` | `hfeuskcehglyqllvrxyu` |
+| Integration (use this) | Branch `onboarding-integration` (**with data**) | `wwuanzbusxoyzixuprxs` |
 | Spare empty project | sociva-integration | `twnhqhkfcniffyjluryp` |
 
-Integration URL: `https://hfeuskcehglyqllvrxyu.supabase.co`
+Integration URL: `https://wwuanzbusxoyzixuprxs.supabase.co`
+
+Created via `supabase branches create onboarding-integration --with-data --persistent`.  
+Verified row counts match production for profiles, sellers, products, orders, categories, societies.
+
+Treat this branch as **sensitive** (real prod PII clone). Do not share anon keys beyond the integration Vercel project.
 
 ## Frontend env (integration only)
 
 Copy from `docs/env.integration.example` to `.env.integration.local`, or set on the Vercel **sociva-integration** project:
 
 ```
-VITE_SUPABASE_URL=https://hfeuskcehglyqllvrxyu.supabase.co
+VITE_SUPABASE_URL=https://wwuanzbusxoyzixuprxs.supabase.co
 VITE_SUPABASE_PUBLISHABLE_KEY=<anon key from integration project>
 ```
 
