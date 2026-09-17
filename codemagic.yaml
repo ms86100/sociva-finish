@@ -905,6 +905,8 @@ workflows:
     environment:
       android_signing:
         - sociva_keystore
+      groups:
+        - sociva_android_firebase
       vars:
         BUNDLE_ID: "app.sociva.community"
         APP_NAME: "Sociva"
@@ -948,12 +950,28 @@ workflows:
 
       - name: Copy google-services.json
         script: |
-          if [ -f "android-config/google-services.json" ]; then
-            cp android-config/google-services.json android/app/google-services.json
+          set -e
+          DEST="android/app/google-services.json"
+          if [ -n "${GOOGLE_SERVICES_JSON_B64:-}" ]; then
+            echo "$GOOGLE_SERVICES_JSON_B64" | base64 --decode > "$DEST"
+            echo "=== google-services.json written from GOOGLE_SERVICES_JSON_B64 ==="
+          elif [ -f "android-config/google-services.json" ]; then
+            cp android-config/google-services.json "$DEST"
             echo "=== google-services.json copied from android-config/ ==="
           else
-            echo "WARNING: android-config/google-services.json not found — Firebase will not work"
+            echo "ERROR: google-services.json missing. Set GOOGLE_SERVICES_JSON_B64 (group sociva_android_firebase) or place android-config/google-services.json."
+            exit 1
           fi
+          python3 - <<'PY'
+          import json, sys
+          path = "android/app/google-services.json"
+          data = json.load(open(path, encoding="utf-8"))
+          pkg = data["client"][0]["client_info"]["android_client_info"]["package_name"]
+          if pkg != "app.sociva.community":
+              print(f"ERROR: google-services package_name={pkg!r}, expected app.sociva.community")
+              sys.exit(1)
+          print(f"=== google-services.json OK (package={pkg}) ===")
+          PY
 
       - name: Set Android SDK location
         script: echo "sdk.dir=$ANDROID_SDK_ROOT" > android/local.properties
@@ -1064,6 +1082,8 @@ workflows:
         bundle_identifier: app.sociva.community
       android_signing:
         - sociva_keystore
+      groups:
+        - sociva_android_firebase
       vars:
         BUNDLE_ID: "app.sociva.community"
         WIDGET_BUNDLE_ID: "app.sociva.community.LiveDeliveryWidget"
@@ -1825,12 +1845,28 @@ workflows:
 
       - name: Copy google-services.json
         script: |
-          if [ -f "android-config/google-services.json" ]; then
-            cp android-config/google-services.json android/app/google-services.json
+          set -e
+          DEST="android/app/google-services.json"
+          if [ -n "${GOOGLE_SERVICES_JSON_B64:-}" ]; then
+            echo "$GOOGLE_SERVICES_JSON_B64" | base64 --decode > "$DEST"
+            echo "=== google-services.json written from GOOGLE_SERVICES_JSON_B64 ==="
+          elif [ -f "android-config/google-services.json" ]; then
+            cp android-config/google-services.json "$DEST"
             echo "=== google-services.json copied from android-config/ ==="
           else
-            echo "WARNING: android-config/google-services.json not found — Firebase will not work"
+            echo "ERROR: google-services.json missing. Set GOOGLE_SERVICES_JSON_B64 (group sociva_android_firebase) or place android-config/google-services.json."
+            exit 1
           fi
+          python3 - <<'PY'
+          import json, sys
+          path = "android/app/google-services.json"
+          data = json.load(open(path, encoding="utf-8"))
+          pkg = data["client"][0]["client_info"]["android_client_info"]["package_name"]
+          if pkg != "app.sociva.community":
+              print(f"ERROR: google-services package_name={pkg!r}, expected app.sociva.community")
+              sys.exit(1)
+          print(f"=== google-services.json OK (package={pkg}) ===")
+          PY
 
       - name: Set Android SDK
         script: echo "sdk.dir=$ANDROID_SDK_ROOT" > android/local.properties
