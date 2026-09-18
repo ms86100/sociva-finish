@@ -5,8 +5,11 @@ import { motion, useInView } from 'framer-motion';
 import { Apple, Smartphone, Monitor, Laptop } from 'lucide-react';
 
 const IOS_APP_STORE_URL = 'https://apps.apple.com/in/app/sociva/id6759218504';
-/** Vercel serving URL — serves the APK from the public directory. */
-export const ANDROID_APK_URL = '/downloads/sociva-android.apk';
+/** Live Google Play listing (same package as Android release). */
+export const ANDROID_PLAY_STORE_URL =
+  'https://play.google.com/store/apps/details?id=app.sociva.community&hl=en_IN';
+/** @deprecated Use ANDROID_PLAY_STORE_URL — APK sideload retired after Play launch. */
+export const ANDROID_APK_URL = ANDROID_PLAY_STORE_URL;
 /** Stable Windows installer alias (Vercel public/downloads) — only enable after Authenticode signing. */
 export const WINDOWS_SETUP_URL = '/downloads/sociva-windows-setup.exe';
 /**
@@ -77,8 +80,9 @@ export function LandingDownload() {
           </motion.a>
 
           <motion.a
-            href={ANDROID_APK_URL}
-            download="sociva-android.apk"
+            href={ANDROID_PLAY_STORE_URL}
+            target="_blank"
+            rel="noopener noreferrer"
             initial={{ opacity: 0, y: 16 }}
             animate={inView ? { opacity: 1, y: 0 } : {}}
             transition={{ delay: 0.18, duration: 0.45 }}
@@ -89,13 +93,13 @@ export function LandingDownload() {
             </div>
             <div className="space-y-1 flex-1">
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Android</p>
-              <h3 className="text-lg font-bold text-foreground">Download APK</h3>
+              <h3 className="text-lg font-bold text-foreground">Google Play</h3>
               <p className="text-sm text-muted-foreground leading-relaxed">
-                Direct install for Android devices. Enable “Install unknown apps” if prompted.
+                Install Sociva from Google Play — same as iOS from the App Store.
               </p>
             </div>
             <Button variant="outline" className="w-full rounded-xl font-semibold border-primary/30" size="lg">
-              Download Android APK
+              Get it on Google Play
             </Button>
           </motion.a>
         </div>
@@ -196,7 +200,7 @@ export function LandingDownload() {
         </div>
 
         <p className="text-center text-xs text-muted-foreground mt-8 max-w-lg mx-auto">
-          Download the Android app here. Prefer Play Store when listed, for automatic updates.
+          Get Sociva on the App Store or Google Play for automatic updates and a trusted install.
         </p>
       </motion.div>
     </section>
