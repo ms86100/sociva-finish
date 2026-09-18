@@ -20,10 +20,13 @@ import { CommitteeDashboard } from '@/components/admin/CommitteeDashboard';
 import { AdminDisputesTab } from '@/components/admin/AdminDisputesTab';
 import { AdminPaymentMilestones } from '@/components/admin/AdminPaymentMilestones';
 import { useSocietyAdmin } from '@/hooks/useSocietyAdmin';
+import { AdminUserDetailSheet } from '@/components/admin/AdminUserDetailSheet';
 import { Check, X, Users, Store, Settings, Shield, UserPlus, Trash2, ToggleLeft, Lock, IndianRupee, LayoutDashboard, AlertCircle, MoreHorizontal } from 'lucide-react';
+import { format } from 'date-fns';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import type { FeatureKey } from '@/hooks/useEffectiveFeatures';
+import type { AdminDirectoryUser } from '@/hooks/useAdminData';
 
 function StatCard({ icon: Icon, value, label, color, delay = 0 }: { icon: any; value: string | number; label: string; color: string; delay?: number }) {
   return (
@@ -47,6 +50,7 @@ export default function SocietyAdminPage() {
   const sa = useSocietyAdmin();
   const [rejectingSellerId, setRejectingSellerId] = useState<string | null>(null);
   const [sellerRejectionNote, setSellerRejectionNote] = useState('');
+  const [selectedUser, setSelectedUser] = useState<AdminDirectoryUser | null>(null);
 
   if (!sa.isSocietyAdmin && !sa.isAdmin) {
     return (
@@ -124,18 +128,27 @@ export default function SocietyAdminPage() {
               </div>
               {sa.pendingUsers.length > 0 ? sa.pendingUsers.map(user => (
                 <Card key={user.id} className="border-0 shadow-[var(--shadow-card)] hover:shadow-[var(--shadow-md)] transition-all duration-300 rounded-2xl">
-                  <CardContent className="p-4 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-11 h-11 rounded-xl bg-blue-500/10 flex items-center justify-center">
+                  <CardContent className="p-4 flex items-center justify-between gap-2">
+                    <button
+                      type="button"
+                      className="flex items-center gap-3 text-left min-w-0 flex-1"
+                      onClick={() => setSelectedUser(user as AdminDirectoryUser)}
+                    >
+                      <div className="w-11 h-11 rounded-xl bg-blue-500/10 flex items-center justify-center shrink-0">
                         <Users size={17} className="text-blue-600" />
                       </div>
-                      <div>
-                        <p className="font-bold text-sm">{user.name}</p>
+                      <div className="min-w-0">
+                        <p className="font-bold text-sm truncate">{user.name}</p>
                         <p className="text-xs text-muted-foreground">{user.phone}</p>
                         <p className="text-[11px] text-muted-foreground">{user.phase && `${user.phase}, `}Block {user.block}, Flat {user.flat_number}</p>
+                        {user.created_at && (
+                          <p className="text-[10px] text-muted-foreground font-medium mt-0.5">
+                            Joined {format(new Date(user.created_at), 'dd MMM yyyy, HH:mm')}
+                          </p>
+                        )}
                       </div>
-                    </div>
-                    <div className="flex gap-2">
+                    </button>
+                    <div className="flex gap-2 shrink-0">
                       <Button size="sm" variant="outline" className="text-destructive h-9 w-9 p-0 rounded-xl" onClick={() => sa.updateUserStatus(user.id, 'rejected')}><X size={15} /></Button>
                       <Button size="sm" className="h-9 w-9 p-0 rounded-xl shadow-sm" onClick={() => sa.updateUserStatus(user.id, 'approved')}><Check size={15} /></Button>
                     </div>
@@ -144,6 +157,21 @@ export default function SocietyAdminPage() {
               )) : (
                 <div className="text-center py-16 text-sm text-muted-foreground font-medium">No pending users</div>
               )}
+              <AdminUserDetailSheet
+                user={selectedUser}
+                open={!!selectedUser}
+                onOpenChange={(open) => {
+                  if (!open) setSelectedUser(null);
+                }}
+                onApprove={(id) => {
+                  sa.updateUserStatus(id, 'approved');
+                  setSelectedUser(null);
+                }}
+                onReject={(id) => {
+                  sa.updateUserStatus(id, 'rejected');
+                  setSelectedUser(null);
+                }}
+              />
             </TabsContent>
 
             <TabsContent value="sellers" className="space-y-3 mt-5">

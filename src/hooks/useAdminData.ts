@@ -36,6 +36,25 @@ interface Warning {
 }
 
 const PAGE_SIZE = 50;
+const USERS_PAGE_SIZE = 200;
+
+export type AdminDirectoryUser = Profile & {
+  email?: string | null;
+  updated_at?: string | null;
+  society?: {
+    name?: string | null;
+    address?: string | null;
+    city?: string | null;
+    state?: string | null;
+    pincode?: string | null;
+  } | null;
+};
+
+export type UserDeviceInfo = {
+  hasApp: boolean;
+  platforms: string[];
+  lastSuccessAt: string | null;
+};
 
 /**
  * Tab-lazy admin data hook.
@@ -50,6 +69,9 @@ export function useAdminData() {
   const [activeTab, setActiveTab] = useState(tabParam || 'sellers');
 
   const [pendingUsers, setPendingUsers] = useState<Profile[]>([]);
+  const [allUsers, setAllUsers] = useState<AdminDirectoryUser[]>([]);
+  const [userDeviceMap, setUserDeviceMap] = useState<Record<string, UserDeviceInfo>>({});
+  const [usersLoading, setUsersLoading] = useState(false);
   const [pendingSellers, setPendingSellers] = useState<SellerProfile[]>([]);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [allSellers, setAllSellers] = useState<SellerProfile[]>([]);
@@ -139,6 +161,62 @@ export function useAdminData() {
     setAllSocieties((data as Society[]) || []);
   }, []);
 
+  const fetchUsersDirectory = useCallback(async () => {
+    setUsersLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, name, phone, email, block, flat_number, phase, verification_status, created_at, updated_at, avatar_url, society_id, society:societies!profiles_society_id_fkey(name, address, city, state, pincode)')
+        .order('created_at', { ascending: false })
+        .limit(USERS_PAGE_SIZE);
+      if (error) throw error;
+      const users = (data as AdminDirectoryUser[]) || [];
+      setAllUsers(users);
+
+      // Best-effort device token map — never break the directory if this fails
+      try {
+        const ids = users.map((u) => u.id).filter(Boolean);
+        if (ids.length === 0) {
+          setUserDeviceMap({});
+        } else {
+          const { data: tokens } = await supabase
+            .from('device_tokens')
+            .select('user_id, platform, invalid, last_success_at')
+            .in('user_id', ids);
+          const map: Record<string, UserDeviceInfo> = {};
+          for (const row of tokens || []) {
+            const uid = row.user_id as string;
+            if (!uid) continue;
+            const invalid = !!row.invalid;
+            const platform = (row.platform || '').toLowerCase();
+            if (!map[uid]) {
+              map[uid] = { hasApp: false, platforms: [], lastSuccessAt: null };
+            }
+            if (!invalid && platform) {
+              map[uid].hasApp = true;
+              if (!map[uid].platforms.includes(platform)) {
+                map[uid].platforms.push(platform);
+              }
+            }
+            const ls = row.last_success_at as string | null;
+            if (ls && (!map[uid].lastSuccessAt || ls > map[uid].lastSuccessAt)) {
+              map[uid].lastSuccessAt = ls;
+            }
+          }
+          setUserDeviceMap(map);
+        }
+      } catch (tokenErr) {
+        console.warn('[admin] device_tokens fetch failed:', tokenErr);
+        setUserDeviceMap({});
+      }
+    } catch (error) {
+      console.error('Error loading users directory:', error);
+      adminNotify.error('Failed to load users');
+    } finally {
+      setUsersLoading(false);
+    }
+  }, []);
+
   // Load core data on mount
   useEffect(() => { fetchCoreData(); }, []);
 
@@ -147,6 +225,7 @@ export function useAdminData() {
     if (loadedTabs.has(activeTab)) return;
     const load = async () => {
       switch (activeTab) {
+        case 'users': await fetchUsersDirectory(); break;
         case 'reviews': await fetchReviews(); break;
         case 'payments': await fetchPayments(); break;
         case 'reports': await fetchReports(); break;
@@ -162,7 +241,11 @@ export function useAdminData() {
   const fetchData = useCallback(async () => {
     setLoadedTabs(new Set());
     await fetchCoreData();
-  }, [fetchCoreData]);
+    if (activeTab === 'users') {
+      await fetchUsersDirectory();
+      setLoadedTabs(new Set(['users']));
+    }
+  }, [fetchCoreData, fetchUsersDirectory, activeTab]);
 
   const loadMoreReviews = async () => {
     if (!hasMoreReviews || isLoadingMore) return;
@@ -296,13 +379,13 @@ export function useAdminData() {
   const filteredPayments = paymentFilter === 'all' ? payments : payments.filter(p => p.payment_status === paymentFilter || p.payment_method === paymentFilter);
 
   return {
-    activeTab, setActiveTab, pendingUsers, pendingSellers, reviews, allSellers, payments: filteredPayments,
+    activeTab, setActiveTab, pendingUsers, allUsers, userDeviceMap, usersLoading, pendingSellers, reviews, allSellers, payments: filteredPayments,
     reports, warnings, allSocieties, isLoading, stats, selectedReview, setSelectedReview,
     selectedReport, setSelectedReport, selectedUserForWarning, setSelectedUserForWarning,
     warningReason, setWarningReason, warningSeverity, setWarningSeverity, selectedChat, setSelectedChat,
     chatMessages, hideReason, setHideReason, adminNotes, setAdminNotes, paymentFilter, setPaymentFilter,
     hasMoreReviews, hasMorePayments, hasMoreReports, isLoadingMore, formatPrice, getPaymentStatus,
-    fetchData, loadMoreReviews, loadMorePayments, loadMoreReports, updateUserStatus, updateSellerStatus,
+    fetchData, fetchUsersDirectory, loadMoreReviews, loadMorePayments, loadMoreReports, updateUserStatus, updateSellerStatus,
     toggleSellerFeatured, toggleReviewHidden, updateReportStatus, issueWarning, updateSocietyStatus,
     fetchChatForOrder,
   };

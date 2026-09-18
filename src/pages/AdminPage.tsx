@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { PaymentStatus } from '@/types/Database';
 import {
-  Check, X, Users, Store, Package, Star, Award, Eye, EyeOff,
+  Check, X, Store, Package, Star, Award, Eye, EyeOff,
   DollarSign, Flag, Building2, ShieldCheck, CreditCard,
 } from 'lucide-react';
 import { format } from 'date-fns';
@@ -52,6 +52,7 @@ import { AdminCronManager } from '@/components/admin/AdminCronManager';
 import AdminTestScenariosTab from '@/components/admin/AdminTestScenariosTab';
 import { useAdminData } from '@/hooks/useAdminData';
 import { useAdminFinancialPendingCount } from '@/hooks/useFinancialControls';
+import { AdminUsersTab } from '@/components/admin/AdminUsersTab';
 import { supabase } from '@/integrations/supabase/client';
 import { adminNotify } from '@/lib/admin-notify';
 import { motion } from 'framer-motion';
@@ -159,32 +160,14 @@ export default function AdminPage() {
           {admin.activeTab === 'sellers' && <SellerApplicationReview />}
 
           {admin.activeTab === 'users' && (
-            <div className="space-y-3">
-              <SectionHeader icon={Users} title="Pending Users" count={admin.pendingUsers.length} color="bg-blue-500/10 text-blue-600" />
-              {admin.pendingUsers.length > 0 ? admin.pendingUsers.map((user) => (
-                <motion.div key={user.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
-                  <Card className="border-0 shadow-[var(--shadow-card)] hover:shadow-[var(--shadow-md)] transition-all duration-300 rounded-2xl">
-                    <CardContent className="p-4 flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="w-11 h-11 rounded-xl bg-blue-500/10 flex items-center justify-center">
-                          <Users size={17} className="text-blue-600" />
-                        </div>
-                        <div>
-                          <p className="font-bold text-sm">{user.name}</p>
-                          <p className="text-xs text-muted-foreground">{(user as any).email && `${(user as any).email} • `}{user.phone}</p>
-                          <p className="text-[11px] text-muted-foreground">{user.phase && `${user.phase}, `}Block {user.block}, Flat {user.flat_number}</p>
-                          {(user as any).society?.name && <p className="text-[11px] text-primary font-semibold mt-0.5">{(user as any).society.name}</p>}
-                        </div>
-                      </div>
-                      <div className="flex gap-2">
-                        <Button size="sm" variant="outline" className="text-destructive h-9 w-9 p-0 rounded-xl hover:bg-destructive/10 transition-colors" onClick={() => admin.updateUserStatus(user.id, 'rejected')}><X size={15} /></Button>
-                        <Button size="sm" className="h-9 w-9 p-0 rounded-xl shadow-sm" onClick={() => admin.updateUserStatus(user.id, 'approved')}><Check size={15} /></Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </motion.div>
-              )) : <EmptyState message="No pending users" />}
-            </div>
+            <AdminUsersTab
+              users={admin.allUsers}
+              pendingCount={admin.pendingUsers.length}
+              userDeviceMap={admin.userDeviceMap}
+              loading={admin.usersLoading && admin.allUsers.length === 0}
+              onApprove={(id) => admin.updateUserStatus(id, 'approved')}
+              onReject={(id) => admin.updateUserStatus(id, 'rejected')}
+            />
           )}
 
           {admin.activeTab === 'societies' && (
