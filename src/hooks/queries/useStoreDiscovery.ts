@@ -16,6 +16,7 @@ export interface TopProduct {
   is_veg: boolean | null;
   mrp: number | null;
   discount_percentage: number | null;
+  action_type?: string | null;
 }
 
 export interface LocalSeller {
@@ -61,7 +62,7 @@ export interface SocietyGroup {
   sellersByGroup: Record<string, NearbySeller[]>;
 }
 
-/** Parse matching_products JSON from RPC, return top 3 by lowest price */
+/** Parse matching_products JSON from RPC, return top 3 by lowest displayable price */
 function parseTopProducts(raw: any): TopProduct[] {
   if (!raw || !Array.isArray(raw)) return [];
   const products: TopProduct[] = raw
@@ -75,6 +76,7 @@ function parseTopProducts(raw: any): TopProduct[] {
       is_veg: p.is_veg ?? null,
       mrp: p.mrp ?? null,
       discount_percentage: p.discount_percentage ?? null,
+      action_type: p.action_type ?? null,
     }));
   products.sort((a, b) => a.price - b.price);
   return products.slice(0, 3);

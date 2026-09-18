@@ -490,6 +490,10 @@
     padding-top: var(--app-safe-top, 28px);
   }
 
+  .app-content-safe-bottom {
+    padding-bottom: max(var(--app-safe-bottom, 0px), env(safe-area-inset-bottom, 0px));
+  }
+
   .app-content-safe-top .safe-top {
     padding-top: 0;
   }

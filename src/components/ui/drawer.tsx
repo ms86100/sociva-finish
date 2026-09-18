@@ -35,7 +35,7 @@ const DrawerContent = React.forwardRef<
         "fixed inset-x-0 bottom-0 z-50 mt-24 flex h-auto flex-col rounded-t-[16px] border border-[hsl(var(--nav-border))] bg-[hsl(var(--nav-bg))] backdrop-blur-2xl backdrop-saturate-150",
         className,
       )}
-      style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)', ...style }}
+      style={{ paddingBottom: 'max(var(--app-safe-bottom, 0px), env(safe-area-inset-bottom, 0px))', ...style }}
       {...props}
     >
       <div className="mx-auto mt-4 h-2 w-[100px] rounded-full bg-muted" />

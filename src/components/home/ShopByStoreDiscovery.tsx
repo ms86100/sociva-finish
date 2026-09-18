@@ -12,11 +12,12 @@ import {
 } from '@/hooks/queries/useStoreDiscovery';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { MapPin, ChevronDown, Building2 } from 'lucide-react';
+import { MapPin, ChevronDown, Building2, Phone } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useState, useMemo } from 'react';
 import { staggerContainer, cardEntrance } from '@/lib/motion-variants';
 import { RichSellerCard } from './RichSellerCard';
+import { isServiceOrContactSeller } from '@/lib/marketplace-constants';
 
 /* ── Main Component ── */
 
@@ -43,6 +44,16 @@ export function ShopByStoreDiscovery({ sectionTitle }: { sectionTitle?: string }
     return list;
   }, [localGrouped]);
 
+  const { shopSellers, contactSellers } = useMemo(() => {
+    const shop: LocalSeller[] = [];
+    const contact: LocalSeller[] = [];
+    for (const s of localSellersList) {
+      if (isServiceOrContactSeller(s.topProducts)) contact.push(s);
+      else shop.push(s);
+    }
+    return { shopSellers: shop, contactSellers: contact };
+  }, [localSellersList]);
+
   const localSellerIds = useMemo(() => {
     return new Set(localSellersList.map(s => s.id));
   }, [localSellersList]);
@@ -63,13 +74,38 @@ export function ShopByStoreDiscovery({ sectionTitle }: { sectionTitle?: string }
     })).filter(band => band.societies.length > 0);
   }, [nearbyBands, localSellerIds]);
 
-  const hasLocal = Object.keys(localGrouped).length > 0;
+  const hasLocal = shopSellers.length > 0 || contactSellers.length > 0;
   const hasNearby = dedupedBands.length > 0;
 
   if (!loadingLocal && !loadingNearby && !hasLocal && !hasNearby) return null;
 
   const localSectionLabel = hasOverride || !effectiveSociety ? 'Stores near you' : 'In Your Society';
   const localSectionName = hasOverride ? browsingLocation?.label : effectiveSociety?.name;
+
+  const renderSellerRow = (sellers: LocalSeller[], serviceMode = false) => (
+    <motion.div
+      variants={staggerContainer}
+      initial="hidden"
+      animate="show"
+      className="flex gap-3 overflow-x-auto scrollbar-hide px-4 pb-2 items-stretch"
+    >
+      {sellers.map(seller => (
+        <motion.div key={seller.id} variants={cardEntrance} className="shrink-0">
+          <RichSellerCard
+            id={seller.id}
+            name={seller.business_name}
+            profileImage={seller.profile_image_url}
+            coverImage={seller.cover_image_url}
+            categories={seller.categories}
+            topProducts={seller.topProducts}
+            totalReviews={seller.total_reviews}
+            isFeatured={seller.is_featured}
+            serviceMode={serviceMode}
+          />
+        </motion.div>
+      ))}
+    </motion.div>
+  );
 
   return (
     <div className="py-2 mt-1">
@@ -79,8 +115,8 @@ export function ShopByStoreDiscovery({ sectionTitle }: { sectionTitle?: string }
         </div>
       )}
       <div className="space-y-5">
-      {/* ━━━ In Your Society / Stores Near You ━━━ */}
-      {(loadingLocal || hasLocal) && (
+      {/* ━━━ Shop / order (transactional) ━━━ */}
+      {(loadingLocal || shopSellers.length > 0) && (
         <section>
           <div className="flex items-center gap-2 px-4 mb-2.5">
             <Building2 size={16} className="text-primary" />
@@ -97,28 +133,26 @@ export function ShopByStoreDiscovery({ sectionTitle }: { sectionTitle?: string }
           {loadingLocal ? (
             <LocalSkeleton />
           ) : (
-            <motion.div
-              variants={staggerContainer}
-              initial="hidden"
-              animate="show"
-              className="flex gap-3 overflow-x-auto scrollbar-hide px-4 pb-2 items-stretch"
-            >
-              {localSellersList.map(seller => (
-                <motion.div key={seller.id} variants={cardEntrance} className="shrink-0">
-                  <RichSellerCard
-                    id={seller.id}
-                    name={seller.business_name}
-                    profileImage={seller.profile_image_url}
-                    coverImage={seller.cover_image_url}
-                    categories={seller.categories}
-                    topProducts={seller.topProducts}
-                    totalReviews={seller.total_reviews}
-                    isFeatured={seller.is_featured}
-                  />
-                </motion.div>
-              ))}
-            </motion.div>
+            renderSellerRow(shopSellers, false)
           )}
+        </section>
+      )}
+
+      {/* ━━━ Contact / enquire / book (non-cart) — same card language, CTA differs ━━━ */}
+      {!loadingLocal && contactSellers.length > 0 && (
+        <section>
+          <div className="flex items-center gap-2 px-4 mb-2.5">
+            <Phone size={16} className="text-primary" />
+            <h3 className="font-bold text-sm text-foreground">
+              Contact & book nearby
+              {localSectionName && (
+                <span className="font-normal text-muted-foreground ml-1">
+                  – {localSectionName}
+                </span>
+              )}
+            </h3>
+          </div>
+          {renderSellerRow(contactSellers, true)}
         </section>
       )}
 

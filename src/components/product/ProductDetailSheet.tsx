@@ -35,6 +35,7 @@ import { useCountUp } from '@/hooks/useCountUp';
 import { notify } from '@/lib/notify';
 import { formatLeadTime } from '@/lib/lead-time';
 import { displaySellerStoreName } from '@/lib/seller-journey';
+import { getCommercePriceLabel, isCartPricedAction, shouldShowMonetaryPrice } from '@/lib/marketplace-constants';
 
 const PriceHistoryChart = lazy(() =>
   import('./PriceHistoryChart').then((m) => ({ default: m.PriceHistoryChart })),
@@ -149,7 +150,9 @@ export function ProductDetailSheet({ product, open, onOpenChange, onSelectProduc
     : { status: 'open', nextOpenAt: null, minutesUntilOpen: 0 };
 
   const isStoreClosed = isStoreCheckPending || isStoreUnknown || storeAvailability.status !== 'open';
-  const isContactAction = d.actionType === 'contact_seller';
+  const isContactAction = !isCartPricedAction(d.actionType);
+  const showMoney = shouldShowMonetaryPrice(d.actionType, product?.price);
+  const priceLabel = getCommercePriceLabel(d.actionType, product?.price, d.formatPrice);
   const blocksForStoreClosed = isStoreClosed && !isContactAction;
   const storeClosedMsg = isStoreCheckPending ? 'Checking store availability…' : isStoreUnknown ? 'Store unavailable right now' : isStoreClosed ? formatStoreClosedMessage(storeAvailability) : '';
 
@@ -237,7 +240,7 @@ export function ProductDetailSheet({ product, open, onOpenChange, onSelectProduc
                 )}
               </motion.div>
               <motion.div variants={fadeSlideUp} className="flex items-baseline gap-2 flex-wrap">
-                {d.actionType === 'contact_seller' ? (<span className="text-sm font-medium text-muted-foreground">Contact for price</span>) : (<span className="text-xl font-bold text-foreground tabular-nums">{d.formatPrice(animatedPrice)}</span>)}
+                {!showMoney ? (<span className="text-sm font-bold text-primary">{priceLabel}</span>) : (<span className="text-xl font-bold text-foreground tabular-nums">{d.formatPrice(animatedPrice)}</span>)}
                 {d.canonicalStockQty != null && d.canonicalStockQty > 0 && (
                   <span className="text-xs font-semibold text-muted-foreground tabular-nums">{d.canonicalStockQty} left</span>
                 )}
@@ -356,8 +359,8 @@ export function ProductDetailSheet({ product, open, onOpenChange, onSelectProduc
                           {displaySellerStoreName(sp.seller.business_name)}
                         </p>
                       )}
-                      {sp.action_type === 'contact_seller' || sp.action_type === 'request_quote' || sp.action_type === 'make_offer' ? (
-                        <p className="text-[11px] font-medium text-muted-foreground">Contact for price</p>
+                      {!shouldShowMonetaryPrice(sp.action_type, sp.price) ? (
+                        <p className="text-[11px] font-medium text-primary">{getCommercePriceLabel(sp.action_type, sp.price, d.formatPrice)}</p>
                       ) : (
                         sp.price > 0 && <p className="text-xs font-bold">{d.formatPrice(sp.price)}</p>
                       )}
@@ -400,7 +403,8 @@ export function ProductDetailSheet({ product, open, onOpenChange, onSelectProduc
           </div>
           {/* CTA with fade-up */}
           <motion.div
-            className="absolute bottom-0 left-0 right-0 bg-background border-t border-border p-4"
+            className="absolute bottom-0 left-0 right-0 bg-background border-t border-border px-4 pt-4"
+            style={{ paddingBottom: 'max(1rem, var(--app-safe-bottom, 0px), env(safe-area-inset-bottom, 0px))' }}
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2, duration: 0.3, ease: [0.16, 1, 0.3, 1] }}

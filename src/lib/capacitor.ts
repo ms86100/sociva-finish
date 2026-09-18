@@ -17,6 +17,23 @@ function readCssEnvInset(side: 'top' | 'right' | 'bottom' | 'left'): number {
   return value;
 }
 
+/**
+ * Android WebView often reports 0 bottom inset on cold launch until the first
+ * WindowInsets pass. Prefer the larger of env() vs previously known good value,
+ * and fall back to a conservative nav-bar height on Android when still 0.
+ */
+function resolveBottomInset(previousPx = 0): number {
+  const envBottom = readCssEnvInset('bottom');
+  if (envBottom > 0) return envBottom;
+  if (previousPx > 0) return previousPx;
+  // Gesture / 3-button nav typically 16–48dp; 24px is a safe minimum that
+  // avoids flush CTA collision without looking oversized on tablets.
+  if (Capacitor.getPlatform() === 'android') return 24;
+  return 0;
+}
+
+let lastKnownBottomInset = 0;
+
 async function syncSafeAreaCssVars() {
   const applyTop = (px: number) => {
     const value = `${Math.max(px, 24)}px`;
@@ -32,14 +49,18 @@ async function syncSafeAreaCssVars() {
   };
   // Paint with a safe default immediately, then refine from StatusBar.getInfo().
   applyTop(Math.max(28, readCssEnvInset('top')));
-  applySide('bottom', readCssEnvInset('bottom'));
+  const bottom = resolveBottomInset(lastKnownBottomInset);
+  if (bottom > 0) lastKnownBottomInset = bottom;
+  applySide('bottom', bottom);
   applySide('left', readCssEnvInset('left'));
   applySide('right', readCssEnvInset('right'));
   try {
     const info = await StatusBar.getInfo();
     const top = Math.max(0, Number(info.height) || 0, readCssEnvInset('top'));
     if (top > 0) applyTop(top);
-    applySide('bottom', readCssEnvInset('bottom'));
+    const bottomAfter = resolveBottomInset(lastKnownBottomInset);
+    if (bottomAfter > 0) lastKnownBottomInset = bottomAfter;
+    applySide('bottom', bottomAfter);
   } catch (e) {
     console.warn('[Capacitor] syncSafeAreaCssVars failed:', e);
   }
@@ -52,9 +73,16 @@ function watchSafeAreaResync() {
     if (document.visibilityState === 'visible') resync();
   });
   window.addEventListener('orientationchange', () => setTimeout(resync, 250));
-  // Late pass — WebView sometimes lies on first getInfo()
+  window.addEventListener('resize', () => {
+    // Debounce lightly — keyboard/nav-bar changes fire resize bursts.
+    clearTimeout((watchSafeAreaResync as any)._resizeTimer);
+    (watchSafeAreaResync as any)._resizeTimer = setTimeout(resync, 120);
+  });
+  // After first paint(s) — WebView often lies until layout settles
+  requestAnimationFrame(() => requestAnimationFrame(resync));
   setTimeout(resync, 500);
   setTimeout(resync, 2000);
+  setTimeout(resync, 4000);
 }
 
 export async function initializeCapacitorPlugins() {

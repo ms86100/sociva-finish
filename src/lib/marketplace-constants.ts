@@ -20,6 +20,55 @@ export const ACTION_CONFIG: Record<ProductActionType, { label: string; shortLabe
   make_offer: { label: 'Make an Offer', shortLabel: 'Offer', icon: Handshake, isCart: false },
 };
 
+/** True when the action participates in cart/checkout payment. */
+export function isCartPricedAction(actionType: string | null | undefined): boolean {
+  if (!actionType || !(actionType in ACTION_CONFIG)) return true;
+  return ACTION_CONFIG[actionType as ProductActionType].isCart;
+}
+
+/**
+ * Whether to render a monetary price.
+ * Non-cart actions with missing/zero/placeholder (≤1) prices must never show fake ₹1.
+ */
+export function shouldShowMonetaryPrice(
+  actionType: string | null | undefined,
+  price: number | null | undefined,
+): boolean {
+  const amount = Number(price);
+  if (!Number.isFinite(amount) || amount <= 0) return false;
+  if (!isCartPricedAction(actionType) && amount <= 1) return false;
+  return true;
+}
+
+/** CTA / price line for listings and cards. */
+export function getCommercePriceLabel(
+  actionType: string | null | undefined,
+  price: number | null | undefined,
+  formatPrice: (n: number) => string,
+): string {
+  if (shouldShowMonetaryPrice(actionType, price)) {
+    return formatPrice(Number(price));
+  }
+  const key = (actionType && actionType in ACTION_CONFIG ? actionType : 'contact_seller') as ProductActionType;
+  const cfg = ACTION_CONFIG[key] || ACTION_CONFIG.contact_seller;
+  if (cfg.isCart) return formatPrice(Number(price) || 0);
+  if (key === 'contact_seller') return 'Contact Seller';
+  if (key === 'request_service') return 'Request Service';
+  if (key === 'request_quote') return 'Get Quote';
+  if (key === 'book') return 'Book Now';
+  if (key === 'schedule_visit') return 'Schedule Visit';
+  if (key === 'make_offer') return 'Make Offer';
+  return cfg.shortLabel;
+}
+
+/** Seller is contact/enquiry/book-led when no cart-priced showcase products exist. */
+export function isServiceOrContactSeller(
+  products: Array<{ action_type?: string | null; price?: number | null }>,
+): boolean {
+  if (!products.length) return false;
+  return products.every((p) => !shouldShowMonetaryPrice(p.action_type, p.price));
+}
+
 /** Shared sort options used across CategoryPage, CategoryGroupPage, and SearchPage */
 export const SORT_OPTIONS = [
   { key: 'relevance' as const, label: 'Relevance' },

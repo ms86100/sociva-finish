@@ -8,7 +8,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { VegBadge } from '@/components/ui/veg-badge';
 import { Badge } from '@/components/ui/badge';
 import { Product, ProductActionType } from '@/types/Database';
-import { ACTION_CONFIG } from '@/lib/marketplace-constants';
+import { ACTION_CONFIG, getCommercePriceLabel, shouldShowMonetaryPrice } from '@/lib/marketplace-constants';
 import { useCart } from '@/hooks/useCart';
 import { cn } from '@/lib/utils';
 import { useCurrency } from '@/hooks/useCurrency';
@@ -31,7 +31,9 @@ export function ProductCard({ product, variant = 'horizontal', onTap }: ProductC
   const actionType: ProductActionType = (product.action_type as ProductActionType) || 'add_to_cart';
   const actionConfig = ACTION_CONFIG[actionType] || ACTION_CONFIG.add_to_cart;
   const isCartAction = actionConfig.isCart;
-  const isContactAction = actionType === 'contact_seller';
+  const isContactAction = !isCartAction;
+  const priceLabel = getCommercePriceLabel(actionType, product.price, formatPrice);
+  const showMoney = shouldShowMonetaryPrice(actionType, product.price);
 
   const cartItem = isCartAction ? items.find((item) => item.product_id === product.id) : null;
   const quantity = cartItem?.quantity || 0;
@@ -158,7 +160,7 @@ export function ProductCard({ product, variant = 'horizontal', onTap }: ProductC
             <div className="flex-1 min-w-0">
               <h4 className="font-semibold text-sm line-clamp-2 leading-snug">{product.name}</h4>
               <div className="flex items-baseline gap-1.5 mt-1.5 flex-wrap">
-                <p className="text-base font-extrabold text-foreground tabular-nums">{isContactAction ? 'Contact for price' : formatPrice(product.price)}</p>
+                <p className="text-base font-extrabold text-foreground tabular-nums">{showMoney ? priceLabel : <span className="text-primary text-sm font-bold">{priceLabel}</span>}</p>
                 {hasDiscount && (
                   <span className="text-xs text-muted-foreground line-through tabular-nums">{formatPrice((product as any).mrp)}</span>
                 )}
@@ -215,7 +217,7 @@ export function ProductCard({ product, variant = 'horizontal', onTap }: ProductC
             </div>
             {product.description && (<p className="text-sm text-muted-foreground line-clamp-2 mt-1">{product.description}</p>)}
             <div className="flex items-baseline gap-1.5 mt-2 flex-wrap">
-              <p className="font-extrabold text-base tabular-nums">{isContactAction ? 'Contact for price' : formatPrice(product.price)}</p>
+              <p className="font-extrabold text-base tabular-nums">{showMoney ? priceLabel : <span className="text-primary text-sm font-bold">{priceLabel}</span>}</p>
               {hasDiscount && (
                 <span className="text-xs text-muted-foreground line-through tabular-nums">{formatPrice((product as any).mrp)}</span>
               )}

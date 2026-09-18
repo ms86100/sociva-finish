@@ -106,13 +106,17 @@ export function AutoHighlightStrip() {
 
       for (const c of (couponsRes.data || []) as any[]) {
         if (c.seller_id && !allowedSellers.has(c.seller_id)) continue;
+        if (c.expires_at && new Date(c.expires_at).getTime() < Date.now()) continue;
+        if (c.starts_at && new Date(c.starts_at).getTime() > Date.now()) continue;
+        // Never surface internal QA fixture codes in Highlights
+        if (/^(CERT|WAVE|ITER|QA)/i.test(String(c.code || ''))) continue;
         const discountText = c.discount_type === 'percentage'
           ? `${c.discount_value}% OFF`
           : `${formatPrice(c.discount_value)} OFF`;
         const sellerName = c.seller_profiles?.business_name || '';
         const details: string[] = [];
+        details.push(c.code);
         if (c.description) details.push(c.description);
-        else details.push(`Code: ${c.code}`);
         if (c.min_order_amount) details.push(`Min ${formatPrice(c.min_order_amount)}`);
         if (c.max_discount_amount && c.discount_type === 'percentage') details.push(`Up to ${formatPrice(c.max_discount_amount)}`);
         if (sellerName) details.push(`@ ${sellerName}`);

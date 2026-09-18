@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { VegBadge } from '@/components/ui/veg-badge';
 import { useCart } from '@/hooks/useCart';
 import { Product, ProductActionType } from '@/types/Database';
-import { ACTION_CONFIG, deriveActionType } from '@/lib/marketplace-constants';
+import { ACTION_CONFIG, deriveActionType, getCommercePriceLabel, shouldShowMonetaryPrice } from '@/lib/marketplace-constants';
 import { formatLeadTime } from '@/lib/lead-time';
 import { cn } from '@/lib/utils';
 import { useCurrency } from '@/hooks/useCurrency';
@@ -48,6 +48,8 @@ export function ProductGridCard({ product, behavior, onTap, className, viewOnly 
   const actionType: ProductActionType = deriveActionType(product.action_type as string, catCfg?.transactionType ?? null, catCfg ? { supportsCart: catCfg.behavior.supportsCart, enquiryOnly: catCfg.behavior.enquiryOnly } : null);
   const actionConfig = ACTION_CONFIG[actionType];
   const isCartAction = actionConfig.isCart;
+  const priceLabel = getCommercePriceLabel(actionType, product.price, formatPrice);
+  const showMoney = shouldShowMonetaryPrice(actionType, product.price);
   const showVegBadge = catCfg?.formHints?.showVegToggle ?? false;
   const placeholderEmoji = catCfg?.formHints?.placeholderEmoji || '📦';
 
@@ -235,7 +237,7 @@ export function ProductGridCard({ product, behavior, onTap, className, viewOnly 
         )}
         <div className="flex-1 min-h-0.5" />
         <div className="flex items-baseline gap-1.5 mt-auto pt-1 flex-wrap">
-          <span className="font-extrabold text-sm text-foreground leading-none tabular-nums">{formatPrice(product.price)}</span>
+          <span className={cn('font-extrabold text-sm leading-none', showMoney ? 'text-foreground tabular-nums' : 'text-primary')}>{priceLabel}</span>
           {hasDiscount && (
             <span className="text-[10px] text-muted-foreground/80 line-through tabular-nums">{formatPrice((product as any).mrp)}</span>
           )}

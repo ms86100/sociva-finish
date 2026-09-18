@@ -225,7 +225,7 @@ export function CouponManager() {
             <div className="grid grid-cols-2 gap-3">
               <div className="min-w-0">
                 <Label className="text-xs">Code</Label>
-                <Input placeholder="e.g. WELCOME10" value={formData.code} onChange={e => setFormData({ ...formData, code: e.target.value })} className="uppercase" />
+                <Input placeholder="e.g. WELCOMESOCIVA" value={formData.code} onChange={e => setFormData({ ...formData, code: e.target.value })} className="uppercase" />
               </div>
               <div className="min-w-0">
                 <Label className="text-xs">Type</Label>

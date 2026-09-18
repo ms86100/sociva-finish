@@ -2,12 +2,17 @@
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Store, Users, ShoppingBag } from 'lucide-react';
+import { Store, Users, ShoppingBag, Phone } from 'lucide-react';
 import { optimizedImageUrl, handleImageError } from '@/utils/imageHelpers';
 import { useCurrency } from '@/hooks/useCurrency';
 import { VegBadge } from '@/components/ui/veg-badge';
 import { cn } from '@/lib/utils';
 import type { TopProduct } from '@/hooks/queries/useStoreDiscovery';
+import {
+  getCommercePriceLabel,
+  isCartPricedAction,
+  shouldShowMonetaryPrice,
+} from '@/lib/marketplace-constants';
 
 export function sanitizeSellerName(name: string): string {
   const stripped = (name || '').replace(/^\[(ARCHIVED|HOLD)\]\s*/i, '').trim();
@@ -32,6 +37,8 @@ export interface RichSellerCardProps {
   groupLabel?: string | null;
   compact?: boolean;
   onProductTap?: (product: TopProduct) => void;
+  /** Force contact/service presentation even if products are mixed. */
+  serviceMode?: boolean;
 }
 
 export function RichSellerCard({
@@ -46,18 +53,25 @@ export function RichSellerCard({
   groupLabel,
   compact = false,
   onProductTap,
+  serviceMode = false,
 }: RichSellerCardProps) {
   const navigate = useNavigate();
   const { formatPrice } = useCurrency();
   const sanitized = sanitizeSellerName(name);
   const hue = useMemo(() => hashToHue(id), [id]);
 
-  const hasProducts = topProducts.length > 0;
-  const minPrice = hasProducts ? Math.min(...topProducts.map(p => p.price)) : null;
+  const pricedProducts = topProducts.filter((p) => shouldShowMonetaryPrice(p.action_type, p.price));
+  const minPrice = pricedProducts.length > 0 ? Math.min(...pricedProducts.map((p) => p.price)) : null;
+  const dominantAction = topProducts.find((p) => p.action_type)?.action_type || 'contact_seller';
+  const isServiceCard = serviceMode || (topProducts.length > 0 && pricedProducts.length === 0);
+  const footerLabel = isServiceCard
+    ? getCommercePriceLabel(dominantAction, null, formatPrice)
+    : minPrice !== null
+      ? `From ${formatPrice(minPrice)}`
+      : '\u00A0';
   const heroImage = coverImage || profileImage;
   const isNew = totalReviews === 0;
   const cardWidth = compact ? 'w-[150px] sm:w-[160px]' : 'w-[160px] sm:w-[170px]';
-  // Always render 2 product slots so row cards share one height.
   const productSlots = [topProducts[0] ?? null, topProducts[1] ?? null] as const;
 
   return (
@@ -72,7 +86,6 @@ export function RichSellerCard({
         onClick={() => navigate(`/seller/${id}`)}
         className={cn(
           'rounded-2xl overflow-hidden cursor-pointer flex flex-col',
-          // Fixed height keeps "Stores near you" carousel cards aligned.
           compact ? 'h-[248px]' : 'h-[260px]',
           'bg-card border border-border/60 shadow-card',
           'transition-[box-shadow,border-color,transform] duration-200 ease-out hover:shadow-elevated hover:border-border',
@@ -141,8 +154,12 @@ export function RichSellerCard({
                 )
               ))}
             </div>
-            <p className="text-[12px] font-semibold text-success mt-1 px-0.5 tabular-nums h-4">
-              {minPrice !== null ? `From ${formatPrice(minPrice)}` : '\u00A0'}
+            <p className={cn(
+              'text-[12px] font-semibold mt-1 px-0.5 h-4 flex items-center gap-1',
+              isServiceCard ? 'text-primary' : 'text-success tabular-nums',
+            )}>
+              {isServiceCard && <Phone size={10} className="shrink-0" />}
+              <span className="truncate">{footerLabel}</span>
             </p>
           </div>
         </div>
@@ -153,6 +170,8 @@ export function RichSellerCard({
 
 function ProductMini({ product, onTap }: { product: TopProduct; onTap?: (e: React.MouseEvent) => void }) {
   const { formatPrice } = useCurrency();
+  const label = getCommercePriceLabel(product.action_type, product.price, formatPrice);
+  const showPrice = shouldShowMonetaryPrice(product.action_type, product.price);
   return (
     <div
       onClick={onTap}
@@ -169,14 +188,23 @@ function ProductMini({ product, onTap }: { product: TopProduct; onTap?: (e: Reac
         />
       ) : (
         <div className="w-full h-10 shrink-0 flex items-center justify-center bg-secondary">
-          <ShoppingBag size={14} className="text-muted-foreground" />
+          {isCartPricedAction(product.action_type) ? (
+            <ShoppingBag size={14} className="text-muted-foreground" />
+          ) : (
+            <Phone size={14} className="text-muted-foreground" />
+          )}
         </div>
       )}
       <div className="px-1 py-0.5 min-h-0">
         <p className="text-[11px] text-foreground font-medium line-clamp-1">{product.name}</p>
         <div className="flex items-center gap-0.5">
           {product.is_veg !== null && <VegBadge isVeg={product.is_veg} size="sm" />}
-          <span className="text-[12px] font-bold text-foreground tabular-nums">{formatPrice(product.price)}</span>
+          <span className={cn(
+            'text-[11px] font-bold truncate',
+            showPrice ? 'text-foreground tabular-nums' : 'text-primary',
+          )}>
+            {label}
+          </span>
         </div>
       </div>
     </div>

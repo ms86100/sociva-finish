@@ -9,7 +9,7 @@ import { VegBadge } from '@/components/ui/veg-badge';
 import { useCart } from '@/hooks/useCart';
 import { ProductActionType } from '@/types/Database';
 import { NotifyMeButton } from './NotifyMeButton';
-import { ACTION_CONFIG, deriveActionType } from '@/lib/marketplace-constants';
+import { ACTION_CONFIG, deriveActionType, getCommercePriceLabel, shouldShowMonetaryPrice } from '@/lib/marketplace-constants';
 import { formatLeadTime } from '@/lib/lead-time';
 import { useCardAnalytics } from '@/hooks/useCardAnalytics';
 import { MARKETPLACE_FALLBACKS, type MarketplaceConfig } from '@/hooks/useMarketplaceConfig';
@@ -128,7 +128,9 @@ function ProductListingCardInner({ product, layout = 'auto', onTap, onNavigate, 
   const storeAvailability = useMemo((): StoreAvailability => computeStoreStatus(product.seller_availability_start, product.seller_availability_end, product.seller_operating_days, product.seller_is_available ?? true), [product.seller_availability_start, product.seller_availability_end, product.seller_operating_days, product.seller_is_available]);
   const isStoreClosed = storeAvailability.status !== 'open';
   const storeClosedMessage = isStoreClosed ? formatStoreClosedMessage(storeAvailability) : '';
-  const isContactAction = actionType === 'contact_seller';
+  const isContactAction = !ACTION_CONFIG[actionType]?.isCart;
+  const priceLabel = getCommercePriceLabel(actionType, product.price, formatPrice);
+  const showMoney = shouldShowMonetaryPrice(actionType, product.price);
   const effectiveStoreClosed = isContactAction ? false : isStoreClosed;
 
   const isLowStock = mc.enableScarcity && product.stock_quantity != null && product.stock_quantity > 0 && product.stock_quantity <= mc.lowStockThreshold;
@@ -440,8 +442,8 @@ function ProductListingCardInner({ product, layout = 'auto', onTap, onNavigate, 
         )}>
           <div className="flex h-full flex-col overflow-hidden">
             <div className="min-h-[20px] flex items-baseline gap-1.5 overflow-hidden flex-wrap">
-              {isContactAction ? (
-                <span className="text-sm font-medium text-muted-foreground leading-none">Contact for price</span>
+              {!showMoney ? (
+                <span className="text-sm font-medium text-primary leading-none">{priceLabel}</span>
               ) : (
                 <>
                   <span className="font-extrabold text-[15px] text-foreground leading-none tracking-tight tabular-nums">
@@ -480,8 +482,8 @@ function ProductListingCardInner({ product, layout = 'auto', onTap, onNavigate, 
         )}>
           {/* Price row */}
           <div className="flex items-baseline gap-1.5 flex-wrap">
-            {isContactAction ? (
-              <span className="text-sm font-medium text-muted-foreground leading-none">Contact for price</span>
+            {!showMoney ? (
+              <span className="text-sm font-medium text-primary leading-none">{priceLabel}</span>
             ) : (
               <>
                 <span className="font-extrabold text-[15px] sm:text-base text-foreground leading-none tracking-tight tabular-nums">

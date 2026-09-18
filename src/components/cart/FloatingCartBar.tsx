@@ -57,7 +57,7 @@ export function FloatingCartBar({ className }: FloatingCartBarProps) {
         exit={{ y: 80, opacity: 0 }}
         transition={{ type: 'spring', stiffness: 350, damping: 28 }}
         className={cn(
-          'fixed bottom-[calc(4.75rem+env(safe-area-inset-bottom))] left-0 right-0 z-40 px-4 pb-2',
+          'fixed bottom-[calc(4.75rem+max(var(--app-safe-bottom,0px),env(safe-area-inset-bottom,0px)))] left-0 right-0 z-40 px-4 pb-2',
           className
         )}
       >
