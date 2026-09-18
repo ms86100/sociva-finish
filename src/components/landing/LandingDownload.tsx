@@ -2,7 +2,7 @@
 import { useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { motion, useInView } from 'framer-motion';
-import { Apple, Smartphone, Monitor, Laptop } from 'lucide-react';
+import { Apple, Smartphone } from 'lucide-react';
 
 const IOS_APP_STORE_URL = 'https://apps.apple.com/in/app/sociva/id6759218504';
 /** Live Google Play listing (same package as Android release). */
@@ -10,21 +10,6 @@ export const ANDROID_PLAY_STORE_URL =
   'https://play.google.com/store/apps/details?id=app.sociva.community&hl=en_IN';
 /** @deprecated Use ANDROID_PLAY_STORE_URL — APK sideload retired after Play launch. */
 export const ANDROID_APK_URL = ANDROID_PLAY_STORE_URL;
-/** Stable Windows installer alias (Vercel public/downloads) — only enable after Authenticode signing. */
-export const WINDOWS_SETUP_URL = '/downloads/sociva-windows-setup.exe';
-/**
- * macOS DMG via GitHub Releases (built by Actions on macos-latest).
- * Prefer a promoted `desktop-v*` release; falls back to latest matching asset name.
- */
-export const MACOS_DMG_URL =
-  'https://github.com/ms86100/sociva-finish/releases/latest/download/Sociva-mac.dmg';
-/**
- * Customer-facing desktop downloads stay off until Authenticode / Apple notarization
- * so SmartScreen / Gatekeeper never show “suspicious file” to end users.
- * Internal BAT: download the EXE/DMG from GitHub Actions artifacts / Releases.
- */
-const WINDOWS_SETUP_AVAILABLE = false;
-const MACOS_DMG_AVAILABLE = false;
 
 export function LandingDownload() {
   const ref = useRef<HTMLDivElement>(null);
@@ -102,101 +87,6 @@ export function LandingDownload() {
               Get it on Google Play
             </Button>
           </motion.a>
-        </div>
-
-        {/* Desktop */}
-        <div className="max-w-3xl mx-auto mt-14 mb-6 text-center">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary mb-2">
-            Desktop
-          </p>
-          <h3 className="text-xl md:text-2xl font-extrabold text-foreground mb-2 tracking-tight">
-            Sociva for Windows &amp; Mac
-          </h3>
-          <p className="text-sm text-muted-foreground leading-relaxed max-w-xl mx-auto">
-            Run Sociva as a native desktop app for sellers and buyers. Connects to the same live cloud — no separate database to install.
-          </p>
-        </div>
-
-        <div className="grid sm:grid-cols-2 gap-4 max-w-3xl mx-auto">
-          {WINDOWS_SETUP_AVAILABLE ? (
-            <motion.a
-              href={WINDOWS_SETUP_URL}
-              download="Sociva-Setup.exe"
-              initial={{ opacity: 0, y: 16 }}
-              animate={inView ? { opacity: 1, y: 0 } : {}}
-              transition={{ delay: 0.22, duration: 0.45 }}
-              className="group flex flex-col items-start gap-4 rounded-2xl border border-border bg-card/80 backdrop-blur-sm p-6 hover:border-primary/40 hover:bg-card transition-colors text-left overflow-hidden relative"
-            >
-              <div
-                className="pointer-events-none absolute inset-0 opacity-[0.07]"
-                style={{
-                  backgroundImage:
-                    'linear-gradient(135deg, hsl(var(--primary)) 0%, transparent 55%), radial-gradient(circle at 90% 10%, hsl(var(--accent)) 0%, transparent 40%)',
-                }}
-                aria-hidden
-              />
-              <img
-                src="/landing/desktop-windows.svg"
-                alt=""
-                className="absolute right-3 bottom-3 w-28 h-auto opacity-90 pointer-events-none select-none"
-                width={160}
-                height={100}
-              />
-              <div className="relative w-12 h-12 rounded-xl bg-[#0078D4] text-white flex items-center justify-center shadow-sm">
-                <Monitor size={24} />
-              </div>
-              <div className="relative space-y-1 flex-1 pr-24">
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Windows PC</p>
-                <h3 className="text-lg font-bold text-foreground">Windows Installer</h3>
-                <p className="text-sm text-muted-foreground leading-relaxed">
-                  Install Sociva on your PC — Start Menu &amp; desktop shortcut. Same login, same orders, same cloud store.
-                </p>
-              </div>
-              <Button className="relative w-full rounded-xl font-semibold group-hover:shadow-cta" size="lg">
-                Download for Windows
-              </Button>
-            </motion.a>
-          ) : null}
-
-          {MACOS_DMG_AVAILABLE ? (
-            <motion.a
-              href={MACOS_DMG_URL}
-              download="Sociva.dmg"
-              initial={{ opacity: 0, y: 16 }}
-              animate={inView ? { opacity: 1, y: 0 } : {}}
-              transition={{ delay: 0.28, duration: 0.45 }}
-              className="group flex flex-col items-start gap-4 rounded-2xl border border-border bg-card/80 backdrop-blur-sm p-6 hover:border-primary/40 hover:bg-card transition-colors text-left overflow-hidden relative"
-            >
-              <div
-                className="pointer-events-none absolute inset-0 opacity-[0.07]"
-                style={{
-                  backgroundImage:
-                    'linear-gradient(135deg, hsl(var(--foreground)) 0%, transparent 55%), radial-gradient(circle at 90% 10%, hsl(var(--primary)) 0%, transparent 40%)',
-                }}
-                aria-hidden
-              />
-              <img
-                src="/landing/desktop-macos.svg"
-                alt=""
-                className="absolute right-3 bottom-3 w-28 h-auto opacity-90 pointer-events-none select-none"
-                width={160}
-                height={100}
-              />
-              <div className="relative w-12 h-12 rounded-xl bg-foreground text-background flex items-center justify-center shadow-sm">
-                <Laptop size={24} />
-              </div>
-              <div className="relative space-y-1 flex-1 pr-24">
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">MacBook &amp; Mac</p>
-                <h3 className="text-lg font-bold text-foreground">macOS Download</h3>
-                <p className="text-sm text-muted-foreground leading-relaxed">
-                  Native Mac app for your MacBook — same Sociva account and live cloud backend.
-                </p>
-              </div>
-              <Button variant="outline" className="relative w-full rounded-xl font-semibold border-primary/30" size="lg">
-                Download for Mac
-              </Button>
-            </motion.a>
-          ) : null}
         </div>
 
         <p className="text-center text-xs text-muted-foreground mt-8 max-w-lg mx-auto">
