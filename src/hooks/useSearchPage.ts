@@ -14,6 +14,7 @@ import { useMarketplaceData } from '@/hooks/queries/useMarketplaceData';
 import { useCurrency } from '@/hooks/useCurrency';
 import { MARKETPLACE_RADIUS_KM } from '@/lib/marketplace-constants';
 import { committedSearchKey, getSessionQueryId } from '@/lib/searchTelemetry';
+import { readSearchQueryParam, resolveSearchQueryFromUrl } from '@/lib/searchQuery';
 import { isFoodParentGroup } from '@/lib/food-facets';
 import { hasPreciseCoordinates } from '@/lib/buyerLocation';
 import { useRegisterScreenRefresh } from '@/hooks/usePullToRefresh';
