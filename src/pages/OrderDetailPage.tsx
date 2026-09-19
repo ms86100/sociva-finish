@@ -1247,35 +1247,24 @@ export default function OrderDetailPage() {
              </motion.div>
           )}
 
-          {/* Delivery OTP card — only for platform-managed delivery (rider holds the code) */}
-          {o.isBuyerView && isDeliveryOrder && buyerOtp && (order as any).delivery_handled_by === 'platform' && !isTerminalStatus(o.flow, order.status) && (isInTransit || ['picked_up', 'on_the_way', 'at_gate'].includes(order.status) || (() => {
-            const nextStatus = o.buyerNextStatus || o.nextStatus;
-            if (!nextStatus) return false;
-            const nextOtp = getStepOtpType(o.flow, nextStatus);
-            return nextOtp === 'delivery';
-          })()) && (
-            <div className="bg-primary/5 border-2 border-primary/20 rounded-xl p-4 text-center">
-              <p className="text-xs text-muted-foreground mb-1">Your Delivery Code</p>
-              <p className="text-3xl font-bold tracking-[0.3em] text-primary">{buyerOtp}</p>
-              <p className="text-[11px] text-muted-foreground mt-1.5">Share this code with the delivery person to confirm delivery</p>
-              <p className="text-[10px] text-warning mt-1.5">⚠️ Only share when you've received your items. This code confirms delivery is complete.</p>
-            </div>
-          )}
-
-          {/* Buyer: Generic OTP for seller-managed delivery (buyer shares code with seller) */}
-          {o.isBuyerView && isDeliveryOrder && (order as any).delivery_handled_by !== 'platform' && !isTerminalStatus(o.flow, order.status) && (() => {
+          {/* Delivery OTP — always from delivery_assignments.delivery_code (seller verifies the same value).
+              Do NOT use GenericOtpCard here: regenerate wrote order_otp_codes and caused Invalid OTP. */}
+          {o.isBuyerView && isDeliveryOrder && buyerOtp && !isTerminalStatus(o.flow, order.status) && (isInTransit || ['picked_up', 'on_the_way', 'at_gate'].includes(order.status) || (() => {
             const nextStatus = o.buyerNextStatus || o.nextStatus;
             if (!nextStatus) return false;
             const nextOtp = getStepOtpType(o.flow, nextStatus);
             return nextOtp === 'delivery' || nextOtp === 'delivery_otp';
-          })() && (
-            <GenericOtpCard orderId={order.id} targetStatus={(() => {
-              const ns = o.buyerNextStatus || o.nextStatus;
-              return ns || '';
-            })()} targetStatusLabel={(() => {
-              const ns = o.buyerNextStatus || o.nextStatus;
-              return ns ? o.getFlowStepLabel(ns, 'buyer').label : 'Delivered';
-            })()} />
+          })()) && (
+            <div className="bg-primary/5 border-2 border-primary/20 rounded-xl p-4 text-center">
+              <p className="text-xs text-muted-foreground mb-1">Your Delivery Code</p>
+              <p className="text-3xl font-bold tracking-[0.3em] text-primary">{buyerOtp}</p>
+              <p className="text-[11px] text-muted-foreground mt-1.5">
+                {(order as any).delivery_handled_by === 'platform'
+                  ? 'Share this code with the delivery person to confirm delivery'
+                  : 'Share this code with the seller to confirm delivery'}
+              </p>
+              <p className="text-[10px] text-warning mt-1.5">⚠️ Only share when you've received your items. This code confirms delivery is complete.</p>
+            </div>
           )}
 
           {/* Self-pickup OTP card — buyer sees the code to share with seller */}
