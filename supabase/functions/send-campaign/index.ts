@@ -1,12 +1,27 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
-import { getCredential } from "../_shared/credentials.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type",
 };
+
+async function getCredential(
+  supabase: any,
+  dbKey: string,
+  envKey: string,
+): Promise<string | undefined> {
+  const fromEnv = String(Deno.env.get(envKey) || "").trim();
+  if (fromEnv) return fromEnv;
+  try {
+    const { data, error } = await supabase.rpc("get_edge_credential", { p_key: dbKey });
+    if (!error && typeof data === "string" && data.trim()) return data.trim();
+  } catch (e) {
+    console.warn(`get_edge_credential failed for ${dbKey}:`, e);
+  }
+  return undefined;
+}
 
 interface FirebaseServiceAccount {
   type: string;
@@ -25,6 +40,7 @@ interface CampaignRequest {
   title: string;
   body: string;
   data?: Record<string, string>;
+  dry_run?: boolean;
   target?: {
     platform?: "all" | "ios" | "android";
     user_ids?: string[];
@@ -299,7 +315,8 @@ Deno.serve(async (req) => {
     }
 
     // ── Parse request ──
-    const { title, body, data, target }: CampaignRequest = await req.json();
+    const bodyJson: CampaignRequest = await req.json();
+    const { title, body, data, target, dry_run } = bodyJson;
     if (!title || !body) {
       return new Response(
         JSON.stringify({ error: "title and body are required" }),
@@ -311,30 +328,41 @@ Deno.serve(async (req) => {
     const userIds = target?.user_ids || [];
     const societyId = target?.society_id || null;
 
-    // ── Create campaign record ──
-    const { data: campaign, error: insertErr } = await adminClient
-      .from("campaigns")
-      .insert({
-        title,
-        body,
-        data: data || {},
-        target_platform: platform,
-        target_user_ids: userIds,
-        target_society_id: societyId,
-        sent_by: user.id,
-        status: "sending",
-      })
-      .select("id")
-      .single();
-
-    if (insertErr || !campaign) {
-      throw new Error(`Failed to create campaign: ${insertErr?.message}`);
+    if (userIds.length > 2000) {
+      return new Response(
+        JSON.stringify({ error: "Too many user_ids (max 2000). Narrow the audience." }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
-    const campaignId = campaign.id;
-    console.log(`[Campaign] Created ${campaignId}, querying tokens...`);
+    // campaigns.society_id is NOT NULL — prefer target society, else sender profile, else first active society.
+    let campaignSocietyId = societyId;
+    if (!campaignSocietyId) {
+      const { data: senderProfile } = await adminClient
+        .from("profiles")
+        .select("society_id")
+        .eq("id", user.id)
+        .maybeSingle();
+      campaignSocietyId = senderProfile?.society_id || null;
+    }
+    if (!campaignSocietyId) {
+      const { data: firstSociety } = await adminClient
+        .from("societies")
+        .select("id")
+        .eq("is_active", true)
+        .order("name")
+        .limit(1)
+        .maybeSingle();
+      campaignSocietyId = firstSociety?.id || null;
+    }
+    if (!campaignSocietyId) {
+      return new Response(
+        JSON.stringify({ error: "No society available to attribute this campaign." }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
-    // ── Query device tokens (paginated) ──
+    // ── Query device tokens (paginated) — shared by dry_run and send ──
     let allTokens: any[] = [];
     let from = 0;
     const pageSize = 1000;
@@ -342,24 +370,23 @@ Deno.serve(async (req) => {
     while (true) {
       let query = adminClient
         .from("device_tokens")
-        .select("id, token, platform, apns_token, user_id, updated_at")
+        .select("id, token, platform, apns_token, user_id, updated_at, invalid")
         .range(from, from + pageSize - 1);
 
       if (platform === "ios") query = query.eq("platform", "ios");
       else if (platform === "android") query = query.eq("platform", "android");
-
       if (userIds.length > 0) query = query.in("user_id", userIds);
 
       const { data: tokens, error: tokErr } = await query;
       if (tokErr) throw new Error(`Failed to fetch tokens: ${tokErr.message}`);
       if (!tokens || tokens.length === 0) break;
 
-      allTokens.push(...tokens);
+      allTokens.push(...tokens.filter((t: any) => !t.invalid));
       if (tokens.length < pageSize) break;
       from += pageSize;
     }
 
-    // If society filter, get user IDs from profiles and filter
+    // If society filter (and no explicit user list), filter by society membership
     if (societyId && userIds.length === 0) {
       const { data: societyProfiles } = await adminClient
         .from("profiles")
@@ -385,13 +412,47 @@ Deno.serve(async (req) => {
       return true;
     });
 
-    console.log(`[Campaign] ${campaignId} targeting ${allTokens.length} devices (after dedup)`);
+    const uniqueUsers = [...new Set(allTokens.map((t: any) => t.user_id).filter(Boolean))];
 
-    // Update targeted count
-    await adminClient
+    if (dry_run) {
+      return new Response(
+        JSON.stringify({
+          dry_run: true,
+          targeted: allTokens.length,
+          users: uniqueUsers.length,
+          user_ids: uniqueUsers,
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // ── Create campaign record ──
+    const { data: campaign, error: insertErr } = await adminClient
       .from("campaigns")
-      .update({ targeted_count: allTokens.length })
-      .eq("id", campaignId);
+      .insert({
+        title,
+        body,
+        data: data || {},
+        type: "push",
+        target_audience: userIds.length > 0 ? "custom" : societyId ? "society" : "all",
+        target_platform: platform,
+        target_user_ids: userIds.length > 0 ? userIds : null,
+        target_society_id: societyId,
+        society_id: campaignSocietyId,
+        created_by: user.id,
+        sent_by: user.id,
+        status: "sending",
+        targeted_count: allTokens.length,
+      })
+      .select("id")
+      .single();
+
+    if (insertErr || !campaign) {
+      throw new Error(`Failed to create campaign: ${insertErr?.message}`);
+    }
+
+    const campaignId = campaign.id;
+    console.log(`[Campaign] Created ${campaignId}, targeting ${allTokens.length} devices`);
 
     if (allTokens.length === 0) {
       await adminClient
@@ -522,7 +583,7 @@ Deno.serve(async (req) => {
             title,
             body,
             type: "promotion",
-            reference_path: data?.screen ? `/${data.screen}` : "/home",
+            reference_path: data?.reference_path || (data?.screen ? `/${data.screen}` : "/home"),
             payload: {
               type: "campaign",
               campaign_id: campaignId,
