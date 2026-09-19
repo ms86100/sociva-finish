@@ -2,8 +2,8 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { useSystemSettings } from '@/hooks/useSystemSettings';
 import { Menu, X } from 'lucide-react';
+import { scrollToDownload } from '@/components/landing/scrollToDownload';
 
 const NAV_LINKS = [
   { label: 'Features', href: '#features' },
@@ -13,13 +13,17 @@ const NAV_LINKS = [
 ];
 
 export function LandingNav() {
-  const { platformName } = useSystemSettings();
   const [open, setOpen] = useState(false);
 
   const scrollTo = (id: string) => {
     setOpen(false);
     const el = document.getElementById(id.replace('#', ''));
     el?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  const goDownload = () => {
+    setOpen(false);
+    scrollToDownload();
   };
 
   return (
@@ -47,8 +51,7 @@ export function LandingNav() {
         </div>
 
         <div className="hidden md:flex items-center gap-3">
-          <Link to="/auth"><Button variant="ghost" size="sm">Sign In</Button></Link>
-          <Link to="/auth"><Button size="sm">Get Started</Button></Link>
+          <Button size="sm" onClick={goDownload}>Get the App</Button>
         </div>
 
         <button className="md:hidden p-2" onClick={() => setOpen(!open)}>
@@ -63,10 +66,7 @@ export function LandingNav() {
               {l.label}
             </button>
           ))}
-          <div className="flex gap-2 pt-2">
-            <Link to="/auth" className="flex-1"><Button variant="outline" size="sm" className="w-full">Sign In</Button></Link>
-            <Link to="/auth" className="flex-1"><Button size="sm" className="w-full">Get Started</Button></Link>
-          </div>
+          <Button size="sm" className="w-full" onClick={goDownload}>Get the App</Button>
         </div>
       )}
     </nav>

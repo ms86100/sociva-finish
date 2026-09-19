@@ -1,9 +1,9 @@
 // @ts-nocheck
-import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { ArrowRight } from 'lucide-react';
 import { motion, useInView } from 'framer-motion';
 import { useRef } from 'react';
+import { scrollToDownload } from '@/components/landing/scrollToDownload';
 
 export function LandingFinalCTA() {
   const ref = useRef<HTMLDivElement>(null);
@@ -26,15 +26,16 @@ export function LandingFinalCTA() {
           Home-cooked meals, trusted services, hidden talents — discover what your neighbors have been making all along.
         </p>
 
-        <Link to="/auth">
-          <Button size="lg" className="font-bold px-10 h-14 text-base shadow-cta rounded-2xl">
-            Join Your Society <ArrowRight size={18} className="ml-2" />
-          </Button>
-        </Link>
+        <Button
+          size="lg"
+          className="font-bold px-10 h-14 text-base shadow-cta rounded-2xl"
+          onClick={scrollToDownload}
+        >
+          Join Your Society <ArrowRight size={18} className="ml-2" />
+        </Button>
 
         <p className="mt-6 text-sm text-muted-foreground">
-          Already a member?{' '}
-          <Link to="/auth" className="text-primary font-medium hover:underline">Sign in</Link>
+          Get Sociva on the App Store or Google Play to join your society
         </p>
       </motion.div>
     </section>

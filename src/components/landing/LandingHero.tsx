@@ -1,9 +1,9 @@
 // @ts-nocheck
-import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { useSystemSettings } from '@/hooks/useSystemSettings';
 import { ArrowRight, Shield } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { scrollToDownload } from '@/components/landing/scrollToDownload';
 
 export function LandingHero() {
   const { platformName } = useSystemSettings();
@@ -49,15 +49,17 @@ export function LandingHero() {
             transition={{ delay: 0.35, duration: 0.5 }}
             className="flex flex-col sm:flex-row gap-4 justify-center"
           >
-            <Link to="/auth">
-              <Button size="lg" className="font-bold px-10 h-14 text-base shadow-cta rounded-2xl">
-                Join Your Society <ArrowRight size={18} className="ml-2" />
-              </Button>
-            </Link>
+            <Button
+              size="lg"
+              className="font-bold px-10 h-14 text-base shadow-cta rounded-2xl"
+              onClick={scrollToDownload}
+            >
+              Join Your Society <ArrowRight size={18} className="ml-2" />
+            </Button>
           </motion.div>
 
           <p className="mt-6 text-sm text-muted-foreground">
-            No credit card required · Takes 30 seconds
+            Download the app on App Store or Google Play to join
           </p>
         </motion.div>
       </div>

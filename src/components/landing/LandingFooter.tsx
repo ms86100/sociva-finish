@@ -2,13 +2,7 @@
 import { Link } from 'react-router-dom';
 import { useSystemSettings } from '@/hooks/useSystemSettings';
 import { Mail, MapPin } from 'lucide-react';
-
-function scrollToSection(id: string) {
-  const el = document.getElementById(id);
-  if (el) {
-    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }
-}
+import { scrollToDownload } from '@/components/landing/scrollToDownload';
 
 export function LandingFooter() {
   const { platformName } = useSystemSettings();
@@ -50,7 +44,7 @@ export function LandingFooter() {
               {/* HashRouter: #download is a route (/download), not a page anchor — scroll instead */}
               <button
                 type="button"
-                onClick={() => scrollToSection('download')}
+                onClick={scrollToDownload}
                 className="block text-sm text-muted-foreground hover:text-foreground text-left"
               >
                 Download the app
