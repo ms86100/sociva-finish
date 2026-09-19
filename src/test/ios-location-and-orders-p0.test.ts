@@ -83,14 +83,21 @@ end
   });
 
   it('does not declare persistent background location (App Store 2.5.4)', () => {
-    const cap = readFileSync(resolve(__dirname, '../../capacitor.config.ts'), 'utf8');
     const yaml = readFileSync(resolve(__dirname, '../../codemagic.yaml'), 'utf8');
     expect(yaml).not.toMatch(/UIBackgroundModes:2 string location/);
     expect(yaml).toMatch(/Do NOT declare "location"/);
-    expect(cap).not.toMatch(/NSLocationAlwaysAndWhenInUseUsageDescription/);
-    expect(cap).not.toMatch(/NSLocationAlwaysUsageDescription/);
-    expect(yaml).toMatch(/Delete :NSLocationAlwaysAndWhenInUseUsageDescription/);
-    expect(yaml).toMatch(/Delete :NSLocationAlwaysUsageDescription/);
+    expect(yaml).not.toMatch(/Delete :NSLocationAlwaysAndWhenInUseUsageDescription/);
+    expect(yaml).not.toMatch(/ERROR: NSLocationAlwaysAndWhenInUseUsageDescription still present/);
+  });
+
+  it('declares Always location purpose strings for ITMS-90683', () => {
+    const cap = readFileSync(resolve(__dirname, '../../capacitor.config.ts'), 'utf8');
+    const yaml = readFileSync(resolve(__dirname, '../../codemagic.yaml'), 'utf8');
+    expect(cap).toMatch(/NSLocationAlwaysAndWhenInUseUsageDescription/);
+    expect(cap).toMatch(/NSLocationAlwaysUsageDescription/);
+    expect(yaml).toMatch(/Add :NSLocationAlwaysAndWhenInUseUsageDescription/);
+    expect(yaml).toMatch(/Add :NSLocationAlwaysUsageDescription/);
+    expect(yaml).toMatch(/ITMS-90683 — NSLocationAlwaysAndWhenInUseUsageDescription missing/);
   });
 
   it('writes ios/App/Podfile even when CI cwd is already ios/App', () => {

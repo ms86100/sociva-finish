@@ -428,6 +428,7 @@ export default function CartPage() {
             {c.loyalty.redeemEnabled && c.effectiveLoyaltyDiscount > 0 && (<div className="flex justify-between text-primary"><span>Loyalty Points</span><span>-{c.formatPrice(c.effectiveLoyaltyDiscount)}</span></div>)}
             {c.effectiveWalletCredit > 0 && (<div className="flex justify-between text-emerald-700"><span>Sociva Balance</span><span>-{c.formatPrice(c.effectiveWalletCredit)}</span></div>)}
             <div className="flex justify-between"><span className="text-muted-foreground">Delivery Fee</span><span className={`font-medium ${c.effectiveDeliveryFee === 0 ? 'text-primary' : ''}`}>{c.fulfillmentType === 'delivery' ? (c.effectiveDeliveryFee === 0 ? 'FREE' : c.formatPrice(c.effectiveDeliveryFee)) : 'Self Pickup'}</span></div>
+            {c.effectivePackagingFee > 0 && (<div className="flex justify-between"><span className="text-muted-foreground">Packaging</span><span className="font-medium">{c.formatPrice(c.effectivePackagingFee)}</span></div>)}
             <div className="border-t border-border pt-2 mt-1 flex justify-between font-bold"><span>To Pay</span><span>{c.formatPrice(c.finalAmount)}</span></div>
           </div>
         </div>
@@ -669,6 +670,12 @@ export default function CartPage() {
                   {c.fulfillmentType === 'delivery' ? (c.effectiveDeliveryFee === 0 ? 'FREE' : c.formatPrice(c.effectiveDeliveryFee)) : 'Self Pickup'}
                 </span>
               </div>
+              {c.effectivePackagingFee > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Packaging</span>
+                  <span className="font-medium">{c.formatPrice(c.effectivePackagingFee)}</span>
+                </div>
+              )}
               <div className="border-t border-border pt-2 flex justify-between font-bold text-base">
                 <span>Total</span>
                 <span>{c.formatPrice(c.finalAmount)}</span>

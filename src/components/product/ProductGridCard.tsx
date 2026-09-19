@@ -50,7 +50,7 @@ export function ProductGridCard({ product, behavior, onTap, className, viewOnly 
   const isCartAction = actionConfig.isCart;
   const priceLabel = getCommercePriceLabel(actionType, product.price, formatPrice);
   const showMoney = shouldShowMonetaryPrice(actionType, product.price);
-  const showVegBadge = catCfg?.formHints?.showVegToggle ?? false;
+  const showVegBadge = (catCfg?.formHints?.showVegToggle ?? false) && (product.is_veg === true || product.is_veg === false);
   const placeholderEmoji = catCfg?.formHints?.placeholderEmoji || '📦';
 
   const cartItem = isCartAction ? items.find((item) => item.product_id === product.id) : null;

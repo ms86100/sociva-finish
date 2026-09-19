@@ -34,7 +34,7 @@ const ProductDetailSheet = lazy(() =>
 function toProductWithSeller(p: ProductSearchResult, row?: ProductFacetRow | null): ProductWithSeller {
   return applyProductFacetRow({
     id: p.product_id, seller_id: p.seller_id, name: p.product_name, price: p.price,
-    image_url: p.image_url, is_veg: p.is_veg ?? true, is_available: true,
+    image_url: p.image_url, is_veg: p.is_veg, is_available: true,
     is_bestseller: (p as any).is_bestseller ?? false,
     is_recommended: (p as any).is_recommended ?? false,
     is_urgent: (p as any).is_urgent ?? false,
@@ -150,6 +150,7 @@ export default function SearchPage() {
                   filters={s.filters}
                   onFiltersChange={s.handleFiltersChange}
                   showPriceFilter
+                  showDietary={hasFoodResults}
                   browseBeyond={s.browseBeyond}
                   onBrowseBeyondChange={s.setBrowseBeyond}
                   searchRadius={s.searchRadius}
@@ -234,7 +235,7 @@ export default function SearchPage() {
                   product_name: sp.name,
                   price: sp.price,
                   image_url: sp.image_url,
-                  is_veg: sp.is_veg ?? true,
+                  is_veg: sp.is_veg,
                   category: sp.category,
                   description: sp.description || null,
                   seller_id: sp.seller_id,

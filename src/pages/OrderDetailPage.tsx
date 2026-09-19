@@ -1152,6 +1152,7 @@ export default function OrderDetailPage() {
                 total={order.total_amount}
                 discount={Number((order as any).coupon_discount || (order as any).discount_amount || 0)}
                 deliveryFee={(order as any).delivery_fee || 0}
+                packagingFee={(order as any).packaging_fee || 0}
                 isDeliveryOrder={isDeliveryOrder}
                 isEnquiryOrder={o.isEnquiryOrder || order.status === 'enquired' || order.status === 'quoted'}
                 savings={totalSavings}

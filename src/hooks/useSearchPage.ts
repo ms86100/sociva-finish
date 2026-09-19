@@ -14,7 +14,7 @@ import { useMarketplaceData } from '@/hooks/queries/useMarketplaceData';
 import { useCurrency } from '@/hooks/useCurrency';
 import { MARKETPLACE_RADIUS_KM } from '@/lib/marketplace-constants';
 import { committedSearchKey, getSessionQueryId } from '@/lib/searchTelemetry';
-import { readSearchQueryParam, resolveSearchQueryFromUrl } from '@/lib/searchQuery';
+import { isFoodParentGroup } from '@/lib/food-facets';
 import { hasPreciseCoordinates } from '@/lib/buyerLocation';
 import { useRegisterScreenRefresh } from '@/hooks/usePullToRefresh';
 
@@ -117,6 +117,14 @@ export function useSearchPage() {
     return m;
   }, [categoryConfigs]);
 
+  const foodCategorySet = useMemo(() => {
+    return new Set(
+      categoryConfigs
+        .filter((c) => isFoodParentGroup(c.parentGroup) || isFoodParentGroup(c.category))
+        .map((c) => c.category),
+    );
+  }, [categoryConfigs]);
+
   const [query, setQuery] = useState(() => readSearchQueryParam(searchParams));
   const debouncedQuery = useDebounce(query, 300);
   const [filters, setFilters] = useState<FilterState>(() => loadSavedFilters(user?.id));
@@ -183,7 +191,7 @@ export function useSearchPage() {
   useEffect(() => {
     if (isSearchActive) { runSearch(debouncedQuery); }
     else { setResults([]); setHasSearched(false); }
-  }, [debouncedQuery, filtersKey, browseBeyond, searchRadius, selectedCategory]);
+  }, [debouncedQuery, filtersKey, browseBeyond, searchRadius, selectedCategory, foodCategorySet.size]);
 
   useEffect(() => { return () => { abortRef.current?.abort(); }; }, []);
 
@@ -206,6 +214,8 @@ export function useSearchPage() {
       let retrievalMode = 'v2:browse';
       let usedVersionedSearch = false;
 
+      const dietaryApplies = effectiveCategories.length === 0
+        || effectiveCategories.some((c) => foodCategorySet.has(c));
       {
         // Primary: versioned search applies every eligibility/filter predicate before LIMIT.
         // Location is optional so text/category/filter discovery still works before geolocation resolves.
@@ -215,7 +225,7 @@ export function useSearchPage() {
           _buyer_society_id: effectiveSocietyId || null,
           _categories: effectiveCategories.length ? effectiveCategories : null,
           _min_rating: filters.minRating || 0,
-          _is_veg: filters.isVeg,
+          _is_veg: dietaryApplies ? filters.isVeg : null,
           _min_price: filters.priceRange[0] > 0 ? filters.priceRange[0] : null,
           _max_price: filters.priceRange[1] < settings.maxPriceFilter ? filters.priceRange[1] : null,
           _sort_by: filters.sortBy,
@@ -258,8 +268,16 @@ export function useSearchPage() {
       // Apply client-side filters
       let filtered = products;
       if (filters.minRating > 0) filtered = filtered.filter((p) => p.seller_rating >= filters.minRating);
-      if (filters.isVeg === true) filtered = filtered.filter((p) => p.is_veg === true);
-      if (filters.isVeg === false) filtered = filtered.filter((p) => p.is_veg === false);
+      if (filters.isVeg === true) {
+        filtered = filtered.filter((p) =>
+          (foodCategorySet.size === 0 || (p.category && foodCategorySet.has(p.category))) && p.is_veg === true,
+        );
+      }
+      if (filters.isVeg === false) {
+        filtered = filtered.filter((p) =>
+          (foodCategorySet.size === 0 || (p.category && foodCategorySet.has(p.category))) && p.is_veg === false,
+        );
+      }
       if (effectiveCategories.length > 0 && term.length >= 2) filtered = filtered.filter((p) => p.category && effectiveCategories.includes(p.category as any));
       if (filters.priceRange[0] > 0 || filters.priceRange[1] < settings.maxPriceFilter) filtered = filtered.filter((p) => p.price >= filters.priceRange[0] && p.price <= filters.priceRange[1]);
 

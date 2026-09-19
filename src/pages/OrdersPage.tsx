@@ -22,7 +22,7 @@ import { useOrdersList } from '@/hooks/useOrdersList';
 import { useFlowStepLabels } from '@/hooks/useFlowStepLabels';
 import { useCurrency } from '@/hooks/useCurrency';
 import { Order } from '@/types/Database';
-import { Package, ChevronRight, Loader2, CheckCircle, Truck, MessageCircle } from 'lucide-react';
+import { Package, ChevronRight, Loader2, CheckCircle, Truck, MessageCircle, CalendarDays, Zap } from 'lucide-react';
 import { staggerContainer, cardEntrance, emptyState } from '@/lib/motion-variants';
 import { ALL_STORES_ID, isPortfolioSellerId, resolveOperationalSellerId } from '@/lib/seller-order-board';
 import { resolveOrderProgress } from '@/lib/orderProgressStages';
@@ -35,6 +35,7 @@ import { ScheduledOrderCountdown } from '@/components/orders/ScheduledOrderCount
 import { isScheduledOrder, isUpcomingScheduled } from '@/lib/scheduled-orders';
 import { orderPaymentChipLabel } from '@/lib/payment-method-label';
 import { displaySellerStoreName } from '@/lib/seller-journey';
+import { formatOrderItemsGlance, formatSellerOrderLocation, formatSellerWhenGlance } from '@/lib/order-glance';
 
 function OrderCard({ order, type, successTerminals, unreadCounts }: { order: Order; type: 'buyer' | 'seller'; successTerminals: Set<string>; unreadCounts?: Map<string, number> }) {
   const { getFlowLabel } = useFlowStepLabels();
@@ -61,6 +62,14 @@ function OrderCard({ order, type, successTerminals, unreadCounts }: { order: Ord
   const paymentChip = orderPaymentChipLabel((order as any).payment_type, (order as any).payment_status);
   // Pull dot color from statusInfo.color (e.g. "bg-yellow-100 text-yellow-700")
   const dotColor = (statusInfo.color || '').split(' ').find((c: string) => c.startsWith('text-')) || 'text-muted-foreground';
+  const sellerItemGlance = type === 'seller' ? formatOrderItemsGlance(items) : '';
+  const sellerWhen = type === 'seller' ? formatSellerWhenGlance(order as any) : null;
+  const sellerLocation = type === 'seller'
+    ? formatSellerOrderLocation({
+        delivery_address: (order as any).delivery_address,
+        buyer,
+      })
+    : null;
 
   return (
     <Link to={`/orders/${orderId}`} className="block">
@@ -112,6 +121,18 @@ function OrderCard({ order, type, successTerminals, unreadCounts }: { order: Ord
                   <Truck size={9} /> Delivery
                 </span>
               )}
+              {type === 'seller' && sellerWhen && (
+                <span
+                  className={`text-[10px] px-1.5 py-0.5 rounded flex items-center gap-0.5 max-w-full ${
+                    sellerWhen.kind === 'preorder'
+                      ? 'bg-cyan-500/15 text-cyan-700 dark:text-cyan-300'
+                      : 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
+                  }`}
+                >
+                  {sellerWhen.kind === 'preorder' ? <CalendarDays size={9} /> : <Zap size={9} />}
+                  {sellerWhen.label}
+                </span>
+              )}
               {paymentChip && (
                 <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-medium">
                   {paymentChip}
@@ -125,13 +146,23 @@ function OrderCard({ order, type, successTerminals, unreadCounts }: { order: Ord
               </span>
             </div>
 
-            <p className="text-xs text-muted-foreground mt-1">
-              {items.length} item{items.length > 1 ? 's' : ''} · <span className="font-semibold text-foreground">{formatPrice(order.total_amount)}</span>
-            </p>
-
-            {type === 'seller' && buyer && (
-              <p className="text-[11px] text-muted-foreground">
-                Block {buyer.block}, {buyer.flat_number}
+            {type === 'seller' ? (
+              <>
+                {sellerItemGlance ? (
+                  <p className="text-xs text-foreground mt-1 line-clamp-2 leading-snug">{sellerItemGlance}</p>
+                ) : (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {items.length} item{items.length !== 1 ? 's' : ''}
+                  </p>
+                )}
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  <span className="font-semibold text-foreground">{formatPrice(order.total_amount)}</span>
+                  {sellerLocation ? ` · ${sellerLocation}` : ''}
+                </p>
+              </>
+            ) : (
+              <p className="text-xs text-muted-foreground mt-1">
+                {items.length} item{items.length !== 1 ? 's' : ''} · <span className="font-semibold text-foreground">{formatPrice(order.total_amount)}</span>
               </p>
             )}
           </div>

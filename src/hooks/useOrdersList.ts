@@ -36,13 +36,14 @@ async function fetchOrdersPage(
       if (cancelledStatuses.length > 0) query = query.in('status', cancelledStatuses as any);
     }
   } else {
+    const sellerListSelect = `id, created_at, status, payment_status, payment_type, total_amount, order_type, fulfillment_type, delivery_handled_by, transaction_type, auto_cancel_at, seller_id, buyer_id, delivery_address, scheduled_date, scheduled_time_start, scheduled_time, preparation_start_at, scheduled_fulfillment_at, buyer:profiles!orders_buyer_id_fkey(name, block, flat_number, phone, phase), items:order_items(id, product_id, product_name, quantity, unit_price, subtotal, status, product_image)`;
     const _isAllStores = sellerId === ALL_STORES_ID;
     if (_isAllStores) {
-      query = supabase.from('orders').select(`id, created_at, status, payment_status, total_amount, order_type, fulfillment_type, delivery_handled_by, transaction_type, auto_cancel_at, seller_id, buyer_id, buyer:profiles!orders_buyer_id_fkey(name, block, flat_number, phone), items:order_items(id, product_id, product_name, quantity, unit_price, subtotal, status, product_image)`);
+      query = supabase.from('orders').select(sellerListSelect);
     } else {
       query = supabase
         .from('orders')
-        .select(`id, created_at, status, payment_status, total_amount, order_type, fulfillment_type, delivery_handled_by, transaction_type, auto_cancel_at, seller_id, buyer_id, buyer:profiles!orders_buyer_id_fkey(name, block, flat_number, phone), items:order_items(id, product_id, product_name, quantity, unit_price, subtotal, status, product_image)`)
+        .select(sellerListSelect)
         .eq('seller_id', sellerId!);
     }
     query = query.order('created_at', { ascending: false }).limit(PAGE_SIZE);

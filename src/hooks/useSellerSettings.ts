@@ -50,6 +50,7 @@ export interface SellerSettingsFormData {
   delivery_note: string;
   minimum_order_amount: string;
   daily_order_limit: string;
+  packaging_fee: string;
   vacation_mode: boolean;
   vacation_until: string;
   pickup_payment_config: PaymentConfigData;
@@ -68,7 +69,7 @@ const DEFAULT_FORM: SellerSettingsFormData = {
   is_available: true, cover_image_url: null, profile_image_url: null,
   bank_account_number: '', bank_ifsc_code: '', bank_account_holder: '',
   sell_beyond_community: false, delivery_radius_km: 1, fulfillment_mode: 'self_pickup' as string,
-  delivery_note: '', minimum_order_amount: '', daily_order_limit: '',
+  delivery_note: '', minimum_order_amount: '', daily_order_limit: '', packaging_fee: '',
   vacation_mode: false, vacation_until: '',
   pickup_payment_config: { ...DEFAULT_PAYMENT_CONFIG },
   delivery_payment_config: { ...DEFAULT_PAYMENT_CONFIG },
@@ -131,7 +132,7 @@ export function useSellerSettings(opts?: { sellerIdOverride?: string | null }) {
     try {
       const { data } = await supabase
         .from('seller_profiles')
-        .select('id, user_id, business_name, description, categories, availability_start, availability_end, operating_days, accepts_cod, accepts_upi, upi_id, upi_verification_status, is_available, cover_image_url, profile_image_url, bank_account_number, bank_ifsc_code, bank_account_holder, sell_beyond_community, delivery_radius_km, fulfillment_mode, delivery_note, minimum_order_amount, daily_order_limit, vacation_mode, vacation_until, pickup_payment_config, delivery_payment_config, verification_status, society_id, primary_group, auto_accept_enabled, latitude, longitude, store_location_label')
+        .select('id, user_id, business_name, description, categories, availability_start, availability_end, operating_days, accepts_cod, accepts_upi, upi_id, upi_verification_status, is_available, cover_image_url, profile_image_url, bank_account_number, bank_ifsc_code, bank_account_holder, sell_beyond_community, delivery_radius_km, fulfillment_mode, delivery_note, minimum_order_amount, daily_order_limit, packaging_fee, vacation_mode, vacation_until, pickup_payment_config, delivery_payment_config, verification_status, society_id, primary_group, auto_accept_enabled, latitude, longitude, store_location_label')
         .eq('id', sellerId)
         .maybeSingle();
       if (data) {
@@ -155,6 +156,7 @@ export function useSellerSettings(opts?: { sellerIdOverride?: string | null }) {
           delivery_note: profile.delivery_note || '',
           minimum_order_amount: profile.minimum_order_amount?.toString() || '',
           daily_order_limit: profile.daily_order_limit?.toString() || '',
+          packaging_fee: profile.packaging_fee > 0 ? String(profile.packaging_fee) : '',
           vacation_mode: profile.vacation_mode ?? false,
           vacation_until: profile.vacation_until ? profile.vacation_until.split('T')[0] : '',
           pickup_payment_config: profile.pickup_payment_config ?? { accepts_cod: profile.accepts_cod ?? true, accepts_online: profile.accepts_upi ?? false },
@@ -255,6 +257,7 @@ export function useSellerSettings(opts?: { sellerIdOverride?: string | null }) {
     try {
       const minOrder = formData.minimum_order_amount ? parseFloat(formData.minimum_order_amount) : null;
       const dailyLimit = formData.daily_order_limit ? parseInt(formData.daily_order_limit) : null;
+      const packagingFee = formData.packaging_fee ? parseFloat(formData.packaging_fee) : null;
       const effectiveCod = formData.pickup_payment_config.accepts_cod || formData.delivery_payment_config.accepts_cod;
       const effectiveUpi = formData.pickup_payment_config.accepts_online || formData.delivery_payment_config.accepts_online;
       const updatePayload: any = {
@@ -273,6 +276,7 @@ export function useSellerSettings(opts?: { sellerIdOverride?: string | null }) {
         fulfillment_mode: formData.fulfillment_mode, delivery_note: formData.delivery_note.trim() || null,
         minimum_order_amount: (minOrder !== null && !isNaN(minOrder) && minOrder > 0) ? minOrder : null,
         daily_order_limit: (dailyLimit !== null && !isNaN(dailyLimit) && dailyLimit > 0) ? dailyLimit : null,
+        packaging_fee: (packagingFee !== null && !isNaN(packagingFee) && packagingFee > 0) ? packagingFee : 0,
         vacation_mode: formData.vacation_mode,
         vacation_until: formData.vacation_mode && formData.vacation_until ? formData.vacation_until : null,
         pickup_payment_config: formData.pickup_payment_config,

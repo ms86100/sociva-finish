@@ -29,8 +29,8 @@ export const FOOD_MEALS = [
 ] as const;
 
 export const FOOD_COURSES = [
-  { id: 'appetizer', label: 'Appetizer' },
-  { id: 'main', label: 'Main' },
+  { id: 'appetizer', label: 'Starter' },
+  { id: 'main', label: 'Main Course' },
   { id: 'dessert', label: 'Dessert' },
 ] as const;
 
@@ -52,6 +52,13 @@ export function isFoodParentGroup(group: string | null | undefined): boolean {
   if (!group) return false;
   const g = group.toLowerCase();
   return FOOD_PARENT_GROUPS.has(g) || g.includes('food');
+}
+
+export function isFoodListingCategory(
+  parentGroup?: string | null,
+  category?: string | null,
+): boolean {
+  return isFoodParentGroup(parentGroup) || isFoodParentGroup(category);
 }
 
 export function emptyFoodFacets(): FoodFacets {

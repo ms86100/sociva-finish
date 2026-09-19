@@ -369,9 +369,12 @@ workflows:
             /usr/libexec/PlistBuddy -c "Add :NSCameraUsageDescription string 'Sociva needs camera access to let you photograph products for listing and upload profile pictures.'" App/Info.plist
           /usr/libexec/PlistBuddy -c "Set :NSLocationWhenInUseUsageDescription 'Sociva uses your location to verify your residential society membership, show nearby sellers, and share live delivery progress while you keep the app open as a seller.'" App/Info.plist 2>/dev/null || \
             /usr/libexec/PlistBuddy -c "Add :NSLocationWhenInUseUsageDescription string 'Sociva uses your location to verify your residential society membership, show nearby sellers, and share live delivery progress while you keep the app open as a seller.'" App/Info.plist
-          # App Store 2.5.4: no persistent background location — remove Always keys from prior builds
-          /usr/libexec/PlistBuddy -c "Delete :NSLocationAlwaysAndWhenInUseUsageDescription" App/Info.plist 2>/dev/null || true
-          /usr/libexec/PlistBuddy -c "Delete :NSLocationAlwaysUsageDescription" App/Info.plist 2>/dev/null || true
+          # ITMS-90683: Always purpose strings required because location APIs are linked.
+          # Do not add UIBackgroundModes location (App Store 2.5.4).
+          /usr/libexec/PlistBuddy -c "Set :NSLocationAlwaysAndWhenInUseUsageDescription 'Sociva uses your location to verify your residential society membership, show nearby sellers, and share live delivery progress while you keep the app open as a seller.'" App/Info.plist 2>/dev/null || \
+            /usr/libexec/PlistBuddy -c "Add :NSLocationAlwaysAndWhenInUseUsageDescription string 'Sociva uses your location to verify your residential society membership, show nearby sellers, and share live delivery progress while you keep the app open as a seller.'" App/Info.plist
+          /usr/libexec/PlistBuddy -c "Set :NSLocationAlwaysUsageDescription 'Sociva uses your location to verify your residential society membership, show nearby sellers, and share live delivery progress while you keep the app open as a seller.'" App/Info.plist 2>/dev/null || \
+            /usr/libexec/PlistBuddy -c "Add :NSLocationAlwaysUsageDescription string 'Sociva uses your location to verify your residential society membership, show nearby sellers, and share live delivery progress while you keep the app open as a seller.'" App/Info.plist
           /usr/libexec/PlistBuddy -c "Set :NSMotionUsageDescription 'Sociva may use motion activity while the app is open to keep live delivery progress accurate and save battery during an active seller delivery.'" App/Info.plist 2>/dev/null || \
             /usr/libexec/PlistBuddy -c "Add :NSMotionUsageDescription string 'Sociva may use motion activity while the app is open to keep live delivery progress accurate and save battery during an active seller delivery.'" App/Info.plist
           /usr/libexec/PlistBuddy -c "Set :NSCalendarsUsageDescription 'Sociva needs calendar access so you can save service bookings to your calendar.'" App/Info.plist 2>/dev/null || \
@@ -855,12 +858,14 @@ workflows:
             echo "ERROR: App Store 2.5.4 — archived Info.plist still declares UIBackgroundModes location"
             exit 1
           fi
-          if /usr/libexec/PlistBuddy -c "Print :NSLocationAlwaysAndWhenInUseUsageDescription" "$PLIST" >/dev/null 2>&1; then
-            echo "ERROR: NSLocationAlwaysAndWhenInUseUsageDescription still present"
+          ALWAYS_AND=$(/usr/libexec/PlistBuddy -c "Print :NSLocationAlwaysAndWhenInUseUsageDescription" "$PLIST" 2>/dev/null || true)
+          if [ -z "$ALWAYS_AND" ]; then
+            echo "ERROR: ITMS-90683 — NSLocationAlwaysAndWhenInUseUsageDescription missing"
             exit 1
           fi
-          if /usr/libexec/PlistBuddy -c "Print :NSLocationAlwaysUsageDescription" "$PLIST" >/dev/null 2>&1; then
-            echo "ERROR: NSLocationAlwaysUsageDescription still present"
+          ALWAYS=$(/usr/libexec/PlistBuddy -c "Print :NSLocationAlwaysUsageDescription" "$PLIST" 2>/dev/null || true)
+          if [ -z "$ALWAYS" ]; then
+            echo "ERROR: ITMS-90683 — NSLocationAlwaysUsageDescription missing"
             exit 1
           fi
           WHEN_IN_USE=$(/usr/libexec/PlistBuddy -c "Print :NSLocationWhenInUseUsageDescription" "$PLIST" 2>/dev/null || true)
@@ -868,7 +873,7 @@ workflows:
             echo "ERROR: NSLocationWhenInUseUsageDescription missing"
             exit 1
           fi
-          echo "=== App Store 2.5.4 archived Info.plist verified (no background location) ==="
+          echo "=== App Store location privacy strings verified (no UIBackgroundModes location) ==="
 
       - name: Validate IPA contains a single widget extension
         script: |
@@ -1359,9 +1364,12 @@ workflows:
             /usr/libexec/PlistBuddy -c "Add :NSCameraUsageDescription string 'Sociva needs camera access to let you photograph products for listing and upload profile pictures.'" App/Info.plist
           /usr/libexec/PlistBuddy -c "Set :NSLocationWhenInUseUsageDescription 'Sociva uses your location to verify your residential society membership, show nearby sellers, and share live delivery progress while you keep the app open as a seller.'" App/Info.plist 2>/dev/null || \
             /usr/libexec/PlistBuddy -c "Add :NSLocationWhenInUseUsageDescription string 'Sociva uses your location to verify your residential society membership, show nearby sellers, and share live delivery progress while you keep the app open as a seller.'" App/Info.plist
-          # App Store 2.5.4: no persistent background location — remove Always keys from prior builds
-          /usr/libexec/PlistBuddy -c "Delete :NSLocationAlwaysAndWhenInUseUsageDescription" App/Info.plist 2>/dev/null || true
-          /usr/libexec/PlistBuddy -c "Delete :NSLocationAlwaysUsageDescription" App/Info.plist 2>/dev/null || true
+          # ITMS-90683: Always purpose strings required because location APIs are linked.
+          # Do not add UIBackgroundModes location (App Store 2.5.4).
+          /usr/libexec/PlistBuddy -c "Set :NSLocationAlwaysAndWhenInUseUsageDescription 'Sociva uses your location to verify your residential society membership, show nearby sellers, and share live delivery progress while you keep the app open as a seller.'" App/Info.plist 2>/dev/null || \
+            /usr/libexec/PlistBuddy -c "Add :NSLocationAlwaysAndWhenInUseUsageDescription string 'Sociva uses your location to verify your residential society membership, show nearby sellers, and share live delivery progress while you keep the app open as a seller.'" App/Info.plist
+          /usr/libexec/PlistBuddy -c "Set :NSLocationAlwaysUsageDescription 'Sociva uses your location to verify your residential society membership, show nearby sellers, and share live delivery progress while you keep the app open as a seller.'" App/Info.plist 2>/dev/null || \
+            /usr/libexec/PlistBuddy -c "Add :NSLocationAlwaysUsageDescription string 'Sociva uses your location to verify your residential society membership, show nearby sellers, and share live delivery progress while you keep the app open as a seller.'" App/Info.plist
           /usr/libexec/PlistBuddy -c "Set :NSMotionUsageDescription 'Sociva may use motion activity while the app is open to keep live delivery progress accurate and save battery during an active seller delivery.'" App/Info.plist 2>/dev/null || \
             /usr/libexec/PlistBuddy -c "Add :NSMotionUsageDescription string 'Sociva may use motion activity while the app is open to keep live delivery progress accurate and save battery during an active seller delivery.'" App/Info.plist
           /usr/libexec/PlistBuddy -c "Set :NSCalendarsUsageDescription 'Sociva needs calendar access so you can save service bookings to your calendar.'" App/Info.plist 2>/dev/null || \
@@ -1790,12 +1798,14 @@ workflows:
             echo "ERROR: App Store 2.5.4 — archived Info.plist still declares UIBackgroundModes location"
             exit 1
           fi
-          if /usr/libexec/PlistBuddy -c "Print :NSLocationAlwaysAndWhenInUseUsageDescription" "$PLIST" >/dev/null 2>&1; then
-            echo "ERROR: NSLocationAlwaysAndWhenInUseUsageDescription still present"
+          ALWAYS_AND=$(/usr/libexec/PlistBuddy -c "Print :NSLocationAlwaysAndWhenInUseUsageDescription" "$PLIST" 2>/dev/null || true)
+          if [ -z "$ALWAYS_AND" ]; then
+            echo "ERROR: ITMS-90683 — NSLocationAlwaysAndWhenInUseUsageDescription missing"
             exit 1
           fi
-          if /usr/libexec/PlistBuddy -c "Print :NSLocationAlwaysUsageDescription" "$PLIST" >/dev/null 2>&1; then
-            echo "ERROR: NSLocationAlwaysUsageDescription still present"
+          ALWAYS=$(/usr/libexec/PlistBuddy -c "Print :NSLocationAlwaysUsageDescription" "$PLIST" 2>/dev/null || true)
+          if [ -z "$ALWAYS" ]; then
+            echo "ERROR: ITMS-90683 — NSLocationAlwaysUsageDescription missing"
             exit 1
           fi
           WHEN_IN_USE=$(/usr/libexec/PlistBuddy -c "Print :NSLocationWhenInUseUsageDescription" "$PLIST" 2>/dev/null || true)
@@ -1803,7 +1813,7 @@ workflows:
             echo "ERROR: NSLocationWhenInUseUsageDescription missing"
             exit 1
           fi
-          echo "=== App Store 2.5.4 archived Info.plist verified (no background location) ==="
+          echo "=== App Store location privacy strings verified (no UIBackgroundModes location) ==="
 
       - name: Validate IPA contains a single widget extension (release-all)
         script: |

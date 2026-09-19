@@ -411,7 +411,7 @@ export default function CategoryGroupPage() {
             product_name: sp.name,
             price: sp.price,
             image_url: sp.image_url,
-            is_veg: sp.is_veg ?? true,
+            is_veg: sp.is_veg,
             category: sp.category,
             description: sp.description || null,
             seller_id: sp.seller_id,

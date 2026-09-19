@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   canBuyerCancelScheduled,
   daysUntilScheduledDate,
+  formatPreparationByLine,
   getScheduledCountdownLabel,
   getScheduledFulfilmentAt,
   isScheduledOrder,
@@ -81,5 +82,25 @@ describe('scheduled-orders', () => {
     // new Date(y, m, d) is local midnight of that civil day — must not use toISOString().
     const localMidnight = new Date(2026, 7, 23, 0, 0, 0, 0);
     expect(toScheduledDateParam(localMidnight)).toBe('2026-08-23');
+  });
+
+  it('does not tell the seller to start preparing after delivery', () => {
+    const now = new Date('2026-08-25T16:00:00+05:30');
+    const delivered = {
+      id: 'bd908d54',
+      status: 'delivered',
+      scheduled_date: '2026-08-25',
+      scheduled_time_start: '15:00:00',
+      preparation_start_at: '2026-08-25T14:00:00+05:30',
+    };
+    expect(formatPreparationByLine(delivered, 60, now)).toBeNull();
+    expect(formatPreparationByLine({ ...delivered, status: 'completed' }, 60, now)).toBeNull();
+    expect(formatPreparationByLine({ ...delivered, status: 'cancelled' }, 60, now)).toBeNull();
+    expect(formatPreparationByLine({ ...delivered, status: 'preparing' }, 60, now)).toBeNull();
+  });
+
+  it('keeps the prep prompt for upcoming scheduled orders', () => {
+    const now = new Date('2026-08-24T12:00:00+05:30');
+    expect(formatPreparationByLine(aug25Order, 60, now)).toMatch(/Start preparing by/i);
   });
 });

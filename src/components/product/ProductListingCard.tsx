@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { useMemo, memo, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Minus, Clock, MapPin, AlertTriangle, Check, Star } from 'lucide-react';
+import { Plus, Minus, Clock, AlertTriangle, Check, Star } from 'lucide-react';
 import { formatDistanceToNowStrict } from 'date-fns';
 import { useHaptics } from '@/hooks/useHaptics';
 import { Badge } from '@/components/ui/badge';
@@ -26,10 +26,11 @@ import { ProductFavoriteButton } from '@/components/favorite/ProductFavoriteButt
 import { useAuth } from '@/contexts/AuthContext';
 import { optimizedImageUrl, imageSrcSet, handleImageError } from '@/utils/imageHelpers';
 import { displaySellerStoreName } from '@/lib/seller-journey';
+import { SellerLocationLine } from '@/components/location/SellerLocationLine';
 
 export interface ProductWithSeller {
   id: string; seller_id: string; name: string; price: number; image_url: string | null; category: string;
-  is_veg: boolean; is_available: boolean; is_bestseller: boolean; is_recommended: boolean; is_urgent: boolean;
+  is_veg: boolean | null; is_available: boolean; is_bestseller: boolean; is_recommended: boolean; is_urgent: boolean;
   description: string | null; action_type?: ProductActionType | string | null; contact_phone?: string | null;
   mrp?: number | null; brand?: string | null; unit_type?: string | null; price_per_unit?: string | null;
   stock_quantity?: number | null; serving_size?: string | null; spice_level?: string | null; cuisine_type?: string | null;
@@ -77,7 +78,7 @@ function ProductListingCardInner({ product, layout = 'auto', onTap, onNavigate, 
 
   const catConfig = useMemo(() => categoryConfigs.find(c => c.category === product.category) || null, [categoryConfigs, product.category]);
   const resolvedLayout = useMemo((): 'ecommerce' | 'food' | 'service' => { if (layout !== 'auto') return layout as any; return catConfig?.layoutType || 'ecommerce'; }, [layout, catConfig]);
-  const showVegBadge = catConfig?.formHints?.showVegToggle ?? false;
+  const showVegBadge = (catConfig?.formHints?.showVegToggle ?? false) && (product.is_veg === true || product.is_veg === false);
   const placeholderEmoji = catConfig?.formHints?.placeholderEmoji || mc.labels.defaultPlaceholderEmoji;
 
   const { ref: cardRef, onCardClick: trackClick, onAddClick: trackAdd } = useCardAnalytics(
@@ -564,27 +565,16 @@ function ProductListingCardInner({ product, layout = 'auto', onTap, onNavigate, 
           )}
 
           {locationLabel && (
-            <div
-              className={cn(
-                'flex items-center gap-1 mt-1 min-w-0',
-                (product as any).seller_latitude && (product as any).seller_longitude && 'cursor-pointer hover:text-primary transition-colors'
-              )}
-              onClick={(e) => {
-                const lat = (product as any).seller_latitude;
-                const lng = (product as any).seller_longitude;
-                if (lat && lng) {
-                  e.stopPropagation();
-                  e.preventDefault();
-                  window.open(`https://www.google.com/maps/search/?api=1&query=${lat},${lng}`, '_blank');
-                }
-              }}
-              title={(product as any).seller_latitude ? 'Open in Google Maps' : undefined}
-            >
-              <MapPin size={9} className="shrink-0 text-muted-foreground" />
-              <span className="text-[10px] font-medium text-muted-foreground leading-tight truncate">
-                {locationLabel}
-              </span>
-            </div>
+            <SellerLocationLine
+              text={locationLabel}
+              clamp={2}
+              className="mt-1"
+              mapsUrl={
+                (product as any).seller_latitude && (product as any).seller_longitude
+                  ? `https://www.google.com/maps/search/?api=1&query=${(product as any).seller_latitude},${(product as any).seller_longitude}`
+                  : null
+              }
+            />
           )}
         </div>
       )}

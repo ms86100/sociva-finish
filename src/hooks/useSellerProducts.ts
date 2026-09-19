@@ -39,7 +39,7 @@ export interface ProductFormData {
   mrp: string;
   prep_time_minutes: string;
   category: ProductCategory | '';
-  is_veg: boolean;
+  is_veg: boolean | null;
   is_available: boolean;
   is_bestseller: boolean;
   is_recommended: boolean;
@@ -61,7 +61,7 @@ export interface ProductFormData {
 
 const INITIAL_FORM: ProductFormData = {
   name: '', description: '', price: '', mrp: '', prep_time_minutes: '',
-  category: '', is_veg: true, is_available: true, is_bestseller: false,
+  category: '', is_veg: null, is_available: true, is_bestseller: false,
   is_recommended: false, is_urgent: false, image_url: null,
   action_type: 'add_to_cart', contact_phone: '', tracks_stock: false, stock_quantity: '',
   tracks_low_stock_alert: false, low_stock_threshold: '', subcategory_id: '', lead_time_value: '', lead_time_unit: 'hours',
@@ -468,6 +468,10 @@ export function useSellerProducts(opts?: {
     }
     if (formData.contact_phone.trim() && !/^[\d+\-\s()]{7,15}$/.test(formData.contact_phone.trim())) errors.contact_phone = 'Please enter a valid phone number';
 
+    if (isFoodParentGroup(activeCategoryConfig?.parentGroup) && formData.is_veg !== true && formData.is_veg !== false) {
+      errors.is_veg = 'Choose Veg or Non-Veg';
+    }
+
     const stockResolved = resolveStockSaveValues(formData);
     Object.assign(errors, stockResolved.errors);
 
@@ -494,6 +498,7 @@ export function useSellerProducts(opts?: {
         stock_quantity: 'Current Stock', low_stock_threshold: 'Low Stock Alert',
         prep_time_minutes: 'Prep Time',
         lead_time_value: 'Pre-order lead time',
+        is_veg: 'Dietary',
       };
       const firstMessage = Object.values(errors)[0];
       const missingNames = Object.keys(errors).map(k => fieldLabels[k] || k);
@@ -580,7 +585,8 @@ export function useSellerProducts(opts?: {
         seller_id: sellerProfile.id, name: formData.name.trim(), description: formData.description.trim() || null,
         price: isNaN(price) ? 0 : price, mrp: (mrp && !isNaN(mrp) && mrp > 0) ? mrp : null,
         prep_time_minutes: prepTime,
-        category: placedCategory, is_veg: formData.is_veg, is_available: formData.is_available,
+        category: placedCategory,
+        is_veg: isFoodParentGroup(activeCategoryConfig?.parentGroup) ? formData.is_veg : (formData.is_veg ?? true),
         is_bestseller: formData.is_bestseller, is_recommended: formData.is_recommended, is_urgent: formData.is_urgent,
         image_url: formData.image_url, action_type: effectiveActionType, contact_phone: formData.contact_phone.trim() || null,
         stock_quantity: (stockQty !== null && !isNaN(stockQty) && stockQty >= 0) ? stockQty : null,
@@ -749,6 +755,9 @@ export function useSellerProducts(opts?: {
       if (!formData.image_url) errors.image_url = 'Product image is required';
       if (!formData.name.trim()) errors.name = 'Product name is required';
       if (!formData.category) errors.category = 'Category is required';
+      if (isFoodParentGroup(activeCategoryConfig?.parentGroup) && formData.is_veg !== true && formData.is_veg !== false) {
+        errors.is_veg = 'Choose Veg or Non-Veg';
+      }
     } else if (stepKey === 'pricing') {
       const price = parseFloat(formData.price);
       if (actionNeedsPrice && (isNaN(price) || price <= 0)) errors.price = 'Please enter a valid price';
@@ -770,7 +779,7 @@ export function useSellerProducts(opts?: {
     }
     setFieldErrors(prev => {
       // Clear stale errors for this step's fields, then merge new ones
-      const stepKeys = ['name','image_url','category','price','contact_phone','stock_quantity','low_stock_threshold','service_type','location_type','duration_minutes'];
+      const stepKeys = ['name','image_url','category','price','contact_phone','stock_quantity','low_stock_threshold','service_type','location_type','duration_minutes','is_veg'];
       const next = { ...prev };
       stepKeys.forEach(k => { delete next[k]; });
       return { ...next, ...errors };

@@ -55,7 +55,7 @@ export function mapProduct(p: any, seller: RpcSellerRow): ProductWithSeller {
     price: p.price,
     image_url: p.image_url,
     category: p.category,
-    is_veg: p.is_veg ?? true,
+    is_veg: p.is_veg,
     is_available: p.is_available ?? true,
     is_bestseller: p.is_bestseller ?? false,
     is_recommended: p.is_recommended ?? false,

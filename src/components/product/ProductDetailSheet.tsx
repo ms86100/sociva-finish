@@ -19,7 +19,7 @@ import { ServiceBookingFlow } from '@/components/booking/ServiceBookingFlow';
 import { ProductAttributeBlocks } from './ProductAttributeBlocks';
 import { PriceStabilityBadge } from '@/components/trust/PriceStabilityBadge';
 import { RefundTierBadge } from '@/components/trust/RefundTierBadge';
-import { Plus, Minus, Store, MapPin, Clock, Truck, Users, Zap, RotateCcw, ChevronRight, ChevronDown, Shield, Flag, X, Share2, Heart, Star } from 'lucide-react';
+import { Plus, Minus, Store, Clock, Truck, Users, Zap, RotateCcw, ChevronRight, ChevronDown, Shield, Flag, X, Share2, Heart, Star } from 'lucide-react';
 import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
 import { ProductFavoriteButton } from '@/components/favorite/ProductFavoriteButton';
 import { useProductFavorites } from '@/hooks/useProductFavorites';
@@ -36,6 +36,9 @@ import { notify } from '@/lib/notify';
 import { formatLeadTime } from '@/lib/lead-time';
 import { displaySellerStoreName } from '@/lib/seller-journey';
 import { getCommercePriceLabel, isCartPricedAction, shouldShowMonetaryPrice } from '@/lib/marketplace-constants';
+import { formatPercent } from '@/lib/utils';
+import { fullStorePlaceLine } from '@/lib/location-label-resolver';
+import { SellerLocationLine } from '@/components/location/SellerLocationLine';
 
 const PriceHistoryChart = lazy(() =>
   import('./PriceHistoryChart').then((m) => ({ default: m.PriceHistoryChart })),
@@ -161,10 +164,19 @@ export function ProductDetailSheet({ product, open, onOpenChange, onSelectProduc
     : null;
   const locationText = useMemo(() => {
     if (!product) return null;
-    if (product.society_name) return distanceLabel ? `${product.society_name} · ${distanceLabel}` : product.society_name;
-    if (distanceLabel) return `Nearby · ${distanceLabel}`;
-    return null;
-  }, [product?.society_name, distanceLabel]);
+    return fullStorePlaceLine({
+      societyName: product.society_name || d.sellerLocationExtras?.society_name,
+      storeLocationLabel: product.store_location_label || d.sellerLocationExtras?.store_location_label,
+      societyAddress: product.society_address || d.sellerLocationExtras?.society_address,
+      distanceLabel,
+    }) || (distanceLabel ? `Nearby · ${distanceLabel}` : null);
+  }, [
+    product?.society_name,
+    product?.store_location_label,
+    product?.society_address,
+    d.sellerLocationExtras,
+    distanceLabel,
+  ]);
 
   if (!product) return null;
 
@@ -213,7 +225,7 @@ export function ProductDetailSheet({ product, open, onOpenChange, onSelectProduc
                 )}
               </motion.div>
               <motion.div variants={fadeSlideUp} className="flex items-start gap-2">
-                {product.is_veg !== null && <VegBadge isVeg={product.is_veg} size="sm" className="mt-1" />}
+                {product.is_veg === true || product.is_veg === false ? <VegBadge isVeg={product.is_veg} size="sm" className="mt-1" /> : null}
                 <div className="flex-1 min-w-0">
                   <h2 className="font-bold text-lg leading-tight text-foreground">{product.product_name}</h2>
                   {categoryName && <span className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">{categoryIcon && <DynamicIcon name={categoryIcon} size={14} />}{categoryName}</span>}
@@ -233,10 +245,7 @@ export function ProductDetailSheet({ product, open, onOpenChange, onSelectProduc
                   </span>
                 )}
                 {locationText && (
-                  <span className="inline-flex items-center gap-1 text-muted-foreground">
-                    <MapPin size={12} aria-hidden="true" />
-                    {locationText}
-                  </span>
+                  <SellerLocationLine text={locationText} iconSize={12} className="flex-1" />
                 )}
               </motion.div>
               <motion.div variants={fadeSlideUp} className="flex items-baseline gap-2 flex-wrap">
@@ -273,11 +282,11 @@ export function ProductDetailSheet({ product, open, onOpenChange, onSelectProduc
                     <Suspense fallback={null}>
                       <PriceHistoryChart productId={product.product_id} priceStableSince={(product as any).price_stable_since} />
                     </Suspense>
-                    {d.trustSnapshot && (d.trustSnapshot.completed_orders > 0 || d.trustSnapshot.avg_response_min > 0) && (
+                    {(d.productTrust?.total_orders > 0 || (d.trustSnapshot && (d.trustSnapshot.avg_response_min > 0 || d.trustSnapshot.repeat_customer_pct > 0))) && (
                       <div className="grid grid-cols-3 gap-2">
-                        {d.trustSnapshot.completed_orders > 0 && <div className="bg-muted rounded-xl p-2.5 text-center"><Users size={14} className="mx-auto text-primary mb-1" /><p className="text-sm font-bold text-foreground">{d.trustSnapshot.completed_orders}</p><p className="text-[9px] text-muted-foreground">Orders</p></div>}
-                        {d.trustSnapshot.avg_response_min > 0 && <div className="bg-muted rounded-xl p-2.5 text-center"><Zap size={14} className="mx-auto text-accent mb-1" /><p className="text-sm font-bold text-foreground">~{d.trustSnapshot.avg_response_min}m</p><p className="text-[9px] text-muted-foreground">Response</p></div>}
-                        {d.trustSnapshot.repeat_customer_pct > 0 && <div className="bg-muted rounded-xl p-2.5 text-center"><RotateCcw size={14} className="mx-auto text-primary mb-1" /><p className="text-sm font-bold text-foreground">{d.trustSnapshot.repeat_customer_pct}%</p><p className="text-[9px] text-muted-foreground">Repeat</p></div>}
+                        {d.productTrust?.total_orders > 0 && <div className="bg-muted rounded-xl p-2.5 text-center"><Users size={14} className="mx-auto text-primary mb-1" /><p className="text-sm font-bold text-foreground">{d.productTrust.total_orders}</p><p className="text-[9px] text-muted-foreground">Orders</p></div>}
+                        {d.trustSnapshot?.avg_response_min > 0 && <div className="bg-muted rounded-xl p-2.5 text-center"><Zap size={14} className="mx-auto text-accent mb-1" /><p className="text-sm font-bold text-foreground">~{d.trustSnapshot.avg_response_min}m</p><p className="text-[9px] text-muted-foreground">Response</p></div>}
+                        {d.trustSnapshot?.repeat_customer_pct > 0 && <div className="bg-muted rounded-xl p-2.5 text-center"><RotateCcw size={14} className="mx-auto text-primary mb-1" /><p className="text-sm font-bold text-foreground">{formatPercent(d.trustSnapshot.repeat_customer_pct)}</p><p className="text-[9px] text-muted-foreground">Repeat</p></div>}
                       </div>
                     )}
                   </motion.div>
@@ -313,12 +322,14 @@ export function ProductDetailSheet({ product, open, onOpenChange, onSelectProduc
                         (() => {
                           const lat = (product as any).seller_latitude ?? (product as any).seller?.latitude ?? fetchedSellerAvailability?.latitude;
                           const lng = (product as any).seller_longitude ?? (product as any).seller?.longitude ?? fetchedSellerAvailability?.longitude;
-                          if (lat && lng) {
-                            return (
-                              <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); window.open(`https://www.google.com/maps?q=${lat},${lng}`, '_blank'); }} className="flex items-center gap-0.5 text-[10px] text-primary font-medium"><MapPin size={10} />{locationText}</button>
-                            );
-                          }
-                          return <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground"><MapPin size={10} />{locationText}</span>;
+                          const mapsUrl = lat && lng ? `https://www.google.com/maps?q=${lat},${lng}` : null;
+                          return (
+                            <SellerLocationLine
+                              text={locationText}
+                              mapsUrl={mapsUrl}
+                              className="w-full basis-full mt-0.5"
+                            />
+                          );
                         })()
                       ) : null}
                       {(product as any).last_active_at && (<span className="flex items-center gap-0.5 text-[10px] text-muted-foreground"><Clock size={9} />{formatSellerLastActive((product as any).last_active_at, ml)}</span>)}

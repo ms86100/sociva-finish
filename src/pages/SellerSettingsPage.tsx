@@ -501,6 +501,22 @@ export default function SellerSettingsPage({
                     )}
                   </div>
                 </div>
+                <div className="space-y-3">
+                  <Label>Packaging fee</Label>
+                  <div className="p-4 bg-muted rounded-lg space-y-2">
+                    <p className="text-xs text-muted-foreground">Optional charge added once per order from this store. Leave empty for none.</p>
+                    <Label htmlFor="packaging_fee" className="text-xs">Amount ({currencySymbol})</Label>
+                    <Input
+                      id="packaging_fee"
+                      type="number"
+                      min="0"
+                      step="1"
+                      placeholder="e.g. 10"
+                      value={formData.packaging_fee}
+                      onChange={(e) => setFormData({ ...formData, packaging_fee: e.target.value })}
+                    />
+                  </div>
+                </div>
               </>
             )}
 
