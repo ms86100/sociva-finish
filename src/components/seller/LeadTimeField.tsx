@@ -28,18 +28,19 @@ export function LeadTimeField({
   return (
     <div className={className}>
       <Label className="text-sm font-semibold">{LEAD_TIME_LABEL}</Label>
-      <div className="flex gap-2 mt-1.5">
+      <div className="flex flex-col sm:flex-row gap-2 mt-1.5">
         <Input
           type="number"
+          inputMode="decimal"
           min="0"
           step={unit === 'minutes' ? '1' : '0.5'}
           placeholder={unit === 'minutes' ? 'e.g. 30' : 'e.g. 2'}
           value={value}
           onChange={(e) => onValueChange(e.target.value)}
-          className={`flex-1 ${error ? 'border-destructive' : ''}`}
+          className={`flex-1 min-w-[4.5rem] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${error ? 'border-destructive' : ''}`}
         />
         <Select value={unit} onValueChange={(v) => onUnitChange(v as LeadTimeUnit)}>
-          <SelectTrigger className="w-[120px]">
+          <SelectTrigger className="w-full sm:w-[120px] shrink-0">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>

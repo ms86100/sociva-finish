@@ -472,7 +472,7 @@ export default function CartPage() {
       </div>
 
       {/* Sticky Footer */}
-      <div className="fixed bottom-0 left-0 right-0 z-40 bg-background border-t border-border pb-[env(safe-area-inset-bottom)]">
+      <div className="fixed bottom-0 left-0 right-0 z-40 bg-background border-t border-border pb-[var(--app-safe-bottom,0px)]">
         {c.noPaymentMethodAvailable && (
           <div className="mx-4 mt-2 bg-destructive/10 border border-destructive/20 rounded-lg px-3 py-2">
             <p className="text-xs text-destructive font-medium">No payment method available for this cart. Try ordering from each seller separately.</p>
@@ -615,7 +615,7 @@ export default function CartPage() {
 
       {/* Review Cart Sheet */}
       <Sheet open={showReviewSheet} onOpenChange={setShowReviewSheet}>
-        <SheetContent side="bottom" className="max-h-[85vh] overflow-y-auto pb-[env(safe-area-inset-bottom)]">
+        <SheetContent side="bottom" className="max-h-[85vh] overflow-y-auto">
           <SheetHeader className="text-left">
             <SheetTitle>Order Summary</SheetTitle>
             <SheetDescription>Review your items before confirming</SheetDescription>
@@ -751,7 +751,7 @@ export default function CartPage() {
       <OrderProgressOverlay isVisible={c.isPlacingOrder && c.paymentMethod !== 'cod'} step={c.orderStep} />
 
       <Sheet open={!!c.paymentFailureInfo} onOpenChange={(open) => { if (!open) c.dismissPaymentFailure(); }}>
-        <SheetContent side="bottom" className="pb-[env(safe-area-inset-bottom)]">
+        <SheetContent side="bottom">
           <SheetHeader className="text-left">
             <SheetTitle className="flex items-center gap-2 text-destructive"><AlertTriangle size={20} />Payment Not Completed</SheetTitle>
             <SheetDescription>Payment of {c.formatPrice(c.paymentFailureInfo?.amount || 0)} to {c.paymentFailureInfo?.sellerName || 'Seller'} was not completed. Your order has been cancelled but your cart items are saved.</SheetDescription>

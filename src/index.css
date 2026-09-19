@@ -312,7 +312,8 @@
     right: 0;
     height: var(--app-safe-top);
     background: hsl(var(--header-bg));
-    z-index: 9999;
+    /* Below Radix portal overlays/sheets (z-50) so status chrome never covers Close/X */
+    z-index: 40;
     pointer-events: none;
   }
 

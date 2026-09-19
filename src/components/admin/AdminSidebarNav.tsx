@@ -162,7 +162,7 @@ export function AdminSidebarNav({ activeTab, onTabChange }: AdminSidebarNavProps
             <ChevronRight size={14} className="ml-auto text-muted-foreground" />
           </Button>
         </SheetTrigger>
-        <SheetContent side="left" className="w-[280px] p-0 pt-12">
+        <SheetContent side="left" className="w-[280px] p-0">
           <div className="px-4 pb-3 border-b border-border/30">
             <p className="text-xs font-bold text-foreground">Admin Navigation</p>
           </div>

@@ -48,26 +48,57 @@ const sheetVariants = cva(
   },
 );
 
+const SAFE_TOP = "max(var(--app-safe-top, 0px), env(safe-area-inset-top, 0px))";
+const SAFE_BOTTOM = "max(var(--app-safe-bottom, 0px), env(safe-area-inset-bottom, 0px))";
+
 interface SheetContentProps
   extends React.ComponentPropsWithoutRef<typeof SheetPrimitive.Content>,
     VariantProps<typeof sheetVariants> {}
 
 const SheetContent = React.forwardRef<React.ElementRef<typeof SheetPrimitive.Content>, SheetContentProps>(
-  ({ side = "right", className, children, ...props }, ref) => (
-    <SheetPortal>
-      <SheetOverlay />
-      <SheetPrimitive.Content ref={ref} className={cn(sheetVariants({ side }), className)} {...props}>
-        {side === 'bottom' && (
-          <div className="mx-auto w-10 h-1 rounded-full bg-muted-foreground/20 mb-4 shrink-0" />
-        )}
-        {children}
-        <SheetPrimitive.Close className="absolute right-4 top-4 w-11 h-11 flex items-center justify-center rounded-xl opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-secondary">
-          <X className="h-4 w-4" />
-          <span className="sr-only">Close</span>
-        </SheetPrimitive.Close>
-      </SheetPrimitive.Content>
-    </SheetPortal>
-  ),
+  ({ side = "right", className, children, style, ...props }, ref) => {
+    const closeNeedsSafeTop = side === "left" || side === "right" || side === "top";
+    const safeStyle: React.CSSProperties = {
+      ...(side === "top" || side === "left" || side === "right"
+        ? { paddingTop: `max(1.5rem, ${SAFE_TOP})` }
+        : null),
+      ...(side === "bottom" || side === "left" || side === "right"
+        ? { paddingBottom: `max(1.5rem, ${SAFE_BOTTOM})` }
+        : null),
+      ...style,
+    };
+
+    return (
+      <SheetPortal>
+        <SheetOverlay />
+        <SheetPrimitive.Content
+          ref={ref}
+          className={cn(sheetVariants({ side }), className)}
+          {...props}
+          style={safeStyle}
+        >
+          {side === "bottom" && (
+            <div className="mx-auto w-10 h-1 rounded-full bg-muted-foreground/20 mb-4 shrink-0" />
+          )}
+          {children}
+          <SheetPrimitive.Close
+            className={cn(
+              "absolute right-4 w-11 h-11 flex items-center justify-center rounded-xl opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-secondary",
+              !closeNeedsSafeTop && "top-4",
+            )}
+            style={
+              closeNeedsSafeTop
+                ? { top: `calc(${SAFE_TOP} + 1rem)` }
+                : undefined
+            }
+          >
+            <X className="h-4 w-4" />
+            <span className="sr-only">Close</span>
+          </SheetPrimitive.Close>
+        </SheetPrimitive.Content>
+      </SheetPortal>
+    );
+  },
 );
 SheetContent.displayName = SheetPrimitive.Content.displayName;
 
