@@ -1039,6 +1039,22 @@ workflows:
           PYEOF
           head -55 "$GRADLE_FILE"
 
+      - name: Stamp Play versionCode
+        script: |
+          CODE="${PLAY_VERSION_CODE:-59}"
+          NAME="${PLAY_VERSION_NAME:-2.0.59}"
+          python3 - <<PY
+          import re
+          path = "android/app/build.gradle"
+          t = open(path, encoding="utf-8").read()
+          t, n1 = re.subn(r'versionCode\s+\d+', f'versionCode {int("$CODE")}', t, count=1)
+          t, n2 = re.subn(r'versionName\s+"[^"]+"', f'versionName "{NAME}"', t, count=1)
+          if n1 != 1 or n2 != 1:
+              raise SystemExit(f"Failed to stamp Play version versionCode={n1} versionName={n2}")
+          open(path, "w", encoding="utf-8").write(t)
+          print(f"=== Stamped Play versionCode {int('$CODE')} versionName {NAME} ===")
+          PY
+
       - name: Build Android release AAB and APK
         script: |
           # Ensure Gradle sees the Codemagic keystore path
@@ -1936,6 +1952,22 @@ workflows:
           print("keystore_path=", os.environ.get("CM_KEYSTORE_PATH") or os.environ.get("CM_KEYSTORE"))
           PYEOF
           head -55 "$GRADLE_FILE"
+
+      - name: Stamp Play versionCode
+        script: |
+          CODE="${PLAY_VERSION_CODE:-59}"
+          NAME="${PLAY_VERSION_NAME:-2.0.59}"
+          python3 - <<PY
+          import re
+          path = "android/app/build.gradle"
+          t = open(path, encoding="utf-8").read()
+          t, n1 = re.subn(r'versionCode\s+\d+', f'versionCode {int("$CODE")}', t, count=1)
+          t, n2 = re.subn(r'versionName\s+"[^"]+"', f'versionName "{NAME}"', t, count=1)
+          if n1 != 1 or n2 != 1:
+              raise SystemExit(f"Failed to stamp Play version versionCode={n1} versionName={n2}")
+          open(path, "w", encoding="utf-8").write(t)
+          print(f"=== Stamped Play versionCode {int('$CODE')} versionName {NAME} ===")
+          PY
 
       - name: Build Android AAB and APK
         script: |
