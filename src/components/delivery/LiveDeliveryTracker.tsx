@@ -80,15 +80,23 @@ function getProximityMessage(
   proximityStatus: string | null,
   isBuyerView: boolean,
   config: ProximityConfig,
+  isLocationStale?: boolean,
+  roadEtaMinutes?: number | null,
 ): string {
   const msg = (key: keyof ProximityConfig) =>
     isBuyerView ? config[key].buyer_message : config[key].seller_message;
+
+  if (isLocationStale) {
+    return isBuyerView
+      ? 'Tracking paused — seller hasn’t confirmed delivery yet'
+      : 'Tracking paused — update location or confirm delivery with OTP';
+  }
 
   if (proximityStatus === 'at_doorstep') return msg('at_doorstep');
   if (proximityStatus === 'arriving') return msg('arriving');
   if (proximityStatus === 'nearby') return msg('nearby');
 
-  const smartEta = getSmartEta(distance, eta, null, false);
+  const smartEta = getSmartEta(distance, eta, roadEtaMinutes ?? null, isLocationStale);
 
   if (distance !== null && distance < (config.at_doorstep.max_meters ?? 50)) return msg('at_doorstep');
   if (distance !== null && distance < (config.arriving.max_meters ?? 200)) return msg('arriving');
@@ -104,6 +112,9 @@ function getProximityMessage(
   if (distance !== null) return `📏 ${formatDistance(distance)}`;
   return msg('default');
 }
+
+/** Exported for unit tests */
+export { getProximityMessage, getSmartEta };
 
 function getLastSeenText(lastLocationAt: string | null): string | null {
   if (!lastLocationAt) return null;
@@ -167,11 +178,25 @@ export function LiveDeliveryTracker({ assignmentId, isBuyerView, trackingState, 
       </div>
 
       {isInTransit && (
-        <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 text-center">
-          <p className="text-sm font-semibold text-primary">
-            {getProximityMessage(tracking.distance, tracking.eta, tracking.proximityStatus, isBuyerView, proximityConfig)}
+        <div className={`border rounded-lg p-3 text-center ${
+          tracking.isLocationStale || !tracking.lastLocationAt
+            ? 'bg-muted/40 border-border'
+            : 'bg-primary/5 border-primary/20'
+        }`}>
+          <p className={`text-sm font-semibold ${
+            tracking.isLocationStale || !tracking.lastLocationAt ? 'text-foreground' : 'text-primary'
+          }`}>
+            {getProximityMessage(
+              tracking.distance,
+              tracking.eta,
+              tracking.proximityStatus,
+              isBuyerView,
+              proximityConfig,
+              tracking.isLocationStale || !tracking.lastLocationAt,
+              roadEtaMinutes,
+            )}
           </p>
-          {tracking.distance !== null && tracking.distance > 500 && (
+          {!tracking.isLocationStale && tracking.lastLocationAt && tracking.distance !== null && tracking.distance > 500 && (
             <p className="text-xs text-muted-foreground mt-1">{formatDistance(tracking.distance)}</p>
           )}
           {tracking.isLocationStale && (

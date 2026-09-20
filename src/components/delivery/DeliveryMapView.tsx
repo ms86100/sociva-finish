@@ -50,6 +50,8 @@ interface DeliveryMapViewProps {
   onRouteInfo?: (info: { totalDistance: number; remainingDistance: number }) => void;
   proximityStatus?: string | null;
   distanceMeters?: number | null;
+  /** When GPS is stale / missing, never show a confident sub-minute ETA overlay. */
+  isLocationStale?: boolean;
 }
 
 type RouteMode = 'road' | 'long-distance';
@@ -270,6 +272,7 @@ export function DeliveryMapView({
   sellerLat, sellerLng, sellerName,
   isPickedUp = true, tall, onRouteInfo,
   proximityStatus, distanceMeters,
+  isLocationStale = false,
 }: DeliveryMapViewProps) {
   const { isLoaded, error: mapsError, retry } = useGoogleMaps();
   const config = useTrackingConfig();
@@ -437,13 +440,14 @@ export function DeliveryMapView({
     }
   }, [riderLat, riderLng, route]);
 
-  // Notify parent of ETA / remaining
+  // Notify parent of ETA / remaining — never push a confident ETA when GPS is stale
   useEffect(() => {
-    if (roadEtaMinutes !== lastEtaRef.current) {
-      lastEtaRef.current = roadEtaMinutes;
-      onRoadEtaChange?.(roadEtaMinutes);
+    const reported = isLocationStale ? null : roadEtaMinutes;
+    if (reported !== lastEtaRef.current) {
+      lastEtaRef.current = reported;
+      onRoadEtaChange?.(reported);
     }
-  }, [roadEtaMinutes, onRoadEtaChange]);
+  }, [roadEtaMinutes, onRoadEtaChange, isLocationStale]);
 
   useEffect(() => {
     if (!isLoaded || !mapContainerRef.current || mapRef.current || mapAuthFailed) return;
@@ -745,20 +749,29 @@ export function DeliveryMapView({
         />
       )}
 
-      {(roadEtaMinutes || remainingKm) && (
+      {(isLocationStale || roadEtaMinutes || remainingKm) && (
         <div className="absolute bottom-3 right-3 z-10 bg-white/95 backdrop-blur-md rounded-2xl px-3 py-2 shadow-md border border-black/5">
-          <p className="text-sm font-bold text-[#202124] leading-tight">
-            {roadEtaMinutes
-              ? (roadEtaMinutes > 3 ? `${roadEtaMinutes - 1}–${roadEtaMinutes + 1} min` : `${roadEtaMinutes} min`)
-              : 'On the way'}
-          </p>
-          {remainingKm && (
-            <p className="text-[10px] text-[#5f6368] leading-tight mt-0.5">{remainingKm} remaining</p>
+          {isLocationStale ? (
+            <>
+              <p className="text-sm font-bold text-[#5f6368] leading-tight">Tracking paused</p>
+              <p className="text-[10px] text-[#5f6368] leading-tight mt-0.5">Waiting for a fresh location</p>
+            </>
+          ) : (
+            <>
+              <p className="text-sm font-bold text-[#202124] leading-tight">
+                {roadEtaMinutes
+                  ? (roadEtaMinutes > 3 ? `${roadEtaMinutes - 1}–${roadEtaMinutes + 1} min` : `${roadEtaMinutes} min`)
+                  : 'On the way'}
+              </p>
+              {remainingKm && (
+                <p className="text-[10px] text-[#5f6368] leading-tight mt-0.5">{remainingKm} remaining</p>
+              )}
+            </>
           )}
         </div>
       )}
 
-      {phase === 'arriving' && (
+      {phase === 'arriving' && !isLocationStale && (
         <div className="absolute top-3 left-3 z-10 bg-white/95 backdrop-blur-md rounded-full px-3 py-1.5 shadow-sm border border-black/5">
           <p className="text-[11px] font-semibold text-[#188038]">Arriving now</p>
         </div>

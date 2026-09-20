@@ -1,6 +1,6 @@
 // @ts-nocheck
-import { useState, useEffect } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { useState, useEffect, useMemo } from 'react';
+import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { supabase } from '@/integrations/supabase/client';
@@ -36,8 +36,28 @@ import { isScheduledOrder, isUpcomingScheduled } from '@/lib/scheduled-orders';
 import { orderPaymentChipLabel } from '@/lib/payment-method-label';
 import { displaySellerStoreName } from '@/lib/seller-journey';
 import { formatOrderItemsGlance, formatSellerOrderLocation, formatSellerWhenGlance } from '@/lib/order-glance';
+import { sortOrdersByListPriority } from '@/lib/order-list-priority';
+import {
+  SELLER_RECEIVED_FILTER_LABELS,
+  countSellerReceivedFilters,
+  formatTransitAgeChip,
+  matchesSellerReceivedFilter,
+  type SellerReceivedFilter,
+} from '@/lib/order-due-windows';
 
-function OrderCard({ order, type, successTerminals, unreadCounts }: { order: Order; type: 'buyer' | 'seller'; successTerminals: Set<string>; unreadCounts?: Map<string, number> }) {
+function OrderCard({
+  order,
+  type,
+  successTerminals,
+  unreadCounts,
+  ordersTab,
+}: {
+  order: Order;
+  type: 'buyer' | 'seller';
+  successTerminals: Set<string>;
+  unreadCounts?: Map<string, number>;
+  ordersTab?: 'buying' | 'selling';
+}) {
   const { getFlowLabel } = useFlowStepLabels();
   const { formatPrice } = useCurrency();
   const orderId = order?.id ? String(order.id) : '';
@@ -60,7 +80,6 @@ function OrderCard({ order, type, successTerminals, unreadCounts }: { order: Ord
   const firstItem = items[0];
   const itemImage = (firstItem as any)?.product_image || seller?.cover_image_url;
   const paymentChip = orderPaymentChipLabel((order as any).payment_type, (order as any).payment_status);
-  // Pull dot color from statusInfo.color (e.g. "bg-yellow-100 text-yellow-700")
   const dotColor = (statusInfo.color || '').split(' ').find((c: string) => c.startsWith('text-')) || 'text-muted-foreground';
   const sellerItemGlance = type === 'seller' ? formatOrderItemsGlance(items) : '';
   const sellerWhen = type === 'seller' ? formatSellerWhenGlance(order as any) : null;
@@ -70,9 +89,13 @@ function OrderCard({ order, type, successTerminals, unreadCounts }: { order: Ord
         buyer,
       })
     : null;
+  const transitAge = type === 'seller' ? formatTransitAgeChip(order as any) : null;
+  const linkState = ordersTab
+    ? { returnTo: `/orders?tab=${ordersTab}` }
+    : undefined;
 
   return (
-    <Link to={`/orders/${orderId}`} className="block">
+    <Link to={`/orders/${orderId}`} state={linkState} className="block">
       <motion.div
         whileTap={{ scale: 0.985 }}
         whileHover={{ y: -1 }}
@@ -80,7 +103,6 @@ function OrderCard({ order, type, successTerminals, unreadCounts }: { order: Ord
         className="relative overflow-hidden bg-card/80 backdrop-blur-lg border border-border/50 rounded-2xl mb-2.5 shadow-[0_2px_10px_-6px_hsl(var(--foreground)/0.08)] hover:shadow-[0_4px_18px_-8px_hsl(var(--foreground)/0.16)] transition-shadow"
       >
         <div className="p-3 flex items-start gap-3">
-          {/* Thumbnail 56x56 */}
           <div className="w-14 h-14 rounded-2xl overflow-hidden shrink-0 bg-muted border border-border/60">
             {itemImage ? (
               <img src={itemImage} alt={firstItem?.product_name || displaySellerStoreName(seller?.business_name)} className="w-full h-full object-cover" loading="lazy" />
@@ -116,6 +138,19 @@ function OrderCard({ order, type, successTerminals, unreadCounts }: { order: Ord
                 {isCompleted ? <CheckCircle size={11} /> : <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" />}
                 {statusInfo.label}
               </span>
+              {transitAge && (
+                <span
+                  className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
+                    transitAge.tone === 'danger'
+                      ? 'bg-destructive/15 text-destructive'
+                      : transitAge.tone === 'warn'
+                        ? 'bg-warning/15 text-warning'
+                        : 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
+                  }`}
+                >
+                  {transitAge.label}
+                </span>
+              )}
               {['delivery', 'seller_delivery'].includes((order as any).fulfillment_type) && (
                 <span className="text-[10px] px-1.5 py-0.5 rounded bg-accent/15 text-accent flex items-center gap-0.5">
                   <Truck size={9} /> Delivery
@@ -168,7 +203,6 @@ function OrderCard({ order, type, successTerminals, unreadCounts }: { order: Ord
           </div>
         </div>
 
-        {/* Active order progress bar */}
         {isActive && (
           <div className="h-1 bg-muted/60 overflow-hidden">
             <motion.div
@@ -232,13 +266,23 @@ function EmptyState({ message, type }: { message: string; type?: 'buyer' | 'sell
   );
 }
 
-function OrderList({ type, userId, sellerId }: { type: 'buyer' | 'seller'; userId: string; sellerId?: string }) {
+function OrderList({
+  type,
+  userId,
+  sellerId,
+  ordersTab,
+}: {
+  type: 'buyer' | 'seller';
+  userId: string;
+  sellerId?: string;
+  ordersTab?: 'buying' | 'selling';
+}) {
   const [buyerFilter, setBuyerFilter] = useState<'all' | 'active' | 'upcoming' | 'completed' | 'cancelled'>('all');
+  const [sellerFilter, setSellerFilter] = useState<SellerReceivedFilter>('all');
   const listFilter = buyerFilter === 'upcoming' ? 'all' : buyerFilter;
-  const { orders, isLoading, hasMore, isLoadingMore, loadMore, successSet } = useOrdersList(type, userId, sellerId, listFilter);
+  const { orders, isLoading, hasMore, isLoadingMore, loadMore, successSet, terminalSet } = useOrdersList(type, userId, sellerId, listFilter);
   const queryClient = useQueryClient();
 
-  // Fetch unread chat message counts per order
   const orderIds = orders.filter(Boolean).map(o => o.id).filter(Boolean);
   const { data: unreadCounts } = useQuery({
     queryKey: ['unread-chat-counts', userId, orderIds.join(',')],
@@ -260,7 +304,6 @@ function OrderList({ type, userId, sellerId }: { type: 'buyer' | 'seller'; userI
     staleTime: 15_000,
   });
 
-  // Lightweight realtime: refresh unread badges when messages arrive/are read for this user
   useEffect(() => {
     if (!userId) return;
     const channel = supabase
@@ -292,6 +335,11 @@ function OrderList({ type, userId, sellerId }: { type: 'buyer' | 'seller'; userI
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [userId, queryClient]);
+
+  const sellerCounts = useMemo(
+    () => (type === 'seller' ? countSellerReceivedFilters(orders as any[]) : null),
+    [type, orders],
+  );
 
   if (isLoading && buyerFilter !== 'upcoming') {
     return (
@@ -335,14 +383,28 @@ function OrderList({ type, userId, sellerId }: { type: 'buyer' | 'seller'; userI
     );
   }
 
-  const visibleOrders = (buyerFilter === 'active'
+  const filteredForView = (buyerFilter === 'active'
     ? orders.filter(o => o && !isUpcomingScheduled(o as any))
     : orders
   ).filter(Boolean);
 
-  if (visibleOrders.length === 0 && buyerFilter === 'all') {
+  const afterSellerFilter = type === 'seller'
+    ? filteredForView.filter((o) => matchesSellerReceivedFilter(o as any, sellerFilter))
+    : filteredForView;
+
+  const visibleOrders = sortOrdersByListPriority(
+    afterSellerFilter as any[],
+    successSet,
+    terminalSet,
+  );
+
+  if (visibleOrders.length === 0 && buyerFilter === 'all' && (type !== 'seller' || sellerFilter === 'all')) {
     return <EmptyState message={type === 'buyer' ? "You haven't placed any orders yet" : "No orders received yet"} type={type} />;
   }
+
+  const sellerFilterKeys: SellerReceivedFilter[] = [
+    'all', 'pending', 'preparing', 'in_transit', 'due_1h', 'due_2h', 'overdue', 'completed', 'cancelled',
+  ];
 
   return (
     <div>
@@ -365,23 +427,76 @@ function OrderList({ type, userId, sellerId }: { type: 'buyer' | 'seller'; userI
           ))}
         </div>
       )}
+      {type === 'seller' && sellerCounts && (
+        <>
+          <div className="grid grid-cols-4 gap-1.5 mb-3">
+            {([
+              ['pending', 'Action'],
+              ['in_transit', 'Transit'],
+              ['overdue', 'Overdue'],
+              ['completed', 'Done'],
+            ] as const).map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setSellerFilter(key)}
+                className={`rounded-xl border px-2 py-2 text-center transition-colors ${
+                  sellerFilter === key
+                    ? 'border-primary bg-primary/10'
+                    : 'border-border/60 bg-muted/30'
+                }`}
+              >
+                <p className="text-sm font-semibold tabular-nums">{sellerCounts[key]}</p>
+                <p className="text-[10px] text-muted-foreground">{label}</p>
+              </button>
+            ))}
+          </div>
+          <div className="flex gap-2 mb-3 overflow-x-auto scrollbar-hide">
+            {sellerFilterKeys.map((f) => {
+              const count = sellerCounts[f] ?? 0;
+              if (f !== 'all' && count === 0 && sellerFilter !== f && !['pending', 'in_transit', 'completed'].includes(f)) {
+                return null;
+              }
+              return (
+                <motion.button
+                  key={f}
+                  type="button"
+                  onClick={() => setSellerFilter(f)}
+                  whileTap={{ scale: 0.93 }}
+                  transition={{ type: 'spring', stiffness: 400, damping: 17 }}
+                  className={`relative px-3 py-1.5 rounded-full text-xs whitespace-nowrap transition-colors ${
+                    sellerFilter === f
+                      ? 'bg-primary text-primary-foreground shadow-sm'
+                      : f === 'overdue' && count > 0
+                        ? 'bg-destructive/10 text-destructive'
+                        : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                  }`}
+                >
+                  {SELLER_RECEIVED_FILTER_LABELS[f]}
+                  <span className="ml-1 opacity-70 tabular-nums">({count})</span>
+                </motion.button>
+              );
+            })}
+          </div>
+        </>
+      )}
       {visibleOrders.length === 0 ? (
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           className="text-center py-8 text-sm text-muted-foreground"
         >
-          No {buyerFilter} orders
+          No {type === 'seller' ? SELLER_RECEIVED_FILTER_LABELS[sellerFilter].toLowerCase() : buyerFilter} orders
         </motion.div>
       ) : (
         <motion.div
           variants={staggerContainer}
           initial="hidden"
           animate="show"
-          key={buyerFilter}
+          key={type === 'seller' ? sellerFilter : buyerFilter}
         >
           {type === 'buyer'
-            ? groupBuyerOrdersForList(visibleOrders as any).map((item) => {
+            ? groupBuyerOrdersForList(visibleOrders as any, { successSet, terminalSet }).map((item) => {
                 const cardKey = item.kind === 'group' ? item.groupId : item.order.id;
                 const resetKey = item.kind === 'group'
                   ? item.orders.map((o) => `${o.id}:${o.status}`).join('|')
@@ -408,6 +523,7 @@ function OrderList({ type, userId, sellerId }: { type: 'buyer' | 'seller'; userI
                         type={type}
                         successTerminals={successSet}
                         unreadCounts={unreadCounts}
+                        ordersTab={ordersTab}
                       />
                     )}
                   </SafeSectionWrapper>
@@ -430,6 +546,7 @@ function OrderList({ type, userId, sellerId }: { type: 'buyer' | 'seller'; userI
                       type={type}
                       successTerminals={successSet}
                       unreadCounts={unreadCounts}
+                      ordersTab={ordersTab}
                     />
                   </SafeSectionWrapper>
                 </motion.div>
@@ -451,10 +568,34 @@ export default function OrdersPage() {
   useBuyerRealtimeShell();
   const { user, isSeller, currentSellerId, sellerProfiles } = useAuth();
   const location = useLocation();
-  const fromSellerNotification = (location.state as any)?.tab === 'selling';
-  const defaultTab = isSeller && fromSellerNotification ? 'selling' : 'buying';
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabParam = searchParams.get('tab');
+  const stateTab = (location.state as any)?.tab;
+  const resolvedTab =
+    isSeller && (tabParam === 'selling' || stateTab === 'selling')
+      ? 'selling'
+      : 'buying';
+  const [ordersTab, setOrdersTab] = useState<'buying' | 'selling'>(resolvedTab);
   const operationalSellerId = resolveOperationalSellerId(currentSellerId, sellerProfiles || []);
   const portfolioMode = isPortfolioSellerId(currentSellerId);
+
+  useEffect(() => {
+    setOrdersTab(resolvedTab);
+  }, [resolvedTab]);
+
+  const onTabChange = (value: string) => {
+    const next = value === 'selling' ? 'selling' : 'buying';
+    setOrdersTab(next);
+    setSearchParams(
+      (prev) => {
+        const p = new URLSearchParams(prev);
+        if (next === 'selling') p.set('tab', 'selling');
+        else p.delete('tab');
+        return p;
+      },
+      { replace: true },
+    );
+  };
 
   if (!user) return null;
 
@@ -463,7 +604,7 @@ export default function OrdersPage() {
       <div className="pb-4">
         <div className="px-4 pt-3">
           {isSeller ? (
-            <Tabs defaultValue={defaultTab} className="w-full">
+            <Tabs value={ordersTab} onValueChange={onTabChange} className="w-full">
               <TabsList className="w-full mb-3 h-10">
                 <TabsTrigger value="buying" className="flex-1 text-xs">My Orders</TabsTrigger>
                 <TabsTrigger value="selling" className="flex-1 text-xs">Received</TabsTrigger>
@@ -474,7 +615,7 @@ export default function OrdersPage() {
                 <SafeSectionWrapper name="ReviewPromptBanner"><ReviewPromptBanner /></SafeSectionWrapper>
                 <SafeSectionWrapper name="BuyerBookingsCalendar"><BuyerBookingsCalendar /></SafeSectionWrapper>
                 <SafeSectionWrapper name="RecurringBookingsList"><RecurringBookingsList /></SafeSectionWrapper>
-                <OrderList type="buyer" userId={user.id} />
+                <OrderList type="buyer" userId={user.id} ordersTab="buying" />
               </TabsContent>
               <TabsContent value="selling">
                 <div className="mb-3">
@@ -492,10 +633,10 @@ export default function OrdersPage() {
                     </p>
                   </div>
                 ) : (
-                  <OrderList type="seller" userId={user.id} sellerId={operationalSellerId || undefined} />
+                  <OrderList type="seller" userId={user.id} sellerId={operationalSellerId || undefined} ordersTab="selling" />
                 )}
                 {portfolioMode && (
-                  <OrderList type="seller" userId={user.id} sellerId={ALL_STORES_ID} />
+                  <OrderList type="seller" userId={user.id} sellerId={ALL_STORES_ID} ordersTab="selling" />
                 )}
               </TabsContent>
             </Tabs>
@@ -506,7 +647,7 @@ export default function OrdersPage() {
               <SafeSectionWrapper name="ReviewPromptBanner"><ReviewPromptBanner /></SafeSectionWrapper>
               <SafeSectionWrapper name="BuyerBookingsCalendar"><BuyerBookingsCalendar /></SafeSectionWrapper>
               <SafeSectionWrapper name="RecurringBookingsList"><RecurringBookingsList /></SafeSectionWrapper>
-              <OrderList type="buyer" userId={user.id} />
+              <OrderList type="buyer" userId={user.id} ordersTab="buying" />
             </>
           )}
         </div>

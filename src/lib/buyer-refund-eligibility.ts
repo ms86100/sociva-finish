@@ -1,11 +1,23 @@
 /** Hours after successful delivery that a buyer may request a refund. */
 export const BUYER_REFUND_WINDOW_HOURS = 2;
 
+/** Hours stuck in transit before a buyer may file a never-arrived refund request. */
+export const STUCK_TRANSIT_REFUND_AFTER_HOURS = 6;
+
 const DELIVERED_STATUSES = new Set(['delivered', 'completed', 'buyer_received']);
 const PAID_STATUSES = new Set(['paid', 'buyer_confirmed', 'seller_verified', 'completed']);
+const STUCK_TRANSIT_STATUSES = new Set([
+  'picked_up',
+  'on_the_way',
+  'at_gate',
+  'en_route',
+  'assigned',
+  'arrived',
+]);
 
 export type BuyerRefundEligibilityReason =
   | 'ok'
+  | 'ok_stuck_transit'
   | 'not_delivered'
   | 'no_payment'
   | 'window_closed'
@@ -50,6 +62,25 @@ export function getBuyerRefundEligibility(opts: {
   }
 
   if (!DELIVERED_STATUSES.has(opts.orderStatus)) {
+    // Escape hatch: prepaid orders stuck in transit past SLA may request a refund
+    if (STUCK_TRANSIT_STATUSES.has(opts.orderStatus)) {
+      const transitAnchor = deliveryAnchor({
+        deliveredAt: null,
+        completedAt: null,
+        statusChangedAt: opts.statusChangedAt,
+      });
+      if (transitAnchor) {
+        const stuckMs = STUCK_TRANSIT_REFUND_AFTER_HOURS * 60 * 60 * 1000;
+        if (now.getTime() - transitAnchor.getTime() >= stuckMs) {
+          return {
+            eligible: true,
+            reason: 'ok_stuck_transit',
+            expiresAt: null,
+            windowHours: STUCK_TRANSIT_REFUND_AFTER_HOURS,
+          };
+        }
+      }
+    }
     return {
       eligible: false,
       reason: 'not_delivered',
