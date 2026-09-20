@@ -28,6 +28,8 @@ import { DeliveryCompletionOtpDialog } from '@/components/delivery/DeliveryCompl
 import { DeliveryFeedbackForm } from '@/components/delivery/DeliveryFeedbackForm';
 import { GenericOtpDialog } from '@/components/order/GenericOtpDialog';
 import { GenericOtpCard } from '@/components/order/GenericOtpCard';
+import { isTransitOverdue, isInTransitStatus, formatTransitAgeChip } from '@/lib/order-due-windows';
+import { toast } from 'sonner';
 
 import { OrderItemCard } from '@/components/order/OrderItemCard';
 import { AppointmentDetailsCard } from '@/components/order/AppointmentDetailsCard';
@@ -735,14 +737,19 @@ export default function OrderDetailPage() {
               navigate(returnTo);
               return;
             }
+            const sellingFallback = o.isSellerView ? '/orders?tab=selling' : '/orders';
             if (location.state?.from !== 'deeplink') {
               const previous = peekPreviousPath(location.pathname);
               if (previous) {
+                if (previous === '/orders' || previous.startsWith('/orders?')) {
+                  navigate(o.isSellerView ? '/orders?tab=selling' : previous);
+                  return;
+                }
                 navigate(previous);
                 return;
               }
             }
-            navigate('/orders', { state: o.isSellerView ? { tab: 'selling' } : undefined });
+            navigate(sellingFallback);
           }}
           onCopyId={o.copyOrderId}
           onRefresh={handleRefresh}
@@ -1152,6 +1159,7 @@ export default function OrderDetailPage() {
                 total={order.total_amount}
                 discount={Number((order as any).coupon_discount || (order as any).discount_amount || 0)}
                 deliveryFee={(order as any).delivery_fee || 0}
+                packagingFee={(order as any).packaging_fee || 0}
                 isDeliveryOrder={isDeliveryOrder}
                 isEnquiryOrder={o.isEnquiryOrder || order.status === 'enquired' || order.status === 'quoted'}
                 savings={totalSavings}
@@ -1191,6 +1199,7 @@ export default function OrderDetailPage() {
                         onRouteInfo={handleRouteInfo}
                         proximityStatus={deliveryTracking.proximityStatus}
                         distanceMeters={deliveryTracking.distance}
+                        isLocationStale={deliveryTracking.isLocationStale || !deliveryTracking.lastLocationAt}
                       />
                       </Suspense>
                     </div>
@@ -1641,6 +1650,56 @@ export default function OrderDetailPage() {
           <div className="px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] flex flex-row items-center justify-center gap-2 min-h-12 text-sm text-muted-foreground">
             <Loader2 size={16} className="animate-spin" />
             <span>Loading actions…</span>
+          </div>
+        </div>
+      )}
+
+      {/* Seller overdue transit — only while actually in transit (not prep/scheduled due) */}
+      {o.isSellerView
+        && isInTransitStatus(order.status)
+        && isTransitOverdue(order as any)
+        && !isTerminalStatus(o.flow, order.status) && (
+        <div className="fixed left-0 right-0 z-40 px-4 pb-2" style={{ bottom: hasSellerActionBar ? 'calc(5.5rem + env(safe-area-inset-bottom))' : 'env(safe-area-inset-bottom)' }}>
+          <div className="mx-auto max-w-lg rounded-xl border border-warning/40 bg-warning/10 p-3 shadow-lg backdrop-blur-md">
+            <p className="text-xs font-semibold text-warning mb-1">
+              {formatTransitAgeChip(order as any)?.label || 'Delivery overdue'}
+            </p>
+            <p className="text-[11px] text-muted-foreground mb-2">
+              Confirm the outcome so the buyer isn’t stuck on “on the way”.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                size="sm"
+                className="flex-1"
+                onClick={() => setIsOtpDialogOpen(true)}
+                disabled={o.isUpdating}
+              >
+                Delivered (OTP)
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="flex-1 border-destructive text-destructive"
+                disabled={o.isUpdating}
+                onClick={async () => {
+                  try {
+                    await o.updateOrderStatus('no_show' as OrderStatus);
+                  } catch {
+                    toast.error('Could not mark as could not deliver. Try again.');
+                  }
+                }}
+              >
+                Couldn’t deliver
+              </Button>
+              <Button
+                size="sm"
+                variant="secondary"
+                className="flex-1"
+                onClick={() => toast.info('Open Help on this order or chat with the buyer for support.')}
+              >
+                Need help
+              </Button>
+            </div>
           </div>
         </div>
       )}

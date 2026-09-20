@@ -648,6 +648,22 @@ app.post("/", async (c) => {
       }
     }
 
+    // Stuck transit SLA — flag overdue / auto no_show after 24h
+    let stuckTransit: Record<string, unknown> | null = null;
+    try {
+      const { data: stuckData, error: stuckErr } = await supabase.rpc(
+        "system_resolve_stuck_transit_orders",
+        { _overdue_hours: 6, _auto_fail_hours: 24, _limit: 50 },
+      );
+      if (stuckErr) {
+        console.warn("system_resolve_stuck_transit_orders failed:", stuckErr.message);
+      } else {
+        stuckTransit = stuckData as Record<string, unknown>;
+      }
+    } catch (e) {
+      console.warn("stuck transit resolve threw:", e);
+    }
+
     return c.json(
       {
         message: `Cancelled ${cancelledCount}, auto-completed ${completedCount}, SLA refunds ${slaApprovedCount}, review prompts ${reviewPromptsCreated}`,
@@ -655,6 +671,7 @@ app.post("/", async (c) => {
         auto_completed: completedCount,
         sla_refunds_approved: slaApprovedCount,
         review_prompts_created: reviewPromptsCreated,
+        stuck_transit: stuckTransit,
         cancel_results: cancelResults.map(mapResult),
         complete_results: autoCompleteResults.map(mapResult),
       },

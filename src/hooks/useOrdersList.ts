@@ -21,7 +21,7 @@ async function fetchOrdersPage(
   if (type === 'buyer') {
     query = supabase
       .from('orders')
-        .select(`id, created_at, status, payment_status, payment_type, total_amount, order_type, fulfillment_type, delivery_handled_by, transaction_type, auto_cancel_at, seller_id, buyer_id, checkout_group_id, idempotency_key, failure_owner, rejection_reason, scheduled_date, scheduled_time_start, scheduled_time, preparation_start_at, scheduled_fulfillment_at, seller:seller_profiles!orders_seller_id_fkey(business_name, cover_image_url), items:order_items(id, product_id, product_name, quantity, unit_price, subtotal, status, product_image)`)
+        .select(`id, created_at, status, payment_status, payment_type, total_amount, order_type, fulfillment_type, delivery_handled_by, transaction_type, auto_cancel_at, seller_id, buyer_id, checkout_group_id, idempotency_key, failure_owner, rejection_reason, scheduled_date, scheduled_time_start, scheduled_time, preparation_start_at, scheduled_fulfillment_at, status_changed_at, estimated_delivery_at, updated_at, seller:seller_profiles!orders_seller_id_fkey(business_name, cover_image_url), items:order_items(id, product_id, product_name, quantity, unit_price, subtotal, status, product_image)`)
       .eq('buyer_id', userId)
       .order('created_at', { ascending: false })
       .limit(PAGE_SIZE);
@@ -36,13 +36,14 @@ async function fetchOrdersPage(
       if (cancelledStatuses.length > 0) query = query.in('status', cancelledStatuses as any);
     }
   } else {
+    const sellerListSelect = `id, created_at, status, payment_status, payment_type, total_amount, order_type, fulfillment_type, delivery_handled_by, transaction_type, auto_cancel_at, seller_id, buyer_id, delivery_address, scheduled_date, scheduled_time_start, scheduled_time, preparation_start_at, scheduled_fulfillment_at, status_changed_at, estimated_delivery_at, updated_at, needs_attention, buyer:profiles!orders_buyer_id_fkey(name, block, flat_number, phone, phase), items:order_items(id, product_id, product_name, quantity, unit_price, subtotal, status, product_image)`;
     const _isAllStores = sellerId === ALL_STORES_ID;
     if (_isAllStores) {
-      query = supabase.from('orders').select(`id, created_at, status, payment_status, total_amount, order_type, fulfillment_type, delivery_handled_by, transaction_type, auto_cancel_at, seller_id, buyer_id, buyer:profiles!orders_buyer_id_fkey(name, block, flat_number, phone), items:order_items(id, product_id, product_name, quantity, unit_price, subtotal, status, product_image)`);
+      query = supabase.from('orders').select(sellerListSelect);
     } else {
       query = supabase
         .from('orders')
-        .select(`id, created_at, status, payment_status, total_amount, order_type, fulfillment_type, delivery_handled_by, transaction_type, auto_cancel_at, seller_id, buyer_id, buyer:profiles!orders_buyer_id_fkey(name, block, flat_number, phone), items:order_items(id, product_id, product_name, quantity, unit_price, subtotal, status, product_image)`)
+        .select(sellerListSelect)
         .eq('seller_id', sellerId!);
     }
     query = query.order('created_at', { ascending: false }).limit(PAGE_SIZE);
@@ -92,5 +93,6 @@ export function useOrdersList(
     isLoadingMore: result.isFetchingNextPage,
     loadMore: () => result.fetchNextPage(),
     successSet,
+    terminalSet,
   };
 }

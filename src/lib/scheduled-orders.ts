@@ -252,7 +252,34 @@ export function formatScheduledDateTime(order: ScheduledOrderLike): string {
   return `${day} · ${time.slice(0, 5)}`;
 }
 
-export function formatPreparationByLine(order: ScheduledOrderLike, prepMinutes = DEFAULT_PREP_MINUTES): string | null {
+/** Short slot for list cards: "Sat, 20 Sep, 2:00 pm". */
+export function formatScheduledGlance(order: ScheduledOrderLike | null | undefined): string {
+  if (!order?.scheduled_date) return '';
+  const fulfilment = getScheduledFulfilmentAt(order);
+  if (fulfilment) {
+    return fulfilment.toLocaleString('en-IN', {
+      timeZone: SCHEDULED_TZ,
+      weekday: 'short',
+      day: 'numeric',
+      month: 'short',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    });
+  }
+  return formatScheduledDateTime(order);
+}
+
+export function formatPreparationByLine(
+  order: ScheduledOrderLike,
+  prepMinutes = DEFAULT_PREP_MINUTES,
+  now = new Date(),
+): string | null {
+  const phase = resolveScheduledPhase(order, now);
+  // Instruction only — never on delivered/cancelled, or after prep already started.
+  if (phase === 'completed' || phase === 'cancelled' || phase === 'preparing' || phase === 'fulfilling') {
+    return null;
+  }
   const prep = getPreparationStartAt(order, prepMinutes);
   if (!prep) return null;
   return `Start preparing by ${prep.toLocaleTimeString('en-IN', {

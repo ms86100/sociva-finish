@@ -8,8 +8,8 @@ const corsHeaders = {
 
 /**
  * Detects GPS-stalled deliveries and writes stall_level (1 = soft, 2 = hard).
- * The notification-engine picks up the stall_level via notification_rules
- * and emits the configured seller + buyer messages. No notifications fired here.
+ * Also flags / auto-resolves orders stuck in transit by status_changed_at
+ * even when GPS last_location_at is null (self-delivery sellers).
  */
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -38,7 +38,6 @@ serve(async (req) => {
     const softMin = parseFloat(settings['stalled_soft_threshold_minutes'] || '1.5');
     const hardMin = parseFloat(settings['stalled_hard_threshold_minutes'] || '3');
 
-    // Accept either JSON array (["a","b"]) or CSV ("a,b") for transit_statuses
     let transitStatuses: string[] = [];
     const raw = (settings['transit_statuses'] || '').trim();
     if (raw) {
@@ -50,9 +49,7 @@ serve(async (req) => {
       }
     }
     if (transitStatuses.length === 0) {
-      return new Response(JSON.stringify({ skipped: 'no_transit_statuses' }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      transitStatuses = ['picked_up', 'on_the_way', 'at_gate', 'en_route', 'assigned', 'arrived'];
     }
 
     const softCutoff = new Date(Date.now() - softMin * 60_000).toISOString();
@@ -88,7 +85,24 @@ serve(async (req) => {
       }
     }
 
-    return new Response(JSON.stringify({ success: true, updated, cleared }), {
+    // Status-age path: flag / auto-fail stuck transit even without GPS pings
+    let stuck: { flagged?: number; auto_failed?: number } | null = null;
+    const { data: stuckResult, error: stuckErr } = await supabase.rpc(
+      'system_resolve_stuck_transit_orders',
+      { _overdue_hours: 6, _auto_fail_hours: 24, _limit: 50 },
+    );
+    if (stuckErr) {
+      console.warn('system_resolve_stuck_transit_orders failed:', stuckErr.message);
+    } else {
+      stuck = stuckResult as any;
+    }
+
+    return new Response(JSON.stringify({
+      success: true,
+      updated,
+      cleared,
+      stuck_transit: stuck,
+    }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (e) {

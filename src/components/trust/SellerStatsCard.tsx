@@ -3,6 +3,7 @@ import { CheckCircle, Clock, Users, TrendingUp, ShieldCheck, Star } from 'lucide
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useSellerTrustSnapshot, type SellerTrustSnapshot } from '@/hooks/queries/useProductTrustMetrics';
+import { formatPercent } from '@/lib/utils';
 
 interface SellerStatsCardProps {
   sellerId: string;
@@ -30,7 +31,7 @@ export function SellerStatsCard({ sellerId }: SellerStatsCardProps) {
     {
       icon: Users,
       label: 'Repeat Buyers',
-      value: `${Math.round(trust.repeat_customer_pct)}%`,
+      value: formatPercent(trust.repeat_customer_pct),
       color: 'text-primary',
     },
     {

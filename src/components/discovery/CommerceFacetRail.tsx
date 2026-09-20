@@ -162,26 +162,43 @@ export function CommerceFacetRail({
             Open Now
           </button>
 
-          {/* Quick Veg Toggle for Food */}
+          {/* Quick Veg / Non-Veg for Food */}
           {isFood && (
-            <button
-              type="button"
-              onClick={() => {
-                hapticSelection();
-                onChange({ ...value, veg: !value.veg });
-              }}
-              className={cn(
-                'flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-[11px] font-semibold transition-colors',
-                value.veg
-                  ? 'border-emerald-500/60 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-bold'
-                  : 'border-border/70 bg-background/80 text-muted-foreground'
-              )}
-            >
-              <span className="w-3.5 h-3.5 rounded-full overflow-hidden shrink-0 flex items-center justify-center border border-emerald-500/40">
-                <img src="https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=80&q=75" alt="" className="w-full h-full object-cover" />
-              </span>
-              Veg Only
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={() => {
+                  hapticSelection();
+                  onChange({ ...value, veg: !value.veg, nonVeg: false });
+                }}
+                className={cn(
+                  'flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-[11px] font-semibold transition-colors',
+                  value.veg
+                    ? 'border-emerald-500/60 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-bold'
+                    : 'border-border/70 bg-background/80 text-muted-foreground'
+                )}
+              >
+                <span className="w-3.5 h-3.5 rounded-full overflow-hidden shrink-0 flex items-center justify-center border border-emerald-500/40">
+                  <img src="https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=80&q=75" alt="" className="w-full h-full object-cover" />
+                </span>
+                Veg Only
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  hapticSelection();
+                  onChange({ ...value, nonVeg: !value.nonVeg, veg: false });
+                }}
+                className={cn(
+                  'flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-[11px] font-semibold transition-colors',
+                  value.nonVeg
+                    ? 'border-rose-500/60 bg-rose-500/15 text-rose-600 dark:text-rose-400 font-bold'
+                    : 'border-border/70 bg-background/80 text-muted-foreground'
+                )}
+              >
+                Non-Veg
+              </button>
+            </>
           )}
 
           {/* Dynamic Facet Chips strictly from real inventory */}
@@ -259,6 +276,22 @@ export function CommerceFacetRail({
           <div className="px-4 py-3 space-y-4">
             {isFood && (
               <>
+                <TasteSheetSection label="Dietary">
+                  <TasteSheetChip
+                    emoji="🥬"
+                    label="Veg Only"
+                    count={0}
+                    active={!!value.veg}
+                    onClick={() => onChange({ ...value, veg: !value.veg, nonVeg: false })}
+                  />
+                  <TasteSheetChip
+                    emoji="🍖"
+                    label="Non-Veg"
+                    count={0}
+                    active={!!value.nonVeg}
+                    onClick={() => onChange({ ...value, nonVeg: !value.nonVeg, veg: false })}
+                  />
+                </TasteSheetSection>
                 <TasteSheetSection label="Cuisine">
                   {FOOD_CUISINES.filter((opt) => opt.id !== 'other').map((opt) => {
                     const count = foodMoodCount('cuisine', opt.id);

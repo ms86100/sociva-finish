@@ -436,6 +436,13 @@ function StepBasics({ sp }: { sp: ReturnType<typeof useSellerProducts> }) {
               cuisine_type: persisted.cuisine_type,
             });
           }}
+          isVeg={sp.formData.is_veg}
+          onIsVegChange={(next) => {
+            sp.setFormData({ ...sp.formData, is_veg: next });
+            if (sp.fieldErrors.is_veg) sp.setFieldErrors((prev) => { const { is_veg, ...rest } = prev; return rest; });
+          }}
+          dietaryError={sp.fieldErrors.is_veg}
+          requireDietary
         />
       )}
 
@@ -525,7 +532,7 @@ function StepConfig({ sp }: { sp: ReturnType<typeof useSellerProducts> }) {
         </div>
       )}
 
-      {sp.showVegToggle && (
+      {sp.showVegToggle && !(isFoodParentGroup(sp.activeCategoryConfig?.parentGroup) || sp.activeCategoryConfig?.layoutType === 'food') && (
         <div className="flex items-center justify-between p-3 bg-muted/50 rounded-xl">
           <div className="flex items-center gap-2">
             <VegBadge isVeg={sp.formData.is_veg} />

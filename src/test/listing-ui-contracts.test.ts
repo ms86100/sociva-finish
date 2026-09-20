@@ -54,5 +54,12 @@ describe('marketplace listing UI contracts', () => {
     expect(src).toContain('-bottom-4 right-2');
     expect(src).toContain('product-image-shimmer');
     expect(src).toContain('shadow-card');
+    expect(src).toContain('SellerLocationLine');
+  });
+
+  it('price history shows a min–max range instead of a slant chart', () => {
+    const src = readSrc('src/components/product/PriceHistoryChart.tsx');
+    expect(src).toContain('Price range');
+    expect(src).not.toContain('LineChart');
   });
 });

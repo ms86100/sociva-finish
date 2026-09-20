@@ -13,8 +13,8 @@ const read = (path: string) => readFileSync(resolve(__dirname, '../..', path), '
 describe('admin catalog queue', () => {
   it('clubs first-time listings with the store application, not the live Products tab', () => {
     expect(isApplicationCatalogItem('pending')).toBe(true);
-    expect(isApplicationCatalogItem('draft')).toBe(true);
-    expect(isApplicationCatalogItem('rejected')).toBe(true);
+    expect(isApplicationCatalogItem('draft')).toBe(false);
+    expect(isApplicationCatalogItem('rejected')).toBe(false);
     expect(isApplicationCatalogItem('approved')).toBe(false);
     expect(isApprovedLiveStore('approved')).toBe(true);
   });
@@ -28,7 +28,7 @@ describe('admin catalog queue', () => {
     ]);
 
     expect(standalone.map((p) => p.id)).toEqual(['later-edit']);
-    expect(inApplication.map((p) => p.id)).toEqual(['opening-dal', 'opening-biryani', 'orphan']);
+    expect(inApplication.map((p) => p.id)).toEqual(['opening-dal']);
   });
 
   it('counts opening catalog items that will go live with the store', () => {

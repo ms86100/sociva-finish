@@ -1,7 +1,6 @@
 // @ts-nocheck
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { ResponsiveContainer, LineChart, Line, YAxis } from 'recharts';
 import { Badge } from '@/components/ui/badge';
 import { Shield } from 'lucide-react';
 import { useCurrency } from '@/hooks/useCurrency';
@@ -50,21 +49,13 @@ export function PriceHistoryChart({ productId, priceStableSince }: PriceHistoryC
     return null;
   }
 
-  // Build chart data points
-  const chartData = history.map((h) => ({
-    price: Number(h.new_price),
-    date: h.changed_at,
-  }));
+  const prices = [
+    Number(history[0].old_price),
+    ...history.map((h) => Number(h.new_price)),
+  ].filter((n) => Number.isFinite(n));
 
-  // Add the first old_price as the starting point
-  if (history.length > 0) {
-    chartData.unshift({
-      price: Number(history[0].old_price),
-      date: history[0].changed_at,
-    });
-  }
+  if (prices.length === 0) return null;
 
-  const prices = chartData.map(d => d.price);
   const minPrice = Math.min(...prices);
   const maxPrice = Math.max(...prices);
 
@@ -75,24 +66,12 @@ export function PriceHistoryChart({ productId, priceStableSince }: PriceHistoryC
           <Shield size={10} /> {stableLabel}
         </Badge>
       )}
-      <div className="h-12 w-full">
-        <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={chartData}>
-            <YAxis domain={[minPrice * 0.95, maxPrice * 1.05]} hide />
-            <Line
-              type="monotone"
-              dataKey="price"
-              stroke="hsl(var(--primary))"
-              strokeWidth={1.5}
-              dot={false}
-            />
-          </LineChart>
-        </ResponsiveContainer>
-      </div>
-      <div className="flex justify-between text-[9px] text-muted-foreground">
-        <span>Low: {formatPrice(minPrice)}</span>
-        <span>High: {formatPrice(maxPrice)}</span>
-      </div>
+      <p className="text-xs text-muted-foreground">
+        Price range{' '}
+        <span className="font-semibold text-foreground tabular-nums">
+          {formatPrice(minPrice)} – {formatPrice(maxPrice)}
+        </span>
+      </p>
     </div>
   );
 }

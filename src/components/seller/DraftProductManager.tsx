@@ -64,7 +64,7 @@ interface DraftProduct {
   discount_percentage?: number | null;
   description: string;
   category: string;
-  is_veg: boolean;
+  is_veg: boolean | null;
   image_url: string;
   prep_time_minutes?: number | null;
   stock_quantity?: number | null;
@@ -239,7 +239,7 @@ export function DraftProductManager({
     discount_percentage: null,
     description: '',
     category: categories[0] || '',
-    is_veg: true,
+    is_veg: null,
     image_url: '',
     prep_time_minutes: null,
     action_type: effectiveDefaultActionType || 'add_to_cart',
@@ -450,6 +450,10 @@ export function DraftProductManager({
     if (newProduct.mrp && newProduct.mrp > 0 && newProduct.price > newProduct.mrp) errors.price = 'Price cannot exceed MRP';
     if (!newProduct.image_url.trim()) errors.image_url = copy.imageRequired;
 
+    if (showFoodFacetEditor && newProduct.is_veg !== true && newProduct.is_veg !== false) {
+      errors.is_veg = 'Choose Veg or Non-Veg';
+    }
+
     const stockResolved = resolveStockSaveValues({
       tracks_stock: trackStock,
       stock_quantity: stockQuantityInput,
@@ -520,7 +524,7 @@ export function DraftProductManager({
         mrp: newProduct.mrp && newProduct.mrp > 0 ? newProduct.mrp : null,
         description: newProduct.description.trim() || null,
         category: placement.category || newProduct.category,
-        is_veg: newProduct.is_veg,
+        is_veg: showFoodFacetEditor ? newProduct.is_veg : (newProduct.is_veg ?? true),
         image_url: newProduct.image_url.trim() || null,
         is_available: true,
         approval_status: resolvedApprovalStatus,
@@ -719,7 +723,7 @@ export function DraftProductManager({
       discount_percentage: null,
       description: '',
       category: placement.category || categories[0] || '',
-      is_veg: true,
+      is_veg: null,
       image_url: '',
       prep_time_minutes: null,
       stock_quantity: null,
@@ -868,7 +872,7 @@ export function DraftProductManager({
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5">
-                    {showVeg && <VegBadge isVeg={product.is_veg} size="sm" />}
+                    {showVeg && (product.is_veg === true || product.is_veg === false) && <VegBadge isVeg={product.is_veg} size="sm" />}
                     <span className="font-medium text-sm truncate">{product.name}</span>
                   </div>
                   <div className="flex items-center gap-2 mt-0.5">
@@ -1004,6 +1008,13 @@ export function DraftProductManager({
                       cuisine_type: persisted.cuisine_type,
                     });
                   }}
+                  isVeg={newProduct.is_veg}
+                  onIsVegChange={(next) => {
+                    setNewProduct({ ...newProduct, is_veg: next });
+                    if (fieldErrors.is_veg) setFieldErrors((prev) => { const { is_veg, ...rest } = prev; return rest; });
+                  }}
+                  dietaryError={fieldErrors.is_veg}
+                  requireDietary
                 />
               )}
 
@@ -1068,7 +1079,7 @@ export function DraftProductManager({
                 {fieldErrors.image_url && <p className="text-xs text-destructive">{fieldErrors.image_url}</p>}
               </div>
 
-              {showVegToggle && (
+              {showVegToggle && !showFoodFacetEditor && (
                 <label className="flex items-center gap-2 cursor-pointer">
                   <Checkbox
                     checked={newProduct.is_veg}

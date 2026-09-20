@@ -150,7 +150,7 @@ const CART_QUERY_KEY = ['cart-items'] as const;
 
 // ── Shared authoritative fetch ──
 const CART_ITEM_EMBED =
-  `*, product:products(*, seller:seller_profiles(id, business_name, user_id, is_available, availability_start, availability_end, operating_days, profile_image_url, cover_image_url, primary_group, accepts_cod, accepts_upi, upi_id, upi_verification_status, fulfillment_mode, minimum_order_amount, daily_order_limit, pickup_payment_config, delivery_payment_config, store_location_label, society:societies(name)))`;
+  `*, product:products(*, seller:seller_profiles(id, business_name, user_id, is_available, availability_start, availability_end, operating_days, profile_image_url, cover_image_url, primary_group, accepts_cod, accepts_upi, upi_id, upi_verification_status, fulfillment_mode, minimum_order_amount, daily_order_limit, packaging_fee, pickup_payment_config, delivery_payment_config, store_location_label, society:societies(name)))`;
 
 function withProducts<T extends { product?: Product | null }>(rows: T[] | null | undefined) {
   // Keep unavailable products visible so a refresh can warn instead of silently dropping them.

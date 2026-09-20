@@ -85,6 +85,8 @@ describe('search correctness and committed telemetry', () => {
   });
 
   it('preserves typed spaces instead of hydrating a trimmed URL query', () => {
+    expect(searchHook).toMatch(/from '@\/lib\/searchQuery'/);
+    expect(searchHook).toMatch(/readSearchQueryParam/);
     expect(searchHook).toMatch(/resolveSearchQueryFromUrl/);
     expect(searchHook).not.toMatch(/searchParams\.get\('q'\)\?\.trim\(\)/);
   });

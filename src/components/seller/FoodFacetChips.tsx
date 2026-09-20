@@ -10,6 +10,10 @@ import { cn } from '@/lib/utils';
 interface FoodFacetChipsProps {
   value: FoodFacets;
   onChange: (next: FoodFacets) => void;
+  isVeg?: boolean | null;
+  onIsVegChange?: (next: boolean) => void;
+  dietaryError?: string;
+  requireDietary?: boolean;
 }
 
 function ChipRow<T extends string>({
@@ -50,12 +54,54 @@ function ChipRow<T extends string>({
   );
 }
 
-export function FoodFacetChips({ value, onChange }: FoodFacetChipsProps) {
+export function FoodFacetChips({
+  value,
+  onChange,
+  isVeg,
+  onIsVegChange,
+  dietaryError,
+  requireDietary = false,
+}: FoodFacetChipsProps) {
   return (
     <div className="space-y-3 rounded-xl border bg-muted/20 p-3">
-      <p className="text-xs text-muted-foreground">
-        Optional filters for buyers. These do not create a new category.
-      </p>
+      <div>
+        <p className="text-sm font-semibold text-foreground">Food classification</p>
+        <p className="text-xs text-muted-foreground mt-0.5">
+          Cuisine, meal, and course help buyers filter. Dietary is required for food listings.
+        </p>
+      </div>
+      {onIsVegChange && (
+        <div className="space-y-1.5">
+          <Label className="text-xs">Dietary{requireDietary ? ' *' : ''}</Label>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => onIsVegChange(true)}
+              className={cn(
+                'flex-1 rounded-xl border px-3 py-2 text-sm font-medium transition-colors',
+                isVeg === true
+                  ? 'border-veg bg-veg/10 text-foreground'
+                  : 'border-border bg-background text-muted-foreground',
+              )}
+            >
+              Veg
+            </button>
+            <button
+              type="button"
+              onClick={() => onIsVegChange(false)}
+              className={cn(
+                'flex-1 rounded-xl border px-3 py-2 text-sm font-medium transition-colors',
+                isVeg === false
+                  ? 'border-non-veg bg-non-veg/10 text-foreground'
+                  : 'border-border bg-background text-muted-foreground',
+              )}
+            >
+              Non-Veg
+            </button>
+          </div>
+          {dietaryError && <p className="text-xs text-destructive">{dietaryError}</p>}
+        </div>
+      )}
       <ChipRow
         label="Cuisine"
         options={FOOD_CUISINES}

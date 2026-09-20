@@ -12,6 +12,7 @@ import { cn } from '@/lib/utils';
 import { sellerDisplayStatusLabel } from '@/lib/seller-order-board';
 import { ScheduledOrderCountdown } from '@/components/orders/ScheduledOrderCountdown';
 import { isScheduledOrder, isUpcomingScheduled } from '@/lib/scheduled-orders';
+import { formatSellerOrderLocation } from '@/lib/order-glance';
 
 interface OrderItemWithStatus {
   id: string;
@@ -49,6 +50,7 @@ export function SellerOrderCard({ order }: SellerOrderCardProps) {
   const { formatPrice } = useCurrency();
   const buyer = order.buyer;
   const items = order.items || [];
+  const locationLine = formatSellerOrderLocation({ delivery_address: order.delivery_address, buyer });
   const statusInfo = getFlowLabel(order.status);
   const overrideLabel = sellerDisplayStatusLabel(order.status, order.rejection_reason);
   const statusLabel = overrideLabel || statusInfo.label;
@@ -136,9 +138,9 @@ export function SellerOrderCard({ order }: SellerOrderCardProps) {
               </div>
               <div className="min-w-0">
                 <p className="font-medium text-sm truncate">{buyer?.name || 'Customer'}</p>
-                {['delivery', 'seller_delivery'].includes(order.fulfillment_type || '') && (order.delivery_address || buyer?.block) && (
+                {locationLine && (
                   <p className="text-[10px] text-muted-foreground truncate">
-                    {order.delivery_address || [buyer?.phase, buyer?.block, buyer?.flat_number].filter(Boolean).join(' · ')}
+                    {locationLine}
                   </p>
                 )}
               </div>
@@ -159,7 +161,18 @@ export function SellerOrderCard({ order }: SellerOrderCardProps) {
                   <Zap size={10} /> Auto
                 </Badge>
               )}
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1 flex-wrap justify-end">
+                {order.order_type !== 'booking' && (
+                  isScheduledOrder(order) ? (
+                    <Badge variant="outline" className="text-[10px] border-cyan-500/40 text-cyan-700 dark:text-cyan-300 gap-0.5">
+                      <CalendarDays size={10} /> Pre-order
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" className="text-[10px] border-emerald-500/40 text-emerald-700 dark:text-emerald-300 gap-0.5">
+                      <Zap size={10} /> Instant
+                    </Badge>
+                  )
+                )}
                 {['delivery', 'seller_delivery'].includes(order.fulfillment_type || '') ? (
                   <Badge variant="outline" className="text-[10px] border-primary/40 text-primary gap-0.5">
                     <Truck size={10} /> Delivery
@@ -227,7 +240,7 @@ export function SellerOrderCard({ order }: SellerOrderCardProps) {
               {items.slice(0, 3).map((item) => (
                 <div key={item.id} className="flex items-center justify-between text-xs">
                   <span className="text-muted-foreground line-clamp-1 max-w-[65%]">
-                    {item.quantity}x {item.product_name}
+                    {item.product_name} {item.quantity}x
                   </span>
                   <OrderItemStatusBadge status={(item.status || 'pending') as ItemStatus} />
                 </div>

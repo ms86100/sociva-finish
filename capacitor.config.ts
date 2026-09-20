@@ -89,10 +89,13 @@ const config: CapacitorConfig = {
     plistOverrides: {
       ITSAppUsesNonExemptEncryption: false,
       NSLocationWhenInUseUsageDescription: 'Sociva uses your location to verify your residential society membership, show nearby sellers, and share live delivery progress while you keep the app open as a seller.',
+      // ITMS-90683: Capacitor Geolocation links Always APIs, so these keys are required
+      // even though we do not declare UIBackgroundModes location (App Store 2.5.4).
+      NSLocationAlwaysAndWhenInUseUsageDescription: 'Sociva uses your location to verify your residential society membership, show nearby sellers, and share live delivery progress while you keep the app open as a seller.',
+      NSLocationAlwaysUsageDescription: 'Sociva uses your location to verify your residential society membership, show nearby sellers, and share live delivery progress while you keep the app open as a seller.',
       NSCameraUsageDescription: 'Sociva needs camera access to let you photograph products for listing and upload profile pictures.',
       NSPhotoLibraryUsageDescription: 'Sociva needs photo library access to let you select images for product listings and your profile.',
       NSPhotoLibraryAddUsageDescription: 'Sociva needs permission to save images to your photo library.',
-      // No NSLocationAlways* — App Store 2.5.4; delivery tracking is foreground when-in-use only.
       // Motion is optional accuracy assist while the app is open during an active delivery.
       NSMotionUsageDescription: 'Sociva may use motion activity while the app is open to keep live delivery progress accurate and save battery during an active seller delivery.',
       // Calendar — required for @ebarooni/capacitor-calendar (iOS 13–16 + write-only / full on iOS 17+)

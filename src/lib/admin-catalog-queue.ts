@@ -10,9 +10,9 @@ export function isApprovedLiveStore(status: string | null | undefined): boolean 
   return status === 'approved';
 }
 
-/** True when the listing belongs to a store that is not live yet. */
+/** True when the listing belongs to a store currently waiting in Applications. */
 export function isApplicationCatalogItem(sellerVerificationStatus: string | null | undefined): boolean {
-  return !isApprovedLiveStore(sellerVerificationStatus);
+  return sellerVerificationStatus === 'pending';
 }
 
 export function splitPendingCatalogQueue<T extends { seller?: { verification_status?: string | null } | null }>(
@@ -21,8 +21,9 @@ export function splitPendingCatalogQueue<T extends { seller?: { verification_sta
   const standalone: T[] = [];
   const inApplication: T[] = [];
   for (const product of products) {
-    if (isApprovedLiveStore(product.seller?.verification_status)) standalone.push(product);
-    else inApplication.push(product);
+    const status = product.seller?.verification_status;
+    if (isApprovedLiveStore(status)) standalone.push(product);
+    else if (isApplicationCatalogItem(status)) inApplication.push(product);
   }
   return { standalone, inApplication };
 }

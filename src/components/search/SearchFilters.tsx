@@ -29,6 +29,7 @@ interface SearchFiltersProps {
   searchRadius?: number;
   onSearchRadiusChange?: (val: number) => void;
   onSearchRadiusCommit?: (val: number) => void;
+  showDietary?: boolean;
 }
 
 const defaultFilters: FilterState = {
@@ -48,6 +49,7 @@ export function SearchFilters({
   searchRadius,
   onSearchRadiusChange,
   onSearchRadiusCommit,
+  showDietary = false,
 }: SearchFiltersProps) {
   const { configs: allCategories } = useCategoryConfigs();
   const settings = useSystemSettings();
@@ -62,7 +64,7 @@ export function SearchFilters({
 
   const activeFilterCount = [
     filters.minRating > 0,
-    filters.isVeg !== null,
+    showDietary && filters.isVeg !== null,
     filters.categories.length > 0,
     filters.sortBy !== null,
     filters.priceRange[0] > 0 || filters.priceRange[1] < maxPrice,
@@ -198,7 +200,8 @@ export function SearchFilters({
             </div>
           </div>
 
-          {/* Veg / Non-Veg */}
+          {/* Veg / Non-Veg — food listings only */}
+          {showDietary && (
           <div>
             <Label className="text-sm font-semibold">Dietary Preference</Label>
             <div className="flex gap-2 mt-2">
@@ -240,6 +243,7 @@ export function SearchFilters({
               </button>
             </div>
           </div>
+          )}
 
           {/* Rating Filter */}
           <div>

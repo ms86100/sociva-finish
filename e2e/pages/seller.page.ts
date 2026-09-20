@@ -8,16 +8,20 @@ export class SellerPage {
 
   async gotoOrders() {
     const baseURL = process.env.BASE_URL || 'https://sociva.lovable.app';
-    await this.page.goto(`${baseURL}/#/orders`);
+    // URL-driven tab so Received survives back-navigation from order detail
+    await this.page.goto(`${baseURL}/#/orders?tab=selling`);
     await this.page.waitForLoadState('networkidle');
 
-    // Switch to "Selling" / "Received" tab
+    // Fallback click if query param not applied yet
     const sellingTab = this.page.locator(
-      'button:has-text("Selling"), button:has-text("Received"), [data-testid="selling-tab"]'
+      'button:has-text("Selling"), button:has-text("Received"), [role="tab"]:has-text("Received"), [data-testid="selling-tab"]'
     ).first();
     if (await sellingTab.isVisible({ timeout: 5_000 }).catch(() => false)) {
-      await sellingTab.click();
-      await this.page.waitForLoadState('networkidle');
+      const selected = await sellingTab.getAttribute('data-state').catch(() => null);
+      if (selected !== 'active') {
+        await sellingTab.click();
+        await this.page.waitForLoadState('networkidle');
+      }
     }
   }
 

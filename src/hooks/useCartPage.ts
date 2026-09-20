@@ -40,6 +40,7 @@ import { postCheckoutPath } from '@/lib/checkout-groups';
 import { resolveCheckoutGroupId } from '@/hooks/useCheckoutGroup';
 import { isSellerCreditInsufficientError, sellerCreditCustomerNotifyOptions } from '@/lib/sellerCredits';
 import { resolvePlatformDeliveryFee } from '@/lib/delivery-fee';
+import { resolveSellerPackagingFee } from '@/lib/packaging-fee';
 import { toScheduledDateParam } from '@/lib/scheduled-orders';
 // Store status validation now handled server-side in create_multi_vendor_orders RPC
 
@@ -350,12 +351,16 @@ export function useCartPage() {
     baseDeliveryFee: settings.baseDeliveryFee,
     freeDeliveryThreshold: settings.freeDeliveryThreshold,
   });
+  const effectivePackagingFee = sellerGroups.reduce((sum, group) => {
+    const seller = group.items[0]?.product?.seller as any;
+    return sum + resolveSellerPackagingFee(seller?.packaging_fee);
+  }, 0);
   const amountAfterCoupon = appliedCoupon ? Math.max(0, totalAmount - effectiveCouponDiscount) : totalAmount;
   const effectiveLoyaltyDiscount = loyalty.redeemEnabled
     ? Math.min(loyalty.appliedPoints, amountAfterCoupon)
     : 0;
-  // Wallet applies after loyalty to remaining payable (includes delivery) — matches server
-  const payableBeforeWallet = Math.max(0, amountAfterCoupon - effectiveLoyaltyDiscount) + effectiveDeliveryFee;
+  // Wallet applies after loyalty to remaining payable (includes delivery + packaging) — matches server
+  const payableBeforeWallet = Math.max(0, amountAfterCoupon - effectiveLoyaltyDiscount) + effectiveDeliveryFee + effectivePackagingFee;
   const effectiveWalletCredit = Math.min(wallet.appliedAmount, payableBeforeWallet);
   const finalAmount = Math.max(0, payableBeforeWallet - effectiveWalletCredit);
 
@@ -1418,7 +1423,7 @@ export function useCartPage() {
     appliedCoupon, setAppliedCoupon, showConfirmDialog, setShowConfirmDialog,
     fulfillmentType, setFulfillmentType, orderStep,
     settings, formatPrice, currencySymbol,
-    effectiveDeliveryFee, finalAmount, acceptsCod, acceptsUpi, onlineDisabledReason,
+    effectiveDeliveryFee, effectivePackagingFee, finalAmount, acceptsCod, acceptsUpi, onlineDisabledReason,
     hasUrgentItem, itemCount, maxPrepTime,
     effectiveCouponDiscount, effectiveLoyaltyDiscount, loyalty,
     effectiveWalletCredit, payableBeforeWallet, wallet,

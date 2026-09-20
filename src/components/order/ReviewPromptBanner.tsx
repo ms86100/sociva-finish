@@ -7,6 +7,11 @@ import { Star, X } from 'lucide-react';
 import { ReviewForm } from '@/components/review/ReviewForm';
 import { slideUp } from '@/lib/motion-variants';
 import { displaySellerStoreName } from '@/lib/seller-journey';
+import {
+  isReviewOrderLocallyDismissed,
+  readDismissedReviewOrderIds,
+  rememberDismissedReviewOrderId,
+} from '@/lib/review-prompt-dismiss';
 
 export function ReviewPromptBanner() {
   const { user } = useAuth();
@@ -15,16 +20,26 @@ export function ReviewPromptBanner() {
   const { data: prompts } = useQuery({
     queryKey: ['review-prompts', user?.id],
     queryFn: async () => {
+      const localDismissed = typeof window !== 'undefined'
+        ? [...readDismissedReviewOrderIds()]
+        : [];
+
       // Try smart prompts first (time-delayed)
       const { data, error } = await supabase.rpc('get_pending_review_prompts');
       if (!error && data && (data as any[]).length > 0) {
-        // Mark as shown
-        const ids = (data as any[]).map((p: any) => p.id);
-        await supabase
-          .from('review_prompts')
-          .update({ status: 'shown' } as any)
-          .in('id', ids);
-        return data as any[];
+        const filtered = (data as any[]).filter(
+          (p) => p?.order_id && !isReviewOrderLocallyDismissed(p.order_id),
+        );
+        if (filtered.length > 0) {
+          const ids = filtered.map((p: any) => p.id).filter(Boolean);
+          if (ids.length > 0) {
+            await supabase
+              .from('review_prompts')
+              .update({ status: 'shown' } as any)
+              .in('id', ids);
+          }
+          return filtered;
+        }
       }
 
       // Fallback: check for any unreviewed delivered orders
@@ -34,19 +49,34 @@ export function ReviewPromptBanner() {
         .eq('buyer_id', user!.id)
         .in('status', ['delivered', 'completed'] as any)
         .order('created_at', { ascending: false })
-        .limit(3);
+        .limit(5);
 
       if (!orders || orders.length === 0) return null;
 
       const orderIds = orders.map(o => o.id);
-      const { data: reviews } = await supabase
-        .from('reviews')
-        .select('order_id')
-        .eq('buyer_id', user!.id)
-        .in('order_id', orderIds);
+      const [{ data: reviews }, { data: dismissedPrompts }] = await Promise.all([
+        supabase
+          .from('reviews')
+          .select('order_id')
+          .eq('buyer_id', user!.id)
+          .in('order_id', orderIds),
+        supabase
+          .from('review_prompts')
+          .select('order_id, status')
+          .eq('buyer_id', user!.id)
+          .in('order_id', orderIds)
+          .in('status', ['dismissed', 'completed', 'expired'] as any),
+      ]);
 
       const reviewedSet = new Set((reviews || []).map(r => r.order_id));
-      const unreviewed = orders.find(o => !reviewedSet.has(o.id));
+      const dismissedSet = new Set([
+        ...localDismissed,
+        ...((dismissedPrompts || []).map((p: any) => p.order_id)),
+      ]);
+
+      const unreviewed = orders.find(
+        (o) => !reviewedSet.has(o.id) && !dismissedSet.has(o.id),
+      );
       if (!unreviewed) return null;
 
       return [{
@@ -60,14 +90,34 @@ export function ReviewPromptBanner() {
     staleTime: 5 * 60_000,
   });
 
-  const handleDismiss = async (promptId: string | null) => {
-    if (promptId) {
-      await supabase
-        .from('review_prompts')
-        .update({ status: 'dismissed' } as any)
-        .eq('id', promptId);
+  const handleDismiss = async (promptId: string | null, orderId: string) => {
+    // Optimistic hide
+    queryClient.setQueryData(['review-prompts', user?.id], () => null);
+    if (orderId) rememberDismissedReviewOrderId(orderId);
+
+    try {
+      if (promptId) {
+        await supabase
+          .from('review_prompts')
+          .update({ status: 'dismissed', updated_at: new Date().toISOString() } as any)
+          .eq('id', promptId);
+      } else if (orderId) {
+        // SECURITY DEFINER upsert — works even when no prompt row exists yet
+        const { error } = await supabase.rpc('dismiss_review_prompt_for_order', {
+          _order_id: orderId,
+        });
+        if (error) {
+          // Fallback: try update existing row by order_id
+          await supabase
+            .from('review_prompts')
+            .update({ status: 'dismissed', updated_at: new Date().toISOString() } as any)
+            .eq('order_id', orderId)
+            .eq('buyer_id', user!.id);
+        }
+      }
+    } finally {
+      queryClient.invalidateQueries({ queryKey: ['review-prompts'] });
     }
-    queryClient.invalidateQueries({ queryKey: ['review-prompts'] });
   };
 
   const handleReviewSuccess = () => {
@@ -107,7 +157,8 @@ export function ReviewPromptBanner() {
               onSuccess={handleReviewSuccess}
             />
             <button
-              onClick={() => handleDismiss(prompt.id)}
+              type="button"
+              onClick={() => handleDismiss(prompt.id, prompt.order_id)}
               className="p-1.5 rounded-full hover:bg-muted transition-colors"
               aria-label="Dismiss"
             >

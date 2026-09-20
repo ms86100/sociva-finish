@@ -10,6 +10,7 @@ interface OrderTotalsCardProps {
   total: number;
   discount?: number;
   deliveryFee?: number;
+  packagingFee?: number;
   isDeliveryOrder: boolean;
   isEnquiryOrder?: boolean;
   savings?: number;
@@ -21,6 +22,7 @@ export function OrderTotalsCard({
   total,
   discount = 0,
   deliveryFee = 0,
+  packagingFee = 0,
   isDeliveryOrder,
   isEnquiryOrder = false,
   savings = 0,
@@ -79,6 +81,13 @@ export function OrderTotalsCard({
               ) : (
                 <span className="text-muted-foreground text-xs">Self pickup</span>
               )}
+            </div>
+          )}
+
+          {!isEnquiryOrder && packagingFee > 0 && (
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Packaging</span>
+              <span className="tabular-nums font-medium">{formatPrice(packagingFee)}</span>
             </div>
           )}
         </div>

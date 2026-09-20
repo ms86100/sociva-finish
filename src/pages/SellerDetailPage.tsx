@@ -36,8 +36,9 @@ import { useCart } from '@/hooks/useCart';
 import { useAuth } from '@/contexts/AuthContext';
 import { SellerProfile, Product, DAYS_OF_WEEK } from '@/types/Database';
 import { useCategoryConfigs } from '@/hooks/useCategoryBehavior';
-import { Clock, MapPin, Search, ShoppingCart, Calendar, Flag, X, ShieldCheck, AlertCircle, ChevronDown } from 'lucide-react';
-import { shortStorePlaceLabel } from '@/lib/location-label-resolver';
+import { Clock, Search, ShoppingCart, Calendar, Flag, X, ShieldCheck, AlertCircle, ChevronDown } from 'lucide-react';
+import { fullStorePlaceLine, shortStorePlaceLabel } from '@/lib/location-label-resolver';
+import { SellerLocationLine } from '@/components/location/SellerLocationLine';
 import { BackButton } from '@/components/navigation/BackButton';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -599,44 +600,24 @@ export default function SellerDetailPage() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2 text-[13px] text-muted-foreground min-w-0">
+          <div className="flex items-start gap-2 text-[13px] text-muted-foreground min-w-0">
             {(() => {
               const lat = (seller as any).latitude ?? (seller as any).society?.latitude;
               const lng = (seller as any).longitude ?? (seller as any).society?.longitude;
-              if (!lat || !lng) {
-                return (
-                  <span className="truncate min-w-0 flex items-center gap-1">
-                    <MapPin size={13} className="text-primary shrink-0" />
-                    {place.short}
-                  </span>
-                );
-              }
-              const openMaps = async (e: React.MouseEvent) => {
-                e.preventDefault();
-                e.stopPropagation();
-                const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
-                try {
-                  const { Capacitor } = await import('@capacitor/core');
-                  if (Capacitor.isNativePlatform()) {
-                    const { Browser } = await import('@capacitor/browser');
-                    await Browser.open({ url: mapsUrl });
-                    return;
-                  }
-                } catch {
-                  // Fall back to opening the maps URL in a browser.
-                }
-                window.open(mapsUrl, '_blank', 'noopener');
-              };
+              const locationLine = fullStorePlaceLine({
+                societyName: (seller as any).society?.name,
+                storeLocationLabel: (seller as any).store_location_label,
+                societyAddress: (seller as any).society?.address,
+              }) || place.short;
+              const mapsUrl = lat && lng ? `https://www.google.com/maps/search/?api=1&query=${lat},${lng}` : null;
               return (
-                <button
-                  type="button"
-                  onClick={openMaps}
-                  className="truncate min-w-0 flex items-center gap-1 hover:text-primary transition-colors text-left"
-                  title="Open in maps"
-                >
-                  <MapPin size={13} className="text-primary shrink-0" />
-                  <span className="truncate">{place.short}</span>
-                </button>
+                <SellerLocationLine
+                  text={locationLine}
+                  mapsUrl={mapsUrl}
+                  iconSize={13}
+                  className="flex-1"
+                  textClassName="text-[13px]"
+                />
               );
             })()}
             {distanceKm !== null && (
@@ -873,7 +854,7 @@ export default function SellerDetailPage() {
             product_name: sp.name,
             price: sp.price,
             image_url: sp.image_url,
-            is_veg: sp.is_veg ?? true,
+            is_veg: sp.is_veg,
             category: sp.category,
             description: sp.description || null,
             seller_id: sp.seller_id,

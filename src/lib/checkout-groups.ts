@@ -5,6 +5,7 @@
 
 import { firstEmbed } from '@/lib/supabase-embed';
 import { compareIsoAsc, compareIsoDesc } from '@/lib/relative-time';
+import { compareOrdersByListPriority } from '@/lib/order-list-priority';
 
 export type CheckoutChildOrder = {
   id: string;
@@ -158,7 +159,10 @@ function pushGroupOrSingle(
  * Prefers checkout_group_id; falls back to idempotency_key prefix for soft-linked history.
  * Skips malformed rows and never throws on mixed/partial sibling status updates.
  */
-export function groupBuyerOrdersForList(orders: CheckoutChildOrder[] | null | undefined): BuyerCheckoutListItem[] {
+export function groupBuyerOrdersForList(
+  orders: CheckoutChildOrder[] | null | undefined,
+  priority?: { successSet: Set<string>; terminalSet: Set<string> },
+): BuyerCheckoutListItem[] {
   const byGroup = new Map<string, CheckoutChildOrder[]>();
   const singles: CheckoutChildOrder[] = [];
   const softBuckets = new Map<string, CheckoutChildOrder[]>();
@@ -197,6 +201,27 @@ export function groupBuyerOrdersForList(orders: CheckoutChildOrder[] | null | un
   }
 
   items.sort((a, b) => {
+    if (priority) {
+      const aRep = a.kind === 'single' ? a.order : a.orders[0];
+      const bRep = b.kind === 'single' ? b.order : b.orders[0];
+      // For groups, use the highest-priority (most urgent) child
+      const aOrder = a.kind === 'group'
+        ? [...a.orders].sort((x, y) =>
+            compareOrdersByListPriority(x, y, priority.successSet, priority.terminalSet),
+          )[0]
+        : aRep;
+      const bOrder = b.kind === 'group'
+        ? [...b.orders].sort((x, y) =>
+            compareOrdersByListPriority(x, y, priority.successSet, priority.terminalSet),
+          )[0]
+        : bRep;
+      return compareOrdersByListPriority(
+        aOrder,
+        bOrder,
+        priority.successSet,
+        priority.terminalSet,
+      );
+    }
     const aTs = a.kind === 'single' ? a.order.created_at : a.createdAt;
     const bTs = b.kind === 'single' ? b.order.created_at : b.createdAt;
     return compareIsoDesc(aTs, bTs);

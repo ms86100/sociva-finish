@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCart } from '@/hooks/useCart';
-import { useSellerTrustSnapshot } from '@/hooks/queries/useProductTrustMetrics';
+import { useProductTrustMetrics, useSellerTrustSnapshot } from '@/hooks/queries/useProductTrustMetrics';
 import { ProductActionType } from '@/types/Database';
 import { ACTION_CONFIG, deriveActionType } from '@/lib/marketplace-constants';
 import { useCategoryConfig } from '@/hooks/queries/useCategoryConfig';
@@ -34,6 +34,8 @@ export interface ProductDetail {
   seller_rating: number;
   seller_reviews: number;
   society_name: string | null;
+  store_location_label?: string | null;
+  society_address?: string | null;
   distance_km: number | null;
   is_same_society: boolean;
 }
@@ -44,6 +46,8 @@ export function useProductDetail(product: ProductDetail | null, open: boolean, o
   const { browsingLocation } = useBrowsingLocation();
   const { items, addItem, updateQuantity } = useCart();
   const { data: trustSnapshot } = useSellerTrustSnapshot(product?.seller_id || null);
+  const { data: productTrustMap } = useProductTrustMetrics(product?.product_id ? [product.product_id] : []);
+  const productTrust = product?.product_id ? productTrustMap?.[product.product_id] || null : null;
   const [contactOpen, setContactOpen] = useState(false);
   const [enquiryOpen, setEnquiryOpen] = useState(false);
   const [showDetails, setShowDetails] = useState(true);
@@ -51,6 +55,11 @@ export function useProductDetail(product: ProductDetail | null, open: boolean, o
   const [descExpanded, setDescExpanded] = useState(false);
   const [similarProducts, setSimilarProducts] = useState<any[]>([]);
   const [loadedSpecs, setLoadedSpecs] = useState<Record<string, any> | null>(null);
+  const [sellerLocationExtras, setSellerLocationExtras] = useState<{
+    store_location_label: string | null;
+    society_address: string | null;
+    society_name: string | null;
+  } | null>(null);
   const [canonicalStockQty, setCanonicalStockQty] = useState<number | null>(null);
   const [canonicalIsAvailable, setCanonicalIsAvailable] = useState(true);
   const { formatPrice } = useCurrency();
@@ -58,12 +67,13 @@ export function useProductDetail(product: ProductDetail | null, open: boolean, o
   useEffect(() => {
     if (!product || !open) return;
     setLoadedSpecs(null);
+    setSellerLocationExtras(null);
     setCanonicalStockQty(null);
     setCanonicalIsAvailable(true);
 
     const fetchData = async () => {
       const [productRes, similarRes] = await Promise.all([
-        supabase.from('products').select('specifications, stock_quantity, is_available').eq('id', product.product_id).maybeSingle(),
+        supabase.from('products').select('specifications, stock_quantity, is_available, seller:seller_profiles!products_seller_id_fkey(store_location_label, latitude, longitude, society:societies(name, address))').eq('id', product.product_id).maybeSingle(),
         supabase.from('products')
           // action_type + category required so similar tap keeps Contact Seller (not default add_to_cart)
           .select('id, name, price, image_url, is_veg, seller_id, stock_quantity, category, description, action_type, seller:seller_profiles!products_seller_id_fkey(business_name, society_id)')
@@ -72,6 +82,12 @@ export function useProductDetail(product: ProductDetail | null, open: boolean, o
           .neq('id', product.product_id).limit(6),
       ]);
       setLoadedSpecs(productRes.data?.specifications as Record<string, any> | null);
+      const sellerJoin = (productRes.data as any)?.seller;
+      setSellerLocationExtras({
+        store_location_label: sellerJoin?.store_location_label ?? null,
+        society_address: sellerJoin?.society?.address ?? null,
+        society_name: sellerJoin?.society?.name ?? null,
+      });
       setCanonicalStockQty(productRes.data?.stock_quantity ?? null);
       setCanonicalIsAvailable(productRes.data?.is_available ?? true);
       const similar = similarRes.data || [];
@@ -125,7 +141,7 @@ export function useProductDetail(product: ProductDetail | null, open: boolean, o
     await addItem({
       id: product.product_id, seller_id: product.seller_id,
       name: product.product_name, price: product.price,
-      image_url: product.image_url, is_veg: product.is_veg ?? true,
+      image_url: product.image_url, is_veg: product.is_veg,
       is_available: true, category: product.category as any,
       description: product.description || null,
       is_bestseller: false, is_recommended: false, is_urgent: false,
@@ -141,7 +157,7 @@ export function useProductDetail(product: ProductDetail | null, open: boolean, o
   const viewAllLabel = isCartAction ? 'View Full Menu →' : 'View All Listings →';
 
   return {
-    trustSnapshot, contactOpen, setContactOpen, enquiryOpen, setEnquiryOpen,
+    trustSnapshot, productTrust, sellerLocationExtras, contactOpen, setContactOpen, enquiryOpen, setEnquiryOpen,
     showDetails, setShowDetails, reportOpen, setReportOpen, descExpanded, setDescExpanded,
     similarProducts, loadedSpecs, formatPrice,
     actionType, config, isCartAction, cartItem, quantity, stockLimit, canIncrement,

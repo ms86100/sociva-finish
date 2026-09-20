@@ -87,6 +87,25 @@ export function shortStorePlaceLabel(input: {
   return { short: short || 'View on map', full: full !== short ? full : undefined };
 }
 
+/** Full wrapping line for product detail: society + extra address parts + optional distance. */
+export function fullStorePlaceLine(input: {
+  societyName?: string | null;
+  storeLocationLabel?: string | null;
+  societyAddress?: string | null;
+  distanceLabel?: string | null;
+}): string | null {
+  const place = shortStorePlaceLabel(input);
+  const parts: string[] = [];
+  if (place.short && place.short !== 'View on map') parts.push(place.short);
+  if (place.full) parts.push(place.full);
+  const unique = parts.filter((part, idx) =>
+    parts.findIndex((p) => p.toLowerCase() === part.toLowerCase()) === idx,
+  );
+  if (input.distanceLabel) unique.push(input.distanceLabel);
+  if (unique.length > 0) return unique.join(' · ');
+  return null;
+}
+
 /**
  * Formats a location label (and optional full address) into primary (bold title)
  * and secondary (subtext) fields suitable for the top navigation and address cards.

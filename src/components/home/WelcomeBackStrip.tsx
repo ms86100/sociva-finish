@@ -59,7 +59,7 @@ export function WelcomeBackStrip() {
         if (!p?.is_available) continue;
         await addItem({
           id: p.id, seller_id: p.seller_id, name: p.name, price: p.price,
-          image_url: p.image_url, category: p.category, is_veg: p.is_veg ?? true,
+          image_url: p.image_url, category: p.category, is_veg: p.is_veg,
           is_available: true, is_bestseller: false, is_recommended: false,
           is_urgent: false, description: null, created_at: '', updated_at: '',
         });

@@ -8,6 +8,7 @@ export interface CommerceFacetState {
   meal?: string | null;
   course?: string | null;
   veg?: boolean;
+  nonVeg?: boolean;
   // General facets
   openNow?: boolean;
   actionType?: 'add_to_cart' | 'book' | 'request_quote' | 'contact_seller' | string | null;
@@ -23,6 +24,7 @@ export function emptyCommerceFacetState(): CommerceFacetState {
     meal: null,
     course: null,
     veg: false,
+    nonVeg: false,
     openNow: false,
     actionType: null,
     serviceMode: null,
@@ -38,6 +40,7 @@ export function hasActiveCommerceFacets(state: CommerceFacetState): boolean {
     state.meal ||
     state.course ||
     state.veg ||
+    state.nonVeg ||
     state.openNow ||
     state.actionType ||
     state.serviceMode ||
@@ -53,6 +56,7 @@ export function countActiveCommerceFacets(state: CommerceFacetState): number {
   if (state.meal) count++;
   if (state.course) count++;
   if (state.veg) count++;
+  if (state.nonVeg) count++;
   if (state.openNow) count++;
   if (state.actionType) count++;
   if (state.serviceMode) count++;
@@ -134,6 +138,10 @@ export function productMatchesCommerceFacets(
   }
 
   if (state.veg && product.is_veg !== true) {
+    return false;
+  }
+
+  if (state.nonVeg && product.is_veg !== false) {
     return false;
   }
 
