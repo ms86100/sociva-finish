@@ -3,13 +3,17 @@ import { forwardRef } from 'react';
 import { cn } from '@/lib/utils';
 
 interface VegBadgeProps {
-  isVeg: boolean;
+  /** Only true/false render a badge. null/undefined = no dietary flag (non-food). */
+  isVeg: boolean | null | undefined;
   size?: 'sm' | 'md' | 'lg';
   className?: string;
 }
 
 export const VegBadge = forwardRef<HTMLDivElement, VegBadgeProps>(
   function VegBadge({ isVeg, size = 'md', className }, ref) {
+    // Null/undefined must not render as Non-Veg (falsy previously showed red non-veg).
+    if (isVeg !== true && isVeg !== false) return null;
+
     const sizeClasses = {
       sm: 'w-3 h-3 border',
       md: 'w-4 h-4 border-[1.5px]',

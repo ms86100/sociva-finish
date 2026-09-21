@@ -156,7 +156,9 @@ export function ProductCard({ product, variant = 'horizontal', onTap }: ProductC
         </div>
         <CardContent className="p-3">
           <div className="flex items-start gap-2">
-            <VegBadge isVeg={product.is_veg} size="sm" className="mt-1" />
+            {(product.is_veg === true || product.is_veg === false) ? (
+              <VegBadge isVeg={product.is_veg} size="sm" className="mt-1" />
+            ) : null}
             <div className="flex-1 min-w-0">
               <h4 className="font-semibold text-sm line-clamp-2 leading-snug">{product.name}</h4>
               <div className="flex items-baseline gap-1.5 mt-1.5 flex-wrap">
@@ -205,7 +207,9 @@ export function ProductCard({ product, variant = 'horizontal', onTap }: ProductC
     <div className={cn('flex gap-3 py-3.5 border-b border-border/70 last:border-0', isStoreClosed && 'opacity-60')}>
       <div className="flex-1 min-w-0">
         <div className="flex items-start gap-2">
-          <VegBadge isVeg={product.is_veg} size="sm" className="mt-0.5" />
+          {(product.is_veg === true || product.is_veg === false) ? (
+            <VegBadge isVeg={product.is_veg} size="sm" className="mt-0.5" />
+          ) : null}
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <h4 className="font-semibold text-[14px] leading-snug line-clamp-2">{product.name}</h4>

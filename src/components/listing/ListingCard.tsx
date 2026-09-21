@@ -244,7 +244,7 @@ export function ListingCard({
     <div className="flex gap-3 p-3.5 border-b border-border/70 last:border-0">
       <div className="flex-1 min-w-0">
         <div className="flex items-start gap-2">
-          {listing.is_veg !== undefined && <VegBadge isVeg={listing.is_veg} size="sm" />}
+          {listing.is_veg === true || listing.is_veg === false ? <VegBadge isVeg={listing.is_veg} size="sm" /> : null}
           <div className="flex-1 min-w-0">
             {renderBadges()}
             <h4 className="font-semibold leading-snug line-clamp-2 text-[14px]">{listing.name}</h4>

@@ -159,7 +159,11 @@ export default function SellerProductsPage({
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start gap-2 flex-wrap">
-                        {(() => { const c = sp.configs.find(c => c.category === product.category); return (c?.formHints.showVegToggle ?? false) && <VegBadge isVeg={product.is_veg} size="sm" />; })()}
+                        {(() => {
+                          const c = sp.configs.find(c => c.category === product.category);
+                          const show = (c?.formHints.showVegToggle ?? false) && (product.is_veg === true || product.is_veg === false);
+                          return show ? <VegBadge isVeg={product.is_veg} size="sm" /> : null;
+                        })()}
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2 flex-wrap">
                             <h3 className="font-medium truncate">{product.name}</h3>
