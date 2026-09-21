@@ -4,6 +4,7 @@ import { Eye, X, Clock } from 'lucide-react';
 import { ProductListingCard, ProductWithSeller } from '@/components/product/ProductListingCard';
 import { ProductAttributeBlocks } from '@/components/product/ProductAttributeBlocks';
 import { VegBadge } from '@/components/ui/veg-badge';
+import { shouldShowVegBadge } from '@/lib/food-facets';
 import { Button } from '@/components/ui/button';
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '@/components/ui/drawer';
 import { useCategoryConfigs } from '@/hooks/useCategoryBehavior';
@@ -72,6 +73,13 @@ function ProductDetailPreview({
   pageHint?: string;
 }) {
   const { formatPrice } = useCurrency();
+  const { configs } = useCategoryConfigs();
+  const previewCfg = configs.find((c: any) => c.category === formData.category);
+  const showVeg = shouldShowVegBadge(formData.is_veg, {
+    parentGroup: previewCfg?.parentGroup,
+    showVegToggle: previewCfg?.formHints?.showVegToggle,
+    category: formData.category,
+  });
   const price = parseFloat(formData.price) || 0;
   const mrp = formData.mrp ? parseFloat(formData.mrp) : null;
   const name = formData.name.trim() || fallbackName;
@@ -113,7 +121,7 @@ function ProductDetailPreview({
             )}
 
             <div className="flex items-start gap-2">
-              {formData.is_veg !== undefined && <VegBadge isVeg={formData.is_veg} size="sm" className="mt-1" />}
+              {showVeg ? <VegBadge isVeg={formData.is_veg} size="sm" className="mt-1" /> : null}
               <h2 className="font-bold text-lg leading-tight text-foreground">{name}</h2>
             </div>
 

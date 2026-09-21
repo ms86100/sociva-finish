@@ -8,6 +8,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '@/components/ui/drawer';
 import { Button } from '@/components/ui/button';
 import { VegBadge } from '@/components/ui/veg-badge';
+import { shouldShowVegBadge } from '@/lib/food-facets';
 import { Badge } from '@/components/ui/badge';
 import { ContactSellerModal } from './ContactSellerModal';
 import { DynamicIcon } from '@/components/ui/DynamicIcon';
@@ -24,6 +25,7 @@ import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvid
 import { ProductFavoriteButton } from '@/components/favorite/ProductFavoriteButton';
 import { useProductFavorites } from '@/hooks/useProductFavorites';
 import { useProductDetail, ProductDetail } from '@/hooks/useProductDetail';
+import { useCategoryConfig } from '@/hooks/queries/useCategoryConfig';
 import { hapticImpact, hapticSelection } from '@/lib/haptics';
 import { formatDistanceToNowStrict } from 'date-fns';
 import { useMarketplaceLabels } from '@/hooks/useMarketplaceLabels';
@@ -75,6 +77,13 @@ export function usesServiceBookingFlow(actionType: string | null | undefined): b
 export function ProductDetailSheet({ product, open, onOpenChange, onSelectProduct, categoryIcon, categoryName }: ProductDetailSheetProps) {
   const { user } = useAuth();
   const d = useProductDetail(product, open, onOpenChange);
+  const { data: categoryConfigs } = useCategoryConfig();
+  const sheetCatCfg = categoryConfigs?.find((c: any) => c.category === product?.category);
+  const showVeg = shouldShowVegBadge(product?.is_veg, {
+    parentGroup: sheetCatCfg?.parentGroup,
+    showVegToggle: sheetCatCfg?.formHints?.showVegToggle,
+    category: product?.category,
+  });
   const ml = useMarketplaceLabels();
   const [bookingOpen, setBookingOpen] = useState(false);
   const [selectedExtras, setSelectedExtras] = useState<SelectedExtra[]>([]);
@@ -225,7 +234,7 @@ export function ProductDetailSheet({ product, open, onOpenChange, onSelectProduc
                 )}
               </motion.div>
               <motion.div variants={fadeSlideUp} className="flex items-start gap-2">
-                {product.is_veg === true || product.is_veg === false ? <VegBadge isVeg={product.is_veg} size="sm" className="mt-1" /> : null}
+                {showVeg ? <VegBadge isVeg={product.is_veg} size="sm" className="mt-1" /> : null}
                 <div className="flex-1 min-w-0">
                   <h2 className="font-bold text-lg leading-tight text-foreground">{product.product_name}</h2>
                   {categoryName && <span className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">{categoryIcon && <DynamicIcon name={categoryIcon} size={14} />}{categoryName}</span>}

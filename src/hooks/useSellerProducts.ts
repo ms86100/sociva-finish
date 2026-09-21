@@ -586,7 +586,9 @@ export function useSellerProducts(opts?: {
         price: isNaN(price) ? 0 : price, mrp: (mrp && !isNaN(mrp) && mrp > 0) ? mrp : null,
         prep_time_minutes: prepTime,
         category: placedCategory,
-        is_veg: isFoodParentGroup(activeCategoryConfig?.parentGroup) ? formData.is_veg : (formData.is_veg ?? true),
+        is_veg: (isFoodParentGroup(activeCategoryConfig?.parentGroup) || activeCategoryConfig?.layoutType === 'food')
+          ? formData.is_veg
+          : null,
         is_bestseller: formData.is_bestseller, is_recommended: formData.is_recommended, is_urgent: formData.is_urgent,
         image_url: formData.image_url, action_type: effectiveActionType, contact_phone: formData.contact_phone.trim() || null,
         stock_quantity: (stockQty !== null && !isNaN(stockQty) && stockQty >= 0) ? stockQty : null,

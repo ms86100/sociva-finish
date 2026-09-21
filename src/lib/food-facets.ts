@@ -61,6 +61,17 @@ export function isFoodListingCategory(
   return isFoodParentGroup(parentGroup) || isFoodParentGroup(category);
 }
 
+/** Veg / Non-Veg UI only for food listings with an explicit boolean flag. */
+export function shouldShowVegBadge(
+  isVeg: boolean | null | undefined,
+  opts?: { parentGroup?: string | null; showVegToggle?: boolean | null; category?: string | null },
+): boolean {
+  if (isVeg !== true && isVeg !== false) return false;
+  if (opts?.category === 'pet_food') return false;
+  if (opts?.showVegToggle === true) return true;
+  return isFoodListingCategory(opts?.parentGroup, opts?.category);
+}
+
 export function emptyFoodFacets(): FoodFacets {
   return { cuisine: null, meal: null, course: null };
 }

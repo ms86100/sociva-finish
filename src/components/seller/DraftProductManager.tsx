@@ -524,7 +524,7 @@ export function DraftProductManager({
         mrp: newProduct.mrp && newProduct.mrp > 0 ? newProduct.mrp : null,
         description: newProduct.description.trim() || null,
         category: placement.category || newProduct.category,
-        is_veg: showFoodFacetEditor ? newProduct.is_veg : (newProduct.is_veg ?? true),
+        is_veg: showFoodFacetEditor ? newProduct.is_veg : null,
         image_url: newProduct.image_url.trim() || null,
         is_available: true,
         approval_status: resolvedApprovalStatus,

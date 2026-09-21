@@ -7,6 +7,7 @@ import { AppLayout } from '@/components/layout/AppLayout';
 import { SafeHeader } from '@/components/layout/SafeHeader';
 import { Button } from '@/components/ui/button';
 import { VegBadge } from '@/components/ui/veg-badge';
+import { shouldShowVegBadge } from '@/lib/food-facets';
 import { Textarea } from '@/components/ui/textarea';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
@@ -28,10 +29,12 @@ import { PreciseLocationRequiredCard } from '@/components/location/PreciseLocati
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
 import { useCartPage } from '@/hooks/useCartPage';
+import { useCategoryConfig } from '@/hooks/queries/useCategoryConfig';
 
 export default function CartPage() {
   const c = useCartPage();
   const navigate = useNavigate();
+  const { data: categoryConfigs } = useCategoryConfig();
   const [showReviewSheet, setShowReviewSheet] = useState(false);
   const [justCleared, setJustCleared] = useState(false);
   useBlockPullToRefresh(
@@ -223,7 +226,14 @@ export default function CartPage() {
                     <div className="flex-1 min-w-0">
                       {item.product ? (<>
                         <div className="flex items-center gap-1.5">
-                          <VegBadge isVeg={item.product.is_veg ?? true} size="sm" />
+                          {(() => {
+                            const cfg = categoryConfigs?.find((x: any) => x.category === item.product.category);
+                            return shouldShowVegBadge(item.product.is_veg, {
+                              parentGroup: cfg?.parentGroup,
+                              showVegToggle: cfg?.formHints?.showVegToggle,
+                              category: item.product.category,
+                            }) ? <VegBadge isVeg={item.product.is_veg} size="sm" /> : null;
+                          })()}
                           <h4 className="text-sm font-medium truncate">{item.product.name}</h4>
                           {(item.product as any)?.accepts_preorders && (
                             <span className="shrink-0 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-accent/15 text-accent text-[10px] font-semibold"><Clock size={9} />Pre-order</span>

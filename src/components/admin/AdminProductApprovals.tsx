@@ -15,6 +15,8 @@ import { ProductEditDiff } from '@/components/admin/ProductEditDiff';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { splitPendingCatalogQueue } from '@/lib/admin-catalog-queue';
+import { shouldShowVegBadge } from '@/lib/food-facets';
+import { useCategoryConfig } from '@/hooks/queries/useCategoryConfig';
 
 interface PendingProduct {
   id: string;
@@ -41,6 +43,7 @@ interface AdminProductApprovalsProps {
 
 export function AdminProductApprovals({ onSwitchToApplications }: AdminProductApprovalsProps) {
   const { formatPrice } = useCurrency();
+  const { data: categoryConfigs } = useCategoryConfig();
   const [products, setProducts] = useState<PendingProduct[]>([]);
   const [pendingApplicationProductCount, setPendingApplicationProductCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
@@ -223,11 +226,18 @@ export function AdminProductApprovals({ onSwitchToApplications }: AdminProductAp
                     <div className="flex items-center gap-2 flex-wrap">
                       <h4 className="font-bold text-sm truncate">{product.name}</h4>
                       <Badge variant="outline" className="text-[10px] rounded-md">{product.category}</Badge>
-                      {product.is_veg && (
+                      {(() => {
+                        const cfg = categoryConfigs?.find((x: any) => x.category === product.category);
+                        return shouldShowVegBadge(product.is_veg, {
+                          parentGroup: cfg?.parentGroup,
+                          showVegToggle: cfg?.formHints?.showVegToggle,
+                          category: product.category,
+                        }) ? (
                         <span className="text-[9px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-md">
-                          Veg
+                          {product.is_veg ? 'Veg' : 'Non-Veg'}
                         </span>
-                      )}
+                        ) : null;
+                      })()}
                     </div>
                     <p className="text-sm font-extrabold text-primary mt-0.5">{formatPrice(product.price)}</p>
                     {product.seller && (
