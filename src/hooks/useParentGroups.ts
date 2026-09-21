@@ -47,6 +47,9 @@ export const LEGACY_PARENT_GROUP_SLUGS = new Set([
 export const HIDDEN_PARENT_GROUP_SLUGS = new Set([
   'test',
   'hello_section',
+  // Superseded by dedicated `clothing` parent — keep hidden even if stale bootstrap
+  // still maps apparel products to the old resale slug.
+  'resale',
 ]);
 
 function isPickerVisibleGroup(g: ParentGroupRow): boolean {
