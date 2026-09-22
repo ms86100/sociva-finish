@@ -11,11 +11,16 @@ import { LiveActivityManager } from '@/services/LiveActivityManager';
 import { getTerminalStatuses } from '@/services/statusFlowCache';
 import { pickNotificationRoute } from '@/lib/notification-routes';
 import { setPendingDeepLink } from '@/hooks/useDeepLinks';
+import {
+  mapPushReceiveToNotificationState,
+  stampDeviceTokenInstallation,
+  syncInstallationPermissions,
+} from '@/lib/installation';
 
 /**
  * BUILD FINGERPRINT — bump on every push-related update.
  */
-export const PUSH_BUILD_ID = '2026-08-07-LOCAL-NOTIF-PHASE234';
+export const PUSH_BUILD_ID = '2026-09-22-INSTALLATION-LIFECYCLE-P1';
 
 type RegistrationState = 'idle' | 'registering' | 'registered' | 'failed';
 
@@ -127,6 +132,15 @@ export function usePushNotificationsInternal() {
         }
       }
 
+      // Analytics join only — delivery still uses device_tokens + claim_device_token
+      await stampDeviceTokenInstallation(fcmToken);
+      await syncInstallationPermissions({
+        notificationPermission: 'enabled',
+        pushToken: fcmToken,
+        apnsToken: apnsToken ?? null,
+        claimUser: true,
+      });
+
       await flushPushLogs();
     } catch (e) {
       pushLog('error', 'SAVE_TOKEN_EXCEPTION', { error: String(e) });
@@ -166,6 +180,11 @@ export function usePushNotificationsInternal() {
 
       setPermissionStatus(perm);
       pushLog('info', 'PERMISSION_CHECK', { status: perm });
+      // Lifecycle sync — independent of whether a delivery token exists
+      void syncInstallationPermissions({
+        notificationPermission: mapPushReceiveToNotificationState(perm),
+        claimUser: !!userRef.current?.id,
+      });
 
       if (perm !== 'granted') {
         pushLog('info', 'PERMISSION_NOT_GRANTED_SKIP', { status: perm });
@@ -214,6 +233,10 @@ export function usePushNotificationsInternal() {
       const perm = result.receive as 'granted' | 'denied' | 'prompt';
       setPermissionStatus(perm);
       pushLog('info', 'PERMISSION_RESULT', { status: perm });
+      void syncInstallationPermissions({
+        notificationPermission: mapPushReceiveToNotificationState(perm),
+        claimUser: !!userRef.current?.id,
+      });
 
       if (perm === 'granted') {
         regStateRef.current = 'idle'; // Allow re-registration

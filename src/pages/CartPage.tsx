@@ -30,6 +30,7 @@ import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
 import { useCartPage } from '@/hooks/useCartPage';
 import { useCategoryConfig } from '@/hooks/queries/useCategoryConfig';
+import { setPendingAuthAction } from '@/lib/pending-auth-action';
 
 export default function CartPage() {
   const c = useCartPage();
@@ -371,7 +372,13 @@ export default function CartPage() {
         {c.sellerGroups.length === 1 ? (
           <div className="mt-5 px-4">
             <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Apply Coupon</h3>
-            <CouponInput key={c.sellerGroups[0].sellerId} sellerId={c.sellerGroups[0].sellerId} totalAmount={c.totalAmount} onApply={c.setAppliedCoupon} onRemove={() => c.setAppliedCoupon(null)} appliedCoupon={c.appliedCoupon} />
+            {!c.user ? (
+              <p className="text-xs text-muted-foreground bg-muted rounded-lg px-3 py-2">
+                Sign in at checkout to apply coupons
+              </p>
+            ) : (
+              <CouponInput key={c.sellerGroups[0].sellerId} sellerId={c.sellerGroups[0].sellerId} totalAmount={c.totalAmount} onApply={c.setAppliedCoupon} onRemove={() => c.setAppliedCoupon(null)} appliedCoupon={c.appliedCoupon} />
+            )}
           </div>
         ) : c.sellerGroups.length > 1 ? (
           <div className="mt-5 px-4"><p className="text-xs text-muted-foreground bg-muted rounded-lg px-3 py-2">Coupons are not available for multi-seller carts.</p></div>
@@ -484,13 +491,21 @@ export default function CartPage() {
 
       {/* Sticky Footer */}
       <div className="fixed bottom-0 left-0 right-0 z-40 bg-background border-t border-border pb-[var(--app-safe-bottom,0px)]">
-        {c.noPaymentMethodAvailable && (
+        {!c.user && (
+          <div className="mx-4 mt-2 rounded-xl border border-primary/20 bg-primary/5 px-3 py-2.5">
+            <p className="text-sm font-semibold text-foreground">Almost There</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Sign in with your phone to place this order. Your cart stays saved.
+            </p>
+          </div>
+        )}
+        {c.user && c.noPaymentMethodAvailable && (
           <div className="mx-4 mt-2 bg-destructive/10 border border-destructive/20 rounded-lg px-3 py-2">
             <p className="text-xs text-destructive font-medium">No payment method available for this cart. Try ordering from each seller separately.</p>
           </div>
         )}
         <div className="px-4 py-3">
-          {c.fulfillmentType === 'delivery' && !c.hasCheckoutDestination && (
+          {c.user && c.fulfillmentType === 'delivery' && !c.hasCheckoutDestination && (
             <Button
               variant="outline"
               size="sm"
@@ -501,7 +516,7 @@ export default function CartPage() {
               Add a delivery address to continue
             </Button>
           )}
-          {c.needsPreciseLocation && c.selectedDeliveryAddress && (
+          {c.user && c.needsPreciseLocation && c.selectedDeliveryAddress && (
             <Button
               variant="outline"
               size="sm"
@@ -512,7 +527,7 @@ export default function CartPage() {
               Add your map pin to continue
             </Button>
           )}
-          {c.preorderMissingSchedule && (
+          {c.user && c.preorderMissingSchedule && (
               <p className="text-xs text-destructive font-medium text-center mb-2">Please select a delivery date & time for pre-order items</p>
             )}
             <div className="flex items-center gap-3">
@@ -531,6 +546,11 @@ export default function CartPage() {
                 className="px-8 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 font-bold"
                 size="lg"
                 onClick={() => {
+                  if (!c.user) {
+                    setPendingAuthAction({ type: 'checkout', returnTo: '/cart' });
+                    navigate('/auth', { state: { returnTo: '/cart', from: '/cart' } });
+                    return;
+                  }
                   if (c.blocksOnlineMultiSeller || c.multiStoreRequiresSplit) {
                     toast.error(
                       c.multiStoreRequiresSplit
@@ -545,18 +565,22 @@ export default function CartPage() {
                   c.setShowConfirmDialog(true);
                 }}
                 disabled={
-                  c.isPlacingOrder ||
-                  c.hasBelowMinimumOrder ||
-                  c.noPaymentMethodAvailable ||
-                  c.blocksOnlineMultiSeller ||
-                  c.multiStoreRequiresSplit ||
-                  c.hasFulfillmentConflict ||
-                  (c.fulfillmentType === 'delivery' && !c.hasCheckoutDestination) ||
-                  c.needsPreciseLocation ||
-                  c.preorderMissingSchedule
+                  !c.user
+                    ? false
+                    : (
+                      c.isPlacingOrder ||
+                      c.hasBelowMinimumOrder ||
+                      c.noPaymentMethodAvailable ||
+                      c.blocksOnlineMultiSeller ||
+                      c.multiStoreRequiresSplit ||
+                      c.hasFulfillmentConflict ||
+                      (c.fulfillmentType === 'delivery' && !c.hasCheckoutDestination) ||
+                      c.needsPreciseLocation ||
+                      c.preorderMissingSchedule
+                    )
                 }
               >
-                {c.isPlacingOrder ? 'Placing...' : 'Place Order'}
+                {!c.user ? 'Almost There' : c.isPlacingOrder ? 'Placing...' : 'Place Order'}
                 <ChevronRight size={18} className="ml-1" />
               </Button>
             </div>

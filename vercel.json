@@ -28,7 +28,7 @@
       "destination": "/pamphlets/a5.html"
     },
     {
-      "source": "/((?!\\.well-known/|downloads/|delete-account|pamphlets/|a4\\.html|a5\\.html).*)",
+      "source": "/((?!api/|\\.well-known/|downloads/|delete-account|pamphlets/|a4\\.html|a5\\.html).*)",
       "destination": "/index.html"
     }
   ],

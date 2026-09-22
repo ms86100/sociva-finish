@@ -27,7 +27,6 @@ import { locationAlignsWithBrowse } from '@/lib/buyerOrderLocation';
 import { hapticImpact, hapticNotification, hapticSelection } from '@/lib/haptics';
 import { toast } from 'sonner';
 import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
-import { usePushNotifications } from '@/contexts/PushNotificationContext';
 import { notify } from '@/lib/notify';
 import { getString, setString, removeKey } from '@/lib/persistent-kv';
 import {
@@ -129,7 +128,6 @@ export function useCartPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { user, profile, society } = useAuth();
-  const { requestFullPermission } = usePushNotifications();
   const { items, totalAmount, sellerGroups, updateQuantity, removeItem, clearCart, refresh, addItem, isLoading, isFetching, hasHydrated, isRecoveringCart, pendingMutations, cartVerified } = useCart();
   const idempotencyKeyRef = useRef<string | null>(null);
 
@@ -927,7 +925,6 @@ export function useCartPage() {
         queryClient.setQueryData(['cart-count', user.id], 0);
         await navigateAfterCheckout(navigate, orderIds);
         clearCartAndCache().catch(() => {});
-        requestFullPermission().catch(() => {});
         supabase.functions.invoke('process-notification-queue').catch(() => {});
       } catch (error: any) {
         console.error('Error placing wallet-only order:', error);
@@ -1073,7 +1070,6 @@ export function useCartPage() {
       await navigateAfterCheckout(navigate, orderIds);
       // Background: DB cleanup + trigger notifications (non-blocking)
       clearCartAndCache().catch(() => {});
-      requestFullPermission().catch(() => {});
       supabase.functions.invoke('process-notification-queue').catch(() => {});
     } catch (error: any) {
       console.error('Error placing COD order:', error);

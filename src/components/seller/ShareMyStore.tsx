@@ -7,34 +7,46 @@ import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { resolveOperationalSellerId } from '@/lib/seller-order-board';
 import { showFeedback } from '@/components/FeedbackPopupProvider';
+import { displaySellerStoreName } from '@/lib/seller-journey';
+import { buildStoreShareText, shareSocivaContent, storeShareUrl } from '@/lib/sociva-share';
 
 export function ShareMyStore() {
   const { currentSellerId, sellerProfiles } = useAuth();
   const [copied, setCopied] = useState(false);
+  const [sharing, setSharing] = useState(false);
 
   const activeSellerId = resolveOperationalSellerId(currentSellerId, sellerProfiles || []);
   const activeProfile = sellerProfiles?.find(p => p.id === activeSellerId);
 
   if (!activeSellerId || !activeProfile) return null;
 
-  const storeUrl = `${window.location.origin}/#/seller/${activeSellerId}`;
-  const shareText = `Check out ${activeProfile.business_name} on Sociva! 🛍️\n${storeUrl}`;
+  const storeName = displaySellerStoreName(activeProfile.business_name);
+  const shareUrl = storeShareUrl(activeSellerId);
+  const shareText = buildStoreShareText({ storeName, url: shareUrl });
 
   const handleShare = async () => {
-    if (navigator.share) {
-      try {
-        await navigator.share({
-          title: activeProfile.business_name,
-          text: `Check out ${activeProfile.business_name} on Sociva! 🛍️`,
-          url: storeUrl,
+    if (sharing) return;
+    setSharing(true);
+    try {
+      const result = await shareSocivaContent({
+        title: storeName,
+        text: shareText,
+        url: shareUrl,
+        imageUrl: activeProfile.cover_image_url || null,
+      });
+      if (result === 'copied') {
+        setCopied(true);
+        showFeedback({
+          title: 'Store link copied',
+          description: 'Paste it in WhatsApp to share your store',
+          variant: 'success',
         });
-      } catch (err) {
-        if ((err as Error).name !== 'AbortError') {
-          fallbackCopy();
-        }
+        setTimeout(() => setCopied(false), 2000);
+      } else if (result === 'failed') {
+        toast.error('Could not share right now');
       }
-    } else {
-      fallbackCopy();
+    } finally {
+      setSharing(false);
     }
   };
 
@@ -66,7 +78,7 @@ export function ShareMyStore() {
             {copied ? <Check size={14} /> : <Copy size={14} />}
             <span>{copied ? 'Copied' : 'Copy'}</span>
           </Button>
-          <Button size="sm" className="h-8 gap-1.5" onClick={handleShare}>
+          <Button size="sm" className="h-8 gap-1.5" onClick={handleShare} disabled={sharing}>
             <Share2 size={14} />
             Share
           </Button>

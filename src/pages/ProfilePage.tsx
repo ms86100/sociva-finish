@@ -30,6 +30,7 @@ import {
 } from 'lucide-react';
 import { FeedbackSheet } from '@/components/feedback/FeedbackSheet';
 import { NotificationHealthCheck } from '@/components/notifications/NotificationHealthCheck';
+import { PermissionCenter } from '@/components/permissions/PermissionCenter';
 import { toast } from 'sonner';
 import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
 import { useSystemSettings } from '@/hooks/useSystemSettings';
@@ -341,6 +342,7 @@ export default function ProfilePage() {
               </div>
             </Link>
           ))}
+          <PermissionCenter variant="card" attentionOnly className="my-3" />
           <NotificationHealthCheck />
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 mt-4 px-1">Legal & Support</p>
           {menuItems.slice(menuItems.findIndex(m => m.label === 'Privacy Policy')).map(({ icon: Icon, label, to }) => (

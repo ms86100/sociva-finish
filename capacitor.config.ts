@@ -88,11 +88,11 @@ const config: CapacitorConfig = {
     preferredContentMode: 'mobile',
     plistOverrides: {
       ITSAppUsesNonExemptEncryption: false,
-      NSLocationWhenInUseUsageDescription: 'Sociva uses your location to verify your residential society membership, show nearby sellers, and share live delivery progress while you keep the app open as a seller.',
+      NSLocationWhenInUseUsageDescription: 'Sociva uses your location while you use the app to show products, services and local businesses available near you, and to verify society membership when you sign in.',
       // ITMS-90683: Capacitor Geolocation links Always APIs, so these keys are required
       // even though we do not declare UIBackgroundModes location (App Store 2.5.4).
-      NSLocationAlwaysAndWhenInUseUsageDescription: 'Sociva uses your location to verify your residential society membership, show nearby sellers, and share live delivery progress while you keep the app open as a seller.',
-      NSLocationAlwaysUsageDescription: 'Sociva uses your location to verify your residential society membership, show nearby sellers, and share live delivery progress while you keep the app open as a seller.',
+      NSLocationAlwaysAndWhenInUseUsageDescription: 'Sociva uses your location while the app is open to show nearby sellers and, as a seller during an active delivery, to share live delivery progress.',
+      NSLocationAlwaysUsageDescription: 'Sociva uses your location while the app is open to show nearby sellers and, as a seller during an active delivery, to share live delivery progress.',
       NSCameraUsageDescription: 'Sociva needs camera access to let you photograph products for listing and upload profile pictures.',
       NSPhotoLibraryUsageDescription: 'Sociva needs photo library access to let you select images for product listings and your profile.',
       NSPhotoLibraryAddUsageDescription: 'Sociva needs permission to save images to your photo library.',

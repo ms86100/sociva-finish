@@ -1,5 +1,6 @@
 // @ts-nocheck
 import React, { useState, useEffect, lazy, Suspense, ComponentType, useRef } from "react";
+import { StagingBanner } from "@/components/dev/StagingBanner";
 
 // Fallback component shown when a lazy page fails to resolve
 function LazyLoadFailed() {
@@ -54,7 +55,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { ActionBlockedDialog } from "@/components/feedback/ActionBlockedDialog";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider, QueryCache, MutationCache } from "@tanstack/react-query";
-import { HashRouter, Routes, Route, Navigate, useNavigate } from "react-router-dom";
+import { HashRouter, Routes, Route, Navigate, useNavigate, useLocation } from "react-router-dom";
 import { Capacitor } from "@capacitor/core";
 import { syncStatusBarForTheme } from "@/lib/capacitor";
 
@@ -113,6 +114,7 @@ const ResetPasswordPage = lazyWithRetry(() => import("./pages/ResetPasswordPage"
 const LandingPage = lazyWithRetry(() => import("./pages/LandingPage"));
 const WelcomeCarousel = lazyWithRetry(() => import("./pages/WelcomeCarousel"));
 const RefundPolicyPage = lazyWithRetry(() => import("./pages/RefundPolicyPage"));
+const LocationDiscoveryPage = lazyWithRetry(() => import("./pages/LocationDiscoveryPage"));
 
 const SellerDetailPage = lazyWithRetry(() => import("./pages/SellerDetailPage"));
 const OrderDetailPage = lazyWithRetry(() => import("./pages/OrderDetailPage"));
@@ -299,6 +301,7 @@ function PageLoadingFallback() {
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, isSessionRestored } = useAuth();
+  const location = useLocation();
   const [bootGaveUp, setBootGaveUp] = useState(false);
 
   // Only gate on session restore — profile fetch must not blank the shell again
@@ -313,7 +316,8 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     return null; // SplashGate overlay covers boot; avoid a second spinner
   }
   if (!user) {
-    return <Navigate to="/auth" replace />;
+    const returnTo = `${location.pathname || '/'}${location.search || ''}`;
+    return <Navigate to="/auth" replace state={{ from: returnTo, returnTo }} />;
   }
   return <>{children}</>;
 }
@@ -595,6 +599,7 @@ function AppRoutes() {
         {/* Persistent chrome shell — Header/BottomNav stay mounted across these routes */}
         <Route element={<AppShellGate />}>
           <Route path="/" element={<RouteErrorBoundary sectionName="Home"><HomePage /></RouteErrorBoundary>} />
+          <Route path="/discover-location" element={<RouteErrorBoundary sectionName="Location"><LocationDiscoveryPage /></RouteErrorBoundary>} />
           <Route path="/search" element={<RouteErrorBoundary sectionName="Search"><SearchPage /></RouteErrorBoundary>} />
           <Route path="/community" element={<RouteErrorBoundary sectionName="Community"><BulletinPage /></RouteErrorBoundary>} />
           <Route path="/categories" element={<RouteErrorBoundary sectionName="Categories"><CategoriesPage /></RouteErrorBoundary>} />
@@ -603,17 +608,17 @@ function AppRoutes() {
           <Route path="/product/:productId" element={<RouteErrorBoundary sectionName="Product"><ProductDeepLinkPage /></RouteErrorBoundary>} />
           <Route path="/festival-collection/:bannerId/:sectionId" element={<RouteErrorBoundary sectionName="Festival Collection"><FestivalCollectionPage /></RouteErrorBoundary>} />
           <Route path="/cart" element={<RouteErrorBoundary sectionName="Cart"><CartPage /></RouteErrorBoundary>} />
-          <Route path="/orders" element={<RouteErrorBoundary sectionName="Orders"><OrdersPage /></RouteErrorBoundary>} />
-          <Route path="/checkouts/:groupId" element={<RouteErrorBoundary sectionName="Checkout Details"><CheckoutDetailPage /></RouteErrorBoundary>} />
-          <Route path="/orders/:id" element={<RouteErrorBoundary sectionName="Order Details"><OrderDetailPage /></RouteErrorBoundary>} />
+          <Route path="/orders" element={<ProtectedRoute><RouteErrorBoundary sectionName="Orders"><OrdersPage /></RouteErrorBoundary></ProtectedRoute>} />
+          <Route path="/checkouts/:groupId" element={<ProtectedRoute><RouteErrorBoundary sectionName="Checkout Details"><CheckoutDetailPage /></RouteErrorBoundary></ProtectedRoute>} />
+          <Route path="/orders/:id" element={<ProtectedRoute><RouteErrorBoundary sectionName="Order Details"><OrderDetailPage /></RouteErrorBoundary></ProtectedRoute>} />
           <Route path="/seller/orders" element={<Navigate to="/orders" replace />} />
           <Route path="/seller/orders/:id" element={<RouteErrorBoundary sectionName="Order Details"><OrderDetailPage /></RouteErrorBoundary>} />
           <Route path="/seller/messages" element={<RouteErrorBoundary sectionName="Seller Messages"><SellerMessagesPage /></RouteErrorBoundary>} />
-          <Route path="/profile" element={<RouteErrorBoundary sectionName="Profile"><ProfilePage /></RouteErrorBoundary>} />
+          <Route path="/profile" element={<ProtectedRoute><RouteErrorBoundary sectionName="Profile"><ProfilePage /></RouteErrorBoundary></ProtectedRoute>} />
           <Route path="/account" element={<Navigate to="/profile" replace />} />
-          <Route path="/profile/edit" element={<RouteErrorBoundary sectionName="Profile Edit"><ProfileEditPage /></RouteErrorBoundary>} />
-          <Route path="/favorites" element={<RouteErrorBoundary sectionName="Favourites"><FavoritesPage /></RouteErrorBoundary>} />
-          <Route path="/subscriptions" element={<RouteErrorBoundary sectionName="Subscriptions"><MySubscriptionsPage /></RouteErrorBoundary>} />
+          <Route path="/profile/edit" element={<ProtectedRoute><RouteErrorBoundary sectionName="Profile Edit"><ProfileEditPage /></RouteErrorBoundary></ProtectedRoute>} />
+          <Route path="/favorites" element={<ProtectedRoute><RouteErrorBoundary sectionName="Favourites"><FavoritesPage /></RouteErrorBoundary></ProtectedRoute>} />
+          <Route path="/subscriptions" element={<ProtectedRoute><RouteErrorBoundary sectionName="Subscriptions"><MySubscriptionsPage /></RouteErrorBoundary></ProtectedRoute>} />
           <Route path="/directory" element={<RouteErrorBoundary sectionName="Directory"><TrustDirectoryPage /></RouteErrorBoundary>} />
           <Route path="/disputes" element={<RouteErrorBoundary sectionName="Disputes"><DisputesPage /></RouteErrorBoundary>} />
           <Route path="/group-buys" element={<RouteErrorBoundary sectionName="Group Buys"><CollectiveBuyPage /></RouteErrorBoundary>} />
@@ -621,8 +626,8 @@ function AppRoutes() {
           <Route path="/society/progress" element={<SocietyMemberRoute><RouteErrorBoundary sectionName="Construction Progress"><SocietyProgressPage /></RouteErrorBoundary></SocietyMemberRoute>} />
           <Route path="/society/snags" element={<SocietyMemberRoute><RouteErrorBoundary sectionName="Snag List"><SnagListPage /></RouteErrorBoundary></SocietyMemberRoute>} />
           <Route path="/society" element={<SocietyMemberRoute><RouteErrorBoundary sectionName="Society Dashboard"><SocietyDashboardPage /></RouteErrorBoundary></SocietyMemberRoute>} />
-          <Route path="/notifications/inbox" element={<RouteErrorBoundary sectionName="Notifications"><NotificationInboxPage /></RouteErrorBoundary>} />
-          <Route path="/maintenance" element={<RouteErrorBoundary sectionName="Maintenance"><MaintenancePage /></RouteErrorBoundary>} />
+          <Route path="/notifications/inbox" element={<ProtectedRoute><RouteErrorBoundary sectionName="Notifications"><NotificationInboxPage /></RouteErrorBoundary></ProtectedRoute>} />
+          <Route path="/maintenance" element={<ProtectedRoute><RouteErrorBoundary sectionName="Maintenance"><MaintenancePage /></RouteErrorBoundary></ProtectedRoute>} />
           <Route path="/society/reports" element={<SocietyMemberRoute><RouteErrorBoundary sectionName="Society Reports"><SocietyReportPage /></RouteErrorBoundary></SocietyMemberRoute>} />
           <Route path="/society/admin" element={<SocietyAdminRoute><RouteErrorBoundary sectionName="Society Admin"><SocietyAdminPage /></RouteErrorBoundary></SocietyAdminRoute>} />
           <Route path="/builder" element={<BuilderRoute><RouteErrorBoundary sectionName="Builder Dashboard"><BuilderDashboardPage /></RouteErrorBoundary></BuilderRoute>} />
@@ -683,7 +688,7 @@ function AppRoutes() {
           <Route path="/test-results" element={<AdminRoute><TestResultsPage /></AdminRoute>} />
           <Route path="/api-docs" element={<AdminRoute><ApiDocsPage /></AdminRoute>} />
           <Route path="/docs" element={<DocumentationPage />} />
-          <Route path="/notifications" element={<RouteErrorBoundary sectionName="Notifications"><NotificationsPage /></RouteErrorBoundary>} />
+          <Route path="/notifications" element={<ProtectedRoute><RouteErrorBoundary sectionName="Notifications"><NotificationsPage /></RouteErrorBoundary></ProtectedRoute>} />
           <Route path="/push-debug" element={<PushDebugPage />} />
           <Route path="/la-debug" element={<LiveActivityDebugPage />} />
         </Route>
@@ -793,6 +798,7 @@ function App() {
         <ThemeStatusBarSync />
         <QueryClientProvider client={queryClient}>
           <TooltipProvider>
+            <StagingBanner />
             <OfflineBanner />
             <Sonner />
             <HashRouter>

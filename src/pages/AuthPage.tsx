@@ -154,7 +154,7 @@ export default function AuthPage() {
                 ))}
               </div>
             )}
-            <StepHeader step={auth.step} societySubStep={auth.societySubStep} />
+            <StepHeader step={auth.step} societySubStep={auth.societySubStep} checkoutResume={auth.isCheckoutResume} />
           </div>
 
           {/* Form Content — no outer AnimatePresence: exit stalls caused BUG-22 (OTP header + phone form). */}
@@ -387,10 +387,20 @@ export default function AuthPage() {
 }
 
 // ── Step Header ──
-function StepHeader({ step, societySubStep }: { step: string; societySubStep: string }) {
+function StepHeader({
+  step,
+  societySubStep,
+  checkoutResume,
+}: {
+  step: string;
+  societySubStep: string;
+  checkoutResume?: boolean;
+}) {
   const iconClass = "mx-auto w-14 h-14 rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center mb-3";
   const configs: Record<string, { icon: React.ReactNode; title: string; subtitle: string }> = {
-    phone: { icon: <Phone className="text-primary" size={26} />, title: 'Welcome', subtitle: 'Enter your phone number to continue' },
+    phone: checkoutResume
+      ? { icon: <Phone className="text-primary" size={26} />, title: 'Almost There', subtitle: 'Enter your phone number to place your order' }
+      : { icon: <Phone className="text-primary" size={26} />, title: 'Welcome', subtitle: 'Enter your phone number to continue' },
     otp: { icon: <Sparkles className="text-primary" size={26} />, title: 'Verify OTP', subtitle: 'Enter the code sent to your phone' },
     'society-search': { icon: <MapPin className="text-primary" size={26} />, title: 'Find Your Society', subtitle: 'Search by name, area, or pincode' },
     'society-request-form': { icon: <MapPin className="text-primary" size={26} />, title: 'Request Society', subtitle: 'Submit details for admin review' },

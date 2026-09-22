@@ -122,6 +122,80 @@ export function NotificationDiagnostics() {
         {processing ? <Loader2 size={14} className="animate-spin mr-1.5" /> : <Bell size={14} className="mr-1.5" />}
         Process Queue Now
       </Button>
+
+      <PermissionHealthPanel />
+    </div>
+  );
+}
+
+function PermissionHealthPanel() {
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['admin-permission-health'],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('admin_permission_health_summary');
+      if (error) throw error;
+      return data as {
+        total_installations?: number;
+        notification?: Record<string, number>;
+        location?: Record<string, number>;
+        claimed_users_notif_off?: number;
+        claimed_users_location_off?: number;
+        claimed_users_both_off?: number;
+      };
+    },
+    staleTime: 2 * 60_000,
+    retry: false,
+  });
+
+  return (
+    <div className="pt-3 border-t border-border/60 space-y-2">
+      <div className="flex items-center gap-2">
+        <Smartphone size={14} className="text-primary" />
+        <h4 className="text-xs font-bold text-foreground uppercase tracking-wider">Permission Health</h4>
+      </div>
+      {error ? (
+        <p className="text-[11px] text-muted-foreground">
+          Installations metrics unavailable until migration is applied.
+        </p>
+      ) : isLoading ? (
+        <p className="text-[11px] text-muted-foreground">Loading…</p>
+      ) : (
+        <div className="grid grid-cols-2 gap-2 text-[11px]">
+          <div className="rounded-lg bg-muted/40 px-2.5 py-2">
+            <p className="font-extrabold tabular-nums text-sm">{data?.total_installations ?? 0}</p>
+            <p className="text-muted-foreground">Installations</p>
+          </div>
+          <div className="rounded-lg bg-muted/40 px-2.5 py-2">
+            <p className="font-extrabold tabular-nums text-sm">{data?.notification?.enabled ?? 0}</p>
+            <p className="text-muted-foreground">Notif enabled</p>
+          </div>
+          <div className="rounded-lg bg-muted/40 px-2.5 py-2">
+            <p className="font-extrabold tabular-nums text-sm">{data?.notification?.denied ?? 0}</p>
+            <p className="text-muted-foreground">Notif denied</p>
+          </div>
+          <div className="rounded-lg bg-muted/40 px-2.5 py-2">
+            <p className="font-extrabold tabular-nums text-sm">{data?.notification?.not_requested ?? 0}</p>
+            <p className="text-muted-foreground">Notif not asked</p>
+          </div>
+          <div className="rounded-lg bg-muted/40 px-2.5 py-2">
+            <p className="font-extrabold tabular-nums text-sm">{data?.location?.enabled ?? 0}</p>
+            <p className="text-muted-foreground">Loc enabled</p>
+          </div>
+          <div className="rounded-lg bg-muted/40 px-2.5 py-2">
+            <p className="font-extrabold tabular-nums text-sm">{data?.location?.denied ?? 0}</p>
+            <p className="text-muted-foreground">Loc denied</p>
+          </div>
+          <div className="rounded-lg bg-muted/40 px-2.5 py-2 col-span-2">
+            <p className="text-muted-foreground">
+              Users notif off: <span className="font-bold text-foreground">{data?.claimed_users_notif_off ?? 0}</span>
+              {' · '}
+              location off: <span className="font-bold text-foreground">{data?.claimed_users_location_off ?? 0}</span>
+              {' · '}
+              both off: <span className="font-bold text-foreground">{data?.claimed_users_both_off ?? 0}</span>
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

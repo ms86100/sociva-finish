@@ -1,22 +1,32 @@
 // @ts-nocheck
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase, SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { friendlyError } from '@/lib/utils';
 import { Society } from '@/types/Database';
 import { useAutocomplete, PlaceDetails } from '@/hooks/useGoogleMaps';
 import { useSystemSettings } from '@/hooks/useSystemSettings';
-import { usePushNotifications } from '@/contexts/PushNotificationContext';
+import { markPostLoginPermissionSheet } from '@/hooks/usePermissionLifecycle';
 import { notify } from '@/lib/notify';
 import { showFeedback } from '@/components/FeedbackPopupProvider';
 import { QA_OTP_REQ_ID } from '@/lib/qa-otp-bypass';
+import { pendingAuthReturnPath, peekPendingAuthAction, resolvePendingReturnTo } from '@/lib/pending-auth-action';
 
 export type AuthStep = 'phone' | 'otp' | 'society';
 export type SocietySubStep = 'search' | 'map-confirm' | 'request-form';
 
 export function useAuthPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const authReturnTo =
+    (location.state as { returnTo?: string; from?: string } | null)?.returnTo ||
+    (location.state as { returnTo?: string; from?: string } | null)?.from ||
+    pendingAuthReturnPath('/');
+  const isCheckoutResume =
+    peekPendingAuthAction()?.type === 'checkout' ||
+    authReturnTo === '/cart' ||
+    authReturnTo.startsWith('/cart?');
   const [step, setStep] = useState<AuthStep>('phone');
   const [societySubStep, setSocietySubStep] = useState<SocietySubStep>('search');
   const [phone, setPhone] = useState('');
@@ -50,7 +60,6 @@ export function useAuthPage() {
   const [selectedPlace, setSelectedPlace] = useState<PlaceDetails | null>(null);
   const [adjustedCoords, setAdjustedCoords] = useState<{ lat: number; lng: number } | null>(null);
   const settings = useSystemSettings();
-  const { requestFullPermission } = usePushNotifications();
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Request form
@@ -380,12 +389,8 @@ export function useAuthPage() {
         return;
       }
 
-      // Request push notification permission right after login
-      setTimeout(() => {
-        requestFullPermission().catch(e =>
-          console.warn('[Auth] Post-login push permission request:', e)
-        );
-      }, 1500);
+  // Soft Permission Center after login — never surprise with native OS dialog
+      markPostLoginPermissionSheet();
 
       // Guard: even if backend says "new user", trust the DB. If the profile
       // already has a society_id, this is a returning user — skip onboarding.
@@ -411,7 +416,11 @@ export function useAuthPage() {
         navigate('/profile/edit', { replace: true });
       } else {
         const isIncomplete = !prof?.name || prof.name === 'User';
-        navigate(isIncomplete ? '/profile/edit' : '/');
+        const pending = peekPendingAuthAction();
+        const dest = isIncomplete
+          ? '/profile/edit'
+          : (pending ? resolvePendingReturnTo(pending, authReturnTo) : (authReturnTo.startsWith('/') ? authReturnTo : '/'));
+        navigate(dest, { replace: true });
       }
 
     } catch (error: any) {
@@ -661,6 +670,7 @@ export function useAuthPage() {
     // Computed
     filteredSocieties, showDbResults, showGoogleResults,
     totalSteps, currentStepNum, stepLabels,
+    isCheckoutResume,
     // Handlers
     handleSendOtp, handleVerifyOtp,
     handleSearchChange, handleSelectDbSociety, handleSelectGooglePlace,

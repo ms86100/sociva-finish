@@ -14,6 +14,18 @@ import { computeStoreStatus, formatStoreClosedMessage, type StoreStatus } from '
 import { feedbackAddItem, feedbackAddItemFailed, feedbackRemoveItem, feedbackRemoveItemFailed, feedbackQuantityChanged, feedbackQuantityFailed } from '@/lib/feedbackEngine';
 import { notify } from '@/lib/notify';
 import { CartPopupProvider, useCartPopup } from '@/components/CartPopupProvider';
+import {
+  peekPendingAuthAction,
+  takePendingAuthAction,
+} from '@/lib/pending-auth-action';
+import {
+  clearGuestCart,
+  guestCartToItems,
+  readGuestCart,
+  removeGuestCartItem,
+  setGuestCartQuantity,
+  upsertGuestCartItem,
+} from '@/lib/guest-cart';
 
 const hasOwn = (obj: unknown, key: string) => Object.prototype.hasOwnProperty.call(obj ?? {}, key);
 
@@ -327,8 +339,34 @@ export function CartProvider({ children }: { children: ReactNode }) {
     queryClient.setQueryData(cartKey(), (old: any) => updater(old || []));
   }, [queryClient, cartKey]);
 
-  const itemCount = useMemo(() => items.reduce((sum, item) => sum + item.quantity, 0), [items]);
-  const totalAmount = useMemo(() => items.reduce((sum, item) => sum + (item.product?.price || 0) * item.quantity, 0), [items]);
+  const [guestCartVersion, setGuestCartVersion] = useState(0);
+  useEffect(() => {
+    const bump = () => setGuestCartVersion((v) => v + 1);
+    window.addEventListener('sociva:guest-cart', bump);
+    window.addEventListener('storage', bump);
+    return () => {
+      window.removeEventListener('sociva:guest-cart', bump);
+      window.removeEventListener('storage', bump);
+    };
+  }, []);
+
+  const guestItems = useMemo(
+    () => guestCartToItems(readGuestCart()),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [guestCartVersion],
+  );
+
+  const resolvedItems = userId ? items : guestItems;
+  const hasHydratedGuest = !userId && isSessionRestored;
+
+  const itemCount = useMemo(
+    () => resolvedItems.reduce((sum, item) => sum + item.quantity, 0),
+    [resolvedItems],
+  );
+  const totalAmount = useMemo(
+    () => resolvedItems.reduce((sum, item) => sum + (item.product?.price || 0) * item.quantity, 0),
+    [resolvedItems],
+  );
   // Layer 3: Detect mismatch — items array is empty but count cache says otherwise
   const hasCartCountMismatch = !!user && isFetched && !isFetching && pendingMutations === 0
     && items.length === 0 && fallbackItemCount > 0;
@@ -336,7 +374,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   const sellerGroups: SellerGroup[] = useMemo(() =>
     Object.values(
-      items.reduce<Record<string, SellerGroup>>((groups, item) => {
+      resolvedItems.reduce<Record<string, SellerGroup>>((groups, item) => {
         const sellerId = item.product?.seller_id || 'unknown';
         if (!groups[sellerId]) {
           groups[sellerId] = { sellerId, sellerName: (item.product as any)?.seller?.business_name || '', items: [], subtotal: 0 };
@@ -345,13 +383,12 @@ export function CartProvider({ children }: { children: ReactNode }) {
         groups[sellerId].subtotal += (item.product?.price || 0) * item.quantity;
         return groups;
       }, {})
-    ), [items]);
+    ), [resolvedItems]);
 
   // Per-product mutex to prevent race conditions on rapid taps
   const addItemLocksRef = useRef<Set<string>>(new Set());
 
   const addItem = useCallback(async (product: Product, quantity = 1, silent = false, extras: any[] = []): Promise<boolean> => {
-    if (!user) { notify.block('Please sign in to add items to cart'); return false; }
     if (addItemLocksRef.current.has(product.id)) return false;
     addItemLocksRef.current.add(product.id);
     let mutationStarted = false;
@@ -415,6 +452,29 @@ export function CartProvider({ children }: { children: ReactNode }) {
         const { data: stockCheck } = await supabase.from('products').select('stock_quantity').eq('id', product.id).maybeSingle();
         if (stockCheck?.stock_quantity != null) maxQty = stockCheck.stock_quantity;
       }
+
+      // Guest local cart (Swiggy-style) — no OTP until Place Order
+      if (!user) {
+        const guestLines = readGuestCart();
+        const existingQty = guestLines.find((i) => i.product_id === product.id)?.quantity || 0;
+        if (maxQty <= 0) {
+          toast.error('This item is out of stock', { id: 'stock-limit' });
+          return false;
+        }
+        if (existingQty >= maxQty) return false;
+        quantity = Math.min(quantity, maxQty - existingQty);
+        upsertGuestCartItem(product, quantity, extras);
+        if (!silent) {
+          showAddPopup(
+            product.name || 'Item',
+            product.image_url || undefined,
+            product.price,
+            () => navigate('/cart', { replace: false }),
+          );
+        }
+        return true;
+      }
+
       // Read current items from cache (avoids stale closure — items is not in deps)
       const currentItems = queryClient.getQueryData(cartKey()) as (CartItem & { product: Product })[] | undefined;
       const existingQty = (currentItems || []).find(i => i.product_id === product.id)?.quantity || 0;
@@ -495,10 +555,81 @@ export function CartProvider({ children }: { children: ReactNode }) {
       addItemLocksRef.current.delete(product.id);
       if (mutationStarted) setPendingMutations(c => Math.max(0, c - 1));
     }
-  }, [user, browsingLocation?.lat, browsingLocation?.lng, setOptimistic, cancelCartQueries, snapshot, rollback, reconcile, queryClient, countKey, showAddPopup, navigate]);
+  }, [user, browsingLocation?.lat, browsingLocation?.lng, setOptimistic, cancelCartQueries, snapshot, rollback, reconcile, queryClient, countKey, showAddPopup, navigate, cartKey]);
+
+  // After OTP: merge local guest cart into server cart (checkout resume handled by auth returnTo).
+  const guestMergeRef = useRef(false);
+  useEffect(() => {
+    if (!userId) {
+      guestMergeRef.current = false;
+      return;
+    }
+    if (!isSessionRestored || guestMergeRef.current) return;
+    const guestLines = readGuestCart();
+    if (guestLines.length === 0) return;
+    guestMergeRef.current = true;
+
+    let cancelled = false;
+    (async () => {
+      for (const line of guestLines) {
+        if (cancelled) return;
+        await addItem(
+          line.product,
+          line.quantity,
+          true,
+          Array.isArray(line.selected_extras) ? line.selected_extras : [],
+        );
+      }
+      if (!cancelled) clearGuestCart();
+    })().catch(() => {
+      // best-effort merge; leave guest cart if server failed
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [userId, isSessionRestored, addItem]);
+
+  // Legacy pending add_to_cart (if any) still restores once.
+  const pendingCartRestoreRef = useRef(false);
+  useEffect(() => {
+    if (!userId || !isSessionRestored || pendingCartRestoreRef.current) return;
+    const pending = peekPendingAuthAction();
+    if (!pending || pending.type !== 'add_to_cart' || !pending.productId) return;
+    pendingCartRestoreRef.current = true;
+    const action = takePendingAuthAction();
+    if (!action || action.type !== 'add_to_cart') return;
+
+    let cancelled = false;
+    (async () => {
+      const { data: product, error } = await supabase
+        .from('products')
+        .select('id, seller_id, name, price, image_url, is_veg, is_available, category, description, action_type, stock_quantity')
+        .eq('id', action.productId)
+        .maybeSingle();
+      if (cancelled || error || !product) return;
+      await addItem(
+        product as Product,
+        action.quantity || 1,
+        false,
+        Array.isArray(action.extras) ? action.extras : [],
+      );
+    })().catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
+  }, [userId, isSessionRestored, addItem]);
 
   const removeItem = useCallback(async (productId: string) => {
-    if (!user) return;
+    if (!user) {
+      const removed = readGuestCart().find((i) => i.product_id === productId);
+      removeGuestCartItem(productId);
+      if (removed) {
+        showRemovePopup(removed.product?.name || 'Item', () => navigate('/'));
+      }
+      return;
+    }
     setPendingMutations(c => c + 1);
     await cancelCartQueries();
     const snap = snapshot();
@@ -522,10 +653,18 @@ export function CartProvider({ children }: { children: ReactNode }) {
     } finally {
       setPendingMutations(c => Math.max(0, c - 1));
     }
-  }, [user, setOptimistic, cancelCartQueries, snapshot, rollback, reconcile, queryClient, countKey, showRemovePopup]);
+  }, [user, setOptimistic, cancelCartQueries, snapshot, rollback, reconcile, queryClient, countKey, showRemovePopup, navigate]);
 
   const updateQuantity = useCallback(async (productId: string, quantity: number) => {
-    if (!user) return;
+    if (!user) {
+      if (quantity <= 0) {
+        await removeItem(productId);
+        return;
+      }
+      setGuestCartQuantity(productId, quantity);
+      feedbackQuantityChanged();
+      return;
+    }
     if (quantity <= 0) { await removeItem(productId); return; }
 
     // Stock validation — fetch ceiling
@@ -562,7 +701,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
   }, [user, setOptimistic, removeItem, cancelCartQueries, snapshot, rollback, reconcile, queryClient, countKey]);
 
   const clearCart = useCallback(async () => {
-    if (!user) return;
+    if (!user) {
+      clearGuestCart();
+      return;
+    }
     setPendingMutations(c => c + 1);
     await cancelCartQueries();
     const snap = snapshot();
@@ -626,7 +768,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     }
   }, [user, queryClient, cancelCartQueries, countKey, reconcile, snapshot, rollback]);
 
-  const hasHydrated = isFetched;
+  const hasHydrated = userId ? isFetched : hasHydratedGuest;
 
   // Reset recovery counter when items arrive or count drops to 0
   useEffect(() => {
@@ -669,24 +811,44 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   // Mark cart as verified when items arrive or when genuinely empty with count=0
   useEffect(() => {
+    if (!userId) {
+      setCartVerified(true);
+      return;
+    }
     if (!hasHydrated) return;
     if (items.length > 0) { setCartVerified(true); return; }
     if (isError) return;
     if (items.length === 0 && fallbackItemCount === 0 && isFetched && !isFetching) {
       setCartVerified(true);
     }
-  }, [hasHydrated, items.length, fallbackItemCount, isFetched, isFetching, isError]);
+  }, [userId, hasHydrated, items.length, fallbackItemCount, isFetched, isFetching, isError]);
 
   const contextValue = useMemo<CartContextType>(() => ({
-    items, itemCount, totalAmount, sellerGroups, isLoading, isFetching, hasHydrated, isRecoveringCart, pendingMutations, addItem, replaceCart, updateQuantity, removeItem, clearCart, cartVerified,
+    items: resolvedItems,
+    itemCount,
+    totalAmount,
+    sellerGroups,
+    isLoading: userId ? isLoading : false,
+    isFetching: userId ? isFetching : false,
+    hasHydrated,
+    isRecoveringCart: userId ? isRecoveringCart : false,
+    pendingMutations,
+    addItem,
+    replaceCart,
+    updateQuantity,
+    removeItem,
+    clearCart,
+    cartVerified: userId ? cartVerified : true,
     // RULE 3: refresh is non-destructive — safe invalidation only, no reconcile
     refresh: async () => {
       if (user) {
         await queryClient.invalidateQueries({ queryKey: cartKey() });
         await queryClient.invalidateQueries({ queryKey: countKey() });
+      } else {
+        setGuestCartVersion((v) => v + 1);
       }
     },
-  }), [items, itemCount, totalAmount, sellerGroups, isLoading, isFetching, hasHydrated, isRecoveringCart, pendingMutations, addItem, replaceCart, updateQuantity, removeItem, clearCart, cartVerified, user, queryClient, cartKey, countKey]);
+  }), [resolvedItems, itemCount, totalAmount, sellerGroups, userId, isLoading, isFetching, hasHydrated, isRecoveringCart, pendingMutations, addItem, replaceCart, updateQuantity, removeItem, clearCart, cartVerified, user, queryClient, cartKey, countKey]);
 
   return <CartContext.Provider value={contextValue}>{children}</CartContext.Provider>;
 }
@@ -695,10 +857,17 @@ const EMPTY_CART_FALLBACK: any = {
   items: [],
   itemCount: 0,
   totalAmount: 0,
+  sellerGroups: [],
   isLoading: false,
-  addToCart: async () => {},
+  isFetching: false,
+  hasHydrated: true,
+  isRecoveringCart: false,
+  pendingMutations: 0,
+  cartVerified: true,
+  addItem: async () => false,
+  replaceCart: async () => {},
   updateQuantity: async () => {},
-  removeFromCart: async () => {},
+  removeItem: async () => {},
   clearCart: async () => {},
   refresh: async () => {},
 };

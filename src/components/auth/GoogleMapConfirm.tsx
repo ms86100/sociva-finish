@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom';
 import { Button } from '@/components/ui/button';
 import { MapPin, Check, Loader2, ArrowLeft, LocateFixed } from 'lucide-react';
 import { toast } from 'sonner';
-import { getCurrentPosition } from '@/lib/native-location';
+import { getCurrentPosition, isLocationError } from '@/lib/native-location';
 import { cn } from '@/lib/utils';
 import {
   extractBestLabel,
@@ -22,6 +22,8 @@ interface GoogleMapConfirmProps {
   latitude: number;
   longitude: number;
   name: string;
+  /** Parent is already finishing — disable Confirm and ignore double taps. */
+  confirming?: boolean;
   onConfirm: (lat: number, lng: number, updatedName?: string, formattedAddress?: string) => void;
   onBack: () => void;
 }
@@ -29,12 +31,19 @@ interface GoogleMapConfirmProps {
 function callerNameToLabel(name: string): ResolvedLabel | null {
   const trimmed = name.trim();
   if (!trimmed) return null;
-  const genericPlaceholders = ['store location', 'your location', 'location pinned'];
+  const genericPlaceholders = ['store location', 'your location', 'location pinned', 'select on map'];
   if (genericPlaceholders.includes(trimmed.toLowerCase())) return null;
   return { name: trimmed, quality: LabelQuality.POI };
 }
 
-export function GoogleMapConfirm({ latitude, longitude, name, onConfirm, onBack }: GoogleMapConfirmProps) {
+export function GoogleMapConfirm({
+  latitude,
+  longitude,
+  name,
+  confirming = false,
+  onConfirm,
+  onBack,
+}: GoogleMapConfirmProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<google.maps.Map | null>(null);
   const geocoderRef = useRef<google.maps.Geocoder | null>(null);
@@ -42,6 +51,11 @@ export function GoogleMapConfirm({ latitude, longitude, name, onConfirm, onBack 
   const hasUserInteractedRef = useRef(false);
   const resolveRequestIdRef = useRef(0);
   const idleTimerRef = useRef<number | null>(null);
+  const submittedRef = useRef(false);
+
+  // Keep latest callbacks in refs so map init effect deps stay lat/lng only
+  const resolveLabelRef = useRef<(lat: number, lng: number, preserveInitial: boolean) => void>();
+  const commitCenterRef = useRef<(lat: number, lng: number, options?: { preserveInitial?: boolean; panMap?: boolean }) => void>();
 
   const [center, setCenter] = useState<{ lat: number; lng: number }>({ lat: latitude, lng: longitude });
   const [displayName, setDisplayName] = useState(name);
@@ -66,6 +80,11 @@ export function GoogleMapConfirm({ latitude, longitude, name, onConfirm, onBack 
     initialLabelRef.current = callerNameToLabel(name);
     if (name.trim()) setDisplayName(name);
   }, [name]);
+
+  // Reset one-shot guard when parent stops confirming (e.g. back to map after error)
+  useEffect(() => {
+    if (!confirming) submittedRef.current = false;
+  }, [confirming]);
 
   const resolveLabel = useCallback(async (lat: number, lng: number, preserveInitial: boolean) => {
     const requestId = ++resolveRequestIdRef.current;
@@ -112,26 +131,32 @@ export function GoogleMapConfirm({ latitude, longitude, name, onConfirm, onBack 
     if (!currentBest) currentBest = formatCoords(lat, lng);
 
     const cleanTitle = cleanLocationTitle(currentBest.name) || currentBest.name;
-    setDisplayName(cleanTitle);
+    setDisplayName(cleanTitle || formatCoords(lat, lng).name);
     const finalAddress = bestAddress || currentBest.formattedAddress || '';
-    setFormattedAddress(finalAddress);
+    setFormattedAddress(finalAddress || (cleanTitle ? '' : `${lat.toFixed(5)}, ${lng.toFixed(5)}`));
     setIsGeocoding(false);
   }, []);
 
-  const commitCenter = useCallback((lat: number, lng: number, options?: { preserveInitial?: boolean; panMap?: boolean }) => {
-    setCenter({ lat, lng });
-    if (options?.panMap && mapInstanceRef.current) {
-      mapInstanceRef.current.panTo({ lat, lng });
-    }
-    resolveLabel(lat, lng, options?.preserveInitial ?? false);
-  }, [resolveLabel]);
+  const commitCenter = useCallback(
+    (lat: number, lng: number, options?: { preserveInitial?: boolean; panMap?: boolean }) => {
+      setCenter({ lat, lng });
+      if (options?.panMap && mapInstanceRef.current) {
+        mapInstanceRef.current.panTo({ lat, lng });
+      }
+      resolveLabel(lat, lng, options?.preserveInitial ?? false);
+    },
+    [resolveLabel],
+  );
+
+  resolveLabelRef.current = resolveLabel;
+  commitCenterRef.current = commitCenter;
 
   const handleGoToCurrentLocation = useCallback(async () => {
-    if (isLocatingGps) return;
+    if (isLocatingGps || confirming || submittedRef.current) return;
     setIsLocatingGps(true);
     hasUserInteractedRef.current = true;
     try {
-      const pos = await getCurrentPosition();
+      const pos = await getCurrentPosition({ requestPermission: true });
       if (mapInstanceRef.current) {
         mapInstanceRef.current.panTo({ lat: pos.latitude, lng: pos.longitude });
         mapInstanceRef.current.setZoom(17);
@@ -140,12 +165,17 @@ export function GoogleMapConfirm({ latitude, longitude, name, onConfirm, onBack 
       toast.success('Centered to present location', { duration: 1800 });
     } catch (err) {
       console.warn('[GoogleMapConfirm] GPS recenter failed:', err);
-      toast.error('Could not detect location. Please check GPS permissions.');
+      if (isLocationError(err) && err.code === 'permission_denied') {
+        toast.error('Location permission denied. Move the map manually.');
+      } else {
+        toast.error('Could not detect location. Please check GPS permissions.');
+      }
     } finally {
       setIsLocatingGps(false);
     }
-  }, [isLocatingGps, commitCenter]);
+  }, [isLocatingGps, confirming, commitCenter]);
 
+  // Map init — deps are ONLY latitude/longitude so idle geocode does not remount
   useEffect(() => {
     if (!mapRef.current || !(window as any).google?.maps) {
       console.warn('GoogleMapConfirm: Google Maps not loaded');
@@ -186,7 +216,7 @@ export function GoogleMapConfirm({ latitude, longitude, name, onConfirm, onBack 
       const lng = next.lng();
       if (idleTimerRef.current) window.clearTimeout(idleTimerRef.current);
       idleTimerRef.current = window.setTimeout(() => {
-        commitCenter(lat, lng, { preserveInitial: !hasUserInteractedRef.current });
+        commitCenterRef.current?.(lat, lng, { preserveInitial: !hasUserInteractedRef.current });
       }, 180);
     });
 
@@ -200,7 +230,7 @@ export function GoogleMapConfirm({ latitude, longitude, name, onConfirm, onBack 
       map.panTo(event.latLng);
     });
 
-    resolveLabel(latitude, longitude, true);
+    resolveLabelRef.current?.(latitude, longitude, true);
 
     return () => {
       if (idleTimerRef.current) window.clearTimeout(idleTimerRef.current);
@@ -213,7 +243,7 @@ export function GoogleMapConfirm({ latitude, longitude, name, onConfirm, onBack 
       geocoderRef.current = null;
       mapInitializedRef.current = false;
     };
-  }, [latitude, longitude, resolveLabel, commitCenter]);
+  }, [latitude, longitude]);
 
   useEffect(() => {
     if (!mapInstanceRef.current || !mapInitializedRef.current) return;
@@ -221,12 +251,22 @@ export function GoogleMapConfirm({ latitude, longitude, name, onConfirm, onBack 
     mapInstanceRef.current.panTo({ lat: latitude, lng: longitude });
   }, [latitude, longitude]);
 
+  const handleConfirm = () => {
+    if (submittedRef.current || confirming || isGeocoding || isDragging) return;
+    submittedRef.current = true;
+    onConfirm(center.lat, center.lng, displayNameRef.current, formattedAddressRef.current);
+  };
+
+  const confirmDisabled = isGeocoding || isDragging || confirming || submittedRef.current;
+
   return createPortal(
     <div className="fixed inset-0 z-50 bg-background flex flex-col" style={{ overscrollBehavior: 'contain' }} data-ptr-block="true">
       <div className="shrink-0 flex items-center gap-3 px-4 pt-[max(env(safe-area-inset-top,0px),12px)] pb-3 bg-background/95 backdrop-blur-sm z-10">
         <button
+          type="button"
           onClick={onBack}
-          className="p-1.5 -ml-1.5 rounded-lg hover:bg-accent transition-colors"
+          disabled={confirming}
+          className="p-1.5 -ml-1.5 rounded-lg hover:bg-accent transition-colors disabled:opacity-50"
           aria-label="Back"
         >
           <ArrowLeft size={20} className="text-foreground" />
@@ -251,11 +291,10 @@ export function GoogleMapConfirm({ latitude, longitude, name, onConfirm, onBack 
           </div>
         </div>
 
-        {/* Floating "Go to Current Location" GPS button (like Blinkit / Swiggy) */}
         <button
           type="button"
           onClick={handleGoToCurrentLocation}
-          disabled={isLocatingGps}
+          disabled={isLocatingGps || confirming}
           className={cn(
             'absolute bottom-4 right-4 z-20',
             'h-12 w-12 rounded-full',
@@ -264,7 +303,7 @@ export function GoogleMapConfirm({ latitude, longitude, name, onConfirm, onBack 
             'flex items-center justify-center',
             'hover:bg-background active:scale-95 transition-all duration-150',
             'focus:outline-none focus:ring-2 focus:ring-primary/40',
-            isLocatingGps && 'opacity-80'
+            (isLocatingGps || confirming) && 'opacity-80',
           )}
           aria-label="Go to current location"
           title="Go to current location"
@@ -281,29 +320,38 @@ export function GoogleMapConfirm({ latitude, longitude, name, onConfirm, onBack 
         <div className="flex items-start gap-2.5">
           <MapPin size={16} className="text-primary shrink-0 mt-0.5" />
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-bold text-foreground truncate">{displayName}</p>
+            <p className="text-sm font-bold text-foreground truncate">
+              {displayName || `${center.lat.toFixed(5)}, ${center.lng.toFixed(5)}`}
+            </p>
             {formattedAddress && formattedAddress !== displayName && (
               <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5 leading-relaxed">{formattedAddress}</p>
+            )}
+            {!displayName && !formattedAddress && !isGeocoding && (
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {center.lat.toFixed(5)}, {center.lng.toFixed(5)}
+              </p>
             )}
           </div>
           {isGeocoding && <Loader2 size={14} className="animate-spin text-muted-foreground shrink-0 mt-0.5" />}
         </div>
 
         <div className="flex gap-2">
-          <Button variant="outline" onClick={onBack} className="flex-1 h-12 rounded-xl">
+          <Button variant="outline" onClick={onBack} disabled={confirming} className="flex-1 h-12 rounded-xl">
             Back
           </Button>
           <Button
-            onClick={() => onConfirm(center.lat, center.lng, displayNameRef.current, formattedAddressRef.current)}
-            disabled={isGeocoding || isDragging}
+            onClick={handleConfirm}
+            disabled={confirmDisabled}
             className="flex-1 h-12 rounded-xl font-semibold"
           >
-            {isGeocoding ? (
+            {confirming || submittedRef.current ? (
+              <Loader2 size={16} className="mr-1 animate-spin" />
+            ) : isGeocoding ? (
               <Loader2 size={16} className="mr-1 animate-spin" />
             ) : (
               <Check size={16} className="mr-1" />
             )}
-            {isGeocoding ? 'Locating…' : 'Confirm Location'}
+            {confirming || submittedRef.current ? 'Confirming…' : isGeocoding ? 'Locating…' : 'Confirm Location'}
           </Button>
         </div>
       </div>

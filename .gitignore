@@ -52,6 +52,8 @@ sociva-release-keystore-SECRET.txt
 public/downloads/*.apk
 !public/downloads/sociva-android.apk
 .env*
+!.env.staging.example
+!.env.example
 
 # Desktop Electron (build outputs only — source under desktop/ is tracked)
 desktop/node_modules/

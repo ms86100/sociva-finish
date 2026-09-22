@@ -14,6 +14,7 @@ import { toast } from 'sonner';
 import { useBrowsingLocation } from '@/contexts/BrowsingLocationContext';
 import { filterDiscoverableProductIds } from '@/lib/sellerDiscoverability';
 import { resolveProductAvailability } from '@/lib/product-availability';
+import { setPendingAuthAction } from '@/lib/pending-auth-action';
 
 export interface ProductDetail {
   product_id: string;
@@ -124,9 +125,17 @@ export function useProductDetail(product: ProductDetail | null, open: boolean, o
     if (!product) return;
     if (actionType === 'contact_seller') {
       if (!user) {
-        toast.error('Please sign in to contact this seller');
+        const returnTo = product.product_id ? `/product/${product.product_id}` : '/';
+        setPendingAuthAction({
+          type: 'contact',
+          productId: product.product_id,
+          sellerId: product.seller_id,
+          actionType: 'contact_seller',
+          returnTo,
+        });
+        toast.error('Sign in to contact this seller');
         onOpenChange?.(false);
-        navigate('/auth');
+        navigate('/auth', { state: { from: returnTo, returnTo } });
         return;
       }
       setContactOpen(true);

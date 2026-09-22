@@ -10,8 +10,11 @@ import { useCartCount } from '@/hooks/useCartCount';
 import { useAuth } from '@/contexts/AuthContext';
 import { useImmediateNavigate } from '@/hooks/useImmediateNavigate';
 import type { FeatureKey } from '@/hooks/useEffectiveFeatures';
+import { authReturnPath } from '@/lib/guest-browse-routes';
 
 const IS_NATIVE = Capacitor.isNativePlatform();
+
+const GUEST_AUTH_ROUTES = new Set(['/orders', '/profile']);
 
 const residentNavItems: { to: string; icon: typeof Home; label: string; featureKey?: FeatureKey; badge?: string }[] = [
   { to: '/', icon: Home, label: 'Home' },
@@ -36,15 +39,20 @@ const workerNavItems: { to: string; icon: typeof Briefcase; label: string }[] = 
 function BottomNavInner() {
   const location = useLocation();
   const { features, isFeatureEnabled, isLoading } = useEffectiveFeatures();
-  const { isAdmin, isSocietyAdmin, isBuilderMember, isSecurityOfficer, isWorker, effectiveSocietyId } = useAuth();
+  const { user, isAdmin, isSocietyAdmin, isBuilderMember, isSecurityOfficer, isWorker, effectiveSocietyId } = useAuth();
   const itemCount = useCartCount();
   const navigateImmediately = useImmediateNavigate('BottomNav');
 
   const handleNav = useCallback((to: string) => {
     if (location.pathname === to) return;
     hapticSelection();
+    if (!user && GUEST_AUTH_ROUTES.has(to)) {
+      const returnTo = authReturnPath(to);
+      navigateImmediately('/auth', { state: { from: returnTo, returnTo } });
+      return;
+    }
     navigateImmediately(to);
-  }, [location.pathname, navigateImmediately]);
+  }, [location.pathname, navigateImmediately, user]);
 
   const isPrimaryRoleUser = isAdmin || isSocietyAdmin || isBuilderMember;
   const navItems = !isPrimaryRoleUser && isSecurityOfficer
@@ -77,6 +85,7 @@ function BottomNavInner() {
 
       <div className="relative flex items-center justify-around px-1 h-16">
         {visibleItems.map(({ to, icon: Icon, label }) => {
+          const displayLabel = !user && to === '/profile' ? 'Sign in' : label;
           const isActive = location.pathname === to ||
             (to !== '/' && location.pathname.startsWith(to));
           const showCartBadge = to === '/cart' && itemCount > 0 && location.pathname !== '/cart';
@@ -112,7 +121,7 @@ function BottomNavInner() {
                 'text-[10px] leading-none',
                 isActive ? 'font-bold' : 'font-medium'
               )}>
-                {label}
+                {displayLabel}
               </span>
             </button>
           );

@@ -20,6 +20,7 @@ import { toast } from 'sonner';
 import { useFeedbackPopup } from '@/components/FeedbackPopupProvider';
 import { ArrowLeft, Plus, Loader2, Mail, MapPin, Phone, User, ChevronRight, KeyRound, LogOut } from 'lucide-react';
 import { useEffect, useRef } from 'react';
+import { peekPendingAuthAction, resolvePendingReturnTo } from '@/lib/pending-auth-action';
 
 export default function ProfileEditPage() {
   const navigate = useNavigate();
@@ -126,7 +127,8 @@ export default function ProfileEditPage() {
         title: 'Profile updated! Redirecting…',
         variant: 'success'
       });
-      navigate('/');
+      const pending = peekPendingAuthAction();
+      navigate(pending ? resolvePendingReturnTo(pending, '/') : '/');
     } catch (err) {
       console.error('Failed to update profile', err);
       toast.error('Failed to update profile');

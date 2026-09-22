@@ -240,6 +240,34 @@ export const pulseRing: Variants = {
   },
 };
 
+// ─── Discovery moment — slow floating cards / orbit icons ────────────────────
+export const floatSlow: Variants = {
+  animate: {
+    y: [0, -4, 0, 3, 0],
+    transition: { duration: 7, repeat: Infinity, ease: 'easeInOut' },
+  },
+};
+
+export const orbitBob: Variants = {
+  animate: (i: number = 0) => ({
+    y: [0, -3, 0, 2, 0],
+    transition: {
+      duration: 4.5 + (i % 3) * 0.6,
+      repeat: Infinity,
+      ease: 'easeInOut',
+      delay: (i % 4) * 0.25,
+    },
+  }),
+};
+
+export const discoveryPulse: Variants = {
+  animate: {
+    scale: [1, 1.35, 1],
+    opacity: [0.45, 0, 0.45],
+    transition: { duration: 2.4, repeat: Infinity, ease: 'easeOut' },
+  },
+};
+
 // ─── Stagger Grid (slightly slower stagger for grid layouts) ─────────────────
 export const staggerGrid: Variants = {
   hidden: { opacity: 0 },

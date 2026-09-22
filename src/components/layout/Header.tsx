@@ -114,7 +114,7 @@ function HeaderInner({
                     'text-[10px] font-bold uppercase tracking-wider leading-none mb-1',
                     festivalChrome ? 'text-white/70' : 'text-muted-foreground'
                   )}>
-                    Delivering to
+                    {user ? 'Delivering to' : 'Available near you'}
                   </p>
                   <div className="flex items-center gap-1 min-w-0">
                     <MapPin
@@ -146,7 +146,19 @@ function HeaderInner({
                 </button>
 
                 <div className="flex items-center gap-1 shrink-0 pt-0.5">
-                  {user && (
+                  {!user ? (
+                    <Button
+                      variant={festivalChrome ? 'ghost' : 'default'}
+                      size="sm"
+                      className={cn(
+                        'h-9 rounded-full px-3.5 text-[13px] font-bold',
+                        festivalChrome && 'text-white hover:bg-white/10 hover:text-white border border-white/30'
+                      )}
+                      onClick={() => handleRouteNav('/auth')}
+                    >
+                      Sign in
+                    </Button>
+                  ) : (
                     <>
                       <Button
                         variant="ghost"

@@ -7,9 +7,11 @@ import { VitePWA } from "vite-plugin-pwa";
 import ViteTsconfigPaths from "vite-tsconfig-paths";
 
 // Drop Workbox for native shell builds. Use `npm run build:native` (mode=capacitor)
-// or CAPACITOR_ENV=production — matches Codemagic android-release.
+// or CAPACITOR_ENV=production|staging — matches Codemagic ios/android release workflows.
 const isNativeProdBuild =
-  process.env.CAPACITOR_ENV === "production" || process.env.CAPACITOR_BUILD === "1";
+  process.env.CAPACITOR_ENV === "production" ||
+  process.env.CAPACITOR_ENV === "staging" ||
+  process.env.CAPACITOR_BUILD === "1";
 
 /** Keep website installer downloads out of Capacitor bundles (APK/EXE self-nesting blows size limits). */
 function omitDownloadsFromNativeDist(enabled: boolean): Plugin {
