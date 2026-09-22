@@ -66,7 +66,10 @@ export function PermissionCenter({
   const handleEnableNotif = async () => {
     setBusyNotif(true);
     try {
-      const result = await enableNotifications();
+      const result = await Promise.race([
+        enableNotifications(),
+        new Promise<'denied'>((resolve) => setTimeout(() => resolve('denied'), 15000)),
+      ]);
       if (result === 'settings') {
         const opened = await openAppNotificationSettings();
         if (!opened) {
@@ -74,6 +77,8 @@ export function PermissionCenter({
         }
       } else if (result === 'granted') {
         notify.success('Notifications enabled');
+      } else {
+        notify.block('Notifications were not enabled. Try again from Profile.');
       }
     } finally {
       setBusyNotif(false);
@@ -83,7 +88,10 @@ export function PermissionCenter({
   const handleEnableLoc = async () => {
     setBusyLoc(true);
     try {
-      const result = await enableLocation();
+      const result = await Promise.race([
+        enableLocation(),
+        new Promise<'denied'>((resolve) => setTimeout(() => resolve('denied'), 15000)),
+      ]);
       if (result === 'settings') {
         const opened = await openLocationSettings();
         if (!opened.opened) {
@@ -91,6 +99,8 @@ export function PermissionCenter({
         }
       } else if (result === 'granted') {
         notify.success('Location enabled');
+      } else {
+        notify.block('Could not get your location yet. You can pick a place manually.');
       }
     } finally {
       setBusyLoc(false);

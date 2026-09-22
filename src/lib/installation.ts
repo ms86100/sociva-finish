@@ -104,7 +104,10 @@ export async function getOrCreateInstallationId(): Promise<string> {
       cachedInstallationId = webExisting;
       if (prefs) {
         try {
-          await prefs.set({ key: INSTALLATION_ID_KEY, value: webExisting });
+          await Promise.race([
+            prefs.set({ key: INSTALLATION_ID_KEY, value: webExisting }),
+            new Promise((resolve) => setTimeout(resolve, 1500)),
+          ]);
         } catch {
           // ignore
         }

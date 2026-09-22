@@ -12,6 +12,14 @@ import { pushLog } from './pushLogger';
 export type PushStage = 'none' | 'deferred' | 'full';
 
 const KEY = 'push_permission_stage';
+const PREFS_TIMEOUT_MS = 1500;
+
+function withTimeout(promise, ms) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error('prefs_timeout')), ms)),
+  ]);
+}
 
 /** Dynamic import of @capacitor/preferences — avoids top-level import on web. */
 async function getPrefs() {
@@ -26,10 +34,9 @@ async function getPrefs() {
 export async function getPushStage(): Promise<PushStage> {
   if (!Capacitor.isNativePlatform()) return 'none';
   try {
-    const prefsModule = await import('@capacitor/preferences');
-    const prefs = prefsModule.Preferences;
+    const prefs = await getPrefs();
     if (!prefs) return 'none';
-    const { value } = await prefs.get({ key: KEY });
+    const { value } = await withTimeout(prefs.get({ key: KEY }), PREFS_TIMEOUT_MS);
     if (value === 'deferred' || value === 'full') return value;
     return 'none';
   } catch (e) {
@@ -43,7 +50,8 @@ export async function setPushStage(stage: PushStage): Promise<void> {
   try {
     const prefs = await getPrefs();
     if (!prefs) return;
-    await prefs.set({ key: KEY, value: stage });
+    // Preferences has hung on device builds — never block Enable Notifications.
+    await withTimeout(prefs.set({ key: KEY, value: stage }), PREFS_TIMEOUT_MS);
   } catch (e) {
     console.warn('[PushStage] Failed to save stage:', e);
   }
@@ -57,7 +65,7 @@ export async function getLastBuildId(): Promise<string | null> {
   try {
     const prefs = await getPrefs();
     if (!prefs) return null;
-    const { value } = await prefs.get({ key: BUILD_ID_KEY });
+    const { value } = await withTimeout(prefs.get({ key: BUILD_ID_KEY }), PREFS_TIMEOUT_MS);
     return value;
   } catch (e) {
     console.warn('[PushStage] Failed to read build ID:', e);
@@ -71,7 +79,7 @@ export async function setLastBuildId(buildId: string): Promise<void> {
   try {
     const prefs = await getPrefs();
     if (!prefs) return;
-    await prefs.set({ key: BUILD_ID_KEY, value: buildId });
+    await withTimeout(prefs.set({ key: BUILD_ID_KEY, value: buildId }), PREFS_TIMEOUT_MS);
   } catch (e) {
     console.warn('[PushStage] Failed to save build ID:', e);
   }

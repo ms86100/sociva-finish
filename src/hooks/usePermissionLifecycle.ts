@@ -15,6 +15,11 @@ import {
   type NotificationPermissionState,
 } from '@/lib/installation';
 import { setPushStage } from '@/lib/pushPermissionStage';
+import {
+  notifNeedsAttention as computeNotifNeedsAttention,
+  shouldShowLocSoftPrompt,
+  shouldShowNotifSoftPrompt,
+} from '@/lib/permission-prompt-rules';
 
 const NOTIF_COOLDOWN_KEY = 'sociva_notif_prompt_dismissed_until';
 const LOC_COOLDOWN_KEY = 'sociva_loc_prompt_dismissed_until';
@@ -63,17 +68,31 @@ export function usePermissionLifecycle() {
       let notif: NotificationPermissionState = 'unknown';
       let loc: LocationPermissionState = 'unknown';
 
+      const withTimeout = <T,>(p: Promise<T>, ms: number, fallback: T): Promise<T> =>
+        Promise.race([
+          p,
+          new Promise<T>((resolve) => setTimeout(() => resolve(fallback), ms)),
+        ]);
+
       if (Capacitor.isNativePlatform()) {
         try {
           const { PushNotifications } = await import('@capacitor/push-notifications');
-          const push = await PushNotifications.checkPermissions();
+          const push = await withTimeout(
+            PushNotifications.checkPermissions(),
+            3000,
+            { receive: 'prompt' } as any,
+          );
           notif = mapPushReceiveToNotificationState(push.receive);
         } catch {
           notif = mapPushReceiveToNotificationState(permissionStatus);
         }
         try {
           const { Geolocation } = await import('@capacitor/geolocation');
-          const geo = await Geolocation.checkPermissions();
+          const geo = await withTimeout(
+            Geolocation.checkPermissions(),
+            3000,
+            { location: 'prompt', coarseLocation: 'prompt' } as any,
+          );
           loc = mapGeoToLocationState(geo.location || geo.coarseLocation);
         } catch {
           loc = 'unknown';
@@ -200,40 +219,70 @@ export function usePermissionLifecycle() {
       const { requestLocationPermission, getCurrentPosition, isLocationError } = await import(
         '@/lib/native-location'
       );
+
       if (Capacitor.isNativePlatform()) {
         const perm = await requestLocationPermission();
         if (perm === 'denied') {
           setLocationPermission('denied');
-          await syncInstallationPermissions({ locationPermission: 'denied' });
+          void syncInstallationPermissions({ locationPermission: 'denied' });
           return 'settings';
         }
+        // OS granted (or still prompt → try position). Mark enabled as soon as OS allows
+        // so the home banner dismisses even if GPS fix times out.
+        if (perm === 'granted') {
+          setLocationPermission('enabled');
+          clearCooldown(LOC_COOLDOWN_KEY);
+          setLocCooldown(false);
+          void syncInstallationPermissions({ locationPermission: 'enabled' });
+          try {
+            await getCurrentPosition({ requestPermission: false });
+          } catch {
+            // Permission is enough for soft-prompt UX; browsing pin can be set later.
+          }
+          return 'granted';
+        }
       }
+
       await getCurrentPosition({ requestPermission: true });
       setLocationPermission('enabled');
       clearCooldown(LOC_COOLDOWN_KEY);
       setLocCooldown(false);
-      await syncInstallationPermissions({ locationPermission: 'enabled' });
+      void syncInstallationPermissions({ locationPermission: 'enabled' });
       return 'granted';
     } catch (err) {
       const { isLocationError: isLocErr } = await import('@/lib/native-location');
       if (isLocErr(err) && err.code === 'permission_denied') {
         setLocationPermission('denied');
-        await syncInstallationPermissions({ locationPermission: 'denied' });
+        void syncInstallationPermissions({ locationPermission: 'denied' });
         return 'settings';
       }
       return 'denied';
     }
   }, [locationPermission]);
 
-  const notifNeedsAttention =
-    Capacitor.isNativePlatform() &&
-    notificationPermission !== 'enabled' &&
-    !token;
+  const notifNeedsAttention = computeNotifNeedsAttention({
+    isNative: Capacitor.isNativePlatform(),
+    notificationPermission,
+    hasToken: !!token,
+  });
 
-  const locNeedsAttention = locationPermission !== 'enabled';
+  const locNeedsAttention =
+    locationPermission === 'not_requested' ||
+    locationPermission === 'denied' ||
+    locationPermission === 'restricted';
 
-  const showNotifSoftPrompt = notifNeedsAttention && !notifCooldown;
-  const showLocSoftPrompt = locNeedsAttention && !locCooldown;
+  const showNotifSoftPrompt = shouldShowNotifSoftPrompt({
+    isNative: Capacitor.isNativePlatform(),
+    notificationPermission,
+    hasToken: !!token,
+    notifCooldown,
+  });
+
+  const showLocSoftPrompt = shouldShowLocSoftPrompt({
+    locationPermission,
+    locCooldown,
+    refreshing,
+  });
 
   const showPermissionCenter =
     Capacitor.isNativePlatform() &&

@@ -229,7 +229,12 @@ export function usePushNotificationsInternal() {
 
     try {
       const { PushNotifications } = await import('@capacitor/push-notifications');
-      const result = await PushNotifications.requestPermissions();
+      const result = await Promise.race([
+        PushNotifications.requestPermissions(),
+        new Promise<{ receive: 'prompt' }>((resolve) =>
+          setTimeout(() => resolve({ receive: 'prompt' }), 12000),
+        ),
+      ]);
       const perm = result.receive as 'granted' | 'denied' | 'prompt';
       setPermissionStatus(perm);
       pushLog('info', 'PERMISSION_RESULT', { status: perm });
