@@ -240,7 +240,8 @@ export function usePushNotificationsInternal() {
 
       if (perm === 'granted') {
         regStateRef.current = 'idle'; // Allow re-registration
-        await registerPush();
+        // Do not await — token registration can stall; OS grant is enough for UX.
+        void registerPush();
       }
     } catch (e) {
       pushLog('error', 'REQUEST_PERMISSION_ERROR', { error: String(e) });

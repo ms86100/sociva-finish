@@ -39,7 +39,6 @@ export function PermissionCenter({
   const {
     notificationPermission,
     locationPermission,
-    showNotifSoftPrompt,
     showLocSoftPrompt,
     notifNeedsAttention,
     locNeedsAttention,
@@ -57,7 +56,8 @@ export function PermissionCenter({
 
   if (attentionOnly) {
     if (variant === 'banner') {
-      if (!showNotifSoftPrompt && !showLocSoftPrompt) return null;
+      // Home strip is location-only — notification prompts belong in Profile / post-login.
+      if (!showLocSoftPrompt) return null;
     } else if (!notifNeedsAttention && !locNeedsAttention) {
       return null;
     }
@@ -107,10 +107,8 @@ export function PermissionCenter({
     locationPermission === 'denied' || locationPermission === 'restricted';
 
   if (variant === 'banner') {
-    // Compact home strip — prefer notifications, else location
-    const showNotif = showNotifSoftPrompt;
-    const showLoc = !showNotif && showLocSoftPrompt;
-    if (!showNotif && !showLoc) return null;
+    // Compact home strip — location soft prompt only (no notification Enable spinner here).
+    if (!showLocSoftPrompt) return null;
 
     return (
       <div
@@ -122,8 +120,7 @@ export function PermissionCenter({
         <button
           type="button"
           onClick={() => {
-            if (showNotif) void dismissNotifPrompt();
-            else dismissLocPrompt();
+            dismissLocPrompt();
             onDismissed?.();
           }}
           className="absolute top-2.5 right-2.5 text-muted-foreground hover:text-foreground"
@@ -131,69 +128,34 @@ export function PermissionCenter({
         >
           <X className="h-4 w-4" />
         </button>
-        {showNotif ? (
-          <div className="flex items-start gap-3 pr-6">
-            <div className="rounded-full bg-primary/10 p-2 shrink-0">
-              <Bell className="h-4 w-4 text-primary" />
-            </div>
-            <div className="flex-1 min-w-0 space-y-2">
-              <p className="text-sm font-semibold text-foreground">
-                {notifDenied ? 'Notifications are turned off' : "Don't miss what's happening nearby"}
-              </p>
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                {notifDenied
-                  ? 'Turn them on in Settings for order updates, offers and community alerts.'
-                  : 'Enable notifications for offers, order updates and community updates.'}
-              </p>
-              <Button
-                size="sm"
-                className="h-8"
-                disabled={busyNotif}
-                onClick={() => void handleEnableNotif()}
-              >
-                {busyNotif ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : notifDenied ? (
-                  <>
-                    <ExternalLink className="h-3.5 w-3.5 mr-1" />
-                    Open Settings
-                  </>
-                ) : (
-                  'Enable Notifications'
-                )}
-              </Button>
-            </div>
+        <div className="flex items-start gap-3 pr-6">
+          <div className="rounded-full bg-primary/10 p-2 shrink-0">
+            <MapPin className="h-4 w-4 text-primary" />
           </div>
-        ) : (
-          <div className="flex items-start gap-3 pr-6">
-            <div className="rounded-full bg-primary/10 p-2 shrink-0">
-              <MapPin className="h-4 w-4 text-primary" />
-            </div>
-            <div className="flex-1 min-w-0 space-y-2">
-              <p className="text-sm font-semibold text-foreground">Discover more around you</p>
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                Turn on location to see Sociva sellers, products and services near you.
-              </p>
-              <Button
-                size="sm"
-                className="h-8"
-                disabled={busyLoc}
-                onClick={() => void handleEnableLoc()}
-              >
-                {busyLoc ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : locDenied ? (
-                  <>
-                    <ExternalLink className="h-3.5 w-3.5 mr-1" />
-                    Open Settings
-                  </>
-                ) : (
-                  'Enable Location'
-                )}
-              </Button>
-            </div>
+          <div className="flex-1 min-w-0 space-y-2">
+            <p className="text-sm font-semibold text-foreground">Discover more around you</p>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              Turn on location to see Sociva sellers, products and services near you.
+            </p>
+            <Button
+              size="sm"
+              className="h-8"
+              disabled={busyLoc}
+              onClick={() => void handleEnableLoc()}
+            >
+              {busyLoc ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : locDenied ? (
+                <>
+                  <ExternalLink className="h-3.5 w-3.5 mr-1" />
+                  Open Settings
+                </>
+              ) : (
+                'Enable Location'
+              )}
+            </Button>
           </div>
-        )}
+        </div>
       </div>
     );
   }

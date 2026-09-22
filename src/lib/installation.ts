@@ -81,7 +81,14 @@ export async function getOrCreateInstallationId(): Promise<string> {
     const prefs = await getPreferences();
     if (prefs) {
       try {
-        const { value } = await prefs.get({ key: INSTALLATION_ID_KEY });
+        // Preferences can hang on some native builds — never block permission UX.
+        const got = await Promise.race([
+          prefs.get({ key: INSTALLATION_ID_KEY }),
+          new Promise<{ value: null }>((resolve) =>
+            setTimeout(() => resolve({ value: null }), 1500),
+          ),
+        ]);
+        const value = got?.value;
         if (value && value.length >= 8) {
           cachedInstallationId = value;
           writeWebFallback(value);
@@ -110,7 +117,10 @@ export async function getOrCreateInstallationId(): Promise<string> {
     writeWebFallback(id);
     if (prefs) {
       try {
-        await prefs.set({ key: INSTALLATION_ID_KEY, value: id });
+        await Promise.race([
+          prefs.set({ key: INSTALLATION_ID_KEY, value: id }),
+          new Promise((resolve) => setTimeout(resolve, 1500)),
+        ]);
       } catch {
         // ignore
       }

@@ -98,7 +98,8 @@ export function usePermissionLifecycle() {
       setLocationPermission(loc);
       setNotifCooldown(readCooldown(NOTIF_COOLDOWN_KEY));
       setLocCooldown(readCooldown(LOC_COOLDOWN_KEY));
-      await syncInstallationPermissions({
+      // Never block UI refresh on network/RPC
+      void syncInstallationPermissions({
         notificationPermission: notif,
         locationPermission: loc,
       });
@@ -160,14 +161,25 @@ export function usePermissionLifecycle() {
     if (notificationPermission === 'denied') return 'settings';
     if (!Capacitor.isNativePlatform()) return 'denied';
     await setPushStage('full');
-    await requestFullPermission();
-    await refreshFromOs();
-    // Re-read after request
+
+    // Never hang the Enable button on token registration or installation RPC.
+    const timed = <T,>(p: Promise<T>, ms: number) =>
+      Promise.race([
+        p.then((v) => ({ ok: true as const, v })).catch(() => ({ ok: false as const, v: null })),
+        new Promise<{ ok: false; v: null }>((resolve) =>
+          setTimeout(() => resolve({ ok: false, v: null }), ms),
+        ),
+      ]);
+
+    await timed(requestFullPermission(), 12000);
+
     try {
       const { PushNotifications } = await import('@capacitor/push-notifications');
       const result = await PushNotifications.checkPermissions();
       const mapped = mapPushReceiveToNotificationState(result.receive);
       setNotificationPermission(mapped);
+      // Fire-and-forget lifecycle sync — must not block UI
+      void syncInstallationPermissions({ notificationPermission: mapped });
       if (mapped === 'enabled') {
         clearCooldown(NOTIF_COOLDOWN_KEY);
         setNotifCooldown(false);
@@ -177,8 +189,8 @@ export function usePermissionLifecycle() {
     } catch {
       // fall through
     }
-    return notificationPermission === 'denied' ? 'settings' : 'denied';
-  }, [notificationPermission, requestFullPermission, refreshFromOs]);
+    return 'denied';
+  }, [notificationPermission, requestFullPermission]);
 
   const enableLocation = useCallback(async (): Promise<'granted' | 'denied' | 'settings'> => {
     if (locationPermission === 'denied' || locationPermission === 'restricted') {

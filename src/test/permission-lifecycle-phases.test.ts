@@ -31,6 +31,14 @@ describe('permission lifecycle phases 2–4 (source)', () => {
     expect(sheet).toMatch(/consumePostLoginPermissionSheet/);
   });
 
+  it('keeps home soft banner location-only (notifications via profile/sheet)', () => {
+    const center = read('src/components/permissions/PermissionCenter.tsx');
+    const bannerBranch = center.slice(center.indexOf("variant === 'banner'"));
+    expect(bannerBranch).toMatch(/Discover more around you/);
+    expect(bannerBranch).toMatch(/showLocSoftPrompt/);
+    expect(bannerBranch).not.toMatch(/Don't miss what's happening nearby/);
+  });
+
   it('uses Open Settings for denied location and notifications', () => {
     const loc = read('src/lib/location-settings.ts');
     const hook = read('src/hooks/usePermissionLifecycle.ts');
