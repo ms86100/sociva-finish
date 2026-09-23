@@ -90,3 +90,41 @@ export function pendingAuthReturnPath(fallback = '/'): string {
   if (!action) return fallback;
   return resolvePendingReturnTo(action, fallback);
 }
+
+/**
+ * Where to send the buyer after address/name onboarding.
+ * Checkout / cart intent wins over home.
+ */
+export function resolveAfterOnboardingPath(opts?: {
+  locationReturnTo?: string | null;
+  itemCount?: number;
+}): string {
+  const fromState = opts?.locationReturnTo;
+  if (
+    typeof fromState === 'string' &&
+    fromState.startsWith('/') &&
+    fromState !== '/profile/edit' &&
+    fromState !== '/auth'
+  ) {
+    return fromState;
+  }
+  const pending = peekPendingAuthAction();
+  if (pending) {
+    return resolvePendingReturnTo(pending, (opts?.itemCount ?? 0) > 0 ? '/cart' : '/');
+  }
+  if ((opts?.itemCount ?? 0) > 0) return '/cart';
+  return '/';
+}
+
+/** Navigation state for /profile/edit when coming from checkout or a cart with items. */
+export function profileEditOnboardingState(opts?: {
+  locationReturnTo?: string | null;
+  itemCount?: number;
+  focusAddress?: boolean;
+}): { returnTo?: string; focusAddress?: boolean } {
+  const returnTo = resolveAfterOnboardingPath(opts);
+  const state: { returnTo?: string; focusAddress?: boolean } = {};
+  if (opts?.focusAddress !== false) state.focusAddress = true;
+  if (returnTo && returnTo !== '/') state.returnTo = returnTo;
+  return state;
+}

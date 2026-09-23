@@ -87,6 +87,33 @@ export function shortStorePlaceLabel(input: {
   return { short: short || 'View on map', full: full !== short ? full : undefined };
 }
 
+/**
+ * Compact place chip for dense listing cards.
+ * Drops tower / phase / flat tails so "Shriram Greenfield Phase-2, Tower H"
+ * becomes "Shriram Greenfield". Full address stays on product / store detail.
+ */
+export function listingPlaceChip(raw: string | null | undefined): string {
+  if (!raw) return '';
+  let s = cleanLocationTitle(String(raw).trim());
+  if (!s) return '';
+  // Strip trailing unit markers: "Phase-2", "Tower H", "Block B", "Wing A", flats
+  s = s
+    .replace(
+      /(?:,?\s*)(?:phase|tower|block|wing|flat|apartment|apt\.?|unit|villa|house)\s*[-.]?\s*[\w\d]*$/gi,
+      '',
+    )
+    .trim();
+  s = s
+    .replace(
+      /\s+(?:phase|tower|block|wing)\s*[-.]?\s*[\w\d]+$/gi,
+      '',
+    )
+    .trim();
+  // "Name Phase-2" glued without comma
+  s = s.replace(/\s+phase[-.]?\s*\d+$/gi, '').trim();
+  return s || cleanLocationTitle(String(raw).trim());
+}
+
 /** Full wrapping line for product detail: society + extra address parts + optional distance. */
 export function fullStorePlaceLine(input: {
   societyName?: string | null;
