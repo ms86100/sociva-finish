@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { useEffect, useMemo, useState, lazy, Suspense } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import { fadeSlideUp, slideFromLeft, cardEntrance, staggerContainerSlow } from '@/lib/motion-variants';
@@ -79,6 +79,7 @@ export function usesServiceBookingFlow(actionType: string | null | undefined): b
 
 export function ProductDetailSheet({ product, open, onOpenChange, onSelectProduct, categoryIcon, categoryName }: ProductDetailSheetProps) {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const d = useProductDetail(product, open, onOpenChange);
   const { data: categoryConfigs } = useCategoryConfig();
   const sheetCatCfg = categoryConfigs?.find((c: any) => c.category === product?.category);
@@ -467,7 +468,13 @@ export function ProductDetailSheet({ product, open, onOpenChange, onSelectProduc
                 onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
-                  // Keep product sheet mounted — closing it previously stole focus (e.g. search).
+                  // Abuse reports need an account (DB RLS + seller store already gate this way).
+                  // Guests: send to sign-in with return, never open a form that fails on submit.
+                  if (!user) {
+                    const returnTo = `/product/${product.product_id}`;
+                    navigate('/auth', { state: { from: returnTo, returnTo } });
+                    return;
+                  }
                   d.setReportOpen(true);
                 }}
                 className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-destructive transition-colors"

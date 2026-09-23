@@ -43,6 +43,7 @@ describe('sociva-share', () => {
     expect(src).toMatch(/shareSocivaContent/);
     expect(src).not.toMatch(/useFeedbackPopup\(\)/);
     expect(src).toMatch(/d\.setReportOpen\(true\)/);
+    expect(src).toMatch(/navigate\('\/auth'/);
     expect(src).not.toMatch(/onOpenChange\(false\);\s*d\.setReportOpen/);
   });
 

@@ -29,6 +29,12 @@ describe('report types', () => {
     expect(src).toMatch(/showFeedback/);
     expect(src).toMatch(/role="radiogroup"/);
     expect(src).toMatch(/reported_product_id/);
+    expect(src).toMatch(/Sign in to report/);
     expect(src).not.toMatch(/toast\.error/);
+  });
+
+  it('guest path never shows Almost there block on submit-only', () => {
+    expect(src).not.toMatch(/Sign in to submit a report/);
+    expect(src).toMatch(/goSignIn/);
   });
 });

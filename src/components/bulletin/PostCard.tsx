@@ -45,7 +45,7 @@ interface PostCardProps {
 }
 
 export function PostCard({ post, onUpvote, onOpen, onRefresh }: PostCardProps) {
-  const { isSocietyAdmin, isAdmin } = useAuth();
+  const { user, isSocietyAdmin, isAdmin } = useAuth();
   const [reportOpen, setReportOpen] = useState(false);
   const { showFeedback } = useFeedbackPopup();
   const canModerate = isSocietyAdmin || isAdmin;
@@ -179,13 +179,15 @@ export function PostCard({ post, onUpvote, onOpen, onRefresh }: PostCardProps) {
             <MessageCircle size={14} />
             {post.comment_count}
           </span>
-          <button
-            className="text-muted-foreground hover:text-destructive transition-colors"
-            onClick={(e) => { e.stopPropagation(); setReportOpen(true); }}
-            aria-label="Report post"
-          >
-            <Flag size={13} />
-          </button>
+          {user ? (
+            <button
+              className="text-muted-foreground hover:text-destructive transition-colors"
+              onClick={(e) => { e.stopPropagation(); setReportOpen(true); }}
+              aria-label="Report post"
+            >
+              <Flag size={13} />
+            </button>
+          ) : null}
           {canModerate && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
