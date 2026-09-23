@@ -31,8 +31,7 @@ workflows:
         VITE_APP_ENV: "production"
         VITE_SUPABASE_URL: "https://kkzkuyhgdvyecmxtmkpy.supabase.co"
         VITE_SUPABASE_PUBLISHABLE_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imtremt1eWhnZHZ5ZWNteHRta3B5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM4MzIyMTEsImV4cCI6MjA4OTQwODIxMX0.-dmjGjRYs7u8TkR14oPwOXWipNXgSxZRjuwc6q98VkA"
-        # Set in Codemagic UI (secure) after staging replay verify — leave empty to no-op analytics
-        VITE_AMPLITUDE_API_KEY: ""
+        # Optional Amplitude: set VITE_AMPLITUDE_API_KEY in Codemagic UI variable group (never commit empty "").
         VITE_AMPLITUDE_DASHBOARD_URL: "https://app.amplitude.com/"
       node: 22
       xcode: latest
@@ -934,8 +933,7 @@ workflows:
         VITE_APP_ENV: "staging"
         VITE_SUPABASE_URL: "https://wwuanzbusxoyzixuprxs.supabase.co"
         VITE_SUPABASE_PUBLISHABLE_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind3dWFuemJ1c3hveXppeHVwcnhzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkzMTY2OTAsImV4cCI6MjEwNDg5MjY5MH0.TVZ3pwFUGpnnp4C4xhLgYZXljvAsM5V0GJziuz4hFqc"
-        # Staging Amplitude project write key (set in Codemagic UI / group vars)
-        VITE_AMPLITUDE_API_KEY: ""
+        # Optional Amplitude: set VITE_AMPLITUDE_API_KEY in Codemagic UI variable group (never commit empty "").
         VITE_AMPLITUDE_DASHBOARD_URL: "https://app.amplitude.com/"
       node: 22
       xcode: latest
@@ -1832,7 +1830,7 @@ workflows:
         CAPACITOR_ENV: "production"
         VITE_SUPABASE_URL: "https://kkzkuyhgdvyecmxtmkpy.supabase.co"
         VITE_SUPABASE_PUBLISHABLE_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imtremt1eWhnZHZ5ZWNteHRta3B5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM4MzIyMTEsImV4cCI6MjA4OTQwODIxMX0.-dmjGjRYs7u8TkR14oPwOXWipNXgSxZRjuwc6q98VkA"
-        VITE_AMPLITUDE_API_KEY: ""
+        # Optional Amplitude: set VITE_AMPLITUDE_API_KEY in Codemagic UI variable group (never commit empty "").
         VITE_AMPLITUDE_DASHBOARD_URL: "https://app.amplitude.com/"
       node: 22
       java: 21
