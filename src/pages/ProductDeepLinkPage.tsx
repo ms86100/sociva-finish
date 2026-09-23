@@ -28,9 +28,7 @@ export default function ProductDeepLinkPage() {
       setIsLoading(true);
       setError(null);
       try {
-        const { data, error: fetchErr } = await supabase
-          .from('products')
-          .select(`
+        const productSelectWithGallery = `
             id, name, price, image_url, secondary_images, is_veg, category, description,
             prep_time_minutes, delivery_time_text, action_type, contact_phone,
             specifications, seller_id, mrp, discount_percentage, stock_quantity,
@@ -43,11 +41,29 @@ export default function ProductDeepLinkPage() {
               fulfillment_mode, delivery_note, avg_response_minutes, last_active_at,
               society:societies(name)
             )
-          `)
+          `;
+        const productSelectLegacy = productSelectWithGallery.replace('secondary_images, ', '');
+
+        let { data, error: fetchErr } = await supabase
+          .from('products')
+          .select(productSelectWithGallery)
           .eq('id', productId)
           .eq('is_available', true)
           .eq('approval_status', 'approved')
           .maybeSingle();
+
+        // Older DBs without secondary_images still open the shared product
+        if (fetchErr && /secondary_images/i.test(fetchErr.message || '')) {
+          const retry = await supabase
+            .from('products')
+            .select(productSelectLegacy)
+            .eq('id', productId)
+            .eq('is_available', true)
+            .eq('approval_status', 'approved')
+            .maybeSingle();
+          data = retry.data;
+          fetchErr = retry.error;
+        }
 
         if (fetchErr) throw fetchErr;
         if (!data) {
@@ -55,19 +71,18 @@ export default function ProductDeepLinkPage() {
           return;
         }
 
+        // Always show the shared product. Location / radius only gates ordering
+        // (handled in cart/enquiry) — never hide the listing and bounce to Home.
         const gate = await buyerCanOrderFromSeller(
           data.seller_id,
           browsingLocation?.lat,
           browsingLocation?.lng,
         );
-        if (!gate.ok) {
-          if (gate.reason === 'buyer_location') {
-            setNeedsLocation(true);
-            setError('Precise location required');
-          } else {
-            setError('This product is not available in your area.');
-          }
-          return;
+        if (!gate.ok && gate.reason === 'buyer_location') {
+          setNeedsLocation(true);
+        } else if (!gate.ok) {
+          // Still show the product; soft note via needsLocation=false + toast-friendly flag
+          setNeedsLocation(false);
         }
 
         const seller = data.seller as any;
@@ -115,6 +130,9 @@ export default function ProductDeepLinkPage() {
           society_name: seller?.society?.name || null,
           distance_km: null,
           is_same_society: false,
+          // Soft discovery note when share open without / outside delivery radius
+          _share_order_blocked: !gate.ok,
+          _share_order_reason: gate.ok ? null : gate.reason || 'unavailable',
         });
         setSheetOpen(true);
       } catch (e) {
@@ -160,7 +178,6 @@ export default function ProductDeepLinkPage() {
         <div className="flex flex-col items-center justify-center min-h-[60vh] p-6 text-center">
           <p className="text-lg font-semibold mb-2">Oops!</p>
           <p className="text-sm text-muted-foreground mb-4">{error}</p>
-          {needsLocation && <PreciseLocationRequiredCard className="mb-4" />}
           <Button onClick={() => navigate('/', { replace: true })}>
             <ArrowLeft size={16} className="mr-2" />
             Go Home
@@ -173,7 +190,11 @@ export default function ProductDeepLinkPage() {
   return (
     <>
       <AppLayout showHeader={false}>
-        <div className="min-h-[60vh]" />
+        <div className="min-h-[60vh] p-4">
+          {needsLocation && (
+            <PreciseLocationRequiredCard className="mb-4" />
+          )}
+        </div>
       </AppLayout>
       <ProductDetailSheet
         product={product}
