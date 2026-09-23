@@ -30,8 +30,8 @@ describe('sociva-share', () => {
   });
 
   it('uses path-based OG share URLs (not hash-only)', () => {
-    expect(productShareUrl('p1')).toMatch(/\/api\/share\/product\/p1$/);
-    expect(storeShareUrl('s1')).toMatch(/\/api\/share\/store\/s1$/);
+    expect(productShareUrl('p1')).toMatch(/\/api\/share\/product\/p1(\?|$)/);
+    expect(storeShareUrl('s1')).toMatch(/\/api\/share\/store\/s1(\?|$)/);
     expect(productShareUrl('p1')).not.toContain('#/');
   });
 

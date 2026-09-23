@@ -85,6 +85,18 @@ export function resolveDeepLinkPath(rawUrl: string): string {
   if (!path.startsWith('/')) path = `/${path}`;
   // Collapse duplicate slashes except protocol
   path = path.replace(/\/{2,}/g, '/');
+
+  // OG share bounce URLs open the native app before HTML redirect runs.
+  // Map them to real HashRouter routes (otherwise "api" falls through to /orders).
+  const shareProduct = path.match(/^\/api\/share\/product\/([^/?#]+)/i);
+  if (shareProduct?.[1]) {
+    return `/product/${decodeURIComponent(shareProduct[1])}`;
+  }
+  const shareStore = path.match(/^\/api\/share\/store\/([^/?#]+)/i);
+  if (shareStore?.[1]) {
+    return `/seller/${decodeURIComponent(shareStore[1])}`;
+  }
+
   return path;
 }
 

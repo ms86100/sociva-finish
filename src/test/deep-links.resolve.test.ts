@@ -25,6 +25,20 @@ describe('resolveDeepLinkPath', () => {
     expect(resolveDeepLinkPath('https://sociva.in/#/cart')).toBe('/cart');
   });
 
+  it('maps OG share product URLs to /product/:id (not /orders fallback)', () => {
+    expect(
+      resolveDeepLinkPath(
+        'https://www.sociva.in/api/share/product/144e18de-9443-4163-98a3-6365abe30ee2?og=1',
+      ),
+    ).toBe('/product/144e18de-9443-4163-98a3-6365abe30ee2');
+  });
+
+  it('maps OG share store URLs to /seller/:id', () => {
+    expect(resolveDeepLinkPath('https://www.sociva.in/api/share/store/abc-seller')).toBe(
+      '/seller/abc-seller',
+    );
+  });
+
   it('product deep-link sheet uses HashRouter location, not window.location.pathname', () => {
     const src = read('src/pages/ProductDeepLinkPage.tsx');
     expect(src).toMatch(/useLocation/);

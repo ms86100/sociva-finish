@@ -27,6 +27,8 @@ describe('report types', () => {
     expect(src).toMatch(/getDrawerKeyboardStyle/);
     expect(src).toMatch(/data-drawer-scroll/);
     expect(src).toMatch(/showFeedback/);
+    expect(src).toMatch(/role="radiogroup"/);
+    expect(src).toMatch(/reported_product_id/);
     expect(src).not.toMatch(/toast\.error/);
   });
 });

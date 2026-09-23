@@ -41,11 +41,12 @@ export function getPublicOrigin(): string {
 
 /** Path-based share URL with server OG tags → redirects humans into the hash app. */
 export function productShareUrl(productId: string): string {
-  return `${getPublicOrigin()}/api/share/product/${encodeURIComponent(productId)}`;
+  // ?og=1 busts stale WhatsApp/home OG cache from when /api/share served the SPA
+  return `${getPublicOrigin()}/api/share/product/${encodeURIComponent(productId)}?og=1`;
 }
 
 export function storeShareUrl(sellerId: string): string {
-  return `${getPublicOrigin()}/api/share/store/${encodeURIComponent(sellerId)}`;
+  return `${getPublicOrigin()}/api/share/store/${encodeURIComponent(sellerId)}?og=1`;
 }
 
 /** Deep link opened inside the SPA after OG bounce. */

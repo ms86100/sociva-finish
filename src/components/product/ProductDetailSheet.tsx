@@ -557,7 +557,14 @@ export function ProductDetailSheet({ product, open, onOpenChange, onSelectProduc
       {isServiceBookingAction && product && (
         <ServiceBookingFlow open={bookingOpen} onOpenChange={setBookingOpen} productId={product.product_id} productName={product.product_name} sellerId={product.seller_id} sellerName={product.seller_name} price={product.price} category={product.category || ''} imageUrl={product.image_url} durationMinutes={product.prep_time_minutes || undefined} locationType={(product as any).location_type || undefined} subcategoryId={(product as any).subcategory_id || undefined} initialDraft={bookingDraft} />
       )}
-      <ReportSheet open={d.reportOpen} onOpenChange={d.setReportOpen} targetType="product" targetId={product.product_id} targetName={product.product_name} />
+      <ReportSheet
+        open={d.reportOpen}
+        onOpenChange={d.setReportOpen}
+        targetType="product"
+        targetId={product.product_id}
+        targetName={product.product_name}
+        sellerId={product.seller_id}
+      />
     </>
   );
 }

@@ -4,13 +4,13 @@ import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription } f
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { Loader2, Flag } from 'lucide-react';
+import { Loader2, Flag, Check } from 'lucide-react';
 import { notify } from '@/lib/notify';
 import { showFeedback } from '@/components/FeedbackPopupProvider';
 import { getDrawerKeyboardStyle, useKeepDrawerFieldVisible } from '@/hooks/useChatViewport';
+import { cn } from '@/lib/utils';
 
 interface ReportSheetProps {
   open: boolean;
@@ -18,6 +18,8 @@ interface ReportSheetProps {
   targetType: 'product' | 'seller' | 'post' | 'user';
   targetId: string;
   targetName?: string;
+  /** Optional seller id when reporting a product — stored as secondary target. */
+  sellerId?: string | null;
 }
 
 /** Must match public.reports report_type CHECK constraint. */
@@ -31,13 +33,25 @@ export const REPORT_TYPES = [
 
 export const ALLOWED_REPORT_TYPES = REPORT_TYPES.map((t) => t.value);
 
-export function ReportSheet({ open, onOpenChange, targetType, targetId, targetName }: ReportSheetProps) {
+export function ReportSheet({
+  open,
+  onOpenChange,
+  targetType,
+  targetId,
+  targetName,
+  sellerId,
+}: ReportSheetProps) {
   const { user } = useAuth();
   const [reportType, setReportType] = useState('');
   const [description, setDescription] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { viewportHeight, keyboardInset, isKeyboardOpen } = useKeepDrawerFieldVisible(open);
+
+  const resetForm = () => {
+    setReportType('');
+    setDescription('');
+  };
 
   const handleSubmit = async () => {
     if (!user) {
@@ -48,35 +62,45 @@ export function ReportSheet({ open, onOpenChange, targetType, targetId, targetNa
       notify.block('Please select a reason');
       return;
     }
+    if (!targetId) {
+      notify.block('Nothing to report');
+      return;
+    }
 
     setIsSubmitting(true);
     try {
-      const insertData: Record<string, any> = {
+      const insertData: Record<string, unknown> = {
         reporter_id: user.id,
         report_type: reportType,
-        description: description || null,
+        description: description.trim() || null,
+        status: 'pending',
       };
 
       if (targetType === 'seller') {
         insertData.reported_seller_id = targetId;
       } else if (targetType === 'product') {
         insertData.reported_product_id = targetId;
+        if (sellerId) insertData.reported_seller_id = sellerId;
       } else if (targetType === 'post') {
         insertData.reported_post_id = targetId;
       } else if (targetType === 'user') {
         insertData.reported_user_id = targetId;
       }
 
-      const { error } = await supabase.from('reports').insert(insertData as any);
+      const { error } = await supabase.from('reports').insert(insertData as never);
       if (error) throw error;
 
-      showFeedback({
-        title: 'Report submitted. Our team will review it shortly.',
-        variant: 'success',
-      });
       onOpenChange(false);
-      setReportType('');
-      setDescription('');
+      resetForm();
+      // Close drawer first so feedback is not trapped under product sheet overlays
+      window.setTimeout(() => {
+        showFeedback({
+          title: 'Report submitted',
+          description: 'Our team will review it shortly.',
+          variant: 'success',
+        });
+        notify.success('Report submitted');
+      }, 180);
     } catch (error: any) {
       console.error('Error submitting report:', error);
       const message =
@@ -88,6 +112,7 @@ export function ReportSheet({ open, onOpenChange, targetType, targetId, targetNa
         description: message,
         variant: 'warning',
       });
+      notify.error(message);
     } finally {
       setIsSubmitting(false);
     }
@@ -97,14 +122,21 @@ export function ReportSheet({ open, onOpenChange, targetType, targetId, targetNa
     <Drawer open={open} onOpenChange={onOpenChange} repositionInputs={false}>
       <DrawerContent
         data-drawer-scroll
-        className="z-[70] max-h-[min(92dvh,100%)] overflow-y-auto"
-        overlayClassName="z-[70]"
+        className="z-[280] max-h-[min(92dvh,100%)] overflow-y-auto"
+        overlayClassName="z-[280]"
         style={getDrawerKeyboardStyle({ viewportHeight, keyboardInset, isKeyboardOpen })}
       >
         <DrawerHeader className="text-left pb-4 px-4">
           <DrawerTitle className="flex items-center gap-2">
             <Flag size={18} className="text-destructive" />
-            Report {targetType === 'post' ? 'Post' : targetType === 'product' ? 'Product' : targetType === 'user' ? 'User' : 'Seller'}
+            Report{' '}
+            {targetType === 'post'
+              ? 'Post'
+              : targetType === 'product'
+                ? 'Product'
+                : targetType === 'user'
+                  ? 'User'
+                  : 'Seller'}
           </DrawerTitle>
           <DrawerDescription>
             {targetName && <span>Reporting: {targetName}</span>}
@@ -114,16 +146,30 @@ export function ReportSheet({ open, onOpenChange, targetType, targetId, targetNa
         <div className="space-y-4 px-4 pb-6">
           <div className="space-y-2">
             <Label>Reason *</Label>
-            <Select value={reportType} onValueChange={setReportType}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select a reason" />
-              </SelectTrigger>
-              <SelectContent className="z-[80]">
-                {REPORT_TYPES.map(({ value, label }) => (
-                  <SelectItem key={value} value={value}>{label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="grid gap-2" role="radiogroup" aria-label="Report reason">
+              {REPORT_TYPES.map(({ value, label }) => {
+                const selected = reportType === value;
+                return (
+                  <button
+                    key={value}
+                    type="button"
+                    role="radio"
+                    aria-checked={selected}
+                    data-haptic="selection"
+                    className={cn(
+                      'flex items-center justify-between rounded-xl border px-3 py-3 text-left text-sm transition-colors',
+                      selected
+                        ? 'border-accent bg-accent/10 font-semibold'
+                        : 'border-border bg-background',
+                    )}
+                    onClick={() => setReportType(value)}
+                  >
+                    <span>{label}</span>
+                    {selected ? <Check size={16} className="text-accent shrink-0" /> : null}
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           <div className="space-y-2">
