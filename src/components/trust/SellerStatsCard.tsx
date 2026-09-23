@@ -2,7 +2,7 @@
 import { CheckCircle, Clock, Users, TrendingUp, ShieldCheck, Star } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useSellerTrustSnapshot, type SellerTrustSnapshot } from '@/hooks/queries/useProductTrustMetrics';
+import { canShowRepeatRate, useSellerTrustSnapshot, type SellerTrustSnapshot } from '@/hooks/queries/useProductTrustMetrics';
 import { formatPercent } from '@/lib/utils';
 
 interface SellerStatsCardProps {
@@ -28,12 +28,12 @@ export function SellerStatsCard({ sellerId }: SellerStatsCardProps) {
       value: `${fulfillmentRate}%`,
       color: 'text-success',
     }] : []),
-    {
+    ...(canShowRepeatRate(trust) ? [{
       icon: Users,
       label: 'Repeat Buyers',
       value: formatPercent(trust.repeat_customer_pct),
       color: 'text-primary',
-    },
+    }] : []),
     {
       icon: Clock,
       label: 'Avg Response',

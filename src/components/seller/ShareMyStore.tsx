@@ -34,7 +34,13 @@ export function ShareMyStore() {
         url: shareUrl,
         imageUrl: activeProfile.cover_image_url || null,
       });
-      if (result === 'copied') {
+      if (result === 'shared' || result === 'whatsapp') {
+        showFeedback({
+          title: 'Ready to share',
+          description: 'Pick an app to send your store',
+          variant: 'success',
+        });
+      } else if (result === 'copied') {
         setCopied(true);
         showFeedback({
           title: 'Store link copied',
@@ -43,7 +49,11 @@ export function ShareMyStore() {
         });
         setTimeout(() => setCopied(false), 2000);
       } else if (result === 'failed') {
-        toast.error('Could not share right now');
+        showFeedback({
+          title: 'Could not share right now',
+          description: 'Please try again in a moment',
+          variant: 'warning',
+        });
       }
     } finally {
       setSharing(false);

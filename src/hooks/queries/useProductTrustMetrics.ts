@@ -67,6 +67,25 @@ export function useSellerTrustSnapshot(sellerId: string | null) {
   });
 }
 
+/** Minimum sample before Repeat % is statistically meaningful (avoids 100% from 1 buyer). */
+export const REPEAT_RATE_MIN_UNIQUE_CUSTOMERS = 5;
+export const REPEAT_RATE_MIN_COMPLETED_ORDERS = 5;
+
+/** Show Repeat % only when sample size is large enough and rate is positive. */
+export function canShowRepeatRate(
+  trust: Pick<SellerTrustSnapshot, 'unique_customers' | 'completed_orders' | 'repeat_customer_pct'> | null | undefined,
+): boolean {
+  if (!trust) return false;
+  const unique = Number(trust.unique_customers) || 0;
+  const completed = Number(trust.completed_orders) || 0;
+  const pct = Number(trust.repeat_customer_pct) || 0;
+  return (
+    unique >= REPEAT_RATE_MIN_UNIQUE_CUSTOMERS &&
+    completed >= REPEAT_RATE_MIN_COMPLETED_ORDERS &&
+    pct > 0
+  );
+}
+
 /** Format "last ordered" into human-readable relative time */
 export function formatLastOrdered(dateStr: string | null): string | null {
   if (!dateStr) return null;

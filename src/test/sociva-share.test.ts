@@ -45,4 +45,15 @@ describe('sociva-share', () => {
     expect(src).toMatch(/d\.setReportOpen\(true\)/);
     expect(src).not.toMatch(/onOpenChange\(false\);\s*d\.setReportOpen/);
   });
+
+  it('share helper prefers Capacitor Share/Clipboard on native', () => {
+    const src = require('fs').readFileSync(
+      require('path').resolve(__dirname, '../lib/sociva-share.ts'),
+      'utf8',
+    );
+    expect(src).toMatch(/@capacitor\/share/);
+    expect(src).toMatch(/@capacitor\/clipboard/);
+    expect(src).toMatch(/if \(opened\) return 'whatsapp'/);
+    expect(src).toMatch(/return 'failed'/);
+  });
 });

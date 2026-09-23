@@ -18,10 +18,11 @@ import { extrasHaveRequiredGaps, sanitizeSelectedExtras, type SelectedExtra } fr
 import { ReportSheet } from '@/components/report/ReportSheet';
 import { ServiceBookingFlow } from '@/components/booking/ServiceBookingFlow';
 import { ProductAttributeBlocks } from './ProductAttributeBlocks';
+import { peekPendingAuthAction, takePendingAuthAction, type PendingBookingDraft } from '@/lib/pending-auth-action';
 import { PriceStabilityBadge } from '@/components/trust/PriceStabilityBadge';
 import { RefundTierBadge } from '@/components/trust/RefundTierBadge';
 import { Plus, Minus, Store, Clock, Truck, Users, Zap, RotateCcw, ChevronRight, ChevronDown, Shield, Flag, X, Share2, Heart, Star } from 'lucide-react';
-import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
+import { showFeedback } from '@/components/FeedbackPopupProvider';
 import { ProductFavoriteButton } from '@/components/favorite/ProductFavoriteButton';
 import { useProductFavorites } from '@/hooks/useProductFavorites';
 import { useProductDetail, ProductDetail } from '@/hooks/useProductDetail';
@@ -41,6 +42,8 @@ import { getCommercePriceLabel, isCartPricedAction, shouldShowMonetaryPrice } fr
 import { formatPercent } from '@/lib/utils';
 import { fullStorePlaceLine } from '@/lib/location-label-resolver';
 import { SellerLocationLine } from '@/components/location/SellerLocationLine';
+import { buildProductShareText, productShareUrl, shareSocivaContent } from '@/lib/sociva-share';
+import { canShowRepeatRate } from '@/hooks/queries/useProductTrustMetrics';
 
 const PriceHistoryChart = lazy(() =>
   import('./PriceHistoryChart').then((m) => ({ default: m.PriceHistoryChart })),
@@ -86,10 +89,31 @@ export function ProductDetailSheet({ product, open, onOpenChange, onSelectProduc
   });
   const ml = useMarketplaceLabels();
   const [bookingOpen, setBookingOpen] = useState(false);
+  const [bookingDraft, setBookingDraft] = useState<PendingBookingDraft | null>(null);
   const [selectedExtras, setSelectedExtras] = useState<SelectedExtra[]>([]);
   const extraGroups = useProductExtraGroups(d.loadedSpecs ?? product?.specifications);
   useEffect(() => { setSelectedExtras([]); }, [product?.product_id]);
   const isServiceBookingAction = usesServiceBookingFlow(d.actionType);
+
+  // Resume enquire / book / contact after guest OTP (including saved booking slot).
+  useEffect(() => {
+    if (!open || !user || !product?.product_id) return;
+    const pending = peekPendingAuthAction();
+    if (!pending || pending.type === 'add_to_cart' || pending.type === 'checkout') return;
+    if (pending.productId && pending.productId !== product.product_id) return;
+    const taken = takePendingAuthAction();
+    if (!taken) return;
+    if (taken.type === 'contact') d.setContactOpen(true);
+    else if (taken.type === 'book') {
+      setBookingDraft(taken.bookingDraft || null);
+      setBookingOpen(true);
+    } else d.setEnquiryOpen(true);
+  }, [open, user, product?.product_id]);
+
+  useEffect(() => {
+    if (!bookingOpen) setBookingDraft(null);
+  }, [bookingOpen]);
+
   const { data: favoriteIds = [] } = useProductFavorites();
   const creditEvent = d.actionType === 'book'
     ? 'SERVICE_BOOKING'
@@ -291,11 +315,11 @@ export function ProductDetailSheet({ product, open, onOpenChange, onSelectProduc
                     <Suspense fallback={null}>
                       <PriceHistoryChart productId={product.product_id} priceStableSince={(product as any).price_stable_since} />
                     </Suspense>
-                    {(d.productTrust?.total_orders > 0 || (d.trustSnapshot && (d.trustSnapshot.avg_response_min > 0 || d.trustSnapshot.repeat_customer_pct > 0))) && (
+                    {(d.productTrust?.total_orders > 0 || (d.trustSnapshot && (d.trustSnapshot.avg_response_min > 0 || canShowRepeatRate(d.trustSnapshot)))) && (
                       <div className="grid grid-cols-3 gap-2">
                         {d.productTrust?.total_orders > 0 && <div className="bg-muted rounded-xl p-2.5 text-center"><Users size={14} className="mx-auto text-primary mb-1" /><p className="text-sm font-bold text-foreground">{d.productTrust.total_orders}</p><p className="text-[9px] text-muted-foreground">Orders</p></div>}
                         {d.trustSnapshot?.avg_response_min > 0 && <div className="bg-muted rounded-xl p-2.5 text-center"><Zap size={14} className="mx-auto text-accent mb-1" /><p className="text-sm font-bold text-foreground">~{d.trustSnapshot.avg_response_min}m</p><p className="text-[9px] text-muted-foreground">Response</p></div>}
-                        {d.trustSnapshot?.repeat_customer_pct > 0 && <div className="bg-muted rounded-xl p-2.5 text-center"><RotateCcw size={14} className="mx-auto text-primary mb-1" /><p className="text-sm font-bold text-foreground">{formatPercent(d.trustSnapshot.repeat_customer_pct)}</p><p className="text-[9px] text-muted-foreground">Repeat</p></div>}
+                        {canShowRepeatRate(d.trustSnapshot) && <div className="bg-muted rounded-xl p-2.5 text-center"><RotateCcw size={14} className="mx-auto text-primary mb-1" /><p className="text-sm font-bold text-foreground">{formatPercent(d.trustSnapshot.repeat_customer_pct)}</p><p className="text-[9px] text-muted-foreground">Repeat</p></div>}
                       </div>
                     )}
                   </motion.div>
@@ -391,33 +415,65 @@ export function ProductDetailSheet({ product, open, onOpenChange, onSelectProduc
             )}
             <div className="px-6 pb-3 flex items-center gap-4">
               <button
-                onClick={async () => {
-                  const shareUrl = `${window.location.origin}/#/product/${product.product_id}`;
-                  const shareData = {
-                    title: product.product_name,
-                    text: `${product.product_name} by ${product.seller_name} — ${d.formatPrice(product.price)}`,
+                type="button"
+                onClick={async (e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (!product?.product_id) return;
+                  hapticSelection();
+                  const shareUrl = productShareUrl(product.product_id);
+                  const sellerLabel = displaySellerStoreName(product.seller_name);
+                  const priceLabel = shouldShowMonetaryPrice(d.actionType, product.price)
+                    ? d.formatPrice(product.price)
+                    : getCommercePriceLabel(d.actionType, product.price, d.formatPrice);
+                  const text = buildProductShareText({
+                    name: product.product_name,
+                    priceLabel,
+                    sellerName: sellerLabel,
                     url: shareUrl,
-                  };
-                  try {
-                    if (navigator.share) {
-                      await navigator.share(shareData);
-                    } else {
-                      await navigator.clipboard.writeText(shareUrl);
-                      const { showFeedback } = useFeedbackPopup();
-                      showFeedback({
-                        title: 'Link copied to clipboard',
-                        variant: 'success'
-                      });
-                    }
-                  } catch {
-                    // Sharing may be cancelled or unavailable without affecting the sheet.
+                  });
+                  const result = await shareSocivaContent({
+                    title: product.product_name,
+                    text,
+                    url: shareUrl,
+                    imageUrl: product.image_url,
+                  });
+                  if (result === 'shared' || result === 'whatsapp') {
+                    showFeedback({
+                      title: 'Ready to share',
+                      description: 'Pick an app to send this product',
+                      variant: 'success',
+                    });
+                  } else if (result === 'copied') {
+                    showFeedback({
+                      title: 'Share text copied',
+                      description: 'Paste it in WhatsApp to share this product',
+                      variant: 'success',
+                    });
+                  } else if (result === 'failed') {
+                    showFeedback({
+                      title: 'Could not share right now',
+                      description: 'Please try again in a moment',
+                      variant: 'warning',
+                    });
                   }
                 }}
                 className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary transition-colors"
               >
                 <Share2 size={12} />Share
               </button>
-              <button onClick={() => { onOpenChange(false); d.setReportOpen(true); }} className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-destructive transition-colors"><Flag size={12} />Report</button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  // Keep product sheet mounted — closing it previously stole focus (e.g. search).
+                  d.setReportOpen(true);
+                }}
+                className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-destructive transition-colors"
+              >
+                <Flag size={12} />Report
+              </button>
             </div>
             <div className="h-20" />
           </div>
@@ -499,7 +555,7 @@ export function ProductDetailSheet({ product, open, onOpenChange, onSelectProduc
       {d.actionType === 'contact_seller' && <ContactSellerModal open={d.contactOpen} onOpenChange={d.setContactOpen} sellerName={product.seller_name} sellerId={product.seller_id} buyerId={user?.id ?? ''} productId={product.product_id} productName={product.product_name} />}
       {!d.isCartAction && d.actionType !== 'contact_seller' && !isServiceBookingAction && <ProductEnquirySheet open={d.enquiryOpen} onOpenChange={d.setEnquiryOpen} productId={product.product_id} productName={product.product_name} sellerId={product.seller_id} sellerName={product.seller_name} actionType={d.actionType} price={product.price} specifications={d.loadedSpecs ?? product.specifications} />}
       {isServiceBookingAction && product && (
-        <ServiceBookingFlow open={bookingOpen} onOpenChange={setBookingOpen} productId={product.product_id} productName={product.product_name} sellerId={product.seller_id} sellerName={product.seller_name} price={product.price} category={product.category || ''} imageUrl={product.image_url} durationMinutes={product.prep_time_minutes || undefined} locationType={(product as any).location_type || undefined} subcategoryId={(product as any).subcategory_id || undefined} />
+        <ServiceBookingFlow open={bookingOpen} onOpenChange={setBookingOpen} productId={product.product_id} productName={product.product_name} sellerId={product.seller_id} sellerName={product.seller_name} price={product.price} category={product.category || ''} imageUrl={product.image_url} durationMinutes={product.prep_time_minutes || undefined} locationType={(product as any).location_type || undefined} subcategoryId={(product as any).subcategory_id || undefined} initialDraft={bookingDraft} />
       )}
       <ReportSheet open={d.reportOpen} onOpenChange={d.setReportOpen} targetType="product" targetId={product.product_id} targetName={product.product_name} />
     </>

@@ -3,10 +3,28 @@
  * Share links use /api/share/* so WhatsApp can read Open Graph tags (hash URLs cannot).
  */
 
+import { Capacitor } from '@capacitor/core';
+
 const PUBLIC_ORIGIN = 'https://www.sociva.in';
+
+function isStagingAppEnv(): boolean {
+  const appEnv = String(import.meta.env.VITE_APP_ENV || '')
+    .toLowerCase()
+    .trim();
+  return appEnv === 'staging' || appEnv === 'test';
+}
 
 export function getPublicOrigin(): string {
   if (typeof window === 'undefined') return PUBLIC_ORIGIN;
+
+  const stagingOrigin = String(import.meta.env.VITE_PUBLIC_ORIGIN || '')
+    .replace(/^["']|["']$/g, '')
+    .trim()
+    .replace(/\/$/, '');
+  if (isStagingAppEnv() && stagingOrigin && /^https?:\/\//i.test(stagingOrigin)) {
+    return stagingOrigin;
+  }
+
   const origin = window.location.origin;
   if (
     !origin ||
@@ -75,6 +93,39 @@ export function buildStoreShareText(opts: {
 
 export type ShareResult = 'shared' | 'copied' | 'whatsapp' | 'cancelled' | 'failed';
 
+async function tryCapacitorShare(opts: {
+  title: string;
+  text: string;
+  url: string;
+}): Promise<boolean> {
+  if (!Capacitor.isNativePlatform()) return false;
+  try {
+    const { Share } = await import('@capacitor/share');
+    await Share.share({
+      title: opts.title,
+      text: opts.text,
+      url: opts.url,
+      dialogTitle: opts.title,
+    });
+    return true;
+  } catch (err) {
+    const message = String((err as Error)?.message || err || '');
+    if (/cancel|abort|dismiss/i.test(message)) throw Object.assign(new Error(message), { name: 'AbortError' });
+    return false;
+  }
+}
+
+async function tryCapacitorClipboard(text: string): Promise<boolean> {
+  if (!Capacitor.isNativePlatform()) return false;
+  try {
+    const { Clipboard } = await import('@capacitor/clipboard');
+    await Clipboard.write({ string: text });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function tryShareWithImage(opts: {
   title: string;
   text: string;
@@ -133,6 +184,7 @@ export async function shareSocivaContent(opts: {
   imageUrl?: string | null;
 }): Promise<ShareResult> {
   try {
+    if (await tryCapacitorShare(opts)) return 'shared';
     if (await tryShareWithImage(opts)) return 'shared';
     if (await tryNativeShare(opts)) return 'shared';
   } catch (err) {
@@ -140,6 +192,7 @@ export async function shareSocivaContent(opts: {
   }
 
   try {
+    if (await tryCapacitorClipboard(opts.text)) return 'copied';
     if (navigator.clipboard?.writeText) {
       await navigator.clipboard.writeText(opts.text);
       return 'copied';
@@ -150,8 +203,10 @@ export async function shareSocivaContent(opts: {
 
   try {
     const wa = `https://wa.me/?text=${encodeURIComponent(opts.text)}`;
-    window.open(wa, '_blank', 'noopener,noreferrer');
-    return 'whatsapp';
+    const opened = window.open(wa, '_blank', 'noopener,noreferrer');
+    if (opened) return 'whatsapp';
+    // Popup blocked (common in Capacitor WebView)
+    return 'failed';
   } catch {
     return 'failed';
   }
