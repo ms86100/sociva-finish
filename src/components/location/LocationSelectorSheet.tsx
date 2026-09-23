@@ -4,6 +4,8 @@ import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '@/components/u
 import { MapPin, Home, Briefcase, Tag, Building, Navigation, Loader2, Plus, Check } from 'lucide-react';
 import { useDeliveryAddresses } from '@/hooks/useDeliveryAddresses';
 import { useAuth } from '@/contexts/AuthContext';
+import { useCart } from '@/hooks/useCart';
+import { setPendingAuthAction, profileEditOnboardingState } from '@/lib/pending-auth-action';
 import { useBrowsingLocation } from '@/contexts/BrowsingLocationContext';
 import { getCurrentPosition } from '@/lib/native-location';
 import { loadGoogleMapsScript } from '@/hooks/useGoogleMaps';
@@ -23,7 +25,8 @@ const LABEL_ICONS: Record<string, typeof Home> = {
 
 export function LocationSelectorSheet({ open, onOpenChange }: LocationSelectorSheetProps) {
   const { addresses } = useDeliveryAddresses();
-  const { society } = useAuth();
+  const { user, society } = useAuth();
+  const { itemCount } = useCart();
   const { browsingLocation, setBrowsingLocation, clearOverride } = useBrowsingLocation();
   const { showFeedback } = useFeedbackPopup();
   const navigate = useNavigate();
@@ -102,7 +105,21 @@ export function LocationSelectorSheet({ open, onOpenChange }: LocationSelectorSh
 
   const handleAddAddress = () => {
     onOpenChange(false);
-    navigate('/profile/edit');
+    // Mid-checkout: keep cart intent across auth / address onboarding
+    if (itemCount > 0) {
+      setPendingAuthAction({ type: 'checkout', returnTo: '/cart' });
+    }
+    const editState = profileEditOnboardingState({ itemCount, focusAddress: true });
+    if (!user) {
+      navigate('/auth', {
+        state: {
+          returnTo: itemCount > 0 ? '/cart' : '/profile/edit',
+          from: itemCount > 0 ? '/cart' : '/profile/edit',
+        },
+      });
+      return;
+    }
+    navigate('/profile/edit', { state: editState });
   };
 
   const handleOpenChange = (val: boolean) => {

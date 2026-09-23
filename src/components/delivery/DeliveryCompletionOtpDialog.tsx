@@ -70,9 +70,12 @@ export function DeliveryCompletionOtpDialog({ orderId, open, onOpenChange, onVer
       }, 900);
     } catch (error: any) {
       const msg = error?.message || 'Invalid delivery code';
-      const friendly = msg.toLowerCase().includes('invalid delivery code')
-        ? 'Invalid code, please try again'
-        : msg;
+      const lower = msg.toLowerCase();
+      const friendly = lower.includes('too many attempts')
+        ? 'Too many attempts. Try again in 15 minutes'
+        : lower.includes('invalid delivery code')
+          ? 'Invalid code, please try again'
+          : msg;
       setErrorMessage(friendly);
       toast.error(friendly);
     } finally {

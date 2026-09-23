@@ -1,6 +1,7 @@
 // @ts-nocheck
 import React, { useState, useEffect, lazy, Suspense, ComponentType, useRef } from "react";
 import { StagingBanner } from "@/components/dev/StagingBanner";
+import { MinVersionGate } from "@/components/system/MinVersionGate";
 
 // Fallback component shown when a lazy page fails to resolve
 function LazyLoadFailed() {
@@ -70,7 +71,8 @@ function ThemeStatusBarSync() {
 import { AuthProvider, useAuth, useOptionalAuth } from "@/contexts/AuthContext";
 import { AdminManagedSellerProvider } from "@/contexts/AdminManagedSellerContext";
 import { AnalyticsRouteTracker } from "@/components/analytics/AnalyticsRouteTracker";
-import { CartProvider } from "@/hooks/useCart";
+import { CartProvider, useCart } from "@/hooks/useCart";
+import { profileEditOnboardingState } from "@/lib/pending-auth-action";
 import { CartPopupProvider } from "@/components/CartPopupProvider";
 import { BrowsingLocationProvider } from "@/contexts/BrowsingLocationContext";
 import { OfflineBanner } from "@/components/network/OfflineBanner";
@@ -323,6 +325,18 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+/** Incomplete profile → address onboarding, keeping cart/checkout returnTo when present. */
+function SocietyOnboardingRedirect() {
+  const { itemCount } = useCart();
+  return (
+    <Navigate
+      to="/profile/edit"
+      replace
+      state={profileEditOnboardingState({ itemCount, focusAddress: true })}
+    />
+  );
+}
+
 function SocietyMemberRoute({ children }: { children: React.ReactNode }) {
   const { effectiveSocietyId, isAdmin, isLoading } = useAuth();
   if (isLoading) {
@@ -550,7 +564,7 @@ function AppRoutes() {
             ) : authedHome ? (
               <Navigate to="/" replace />
             ) : needsSocietyOnboarding ? (
-              <Navigate to="/profile/edit" replace />
+              <SocietyOnboardingRedirect />
             ) : Capacitor.isNativePlatform() ? (
               <Navigate to="/auth" replace />
             ) : (
@@ -566,7 +580,7 @@ function AppRoutes() {
             ) : authedHome ? (
               <Navigate to="/" replace />
             ) : needsSocietyOnboarding ? (
-              <Navigate to="/profile/edit" replace />
+              <SocietyOnboardingRedirect />
             ) : Capacitor.isNativePlatform() ? (
               <Navigate to="/auth" replace />
             ) : (
@@ -582,7 +596,7 @@ function AppRoutes() {
             ) : authedHome ? (
               <Navigate to="/" replace />
             ) : needsSocietyOnboarding ? (
-              <Navigate to="/profile/edit" replace />
+              <SocietyOnboardingRedirect />
             ) : (
               <RouteErrorBoundary sectionName="Authentication"><AuthPage /></RouteErrorBoundary>
             )
@@ -820,7 +834,9 @@ function App() {
                       <PushNotificationProvider>
                         <GlobalChatAlerts />
                         <SafeSellerAlert><GlobalSellerAlert /></SafeSellerAlert>
+                          <MinVersionGate>
                           <AppRoutes />
+                          </MinVersionGate>
                       </PushNotificationProvider>
                       </NewOrderAlertProvider>
                     </CartProvider>

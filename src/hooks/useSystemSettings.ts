@@ -13,6 +13,7 @@ export interface SystemSettings {
   grievanceOfficerName: string;
   headerTagline: string;
   appVersion: string;
+  minSupportedAppVersion: string;
   addressBlockLabel: string;
   addressFlatLabel: string;
   termsLastUpdated: string;
@@ -45,6 +46,7 @@ const DEFAULTS: SystemSettings = {
   grievanceOfficerName: 'Sociva Grievance Cell',
   headerTagline: 'Your Society, Your Store',
   appVersion: '2.0.0',
+  minSupportedAppVersion: '',
   addressBlockLabel: 'Block / Tower',
   addressFlatLabel: 'Flat Number',
   termsLastUpdated: 'February 13, 2026',
@@ -78,6 +80,7 @@ function buildSettingsFromMap(map: Record<string, string>): SystemSettings {
     grievanceOfficerName: map.grievance_officer_name || DEFAULTS.grievanceOfficerName,
     headerTagline: map.header_tagline || DEFAULTS.headerTagline,
     appVersion: map.app_version || DEFAULTS.appVersion,
+    minSupportedAppVersion: map.min_supported_app_version || '',
     addressBlockLabel: map.address_block_label || DEFAULTS.addressBlockLabel,
     addressFlatLabel: map.address_flat_label || DEFAULTS.addressFlatLabel,
     termsLastUpdated: map.terms_last_updated || DEFAULTS.termsLastUpdated,

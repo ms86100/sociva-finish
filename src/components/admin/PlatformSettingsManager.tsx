@@ -35,6 +35,7 @@ const SETTING_FIELDS: SettingField[] = [
   // ── Branding ──
   { key: 'header_tagline', label: 'Header Tagline', type: 'text', icon: Type, group: 'Branding', description: 'Shown below the logo in the app header' },
   { key: 'app_version', label: 'App Version', type: 'text', icon: Settings, group: 'Branding', description: 'Displayed on the Profile page' },
+  { key: 'min_supported_app_version', label: 'Minimum app version', type: 'text', icon: Settings, group: 'Branding', description: 'Older installs see an update screen. Leave empty to allow every version. Example: 2.0.60' },
   // ── Address ──
   { key: 'address_block_label', label: 'Address Block Label', type: 'text', icon: Type, group: 'Address', description: 'Label for block/tower field (e.g., Block / Tower, Wing)' },
   { key: 'address_flat_label', label: 'Address Flat Label', type: 'text', icon: Type, group: 'Address', description: 'Label for flat/unit field (e.g., Flat Number, Unit)' },

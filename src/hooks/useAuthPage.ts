@@ -11,7 +11,7 @@ import { markPostLoginPermissionSheet } from '@/hooks/usePermissionLifecycle';
 import { notify } from '@/lib/notify';
 import { showFeedback } from '@/components/FeedbackPopupProvider';
 import { QA_OTP_REQ_ID } from '@/lib/qa-otp-bypass';
-import { pendingAuthReturnPath, peekPendingAuthAction, resolvePendingReturnTo } from '@/lib/pending-auth-action';
+import { pendingAuthReturnPath, peekPendingAuthAction, resolvePendingReturnTo, profileEditOnboardingState, clearPendingAuthAction } from '@/lib/pending-auth-action';
 
 export type AuthStep = 'phone' | 'otp' | 'society';
 export type SocietySubStep = 'search' | 'map-confirm' | 'request-form';
@@ -74,6 +74,7 @@ export function useAuthPage() {
   }, []);
 
   // Incomplete membership → delivery-address onboarding (society_id set there).
+  // Preserve checkout/cart returnTo so first-time buyers land back on cart, not home.
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -85,10 +86,14 @@ export function useAuthPage() {
         .eq('id', user.id)
         .maybeSingle();
       if (cancelled || prof?.society_id) return;
-      navigate('/profile/edit', { replace: true });
+      const editState = profileEditOnboardingState({
+        locationReturnTo: isCheckoutResume ? '/cart' : (authReturnTo.startsWith('/') ? authReturnTo : null),
+        focusAddress: true,
+      });
+      navigate('/profile/edit', { replace: true, state: editState });
     })();
     return () => { cancelled = true; };
-  }, [navigate]);
+  }, [navigate, authReturnTo, isCheckoutResume]);
 
   // Cooldown timer - chained timeout avoids re-creating intervals every tick
   useEffect(() => {
@@ -413,14 +418,27 @@ export function useAuthPage() {
       if (resolvedNew || !prof?.society_id) {
         showFeedback({ title: 'Phone verified! Add your delivery address to continue.', variant: 'success' });
         setIsNewUser(true);
-        navigate('/profile/edit', { replace: true });
+        const editState = profileEditOnboardingState({
+          locationReturnTo: isCheckoutResume ? '/cart' : (authReturnTo.startsWith('/') ? authReturnTo : null),
+          focusAddress: true,
+        });
+        navigate('/profile/edit', { replace: true, state: editState });
       } else {
         const isIncomplete = !prof?.name || prof.name === 'User';
         const pending = peekPendingAuthAction();
-        const dest = isIncomplete
-          ? '/profile/edit'
-          : (pending ? resolvePendingReturnTo(pending, authReturnTo) : (authReturnTo.startsWith('/') ? authReturnTo : '/'));
-        navigate(dest, { replace: true });
+        if (isIncomplete) {
+          const editState = profileEditOnboardingState({
+            locationReturnTo: isCheckoutResume ? '/cart' : (pending ? resolvePendingReturnTo(pending, '/cart') : null),
+            focusAddress: true,
+          });
+          navigate('/profile/edit', { replace: true, state: editState });
+        } else {
+          const dest = pending
+            ? resolvePendingReturnTo(pending, isCheckoutResume ? '/cart' : (authReturnTo.startsWith('/') ? authReturnTo : '/'))
+            : (isCheckoutResume ? '/cart' : (authReturnTo.startsWith('/') && authReturnTo !== '/profile/edit' ? authReturnTo : '/'));
+          if (dest === '/cart') clearPendingAuthAction();
+          navigate(dest, { replace: true });
+        }
       }
 
     } catch (error: any) {

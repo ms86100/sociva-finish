@@ -361,6 +361,9 @@ async function handleUpdateStatus(req: Request, db: any, userId: string) {
   if (shouldGenerateOtp) {
     const otp = generateOTP();
     updateData.otp_hash = await hashOTP(otp);
+    // Same digits the buyer sees and the seller types. Hash-only storage
+    // made the notification code disagree with delivery_code verification.
+    updateData.delivery_code = otp;
     updateData.otp_expires_at = new Date(Date.now() + 30 * 60 * 1000).toISOString();
 
     const { data: order } = await db.from('orders').select('buyer_id').eq('id', assignment.order_id).single();

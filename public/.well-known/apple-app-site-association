@@ -4,7 +4,7 @@
     "details": [
       {
         "appID": "6HBR38JB8Z.app.sociva.community",
-        "paths": ["/*"]
+        "paths": ["NOT /update", "NOT /update/*", "/*"]
       }
     ]
   },

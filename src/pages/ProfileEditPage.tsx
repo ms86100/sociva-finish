@@ -21,7 +21,8 @@ import { toast } from 'sonner';
 import { useFeedbackPopup } from '@/components/FeedbackPopupProvider';
 import { ArrowLeft, Plus, Loader2, Mail, MapPin, Phone, User, ChevronRight, KeyRound, LogOut } from 'lucide-react';
 import { useEffect, useRef } from 'react';
-import { peekPendingAuthAction, resolvePendingReturnTo } from '@/lib/pending-auth-action';
+import { resolveAfterOnboardingPath, clearPendingAuthAction } from '@/lib/pending-auth-action';
+import { useCart } from '@/hooks/useCart';
 
 function seedFromBrowsingLocation(browsingLocation: {
   lat?: number;
@@ -48,11 +49,13 @@ export default function ProfileEditPage() {
   const { showFeedback } = useFeedbackPopup();
   const { addresses, isLoading: addressesLoading, saveAddress, deleteAddress, setDefault, isSaving } = useDeliveryAddresses();
 
-  const pendingAuth = peekPendingAuthAction();
-  const returnTo =
-    (location.state as { returnTo?: string } | null)?.returnTo
-    || (pendingAuth ? resolvePendingReturnTo(pendingAuth, '/') : null);
+  const { itemCount } = useCart();
+  const returnTo = resolveAfterOnboardingPath({
+    locationReturnTo: (location.state as { returnTo?: string } | null)?.returnTo,
+    itemCount,
+  });
   const focusAddress = !!(location.state as { focusAddress?: boolean } | null)?.focusAddress;
+  const goesToCart = returnTo === '/cart' || returnTo.startsWith('/cart?');
 
   const [name, setName] = useState(
     profile?.name && profile.name !== 'User' ? profile.name : ''
@@ -152,9 +155,11 @@ export default function ProfileEditPage() {
         title: 'Profile updated! Redirecting…',
         variant: 'success'
       });
-      const pending = peekPendingAuthAction();
-      const dest = returnTo
-        || (pending ? resolvePendingReturnTo(pending, '/') : '/');
+      const dest = resolveAfterOnboardingPath({
+        locationReturnTo: returnTo,
+        itemCount,
+      });
+      if (dest === '/cart' || dest.startsWith('/cart?')) clearPendingAuthAction();
       navigate(dest);
     } catch (err) {
       console.error('Failed to update profile', err);
@@ -192,6 +197,19 @@ export default function ProfileEditPage() {
     setEditingAddress(null);
     setPendingInvite(null);
     setInviteCode('');
+
+    // Checkout / cart sent us here to add an address - return there once door details are saved
+    // and the profile already has a real name (returning buyer). First-time buyers still need step 2.
+    const hasRealName = !!(profile?.name && profile.name !== 'User');
+    if (goesToCart && hasRealName) {
+      showFeedback({
+        title: 'Address saved',
+        variant: 'success',
+      });
+      clearPendingAuthAction();
+      navigate(returnTo);
+      return;
+    }
 
     setTimeout(() => {
       setStep(2);
@@ -574,7 +592,11 @@ export default function ProfileEditPage() {
 
               <Button onClick={handleSaveProfile} disabled={savingProfile || !name.trim()} className="w-full h-11 rounded-xl font-semibold">
                 {savingProfile ? <Loader2 size={16} className="mr-1 animate-spin" /> : null}
-                Save & Go to Home
+                {goesToCart
+                  ? 'Save & Continue to Cart'
+                  : returnTo && returnTo !== '/'
+                    ? 'Save & Continue'
+                    : 'Save & Go to Home'}
               </Button>
             </div>
           </div>

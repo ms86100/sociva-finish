@@ -1,7 +1,7 @@
 // @ts-nocheck
 /**
  * Image optimization helpers for Supabase Storage.
- * Appends transform params for WebP, quality, and width.
+ * Scales by width only - CSS object-cover handles framing so we never stretch.
  */
 
 interface ImageOptions {
@@ -16,9 +16,8 @@ const SUPABASE_STORAGE_HOST = 'supabase.co/storage/v1';
  * Returns an optimized image URL with Supabase Storage transform params.
  * Only applies to Supabase-hosted images. External URLs are returned as-is.
  *
- * @example
- * optimizedImageUrl(url, { width: 300, quality: 75 })
- * // → "...?width=300&quality=75&format=webp"
+ * Important: do NOT pass height here. Width-only keeps the native aspect ratio;
+ * buyer cards use CSS object-cover + square frames (matching seller 1:1 crop).
  */
 export function optimizedImageUrl(
   url: string | null | undefined,
@@ -26,12 +25,10 @@ export function optimizedImageUrl(
 ): string {
   if (!url) return '';
 
-  // Only transform Supabase Storage URLs
   if (!url.includes(SUPABASE_STORAGE_HOST)) return url;
 
   const { width = 400, quality = 75, format = 'webp' } = options ?? {};
 
-  // Replace /object/public/ with /render/image/public/ for transforms
   let transformUrl = url;
   if (url.includes('/object/public/')) {
     transformUrl = url.replace('/object/public/', '/render/image/public/');
@@ -42,21 +39,17 @@ export function optimizedImageUrl(
 }
 
 /**
- * Generates a srcSet string for responsive images.
- * Returns sizes at 150w, 300w, 400w, and 600w for crisp listing cards.
+ * Generates a srcSet string for responsive listing / menu thumbs.
  */
 export function imageSrcSet(
   url: string | null | undefined,
-  quality = 75
+  quality = 82
 ): string {
   if (!url || !url.includes(SUPABASE_STORAGE_HOST)) return '';
 
-  return [
-    `${optimizedImageUrl(url, { width: 150, quality })} 150w`,
-    `${optimizedImageUrl(url, { width: 300, quality })} 300w`,
-    `${optimizedImageUrl(url, { width: 400, quality })} 400w`,
-    `${optimizedImageUrl(url, { width: 600, quality })} 600w`,
-  ].join(', ');
+  return [160, 320, 480, 640]
+    .map((w) => `${optimizedImageUrl(url, { width: w, quality })} ${w}w`)
+    .join(', ');
 }
 
 /**
@@ -68,16 +61,16 @@ export function handleImageError(e: React.SyntheticEvent<HTMLImageElement>) {
   const img = e.currentTarget;
   const src = img.src;
 
-  // If currently using /render/image/, fall back to /object/public/ (original)
   if (src.includes('/render/image/public/')) {
     const original = src
       .replace('/render/image/public/', '/object/public/')
-      .replace(/[?&](width|quality|format)=[^&]*/g, '')
-      .replace(/\?$/, '');
+      .replace(/[?&](width|height|quality|format|resize)=[^&]*/g, '')
+      .replace(/\?$/, '')
+      .replace(/\?&/, '?')
+      .replace(/&&+/g, '&');
     img.src = original;
     return;
   }
 
-  // Final fallback: hide broken image, show parent's fallback content
   img.style.display = 'none';
 }

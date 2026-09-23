@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { motion, useInView } from 'framer-motion';
 import { Apple, Smartphone } from 'lucide-react';
 
-const IOS_APP_STORE_URL = 'https://apps.apple.com/in/app/sociva/id6759218504';
+export const IOS_APP_STORE_URL = 'https://apps.apple.com/in/app/sociva/id6759218504';
 /** Live Google Play listing (same package as Android release). */
 export const ANDROID_PLAY_STORE_URL =
   'https://play.google.com/store/apps/details?id=app.sociva.community&hl=en_IN';

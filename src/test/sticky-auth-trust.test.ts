@@ -74,13 +74,15 @@ describe('Sticky auth: /auth bounce guard', () => {
     const src = readFileSync(resolve(__dirname, '../App.tsx'), 'utf8');
     expect(src).toMatch(/authedHome\s*=\s*!!\(user\s*&&\s*profile\?\.society_id\s*&&\s*!isSigningOut\)/);
     expect(src).toMatch(/needsSocietyOnboarding/);
-    expect(src).toMatch(/needsSocietyOnboarding\s*\?\s*\([\s\S]*?Navigate to="\/profile\/edit"/);
+    expect(src).toMatch(/SocietyOnboardingRedirect/);
+    expect(src).toMatch(/profileEditOnboardingState/);
   });
 
   it('useAuthPage sends users without society_id to profile edit after OTP', () => {
     const src = readFileSync(resolve(__dirname, '../hooks/useAuthPage.ts'), 'utf8');
     expect(src).toMatch(/navigate\('\/profile\/edit'/);
     expect(src).toMatch(/Add your delivery address/);
+    expect(src).toMatch(/profileEditOnboardingState/);
     expect(src).not.toMatch(/setStep\('society'\)/);
   });
 });

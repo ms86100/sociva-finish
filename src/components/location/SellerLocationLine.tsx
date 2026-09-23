@@ -6,7 +6,7 @@ interface SellerLocationLineProps {
   className?: string;
   textClassName?: string;
   iconSize?: number;
-  clamp?: 0 | 2;
+  clamp?: 0 | 1 | 2;
   mapsUrl?: string | null;
 }
 
@@ -27,6 +27,7 @@ export function SellerLocationLine({
       <span
         className={cn(
           'min-w-0 text-[10px] font-medium text-muted-foreground leading-snug whitespace-normal break-words',
+          clamp === 1 && 'truncate whitespace-nowrap break-normal',
           clamp === 2 && 'line-clamp-2',
           textClassName,
         )}
@@ -45,7 +46,11 @@ export function SellerLocationLine({
           e.stopPropagation();
           window.open(mapsUrl, '_blank');
         }}
-        className={cn('flex items-start gap-1 min-w-0 text-left', className)}
+        className={cn(
+          'flex min-w-0 text-left',
+          clamp === 1 ? 'items-center gap-1' : 'items-start gap-1',
+          className,
+        )}
       >
         {inner}
       </button>
@@ -53,7 +58,11 @@ export function SellerLocationLine({
   }
 
   return (
-    <div className={cn('flex items-start gap-1 min-w-0', className)}>
+    <div className={cn(
+      'flex min-w-0',
+      clamp === 1 ? 'items-center gap-1' : 'items-start gap-1',
+      className,
+    )}>
       {inner}
     </div>
   );

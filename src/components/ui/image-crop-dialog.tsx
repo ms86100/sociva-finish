@@ -171,9 +171,9 @@ export function ImageCropDialog({
     const cropX = (cw - cropW) / 2;
     const cropY = (ch - cropH) / 2;
 
-    // Output canvas at good resolution
-    const outW = Math.min(cropAspect(aspectRatio), 1200);
-    const outH = outW / aspectRatio;
+    // Output canvas at high resolution matching listing square frames
+    const outW = Math.min(cropAspect(aspectRatio), 1400);
+    const outH = Math.round(outW / aspectRatio);
 
     const outCanvas = document.createElement('canvas');
     outCanvas.width = outW;
@@ -199,7 +199,7 @@ export function ImageCropDialog({
     outCanvas.toBlob(
       (blob) => { if (blob) onCropComplete(blob); },
       'image/jpeg',
-      0.9
+      0.92
     );
   };
 
@@ -269,5 +269,6 @@ export function ImageCropDialog({
 }
 
 function cropAspect(ar: number): number {
-  return ar >= 1 ? 1200 : 800;
+  // Square product crops export at 1400px so 3-col listing thumbs stay crisp
+  return ar >= 1 ? 1400 : 900;
 }

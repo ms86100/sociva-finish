@@ -47,7 +47,7 @@ export default function CartPage() {
   const goCompleteAddress = () => {
     if (!c.user) {
       setPendingAuthAction({ type: 'checkout', returnTo: '/cart' });
-      navigate('/auth', { state: { returnTo: '/profile/edit', from: '/cart' } });
+      navigate('/auth', { state: { returnTo: '/cart', from: '/cart' } });
       return;
     }
     navigate('/profile/edit', { state: { returnTo: '/cart', focusAddress: true } });
@@ -437,7 +437,11 @@ export default function CartPage() {
                 ) : null}
               </div>
               {c.addresses.length > 0 && (
-                <AddressPicker selectedId={c.selectedDeliveryAddress?.id} onSelect={c.setSelectedDeliveryAddress} />
+                <AddressPicker
+                  selectedId={c.selectedDeliveryAddress?.id}
+                  onSelect={c.setSelectedDeliveryAddress}
+                  addReturnTo="/cart"
+                />
               )}
             </div>
           ) : (
