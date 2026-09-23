@@ -25,7 +25,7 @@ export function NotificationHealthCheck() {
         label: 'Error',
         ok: false,
         actionType: 'none',
-        message: 'Could not complete the check — please try again later',
+        message: 'Could not complete the check - please try again later',
       }]);
     } finally {
       setLoading(false);

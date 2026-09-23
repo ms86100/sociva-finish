@@ -126,7 +126,7 @@ export function BulkProductUpload({ isOpen, onClose, sellerId, allowedCategories
                                 {rowSubs.map(s => <SelectItem key={s.id} value={s.id}><span className="flex items-center gap-1.5"><DynamicIcon name={s.icon || 'FolderOpen'} size={14} /> {s.display_name}</span></SelectItem>)}
                               </SelectContent>
                             </Select>
-                          ) : <span className="text-xs text-muted-foreground">—</span>}
+                          ) : <span className="text-xs text-muted-foreground">-</span>}
                         </TableCell>
                       )}
                       <TableCell>
@@ -142,12 +142,12 @@ export function BulkProductUpload({ isOpen, onClose, sellerId, allowedCategories
                       </TableCell>
                       {b.anyShowVeg && (
                         <TableCell>
-                          {rowShowVeg ? <Switch checked={row.is_veg} onCheckedChange={(v) => b.updateRow(idx, 'is_veg', v)} /> : <span className="text-xs text-muted-foreground">—</span>}
+                          {rowShowVeg ? <Switch checked={row.is_veg} onCheckedChange={(v) => b.updateRow(idx, 'is_veg', v)} /> : <span className="text-xs text-muted-foreground">-</span>}
                         </TableCell>
                       )}
                       {b.anyShowDuration && (
                         <TableCell>
-                          {rowShowDuration ? <Input type="number" value={row.prep_time_minutes} onChange={(e) => b.updateRow(idx, 'prep_time_minutes', e.target.value)} placeholder={rowConfig?.formHints.durationLabel || 'min'} className="h-8 text-sm" /> : <span className="text-xs text-muted-foreground">—</span>}
+                          {rowShowDuration ? <Input type="number" value={row.prep_time_minutes} onChange={(e) => b.updateRow(idx, 'prep_time_minutes', e.target.value)} placeholder={rowConfig?.formHints.durationLabel || 'min'} className="h-8 text-sm" /> : <span className="text-xs text-muted-foreground">-</span>}
                         </TableCell>
                       )}
                       <TableCell>
@@ -232,7 +232,7 @@ export function BulkProductUpload({ isOpen, onClose, sellerId, allowedCategories
         </div>
 
         <Button className="w-full mt-4" onClick={b.dismissSuccessDialog}>
-          Got it — Go to Products
+          Got it - Go to Products
         </Button>
       </DialogContent>
     </Dialog>

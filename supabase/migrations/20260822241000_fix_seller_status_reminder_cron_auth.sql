@@ -21,7 +21,7 @@ BEGIN
   LIMIT 1;
 
   IF v_worker_secret IS NULL OR length(v_worker_secret) < 32 THEN
-    RAISE WARNING 'fn_invoke_seller_status_reminders: pnq_worker_secret missing — skip';
+    RAISE WARNING 'fn_invoke_seller_status_reminders: pnq_worker_secret missing - skip';
     RETURN;
   END IF;
 

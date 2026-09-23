@@ -5,7 +5,7 @@ ALTER TABLE public.refund_requests
   ADD COLUMN IF NOT EXISTS funding_party text;
 
 COMMENT ON COLUMN public.refund_requests.funding_party IS
-  'SELLER_FUNDED | SOCIVA_FUNDED | SHARED — who funded the buyer credit resolution';
+  'SELLER_FUNDED | SOCIVA_FUNDED | SHARED - who funded the buyer credit resolution';
 
 ALTER TABLE public.refund_requests
   DROP CONSTRAINT IF EXISTS refund_requests_refund_destination_check;
@@ -272,7 +272,7 @@ BEGIN
     WHERE id = _oids[_i];
   END LOOP;
 
-  -- Commit only for prepaid wallet checkout — never for COD
+  -- Commit only for prepaid wallet checkout - never for COD
   IF _pm = 'wallet' THEN
     _res := public.commit_wallet_reservation(_reservation_id, _oids);
     IF COALESCE((_res->>'success')::boolean, false) IS NOT TRUE THEN
@@ -546,7 +546,7 @@ BEGIN
   INSERT INTO public.notification_queue(user_id, title, body, type, reference_path, payload)
   VALUES (
     v_seller_user,
-    'Refund approved — settlement adjusted',
+    'Refund approved - settlement adjusted',
     left(
       'You approved ₹' || trim(to_char(v_approved, 'FM9999990.00'))
       || ' as Sociva Balance for the buyer. Buyer received instant wallet credit; your payout is adjusted accordingly.'

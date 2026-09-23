@@ -36,7 +36,7 @@ export default defineConfig({
     : undefined,
 
   projects: [
-    // Setup project — authenticates buyer & seller, caches storageState
+    // Setup project - authenticates buyer & seller, caches storageState
     {
       name: 'setup',
       testMatch: /global\.setup\.ts/,

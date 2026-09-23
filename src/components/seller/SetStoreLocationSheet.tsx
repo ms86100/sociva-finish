@@ -198,7 +198,7 @@ export function SetStoreLocationSheet({ open, onOpenChange, sellerId, onSuccess 
                   <button
                     key={store.id}
                     onClick={() => {
-                      // Use the existing store's location — go to map confirm step
+                      // Use the existing store's location - go to map confirm step
                       setCoords({ lat: store.latitude, lng: store.longitude });
                       setSelectedPlaceName(store.store_location_label || store.business_name);
                       setStep('confirm');

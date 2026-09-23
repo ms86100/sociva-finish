@@ -1,4 +1,4 @@
-# Android Play Console — Data Safety & Permissions
+# Android Play Console - Data Safety & Permissions
 
 Guidance for declaring Sociva (`app.sociva.community`) accurately. Inspect a release AAB merged manifest before final submit:
 
@@ -20,8 +20,8 @@ adb shell dumpsys package app.sociva.community | findstr permission
 | **Device / other IDs** | Yes | With FCM | App functionality | Push tokens |
 | **Photos** | Yes | No (storage) | App functionality | Listings, payment proofs |
 | **Purchase history** | Yes | No | App functionality | Orders |
-| **Messages** | Yes | No | App functionality | Buyer–seller chat |
-| **Payment info** | Ephemeral / via Razorpay | Razorpay | Payments | UPI IDs for sellers; card data via Razorpay — do not claim Sociva stores cards |
+| **Messages** | Yes | No | App functionality | Buyer-seller chat |
+| **Payment info** | Ephemeral / via Razorpay | Razorpay | Payments | UPI IDs for sellers; card data via Razorpay - do not claim Sociva stores cards |
 
 ## Permissions (merged from Capacitor plugins)
 
@@ -48,7 +48,7 @@ If CMS/DB overrides privacy markdown, ensure that copy also mentions background 
 
 ## Background location Play questions
 
-- **Is location used in the background?** Yes — during active seller/partner deliveries only.
+- **Is location used in the background?** Yes - during active seller/partner deliveries only.
 - **Prominent disclosure:** In-app AlertDialog before enabling tracking (`SellerGPSTracker`, delivery partner dashboard).
 - **Video:** Play often requires a demo video showing the disclosure → permission → delivery tracking UI.
 

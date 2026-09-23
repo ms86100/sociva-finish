@@ -56,7 +56,7 @@ $b$;
 $b$;
 
     IF position(trim(both E'\n' from old_stamp) in norm) = 0 THEN
-      RAISE EXCEPTION 'CMVO stamp block (add_to_cart map) not found — inspect live definition';
+      RAISE EXCEPTION 'CMVO stamp block (add_to_cart map) not found - inspect live definition';
     END IF;
 
     norm := replace(norm, trim(both E'\n' from old_stamp), trim(both E'\n' from new_stamp));

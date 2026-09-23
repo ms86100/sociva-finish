@@ -2,7 +2,7 @@
 /**
  * DB-backed tracking configuration.
  * Loaded once and cached for 10 minutes.
- * Used by services (non-React) — React components use useSystemSettingsRaw directly.
+ * Used by services (non-React) - React components use useSystemSettingsRaw directly.
  */
 import { loadAppBootstrap } from '@/lib/app-bootstrap';
 
@@ -53,7 +53,7 @@ let cacheExpiry = 0;
 const CACHE_TTL = 10 * 60 * 1000;
 
 // NOTE: these keys all live in system_settings, which now arrives via the
-// shared app bootstrap — no dedicated query is needed here any more.
+// shared app bootstrap - no dedicated query is needed here any more.
 
 
 function parseNum(val: string | undefined, fallback: number): number {

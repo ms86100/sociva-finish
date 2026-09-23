@@ -21,7 +21,7 @@ if [ -d "android/app/src/main/res" ]; then
   cp android-splash/splash_xxxhdpi.png android/app/src/main/res/drawable-port-xxxhdpi/splash.png 2>/dev/null || true
   echo "  ✅ Android splash images installed"
 else
-  echo "  ⚠️  android/ directory not found — run 'npx cap add android' first"
+  echo "  ⚠️  android/ directory not found - run 'npx cap add android' first"
 fi
 
 # iOS
@@ -31,7 +31,7 @@ if [ -d "ios/App/App/Assets.xcassets/Splash.imageset" ]; then
   cp ios-splash/splash.png "ios/App/App/Assets.xcassets/Splash.imageset/splash.png"
   echo "  ✅ iOS splash image installed"
 else
-  echo "  ⚠️  iOS Splash.imageset not found — run 'npx cap add ios' first"
+  echo "  ⚠️  iOS Splash.imageset not found - run 'npx cap add ios' first"
 fi
 
 echo ""

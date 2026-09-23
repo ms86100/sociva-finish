@@ -98,7 +98,7 @@ export function SearchAutocomplete({ query, onSelect, maxHeight }: Props) {
 
 
 
-  // Full-text search for products — uses GIN-indexed tsvector
+  // Full-text search for products - uses GIN-indexed tsvector
   // Short queries (< 3 chars) use staleTime to prevent rapid re-fetches
   const { data: productSuggestions = [] } = useQuery({
     queryKey: ['search-fts', trimmed, lat, lng, radiusKm],
@@ -122,7 +122,7 @@ export function SearchAutocomplete({ query, onSelect, maxHeight }: Props) {
     staleTime: 2 * 60_000,
   });
 
-  // Seller search (lightweight — no product embedding)
+  // Seller search (lightweight - no product embedding)
   const { data: sellerSuggestions = [] } = useQuery({
     queryKey: ['search-autocomplete-sellers', trimmed, lat, lng, radiusKm],
     queryFn: async () => {
@@ -173,7 +173,7 @@ export function SearchAutocomplete({ query, onSelect, maxHeight }: Props) {
   const trimmedRef = useRef(trimmed);
   trimmedRef.current = trimmed;
 
-  // Reset highlight when the query text changes — do not depend on dismissedQuery
+  // Reset highlight when the query text changes - do not depend on dismissedQuery
   // (clearing dismissal must not re-enter this effect and loop setState).
   useEffect(() => {
     setActiveIndex(-1);

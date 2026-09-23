@@ -1,7 +1,7 @@
 {
   "name": "Sociva - Community Marketplace",
   "short_name": "Sociva",
-  "description": "Your society's private marketplace. Buy, sell, and connect with verified neighbors — food, services, rentals, and more.",
+  "description": "Your society's private marketplace. Buy, sell, and connect with verified neighbors - food, services, rentals, and more.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#1a1a2e",

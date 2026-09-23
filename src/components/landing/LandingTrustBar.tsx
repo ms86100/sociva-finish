@@ -102,7 +102,7 @@ export function LandingTrustBar() {
           {items.map(({ label, value }) => (
             <div key={label} className="text-center">
               <p className="text-3xl md:text-4xl font-bold text-foreground tabular-nums">
-                {value > 0 ? `${value}+` : '—'}
+                {value > 0 ? `${value}+` : '-'}
               </p>
               <p className="text-xs md:text-sm text-muted-foreground mt-1">{label}</p>
             </div>

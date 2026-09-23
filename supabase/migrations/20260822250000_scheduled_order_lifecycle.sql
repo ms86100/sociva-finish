@@ -201,7 +201,7 @@ BEGIN
   RETURNING id, status INTO v_updated_id, v_final_status;
 
   IF v_updated_id IS NULL THEN
-    RAISE EXCEPTION 'Order status changed concurrently — refresh and retry'
+    RAISE EXCEPTION 'Order status changed concurrently - refresh and retry'
       USING ERRCODE = '40001';
   END IF;
 
@@ -269,7 +269,7 @@ BEGIN
   LIMIT 1;
 
   IF v_worker_secret IS NULL OR length(v_worker_secret) < 32 THEN
-    RAISE WARNING 'fn_invoke_scheduled_order_reminders: pnq_worker_secret missing — skip';
+    RAISE WARNING 'fn_invoke_scheduled_order_reminders: pnq_worker_secret missing - skip';
     RETURN;
   END IF;
 

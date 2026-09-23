@@ -68,7 +68,7 @@ export function buyerRiskAdvisoryCopy(profile: BuyerRefundRiskProfile): string {
     return 'Likely genuine complaint. Refund history is within normal range.';
   }
   if (profile.band === 'medium') {
-    return 'Review carefully — this buyer requests refunds more often than typical.';
+    return 'Review carefully - this buyer requests refunds more often than typical.';
   }
-  return 'Potential refund abuse — review evidence before approving.';
+  return 'Potential refund abuse - review evidence before approving.';
 }

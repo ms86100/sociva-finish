@@ -28,7 +28,7 @@ const PAGE_SIZE = 50;
  * (same source as dashboard EarningsSummary). This is completed-sales value,
  * not seller payable. Wallet numbers live on /seller/wallet via
  * get_seller_financial_summary. Transaction list is recent payment_records
- * for display only — not used for all-time totals.
+ * for display only - not used for all-time totals.
  */
 export default function SellerEarningsPage() {
   const { user, currentSellerId, sellerProfiles } = useAuth();
@@ -159,7 +159,7 @@ export default function SellerEarningsPage() {
             </h3>
           </div>
           <p className="text-[10px] text-muted-foreground mb-3">
-            Completed sales after refunds. Partial refunds reduce this by the refunded amount only — this is not withdrawable earnings.
+            Completed sales after refunds. Partial refunds reduce this by the refunded amount only - this is not withdrawable earnings.
           </p>
           <div className="grid grid-cols-2 gap-3">
             <div className="bg-background/50 rounded-lg p-3 text-center">
@@ -184,7 +184,7 @@ export default function SellerEarningsPage() {
         <div>
           <h3 className="font-semibold mb-3 mt-4">Recent transactions</h3>
           <p className="text-[10px] text-muted-foreground mb-3">
-            Payment records for reference — totals above use completed sales, not this list
+            Payment records for reference - totals above use completed sales, not this list
           </p>
           {payments.length > 0 ? (
             <div className="space-y-3">

@@ -1,6 +1,6 @@
 -- 1) Emergency broadcast: client could insert emergency_broadcasts (admin RLS OK)
 --    but notifySocietyMembers failed because notification_queue INSERT is
---    WITH CHECK (user_id = auth.uid()) — cannot enqueue for other residents.
+--    WITH CHECK (user_id = auth.uid()) - cannot enqueue for other residents.
 -- 2) Review prompts: harden so unfinished / cancelled / unpaid checkouts never
 --    get "How was your order?" pushes (defense in depth; prod evidence already
 --    shows prompts only for delivered/completed).
@@ -360,7 +360,7 @@ BEGIN
     VALUES (
       _prompt.buyer_id,
       'How was your order?',
-      'Rate your experience with ' || COALESCE(_prompt.seller_name, 'the seller') || ' — your review helps the community!',
+      'Rate your experience with ' || COALESCE(_prompt.seller_name, 'the seller') || ' - your review helps the community!',
       'review_nudge',
       '/orders/' || _prompt.order_id::text,
       jsonb_build_object(

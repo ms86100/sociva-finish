@@ -37,7 +37,7 @@ export function SellerStatsCard({ sellerId }: SellerStatsCardProps) {
     {
       icon: Clock,
       label: 'Avg Response',
-      value: trust.avg_response_min > 0 ? `${Math.round(trust.avg_response_min)} min` : '—',
+      value: trust.avg_response_min > 0 ? `${Math.round(trust.avg_response_min)} min` : '-',
       color: 'text-amber-500',
     },
     {

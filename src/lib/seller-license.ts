@@ -1,5 +1,5 @@
 /**
- * Centralized seller license eligibility — shared by admin approval and onboarding.
+ * Centralized seller license eligibility - shared by admin approval and onboarding.
  * Status model (actual Sociva values on seller_licenses.status):
  *   pending | approved | rejected
  * Plus expires_at for expiry. "Not required" when requires_license/license_mandatory are false.
@@ -197,7 +197,7 @@ export function sellerLicenseSubmitMessage(el: LicenseEligibility): string {
   const name = el.licenseTypeName || 'license';
   switch (el.reason) {
     case 'missing':
-      return `Please upload your ${name} before submitting. Your progress is saved — you can return anytime to finish.`;
+      return `Please upload your ${name} before submitting. Your progress is saved - you can return anytime to finish.`;
     case 'rejected':
       return `Your ${name} was rejected. Please upload a valid document before submitting.`;
     case 'expired':

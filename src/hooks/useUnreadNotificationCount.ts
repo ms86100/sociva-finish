@@ -5,7 +5,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useSellerContext } from '@/contexts/AuthContext';
 import { SELLER_LIFECYCLE_OR_FILTER, SELLER_ONLY_INBOX_FILTER } from '@/lib/notification-visibility';
 
-// Pure-buyer types — when in seller mode, exclude from the badge so it means
+// Pure-buyer types - when in seller mode, exclude from the badge so it means
 // "things needing seller attention" only (inbox still shows them).
 const BUYER_ONLY_TYPES = [
   'delivery_proximity', 'delivery_proximity_imminent',
@@ -30,12 +30,12 @@ export function useUnreadNotificationCount() {
         .gt('created_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString());
 
       if (!isSeller) {
-        // Buyer mode — hide seller-only and seller-targeted notifications
+        // Buyer mode - hide seller-only and seller-targeted notifications
         q = q
           .not('type', 'in', SELLER_ONLY_INBOX_FILTER)
           .or(SELLER_LIFECYCLE_OR_FILTER);
       } else {
-        // Seller mode — exclude pure-buyer types from the badge count
+        // Seller mode - exclude pure-buyer types from the badge count
         q = q.not('type', 'in', BUYER_ONLY_FILTER);
       }
 
@@ -44,7 +44,7 @@ export function useUnreadNotificationCount() {
     },
     enabled: !!user,
     staleTime: 60_000,
-    // Perf: removed refetchInterval — realtime channel on user_notifications
+    // Perf: removed refetchInterval - realtime channel on user_notifications
     // already invalidates this key when new notifications arrive.
   });
 

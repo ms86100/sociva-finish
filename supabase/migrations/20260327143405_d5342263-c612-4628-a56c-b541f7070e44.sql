@@ -150,7 +150,7 @@ begin
     return json_build_object('success', false, 'error', 'insufficient_stock', 'items', _stock_issues);
   end if;
 
-  -- All validations passed — create orders
+  -- All validations passed - create orders
   _effective_status := case when _payment_mode in ('razorpay', 'upi') then 'payment_pending' else 'placed' end;
 
   for _seller_group in select * from json_array_elements(_seller_groups)

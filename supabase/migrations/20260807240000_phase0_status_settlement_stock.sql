@@ -1,5 +1,5 @@
 -- ============================================================
--- Phase 0 HARDENED — order status fail-closed + settlement gate + stock
+-- Phase 0 HARDENED - order status fail-closed + settlement gate + stock
 -- Fail-closed rationale: null acting_as / unpaid settlement / free stock
 -- after paid-resurrect must never succeed silently.
 -- ============================================================
@@ -45,7 +45,7 @@ BEGIN
     RETURN NEW;
   END IF;
 
-  -- payment_pending may only be left by payment RPCs, system, or buyer cancel —
+  -- payment_pending may only be left by payment RPCs, system, or buyer cancel -
   -- never by a bare client UPDATE forging placed/paid.
   IF OLD.status::text = 'payment_pending'
      AND _acting_as NOT IN ('payment', 'system', 'buyer') THEN
@@ -145,7 +145,7 @@ BEGIN
   -- SECURITY DEFINER function owner (postgres / supabase_admin) is fine when acting_as set
   _acting := nullif(current_setting('app.acting_as', true), '');
   IF current_user IN ('authenticated', 'anon') AND _acting IS NULL THEN
-    RAISE EXCEPTION 'Direct client UPDATE of orders.status/payment_status denied — use RPCs'
+    RAISE EXCEPTION 'Direct client UPDATE of orders.status/payment_status denied - use RPCs'
       USING ERRCODE = '42501';
   END IF;
 
@@ -193,7 +193,7 @@ BEGIN
   ELSIF lower(_ptype) IN ('cod', 'cash_on_delivery')
         AND _pay IN ('pending', 'cod_pending', 'unpaid', '')
         AND p_new.status IN ('delivered', 'completed') THEN
-    -- COD: payment collected on delivery — allow settlement at terminal success
+    -- COD: payment collected on delivery - allow settlement at terminal success
     NULL;
   ELSE
     RAISE WARNING 'create_settlement_on_delivery_impl skipped: unpaid order % pay=% type=%',
@@ -240,7 +240,7 @@ END;
 $$;
 
 COMMENT ON FUNCTION public.create_settlement_on_delivery_impl(orders, orders) IS
-  'Creates seller_settlements only when payment is paid/verified or COD collected at delivery — never for unpaid online.';
+  'Creates seller_settlements only when payment is paid/verified or COD collected at delivery - never for unpaid online.';
 
 -- Settlement notify: never claim "paid/released" without a transfer id
 CREATE OR REPLACE FUNCTION public.enqueue_seller_settlement_notification()
@@ -283,7 +283,7 @@ BEGIN
         _status := 'settlement_paid';
       ELSE
         _title := 'Settlement recorded';
-        _body := '₹' || _amount || ' marked settled internally — payout transfer pending confirmation.';
+        _body := '₹' || _amount || ' marked settled internally - payout transfer pending confirmation.';
         _status := 'settlement_recorded';
       END IF;
     ELSE
@@ -353,7 +353,7 @@ $f$;
 COMMENT ON FUNCTION public.restore_stock_on_cancel_impl(orders, orders) IS
   'Idempotent restock on cancelled/rejected via order_items.stock_restored flag.';
 
--- Re-hold stock when paying after cancel (resurrect) — never paid with free stock
+-- Re-hold stock when paying after cancel (resurrect) - never paid with free stock
 CREATE OR REPLACE FUNCTION public.rehold_stock_for_order(p_order_id uuid)
 RETURNS jsonb
 LANGUAGE plpgsql
@@ -412,7 +412,7 @@ $$;
 REVOKE ALL ON FUNCTION public.rehold_stock_for_order(uuid) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.rehold_stock_for_order(uuid) TO service_role;
 
--- Atomic resurrect: re-hold stock OR fail (leave path for refund — never paid free stock)
+-- Atomic resurrect: re-hold stock OR fail (leave path for refund - never paid free stock)
 CREATE OR REPLACE FUNCTION public.resurrect_cancelled_order_after_payment(
   p_order_id uuid,
   p_razorpay_payment_id text
@@ -439,7 +439,7 @@ BEGIN
 
   v_hold := public.rehold_stock_for_order(p_order_id);
   IF COALESCE(v_hold->>'success', 'false') <> 'true' THEN
-    -- Fail confirm path: do not mark paid — caller should refund
+    -- Fail confirm path: do not mark paid - caller should refund
     RETURN jsonb_build_object(
       'success', false,
       'error', 'rehold_failed',

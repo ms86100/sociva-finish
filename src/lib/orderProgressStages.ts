@@ -1,5 +1,5 @@
 /**
- * Shared order progress presentation — same visible stages for buyer and seller.
+ * Shared order progress presentation - same visible stages for buyer and seller.
  * Internal order_status / workflow transitions are unchanged; this is display-only.
  *
  * Note: stage labels here are presentation rails (not admin category_status_flows).
@@ -16,7 +16,7 @@ export function isContactEnquiryTransaction(transactionType?: string | null): bo
   return transactionType === 'contact_enquiry';
 }
 
-/** Clinic / slot bookings — not cart pickup/delivery vocabulary. */
+/** Clinic / slot bookings - not cart pickup/delivery vocabulary. */
 export function isServiceBookingTransaction(transactionType?: string | null): boolean {
   return transactionType === 'service_booking';
 }
@@ -41,7 +41,7 @@ export interface OrderProgressResolution {
   fulfillment: OrderFulfillmentKind;
   /** Cart/book rails vs contact-enquiry accept → delivered. */
   journey: ProgressJourney;
-  /** 1–4 when kind === 'stages' */
+  /** 1-4 when kind === 'stages' */
   stageId: ProgressStageId | null;
   /** 0-based index into `stages` */
   stageIndex: number;
@@ -52,9 +52,9 @@ export interface OrderProgressResolution {
   subtext: string | null;
   endState: ProgressEndState | null;
   showCodBanner: boolean;
-  /** Presentation progress 0–100 */
+  /** Presentation progress 0-100 */
   progressPercent: number;
-  /** Delivery stage 3 only — map / live tracking eligible */
+  /** Delivery stage 3 only - map / live tracking eligible */
   isTransitStage: boolean;
 }
 
@@ -161,7 +161,7 @@ export function getOrderProgressStages(
 
 /**
  * Map gating for Google Maps / live tracking.
- * Delivery only, and only when truly in transit — never for ready/assigned.
+ * Delivery only, and only when truly in transit - never for ready/assigned.
  * Honors flow `is_transit` for custom workflow keys, with ready/assigned excluded.
  */
 export function isDeliveryMapEligible(

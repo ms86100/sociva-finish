@@ -29,7 +29,7 @@ export function FulfillmentSelector({ value, onChange, deliveryFee, freeDelivery
   const showDelivery = mode !== 'self_pickup';
   const hasBuyerChoice = mode.startsWith('pickup_and_');
 
-  // If no buyer choice, don't render the selector at all — just show info
+  // If no buyer choice, don't render the selector at all - just show info
   if (!hasBuyerChoice) {
     if (mode === 'self_pickup') {
       return (
@@ -45,7 +45,7 @@ export function FulfillmentSelector({ value, onChange, deliveryFee, freeDelivery
         </div>
       );
     }
-    // seller_delivery or platform_delivery — delivery is forced
+    // seller_delivery or platform_delivery - delivery is forced
     return (
       <div className="space-y-2">
         <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Fulfillment</h3>

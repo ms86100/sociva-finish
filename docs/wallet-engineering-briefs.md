@@ -1,10 +1,10 @@
-# SOCIVA Money Movement — Revised Engineering Briefs
+# SOCIVA Money Movement - Revised Engineering Briefs
 
 **Baseline:** [`wallet-phase0-controls.md`](./wallet-phase0-controls.md)  
 **Accounting:** [`wallet-accounting-brief.md`](./wallet-accounting-brief.md)  
 **Rule:** A later phase cannot weaken an earlier control without written professional approval and a versioned design review.
 
-## Phase 0 — Contain and prove
+## Phase 0 - Contain and prove
 
 **Goal:** Freeze funds flow before adding features.
 
@@ -24,7 +24,7 @@ Exit evidence:
 - COD completion creates no online seller payable and no payout candidate.
 - Counsel/provider/accounting/tax decision records exist; absence means no-go, not implied approval.
 
-## Phase 1 — Restricted SOCIVA Credit stabilization
+## Phase 1 - Restricted SOCIVA Credit stabilization
 
 **Goal:** Keep the shipped buyer-credit MVP restricted, auditable, and reversible.
 
@@ -41,7 +41,7 @@ Required changes/evidence:
 
 Gate: no negative available balance, duplicate mutation, unbalanced journal, silent refund conversion, or unreconciled liability variance in concurrency and replay tests.
 
-## Phase 2 — Payables, COD, refunds, and operations
+## Phase 2 - Payables, COD, refunds, and operations
 
 **Goal:** Operate platform collect and deferred settlement without describing internal records as custody.
 
@@ -56,7 +56,7 @@ Deliver:
 
 Gate: shadow reconciliation has zero unexplained variance for an accounting-approved observation period; finance signs the COD aging and seller statement samples.
 
-## Phase 3 — Approved provider-mode switch
+## Phase 3 - Approved provider-mode switch
 
 **Goal:** Enable one reviewed provider payout mode without enabling a general wallet.
 

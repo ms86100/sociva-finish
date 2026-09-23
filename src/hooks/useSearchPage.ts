@@ -49,7 +49,7 @@ const FILTER_STORAGE_KEY_BASE = 'app_search_filters';
 const getFilterStorageKey = (userId?: string) => userId ? `${FILTER_STORAGE_KEY_BASE}_${userId}` : FILTER_STORAGE_KEY_BASE;
 
 const loadSavedFilters = (_userId?: string): FilterState => {
-  // Always start with clean defaults — don't persist filters across sessions
+  // Always start with clean defaults - don't persist filters across sessions
   return defaultFilters;
 };
 
@@ -164,7 +164,7 @@ export function useSearchPage() {
   const setBrowseBeyond = useCallback((val: boolean) => { setBrowseBeyondLocal(val); persistPreference('browse_beyond_community', val); }, [persistPreference]);
   const setSearchRadius = useCallback((val: number) => { setSearchRadiusLocal(val); persistPreference('search_radius_km', val); }, [persistPreference]);
 
-  // Popular products — derived from shared marketplace cache (zero additional RPC)
+  // Popular products - derived from shared marketplace cache (zero additional RPC)
   const { data: marketplaceSellers, isLoading: isLoadingPopular } = useMarketplaceData();
   const popularProducts = useMemo((): ProductSearchResult[] => {
     if (!marketplaceSellers || marketplaceSellers.length === 0) return [];
@@ -341,7 +341,7 @@ export function useSearchPage() {
     if (isSearchActive) await runSearch(debouncedQuery);
   });
 
-  // Clear chips/filters only — keep the search query (BUG-04)
+  // Clear chips/filters only - keep the search query (BUG-04)
   const clearFilters = () => {
     setFilters(defaultFilters);
     setActivePreset(null);
@@ -353,7 +353,7 @@ export function useSearchPage() {
   const handleCategoryTap = (cat: string) => { setSelectedCategory(prev => prev === cat ? null : cat); };
 
   const pills: string[] = [];
-  // Query lives in the search box — don't duplicate it as a Clearable pill (BUG-04)
+  // Query lives in the search box - don't duplicate it as a Clearable pill (BUG-04)
   if (selectedCategory) pills.push(categoryMap[selectedCategory]?.displayName || selectedCategory);
   if (filters.minRating > 0) pills.push(`${filters.minRating}+★`);
   if (filters.isVeg === true) pills.push('Veg');

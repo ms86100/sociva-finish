@@ -40,7 +40,7 @@ async function getStatusFlowEntries(): Promise<StatusFlowEntry[]> {
 
 export async function syncActiveOrders(userId: string): Promise<number> {
   if (syncing) {
-    console.log(TAG, 'SKIP — sync already in progress');
+    console.log(TAG, 'SKIP - sync already in progress');
     return 0;
   }
   syncing = true;

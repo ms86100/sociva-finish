@@ -1,11 +1,11 @@
-# Sociva Seller E2E Test Plan — Production Readiness Audit
+# Sociva Seller E2E Test Plan - Production Readiness Audit
 
 **Status:** Plan approved · Phase 1 done · Phase 2 matrix + S1 ops smoke done (see `docs/seller-e2e-phase2-results.md`) · exhaustive/Android open  
 **Auth (iOS / Apple Review bypass):** phone `0123456789` · OTP `1234` · country `+91`  
 **Router:** HashRouter → all paths are `/#/...`  
 **App under test:** `https://www.sociva.in` (web) first for plan dry-runs; Android emulator after Phase 1 gate  
 **Supabase project:** `kkzkuyhgdvyecmxtmkpy` (Sociva)  
-**Constraint:** One store per `(user_id, primary_group)` — four stores require **four different parent groups**
+**Constraint:** One store per `(user_id, primary_group)` - four stores require **four different parent groups**
 
 ---
 
@@ -45,7 +45,7 @@ flowchart TD
   M --> C
 ```
 
-### Onboarding steps (code truth — 7 steps)
+### Onboarding steps (code truth - 7 steps)
 
 | # | Step | UI focus | Persist |
 |---|------|----------|---------|
@@ -74,7 +74,7 @@ flowchart TD
 
 | Entity | Soft delete? | Restore? | Test implication |
 |--------|--------------|----------|------------------|
-| Products | **No** — hard delete | N/A | TC: delete is irreversible; availability toggle is the “hide” path |
+| Products | **No** - hard delete | N/A | TC: delete is irreversible; availability toggle is the “hide” path |
 | Stores | **No** soft delete | Pause/Resume via `is_available` | Treat pause as operational off; no restore-from-deleted |
 | Drafts | Draft profiles/products | Resume onboarding draft | Test Save & Exit + reload |
 
@@ -86,9 +86,9 @@ Fourth model chosen: **Rental** (soft tag `rental` → commerce `enquire`, kind 
 
 | # | Store codename | Commerce | Soft tag | Target `primary_group` | Seed intent phrase | Example listing |
 |---|----------------|----------|----------|------------------------|--------------------|-----------------|
-| S1 | Cart Kitchen | `cart` → `add_to_cart` | — | `food_beverages` | Home-cooked tiffin | Veg thali ₹120, stock 20 |
-| S2 | Bookable Studio | `book` → `book` | — | `education_learning` | Yoga classes | 60-min Hatha slot |
-| S3 | Contact Pro | `contact` → `contact_seller` | — | `professional` | Tax filing help | GST consult (no price req) |
+| S1 | Cart Kitchen | `cart` → `add_to_cart` | - | `food_beverages` | Home-cooked tiffin | Veg thali ₹120, stock 20 |
+| S2 | Bookable Studio | `book` → `book` | - | `education_learning` | Yoga classes | 60-min Hatha slot |
+| S3 | Contact Pro | `contact` → `contact_seller` | - | `professional` | Tax filing help | GST consult (no price req) |
 | S4 | Rental Hub | `enquire` (via rental tag) | `rental` | `rentals` | Generator rental | Generator / day |
 
 **Fallback groups** if conflict/UI suggests differently: `classes` (book), `services`/`home_services` (enquire), `resale` (cart), `property` (contact). Never reuse same `primary_group`.
@@ -108,7 +108,7 @@ Fourth model chosen: **Rental** (soft tag `rental` → commerce `enquire`, kind 
 
 ---
 
-# Phase 1 — Seller onboarding (S1 first; then S2–S4 onboarding deltas)
+# Phase 1 - Seller onboarding (S1 first; then S2-S4 onboarding deltas)
 
 Execute as a **new seller would**. Prefer clean account state; if Apple user already has profiles, document and use Add Another Business / unused groups.
 
@@ -146,7 +146,7 @@ Execute as a **new seller would**. Prefer clean account state; if Apple user alr
 | P1-C04 | Select Contact | `contact_seller` |
 | P1-C05 | Soft tag Rental | Forces enquire commerce / rental kind |
 | P1-C06 | Soft tag Appointment | Forces book |
-| P1-C07 | Soft tag Digital | Forces enquire (note: Terms say no digital goods — **flag UX vs policy**) |
+| P1-C07 | Soft tag Digital | Forces enquire (note: Terms say no digital goods - **flag UX vs policy**) |
 | P1-C08 | Change model after category | Conflict / reset draft products confirm if needed |
 
 ## P1-D Step 3 Category
@@ -225,14 +225,14 @@ Checklist:
 - Mobile keyboard covering CTAs  
 - Progress indicator accuracy (7 steps)  
 - Soft-tag “digital” vs legal Terms conflict  
-- Duplicate parent groups in picker (`food` vs `food_beverages`, `personal` vs `personal_care`) — confusion risk  
+- Duplicate parent groups in picker (`food` vs `food_beverages`, `personal` vs `personal_care`) - confusion risk  
 - Friction: license, location, UPI order of asks  
 
-**Phase 1 exit:** S1 submitted + UX findings filed. Prefer admin approve S1 before Phase 2 ops on S1; S2–S4 onboarding can run after G1 if multi-store entry works while pending (verify `hasSellerProfile` / Add Business).
+**Phase 1 exit:** S1 submitted + UX findings filed. Prefer admin approve S1 before Phase 2 ops on S1; S2-S4 onboarding can run after G1 if multi-store entry works while pending (verify `hasSellerProfile` / Add Business).
 
 ---
 
-# Phase 2 — Store operations (exhaustive)
+# Phase 2 - Store operations (exhaustive)
 
 Run per store where applicable. Prefix IDs: `S1-` … `S4-`.
 
@@ -255,7 +255,7 @@ Run per store where applicable. Prefix IDs: `S1-` … `S4-`.
 | P2-1-R | Read | List filters; empty state; after switcher; deep link edit |
 | P2-1-U | Update | Price; name; stock; action_type change; content change on approved → `pending`; rejection_note clear |
 | P2-1-D | Delete | Hard delete; confirm UI; order-history orphan behavior; cannot delete others’ product |
-| P2-1-Rest | Restore | **N/A** — document; availability as surrogate |
+| P2-1-Rest | Restore | **N/A** - document; availability as surrogate |
 | P2-1-V | Validation | Neg price; empty name; book without schedule; contact without phone if required |
 | P2-1-E | Errors | Offline save; storage fail; RLS deny |
 | P2-1-Nav | Navigation | List → new → back; edit → cancel dirty |
@@ -267,7 +267,7 @@ Run per store where applicable. Prefix IDs: `S1-` … `S4-`.
 
 ### S1 cart-specific
 
-Stock decrement on order (RPC only — no double decrement); cancel restocks; low-stock badge; prep time; delivery flags.
+Stock decrement on order (RPC only - no double decrement); cancel restocks; low-stock badge; prep time; delivery flags.
 
 ### S2 bookable-specific
 

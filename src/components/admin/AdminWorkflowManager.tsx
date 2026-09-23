@@ -210,7 +210,7 @@ export function AdminWorkflowManager() {
     if (isSelfPickupWorkflow) {
       const flaggedSteps = editSteps.filter(s => s.is_transit || s.creates_tracking_assignment);
       if (flaggedSteps.length > 0) {
-        adminNotify.warning('Self-pickup workflows cannot use transit or tracking flags — auto-cleared before saving.');
+        adminNotify.warning('Self-pickup workflows cannot use transit or tracking flags - auto-cleared before saving.');
         for (const s of editSteps) {
           s.is_transit = false;
           s.creates_tracking_assignment = false;
@@ -236,7 +236,7 @@ export function AdminWorkflowManager() {
       for (const s of sortedForValidation) {
         if (s.creates_tracking_assignment) trackingAssignmentSeen = true;
         if (s.otp_type === 'delivery' && !trackingAssignmentSeen) {
-          adminNotify.error(`Delivery OTP requires a delivery assignment. Step "${s.display_name || s.status_key}" comes before any tracking assignment step — cleared to 'None'. Review and save again.`, { duration: 8000 });
+          adminNotify.error(`Delivery OTP requires a delivery assignment. Step "${s.display_name || s.status_key}" comes before any tracking assignment step - cleared to 'None'. Review and save again.`, { duration: 8000 });
           s.otp_type = null;
           s.requires_otp = false;
           cleared = true;
@@ -244,7 +244,7 @@ export function AdminWorkflowManager() {
       }
       if (cleared) {
         setEditSteps([...editSteps]);
-        return; // Stop save — keep editor open so admin can review the cleared values
+        return; // Stop save - keep editor open so admin can review the cleared values
       }
     }
 
@@ -260,11 +260,11 @@ export function AdminWorkflowManager() {
           if (trackingSeenForLegacy) {
             // Post-tracking step: safe to assume delivery OTP was intended
             s.otp_type = 'delivery';
-            adminNotify.info(`Step "${s.display_name || s.status_key}" had legacy OTP flag — auto-mapped to Delivery OTP.`);
+            adminNotify.info(`Step "${s.display_name || s.status_key}" had legacy OTP flag - auto-mapped to Delivery OTP.`);
           } else {
             // Pre-tracking step: delivery OTP cannot work here, clear the flag
             s.requires_otp = false;
-            adminNotify.warning(`Step "${s.display_name || s.status_key}" had legacy OTP flag but no delivery context — cleared.`);
+            adminNotify.warning(`Step "${s.display_name || s.status_key}" had legacy OTP flag but no delivery context - cleared.`);
           }
           normalized = true;
         }
@@ -338,7 +338,7 @@ export function AdminWorkflowManager() {
         if (transError) throw transError;
       }
 
-      // Sync transit_statuses system setting — scoped to delivery-related workflows only
+      // Sync transit_statuses system setting - scoped to delivery-related workflows only
       // to prevent pickup-only workflows from polluting transit status lists
       try {
         const DELIVERY_WORKFLOWS = ['cart_purchase', 'seller_delivery'];
@@ -480,7 +480,7 @@ export function AdminWorkflowManager() {
                   <div className="pl-12 space-y-1.5">
                     <div className="flex items-center gap-1 text-[10px] text-amber-600 font-medium">
                       <AlertTriangle size={11} className="shrink-0" />
-                      <span>{overrides.length} category override{overrides.length > 1 ? 's' : ''} — these take priority over default</span>
+                      <span>{overrides.length} category override{overrides.length > 1 ? 's' : ''} - these take priority over default</span>
                     </div>
                     <div className="flex items-center gap-1.5 flex-wrap">
                       {overrides.map(ov => (
@@ -509,7 +509,7 @@ export function AdminWorkflowManager() {
           <DrawerHeader className="px-4 pt-4 pb-3 border-b border-border">
             <div className="flex items-center justify-between">
               <DrawerTitle className="text-base font-bold">
-                {selectedWorkflow && `${formatName(selectedWorkflow.parent_group)} — ${formatName(selectedWorkflow.transaction_type)}`}
+                {selectedWorkflow && `${formatName(selectedWorkflow.parent_group)} - ${formatName(selectedWorkflow.transaction_type)}`}
               </DrawerTitle>
               <Button
                 variant="ghost"
@@ -581,7 +581,7 @@ export function AdminWorkflowManager() {
                         </div>
                         <span className="text-[10px] font-mono text-muted-foreground w-5">{index + 1}</span>
                         <div className="flex-1">
-                          <FieldLabel label="Status Key" tooltip="Unique identifier for this step (e.g. 'placed', 'accepted', 'picked_up'). Used internally — must be lowercase with underscores." />
+                          <FieldLabel label="Status Key" tooltip="Unique identifier for this step (e.g. 'placed', 'accepted', 'picked_up'). Used internally - must be lowercase with underscores." />
                           <Input value={step.status_key} onChange={(e) => updateStep(index, 'status_key', e.target.value)} placeholder="e.g. picked_up" className="h-8 text-xs font-mono rounded-lg" />
                         </div>
                         {(step as any).is_deprecated && <Badge variant="outline" className="text-[9px] bg-amber-100 text-amber-700 border-amber-300 shrink-0">Deprecated</Badge>}
@@ -676,7 +676,7 @@ export function AdminWorkflowManager() {
                         </div>
 
                         <div className="flex items-center gap-1.5">
-                          <FieldLabel label="OTP Type" tooltip="Controls OTP verification. 'Delivery OTP' requires a delivery assignment. 'Generic OTP' works at any step — a 4-digit code is generated and must be shared between parties. 'None' means no OTP gate." className="mb-0" />
+                          <FieldLabel label="OTP Type" tooltip="Controls OTP verification. 'Delivery OTP' requires a delivery assignment. 'Generic OTP' works at any step - a 4-digit code is generated and must be shared between parties. 'None' means no OTP gate." className="mb-0" />
                           <Select value={step.otp_type || 'none'} onValueChange={(v) => { updateStep(index, 'otp_type', v === 'none' ? null : v); updateStep(index, 'requires_otp', v !== 'none'); }}>
                             <SelectTrigger className="h-7 w-[140px] text-[11px]">
                               <SelectValue />
@@ -711,7 +711,7 @@ export function AdminWorkflowManager() {
                         {!step.is_terminal && (
                           <div className="flex items-center gap-1.5">
                             <Checkbox checked={step.creates_tracking_assignment} onCheckedChange={(v) => {
-                              // Enforce single tracking start point — clear all others
+                              // Enforce single tracking start point - clear all others
                               if (v) {
                                 editSteps.forEach((s, si) => {
                                   if (si !== index && s.creates_tracking_assignment) {
@@ -733,7 +733,7 @@ export function AdminWorkflowManager() {
                           </div>
                         )}
 
-                        {/* Per-step capability indicators — context-sensitive */}
+                        {/* Per-step capability indicators - context-sensitive */}
                         {(() => {
                           const sorted = [...editSteps].sort((a, b) => a.sort_order - b.sort_order);
                           const thisIdx = sorted.findIndex(s => s.status_key === step.status_key);
@@ -745,7 +745,7 @@ export function AdminWorkflowManager() {
                             <div className="flex flex-wrap gap-1.5 mt-1">
                               {step.creates_tracking_assignment && (
                                 <span className="text-[9px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
-                                  🚚 Delivery starts at this step — Delivery OTP available from here onward
+                                  🚚 Delivery starts at this step - Delivery OTP available from here onward
                                 </span>
                               )}
                               {hasDeliveryContext && !step.creates_tracking_assignment && step.otp_type === 'delivery' && (
@@ -763,10 +763,10 @@ export function AdminWorkflowManager() {
                         })()}
                       </div>
 
-                      {/* Display Actor (who this step is "waiting on") — multi-select toggles */}
+                      {/* Display Actor (who this step is "waiting on") - multi-select toggles */}
                       {!step.is_terminal && step.status_key && (
                         <div className="flex items-center gap-2 flex-wrap">
-                          <FieldLabel label="Waiting On" tooltip="Which role(s) is this step waiting on? This controls the display hint (e.g. 'Waiting for seller'). It does NOT control who can advance — configure that in the Transition Rules section below." />
+                          <FieldLabel label="Waiting On" tooltip="Which role(s) is this step waiting on? This controls the display hint (e.g. 'Waiting for seller'). It does NOT control who can advance - configure that in the Transition Rules section below." />
                           <div className="flex gap-1">
                             {ACTORS.map(actor => {
                               const actorLabels: Record<string, string> = { buyer: '👤 Buyer', seller: '🏪 Seller', delivery: '🚚 Delivery', system: '⚙️ System', admin: '🛡️ Admin' };

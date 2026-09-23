@@ -1,6 +1,6 @@
 -- Phase 1: app_installations = permission lifecycle / analytics
 -- device_tokens remains the push DELIVERY source of truth (unchanged claim_device_token).
--- DO NOT apply to production until Phase 1–3 validated on an isolated environment.
+-- DO NOT apply to production until Phase 1-3 validated on an isolated environment.
 
 -- ---------------------------------------------------------------------------
 -- 1. Installations table
@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS public.app_installations (
     CHECK (notification_permission IN ('enabled', 'denied', 'not_requested', 'unknown')),
   location_permission text NOT NULL DEFAULT 'not_requested'
     CHECK (location_permission IN ('enabled', 'denied', 'not_requested', 'restricted', 'unknown')),
-  -- Optional mirror only — NEVER used for push fan-out (device_tokens is delivery SoT)
+  -- Optional mirror only - NEVER used for push fan-out (device_tokens is delivery SoT)
   push_token text NULL,
   apns_token text NULL,
   notif_prompt_dismissed_until timestamptz NULL,
@@ -49,7 +49,7 @@ CREATE INDEX IF NOT EXISTS idx_device_tokens_installation_id
   WHERE installation_id IS NOT NULL;
 
 -- ---------------------------------------------------------------------------
--- 3. RLS — no direct anon/authenticated writes; guests use SECURITY DEFINER RPCs
+-- 3. RLS - no direct anon/authenticated writes; guests use SECURITY DEFINER RPCs
 -- ---------------------------------------------------------------------------
 ALTER TABLE public.app_installations ENABLE ROW LEVEL SECURITY;
 
@@ -63,7 +63,7 @@ CREATE POLICY app_installations_select_own
 -- Service role bypasses RLS for admin analytics / edge functions.
 
 -- ---------------------------------------------------------------------------
--- 4. upsert_app_installation — guest-safe by installation_id; never rotates id
+-- 4. upsert_app_installation - guest-safe by installation_id; never rotates id
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.upsert_app_installation(
   p_installation_id text,
@@ -134,7 +134,7 @@ BEGIN
   ON CONFLICT (installation_id) DO UPDATE SET
     platform = EXCLUDED.platform,
     -- Only overwrite permission enums when caller supplies a non-null value
-    -- (pass NULL from client to mean "leave unchanged" — use sentinel via COALESCE above
+    -- (pass NULL from client to mean "leave unchanged" - use sentinel via COALESCE above
     -- only on INSERT; on UPDATE use distinct args)
     notification_permission = CASE
       WHEN p_notification_permission IS NULL THEN ai.notification_permission
@@ -163,7 +163,7 @@ REVOKE ALL ON FUNCTION public.upsert_app_installation(text, text, text, text, te
 GRANT EXECUTE ON FUNCTION public.upsert_app_installation(text, text, text, text, text, text, boolean) TO anon, authenticated;
 
 -- ---------------------------------------------------------------------------
--- 5. claim_app_installation — login: associate install with current user
+-- 5. claim_app_installation - login: associate install with current user
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.claim_app_installation(p_installation_id text)
 RETURNS void
@@ -204,7 +204,7 @@ REVOKE ALL ON FUNCTION public.claim_app_installation(text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.claim_app_installation(text) TO authenticated;
 
 -- ---------------------------------------------------------------------------
--- 6. release_app_installation_user — logout: clear user_id only; keep install
+-- 6. release_app_installation_user - logout: clear user_id only; keep install
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.release_app_installation_user(p_installation_id text)
 RETURNS void
@@ -233,7 +233,7 @@ REVOKE ALL ON FUNCTION public.release_app_installation_user(text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.release_app_installation_user(text) TO anon, authenticated;
 
 -- ---------------------------------------------------------------------------
--- 7. stamp_device_token_installation — after claim_device_token (delivery intact)
+-- 7. stamp_device_token_installation - after claim_device_token (delivery intact)
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.stamp_device_token_installation(
   p_token text,

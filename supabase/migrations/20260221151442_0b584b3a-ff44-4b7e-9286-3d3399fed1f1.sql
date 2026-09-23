@@ -1,6 +1,6 @@
 
 -- ============================================================
--- PHASE 1: Marketplace Gap Closure — Schema Extensions
+-- PHASE 1: Marketplace Gap Closure - Schema Extensions
 -- ============================================================
 
 -- 1. Stock Quantity Tracking on Products

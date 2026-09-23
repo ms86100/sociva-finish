@@ -68,7 +68,7 @@ if (isStagingEnv) {
       );
     }
   } catch {
-    // non-JWT publishable keys — URL check is sufficient
+    // non-JWT publishable keys - URL check is sufficient
   }
   console.log(`✅ Staging Supabase locked: ${url}`);
   process.exit(0);

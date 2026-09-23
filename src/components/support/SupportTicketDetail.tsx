@@ -87,10 +87,10 @@ export function SupportTicketDetail({ ticket, open, onOpenChange, viewRole }: Su
           )}
           {ticket.status === 'resolved' ? 'Resolved' :
             ticket.status === 'auto_resolved' ? 'Auto-resolved' :
-              ticket.sla_breached ? 'SLA breached — overdue' :
+              ticket.sla_breached ? 'SLA breached - overdue' :
                 'Awaiting response'}
           {ticket.resolution_note && (
-            <span className="ml-1 font-normal">— {ticket.resolution_note}</span>
+            <span className="ml-1 font-normal">- {ticket.resolution_note}</span>
           )}
         </div>
 

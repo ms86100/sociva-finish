@@ -4,7 +4,7 @@
 // an order from your own store", "Select at least one operating day").
 //
 // Operational failures (network errors, "Failed to save", etc.) should
-// continue to use toasts — they're informational, not blocking.
+// continue to use toasts - they're informational, not blocking.
 
 import { toast } from 'sonner';
 import { hapticNotification } from '@/lib/haptics';

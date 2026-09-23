@@ -61,7 +61,7 @@ export function FeaturedBanners() {
   }, [rawBanners, categoriesWithProducts]);
 
 
-  // Featured banners change rarely — no global realtime channel (was unfiltered
+  // Featured banners change rarely - no global realtime channel (was unfiltered
   // fan-out to every Home viewer). Query staleTime + admin refetch is enough.
 
   // Auto-scroll classic banners

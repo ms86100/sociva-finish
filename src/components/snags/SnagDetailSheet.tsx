@@ -97,7 +97,7 @@ export function SnagDetailSheet({
             <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-success/10 border border-success/20">
               <ShieldCheck size={14} className="text-success" />
               <span className="text-xs text-success font-medium">
-                Seen by committee — {format(new Date(ticket.acknowledged_at), 'MMM d, h:mm a')}
+                Seen by committee - {format(new Date(ticket.acknowledged_at), 'MMM d, h:mm a')}
               </span>
             </div>
           ) : (
@@ -107,7 +107,7 @@ export function SnagDetailSheet({
                 <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-warning/10 border border-warning/20">
                   <AlertTriangle size={14} className="text-warning" />
                   <span className="text-xs text-warning font-medium">
-                    Awaiting review — submitted {Math.floor(hoursSince / 24)} days ago
+                    Awaiting review - submitted {Math.floor(hoursSince / 24)} days ago
                   </span>
                 </div>
               ) : null;

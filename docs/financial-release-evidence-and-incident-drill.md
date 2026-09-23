@@ -9,34 +9,34 @@ the release gate fail.
 
 Authenticated UI fixtures:
 
-- `FINANCIAL_BASE_URL` — deployed app URL (defaults to `https://www.sociva.in`).
-- `FINANCIAL_BUYER_PHONE`, `FINANCIAL_BUYER_OTP` — buyer with an existing cart
+- `FINANCIAL_BASE_URL` - deployed app URL (defaults to `https://www.sociva.in`).
+- `FINANCIAL_BUYER_PHONE`, `FINANCIAL_BUYER_OTP` - buyer with an existing cart
   item and positive existing Sociva Credit.
-- `FINANCIAL_BUYER_EXPECTED_CREDIT_MIN_MINOR` — minimum known credit for that
+- `FINANCIAL_BUYER_EXPECTED_CREDIT_MIN_MINOR` - minimum known credit for that
   buyer, in INR minor units.
-- `FINANCIAL_SELLER_PHONE`, `FINANCIAL_SELLER_OTP` — approved seller owning the
+- `FINANCIAL_SELLER_PHONE`, `FINANCIAL_SELLER_OTP` - approved seller owning the
   existing COD history under test.
-- `FINANCIAL_SELLER_EXPECTED_COD_MIN_MINOR` — minimum known COD history for that
+- `FINANCIAL_SELLER_EXPECTED_COD_MIN_MINOR` - minimum known COD history for that
   seller, in INR minor units.
-- `FINANCIAL_ADMIN_PHONE`, `FINANCIAL_ADMIN_OTP` — platform admin authorized to
+- `FINANCIAL_ADMIN_PHONE`, `FINANCIAL_ADMIN_OTP` - platform admin authorized to
   open `/#/admin/financial-trace`.
-- `FINANCIAL_COD_ORDER_REFERENCE` — existing COD order with a `cod_transactions`
+- `FINANCIAL_COD_ORDER_REFERENCE` - existing COD order with a `cod_transactions`
   record and no `seller_settlements` row.
-- `FINANCIAL_RECONCILED_REFERENCE` — existing reference with a matched,
+- `FINANCIAL_RECONCILED_REFERENCE` - existing reference with a matched,
   zero-variance external reconciliation record.
-- `FINANCIAL_EXCEPTION_REFERENCE` — existing open/investigating reconciliation
+- `FINANCIAL_EXCEPTION_REFERENCE` - existing open/investigating reconciliation
   exception with owner/assignment evidence.
 
 Read-only production evidence:
 
 - `SUPABASE_PROJECT_REF=kkzkuyhgdvyecmxtmkpy`
 - `SUPABASE_URL=https://kkzkuyhgdvyecmxtmkpy.supabase.co`
-- `SUPABASE_ACCESS_TOKEN` — Supabase Management API token able to read project
+- `SUPABASE_ACCESS_TOKEN` - Supabase Management API token able to read project
   advisors and logs.
-- `FINANCIAL_EVIDENCE_SERVICE_KEY` — short-lived production evidence secret
+- `FINANCIAL_EVIDENCE_SERVICE_KEY` - short-lived production evidence secret
   supplied only at run time. The script performs only RPC/REST reads; rotate it
   after the evidence run and never save it in a file or report.
-- `FINANCIAL_SHADOW_WINDOW_START`, `FINANCIAL_SHADOW_WINDOW_END` — reviewed ISO
+- `FINANCIAL_SHADOW_WINDOW_START`, `FINANCIAL_SHADOW_WINDOW_END` - reviewed ISO
   timestamps delimiting the immutable shadow-parity window.
 
 Run:

@@ -107,7 +107,7 @@ export default function HomePage() {
           );
         })()}
 
-        {/* Below-fold — mount on scroll to cut home query fan-out.
+        {/* Below-fold - mount on scroll to cut home query fan-out.
             Do not use reveal-on-scroll: nothing adds .revealed, so sections
             stayed opacity:0 and left a huge blank band above BottomNav. */}
         <LazySection>

@@ -79,7 +79,7 @@ export function BuyerRescheduleBooking({
         return;
       }
 
-      // Same slot/time — nothing to do
+      // Same slot/time - nothing to do
       if (
         currentDate === dateStr
         && (currentStartTime === slot.start_time || currentStartTime?.slice(0, 5) === slot.start_time?.slice(0, 5))

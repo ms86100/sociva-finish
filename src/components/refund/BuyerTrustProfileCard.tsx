@@ -93,7 +93,7 @@ export function BuyerTrustProfileCard({ buyerId, compact = false }: BuyerTrustPr
 
       <div className="flex items-start gap-1.5 text-[10px] text-muted-foreground">
         <Info size={11} className="shrink-0 mt-0.5" />
-        <span>Advisory only — you always decide whether to approve, partially approve, or reject.</span>
+        <span>Advisory only - you always decide whether to approve, partially approve, or reject.</span>
       </div>
     </div>
   );

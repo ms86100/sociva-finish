@@ -348,7 +348,7 @@ export default function SellerCreditsPage() {
 
         <Card>
           <CardContent className="p-4 space-y-2">
-            <p className="text-[11px] text-muted-foreground">Platform credits for listings and activity — not customer earnings.</p>
+            <p className="text-[11px] text-muted-foreground">Platform credits for listings and activity - not customer earnings.</p>
             <p className="font-semibold text-sm">{usageExplainer.headline}</p>
             <ul className="space-y-1.5">
               {usageExplainer.lines.map((line) => (

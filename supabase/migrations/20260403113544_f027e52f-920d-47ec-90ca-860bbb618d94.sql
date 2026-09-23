@@ -1,4 +1,4 @@
--- Fix 1: Discovery — enforce seller's delivery_radius_km with 10km default
+-- Fix 1: Discovery - enforce seller's delivery_radius_km with 10km default
 CREATE OR REPLACE FUNCTION public.search_sellers_paginated(
   _lat double precision,
   _lng double precision,
@@ -85,7 +85,7 @@ END;
 $$;
 
 
--- Fix 2: Order placement — radius check ONLY for delivery, NOT self-pickup
+-- Fix 2: Order placement - radius check ONLY for delivery, NOT self-pickup
 -- + per-seller validation + structured error with distance info + default 10km
 CREATE OR REPLACE FUNCTION public.create_multi_vendor_orders(
   _buyer_id uuid, _seller_groups json, _delivery_address text DEFAULT ''::text,

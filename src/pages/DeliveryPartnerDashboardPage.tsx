@@ -152,7 +152,7 @@ export default function DeliveryPartnerDashboardPage() {
 
   const acceptingDisclosureRef = useRef(false);
 
-  // Prominent disclosure before background GPS (Play policy) — do not silently start on native
+  // Prominent disclosure before background GPS (Play policy) - do not silently start on native
   useEffect(() => {
     if (!activeTrackingId || isTracking || permissionDenied) return;
     if (Capacitor.isNativePlatform() && !locationDisclosureAccepted) {
@@ -295,7 +295,7 @@ export default function DeliveryPartnerDashboardPage() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel onClick={() => setActiveTrackingId(null)}>Not now</AlertDialogCancel>
-            <AlertDialogAction onClick={acceptLocationDisclosure}>I understand — Start</AlertDialogAction>
+            <AlertDialogAction onClick={acceptLocationDisclosure}>I understand - Start</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -400,7 +400,7 @@ export default function DeliveryPartnerDashboardPage() {
       </div>
       </FeatureGate>
 
-      {/* OTP verification dialog — all delivery completions must go through this */}
+      {/* OTP verification dialog - all delivery completions must go through this */}
       {otpOrderId && (
         <DeliveryCompletionOtpDialog
           orderId={otpOrderId}

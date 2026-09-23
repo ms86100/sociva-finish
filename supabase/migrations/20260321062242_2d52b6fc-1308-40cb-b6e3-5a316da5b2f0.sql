@@ -42,14 +42,14 @@ declare
   _found_existing_id uuid;
 begin
   -- ============================================================
-  -- LAYER 1: Advisory lock — serialize all requests with same key
+  -- LAYER 1: Advisory lock - serialize all requests with same key
   -- ============================================================
   if _idempotency_key is not null then
     perform pg_advisory_xact_lock(hashtext(_idempotency_key));
   end if;
 
   -- ============================================================
-  -- LAYER 2: Request-level dedup — fast path for retries
+  -- LAYER 2: Request-level dedup - fast path for retries
   -- ============================================================
   if _idempotency_key is not null then
     select array_agg(o.id order by o.created_at, o.id)
@@ -133,7 +133,7 @@ begin
       _total := _total + ((_item->>'unit_price')::numeric * (_item->>'quantity')::int);
     end loop;
 
-    -- Insert with conflict handling — no exception block needed
+    -- Insert with conflict handling - no exception block needed
     insert into public.orders (
       id, buyer_id, seller_id, society_id, status, total_amount,
       payment_type, payment_status, delivery_address, notes,
@@ -151,7 +151,7 @@ begin
 
     -- Check if insert happened or conflict was hit
     if not found then
-      -- Row already exists — fetch the existing order id
+      -- Row already exists - fetch the existing order id
       select o.id into _found_existing_id
       from public.orders o
       where o.buyer_id = _buyer_id
@@ -162,7 +162,7 @@ begin
       end if;
       -- Skip order_items + notification for existing order
     else
-      -- New order created — insert items and notify seller
+      -- New order created - insert items and notify seller
       for _item in select * from json_array_elements(_seller_group->'items')
       loop
         insert into public.order_items (order_id, product_id, product_name, quantity, unit_price)
@@ -200,7 +200,7 @@ begin
   -- Removed: delete from public.cart_items where user_id = _buyer_id;
 
   -- ============================================================
-  -- LAYER 4: Canonical response — always return full set from DB
+  -- LAYER 4: Canonical response - always return full set from DB
   -- ============================================================
   if _idempotency_key is not null then
     select array_agg(o.id order by o.created_at, o.id)

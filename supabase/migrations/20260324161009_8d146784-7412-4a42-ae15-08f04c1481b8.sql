@@ -173,7 +173,7 @@ BEGIN
   ) INTO _transition_valid;
 
   IF NOT _transition_valid THEN
-    RAISE EXCEPTION 'Invalid status transition from "%" to "%" — no transition rule defined', _order_record.status, _next_step_status;
+    RAISE EXCEPTION 'Invalid status transition from "%" to "%" - no transition rule defined', _order_record.status, _next_step_status;
   END IF;
 
   -- Set OTP verified flag (bypasses enforce_otp_gate since we already verified)
@@ -206,7 +206,7 @@ END;
 $$;
 
 -- ================================================================
--- FIX Issue 2: enforce_otp_gate — raise error when delivery OTP
+-- FIX Issue 2: enforce_otp_gate - raise error when delivery OTP
 -- configured but no delivery assignment (instead of silent pass)
 -- ================================================================
 CREATE OR REPLACE FUNCTION public.enforce_otp_gate()
@@ -269,7 +269,7 @@ BEGIN
 
     IF NOT has_delivery_assignment THEN
       -- FIX: Raise error instead of silently passing
-      RAISE EXCEPTION 'Delivery OTP required but no delivery assignment exists. Check workflow configuration — "Start Delivery Here" must be on an earlier step.';
+      RAISE EXCEPTION 'Delivery OTP required but no delivery assignment exists. Check workflow configuration - "Start Delivery Here" must be on an earlier step.';
     END IF;
 
     SELECT EXISTS (
@@ -283,7 +283,7 @@ BEGIN
       RAISE EXCEPTION 'Delivery OTP verification required. Use the verify_delivery_otp_and_complete function.';
     END IF;
 
-    -- Delivery assignment exists but no code yet — shouldn't happen but be safe
+    -- Delivery assignment exists but no code yet - shouldn't happen but be safe
     RAISE EXCEPTION 'Delivery OTP verification required but delivery code not generated yet.';
   END IF;
 

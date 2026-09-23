@@ -115,7 +115,7 @@ export function CommandCenterBookingsList({
                         {booking.buyer_phone ? ` · ${booking.buyer_phone}` : ''}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        {format(new Date(booking.booking_date), 'dd MMM yyyy')} · {booking.start_time}–{booking.end_time}
+                        {format(new Date(booking.booking_date), 'dd MMM yyyy')} · {booking.start_time}-{booking.end_time}
                         {booking.location_type ? ` · ${booking.location_type}` : ''}
                       </p>
                     </div>

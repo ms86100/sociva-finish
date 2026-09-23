@@ -124,7 +124,7 @@ export function ShopByStoreDiscovery({ sectionTitle }: { sectionTitle?: string }
               {localSectionLabel}
               {localSectionName && (
                 <span className="font-normal text-muted-foreground ml-1">
-                  – {localSectionName}
+                  - {localSectionName}
                 </span>
               )}
             </h3>
@@ -138,7 +138,7 @@ export function ShopByStoreDiscovery({ sectionTitle }: { sectionTitle?: string }
         </section>
       )}
 
-      {/* ━━━ Contact / enquire / book (non-cart) — same card language, CTA differs ━━━ */}
+      {/* ━━━ Contact / enquire / book (non-cart) - same card language, CTA differs ━━━ */}
       {!loadingLocal && contactSellers.length > 0 && (
         <section>
           <div className="flex items-center gap-2 px-4 mb-2.5">
@@ -147,7 +147,7 @@ export function ShopByStoreDiscovery({ sectionTitle }: { sectionTitle?: string }
               Contact & book nearby
               {localSectionName && (
                 <span className="font-normal text-muted-foreground ml-1">
-                  – {localSectionName}
+                  - {localSectionName}
                 </span>
               )}
             </h3>

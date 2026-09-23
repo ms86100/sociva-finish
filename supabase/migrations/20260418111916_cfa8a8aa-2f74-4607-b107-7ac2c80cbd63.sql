@@ -54,7 +54,7 @@ BEGIN
 
   v_society_id := v_order.society_id;
 
-  -- Neutral, urgency-based seed messages — no hardcoded SLA promises.
+  -- Neutral, urgency-based seed messages - no hardcoded SLA promises.
   v_seed_message := CASE
     WHEN p_issue_type = 'late_delivery' AND p_issue_subtype = 'still_waiting' THEN
       'Buyer reports the order is overdue and they are still waiting. Please update them as soon as possible.'

@@ -109,7 +109,7 @@ export function AttributeBlockBuilder({ category, value, onChange, wizardMode = 
       {/* In wizard mode with few available blocks, show them inline */}
       {wizardMode && availableBlocks.length > 0 && availableBlocks.length <= 6 ? (
         <div className="space-y-2">
-          <p className="text-xs font-medium text-muted-foreground">Available attributes — tap to add:</p>
+          <p className="text-xs font-medium text-muted-foreground">Available attributes - tap to add:</p>
           {availableBlocks.map((block) => (
             <button
               key={block.block_type}

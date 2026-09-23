@@ -26,7 +26,7 @@ export function readDraft<T>(key: string): T | null {
 export function writeDraft<T>(key: string, data: T): void {
   try {
     localStorage.setItem(key, JSON.stringify(data));
-  } catch { /* quota exceeded — non-critical */ }
+  } catch { /* quota exceeded - non-critical */ }
 }
 
 export function clearDraft(key: string): void {

@@ -302,7 +302,7 @@ export function useRejectCategoryRequest() {
         userId: request.requested_by,
         type: 'category_request_rejected',
         title: 'Category request not approved',
-        body: `"${request.requested_name}" wasn't added. Reason: ${reason}${alts ? ' — see suggested alternatives.' : ''}`,
+        body: `"${request.requested_name}" wasn't added. Reason: ${reason}${alts ? ' - see suggested alternatives.' : ''}`,
         actionUrl,
         data: { request_id: request.id, reason, suggested_alternatives: suggestedAlternatives ?? [] },
       });

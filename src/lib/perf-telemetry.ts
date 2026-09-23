@@ -1,13 +1,13 @@
 // @ts-nocheck
 /**
  * Lightweight performance telemetry for critical paths.
- * Uses `performance.mark` / `performance.measure` — zero overhead when
+ * Uses `performance.mark` / `performance.measure` - zero overhead when
  * Performance API is unavailable (SSR, older browsers).
  */
 
 const HAS_PERF = typeof performance !== 'undefined' && typeof performance.mark === 'function';
 
-/** Threshold in ms — anything above this gets a console.warn */
+/** Threshold in ms - anything above this gets a console.warn */
 const SLOW_THRESHOLD = 500;
 
 /**
@@ -71,7 +71,7 @@ export async function guardedQuery<T>(label: string, fn: () => Promise<T>, thres
   const result = await fn();
   const elapsed = (HAS_PERF ? performance.now() : Date.now()) - t0;
   if (elapsed > threshold) {
-    console.warn(`[Perf:Query] ${label}: ${elapsed.toFixed(0)}ms — consider caching or indexing`);
+    console.warn(`[Perf:Query] ${label}: ${elapsed.toFixed(0)}ms - consider caching or indexing`);
   }
   return result;
 }
@@ -83,7 +83,7 @@ export async function guardedQuery<T>(label: string, fn: () => Promise<T>, thres
  */
 export function trackRouteMount(routeName: string): void {
   if (!HAS_PERF) return;
-  // Skip telemetry when the tab is backgrounded — the timestamps are meaningless
+  // Skip telemetry when the tab is backgrounded - the timestamps are meaningless
   // (a tab resumed after 40 minutes will look like a 2.4M ms "slow mount").
   if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
   try {
@@ -91,7 +91,7 @@ export function trackRouteMount(routeName: string): void {
     if (navEntry) {
       const mountTime = performance.now() - navEntry.responseEnd;
       if (mountTime > 1000) {
-        console.warn(`[Perf:Route] ${routeName} mounted ${mountTime.toFixed(0)}ms after page response — check data dependencies`);
+        console.warn(`[Perf:Route] ${routeName} mounted ${mountTime.toFixed(0)}ms after page response - check data dependencies`);
       } else if (import.meta.env.DEV) {
         console.debug(`[Perf:Route] ${routeName} mounted in ${mountTime.toFixed(0)}ms`);
       }

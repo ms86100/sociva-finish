@@ -44,7 +44,7 @@ export function DiscoveryEmptyPanel({
               We couldn&apos;t find stores serving this location.
             </p>
             <p className="text-xs text-muted-foreground/80 pt-1">
-              Your neighbourhood is still growing. Be the change — invite a seller, or try another
+              Your neighbourhood is still growing. Be the change - invite a seller, or try another
               spot.
             </p>
           </div>

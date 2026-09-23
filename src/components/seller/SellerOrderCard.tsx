@@ -67,7 +67,7 @@ export function SellerOrderCard({ order }: SellerOrderCardProps) {
       return <Badge variant="outline" className="text-success border-success text-[10px]">Paid</Badge>;
     }
     if (order.payment_status === 'buyer_confirmed') {
-      return <Badge variant="outline" className="text-warning border-warning text-[10px]">Payment claimed — verify</Badge>;
+      return <Badge variant="outline" className="text-warning border-warning text-[10px]">Payment claimed - verify</Badge>;
     }
     if (order.status === 'awaiting_cod_confirmation') {
       return <Badge variant="outline" className="text-warning border-warning text-[10px]">Confirm cash</Badge>;

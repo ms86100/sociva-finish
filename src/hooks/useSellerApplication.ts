@@ -164,7 +164,7 @@ export function useSellerApplication(opts?: { forceNew?: boolean }) {
 
   const [isLoading, setIsLoading] = useState(false);
   const [submissionComplete, setSubmissionComplete] = useState(() => !!readSubmittedStoreId());
-  // forceNew skips the existing-store probe — paint the category picker immediately
+  // forceNew skips the existing-store probe - paint the category picker immediately
   const [isCheckingExisting, setIsCheckingExisting] = useState(!forceNew);
   const [existingSeller, setExistingSeller] = useState<{ id: string; business_name: string; verification_status?: string; rejection_note?: string | null } | null>(null);
   const [rejectionFeedback, setRejectionFeedback] = useState<string | null>(null);
@@ -189,7 +189,7 @@ export function useSellerApplication(opts?: { forceNew?: boolean }) {
   const [licenseStatus, setLicenseStatus] = useState<string | null>(null);
   const autoSaveInFlightRef = useRef(false);
 
-  // Intent-first draft fields (sessionStorage — survive mid-flow refresh)
+  // Intent-first draft fields (sessionStorage - survive mid-flow refresh)
   const [listingIntentPhrase, setListingIntentPhraseState] = useState(() => readSession(INTENT_PHRASE_KEY));
   const [commerceModel, setCommerceModelState] = useState(() => readSession(COMMERCE_MODEL_KEY));
   const [seedProductName, setSeedProductNameState] = useState(() => readSession(SEED_PRODUCT_KEY));
@@ -401,7 +401,7 @@ export function useSellerApplication(opts?: { forceNew?: boolean }) {
     const checkExisting = async () => {
       if (!user) { setIsCheckingExisting(false); return; }
 
-      // Dashboard "Add Business" — skip resume/probe so the picker paints immediately
+      // Dashboard "Add Business" - skip resume/probe so the picker paints immediately
       if (forceNew) {
         writeSubmittedStoreId(null);
         setSubmissionComplete(false);
@@ -432,7 +432,7 @@ export function useSellerApplication(opts?: { forceNew?: boolean }) {
       }
 
       try {
-        // Lightweight status probe first — full row + products only when resuming a draft
+        // Lightweight status probe first - full row + products only when resuming a draft
         const { data } = await supabase
           .from('seller_profiles')
           .select(SELLER_STATUS_SELECT)
@@ -458,7 +458,7 @@ export function useSellerApplication(opts?: { forceNew?: boolean }) {
             return;
           }
 
-          // Never resume a shelved [ARCHIVED]/[HOLD] draft — those are cleanup leftovers.
+          // Never resume a shelved [ARCHIVED]/[HOLD] draft - those are cleanup leftovers.
           const draft = actionable.find((s: any) => s.verification_status === 'draft');
           if (draft) {
             const { data: fullDraft, error: fullErr } = await supabase
@@ -472,7 +472,7 @@ export function useSellerApplication(opts?: { forceNew?: boolean }) {
             setSelectedGroup((row as any).primary_group);
             loadSellerDataIntoForm(row);
             hydrateOnboardingFromMeta(row);
-            // Unlock UI before products finish — review step refreshes products anyway
+            // Unlock UI before products finish - review step refreshes products anyway
             setIsCheckingExisting(false);
             const meta = parseOnboardingMeta((row as any).onboarding_meta);
             const savedStep = parseInt(
@@ -485,7 +485,7 @@ export function useSellerApplication(opts?: { forceNew?: boolean }) {
               : migrateOnboardingStep(savedStep, version);
             localStorage.setItem(ONBOARDING_VERSION_KEY, ONBOARDING_VERSION);
             // Persist resume point, but land on step 1 so "Your stores" draft card
-            // (Continue Setup / Rename / Delete) is visible — do not silently trap
+            // (Continue Setup / Rename / Delete) is visible - do not silently trap
             // a returning zero-knowledge seller mid-wizard.
             localStorage.setItem('seller_onboarding_step', String(restoredStep));
             setStep(1);
@@ -606,7 +606,7 @@ export function useSellerApplication(opts?: { forceNew?: boolean }) {
     if (existingSeller?.id) {
       const fresh = sellerProfiles.find((p) => p.id === existingSeller.id);
       if (fresh && isShelvedSellerStore(fresh)) {
-        // Store was shelved after load — drop status screen so onboarding can continue.
+        // Store was shelved after load - drop status screen so onboarding can continue.
         setExistingSeller(null);
       } else if (fresh) {
         const prevStatus = (existingSeller as any).verification_status;
@@ -630,7 +630,7 @@ export function useSellerApplication(opts?: { forceNew?: boolean }) {
       }
     }
 
-    // submissionComplete already renders the full-screen "Your store is approved!" hero —
+    // submissionComplete already renders the full-screen "Your store is approved!" hero -
     // do not stack a duplicate toast on top of it.
     if (submissionComplete && draftSellerId) {
       const submitted = sellerProfiles.find((p) => p.id === draftSellerId);
@@ -673,7 +673,7 @@ export function useSellerApplication(opts?: { forceNew?: boolean }) {
     };
   }, [user?.id, refreshProfile]);
 
-  // Check group conflict — skip on Add Business (?new=1) so picking a taken type
+  // Check group conflict - skip on Add Business (?new=1) so picking a taken type
   // cannot swap the picker for the "we're reviewing" success screen.
   useEffect(() => {
     const checkGroupConflict = async () => {
@@ -1050,7 +1050,7 @@ export function useSellerApplication(opts?: { forceNew?: boolean }) {
   const handleSubmit = async () => {
     if (!user || !draftSellerId) return;
     if (draftProducts.length === 0) {
-      // Re-fetch before blocking — resume can show empty list if products load failed
+      // Re-fetch before blocking - resume can show empty list if products load failed
       await reloadProducts(draftSellerId);
       const { data: prods } = await supabase
         .from('products')
@@ -1161,13 +1161,13 @@ export function useSellerApplication(opts?: { forceNew?: boolean }) {
       }
     }
 
-    // Store pin is required — society membership alone is not enough (society may lack coords).
+    // Store pin is required - society membership alone is not enough (society may lack coords).
     if (submitLat == null || submitLng == null) {
       notify.block('Please set your store location in Seller Settings before submitting, or join a society with a map pin.');
       return;
     }
 
-    // Mandatory license — frontend gate (DB also enforces on admin approval / live products)
+    // Mandatory license - frontend gate (DB also enforces on admin approval / live products)
     try {
       const el = await evaluateSellerLicenseEligibility(draftSellerId);
       assertLicenseAllowsSellerSubmit(el);

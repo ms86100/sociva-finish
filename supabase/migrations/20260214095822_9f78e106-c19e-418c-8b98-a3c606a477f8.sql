@@ -1,6 +1,6 @@
 
 -- =============================================
--- WORKER ECOSYSTEM — COMPLETE SCHEMA
+-- WORKER ECOSYSTEM - COMPLETE SCHEMA
 -- =============================================
 
 -- 1. Insert worker_marketplace feature toggle

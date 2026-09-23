@@ -153,8 +153,8 @@ export function ServiceAvailabilityManager({ sellerId, onComplete }: ServiceAvai
       setSaveState('saved');
       setFeedback(
         count && count > 0
-          ? `Saved — ${count} store-wide slots generated for the next 30 days`
-          : 'Saved — add an approved bookable service to start generating slots'
+          ? `Saved - ${count} store-wide slots generated for the next 30 days`
+          : 'Saved - add an approved bookable service to start generating slots'
       );
       requestAnimationFrame(() => onComplete?.());
     } catch (err: any) {
@@ -254,7 +254,7 @@ export function ServiceAvailabilityManager({ sellerId, onComplete }: ServiceAvai
 
       {slotCount !== null && saveState === 'idle' && (
         <p className="text-[11px] text-muted-foreground text-center">
-          {slotCount > 0 ? `${slotCount} slots live for the next 30 days` : 'No slots yet — save to generate'}
+          {slotCount > 0 ? `${slotCount} slots live for the next 30 days` : 'No slots yet - save to generate'}
         </p>
       )}
     </div>

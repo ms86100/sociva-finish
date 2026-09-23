@@ -48,7 +48,7 @@ BEGIN
   IF _seller_user_id IS NOT NULL THEN
     IF _is_auto_accepted THEN
       _seller_title := '✅ Order Auto-Accepted';
-      _seller_body := COALESCE(_buyer_name, 'Customer') || ' placed an order worth Rs ' || COALESCE(_notify_amount, 0) || '. Auto-accepted — start preparing!';
+      _seller_body := COALESCE(_buyer_name, 'Customer') || ' placed an order worth Rs ' || COALESCE(_notify_amount, 0) || '. Auto-accepted - start preparing!';
     ELSE
       _seller_title := '🔔 New Order Received';
       _seller_body := COALESCE(_buyer_name, 'Customer') || ' placed an order worth Rs ' || COALESCE(_notify_amount, 0) || '. Tap to accept!';

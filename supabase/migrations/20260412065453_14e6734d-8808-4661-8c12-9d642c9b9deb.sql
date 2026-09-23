@@ -61,7 +61,7 @@ BEGIN
     END IF;
   END IF;
 
-  -- All checks passed — auto-accept
+  -- All checks passed - auto-accept
   NEW.status := 'preparing';
   NEW.auto_accepted := true;
   RETURN NEW;

@@ -1,5 +1,5 @@
 
--- featured_items: 197 seq scans, 1.5% idx hit — banner queries filter by is_active + order by display_order
+-- featured_items: 197 seq scans, 1.5% idx hit - banner queries filter by is_active + order by display_order
 CREATE INDEX IF NOT EXISTS idx_featured_items_active_order
   ON public.featured_items (is_active, display_order) WHERE is_active = true;
 

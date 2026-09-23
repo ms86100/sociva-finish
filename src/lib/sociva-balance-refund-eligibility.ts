@@ -45,7 +45,7 @@ export function buyerDisputeCopy(eligible: boolean): {
   }
   return {
     title: 'Seller dispute',
-    body: 'Your seller will review this complaint. Online Sociva Balance refunds are not available for this order — use chat if you need to resolve it with the seller.',
+    body: 'Your seller will review this complaint. Online Sociva Balance refunds are not available for this order - use chat if you need to resolve it with the seller.',
   };
 }
 
@@ -57,7 +57,7 @@ export function sellerRefundUnavailableCopy(eligibility: SocivaBalanceRefundElig
     return 'Online payment refunds are currently unavailable. Please contact the buyer through chat or call to resolve the issue.';
   }
   if (eligibility.reason === 'COD_PAYMENT_NOT_SUPPORTED_FOR_SOCIVA_BALANCE_REFUND') {
-    return 'This was a Cash on Delivery order. Sociva Balance refunds are not available — please resolve directly with the buyer via chat or call.';
+    return 'This was a Cash on Delivery order. Sociva Balance refunds are not available - please resolve directly with the buyer via chat or call.';
   }
   return eligibility.message || 'Sociva Balance refund is not available for this order.';
 }

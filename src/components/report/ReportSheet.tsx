@@ -19,7 +19,7 @@ interface ReportSheetProps {
   targetType: 'product' | 'seller' | 'post' | 'user';
   targetId: string;
   targetName?: string;
-  /** Optional seller id when reporting a product — stored as secondary target. */
+  /** Optional seller id when reporting a product - stored as secondary target. */
   sellerId?: string | null;
 }
 

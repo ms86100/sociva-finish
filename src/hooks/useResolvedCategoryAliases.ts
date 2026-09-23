@@ -7,8 +7,8 @@ import { supabase } from '@/integrations/supabase/client';
  *
  * Categories: alias text → resolved category slug.
  * Subcategories: alias text → resolved subcategory id (used inside the
- * SubcategoryPickerDialog so a merged/approved subcategory request — e.g.
- * "makhana" → Namkeen & Chips — becomes findable). Subcategory aliases also
+ * SubcategoryPickerDialog so a merged/approved subcategory request - e.g.
+ * "makhana" → Namkeen & Chips - becomes findable). Subcategory aliases also
  * bubble up as parent-category aliases so the top-level CategorySearchPicker
  * surfaces "Snacks" when the seller types "makhana".
  *

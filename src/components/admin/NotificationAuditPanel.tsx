@@ -50,12 +50,12 @@ export function NotificationAuditPanel() {
                 {rows.map((r) => (
                   <tr key={r.id} className="border-t">
                     <td className="p-2 whitespace-nowrap">{formatDistanceToNow(new Date(r.triggered_at), { addSuffix: true })}</td>
-                    <td className="p-2 font-mono">{r.rule_key || '—'}</td>
+                    <td className="p-2 font-mono">{r.rule_key || '-'}</td>
                     <td className="p-2"><Badge variant="outline">{r.escalation_level}</Badge></td>
                     <td className="p-2 font-mono text-[10px]">{r.entity_id.slice(0, 8)}</td>
                     <td className="p-2"><Badge variant={r.status === 'read' ? 'default' : r.status === 'delivered' ? 'secondary' : 'outline'}>{r.status}</Badge></td>
-                    <td className="p-2 text-muted-foreground">{r.delivered_at ? '✓' : '—'}</td>
-                    <td className="p-2 text-muted-foreground">{r.read_at ? '✓' : '—'}</td>
+                    <td className="p-2 text-muted-foreground">{r.delivered_at ? '✓' : '-'}</td>
+                    <td className="p-2 text-muted-foreground">{r.read_at ? '✓' : '-'}</td>
                   </tr>
                 ))}
                 {!isLoading && rows.length === 0 && (

@@ -76,14 +76,14 @@ export function WalletCard() {
           {readonly && (
             <div className="mt-2 flex items-center gap-1.5 text-[11px] text-muted-foreground">
               <Clock size={12} />
-              Online checkout is off — your balance is safe and will apply on future online orders.
+              Online checkout is off - your balance is safe and will apply on future online orders.
             </div>
           )}
 
           {frozen && (
             <div className="mt-2 flex items-center gap-1.5 text-[11px] text-destructive">
               <AlertTriangle size={12} />
-              Wallet frozen — contact support
+              Wallet frozen - contact support
             </div>
           )}
 

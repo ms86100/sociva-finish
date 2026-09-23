@@ -30,9 +30,9 @@ import { SellerSwitcher } from '@/components/seller/SellerSwitcher';
 const PAGE_SIZE = 50;
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: typeof CheckCircle2 }> = {
-  eligible: { label: 'Eligible — provider payout pending', color: 'bg-primary/10 text-primary border-primary/20', icon: Clock },
+  eligible: { label: 'Eligible - provider payout pending', color: 'bg-primary/10 text-primary border-primary/20', icon: Clock },
   settled: { label: 'Paid out', color: 'bg-success/10 text-success border-success/20', icon: CheckCircle2 },
-  settled_unverified: { label: 'Settled internally — transfer unconfirmed', color: 'bg-warning/10 text-warning border-warning/20', icon: AlertCircle },
+  settled_unverified: { label: 'Settled internally - transfer unconfirmed', color: 'bg-warning/10 text-warning border-warning/20', icon: AlertCircle },
   processing: { label: 'Transfer in progress', color: 'bg-primary/10 text-primary border-primary/20', icon: Clock },
   pending: { label: 'Pending eligibility', color: 'bg-warning/10 text-warning border-warning/20', icon: Clock },
   on_hold: { label: 'On Hold', color: 'bg-destructive/10 text-destructive border-destructive/20', icon: AlertCircle },
@@ -204,13 +204,13 @@ export default function SellerPayoutsPage() {
         )}
 
         <div className="rounded-xl border border-warning/30 bg-warning/10 px-3 py-3 text-sm">
-          <p className="font-medium text-foreground">Ledger only — not a bank payout</p>
+          <p className="font-medium text-foreground">Ledger only - not a bank payout</p>
           <p className="text-xs text-muted-foreground mt-1">
             These rows are seller payables owed after delivery. “Eligible” is not money held in a wallet and does not mean a bank transfer occurred. Only rows with a confirmed provider transfer are shown as paid out.
           </p>
         </div>
 
-        {/* Summary Cards — from full aggregate, not the page list */}
+        {/* Summary Cards - from full aggregate, not the page list */}
         {!loadError && (
         <div className="grid grid-cols-2 gap-3">
           <Card>
@@ -274,7 +274,7 @@ export default function SellerPayoutsPage() {
                         <div>
                           <p className="font-medium text-sm">
                             {s.period_start && s.period_end
-                              ? `${format(new Date(s.period_start), 'MMM d')} – ${format(new Date(s.period_end), 'MMM d')}`
+                              ? `${format(new Date(s.period_start), 'MMM d')} - ${format(new Date(s.period_end), 'MMM d')}`
                               : `Settlement #${s.id.slice(0, 8)}`}
                           </p>
                           {storeName && (

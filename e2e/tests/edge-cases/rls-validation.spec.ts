@@ -11,7 +11,7 @@ test.describe('RLS Validation @critical', () => {
 
     // With proper RLS, anonymous users should get empty result or error
     if (!error) {
-      // RLS filters rows — result should be empty for unauthenticated
+      // RLS filters rows - result should be empty for unauthenticated
       expect(orders?.length || 0).toBe(0);
     }
   });
@@ -22,7 +22,7 @@ test.describe('RLS Validation @critical', () => {
       .select('*')
       .limit(5);
 
-    // RLS should restrict — either error or empty/filtered
+    // RLS should restrict - either error or empty/filtered
     // Public seller profiles may be readable, but not all fields
     // This validates that RLS is at least active
     expect(error === null || data !== null).toBeTruthy();
@@ -47,7 +47,7 @@ test.describe('RLS Validation @critical', () => {
       .select('token')
       .limit(1);
 
-    // Tokens contain sensitive data — should be blocked
+    // Tokens contain sensitive data - should be blocked
     if (!error) {
       expect(data?.length || 0).toBe(0);
     }
@@ -59,7 +59,7 @@ test.describe('RLS Validation @critical', () => {
       .select('*')
       .limit(1);
 
-    // Queue entries are internal — should be blocked
+    // Queue entries are internal - should be blocked
     if (!error) {
       expect(data?.length || 0).toBe(0);
     }

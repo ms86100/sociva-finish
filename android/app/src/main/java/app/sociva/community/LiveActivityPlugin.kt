@@ -108,7 +108,7 @@ class LiveActivityPlugin : Plugin() {
     @PluginMethod
     fun getNativeBuildFlags(call: PluginCall) {
         val ret = JSObject()
-        // Capacitor Geolocation only — no third-party background-geo SDK.
+        // Capacitor Geolocation only - no third-party background-geo SDK.
         ret.put("backgroundGeoVendor", "none")
         ret.put("platform", "android")
         call.resolve(ret)

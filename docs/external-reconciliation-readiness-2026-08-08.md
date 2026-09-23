@@ -1,4 +1,4 @@
-# External reconciliation readiness — 2026-08-08
+# External reconciliation readiness - 2026-08-08
 
 Scope: production-safe, read-only inspection of the deployed Supabase schema,
 configuration, worker source, and aggregate evidence. No provider was contacted,

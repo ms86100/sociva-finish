@@ -331,9 +331,9 @@ BEGIN
   IF v_band = 'low' THEN
     v_rec := 'Likely genuine customer complaint. History is consistent with normal behaviour.';
   ELSIF v_band = 'medium' THEN
-    v_rec := 'Review carefully. This buyer requests refunds more often than typical — consider chatting before approving.';
+    v_rec := 'Review carefully. This buyer requests refunds more often than typical - consider chatting before approving.';
   ELSE
-    v_rec := 'Potential refund abuse — review the order carefully before issuing a refund.';
+    v_rec := 'Potential refund abuse - review the order carefully before issuing a refund.';
   END IF;
 
   SELECT s.band, s.score INTO v_old_band, v_old_score
@@ -445,7 +445,7 @@ $function$;
 REVOKE ALL ON FUNCTION public.get_buyer_refund_risk_profile(uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.get_buyer_refund_risk_profile(uuid) TO authenticated, service_role;
 -- Also allow authenticated to run recompute via profile only; keep direct recompute service_role.
--- Fix: get_buyer_refund_risk_profile calls recompute which is service_role only — SECURITY DEFINER owner can still call it.
+-- Fix: get_buyer_refund_risk_profile calls recompute which is service_role only - SECURITY DEFINER owner can still call it.
 
 CREATE OR REPLACE FUNCTION public.recompute_all_buyer_refund_risks(p_limit integer DEFAULT 500)
 RETURNS jsonb
@@ -904,7 +904,7 @@ BEGIN
   INSERT INTO public.notification_queue(user_id, title, body, type, reference_path, payload)
   VALUES (
     v_seller_user,
-    'Refund approved — settlement adjusted',
+    'Refund approved - settlement adjusted',
     left(
       'You approved ₹' || trim(to_char(v_approved, 'FM9999990.00'))
       || ' as Sociva Credit for the buyer. Buyer received instant wallet credit; your payout is adjusted accordingly.'

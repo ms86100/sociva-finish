@@ -63,13 +63,13 @@ export default function ProfilePage() {
     const live = actionableSellerProfiles(sellerProfiles as any);
     const statuses = live.map((s) => String((s as any).verification_status || 'draft'));
     if (statuses.includes('pending')) {
-      return { title: 'Finish your store', body: 'Open Seller Dashboard — review still in progress' };
+      return { title: 'Finish your store', body: 'Open Seller Dashboard - review still in progress' };
     }
     if (statuses.includes('rejected')) {
-      return { title: 'Update your store', body: 'Open Seller Dashboard — changes needed before approval' };
+      return { title: 'Update your store', body: 'Open Seller Dashboard - changes needed before approval' };
     }
     if (statuses.includes('draft')) {
-      return { title: 'Finish your store setup', body: 'Open Seller Dashboard — complete your draft and submit' };
+      return { title: 'Finish your store setup', body: 'Open Seller Dashboard - complete your draft and submit' };
     }
     return { title: 'Finish your store', body: 'Open Seller Dashboard to continue setup' };
   })();
@@ -134,7 +134,7 @@ export default function ProfilePage() {
     { icon: Package, label: 'Orders', to: '/orders', key: 'orders' },
     { icon: Heart, label: 'Favourites', to: '/favorites', key: 'favorites' },
     { icon: Repeat, label: 'Reorder', to: '/search', key: 'reorder' },
-    // Pending/draft sellers also need dashboard access — isSeller is approved-only.
+    // Pending/draft sellers also need dashboard access - isSeller is approved-only.
     ...(hasSellerProfile ? [{ icon: Store, label: 'My Store', to: '/seller', key: 'seller' }] : []),
   ];
 
@@ -212,14 +212,14 @@ export default function ProfilePage() {
                 </div>
               ) : (
                 <>
-                  <h2 className="text-lg font-bold truncate">{profile?.name || '—'}</h2>
+                  <h2 className="text-lg font-bold truncate">{profile?.name || '-'}</h2>
                   {society?.name && (
                     <p className="text-xs text-primary font-medium mt-0.5">{society.name}</p>
                   )}
                   <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
                     <MapPin size={12} className="shrink-0" />
                     <span className="line-clamp-1">
-                      {[profile?.flat_number, profile?.block && `Block ${profile.block}`, profile?.phase].filter(Boolean).join(', ') || '—'}
+                      {[profile?.flat_number, profile?.block && `Block ${profile.block}`, profile?.phase].filter(Boolean).join(', ') || '-'}
                     </span>
                   </div>
                   {((profile?.phone) || (user as any)?.phone) && (

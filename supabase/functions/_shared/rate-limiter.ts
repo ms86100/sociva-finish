@@ -1,6 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.93.3";
 
-// Module-level shared client — created once per isolate lifetime
+// Module-level shared client - created once per isolate lifetime
 let _sharedClient: any = null;
 function getSharedClient() {
   if (!_sharedClient) {

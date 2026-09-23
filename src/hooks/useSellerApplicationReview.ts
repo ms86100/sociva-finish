@@ -167,7 +167,7 @@ export function useSellerApplicationReview() {
   const updateSellerStatus = async (seller: SellerApplication, status: 'approved' | 'rejected') => {
     setActionId(seller.id);
     try {
-      // Location validation is now handled inside approveSeller() — single source of truth
+      // Location validation is now handled inside approveSeller() - single source of truth
 
       if (status === 'approved') {
         const { approveSeller, validateSellerLocation } = await import('@/lib/seller-approval');
@@ -206,7 +206,7 @@ export function useSellerApplicationReview() {
       } else if (msg.includes('no society') || msg.includes('SELLER_SOCIETY_REQUIRED')) {
         notify.block('Cannot approve: store has no society. Ask the seller to link their account to a society first.');
       } else if (msg.includes('Update did not persist')) {
-        adminNotify.error('Approval failed — the update did not save. Please try again or check permissions.');
+        adminNotify.error('Approval failed - the update did not save. Please try again or check permissions.');
       } else {
         adminNotify.error(`Failed to update seller status: ${msg || 'Unknown error'}`);
       }

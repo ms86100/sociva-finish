@@ -6,13 +6,13 @@ export function DeliveryDocs() {
     <div className="space-y-2">
       <DocHero
         title="Delivery & Logistics"
-        description="This module covers society-level delivery monitoring, the delivery partner rider dashboard, admin partner management, and parcel tracking — ensuring smooth last-mile delivery within residential communities."
+        description="This module covers society-level delivery monitoring, the delivery partner rider dashboard, admin partner management, and parcel tracking - ensuring smooth last-mile delivery within residential communities."
         badges={['Delivery', 'Admin', '4 Pages']}
       />
 
       {/* ─── SOCIETY DELIVERIES ─── */}
       <DocSection title="1. Society Deliveries (/society/deliveries)">
-        <p>A society-level monitoring view of all deliveries within the community, accessible to society admins. This page is feature-gated — it only appears when <code className="text-[10px] bg-muted px-1 rounded">delivery_management</code> is enabled for the society.</p>
+        <p>A society-level monitoring view of all deliveries within the community, accessible to society admins. This page is feature-gated - it only appears when <code className="text-[10px] bg-muted px-1 rounded">delivery_management</code> is enabled for the society.</p>
 
         <DocInfoCard title="Delivery Monitoring Tab" icon="🚚">
           <p>The <code className="text-[10px] bg-muted px-1 rounded">DeliveryMonitoringTab</code> component provides a real-time view of all delivery assignments for the society, showing:</p>
@@ -40,12 +40,12 @@ export function DeliveryDocs() {
 
         <DocInfoCard title="Partner Identification" icon="🪪">
           <p>The system identifies delivery partners by matching the logged-in user's phone number against the <code className="text-[10px] bg-muted px-1 rounded">delivery_partner_pool</code> table. If found, the partner profile is loaded. If the user_id isn't linked yet, it's automatically linked on first visit.</p>
-          <p>Non-partners see a friendly message: "Not a Delivery Partner — Contact your society admin to be added."</p>
+          <p>Non-partners see a friendly message: "Not a Delivery Partner - Contact your society admin to be added."</p>
         </DocInfoCard>
 
         <DocInfoCard title="Partner Status Card" icon="👤">
           <p>Shows: partner photo/avatar, name, total deliveries count, rating, and GPS tracking indicator (animated pulse when active).</p>
-          <p>An <strong>Online/Offline toggle</strong> button controls the partner's availability status — only online partners receive new delivery requests.</p>
+          <p>An <strong>Online/Offline toggle</strong> button controls the partner's availability status - only online partners receive new delivery requests.</p>
         </DocInfoCard>
 
         <DocInfoCard title="Pending Delivery Requests" icon="📥">
@@ -72,12 +72,12 @@ export function DeliveryDocs() {
         </DocInfoCard>
 
         <DocInfoCard title="Delivery Details" icon="📋">
-          <p>Each delivery card shows: seller name, buyer's block and flat number, buyer's phone, delivery creation date/time, order amount, delivery fee, and delivery code (OTP — only shown for non-delivered orders).</p>
+          <p>Each delivery card shows: seller name, buyer's block and flat number, buyer's phone, delivery creation date/time, order amount, delivery fee, and delivery code (OTP - only shown for non-delivered orders).</p>
         </DocInfoCard>
 
         <DocInfoCard title="Active/History Tabs" icon="📊">
-          <p><strong>Active Tab</strong> — Deliveries in assigned, picked_up, or at_gate status.</p>
-          <p><strong>History Tab</strong> — Completed deliveries (delivered, failed, cancelled) for reference.</p>
+          <p><strong>Active Tab</strong> - Deliveries in assigned, picked_up, or at_gate status.</p>
+          <p><strong>History Tab</strong> - Completed deliveries (delivered, failed, cancelled) for reference.</p>
         </DocInfoCard>
       </DocSection>
 
@@ -111,15 +111,15 @@ export function DeliveryDocs() {
 
         <DocInfoCard title="Parcel Status System" icon="📦">
           <p>Four statuses with color-coded badges:</p>
-          <p>• <strong>Received</strong> (yellow) — Package logged at gate</p>
-          <p>• <strong>Notified</strong> (blue) — Resident has been notified</p>
-          <p>• <strong>Collected</strong> (green) — Resident picked up the parcel</p>
-          <p>• <strong>Returned</strong> (gray) — Package returned to courier</p>
+          <p>• <strong>Received</strong> (yellow) - Package logged at gate</p>
+          <p>• <strong>Notified</strong> (blue) - Resident has been notified</p>
+          <p>• <strong>Collected</strong> (green) - Resident picked up the parcel</p>
+          <p>• <strong>Returned</strong> (gray) - Package returned to courier</p>
         </DocInfoCard>
 
         <DocInfoCard title="Parcel Logging" icon="📝">
           <p>Security staff or admins log incoming parcels with:</p>
-          <p>• Recipient flat number (required — looked up from profiles)</p>
+          <p>• Recipient flat number (required - looked up from profiles)</p>
           <p>• Courier name (e.g., Amazon, Flipkart, Delhivery)</p>
           <p>• Tracking number</p>
           <p>• Package description</p>
@@ -127,8 +127,8 @@ export function DeliveryDocs() {
         </DocInfoCard>
 
         <DocInfoCard title="Tabs View" icon="📊">
-          <p><strong>Pending Tab</strong> — Shows parcels in "received" or "notified" status awaiting collection.</p>
-          <p><strong>Collected Tab</strong> — Shows parcels that have been picked up, with collection timestamp and collector info.</p>
+          <p><strong>Pending Tab</strong> - Shows parcels in "received" or "notified" status awaiting collection.</p>
+          <p><strong>Collected Tab</strong> - Shows parcels that have been picked up, with collection timestamp and collector info.</p>
           <p>A search function allows filtering parcels by flat number or courier name.</p>
         </DocInfoCard>
 

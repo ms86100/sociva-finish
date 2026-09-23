@@ -31,7 +31,7 @@ export function PayoutEnablementChecklist({
       </CardHeader>
       <CardContent className="space-y-3">
         <p className="text-xs text-muted-foreground">
-          Complete in order. Each step uses maker-checker — you request, a different admin approves.
+          Complete in order. Each step uses maker-checker - you request, a different admin approves.
         </p>
         <ol className="space-y-2">
           {steps.map((step, index) => (
@@ -75,7 +75,7 @@ export function PayoutEnablementChecklist({
         </ol>
         {!payoutRailReady && (
           <p className="text-[11px] text-warning">
-            Payout rail preflight is not ready — verify Razorpay credentials and settlement functions before enabling.
+            Payout rail preflight is not ready - verify Razorpay credentials and settlement functions before enabling.
           </p>
         )}
       </CardContent>

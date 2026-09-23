@@ -23,7 +23,7 @@ interface BrowsingLocationContextType {
   browsingLocation: BrowsingLocation | null;
   /** Set a specific browsing location (persisted to localStorage) */
   setBrowsingLocation: (loc: BrowsingLocation | null) => void;
-  /** Clear override — falls back to default address → society */
+  /** Clear override - falls back to default address → society */
   clearOverride: () => void;
   /** Whether a user override is active */
   hasOverride: boolean;
@@ -225,7 +225,7 @@ export function BrowsingLocationProvider({ children }: { children: React.ReactNo
       };
     }
 
-    // 4. Last known — unlock marketplace while profile/society RPC is in flight
+    // 4. Last known - unlock marketplace while profile/society RPC is in flight
     return loadLastKnownLocation();
   }, [override, defaultAddress, society]);
 

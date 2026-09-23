@@ -1,4 +1,4 @@
--- Phase 2–4 notification remediation:
+-- Phase 2-4 notification remediation:
 -- quiet hours, DLQ, device token health, WA hard opt-in backfill, PNQ trigger URL verify/fix,
 -- server lifecycle helpers (create already via queue; supersede/expire RPCs).
 

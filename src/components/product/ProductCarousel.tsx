@@ -66,7 +66,7 @@ export function ProductCarousel({
 
   return (
     <div className={cn('', className)}>
-      {/* Header — bold title left, "see all" right */}
+      {/* Header - bold title left, "see all" right */}
       <div className="flex items-center justify-between px-4 mb-3">
         <h3 className={cn(
           'font-extrabold text-base flex items-center gap-2 tracking-tight min-w-0',
@@ -109,7 +109,7 @@ export function ProductCarousel({
           </div>
         </div>
 
-        {/* Prev/Next arrows — Amazon-style */}
+        {/* Prev/Next arrows - Amazon-style */}
         {canScrollPrev && (
           <button
             onClick={() => emblaApi?.scrollPrev()}

@@ -82,7 +82,7 @@ test.describe('Seller Onboarding Draft / Resume UX @critical', () => {
       `Failed: ${failed}`,
       `Skipped: ${skipped}`,
       '',
-      ...RESULTS.map((r) => `${r.id} — ${r.name.padEnd(36)} ${r.status}${r.note ? ` — ${r.note.slice(0, 120)}` : ''}`),
+      ...RESULTS.map((r) => `${r.id} - ${r.name.padEnd(36)} ${r.status}${r.note ? ` - ${r.note.slice(0, 120)}` : ''}`),
       '',
       'EVIDENCE INDEX',
       `SCREENSHOTS → ${EVIDENCE_ROOT}`,
@@ -148,7 +148,7 @@ test.describe('Seller Onboarding Draft / Resume UX @critical', () => {
 
     await softExpect('TEST 04', 'Progress persistence', async () => {
       await shot(page, '02-interrupted-draft', '06-draft-saved-progress');
-      // Breadcrumb / stopped-at should mention listing or subcategory — not blank
+      // Breadcrumb / stopped-at should mention listing or subcategory - not blank
       const stopped = page.getByText(/You stopped at:/i).first();
       await expect(stopped).toBeVisible();
       const parent = stopped.locator('..');
@@ -308,7 +308,7 @@ test.describe('Seller Onboarding Draft / Resume UX @critical', () => {
     await softExpect('TEST 13', 'Duplicate prevention', async () => {
       await goBecomeSeller(page);
       expect(await activeIncompleteDraftCount(page)).toBeLessThanOrEqual(1);
-      // Create one draft, try add twice — still ≤1
+      // Create one draft, try add twice - still ≤1
       if ((await activeIncompleteDraftCount(page)) === 0) {
         await completeStep1Intent(page, 'Handmade jewellery and accessories');
         await completeStep2Subcategory(page);
@@ -365,7 +365,7 @@ test.describe('Seller Onboarding Draft / Resume UX @critical', () => {
       const toStore = page.getByRole('button', { name: /Continue to store name/i }).first();
       if (await toStore.isVisible({ timeout: 5_000 }).catch(() => false)) {
         if (!(await toStore.isEnabled().catch(() => false))) {
-          // App requires a saved listing before store name — valid product rule; not a draft-UX failure.
+          // App requires a saved listing before store name - valid product rule; not a draft-UX failure.
           await shot(page, '07-complete-onboarding', '10-onboarding-completed');
           record('TEST 18', 'Final onboarding', 'SKIP', 'Continue to store name disabled until listing saved (expected app rule)');
           return;

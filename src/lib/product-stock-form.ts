@@ -11,7 +11,7 @@ export interface ResolvedStockValues {
   errors: Record<string, string>;
 }
 
-/** Parse stock fields for save — toggles stay on; empty values become validation errors. */
+/** Parse stock fields for save - toggles stay on; empty values become validation errors. */
 export function resolveStockSaveValues(form: StockFormSlice): ResolvedStockValues {
   const errors: Record<string, string> = {};
   let stockQty: number | null = null;

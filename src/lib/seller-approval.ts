@@ -95,7 +95,7 @@ export async function ensureSellerSocietyLinked(sellerId: string): Promise<{ soc
  * BEFORE products (so check_seller_license trigger can pass), then goes live.
  */
 export async function approveSeller({ sellerId, userId, businessName, societyId }: ApproveSellerOptions) {
-  // 0. Validate location BEFORE any DB write — single source of truth for all admin paths
+  // 0. Validate location BEFORE any DB write - single source of truth for all admin paths
   const locCheck = await validateSellerLocation(sellerId);
   if (!locCheck.valid) {
     throw new Error(locCheck.message || 'Cannot approve: Store has no location set.');
@@ -104,7 +104,7 @@ export async function approveSeller({ sellerId, userId, businessName, societyId 
   const societyLink = await ensureSellerSocietyLinked(sellerId);
   const resolvedSocietyId = societyId || societyLink.societyId;
 
-  // 1. Mandatory license gate (missing/rejected/expired block; pending OK — we approve it next)
+  // 1. Mandatory license gate (missing/rejected/expired block; pending OK - we approve it next)
   const licenseEl = await evaluateSellerLicenseEligibility(sellerId);
   assertLicenseAllowsAdminApproval(licenseEl);
 

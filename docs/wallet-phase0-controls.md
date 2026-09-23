@@ -1,4 +1,4 @@
-# SOCIVA Money Movement — Phase 0 Control Freeze
+# SOCIVA Money Movement - Phase 0 Control Freeze
 
 **Status:** Engineering policy baseline; runtime enforcement must be verified before release  
 **Effective:** 2026-08-08  
@@ -23,7 +23,7 @@ This document records conservative defaults. It is not legal, tax, accounting, o
 | Route worker default off | `razorpay_route_enabled` is seeded `false`; worker marks rows eligible when off | Retain as emergency kill switch |
 | Paid-out claim requires transfer ID | Settlement worker and notification migration require `razorpay_transfer_id` | Retain; reconcile provider evidence daily |
 | Order-attached transfers disabled | `create-razorpay-order` now uses platform collect for every cart and contains no `orderPayload.transfers` branch | Implemented in repository; deployment/provider payload evidence remains a release gate |
-| Seller display is payable/earnings | Payout page says “Ledger only — not a bank payout” | Keep; replace ambiguous “balance/withdraw” copy if introduced |
+| Seller display is payable/earnings | Payout page says “Ledger only - not a bank payout” | Keep; replace ambiguous “balance/withdraw” copy if introduced |
 | COD segregated from payout | `cod_transactions` tracks the collector and confirmation separately; seller UI states COD is not online payout balance | Implemented behind migration; database/E2E evidence remains a release gate |
 
 Code and documentation do not by themselves prove the deployed production flow. Until migration, function deployment, provider payload, and database evidence are verified, keep linked-account Route use disabled and do not represent COD as withdrawable.

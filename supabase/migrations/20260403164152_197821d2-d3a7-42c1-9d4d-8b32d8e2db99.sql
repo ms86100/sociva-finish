@@ -49,7 +49,7 @@ ALTER TABLE public.category_allowed_action_types ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Anyone can read category_allowed_action_types" ON public.category_allowed_action_types FOR SELECT USING (true);
 
 -- ================================================================
--- 4. Fix map_transaction_type_to_action_type — add missing mappings
+-- 4. Fix map_transaction_type_to_action_type - add missing mappings
 -- ================================================================
 CREATE OR REPLACE FUNCTION public.map_transaction_type_to_action_type(_transaction_type text)
 RETURNS text LANGUAGE plpgsql IMMUTABLE AS $$

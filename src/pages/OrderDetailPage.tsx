@@ -139,7 +139,7 @@ function PaymentConfirmingBanner({
   } else if (checkResult === 'not_captured') {
     tone = 'error';
     headline = 'No payment found';
-    subtitle = 'We checked with the payment gateway — no completed payment exists for this order. You can retry payment or cancel the order.';
+    subtitle = 'We checked with the payment gateway - no completed payment exists for this order. You can retry payment or cancel the order.';
   } else if (lastFailedAt && isOnline) {
     tone = 'error';
     headline = 'Last payment attempt failed';
@@ -694,20 +694,20 @@ export default function OrderDetailPage() {
   // Seller context message (Condition #5: no ambiguity)
   const getSellerContextMessage = () => {
     if (!o.isSellerView) return null;
-    if (isContactEnquiry && order.status === 'enquired') return 'New enquiry — accept it, then mark delivered when done';
+    if (isContactEnquiry && order.status === 'enquired') return 'New enquiry - accept it, then mark delivered when done';
     if (isContactEnquiry && (order.status === 'quoted' || order.status === 'accepted')) {
-      return 'Enquiry accepted — mark delivered when the request is fulfilled';
+      return 'Enquiry accepted - mark delivered when the request is fulfilled';
     }
-    if (order.status === 'enquired') return 'New quote request — review and send quote';
-    if (order.status === 'quoted') return 'Quote sent — waiting for customer to accept or respond';
+    if (order.status === 'enquired') return 'New quote request - review and send quote';
+    if (order.status === 'quoted') return 'Quote sent - waiting for customer to accept or respond';
     if (order.status === 'scheduled' || order.status === 'rescheduled') {
-      return 'Scheduled — preparation unlocks when the window opens';
+      return 'Scheduled - preparation unlocks when the window opens';
     }
     const step = o.flow.find(s => s.status_key === order.status);
     if (step?.seller_hint) return step.seller_hint;
 
     switch (displayStatus.phase) {
-      case 'placed': return 'New order — review and accept';
+      case 'placed': return 'New order - review and accept';
       case 'preparing': return 'Prepare the items and mark ready when done';
       case 'ready': return 'Waiting for customer pickup';
       case 'transit': return 'Order is on the way to the customer';
@@ -797,7 +797,7 @@ export default function OrderDetailPage() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-bold text-foreground">
-                    Quote Received — Review & Accept
+                    Quote Received - Review & Accept
                   </p>
                   <p className="text-xs text-muted-foreground mt-0.5">
                     {storeDisplayName} sent a quote for {formatPrice(order.total_amount)}. Accept the quote to confirm the service booking, or chat to discuss details.
@@ -862,10 +862,10 @@ export default function OrderDetailPage() {
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-bold text-foreground">
                     {order.status === 'enquired'
-                      ? (isContactEnquiry ? 'New Enquiry — Action Required' : 'New Quote Request — Action Required')
+                      ? (isContactEnquiry ? 'New Enquiry - Action Required' : 'New Quote Request - Action Required')
                       : isFutureScheduledAccept
-                        ? 'Scheduled Order — Confirm Slot'
-                        : 'New Order — Action Required'}
+                        ? 'Scheduled Order - Confirm Slot'
+                        : 'New Order - Action Required'}
                   </p>
                   <p className="text-xs text-muted-foreground mt-0.5">
                     {order.status === 'enquired' ? (
@@ -881,7 +881,7 @@ export default function OrderDetailPage() {
                     ) : isFutureScheduledAccept ? (
                       <>
                         Fulfilment on {formatScheduledDateTime(order as any)} · {getScheduledCountdownLabel(order as any)}.
-                        Confirming reserves the slot — you do not need to prepare until the prep window.
+                        Confirming reserves the slot - you do not need to prepare until the prep window.
                       </>
                     ) : (
                       <>
@@ -915,7 +915,7 @@ export default function OrderDetailPage() {
                       <p className={`text-[11px] mt-1 ${loc.outsideRadius ? 'text-destructive font-medium' : 'text-muted-foreground'}`}>
                         {loc.distanceLabel}
                         {loc.outsideRadius && loc.radiusKm != null
-                          ? ` — outside your ${loc.radiusKm} km radius. Reject if this is not your community.`
+                          ? ` - outside your ${loc.radiusKm} km radius. Reject if this is not your community.`
                           : ''}
                       </p>
                     )}
@@ -1002,7 +1002,7 @@ export default function OrderDetailPage() {
             /></motion.div>
           )}
 
-          {/* WhatsApp opt-in — opens 24h CSW after user sends Hi (dismissible / once opted-in) */}
+          {/* WhatsApp opt-in - opens 24h CSW after user sends Hi (dismissible / once opted-in) */}
           {o.isBuyerView && !isTerminalStatus(o.flow, order.status) && order.status !== 'cancelled' && order.status !== 'payment_pending' && (
             <motion.div variants={cardEntrance}>
               <WhatsAppUpdatesCta variant="compact" audience="buyer" />
@@ -1065,7 +1065,7 @@ export default function OrderDetailPage() {
             />
           )}
 
-          {/* Urgent timers — skip for future scheduled orders still waiting */}
+          {/* Urgent timers - skip for future scheduled orders still waiting */}
           {o.isBuyerView && order.auto_cancel_at && order.status !== 'payment_pending' && !isTerminalStatus(o.flow, order.status) && !(order as any).scheduled_date && (
             <UrgentOrderTimer autoCancelAt={order.auto_cancel_at} onTimeout={o.handleTimeout} variant="buyer" />
           )}
@@ -1145,7 +1145,7 @@ export default function OrderDetailPage() {
             />
           )}
 
-          {/* ═══ Bill Details — promoted: visible right under hero/cancelled banner ═══ */}
+          {/* ═══ Bill Details - promoted: visible right under hero/cancelled banner ═══ */}
           {(() => {
             const subtotal = items.reduce((s: number, it: OrderItem) => s + it.unit_price * it.quantity, 0);
             const totalSavings = items.reduce((sum: number, item: OrderItem) => {
@@ -1168,7 +1168,7 @@ export default function OrderDetailPage() {
             );
           })()}
 
-          {/* ═══ MAP + LIVE TRACKING — Prominent during transit ═══ */}
+          {/* ═══ MAP + LIVE TRACKING - Prominent during transit ═══ */}
           {isDeliveryOrder && isInTransit && (
             <>
               {(() => {
@@ -1238,7 +1238,7 @@ export default function OrderDetailPage() {
             <SellerGPSTracker assignmentId={deliveryAssignmentId} orderId={order.id} autoStart deliveryStatus={order.status} />
           )}
 
-          {/* Delivery partner card — pre-transit */}
+          {/* Delivery partner card - pre-transit */}
           {o.isBuyerView && isDeliveryOrder && deliveryAssignmentId && deliveryTracking.riderName && !isTerminalStatus(o.flow, order.status) && !isInTransit && (
             <motion.div variants={cardEntrance} className="bg-card/80 backdrop-blur-lg border border-border/50 rounded-xl p-3 flex items-center gap-3 shadow-sm">
               <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
@@ -1256,7 +1256,7 @@ export default function OrderDetailPage() {
              </motion.div>
           )}
 
-          {/* Delivery OTP — always from delivery_assignments.delivery_code (seller verifies the same value).
+          {/* Delivery OTP - always from delivery_assignments.delivery_code (seller verifies the same value).
               Do NOT use GenericOtpCard here: regenerate wrote order_otp_codes and caused Invalid OTP. */}
           {o.isBuyerView && isDeliveryOrder && buyerOtp && !isTerminalStatus(o.flow, order.status) && (isInTransit || ['picked_up', 'on_the_way', 'at_gate'].includes(order.status) || (() => {
             const nextStatus = o.buyerNextStatus || o.nextStatus;
@@ -1276,7 +1276,7 @@ export default function OrderDetailPage() {
             </div>
           )}
 
-          {/* Self-pickup OTP card — buyer sees the code to share with seller */}
+          {/* Self-pickup OTP card - buyer sees the code to share with seller */}
           {o.isBuyerView && fulfillmentType === 'self_pickup' && !isContactEnquiry && !isTerminalStatus(o.flow, order.status) && (() => {
             const nextStatus = o.buyerNextStatus || o.nextStatus;
             if (!nextStatus) return null;
@@ -1294,7 +1294,7 @@ export default function OrderDetailPage() {
             );
           })()}
 
-          {/* Generic OTP card — buyer also sees code when seller is the advancer (buyer shares it with seller) */}
+          {/* Generic OTP card - buyer also sees code when seller is the advancer (buyer shares it with seller) */}
           {(() => {
             // For buyer: fall back to the global nextStatus when buyerNextStatus is null
             // (e.g. seller-driven transitions like ready→picked_up where buyer must share OTP)
@@ -1310,7 +1310,7 @@ export default function OrderDetailPage() {
             return <GenericOtpCard orderId={order.id} targetStatus={nextStatus} targetStatusLabel={o.getFlowStepLabel(nextStatus, viewRole).label} />;
           })()}
 
-          {/* Hide after success — scheduled/lifecycle Timeline already shows Delivered */}
+          {/* Hide after success - scheduled/lifecycle Timeline already shows Delivered */}
           {isDeliveryOrder && !isInTransit && !o.isBuyerView && !isSuccessfulTerminal(o.flow, order.status) && (
             <DeliveryStatusCard orderId={order.id} isBuyerView={o.isBuyerView} flow={o.flow} />
           )}
@@ -1399,7 +1399,7 @@ export default function OrderDetailPage() {
             </div>
           )}
 
-          {/* Seller Payment Confirmation — show whenever buyer has claimed UPI payment and seller hasn't verified yet, regardless of order status (delivery may already be complete) */}
+          {/* Seller Payment Confirmation - show whenever buyer has claimed UPI payment and seller hasn't verified yet, regardless of order status (delivery may already be complete) */}
           {o.isSellerView && (order as any).payment_status === 'buyer_confirmed' && (order as any).payment_confirmed_by_seller === null && (
             <SellerPaymentConfirmation
               orderId={order.id}
@@ -1411,7 +1411,7 @@ export default function OrderDetailPage() {
             />
           )}
 
-          {/* COD Payment Confirmation — mid-flow awaiting_cod_confirmation or successful terminal */}
+          {/* COD Payment Confirmation - mid-flow awaiting_cod_confirmation or successful terminal */}
           {o.isSellerView && (order as any).payment_type === 'cod' && (order as any).payment_status !== 'paid' && (order.status === 'awaiting_cod_confirmation' || isSuccessfulTerminal(o.flow, order.status)) && (
             <SellerCodConfirmation
               orderId={order.id}
@@ -1421,7 +1421,7 @@ export default function OrderDetailPage() {
             />
           )}
 
-          {/* Payment proof readonly — only when seller has already verified (no pending action) */}
+          {/* Payment proof readonly - only when seller has already verified (no pending action) */}
           {o.isSellerView && (order as any).payment_screenshot_url && (order as any).payment_confirmed_by_seller !== null && (
             <PaymentProofReadonly
               screenshotUrl={(order as any).payment_screenshot_url}
@@ -1429,7 +1429,7 @@ export default function OrderDetailPage() {
             />
           )}
 
-          {/* Refund Request — Buyer view (hide for seller to avoid duplicate) */}
+          {/* Refund Request - Buyer view (hide for seller to avoid duplicate) */}
           {!o.isSellerView && (
             <SafeSectionWrapper name="BuyerRefund" resetKey={order.id}>
               <RefundRequestCard
@@ -1446,7 +1446,7 @@ export default function OrderDetailPage() {
             </SafeSectionWrapper>
           )}
 
-          {/* Refund Request — Seller actions */}
+          {/* Refund Request - Seller actions */}
           {o.isSellerView && (
             <SafeSectionWrapper name="SellerRefund" resetKey={order.id}>
               <SellerRefundSection
@@ -1616,7 +1616,7 @@ export default function OrderDetailPage() {
             </div>
           </motion.div>
 
-          {/* Totals — already rendered above the fold */}
+          {/* Totals - already rendered above the fold */}
 
           {Array.isArray((order as any).selected_extras) && (order as any).selected_extras.length > 0 && (
             <motion.div variants={cardEntrance} className="bg-card/80 backdrop-blur-lg border border-border/50 rounded-xl p-4 shadow-sm">
@@ -1639,12 +1639,12 @@ export default function OrderDetailPage() {
           {/* Order Failure Recovery */}
           <OrderFailureRecovery orderId={order.id} orderStatus={order.status} />
 
-          {/* Audit timeline — skip when ScheduledOrderBanner already shows the lifecycle Timeline */}
+          {/* Audit timeline - skip when ScheduledOrderBanner already shows the lifecycle Timeline */}
           {!(order as any).scheduled_date && <OrderTimeline orderId={order.id} />}
         </motion.div>
       </div>
 
-      {/* Seller Action Bar — loading state */}
+      {/* Seller Action Bar - loading state */}
       {o.isSellerView && o.isFlowLoading && !isTerminalStatus(o.flow, order.status) && (
         <div className={WORKFLOW_BAR}>
           <div className="px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] flex flex-row items-center justify-center gap-2 min-h-12 text-sm text-muted-foreground">
@@ -1654,7 +1654,7 @@ export default function OrderDetailPage() {
         </div>
       )}
 
-      {/* Seller overdue transit — only while actually in transit (not prep/scheduled due) */}
+      {/* Seller overdue transit - only while actually in transit (not prep/scheduled due) */}
       {o.isSellerView
         && isInTransitStatus(order.status)
         && isTransitOverdue(order as any)
@@ -1704,7 +1704,7 @@ export default function OrderDetailPage() {
         </div>
       )}
 
-      {/* Seller Action Bar — Condition #5: clear CTA, no ambiguity */}
+      {/* Seller Action Bar - Condition #5: clear CTA, no ambiguity */}
       {hasSellerActionBar && (
         <div className={WORKFLOW_BAR}>
           <div className={WORKFLOW_BAR_INNER}>
@@ -1727,14 +1727,14 @@ export default function OrderDetailPage() {
               )
             ) : o.isAcceptanceExpired && order.status === 'placed' ? (
               <div className="w-full flex items-center justify-center min-h-12 px-3 py-2 rounded-lg bg-destructive/10 border border-destructive/20 text-xs text-destructive font-medium text-center whitespace-normal">
-                Response time expired — accept is closed
+                Response time expired - accept is closed
               </div>
             ) : (() => {
               // OTP requirement is driven entirely by the workflow editor (category_status_flows.otp_type).
-              // No hardcoded fallbacks — if the workflow says no OTP, no OTP is shown.
+              // No hardcoded fallbacks - if the workflow says no OTP, no OTP is shown.
               const nextOtpType = getStepOtpType(o.flow, o.nextStatus);
               // Seller-delivery and platform-delivery both use delivery_assignments.delivery_code
-              // via verify_delivery_otp_and_complete — never GenericOtp (order_otp_codes).
+              // via verify_delivery_otp_and_complete - never GenericOtp (order_otp_codes).
               const needsDeliveryOtp = nextOtpType === 'delivery' && !!deliveryAssignmentId;
               const needsGenericOtp = nextOtpType === 'generic';
               const ctaClass = `${WORKFLOW_BAR_BTN} bg-accent text-accent-foreground hover:bg-accent/90`;
@@ -1787,7 +1787,7 @@ export default function OrderDetailPage() {
               )
             )}
             {o.buyerNextStatus && (() => {
-              // Buyer OTP requirements are driven entirely by the workflow editor — no hardcoded fallbacks.
+              // Buyer OTP requirements are driven entirely by the workflow editor - no hardcoded fallbacks.
               const buyerNextOtpType = getStepOtpType(o.flow, o.buyerNextStatus);
               const buyerNeedsDeliveryOtp = buyerNextOtpType === 'delivery' && !!deliveryAssignmentId;
               const buyerNeedsGenericOtp = buyerNextOtpType === 'generic';
@@ -1854,7 +1854,7 @@ export default function OrderDetailPage() {
   );
 }
 
-/** Seller-side refund section — fetches refund for this order and shows action buttons */
+/** Seller-side refund section - fetches refund for this order and shows action buttons */
 function SellerRefundSection({
   orderId,
   order,

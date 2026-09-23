@@ -166,7 +166,7 @@ export function CategorySearchPicker({
       }
     }
 
-    // Multi-word matching — require strong, length-gated word overlap to avoid
+    // Multi-word matching - require strong, length-gated word overlap to avoid
     // false positives like "ca" inside "application" or "application" inside "job application".
     // Rule: a query word counts only if it has >=4 chars AND exactly equals an alias word.
     const queryWords = q.split(/\s+/).filter(w => w.length >= 4);
@@ -279,7 +279,7 @@ export function CategorySearchPicker({
     const phrase = search.trim();
 
     if (item.type === 'subcategory') {
-      // Direct subcategory hit — commit immediately when possible
+      // Direct subcategory hit - commit immediately when possible
       handlePickerSave(item.categoryConfigId, configs.find(c => c.id === item.categoryConfigId)?.category || item.slug, {
         primary: item.id,
         others: [],
@@ -569,7 +569,7 @@ export function CategorySearchPicker({
           <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-dashed border-border/60 bg-muted/20 p-3">
             <p className="text-[11px] text-muted-foreground leading-snug">
               Don't see <span className="font-medium text-foreground">"{search.trim()}"</span>?
-              We'll review and add it — usually within 24 hours.
+              We'll review and add it - usually within 24 hours.
             </p>
             <Button
               variant="outline"

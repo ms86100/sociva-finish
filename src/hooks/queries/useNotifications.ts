@@ -50,7 +50,7 @@ function wrapNotifications(rows: any[]): UserNotification[] {
 const PAGE_SIZE = 30;
 
 /**
- * Fire-and-forget stale cleanup — never throws, never blocks reads.
+ * Fire-and-forget stale cleanup - never throws, never blocks reads.
  */
 export async function cleanupStaleDeliveryNotifications(notifications: UserNotification[]) {
   try {
@@ -134,7 +134,7 @@ export function useNotifications(userId: string | undefined) {
     },
     enabled: !!userId,
     staleTime: 60_000,
-    // Realtime invalidation via PushNotificationProvider — avoid 60s PostgREST churn
+    // Realtime invalidation via PushNotificationProvider - avoid 60s PostgREST churn
     refetchInterval: false,
   });
 }

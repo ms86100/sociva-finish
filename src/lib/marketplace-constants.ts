@@ -6,7 +6,7 @@ export const MARKETPLACE_RADIUS_KM = 5;
 import { ProductActionType } from '@/types/Database';
 
 /**
- * Shared ACTION_CONFIG — single source of truth for all product action buttons.
+ * Shared ACTION_CONFIG - single source of truth for all product action buttons.
  * Used by ProductGridCard, ProductDetailSheet, ProductCard, ListingCard, etc.
  */
 export const ACTION_CONFIG: Record<ProductActionType, { label: string; shortLabel: string; icon: typeof Plus; isCart: boolean }> = {
@@ -83,7 +83,7 @@ export const SORT_OPTIONS = [
 export type SortKey = (typeof SORT_OPTIONS)[number]['key'];
 
 /**
- * TX_TO_ACTION — maps category transaction_type → product action_type.
+ * TX_TO_ACTION - maps category transaction_type → product action_type.
  * Used ONLY as a frontend fallback when product.action_type is not set.
  * Canonical source of truth is the DB table `action_type_workflow_map`.
  */

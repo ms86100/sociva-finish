@@ -324,7 +324,7 @@ $old$;
 $new$;
 
   IF position(old_radius in src) = 0 THEN
-    RAISE EXCEPTION 'create_multi_vendor_orders radius block not found — inspect live definition';
+    RAISE EXCEPTION 'create_multi_vendor_orders radius block not found - inspect live definition';
   END IF;
   src := replace(src, old_radius, new_radius);
 
@@ -349,7 +349,7 @@ $old$;
 $new$;
 
   IF position(old_credit in src) = 0 THEN
-    RAISE EXCEPTION 'create_multi_vendor_orders credit gate not found — inspect live definition';
+    RAISE EXCEPTION 'create_multi_vendor_orders credit gate not found - inspect live definition';
   END IF;
   src := replace(src, old_credit, new_credit);
 
@@ -375,7 +375,7 @@ $old$;
 $new$;
 
   IF position(old_cart in src) = 0 THEN
-    RAISE EXCEPTION 'create_multi_vendor_orders cart-clear block not found — inspect live definition';
+    RAISE EXCEPTION 'create_multi_vendor_orders cart-clear block not found - inspect live definition';
   END IF;
   src := replace(src, old_cart, new_cart);
 

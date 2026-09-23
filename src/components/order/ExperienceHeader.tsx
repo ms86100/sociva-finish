@@ -92,7 +92,7 @@ export function ExperienceHeader({
               <a
                 href="/help"
                 className="relative inline-flex items-center justify-center w-10 h-10 rounded-full bg-muted opacity-50"
-                title="Chat closed — order complete. Need help?"
+                title="Chat closed - order complete. Need help?"
               >
                 <MessageCircle size={16} className="text-muted-foreground" />
               </a>

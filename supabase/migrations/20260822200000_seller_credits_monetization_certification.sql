@@ -205,7 +205,7 @@ BEGIN
     'reserved', v_acct_a.reserved,
     'last_ledger_balance', v_last_balance,
     'ledger_sum_ex_reservation', v_recon,
-    'note', 'Reserve rows hold balance; commit charges separately — raw ledger sum may exceed available by held-then-committed amounts.'
+    'note', 'Reserve rows hold balance; commit charges separately - raw ledger sum may exceed available by held-then-committed amounts.'
   ));
   IF v_acct_a.available < 0 OR v_acct_a.reserved <> 0 THEN
     v_fail := COALESCE(v_fail, 'reconciliation mismatch');

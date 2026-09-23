@@ -63,7 +63,7 @@ export function SellerScheduleView({ sellerId }: SellerScheduleViewProps) {
       items.push({
         kind: 'booking',
         id: b.id,
-        time: b.start_time?.slice(0, 5) || '—',
+        time: b.start_time?.slice(0, 5) || '-',
         endTime: b.end_time?.slice(0, 5),
         title: b.product_name || 'Service',
         subtitle: b.buyer_name || 'Customer',
@@ -111,7 +111,7 @@ export function SellerScheduleView({ sellerId }: SellerScheduleViewProps) {
           <ChevronLeft size={14} />
         </Button>
         <Button variant="ghost" size="sm" className="h-8 text-xs flex-1" onClick={jumpToToday}>
-          {format(windowStart, 'MMM d')} – {format(addDays(windowStart, WINDOW_DAYS - 1), 'MMM d, yyyy')}
+          {format(windowStart, 'MMM d')} - {format(addDays(windowStart, WINDOW_DAYS - 1), 'MMM d, yyyy')}
         </Button>
         <Button variant="outline" size="sm" className="h-8 px-2" onClick={() => shiftWindow(7)}>
           <ChevronRight size={14} />
@@ -195,7 +195,7 @@ export function SellerScheduleView({ sellerId }: SellerScheduleViewProps) {
                       <div className="flex items-baseline gap-2">
                         <span className="text-xs font-semibold tabular-nums text-foreground">{item.time}</span>
                         {item.kind === 'booking' && item.endTime && (
-                          <span className="text-[10px] text-muted-foreground">– {item.endTime}</span>
+                          <span className="text-[10px] text-muted-foreground">- {item.endTime}</span>
                         )}
                         <Badge variant="secondary" className={cn('text-[9px] h-4 ml-auto', statusInfo.color)}>
                           {statusInfo.label}

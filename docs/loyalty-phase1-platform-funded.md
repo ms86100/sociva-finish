@@ -1,8 +1,8 @@
-# Loyalty Phase 1 — Platform-funded (shipped)
+# Loyalty Phase 1 - Platform-funded (shipped)
 
 **Date:** 2026-08-07  
 **Project:** `kkzkuyhgdvyecmxtmkpy`  
-**Decision:** Model A — global buyer wallet, **platform-funded** redemptions.
+**Decision:** Model A - global buyer wallet, **platform-funded** redemptions.
 
 Companion investigation: [`loyalty-points-investigation-report.md`](./loyalty-points-investigation-report.md)
 
@@ -29,7 +29,7 @@ Legacy `loyalty_points` rows were **migrated** into wallets + ledger (balances p
 - `commit_loyalty_for_orders` / `release_loyalty_for_orders` (edge/helpers)
 - `apply_loyalty_to_checkout_orders` (proportional multi-seller allocation)
 - `admin_loyalty_liability`
-- `create_multi_vendor_orders(..., _loyalty_points)` — applies discount into `total_amount`
+- `create_multi_vendor_orders(..., _loyalty_points)` - applies discount into `total_amount`
 - Deprecated: `redeem_loyalty_points` returns `{ success:false, error:'deprecated' }`
 
 ### Money truth

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 
 /**
- * Sociva Credit MVP — money-path unit tests.
+ * Sociva Credit MVP - money-path unit tests.
  * Mirrors server helpers: wallet_plan_spend, apply_wallet allocation, settlement.
  */
 

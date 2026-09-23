@@ -1,5 +1,5 @@
 /**
- * Round 5 — Real Integration Tests: Marketplace vs Society Separation
+ * Round 5 - Real Integration Tests: Marketplace vs Society Separation
  * ====================================================================
  * Authenticates as real test users and hits actual Supabase tables/RPCs.
  * Integration suites skip gracefully when seed function is unavailable.
@@ -41,10 +41,10 @@ try {
 const skipIntegration = !seeded;
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Suite 1: Non-society buyer — full marketplace flow
+// Suite 1: Non-society buyer - full marketplace flow
 // ═══════════════════════════════════════════════════════════════════════════
 
-describe.skipIf(skipIntegration)('Non-society buyer — marketplace journey', () => {
+describe.skipIf(skipIntegration)('Non-society buyer - marketplace journey', () => {
   it('discovers sellers via search_sellers_paginated RPC', async () => {
     const { data, error } = await buyerClient.rpc('search_sellers_paginated', {
       _lat: 18.55, _lng: 73.85, _radius_km: 50, _limit: 50, _offset: 0,
@@ -103,10 +103,10 @@ describe.skipIf(skipIntegration)('Non-society buyer — marketplace journey', ()
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Suite 2: Commercial seller — marketplace tools
+// Suite 2: Commercial seller - marketplace tools
 // ═══════════════════════════════════════════════════════════════════════════
 
-describe.skipIf(skipIntegration)('Commercial seller — marketplace tools', () => {
+describe.skipIf(skipIntegration)('Commercial seller - marketplace tools', () => {
   it('reads own seller profile', async () => {
     const { data, error } = await sellerClient
       .from('seller_profiles').select('id, business_name').limit(1);
@@ -173,10 +173,10 @@ describe.skipIf(skipIntegration)('Society features blocked for non-society buyer
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Suite 4: Feature classification (unit — always runs)
+// Suite 4: Feature classification (unit - always runs)
 // ═══════════════════════════════════════════════════════════════════════════
 
-describe('Feature classification — marketplace vs society', () => {
+describe('Feature classification - marketplace vs society', () => {
   const MARKETPLACE_FEATURES = new Set([
     'marketplace', 'seller_tools', 'trust_directory', 'trust_score',
     'subscriptions', 'notifications',

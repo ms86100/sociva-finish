@@ -46,7 +46,7 @@ BEGIN
   END IF;
 
   -- Idempotency key: one notification per (order, status_transition, recipient).
-  -- md5 is fine here — not a security context, just dedup.
+  -- md5 is fine here - not a security context, just dedup.
   _idem_key := md5(NEW.id::text || '-new_order-' || _notify_status);
 
   _is_auto_accepted := (_notify_status = 'preparing');
@@ -58,9 +58,9 @@ BEGIN
     IF _is_auto_accepted THEN
       _seller_title := '✅ Order Auto-Accepted';
       IF _notify_amount > 0 THEN
-        _seller_body := COALESCE(_buyer_name, 'Customer') || ' placed an order worth Rs ' || _notify_amount || '. Auto-accepted — start preparing!';
+        _seller_body := COALESCE(_buyer_name, 'Customer') || ' placed an order worth Rs ' || _notify_amount || '. Auto-accepted - start preparing!';
       ELSE
-        _seller_body := COALESCE(_buyer_name, 'Customer') || ' placed a new order. Auto-accepted — start preparing!';
+        _seller_body := COALESCE(_buyer_name, 'Customer') || ' placed a new order. Auto-accepted - start preparing!';
       END IF;
     ELSE
       _seller_title := '🔔 New Order Received';

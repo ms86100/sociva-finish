@@ -26,7 +26,7 @@ SET
   display_label = 'Enquiry',
   seller_display_label = 'New enquiry',
   buyer_display_label = 'Enquiry sent',
-  seller_hint = 'New contact enquiry — accept it, then mark delivered when done.',
+  seller_hint = 'New contact enquiry - accept it, then mark delivered when done.',
   buyer_hint = 'Your enquiry has been sent. The seller will respond soon.',
   seller_notification_title = 'New contact enquiry',
   seller_notification_body = '{buyer_name} contacted you. Tap to accept.'

@@ -1,5 +1,5 @@
 -- ============================================================
--- Sociva Credit (enterprise wallet) MVP — schema + core RPCs
+-- Sociva Credit (enterprise wallet) MVP - schema + core RPCs
 -- Append-only double-entry SCL + cached buyer_wallets + FIFO lots
 -- Parallel to loyalty; does NOT overload payment_ledger
 -- ============================================================

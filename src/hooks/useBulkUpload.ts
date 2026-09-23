@@ -30,7 +30,7 @@ function getCategoryConfig(slug: string, categories: CategoryConfig[]): Category
   return categories.find(c => c.category === slug);
 }
 
-/** RFC 4180-aware CSV line parser — handles quoted fields with commas and escaped quotes */
+/** RFC 4180-aware CSV line parser - handles quoted fields with commas and escaped quotes */
 function parseCSVLine(line: string): string[] {
   const result: string[] = [];
   let current = '';

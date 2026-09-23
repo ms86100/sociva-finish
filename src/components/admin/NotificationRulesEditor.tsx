@@ -60,7 +60,7 @@ export function NotificationRulesEditor() {
                   </div>
                   <div className="col-span-2">
                     <label className="block text-[10px] text-muted-foreground mb-1">Repeat (sec)</label>
-                    <Input type="number" value={repeat ?? ''} placeholder="—" onChange={(e) => setDrafts((d) => ({ ...d, [r.id]: { ...d[r.id], repeat_interval_seconds: e.target.value === '' ? null : Number(e.target.value) } }))} className="h-7 text-xs" />
+                    <Input type="number" value={repeat ?? ''} placeholder="-" onChange={(e) => setDrafts((d) => ({ ...d, [r.id]: { ...d[r.id], repeat_interval_seconds: e.target.value === '' ? null : Number(e.target.value) } }))} className="h-7 text-xs" />
                   </div>
                   <div className="col-span-1">
                     <label className="block text-[10px] text-muted-foreground mb-1">Max</label>

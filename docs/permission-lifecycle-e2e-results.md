@@ -30,12 +30,12 @@ Env: localhost Vite (web). Native iOS/Android OS dialogs not exercised in this p
 
 ## Known gaps / follow-ups
 
-1. **`app_installations` migration** exists in-repo only — apply after staging validation. Admin Permission Health shows “unavailable until migration applied” until then.
-2. **WhatsApp OG on production** — `https://www.sociva.in/api/share/product|store/...` currently returns SPA HTML (OG not live). Code in `api/share/*` is ready; needs Vercel deploy of Edge functions.
-3. **Native-only UX** — Permission Center / soft banners are native (`Capacitor.isNativePlatform()`); web correctly skips native permission UI.
+1. **`app_installations` migration** exists in-repo only - apply after staging validation. Admin Permission Health shows “unavailable until migration applied” until then.
+2. **WhatsApp OG on production** - `https://www.sociva.in/api/share/product|store/...` currently returns SPA HTML (OG not live). Code in `api/share/*` is ready; needs Vercel deploy of Edge functions.
+3. **Native-only UX** - Permission Center / soft banners are native (`Capacitor.isNativePlatform()`); web correctly skips native permission UI.
 4. **Discovery preview radius** uses marketplace cap RPC; per-seller `delivery_radius_km` is enforced in search/home SQL (`LEAST(..., delivery_radius_km)`). Transaction path still uses seller radius separately.
-5. **iOS fresh install / push delivery / multi-device** require device builds — not covered in this web pass.
+5. **iOS fresh install / push delivery / multi-device** require device builds - not covered in this web pass.
 
 ## Acceptance criterion status
 
-Guest can open Sociva, set location (GPS or manual), browse without registering, and authenticate only when placing an order / protected actions — without silent Bangalore fallback or surprise notification OS dialogs. Existing `device_tokens` delivery pipeline untouched.
+Guest can open Sociva, set location (GPS or manual), browse without registering, and authenticate only when placing an order / protected actions - without silent Bangalore fallback or surprise notification OS dialogs. Existing `device_tokens` delivery pipeline untouched.

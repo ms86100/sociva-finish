@@ -21,7 +21,7 @@ const noopImplementation: LiveActivityPlugin = {
  *
  * - web: silent no-ops
  * - android/ios: native plugin when registered (MainActivity / iOS bridge);
- *   Capacitor falls back to throwing "not implemented" if missing — callers
+ *   Capacitor falls back to throwing "not implemented" if missing - callers
  *   in LiveActivityManager already catch and record those errors.
  */
 const LiveActivity = registerPlugin<LiveActivityPlugin>('LiveActivity', {

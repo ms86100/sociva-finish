@@ -1,5 +1,5 @@
 
--- Update trigger to not skip when society is null — just insert with NULL society_id
+-- Update trigger to not skip when society is null - just insert with NULL society_id
 CREATE OR REPLACE FUNCTION public.trg_create_seller_delivery_assignment()
  RETURNS trigger
  LANGUAGE plpgsql

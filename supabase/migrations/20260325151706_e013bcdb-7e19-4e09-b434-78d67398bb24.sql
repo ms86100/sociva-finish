@@ -109,7 +109,7 @@ begin
        OR _coupon_row.starts_at > now()
        OR (_coupon_row.usage_limit IS NOT NULL AND _coupon_row.times_used >= _coupon_row.usage_limit)
     THEN
-      -- Invalid coupon — silently remove, don't block order
+      -- Invalid coupon - silently remove, don't block order
       _resolved_coupon_id := NULL;
       _coupon_discount := 0;
     ELSE
@@ -148,7 +148,7 @@ begin
       END IF;
     END IF;
   ELSE
-    -- No coupon provided — ensure discount is zero
+    -- No coupon provided - ensure discount is zero
     _coupon_discount := 0;
   END IF;
   -- ===== END COUPON VALIDATION =====

@@ -131,7 +131,7 @@ BEGIN
     RAISE EXCEPTION 'pending request not found';
   END IF;
   IF v_request.requested_by = auth.uid() THEN
-    RAISE EXCEPTION 'maker cannot reject own financial control change — cancel instead';
+    RAISE EXCEPTION 'maker cannot reject own financial control change - cancel instead';
   END IF;
   IF v_request.expires_at IS NOT NULL AND v_request.expires_at <= now() THEN
     RAISE EXCEPTION 'financial control request expired';

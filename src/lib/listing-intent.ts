@@ -198,14 +198,14 @@ export interface ResolvedListingIntent {
   confidence: number;
   matchedAlias: string | null;
   seedProductName: string;
-  /** True when category found but no subcategory — use Other / customLabel path */
+  /** True when category found but no subcategory - use Other / customLabel path */
   needsOtherSubcategory: boolean;
   useCustomSubcategoryLabel: string | null;
   /** How sure the existing-taxonomy suggestion is. Never blocks listing. */
   matchBand: ListingMatchBand;
 }
 
-/** Sparkle "Suggested match" only for real alias/sub hits — never Other-* dump buckets. */
+/** Sparkle "Suggested match" only for real alias/sub hits - never Other-* dump buckets. */
 export function shouldSurfaceListingSuggestion(
   resolved: Pick<ResolvedListingIntent, 'suggestedCategorySlug' | 'matchBand'>,
 ): boolean {
@@ -310,7 +310,7 @@ function findCategoryByAlias(
   return best;
 }
 
-/** Culinary tokens used only when no alias/subcategory hit — never create taxonomy. */
+/** Culinary tokens used only when no alias/subcategory hit - never create taxonomy. */
 const FOOD_FALLBACK_HINTS = [
   'homemade', 'cooked', 'cuisine', 'dish', 'curry', 'gravy', 'rice', 'dal', 'roti',
   'paneer', 'masala', 'pickle', 'achar', 'snack', 'sweet', 'bakery', 'juice',
@@ -550,7 +550,7 @@ export function migrateOnboardingStep(savedStep: number, fromVersion?: string | 
     return 4;
   }
 
-  // v3 front funnel — restart early; keep late steps as store name
+  // v3 front funnel - restart early; keep late steps as store name
   if (fromVersion === '3') {
     if (s < 5) return 1;
     if (s === 7) return 3;

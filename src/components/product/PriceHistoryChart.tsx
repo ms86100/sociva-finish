@@ -69,7 +69,7 @@ export function PriceHistoryChart({ productId, priceStableSince }: PriceHistoryC
       <p className="text-xs text-muted-foreground">
         Price range{' '}
         <span className="font-semibold text-foreground tabular-nums">
-          {formatPrice(minPrice)} – {formatPrice(maxPrice)}
+          {formatPrice(minPrice)} - {formatPrice(maxPrice)}
         </span>
       </p>
     </div>

@@ -10,7 +10,7 @@ Repository architecture completeness: **61%**
 
 Production readiness: **NOT READY**
 
-Release decision: **RED — FINANCIAL RELEASE BLOCKED**
+Release decision: **RED - FINANCIAL RELEASE BLOCKED**
 
 Critical blockers: **6**
 
@@ -18,9 +18,9 @@ High-priority gaps: **12**
 
 Remaining implementation and proof: **70%**
 
-Seller payout: **DISABLED — must remain disabled**
+Seller payout: **DISABLED - must remain disabled**
 
-Buyer withdrawal: **DISABLED — remains out of scope**
+Buyer withdrawal: **DISABLED - remains out of scope**
 
 The repository contains substantial hardening code, but that is not the effective production system. The live Supabase catalog does not contain the two principal Aug 8 hardening migrations, the finance subledger, provider inbox, capture allocations, COD register, payout/refund attempts, reconciliation records, maker-checker controls, alerts, or financial trace RPCs.
 
@@ -59,7 +59,7 @@ Category scores:
 
 ## Release Decision
 
-**RED — FINANCIAL RELEASE BLOCKED**
+**RED - FINANCIAL RELEASE BLOCKED**
 
 Repository code is not production proof. The production database is missing the hardening architecture, live wallet privileges are unsafe, payment-attempt ordering can strand captured money, and seller-collected COD can enter the payout path.
 
@@ -67,7 +67,7 @@ Keep every money-out and wallet-mutation feature disabled. Platform collection m
 
 ## Phase-by-Phase Score
 
-### Phase 0 — Money Model: 4/10
+### Phase 0 - Money Model: 4/10
 
 Implemented:
 
@@ -85,7 +85,7 @@ Not proven:
 
 Status: **PARTIAL**
 
-### Phase 1 — Payment Stabilization: 14/20
+### Phase 1 - Payment Stabilization: 14/20
 
 Implemented in repository:
 
@@ -105,7 +105,7 @@ Remaining blockers:
 
 Status: **PARTIAL**
 
-### Phase 2 — Core Subledger: 4/20
+### Phase 2 - Core Subledger: 4/20
 
 Repository design includes:
 
@@ -126,7 +126,7 @@ Effective production:
 
 Status: **REPOSITORY-ONLY / LIVE INCOMPLETE**
 
-### Phase 3 — Migration and Reconciliation: 1/15
+### Phase 3 - Migration and Reconciliation: 1/15
 
 Implemented in repository:
 
@@ -147,7 +147,7 @@ Missing:
 
 Status: **EARLY**
 
-### Phase 4 — Financial Operations: 2/10
+### Phase 4 - Financial Operations: 2/10
 
 Repository code contains maker-checker requests, adjustments, alerts, trace RPCs, payout destinations, cooling periods, and limits.
 
@@ -155,7 +155,7 @@ None of those objects exist live. There is no deployed replay worker, dead-lette
 
 Status: **CODE EXISTS / NOT OPERATIONAL**
 
-### Phase 5 — Seller Payable and Refunds: 3/10
+### Phase 5 - Seller Payable and Refunds: 3/10
 
 Implemented:
 
@@ -174,7 +174,7 @@ Missing or unsafe:
 
 Status: **PARTIAL / BLOCKED**
 
-### Phase 6 — COD and Payout Pilot: 1/10
+### Phase 6 - COD and Payout Pilot: 1/10
 
 Implemented in repository:
 
@@ -191,7 +191,7 @@ Critical gap:
 
 Status: **BLOCKED**
 
-### Phase 7 — UX and Release Evidence: 1/5
+### Phase 7 - UX and Release Evidence: 1/5
 
 Implemented:
 
@@ -308,7 +308,7 @@ No approved buyer withdrawal exists. Seller payout scaffolding exists, but payou
 
 ## Source of Truth
 
-Verdict: **F — multiple conflicting sources**
+Verdict: **F - multiple conflicting sources**
 
 - Provider capture: Razorpay.
 - Operational payment state: `orders` and `payment_records`.
@@ -764,25 +764,25 @@ Test: disabled flag never renders spend toggle.
 
 ## Phase Gate Results
 
-- Gate 0 — Money model approved: **FAIL**
-- Gate 1 — Payment path stabilized: **FAIL**
-- Gate 2 — Ledger financially safe: **FAIL**
-- Gate 3 — Migration reconciled: **FAIL**
-- Gate 4 — Operational reconciliation proven: **FAIL**
-- Gate 5 — Seller payable/refund safe: **FAIL**
-- Gate 6 — COD/payout pilot safe: **FAIL**
-- Gate 7 — UX and production evidence complete: **FAIL**
+- Gate 0 - Money model approved: **FAIL**
+- Gate 1 - Payment path stabilized: **FAIL**
+- Gate 2 - Ledger financially safe: **FAIL**
+- Gate 3 - Migration reconciled: **FAIL**
+- Gate 4 - Operational reconciliation proven: **FAIL**
+- Gate 5 - Seller payable/refund safe: **FAIL**
+- Gate 6 - COD/payout pilot safe: **FAIL**
+- Gate 7 - UX and production evidence complete: **FAIL**
 
 ## What Is Safe To Enable
 
-- Seller earnings UI: **NO** — required live projection RPC is absent.
-- Seller refunds: **NO** — attempts/reconciliation are not live or proven.
-- COD reconciliation: **NO** — COD subledger is absent live and payout segregation fails.
-- Seller withdrawal: **NO** — payout is blocked.
-- Buyer SOCIVA Credit: **NO** — live mutation privileges are unsafe.
-- Buyer withdrawal: **NO** — out of scope and unapproved.
-- Razorpay Route transfer: **NO** — COD and payout prerequisites fail.
-- Automatic refund: **NO** — recovery and live attempt controls are unproven.
+- Seller earnings UI: **NO** - required live projection RPC is absent.
+- Seller refunds: **NO** - attempts/reconciliation are not live or proven.
+- COD reconciliation: **NO** - COD subledger is absent live and payout segregation fails.
+- Seller withdrawal: **NO** - payout is blocked.
+- Buyer SOCIVA Credit: **NO** - live mutation privileges are unsafe.
+- Buyer withdrawal: **NO** - out of scope and unapproved.
+- Razorpay Route transfer: **NO** - COD and payout prerequisites fail.
+- Automatic refund: **NO** - recovery and live attempt controls are unproven.
 
 Limited safe use after immediate privilege closure:
 
@@ -805,7 +805,7 @@ Limited safe use after immediate privilege closure:
 
 ## Remaining Work
 
-### P0 — Must fix before any further financial rollout
+### P0 - Must fix before any further financial rollout
 
 1. Close live anonymous wallet and settlement privileges.
 2. Deploy only after production-shaped migration and privilege tests.
@@ -813,7 +813,7 @@ Limited safe use after immediate privilege closure:
 4. Exclude seller-collected COD from online settlement and payout.
 5. Require allocation and reconciliation before payout.
 
-### P1 — Must fix before pilot
+### P1 - Must fix before pilot
 
 1. Deploy the subledger, attempts, controls, inbox, COD, reconciliation, and alerts.
 2. Add posted-entry append protection and payload-bound idempotency.
@@ -822,7 +822,7 @@ Limited safe use after immediate privilege closure:
 5. Add real concurrency, provider, RLS, and migration tests.
 6. Complete seller-liability and post-payout refund accounting.
 
-### P2 — Required before production scale
+### P2 - Required before production scale
 
 1. Operational alerting, ownership, SLA, and incident drills.
 2. Seller statements and admin reconciliation workflows.
@@ -830,7 +830,7 @@ Limited safe use after immediate privilege closure:
 4. Stable pagination and capability-aware UX.
 5. Retained clean reconciliation evidence.
 
-### P3 — Post-launch improvement
+### P3 - Post-launch improvement
 
 1. Analytics and motivational UX.
 2. Exports and richer transaction search.

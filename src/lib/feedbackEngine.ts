@@ -11,7 +11,7 @@ import { showFeedback } from '@/components/FeedbackPopupProvider';
  *
  * Rules:
  *   • No component should call toast.success/error directly for
- *     cart or order actions — use these functions instead.
+ *     cart or order actions - use these functions instead.
  *   • Failure variants exist so the UI never "lies" after rollback.
  */
 
@@ -39,7 +39,7 @@ export function feedbackAddItem(productName: string) {
 
 export function feedbackAddItemFailed(productName: string) {
   hapticNotification('error');
-  toast.error(`${truncate(productName)} couldn't be added — please try again`, {
+  toast.error(`${truncate(productName)} couldn't be added - please try again`, {
     id: 'cart-add-fail',
     duration: 2500,
   });
@@ -59,7 +59,7 @@ export function feedbackRemoveItem(productName: string, undoFn?: () => void) {
 
 export function feedbackRemoveItemFailed() {
   hapticNotification('error');
-  toast.error("Couldn't remove item — please try again", {
+  toast.error("Couldn't remove item - please try again", {
     id: 'cart-remove-fail',
     duration: 2500,
   });
@@ -76,7 +76,7 @@ export function feedbackQuantityChanged() {
 
 export function feedbackQuantityFailed() {
   hapticNotification('error');
-  toast.error("Couldn't update quantity — please try again", {
+  toast.error("Couldn't update quantity - please try again", {
     id: 'cart-qty-fail',
     duration: 2500,
   });
@@ -96,7 +96,7 @@ export function feedbackOrderPlaced() {
 
 export function feedbackOrderFailed(message?: string) {
   hapticNotification('error');
-  toast.error(message || 'Order failed — please try again', {
+  toast.error(message || 'Order failed - please try again', {
     id: 'order-failed',
     duration: 3500,
   });
@@ -115,7 +115,7 @@ export function feedbackPaymentResult(success: boolean, message?: string) {
     dispatch('payment-success');
   } else {
     hapticNotification('error');
-    toast.error(message || 'Payment failed — try again', { id: 'payment-result', duration: 3500 });
+    toast.error(message || 'Payment failed - try again', { id: 'payment-result', duration: 3500 });
     dispatch('payment-failed');
   }
 }

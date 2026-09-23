@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // ═══════════════════════════════════════════════════════════════════════
-// SELLER MODULE — Comprehensive Test Suite
+// SELLER MODULE - Comprehensive Test Suite
 // Tests validation logic, state transitions, and business rules
 // ═══════════════════════════════════════════════════════════════════════
 

@@ -72,10 +72,10 @@ export function ServiceBookingDocs() {
 
         <DocInfoCard variant="info" title="Cancellation & Rescheduling">
           <DocList items={[
-            'can_cancel_booking() — checks cancellation policy (notice hours, fee percentage)',
+            'can_cancel_booking() - checks cancellation policy (notice hours, fee percentage)',
             'Sellers can always cancel; buyers subject to notice period',
             'Late cancellation fee applies if within cancellation_notice_hours',
-            'reschedule_service_booking() — atomically releases old slot and books new one',
+            'reschedule_service_booking() - atomically releases old slot and books new one',
             'Rescheduling subject to rescheduling_notice_hours policy',
             'Both parties notified via notification_queue on reschedule',
           ]} />

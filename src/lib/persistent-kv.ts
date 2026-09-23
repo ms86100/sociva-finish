@@ -3,7 +3,7 @@
  * Persistent Key-Value helpers for cross-platform compatibility.
  *
  * Reads are synchronous via localStorage (populated from Preferences on native
- * startup before React mounts — see capacitor.ts `restoreAppPreferences`).
+ * startup before React mounts - see capacitor.ts `restoreAppPreferences`).
  *
  * Writes go to both localStorage (instant, sync) and capacitorStorage
  * (persistent on native). This ensures the value survives iOS WKWebView
@@ -45,7 +45,7 @@ export function removeKey(key: string): void {
  * reads return the persisted value.
  */
 export async function restoreAppPreferences(): Promise<void> {
-  // Known prefixes for app preferences (not auth — auth is handled separately)
+  // Known prefixes for app preferences (not auth - auth is handled separately)
   const prefixes = [
     'seller_congrats_seen_',
     'app_large_font',

@@ -104,7 +104,7 @@ export function CommerceModelStep({
         </div>
         {softTag === 'digital' && (
           <p className="text-[11px] text-muted-foreground">
-            Digital offerings use message/enquire for now — buyers reach out to you.
+            Digital offerings use message/enquire for now - buyers reach out to you.
           </p>
         )}
       </div>

@@ -141,7 +141,7 @@ Deno.serve(async (req) => {
         const monthName = prevMonth.toLocaleString("en", { month: "long", year: "numeric" });
         const notifications = members.map((m) => ({
           user_id: m.id,
-          title: `📊 Monthly Report Card — ${monthName}`,
+          title: `📊 Monthly Report Card - ${monthName}`,
           body: `Your society's monthly report is ready. Trust Score: ${reportData.trust_score.toFixed(1)}/10`,
           type: "monthly_report",
           reference_path: "/society/reports",

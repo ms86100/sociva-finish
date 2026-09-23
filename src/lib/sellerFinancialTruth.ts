@@ -1,5 +1,5 @@
 /**
- * Seller financial read-model — one mapping of get_seller_financial_summary.
+ * Seller financial read-model - one mapping of get_seller_financial_summary.
  * Settled GMV stays on get_seller_dashboard_kpis. Never mix the two.
  */
 
@@ -60,7 +60,7 @@ export function mapSellerFinancialSummary(raw: Record<string, unknown> | null | 
   };
 }
 
-/** COD cash is never withdrawable — seller already collected it. */
+/** COD cash is never withdrawable - seller already collected it. */
 export function isWithdrawableSource(meta?: { not_withdrawable?: boolean; collector_type?: string } | null): boolean {
   if (!meta) return true;
   if (meta.not_withdrawable === true) return false;
@@ -100,7 +100,7 @@ export function activityLabel(type: string, status?: string | null): string {
   if (type === 'withdrawal') return 'Withdrawal';
   if (status === 'settled') return 'Paid out';
   if (status === 'eligible') return 'Available for withdrawal';
-  if (status === 'pending') return 'Order completed — holding';
+  if (status === 'pending') return 'Order completed - holding';
   if (status === 'processing') return 'Withdrawal processing';
   if (status === 'on_hold' || status === 'disputed') return 'On hold';
   return 'Settlement update';

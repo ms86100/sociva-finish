@@ -1,6 +1,6 @@
 // @ts-nocheck
 /**
- * Installation lifecycle service — Phase 1 foundation.
+ * Installation lifecycle service - Phase 1 foundation.
  *
  * app_installations = who/what installed Sociva + OS permission states (analytics/lifecycle)
  * device_tokens     = how we deliver push (unchanged delivery source of truth)
@@ -65,7 +65,7 @@ export async function getOrCreateInstallationId(): Promise<string> {
   if (ensurePromise) return ensurePromise;
 
   ensurePromise = (async () => {
-    // Web / vitest: Preferences plugin is unimplemented — use localStorage only.
+    // Web / vitest: Preferences plugin is unimplemented - use localStorage only.
     if (!Capacitor.isNativePlatform()) {
       const webExisting = readWebFallback();
       if (webExisting && webExisting.length >= 8) {
@@ -81,7 +81,7 @@ export async function getOrCreateInstallationId(): Promise<string> {
     const prefs = await getPreferences();
     if (prefs) {
       try {
-        // Preferences can hang on some native builds — never block permission UX.
+        // Preferences can hang on some native builds - never block permission UX.
         const got = await Promise.race([
           prefs.get({ key: INSTALLATION_ID_KEY }),
           new Promise<{ value: null }>((resolve) =>
@@ -245,7 +245,7 @@ export async function releaseInstallationUser(): Promise<boolean> {
   }
 }
 
-/** After device_tokens claim — stamp installation_id for analytics join (delivery unchanged). */
+/** After device_tokens claim - stamp installation_id for analytics join (delivery unchanged). */
 export async function stampDeviceTokenInstallation(fcmToken: string): Promise<void> {
   if (!fcmToken) return;
   const installationId = await getOrCreateInstallationId();
@@ -309,7 +309,7 @@ export async function syncOsPermissionsFromDevice(options?: {
   });
 }
 
-/** Test helper — clear in-memory cache only (does not wipe Preferences). */
+/** Test helper - clear in-memory cache only (does not wipe Preferences). */
 export function __resetInstallationIdCacheForTests() {
   cachedInstallationId = null;
   ensurePromise = null;

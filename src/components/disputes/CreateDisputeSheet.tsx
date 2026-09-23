@@ -64,7 +64,7 @@ export function CreateDisputeSheet({ open, onOpenChange, onCreated }: Props) {
 
       const { showFeedback } = useFeedbackPopup();
       showFeedback({
-        title: 'Concern submitted — ' + ml.label('label_dispute_sla_notice'),
+        title: 'Concern submitted - ' + ml.label('label_dispute_sla_notice'),
         variant: 'success'
       });
       setDescription('');

@@ -66,7 +66,7 @@ export function resolveDeepLinkPath(rawUrl: string): string {
     }
     if (url.search) path += url.search;
   } else {
-    // HTTPS App Link without hash — use pathname (Capacitor often delivers path only)
+    // HTTPS App Link without hash - use pathname (Capacitor often delivers path only)
     let pathname = url.pathname || '/';
     try {
       pathname = decodeURIComponent(pathname);
@@ -144,7 +144,7 @@ export function useDeepLinks() {
     // Listen for app URL open events (warm/hot start deep links)
     const listenerPromise = App.addListener('appUrlOpen', handleDeepLink);
 
-    // Check if app was opened via deep link (cold start) — only once per session
+    // Check if app was opened via deep link (cold start) - only once per session
     if (!launchAlreadyProcessed) {
       App.getLaunchUrl().then((launchUrl) => {
         if (launchUrl?.url) {
@@ -161,5 +161,5 @@ export function useDeepLinks() {
     return () => {
       listenerPromise.then((listener) => listener.remove());
     };
-  }, []); // No dependencies — this effect must run exactly once
+  }, []); // No dependencies - this effect must run exactly once
 }

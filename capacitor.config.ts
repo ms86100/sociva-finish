@@ -9,7 +9,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
  *   - Live reload from sandbox URL
  *   - Mixed content allowed for local testing
  * 
- * PRODUCTION (default — no env var needed):
+ * PRODUCTION (default - no env var needed):
  *   - Loads from bundled local assets (no server block)
  *   - WebView debugging disabled
  *   - Splash auto-hides as safety net
@@ -50,7 +50,7 @@ const config: CapacitorConfig = {
   plugins: {
     SplashScreen: {
       launchShowDuration: 2500,
-      // Always auto-hide — slow emulators / large bundles can delay JS boot;
+      // Always auto-hide - slow emulators / large bundles can delay JS boot;
       // without this, launchAutoHide:false leaves the native splash forever.
       launchAutoHide: true,
       backgroundColor: '#1a1a2e',
@@ -98,7 +98,7 @@ const config: CapacitorConfig = {
       NSPhotoLibraryAddUsageDescription: 'Sociva needs permission to save images to your photo library.',
       // Motion is optional accuracy assist while the app is open during an active delivery.
       NSMotionUsageDescription: 'Sociva may use motion activity while the app is open to keep live delivery progress accurate and save battery during an active seller delivery.',
-      // Calendar — required for @ebarooni/capacitor-calendar (iOS 13–16 + write-only / full on iOS 17+)
+      // Calendar - required for @ebarooni/capacitor-calendar (iOS 13-16 + write-only / full on iOS 17+)
       NSCalendarsUsageDescription: 'Sociva needs calendar access so you can save service bookings to your calendar.',
       NSCalendarsWriteOnlyAccessUsageDescription: 'Sociva needs calendar access so you can save service bookings to your calendar.',
       NSCalendarsFullAccessUsageDescription: 'Sociva needs calendar access so you can save service bookings to your calendar.',

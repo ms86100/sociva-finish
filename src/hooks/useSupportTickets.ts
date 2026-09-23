@@ -119,7 +119,7 @@ export function useMyTickets() {
   });
 }
 
-// Seller's tickets — IMPORTANT: support_tickets.seller_id stores profiles.id (the seller's user_id),
+// Seller's tickets - IMPORTANT: support_tickets.seller_id stores profiles.id (the seller's user_id),
 // NOT seller_profiles.id. Always pass sellerProfile.user_id here.
 export function useSellerTickets(sellerUserId?: string) {
   return useQuery({

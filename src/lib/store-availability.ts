@@ -13,7 +13,7 @@ export interface StoreAvailability {
 
 const DAY_ABBREVS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-/** Match Mon/mon/MONDAY — and numeric 0–6 (Sun–Sat) used by some seed/DB rows. */
+/** Match Mon/mon/MONDAY - and numeric 0-6 (Sun-Sat) used by some seed/DB rows. */
 function operatingDayMatches(operatingDays: string[], currentDay: string): boolean {
   const needle = currentDay.slice(0, 3).toLowerCase();
   const dayIdx = DAY_ABBREVS.findIndex((d) => d.toLowerCase() === needle);
@@ -75,10 +75,10 @@ export function computeStoreStatus(
   const currentMinutes = ist.getUTCHours() * 60 + ist.getUTCMinutes();
   const startMinutes = startH * 60 + startM;
   const rawEndMinutes = endH * 60 + endM;
-  // Treat 00:00 as end-of-day (1440) so "09:00–00:00" means open until midnight
+  // Treat 00:00 as end-of-day (1440) so "09:00-00:00" means open until midnight
   const endMinutes = rawEndMinutes === 0 ? 1440 : rawEndMinutes;
 
-  // Handle overnight hours (e.g. 20:00–02:00)
+  // Handle overnight hours (e.g. 20:00-02:00)
   const isOvernight = endMinutes <= startMinutes;
 
   const isOpen = isOvernight
@@ -129,7 +129,7 @@ function reopenDuration(mins: number): string {
   return `${hours} hour${hours === 1 ? '' : 's'} ${rest} minutes`;
 }
 
-/** Buyer-facing copy for reorder/cart — not a generic system failure. */
+/** Buyer-facing copy for reorder/cart - not a generic system failure. */
 export function formatStoreClosedBuyerMessage(availability: StoreAvailability): string {
   if (availability.status === 'paused') {
     return 'This store is currently paused. Your items may still be available when it reopens.';

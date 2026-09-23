@@ -61,12 +61,12 @@ export function UrgentOrderTimer({
 
   if (isSyncingTimeout) {
     if (syncExpired) {
-      // Sync took too long — show expired state instead of infinite spinner
+      // Sync took too long - show expired state instead of infinite spinner
       return (
         <div className={cn('flex items-center gap-2 p-3 rounded-lg border bg-destructive/5 border-destructive/30', className)}>
           <Clock size={18} className="text-destructive" />
           <span className="text-sm font-medium text-destructive">
-            {isBuyer ? 'Response time expired — order may be auto-cancelled' : 'Response time expired'}
+            {isBuyer ? 'Response time expired - order may be auto-cancelled' : 'Response time expired'}
           </span>
         </div>
       );

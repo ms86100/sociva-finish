@@ -7,7 +7,7 @@ import { createClient } from '@supabase/supabase-js';
  * when available; otherwise searches for Test Product offerings created earlier.
  */
 test.describe('Buyer multi-image experience @buyer-carousel @mobile @critical', () => {
-  test('BUYER — single-image detail has no carousel chrome @single-image', async ({ page }) => {
+  test('BUYER - single-image detail has no carousel chrome @single-image', async ({ page }) => {
     await loginPhone(page, '9876543201', '1234');
     const base = process.env.BASE_URL || 'http://127.0.0.1:5173';
     await page.goto(`${base}/#/`);
@@ -25,14 +25,14 @@ test.describe('Buyer multi-image experience @buyer-carousel @mobile @critical', 
       // Single-image: no "2/5" style indicator required; if only one image, 1/N should not appear
       const multi = page.locator('text=/\\d+\\/\\d+/');
       const multiCount = await multi.count();
-      // Soft assert — may be multi-image product; capture either way
+      // Soft assert - may be multi-image product; capture either way
       await shot(page, 'buyer', multiCount > 0 ? 'BUYER-DETAIL-multi-indicator' : 'BUYER-DETAIL-single-clean');
     } else {
       await shot(page, 'buyer', 'BUYER-CARD-no-products-visible');
     }
   });
 
-  test('BUYER — carousel advances when secondary_images exist @mobile', async ({ page }) => {
+  test('BUYER - carousel advances when secondary_images exist @mobile', async ({ page }) => {
     const url = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY;
     let productId: string | null = null;
@@ -75,14 +75,14 @@ test.describe('Buyer multi-image experience @buyer-carousel @mobile @critical', 
         await shot(page, 'buyer', 'BUYER-CAROUSEL-no-indicator');
       }
     } else {
-      // Seed secondary_images on a known product if we have service role — else document gap
+      // Seed secondary_images on a known product if we have service role - else document gap
       await page.goto(`${base}/#/`);
       await shot(page, 'buyer', 'BUYER-CAROUSEL-skipped-no-multi-product');
       test.info().annotations.push({ type: 'note', description: 'No approved product with secondary_images found for carousel swipe' });
     }
   });
 
-  test('REGRESSION — cart/checkout still loads', async ({ page }) => {
+  test('REGRESSION - cart/checkout still loads', async ({ page }) => {
     await loginPhone(page, '9876543201', '1234');
     const base = process.env.BASE_URL || 'http://127.0.0.1:5173';
     await page.goto(`${base}/#/cart`);

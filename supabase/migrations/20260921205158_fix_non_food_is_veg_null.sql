@@ -27,7 +27,7 @@ BEGIN
   );
 
   -- Dietary flag only for food; never default non-food to veg=true.
-  -- pet_food sits under pets but its slug contains "food" — always clear it.
+  -- pet_food sits under pets but its slug contains "food" - always clear it.
   IF NOT _is_food OR NEW.category = 'pet_food' THEN
     NEW.is_veg := NULL;
   END IF;

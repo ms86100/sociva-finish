@@ -69,7 +69,7 @@ function simpleHash(str: string): string {
 }
 
 // ── Session persistence for unpaid checkout (Preferences + localStorage) ──
-// Survives Android process death / WebView purge — not sessionStorage-only.
+// Survives Android process death / WebView purge - not sessionStorage-only.
 const PAYMENT_SESSION_KEY = 'sociva_pending_payment_session';
 const PAYMENT_SESSION_TTL_MS = 45 * 60 * 1000;
 
@@ -114,7 +114,7 @@ function clearPaymentSession() {
   try { localStorage.removeItem(PAYMENT_SESSION_KEY); } catch { /* Cleanup is best-effort. */ }
 }
 
-/** Recheck all pending orders — never cancel on a single-order paid race. */
+/** Recheck all pending orders - never cancel on a single-order paid race. */
 async function anyOrderPaidOrBuyerConfirmed(orderIds: string[]): Promise<boolean> {
   if (orderIds.length === 0) return false;
   const { data } = await supabase
@@ -133,7 +133,7 @@ export function useCartPage() {
   const { items, totalAmount, sellerGroups, updateQuantity, removeItem, clearCart, refresh, addItem, isLoading, isFetching, hasHydrated, isRecoveringCart, pendingMutations, cartVerified } = useCart();
   const idempotencyKeyRef = useRef<string | null>(null);
 
-  // RULE 3: Safe route-entry refresh — invalidate only, never overwrite cache
+  // RULE 3: Safe route-entry refresh - invalidate only, never overwrite cache
   useEffect(() => {
     queryClient.invalidateQueries({ queryKey: ['cart-items'] });
     queryClient.invalidateQueries({ queryKey: ['cart-count'] });
@@ -231,7 +231,7 @@ export function useCartPage() {
         }
 
         const isMultiStoreOnlineSession = session.orderIds.length > 1 && session.paymentMethod !== 'razorpay';
-        // Always cancel abandoned unpaid holds on return — never show stuck pending UI.
+        // Always cancel abandoned unpaid holds on return - never show stuck pending UI.
         const { error: cancelErr } = await supabase.rpc('buyer_cancel_pending_orders', {
           _order_ids: unpaidIds,
         });
@@ -307,7 +307,7 @@ export function useCartPage() {
         setShowUpiDeepLink(false);
         idempotencyKeyRef.current = null;
         toast.message(
-          'Previous unpaid checkout was cancelled. Your items are back in the cart — stock has been released.',
+          'Previous unpaid checkout was cancelled. Your items are back in the cart - stock has been released.',
           { id: 'abandoned-checkout-cleared', duration: 7000 },
         );
       } catch (err) {
@@ -326,9 +326,9 @@ export function useCartPage() {
       const code = appliedCoupon.code;
       const min = appliedCoupon.min_order_amount;
       setAppliedCoupon(null);
-      // Skip toast when cart is empty (post-checkout clear) — order already placed with coupon
+      // Skip toast when cart is empty (post-checkout clear) - order already placed with coupon
       if (totalAmount > 0) {
-        toast.info(`Coupon "${code}" removed — minimum order of ${formatPrice(min)} not met.`, { id: 'coupon-below-min' });
+        toast.info(`Coupon "${code}" removed - minimum order of ${formatPrice(min)} not met.`, { id: 'coupon-below-min' });
       }
     }
   }, [totalAmount, appliedCoupon?.min_order_amount]);
@@ -359,7 +359,7 @@ export function useCartPage() {
   const effectiveLoyaltyDiscount = loyalty.redeemEnabled
     ? Math.min(loyalty.appliedPoints, amountAfterCoupon)
     : 0;
-  // Wallet applies after loyalty to remaining payable (includes delivery + packaging) — matches server
+  // Wallet applies after loyalty to remaining payable (includes delivery + packaging) - matches server
   const payableBeforeWallet = Math.max(0, amountAfterCoupon - effectiveLoyaltyDiscount) + effectiveDeliveryFee + effectivePackagingFee;
   const effectiveWalletCredit = Math.min(wallet.appliedAmount, payableBeforeWallet);
   const finalAmount = Math.max(0, payableBeforeWallet - effectiveWalletCredit);
@@ -445,7 +445,7 @@ export function useCartPage() {
     if (paymentMode.isRazorpay) return;
     if (!acceptsCod) return;
     setPaymentMethod('cod');
-    toast.message('Switched to Cash on Delivery — UPI pays one seller at a time.', {
+    toast.message('Switched to Cash on Delivery - UPI pays one seller at a time.', {
       id: 'multi-store-switch-cod',
       duration: 5000,
     });
@@ -457,7 +457,7 @@ export function useCartPage() {
     }
   }, [paymentMethod, paymentMode.isOff, wallet.clearApplied]);
 
-  // Track which seller the default was computed for — reset when seller changes
+  // Track which seller the default was computed for - reset when seller changes
   const defaultFulfillmentSellerId = useRef<string | null>(null);
   useEffect(() => {
     if (sellerGroups.length === 0) return;
@@ -613,7 +613,7 @@ export function useCartPage() {
     // Bug 2 fix: Use 'card' for Razorpay payments instead of misleading 'upi'
     const effectivePaymentMethod = paymentMode.isRazorpay && paymentMethod === 'upi' ? 'online' : paymentMethod;
     // Format scheduled date/time for pre-order items (IST wall-clock on server).
-    // Local Y-M-D — not toISOString(), which rolls back a day in IST.
+    // Local Y-M-D - not toISOString(), which rolls back a day in IST.
     const scheduledDateStr = scheduledDate ? toScheduledDateParam(scheduledDate) : null;
     const scheduledTimeStr = scheduledTime ? `${scheduledTime}:00` : null;
     const { data, error } = await supabase.rpc('create_multi_vendor_orders', {
@@ -629,13 +629,13 @@ export function useCartPage() {
       _scheduled_date: scheduledDateStr,
       _scheduled_time_start: scheduledTimeStr,
       _preorder_seller_ids: preorderSellerIds.size > 0 ? Array.from(preorderSellerIds) : null,
-      // Platform-funded loyalty: server reserves/allocates/commits (COD) — never trust client math alone
+      // Platform-funded loyalty: server reserves/allocates/commits (COD) - never trust client math alone
       _loyalty_points: effectiveLoyaltyDiscount > 0 ? Math.floor(effectiveLoyaltyDiscount) : 0,
       // Sociva Credit: after loyalty; server promo-first FIFO + reserve/commit
       _wallet_amount: effectiveWalletCredit > 0 ? Math.round(effectiveWalletCredit * 100) / 100 : 0,
     } as any);
     if (error) {
-      // Do NOT reset idempotency key — retry must use the same key
+      // Do NOT reset idempotency key - retry must use the same key
       // so the DB advisory lock + dedup check can detect the duplicate.
       // Key is only reset on confirmed success or business-logic rejection.
       throw error;
@@ -803,7 +803,7 @@ export function useCartPage() {
         }
         return;
       }
-      // All pending orders were cancelled or paid — clear session
+      // All pending orders were cancelled or paid - clear session
       setPendingOrderIds([]);
       clearPaymentSession();
     }
@@ -826,13 +826,13 @@ export function useCartPage() {
       return;
     }
 
-    // GUARD: Pre-order items MUST have a scheduled date/time — cannot bypass via race condition
+    // GUARD: Pre-order items MUST have a scheduled date/time - cannot bypass via race condition
     if (hasPreorderItems && (!scheduledDate || !scheduledTime)) {
       notify.block('Please select a delivery date & time for pre-order items.');
       return;
     }
 
-    // GUARD: Server-side fulfillment validation — prevent sending self_pickup when seller only does delivery (and vice versa)
+    // GUARD: Server-side fulfillment validation - prevent sending self_pickup when seller only does delivery (and vice versa)
     for (const group of sellerGroups) {
       const sellerMode = (group.items[0]?.product?.seller as any)?.fulfillment_mode;
       if (sellerMode) {
@@ -884,7 +884,7 @@ export function useCartPage() {
 
     // Full Sociva Credit (+loyalty) cover: no gateway residual.
     // payment_method=wallet → CMVO commits holds + marks payment_status=paid (SECURITY DEFINER).
-    // Do NOT client-update payment_status — trg_guard_order_payment_status blocks authenticated.
+    // Do NOT client-update payment_status - trg_guard_order_payment_status blocks authenticated.
     if (finalAmount <= 0 && effectiveWalletCredit > 0) {
       try {
         const sellerGroupsPayload = sellerGroups.map((group) => ({
@@ -1051,7 +1051,7 @@ export function useCartPage() {
           sellerUpiId: sellerForSession?.upi_id || undefined,
           sellerName: sellerGroups[0]?.sellerName || undefined,
         });
-        // Do NOT clear cart — cart stays until payment is confirmed (Razorpay)
+        // Do NOT clear cart - cart stays until payment is confirmed (Razorpay)
         // or buyer claims UPI (then we clear).
         upiCompletionRef.current = false; // Reset guard for new payment session
         if (paymentMode.isUpiDeepLink) {
@@ -1081,7 +1081,7 @@ export function useCartPage() {
       return;
     }
 
-    // COD flow — order is confirmed immediately, no overlay needed
+    // COD flow - order is confirmed immediately, no overlay needed
     try {
       const orderIds = await createOrdersForAllSellers('pending');
       if (orderIds.length === 0) throw new Error('Failed to create orders');
@@ -1143,25 +1143,25 @@ export function useCartPage() {
   const handlePlaceOrder = useSubmitGuard(handlePlaceOrderInner, 3000, 0);
 
   const handleRazorpaySuccess = async (paymentId: string) => {
-    // Double-invocation guard — Razorpay SDK can fire success twice in rare cases
+    // Double-invocation guard - Razorpay SDK can fire success twice in rare cases
     if (razorpaySuccessHandledRef.current) return;
     razorpaySuccessHandledRef.current = true;
 
     setShowRazorpayCheckout(false);
     const orderIds = [...pendingOrderIds];
 
-    // Empty orderIds guard — fallback to orders list
+    // Empty orderIds guard - fallback to orders list
     if (!orderIds.length) {
       navigate('/orders');
       return;
     }
 
-    // Instant overlay — user sees "Confirming payment…" immediately
+    // Instant overlay - user sees "Confirming payment…" immediately
     setIsPlacingOrder(true);
     setOrderStep('confirming');
 
     // CRITICAL: Call backend to verify payment with Razorpay API and advance order state
-    // This is the PRIMARY confirmation path — webhook is now just a fallback
+    // This is the PRIMARY confirmation path - webhook is now just a fallback
     // Retrieve razorpay_order_id from orders for reconciliation
     let razorpayOrderId: string | null = null;
     try {
@@ -1216,7 +1216,7 @@ export function useCartPage() {
     } catch { /* analytics optional */ }
     await navigateAfterCheckout(navigate, orderIds);
 
-    // Cleanup AFTER navigation — never claim success or clear cart unless confirm OK
+    // Cleanup AFTER navigation - never claim success or clear cart unless confirm OK
     setTimeout(() => {
       if (confirmOk) {
         clearPaymentSession();
@@ -1235,7 +1235,7 @@ export function useCartPage() {
         clearCartAndCache().catch(() => {});
       } else {
         notify.warn(
-          'Payment received but confirmation is still pending. Check Orders — do not pay again until status updates.',
+          'Payment received but confirmation is still pending. Check Orders - do not pay again until status updates.',
           { id: 'razorpay-pending', title: 'Do not pay again', priority: 'critical', okLabel: 'View order status' },
         );
         // Keep pending session so buyer can retry confirm / see payment_pending orders
@@ -1248,7 +1248,7 @@ export function useCartPage() {
   const handleRazorpayFailed = async () => {
     // If success already handled, never cancel orders
     if (razorpaySuccessHandledRef.current) {
-      console.log('[Payment] handleRazorpayFailed suppressed — success already handled');
+      console.log('[Payment] handleRazorpayFailed suppressed - success already handled');
       setShowRazorpayCheckout(false);
       return;
     }
@@ -1263,7 +1263,7 @@ export function useCartPage() {
     } catch { /* analytics optional */ }
 
     if (pendingOrderIds.length > 0) {
-      // Single check — covers webhook confirming while modal was open
+      // Single check - covers webhook confirming while modal was open
       if (await anyOrderPaidOrBuyerConfirmed(pendingOrderIds)) {
         await clearCartAndCache();
         clearPaymentSession();
@@ -1271,7 +1271,7 @@ export function useCartPage() {
         setPendingOrderIds([]);
         return;
       }
-      // Not paid — cancel immediately so no payment_pending orders linger
+      // Not paid - cancel immediately so no payment_pending orders linger
       try {
         await supabase.rpc('buyer_cancel_pending_orders', { _order_ids: pendingOrderIds });
       } catch (err) {
@@ -1284,22 +1284,22 @@ export function useCartPage() {
     idempotencyKeyRef.current = null;
     const { showFeedback } = useFeedbackPopup();
     showFeedback({
-      title: 'Payment failed. Your cart is saved — tap Place Order to try again.',
+      title: 'Payment failed. Your cart is saved - tap Place Order to try again.',
       variant: 'error'
     });
   };
 
-  // Dismiss handler — check if paid, dismiss modal without destructive auto-cancel
+  // Dismiss handler - check if paid, dismiss modal without destructive auto-cancel
   const handleRazorpayDismiss = async () => {
     if (razorpaySuccessHandledRef.current) {
-      console.log('[Payment] handleRazorpayDismiss suppressed — success already handled');
+      console.log('[Payment] handleRazorpayDismiss suppressed - success already handled');
       setShowRazorpayCheckout(false);
       return;
     }
     setShowRazorpayCheckout(false);
 
     if (pendingOrderIds.length > 0) {
-      // Immediate check — covers the case where webhook confirmed while modal was open
+      // Immediate check - covers the case where webhook confirmed while modal was open
       if (await anyOrderPaidOrBuyerConfirmed(pendingOrderIds)) {
         await clearCartAndCache();
         clearPaymentSession();
@@ -1313,7 +1313,7 @@ export function useCartPage() {
     clearPaymentSession();
     idempotencyKeyRef.current = null;
     showFeedback({
-      title: 'Checkout closed. Your order will not cancel automatically — tap Place Order to retry.',
+      title: 'Checkout closed. Your order will not cancel automatically - tap Place Order to retry.',
       variant: 'info',
     });
   };
@@ -1326,7 +1326,7 @@ export function useCartPage() {
     upiCompletionRef.current = true;
     setShowUpiDeepLink(false);
 
-    // Buyer self-attest only — order stays payment_pending/buyer_confirmed until seller verifies.
+    // Buyer self-attest only - order stays payment_pending/buyer_confirmed until seller verifies.
     clearPaymentSession();
     const dest = pendingOrderIds.length === 1 ? `/orders/${pendingOrderIds[0]}` : '/orders';
     setPendingOrderIds([]);
@@ -1345,7 +1345,7 @@ export function useCartPage() {
       if (await anyOrderPaidOrBuyerConfirmed(pendingOrderIds)) {
         const { showFeedback } = useFeedbackPopup();
         showFeedback({
-          title: 'Payment already submitted — waiting for seller confirmation',
+          title: 'Payment already submitted - waiting for seller confirmation',
           variant: 'error'
         });
         clearPaymentSession();
@@ -1370,7 +1370,7 @@ export function useCartPage() {
         });
         return;
       }
-      // Non-explicit (app-switch, timeout, dismiss): do not auto-cancel — buyer may have paid in UPI app; server TTL cleans unpaid.
+      // Non-explicit (app-switch, timeout, dismiss): do not auto-cancel - buyer may have paid in UPI app; server TTL cleans unpaid.
       notify.warn(
         'UPI not confirmed yet. Finish payment from Orders, or cancel unpaid there. Do not pay twice.',
         { id: 'upi-failed-hold', title: 'UPI payment not confirmed', priority: 'critical', okLabel: 'View orders' },
@@ -1464,7 +1464,7 @@ export function useCartPage() {
     await handlePlaceOrderInner();
   };
 
-  /** Keep only one seller's items — useful for deep-link UPI or split checkout. */
+  /** Keep only one seller's items - useful for deep-link UPI or split checkout. */
   const checkoutThisStoreOnly = useCallback(async (sellerId: string) => {
     const group = sellerGroups.find((g) => g.sellerId === sellerId);
     if (!group) return;
@@ -1499,7 +1499,7 @@ export function useCartPage() {
     firstSellerFulfillmentMode,
     hasFulfillmentConflict, hasBelowMinimumOrder, noPaymentMethodAvailable,
     isMultiSeller, blocksOnlineMultiSeller, onlineBlockedForMultiCart, multiStoreCopy, multiOrderConfirmHint,
-    /** Multi-store cart with no COD and online blocked (deep-link) — must split */
+    /** Multi-store cart with no COD and online blocked (deep-link) - must split */
     multiStoreRequiresSplit: isMultiSeller && !acceptsCod && blocksOnlineMultiSeller,
     checkoutThisStoreOnly,
     selectedDeliveryAddress, setSelectedDeliveryAddress, addresses, addressesLoading,

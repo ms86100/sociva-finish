@@ -93,7 +93,7 @@ BEGIN
     updated_at = now()
   WHERE id = _order_id;
 
-  -- Step 3: Auto-complete — OTP verification IS proof of receipt
+  -- Step 3: Auto-complete - OTP verification IS proof of receipt
   UPDATE public.orders
   SET
     status = 'completed',

@@ -73,7 +73,7 @@ export function SellerRefundList({ sellerId, forceExpanded = false }: SellerRefu
     );
   }
 
-  // Empty state — only render full empty card when forced (dedicated tab)
+  // Empty state - only render full empty card when forced (dedicated tab)
   if (refunds.length === 0) {
     if (!forceExpanded) return null;
     return (

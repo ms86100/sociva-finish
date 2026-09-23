@@ -104,7 +104,7 @@ export default function DisputesPage() {
             </p>
             <p className="text-xs text-muted-foreground mt-1 max-w-[240px] mx-auto">
               {tab === 'open'
-                ? 'Use this to raise concerns about orders, payments, or community issues — privately to the committee'
+                ? 'Use this to raise concerns about orders, payments, or community issues - privately to the committee'
                 : 'Resolved concerns will appear here'}
             </p>
           </div>

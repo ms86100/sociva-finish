@@ -1,5 +1,5 @@
 /**
- * Buyer-facing checkout group helpers — one purchase → N seller child orders.
+ * Buyer-facing checkout group helpers - one purchase → N seller child orders.
  * Pure mappers (no I/O) so list/detail UI and tests stay deterministic.
  */
 

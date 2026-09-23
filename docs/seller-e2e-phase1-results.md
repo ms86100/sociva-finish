@@ -1,4 +1,4 @@
-# Phase 1 Results — Seller Onboarding (S1)
+# Phase 1 Results - Seller Onboarding (S1)
 
 **Date:** 2026-08-03  
 **Environment:** https://www.sociva.in (production web)  
@@ -10,7 +10,7 @@
 ## Verdict
 
 **Phase 1 functional path: PASS** for S1 Cart Kitchen (submit → `pending`).  
-**Phase 1 production-quality gate: CONDITIONAL GO** — onboarding completes, but **catalog / taxonomy hygiene blockers** must be fixed before calling onboarding production-ready. Phase 2 store ops can proceed after admin approval of S1 (and subsequent stores).
+**Phase 1 production-quality gate: CONDITIONAL GO** - onboarding completes, but **catalog / taxonomy hygiene blockers** must be fixed before calling onboarding production-ready. Phase 2 store ops can proceed after admin approval of S1 (and subsequent stores).
 
 ---
 
@@ -20,12 +20,12 @@
 |-------|--------|
 | Business | `E2E Cart Kitchen S1` |
 | Seller ID | `14f41390-be21-4fa9-bd0d-f41653dd6c93` |
-| Primary group | `food` (Food & Groceries — not `food_beverages`) |
+| Primary group | `food` (Food & Groceries - not `food_beverages`) |
 | Category path | Home Food → Daily Tiffin |
 | Commerce | Add to Cart → product `action_type=add_to_cart` |
 | Fulfillment | Pickup + I Deliver |
 | Payments | COD |
-| Hours | 09:00–21:00 · 2 operating days |
+| Hours | 09:00-21:00 · 2 operating days |
 | Location | Koramangala, Bengaluru (set) |
 | Product | Veg Thali Combo · ₹120 · stock 20 · AI image |
 | Status | Profile `pending` · Product `pending` |
@@ -95,5 +95,5 @@ Commerce options live: **Add to Cart · Book Now · Contact Seller · Make an Of
 
 1. Admin approve S1 (`14f41390-be21-4fa9-bd0d-f41653dd6c93`).  
 2. Fix DEF-001 / DEF-002 before production marketing of onboarding.  
-3. On your go-ahead: Phase 2 ops on S1 + onboard S2–S4.  
+3. On your go-ahead: Phase 2 ops on S1 + onboard S2-S4.  
 4. Android emulator suite after Phase 1 catalog fixes preferred (or parallel smoke).

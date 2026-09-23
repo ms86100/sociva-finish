@@ -58,7 +58,7 @@ BEGIN
 
   IF p_status IN ('pending', 'submitted') THEN
     v_title := 'We''re reviewing your store';
-    v_body := 'Thank you for submitting ' || v_store || '. We''ll notify you as soon as the review is complete — usually within a day. You don''t need to do anything right now.';
+    v_body := 'Thank you for submitting ' || v_store || '. We''ll notify you as soon as the review is complete - usually within a day. You don''t need to do anything right now.';
     v_type := 'seller_store_submitted';
     v_path := '/become-seller';
   ELSIF p_status = 'approved' THEN

@@ -93,7 +93,7 @@ export function CommandCenterAttentionInbox({
                     <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{row.subtitle}</p>
                   )}
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    {row.seller_name || '—'}
+                    {row.seller_name || '-'}
                     {row.created_at
                       ? ` · ${format(new Date(row.created_at), 'dd MMM, h:mm a')}`
                       : ''}

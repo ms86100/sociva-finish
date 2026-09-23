@@ -18,7 +18,7 @@ export type EnqueueNotificationInput = {
 
 /**
  * Create: enqueue into notification_queue with dual columns.
- * PNQ owns in-app insert + push + WhatsApp — do not dual-write inbox here.
+ * PNQ owns in-app insert + push + WhatsApp - do not dual-write inbox here.
  */
 export async function createQueuedNotification(
   input: EnqueueNotificationInput,

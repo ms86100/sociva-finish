@@ -111,7 +111,7 @@ export default function TermsPage() {
                 <ul className="list-disc list-inside text-muted-foreground space-y-1 mt-2">
                   <li>If an order is cancelled before preparation, no charge will apply</li>
                   <li>If a seller cancels after acceptance, any payment collected will be refunded to the buyer</li>
-                  <li>Refunds for COD orders require no action; UPI refunds are processed within 5–7 business days</li>
+                  <li>Refunds for COD orders require no action; UPI refunds are processed within 5-7 business days</li>
                   <li>Disputes regarding product quality or non-delivery can be raised through the app's Help & Support section or the in-app dispute resolution feature</li>
                   <li>{platformName} acts solely as an intermediary and does not guarantee refunds on behalf of sellers</li>
                 </ul>

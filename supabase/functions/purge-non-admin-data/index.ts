@@ -66,7 +66,7 @@ Deno.serve(async (req) => {
     console.log(`Found ${nonAdminIds.length} non-admin users to delete`);
 
     // Step 3: Delete transactional data (order matters for FK constraints)
-    // NEVER delete audit_log / audit_log_archive — forensic trail must survive purge.
+    // NEVER delete audit_log / audit_log_archive - forensic trail must survive purge.
     const transactionalTables = [
       // Chat & notifications
       { table: 'chat_messages', filter: null },

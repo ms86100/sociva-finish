@@ -4,7 +4,7 @@ import { resolve } from 'path';
 
 const read = (path: string) => readFileSync(resolve(__dirname, '../..', path), 'utf8');
 
-describe('admin command center ops console (phases 0–4)', () => {
+describe('admin command center ops console (phases 0-4)', () => {
   const page = read('src/pages/AdminCommandCenterPage.tsx');
   const hook = read('src/hooks/useCommandCenter.ts');
   const kpi = read('src/components/admin/command-center/CommandCenterKpiStrip.tsx');

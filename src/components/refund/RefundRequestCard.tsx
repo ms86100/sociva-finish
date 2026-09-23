@@ -276,7 +276,7 @@ export function RefundRequestCard({
         {!isWalletRefund && state === 'requested' && (
           <div className="rounded-lg border border-border/50 bg-muted/40 px-3 py-2">
             <p className="text-[11px] text-muted-foreground">
-              Your seller is reviewing this dispute. Use chat to follow up — Sociva Balance refunds are not available for this order.
+              Your seller is reviewing this dispute. Use chat to follow up - Sociva Balance refunds are not available for this order.
             </p>
           </div>
         )}

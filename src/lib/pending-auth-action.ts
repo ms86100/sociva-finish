@@ -34,7 +34,7 @@ export type PendingAuthAction =
       sellerId?: string;
       actionType?: string;
       returnTo?: string;
-      /** Present when type === 'book' — restores slot after OTP */
+      /** Present when type === 'book' - restores slot after OTP */
       bookingDraft?: PendingBookingDraft;
     };
 

@@ -19,7 +19,7 @@ function readSrc(rel: string) {
 }
 
 describe('onboarding resume (Test 4)', () => {
-  it('restores step 2–4 without forcing step 5', () => {
+  it('restores step 2-4 without forcing step 5', () => {
     expect(restoreStepFromBackup(2)).toBe(2);
     expect(restoreStepFromBackup(3)).toBe(3);
     expect(restoreStepFromBackup(4)).toBe(4);
@@ -139,7 +139,7 @@ describe('onboarding meta persistence (Tests 2, 3, 5)', () => {
   });
 });
 
-describe('commerce / product action consistency (Tests 6–9)', () => {
+describe('commerce / product action consistency (Tests 6-9)', () => {
   it('detects cart product on book store', () => {
     const result = validateStoreProductActionConsistency(
       [{ id: 'p1', name: 'Item', action_type: 'add_to_cart', approval_status: 'draft' }],
@@ -185,7 +185,7 @@ describe('commerce / product action consistency (Tests 6–9)', () => {
   });
 });
 
-describe('category / subcategory integrity (Tests 10–11)', () => {
+describe('category / subcategory integrity (Tests 10-11)', () => {
   const slugToId = { food: 'cfg-food', clothing: 'cfg-clothing' };
 
   it('removes subcategory prefs when category is removed', () => {
@@ -227,7 +227,7 @@ describe('service location persistence (Test 12)', () => {
   });
 });
 
-describe('silent failure prevention (Tests 14–15)', () => {
+describe('silent failure prevention (Tests 14-15)', () => {
   it('Save Draft shows error when save fails', () => {
     const src = readSrc('src/hooks/useSellerApplication.ts');
     expect(src).toContain('notifyOnError');

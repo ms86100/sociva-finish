@@ -51,7 +51,7 @@ export function SellerPerformanceTable() {
                       <TableCell className="text-right">
                         <span className="inline-flex items-center gap-0.5 text-xs">
                           <Star size={10} className="fill-amber-400 text-amber-400" />
-                          {s.rating?.toFixed(1) || '—'}
+                          {s.rating?.toFixed(1) || '-'}
                         </span>
                       </TableCell>
                     </TableRow>

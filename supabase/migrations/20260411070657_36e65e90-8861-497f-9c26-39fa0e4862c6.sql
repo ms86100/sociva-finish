@@ -102,7 +102,7 @@ BEGIN
 
   _order_number := upper(right(NEW.id::text, 6));
 
-  -- Enqueue review prompt notification (delayed by 30 min conceptually, but we send immediately — app handles timing)
+  -- Enqueue review prompt notification (delayed by 30 min conceptually, but we send immediately - app handles timing)
   INSERT INTO notification_queue (user_id, title, body, type, payload)
   VALUES (
     NEW.buyer_id,

@@ -76,7 +76,7 @@ const WINDOWS: WindowSpec[] = [
     kind: "scheduled_prep",
     title: "⏰ Start preparing now",
     bodySeller: (ref, when) =>
-      `Order #${ref} (${when}) is unlocked — fulfill it like an instant order. Open Sociva to prepare.`,
+      `Order #${ref} (${when}) is unlocked - fulfill it like an instant order. Open Sociva to prepare.`,
     bodyBuyer: (store, when) => `${store} can start preparing your scheduled order (${when}).`,
     match: (o, now) => {
       if (!o.preparation_start_at) return false;
@@ -89,7 +89,7 @@ const WINDOWS: WindowSpec[] = [
   {
     kind: "scheduled_30m",
     title: "🔔 Scheduled order due soon",
-    bodySeller: (ref, when) => `Order #${ref} is due in ~30 minutes (${when}). Fulfillment is unlocked — keep it moving.`,
+    bodySeller: (ref, when) => `Order #${ref} is due in ~30 minutes (${when}). Fulfillment is unlocked - keep it moving.`,
     bodyBuyer: (store, _when) => `Your order from ${store} is coming up soon.`,
     match: (o, now) => {
       if (!o.scheduled_fulfillment_at) return false;
@@ -102,7 +102,7 @@ const WINDOWS: WindowSpec[] = [
     kind: "scheduled_late",
     title: "⚠️ Scheduled order overdue",
     bodySeller: (ref, when) =>
-      `Order #${ref} (${when}) is past its scheduled time — start preparation or contact the buyer.`,
+      `Order #${ref} (${when}) is past its scheduled time - start preparation or contact the buyer.`,
     bodyBuyer: (store, when) =>
       `Your scheduled order from ${store} (${when}) is delayed. The seller has been notified.`,
     match: (o, now) => {

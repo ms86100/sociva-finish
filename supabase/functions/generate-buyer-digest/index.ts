@@ -130,7 +130,7 @@ Deno.serve(async (req) => {
 
       // Dormant nudge
       if (isDormant) {
-        parts.push("🛒 You haven't ordered in a while — check what's new!");
+        parts.push("🛒 You haven't ordered in a while - check what's new!");
       }
 
       if (parts.length === 0) continue;

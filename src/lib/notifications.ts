@@ -33,7 +33,7 @@ export async function sendPushNotification(payload: NotificationPayload): Promis
 }
 
 /**
- * Legacy direct edge invoke — kept for emergency/admin tooling.
+ * Legacy direct edge invoke - kept for emergency/admin tooling.
  * Prefer sendPushNotification (queue path).
  */
 export async function sendPushNotificationDirect(payload: NotificationPayload): Promise<boolean> {

@@ -1,4 +1,4 @@
-# Production safety lock — permission lifecycle
+# Production safety lock - permission lifecycle
 
 **Last verified:** 2026-09-22
 
@@ -6,8 +6,8 @@
 
 | Surface | Production ID | Status |
 |---|---|---|
-| Supabase main | `kkzkuyhgdvyecmxtmkpy` (`Sociva`) | **NOT migrated** — `app_installations` absent |
-| Vercel production | `sociva.in` / `sociva-finish` | **NOT deployed** — no `--prod` |
+| Supabase main | `kkzkuyhgdvyecmxtmkpy` (`Sociva`) | **NOT migrated** - `app_installations` absent |
+| Vercel production | `sociva.in` / `sociva-finish` | **NOT deployed** - no `--prod` |
 | App `.env` | points at production URL for local web | Unchanged; used for read-only browsing only |
 
 ## Isolated validation performed

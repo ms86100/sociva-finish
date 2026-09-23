@@ -23,7 +23,7 @@ export function writePendingImageCrop(pending: PendingImageCrop): void {
   try {
     sessionStorage.setItem(PENDING_CROP_KEY, JSON.stringify(pending));
   } catch {
-    /* quota — crop still works in-memory */
+    /* quota - crop still works in-memory */
   }
 }
 

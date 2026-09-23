@@ -58,13 +58,13 @@ workflows:
         script: |
           # If App.xcodeproj is missing (not committed), wipe ios/ so cap add ios regenerates it
           if [ ! -f "ios/App/App.xcodeproj/project.pbxproj" ]; then
-            echo "=== App.xcodeproj missing — regenerating iOS platform ==="
+            echo "=== App.xcodeproj missing - regenerating iOS platform ==="
             rm -rf ios
             npx cap add ios
           fi
           npx cap sync ios
           cd ios/App
-          # Capacitor 8 defaults to SPM — remove ALL SPM artifacts before switching to CocoaPods
+          # Capacitor 8 defaults to SPM - remove ALL SPM artifacts before switching to CocoaPods
           rm -f Package.swift .package.resolved
           rm -rf .build
           rm -rf App.xcodeproj/project.xcworkspace/xcshareddata/swiftpm
@@ -282,7 +282,7 @@ workflows:
           # Return to project root before verification
           cd ../..
 
-          # Verification — no storyboard patching needed, AppDelegate sets root VC programmatically
+          # Verification - no storyboard patching needed, AppDelegate sets root VC programmatically
           echo "=== Build verification ==="
           grep -q "registerPluginInstance" ios/App/App/SocivaBridgeViewController.swift && echo "✅ Plugin registration in BridgeVC" || { echo "❌ FATAL: Missing plugin registration"; exit 1; }
           grep -q "SocivaBridgeViewController()" ios/App/App/AppDelegate.swift && echo "✅ Programmatic VC override in AppDelegate" || { echo "❌ FATAL: Missing programmatic VC override"; exit 1; }
@@ -323,7 +323,7 @@ workflows:
         script: |
           cd ios/App
           # Add UIBackgroundModes to Info.plist
-          # Do NOT declare "location" — App Store 2.5.4. Delivery tracking uses
+          # Do NOT declare "location" - App Store 2.5.4. Delivery tracking uses
           # foreground when-in-use geolocation while the seller keeps the app open.
           /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes array" App/Info.plist 2>/dev/null || true
           /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes:0 string remote-notification" App/Info.plist 2>/dev/null || true
@@ -350,14 +350,14 @@ workflows:
       - name: Inject Razorpay iOS requirements (UPI schemes + ATS)
         script: |
           cd ios/App
-          # LSApplicationQueriesSchemes — lets Razorpay detect installed UPI apps via canOpenURL.
+          # LSApplicationQueriesSchemes - lets Razorpay detect installed UPI apps via canOpenURL.
           # Without this iOS silently returns false for all upi/phonepe/paytm/gpay scheme checks
           # and Razorpay shows "Payment Blocked" because it thinks no payment app is available.
           for SCHEME in upi tez gpay phonepe paytmmp paytm bhim credpay amazonpay whatsapp; do
             /usr/libexec/PlistBuddy -c "Add :LSApplicationQueriesSchemes: string $SCHEME" App/Info.plist 2>/dev/null || true
           done
           echo "=== LSApplicationQueriesSchemes injected ==="
-          # NSAppTransportSecurity — bank 3DS redirect pages sometimes load HTTP sub-resources.
+          # NSAppTransportSecurity - bank 3DS redirect pages sometimes load HTTP sub-resources.
           # Without NSAllowsArbitraryLoads WKWebView silently drops those and payment hangs/fails.
           /usr/libexec/PlistBuddy -c "Add :NSAppTransportSecurity dict" App/Info.plist 2>/dev/null || true
           /usr/libexec/PlistBuddy -c "Add :NSAppTransportSecurity:NSAllowsArbitraryLoads bool true" App/Info.plist 2>/dev/null || \
@@ -514,7 +514,7 @@ workflows:
           </plist>
           PLIST
 
-          # Create widget extension entitlements (empty — Live Activities need only NSSupportsLiveActivities in Info.plist)
+          # Create widget extension entitlements (empty - Live Activities need only NSSupportsLiveActivities in Info.plist)
           cat > LiveDeliveryWidgetExtension/LiveDeliveryWidgetExtension.entitlements << 'ENTITLEMENTS'
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -862,17 +862,17 @@ workflows:
           /usr/libexec/PlistBuddy -c "Print :UIBackgroundModes" "$PLIST" || true
           MODES=$(/usr/libexec/PlistBuddy -c "Print :UIBackgroundModes" "$PLIST" 2>/dev/null || true)
           if echo "$MODES" | grep -q "location"; then
-            echo "ERROR: App Store 2.5.4 — archived Info.plist still declares UIBackgroundModes location"
+            echo "ERROR: App Store 2.5.4 - archived Info.plist still declares UIBackgroundModes location"
             exit 1
           fi
           ALWAYS_AND=$(/usr/libexec/PlistBuddy -c "Print :NSLocationAlwaysAndWhenInUseUsageDescription" "$PLIST" 2>/dev/null || true)
           if [ -z "$ALWAYS_AND" ]; then
-            echo "ERROR: ITMS-90683 — NSLocationAlwaysAndWhenInUseUsageDescription missing"
+            echo "ERROR: ITMS-90683 - NSLocationAlwaysAndWhenInUseUsageDescription missing"
             exit 1
           fi
           ALWAYS=$(/usr/libexec/PlistBuddy -c "Print :NSLocationAlwaysUsageDescription" "$PLIST" 2>/dev/null || true)
           if [ -z "$ALWAYS" ]; then
-            echo "ERROR: ITMS-90683 — NSLocationAlwaysUsageDescription missing"
+            echo "ERROR: ITMS-90683 - NSLocationAlwaysUsageDescription missing"
             exit 1
           fi
           WHEN_IN_USE=$(/usr/libexec/PlistBuddy -c "Print :NSLocationWhenInUseUsageDescription" "$PLIST" 2>/dev/null || true)
@@ -905,7 +905,7 @@ workflows:
       app_store_connect:
         auth: integration
         # Upload IPA to App Store Connect / TestFlight only.
-        # Skip auto Beta App Review — Apple limits submissions (~2/day) and Internal
+        # Skip auto Beta App Review - Apple limits submissions (~2/day) and Internal
         # testers can install without review. Submit external Beta Review manually in ASC.
         submit_to_testflight: false
 
@@ -961,7 +961,7 @@ workflows:
         script: |
           # If App.xcodeproj is missing (not committed), wipe ios/ so cap add ios regenerates it
           if [ ! -f "ios/App/App.xcodeproj/project.pbxproj" ]; then
-            echo "=== App.xcodeproj missing — regenerating iOS platform ==="
+            echo "=== App.xcodeproj missing - regenerating iOS platform ==="
             rm -rf ios
             npx cap add ios
           fi
@@ -971,7 +971,7 @@ workflows:
             /usr/libexec/PlistBuddy -c "Add :CFBundleDisplayName string Sociva Staging" ios/App/App/Info.plist
           echo "=== CFBundleDisplayName set to Sociva Staging ==="
           cd ios/App
-          # Capacitor 8 defaults to SPM — remove ALL SPM artifacts before switching to CocoaPods
+          # Capacitor 8 defaults to SPM - remove ALL SPM artifacts before switching to CocoaPods
           rm -f Package.swift .package.resolved
           rm -rf .build
           rm -rf App.xcodeproj/project.xcworkspace/xcshareddata/swiftpm
@@ -1189,7 +1189,7 @@ workflows:
           # Return to project root before verification
           cd ../..
 
-          # Verification — no storyboard patching needed, AppDelegate sets root VC programmatically
+          # Verification - no storyboard patching needed, AppDelegate sets root VC programmatically
           echo "=== Build verification ==="
           grep -q "registerPluginInstance" ios/App/App/SocivaBridgeViewController.swift && echo "✅ Plugin registration in BridgeVC" || { echo "❌ FATAL: Missing plugin registration"; exit 1; }
           grep -q "SocivaBridgeViewController()" ios/App/App/AppDelegate.swift && echo "✅ Programmatic VC override in AppDelegate" || { echo "❌ FATAL: Missing programmatic VC override"; exit 1; }
@@ -1230,7 +1230,7 @@ workflows:
         script: |
           cd ios/App
           # Add UIBackgroundModes to Info.plist
-          # Do NOT declare "location" — App Store 2.5.4. Delivery tracking uses
+          # Do NOT declare "location" - App Store 2.5.4. Delivery tracking uses
           # foreground when-in-use geolocation while the seller keeps the app open.
           /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes array" App/Info.plist 2>/dev/null || true
           /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes:0 string remote-notification" App/Info.plist 2>/dev/null || true
@@ -1257,14 +1257,14 @@ workflows:
       - name: Inject Razorpay iOS requirements (UPI schemes + ATS)
         script: |
           cd ios/App
-          # LSApplicationQueriesSchemes — lets Razorpay detect installed UPI apps via canOpenURL.
+          # LSApplicationQueriesSchemes - lets Razorpay detect installed UPI apps via canOpenURL.
           # Without this iOS silently returns false for all upi/phonepe/paytm/gpay scheme checks
           # and Razorpay shows "Payment Blocked" because it thinks no payment app is available.
           for SCHEME in upi tez gpay phonepe paytmmp paytm bhim credpay amazonpay whatsapp; do
             /usr/libexec/PlistBuddy -c "Add :LSApplicationQueriesSchemes: string $SCHEME" App/Info.plist 2>/dev/null || true
           done
           echo "=== LSApplicationQueriesSchemes injected ==="
-          # NSAppTransportSecurity — bank 3DS redirect pages sometimes load HTTP sub-resources.
+          # NSAppTransportSecurity - bank 3DS redirect pages sometimes load HTTP sub-resources.
           # Without NSAllowsArbitraryLoads WKWebView silently drops those and payment hangs/fails.
           /usr/libexec/PlistBuddy -c "Add :NSAppTransportSecurity dict" App/Info.plist 2>/dev/null || true
           /usr/libexec/PlistBuddy -c "Add :NSAppTransportSecurity:NSAllowsArbitraryLoads bool true" App/Info.plist 2>/dev/null || \
@@ -1421,7 +1421,7 @@ workflows:
           </plist>
           PLIST
 
-          # Create widget extension entitlements (empty — Live Activities need only NSSupportsLiveActivities in Info.plist)
+          # Create widget extension entitlements (empty - Live Activities need only NSSupportsLiveActivities in Info.plist)
           cat > LiveDeliveryWidgetExtension/LiveDeliveryWidgetExtension.entitlements << 'ENTITLEMENTS'
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -1769,17 +1769,17 @@ workflows:
           /usr/libexec/PlistBuddy -c "Print :UIBackgroundModes" "$PLIST" || true
           MODES=$(/usr/libexec/PlistBuddy -c "Print :UIBackgroundModes" "$PLIST" 2>/dev/null || true)
           if echo "$MODES" | grep -q "location"; then
-            echo "ERROR: App Store 2.5.4 — archived Info.plist still declares UIBackgroundModes location"
+            echo "ERROR: App Store 2.5.4 - archived Info.plist still declares UIBackgroundModes location"
             exit 1
           fi
           ALWAYS_AND=$(/usr/libexec/PlistBuddy -c "Print :NSLocationAlwaysAndWhenInUseUsageDescription" "$PLIST" 2>/dev/null || true)
           if [ -z "$ALWAYS_AND" ]; then
-            echo "ERROR: ITMS-90683 — NSLocationAlwaysAndWhenInUseUsageDescription missing"
+            echo "ERROR: ITMS-90683 - NSLocationAlwaysAndWhenInUseUsageDescription missing"
             exit 1
           fi
           ALWAYS=$(/usr/libexec/PlistBuddy -c "Print :NSLocationAlwaysUsageDescription" "$PLIST" 2>/dev/null || true)
           if [ -z "$ALWAYS" ]; then
-            echo "ERROR: ITMS-90683 — NSLocationAlwaysUsageDescription missing"
+            echo "ERROR: ITMS-90683 - NSLocationAlwaysUsageDescription missing"
             exit 1
           fi
           WHEN_IN_USE=$(/usr/libexec/PlistBuddy -c "Print :NSLocationWhenInUseUsageDescription" "$PLIST" 2>/dev/null || true)
@@ -1812,7 +1812,7 @@ workflows:
       app_store_connect:
         auth: integration
         # Upload IPA to App Store Connect / TestFlight only.
-        # Skip auto Beta App Review — Apple limits submissions (~2/day) and Internal
+        # Skip auto Beta App Review - Apple limits submissions (~2/day) and Internal
         # testers can install without review. Submit external Beta Review manually in ASC.
         submit_to_testflight: false
 
@@ -1844,7 +1844,7 @@ workflows:
           npm install --legacy-peer-deps
           node scripts/patch-android-builds.cjs
 
-      - name: Build web app (native — no PWA/Workbox in WebView)
+      - name: Build web app (native - no PWA/Workbox in WebView)
         script: npm run build:native
 
       - name: Add Android platform
@@ -2054,7 +2054,7 @@ workflows:
         script: |
           # If App.xcodeproj is missing (not committed), wipe ios/ so cap add ios regenerates it
           if [ ! -f "ios/App/App.xcodeproj/project.pbxproj" ]; then
-            echo "=== App.xcodeproj missing — regenerating iOS platform ==="
+            echo "=== App.xcodeproj missing - regenerating iOS platform ==="
             rm -rf ios
             npx cap add ios
           fi
@@ -2218,7 +2218,7 @@ workflows:
           # Return to project root before verification
           cd ../..
 
-          # Verification — no storyboard patching needed, AppDelegate sets root VC programmatically
+          # Verification - no storyboard patching needed, AppDelegate sets root VC programmatically
           echo "=== Build verification ==="
           grep -q "registerPluginInstance" ios/App/App/SocivaBridgeViewController.swift && echo "✅ Plugin registration in BridgeVC" || { echo "❌ FATAL: Missing plugin registration"; exit 1; }
           grep -q "SocivaBridgeViewController()" ios/App/App/AppDelegate.swift && echo "✅ Programmatic VC override in AppDelegate" || { echo "❌ FATAL: Missing programmatic VC override"; exit 1; }
@@ -2256,7 +2256,7 @@ workflows:
       - name: Enable Push Notification & Background Modes capabilities
         script: |
           cd ios/App
-          # Do NOT declare "location" — App Store 2.5.4 (foreground when-in-use only).
+          # Do NOT declare "location" - App Store 2.5.4 (foreground when-in-use only).
           /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes array" App/Info.plist 2>/dev/null || true
           /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes:0 string remote-notification" App/Info.plist 2>/dev/null || true
           /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes:1 string fetch" App/Info.plist 2>/dev/null || true
@@ -2730,17 +2730,17 @@ workflows:
           /usr/libexec/PlistBuddy -c "Print :UIBackgroundModes" "$PLIST" || true
           MODES=$(/usr/libexec/PlistBuddy -c "Print :UIBackgroundModes" "$PLIST" 2>/dev/null || true)
           if echo "$MODES" | grep -q "location"; then
-            echo "ERROR: App Store 2.5.4 — archived Info.plist still declares UIBackgroundModes location"
+            echo "ERROR: App Store 2.5.4 - archived Info.plist still declares UIBackgroundModes location"
             exit 1
           fi
           ALWAYS_AND=$(/usr/libexec/PlistBuddy -c "Print :NSLocationAlwaysAndWhenInUseUsageDescription" "$PLIST" 2>/dev/null || true)
           if [ -z "$ALWAYS_AND" ]; then
-            echo "ERROR: ITMS-90683 — NSLocationAlwaysAndWhenInUseUsageDescription missing"
+            echo "ERROR: ITMS-90683 - NSLocationAlwaysAndWhenInUseUsageDescription missing"
             exit 1
           fi
           ALWAYS=$(/usr/libexec/PlistBuddy -c "Print :NSLocationAlwaysUsageDescription" "$PLIST" 2>/dev/null || true)
           if [ -z "$ALWAYS" ]; then
-            echo "ERROR: ITMS-90683 — NSLocationAlwaysUsageDescription missing"
+            echo "ERROR: ITMS-90683 - NSLocationAlwaysUsageDescription missing"
             exit 1
           fi
           WHEN_IN_USE=$(/usr/libexec/PlistBuddy -c "Print :NSLocationWhenInUseUsageDescription" "$PLIST" 2>/dev/null || true)
@@ -2917,7 +2917,7 @@ workflows:
     publishing:
       app_store_connect:
         auth: integration
-        # Upload only — no auto Beta App Review (see ios-release notes).
+        # Upload only - no auto Beta App Review (see ios-release notes).
         submit_to_testflight: false
       email:
         recipients:

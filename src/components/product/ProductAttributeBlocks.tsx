@@ -142,7 +142,7 @@ function BlockContent({ data, fields, rendererType, blockType }: {
   // Text renderer
   if (rendererType === 'text') {
     const textFields = fields.filter(f => f.type === 'textarea' || f.type === 'text');
-    const textContent = textFields.map(f => data[f.key]).filter(Boolean).join(' — ');
+    const textContent = textFields.map(f => data[f.key]).filter(Boolean).join(' - ');
     if (textContent) {
       return <p className="text-xs text-muted-foreground leading-relaxed">{textContent}</p>;
     }

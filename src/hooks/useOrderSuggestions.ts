@@ -85,7 +85,7 @@ export function useDismissSuggestion() {
   });
 }
 
-// Legacy alias — kept for backward compat
+// Legacy alias - kept for backward compat
 export function useMarkSuggestionActed() {
   return useDismissSuggestion();
 }

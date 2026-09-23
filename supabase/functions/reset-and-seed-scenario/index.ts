@@ -264,7 +264,7 @@ function getProductsForSeller(sellerEmail: string) {
     ],
     "seed-coaching-seller1@test.sociva.com": [
       { name: "IIT-JEE Math Foundation (Monthly)", price: 3500, category: "coaching", is_veg: true, description: "Comprehensive math preparation for JEE aspirants. 3 classes/week, doubt clearing included.", action_type: "request_service", service_duration_minutes: 90, specifications: { blocks: [{ type: "course_details", data: { level: "Advanced", batch_size: "Max 10 students", schedule: "Mon/Wed/Fri 6-7:30 PM", includes: "Study material, weekly tests" } }] } },
-      { name: "Class 10 Math Tuition", price: 2000, category: "tuition", is_veg: true, description: "CBSE Class 10 Mathematics — Board exam focused", action_type: "request_service", service_duration_minutes: 60, specifications: { blocks: [{ type: "course_details", data: { level: "Intermediate", batch_size: "Max 8 students", schedule: "Tue/Thu 4-5 PM" } }] } },
+      { name: "Class 10 Math Tuition", price: 2000, category: "tuition", is_veg: true, description: "CBSE Class 10 Mathematics - Board exam focused", action_type: "request_service", service_duration_minutes: 60, specifications: { blocks: [{ type: "course_details", data: { level: "Intermediate", batch_size: "Max 8 students", schedule: "Tue/Thu 4-5 PM" } }] } },
       { name: "Mental Math Workshop", price: 500, category: "coaching", is_veg: true, description: "One-day intensive workshop on Vedic math techniques", action_type: "book_slot", service_duration_minutes: 180 },
       { name: "Doubt Clearing Session", price: 300, category: "coaching", is_veg: true, description: "1-on-1 personalized doubt clearing for any math topic", action_type: "request_service", service_duration_minutes: 45 },
     ],
@@ -275,7 +275,7 @@ function getProductsForSeller(sellerEmail: string) {
       { name: "NEET Biology Prep", price: 3500, category: "coaching", is_veg: true, description: "Focused NEET biology preparation with previous year papers", action_type: "request_service", service_duration_minutes: 90, specifications: { blocks: [{ type: "course_details", data: { level: "Advanced", batch_size: "Max 12", includes: "Study material, mock tests" } }] } },
     ],
     "seed-yoga-seller1@test.sociva.com": [
-      { name: "Hatha Yoga (Morning Batch)", price: 2500, category: "yoga", is_veg: true, description: "Traditional Hatha yoga — alignment, breathing, meditation. Mon-Sat 6-7 AM.", action_type: "book_slot", service_duration_minutes: 60, specifications: { blocks: [{ type: "session_details", data: { level: "All levels", equipment: "Mat provided", batch_size: "Max 15", location: "Society garden" } }] } },
+      { name: "Hatha Yoga (Morning Batch)", price: 2500, category: "yoga", is_veg: true, description: "Traditional Hatha yoga - alignment, breathing, meditation. Mon-Sat 6-7 AM.", action_type: "book_slot", service_duration_minutes: 60, specifications: { blocks: [{ type: "session_details", data: { level: "All levels", equipment: "Mat provided", batch_size: "Max 15", location: "Society garden" } }] } },
       { name: "Pranayama & Meditation", price: 1500, category: "yoga", is_veg: true, description: "Deep breathing techniques and guided meditation", action_type: "book_slot", service_duration_minutes: 45 },
       { name: "Private Yoga Session", price: 1000, category: "yoga", is_veg: true, description: "1-on-1 personalized yoga session at your home", action_type: "request_service", service_duration_minutes: 60 },
       { name: "Yoga for Seniors", price: 2000, category: "yoga", is_veg: true, description: "Gentle yoga designed for seniors. Chair-based options available.", action_type: "book_slot", service_duration_minutes: 45, specifications: { blocks: [{ type: "session_details", data: { level: "Beginner", equipment: "Chair + Mat", special: "Modified poses for joint issues" } }] } },
@@ -289,7 +289,7 @@ function getProductsForSeller(sellerEmail: string) {
     ],
     "seed-electronics-seller1@test.sociva.com": [
       { name: "iPhone 15 Silicone Case", price: 499, mrp: 999, category: "electronics", is_veg: true, description: "Premium silicone case with MagSafe compatibility", is_bestseller: true, action_type: "add_to_cart", brand: "TechGuard", specifications: { blocks: [{ type: "product_specs", data: { material: "Liquid silicone", compatibility: "iPhone 15/15 Pro", color_options: "Black, Navy, Olive", warranty: "6 months" } }] } },
-      { name: "USB-C Fast Charger 65W", price: 899, mrp: 1499, category: "electronics", is_veg: true, description: "GaN charger with 3 ports — USB-C + USB-A", action_type: "add_to_cart", brand: "PowerMax", specifications: { blocks: [{ type: "product_specs", data: { wattage: "65W", ports: "2x USB-C, 1x USB-A", protocol: "PD 3.0, QC 4.0" } }] } },
+      { name: "USB-C Fast Charger 65W", price: 899, mrp: 1499, category: "electronics", is_veg: true, description: "GaN charger with 3 ports - USB-C + USB-A", action_type: "add_to_cart", brand: "PowerMax", specifications: { blocks: [{ type: "product_specs", data: { wattage: "65W", ports: "2x USB-C, 1x USB-A", protocol: "PD 3.0, QC 4.0" } }] } },
       { name: "Wireless Earbuds Pro", price: 1999, mrp: 3499, category: "electronics", is_veg: true, description: "Active noise cancelling wireless earbuds with 30hr battery", is_recommended: true, action_type: "add_to_cart", brand: "SoundWave" },
       { name: "Laptop Stand Aluminum", price: 1299, mrp: 1999, category: "electronics", is_veg: true, description: "Adjustable ergonomic aluminum laptop stand", action_type: "add_to_cart" },
       { name: "Tempered Glass Screen Protector", price: 199, mrp: 499, category: "electronics", is_veg: true, description: "9H hardness tempered glass for Samsung Galaxy S24", action_type: "add_to_cart" },
@@ -344,7 +344,7 @@ Deno.serve(async (req) => {
     );
   }
 
-  // Rate limit — 2 per hour
+  // Rate limit - 2 per hour
   const clientIp = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
   const { allowed } = await checkRateLimit(`reset-seed:${clientIp}`, 2, 3600);
   if (!allowed) return rateLimitResponse(corsHeaders);
@@ -485,7 +485,7 @@ Deno.serve(async (req) => {
       await sb.from("profiles").update({ society_id: null }).eq("id", aid);
     }
     // Try to remove leftover societies from partial runs, but tolerate rows
-    // that other tables still reference — the upsert below reuses them.
+    // that other tables still reference - the upsert below reuses them.
     await sb.from("societies").delete().neq("id", "00000000-0000-0000-0000-000000000000");
 
     // Upsert on slug (the unique key) instead of a plain insert, which would

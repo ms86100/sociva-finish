@@ -90,7 +90,7 @@ async function probeSeed(): Promise<boolean> {
     seedResult = await res.json();
     return seedResult?.success === true;
   } catch (err) {
-    console.warn(`[seed-products] Skipping suite — ${(err as Error).message}`);
+    console.warn(`[seed-products] Skipping suite - ${(err as Error).message}`);
     return false;
   }
 }

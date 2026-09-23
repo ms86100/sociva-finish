@@ -79,7 +79,7 @@ describe('scheduled-orders', () => {
   });
 
   it('toScheduledDateParam keeps the picker calendar day', () => {
-    // new Date(y, m, d) is local midnight of that civil day — must not use toISOString().
+    // new Date(y, m, d) is local midnight of that civil day - must not use toISOString().
     const localMidnight = new Date(2026, 7, 23, 0, 0, 0, 0);
     expect(toScheduledDateParam(localMidnight)).toBe('2026-08-23');
   });

@@ -19,7 +19,7 @@ export default function DeleteAccountPage() {
           </Link>
           <div>
             <h1 className="text-2xl font-bold text-foreground">Delete your Sociva account</h1>
-            <p className="text-sm text-muted-foreground">Sociva — Your Society, Your Store</p>
+            <p className="text-sm text-muted-foreground">Sociva - Your Society, Your Store</p>
           </div>
         </div>
 

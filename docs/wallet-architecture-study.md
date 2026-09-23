@@ -1,8 +1,8 @@
-# Sociva Digital Wallet — Architecture Study & Proposal
+# Sociva Digital Wallet - Architecture Study & Proposal
 
 **Date:** 2026-08-07  
 **Scope:** Research + enterprise architecture proposal.  
-**Implementation:** Phase 1 MVP shipped in-repo — see [`wallet-mvp-implementation.md`](./wallet-mvp-implementation.md).  
+**Implementation:** Phase 1 MVP shipped in-repo - see [`wallet-mvp-implementation.md`](./wallet-mvp-implementation.md).  
 **Companion canvas:** Cursor Canvas `wallet-architecture-study.canvas.tsx`  
 **Grounding:** Existing Razorpay / loyalty / refund / settlement systems in this repo.
 
@@ -14,16 +14,16 @@
 
 | Decision | Choice |
 |----------|--------|
-| **MVP product** | **Store credit + promo credit wallet** — refunds and promotions as INR balances. **No buyer cash top-up** in MVP. |
+| **MVP product** | **Store credit + promo credit wallet** - refunds and promotions as INR balances. **No buyer cash top-up** in MVP. |
 | **Ledger** | **Append-only double-entry ledger** + cached wallet balances + **FIFO credit lots** (cash vs promo buckets). Mirror loyalty’s reserve → commit → release pattern. |
 | **Loyalty relationship** | Keep **loyalty points** separate (`loyalty_wallets` / `loyalty_ledger`). Wallet is **INR liability**; loyalty remains platform-funded points (1 pt ≈ ₹1 discount). |
 | **Refund default** | Prefer **original payment method** (current behavior). Offer **instant wallet credit** as an explicit buyer choice for eligible prepaid refunds. |
-| **Cash top-up** | **Phase 3+ only**, via a **licensed PPI issuer / bank partner** (Swiggy–ICICI pattern). Do **not** self-issue a loadable marketplace PPI without counsel + authorization. |
+| **Cash top-up** | **Phase 3+ only**, via a **licensed PPI issuer / bank partner** (Swiggy-ICICI pattern). Do **not** self-issue a loadable marketplace PPI without counsel + authorization. |
 | **Regulatory posture** | Treat **RBI Draft PPI Directions (Apr 2026)** as a hard product constraint: marketplace-issued loadable INR wallets are likely regulated; reward/points-style balances are clearer carve-outs. **Legal review required before any top-up.** |
 
 ---
 
-## Part 1 — Industry research
+## Part 1 - Industry research
 
 ### 1.1 Method & evidence quality
 
@@ -71,8 +71,8 @@ Apps studied: **Swiggy, Zomato, Uber Eats (Uber Cash), Blinkit / Zepto (via Amaz
 
 | Scenario | Common product behavior |
 |----------|-------------------------|
-| Paid with wallet | Refund **back to wallet** (instant) — Swiggy Money T&Cs for cancellations paid via wallet |
-| Paid with UPI/card | Default **original method** (3–7 banking days); some apps offer **credits** for speed or gateway failure |
+| Paid with wallet | Refund **back to wallet** (instant) - Swiggy Money T&Cs for cancellations paid via wallet |
+| Paid with UPI/card | Default **original method** (3-7 banking days); some apps offer **credits** for speed or gateway failure |
 | COD / POD | Often **wallet credit** or NEFT to bank (Amazon POD → bank or Amazon Pay Balance) |
 | Partial refund | Pro-rata to instruments used; if split-pay, refund wallet portion to wallet and card portion to card (**inferred** best practice) |
 | Failed gateway refund | Escalate to **wallet credit** as remediation (user reports on Zomato) |
@@ -86,8 +86,8 @@ Industry separates **monetary character**:
 | Bucket | Source | Expiry | Withdrawal | Clawback |
 |--------|--------|--------|------------|----------|
 | **Cash / purchased** | Top-up, refund of real money | Often none or long (Zomato Money: up to ~4 years from add in auto-add T&Cs) | Usually **no** P2B cash-out on closed wallets | Rare; chargebacks reverse |
-| **Promo / reward** | Cashback, referral, support goodwill | Days–months; campaign-specific | Never | Cancel/return often clawed; Amazon cashback sometimes **kept** with refund reduced |
-| **Gift / voucher codes** | Corporate vouchers | Code expiry before load; post-load rules vary (Swiggy: code 6–12 months; loaded gift may have 365-day validity per partner T&Cs) | No | Per campaign |
+| **Promo / reward** | Cashback, referral, support goodwill | Days-months; campaign-specific | Never | Cancel/return often clawed; Amazon cashback sometimes **kept** with refund reduced |
+| **Gift / voucher codes** | Corporate vouchers | Code expiry before load; post-load rules vary (Swiggy: code 6-12 months; loaded gift may have 365-day validity per partner T&Cs) | No | Per campaign |
 
 **Amazon Pay cashback (observed):** Cashback lands as **gift-card balance** in Amazon Pay Balance; non-cashable; on cancel after credit, cashback may **remain** and refund to original method is **net of cashback**.
 
@@ -176,27 +176,27 @@ Daily: `Σ wallet balances` = `Σ ledger credits − debits` per account; varian
 | **Double-entry + cache** (recommended) | Accounting-grade; reconciles | More schema |
 | Third-party ledger SaaS | Compliance offload | Cost; India PPI still needs issuer |
 
-**Recommendation:** Double-entry entries (`debit_account`, `credit_account`, `amount`) with **denormalized** `buyer_wallets` balances updated in the same transaction — same spirit as `loyalty_wallets` + `loyalty_ledger`.
+**Recommendation:** Double-entry entries (`debit_account`, `credit_account`, `amount`) with **denormalized** `buyer_wallets` balances updated in the same transaction - same spirit as `loyalty_wallets` + `loyalty_ledger`.
 
 ---
 
-### 1.5 Regulatory notes (India PPI) — critical for Sociva
+### 1.5 Regulatory notes (India PPI) - critical for Sociva
 
-**Source quality:** Legal commentary on **RBI Draft Master Directions on PPIs (22 Apr 2026)** and related analyses (Spice Route Legal, Khaitan, Mondaq, Ikigai). **Draft, not final** as of study date — counsel must re-check before build of top-up.
+**Source quality:** Legal commentary on **RBI Draft Master Directions on PPIs (22 Apr 2026)** and related analyses (Spice Route Legal, Khaitan, Mondaq, Ikigai). **Draft, not final** as of study date - counsel must re-check before build of top-up.
 
 Key implications for a **marketplace** like Sociva:
 
-1. **Closed-system PPI exemption does not apply to marketplaces** under the draft — issuing a wallet for buying from **listed sellers** is treated as regulated PPI activity.
-2. **Reward points / non-INR digital currency loading** are described as **outside** PPI loading in draft commentary — aligns with keeping **loyalty points** and carefully structured **promo credits** distinct from loadable cash.
-3. Hybrid “points + INR top-up” wallets are a **gray zone** — avoid until counsel signs off.
-4. If Sociva later offers **Add money**, prefer **co-brand / bank PPI** (Swiggy–ICICI) or **accept PhonePe / Amazon Pay** as instruments — do not self-custody prepaid INR without authorization (net worth / KYC / limits / reporting).
+1. **Closed-system PPI exemption does not apply to marketplaces** under the draft - issuing a wallet for buying from **listed sellers** is treated as regulated PPI activity.
+2. **Reward points / non-INR digital currency loading** are described as **outside** PPI loading in draft commentary - aligns with keeping **loyalty points** and carefully structured **promo credits** distinct from loadable cash.
+3. Hybrid “points + INR top-up” wallets are a **gray zone** - avoid until counsel signs off.
+4. If Sociva later offers **Add money**, prefer **co-brand / bank PPI** (Swiggy-ICICI) or **accept PhonePe / Amazon Pay** as instruments - do not self-custody prepaid INR without authorization (net worth / KYC / limits / reporting).
 5. Draft themes also tighten cash loading, credit-card loading of general PPIs, and closure/refund of balances to source/verified bank account.
 
 **Blocker flag:** Product “cash wallet with top-up” is a **licensing + compliance program**, not an engineering sprint. MVP must be scoped to avoid becoming an unauthorized PPI.
 
 ---
 
-## Part 2 — Sociva enterprise wallet architecture
+## Part 2 - Sociva enterprise wallet architecture
 
 ### 2.1 Current Sociva money stack (grounding)
 
@@ -207,7 +207,7 @@ Key implications for a **marketplace** like Sociva:
 | Loyalty | Platform-funded points wallet + ledger + reservations | `loyalty_wallets`, `loyalty_ledger`, `loyalty_reservations`; `docs/loyalty-phase1-platform-funded.md` |
 | Refunds | State machine; Razorpay original method; `payment_ledger` for refund ops | `refund_requests`, `refund-processor`, `20260418082606_…sql` |
 | Settlement | Per-order `seller_settlements` with `platform_loyalty_subsidy` | `process-settlements` (eligible only; Route payouts not live) |
-| Buyer cash wallet | **Does not exist** | — |
+| Buyer cash wallet | **Does not exist** | - |
 
 **Money truth today (loyalty):**
 
@@ -223,7 +223,7 @@ Wallet MVP must extend this without breaking Razorpay amount binding or settleme
 
 ### 2.2 Product principles
 
-1. **Two wallets, one checkout:** Loyalty (points) + Wallet (INR credits) — clear UI labels (“Points” vs “Sociva Credit”).
+1. **Two wallets, one checkout:** Loyalty (points) + Wallet (INR credits) - clear UI labels (“Points” vs “Sociva Credit”).
 2. **Buckets over one number:** Always show **Cash credit** vs **Promo credit**; total is sum.
 3. **Holds, not hope:** Online checkout reserves wallet like loyalty before Razorpay.
 4. **Original refund is default;** wallet refund is opt-in speed.
@@ -234,7 +234,7 @@ Wallet MVP must extend this without breaking Razorpay amount binding or settleme
 
 ### 2.3 MVP vs later
 
-#### MVP (Phase 1) — ship without PPI license
+#### MVP (Phase 1) - ship without PPI license
 
 | Feature | In MVP? |
 |---------|---------|
@@ -253,20 +253,20 @@ Wallet MVP must extend this without breaking Razorpay amount binding or settleme
 | Bank PPI partnership | Later |
 | Merchant-funded wallet promos | Later |
 
-#### Phase 2 — deepen refunds & ops
+#### Phase 2 - deepen refunds & ops
 
 - Instrument-aware split refunds (wallet portion vs Razorpay portion recorded on order).
 - Chargeback playbook reversing wallet spends.
 - Statement PDF / CSV; support console with ledger view.
 - Liability dashboards (extend `PlatformOverview` / `admin_loyalty_liability` pattern).
 
-#### Phase 3 — regulated cash wallet (optional)
+#### Phase 3 - regulated cash wallet (optional)
 
 - Partner PPI issuer OR accept external wallets only.
 - Top-up via partner APIs; KYC handoff; load limits.
 - Auto-reload; corporate gift loads.
 
-#### Phase 4 — growth
+#### Phase 4 - growth
 
 - Referral cascades, campaign engines, co-branded gift PPIs via licensed issuer.
 
@@ -274,7 +274,7 @@ Wallet MVP must extend this without breaking Razorpay amount binding or settleme
 
 ### 2.4 Recommended ledger model
 
-**Name:** Sociva Credit Ledger (SCL) — **double-entry, append-only, lot-aware**.
+**Name:** Sociva Credit Ledger (SCL) - **double-entry, append-only, lot-aware**.
 
 #### Conceptual accounts
 
@@ -308,7 +308,7 @@ Updated **only** inside SECURITY DEFINER RPCs that write ledger + lots.
 
 ### 2.5 Database design (proposed)
 
-> Implemented in migrations `20260807120312_*` / `20260807120334_*` — see `docs/wallet-mvp-implementation.md`.
+> Implemented in migrations `20260807120312_*` / `20260807120334_*` - see `docs/wallet-mvp-implementation.md`.
 
 ```text
 buyer_wallets
@@ -423,13 +423,13 @@ seller_net                 = gross_before_buyer_credits - platform_fee
   (wallet_cash is not a “subsidy”; it is application of liability already on books)
 ```
 
-Store `wallet_*` on orders and extend `seller_settlements` with `wallet_cash_applied`, `wallet_promo_applied` for audit — parallel to `platform_loyalty_subsidy` / `gross_before_loyalty`.
+Store `wallet_*` on orders and extend `seller_settlements` with `wallet_cash_applied`, `wallet_promo_applied` for audit - parallel to `platform_loyalty_subsidy` / `gross_before_loyalty`.
 
 ---
 
 ### 2.6 Transaction flows
 
-#### Top-up (Phase 3 only — shown for completeness)
+#### Top-up (Phase 3 only - shown for completeness)
 
 ```mermaid
 sequenceDiagram
@@ -542,10 +542,10 @@ Extend `create_multi_vendor_orders(..., _loyalty_points, _wallet_amount)`:
 
 1. Apply coupon  
 2. Apply loyalty (existing)  
-3. Apply wallet to remaining merchandise+fees per policy (define whether delivery is wallet-eligible — **recommend yes**, unlike loyalty redeem base that excludes delivery today)  
+3. Apply wallet to remaining merchandise+fees per policy (define whether delivery is wallet-eligible - **recommend yes**, unlike loyalty redeem base that excludes delivery today)  
 4. Persist `wallet_*` on orders; reserve  
 
-**Razorpay:** continues to charge Σ `total_amount` only — wallet already removed.
+**Razorpay:** continues to charge Σ `total_amount` only - wallet already removed.
 
 ---
 
@@ -560,14 +560,14 @@ Extend `create_multi_vendor_orders(..., _loyalty_points, _wallet_amount)`:
 
 #### Checkout
 
-- Toggle “Use Sociva Credit” (default ON if balance > 0 — match Uber Cash convenience, but allow off).
+- Toggle “Use Sociva Credit” (default ON if balance > 0 - match Uber Cash convenience, but allow off).
 - Show breakdown: Subtotal → coupon → loyalty → wallet → **To pay**.
 - If residual > 0: payment method picker for residual only.
 - Copy: “Promo credits apply first and may expire.”
 
 #### Refund messaging
 
-- Default: “Refund to original payment (3–7 days).”
+- Default: “Refund to original payment (3-7 days).”
 - Alt: “Instant Sociva Credit (usable on Sociva only; not withdrawable).”
 - COD: prefer wallet credit; disclose clearly.
 - After wallet refund: push/WhatsApp using existing notification patterns.
@@ -577,7 +577,7 @@ Extend `create_multi_vendor_orders(..., _loyalty_points, _wallet_amount)`:
 - Filter by month; export later in Phase 2.
 - Support sees same ledger IDs as buyer.
 
-**Do not** mix loyalty points into the same balance number — side-by-side cards (existing `LoyaltyCard` + new Wallet card).
+**Do not** mix loyalty points into the same balance number - side-by-side cards (existing `LoyaltyCard` + new Wallet card).
 
 ---
 
@@ -591,7 +591,7 @@ Extend `create_multi_vendor_orders(..., _loyalty_points, _wallet_amount)`:
 | Partial refund | Credit wallet (or gateway) for `refund_amount`; proportional loyalty (existing); proportional wallet promo clawback if policy requires |
 | Failed top-up (Phase 3) | Credit only on confirmed capture; orphan intents expire |
 | Chargeback on order paid partly by wallet | Reverse order; do not auto-restore promo if fraud flagged; ops tool |
-| Multi-seller cart | Allocate wallet like loyalty (`apply_loyalty_to_checkout_orders` pattern); online multi-seller currently blocked — wallet follows same gate |
+| Multi-seller cart | Allocate wallet like loyalty (`apply_loyalty_to_checkout_orders` pattern); online multi-seller currently blocked - wallet follows same gate |
 | Wallet + loyalty + coupon | Strict order: coupon → loyalty → wallet → gateway |
 | Over-credit admin error | Reversing txn + freeze if needed |
 | Refund to wallet then buyer wants bank | Manual ops Phase 2; avoid advertising cash-out (PPI) |
@@ -613,11 +613,11 @@ flowchart LR
 
 | Phase | Workstreams | Dependencies | Exit criteria |
 |-------|-------------|--------------|---------------|
-| **0** | Counsel on PPI vs store credit; name product “Sociva Credit”; policy docs | — | Written go/no-go on top-up |
+| **0** | Counsel on PPI vs store credit; name product “Sociva Credit”; policy docs | - | Written go/no-go on top-up |
 | **1** | Schema + RPCs; wire CMVO + confirm + refund-processor; Wallet UI; checkout toggle | Loyalty phase-1 stable; Razorpay confirm path | E2E: credit refund → split-pay → history; no balance drift |
 | **2** | Expiry job hardened; admin liability; chargeback SOP; partial refund UX | Phase 1 | Daily reconcile = 0 variance |
 | **3** | PPI partner OR Amazon Pay/PhonePe as methods only | Phase 0 legal yes | Top-up or external wallet in prod with KYC |
-| **4** | Campaigns, referrals, corporate codes | Phase 1–2 | Promo ROI dashboard |
+| **4** | Campaigns, referrals, corporate codes | Phase 1-2 | Promo ROI dashboard |
 
 **Explicit non-goals until Phase 3:** Add money, withdraw, P2P, interest, credit-line.
 
@@ -638,7 +638,7 @@ flowchart LR
 
 ---
 
-## Appendix A — Industry comparison matrix
+## Appendix A - Industry comparison matrix
 
 | Capability | Swiggy Money | Zomato Money | Uber Cash | Amazon Pay | PhonePe | Sociva MVP proposal |
 |------------|--------------|--------------|-----------|------------|---------|---------------------|
@@ -650,14 +650,14 @@ flowchart LR
 
 ---
 
-## Appendix B — Distinguishing evidence
+## Appendix B - Distinguishing evidence
 
-- **Observed:** Swiggy–ICICI partnership; Zomato Money auto-add T&Cs; Uber purchased vs promo refundability; Amazon refund tables and cashback netting; RBI draft marketplace PPI stance (commentary).
+- **Observed:** Swiggy-ICICI partnership; Zomato Money auto-add T&Cs; Uber purchased vs promo refundability; Amazon refund tables and cashback netting; RBI draft marketplace PPI stance (commentary).
 - **Inferred:** Exact internal double-entry schemas of competitors; precise split-refund allocation algorithms; Sociva counsel outcome on promo-only credit.
 
 ---
 
-## Appendix C — Open decisions for product/legal
+## Appendix C - Open decisions for product/legal
 
 1. Is refund-to-wallet **store credit** acceptable without PPI auth under final RBI text? (Counsel.)
 2. Should delivery fee be wallet-eligible? (**Recommend yes.**)

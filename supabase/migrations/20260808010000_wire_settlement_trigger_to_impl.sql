@@ -22,7 +22,7 @@ END;
 $function$;
 
 COMMENT ON FUNCTION public.create_settlement_on_delivery() IS
-  'Thin trigger wrapper — delegates to create_settlement_on_delivery_impl (paid/COD gate + seller_settlements).';
+  'Thin trigger wrapper - delegates to create_settlement_on_delivery_impl (paid/COD gate + seller_settlements).';
 
 -- Ensure trigger exists on orders (idempotent)
 DROP TRIGGER IF EXISTS trg_create_settlement_on_delivery ON public.orders;

@@ -136,7 +136,7 @@ export function SellerChatSheet({ open, onOpenChange, buyerId, sellerId, product
       {/* Quick Reply Chips */}
       <QuickReplyChips sellerId={sellerId} onSelect={(msg) => handleTextChange(msg)} />
 
-      {/* Input bar — pinned above keyboard */}
+      {/* Input bar - pinned above keyboard */}
       <div className="sticky bottom-0 shrink-0 border-t border-border px-3 pt-3 flex items-end gap-2 bg-card pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))] z-10">
         <Textarea
           ref={textareaRef}

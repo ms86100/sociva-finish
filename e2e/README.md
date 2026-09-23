@@ -69,7 +69,7 @@ Auth state is cached in `.auth/` directory to avoid re-login per test.
 
 ## Tags
 
-- `@smoke` — Fast critical-path tests (~2 min)
-- `@critical` — Must-pass tests for deployment
-- `@regression` — Full suite including edge cases
-- `@mobile` — Mobile-specific viewport tests
+- `@smoke` - Fast critical-path tests (~2 min)
+- `@critical` - Must-pass tests for deployment
+- `@regression` - Full suite including edge cases
+- `@mobile` - Mobile-specific viewport tests

@@ -52,7 +52,7 @@ export function DiscoveryMomentHero({ products, busy, onUseLocation, onSelectMan
 
   return (
     <div className="relative min-h-[100dvh] overflow-hidden bg-background">
-      {/* Atmosphere cards — curiosity only, titled “On Sociva” (no fake society name) */}
+      {/* Atmosphere cards - curiosity only, titled “On Sociva” (no fake society name) */}
       <div className="pointer-events-none absolute inset-0" aria-hidden>
         {cards.map((slot, i) => (
           <motion.div
@@ -80,7 +80,7 @@ export function DiscoveryMomentHero({ products, busy, onUseLocation, onSelectMan
               )}
               <div className="absolute inset-x-0 bottom-0 flex items-center justify-between gap-1 bg-gradient-to-t from-black/70 to-transparent px-2 pb-1.5 pt-4">
                 <span className="text-[10px] font-semibold text-white tabular-nums">
-                  {slot.product?.price != null ? `₹${Math.round(slot.product.price)}` : '—'}
+                  {slot.product?.price != null ? `₹${Math.round(slot.product.price)}` : '-'}
                 </span>
                 <span className="rounded-md bg-white/20 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white">
                   {actionGhost(slot.product?.action_type)}
@@ -150,7 +150,7 @@ export function DiscoveryMomentHero({ products, busy, onUseLocation, onSelectMan
               Discover what&apos;s available near you
             </h1>
             <p className="text-sm leading-relaxed text-muted-foreground">
-              Food, services &amp; local businesses — all around you.
+              Food, services &amp; local businesses - all around you.
             </p>
           </div>
 
@@ -194,7 +194,7 @@ export function DiscoveryMomentHero({ products, busy, onUseLocation, onSelectMan
             Browse freely. Sign in only when you&apos;re ready to connect.
           </p>
           <p className="mt-4 text-center text-xs font-medium text-foreground/55">
-            Built for neighbourhoods — discover local, together.
+            Built for neighbourhoods - discover local, together.
           </p>
         </div>
       </div>

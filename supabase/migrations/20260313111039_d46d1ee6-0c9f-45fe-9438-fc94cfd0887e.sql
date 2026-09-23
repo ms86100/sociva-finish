@@ -1,5 +1,5 @@
 
--- Fix 1: recompute_seller_stats — count 'delivered' alongside 'completed'
+-- Fix 1: recompute_seller_stats - count 'delivered' alongside 'completed'
 CREATE OR REPLACE FUNCTION public.recompute_seller_stats(_seller_id uuid)
  RETURNS void
  LANGUAGE plpgsql
@@ -18,7 +18,7 @@ BEGIN
 END;
 $function$;
 
--- Fix 2: get_seller_trust_snapshot — count 'delivered' alongside 'completed'
+-- Fix 2: get_seller_trust_snapshot - count 'delivered' alongside 'completed'
 CREATE OR REPLACE FUNCTION public.get_seller_trust_snapshot(_seller_id uuid)
  RETURNS TABLE(completed_orders bigint, cancelled_orders bigint, unique_customers bigint, repeat_customer_pct numeric, avg_response_min numeric, recent_order_count bigint)
  LANGUAGE plpgsql

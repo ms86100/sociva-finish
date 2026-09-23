@@ -74,7 +74,7 @@ Deno.serve(async (req) => {
       // Insert into notification queue for each member
       const notifications = members.map((m) => ({
         user_id: m.id,
-        title: `📋 Weekly Digest — ${society.name}`,
+        title: `📋 Weekly Digest - ${society.name}`,
         body,
         type: "weekly_digest",
         reference_path: "/society/reports",

@@ -210,7 +210,7 @@ function looksLikePlaceholder(s: string | undefined): boolean {
 }
 
 async function loadCredentials(supabase: any): Promise<CachedCredentials> {
-  // ── FCM (Firebase) — optional ──
+  // ── FCM (Firebase) - optional ──
   let fcmConfigured = false;
   let serviceAccount: FirebaseServiceAccount | undefined;
   let fcmAccessToken: string | undefined;
@@ -221,7 +221,7 @@ async function loadCredentials(supabase: any): Promise<CachedCredentials> {
       fcmAccessToken = await generateFcmAccessToken(serviceAccount);
       fcmConfigured = true;
     } else {
-      console.warn("[PNQ] FIREBASE_SERVICE_ACCOUNT missing or placeholder — FCM disabled");
+      console.warn("[PNQ] FIREBASE_SERVICE_ACCOUNT missing or placeholder - FCM disabled");
     }
   } catch (e) {
     console.warn(`[PNQ] FCM init failed (continuing without FCM): ${e}`);
@@ -230,7 +230,7 @@ async function loadCredentials(supabase: any): Promise<CachedCredentials> {
     fcmConfigured = false;
   }
 
-  // ── APNs — optional; accept both APNS_AUTH_KEY and APNS_KEY_P8 ──
+  // ── APNs - optional; accept both APNS_AUTH_KEY and APNS_KEY_P8 ──
   const [apnsP8KeyA, apnsP8KeyB, apnsKeyId, apnsTeamId, apnsBundleId] = await Promise.all([
     getCredential(supabase, "apns_auth_key", "APNS_AUTH_KEY"),
     getCredential(supabase, "apns_key_p8", "APNS_KEY_P8"),
@@ -469,7 +469,7 @@ Deno.serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Recover stuck notifications — reset items stuck in 'processing' for > 3 min
+    // Recover stuck notifications - reset items stuck in 'processing' for > 3 min
     try {
       const { data: unstuck } = await supabase
         .from("notification_queue")
@@ -484,7 +484,7 @@ Deno.serve(async (req) => {
       console.warn(`[PNQ] Stuck recovery exception: ${e}`);
     }
 
-    // ── ORPHAN RECOVERY: auto-deliver failed items 1–24 hours old as silent in-app ──
+    // ── ORPHAN RECOVERY: auto-deliver failed items 1-24 hours old as silent in-app ──
     // Upper bound of 24 h prevents re-delivering events from days/weeks ago as fresh
     // notifications. Rows older than 24 h are simply discarded (marked processed + read).
     try {
@@ -495,12 +495,12 @@ Deno.serve(async (req) => {
         .select("id, user_id, title, body, type, reference_path, payload, created_at")
         .eq("status", "failed")
         .lt("processed_at", oneHourAgo)
-        .gt("created_at", twentyFourHoursAgo)  // hard upper bound — never redeliver stale events
+        .gt("created_at", twentyFourHoursAgo)  // hard upper bound - never redeliver stale events
         .limit(25);
 
       // Rows older than 24 h: push is permanently suppressed, but we must still
       // write them as is_read=true in-app records so the event survives in order history.
-      // "Discard" means no push and no unread badge — NOT erasing the underlying event.
+      // "Discard" means no push and no unread badge - NOT erasing the underlying event.
       try {
         const { data: expiredOrphans } = await supabase
           .from("notification_queue")
@@ -544,7 +544,7 @@ Deno.serve(async (req) => {
             recoveredCount++;
             continue;
           }
-          // Orphan deliveries are always marked is_read=true — they are historical catch-ups,
+          // Orphan deliveries are always marked is_read=true - they are historical catch-ups,
           // not fresh events, and must not inflate the unread badge or ring the bell.
           const ageMs = Date.now() - new Date(orphan.created_at).getTime();
           const isOldOrphan = ageMs > 4 * 60 * 60 * 1000; // older than 4 hours
@@ -598,12 +598,12 @@ Deno.serve(async (req) => {
       pushAvailable = creds.fcmConfigured || creds.apnsConfigured;
       console.log(`[PNQ] Credentials loaded: FCM ${creds.fcmConfigured ? "✅" : "❌"}, APNs ${creds.apnsConfigured ? "✅" : "❌"}`);
       if (!pushAvailable) {
-        console.warn(`[PNQ] Neither FCM nor APNs configured — delivering ${pending.length} items as in-app only`);
+        console.warn(`[PNQ] Neither FCM nor APNs configured - delivering ${pending.length} items as in-app only`);
       }
     } catch (credErr) {
       console.error(`[PNQ] Unexpected credential load failure: ${credErr}`);
       pushAvailable = false;
-      console.log(`[PNQ] Push unavailable — delivering ${pending.length} items as in-app only`);
+      console.log(`[PNQ] Push unavailable - delivering ${pending.length} items as in-app only`);
     }
 
     // Batch-fetch notification preferences + profile phones for WhatsApp channel
@@ -683,7 +683,7 @@ Deno.serve(async (req) => {
             reference_path: item.reference_path, action_url: item.reference_path,
             queue_item_id: item.id,
             payload: item.payload || null, data: item.payload || null,
-            is_read: true,  // historical — push never sent, no alert, no badge increment
+            is_read: true,  // historical - push never sent, no alert, no badge increment
           });
           await supabase.from("notification_queue")
             .update({ status: "processed", processed_at: new Date().toISOString(), push_skip_reason: "expired" })
@@ -709,7 +709,7 @@ Deno.serve(async (req) => {
           }
         }
         if (!prefAllowed) {
-          console.log(`[Queue][${item.id}] Skipped push — user opted out of '${notifType}'`);
+          console.log(`[Queue][${item.id}] Skipped push - user opted out of '${notifType}'`);
           await supabase.from("user_notifications").insert({
             user_id: item.user_id, title: displayCopy.title, body: displayCopy.body,
             type: item.type,
@@ -729,7 +729,7 @@ Deno.serve(async (req) => {
 
         const silentPush = item.payload?.silent_push === true;
 
-        // Dedup check — skip if a *different* queue item already wrote the same
+        // Dedup check - skip if a *different* queue item already wrote the same
         // (user_id, type, reference_path) within 60s. Dual-write inserts the
         // inbox row for THIS queue item before PNQ runs; that must not suppress push.
         if (item.reference_path) {
@@ -756,7 +756,7 @@ Deno.serve(async (req) => {
 
         // Guards: staleness + terminal-state + state-mismatch
         // Refund / dispute notifications use type=order historically with payload.status
-        // = refund_requested. That is NOT an order.status — treating it as a mismatch
+        // = refund_requested. That is NOT an order.status - treating it as a mismatch
         // skipped push and marked the inbox row read. Exclude those explicitly.
         const isOrderNotif = ['order_status', 'order', 'order_update'].includes(item.type);
         const payloadOrderId = item.payload?.orderId || item.payload?.order_id;
@@ -770,7 +770,7 @@ Deno.serve(async (req) => {
           String(item.title || '').toLowerCase().includes('refund');
         if (isOrderNotif && payloadOrderId && !isRefundLifecycleNotif) {
           const ageMs = Date.now() - new Date(item.created_at).getTime();
-          // Anything older than 4 hours is treated as stale regardless of terminal state —
+          // Anything older than 4 hours is treated as stale regardless of terminal state -
           // it must not ring the bell or fire a push as if the event just happened.
           const isStale = ageMs > 4 * 60 * 60 * 1000;
           const { data: orderCheck } = await supabase
@@ -801,7 +801,7 @@ Deno.serve(async (req) => {
           }
         }
 
-        // Insert in-app notification (with dedup via queue_item_id) — write both column pairs
+        // Insert in-app notification (with dedup via queue_item_id) - write both column pairs
         const { error: insertError } = await supabase.from("user_notifications").insert({
           user_id: item.user_id, title: displayCopy.title, body: displayCopy.body,
           type: item.type,
@@ -846,7 +846,7 @@ Deno.serve(async (req) => {
 
         // Silent push: skip device delivery
         if (silentPush) {
-          console.log(`[Queue][${item.id}] Silent push — skipping device delivery`);
+          console.log(`[Queue][${item.id}] Silent push - skipping device delivery`);
           await supabase.from("notification_queue")
             .update({
               status: "processed", processed_at: new Date().toISOString(),
@@ -862,7 +862,7 @@ Deno.serve(async (req) => {
             .update({
               status: "processed", processed_at: new Date().toISOString(),
               push_attempted: false, push_skip_reason: "no_credentials",
-              last_error: "Push skipped — no push provider configured",
+              last_error: "Push skipped - no push provider configured",
             }).eq("id", item.id);
           pnqLog("push_skip", { notification_id: item.id, reason: "no_credentials" });
           processed++;
@@ -920,7 +920,7 @@ Deno.serve(async (req) => {
           continue;
         }
 
-        // Per-user push rate limit (high-priority still counts but is allowed through if over — soft)
+        // Per-user push rate limit (high-priority still counts but is allowed through if over - soft)
         const rateKey = `notif_push:${item.user_id}`;
         const rate = await checkRateLimit(rateKey, maxPerHour, 3600);
         if (!rate.allowed && !isHighPriority) {
@@ -968,7 +968,7 @@ Deno.serve(async (req) => {
         pushData.high_priority = isHighPriority ? 'true' : 'false';
         if (targetRole) pushData.target_role = targetRole;
         if (notifStatus) pushData.status = notifStatus;
-        // Client sync metadata — required for order-terminal-push / overlay dismiss
+        // Client sync metadata - required for order-terminal-push / overlay dismiss
         if (resolvedOrderId) {
           const oid = String(resolvedOrderId);
           pushData.order_id = oid;
@@ -999,7 +999,7 @@ Deno.serve(async (req) => {
         );
 
         if (successCount > 0 || failCount === 0) {
-          // At least one token succeeded OR no tokens exist — mark processed
+          // At least one token succeeded OR no tokens exist - mark processed
           const skipReason = (successCount === 0 && failCount === 0) ? "no_tokens" : null;
           if (skipReason) pnqLog("push_skip", { notification_id: item.id, reason: skipReason });
           await supabase.from("notification_queue")
@@ -1028,7 +1028,7 @@ Deno.serve(async (req) => {
           }
           processed++;
         } else {
-          // All tokens failed — re-queue with 15s delay
+          // All tokens failed - re-queue with 15s delay
           const retryCount = (item.retry_count || 0) + 1;
           if (retryCount >= MAX_TOTAL_ATTEMPTS) {
             const lastError = "All push delivery attempts exhausted";

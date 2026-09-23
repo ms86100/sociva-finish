@@ -42,7 +42,7 @@ BEGIN
   LIMIT 1;
   IF FOUND THEN RETURN; END IF;
 
-  -- 4. Fuzzy trigram match — return top 3
+  -- 4. Fuzzy trigram match - return top 3
   RETURN QUERY
   SELECT s.id, s.name, 'fuzzy'::text,
     round(similarity(s.normalized_name, _normalized)::numeric, 2) as conf

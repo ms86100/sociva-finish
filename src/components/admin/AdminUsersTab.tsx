@@ -171,7 +171,7 @@ export function AdminUsersTab({
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <p className="font-bold text-sm truncate">{user.name || 'Unnamed'}</p>
                         <Badge variant="secondary" className="text-[9px] capitalize rounded-md shrink-0">
-                          {user.verification_status || '—'}
+                          {user.verification_status || '-'}
                         </Badge>
                       </div>
                       <p className="text-xs text-muted-foreground">{user.phone}</p>

@@ -1,5 +1,5 @@
 -- ============================================================
--- Audit Phase 1 — money / order integrity
+-- Audit Phase 1 - money / order integrity
 -- 10) Settlement clawback on complete_refund
 -- 12) seller_advance_order SELECT FOR UPDATE + rowcount raise + return status
 -- 13) Restore allowed_actor / acting_as in validate_order_status_transition
@@ -391,7 +391,7 @@ BEGIN
   RETURNING id, status INTO v_updated_id, v_final_status;
 
   IF v_updated_id IS NULL THEN
-    RAISE EXCEPTION 'Order status changed concurrently — refresh and retry'
+    RAISE EXCEPTION 'Order status changed concurrently - refresh and retry'
       USING ERRCODE = '40001';
   END IF;
 
@@ -600,7 +600,7 @@ BEGIN
       VALUES (
         _seller_user_id,
         'Order Auto-Accepted',
-        COALESCE(_buyer_name, 'Customer') || ' placed an order worth Rs ' || COALESCE(NEW.total_amount, 0) || '. Auto-accepted — start preparing!',
+        COALESCE(_buyer_name, 'Customer') || ' placed an order worth Rs ' || COALESCE(NEW.total_amount, 0) || '. Auto-accepted - start preparing!',
         'order',
         '/seller/orders/' || NEW.id,
         jsonb_build_object(

@@ -36,7 +36,7 @@ WHERE sp.user_id = p.id
   AND sp.society_id IS NULL
   AND p.society_id IS NOT NULL;
 
--- Step 3: cannot approve live without society — pause stragglers
+-- Step 3: cannot approve live without society - pause stragglers
 UPDATE public.seller_profiles
 SET
   verification_status = 'pending',

@@ -22,7 +22,7 @@ interface DeliveryStatusCardProps {
   orderId: string;
   isBuyerView: boolean;
   showOtp?: boolean;
-  /** Workflow flow steps — when provided, progress bar is derived dynamically */
+  /** Workflow flow steps - when provided, progress bar is derived dynamically */
   flow?: StatusFlowStep[];
 }
 
@@ -220,7 +220,7 @@ export function DeliveryStatusCard({ orderId, isBuyerView, showOtp, flow }: Deli
 
       {isBuyerView && (() => {
         // Strictly workflow-driven: only show OTP hint when the workflow says the next step requires OTP.
-        // No hardcoded status fallbacks — OTP behavior is owned by the Workflow editor.
+        // No hardcoded status fallbacks - OTP behavior is owned by the Workflow editor.
         if (!flow || flow.length === 0) return false;
         const currentIdx = flow.findIndex(s => s.status_key === assignment.status);
         const nextStep = currentIdx >= 0 && currentIdx < flow.length - 1 ? flow[currentIdx + 1] : null;

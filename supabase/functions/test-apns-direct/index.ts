@@ -8,7 +8,7 @@ const corsHeaders = {
 };
 
 /**
- * Direct APNs test — bypasses Firebase entirely.
+ * Direct APNs test - bypasses Firebase entirely.
  * Sends a push directly to api.push.apple.com using the .p8 key.
  */
 
@@ -58,7 +58,7 @@ async function createApnsJwt(
     new TextEncoder().encode(signingInput)
   );
 
-  // WebCrypto returns IEEE P1363 format (64 bytes for P-256) — APNs expects this
+  // WebCrypto returns IEEE P1363 format (64 bytes for P-256) - APNs expects this
   return `${signingInput}.${b64url(new Uint8Array(signature))}`;
 }
 
@@ -139,22 +139,22 @@ serve(async (req) => {
     const apnsId = apnsResponse.headers.get("apns-id");
     const apnsUniqueId = apnsResponse.headers.get("apns-unique-id");
 
-    console.log(`[APNs] Response: ${statusCode} — ${responseBody}`);
+    console.log(`[APNs] Response: ${statusCode} - ${responseBody}`);
 
     // Interpretation
     let interpretation = "";
     switch (statusCode) {
       case 200:
-        interpretation = "✅ SUCCESS — APNs accepted the notification. Your .p8 key and APNs environment are correct. If you still don't receive it, the issue is on the device side (e.g., Do Not Disturb, notification settings).";
+        interpretation = "✅ SUCCESS - APNs accepted the notification. Your .p8 key and APNs environment are correct. If you still don't receive it, the issue is on the device side (e.g., Do Not Disturb, notification settings).";
         break;
       case 400:
-        interpretation = "❌ BAD REQUEST — Likely BadDeviceToken. This means your app binary is signed for the WRONG APNs environment. If using TestFlight/App Store, try without use_sandbox. If local Xcode build, try with use_sandbox=true.";
+        interpretation = "❌ BAD REQUEST - Likely BadDeviceToken. This means your app binary is signed for the WRONG APNs environment. If using TestFlight/App Store, try without use_sandbox. If local Xcode build, try with use_sandbox=true.";
         break;
       case 403:
-        interpretation = "❌ FORBIDDEN — InvalidProviderToken. Your .p8 key, Key ID, or Team ID is incorrect or the key has been revoked.";
+        interpretation = "❌ FORBIDDEN - InvalidProviderToken. Your .p8 key, Key ID, or Team ID is incorrect or the key has been revoked.";
         break;
       case 410:
-        interpretation = "❌ GONE — The device token is no longer active. The app was uninstalled or the token expired. Delete app, reinstall, and get a fresh token.";
+        interpretation = "❌ GONE - The device token is no longer active. The app was uninstalled or the token expired. Delete app, reinstall, and get a fresh token.";
         break;
       default:
         interpretation = `⚠️ Unexpected status ${statusCode}. Check APNs documentation.`;

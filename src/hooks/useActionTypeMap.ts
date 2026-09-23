@@ -18,7 +18,7 @@ const CHECKOUT_MODE_DESCRIPTIONS: Record<string, string> = {
   cart: 'Buyers purchase directly with quantity',
   booking: 'Buyers select date & time slots',
   inquiry: 'Buyers send a request, you respond with details',
-  contact: 'Buyers contact you directly — no transaction',
+  contact: 'Buyers contact you directly - no transaction',
 };
 
 export function useActionTypeMap() {
@@ -49,7 +49,7 @@ export function useCategoryAllowedActions(categoryConfigId: string | null) {
       if (error) throw error;
       const list = (data || []).map((d: any) => d.action_type as string);
       if (list.length === 0) {
-        console.warn(`[useActionTypeMap] No allowed action types found for category_config_id: ${categoryConfigId} — falling back to all`);
+        console.warn(`[useActionTypeMap] No allowed action types found for category_config_id: ${categoryConfigId} - falling back to all`);
       }
       return list;
     },

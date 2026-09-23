@@ -30,7 +30,7 @@ export interface StatusTransition {
   is_side_action: boolean;
 }
 
-/** Shared fetch function — also used for prefetching from useCartPage */
+/** Shared fetch function - also used for prefetching from useCartPage */
 export async function fetchStatusFlow(parentGroup: string, transactionType: string): Promise<StatusFlowStep[]> {
   const { data: initialData, error } = await supabase
     .from('category_status_flows')
@@ -62,7 +62,7 @@ export async function fetchStatusFlow(parentGroup: string, transactionType: stri
   return (data as StatusFlowStep[]) || [];
 }
 
-/** Shared fetch function for transitions — also used for prefetching */
+/** Shared fetch function for transitions - also used for prefetching */
 export async function fetchStatusTransitions(parentGroup: string, transactionType: string): Promise<StatusTransition[]> {
   let { data } = await supabase
     .from('category_status_transitions')

@@ -369,7 +369,7 @@ export default function AdminFinancialControlsPage() {
           newValue: dialog.newValue,
           reason,
         });
-        toast.success('Change requested — a different admin must approve');
+        toast.success('Change requested - a different admin must approve');
       } else if (dialog.requestId) {
         await mutations.rejectChange.mutateAsync({ requestId: dialog.requestId, reason });
         toast.success('Request rejected');
@@ -424,7 +424,7 @@ export default function AdminFinancialControlsPage() {
           <div className="flex-1 min-w-0">
             <h1 className="text-xl font-bold">Financial controls</h1>
             <p className="text-xs text-muted-foreground">
-              Maker-checker workflow — changes need a second admin to approve
+              Maker-checker workflow - changes need a second admin to approve
             </p>
           </div>
           <Button
@@ -461,7 +461,7 @@ export default function AdminFinancialControlsPage() {
 
         {adminCount < 2 && (
           <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive">
-            Only {adminCount} platform admin account is configured. Maker-checker requires at least two admins —
+            Only {adminCount} platform admin account is configured. Maker-checker requires at least two admins -
             add another admin before requesting financial changes.
           </div>
         )}
@@ -515,7 +515,7 @@ export default function AdminFinancialControlsPage() {
                     >
                       <p className="font-medium">{label}</p>
                       <p className="text-muted-foreground">
-                        {on ? 'Ready' : off ? 'Not ready' : '—'}
+                        {on ? 'Ready' : off ? 'Not ready' : '-'}
                       </p>
                     </div>
                   );

@@ -182,7 +182,7 @@ export function useCategoryManagerData() {
       if (error) throw error;
       setCategories([...categories, data]);
       queryClient.invalidateQueries({ queryKey: ['category-configs'] });
-      adminNotify.success('Category added — attach attribute blocks in the Attributes tab if needed');
+      adminNotify.success('Category added - attach attribute blocks in the Attributes tab if needed');
       setIsAddDialogOpen(false);
     } catch (error: any) { adminNotify.error(friendlyError(error)); }
     finally { setIsSaving(false); }
@@ -249,7 +249,7 @@ export function useCategoryManagerData() {
         const slug = groupForm.name.toLowerCase().trim().replace(/[^a-z0-9\s]/g, '').replace(/\s+/g, '_');
         const maxOrder = groups.length > 0 ? Math.max(...groups.map(g => g.sort_order)) : 0;
         await supabase.from('parent_groups').insert({ slug, name: groupForm.name.trim(), icon: groupForm.icon.trim(), color: groupForm.color, description: groupForm.description.trim(), sort_order: maxOrder + 1 });
-        adminNotify.success('Section created — use Add Category on this card');
+        adminNotify.success('Section created - use Add Category on this card');
         await refreshGroups();
         // Focus the new section so it isn't buried at the bottom of a long list
         setSelectedGroupSlug(slug);

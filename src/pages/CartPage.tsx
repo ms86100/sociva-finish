@@ -151,7 +151,7 @@ export default function CartPage() {
         </div>
         </SafeHeader>
 
-        {/* Delivery Time — prep + real travel when coords known */}
+        {/* Delivery Time - prep + real travel when coords known */}
         {(c.checkoutEta?.etaMinutes != null || c.maxPrepTime > 0) && (
           <div className="mx-4 mt-3 flex items-center gap-3 bg-primary/5 border border-primary/15 rounded-xl p-3">
             <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0"><Clock size={18} className="text-primary" /></div>
@@ -173,7 +173,7 @@ export default function CartPage() {
                     <p className="text-sm font-semibold">Ready in ~{c.maxPrepTime} minutes</p>
                     <p className="text-xs text-muted-foreground">
                       Prep estimate · distance unavailable
-                      {c.checkoutEta?.distanceKnown === false ? ' · typically 10–20 min travel' : ''}
+                      {c.checkoutEta?.distanceKnown === false ? ' · typically 10-20 min travel' : ''}
                     </p>
                   </>
                 ) : null
@@ -207,7 +207,7 @@ export default function CartPage() {
           );
         })}
 
-        {/* Multi-seller cart — Phase 0/1 copy + per-store checkout */}
+        {/* Multi-seller cart - Phase 0/1 copy + per-store checkout */}
         {c.sellerGroups.length > 1 && (
           <div className="mx-4 mt-3 flex items-start gap-3 bg-muted border border-border rounded-xl p-3">
             <AlertCircle size={16} className="text-muted-foreground shrink-0 mt-0.5" />
@@ -218,7 +218,7 @@ export default function CartPage() {
               </p>
               {c.blocksOnlineMultiSeller && (
                 <p className="text-xs text-destructive font-medium mt-2">
-                  Online / UPI checkout needs one store at a time — use the button on each store card below.
+                  Online / UPI checkout needs one store at a time - use the button on each store card below.
                 </p>
               )}
               {c.multiStoreRequiresSplit && (
@@ -267,7 +267,7 @@ export default function CartPage() {
               <AnimatePresence initial={false}>
                 {group.items.map((item) => {
                   const insights = getCartSellerInsights(item.product);
-                  // Store header already shows society + distance — item line adds prep / extras only
+                  // Store header already shows society + distance - item line adds prep / extras only
                   const itemMetaBits = [
                     group.items.length > 1 ? insights.locationLabel : null,
                     group.items.length > 1 ? insights.distanceLabel : null,
@@ -403,7 +403,7 @@ export default function CartPage() {
           )}
         </div>
 
-        {/* ONE destination block — pickup summary OR delivery address (complete / incomplete) */}
+        {/* ONE destination block - pickup summary OR delivery address (complete / incomplete) */}
         <div className="mt-4 mx-4">
           {c.fulfillmentType === 'self_pickup' ? (
             <div className="bg-card border border-border rounded-xl p-4 flex items-start gap-3">
@@ -449,7 +449,7 @@ export default function CartPage() {
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-semibold text-foreground">Where should we deliver?</p>
                   <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-                    You’re near {browsingLocation?.label || 'this area'}. Add your flat or house number once — neighbours get food to the right door.
+                    You’re near {browsingLocation?.label || 'this area'}. Add your flat or house number once - neighbours get food to the right door.
                   </p>
                   {(browsingLocation?.fullAddress || browsingLocation?.label) && (
                     <p className="text-[11px] text-muted-foreground mt-2 line-clamp-2">
@@ -461,7 +461,7 @@ export default function CartPage() {
               <Button className="w-full rounded-xl font-semibold h-11" onClick={goCompleteAddress}>
                 {c.user
                   ? (c.needsDeliveryUnit ? 'Add flat / house number' : 'Add door details')
-                  : 'Continue — add door details'}
+                  : 'Continue - add door details'}
                 <ChevronRight size={16} className="ml-1" />
               </Button>
             </div>
@@ -549,7 +549,7 @@ export default function CartPage() {
           </div>
         )}
 
-        {/* Sociva Balance — online checkout only */}
+        {/* Sociva Balance - online checkout only */}
         {c.wallet.balance > 0 && c.wallet.status === 'active' && c.wallet.spendEnabled && c.paymentMethod !== 'cod' && !c.paymentMode.isOff && (
           <div className="mt-5 px-4">
             <div className="flex items-center justify-between bg-emerald-500/5 border border-emerald-500/15 rounded-xl p-3">
@@ -598,7 +598,7 @@ export default function CartPage() {
         </p>
       </div>
 
-      {/* Sticky Footer — single next action */}
+      {/* Sticky Footer - single next action */}
       <div className="fixed bottom-0 left-0 right-0 z-40 bg-background border-t border-border pb-[var(--app-safe-bottom,0px)]">
         {c.user && c.noPaymentMethodAvailable && (
           <div className="mx-4 mt-2 bg-destructive/10 border border-destructive/20 rounded-lg px-3 py-2">
@@ -643,7 +643,7 @@ export default function CartPage() {
                   if (c.blocksOnlineMultiSeller || c.multiStoreRequiresSplit) {
                     toast.error(
                       c.multiStoreRequiresSplit
-                        ? 'Checkout one store at a time — tap “Checkout this store” on a seller card.'
+                        ? 'Checkout one store at a time - tap “Checkout this store” on a seller card.'
                         : c.paymentMode?.isRazorpay
                           ? 'Pay online for one store at a time. Tap “Checkout this store”, or switch to Cash on Delivery.'
                           : 'UPI pays one seller only. Tap “Checkout this store”, or switch to Cash on Delivery.',
@@ -720,7 +720,7 @@ export default function CartPage() {
                 {c.sellerGroups.length > 1 && (
                   <p className="text-xs text-muted-foreground">
                     {c.paymentMethod === 'cod'
-                      ? `${c.sellerGroups.length} separate orders will be created — pay each store when you receive.`
+                      ? `${c.sellerGroups.length} separate orders will be created - pay each store when you receive.`
                       : (c.multiOrderConfirmHint || `${c.sellerGroups.length} separate orders will be created.`)}
                   </p>
                 )}
@@ -737,7 +737,7 @@ export default function CartPage() {
               onClick={() => {
                 if (c.blocksOnlineMultiSeller || c.multiStoreRequiresSplit) {
                   toast.error(
-                    'Checkout one store at a time — tap “Checkout this store” on a seller card.',
+                    'Checkout one store at a time - tap “Checkout this store” on a seller card.',
                     { id: 'online-multi-seller-blocked', duration: 7000 },
                   );
                   c.setShowConfirmDialog(false);
@@ -848,7 +848,7 @@ export default function CartPage() {
               onClick={() => {
                 if (c.blocksOnlineMultiSeller || c.multiStoreRequiresSplit) {
                   toast.error(
-                    'Checkout one store at a time — tap “Checkout this store” on a seller card.',
+                    'Checkout one store at a time - tap “Checkout this store” on a seller card.',
                     { id: 'online-multi-seller-blocked', duration: 7000 },
                   );
                   setShowReviewSheet(false);
@@ -912,7 +912,7 @@ export default function CartPage() {
         <RazorpayCheckout isOpen={c.showRazorpayCheckout} onClose={() => {}} orderId={c.pendingOrderIds[0]} orderIds={c.pendingOrderIds} amount={c.finalAmount || c.sessionAmount} sellerId={c.sellerGroups[0]?.sellerId || ''} sellerName={c.sellerGroups[0]?.sellerName || c.sessionSellerName} customerName={c.profile?.name || ''} customerEmail={c.user?.email || ''} customerPhone={c.profile?.phone || ''} onPaymentSuccess={c.handleRazorpaySuccess} onPaymentFailed={c.handleRazorpayFailed} onDismiss={c.handleRazorpayDismiss} />
       )}
 
-      {/* UPI deep-link is single-VPA only — never open for multi-order pending sessions */}
+      {/* UPI deep-link is single-VPA only - never open for multi-order pending sessions */}
       {c.pendingOrderIds.length === 1 && c.paymentMode.isUpiDeepLink && (
         <UpiDeepLinkCheckout
           isOpen={c.showUpiDeepLink}

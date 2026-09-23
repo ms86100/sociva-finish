@@ -46,7 +46,7 @@ function storeNameOf(profile: JourneySellerProfile): string {
 
 /**
  * QA / multi-store cleanup often renames dead stores with [ARCHIVED] / [HOLD].
- * Those must never drive the home "Update application" / recharge journey —
+ * Those must never drive the home "Update application" / recharge journey -
  * otherwise a live store is ignored while a shelved reject loops forever.
  */
 export function isShelvedSellerStore(
@@ -56,7 +56,7 @@ export function isShelvedSellerStore(
   return /^\[(ARCHIVED|HOLD)\]/i.test(name);
 }
 
-/** Active stores only — excludes shelved [ARCHIVED]/ [HOLD] names. */
+/** Active stores only - excludes shelved [ARCHIVED]/ [HOLD] names. */
 export function actionableSellerProfiles(
   profiles: JourneySellerProfile[] | null | undefined,
 ): JourneySellerProfile[] {
@@ -65,7 +65,7 @@ export function actionableSellerProfiles(
 
 /**
  * Pending/rejected store that should block default `#/become-seller` with a status screen.
- * Shelved [ARCHIVED]/[HOLD] rows must never win — otherwise multi-store sellers land on
+ * Shelved [ARCHIVED]/[HOLD] rows must never win - otherwise multi-store sellers land on
  * “Application Not Approved” for cleanup leftovers (Wave 9 residual).
  */
 export function pickBecomeSellerBlockingStore(
@@ -168,7 +168,7 @@ export function resolveSellerJourney(
       storeName: store.storeName,
       rejectionNote: null,
       title: "We're reviewing your store",
-      body: `${store.storeName} is with our team. You'll get a notification when review finishes — usually within a day. Open the Seller Dashboard anytime to finish location, payments, and photos.`,
+      body: `${store.storeName} is with our team. You'll get a notification when review finishes - usually within a day. Open the Seller Dashboard anytime to finish location, payments, and photos.`,
       cta: 'Finish store details',
       href: '/seller',
     };
@@ -209,7 +209,7 @@ export function resolveSellerJourney(
   return EMPTY_JOURNEY;
 }
 
-/** Inbox types already covered by SellerJourneyBanner — hide to avoid duplicate / stale home cards. */
+/** Inbox types already covered by SellerJourneyBanner - hide to avoid duplicate / stale home cards. */
 export function isSellerJourneyDuplicateNotification(
   journeyKind: SellerJourneyKind,
   notificationType: string | null | undefined,

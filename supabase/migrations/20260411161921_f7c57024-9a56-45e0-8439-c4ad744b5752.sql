@@ -61,7 +61,7 @@ BEGIN
       INSERT INTO notifications (user_id, title, body, type, action, related_id)
       VALUES (
         p_new.buyer_id,
-        COALESCE(v_flow_step.notification_title, v_flow_step.display_name || ' — Order #' || v_short_id),
+        COALESCE(v_flow_step.notification_title, v_flow_step.display_name || ' - Order #' || v_short_id),
         COALESCE(
           REPLACE(COALESCE(v_flow_step.notification_body, ''), '{seller_name}', COALESCE(v_seller_name, 'Seller')),
           'Your order status has been updated'
@@ -77,7 +77,7 @@ BEGIN
       INSERT INTO notifications (user_id, title, body, type, action, related_id)
       VALUES (
         v_seller_user_id,
-        COALESCE(v_flow_step.seller_notification_title, v_flow_step.display_name || ' — Order #' || v_short_id),
+        COALESCE(v_flow_step.seller_notification_title, v_flow_step.display_name || ' - Order #' || v_short_id),
         COALESCE(
           REPLACE(COALESCE(v_flow_step.seller_notification_body, ''), '{buyer_name}', COALESCE(v_buyer_name, 'Customer')),
           'Order status updated'

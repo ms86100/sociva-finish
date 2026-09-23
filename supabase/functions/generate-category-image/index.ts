@@ -130,7 +130,7 @@ serve(async (req) => {
 
     // Update the appropriate table
     if (isSubcategory) {
-      // For subcategories, categoryKey is like "sub_<id>" — extract id
+      // For subcategories, categoryKey is like "sub_<id>" - extract id
       const subId = categoryKey.replace('sub_', '');
       const { error: updateError } = await supabase
         .from(targetTable)

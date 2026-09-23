@@ -52,7 +52,7 @@ function OtpStep({ auth }: { auth: ReturnType<typeof useAuthPage> }) {
   const verifyDisabled =
     auth.otp.length < 4 || !auth.otpReqId || auth.isVerifyingOtp;
 
-  // Plain div — parent step switch no longer uses AnimatePresence (BUG-22).
+  // Plain div - parent step switch no longer uses AnimatePresence (BUG-22).
   return (
     <div className="space-y-5 pb-48">
       <div className="text-center space-y-1">
@@ -157,7 +157,7 @@ export default function AuthPage() {
             <StepHeader step={auth.step} societySubStep={auth.societySubStep} checkoutResume={auth.isCheckoutResume} />
           </div>
 
-          {/* Form Content — no outer AnimatePresence: exit stalls caused BUG-22 (OTP header + phone form). */}
+          {/* Form Content - no outer AnimatePresence: exit stalls caused BUG-22 (OTP header + phone form). */}
           <div className="px-6 pb-6 overflow-visible" key={auth.step}>
               {auth.step === 'phone' ? (
                 <div className="space-y-4">
@@ -327,7 +327,7 @@ export default function AuthPage() {
                                    <div className="w-9 h-9 rounded-lg bg-muted flex items-center justify-center shrink-0">
                                      <Plus size={16} className="text-muted-foreground" />
                                    </div>
-                                   <span className="text-sm text-muted-foreground">None of these — create new</span>
+                                   <span className="text-sm text-muted-foreground">None of these - create new</span>
                                  </div>
                                </button>
                              </div>

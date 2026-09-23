@@ -61,7 +61,7 @@ export function resolveQueueDisplayCopy(item: {
       const amount = payload.refund_amount || payload.amount;
       const orderId = String(payload.orderId || payload.order_id || "").slice(0, 8).toUpperCase();
       if (role === "seller") {
-        body = `${buyerName} requested a refund${orderId ? ` on order #${orderId}` : ""}${itemSummary ? ` (${itemSummary})` : ""}${amount ? ` — ${amount}` : ""}. Review it in Disputes & Refunds.`;
+        body = `${buyerName} requested a refund${orderId ? ` on order #${orderId}` : ""}${itemSummary ? ` (${itemSummary})` : ""}${amount ? ` - ${amount}` : ""}. Review it in Disputes & Refunds.`;
       } else {
         body = `We received your refund request${orderId ? ` for order #${orderId}` : ""}. We'll notify you when the seller or admin responds.`;
       }

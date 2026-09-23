@@ -3,7 +3,7 @@
  * Idle-time route prefetcher. Warms up dynamic-import chunks for likely-next
  * routes after the current page has painted, so navigations feel instant.
  *
- * Bottom-nav pages (except Home) are lazy — prefetch them first after idle.
+ * Bottom-nav pages (except Home) are lazy - prefetch them first after idle.
  */
 
 const PREFETCH_KEYS = new Set<string>();
@@ -35,7 +35,7 @@ function prefetch(key: string, importer: Importer) {
  * Prefetch high-traffic routes after first paint (Home stays eager).
  */
 export function prefetchBuyerRoutes() {
-  // Bottom-nav tabs first — highest chance of next tap
+  // Bottom-nav tabs first - highest chance of next tap
   whenIdle(() => prefetch('search', () => import('@/pages/SearchPage')), 400);
   whenIdle(() => prefetch('orders', () => import('@/pages/OrdersPage')), 600);
   whenIdle(() => prefetch('cart', () => import('@/pages/CartPage')), 800);

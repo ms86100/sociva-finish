@@ -60,7 +60,7 @@ export function getFeedbackState() {
   return memoryState;
 }
 
-/** Safe from callbacks and mutations — do not turn this back into a React hook. */
+/** Safe from callbacks and mutations - do not turn this back into a React hook. */
 export function useFeedbackPopup() {
   return { showFeedback };
 }

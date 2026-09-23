@@ -18,7 +18,7 @@ const GUEST_BROWSE_PREFIXES = [
   '/festival-collection/',
 ] as const;
 
-/** Public seller storefront only — not /seller/products, /seller/settings, etc. */
+/** Public seller storefront only - not /seller/products, /seller/settings, etc. */
 const SELLER_APP_SEGMENTS = new Set([
   'products',
   'settings',

@@ -81,7 +81,7 @@ export function AddressForm({ initial, onSave, onCancel, saving }: AddressFormPr
 
   const update = (key: keyof AddressData, value: any) => setForm(f => ({ ...f, [key]: value }));
 
-  // New address seeded from browse GPS / discovery pin — confirm pin before flat entry
+  // New address seeded from browse GPS / discovery pin - confirm pin before flat entry
   useEffect(() => {
     if (promptedConfirmPinRef.current) return;
     if (initial?.id) return;

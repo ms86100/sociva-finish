@@ -1,5 +1,5 @@
 /**
- * Store share OG landing — same pattern as product share.
+ * Store share OG landing - same pattern as product share.
  * Humans redirect to /#/seller/:id
  */
 
@@ -70,7 +70,7 @@ export default async function handler(req: Request): Promise<Response> {
           title = row.business_name || title;
           description = row.description
             ? String(row.description).slice(0, 160)
-            : `Check out ${title} on Sociva — your neighbourhood marketplace.`;
+            : `Check out ${title} on Sociva - your neighbourhood marketplace.`;
           image = row.cover_image_url || image;
         }
       }

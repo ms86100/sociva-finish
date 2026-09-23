@@ -4,7 +4,7 @@ import { ArrivalSuggestionCard } from '@/components/home/ArrivalSuggestionCard';
 import { UpcomingAppointmentBanner } from '@/components/home/UpcomingAppointmentBanner';
 
 /**
- * Perf: Removed duplicate BuyAgainRow — it already renders inside MarketplaceSection.
+ * Perf: Removed duplicate BuyAgainRow - it already renders inside MarketplaceSection.
  * Each child returns null when empty, so we just render them.
  */
 export function ForYouSection() {

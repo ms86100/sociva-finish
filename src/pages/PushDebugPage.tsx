@@ -42,7 +42,7 @@ export default function PushDebugPage() {
       await requestFullPermission();
       const { showFeedback } = useFeedbackPopup();
       showFeedback({
-        title: 'Permission requested — check status above',
+        title: 'Permission requested - check status above',
         variant: 'success'
       });
     } catch (e) {
@@ -118,7 +118,7 @@ export default function PushDebugPage() {
         body: {
           apns_token: apnsToken,
           title: 'Direct APNs Test',
-          body: 'Bypassing Firebase — testing APNs directly 🚀',
+          body: 'Bypassing Firebase - testing APNs directly 🚀',
           use_sandbox: useSandbox,
         },
       });
@@ -151,11 +151,11 @@ export default function PushDebugPage() {
         fcmToken = result.token;
       } else if (platform === 'android') {
         const { PushNotifications } = await import('@capacitor/push-notifications');
-        // On Android, register triggers the token event — but let's try to get existing
+        // On Android, register triggers the token event - but let's try to get existing
         await PushNotifications.register();
         const { showFeedback } = useFeedbackPopup();
         showFeedback({
-          title: 'Android register triggered — token will be saved by the hook',
+          title: 'Android register triggered - token will be saved by the hook',
           variant: 'info'
         });
         setSavingToken(false);
@@ -294,7 +294,7 @@ export default function PushDebugPage() {
         </CardHeader>
         <CardContent className="space-y-3">
           <p className="text-xs text-muted-foreground">
-            This sends a push notification directly to Apple's APNs servers using your .p8 key — Firebase is completely bypassed.
+            This sends a push notification directly to Apple's APNs servers using your .p8 key - Firebase is completely bypassed.
           </p>
 
           <Button onClick={handleExtractApnsToken} variant="outline" className="w-full">

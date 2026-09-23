@@ -8,11 +8,11 @@ import type { SupportTicket } from '@/hooks/useSupportTickets';
 import { Loader2, ShieldCheck, AlertTriangle } from 'lucide-react';
 
 interface SellerSupportTabProps {
-  /** seller's profiles.id (user_id) — used for support_tickets */
+  /** seller's profiles.id (user_id) - used for support_tickets */
   sellerUserId?: string;
-  /** seller_profiles.id — used for refund_requests joined through orders */
+  /** seller_profiles.id - used for refund_requests joined through orders */
   sellerProfileId?: string;
-  /** @deprecated legacy prop — kept for backward compatibility, treated as sellerProfileId */
+  /** @deprecated legacy prop - kept for backward compatibility, treated as sellerProfileId */
   sellerId?: string;
 }
 

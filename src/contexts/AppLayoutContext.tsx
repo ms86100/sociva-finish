@@ -32,7 +32,7 @@ export const DEFAULT_LAYOUT_OPTIONS: Required<Omit<AppLayoutOptions, 'headerTitl
 
 type SetLayoutOptions = (next: AppLayoutOptions) => void;
 
-/** Stable setter — identity never changes with options updates. */
+/** Stable setter - identity never changes with options updates. */
 const AppLayoutSetOptionsContext = createContext<SetLayoutOptions | null>(null);
 /** Whether chrome is owned by AppShell. */
 const AppLayoutPersistentContext = createContext(false);
@@ -54,7 +54,7 @@ function normalizeOptions(next: AppLayoutOptions): AppLayoutOptions {
   };
 }
 
-/** Pure equality — setOptions must bail when unchanged to avoid max-update-depth loops. */
+/** Pure equality - setOptions must bail when unchanged to avoid max-update-depth loops. */
 export function optionsEqual(a: AppLayoutOptions, b: AppLayoutOptions): boolean {
   return (
     a.showHeader === b.showHeader &&
@@ -91,7 +91,7 @@ export function AppLayoutShellProvider({ children }: { children: ReactNode }) {
   );
 }
 
-/** For AppLayout pages — stable setters, no options identity churn. */
+/** For AppLayout pages - stable setters, no options identity churn. */
 export function useAppLayoutShell() {
   const setOptions = useContext(AppLayoutSetOptionsContext);
   const isPersistent = useContext(AppLayoutPersistentContext);
@@ -99,7 +99,7 @@ export function useAppLayoutShell() {
   return { setOptions, isPersistent: true as const };
 }
 
-/** For AppShellChrome — subscribe to options only. */
+/** For AppShellChrome - subscribe to options only. */
 export function useAppLayoutOptions() {
   return useContext(AppLayoutOptionsContext);
 }

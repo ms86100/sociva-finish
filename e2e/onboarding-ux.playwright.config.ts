@@ -5,7 +5,7 @@ const BASE_URL = process.env.BASE_URL || 'http://127.0.0.1:5173';
 const EVIDENCE = path.join('..', 'test-results', 'seller-onboarding-ux');
 
 /**
- * Seller onboarding draft/resume UX — always capture screenshot/video/trace.
+ * Seller onboarding draft/resume UX - always capture screenshot/video/trace.
  */
 export default defineConfig({
   testDir: './tests/seller-onboarding-ux',

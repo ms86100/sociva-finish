@@ -62,7 +62,7 @@ export function buildSellerCreditsGoLiveChecks(input: {
       id: 'spend_off',
       label: 'Spend flag remains OFF until signed off',
       status: input.spendEnabled ? 'fail' : 'pass',
-      detail: input.spendEnabled ? 'Spend is ON — turn OFF for safe production.' : undefined,
+      detail: input.spendEnabled ? 'Spend is ON - turn OFF for safe production.' : undefined,
     },
     {
       id: 'resolution_ready',

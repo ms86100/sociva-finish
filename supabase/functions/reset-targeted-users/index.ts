@@ -21,7 +21,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Rate limit — 2 per hour
+    // Rate limit - 2 per hour
     const clientIp = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
     const { allowed } = await checkRateLimit(`reset-targeted:${clientIp}`, 2, 3600);
     if (!allowed) return rateLimitResponse(corsHeaders);

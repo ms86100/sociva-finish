@@ -30,7 +30,7 @@ export function StoreCompletionCard({ sellerId, ...input }: Props) {
   const helper =
     input.verificationStatus === 'pending'
       ? 'Finish these to strengthen your store while review is in progress.'
-      : 'Finish these before you submit for review — you can keep editing from the dashboard.';
+      : 'Finish these before you submit for review - you can keep editing from the dashboard.';
 
   return (
     <Card className="border-0 shadow-[var(--shadow-card)] rounded-2xl p-4 space-y-3">

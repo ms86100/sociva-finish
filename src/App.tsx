@@ -16,7 +16,7 @@ function LazyLoadFailed() {
   );
 }
 
-// Retry wrapper for lazy imports — handles stale chunks AND undefined exports (React #306)
+// Retry wrapper for lazy imports - handles stale chunks AND undefined exports (React #306)
 function lazyWithRetry<T extends ComponentType<any>>(
   factory: () => Promise<{ default: T }>,
   retries = 2,
@@ -100,7 +100,7 @@ import { AppSplashScreen } from "@/components/splash/AppSplashScreen";
 // Cold-start guard: module-level flag resets only on full page reload
 let splashShown = false;
 
-// PERF: Only Home is eager — Cart/Orders/etc pull Razorpay, calendars, wallets into
+// PERF: Only Home is eager - Cart/Orders/etc pull Razorpay, calendars, wallets into
 // the main chunk and delay first paint. Idle prefetch warms them after paint.
 import HomePage from "./pages/HomePage";
 const CartPage = lazyWithRetry(() => import("./pages/CartPage"));
@@ -273,7 +273,7 @@ const queryClient = new QueryClient({
         if (isAuthSessionError(error)) return false;
         return failureCount < 1;
       },
-      // Cap retry delay so a single network blip doesn't lock the UI for 20–30s.
+      // Cap retry delay so a single network blip doesn't lock the UI for 20-30s.
       retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 4000),
       // If we're retrying because Supabase is unreachable, don't pile up requests.
       networkMode: 'online',
@@ -305,7 +305,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const location = useLocation();
   const [bootGaveUp, setBootGaveUp] = useState(false);
 
-  // Only gate on session restore — profile fetch must not blank the shell again
+  // Only gate on session restore - profile fetch must not blank the shell again
   // after SplashGate (isLoading stays false after markBootComplete).
   useEffect(() => {
     if (isSessionRestored) return;
@@ -420,7 +420,7 @@ function NavigationHandler() {
   return null;
 }
 
-/** Chat bell/toast for any authenticated user (buyer or seller). Single mount — avoid pairing with seller-only alerts. */
+/** Chat bell/toast for any authenticated user (buyer or seller). Single mount - avoid pairing with seller-only alerts. */
 function GlobalChatAlerts() {
   const identity = React.useContext(IdentityCtx);
   const userId = identity?.user?.id ?? null;
@@ -530,7 +530,7 @@ function AppRoutes() {
     return () => clearTimeout(timer);
   }, [user, profile, deferredNavigate]);
 
-  // Session restore only for splash — do not wait on profile for the shell.
+  // Session restore only for splash - do not wait on profile for the shell.
   // Incomplete users (profile loaded, no society_id) complete delivery-address onboarding.
   // Require `profile` so a null hydration state does not bounce returning users to edit.
   const sessionPending = !isSessionRestored;
@@ -541,7 +541,7 @@ function AppRoutes() {
     <PageTransitionWrapper>
     <Suspense fallback={<PageLoadingFallback />}>
       <Routes>
-        {/* Native apps: never show marketing welcome/landing — fixed login only */}
+        {/* Native apps: never show marketing welcome/landing - fixed login only */}
         <Route
           path="/welcome"
           element={
@@ -597,7 +597,7 @@ function AppRoutes() {
         <Route path="/help" element={<HelpPage />} />
         <Route path="/community-rules" element={<CommunityRulesPage />} />
 
-        {/* Persistent chrome shell — Header/BottomNav stay mounted across these routes */}
+        {/* Persistent chrome shell - Header/BottomNav stay mounted across these routes */}
         <Route element={<AppShellGate />}>
           <Route path="/" element={<RouteErrorBoundary sectionName="Home"><HomePage /></RouteErrorBoundary>} />
           <Route path="/discover-location" element={<RouteErrorBoundary sectionName="Location"><LocationDiscoveryPage /></RouteErrorBoundary>} />
@@ -669,9 +669,9 @@ function AppRoutes() {
           <Route path="/seller/wallet" element={<SellerRoute><RouteErrorBoundary sectionName="Seller Wallet"><SellerWalletPage /></RouteErrorBoundary></SellerRoute>} />
           <Route path="/seller/credits" element={<SellerRoute><RouteErrorBoundary sectionName="Sociva Credits"><SellerCreditsPage /></RouteErrorBoundary></SellerRoute>} />
           <Route path="/seller/payouts" element={<SellerRoute><RouteErrorBoundary sectionName="Payouts"><SellerPayoutsPage /></RouteErrorBoundary></SellerRoute>} />
-          {/* Coupons live on dashboard Store tab — avoid /seller/:id swallowing /seller/coupons */}
+          {/* Coupons live on dashboard Store tab - avoid /seller/:id swallowing /seller/coupons */}
           <Route path="/seller/coupons" element={<Navigate to="/seller" replace />} />
-          {/* Public storefront — must stay after all static /seller/* routes */}
+          {/* Public storefront - must stay after all static /seller/* routes */}
           <Route path="/seller/:id" element={<RouteErrorBoundary sectionName="Seller Store"><SellerDetailPage /></RouteErrorBoundary>} />
           <Route path="/admin" element={<AdminRoute><RouteErrorBoundary sectionName="Admin"><AdminPage /></RouteErrorBoundary></AdminRoute>} />
           <Route path="/admin/financial-trace" element={<AdminRoute><RouteErrorBoundary sectionName="Financial Trace"><AdminFinancialTracePage /></RouteErrorBoundary></AdminRoute>} />

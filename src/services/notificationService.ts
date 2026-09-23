@@ -94,7 +94,7 @@ export const notificationService = {
         return {
           success: false,
           code: 'meta_error',
-          error: `Channel ${req.channel} is not wired yet — use whatsapp or push`,
+          error: `Channel ${req.channel} is not wired yet - use whatsapp or push`,
         };
       default:
         return { success: false, code: 'unexpected', error: 'Unknown channel' };

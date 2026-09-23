@@ -1,7 +1,7 @@
 /**
  * Last-resort society attach for seller submit when signup society was skipped.
  * Primary path: Auth "Find Your Society" → profiles.society_id → seller draft copies it.
- * Store map location ≠ society membership — approval requires society_id.
+ * Store map location ≠ society membership - approval requires society_id.
  */
 import { supabase } from '@/integrations/supabase/client';
 
@@ -174,7 +174,7 @@ export async function ensureSellerSocietyForSubmit(opts: {
       societyId: null,
       linked: false,
       error:
-        'Link your account to a society in Profile before submitting. Setting a map pin alone is not enough — Sociva needs a society membership for store approval.',
+        'Link your account to a society in Profile before submitting. Setting a map pin alone is not enough - Sociva needs a society membership for store approval.',
     };
   }
 

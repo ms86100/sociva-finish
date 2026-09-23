@@ -30,7 +30,7 @@ interface HeaderProps {
 
 /**
  * Blinkit-style header: location first, sticky search, minimal chrome.
- * Role shortcuts (admin/seller/builder) live in Profile — keeps marketplace focused.
+ * Role shortcuts (admin/seller/builder) live in Profile - keeps marketplace focused.
  */
 function HeaderInner({
   title,

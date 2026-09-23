@@ -134,7 +134,7 @@ export function MarketplaceSection() {
   useMarketplaceConfig();
   useBadgeConfig();
 
-  // Cap discovery payload — 80 products was overkill for first paint
+  // Cap discovery payload - 80 products was overkill for first paint
   const { data: localCategories = [], isLoading: loadingLocal } = useProductsByCategory(40);
   const { parentGroupInfos } = useParentGroups();
 
@@ -177,7 +177,7 @@ export function MarketplaceSection() {
     [isFestivalTab, localCategoriesWithFacets, activeGroup],
   );
 
-  // Social proof only after scroll / idle — never blocks first paint
+  // Social proof only after scroll / idle - never blocks first paint
   const [socialProofReady, setSocialProofReady] = useState(false);
   useEffect(() => {
     if (allProductIds.length === 0) return;
@@ -423,7 +423,7 @@ export function MarketplaceSection() {
         </div>
       ))}
 
-      {/* Above-fold products — shop-first density after categories */}
+      {/* Above-fold products - shop-first density after categories */}
       {!activeGroup && !loadingLocal && popularNearYou.length > 0 && (
         <>
           <SectionDivider />

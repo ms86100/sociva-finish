@@ -51,7 +51,7 @@ export function handleApiError(
  * useQuery({
  *   queryKey: ['sellers'],
  *   queryFn: fetchSellers,
- *   staleTime: jitteredStaleTime(60_000), // 48_000–72_000ms
+ *   staleTime: jitteredStaleTime(60_000), // 48_000-72_000ms
  * });
  */
 /**

@@ -170,7 +170,7 @@ export default function FestivalCollectionPage() {
               <ShoppingBag size={28} className="text-muted-foreground/40" />
             </div>
             <p className="text-sm font-semibold text-muted-foreground">No items available in your area</p>
-            <p className="text-xs text-muted-foreground/70 mt-1">Check back later — sellers are adding products.</p>
+            <p className="text-xs text-muted-foreground/70 mt-1">Check back later - sellers are adding products.</p>
           </motion.div>
         ) : (
           <>

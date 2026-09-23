@@ -9,7 +9,7 @@
 -- H4: reschedule_service_booking RPC
 
 -- ============================================================
--- C1: Chat notification trigger — single canonical type + deep link
+-- C1: Chat notification trigger - single canonical type + deep link
 -- ============================================================
 CREATE OR REPLACE FUNCTION public.fn_chat_message_notification()
 RETURNS trigger
@@ -188,7 +188,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_seller_conversations_buyer_seller_product
   ON public.seller_conversations (buyer_id, seller_id, product_id);
 
 -- ============================================================
--- C4: book_service_slot — bind buyer to auth.uid()
+-- C4: book_service_slot - bind buyer to auth.uid()
 -- ============================================================
 CREATE OR REPLACE FUNCTION public.book_service_slot(
   _order_id uuid,
@@ -291,7 +291,7 @@ END;
 $$;
 
 -- ============================================================
--- C4: release_service_slot — ownership / party check
+-- C4: release_service_slot - ownership / party check
 -- ============================================================
 CREATE OR REPLACE FUNCTION public.release_service_slot(_slot_id uuid)
 RETURNS void
@@ -383,7 +383,7 @@ END;
 $$;
 
 -- ============================================================
--- C6: can_cancel_booking — both fee keys + seller via profile
+-- C6: can_cancel_booking - both fee keys + seller via profile
 -- ============================================================
 CREATE OR REPLACE FUNCTION public.can_cancel_booking(_booking_id uuid, _actor_id uuid)
 RETURNS json
@@ -442,7 +442,7 @@ BEGIN
         'can_cancel', true,
         'cancel_fee', _fee,
         'fee_percentage', _fee,
-        'reason', 'Within cancellation notice window — fee applies'
+        'reason', 'Within cancellation notice window - fee applies'
       );
     END IF;
   END IF;

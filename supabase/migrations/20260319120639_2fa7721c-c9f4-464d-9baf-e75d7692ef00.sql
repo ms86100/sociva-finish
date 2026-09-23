@@ -92,7 +92,7 @@ BEGIN
     updated_at = now()
   WHERE id = _order_id;
 
-  -- Step 3: Auto-complete — OTP verification IS proof of receipt
+  -- Step 3: Auto-complete - OTP verification IS proof of receipt
   -- Reset OTP gate flag since delivered→completed does not require it
   PERFORM set_config('app.otp_verified', 'false', true);
 

@@ -30,10 +30,10 @@ import {
 } from './helpers/business-rules';
 
 // ════════════════════════════════════════════════════
-// 1. formatPrice — Edge Cases
+// 1. formatPrice - Edge Cases
 // ════════════════════════════════════════════════════
 
-describe('formatPrice — Edge Cases', () => {
+describe('formatPrice - Edge Cases', () => {
   it('handles undefined input', () => {
     expect(formatPrice(undefined as any)).toBe('₹0');
   });
@@ -58,10 +58,10 @@ describe('formatPrice — Edge Cases', () => {
 });
 
 // ════════════════════════════════════════════════════
-// 2. escapeIlike — SQL Injection Prevention
+// 2. escapeIlike - SQL Injection Prevention
 // ════════════════════════════════════════════════════
 
-describe('escapeIlike — Pattern Injection', () => {
+describe('escapeIlike - Pattern Injection', () => {
   it('escapes % character', () => {
     expect(escapeIlike('100%')).toBe('100\\%');
   });
@@ -83,7 +83,7 @@ describe('escapeIlike — Pattern Injection', () => {
 });
 
 // ════════════════════════════════════════════════════
-// 3. jitteredStaleTime — Cache Stampede Prevention
+// 3. jitteredStaleTime - Cache Stampede Prevention
 // ════════════════════════════════════════════════════
 
 describe('jitteredStaleTime', () => {
@@ -104,10 +104,10 @@ describe('jitteredStaleTime', () => {
 });
 
 // ════════════════════════════════════════════════════
-// 4. friendlyError — Error Message Mapping
+// 4. friendlyError - Error Message Mapping
 // ════════════════════════════════════════════════════
 
-describe('friendlyError — Error Mapping', () => {
+describe('friendlyError - Error Mapping', () => {
   it('maps JWT errors', () => {
     expect(friendlyError(new Error('JWT expired'))).toContain('session has expired');
   });
@@ -173,10 +173,10 @@ describe('friendlyError — Error Mapping', () => {
 });
 
 // ════════════════════════════════════════════════════
-// 5. cn — Class Merging Utility
+// 5. cn - Class Merging Utility
 // ════════════════════════════════════════════════════
 
-describe('cn — Tailwind Class Merge', () => {
+describe('cn - Tailwind Class Merge', () => {
   it('merges basic classes', () => {
     expect(cn('p-4', 'bg-red')).toContain('p-4');
   });
@@ -194,7 +194,7 @@ describe('cn — Tailwind Class Merge', () => {
 });
 
 // ════════════════════════════════════════════════════
-// 6. convertToHashRoute — Median Bridge
+// 6. convertToHashRoute - Median Bridge
 // ════════════════════════════════════════════════════
 
 describe('convertToHashRoute', () => {
@@ -267,10 +267,10 @@ describe('Marketplace Constants', () => {
 });
 
 // ════════════════════════════════════════════════════
-// 9. Business Rules — Boundary Conditions
+// 9. Business Rules - Boundary Conditions
 // ════════════════════════════════════════════════════
 
-describe('Business Rules — Boundary Conditions', () => {
+describe('Business Rules - Boundary Conditions', () => {
   // categorizeResponseTime boundaries
   it('exactly 24h → up', () => expect(categorizeResponseTime(24)).toBe('up'));
   it('24.01h → neutral', () => expect(categorizeResponseTime(24.01)).toBe('neutral'));
@@ -295,7 +295,7 @@ describe('Business Rules — Boundary Conditions', () => {
   });
 
   // haversineDistance edge
-  it('haversine — antipodal points ~20,000km', () => {
+  it('haversine - antipodal points ~20,000km', () => {
     const d = haversineDistance(0, 0, 0, 180);
     expect(d).toBeGreaterThan(19_000_000);
     expect(d).toBeLessThan(21_000_000);
@@ -341,10 +341,10 @@ describe('Business Rules — Boundary Conditions', () => {
 });
 
 // ════════════════════════════════════════════════════
-// 10. Validation Schema — Remaining Edge Cases
+// 10. Validation Schema - Remaining Edge Cases
 // ════════════════════════════════════════════════════
 
-describe('Validation Schema — Edge Cases', () => {
+describe('Validation Schema - Edge Cases', () => {
   // workerRegistrationSchema
   it('worker: rejects flatNumbers over 500 chars', () => {
     const valid = {
@@ -379,7 +379,7 @@ describe('Validation Schema — Edge Cases', () => {
     expect(workerRegistrationSchema.safeParse(valid).success).toBe(true);
   });
 
-  // profileDataSchema — block max length
+  // profileDataSchema - block max length
   it('profile: rejects block over 20 chars', () => {
     expect(profileDataSchema.safeParse({
       name: 'John', flat_number: '101', block: 'B'.repeat(21), phone: '9876543210',
@@ -397,7 +397,7 @@ describe('Validation Schema — Edge Cases', () => {
     expect(emailSchema.safeParse(`${longLocal}@b.com`).success).toBe(true);
   });
 
-  // jobRequestSchema — duration boundary
+  // jobRequestSchema - duration boundary
   it('job: accepts exactly 1 hour', () => {
     expect(jobRequestSchema.safeParse({
       job_type: 'plumbing', duration_hours: 1, urgency: 'normal',
@@ -425,10 +425,10 @@ describe('Validation Schema — Edge Cases', () => {
 });
 
 // ════════════════════════════════════════════════════
-// 11. Feature Gate — Additional Edge Cases
+// 11. Feature Gate - Additional Edge Cases
 // ════════════════════════════════════════════════════
 
-describe('Feature Gate — Additional Edge Cases', () => {
+describe('Feature Gate - Additional Edge Cases', () => {
   it('core disabled still locked', () => {
     expect(getFeatureState({ source: 'core', is_enabled: false, society_configurable: true }, true)).toBe('locked');
   });
@@ -441,10 +441,10 @@ describe('Feature Gate — Additional Edge Cases', () => {
 });
 
 // ════════════════════════════════════════════════════
-// 12. isCouponApplicable — Boundary Timing
+// 12. isCouponApplicable - Boundary Timing
 // ════════════════════════════════════════════════════
 
-describe('Coupon — Timing Boundaries', () => {
+describe('Coupon - Timing Boundaries', () => {
   const base = {
     is_active: true, society_id: 's1', expires_at: null,
     starts_at: '2020-01-01', usage_limit: null, times_used: 0,
@@ -465,10 +465,10 @@ describe('Coupon — Timing Boundaries', () => {
 });
 
 // ════════════════════════════════════════════════════
-// 13. Security Gate — Additional Transitions
+// 13. Security Gate - Additional Transitions
 // ════════════════════════════════════════════════════
 
-describe('Security Gate — Additional', () => {
+describe('Security Gate - Additional', () => {
   it('expired is terminal', () => {
     expect(MANUAL_ENTRY_TRANSITIONS['expired']).toHaveLength(0);
   });
@@ -496,10 +496,10 @@ describe('Security Gate — Additional', () => {
 });
 
 // ════════════════════════════════════════════════════
-// 14. Worker Validation — Right Day
+// 14. Worker Validation - Right Day
 // ════════════════════════════════════════════════════
 
-describe('Worker Entry — Today Scheduling', () => {
+describe('Worker Entry - Today Scheduling', () => {
   it('worker scheduled for today → valid', () => {
     const today = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][new Date().getDay()];
     const result = validateWorkerEntry({
@@ -523,10 +523,10 @@ describe('Worker Entry — Today Scheduling', () => {
 });
 
 // ════════════════════════════════════════════════════
-// 15. Inspection Score — Additional Cases
+// 15. Inspection Score - Additional Cases
 // ════════════════════════════════════════════════════
 
-describe('Inspection Score — Additional', () => {
+describe('Inspection Score - Additional', () => {
   it('all failed → 0% score', () => {
     const r = computeInspectionScore([{ status: 'fail' }, { status: 'fail' }]);
     expect(r.score).toBe(0);
@@ -543,10 +543,10 @@ describe('Inspection Score — Additional', () => {
 });
 
 // ════════════════════════════════════════════════════
-// 16. Milestone Progress — Edge Cases
+// 16. Milestone Progress - Edge Cases
 // ════════════════════════════════════════════════════
 
-describe('Milestone Progress — Edge Cases', () => {
+describe('Milestone Progress - Edge Cases', () => {
   it('unequal percentages', () => {
     const r = computeMilestoneProgress([
       { amount_percentage: 10, status: 'paid' },
@@ -566,10 +566,10 @@ describe('Milestone Progress — Edge Cases', () => {
 });
 
 // ════════════════════════════════════════════════════
-// 17. Write/Read Safety — All Null Combos
+// 17. Write/Read Safety - All Null Combos
 // ════════════════════════════════════════════════════
 
-describe('Write/Read Society — Null Combos', () => {
+describe('Write/Read Society - Null Combos', () => {
   it('write both null → null', () => {
     expect(getWriteSocietyId(null, null)).toBeNull();
   });
@@ -582,10 +582,10 @@ describe('Write/Read Society — Null Combos', () => {
 });
 
 // ════════════════════════════════════════════════════
-// 18. canAccessSellerDetail — Null Buyer
+// 18. canAccessSellerDetail - Null Buyer
 // ════════════════════════════════════════════════════
 
-describe('Seller Access — Edge Cases', () => {
+describe('Seller Access - Edge Cases', () => {
   it('rejected seller blocked', () => {
     expect(canAccessSellerDetail({
       verificationStatus: 'rejected', sellerSocietyId: 's1', buyerSocietyId: 's1', sellBeyondCommunity: true,
@@ -599,10 +599,10 @@ describe('Seller Access — Edge Cases', () => {
 });
 
 // ════════════════════════════════════════════════════
-// 19. Dashboard Search — Edge Cases
+// 19. Dashboard Search - Edge Cases
 // ════════════════════════════════════════════════════
 
-describe('Dashboard Search — Edge Cases', () => {
+describe('Dashboard Search - Edge Cases', () => {
   it('empty query matches everything', () => {
     expect(dashboardItemMatchesSearch({ label: 'Anything' }, '')).toBe(true);
   });
@@ -613,10 +613,10 @@ describe('Dashboard Search — Edge Cases', () => {
 });
 
 // ════════════════════════════════════════════════════
-// 20. Route Classification — Edge Cases
+// 20. Route Classification - Edge Cases
 // ════════════════════════════════════════════════════
 
-describe('Route Classification — Edge Cases', () => {
+describe('Route Classification - Edge Cases', () => {
   it('/welcome/ with trailing slash is NOT public', () => {
     expect(isPublicRoute('/welcome/')).toBe(false);
   });
@@ -635,10 +635,10 @@ describe('Route Classification — Edge Cases', () => {
 });
 
 // ════════════════════════════════════════════════════
-// 21. Profile Menu — Role Combinations
+// 21. Profile Menu - Role Combinations
 // ════════════════════════════════════════════════════
 
-describe('Profile Menu — Role Combinations', () => {
+describe('Profile Menu - Role Combinations', () => {
   it('seller + admin, no builder → 2 items', () => {
     const items = getProfileMenuItems(true, false, true);
     expect(items).toContain('Seller Dashboard');
@@ -655,10 +655,10 @@ describe('Profile Menu — Role Combinations', () => {
 });
 
 // ════════════════════════════════════════════════════
-// 22. Verification State — Additional
+// 22. Verification State - Additional
 // ════════════════════════════════════════════════════
 
-describe('Verification State — Additional', () => {
+describe('Verification State - Additional', () => {
   it('empty string status → pending', () => {
     expect(getVerificationState({ verification_status: '' })).toBe('pending');
   });
@@ -668,10 +668,10 @@ describe('Verification State — Additional', () => {
 });
 
 // ════════════════════════════════════════════════════
-// 23. Notification Titles — Completeness
+// 23. Notification Titles - Completeness
 // ════════════════════════════════════════════════════
 
-describe('Notification Titles — Completeness', () => {
+describe('Notification Titles - Completeness', () => {
   it('buyer placed → no notification', () => {
     expect(getOrderNotifTitle('placed', 'buyer')).toBeNull();
   });
@@ -690,10 +690,10 @@ describe('Notification Titles — Completeness', () => {
 });
 
 // ════════════════════════════════════════════════════
-// 24. SLA — Edge Cases
+// 24. SLA - Edge Cases
 // ════════════════════════════════════════════════════
 
-describe('SLA — Edge Cases', () => {
+describe('SLA - Edge Cases', () => {
   it('0 hour SLA = same time', () => {
     const created = new Date('2026-01-01T00:00:00Z');
     expect(computeSLADeadline(created, 0).toISOString()).toBe('2026-01-01T00:00:00.000Z');
@@ -705,10 +705,10 @@ describe('SLA — Edge Cases', () => {
 });
 
 // ════════════════════════════════════════════════════
-// 25. Group By Seller — Large Dataset
+// 25. Group By Seller - Large Dataset
 // ════════════════════════════════════════════════════
 
-describe('Group By Seller — Large Dataset', () => {
+describe('Group By Seller - Large Dataset', () => {
   it('100 items across 10 sellers', () => {
     const items = Array.from({ length: 100 }, (_, i) => ({
       seller_id: `s${i % 10}`,
@@ -721,10 +721,10 @@ describe('Group By Seller — Large Dataset', () => {
 });
 
 // ════════════════════════════════════════════════════
-// 26. Find Unavailable — All Missing
+// 26. Find Unavailable - All Missing
 // ════════════════════════════════════════════════════
 
-describe('Find Unavailable — All Missing', () => {
+describe('Find Unavailable - All Missing', () => {
   it('all cart items missing from fresh → all unavailable', () => {
     expect(findUnavailableProducts([], ['p1', 'p2', 'p3'])).toEqual(['p1', 'p2', 'p3']);
   });
@@ -734,10 +734,10 @@ describe('Find Unavailable — All Missing', () => {
 });
 
 // ════════════════════════════════════════════════════
-// 27. Dispute Resolution / Maintenance — Edge
+// 27. Dispute Resolution / Maintenance - Edge
 // ════════════════════════════════════════════════════
 
-describe('Report Metrics — Edge Cases', () => {
+describe('Report Metrics - Edge Cases', () => {
   it('resolved > opened (data anomaly) → over 100%', () => {
     expect(computeDisputeResolutionRate(5, 10)).toBe(200);
   });
@@ -750,10 +750,10 @@ describe('Report Metrics — Edge Cases', () => {
 });
 
 // ════════════════════════════════════════════════════
-// 28. Absent Workers — Duplicates
+// 28. Absent Workers - Duplicates
 // ════════════════════════════════════════════════════
 
-describe('Absent Workers — Edge Cases', () => {
+describe('Absent Workers - Edge Cases', () => {
   it('duplicate attendance entries still correct', () => {
     expect(computeAbsentWorkers(['w1', 'w2'], ['w1', 'w1', 'w1'])).toEqual(['w2']);
   });
@@ -763,10 +763,10 @@ describe('Absent Workers — Edge Cases', () => {
 });
 
 // ════════════════════════════════════════════════════
-// 29. Search Filters — isVeg false
+// 29. Search Filters - isVeg false
 // ════════════════════════════════════════════════════
 
-describe('Search Filters — Additional', () => {
+describe('Search Filters - Additional', () => {
   const defaults = { minRating: 0, isVeg: null as boolean | null, categories: [] as string[], sortBy: null as string | null, priceRange: [0, 5000] as [number, number] };
 
   it('isVeg false activates filter', () => {
@@ -783,10 +783,10 @@ describe('Search Filters — Additional', () => {
 });
 
 // ════════════════════════════════════════════════════
-// 30. Polling Interval — Boundary
+// 30. Polling Interval - Boundary
 // ════════════════════════════════════════════════════
 
-describe('Polling Interval — Boundary', () => {
+describe('Polling Interval - Boundary', () => {
   it('3999ms invalid', () => expect(isPollingIntervalValid(3999)).toBe(false));
   it('5001ms invalid', () => expect(isPollingIntervalValid(5001)).toBe(false));
   it('4500ms valid', () => expect(isPollingIntervalValid(4500)).toBe(true));
@@ -796,7 +796,7 @@ describe('Polling Interval — Boundary', () => {
 // 31. Nonce Duplicate Detection
 // ════════════════════════════════════════════════════
 
-describe('Nonce — Set Operations', () => {
+describe('Nonce - Set Operations', () => {
   it('empty set → no duplicates', () => {
     expect(isNonceDuplicate('any', new Set())).toBe(false);
   });
@@ -811,7 +811,7 @@ describe('Nonce — Set Operations', () => {
 // 32. Security Mode Status
 // ════════════════════════════════════════════════════
 
-describe('Security Mode — Additional', () => {
+describe('Security Mode - Additional', () => {
   it('unknown mode → awaiting', () => {
     expect(getSecurityModeStatus('some_unknown')).toBe('awaiting_confirmation');
   });
@@ -821,10 +821,10 @@ describe('Security Mode — Additional', () => {
 });
 
 // ════════════════════════════════════════════════════
-// 33. Manual Entry — Edge Cases
+// 33. Manual Entry - Edge Cases
 // ════════════════════════════════════════════════════
 
-describe('Manual Entry — Edge Cases', () => {
+describe('Manual Entry - Edge Cases', () => {
   it('very long flat and name passes', () => {
     expect(validateManualEntry('A-101-Tower-B-Wing-North', 'John Doe Smith Jr.').valid).toBe(true);
   });
@@ -834,10 +834,10 @@ describe('Manual Entry — Edge Cases', () => {
 });
 
 // ════════════════════════════════════════════════════
-// 34. Parcel — Admin Edge Cases
+// 34. Parcel - Admin Edge Cases
 // ════════════════════════════════════════════════════
 
-describe('Parcel — Admin Edge Cases', () => {
+describe('Parcel - Admin Edge Cases', () => {
   it('admin can log for self', () => {
     expect(canLogParcel('admin-1', 'admin-1', true)).toBe(true);
   });
@@ -847,10 +847,10 @@ describe('Parcel — Admin Edge Cases', () => {
 });
 
 // ════════════════════════════════════════════════════
-// 35. Role Access — All Roles Combined
+// 35. Role Access - All Roles Combined
 // ════════════════════════════════════════════════════
 
-describe('Role Access — Combined Roles', () => {
+describe('Role Access - Combined Roles', () => {
   it('all roles true → all access', () => {
     expect(hasGuardAccess({ isAdmin: true, isSocietyAdmin: true, isSecurityOfficer: true })).toBe(true);
     expect(hasManagementAccess({ isAdmin: true, isSocietyAdmin: true })).toBe(true);
@@ -866,10 +866,10 @@ describe('Role Access — Combined Roles', () => {
 });
 
 // ════════════════════════════════════════════════════
-// 36. Sort By Pin And Date — Stability
+// 36. Sort By Pin And Date - Stability
 // ════════════════════════════════════════════════════
 
-describe('Sort By Pin And Date — Stability', () => {
+describe('Sort By Pin And Date - Stability', () => {
   it('multiple pinned posts sorted by date', () => {
     const posts = [
       { is_pinned: true, created_at: '2026-01-01' },

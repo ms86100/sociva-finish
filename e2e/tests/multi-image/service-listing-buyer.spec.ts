@@ -28,11 +28,11 @@ async function openBuyerCarousel(
 }
 
 test.describe('Service + Listing buyer multi-image @critical @buyer-carousel', () => {
-  test('S-BUYER — service book carousel (Hands Cut & File)', async ({ page }) => {
+  test('S-BUYER - service book carousel (Hands Cut & File)', async ({ page }) => {
     await openBuyerCarousel(page, SERVICE_ID, 'service', 'SERVICE-BUYER');
   });
 
-  test('L-BUYER — contact listing carousel (Bridal Makeup)', async ({ page }) => {
+  test('L-BUYER - contact listing carousel (Bridal Makeup)', async ({ page }) => {
     await openBuyerCarousel(page, LISTING_ID, 'listing', 'LISTING-BUYER');
   });
 });

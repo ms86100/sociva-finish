@@ -19,14 +19,14 @@ INSERT INTO public.system_settings (key, value) VALUES
   -- Notify Me Labels
   ('label_notify_me', 'Notify Me'),
   ('label_notify_watching', 'Watching'),
-  ('label_notify_watching_long', 'Watching — We''ll notify you'),
+  ('label_notify_watching_long', 'Watching - We''ll notify you'),
   ('label_notify_me_long', 'Notify Me When Available'),
   -- Checkout Trust Labels
   ('label_checkout_community_support', 'This order supports {count} local business{suffix} in your community'),
   ('label_checkout_community_emoji', '💚'),
   ('label_neighborhood_guarantee', 'Neighborhood Guarantee'),
   ('label_neighborhood_guarantee_desc', 'Your society committee will review this as a neutral party'),
-  ('label_neighborhood_guarantee_badge', 'Protected by Neighborhood Guarantee — disputes resolved by your society committee'),
+  ('label_neighborhood_guarantee_badge', 'Protected by Neighborhood Guarantee - disputes resolved by your society committee'),
   ('label_neighborhood_guarantee_emoji', '🛡️'),
   ('label_dispute_sla_notice', 'The committee will review within 48 hours.'),
   -- Group Buy Labels
@@ -39,7 +39,7 @@ INSERT INTO public.system_settings (key, value) VALUES
   ('label_group_buy_fulfilled', '✓ Target Reached'),
   -- Seller Intelligence Labels
   ('label_demand_insights_title', 'What buyers are searching for'),
-  ('label_demand_insights_empty', 'No seller in your society offers these items yet — opportunity!'),
+  ('label_demand_insights_empty', 'No seller in your society offers these items yet - opportunity!'),
   ('label_reputation_empty', 'No reputation history yet'),
   ('label_reputation_empty_desc', 'Events will appear as orders are completed'),
   -- Discovery Labels

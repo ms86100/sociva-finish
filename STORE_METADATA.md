@@ -105,7 +105,7 @@ Version 2.0.0 - Society Super-App
 **Phone:** +91 0123456789
 **OTP:** 1234
 
-> This is a dedicated demo account with auto-bypass OTP. No real SMS is sent — the OTP `1234` is hardcoded for this phone number only.
+> This is a dedicated demo account with auto-bypass OTP. No real SMS is sent - the OTP `1234` is hardcoded for this phone number only.
 > The app uses phone-based OTP login exclusively (via MSG91). Email/password login is not supported.
 
 **Notes for Reviewers:**
@@ -169,6 +169,6 @@ https://www.sociva.in/terms
 - Does the app contain drug references? **No**
 - Does the app allow user-generated content? **Yes** (reviews and chat)
 - Does the app share location? **Yes** (for delivery tracking and society membership verification)
-- Does the app allow purchases? **Yes** (purchases for physical goods and services via external payment processor — not Apple IAP)
+- Does the app allow purchases? **Yes** (purchases for physical goods and services via external payment processor - not Apple IAP)
 
 **Recommended Rating:** 4+ (iOS) / Everyone (Android)

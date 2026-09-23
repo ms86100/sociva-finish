@@ -80,7 +80,7 @@ function SectionHeader({ icon: Icon, title, count, action, color = 'bg-primary/1
   );
 }
 
-// TAB_CONFIG removed — nav is now in AdminSidebarNav
+// TAB_CONFIG removed - nav is now in AdminSidebarNav
 
 export default function AdminPage() {
   const admin = useAdminData();

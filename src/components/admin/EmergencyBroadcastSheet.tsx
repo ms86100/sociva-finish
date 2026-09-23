@@ -93,7 +93,7 @@ export function EmergencyBroadcastSheet() {
       adminNotify.success(
         notified > 0
           ? `Broadcast sent to ${notified} resident${notified === 1 ? '' : 's'} in ${societyLabel || 'the society'}`
-          : `Broadcast saved for ${societyLabel || 'society'} — no residents found to notify`,
+          : `Broadcast saved for ${societyLabel || 'society'} - no residents found to notify`,
       );
       setTitle('');
       setBody('');
@@ -173,7 +173,7 @@ export function EmergencyBroadcastSheet() {
             <Textarea
               value={body}
               onChange={(e) => setBody(e.target.value)}
-              placeholder="Provide details — timing, affected areas, expected resolution..."
+              placeholder="Provide details - timing, affected areas, expected resolution..."
               rows={4}
             />
           </div>

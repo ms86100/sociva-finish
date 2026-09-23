@@ -35,7 +35,7 @@ async function probeSeed(): Promise<boolean> {
     .limit(1);
 
   if (existingProducts && existingProducts.length > 0) {
-    // Data already seeded — build a synthetic summary from DB
+    // Data already seeded - build a synthetic summary from DB
     const { count: sellerCount } = await client.from("seller_profiles").select("id", { count: "exact", head: true }).eq("verification_status", "approved");
     const { count: productCount } = await client.from("products").select("id", { count: "exact", head: true }).eq("approval_status", "approved").eq("is_available", true);
     const { count: societyCount } = await client.from("societies").select("id", { count: "exact", head: true });
@@ -62,13 +62,13 @@ async function probeSeed(): Promise<boolean> {
       headers: authHeaders(),
     });
     if (!res.ok) {
-      console.warn(`[seed-scenario] Skipping suite — seed function unavailable (${res.status})`);
+      console.warn(`[seed-scenario] Skipping suite - seed function unavailable (${res.status})`);
       return false;
     }
     seedResult = await res.json();
     return seedResult?.success === true;
   } catch (err) {
-    console.warn(`[seed-scenario] Skipping suite — ${(err as Error).message}`);
+    console.warn(`[seed-scenario] Skipping suite - ${(err as Error).message}`);
     return false;
   }
 }

@@ -145,7 +145,7 @@ export function WorkflowSimulator() {
   };
 
   const tryInvalidTransition = () => {
-    setHasError(`❌ Actor "${simActor}" cannot transition from "${currentStatus}" — no valid transitions found. The DB trigger would raise: "Invalid status transition".`);
+    setHasError(`❌ Actor "${simActor}" cannot transition from "${currentStatus}" - no valid transitions found. The DB trigger would raise: "Invalid status transition".`);
   };
 
   const resetSimulation = () => {
@@ -169,7 +169,7 @@ export function WorkflowSimulator() {
       <div>
         <h2 className="text-lg font-bold">Workflow Simulator</h2>
         <p className="text-xs text-muted-foreground mt-0.5">
-          Test workflows by simulating order status transitions as different actors — without affecting real data
+          Test workflows by simulating order status transitions as different actors - without affecting real data
         </p>
       </div>
 
@@ -186,7 +186,7 @@ export function WorkflowSimulator() {
                 const key = `${wf.parent_group}::${wf.transaction_type}`;
                 return (
                   <SelectItem key={key} value={key}>
-                    {formatName(wf.parent_group)} — {formatName(wf.transaction_type)} ({wf.step_count} steps)
+                    {formatName(wf.parent_group)} - {formatName(wf.transaction_type)} ({wf.step_count} steps)
                   </SelectItem>
                 );
               })}
@@ -269,11 +269,11 @@ export function WorkflowSimulator() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <div className="bg-blue-50 rounded-lg p-2.5 border border-blue-100">
                     <p className="text-[10px] font-semibold text-blue-600 mb-0.5 flex items-center gap-1"><User size={10} /> Buyer sees</p>
-                    <p className="text-xs text-blue-800">{currentStep.buyer_hint || '—'}</p>
+                    <p className="text-xs text-blue-800">{currentStep.buyer_hint || '-'}</p>
                   </div>
                   <div className="bg-amber-50 rounded-lg p-2.5 border border-amber-100">
                     <p className="text-[10px] font-semibold text-amber-600 mb-0.5 flex items-center gap-1"><Store size={10} /> Seller sees</p>
-                    <p className="text-xs text-amber-800">{currentStep.seller_hint || '—'}</p>
+                    <p className="text-xs text-amber-800">{currentStep.seller_hint || '-'}</p>
                   </div>
                 </div>
               )}

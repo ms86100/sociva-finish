@@ -1,8 +1,8 @@
 -- Fix cart order workflow stamp drift (helpers + backfill).
 -- Companions:
---   20260807233100 — seller/buyer advance RPCs with heal
---   20260807233300 — create_multi_vendor_orders fulfillment-aware stamp
---   20260807233400 — validate_order_status_transition heal
+--   20260807233100 - seller/buyer advance RPCs with heal
+--   20260807233300 - create_multi_vendor_orders fulfillment-aware stamp
+--   20260807233400 - validate_order_status_transition heal
 --
 -- Intended stamp (restore 20260403164346):
 --   self_pickup              → self_fulfillment
@@ -59,7 +59,7 @@ COMMENT ON FUNCTION public.heal_order_transaction_type(text, text, text) IS
   'Corrects known-wrong cart_purchase stamps for seller-delivery / self-pickup orders.';
 
 -- ---------------------------------------------------------------------------
--- Backfill wrong stamps (transaction_type only — never mutates status).
+-- Backfill wrong stamps (transaction_type only - never mutates status).
 -- Prefer shared prefix (placed/accepted/preparing/ready/…). Mid-transit and
 -- terminal rows also get stamp-only heal so remaining edges / display match;
 -- status is left unchanged so in-flight courier state is not rewritten.

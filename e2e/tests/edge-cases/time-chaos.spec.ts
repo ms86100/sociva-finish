@@ -18,7 +18,7 @@ test.describe('Time-Based Chaos Tests @regression', () => {
 
     expect(loadingOrContent).toBeTruthy();
 
-    // No crash — page should eventually render
+    // No crash - page should eventually render
     await buyerPage.waitForTimeout(7_000);
 
     // Verify no error toasts/alerts
@@ -35,7 +35,7 @@ test.describe('Time-Based Chaos Tests @regression', () => {
     // Add delay to notification queue processing endpoint
     await mockSlowResponse(buyerPage, '**/process-notification-queue**', 10_000);
 
-    // Navigate — the delay should not cause UI issues
+    // Navigate - the delay should not cause UI issues
     const baseURL = process.env.BASE_URL || 'https://sociva.lovable.app';
     await buyerPage.goto(`${baseURL}/#/`);
     await buyerPage.waitForLoadState('domcontentloaded');

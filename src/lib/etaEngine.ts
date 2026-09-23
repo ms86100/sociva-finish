@@ -1,6 +1,6 @@
 // @ts-nocheck
 /**
- * ETA Engine — Single Source of Truth
+ * ETA Engine - Single Source of Truth
  *
  * Every component that displays delivery ETA must use `computeETA()`.
  * The DB column `orders.estimated_delivery_at` is the authoritative source.
@@ -71,7 +71,7 @@ export function computeETA(
 
   let displayText: string;
   if (isLate) {
-    displayText = 'Running a bit late — arriving soon';
+    displayText = 'Running a bit late - arriving soon';
   } else if (isArriving) {
     displayText = 'Arriving any moment';
   } else if (rawMinutes <= 60) {

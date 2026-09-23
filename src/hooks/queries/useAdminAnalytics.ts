@@ -168,7 +168,7 @@ export function useSellerPerformance(period: PeriodFilter) {
 
       return sellers.map(s => ({
         ...s,
-        societyName: (s.society as any)?.name || '—',
+        societyName: (s.society as any)?.name || '-',
         ...(orderMap.get(s.id) || {
           total: 0, totalRevenue: 0,
           delivered: 0, deliveredRevenue: 0,
@@ -228,7 +228,7 @@ export function useBuyerActivity(period: PeriodFilter) {
         const stats = buyerMap.get(p.id)!;
         return {
           ...p,
-          societyName: (p.society as any)?.name || '—',
+          societyName: (p.society as any)?.name || '-',
           orderCount: stats.total,
           totalSpent: stats.totalSpent,
           sellerCount: stats.sellers.size,
@@ -302,13 +302,13 @@ export function useSocietyBreakdown(period: PeriodFilter) {
   });
 }
 
-// Category analytics — join order_items to orders for status awareness
+// Category analytics - join order_items to orders for status awareness
 export function useCategoryAnalytics(period: PeriodFilter) {
   const dateFrom = getDateFrom(period);
   return useQuery({
     queryKey: ['admin-category-analytics', period],
     queryFn: async () => {
-      // Fetch orders with status first (paginated — no 5k hard cap)
+      // Fetch orders with status first (paginated - no 5k hard cap)
       const ordersRaw = await fetchOrdersPaged<{ id: string; status: string }>('id, status', dateFrom);
       if (!ordersRaw?.length) return { categories: [], topProducts: [] };
 

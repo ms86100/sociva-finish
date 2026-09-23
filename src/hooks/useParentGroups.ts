@@ -35,7 +35,7 @@ export interface ParentGroupInfo {
   layoutType: 'ecommerce' | 'food' | 'service';
 }
 
-/** Legacy aliases superseded by canonical slugs — hide from seller/buyer pickers. */
+/** Legacy aliases superseded by canonical slugs - hide from seller/buyer pickers. */
 export const LEGACY_PARENT_GROUP_SLUGS = new Set([
   'food',
   'classes',
@@ -47,7 +47,7 @@ export const LEGACY_PARENT_GROUP_SLUGS = new Set([
 export const HIDDEN_PARENT_GROUP_SLUGS = new Set([
   'test',
   'hello_section',
-  // Superseded by dedicated `clothing` parent — keep hidden even if stale bootstrap
+  // Superseded by dedicated `clothing` parent - keep hidden even if stale bootstrap
   // still maps apparel products to the old resale slug.
   'resale',
 ]);
@@ -68,7 +68,7 @@ export function useParentGroups() {
       const { parentGroupRows } = await loadAppBootstrap();
       return parentGroupRows as ParentGroupRow[];
     },
-    staleTime: 30 * 60 * 1000, // 30 min — parent groups are near-static
+    staleTime: 30 * 60 * 1000, // 30 min - parent groups are near-static
   });
 
   // Admin CRUD must bypass bootstrap memory/localStorage cache or new sections stay invisible

@@ -102,7 +102,7 @@ interface StatusFlowEntry {
 async function getStatusFlowData(
   supabase: ReturnType<typeof createClient>,
 ): Promise<Map<string, StatusFlowEntry>> {
-  // AUDIT FIX: removed hardcoded transaction_type filter — include all workflow types
+  // AUDIT FIX: removed hardcoded transaction_type filter - include all workflow types
   const { data, error } = await supabase
     .from("category_status_flows")
     .select("status_key, display_label, sort_order")
@@ -141,7 +141,7 @@ Deno.serve(async (req) => {
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     if (!authHeader || authHeader !== `Bearer ${serviceRoleKey}`) {
       return new Response(
-        JSON.stringify({ error: "Unauthorized — service role required" }),
+        JSON.stringify({ error: "Unauthorized - service role required" }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -211,7 +211,7 @@ Deno.serve(async (req) => {
     const progressStage = flowEntry?.display_label ?? null;
     let progressPercent = deriveProgressPercent(status, flowMap);
 
-    // ETA-based progress override for transit statuses — loaded from DB via system_settings
+    // ETA-based progress override for transit statuses - loaded from DB via system_settings
     const { data: transitSetting } = await supabase
       .from("system_settings")
       .select("value")
@@ -311,7 +311,7 @@ Deno.serve(async (req) => {
         .from("live_activity_tokens")
         .delete()
         .eq("order_id", order_id);
-      console.warn(`[LA-APNs] Token gone (410) — cleaned up for order ${order_id}`);
+      console.warn(`[LA-APNs] Token gone (410) - cleaned up for order ${order_id}`);
       return new Response(
         JSON.stringify({ success: false, error: "TOKEN_EXPIRED" }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }

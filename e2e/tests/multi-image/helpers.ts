@@ -58,7 +58,7 @@ export async function loginPhone(page: Page, phone = '0123456789', otp = '1234')
   await page.waitForLoadState('domcontentloaded');
   await page.waitForTimeout(800);
 
-  // Already logged in — clear session and re-auth as the requested phone
+  // Already logged in - clear session and re-auth as the requested phone
   if (!page.url().includes('/auth')) {
     await page.evaluate((loc) => {
       try {
@@ -79,7 +79,7 @@ export async function loginPhone(page: Page, phone = '0123456789', otp = '1234')
   }
 
   if (!page.url().includes('/auth')) {
-    // Still not on auth — force hash route
+    // Still not on auth - force hash route
     await page.goto(`${base}/#/auth`);
     await page.waitForTimeout(800);
   }
@@ -205,7 +205,7 @@ export async function fillMinimalProduct(page: Page, name: string, _price = '199
 
   const desc = page.locator('textarea').first();
   if (await desc.isVisible({ timeout: 2_000 }).catch(() => false)) {
-    await desc.fill(`${name} — multi-image E2E description`);
+    await desc.fill(`${name} - multi-image E2E description`);
   }
 
   // Food dietary required
@@ -291,7 +291,7 @@ export async function saveProductForm(page: Page, price = '199') {
       ]).catch(() => {});
       await page.waitForTimeout(800);
       if (!page.url().includes('/products/new')) return;
-      // Still on form — capture validation and retry once after filling price/veg
+      // Still on form - capture validation and retry once after filling price/veg
       await fillPriceIfVisible(page, price);
       const veg2 = page.getByRole('button', { name: /^veg$/i }).first();
       if (await veg2.isVisible({ timeout: 400 }).catch(() => false)) await veg2.click().catch(() => {});
@@ -306,7 +306,7 @@ export async function saveProductForm(page: Page, price = '199') {
     if (/^Next$/i.test(label)) {
       await cta.click();
       await page.waitForTimeout(700);
-      // If Next was blocked, step indicator / errors stay — try fill and continue
+      // If Next was blocked, step indicator / errors stay - try fill and continue
       const err = page.locator('p.text-destructive, .text-destructive').first();
       if (await err.isVisible({ timeout: 400 }).catch(() => false)) {
         await fillPriceIfVisible(page, price);

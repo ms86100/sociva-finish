@@ -16,7 +16,7 @@ function haversineDistance(lat1: number, lon1: number, lat2: number, lon2: numbe
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-/** Default proximity thresholds — overridden by DB values */
+/** Default proximity thresholds - overridden by DB values */
 const DEFAULT_PROXIMITY = {
   at_doorstep: 50,
   arriving: 200,
@@ -51,11 +51,11 @@ function getProximity(distanceMeters: number, thresholds: typeof DEFAULT_PROXIMI
   return 'en_route';
 }
 
-/** Load terminal statuses from category_status_flows — DB-driven, no hardcoding */
+/** Load terminal statuses from category_status_flows - DB-driven, no hardcoding */
 async function loadTerminalStatuses(supabase: ReturnType<typeof createClient>): Promise<Set<string>> {
   const FALLBACK = new Set(['delivered', 'failed', 'cancelled']);
   try {
-    // AUDIT FIX: removed hardcoded transaction_type filter — include all workflow types
+    // AUDIT FIX: removed hardcoded transaction_type filter - include all workflow types
     const { data } = await supabase
       .from('category_status_flows')
       .select('status_key')
@@ -67,7 +67,7 @@ async function loadTerminalStatuses(supabase: ReturnType<typeof createClient>): 
   return FALLBACK;
 }
 
-/** Load transit statuses from system_settings — single source of truth */
+/** Load transit statuses from system_settings - single source of truth */
 async function loadTransitStatuses(supabase: ReturnType<typeof createClient>): Promise<Set<string>> {
   const FALLBACK = new Set(['picked_up', 'on_the_way', 'at_gate']);
   try {
@@ -239,7 +239,7 @@ serve(async (req) => {
       });
     }
 
-    // Bug 19 fix: server-side rate limit — reject if last update was <2s ago
+    // Bug 19 fix: server-side rate limit - reject if last update was <2s ago
     if (assignment.last_location_at) {
       const lastAt = new Date(assignment.last_location_at).getTime();
       if (Date.now() - lastAt < 2000) {
@@ -451,7 +451,7 @@ serve(async (req) => {
           await supabase.from('notification_queue').insert({
             user_id: buyerId,
             title: '🔄 Delivery slightly delayed',
-            body: `${reason} Updated ETA: ${etaMinutes ?? '—'} min.`,
+            body: `${reason} Updated ETA: ${etaMinutes ?? '-'} min.`,
             type: 'delivery_delayed',
             reference_path: `/orders/${assignment.order_id}`,
             payload: {
@@ -566,7 +566,7 @@ serve(async (req) => {
 
     // ═══ Live Activity delta-based APNs push ═══
     let laPushMs: number | null = null;
-    // DB-driven transit check — load transit_statuses_la from system_settings
+    // DB-driven transit check - load transit_statuses_la from system_settings
     const { data: transitSetting } = await supabase
       .from('system_settings')
       .select('value')

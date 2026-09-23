@@ -1,5 +1,5 @@
 
--- Fix: verify_delivery_otp_and_complete — resolve transaction_type dynamically when NULL
+-- Fix: verify_delivery_otp_and_complete - resolve transaction_type dynamically when NULL
 -- instead of hardcoded 'self_fulfillment' fallback
 CREATE OR REPLACE FUNCTION public.verify_delivery_otp_and_complete(
   _order_id uuid,

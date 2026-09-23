@@ -29,7 +29,7 @@ interface CroppableImageUploadProps {
   aspectRatio?: 'square' | 'video' | 'portrait';
   placeholder?: string;
   cropAspect?: number;
-  /** Called before opening the native image picker — use to persist state before WebView may reload */
+  /** Called before opening the native image picker - use to persist state before WebView may reload */
   beforePick?: () => void | Promise<void>;
   /** Enforce min dimensions (default: products folder only) */
   enforceMinDimensions?: boolean;

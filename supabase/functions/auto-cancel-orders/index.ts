@@ -104,7 +104,7 @@ app.post("/", async (c) => {
       .lt("auto_cancel_at", now)
       .not("payment_status", "in", "(buyer_confirmed,paid)");
 
-    // Query 2: Orphaned online orders — payment_status=pending, non-COD, past DB-driven grace
+    // Query 2: Orphaned online orders - payment_status=pending, non-COD, past DB-driven grace
     const { data: orphanedUpi, error: orphanErr } = await supabase
       .from("orders")
       .select("id, buyer_id, seller_id, total_amount, razorpay_order_id, auto_cancel_at, status, payment_status")
@@ -181,7 +181,7 @@ app.post("/", async (c) => {
     const isUnpaidTtl = (o: { status?: string; payment_status?: string }) =>
       o.payment_status === "pending" || o.status === "payment_pending";
 
-    // Unpaid TTL (orphans + unpaid urgent): no L4 — cancel releases wallet/loyalty/stock via triggers
+    // Unpaid TTL (orphans + unpaid urgent): no L4 - cancel releases wallet/loyalty/stock via triggers
     const unpaidUrgent = (urgentExpired || []).filter((o: any) => isUnpaidTtl(o));
     const slaUrgent = (urgentExpired || []).filter((o: any) => !isUnpaidTtl(o));
 
@@ -214,7 +214,7 @@ app.post("/", async (c) => {
     }
 
     if (deferredCount > 0) {
-      console.log(`[auto-cancel][gate] deferring ${deferredCount} SLA orders — L4 final warning not yet fired (unpaid TTL bypasses L4)`);
+      console.log(`[auto-cancel][gate] deferring ${deferredCount} SLA orders - L4 final warning not yet fired (unpaid TTL bypasses L4)`);
     }
     if (expiredOrders.length === 0) {
       console.log("No expired orders to cancel");
@@ -234,7 +234,7 @@ app.post("/", async (c) => {
       console.error("Error fetching delivered orders for auto-complete:", deliveredErr);
     }
 
-    // --- P0: Buyer Protection SLA — auto-approve refunds after 48h seller inaction ---
+    // --- P0: Buyer Protection SLA - auto-approve refunds after 48h seller inaction ---
     const fortyEightHoursAgo = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
     const { data: slaRefunds, error: slaErr } = await supabase
       .from("refund_requests")
@@ -322,7 +322,7 @@ app.post("/", async (c) => {
       console.log(`[refund-cron] auto-processed ${processedRefundCount} approved refunds`);
     }
 
-    // --- Manual fallback: stuck refunds >72h — VERIFY gateway/wallet before complete ---
+    // --- Manual fallback: stuck refunds >72h - VERIFY gateway/wallet before complete ---
     const seventyTwoHoursAgo = new Date(Date.now() - 72 * 60 * 60 * 1000).toISOString();
     const { data: stuckRefunds } = await supabase
       .from("refund_requests")
@@ -527,7 +527,7 @@ app.post("/", async (c) => {
         if ((order as any).razorpay_order_id) {
           const providerState = await verifyRazorpayPayment((order as any).razorpay_order_id);
           if (providerState === "captured") {
-            console.log(`[auto-cancel][reconcile] order=${order.id} razorpay_order_id=${(order as any).razorpay_order_id} result=actually_paid — triggering confirmation`);
+            console.log(`[auto-cancel][reconcile] order=${order.id} razorpay_order_id=${(order as any).razorpay_order_id} result=actually_paid - triggering confirmation`);
             // Trigger the confirm function to fix the state
             try {
               const fnUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/confirm-razorpay-payment`;
@@ -550,7 +550,7 @@ app.post("/", async (c) => {
           }
           if (providerState === "unknown") {
             console.warn(
-              `[auto-cancel][reconcile] order=${order.id} provider state unknown — cancellation deferred`,
+              `[auto-cancel][reconcile] order=${order.id} provider state unknown - cancellation deferred`,
             );
             await supabase.from("financial_reconciliation_records").upsert(
               {
@@ -599,7 +599,7 @@ app.post("/", async (c) => {
           throw { id: order.id, error: updateError.message };
         }
         if (!updated || updated.length === 0) {
-          console.log(`Order ${order.id} already transitioned — skipping cancel`);
+          console.log(`Order ${order.id} already transitioned - skipping cancel`);
           return { id: order.id, success: false, skipped: true };
         }
         console.log(`[auto-cancel] order=${order.id} result=cancelled reason="${reason}"`);
@@ -648,7 +648,7 @@ app.post("/", async (c) => {
       }
     }
 
-    // Stuck transit SLA — flag overdue / auto no_show after 24h
+    // Stuck transit SLA - flag overdue / auto no_show after 24h
     let stuckTransit: Record<string, unknown> | null = null;
     try {
       const { data: stuckData, error: stuckErr } = await supabase.rpc(

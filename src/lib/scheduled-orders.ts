@@ -1,5 +1,5 @@
 /**
- * Scheduled order lifecycle — shared by seller UI, buyer UI, notifications, and board filters.
+ * Scheduled order lifecycle - shared by seller UI, buyer UI, notifications, and board filters.
  * Uses Asia/Kolkata for calendar-day boundaries (matches Sociva ops).
  */
 
@@ -101,7 +101,7 @@ export function istDateString(d = new Date()): string {
 
 /**
  * Date string for checkout RPCs / scheduled_date columns.
- * Use the picker's local calendar day — NEVER `date.toISOString().split('T')[0]`,
+ * Use the picker's local calendar day - NEVER `date.toISOString().split('T')[0]`,
  * which shifts the day back for Asia/Kolkata (and any UTC+ offset) at local midnight.
  * Server interprets this as an IST wall-clock day via compute_scheduled_order_times.
  */
@@ -276,7 +276,7 @@ export function formatPreparationByLine(
   now = new Date(),
 ): string | null {
   const phase = resolveScheduledPhase(order, now);
-  // Instruction only — never on delivered/cancelled, or after prep already started.
+  // Instruction only - never on delivered/cancelled, or after prep already started.
   if (phase === 'completed' || phase === 'cancelled' || phase === 'preparing' || phase === 'fulfilling') {
     return null;
   }

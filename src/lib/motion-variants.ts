@@ -2,19 +2,19 @@ import { type Variants, type Transition } from 'framer-motion';
 
 // ─── Shared Motion Presets ───────────────────────────────────────────────────
 // Used across all pages for consistent animation language.
-// ALL app animations go through this file — no CSS keyframes for UI transitions.
+// ALL app animations go through this file - no CSS keyframes for UI transitions.
 
 // ─── Easing Presets ──────────────────────────────────────────────────────────
 export const easings = {
-  /** Smooth deceleration — default for most entrances */
+  /** Smooth deceleration - default for most entrances */
   easeOut: [0.16, 1, 0.3, 1] as const,
   /** Gentle spring-like overshoot */
   spring: { type: 'spring' as const, stiffness: 260, damping: 24 },
-  /** Snappy spring — buttons, toggles */
+  /** Snappy spring - buttons, toggles */
   snappy: { type: 'spring' as const, stiffness: 400, damping: 17 },
-  /** Soft spring — overlays, modals */
+  /** Soft spring - overlays, modals */
   soft: { type: 'spring' as const, stiffness: 200, damping: 20 },
-  /** Bouncy — celebration moments */
+  /** Bouncy - celebration moments */
   bouncy: { type: 'spring' as const, stiffness: 300, damping: 12 },
 };
 
@@ -240,7 +240,7 @@ export const pulseRing: Variants = {
   },
 };
 
-// ─── Discovery moment — slow floating cards / orbit icons ────────────────────
+// ─── Discovery moment - slow floating cards / orbit icons ────────────────────
 export const floatSlow: Variants = {
   animate: {
     y: [0, -4, 0, 3, 0],

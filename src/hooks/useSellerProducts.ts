@@ -47,7 +47,7 @@ export interface ProductFormData {
   is_recommended: boolean;
   is_urgent: boolean;
   image_url: string | null;
-  /** Extra gallery URLs (orders 2–5); primary is image_url. */
+  /** Extra gallery URLs (orders 2-5); primary is image_url. */
   secondary_images: string[];
   action_type: ProductActionType;
   contact_phone: string;
@@ -180,7 +180,7 @@ export function useSellerProducts(opts?: {
     const groupConfigs = groupedConfigs[primaryGroup] || [];
     if (!sellerCats.length) return groupConfigs;
     const matched = groupConfigs.filter(c => sellerCats.includes(c.category));
-    // Onboarding may sync primary_group without populating categories[] — don't block listing.
+    // Onboarding may sync primary_group without populating categories[] - don't block listing.
     return matched.length > 0 ? matched : groupConfigs;
   }, [primaryGroup, groupedConfigs, configs, sellerProfile]);
 
@@ -405,7 +405,7 @@ export function useSellerProducts(opts?: {
     clearDraftFn();
   };
 
-  /** Fresh add-product form — clears any stale edit draft from localStorage. */
+  /** Fresh add-product form - clears any stale edit draft from localStorage. */
   const beginNewProduct = () => {
     resetForm();
     setIsDialogOpen(true);
@@ -437,7 +437,7 @@ export function useSellerProducts(opts?: {
       tags: (product as any).tags || [],
       cuisine_type: (product as any).cuisine_type || null,
     });
-    // Always re-fetch specifications — list cache must not wipe attribute blocks on save
+    // Always re-fetch specifications - list cache must not wipe attribute blocks on save
     const { data: freshRow } = await supabase
       .from('products')
       .select('specifications, tags, cuisine_type')
@@ -603,7 +603,7 @@ export function useSellerProducts(opts?: {
           )
         : { tags: formData.tags || [], cuisine_type: formData.cuisine_type || null };
     // effectiveActionType (declared at hook scope) is the single source of truth
-    // for buyer interaction — it uses the seller's configured default.
+    // for buyer interaction - it uses the seller's configured default.
     const gallery = splitOfferingImages(
       resolveOfferingImages({
         image_url: formData.image_url,
@@ -696,7 +696,7 @@ export function useSellerProducts(opts?: {
           } as any);
           if (snapErr) {
             console.error('Failed to save edit snapshot:', snapErr);
-            toast.error('Could not save version history — product not updated. Try again.');
+            toast.error('Could not save version history - product not updated. Try again.');
             return false;
           }
         }
@@ -765,7 +765,7 @@ export function useSellerProducts(opts?: {
 
   const toggleAvailability = async (product: Product) => {
     const status = (product as any).approval_status || 'draft';
-    if (status !== 'approved') { toast.error('Submit for review first — only approved products can be toggled.', { id: 'product-toggle-blocked' }); return; }
+    if (status !== 'approved') { toast.error('Submit for review first - only approved products can be toggled.', { id: 'product-toggle-blocked' }); return; }
     try {
       const { error } = await supabase.from('products').update({ is_available: !product.is_available }).eq('id', product.id);
       if (error) throw error;

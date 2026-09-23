@@ -11,7 +11,7 @@ import {
 
 /**
  * React hook wrapper around the centralized haptics engine.
- * Returns stable references — safe to use in deps arrays.
+ * Returns stable references - safe to use in deps arrays.
  */
 export function useHaptics() {
   const impact = useCallback((style: HapticImpactStyle = 'medium') => {

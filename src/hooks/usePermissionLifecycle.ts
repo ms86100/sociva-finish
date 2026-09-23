@@ -1,6 +1,6 @@
 // @ts-nocheck
 /**
- * Single source of truth for permission UX — reads OS + installation lifecycle.
+ * Single source of truth for permission UX - reads OS + installation lifecycle.
  * All Permission Center surfaces consume this hook (not divergent local guesses).
  */
 import { useCallback, useEffect, useState } from 'react';
@@ -199,7 +199,7 @@ export function usePermissionLifecycle() {
       const result = await PushNotifications.checkPermissions();
       const mapped = mapPushReceiveToNotificationState(result.receive);
       setNotificationPermission(mapped);
-      // Fire-and-forget lifecycle sync — must not block UI
+      // Fire-and-forget lifecycle sync - must not block UI
       void syncInstallationPermissions({ notificationPermission: mapped });
       if (mapped === 'enabled') {
         clearCooldown(NOTIF_COOLDOWN_KEY);

@@ -1,5 +1,5 @@
 /**
- * Seller onboarding journey helpers — attach consistent step props for Amplitude funnels.
+ * Seller onboarding journey helpers - attach consistent step props for Amplitude funnels.
  */
 
 import { track } from '@/lib/analytics';

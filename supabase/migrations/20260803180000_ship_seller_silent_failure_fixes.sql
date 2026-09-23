@@ -23,7 +23,7 @@ END;
 $$;
 
 -- ============================================================
--- C1b: create_multi_vendor_orders — fail hard if stock update misses
+-- C1b: create_multi_vendor_orders - fail hard if stock update misses
 -- ============================================================
 CREATE OR REPLACE FUNCTION public.create_multi_vendor_orders(
   _buyer_id uuid,

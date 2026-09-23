@@ -102,7 +102,7 @@ export function ReviewPromptBanner() {
           .update({ status: 'dismissed', updated_at: new Date().toISOString() } as any)
           .eq('id', promptId);
       } else if (orderId) {
-        // SECURITY DEFINER upsert — works even when no prompt row exists yet
+        // SECURITY DEFINER upsert - works even when no prompt row exists yet
         const { error } = await supabase.rpc('dismiss_review_prompt_for_order', {
           _order_id: orderId,
         });
@@ -145,7 +145,7 @@ export function ReviewPromptBanner() {
             <div>
               <p className="text-sm font-semibold">Rate your recent order</p>
               <p className="text-[11px] text-muted-foreground">
-                from {promptSellerName || 'a seller'} — help your community!
+                from {promptSellerName || 'a seller'} - help your community!
               </p>
             </div>
           </div>

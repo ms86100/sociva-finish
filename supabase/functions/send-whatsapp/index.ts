@@ -107,7 +107,7 @@ serve(async (req) => {
       result = await sendBookingConfirmation({
         phoneNumber: phone,
         customerName: body.data?.customerName || "there",
-        bookingId: body.data?.bookingId || "—",
+        bookingId: body.data?.bookingId || "-",
         providerName: body.data?.providerName || "your provider",
         serviceDate: body.data?.serviceDate || "",
         serviceTime: body.data?.serviceTime || "",
@@ -118,7 +118,7 @@ serve(async (req) => {
       result = await sendBookingCancelled({
         phoneNumber: phone,
         customerName: body.data?.customerName || "there",
-        bookingId: body.data?.bookingId || "—",
+        bookingId: body.data?.bookingId || "-",
         providerName: body.data?.providerName || "your provider",
         reason: body.data?.reason,
       });
@@ -128,7 +128,7 @@ serve(async (req) => {
       result = await sendBookingReminder({
         phoneNumber: phone,
         customerName: body.data?.customerName || "there",
-        bookingId: body.data?.bookingId || "—",
+        bookingId: body.data?.bookingId || "-",
         providerName: body.data?.providerName || "your provider",
         serviceDate: body.data?.serviceDate || "",
         serviceTime: body.data?.serviceTime || "",
@@ -149,13 +149,13 @@ serve(async (req) => {
           : template === "refund_update"
           ? "sociva_refund_update"
           : "sociva_order_update";
-      const fallback = body.message || `${body.data?.title || "Sociva update"} — open the app for details.`;
+      const fallback = body.message || `${body.data?.title || "Sociva update"} - open the app for details.`;
       const params =
         template === "new_order_seller"
           ? [body.data?.kind || "order", body.data?.details || fallback]
           : [
             body.data?.customerName || "there",
-            body.data?.orderId || body.data?.bookingId || "—",
+            body.data?.orderId || body.data?.bookingId || "-",
             body.data?.status || body.data?.title || "Update",
           ];
       result = await sendWhatsAppTemplateOrText({

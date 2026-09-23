@@ -29,7 +29,7 @@ INSERT INTO public.system_settings (key, value, description) VALUES
   -- UI strings
   ('ui_live_tracking_title', 'Live Tracking', 'Title for the live tracking card'),
   ('ui_delivery_partner_label', 'Delivery Partner', 'Label for delivery partner in tracking UI'),
-  ('ui_location_stale_warning', 'Location may be outdated — GPS is not updating', 'Warning message when GPS location is stale'),
+  ('ui_location_stale_warning', 'Location may be outdated - GPS is not updating', 'Warning message when GPS location is stale'),
   ('ui_setting_up_tracking', 'Setting up live tracking...', 'Message shown while delivery assignment is being created'),
   ('ui_gps_broadcasting_title', 'GPS Broadcasting', 'Title for seller GPS broadcasting card'),
   ('ui_gps_keep_open_warning', 'Keep this screen open while delivering. Browser backgrounding can pause GPS updates.', 'Warning for web-based GPS broadcasting'),

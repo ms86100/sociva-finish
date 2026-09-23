@@ -21,7 +21,7 @@ export function SellerAccountabilityPanel() {
   };
 
   const fmtSec = (s: number) => {
-    if (!s) return '—';
+    if (!s) return '-';
     if (s < 60) return `${s}s`;
     if (s < 3600) return `${Math.round(s / 60)}m`;
     return `${(s / 3600).toFixed(1)}h`;
@@ -61,12 +61,12 @@ export function SellerAccountabilityPanel() {
                       <td className="p-2">{m.total_orders_30d}</td>
                       <td className="p-2">{m.missed_orders_count}</td>
                       <td className="p-2 font-semibold">{m.escalation_hits}</td>
-                      <td className="p-2 text-muted-foreground">{m.last_active_at ? formatDistanceToNow(new Date(m.last_active_at), { addSuffix: true }) : '—'}</td>
+                      <td className="p-2 text-muted-foreground">{m.last_active_at ? formatDistanceToNow(new Date(m.last_active_at), { addSuffix: true }) : '-'}</td>
                     </tr>
                   );
                 })}
                 {!isLoading && (data?.length ?? 0) === 0 && (
-                  <tr><td colSpan={6} className="p-4 text-center text-muted-foreground">No seller metrics yet — click Recompute</td></tr>
+                  <tr><td colSpan={6} className="p-4 text-center text-muted-foreground">No seller metrics yet - click Recompute</td></tr>
                 )}
               </tbody>
             </table>

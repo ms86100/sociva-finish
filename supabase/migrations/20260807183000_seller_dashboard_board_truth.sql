@@ -1,5 +1,5 @@
 -- Seller dashboard truth layer: KPI + board count RPCs
--- Revenue definition (Settled GMV) — ONE source for all money widgets:
+-- Revenue definition (Settled GMV) - ONE source for all money widgets:
 --   SUM(orders.total_amount)
 --   WHERE status IN ('completed','delivered','buyer_received')
 --     AND COALESCE(payment_status, '') IS DISTINCT FROM 'refunded'
@@ -251,7 +251,7 @@ END;
 $$;
 
 COMMENT ON FUNCTION public.get_seller_order_board_counts(uuid) IS
-  'Order board filter counts — must match useSellerOrdersInfinite filter predicates exactly.';
+  'Order board filter counts - must match useSellerOrdersInfinite filter predicates exactly.';
 
 GRANT EXECUTE ON FUNCTION public.get_seller_dashboard_kpis(uuid) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.get_seller_order_board_counts(uuid) TO authenticated;

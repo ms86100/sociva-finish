@@ -179,7 +179,7 @@ BEGIN
     needs_attention = true,
     needs_attention_reason = coalesce(
       o.needs_attention_reason,
-      'Scheduled fulfilment time passed — please start preparation or update the buyer.'
+      'Scheduled fulfilment time passed - please start preparation or update the buyer.'
     ),
     updated_at = now()
   WHERE o.scheduled_date IS NOT NULL
@@ -219,7 +219,7 @@ BEGIN
   LIMIT 1;
 
   IF v_worker_secret IS NULL OR length(v_worker_secret) < 32 THEN
-    RAISE WARNING 'fn_invoke_scheduled_order_reminders: pnq_worker_secret missing — skip';
+    RAISE WARNING 'fn_invoke_scheduled_order_reminders: pnq_worker_secret missing - skip';
     RETURN;
   END IF;
 

@@ -102,7 +102,7 @@ BEGIN
   LIMIT 1;
 
   IF src IS NULL THEN
-    RAISE NOTICE 'quote_loyalty_redemption not found — skip packaging subtraction';
+    RAISE NOTICE 'quote_loyalty_redemption not found - skip packaging subtraction';
     RETURN;
   END IF;
 
@@ -112,7 +112,7 @@ BEGIN
   END IF;
 
   IF position('GREATEST(o.total_amount - o.delivery_fee, 0)' IN src) = 0 THEN
-    RAISE NOTICE 'loyalty quote base pattern not found — skip';
+    RAISE NOTICE 'loyalty quote base pattern not found - skip';
     RETURN;
   END IF;
 

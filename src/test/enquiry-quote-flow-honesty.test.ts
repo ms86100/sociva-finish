@@ -37,7 +37,7 @@ describe('Enquiry & Quote Flow Honesty', () => {
       isEnquiryOrder: true,
     });
 
-    expect(status.text).toBe('Quote received — review and accept');
+    expect(status.text).toBe('Quote received - review and accept');
     expect(status.icon).toBe('Receipt');
   });
 

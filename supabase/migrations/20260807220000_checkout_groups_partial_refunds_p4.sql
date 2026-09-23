@@ -215,7 +215,7 @@ BEGIN
   -- Child share of shared Razorpay capture (partial); last child gets remainder
   v_refund_amount := public.compute_child_gateway_refund_amount(NEW.id);
   IF v_refund_amount IS NULL OR v_refund_amount <= 0 THEN
-    -- Fully covered by loyalty/wallet with zero residual — wallet/loyalty reverse via cancel triggers
+    -- Fully covered by loyalty/wallet with zero residual - wallet/loyalty reverse via cancel triggers
     RETURN NEW;
   END IF;
 

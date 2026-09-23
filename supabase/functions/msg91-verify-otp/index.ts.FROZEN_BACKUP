@@ -61,7 +61,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    // OTP verified successfully — use the phone number from the request
+    // OTP verified successfully - use the phone number from the request
     // (MSG91 already validated it matches the reqId)
     const mobile = `${country_code}${phone}`;
     const fullPhone = `+${mobile}`;

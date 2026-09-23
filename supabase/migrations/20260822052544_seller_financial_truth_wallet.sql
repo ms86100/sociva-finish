@@ -801,7 +801,7 @@ BEGIN
         _status := 'settlement_paid';
       ELSE
         _title := 'Settlement recorded';
-        _body := '₹' || _amount || ' marked settled internally — payout transfer pending confirmation.';
+        _body := '₹' || _amount || ' marked settled internally - payout transfer pending confirmation.';
         _status := 'settlement_recorded';
       END IF;
     ELSE

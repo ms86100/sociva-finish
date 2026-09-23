@@ -276,7 +276,7 @@ CREATE TRIGGER trg_orders_refresh_checkout_group
   EXECUTE FUNCTION public.fn_orders_refresh_checkout_group();
 
 -- ------------------------------------------------------------
--- 5. P0 — harden auto-refund on seller cancel/reject
+-- 5. P0 - harden auto-refund on seller cancel/reject
 -- ------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.fn_auto_refund_on_seller_cancel()
 RETURNS trigger
@@ -331,7 +331,7 @@ BEGIN
 
   v_refund_amount := COALESCE(NEW.frozen_total, NEW.total_amount, 0);
   IF v_refund_amount <= 0 THEN
-    -- Fully covered by loyalty/wallet with zero residual — still may need wallet reverse
+    -- Fully covered by loyalty/wallet with zero residual - still may need wallet reverse
     -- via cancel triggers; skip refund_requests when amount is zero.
     RETURN NEW;
   END IF;
@@ -361,7 +361,7 @@ END;
 $function$;
 
 -- ------------------------------------------------------------
--- 6. P0 — seller_advance_order sets failure_owner on cancel/reject
+-- 6. P0 - seller_advance_order sets failure_owner on cancel/reject
 -- ------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.seller_advance_order(
   _order_id uuid,

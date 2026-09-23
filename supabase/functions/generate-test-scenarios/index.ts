@@ -429,7 +429,7 @@ function generateOrderLifecycleScenarios(): GeneratedScenario[] {
   for (const t of invalidTransitions) {
     scenarios.push({
       name: `Lifecycle: Invalid ${t.from}→${t.to}`,
-      module: "lifecycle", description: `${t.label} — should fail validation`,
+      module: "lifecycle", description: `${t.label} - should fail validation`,
       priority: p++, is_active: true, tags: ["lifecycle", "invalid", "negative"],
       steps: [
         ...sellerSetupSteps("Lifecycle Invalid Store"),
@@ -693,7 +693,7 @@ function generateEdgeCaseScenarios(): GeneratedScenario[] {
         on_fail: "continue",
       },
       {
-        ...orderRpcStep("order2", "Place second order (should work — different idempotency key)", "cod", "paid", [{ ref: "product", price: 100, name: "Idemp Test" }]),
+        ...orderRpcStep("order2", "Place second order (should work - different idempotency key)", "cod", "paid", [{ ref: "product", price: 100, name: "Idemp Test" }]),
         on_fail: "continue",
       },
     ],

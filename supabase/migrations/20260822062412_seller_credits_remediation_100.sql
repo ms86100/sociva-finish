@@ -417,19 +417,19 @@ BEGIN
   ELSIF p_outcome IN ('seller_failure', 'seller_no_show') THEN
     RETURN public.record_seller_billable_event(
       p_seller_id, 'SERVICE_BOOKING', 'order', p_order_id::text, 'release',
-      COALESCE(p_description, 'Seller failure — reservation released'), NULL
+      COALESCE(p_description, 'Seller failure - reservation released'), NULL
     );
   ELSIF p_outcome = 'no_show' THEN
     v_policy := COALESCE(public.seller_credit_setting('buyer_no_show_policy'), 'commit');
     IF v_policy = 'release' THEN
       RETURN public.record_seller_billable_event(
         p_seller_id, 'SERVICE_BOOKING', 'order', p_order_id::text, 'release',
-        COALESCE(p_description, 'Buyer no-show — reservation released'), NULL
+        COALESCE(p_description, 'Buyer no-show - reservation released'), NULL
       );
     END IF;
     RETURN public.record_seller_billable_event(
       p_seller_id, 'SERVICE_BOOKING', 'order', p_order_id::text, 'commit',
-      COALESCE(p_description, 'Buyer no-show — reserved credits committed'), NULL
+      COALESCE(p_description, 'Buyer no-show - reserved credits committed'), NULL
     );
   END IF;
   RETURN jsonb_build_object('ok', false, 'reason', 'unknown_outcome');

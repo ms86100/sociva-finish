@@ -326,7 +326,7 @@ function ProductListingCardInner({ product, layout = 'auto', onTap, onNavigate, 
             </div>
           )}
 
-          {/* Badges — top left */}
+          {/* Badges - top left */}
           {badges.length > 0 && (
             <div className="absolute top-2 left-2 flex flex-col gap-1 z-10 max-w-[70%]">
               {badges.slice(0, 1).map((b, i) => (
@@ -343,7 +343,7 @@ function ProductListingCardInner({ product, layout = 'auto', onTap, onNavigate, 
             </div>
           )}
 
-          {/* Discount — top right */}
+          {/* Discount - top right */}
           {hasDiscount && discountPct > 0 && (
             <div className="absolute top-2 right-2 z-10">
               <span className="bg-badge-discount text-primary-foreground text-[9px] font-extrabold px-2 py-1 rounded-md shadow-sm tracking-wide">
@@ -352,7 +352,7 @@ function ProductListingCardInner({ product, layout = 'auto', onTap, onNavigate, 
             </div>
           )}
 
-          {/* Favorite — hide on form previews (fake product ids) */}
+          {/* Favorite - hide on form previews (fake product ids) */}
           {user && !viewOnly && (
             <div
               className={cn(
@@ -385,7 +385,7 @@ function ProductListingCardInner({ product, layout = 'auto', onTap, onNavigate, 
           )}
         </div>
 
-        {/* ADD / quantity stepper — overlapping image edge */}
+        {/* ADD / quantity stepper - overlapping image edge */}
         {!viewOnly && !isUnavailable && !effectiveStoreClosed && (
           <div className="absolute -bottom-4 right-2 z-20">
             {isCartAction && quantity > 0 ? (

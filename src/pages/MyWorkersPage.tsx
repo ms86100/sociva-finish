@@ -46,7 +46,7 @@ export default function MyWorkersPage() {
               <Users size={20} className="text-primary" />
             </div>
             <div>
-              <p className="text-2xl font-bold tabular-nums">{isLoading ? '—' : workerCount}</p>
+              <p className="text-2xl font-bold tabular-nums">{isLoading ? '-' : workerCount}</p>
               <p className="text-xs text-muted-foreground">
                 {workerCount === 1 ? 'worker' : 'workers'} assigned to your flat
               </p>

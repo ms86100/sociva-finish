@@ -1,6 +1,6 @@
 
 -- ═══════════════════════════════════════════════════
--- Festival Experience Engine — Schema Migration
+-- Festival Experience Engine - Schema Migration
 -- ═══════════════════════════════════════════════════
 
 -- 1. Extend featured_items with new columns

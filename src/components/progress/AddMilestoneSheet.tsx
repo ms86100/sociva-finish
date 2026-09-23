@@ -58,7 +58,7 @@ export function AddMilestoneSheet({ onAdded, towers = [] }: AddMilestoneSheetPro
         notifySocietyMembers(
           profile.society_id,
           '🏗 Construction Update',
-          `${title.trim()} — ${completion[0]}% complete`,
+          `${title.trim()} - ${completion[0]}% complete`,
           { type: 'milestone' },
           user.id
         );

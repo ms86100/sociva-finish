@@ -83,9 +83,9 @@ export function shouldSendWhatsApp(opts: {
 function buildPushParityFallback(title: string, body: string): string {
   const t = title.trim();
   const b = body.trim();
-  if (t && b && t !== b) return `${t}\n\n${b}\n\n— Sociva`;
-  if (t) return `${t}\n\n— Sociva`;
-  return `${b || 'Update from Sociva'}\n\n— Sociva`;
+  if (t && b && t !== b) return `${t}\n\n${b}\n\n- Sociva`;
+  if (t) return `${t}\n\n- Sociva`;
+  return `${b || 'Update from Sociva'}\n\n- Sociva`;
 }
 
 function resolveTemplate(opts: {
@@ -118,8 +118,8 @@ function resolveTemplate(opts: {
           name,
           String(opts.payload.providerName || opts.payload.sellerName || "your provider"),
           orderRef,
-          String(opts.payload.serviceDate || opts.payload.date || "—"),
-          String(opts.payload.serviceTime || opts.payload.time || "—"),
+          String(opts.payload.serviceDate || opts.payload.date || "-"),
+          String(opts.payload.serviceTime || opts.payload.time || "-"),
         ],
         fallbackText,
       };
@@ -142,8 +142,8 @@ function resolveTemplate(opts: {
         bodyParams: [
           name,
           String(opts.payload.providerName || "your provider"),
-          String(opts.payload.serviceDate || "—"),
-          String(opts.payload.serviceTime || "—"),
+          String(opts.payload.serviceDate || "-"),
+          String(opts.payload.serviceTime || "-"),
           orderRef,
         ],
         fallbackText,
@@ -189,7 +189,7 @@ function resolveTemplate(opts: {
         String(opts.payload.providerName || opts.payload.sellerName || "your provider"),
         orderRef,
         String(opts.payload.serviceDate || opts.payload.date || "soon"),
-        String(opts.payload.serviceTime || opts.payload.time || "—"),
+        String(opts.payload.serviceTime || opts.payload.time || "-"),
       ],
       fallbackText,
     };
@@ -243,7 +243,7 @@ function resolveTemplate(opts: {
     };
   }
 
-  // Default utility order update — mirror push copy
+  // Default utility order update - mirror push copy
   return {
     templateName: "sociva_order_update",
     bodyParams: [name, orderRef, displayBody.slice(0, 600) || displayTitle.slice(0, 120)],

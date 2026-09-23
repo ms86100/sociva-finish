@@ -68,7 +68,7 @@ export function RequestSubcategoryDialog({
       let friendly = msg;
       if (msg.includes('category_request_limit_pending')) friendly = 'You already have 5 pending requests. Please wait for review.';
       else if (msg.includes('category_request_limit_daily')) friendly = 'Daily request limit reached. Try again tomorrow.';
-      else if (msg.includes('category_requests_pending_unique') || msg.includes('duplicate key')) friendly = "You already requested this — it's pending review.";
+      else if (msg.includes('category_requests_pending_unique') || msg.includes('duplicate key')) friendly = "You already requested this - it's pending review.";
       toast.error('Could not submit request', { description: friendly });
     } finally {
       setSubmitting(false);
@@ -87,14 +87,14 @@ export function RequestSubcategoryDialog({
             <DialogDescription className="text-center">
               We're reviewing <strong className="text-foreground">"{submittedName}"</strong> as a new subcategory
               under <strong className="text-foreground">{parentCategoryName}</strong>. You'll be notified the moment
-              it's live — usually within 24 hours.
+              it's live - usually within 24 hours.
             </DialogDescription>
           </DialogHeader>
 
           <div className="rounded-lg bg-muted/40 p-3 flex items-start gap-2 text-xs">
             <Clock size={14} className="text-muted-foreground mt-0.5 shrink-0" />
             <p className="text-muted-foreground">
-              You can keep going with the closest existing pick under {parentCategoryName} — we'll move your listing
+              You can keep going with the closest existing pick under {parentCategoryName} - we'll move your listing
               automatically once your subcategory is approved.
             </p>
           </div>

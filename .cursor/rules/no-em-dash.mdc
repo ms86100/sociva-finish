@@ -1,0 +1,16 @@
+---
+description: Never use em dash or en dash characters in product copy or code
+alwaysApply: true
+---
+
+# No em dash / en dash
+
+Never use the Unicode characters `-` (em dash, U+2014) or `-` (en dash, U+2013) in Sociva code, comments, UI copy, docs, SQL, or Codemagic YAML.
+
+Always use a plain ASCII hyphen-minus: `-`
+
+Examples:
+- Bad: `Home-cooked dum biryani - layered the slow way`
+- Good: `Home-cooked dum biryani - layered the slow way`
+
+This avoids an "AI-generated" look in the product.

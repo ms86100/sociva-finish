@@ -606,7 +606,7 @@ describeDb("Attribute Blocks E2E (Real DB)", () => {
       expect(specs.blocks[1].type).toBe(blockBSlug);
     });
 
-    it("6.2 buyer re-reads product — specs still contain block B data (graceful degradation)", async () => {
+    it("6.2 buyer re-reads product - specs still contain block B data (graceful degradation)", async () => {
       const { data } = await adminClient
         .from("products")
         .select("specifications")

@@ -156,7 +156,7 @@ BEGIN
 
   v_created := true;
 
-  -- normalized_name is GENERATED ALWAYS — omit from INSERT.
+  -- normalized_name is GENERATED ALWAYS - omit from INSERT.
   INSERT INTO public.category_requests (
     requested_by,
     requested_name,

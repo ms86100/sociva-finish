@@ -29,7 +29,7 @@ BEGIN
   END IF;
 
   IF v_order.buyer_id != auth.uid() THEN
-    RAISE EXCEPTION 'Not authorized — you are not the buyer of this order';
+    RAISE EXCEPTION 'Not authorized - you are not the buyer of this order';
   END IF;
 
   -- 2. Resolve parent_group

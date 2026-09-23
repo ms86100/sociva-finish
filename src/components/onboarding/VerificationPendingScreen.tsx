@@ -154,7 +154,7 @@ export function VerificationPendingScreen() {
             </div>
             <div className="flex items-start gap-2">
               <CheckCircle2 size={14} className="text-primary mt-0.5 shrink-0" />
-              <p>This page auto-refreshes — no need to keep checking manually.</p>
+              <p>This page auto-refreshes - no need to keep checking manually.</p>
             </div>
           </CollapsibleContent>
         </Collapsible>
@@ -194,7 +194,7 @@ export function VerificationPendingScreen() {
                   <p className="text-2xl font-bold text-primary">
                     {preview.avgApprovalHours !== null
                       ? preview.avgApprovalHours < 1 ? '<1h' : `~${preview.avgApprovalHours}h`
-                      : '—'}
+                      : '-'}
                   </p>
                   <p className="text-[10px] text-muted-foreground mt-1">Avg. Approval Time</p>
                 </CardContent>

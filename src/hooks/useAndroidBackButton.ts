@@ -11,7 +11,7 @@ const ROOT_PATHS = new Set(['/', '/home', '/welcome', '/landing', '/auth']);
  * Android hardware back:
  * 1) Close topmost Radix dialog/sheet (Escape)
  * 2) Else navigate back if history allows
- * 3) Else double-back to minimize (Android only — no-op on iOS)
+ * 3) Else double-back to minimize (Android only - no-op on iOS)
  */
 export function useAndroidBackButton() {
   const navigate = useNavigate();

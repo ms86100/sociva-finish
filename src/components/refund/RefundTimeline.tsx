@@ -47,7 +47,7 @@ export function RefundTimeline({ currentState, auditLog }: RefundTimelineProps) 
     return (
       <div className="flex items-center gap-2 px-3 py-2 bg-destructive/5 rounded-lg">
         <XCircle size={14} className="text-destructive" />
-        <p className="text-xs font-medium text-destructive">Refund failed — support will reach out</p>
+        <p className="text-xs font-medium text-destructive">Refund failed - support will reach out</p>
       </div>
     );
   }

@@ -12,10 +12,10 @@ import {
 } from './helpers/business-rules';
 
 // ════════════════════════════════════════════════════
-// SECTION 1: CORE PAGES — Route Classification
+// SECTION 1: CORE PAGES - Route Classification
 // ════════════════════════════════════════════════════
 
-describe('Core Pages — Route Classification', () => {
+describe('Core Pages - Route Classification', () => {
   it('TC-C001: /welcome is a public route', () => {
     expect(isPublicRoute('/welcome')).toBe(true);
   });
@@ -217,10 +217,10 @@ describe('Profile Menu Items', () => {
 });
 
 // ════════════════════════════════════════════════════
-// SECTION 6: BULLETIN — Post Sorting
+// SECTION 6: BULLETIN - Post Sorting
 // ════════════════════════════════════════════════════
 
-describe('Bulletin — Post Sorting', () => {
+describe('Bulletin - Post Sorting', () => {
   it('TC-B001: Pinned posts sort first', () => {
     const posts = [
       { is_pinned: false, created_at: '2026-02-01' },
@@ -259,7 +259,7 @@ describe('Bulletin — Post Sorting', () => {
 // SECTION 7: SOCIETY FINANCES
 // ════════════════════════════════════════════════════
 
-describe('Society Finances — Computation', () => {
+describe('Society Finances - Computation', () => {
   it('TC-F001: Totals computed correctly', () => {
     const result = computeFinanceSummary([{ amount: 1000 }, { amount: 2000 }], [{ amount: 5000 }]);
     expect(result.totalExpenses).toBe(3000);
@@ -286,7 +286,7 @@ describe('Society Finances — Computation', () => {
 // SECTION 8: CONSTRUCTION PROGRESS
 // ════════════════════════════════════════════════════
 
-describe('Construction Progress — Computation', () => {
+describe('Construction Progress - Computation', () => {
   it('TC-P001: Average of tower percentages', () => {
     expect(computeOverallProgress([{ current_percentage: 40 }, { current_percentage: 60 }], [])).toBe(50);
   });
@@ -330,7 +330,7 @@ describe('Delivery Fee Computation', () => {
 // SECTION 10: CART GROUPING
 // ════════════════════════════════════════════════════
 
-describe('Cart — Group by Seller', () => {
+describe('Cart - Group by Seller', () => {
   it('TC-CG001: Groups items by seller_id', () => {
     const items = [
       { seller_id: 's1', product_id: 'p1' },
@@ -355,7 +355,7 @@ describe('Cart — Group by Seller', () => {
 // SECTION 11: PRE-CHECKOUT VALIDATION
 // ════════════════════════════════════════════════════
 
-describe('Pre-Checkout — Unavailable Products', () => {
+describe('Pre-Checkout - Unavailable Products', () => {
   it('TC-PC001: Identifies unavailable products', () => {
     const fresh = [
       { id: 'p1', is_available: true, approval_status: 'approved' },
@@ -416,7 +416,7 @@ describe('Absent Workers', () => {
 // SECTION 14: SEARCH FILTERS
 // ════════════════════════════════════════════════════
 
-describe('Search Filters — Active Detection', () => {
+describe('Search Filters - Active Detection', () => {
   const defaults = { minRating: 0, isVeg: null as boolean | null, categories: [] as string[], sortBy: null as string | null, priceRange: [0, 5000] as [number, number] };
   it('TC-SF001: Default filters → not active', () => {
     expect(hasActiveFilters(defaults, 5000)).toBe(false);
@@ -442,7 +442,7 @@ describe('Search Filters — Active Detection', () => {
 // SECTION 15: WRITE SAFETY (VIEW-AS)
 // ════════════════════════════════════════════════════
 
-describe('Write Safety — Society ID', () => {
+describe('Write Safety - Society ID', () => {
   it('TC-WS001: Write uses profile society ID', () => {
     expect(getWriteSocietyId('home', 'viewed')).toBe('home');
   });

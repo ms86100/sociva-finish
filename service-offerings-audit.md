@@ -18,7 +18,7 @@ SOCIVA is **not safe to release as a trustworthy three-offering marketplace**.
 
 The live browser pass proves discoverability and existing-history rendering only. It did not perform destructive writes, real payment, simultaneous booking, cancellation, or rescheduling. Those cases are not marked PASS.
 
-**Final release classification: RED — critical security, booking-integrity, false-success, and workflow-completeness defects make release unsafe.**
+**Final release classification: RED - critical security, booking-integrity, false-success, and workflow-completeness defects make release unsafe.**
 
 ## Evidence Standard and Scope
 
@@ -93,7 +93,7 @@ These percentages describe breadth, not safety. A feature can be present yet rel
 
 ## Bookable Score
 
-**32/100 — major gaps; DO NOT SHIP.**
+**32/100 - major gaps; DO NOT SHIP.**
 
 What works:
 
@@ -121,7 +121,7 @@ What fails or is unsafe:
 
 ## Contact Score
 
-**18/100 — severely incomplete; DO NOT SHIP as a managed Contact workflow.**
+**18/100 - severely incomplete; DO NOT SHIP as a managed Contact workflow.**
 
 What works:
 
@@ -143,7 +143,7 @@ Actual semantics: **direct call or product chat**, not a managed callback/contac
 
 ## Enquiry Score
 
-**22/100 — major gaps; DO NOT SHIP as a complete Enquiry/Quote workflow.**
+**22/100 - major gaps; DO NOT SHIP as a complete Enquiry/Quote workflow.**
 
 What works:
 
@@ -1016,55 +1016,55 @@ The primary action is misrouted; creation can partially persist/duplicate; quote
 
 ## Recommended Implementation Sequence
 
-### Phase 1 — Emergency integrity and notification containment
+### Phase 1 - Emergency integrity and notification containment
 
 1. Restrict slot-generation/release/booking/reschedule RPCs.
 2. Repair notification worker, alerting and safe dead-letter replay.
 3. Remove false-success idempotent booking path.
 
-### Phase 2 — Authoritative Bookable state and money
+### Phase 2 - Authoritative Bookable state and money
 
 1. Canonical server pricing/relationships.
 2. Explicit acceptance/payment policy.
 3. Atomic cancellation/refund and reschedule.
 4. Counter reconciliation and stale-booking cleanup.
 
-### Phase 3 — Correct journey routing
+### Phase 3 - Correct journey routing
 
 1. Make `book`, `request_service`, and `contact_seller` mutually consistent across category/store/product/UI/SQL.
 2. Prevent unsupported/missing configuration from publishing.
 
-### Phase 4 — Enquiry and quote correctness
+### Phase 4 - Enquiry and quote correctness
 
 1. Atomic idempotent enquiry.
 2. Structured versioned quote.
 3. Linked commercial conversion.
 
-### Phase 5 — Contact correctness
+### Phase 5 - Contact correctness
 
 1. Unified message model/inboxes.
 2. Managed status/read/SLA.
 3. Verified contact channel and consent.
 
-### Phase 6 — Availability/time/recurrence
+### Phase 6 - Availability/time/recurrence
 
 1. Explicit timezone and interval model.
 2. Service duration/buffer/capacity enforcement.
 3. Recurrence worker or remove recurrence claims.
 
-### Phase 7 — UX clarity and accessibility
+### Phase 7 - UX clarity and accessibility
 
 Truthful CTA/status/payment/cancellation/error copy, mobile layout, keyboard and screen-reader behavior.
 
-### Phase 8 — Admin observability
+### Phase 8 - Admin observability
 
 Operational queues, correlation, stale/dead-letter alerts and audit history.
 
-### Phase 9 — Automated test gates
+### Phase 9 - Automated test gates
 
 RLS, API, integration, concurrency, notification, payment, refund, E2E, device.
 
-### Phase 10 — Regression certification
+### Phase 10 - Regression certification
 
 Clean migration replay, staging load/concurrency, production-safe smoke, Android/iOS/web evidence, go/no-go review.
 
@@ -1075,7 +1075,7 @@ RED
 Critical functionality/reliability/security/data-integrity issues make release unsafe.
 ```
 
-## Final Questions — Direct Answers
+## Final Questions - Direct Answers
 
 ### 1. What is the current Bookable score?
 
@@ -1160,7 +1160,7 @@ All P0 and P1 issues, with deployed RLS/RPC/concurrency/payment/notification/E2E
 
 ### 19. What can safely remain for later?
 
-Advanced analytics, richer quote negotiation, optional recurrence, visual polish and convenience features—only after truthful core journeys, admin incident visibility and baseline accessibility.
+Advanced analytics, richer quote negotiation, optional recurrence, visual polish and convenience features-only after truthful core journeys, admin incident visibility and baseline accessibility.
 
 ### 20. Would I approve SOCIVA going live tomorrow?
 

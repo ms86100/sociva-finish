@@ -97,7 +97,7 @@ async function lookupExistingUser(
   syntheticEmail: string,
   mobile: string,
   fullPhone: string,
-  /** 10-digit national number, e.g. 9876543201 — profiles often store this without +91 */
+  /** 10-digit national number, e.g. 9876543201 - profiles often store this without +91 */
   nationalPhone: string,
 ): Promise<{ id: string; email: string } | null> {
   try {
@@ -195,7 +195,7 @@ Deno.serve(async (req) => {
       (phone === "0123456789" ||
         phone === "0987654321" ||
         phone === "9876543201" ||
-        phone === "9535115316" || // TEMP E2E — remove after seller session
+        phone === "9535115316" || // TEMP E2E - remove after seller session
         phone === "8448802907") && // Staging TestFlight QA until MSG91 secrets are set
       reqId === "apple-review-bypass" &&
       otp === "1234";
@@ -297,7 +297,7 @@ Deno.serve(async (req) => {
         console.warn("[msg91-verify-otp] lookup failed:", lookupOutcome.reason);
       }
     } else {
-      console.log("Apple reviewer bypass — skipping MSG91 verification for demo phone");
+      console.log("Apple reviewer bypass - skipping MSG91 verification for demo phone");
       // Light rate limit only; no MSG91 creds needed
       try {
         await withTimeout(checkRateLimit(rlKey, 12, 600), RATE_LIMIT_TIMEOUT_MS, "otp-verify-rate-limit");
@@ -316,12 +316,12 @@ Deno.serve(async (req) => {
 
     if (authUser) {
       userId = authUser.id;
-      // ALWAYS magic-link the phone synthetic email — never auth.users.email nor profiles.email.
+      // ALWAYS magic-link the phone synthetic email - never auth.users.email nor profiles.email.
       // Personal Gmail on a phone profile previously signed users into a different GoTrue account
       // (no phone, no admin) while they thought they logged in with OTP.
       userEmail = syntheticEmail;
       console.log("Found existing user:", userId, "sessionEmail:", userEmail);
-      // MUST complete before generateLink — fire-and-forget left first login racing
+      // MUST complete before generateLink - fire-and-forget left first login racing
       // (auth.users still on old email → magiclink token / session mismatch).
       try {
         await withTimeout(
@@ -360,7 +360,7 @@ Deno.serve(async (req) => {
           createError.message?.includes("duplicate") ||
           (createError as any).code === "email_exists"
         ) {
-          console.log("Create raced — user already exists, treating as existing");
+          console.log("Create raced - user already exists, treating as existing");
           isNewUser = false;
           userEmail = syntheticEmail;
           // Resolve id so we can still align email before generateLink
@@ -474,7 +474,7 @@ Deno.serve(async (req) => {
 
     if (!accessToken || !refreshToken) {
       console.error("Session mint failed after OTP verify. lastLinkError:", lastLinkError);
-      // Still return token_hash as fallback for client verifyOtp — better than hard fail
+      // Still return token_hash as fallback for client verifyOtp - better than hard fail
       // if GoTrue verify endpoint shape differs by version.
       if (tokenHash) {
         console.log(`[msg91-verify-otp] total=${Date.now() - t0}ms isNew=${isNewUser} fallback=token_hash`);

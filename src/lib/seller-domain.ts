@@ -1,6 +1,6 @@
 /**
  * Seller-facing domain (Product / Service / Listing) derived from category_config.
- * Action types stay on default_action_type — domain only gates forms and browse labels.
+ * Action types stay on default_action_type - domain only gates forms and browse labels.
  */
 
 import { journeyFromTransactionType, type BuyerJourneyId } from '@/lib/buyer-journey';
@@ -84,7 +84,7 @@ export function offeringCopy(domain: SellerDomain) {
   if (domain === 'service') {
     return {
       catalogHeading: 'Your services',
-      emptyHint: 'Add your first service — even one offering is enough to get started.',
+      emptyHint: 'Add your first service - even one offering is enough to get started.',
       formTitleNew: 'New service',
       formTitleEdit: 'Edit service',
       namePlaceholder: 'e.g. Full dog grooming',
@@ -103,7 +103,7 @@ export function offeringCopy(domain: SellerDomain) {
   if (domain === 'listing') {
     return {
       catalogHeading: 'Your listings',
-      emptyHint: 'Add your first listing — even one is enough to get started.',
+      emptyHint: 'Add your first listing - even one is enough to get started.',
       formTitleNew: 'New listing',
       formTitleEdit: 'Edit listing',
       namePlaceholder: 'e.g. ITR filing for salaried',
@@ -121,7 +121,7 @@ export function offeringCopy(domain: SellerDomain) {
   }
   return {
     catalogHeading: 'Your products',
-    emptyHint: 'Add your first product — even one item is enough to get started.',
+    emptyHint: 'Add your first product - even one item is enough to get started.',
     formTitleNew: 'New product',
     formTitleEdit: 'Edit product',
     namePlaceholder: 'e.g. Homemade rajma chawal',

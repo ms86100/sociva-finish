@@ -45,7 +45,7 @@ Deno.serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, serviceKey);
 
-    // Get original order — verify ownership
+    // Get original order - verify ownership
     const { data: originalOrder, error: orderErr } = await supabase
       .from("orders")
       .select("id, buyer_id, seller_id, society_id, fulfillment_type, order_type, delivery_fee, discount_amount")

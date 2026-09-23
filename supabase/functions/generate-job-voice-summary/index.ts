@@ -44,7 +44,7 @@ serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
 
-    // Fetch language ai_name dynamically from DB — no hardcoded map, fail-closed
+    // Fetch language ai_name dynamically from DB - no hardcoded map, fail-closed
     const { data: langRow } = await sb
       .from("supported_languages")
       .select("ai_name")

@@ -10,7 +10,7 @@ interface PortfolioRollupStripProps {
   settledToday: number;
 }
 
-/** Clearly labeled multi-store aggregate — never shown without “All stores”. */
+/** Clearly labeled multi-store aggregate - never shown without “All stores”. */
 export function PortfolioRollupStrip({
   storeCount,
   actionNeeded,

@@ -15,10 +15,10 @@ import {
 } from './helpers/business-rules';
 
 // ════════════════════════════════════════════════════
-// SECTION 1: SEARCH PAGE — DEEP FILTER LOGIC
+// SECTION 1: SEARCH PAGE - DEEP FILTER LOGIC
 // ════════════════════════════════════════════════════
 
-describe('Search Page — Filter Logic', () => {
+describe('Search Page - Filter Logic', () => {
   const defaults = { minRating: 0, isVeg: null as boolean | null, categories: [] as string[], sortBy: null as string | null, priceRange: [0, 5000] as [number, number] };
 
   it('TC-SRCH001: Default filters not active', () => {
@@ -73,10 +73,10 @@ describe('Search Page — Filter Logic', () => {
 });
 
 // ════════════════════════════════════════════════════
-// SECTION 2: SELLER DASHBOARD — STATS
+// SECTION 2: SELLER DASHBOARD - STATS
 // ════════════════════════════════════════════════════
 
-describe('Seller Dashboard — Stats', () => {
+describe('Seller Dashboard - Stats', () => {
   it('TC-SDASH001: Cancellation rate 0% with orders', () => {
     expect(computeCancellationRate(10, 0)).toBe(0);
   });
@@ -99,10 +99,10 @@ describe('Seller Dashboard — Stats', () => {
 });
 
 // ════════════════════════════════════════════════════
-// SECTION 3: ADMIN PANEL — ROLE CHECKS
+// SECTION 3: ADMIN PANEL - ROLE CHECKS
 // ════════════════════════════════════════════════════
 
-describe('Admin Panel — Access', () => {
+describe('Admin Panel - Access', () => {
   it('TC-ADM001: Admin has management access', () => {
     expect(hasManagementAccess({ isAdmin: true, isSocietyAdmin: false })).toBe(true);
   });
@@ -118,10 +118,10 @@ describe('Admin Panel — Access', () => {
 });
 
 // ════════════════════════════════════════════════════
-// SECTION 4: WORKER HIRE — VALIDATION
+// SECTION 4: WORKER HIRE - VALIDATION
 // ════════════════════════════════════════════════════
 
-describe('Worker Hire — Validation', () => {
+describe('Worker Hire - Validation', () => {
   it('TC-WH001: Active worker with flats → valid', () => {
     expect(validateWorkerEntry({ status: 'active', deactivated_at: null, flat_count: 3 }).valid).toBe(true);
   });
@@ -140,7 +140,7 @@ describe('Worker Hire — Validation', () => {
 });
 
 // ════════════════════════════════════════════════════
-// SECTION 5: SOCIETY DELIVERIES — LOGIC
+// SECTION 5: SOCIETY DELIVERIES - LOGIC
 // ════════════════════════════════════════════════════
 
 describe('Society Deliveries', () => {
@@ -159,7 +159,7 @@ describe('Society Deliveries', () => {
 // SECTION 6: ROUTE GUARDS
 // ════════════════════════════════════════════════════
 
-describe('Route Guards — Feature Gate', () => {
+describe('Route Guards - Feature Gate', () => {
   it('TC-RG001: Disabled feature with society → disabled', () => {
     expect(getFeatureState({ source: 'package', is_enabled: false, society_configurable: true }, true)).toBe('disabled');
   });
@@ -181,10 +181,10 @@ describe('Route Guards — Feature Gate', () => {
 });
 
 // ════════════════════════════════════════════════════
-// SECTION 7: HOME PAGE — POST SORTING
+// SECTION 7: HOME PAGE - POST SORTING
 // ════════════════════════════════════════════════════
 
-describe('Home Page — Bulletin Sorting', () => {
+describe('Home Page - Bulletin Sorting', () => {
   it('TC-HP001: Pinned first', () => {
     const sorted = sortByPinAndDate([
       { is_pinned: false, created_at: '2026-02-01' },

@@ -110,7 +110,7 @@ BEGIN
     END IF;
   END IF;
 
-  -- All checks passed — auto-accept
+  -- All checks passed - auto-accept
   NEW.status := 'preparing';
   RETURN NEW;
 END;

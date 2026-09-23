@@ -110,7 +110,7 @@ export default function GateEntryPage() {
                 </div>
                 
                 <Badge variant={timeLeft <= 10 ? 'destructive' : 'secondary'} className="text-xs">
-                  {timeLeft <= 10 ? 'Expiring soon!' : 'Valid — show to guard'}
+                  {timeLeft <= 10 ? 'Expiring soon!' : 'Valid - show to guard'}
                 </Badge>
 
                 <Button

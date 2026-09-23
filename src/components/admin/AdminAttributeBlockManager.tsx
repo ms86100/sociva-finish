@@ -454,7 +454,7 @@ export function AdminAttributeBlockManager() {
                         />
                       </div>
                       {/* Key preview */}
-                      <p className="text-[9px] text-muted-foreground font-mono">key: {field.key || slugify(field.label) || '—'}</p>
+                      <p className="text-[9px] text-muted-foreground font-mono">key: {field.key || slugify(field.label) || '-'}</p>
 
                       {/* Options for select type */}
                       {field.type === 'select' && (

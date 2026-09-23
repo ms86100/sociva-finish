@@ -318,7 +318,7 @@ export function ProductDetailSheet({ product, open, onOpenChange, onSelectProduc
                     transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
                   >
                     {product.fulfillment_mode && (<div className="flex items-center gap-1.5 text-xs text-muted-foreground bg-muted rounded-lg px-3 py-2"><Truck size={14} className="text-accent shrink-0" /><span>{product.fulfillment_mode === 'self_pickup' && 'Self Pickup Only'}{product.fulfillment_mode === 'delivery' && 'Seller Delivers'}{product.fulfillment_mode === 'both' && 'Pickup or Delivery'}</span></div>)}
-                    {product.delivery_note && <p className="text-xs text-muted-foreground italic">— {product.delivery_note}</p>}
+                    {product.delivery_note && <p className="text-xs text-muted-foreground italic">- {product.delivery_note}</p>}
                     {product.description && <div><h4 className="text-xs font-bold text-foreground mb-1">Highlights</h4><p className={`text-xs text-muted-foreground leading-relaxed ${!d.descExpanded ? 'line-clamp-3' : ''}`}>{product.description}</p>{product.description.length > 120 && <button onClick={() => d.setDescExpanded(!d.descExpanded)} className="text-[10px] font-medium text-primary mt-0.5">{d.descExpanded ? 'Show less' : 'Read more'}</button>}</div>}
                     <ProductAttributeBlocks specifications={d.loadedSpecs ?? product.specifications} />
                     <Suspense fallback={null}>

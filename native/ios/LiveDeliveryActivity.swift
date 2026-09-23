@@ -1,7 +1,7 @@
 /**
  * LiveDeliveryActivity.swift
  * 
- * Reference implementation — copy into your Xcode project's
+ * Reference implementation - copy into your Xcode project's
  * Widget Extension target.
  *
  * Defines the ActivityKit attributes for Sociva delivery/booking

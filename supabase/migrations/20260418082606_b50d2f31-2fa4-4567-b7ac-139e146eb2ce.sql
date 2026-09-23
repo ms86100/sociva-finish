@@ -35,7 +35,7 @@ USING (
   OR EXISTS (SELECT 1 FROM public.orders o WHERE o.id = payment_ledger.order_id
              AND (o.buyer_id = auth.uid() OR o.seller_id = auth.uid()))
 );
--- No INSERT/UPDATE/DELETE policies — RPC SECURITY DEFINER only.
+-- No INSERT/UPDATE/DELETE policies - RPC SECURITY DEFINER only.
 
 -- 2. Extend refund_requests with state-machine column
 ALTER TABLE public.refund_requests
@@ -95,7 +95,7 @@ USING (
       AND (o.buyer_id = auth.uid() OR o.seller_id = auth.uid())
   )
 );
--- No INSERT/UPDATE/DELETE — RPC only.
+-- No INSERT/UPDATE/DELETE - RPC only.
 
 -- 4. State-machine enforcement trigger
 CREATE OR REPLACE FUNCTION public.enforce_refund_state_machine()

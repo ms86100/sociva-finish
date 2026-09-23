@@ -86,7 +86,7 @@ BEGIN
 
   v_created := true;
 
-  -- normalized_name is GENERATED ALWAYS AS (lower(btrim(requested_name))) — do not insert it.
+  -- normalized_name is GENERATED ALWAYS AS (lower(btrim(requested_name))) - do not insert it.
   INSERT INTO public.category_requests (
     requested_by,
     requested_name,

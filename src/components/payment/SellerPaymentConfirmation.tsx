@@ -63,7 +63,7 @@ export function SellerPaymentConfirmation({
       }
 
       showFeedback({
-        title: received ? 'Payment confirmed' : 'Marked not received — order cancelled',
+        title: received ? 'Payment confirmed' : 'Marked not received - order cancelled',
         variant: 'success',
       });
       onConfirmed();

@@ -70,7 +70,7 @@ export default function AdminStoreManagerPage() {
         {
           key: 'products',
           title: 'Products / listings',
-          desc: 'Full CRUD — create, edit, delete, availability',
+          desc: 'Full CRUD - create, edit, delete, availability',
           icon: Package,
           to: paths.products,
           metric: store ? `${store.listings?.live ?? 0} live · ${store.listings?.pending ?? 0} pending` : null,
@@ -110,7 +110,7 @@ export default function AdminStoreManagerPage() {
         {
           key: 'audit',
           title: 'Audit snapshot',
-          desc: 'Verification, disputes, reviews — more than seller sees',
+          desc: 'Verification, disputes, reviews - more than seller sees',
           icon: Shield,
           to: `#audit`,
           metric: store ? `${store.quality?.open_disputes ?? 0} open disputes` : null,
@@ -143,7 +143,7 @@ export default function AdminStoreManagerPage() {
             <div className="min-w-0 flex-1">
               <p className="text-sm font-bold">Find a store</p>
               <p className="text-xs text-muted-foreground">
-                Search by name, phone, or id — then manage products and settings on their behalf.
+                Search by name, phone, or id - then manage products and settings on their behalf.
               </p>
             </div>
           </div>
@@ -183,7 +183,7 @@ export default function AdminStoreManagerPage() {
                   {store && !store.is_available && <Badge variant="secondary">Unavailable</Badge>}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  {store?.owner_name || 'Owner'} · {store?.owner_phone || '—'} ·{' '}
+                  {store?.owner_name || 'Owner'} · {store?.owner_phone || '-'} ·{' '}
                   {store?.society_name || 'No society'}
                 </p>
                 {store?.rating != null && (
@@ -192,7 +192,7 @@ export default function AdminStoreManagerPage() {
                   </p>
                 )}
                 <p className="text-[11px] text-amber-800 dark:text-amber-200 font-medium">
-                  Managing as admin — seller keeps their own login; your session stays admin.
+                  Managing as admin - seller keeps their own login; your session stays admin.
                 </p>
               </div>
             )}

@@ -29,9 +29,9 @@ const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
 const KV_TERMINAL = 'status_flow_terminal_cache';
 const KV_START = 'status_flow_start_cache';
 
-/* ── Minimal safe fallbacks (NOT business logic — universal final state only) ── */
+/* ── Minimal safe fallbacks (NOT business logic - universal final state only) ── */
 const SAFE_TERMINAL_FALLBACK = new Set<string>(['completed']);
-const SAFE_START_FALLBACK = new Set<string>(); // empty is acceptable for start — LA just won't start
+const SAFE_START_FALLBACK = new Set<string>(); // empty is acceptable for start - LA just won't start
 
 /* ── Helpers ── */
 
@@ -42,7 +42,7 @@ function readSetFromKV(key: string): Set<string> | null {
     if (!raw) return null;
     const arr = JSON.parse(raw);
     if (Array.isArray(arr) && arr.length > 0) return new Set<string>(arr);
-  } catch { /* corrupt data — ignore */ }
+  } catch { /* corrupt data - ignore */ }
   return null;
 }
 
@@ -62,7 +62,7 @@ export async function getStatusFlowEntries(): Promise<FlowEntry[]> {
   const { data, error } = await supabase
     .from('category_status_flows')
     .select('status_key, sort_order, is_terminal, starts_live_activity')
-    /* No transaction_type filter — support all current and future workflow types dynamically */
+    /* No transaction_type filter - support all current and future workflow types dynamically */
     .order('sort_order');
 
   if (!error && data && data.length > 0) {
@@ -73,7 +73,7 @@ export async function getStatusFlowEntries(): Promise<FlowEntry[]> {
 
   // Tier 2: expired in-memory cache (stale but valid)
   if (cached) {
-    console.warn('[statusFlowCache] DB fetch failed — using expired in-memory cache');
+    console.warn('[statusFlowCache] DB fetch failed - using expired in-memory cache');
     return cached;
   }
 
@@ -81,7 +81,7 @@ export async function getStatusFlowEntries(): Promise<FlowEntry[]> {
   return [];
 }
 
-/** Statuses marked is_terminal in the DB — DB is the sole source of truth */
+/** Statuses marked is_terminal in the DB - DB is the sole source of truth */
 export async function getTerminalStatuses(): Promise<Set<string>> {
   const entries = await getStatusFlowEntries();
   const terminal = new Set<string>();
@@ -98,12 +98,12 @@ export async function getTerminalStatuses(): Promise<Set<string>> {
   // Tier 3: persistent KV (last successful DB fetch, survives app restart)
   const kvSet = readSetFromKV(KV_TERMINAL);
   if (kvSet) {
-    console.warn('[statusFlowCache] No terminal statuses from DB — using persistent KV cache');
+    console.warn('[statusFlowCache] No terminal statuses from DB - using persistent KV cache');
     return kvSet;
   }
 
-  // Tier 4: minimal safe fallback — CRITICAL WARNING
-  console.error('[statusFlowCache] CRITICAL: No terminal statuses from DB, cache, or KV — using safe fallback ["completed"]. This is a configuration issue.');
+  // Tier 4: minimal safe fallback - CRITICAL WARNING
+  console.error('[statusFlowCache] CRITICAL: No terminal statuses from DB, cache, or KV - using safe fallback ["completed"]. This is a configuration issue.');
   return SAFE_TERMINAL_FALLBACK;
 }
 
@@ -124,12 +124,12 @@ export async function getStartStatuses(): Promise<Set<string>> {
   // Tier 3: persistent KV
   const kvSet = readSetFromKV(KV_START);
   if (kvSet) {
-    console.warn('[statusFlowCache] No start statuses from DB — using persistent KV cache');
+    console.warn('[statusFlowCache] No start statuses from DB - using persistent KV cache');
     return kvSet;
   }
 
-  // Tier 4: empty is acceptable for start — LA simply won't start until DB loads
-  console.warn('[statusFlowCache] No start statuses available — Live Activities will not start until DB loads');
+  // Tier 4: empty is acceptable for start - LA simply won't start until DB loads
+  console.warn('[statusFlowCache] No start statuses available - Live Activities will not start until DB loads');
   return SAFE_START_FALLBACK;
 }
 

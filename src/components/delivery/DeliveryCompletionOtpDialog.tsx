@@ -63,7 +63,7 @@ export function DeliveryCompletionOtpDialog({ orderId, open, onOpenChange, onVer
       setOtp('');
       setErrorMessage(null);
 
-      // Refresh parent AFTER dialog closes — avoids remount/teardown during OTP UI
+      // Refresh parent AFTER dialog closes - avoids remount/teardown during OTP UI
       setTimeout(() => {
         setOpen(false);
         setTimeout(() => onVerified?.(), 100);

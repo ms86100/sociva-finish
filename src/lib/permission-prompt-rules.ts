@@ -1,5 +1,5 @@
 /**
- * Pure rules for permission soft-prompts — unit-tested, no Capacitor.
+ * Pure rules for permission soft-prompts - unit-tested, no Capacitor.
  */
 export type NotificationPermissionState = 'enabled' | 'denied' | 'not_requested' | 'unknown';
 export type LocationPermissionState =
@@ -44,7 +44,7 @@ export function notifNeedsAttention(opts: {
 }): boolean {
   if (!opts.isNative) return false;
   if (opts.hasToken) return false;
-  // Ignore unknown while OS status is still loading — avoids flash + stuck Enable.
+  // Ignore unknown while OS status is still loading - avoids flash + stuck Enable.
   return (
     opts.notificationPermission === 'not_requested' ||
     opts.notificationPermission === 'denied'

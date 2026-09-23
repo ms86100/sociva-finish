@@ -1,12 +1,12 @@
 /**
- * Phases 2–5 payment/trust guards (extends Phase 1 upi-deeplink harden).
+ * Phases 2-5 payment/trust guards (extends Phase 1 upi-deeplink harden).
  */
 import { describe, it, expect } from 'vitest';
 import { deriveDisplayStatus } from '@/lib/deriveDisplayStatus';
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
 
-describe('Phase 2–5 payment/trust', () => {
+describe('Phase 2-5 payment/trust', () => {
   describe('Phase 3 status honesty (deriveDisplayStatus)', () => {
     it('unpaid payment_pending is not "Order placed"', () => {
       const result = deriveDisplayStatus({

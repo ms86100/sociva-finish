@@ -37,7 +37,7 @@ Run after `npm run build && npx cap sync android` with a **signed** debug/releas
 
 - [ ] Airplane mode at checkout → blocked with clear messaging (no fake placed order)
 - [ ] Resume from background after UPI does not wipe cart incorrectly
-- [ ] `android:queries` present — UPI package discovery works on Android 11+
+- [ ] `android:queries` present - UPI package discovery works on Android 11+
 
 ## Sign-off
 

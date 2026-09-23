@@ -1,6 +1,6 @@
 
 -- ============================================================
--- 1. Fix get_allowed_transitions — align return type + logic
+-- 1. Fix get_allowed_transitions - align return type + logic
 -- ============================================================
 DROP FUNCTION IF EXISTS public.get_allowed_transitions(uuid, text);
 
@@ -61,7 +61,7 @@ END;
 $$;
 
 -- ============================================================
--- 2. Fix verify_delivery_otp_and_complete — return structured TABLE
+-- 2. Fix verify_delivery_otp_and_complete - return structured TABLE
 -- ============================================================
 DROP FUNCTION IF EXISTS public.verify_delivery_otp_and_complete(uuid, text);
 

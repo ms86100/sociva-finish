@@ -247,13 +247,13 @@ export function OrderHelpSheet({
       });
 
       if (result.resolved) {
-        // Auto-resolved — no ticket needed
+        // Auto-resolved - no ticket needed
         setResolutionResult(result);
         setStep('resolution');
         return;
       }
 
-      // Not resolved — create ticket via SECURITY DEFINER RPC.
+      // Not resolved - create ticket via SECURITY DEFINER RPC.
       console.info('[Support] submit start', { orderId, issue_type: selectedCategory });
 
       const ticket = await createTicket.mutateAsync({
@@ -434,7 +434,7 @@ export function OrderHelpSheet({
               </motion.div>
             )}
 
-            {/* STEP: Evidence Upload — supports gallery, camera (capture=environment), and native picker */}
+            {/* STEP: Evidence Upload - supports gallery, camera (capture=environment), and native picker */}
             {step === 'evidence' && (
               <motion.div key="evidence" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-3">
                 <p className="text-xs text-muted-foreground">Add photos to help us understand the issue (max 3, 5MB each)</p>
@@ -539,7 +539,7 @@ export function OrderHelpSheet({
                   {isActionResolved && (
                     <div className="text-center space-y-1">
                       <p className="text-base font-bold">
-                        {resolutionResult.resolution_type === 'cancel_and_refund' ? 'Done — order cancelled, refund initiated' : 'Done — refund initiated'}
+                        {resolutionResult.resolution_type === 'cancel_and_refund' ? 'Done - order cancelled, refund initiated' : 'Done - refund initiated'}
                       </p>
                       <p className="text-sm text-muted-foreground max-w-xs mx-auto">
                         {resolutionResult.resolution_note || 'Your refund will be credited to your original payment method in 3-5 business days.'}

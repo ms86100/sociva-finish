@@ -84,13 +84,13 @@ WHERE NOT EXISTS (
 -- 3) Transit stuck notification templates + rules
 INSERT INTO public.notification_templates (key, channel, title_template, body_template, description, active)
 VALUES
-  ('order_on_the_way_seller_l1', 'push', 'Delivery still open', 'Order #{order_number} has been on the way for a while — confirm delivery with OTP or report an issue.', 'Transit soft nudge', true),
+  ('order_on_the_way_seller_l1', 'push', 'Delivery still open', 'Order #{order_number} has been on the way for a while - confirm delivery with OTP or report an issue.', 'Transit soft nudge', true),
   ('order_on_the_way_seller_l2', 'push', 'Overdue delivery', 'Order #{order_number} is overdue. Confirm delivery or mark could not deliver.', 'Transit warning', true),
   ('order_on_the_way_seller_l3', 'push', 'Urgent: stuck delivery', 'Order #{order_number} has been in transit too long. Resolve now.', 'Transit urgent', true),
   ('order_on_the_way_buyer_l1', 'push', 'Your order is delayed', 'Your order from {seller_name} is taking longer than expected. We are following up.', 'Buyer reassure', true),
   ('order_on_the_way_buyer_l2', 'push', 'Need help with your order?', 'Your order still has not been confirmed delivered. Tap for help or a refund request.', 'Buyer escape', true),
-  ('order_picked_up_seller_l1', 'push', 'Update delivery status', 'Order #{order_number} is picked up — mark on the way when you leave.', 'Picked up stall', true),
-  ('order_at_gate_seller_l1', 'push', 'Complete delivery', 'Order #{order_number} is at the gate — enter the buyer OTP to finish.', 'At gate stall', true)
+  ('order_picked_up_seller_l1', 'push', 'Update delivery status', 'Order #{order_number} is picked up - mark on the way when you leave.', 'Picked up stall', true),
+  ('order_at_gate_seller_l1', 'push', 'Complete delivery', 'Order #{order_number} is at the gate - enter the buyer OTP to finish.', 'At gate stall', true)
 ON CONFLICT (key) DO NOTHING;
 
 INSERT INTO public.notification_rules
@@ -289,7 +289,7 @@ BEGIN
     ELSE
       UPDATE public.orders
       SET needs_attention = true,
-          needs_attention_reason = COALESCE(needs_attention_reason, 'Stuck in transit — confirm delivery or report issue'),
+          needs_attention_reason = COALESCE(needs_attention_reason, 'Stuck in transit - confirm delivery or report issue'),
           updated_at = now()
       WHERE id = r.id
         AND COALESCE(needs_attention, false) = false;

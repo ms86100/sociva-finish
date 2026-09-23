@@ -35,7 +35,7 @@ export function PaymentMethodSelector({
         id: 'upi' as PaymentMethod,
         label: 'Pay Online',
         description: multiSellerOnlineBlocked
-          ? 'One store at a time — use “Checkout this store” or COD for all'
+          ? 'One store at a time - use “Checkout this store” or COD for all'
           : 'One payment to Sociva via Razorpay (UPI, Cards, Wallets). Multi-store carts are charged once; each store fulfills separately.',
         icon: CreditCard,
         enabled: onlineEnabled,
@@ -49,7 +49,7 @@ export function PaymentMethodSelector({
         id: 'upi' as PaymentMethod,
         label: 'UPI Payment',
         description: multiSellerOnlineBlocked
-          ? 'Pays one seller’s UPI ID only — checkout one store at a time'
+          ? 'Pays one seller’s UPI ID only - checkout one store at a time'
           : isUpiDeepLink
             ? 'Pay directly via UPI app to this seller'
             : `Pay via ${upiProviderLabel}`,
@@ -66,7 +66,7 @@ export function PaymentMethodSelector({
     id: 'cod' as PaymentMethod,
     label: 'Cash on Delivery',
     description: multiSellerOnlineBlocked
-      ? 'Pay each store when you receive — separate orders per seller'
+      ? 'Pay each store when you receive - separate orders per seller'
       : 'Pay when you receive',
     icon: Banknote,
     enabled: acceptsCod,

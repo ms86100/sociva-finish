@@ -5,7 +5,7 @@ import { useAuth } from '@/contexts/AuthContext';
 
 /**
  * Checks if the current user is a security officer for the effective society.
- * Uses the is_security_officer RPC (SECURITY DEFINER) — no client-side role string checks.
+ * Uses the is_security_officer RPC (SECURITY DEFINER) - no client-side role string checks.
  */
 export function useSecurityOfficer(roleHint: boolean = true) {
   const { profile, effectiveSocietyId } = useAuth();

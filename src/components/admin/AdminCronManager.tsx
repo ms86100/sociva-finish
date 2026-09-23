@@ -212,7 +212,7 @@ export function AdminCronManager() {
         <DialogContent className="rounded-2xl">
           <DialogHeader>
             <DialogTitle className="font-bold text-sm">
-              Edit Schedule — {editingJob && extractFunctionName(editingJob.command)}
+              Edit Schedule - {editingJob && extractFunctionName(editingJob.command)}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
@@ -259,7 +259,7 @@ export function AdminCronManager() {
         <DialogContent className="rounded-2xl max-h-[80dvh]">
           <DialogHeader>
             <DialogTitle className="font-bold text-sm">
-              Run History — {viewingRuns && extractFunctionName(viewingRuns.command)}
+              Run History - {viewingRuns && extractFunctionName(viewingRuns.command)}
             </DialogTitle>
           </DialogHeader>
           <ScrollArea className="max-h-[60vh]">
@@ -287,7 +287,7 @@ export function AdminCronManager() {
                         {run.status}
                       </Badge>
                       <span className="text-[10px] text-muted-foreground">
-                        {run.start_time ? format(new Date(run.start_time), 'MMM d, HH:mm:ss') : '—'}
+                        {run.start_time ? format(new Date(run.start_time), 'MMM d, HH:mm:ss') : '-'}
                       </span>
                     </div>
                     {run.return_message && run.status !== 'succeeded' && (

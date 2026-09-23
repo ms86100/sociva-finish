@@ -1,7 +1,7 @@
 -- 1. Reset all stuck 'processing' notifications to 'failed' so they stop looping
 UPDATE public.notification_queue
 SET status = 'failed',
-    last_error = 'FIREBASE_SERVICE_ACCOUNT not configured — push provider unavailable. In-app delivery was not attempted for these legacy items.',
+    last_error = 'FIREBASE_SERVICE_ACCOUNT not configured - push provider unavailable. In-app delivery was not attempted for these legacy items.',
     processed_at = now()
 WHERE status = 'processing';
 

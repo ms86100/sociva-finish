@@ -21,7 +21,7 @@ Generate professional screenshots for your Sociva app store listings.
 
 | Type | Resolution | Required |
 |------|-----------|----------|
-| Phone | 1080 × 1920 (min) | ✅ Yes (2–8) |
+| Phone | 1080 × 1920 (min) | ✅ Yes (2-8) |
 | 7" Tablet | 1200 × 1920 | Optional |
 | 10" Tablet | 1600 × 2560 | Optional |
 
@@ -29,14 +29,14 @@ Generate professional screenshots for your Sociva app store listings.
 
 ## Recommended Screenshots (in order)
 
-1. **Home / Browse** — Show the community marketplace with categories
-2. **Seller Store** — A seller's page with products/services
-3. **Order Flow** — Cart or checkout screen
-4. **Order Tracking** — Active order with status updates
-5. **Seller Dashboard** — Earnings and order management
-6. **Chat** — In-app messaging between buyer and seller
-7. **Categories** — Grid of available service categories
-8. **Profile** — User profile with community info
+1. **Home / Browse** - Show the community marketplace with categories
+2. **Seller Store** - A seller's page with products/services
+3. **Order Flow** - Cart or checkout screen
+4. **Order Tracking** - Active order with status updates
+5. **Seller Dashboard** - Earnings and order management
+6. **Chat** - In-app messaging between buyer and seller
+7. **Categories** - Grid of available service categories
+8. **Profile** - User profile with community info
 
 ---
 

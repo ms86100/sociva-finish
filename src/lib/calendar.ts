@@ -72,7 +72,7 @@ export async function addToCalendar(data: CalendarEventData): Promise<AddToCalen
   }
 
   if (Capacitor.isNativePlatform()) {
-    // Avoid calling a missing native bridge — older IPAs may not ship CapacitorCalendar.
+    // Avoid calling a missing native bridge - older IPAs may not ship CapacitorCalendar.
     if (!Capacitor.isPluginAvailable('CapacitorCalendar')) {
       return await openICS(data);
     }
@@ -110,7 +110,7 @@ async function addToNativeCalendar(data: CalendarEventData): Promise<AddToCalend
     return addToAndroidCalendar(CapacitorCalendar, base, alerts);
   }
 
-  // iOS — write-only access + system event editor (supports alerts + cancel)
+  // iOS - write-only access + system event editor (supports alerts + cancel)
   const permResult = await CapacitorCalendar.requestWriteOnlyCalendarAccess();
   if (permResult?.result === 'denied') {
     return {
@@ -155,7 +155,7 @@ async function addToAndroidCalendar(
     console.warn('[Calendar] Android write permission unavailable, using system intent:', permErr);
   }
 
-  // Intent-based create — works without WRITE_CALENDAR; alerts not supported by Intent extras.
+  // Intent-based create - works without WRITE_CALENDAR; alerts not supported by Intent extras.
   // Bake reminder guidance into notes so the user can set them in the calendar UI.
   const reminderNote =
     alerts.length > 0
@@ -168,7 +168,7 @@ async function addToAndroidCalendar(
     description: `${base.description || ''}${reminderNote}`.trim() || undefined,
   });
   // Android createEventWithPrompt always returns id: null; treat a successful launch as added.
-  // If the user cancels the system UI, Android still resolves — we cannot distinguish cancel.
+  // If the user cancels the system UI, Android still resolves - we cannot distinguish cancel.
   return { status: 'added' };
 }
 
@@ -249,7 +249,7 @@ function isMedianOrMobileWeb(): boolean {
 /**
  * Opens / downloads an ICS file on web (and as iOS native fallback).
  *
- * Median Calendar plugin intercepts `data:text/calendar` / `.ics` links —
+ * Median Calendar plugin intercepts `data:text/calendar` / `.ics` links -
  * blob: URLs with a `download` attribute are NOT intercepted and fail silently
  * inside native webviews.
  */
@@ -270,7 +270,7 @@ async function openICS(data: CalendarEventData): Promise<AddToCalendarResult> {
       const dataUri = `data:text/calendar;charset=utf-8,${encodeURIComponent(content)}`;
       const link = document.createElement('a');
       link.href = dataUri;
-      // Intentionally no `download` attribute — that blocks calendar interceptors
+      // Intentionally no `download` attribute - that blocks calendar interceptors
       link.rel = 'noopener';
       document.body.appendChild(link);
       link.click();

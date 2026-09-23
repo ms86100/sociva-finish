@@ -89,7 +89,7 @@ export function FeedbackSheet({ triggerLabel, onSubmitted, triggerOpen, onOpenCh
                   type="button"
                   onClick={() => setRating(value)}
                   className="flex flex-col items-center gap-1.5 px-1"
-                  aria-label={`${value} star${value === 1 ? '' : 's'} — ${label}`}
+                  aria-label={`${value} star${value === 1 ? '' : 's'} - ${label}`}
                 >
                   <Star
                     size={28}
@@ -107,7 +107,7 @@ export function FeedbackSheet({ triggerLabel, onSubmitted, triggerOpen, onOpenCh
               {rating <= 2
                 ? 'We are sorry it fell short. Tell us how we can improve.'
                 : rating === 3
-                  ? 'Thank you — a short note helps us improve.'
+                  ? 'Thank you - a short note helps us improve.'
                   : 'Glad it went well. We appreciate you taking a moment.'}
             </p>
           )}

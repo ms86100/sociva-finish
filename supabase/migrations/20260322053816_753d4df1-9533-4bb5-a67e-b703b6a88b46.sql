@@ -68,14 +68,14 @@ begin
   end if;
 
   -- ============================================================
-  -- LAYER 1: Advisory lock — serialize all requests with same key
+  -- LAYER 1: Advisory lock - serialize all requests with same key
   -- ============================================================
   if _idempotency_key is not null then
     perform pg_advisory_xact_lock(hashtext(_idempotency_key));
   end if;
 
   -- ============================================================
-  -- LAYER 2: Request-level dedup — fast path for retries
+  -- LAYER 2: Request-level dedup - fast path for retries
   -- ============================================================
   if _idempotency_key is not null then
     select array_agg(o.id order by o.created_at, o.id)
@@ -300,7 +300,7 @@ begin
   -- Cart clearing is handled client-side after payment confirmation.
 
   -- ============================================================
-  -- LAYER 4: Canonical response — always return full set from DB
+  -- LAYER 4: Canonical response - always return full set from DB
   -- ============================================================
   if _idempotency_key is not null then
     select array_agg(o.id order by o.created_at, o.id)

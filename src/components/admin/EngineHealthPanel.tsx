@@ -62,7 +62,7 @@ export function EngineHealthPanel() {
                     <td className="p-2 font-semibold">{r.notifications_enqueued}</td>
                     <td className={r.errors > 0 ? 'p-2 text-destructive' : 'p-2'}>{r.errors}</td>
                     <td className="p-2">
-                      {r.locked ? <Badge variant="outline">skipped</Badge> : <span className="text-muted-foreground">—</span>}
+                      {r.locked ? <Badge variant="outline">skipped</Badge> : <span className="text-muted-foreground">-</span>}
                     </td>
                   </tr>
                 ))}

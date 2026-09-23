@@ -694,7 +694,7 @@ export function ServiceBookingFlow({
           </AnimatePresence>
         </div>
 
-        {/* Bottom CTA — stays just above the keyboard */}
+        {/* Bottom CTA - stays just above the keyboard */}
         <div className={`shrink-0 border-t bg-background px-4 pt-4 ${isKeyboardOpen ? 'pb-3' : 'pb-[calc(1rem+env(safe-area-inset-bottom))]'}`}>
           {step === 'select' ? (
             <Button className="w-full" size="lg" disabled={!isSelectValid} onClick={handleContinueToReview} whileTap={{ scale: 0.97 }} as={motion.button}>

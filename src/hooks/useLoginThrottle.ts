@@ -1,6 +1,6 @@
 // @ts-nocheck
 // Bug 9: This is a UX-only client-side throttle. Real protection is server-side via rate_limits table.
-// localStorage can be cleared by the user — this only provides friendly feedback, not security.
+// localStorage can be cleared by the user - this only provides friendly feedback, not security.
 import { useState, useCallback, useRef, useEffect } from 'react';
 
 const STORAGE_KEY = 'login_attempts';

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 
 /**
- * Phase 1 platform-funded loyalty — critical money-path unit tests.
+ * Phase 1 platform-funded loyalty - critical money-path unit tests.
  * Mirrors server logic in apply_loyalty_to_checkout_orders + settlement.
  */
 
@@ -51,7 +51,7 @@ export function settlementFromOrder(opts: {
   };
 }
 
-/** Quote max redeemable: min(available, floor(merchandise after coupon)) — not delivery */
+/** Quote max redeemable: min(available, floor(merchandise after coupon)) - not delivery */
 export function quoteMaxRedeem(available: number, amountAfterCoupon: number) {
   return Math.max(0, Math.min(available, Math.floor(Math.max(amountAfterCoupon, 0))));
 }

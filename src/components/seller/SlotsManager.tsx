@@ -177,7 +177,7 @@ export function SlotsManager({ sellerId }: SlotsManagerProps) {
 
         <div className="flex items-start gap-1.5 text-[10px] text-muted-foreground bg-muted/50 rounded p-2">
           <Info size={11} className="mt-0.5 shrink-0" />
-          <span>Slots are <strong>store-wide</strong> — booking any service at a time makes that time unavailable for every service in your store. Adjust the slot length, buffer, and capacity in the <strong>Hours</strong> tab.</span>
+          <span>Slots are <strong>store-wide</strong> - booking any service at a time makes that time unavailable for every service in your store. Adjust the slot length, buffer, and capacity in the <strong>Hours</strong> tab.</span>
         </div>
       </div>
 

@@ -33,7 +33,7 @@ export default function NotificationsPage() {
   // Check OS-level notification permission on mount and on resume
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) {
-      setOsPermission('granted'); // Web — no OS banner needed
+      setOsPermission('granted'); // Web - no OS banner needed
       return;
     }
 
@@ -185,7 +185,7 @@ export default function NotificationsPage() {
           <button
             onClick={async () => {
               try {
-                // Direct call in tap handler — preserves iOS user-gesture context
+                // Direct call in tap handler - preserves iOS user-gesture context
                 const permResult = await PushNotifications.requestPermissions();
 
                 if (permResult.receive !== 'granted') {
@@ -226,7 +226,7 @@ export default function NotificationsPage() {
             <AlertTriangle size={18} className="text-destructive shrink-0" />
             <div className="flex-1 min-w-0">
               <p className="font-medium text-sm">Couldn’t load saved preferences</p>
-              <p className="text-xs text-muted-foreground">Showing defaults — tap to retry</p>
+              <p className="text-xs text-muted-foreground">Showing defaults - tap to retry</p>
             </div>
           </button>
         )}
@@ -266,7 +266,7 @@ export default function NotificationsPage() {
                   Quiet hours
                 </Label>
                 <p className="text-xs text-muted-foreground">
-                  Mute non-urgent push from {preferences.quiet_hours_start}:00–{preferences.quiet_hours_end}:00 (order alerts still ring)
+                  Mute non-urgent push from {preferences.quiet_hours_start}:00-{preferences.quiet_hours_end}:00 (order alerts still ring)
                 </p>
               </div>
               <Switch

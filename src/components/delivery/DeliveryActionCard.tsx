@@ -24,7 +24,7 @@ function useDeliveryWorkflow(orderId: string | undefined) {
       if (!order) return null;
 
       const parentGroup = (order as any)?.seller?.primary_group || 'default';
-      // Use the stored transaction_type from the order (set at creation) — single source of truth
+      // Use the stored transaction_type from the order (set at creation) - single source of truth
       const txnType = (order as any)?.transaction_type || 'cart_purchase';
 
       const { data: steps } = await supabase
@@ -56,7 +56,7 @@ function getNextDeliveryAction(flow: StatusFlowStep[] | null | undefined, curren
   return { nextStatus: nextStep.status_key, otpType: nextStep.otp_type || null };
 }
 
-/** Check if delivery is in-transit based on workflow — no hardcoded fallbacks */
+/** Check if delivery is in-transit based on workflow - no hardcoded fallbacks */
 export function isDeliveryInTransit(flow: StatusFlowStep[] | null | undefined, status: string): boolean {
   if (!flow || flow.length === 0) return false;
   return flow.some(s => s.status_key === status && s.is_transit);
@@ -67,7 +67,7 @@ interface DeliveryActionCardProps {
   updatingId: string | null;
   onUpdateStatus: (assignmentId: string, newStatus: string) => void;
   onOtpVerify: (orderId: string) => void;
-  /** Callback when transit state is detected — used for GPS tracking */
+  /** Callback when transit state is detected - used for GPS tracking */
   onTransitDetected?: (assignmentId: string, isTransit: boolean) => void;
 }
 
@@ -115,7 +115,7 @@ export function DeliveryActionCard({ delivery, updatingId, onUpdateStatus, onOtp
           <span className="text-success font-medium tabular-nums">Fee: {formatPrice(delivery.delivery_fee)}</span>
         </div>
 
-        {/* Action Buttons — workflow-driven, uses otp_type */}
+        {/* Action Buttons - workflow-driven, uses otp_type */}
         {action && (() => {
           const isDeliveryOtp = action.otpType === 'delivery';
           if (isDeliveryOtp && delivery.delivery_code) {

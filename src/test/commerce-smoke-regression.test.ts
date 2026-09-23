@@ -24,7 +24,7 @@ const BUYER_SELLER_ACCEPT_FLOW: Record<string, string[]> = {
   ready: ['picked_up', 'delivered', 'completed', 'cancelled'],
 };
 
-/** Seller alert hook only buzzes on actionable statuses — never unpaid payment_pending phantoms */
+/** Seller alert hook only buzzes on actionable statuses - never unpaid payment_pending phantoms */
 const SELLER_ACTIONABLE = ['placed', 'enquired', 'quoted', 'requested', 'scheduled', 'preparing'] as const;
 
 /** Listing-type → journey contracts (cart / book / enquire / contact) */
@@ -48,7 +48,7 @@ describe('AppLayout shell options (post-login regression)', () => {
     expect(optionsEqual(a, DEFAULT_LAYOUT_OPTIONS)).toBe(true);
   });
 
-  it('optionsEqual returns true for same chrome — setOptions must bail (no max-update-depth)', () => {
+  it('optionsEqual returns true for same chrome - setOptions must bail (no max-update-depth)', () => {
     const opts = normalizeLayoutOptions({ showHeader: true, headerTitle: 'Home' });
     expect(optionsEqual(opts, { ...opts })).toBe(true);
   });
@@ -262,7 +262,7 @@ describe('Ship readiness P0 money-truth contracts', () => {
     expect(hooksSrc).not.toMatch(/neq\('status',\s*'payment_pending'\)/);
   });
 
-  it('success toast requires confirm success — false success is forbidden', () => {
+  it('success toast requires confirm success - false success is forbidden', () => {
     const confirmOk = (confirmErr: unknown, confirmData: { success?: boolean } | null) =>
       !confirmErr && confirmData?.success !== false;
     expect(confirmOk(null, { success: true })).toBe(true);

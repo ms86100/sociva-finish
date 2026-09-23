@@ -371,12 +371,12 @@ BEGIN
     IF v_policy = 'release' THEN
       RETURN public.record_seller_billable_event(
         p_seller_id, 'SERVICE_BOOKING', 'order', p_order_id::text, 'release',
-        COALESCE(p_description, 'Buyer no-show — reservation released'), NULL
+        COALESCE(p_description, 'Buyer no-show - reservation released'), NULL
       );
     ELSIF v_policy = 'charge' THEN
       RETURN public.record_seller_billable_event(
         p_seller_id, 'SERVICE_BOOKING', 'order', p_order_id::text, 'commit',
-        COALESCE(p_description, 'Buyer no-show — reserved credits committed'), NULL
+        COALESCE(p_description, 'Buyer no-show - reserved credits committed'), NULL
       );
     END IF;
     RETURN jsonb_build_object('ok', true, 'skipped', true, 'reason', 'buyer_no_show_policy_unset');
@@ -442,7 +442,7 @@ BEGIN
       );
     ELSIF NEW.status IN ('cancelled', 'rejected', 'failed', 'returned') THEN
       PERFORM public.seller_credit_apply_booking_outcome(
-        NEW.seller_id, NEW.id, 'release', 'Booking reservation released — cancelled'
+        NEW.seller_id, NEW.id, 'release', 'Booking reservation released - cancelled'
       );
     ELSIF NEW.status = 'no_show' THEN
       PERFORM public.seller_credit_apply_booking_outcome(

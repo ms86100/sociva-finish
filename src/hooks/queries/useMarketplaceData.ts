@@ -4,7 +4,7 @@ import { useMarketplaceSellers, MarketplaceSeller } from './useMarketplaceSeller
 import { useMarketplaceProducts, MarketplaceProduct } from './useMarketplaceProducts';
 
 /**
- * Raw seller row shape — backward compatible with all consumer hooks.
+ * Raw seller row shape - backward compatible with all consumer hooks.
  * Now composed from two lightweight RPCs instead of one monolithic RPC.
  */
 export interface RpcSellerRow {
@@ -41,7 +41,7 @@ export interface RpcSellerRow {
  * Phase 1 (sellers) loads instantly (~1KB total).
  * Phase 2 (products) loads in parallel once seller IDs are known.
  *
- * Consumer hooks see no change — they still get RpcSellerRow[].
+ * Consumer hooks see no change - they still get RpcSellerRow[].
  */
 export function useMarketplaceData() {
   const sellersQuery = useMarketplaceSellers();

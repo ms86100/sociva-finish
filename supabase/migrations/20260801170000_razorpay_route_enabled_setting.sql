@@ -1,12 +1,12 @@
 -- Razorpay Route transfers are NOT wired. Keep flag false until linked accounts exist.
--- process-settlements only marks settlements "eligible" when this is false — never "settled".
+-- process-settlements only marks settlements "eligible" when this is false - never "settled".
 
 INSERT INTO public.admin_settings (key, value, is_active, description)
 VALUES (
   'razorpay_route_enabled',
   'false',
   false,
-  'When true, process-settlements may attempt Razorpay Route transfers. Default false: mark eligible only — no fake settled/paid-out status without a real transfer.'
+  'When true, process-settlements may attempt Razorpay Route transfers. Default false: mark eligible only - no fake settled/paid-out status without a real transfer.'
 )
 ON CONFLICT (key) DO UPDATE
 SET

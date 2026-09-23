@@ -18,7 +18,7 @@
 
  *
  * Every static-config hook delegates here. Do NOT add new direct queries
- * against these tables — extend the RPC instead.
+ * against these tables - extend the RPC instead.
  */
 import { supabase } from '@/integrations/supabase/client';
 
@@ -43,7 +43,7 @@ export const EMPTY_BOOTSTRAP: AppBootstrap = {
   fetchedAt: 0,
 };
 
-/** Static reference data — safe to serve without revalidating for 30 minutes. */
+/** Static reference data - safe to serve without revalidating for 30 minutes. */
 const TTL_MS = 30 * 60 * 1000;
 
 /**
@@ -60,11 +60,11 @@ let cache: AppBootstrap | null = null;
 let inflight: Promise<AppBootstrap> | null = null;
 
 function toMap(rows: any[] | null | undefined): Record<string, string> {
-  // Lazy import avoided — keep bootstrap free of circular deps; inline unwrap.
+  // Lazy import avoided - keep bootstrap free of circular deps; inline unwrap.
   const map: Record<string, string> = {};
   for (const row of rows || []) {
     if (row?.key == null || row?.value == null) continue;
-    // system_settings.value is jsonb (string/number) — always flatten to plain text.
+    // system_settings.value is jsonb (string/number) - always flatten to plain text.
     const v = row.value;
     if (typeof v === 'string') {
       try {
@@ -121,7 +121,7 @@ function writePersisted(snapshot: AppBootstrap): void {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
   } catch {
-    // Quota or private-mode failure — the in-memory cache still works.
+    // Quota or private-mode failure - the in-memory cache still works.
   }
 }
 
@@ -178,7 +178,7 @@ export async function loadAppBootstrap(force = false): Promise<AppBootstrap> {
   return fetchFresh();
 }
 
-/** Synchronous read — returns null when nothing has loaded or been persisted. */
+/** Synchronous read - returns null when nothing has loaded or been persisted. */
 export function peekAppBootstrap(): AppBootstrap | null {
   return cache;
 }

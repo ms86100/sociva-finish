@@ -173,7 +173,7 @@ export function useAdminData() {
       const users = (data as AdminDirectoryUser[]) || [];
       setAllUsers(users);
 
-      // Best-effort device token map — never break the directory if this fails
+      // Best-effort device token map - never break the directory if this fails
       try {
         const ids = users.map((u) => u.id).filter(Boolean);
         if (ids.length === 0) {
@@ -294,7 +294,7 @@ export function useAdminData() {
       const { data: seller } = await supabase.from('seller_profiles').select('user_id, business_name, latitude, longitude, society_id').eq('id', id).single();
       if (!seller) throw new Error('Seller not found');
 
-      // Location validation is now handled inside approveSeller() — single source of truth
+      // Location validation is now handled inside approveSeller() - single source of truth
 
       if (status === 'approved') {
         const { approveSeller } = await import('@/lib/seller-approval');

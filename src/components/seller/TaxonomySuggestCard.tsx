@@ -107,7 +107,7 @@ export function TaxonomySuggestCard({
               )}
               {resolved.needsOtherSubcategory && (
                 <p className="text-xs text-muted-foreground pt-1">
-                  No exact subcategory — we&apos;ll use Other / your description so you can continue.
+                  No exact subcategory - we&apos;ll use Other / your description so you can continue.
                 </p>
               )}
             </div>

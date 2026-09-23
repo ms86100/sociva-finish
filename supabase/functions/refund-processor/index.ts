@@ -1,5 +1,5 @@
 // Refund Processor Edge Function
-// Executes real Razorpay refunds — never simulates success.
+// Executes real Razorpay refunds - never simulates success.
 // P4: partial refunds against shared checkout-group captures.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.93.3";
 import { getRazorpayCredentials } from "../_shared/credentials.ts";
@@ -391,7 +391,7 @@ Deno.serve(async (req) => {
     if (!paymentId) {
       // Never silently change the buyer's chosen refund destination. Missing
       // payment identity requires an operator to establish the original rail.
-      console.warn(`[refund-processor] no razorpay_payment_id for ${refund.id} — manual review`);
+      console.warn(`[refund-processor] no razorpay_payment_id for ${refund.id} - manual review`);
       await supabase
         .from("refund_requests")
         .update({
@@ -411,7 +411,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    // P0: ignore client-stored refund.amount — recompute from order server-side only
+    // P0: ignore client-stored refund.amount - recompute from order server-side only
     let gatewayRefundAmount = Number(ctx.amount);
     if (!Number.isFinite(gatewayRefundAmount) || gatewayRefundAmount <= 0) {
       const { data: recomputed } = await supabase.rpc("compute_child_gateway_refund_amount", {

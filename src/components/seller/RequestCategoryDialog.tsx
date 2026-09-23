@@ -25,7 +25,7 @@ interface RequestCategoryDialogProps {
   fallbackCategory?: string | null;
   fallbackCategoryLabel?: string | null;
   onSubmitted?: (parentGroupSlug: string | null) => void;
-  /** When true, keep seller in onboarding — no links into SellerRoute. */
+  /** When true, keep seller in onboarding - no links into SellerRoute. */
   onboardingMode?: boolean;
 }
 
@@ -85,7 +85,7 @@ export function RequestCategoryDialog({
         await notifyAdminsCategoryRequest(name.trim(), user.id);
       } catch { /* non-blocking */ }
 
-      // Fire upstream effect (auto-select fallback in onboarding) but DON'T close —
+      // Fire upstream effect (auto-select fallback in onboarding) but DON'T close -
       // we want the seller to see the confirmation.
       onSubmitted?.(group || null);
       setSubmittedName(name.trim());
@@ -96,7 +96,7 @@ export function RequestCategoryDialog({
       let friendly = msg;
       if (msg.includes('category_request_limit_pending')) friendly = 'You already have 5 pending requests. Please wait for review.';
       else if (msg.includes('category_request_limit_daily')) friendly = 'Daily request limit reached. Try again tomorrow.';
-      else if (msg.includes('category_requests_pending_unique') || msg.includes('duplicate key')) friendly = 'You already requested this category — it\'s pending review.';
+      else if (msg.includes('category_requests_pending_unique') || msg.includes('duplicate key')) friendly = 'You already requested this category - it\'s pending review.';
       toast.error('Could not submit request', { description: friendly });
     } finally {
       setSubmitting(false);
@@ -119,7 +119,7 @@ export function RequestCategoryDialog({
             <DialogTitle className="text-center">Request received</DialogTitle>
             <DialogDescription className="text-center">
               We're reviewing <strong className="text-foreground">"{submittedName}"</strong>. You'll get a
-              notification the moment it's approved — usually within 24 hours.
+              notification the moment it's approved - usually within 24 hours.
             </DialogDescription>
           </DialogHeader>
 
@@ -127,7 +127,7 @@ export function RequestCategoryDialog({
             <Clock size={14} className="text-muted-foreground mt-0.5 shrink-0" />
             <p className="text-muted-foreground">
               You don't have to wait. {fallbackCategory
-                ? <>Continue onboarding under <strong className="text-foreground">{fallbackCategoryLabel || 'the closest category'}</strong> — we'll add your requested category when it's live.</>
+                ? <>Continue onboarding under <strong className="text-foreground">{fallbackCategoryLabel || 'the closest category'}</strong> - we'll add your requested category when it's live.</>
                 : <>Pick the closest existing category and keep going.</>}
             </p>
           </div>

@@ -60,7 +60,7 @@ export type AnalyticsEventName =
   | 'quantity_changed'
   | 'cart_opened'
   | 'checkout_started'
-  // Checkout / payment (mirror only — Supabase remains source of truth)
+  // Checkout / payment (mirror only - Supabase remains source of truth)
   | 'payment_started'
   | 'payment_success'
   | 'payment_failed'

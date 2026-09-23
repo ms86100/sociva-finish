@@ -1,5 +1,5 @@
 -- ============================================================
--- Phase 0 HARDENED — admin governance
+-- Phase 0 HARDENED - admin governance
 -- society_id lock, audit_log RPC, cron is_admin, GMV RPC,
 -- credentials meta-only residual note
 -- ============================================================
@@ -25,7 +25,7 @@ BEGIN
       IF OLD.society_id IS NOT NULL
          AND NOT public.is_admin(auth.uid())
          AND current_setting('app.allow_society_change', true) IS DISTINCT FROM 'true' THEN
-        RAISE EXCEPTION 'profiles.society_id is locked — use join/admin RPC'
+        RAISE EXCEPTION 'profiles.society_id is locked - use join/admin RPC'
           USING ERRCODE = '42501';
       END IF;
     END IF;
@@ -172,7 +172,7 @@ GRANT EXECUTE ON FUNCTION public.get_cron_jobs() TO authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.get_cron_job_runs(bigint, int) TO authenticated, service_role;
 
 -- ------------------------------------------------------------
--- 4) Admin settled GMV RPC (paid − refunded, exclude cancelled) — no 5k truncation
+-- 4) Admin settled GMV RPC (paid − refunded, exclude cancelled) - no 5k truncation
 -- ------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.get_admin_settled_gmv(
   p_from timestamptz DEFAULT NULL,
@@ -227,7 +227,7 @@ REVOKE ALL ON FUNCTION public.get_admin_settled_gmv(timestamptz, timestamptz) FR
 GRANT EXECUTE ON FUNCTION public.get_admin_settled_gmv(timestamptz, timestamptz) TO authenticated, service_role;
 
 COMMENT ON FUNCTION public.get_admin_settled_gmv(timestamptz, timestamptz) IS
-  'Admin settled revenue = paid − refunded (excludes cancelled orders). Server-side aggregate — no PostgREST row cap.';
+  'Admin settled revenue = paid − refunded (excludes cancelled orders). Server-side aggregate - no PostgREST row cap.';
 
 -- ------------------------------------------------------------
 -- 5) Credentials: block authenticated SELECT of raw secret values
@@ -240,7 +240,7 @@ DROP POLICY IF EXISTS "Admins can update admin settings" ON public.admin_setting
 DROP POLICY IF EXISTS "Admins can insert admin settings" ON public.admin_settings;
 
 -- Meta-only SELECT: admins can see rows but we strip value via RPC;
--- direct SELECT still returns value under RLS — so revoke SELECT for authenticated
+-- direct SELECT still returns value under RLS - so revoke SELECT for authenticated
 -- and provide upsert RPC for writes.
 
 CREATE POLICY "Admins can insert admin settings"
@@ -252,7 +252,7 @@ CREATE POLICY "Admins can update admin settings"
   USING (public.is_admin(auth.uid()))
   WITH CHECK (public.is_admin(auth.uid()));
 
--- Intentionally NO SELECT policy for authenticated — use get_admin_credential_meta.
+-- Intentionally NO SELECT policy for authenticated - use get_admin_credential_meta.
 -- service_role bypasses RLS for edge secret reads (Deno env preferred).
 
 CREATE OR REPLACE FUNCTION public.upsert_admin_credential(
@@ -299,4 +299,4 @@ REVOKE ALL ON FUNCTION public.upsert_admin_credential(text, text, text, boolean)
 GRANT EXECUTE ON FUNCTION public.upsert_admin_credential(text, text, text, boolean) TO authenticated, service_role;
 
 COMMENT ON TABLE public.admin_settings IS
-  'Platform credentials. Authenticated SELECT revoked (Phase 0) — use get_admin_credential_meta / upsert_admin_credential. Edge: prefer Deno secrets, service_role DB fallback OK. Residual risk: vault full migration deferred.';
+  'Platform credentials. Authenticated SELECT revoked (Phase 0) - use get_admin_credential_meta / upsert_admin_credential. Edge: prefer Deno secrets, service_role DB fallback OK. Residual risk: vault full migration deferred.';

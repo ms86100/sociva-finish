@@ -11,7 +11,7 @@ type SmartBackOptions = {
 };
 
 /**
- * Navigate back to a meaningful in-app parent — not arbitrary browser history.
+ * Navigate back to a meaningful in-app parent - not arbitrary browser history.
  */
 export function useSmartBack(defaultFallback?: string) {
   const navigate = useNavigate();

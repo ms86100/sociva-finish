@@ -22,7 +22,7 @@ export async function cleanupTestOrders(
   db: SupabaseClient,
   afterTimestamp: string
 ) {
-  // Note: This may not delete due to RLS — that's expected.
+  // Note: This may not delete due to RLS - that's expected.
   // Tests should be designed to not depend on cleanup.
   const { data } = await db
     .from('orders')

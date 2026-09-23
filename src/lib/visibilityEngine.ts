@@ -1,6 +1,6 @@
 // @ts-nocheck
 /**
- * Visibility Engine — Deterministic UI Surface Rules
+ * Visibility Engine - Deterministic UI Surface Rules
  *
  * Centralizes route-based visibility so components don't hardcode
  * their own hide/show logic independently.
@@ -12,7 +12,7 @@
 
 export const CART_HIDDEN_ROUTES = ['/cart', '/checkout', '/checkouts'] as const;
 
-/** Shopper browse surfaces only — never seller tools, profile, or account. */
+/** Shopper browse surfaces only - never seller tools, profile, or account. */
 const CART_BAR_ALLOWED_ROUTES: RegExp[] = [
   /^\/$/,
   /^\/search/,
@@ -49,7 +49,7 @@ export function isRouteHidden(
   return hiddenPrefixes.some((prefix) => pathname.startsWith(prefix));
 }
 
-/** Transit statuses that indicate active movement — DB-driven via trackingConfig */
+/** Transit statuses that indicate active movement - DB-driven via trackingConfig */
 import { getTrackingConfigSync } from '@/services/trackingConfig';
 export function getTransitStatuses(): Set<string> {
   return new Set(getTrackingConfigSync().transit_statuses_la);

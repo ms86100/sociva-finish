@@ -125,7 +125,7 @@ WHERE o.fulfillment_type IN ('delivery', 'seller_delivery')
   AND NOT EXISTS (SELECT 1 FROM delivery_assignments da WHERE da.order_id = o.id)
 ON CONFLICT DO NOTHING;
 
--- Fix 3: Fix OTP gate — fallback to generic OTP when delivery assignment missing
+-- Fix 3: Fix OTP gate - fallback to generic OTP when delivery assignment missing
 CREATE OR REPLACE FUNCTION public.enforce_otp_gate()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -167,10 +167,10 @@ BEGIN
     ) INTO _has_delivery_code;
 
     IF _has_delivery_code THEN
-      -- Delivery code exists — require delivery OTP verification via RPC
+      -- Delivery code exists - require delivery OTP verification via RPC
       RAISE EXCEPTION 'Delivery OTP verification required. Use verify_delivery_otp_and_complete RPC.';
     ELSE
-      -- No delivery assignment — fall back to generic OTP check
+      -- No delivery assignment - fall back to generic OTP check
       SELECT EXISTS (
         SELECT 1 FROM order_otp_codes
         WHERE order_id = NEW.id

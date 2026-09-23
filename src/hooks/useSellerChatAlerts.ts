@@ -122,7 +122,7 @@ export function useChatAlerts(userId: string | null | undefined, enabled: boolea
           // If the user is currently in this chat, count silently and skip bell + toast.
           const chatOpen = isChatActive(msg.order_id);
           if (chatOpen) {
-            // Don't increment unread either — they'll see/auto-mark it inside the open chat.
+            // Don't increment unread either - they'll see/auto-mark it inside the open chat.
             return;
           }
 
@@ -241,5 +241,5 @@ export function useChatAlerts(userId: string | null | undefined, enabled: boolea
   return { unreadCount };
 }
 
-/** @deprecated Prefer useChatAlerts — kept as alias for existing imports. */
+/** @deprecated Prefer useChatAlerts - kept as alias for existing imports. */
 export const useSellerChatAlerts = useChatAlerts;

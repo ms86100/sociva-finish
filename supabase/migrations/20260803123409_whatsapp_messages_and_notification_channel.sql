@@ -36,7 +36,7 @@ CREATE POLICY whatsapp_messages_admin_select
   TO authenticated
   USING (public.is_admin(auth.uid()));
 
--- No direct client inserts/updates — edge functions use service role
+-- No direct client inserts/updates - edge functions use service role
 DROP POLICY IF EXISTS whatsapp_messages_admin_insert ON public.whatsapp_messages;
 CREATE POLICY whatsapp_messages_admin_insert
   ON public.whatsapp_messages

@@ -22,7 +22,7 @@ interface GoogleMapConfirmProps {
   latitude: number;
   longitude: number;
   name: string;
-  /** Parent is already finishing — disable Confirm and ignore double taps. */
+  /** Parent is already finishing - disable Confirm and ignore double taps. */
   confirming?: boolean;
   onConfirm: (lat: number, lng: number, updatedName?: string, formattedAddress?: string) => void;
   onBack: () => void;
@@ -175,7 +175,7 @@ export function GoogleMapConfirm({
     }
   }, [isLocatingGps, confirming, commitCenter]);
 
-  // Map init — deps are ONLY latitude/longitude so idle geocode does not remount
+  // Map init - deps are ONLY latitude/longitude so idle geocode does not remount
   useEffect(() => {
     if (!mapRef.current || !(window as any).google?.maps) {
       console.warn('GoogleMapConfirm: Google Maps not loaded');

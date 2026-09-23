@@ -64,7 +64,7 @@ Then:
 ## Rollback
 
 - **App:** Expire / stop testing the staging TestFlight build; production App Store binary still points at production Supabase.
-- **Backend:** Do not merge staging blindly. If a promoted migration must be reversed, ship a new down-migration to production only after review — staging remains the sandbox.
+- **Backend:** Do not merge staging blindly. If a promoted migration must be reversed, ship a new down-migration to production only after review - staging remains the sandbox.
 
 ## Quick checklist before trusting a TestFlight build
 

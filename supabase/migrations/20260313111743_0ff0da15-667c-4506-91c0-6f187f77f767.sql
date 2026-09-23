@@ -1,5 +1,5 @@
 
--- Fix 1: Settlement trigger — also fire on 'completed' (for self-pickup orders)
+-- Fix 1: Settlement trigger - also fire on 'completed' (for self-pickup orders)
 CREATE OR REPLACE FUNCTION public.create_settlement_on_delivery()
  RETURNS trigger
  LANGUAGE plpgsql

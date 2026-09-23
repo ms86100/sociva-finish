@@ -12,8 +12,8 @@ interface OfferingImageCarouselProps {
 }
 
 /**
- * Detail-page gallery: single image when only one; swipeable carousel for 2–5.
- * Cards should keep using primaryOfferingImage — not this component.
+ * Detail-page gallery: single image when only one; swipeable carousel for 2-5.
+ * Cards should keep using primaryOfferingImage - not this component.
  */
 export function OfferingImageCarousel({
   source,

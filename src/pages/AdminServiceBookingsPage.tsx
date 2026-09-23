@@ -163,7 +163,7 @@ export default function AdminServiceBookingsPage() {
               <CardContent className="p-3">
                 <div className="flex items-center gap-3">
                   <div className="min-w-[60px] text-center">
-                    <p className="text-xs font-semibold">{booking.booking_date ? format(new Date(booking.booking_date + 'T00:00'), 'MMM d') : '—'}</p>
+                    <p className="text-xs font-semibold">{booking.booking_date ? format(new Date(booking.booking_date + 'T00:00'), 'MMM d') : '-'}</p>
                     <p className="text-[10px] text-muted-foreground">{booking.start_time?.slice(0, 5) || ''}</p>
                   </div>
                   <div className="flex-1 min-w-0">

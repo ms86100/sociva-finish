@@ -66,7 +66,7 @@ export default function WorkerJobsPage() {
   const langVoiceMap = useLangVoiceMap();
   const jobTypeLabels = useJobTypeLabels();
 
-  // Fetch open jobs — RLS handles cross-society visibility
+  // Fetch open jobs - RLS handles cross-society visibility
   const { data: openJobs = [], isLoading } = useQuery({
     queryKey: ['worker-open-jobs', effectiveSocietyId],
     queryFn: async () => {
@@ -83,7 +83,7 @@ export default function WorkerJobsPage() {
     enabled: !!effectiveSocietyId && isWorker,
   });
 
-  // Realtime subscription — no society filter, RLS handles it
+  // Realtime subscription - no society filter, RLS handles it
   useQuery({
     queryKey: ['worker-jobs-realtime', effectiveSocietyId],
     queryFn: () => {

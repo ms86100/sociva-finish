@@ -20,7 +20,7 @@ serve(async (req) => {
     if (authResult instanceof Response) return authResult;
     const { userId } = authResult;
 
-    // Phase 2: Rate limit — 10/min
+    // Phase 2: Rate limit - 10/min
     const { allowed } = await checkRateLimit(`gen-image:${userId}`, 10, 60);
     if (!allowed) return rateLimitResponse(corsHeaders);
 

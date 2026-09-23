@@ -19,7 +19,7 @@ import {
 } from '@/lib/installation';
 
 /**
- * BUILD FINGERPRINT — bump on every push-related update.
+ * BUILD FINGERPRINT - bump on every push-related update.
  */
 export const PUSH_BUILD_ID = '2026-09-23-ANALYTICS-PUSH-ATTRIBUTION';
 
@@ -66,7 +66,7 @@ export function usePushNotificationsInternal() {
   const navigateRef = useRef(navigate);
   navigateRef.current = navigate;
 
-  // Log once per mount — never on every render (was flooding JS console on mobile)
+  // Log once per mount - never on every render (was flooding JS console on mobile)
   const pushBootLoggedRef = useRef(false);
   if (!pushBootLoggedRef.current) {
     pushBootLoggedRef.current = true;
@@ -80,7 +80,7 @@ export function usePushNotificationsInternal() {
   const regStateRef = useRef<RegistrationState>('idle');
   const listenersReadyRef = useRef(false);
   const listenersReadyPromiseRef = useRef<Promise<void> | null>(null);
-  // terminalStatusesRef removed — dynamic resolution via getTerminalStatuses() at event time
+  // terminalStatusesRef removed - dynamic resolution via getTerminalStatuses() at event time
   const listenersResolveRef = useRef<(() => void) | null>(null);
   const soundsEnabledRef = useRef(true);
 
@@ -155,7 +155,7 @@ export function usePushNotificationsInternal() {
         }
       }
 
-      // Analytics join only — delivery still uses device_tokens + claim_device_token
+      // Analytics join only - delivery still uses device_tokens + claim_device_token
       await stampDeviceTokenInstallation(fcmToken);
       await syncInstallationPermissions({
         notificationPermission: 'enabled',
@@ -190,7 +190,7 @@ export function usePushNotificationsInternal() {
     try {
       const { PushNotifications } = await import('@capacitor/push-notifications');
 
-      // Check current permission — NEVER request here (only from user tap)
+      // Check current permission - NEVER request here (only from user tap)
       let perm: 'granted' | 'denied' | 'prompt' = 'prompt';
       try {
         const permResult = await PushNotifications.checkPermissions();
@@ -203,7 +203,7 @@ export function usePushNotificationsInternal() {
 
       setPermissionStatus(perm);
       pushLog('info', 'PERMISSION_CHECK', { status: perm });
-      // Lifecycle sync — independent of whether a delivery token exists
+      // Lifecycle sync - independent of whether a delivery token exists
       void syncInstallationPermissions({
         notificationPermission: mapPushReceiveToNotificationState(perm),
         claimUser: !!userRef.current?.id,
@@ -223,7 +223,7 @@ export function usePushNotificationsInternal() {
         pushLog('error', 'PN_REGISTER_THREW', {
           error: String(regErr),
           hint: Capacitor.getPlatform() === 'android'
-            ? 'Missing or invalid google-services.json / Firebase — push disabled gracefully'
+            ? 'Missing or invalid google-services.json / Firebase - push disabled gracefully'
             : 'Push registration failed',
         });
         regStateRef.current = 'failed';
@@ -244,7 +244,7 @@ export function usePushNotificationsInternal() {
     }
   }, []);
 
-  // ── Request full permission (called from banner / settings — user tap only!) ──
+  // ── Request full permission (called from banner / settings - user tap only!) ──
   const requestFullPermission = useCallback(async () => {
     if (!Capacitor.isNativePlatform()) return;
 
@@ -268,7 +268,7 @@ export function usePushNotificationsInternal() {
 
       if (perm === 'granted') {
         regStateRef.current = 'idle'; // Allow re-registration
-        // Do not await — token registration can stall; OS grant is enough for UX.
+        // Do not await - token registration can stall; OS grant is enough for UX.
         void registerPush();
       }
     } catch (e) {
@@ -326,7 +326,7 @@ export function usePushNotificationsInternal() {
       const platform = Capacitor.getPlatform();
 
       // Create high-importance notification channels for order alerts (Android 8+).
-      // Channel settings are immutable after first create — ship a new id when sound changes.
+      // Channel settings are immutable after first create - ship a new id when sound changes.
       // iOS custom sound is gate_bell.mp3 in the app bundle (Codemagic copies ios-config/gate_bell.mp3).
       if (platform === 'android') {
         try {
@@ -406,7 +406,7 @@ export function usePushNotificationsInternal() {
         }
       }
 
-      // Listen for registration success — gives raw APNs token on iOS, FCM token on Android
+      // Listen for registration success - gives raw APNs token on iOS, FCM token on Android
       const regListener = await PushNotifications.addListener('registration', async (regToken: { value: string }) => {
         if (instanceId !== activeInstanceId) return;
 
@@ -477,7 +477,7 @@ export function usePushNotificationsInternal() {
           pushLog('warn', 'ANDROID_FCM_UNAVAILABLE', {
             hint: 'Ensure android/app/google-services.json is present (see android-config/README.md). Push will no-op until Firebase is configured.',
           });
-          console.warn('[Push] Android FCM registration failed — app continues without push. Check google-services.json.');
+          console.warn('[Push] Android FCM registration failed - app continues without push. Check google-services.json.');
         }
       });
       cleanupListeners.push(() => errListener.remove());
@@ -500,7 +500,7 @@ export function usePushNotificationsInternal() {
         const orderId = data?.orderId ?? data?.order_id ?? data?.entity_id;
 
         // Staleness check: if the queue item has a created_at older than 10 minutes,
-        // downgrade to a silent toast — no haptic, no sound. This prevents a push
+        // downgrade to a silent toast - no haptic, no sound. This prevents a push
         // that was buffered in FCM/APNs for hours/days from ringing as a fresh event.
         const pushCreatedAt = data?.created_at || data?.queue_created_at;
         const pushAgeMs = pushCreatedAt ? Date.now() - new Date(pushCreatedAt).getTime() : 0;
@@ -570,7 +570,7 @@ export function usePushNotificationsInternal() {
         hapticNotification('success');
 
         // High-priority foreground: play gate_bell (bundled on iOS + web).
-        // Always play once for sellers too — overlay may not be mounted yet on push-only delivery.
+        // Always play once for sellers too - overlay may not be mounted yet on push-only delivery.
         const isHighPriority = data?.high_priority === 'true';
         const isStatusNudge = data?.type === 'seller_order_status_reminder' || data?.reminder_type === 'status_nudge';
         if (isStatusNudge && orderId) {
@@ -579,7 +579,7 @@ export function usePushNotificationsInternal() {
             scheduleIncomingOrderLocalNotification({
               orderId,
               title: notification?.title || '⏰ Update order status',
-              body: notification?.body || 'Order is still Accepted — tap to mark Preparing.',
+              body: notification?.body || 'Order is still Accepted - tap to mark Preparing.',
             }),
           );
         }
@@ -679,7 +679,7 @@ export function usePushNotificationsInternal() {
         const pushStatus = data?.status;
         const isTerminalPush = data?.is_terminal === 'true' || (data as any)?.is_terminal === true;
         if (orderId) {
-          // Tapping the notification means the seller is on it — stop looping bell immediately.
+          // Tapping the notification means the seller is on it - stop looping bell immediately.
           void import('@/lib/order-alert-ack').then(({ acknowledgeOrderAlert }) => {
             acknowledgeOrderAlert(orderId);
           }).catch(() => {});

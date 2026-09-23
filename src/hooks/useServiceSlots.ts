@@ -18,7 +18,7 @@ export interface ServiceSlot {
 
 /**
  * Fetches store-wide booking slots for the seller that owns this product.
- * Slots are unified across the entire store (product_id IS NULL) — booking
+ * Slots are unified across the entire store (product_id IS NULL) - booking
  * any service at 10:00 makes 10:00 unavailable for every other service in
  * the same store.
  */

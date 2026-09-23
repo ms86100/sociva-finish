@@ -8,7 +8,7 @@ interface Props {
 }
 
 /**
- * Presentational delivery score badge — no internal RPC calls.
+ * Presentational delivery score badge - no internal RPC calls.
  * Use with useDeliveryScoresBatch for batch-fetched data.
  */
 export function DeliveryScoreBadge({ onTimePct, compact = true }: Props) {

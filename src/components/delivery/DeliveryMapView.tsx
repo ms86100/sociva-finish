@@ -93,7 +93,7 @@ function dashIcons(offsetPx: number): google.maps.IconSequence[] {
   }];
 }
 
-/** Thin Zomato-style dotted connector — icons only, no solid under-stroke. */
+/** Thin Zomato-style dotted connector - icons only, no solid under-stroke. */
 function paintDottedRoute(poly: google.maps.Polyline | null, path: LatLng[], offsetPx = 0) {
   if (!poly || path.length < 2) return;
   poly.setPath(path);
@@ -440,7 +440,7 @@ export function DeliveryMapView({
     }
   }, [riderLat, riderLng, route]);
 
-  // Notify parent of ETA / remaining — never push a confident ETA when GPS is stale
+  // Notify parent of ETA / remaining - never push a confident ETA when GPS is stale
   useEffect(() => {
     const reported = isLocationStale ? null : roadEtaMinutes;
     if (reported !== lastEtaRef.current) {
@@ -590,7 +590,7 @@ export function DeliveryMapView({
     }
   }, [dest, fitRoute]);
 
-  // Animation loop — interpolate along decoded geometry
+  // Animation loop - interpolate along decoded geometry
   useEffect(() => {
     if (!mapReady || !mapRef.current) return;
 
@@ -634,7 +634,7 @@ export function DeliveryMapView({
         }
         homeRef.current?.setArriving?.(nextPhase === 'arriving');
 
-        // Animate dash offset only — path stays pinned store → buyer.
+        // Animate dash offset only - path stays pinned store → buyer.
         dashOffsetRef.current = (dashOffsetRef.current + dt * 0.022) % 10;
         dashPolyRef.current?.setOptions({ icons: dashIcons(dashOffsetRef.current) });
 
@@ -760,7 +760,7 @@ export function DeliveryMapView({
             <>
               <p className="text-sm font-bold text-[#202124] leading-tight">
                 {roadEtaMinutes
-                  ? (roadEtaMinutes > 3 ? `${roadEtaMinutes - 1}–${roadEtaMinutes + 1} min` : `${roadEtaMinutes} min`)
+                  ? (roadEtaMinutes > 3 ? `${roadEtaMinutes - 1}-${roadEtaMinutes + 1} min` : `${roadEtaMinutes} min`)
                   : 'On the way'}
               </p>
               {remainingKm && (

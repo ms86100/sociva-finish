@@ -155,7 +155,7 @@ export function FinancialAdjustmentsPanel({
         entries,
         reason: reason.trim(),
       });
-      toast.success('Adjustment requested — a different admin must approve');
+      toast.success('Adjustment requested - a different admin must approve');
       setReferenceId('');
       setReason('');
       setAmountMinor('');

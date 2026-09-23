@@ -91,13 +91,13 @@ export function setReplayOptIn(enabled: boolean): void {
 export function initAnalytics(): boolean {
   const key = apiKey();
   if (!key) {
-    console.warn('Amplitude API key missing — analytics disabled');
+    console.warn('Amplitude API key missing - analytics disabled');
     return false;
   }
   if (initialized) return true;
 
   try {
-    // Unified Browser Analytics + Session Replay — init once for the app lifecycle.
+    // Unified Browser Analytics + Session Replay - init once for the app lifecycle.
     void amplitude.initAll(key, {
       analytics: { autocapture: true },
       sessionReplay: { sampleRate: 1 },
@@ -105,7 +105,7 @@ export function initAnalytics(): boolean {
     initialized = true;
 
     // Wizard first event (load-time). Safe to remove prompt_version after Setup confirms.
-    amplitude.track('Viewed Home Page', { prompt_version: 'BA400.4' }); // helps improve this setup flow — safe to remove once you've verified the event lands
+    amplitude.track('Viewed Home Page', { prompt_version: 'BA400.4' }); // helps improve this setup flow - safe to remove once you've verified the event lands
     return true;
   } catch (err) {
     console.warn('[Analytics] init failed', err);

@@ -18,7 +18,7 @@ Deno.serve(async (req) => {
     if (authResult instanceof Response) return authResult;
     const { userId } = authResult;
 
-    // Phase 2: Rate limit — 3 per hour
+    // Phase 2: Rate limit - 3 per hour
     const { allowed } = await checkRateLimit(`delete-account:${userId}`, 3, 3600);
     if (!allowed) return rateLimitResponse(corsHeaders);
 
@@ -35,7 +35,7 @@ Deno.serve(async (req) => {
 
     const sellerIds = (sellerRows || []).map((r: any) => r.id);
 
-    // Continue-on-error: track failures but never abort — auth user MUST be deleted
+    // Continue-on-error: track failures but never abort - auth user MUST be deleted
     const failures: string[] = [];
 
     async function del(table: string, column: string, value: string) {
@@ -83,7 +83,7 @@ Deno.serve(async (req) => {
       await delMany('marketplace_events', 'seller_id', sellerIds);
       await delMany('service_bookings', 'seller_id', sellerIds);
 
-      // Anonymize payment/settlement records (financial — retain but strip PII)
+      // Anonymize payment/settlement records (financial - retain but strip PII)
       for (const sid of sellerIds) {
         await supabaseAdmin.from('payment_settlements').update({ notes: null }).eq('seller_id', sid);
         await supabaseAdmin.from('payment_records').update({ notes: null }).eq('seller_id', sid);
@@ -144,7 +144,7 @@ Deno.serve(async (req) => {
       // Society roles & staff
       { table: 'society_admins', column: 'user_id' },
       { table: 'security_staff', column: 'user_id' },
-      // Chat (only sender — receiver messages belong to other users)
+      // Chat (only sender - receiver messages belong to other users)
       { table: 'chat_messages', column: 'sender_id' },
       { table: 'seller_conversation_messages', column: 'sender_id' },
       // Delivery & addresses

@@ -123,7 +123,7 @@ export function BuyAgainRow() {
     staleTime: 5 * 60_000,
   });
 
-  // Filter out bookable/non-cart products — they don't belong in "Buy Again"
+  // Filter out bookable/non-cart products - they don't belong in "Buy Again"
   const cartableProducts = useMemo(() =>
     products.filter(p => !p.action_type || ['add_to_cart', 'buy_now'].includes(p.action_type)),
     [products]
@@ -154,7 +154,7 @@ export function BuyAgainRow() {
   const handleQuickAdd = async (product: BuyAgainProduct) => {
     if (isInCart(product.id)) return;
     if (!product.seller_id) {
-      notify.block('Cannot add this item — missing seller info');
+      notify.block('Cannot add this item - missing seller info');
       return;
     }
     await addItem({

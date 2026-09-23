@@ -76,10 +76,10 @@ export function ActiveOrderStrip() {
       // Perf: fetch terminal statuses inside queryFn to eliminate sequential waterfall
       const terminalSet = await getTerminalStatuses().catch(() => new Set<string>());
       const terminalArr = [...terminalSet];
-      // Also exclude payment_pending — these are unpaid orders not yet visible to sellers
+      // Also exclude payment_pending - these are unpaid orders not yet visible to sellers
       const excludeStatuses = [...terminalArr, 'payment_pending'];
 
-      // 24-hour age cap — orders older than this are stale test data
+      // 24-hour age cap - orders older than this are stale test data
       const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
       const { data, error } = await supabase
@@ -105,7 +105,7 @@ export function ActiveOrderStrip() {
       if (!data) return [];
 
       const statusKeys = [...new Set(data.map((o: any) => o.status))];
-      // Fetch display data for all workflow types — no hardcoded list
+      // Fetch display data for all workflow types - no hardcoded list
       const { data: flowData } = await supabase
         .from('category_status_flows')
         .select('status_key, display_label, color, icon, transaction_type')
@@ -171,7 +171,7 @@ export function ActiveOrderStrip() {
     setDismissedIds(getDismissedHomeOrderIds());
   }, []);
 
-  // Delayed appearance — don't block above-fold marketplace content
+  // Delayed appearance - don't block above-fold marketplace content
   const [visible, setVisible] = useState(false);
   useEffect(() => {
     if (visibleOrders.length === 0) { setVisible(false); return; }

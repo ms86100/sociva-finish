@@ -6,7 +6,7 @@ import { preloadHaptics } from '@/lib/haptics';
 import { migrateLocalStorageToPreferences } from '@/lib/capacitor-storage';
 import { restoreAppPreferences } from '@/lib/persistent-kv';
 
-/** Always publish status-bar height — Android env(safe-area-inset-*) is unreliable. */
+/** Always publish status-bar height - Android env(safe-area-inset-*) is unreliable. */
 function readCssEnvInset(side: 'top' | 'right' | 'bottom' | 'left'): number {
   const probe = document.createElement('div');
   probe.setAttribute('aria-hidden', 'true');
@@ -26,7 +26,7 @@ function resolveBottomInset(previousPx = 0): number {
   const envBottom = readCssEnvInset('bottom');
   if (envBottom > 0) return envBottom;
   if (previousPx > 0) return previousPx;
-  // Gesture / 3-button nav typically 16–48dp; 24px is a safe minimum that
+  // Gesture / 3-button nav typically 16-48dp; 24px is a safe minimum that
   // avoids flush CTA collision without looking oversized on tablets.
   if (Capacitor.getPlatform() === 'android') return 24;
   return 0;
@@ -67,18 +67,18 @@ async function syncSafeAreaCssVars() {
 }
 
 function watchSafeAreaResync() {
-  // Re-measure after resume / rotation — some OEMs report 0 until first frame.
+  // Re-measure after resume / rotation - some OEMs report 0 until first frame.
   const resync = () => { syncSafeAreaCssVars().catch(() => {}); };
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') resync();
   });
   window.addEventListener('orientationchange', () => setTimeout(resync, 250));
   window.addEventListener('resize', () => {
-    // Debounce lightly — keyboard/nav-bar changes fire resize bursts.
+    // Debounce lightly - keyboard/nav-bar changes fire resize bursts.
     clearTimeout((watchSafeAreaResync as any)._resizeTimer);
     (watchSafeAreaResync as any)._resizeTimer = setTimeout(resync, 120);
   });
-  // After first paint(s) — WebView often lies until layout settles
+  // After first paint(s) - WebView often lies until layout settles
   requestAnimationFrame(() => requestAnimationFrame(resync));
   setTimeout(resync, 500);
   setTimeout(resync, 2000);
@@ -93,7 +93,7 @@ export async function initializeCapacitorPlugins() {
   // Warm haptic generators before first paint interactions (no-op if plugin missing)
   await preloadHaptics();
 
-  // Non-blocking storage migration — don't await, don't block boot
+  // Non-blocking storage migration - don't await, don't block boot
   migrateLocalStorageToPreferences().catch(e =>
     console.warn('[Capacitor] Storage migration failed:', e)
   );
@@ -147,7 +147,7 @@ export function getPlatform(): 'ios' | 'android' | 'web' {
   return Capacitor.getPlatform() as 'ios' | 'android' | 'web';
 }
 
-/** Hide splash screen — call after auth session is restored */
+/** Hide splash screen - call after auth session is restored */
 let splashHidden = false;
 export async function hideSplashScreen() {
   if (splashHidden || !Capacitor.isNativePlatform()) return;
@@ -168,11 +168,11 @@ function scheduleSplashTimeout() {
   if (splashTimeoutId) return;
   splashTimeoutId = setTimeout(() => {
     if (!splashHidden) {
-      console.warn('[Capacitor] Splash screen timeout — force-hiding after 4s');
+      console.warn('[Capacitor] Splash screen timeout - force-hiding after 4s');
       hideSplashScreen();
     }
   }, 4000);
-  // Also schedule an earlier native hide attempt — Capacitor plugin may be ready before React
+  // Also schedule an earlier native hide attempt - Capacitor plugin may be ready before React
   setTimeout(() => {
     if (!splashHidden) {
       console.warn('[Capacitor] Early splash hide at 1.5s');

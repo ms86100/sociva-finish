@@ -96,7 +96,7 @@ Deno.serve(async (req) => {
         const action = window.urgency === 'imminent' ? 'Open Now' :
                        window.urgency === 'soon' ? 'Get Ready' : 'View Details';
 
-        // Notify buyer — deep link to specific order when available, fallback to orders list with booking context
+        // Notify buyer - deep link to specific order when available, fallback to orders list with booking context
         const buyerPath = booking.order_id ? `/orders/${booking.order_id}` : `/orders?bookingId=${booking.id}`;
         await supabase.from("notification_queue").insert({
           user_id: booking.buyer_id,

@@ -136,7 +136,7 @@ $$;
 
 -- 7. Award signup bonus to existing users who have 0 points
 INSERT INTO loyalty_points (user_id, points, type, source, description)
-SELECT DISTINCT o.buyer_id, 50, 'bonus', 'signup', 'Welcome bonus — 50 points!'
+SELECT DISTINCT o.buyer_id, 50, 'bonus', 'signup', 'Welcome bonus - 50 points!'
 FROM orders o
 WHERE NOT EXISTS (SELECT 1 FROM loyalty_points lp WHERE lp.user_id = o.buyer_id)
 GROUP BY o.buyer_id;

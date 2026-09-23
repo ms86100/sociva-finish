@@ -1,7 +1,7 @@
 import { type Page, expect } from '@playwright/test';
 
 /**
- * Auth Page Object — handles Phone+OTP login flow.
+ * Auth Page Object - handles Phone+OTP login flow.
  * Uses Apple Review bypass (0123456789 / 1234).
  */
 export class AuthPage {
@@ -25,7 +25,7 @@ export class AuthPage {
   async loginWithPhone(phone: string, otp: string) {
     await this.goto();
 
-    // Enter phone number — look for phone input field
+    // Enter phone number - look for phone input field
     const phoneInput = this.page.locator('input[type="tel"], input[placeholder*="phone"], input[placeholder*="Phone"], input[name="phone"]').first();
     await phoneInput.waitFor({ state: 'visible', timeout: 15_000 });
     await phoneInput.fill(phone);

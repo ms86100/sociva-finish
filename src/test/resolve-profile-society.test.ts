@@ -1,5 +1,5 @@
 /**
- * resolveOrCreateSocietyForProfile — match vs create + invite gate.
+ * resolveOrCreateSocietyForProfile - match vs create + invite gate.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 

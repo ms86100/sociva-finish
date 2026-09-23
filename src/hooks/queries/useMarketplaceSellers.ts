@@ -9,7 +9,7 @@ import { jitteredStaleTime } from '@/lib/query-utils';
 import { useEffect } from 'react';
 
 /**
- * Lightweight seller row — NO embedded products, just metadata + product_count.
+ * Lightweight seller row - NO embedded products, just metadata + product_count.
  * This is the Phase 1 payload for marketplace discovery.
  */
 export interface MarketplaceSeller {

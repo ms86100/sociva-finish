@@ -4,7 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 
 /**
  * Enqueue society notifications via notification_queue only (PNQ owns inbox + push).
- * No dual-write to user_notifications — that caused duplicate inbox rows (P1-4).
+ * No dual-write to user_notifications - that caused duplicate inbox rows (P1-4).
  */
 async function enqueueAndProcess(
   targets: { id: string }[],

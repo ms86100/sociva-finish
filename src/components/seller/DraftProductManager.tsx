@@ -360,7 +360,7 @@ export function DraftProductManager({
           isAdding, editingIndex, newProduct, attributeBlocks, serviceFields,
           trackStock, trackLowStockAlert, stockQuantityInput, lowStockThresholdInput, prepTimeInput,
         }));
-      } catch { /* quota exceeded — non-critical */ }
+      } catch { /* quota exceeded - non-critical */ }
     }, 500);
     return () => clearTimeout(debounceRef.current);
   }, [isAdding, editingIndex, newProduct, attributeBlocks, serviceFields, trackStock, trackLowStockAlert, stockQuantityInput, lowStockThresholdInput, prepTimeInput, DRAFT_KEY]);
@@ -582,7 +582,7 @@ export function DraftProductManager({
         savedProductId = data.id;
       }
 
-      // Save service listing if service category — mandatory; roll back product on failure
+      // Save service listing if service category - mandatory; roll back product on failure
       if (isService && savedProductId) {
         const locationTypes = serviceFields.location_types?.length
           ? serviceFields.location_types
@@ -1074,7 +1074,7 @@ export function DraftProductManager({
                 />
               </div>
 
-              {/* Product photos — 1 required, up to 5 */}
+              {/* Product photos - 1 required, up to 5 */}
               <div className="space-y-2" id="prod-image_url">
                 <Label className="text-xs">{copy.imageLabel} <span className="text-destructive">*</span></Label>
                 {user ? (

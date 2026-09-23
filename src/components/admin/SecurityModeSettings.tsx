@@ -86,13 +86,13 @@ export function SecurityModeSettings() {
                 <SelectItem value="basic">
                   <div className="flex items-center gap-2">
                     <span>🟢 Basic</span>
-                    <span className="text-xs text-muted-foreground">— QR scan only</span>
+                    <span className="text-xs text-muted-foreground">- QR scan only</span>
                   </div>
                 </SelectItem>
                 <SelectItem value="confirmation">
                   <div className="flex items-center gap-2">
                     <span>🟡 Confirmation</span>
-                    <span className="text-xs text-muted-foreground">— QR + resident approval</span>
+                    <span className="text-xs text-muted-foreground">- QR + resident approval</span>
                   </div>
                 </SelectItem>
                 <SelectItem value="ai_match" disabled>
@@ -121,7 +121,7 @@ export function SecurityModeSettings() {
                 className="mt-1.5 w-32 rounded-xl"
               />
               <p className="text-xs text-muted-foreground mt-1.5">
-                How long to wait for resident response (10–120s)
+                How long to wait for resident response (10-120s)
               </p>
             </div>
           )}
@@ -140,7 +140,7 @@ export function SecurityModeSettings() {
               </>
             )}
             {mode === 'ai_match' && (
-              <p><strong>AI Match Mode:</strong> Future feature — camera snapshot matched against profile photo.</p>
+              <p><strong>AI Match Mode:</strong> Future feature - camera snapshot matched against profile photo.</p>
             )}
           </div>
         </div>

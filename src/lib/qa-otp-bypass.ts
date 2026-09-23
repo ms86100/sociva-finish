@@ -1,11 +1,11 @@
-/** App Store review / integration demo phones only — no SMS; OTP is always 1234. */
+/** App Store review / integration demo phones only - no SMS; OTP is always 1234. */
 export const QA_OTP_BYPASS_PHONES = [
   '0123456789',
   '0987654321',
   '9876543201',
-  // TEMP E2E ONLY — remove after seller-dashboard session (no production UI copy)
+  // TEMP E2E ONLY - remove after seller-dashboard session (no production UI copy)
   '9535115316',
-  // Staging TestFlight QA — MSG91 secrets missing on staging; use OTP 1234
+  // Staging TestFlight QA - MSG91 secrets missing on staging; use OTP 1234
   '8448802907',
 ] as const;
 

@@ -18,7 +18,7 @@ const CONTEXT_WORDS: Record<string, string[]> = {
 };
 
 /**
- * Fix #10: Isolated typewriter component — only THIS component re-renders
+ * Fix #10: Isolated typewriter component - only THIS component re-renders
  * on each tick (every 40-80ms), not the parent Header or page tree.
  * Fix #13: Derives display names from shared ['category-configs'] cache.
  */

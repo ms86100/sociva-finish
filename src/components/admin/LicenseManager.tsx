@@ -268,7 +268,7 @@ export function LicenseManager() {
             {sub.status === 'pending' && (
               <div className="mt-3 space-y-2 pt-2 border-t">
                 <Textarea
-                  placeholder="Admin notes (optional) — feedback for seller"
+                  placeholder="Admin notes (optional) - feedback for seller"
                   value={adminNotes}
                   onChange={(e) => setAdminNotes(e.target.value)}
                   rows={2}

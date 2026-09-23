@@ -147,7 +147,7 @@ export function ReorderButton({
         return;
       }
 
-      // Use the cart provider's replaceCart — seeds cache before navigation
+      // Use the cart provider's replaceCart - seeds cache before navigation
       await replaceCart(cartInserts);
 
       const unavailableCount = lines.length - cartInserts.length;

@@ -148,7 +148,7 @@ export async function pickOrCaptureImage(): Promise<Blob | null> {
     }
 
     // Wait a moment for iOS to finish dismissing the permission dialog
-    // before invoking the image picker — this prevents "Failed to select image"
+    // before invoking the image picker - this prevents "Failed to select image"
     await new Promise(resolve => setTimeout(resolve, 500));
   }
 

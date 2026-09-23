@@ -72,7 +72,7 @@ export default function ProductDeepLinkPage() {
         }
 
         // Always show the shared product. Location / radius only gates ordering
-        // (handled in cart/enquiry) — never hide the listing and bounce to Home.
+        // (handled in cart/enquiry) - never hide the listing and bounce to Home.
         const gate = await buyerCanOrderFromSeller(
           data.seller_id,
           browsingLocation?.lat,

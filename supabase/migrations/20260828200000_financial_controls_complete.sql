@@ -199,7 +199,7 @@ BEGIN
     RAISE EXCEPTION 'pending adjustment not found';
   END IF;
   IF v_request.requested_by = auth.uid() THEN
-    RAISE EXCEPTION 'maker cannot reject own financial adjustment — cancel instead';
+    RAISE EXCEPTION 'maker cannot reject own financial adjustment - cancel instead';
   END IF;
 
   UPDATE public.financial_adjustment_requests

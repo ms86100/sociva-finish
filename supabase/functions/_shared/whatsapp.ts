@@ -208,7 +208,7 @@ export async function sendWhatsAppTemplateOrText(opts: {
   const components: WhatsAppTemplateComponent[] | undefined = opts.bodyParams?.length
     ? [{
       type: "body",
-      parameters: opts.bodyParams.map((text) => ({ type: "text" as const, text: String(text || "—").slice(0, 600) })),
+      parameters: opts.bodyParams.map((text) => ({ type: "text" as const, text: String(text || "-").slice(0, 600) })),
     }]
     : undefined;
 
@@ -256,7 +256,7 @@ export async function logWhatsAppMessage(row: {
   if (error) console.error("[whatsapp] log insert failed", error);
 }
 
-/** High-level templates — prefer approved Meta templates, fall back to free-form. */
+/** High-level templates - prefer approved Meta templates, fall back to free-form. */
 export async function sendOTP(phoneNumber: string, otp: string) {
   const message = `Your Sociva verification code is ${otp}. Do not share this code.`;
   // Auth templates require Meta authentication category; until approved, session text only.
@@ -275,16 +275,16 @@ export async function sendBookingConfirmation(opts: {
     `Hi ${opts.customerName}, your booking with ${opts.providerName} is confirmed.\n` +
     `Booking: ${opts.bookingId}\n` +
     `When: ${opts.serviceDate} at ${opts.serviceTime}\n` +
-    `— Sociva`;
+    `- Sociva`;
   return sendWhatsAppTemplateOrText({
     phoneNumber: opts.phoneNumber,
     templateName: "sociva_booking_confirmed",
     bodyParams: [
       opts.customerName || "there",
       opts.providerName || "your provider",
-      opts.bookingId || "—",
-      opts.serviceDate || "—",
-      opts.serviceTime || "—",
+      opts.bookingId || "-",
+      opts.serviceDate || "-",
+      opts.serviceTime || "-",
     ],
     fallbackText: fallback,
   });
@@ -300,13 +300,13 @@ export async function sendBookingCancelled(opts: {
   const reason = opts.reason || "No additional details.";
   const fallback =
     `Hi ${opts.customerName}, your booking ${opts.bookingId} with ${opts.providerName} was cancelled.` +
-    `\nReason: ${reason}\n— Sociva`;
+    `\nReason: ${reason}\n- Sociva`;
   return sendWhatsAppTemplateOrText({
     phoneNumber: opts.phoneNumber,
     templateName: "sociva_booking_cancelled",
     bodyParams: [
       opts.customerName || "there",
-      opts.bookingId || "—",
+      opts.bookingId || "-",
       opts.providerName || "your provider",
       reason,
     ],
@@ -324,16 +324,16 @@ export async function sendBookingReminder(opts: {
 }) {
   const fallback =
     `Reminder: Hi ${opts.customerName}, you have a booking with ${opts.providerName} on ` +
-    `${opts.serviceDate} at ${opts.serviceTime} (ref ${opts.bookingId}).\n— Sociva`;
+    `${opts.serviceDate} at ${opts.serviceTime} (ref ${opts.bookingId}).\n- Sociva`;
   return sendWhatsAppTemplateOrText({
     phoneNumber: opts.phoneNumber,
     templateName: "sociva_booking_reminder",
     bodyParams: [
       opts.customerName || "there",
       opts.providerName || "your provider",
-      opts.serviceDate || "—",
-      opts.serviceTime || "—",
-      opts.bookingId || "—",
+      opts.serviceDate || "-",
+      opts.serviceTime || "-",
+      opts.bookingId || "-",
     ],
     fallbackText: fallback,
   });

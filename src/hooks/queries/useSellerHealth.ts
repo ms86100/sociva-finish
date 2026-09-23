@@ -72,7 +72,7 @@ export function useSellerHealth(sellerId: string | null) {
       const checks: SellerHealthCheck[] = [];
 
       // ═══════════════════════════════════════
-      // CRITICAL — Hard visibility gates
+      // CRITICAL - Hard visibility gates
       // ═══════════════════════════════════════
 
       // C1: Store approval
@@ -161,7 +161,7 @@ export function useSellerHealth(sellerId: string | null) {
       }
 
       // ═══════════════════════════════════════
-      // PRODUCTS — Detailed product health
+      // PRODUCTS - Detailed product health
       // ═══════════════════════════════════════
 
       const drafts = products.filter(p => p.approval_status === 'draft');
@@ -201,7 +201,7 @@ export function useSellerHealth(sellerId: string | null) {
       }
 
       // ═══════════════════════════════════════
-      // DISCOVERY — Location & cross-society reach
+      // DISCOVERY - Location & cross-society reach
       // ═══════════════════════════════════════
 
       const society = profile.societies;
@@ -225,7 +225,7 @@ export function useSellerHealth(sellerId: string | null) {
       }
 
       // ═══════════════════════════════════════
-      // QUALITY — Profile completeness & trust
+      // QUALITY - Profile completeness & trust
       // ═══════════════════════════════════════
 
       if (profile.profile_image_url) {
@@ -241,7 +241,7 @@ export function useSellerHealth(sellerId: string | null) {
       }
 
       if (profile.availability_start && profile.availability_end) {
-        checks.push({ key: 'operating_hours', label: 'Operating hours set', status: 'pass', message: `${profile.availability_start} – ${profile.availability_end}`, group: 'quality' });
+        checks.push({ key: 'operating_hours', label: 'Operating hours set', status: 'pass', message: `${profile.availability_start} - ${profile.availability_end}`, group: 'quality' });
       } else {
         checks.push({ key: 'operating_hours', label: 'Operating hours not set', status: 'warn', message: 'Set your operating hours so buyers know when you\'re open.', actionLabel: 'Set Hours', actionRoute: '/seller/settings', group: 'quality' });
       }
@@ -249,7 +249,7 @@ export function useSellerHealth(sellerId: string | null) {
       if (profile.operating_days && profile.operating_days.length > 0) {
         checks.push({ key: 'operating_days', label: 'Operating days set', status: 'pass', message: `${profile.operating_days.length} days/week`, group: 'quality' });
       } else {
-        checks.push({ key: 'operating_days', label: 'No operating days set', status: 'fail', message: 'Your store appears closed — no operating days selected. Buyers cannot see you.', actionLabel: 'Set Days', actionRoute: '/seller/settings', group: 'quality' });
+        checks.push({ key: 'operating_days', label: 'No operating days set', status: 'fail', message: 'Your store appears closed - no operating days selected. Buyers cannot see you.', actionLabel: 'Set Days', actionRoute: '/seller/settings', group: 'quality' });
       }
 
       // ═══════════════════════════════════════

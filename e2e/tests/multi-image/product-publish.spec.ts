@@ -16,7 +16,7 @@ import {
 } from './helpers';
 
 const stamp = Date.now().toString().slice(-6);
-const PRODUCT_NAME = `Test Product — Multi Image ${stamp}`;
+const PRODUCT_NAME = `Test Product - Multi Image ${stamp}`;
 const META_PATH = path.join(EVIDENCE_ROOT, 'report', 'last-published.json');
 
 test.describe.configure({ mode: 'serial' });

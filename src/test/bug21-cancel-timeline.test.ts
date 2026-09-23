@@ -3,40 +3,40 @@ import { formatOrderCancellationHeroReason } from '@/lib/order-cancellation-copy
 import { buildScheduledTimeline, hasSellerAccepted } from '@/lib/scheduled-orders';
 
 describe('BUG-21 cancellation copy', () => {
-  it('buyer cancel — buyer view', () => {
+  it('buyer cancel - buyer view', () => {
     expect(
       formatOrderCancellationHeroReason(
         { failure_owner: 'buyer', rejection_reason: 'Cancelled by buyer: Changed my mind' },
         'buyer',
       ),
-    ).toBe('You cancelled this order — Changed my mind');
+    ).toBe('You cancelled this order - Changed my mind');
   });
 
-  it('buyer cancel — seller view', () => {
+  it('buyer cancel - seller view', () => {
     expect(
       formatOrderCancellationHeroReason(
         { failure_owner: 'buyer', rejection_reason: 'Cancelled by buyer: Changed my mind' },
         'seller',
       ),
-    ).toBe('Cancelled by buyer — Changed my mind');
+    ).toBe('Cancelled by buyer - Changed my mind');
   });
 
-  it('seller reject — seller view uses Rejected not Cancelled', () => {
+  it('seller reject - seller view uses Rejected not Cancelled', () => {
     expect(
       formatOrderCancellationHeroReason(
         { failure_owner: 'seller', rejection_reason: 'Kitchen closed / Not available now' },
         'seller',
       ),
-    ).toBe('You rejected this order — Kitchen closed / Not available now');
+    ).toBe('You rejected this order - Kitchen closed / Not available now');
   });
 
-  it('seller reject — buyer view', () => {
+  it('seller reject - buyer view', () => {
     expect(
       formatOrderCancellationHeroReason(
         { failure_owner: 'seller', rejection_reason: 'Rejected by seller: Kitchen closed' },
         'buyer',
       ),
-    ).toBe('Rejected by seller — Kitchen closed');
+    ).toBe('Rejected by seller - Kitchen closed');
   });
 });
 

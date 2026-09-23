@@ -10,7 +10,7 @@ import { fetchCategoryConfigs } from '@/hooks/useCategoryBehavior';
  * RAW database rows (snake_case: parent_group, display_name, is_active), while
  * CategoriesPage expected camelCase properties (parentGroup, displayName, isActive).
  * This caused all category filters to silently return empty arrays, showing the
- * "Stay tuned — we're growing!" empty state even when products existed.
+ * "Stay tuned - we're growing!" empty state even when products existed.
  * 
  * FIX: All consumers now use the single exported `fetchCategoryConfigs` function
  * which maps DB rows to camelCase CategoryConfig objects.
@@ -24,7 +24,7 @@ describe('Category Config Cache Consistency', () => {
 
     // Skip if no categories configured (empty DB)
     if (configs.length === 0) {
-      console.warn('No category configs found in DB — skipping property check');
+      console.warn('No category configs found in DB - skipping property check');
       return;
     }
 
@@ -112,7 +112,7 @@ describe('Category Config Cache Consistency', () => {
     }
   });
 
-  it('raw DB query returns snake_case — verifying the mapping is necessary', async () => {
+  it('raw DB query returns snake_case - verifying the mapping is necessary', async () => {
     const { data } = await supabase
       .from('category_config')
       .select('parent_group, display_name, is_active')

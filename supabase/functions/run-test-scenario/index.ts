@@ -47,16 +47,16 @@ function suggestFix(error: string, step: TestStep): string {
     return `Duplicate key on ${step.table}. Use upsert with ON CONFLICT or check for existing row before insert.`;
   }
   if (e.includes("violates row-level security") || e.includes("rls")) return `RLS policy blocking ${step.action} on ${step.table} for '${step.actor}'. Check pg_policies for this table.`;
-  if (e.includes("violates foreign key")) return `Foreign key violation. The referenced parent row doesn't exist — ensure setup steps create all required records first.`;
+  if (e.includes("violates foreign key")) return `Foreign key violation. The referenced parent row doesn't exist - ensure setup steps create all required records first.`;
   if (e.includes("invalid input value for enum")) { const m = error.match(/enum (\w+): "([^"]+)"/); return `Invalid enum "${m?.[2]}" for ${m?.[1]}. Check valid enum values in schema.`; }
   if (e.includes("permission denied")) return `Permission denied for ${step.actor} on ${step.table}. Check RLS policies and GRANTs.`;
   if (e.includes("auth failed") || e.includes("invalid login credentials")) return `Test user '${step.actor}' doesn't exist. The runner auto-creates users but may have hit a race condition. Try running again.`;
   if (e.includes("invalid transition") || e.includes("status transition")) return `Status transition blocked by validate_order_status_transition trigger. Check category_status_transitions for allowed paths.`;
-  if (e.includes("expected error but operation succeeded")) return `⚠️ Security gap: Operation was expected to fail but succeeded. The guard/constraint/RLS is NOT blocking this — investigate!`;
+  if (e.includes("expected error but operation succeeded")) return `⚠️ Security gap: Operation was expected to fail but succeeded. The guard/constraint/RLS is NOT blocking this - investigate!`;
   if (e.includes("rows, got")) return `Row count mismatch. Check for stale test data or overly broad/narrow query filters.`;
   if (e.includes("field") && e.includes("expected") && e.includes("got")) return `Field value mismatch. A trigger or default may be overriding the expected value.`;
   if (e.includes("null value") && e.includes("not-null")) { const m = error.match(/column "(\w+)"/); return `Required field '${m?.[1]}' is null. Add it to step params or set a DB default.`; }
-  if (e.includes("not found") || e.includes("no rows")) return `No matching rows. Template variable {{...}} may not have resolved — check previous step outputs.`;
+  if (e.includes("not found") || e.includes("no rows")) return `No matching rows. Template variable {{...}} may not have resolved - check previous step outputs.`;
   return `Review: 1) Are template vars resolving? 2) Does ${step.actor} have permission on ${step.table}? 3) Are all required fields set?`;
 }
 
@@ -64,7 +64,7 @@ function suggestFix(error: string, step: TestStep): string {
 // Resolves {{step_id.field}} or {{step_id.field.nested}} references
 function resolveTemplates(obj: any, context: Record<string, any>): any {
   if (typeof obj === "string") {
-    // Full-string replacement (preserves type — e.g. keeps UUID as string, number as number)
+    // Full-string replacement (preserves type - e.g. keeps UUID as string, number as number)
     const fullMatch = obj.match(/^\{\{([^}]+)\}\}$/);
     if (fullMatch) {
       return resolvePath(fullMatch[1], context);
@@ -106,7 +106,7 @@ Deno.serve(async (req) => {
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
   const adminClient = createClient(supabaseUrl, serviceKey);
 
-  // Auth check — only admins
+  // Auth check - only admins
   const authHeader = req.headers.get("Authorization");
   if (authHeader?.startsWith("Bearer ")) {
     const userClient = createClient(supabaseUrl, anonKey, {

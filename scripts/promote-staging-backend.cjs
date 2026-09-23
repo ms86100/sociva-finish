@@ -52,7 +52,7 @@ for (const rel of MIGRATIONS) {
     process.exit(1);
   }
   const sql = fs.readFileSync(abs, 'utf8');
-  console.log(`\n—— ${rel} (${sql.length} bytes) ——`);
+  console.log(`\n-- ${rel} (${sql.length} bytes) --`);
   console.log(sql.split('\n').slice(0, 8).join('\n') + '\n…');
 }
 
@@ -71,7 +71,7 @@ Or via Supabase MCP (Cursor):
     name: app_installations_permission_lifecycle
     query: <contents of the migration file>
 
-DO NOT use merge_branch blindly — the staging branch may contain
+DO NOT use merge_branch blindly - the staging branch may contain
 unrelated historical changes. Prefer applying the explicit migration
 files listed above.
 

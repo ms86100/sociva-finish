@@ -19,7 +19,7 @@ function proposeErrorMessage(err: unknown): string {
   if (/not authenticated|JWT/i.test(raw)) return 'Please sign in again, then add the subcategory.';
   if (/too short|invalid subcategory/i.test(raw)) return 'Enter a clearer subcategory name (at least 2 characters).';
   if (/category not found/i.test(raw)) return 'That category is unavailable. Go back and pick another.';
-  // PostgREST often prefixes with long codes — keep the human part short.
+  // PostgREST often prefixes with long codes - keep the human part short.
   const cleaned = raw.replace(/^[{[].*|code["']?\s*:\s*["']?\w+["']?/i, '').trim();
   return cleaned.length > 8 && cleaned.length < 160 ? cleaned : 'Could not add subcategory. Please try again.';
 }

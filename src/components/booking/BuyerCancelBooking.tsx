@@ -33,7 +33,7 @@ type CancelPolicyInfo = {
   reason: string;
 };
 
-/** DB-driven terminal status check — cached per session */
+/** DB-driven terminal status check - cached per session */
 let terminalBookingStatuses: Set<string> | null = null;
 async function loadTerminalBookingStatuses(): Promise<Set<string>> {
   if (terminalBookingStatuses) return terminalBookingStatuses;

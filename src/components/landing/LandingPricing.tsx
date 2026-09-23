@@ -8,7 +8,7 @@ const PLANS = [
     name: 'Buyers',
     price: 'Free',
     period: 'forever',
-    desc: 'Browse, order, and connect — always free.',
+    desc: 'Browse, order, and connect - always free.',
     features: [
       'Browse all listings in your society',
       'Place unlimited orders',
@@ -21,7 +21,7 @@ const PLANS = [
     name: 'Sellers',
     price: 'Free',
     period: 'to start',
-    desc: "Your kitchen, craft studio, or skill — finally has a storefront. Zero commission. Zero listing fees.",
+    desc: "Your kitchen, craft studio, or skill - finally has a storefront. Zero commission. Zero listing fees.",
     badge: 'Most Popular',
     features: [
       'List products, food, or services',

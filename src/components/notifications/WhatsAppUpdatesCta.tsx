@@ -118,7 +118,7 @@ export function WhatsAppUpdatesCta({
       queryClient.invalidateQueries({ queryKey: ['notification-preferences-whatsapp', user.id] });
       queryClient.invalidateQueries({ queryKey: ['notification-preferences', user.id] });
       showFeedback({
-        title: 'WhatsApp opened — tap Send to register for updates',
+        title: 'WhatsApp opened - tap Send to register for updates',
         variant: 'success',
       });
       if (dismissible && variant !== 'settings') {
@@ -198,7 +198,7 @@ export function WhatsAppUpdatesCta({
           <p className="text-[10px] text-muted-foreground leading-relaxed">
             Sending a message opens a 24-hour window so Sociva can text you status updates.
             Approved templates will work without a recent Hi later. Promotional WhatsApp is opt-in only
-            (Promotions + WhatsApp both enabled) — we never send marketing without that consent.
+            (Promotions + WhatsApp both enabled) - we never send marketing without that consent.
           </p>
         </CardContent>
       </Card>

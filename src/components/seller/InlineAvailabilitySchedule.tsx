@@ -47,7 +47,7 @@ export function InlineAvailabilitySchedule({ schedule, onChange }: InlineAvailab
             {day.is_active ? (
               <div className="flex items-center gap-1.5 flex-1">
                 <Input type="time" value={day.start_time} onChange={(e) => updateDay(index, 'start_time', e.target.value)} className="h-7 text-[11px] w-[88px] px-1.5" />
-                <span className="text-[10px] text-muted-foreground">—</span>
+                <span className="text-[10px] text-muted-foreground">-</span>
                 <Input type="time" value={day.end_time} onChange={(e) => updateDay(index, 'end_time', e.target.value)} className="h-7 text-[11px] w-[88px] px-1.5" />
               </div>
             ) : (

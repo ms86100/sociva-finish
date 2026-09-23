@@ -46,12 +46,12 @@ function requestKindLabel(rows: any[]): { titlePending: string; titleReady: stri
     titleReady: `${ready.length} ${noun} request${ready.length > 1 ? 's' : ''} ready`,
     bodyPending:
       noun === 'subcategory'
-        ? `${names} ${waitingVerb} waiting for admin review — you can already use ${pendingNames.length === 1 ? 'it' : 'them'} on your listing. We’ll notify you when ${pendingNames.length === 1 ? "it's" : "they're"} approved.`
+        ? `${names} ${waitingVerb} waiting for admin review - you can already use ${pendingNames.length === 1 ? 'it' : 'them'} on your listing. We’ll notify you when ${pendingNames.length === 1 ? "it's" : "they're"} approved.`
         : `${names} ${waitingVerb === 'is' ? 'isn’t' : 'aren’t'} live yet. We’ll notify you when ${pendingNames.length === 1 ? "it's" : "they're"} approved.`,
     bodyReady:
       noun === 'subcategory'
-        ? 'Your proposed subcategory was approved — keep using it in your listings.'
-        : 'Your requested category is available — select it below or continue onboarding.',
+        ? 'Your proposed subcategory was approved - keep using it in your listings.'
+        : 'Your requested category is available - select it below or continue onboarding.',
   };
 }
 

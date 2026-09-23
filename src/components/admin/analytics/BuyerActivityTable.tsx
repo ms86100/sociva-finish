@@ -47,7 +47,7 @@ export function BuyerActivityTable() {
                       <TableCell className="text-xs text-right tabular-nums text-red-600">{b.cancelled}</TableCell>
                       <TableCell className="text-xs font-bold text-right tabular-nums">₹{b.totalSpent.toLocaleString()}</TableCell>
                       <TableCell className="text-[11px] text-right text-muted-foreground">
-                        {b.lastOrderDate ? format(new Date(b.lastOrderDate), 'MMM d') : '—'}
+                        {b.lastOrderDate ? format(new Date(b.lastOrderDate), 'MMM d') : '-'}
                       </TableCell>
                     </TableRow>
                   ))}

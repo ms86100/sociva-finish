@@ -49,7 +49,7 @@ export function getRazorpayNativeLayout(): RazorpayNativeLayout {
  * (`StatusBar.overlaysWebView` + iOS `contentInset: never`), so the overlay
  * must be inset with --app-safe-* / env(safe-area-inset-*).
  *
- * Do not set top/height/padding here — CSS on body.razorpay-ios/android is
+ * Do not set top/height/padding here - CSS on body.razorpay-ios/android is
  * the source of truth. Inline padding:0 would hide the status-bar inset.
  */
 export function applyNativeCheckoutLayout(node: HTMLElement, layout: RazorpayNativeLayout) {

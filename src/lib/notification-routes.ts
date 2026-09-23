@@ -97,7 +97,7 @@ export function resolveNotificationRoute(
       return orderId ? `/orders/${orderId}` : '/seller';
     }
 
-    // Reviews — buyer rates an order, seller views received review on the order page
+    // Reviews - buyer rates an order, seller views received review on the order page
     case 'review':
     case 'review_prompt':
     case 'review_received': {
@@ -165,7 +165,7 @@ export function resolveNotificationRoute(
       return orderId ? `/orders/${orderId}` : '/orders';
     }
 
-    // Settlement / transfer (seller-facing) — wallet is the financial home
+    // Settlement / transfer (seller-facing) - wallet is the financial home
     case 'settlement':
     case 'seller_transfer':
     case 'seller_withdrawal':
@@ -177,7 +177,7 @@ export function resolveNotificationRoute(
     case 'seller_credit_exhausted':
       return '/seller/credits';
 
-    // Support tickets — deep-link into the order with the ticket id so the
+    // Support tickets - deep-link into the order with the ticket id so the
     // seller (or buyer) lands somewhere real instead of a dead /support route.
     case 'support_ticket': {
       const orderId = getOrderId(payload);

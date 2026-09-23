@@ -10,7 +10,7 @@ import {
 import { peekPendingAuthAction } from '@/lib/pending-auth-action';
 
 /**
- * Post-login soft sheet — shown once after OTP when marked by useAuthPage.
+ * Post-login soft sheet - shown once after OTP when marked by useAuthPage.
  * Never auto-fires the native OS notification dialog.
  * Deferred on /cart so checkout is never blocked by the permission sheet.
  */

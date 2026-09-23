@@ -26,7 +26,7 @@ test.describe('Razorpay Failure Flow @regression', () => {
     await checkout.selectRazorpay();
     await checkout.placeOrder();
 
-    // Payment fails — user should see error/retry state
+    // Payment fails - user should see error/retry state
     await buyerPage.waitForTimeout(2_000);
 
     // Check that UI shows failure state or returns to checkout

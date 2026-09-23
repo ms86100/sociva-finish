@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { hideSplashScreen } from '@/lib/capacitor';
 
-// Keep short — HTML #boot-splash already covers JS download; this only bridges auth restore.
+// Keep short - HTML #boot-splash already covers JS download; this only bridges auth restore.
 const MIN_DISPLAY_MS = 280;
 const MAX_DISPLAY_MS = 1600;
 const EXIT_MS = 180;

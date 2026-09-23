@@ -70,7 +70,7 @@ export default async function handler(req: Request): Promise<Response> {
   const deepLink = `${origin}/#/product/${encodeURIComponent(productId)}`;
 
   let title = 'Sociva product';
-  let description = 'Found on Sociva — your neighbourhood marketplace.';
+  let description = 'Found on Sociva - your neighbourhood marketplace.';
   let image = DEFAULT_OG_IMAGE;
 
   if (productId && productId !== 'product') {
@@ -98,7 +98,7 @@ export default async function handler(req: Request): Promise<Response> {
             : '';
           title = row.name || title;
           description = price
-            ? `${row.name} — ${price} from ${sellerName} on Sociva`
+            ? `${row.name} - ${price} from ${sellerName} on Sociva`
             : `${row.name} from ${sellerName} on Sociva`;
           image = toOgImage(row.image_url, origin);
         }

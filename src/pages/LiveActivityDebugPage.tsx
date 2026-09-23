@@ -139,7 +139,7 @@ export default function LiveActivityDebugPage() {
         {/* Native Activities */}
         <Section title={`Native Activities (${nativeActivities.length})`} icon={<Activity size={16} />}>
           {nativeActivities.length === 0 ? (
-            <p className="text-xs text-muted-foreground">None — tap "Fetch Native" above</p>
+            <p className="text-xs text-muted-foreground">None - tap "Fetch Native" above</p>
           ) : nativeActivities.map((a) => (
             <div key={a.activityId} className="text-[11px] bg-muted/50 rounded p-2 mb-1">
               <span className="font-mono break-all">entity: {a.entityId}</span>

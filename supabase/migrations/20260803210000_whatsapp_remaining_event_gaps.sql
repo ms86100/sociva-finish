@@ -27,7 +27,7 @@ BEGIN
     VALUES (
       _prompt.buyer_id,
       'How was your order?',
-      'Rate your experience with ' || COALESCE(_prompt.seller_name, 'the seller') || ' — your review helps the community!',
+      'Rate your experience with ' || COALESCE(_prompt.seller_name, 'the seller') || ' - your review helps the community!',
       'review_nudge',
       '/orders/' || _prompt.order_id::text,
       jsonb_build_object(

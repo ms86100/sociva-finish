@@ -51,7 +51,7 @@ export function AvailabilityPromptBanner({ sellerId }: AvailabilityPromptBannerP
       <div className="flex-1 min-w-0">
         <p className="text-sm font-semibold text-foreground">Set your Store Hours</p>
         <p className="text-xs text-muted-foreground mt-0.5">
-          You have service products but no Store Hours configured. Booking slots are generated automatically from your Store Hours — set them up so buyers can book.
+          You have service products but no Store Hours configured. Booking slots are generated automatically from your Store Hours - set them up so buyers can book.
         </p>
         <Button
           variant="outline"

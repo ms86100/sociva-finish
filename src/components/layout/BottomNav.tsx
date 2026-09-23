@@ -77,7 +77,7 @@ function BottomNavInner() {
       className="fixed inset-x-0 bottom-0 z-50 border-t border-border/20"
       style={{ paddingBottom: 'max(var(--app-safe-bottom, 0px), env(safe-area-inset-bottom, 0px))' }}
     >
-      {/* Solid fill on native — backdrop-blur tanks Android WebView scroll/nav FPS */}
+      {/* Solid fill on native - backdrop-blur tanks Android WebView scroll/nav FPS */}
       <div className={cn(
         'absolute inset-0 bg-background',
         !IS_NATIVE && 'bg-background/70 backdrop-blur-2xl backdrop-saturate-150',

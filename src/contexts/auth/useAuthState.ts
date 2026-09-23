@@ -251,7 +251,7 @@ export function useAuthState() {
     const bootMarked = { current: false };
 
     // Unlock the boot spinner once, but always apply session/user updates.
-    // Previously bootMarked early-return dropped SIGNED_IN after failsafe —
+    // Previously bootMarked early-return dropped SIGNED_IN after failsafe -
     // login succeeded in Supabase while React user stayed null → /landing.
     const markBootComplete = (partial: Partial<AuthState> = {}) => {
       if (cancelled) return;
@@ -288,7 +288,7 @@ export function useAuthState() {
       ]);
 
     const failsafe = setTimeout(() => {
-      console.warn('[Auth] Boot failsafe — forcing isSessionRestored');
+      console.warn('[Auth] Boot failsafe - forcing isSessionRestored');
       markBootComplete();
     }, 6000);
 
@@ -405,7 +405,7 @@ export function useAuthState() {
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Proactive session refresh every 5 minutes — local session only (no getUser storm).
+  // Proactive session refresh every 5 minutes - local session only (no getUser storm).
   // supabase-js already auto-refreshes tokens; this only recovers Preferences backup
   // or refreshes when expiry is near.
   useEffect(() => {
@@ -422,7 +422,7 @@ export function useAuthState() {
               return;
             }
           }
-          // Do NOT call getUser() here — it hammers Auth while the DB pool is busy
+          // Do NOT call getUser() here - it hammers Auth while the DB pool is busy
           // and caused /token and /user 504s. Rely on onAuthStateChange + next user action.
           console.warn('[Auth] Local session missing during health check; waiting for auth events');
           return;

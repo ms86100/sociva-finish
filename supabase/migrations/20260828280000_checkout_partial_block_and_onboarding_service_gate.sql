@@ -364,7 +364,7 @@ begin
 
   _created_count := coalesce(array_length(_order_ids, 1), 0);
 
-  -- P0: Never commit a partial multi-seller checkout — roll back and preserve cart.
+  -- P0: Never commit a partial multi-seller checkout - roll back and preserve cart.
   if _total_groups > 1 and _created_count > 0 and _created_count < _total_groups then
     delete from public.orders where id = any(_order_ids);
     _skipped_sellers := _closed_sellers || _out_of_range || _payment_blocked_sellers || _credit_blocked_sellers;

@@ -6,7 +6,7 @@ import { useBuyerWallet } from '@/hooks/queries/useWallet';
 import { toast } from 'sonner';
 
 /**
- * Sociva Balance — client is display/quote only.
+ * Sociva Balance - client is display/quote only.
  * Authoritative apply happens inside create_multi_vendor_orders (_wallet_amount).
  */
 export function useWalletCredit() {

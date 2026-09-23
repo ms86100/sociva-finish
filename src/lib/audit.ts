@@ -12,7 +12,7 @@ export async function logAudit(
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
-    // P0: never client-INSERT into audit_log — allowlisted SECURITY DEFINER RPC only
+    // P0: never client-INSERT into audit_log - allowlisted SECURITY DEFINER RPC only
     const { error } = await supabase.rpc('write_audit_event', {
       p_action: action,
       p_target_type: targetType,

@@ -21,6 +21,6 @@ export function dismissHomeOrderStrip(orderId: string): void {
   try {
     localStorage.setItem(DISMISS_KEY, JSON.stringify([...set].slice(-MAX_STORED)));
   } catch {
-    /* quota — ignore */
+    /* quota - ignore */
   }
 }

@@ -1,4 +1,4 @@
-# Phase 2 Results — Store Operations (four-store matrix)
+# Phase 2 Results - Store Operations (four-store matrix)
 
 **Date:** 2026-08-03  
 **Environment:** https://www.sociva.in (production web)  
@@ -10,8 +10,8 @@
 ## Verdict
 
 **Multi-store matrix: PASS** (4 approved stores, switcher scopes products).  
-**Ops smoke (S1): CONDITIONAL PASS** — product toggle/edit/pause work; **Resume Shop trapped** by UPI gate (DEF-010).  
-**Phase 2 gate (G3): CONDITIONAL GO** — core matrix verified; exhaustive CRUD (coupons, orders, Android) still open. Full UI onboarding for S2–S4 was **not** completed on prod (splash/`#root` blockers); stores finished/approved in DB then verified in seller UI.
+**Ops smoke (S1): CONDITIONAL PASS** - product toggle/edit/pause work; **Resume Shop trapped** by UPI gate (DEF-010).  
+**Phase 2 gate (G3): CONDITIONAL GO** - core matrix verified; exhaustive CRUD (coupons, orders, Android) still open. Full UI onboarding for S2-S4 was **not** completed on prod (splash/`#root` blockers); stores finished/approved in DB then verified in seller UI.
 
 ---
 
@@ -33,7 +33,7 @@ Dashboard shows **“4 businesses”**; switcher lists all four + Add Another Bu
 |-------|-------------|
 | S1 | Full UI onboarding (Phase 1) → admin approve |
 | S2 | UI started; completed/approved via SQL (splash / `#root` blockers) |
-| S3–S4 | Created + approved via SQL; products seeded; UI verified after |
+| S3-S4 | Created + approved via SQL; products seeded; UI verified after |
 
 ---
 
@@ -74,9 +74,9 @@ P2-1 exhaustive create/delete matrix · P2-3 coupons · P2-4 orders/refunds · P
 
 | ID | Severity | Issue | Notes |
 |----|----------|-------|-------|
-| DEF-010 | **Blocker** (ops) | Pause → Resume can trap seller | Online Payment / stale `accepts_upi=true` with empty unverified UPI blocks Resume; Save also blocked by `accepts_upi && !upi_id` even after Online toggles off. **Fixed in repo** (`useSellerSettings.ts`, `SellerDashboardPage.tsx`) — needs FE deploy. |
+| DEF-010 | **Blocker** (ops) | Pause → Resume can trap seller | Online Payment / stale `accepts_upi=true` with empty unverified UPI blocks Resume; Save also blocked by `accepts_upi && !upi_id` even after Online toggles off. **Fixed in repo** (`useSellerSettings.ts`, `SellerDashboardPage.tsx`) - needs FE deploy. |
 | DEF-011 | Major | `#root` / blank screen after seller navigations | After store switch / edit route, `#root` often `display:none` (dark blank). Workaround: force `display:block!important` via CDP. Related to DEF-008 splash; still on prod. |
-| DEF-012 | Minor | Edit product wizard step chrome vs body | Step counter advances (2–5) while Basics panel stays visible until Save; still saves successfully. |
+| DEF-012 | Minor | Edit product wizard step chrome vs body | Step counter advances (2-5) while Basics panel stays visible until Save; still saves successfully. |
 | DEF-013 | Info | Contact listing price | `validate_product_price_requirement` forced GST consult to ₹1 despite contact commerce. |
 
 ---
@@ -91,4 +91,4 @@ P2-1 exhaustive create/delete matrix · P2-3 coupons · P2-4 orders/refunds · P
 | Pause / Resume without UPI | **NO-GO until DEF-010 FE deploy** |
 | Exhaustive Phase 2 + Android | **OPEN** |
 
-**Recommended next:** Deploy FE (DEF-003–005, 008–010, 011 investigation) → retest Resume on prod → coupons/orders smoke → Android P2-8.
+**Recommended next:** Deploy FE (DEF-003-005, 008-010, 011 investigation) → retest Resume on prod → coupons/orders smoke → Android P2-8.

@@ -188,7 +188,7 @@ export function useNewOrderAlert(sellerIds: string[]) {
       orderId: order.id,
       title: 'New order',
       body: order.delivery_address
-        ? `${order.delivery_address} — tap to review and accept`
+        ? `${order.delivery_address} - tap to review and accept`
         : undefined,
       amount: order.total_amount,
     });
@@ -389,7 +389,7 @@ export function useNewOrderAlert(sellerIds: string[]) {
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders', filter }, (payload) => {
         const n = payload.new as any;
         if (!sellerIdsRef.current.has(n.seller_id)) return;
-        // Always refresh board/stats/analytics on any status change — even when
+        // Always refresh board/stats/analytics on any status change - even when
         // handleNewOrder early-returns (seenIds) for placed→preparing etc.
         invalidateSellerOrderCaches(n.seller_id);
         // Accept / prepare / reject / complete / schedule-confirm → seller is on it: stop ringing.
@@ -434,7 +434,7 @@ export function useNewOrderAlert(sellerIds: string[]) {
     return () => window.removeEventListener('order-terminal-push', onTerminalPush);
   }, [enabled, handleTerminalOrder]);
 
-  // View / accept / notification tap — hard-stop ring for that order (or all)
+  // View / accept / notification tap - hard-stop ring for that order (or all)
   useEffect(() => {
     if (!enabled) return;
     const onAck = (event: Event) => {

@@ -12,7 +12,7 @@ export function SellerToolsDocs() {
       />
 
       {/* ─── BecomeSellerPage ─── */}
-      <DocSection title="BecomeSellerPage — Seller Onboarding" id="become-seller">
+      <DocSection title="BecomeSellerPage - Seller Onboarding" id="become-seller">
         <p>The /become-seller route is a 7-step wizard (intent → commerce model → taxonomy suggest → store → configure → products → review). Uses useSellerApplication hook for state management.</p>
 
         <DocStep number={1} title="Category Group Selection">
@@ -59,7 +59,7 @@ export function SellerToolsDocs() {
 
         <DocStep number={5} title="Add First Products">
           <DocList items={[
-            'DraftProductManager component — add initial products/services',
+            'DraftProductManager component - add initial products/services',
             'Product form: name, description, price, MRP (optional), image, category (from selected categories)',
             'Helper text: "Buyers will see these once your store is approved. Start with 1-2 items."',
             'Products saved as drafts until the application is approved',
@@ -70,9 +70,9 @@ export function SellerToolsDocs() {
           <DocList items={[
             'Summary of all entered information across all steps',
             'Declaration checkbox: seller agreement/terms acceptance',
-            'LicenseUpload component — for regulated categories (e.g., FSSAI for food), check if parent group has requires_license = true',
-            '"Save Draft & Exit" button — saves progress without submitting',
-            '"Submit for Review" button — creates seller_profiles record with verification_status: "pending"',
+            'LicenseUpload component - for regulated categories (e.g., FSSAI for food), check if parent group has requires_license = true',
+            '"Save Draft & Exit" button - saves progress without submitting',
+            '"Submit for Review" button - creates seller_profiles record with verification_status: "pending"',
             'submissionComplete state shows success screen after submission',
             'Existing seller check: if user already has a seller profile, shows appropriate message',
           ]} />
@@ -84,26 +84,26 @@ export function SellerToolsDocs() {
       </DocSection>
 
       {/* ─── SellerDashboardPage ─── */}
-      <DocSection title="SellerDashboardPage — Seller Home" id="seller-dashboard">
+      <DocSection title="SellerDashboardPage - Seller Home" id="seller-dashboard">
         <p>The /seller route is the main hub for active sellers.</p>
 
         <DocSubSection title="Store Status Card">
           <DocList items={[
             'StoreStatusCard component shows: store name, open/closed toggle, verification status',
-            'Toggle availability button — flips is_available flag, logs audit event (store_opened/store_closed)',
-            'SellerSwitcher — if user has multiple seller profiles, dropdown to switch between them',
+            'Toggle availability button - flips is_available flag, logs audit event (store_opened/store_closed)',
+            'SellerSwitcher - if user has multiple seller profiles, dropdown to switch between them',
           ]} />
         </DocSubSection>
 
         <DocSubSection title="Visibility Checklist">
-          <p>SellerVisibilityChecklist — shows requirements for store visibility (products added, phone set, hours configured, etc.).</p>
+          <p>SellerVisibilityChecklist - shows requirements for store visibility (products added, phone set, hours configured, etc.).</p>
         </DocSubSection>
 
         <DocSubSection title="Performance Section">
           <DocList items={[
             '"How buyers see your store" card: star rating (decimal with count), avg response time (minutes), orders fulfilled count, cancellation rate percentage',
             'Badge indicators: "New Seller" (if 0 completed orders), "0% Cancellation" (if cancellation_rate is 0 and >2 orders)',
-            'Preview button — links to /seller/:id to see buyer view',
+            'Preview button - links to /seller/:id to see buyer view',
             'EarningsSummary: today earnings, week earnings, total earnings',
             'DashboardStats: total orders, pending orders, today orders, completed orders',
           ]} />
@@ -111,31 +111,31 @@ export function SellerToolsDocs() {
 
         <DocSubSection title="Tools & Promotions Section">
           <DocList items={[
-            'QuickActions component — shortcut buttons to Products, Settings, Earnings pages',
-            'CouponManager component — create and manage discount coupons with: code, discount type (percentage/fixed), discount value, usage limit, per-user limit, min order amount, max discount cap, date range, show_to_buyers toggle',
+            'QuickActions component - shortcut buttons to Products, Settings, Earnings pages',
+            'CouponManager component - create and manage discount coupons with: code, discount type (percentage/fixed), discount value, usage limit, per-user limit, min order amount, max discount cap, date range, show_to_buyers toggle',
           ]} />
         </DocSubSection>
 
         <DocSubSection title="Analytics Section">
           <DocList items={[
-            'SellerAnalyticsTab — settled revenue charts, cancel/refund rates, top products by sales',
-            'DemandInsights component — shows what buyers are searching for in the seller\'s society (from search_demand_log table, via get_unmet_demand function)',
+            'SellerAnalyticsTab - settled revenue charts, cancel/refund rates, top products by sales',
+            'DemandInsights component - shows what buyers are searching for in the seller\'s society (from search_demand_log table, via get_unmet_demand function)',
           ]} />
         </DocSubSection>
 
         <DocSubSection title="Orders Section">
           <DocList items={[
-            'OrderFilters: All, Today, Enquiries, Pending, Preparing, Ready, Completed — each with count badge',
+            'OrderFilters: All, Today, Enquiries, Pending, Preparing, Ready, Completed - each with count badge',
             'Infinite scroll pagination with "Load More" button',
-            'SellerOrderCard — shows buyer info, items, status, action buttons for status transitions',
+            'SellerOrderCard - shows buyer info, items, status, action buttons for status transitions',
             'Uses React Query (useSellerOrderStats, useSellerOrdersInfinite, useSellerOrderFilterCounts) for data fetching',
-            'NewOrderAlertOverlay — real-time alert overlay for new incoming orders with dismiss/snooze actions',
+            'NewOrderAlertOverlay - real-time alert overlay for new incoming orders with dismiss/snooze actions',
           ]} />
         </DocSubSection>
       </DocSection>
 
       {/* ─── SellerProductsPage ─── */}
-      <DocSection title="SellerProductsPage — Product Management" id="seller-products">
+      <DocSection title="SellerProductsPage - Product Management" id="seller-products">
         <p>The /seller/products route manages the seller's product catalog.</p>
 
         <DocSubSection title="Product List">
@@ -148,7 +148,7 @@ export function SellerToolsDocs() {
 
         <DocSubSection title="Add/Edit Product Dialog">
           <DocList items={[
-            'ProductImageUpload — AI-powered image upload with category-aware suggestions. Uses product name, category name, and description for AI context',
+            'ProductImageUpload - AI-powered image upload with category-aware suggestions. Uses product name, category name, and description for AI context',
             'Product Name input with category-specific placeholder (from category_config.name_placeholder)',
             'Description textarea with category-specific placeholder',
             'Price input with currency symbol, MRP input (auto-calculates discount %)',
@@ -156,7 +156,7 @@ export function SellerToolsDocs() {
             'Category selector (dropdown if multiple categories, static display if single)',
             'Subcategory selector (from subcategories table, optional)',
             'Veg/Non-veg toggle (shown when category has show_veg_toggle)',
-            'AttributeBlockBuilder — dynamic form fields per category schema (from attribute_block_library table)',
+            'AttributeBlockBuilder - dynamic form fields per category schema (from attribute_block_library table)',
             'Service-specific fields for service categories: scheduling, staff assignment',
             'Bestseller toggle, Recommended toggle, Urgent toggle',
             'Stock availability switch (in-stock/out-of-stock)',
@@ -169,21 +169,21 @@ export function SellerToolsDocs() {
 
         <DocSubSection title="Product Actions">
           <DocList items={[
-            'Edit button — opens dialog pre-filled with product data',
-            'Delete button — opens AlertDialog confirmation before permanent deletion',
-            'Toggle availability — quick switch for in/out of stock',
-            'Submit for review — for products in draft/rejected status',
+            'Edit button - opens dialog pre-filled with product data',
+            'Delete button - opens AlertDialog confirmation before permanent deletion',
+            'Toggle availability - quick switch for in/out of stock',
+            'Submit for review - for products in draft/rejected status',
           ]} />
         </DocSubSection>
       </DocSection>
 
       {/* ─── SellerEarningsPage ─── */}
-      <DocSection title="SellerEarningsPage — Revenue Tracking" id="seller-earnings">
+      <DocSection title="SellerEarningsPage - Revenue Tracking" id="seller-earnings">
         <p>The /seller/earnings route shows financial data for the seller.</p>
         <DocList items={[
           'Summary cards: Today earnings, This Week, This Month, All Time, Pending Payout',
           'Stats calculated from payment_records table filtered by seller_id',
-          'Tabs: All / Pending / Completed / Failed — filter payment records by status',
+          'Tabs: All / Pending / Completed / Failed - filter payment records by status',
           'Payment record list shows: order reference, amount, buyer name, date, payment status badge',
           'Payment status uses useStatusLabels hook for consistent color-coding',
           'Currency formatting via useCurrency hook (configurable per society/platform)',
@@ -191,7 +191,7 @@ export function SellerToolsDocs() {
       </DocSection>
 
       {/* ─── SellerSettingsPage ─── */}
-      <DocSection title="SellerSettingsPage — Store Configuration" id="seller-settings">
+      <DocSection title="SellerSettingsPage - Store Configuration" id="seller-settings">
         <p>The /seller/settings route provides comprehensive store configuration.</p>
 
         <DocSubSection title="Store Profile">
@@ -207,7 +207,7 @@ export function SellerToolsDocs() {
           <DocList items={[
             'Operating days: checkboxes for each day (Mon-Sun, from DAYS_OF_WEEK constant)',
             'Availability start time and end time inputs',
-            'Pause/Resume shop toggle: PauseCircle/PlayCircle icon — immediately closes or opens the store',
+            'Pause/Resume shop toggle: PauseCircle/PlayCircle icon - immediately closes or opens the store',
           ]} />
         </DocSubSection>
 
@@ -229,15 +229,15 @@ export function SellerToolsDocs() {
         </DocSubSection>
 
         <DocSubSection title="Categories">
-          <p>Category checkboxes from the seller's parent group — add/remove categories the seller serves.</p>
+          <p>Category checkboxes from the seller's parent group - add/remove categories the seller serves.</p>
         </DocSubSection>
 
         <DocSubSection title="License Upload">
-          <p>LicenseUploadSection — conditionally shown when the seller's parent group has requires_license = true. Fetches group config and renders LicenseUpload component for uploading certifications (e.g., FSSAI, trade license).</p>
+          <p>LicenseUploadSection - conditionally shown when the seller's parent group has requires_license = true. Fetches group config and renders LicenseUpload component for uploading certifications (e.g., FSSAI, trade license).</p>
         </DocSubSection>
 
         <DocSubSection title="Save">
-          <p>Save button at bottom — calls handleSave to update seller_profiles record. Shows loading spinner during save.</p>
+          <p>Save button at bottom - calls handleSave to update seller_profiles record. Shows loading spinner during save.</p>
         </DocSubSection>
       </DocSection>
 

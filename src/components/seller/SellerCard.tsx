@@ -154,7 +154,7 @@ export function SellerCard({ seller, featuredProduct, showFavorite = true }: Sel
             </div>
           )}
 
-          {/* Seller Avatar — overlaps into content; content uses matching top padding */}
+          {/* Seller Avatar - overlaps into content; content uses matching top padding */}
           {hasAvatar && (
             <div className="absolute -bottom-5 left-3.5 z-10 w-12 h-12 rounded-full border-[2.5px] border-card overflow-hidden shadow-md ring-1 ring-border/50">
               <img

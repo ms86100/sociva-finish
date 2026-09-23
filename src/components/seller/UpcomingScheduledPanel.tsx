@@ -46,7 +46,7 @@ export function UpcomingScheduledPanel({ sellerId, compact, onOpenCalendar }: Up
           <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 space-y-2">
             <div className="flex items-center gap-1.5 text-amber-800 dark:text-amber-200">
               <Sparkles size={14} />
-              <p className="text-[10px] uppercase tracking-wide font-semibold">Due now — fulfill like instant</p>
+              <p className="text-[10px] uppercase tracking-wide font-semibold">Due now - fulfill like instant</p>
             </div>
             {dueNow.slice(0, 3).map((order) => (
               <button

@@ -58,7 +58,7 @@ export function SubcategorySelectStep({
       queryClient.invalidateQueries({ queryKey: ['subcategories'] });
       toast.success(
         result.createdNew
-          ? `"${result.displayName}" added — you can use it now`
+          ? `"${result.displayName}" added - you can use it now`
           : `Using existing "${result.displayName}"`,
       );
     } catch (err: any) {
@@ -108,7 +108,7 @@ export function SubcategorySelectStep({
           })}
           {list.length === 0 && (
             <p className="col-span-2 text-xs text-muted-foreground text-center py-4">
-              No subcategories yet — propose one below.
+              No subcategories yet - propose one below.
             </p>
           )}
         </div>

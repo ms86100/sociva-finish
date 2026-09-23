@@ -1,7 +1,7 @@
 // @ts-nocheck
 /**
  * Derives a single human-readable display status from internal workflow state.
- * This is the presentation layer — no DB changes, purely computed.
+ * This is the presentation layer - no DB changes, purely computed.
  * Progress phases align with the shared 4-stage rail in orderProgressStages.
  */
 
@@ -49,7 +49,7 @@ interface DeriveOptions {
   orderType?: string | null;
   isEnquiryOrder?: boolean;
   transactionType?: string | null;
-  /** Order fulfillment_type — drives delivery vs pickup stage mapping */
+  /** Order fulfillment_type - drives delivery vs pickup stage mapping */
   fulfillmentType?: string | null;
   /** OSRM-based road ETA in minutes */
   roadEtaMinutes?: number | null;
@@ -155,7 +155,7 @@ export function deriveDisplayStatus(options: DeriveOptions): DisplayStatusResult
     hasRiderLocation,
   } = options;
 
-  // Scheduled / rescheduled are already accepted into a future slot — not a fresh "new order".
+  // Scheduled / rescheduled are already accepted into a future slot - not a fresh "new order".
   if (orderStatus === 'scheduled' || orderStatus === 'rescheduled') {
     return {
       text: isBuyerView ? 'Order scheduled' : 'Scheduled order',
@@ -204,7 +204,7 @@ export function deriveDisplayStatus(options: DeriveOptions): DisplayStatusResult
   if (phase === 'transit' && roadEtaMinutes) {
     const flagLabel = etaFlag ? ` · ${ETA_FLAG_LABELS[etaFlag]}` : '';
     etaText = roadEtaMinutes > 3
-      ? `${roadEtaMinutes - 1}–${roadEtaMinutes + 1} min${flagLabel}`
+      ? `${roadEtaMinutes - 1}-${roadEtaMinutes + 1} min${flagLabel}`
       : `${roadEtaMinutes} min${flagLabel}`;
   }
 
@@ -246,7 +246,7 @@ export function deriveDisplayStatus(options: DeriveOptions): DisplayStatusResult
       } else if (isServiceBooking) {
         text = isBuyerView ? 'Appointment booked' : 'New booking received';
       } else if (orderStatus === 'quoted') {
-        text = isBuyerView ? 'Quote received — review and accept' : 'Quote sent to buyer';
+        text = isBuyerView ? 'Quote received - review and accept' : 'Quote sent to buyer';
       } else if (orderStatus === 'enquired' || isEnquiry) {
         text = isBuyerView ? 'Quote request sent' : 'New quote request received';
       } else {
@@ -255,7 +255,7 @@ export function deriveDisplayStatus(options: DeriveOptions): DisplayStatusResult
       break;
     case 'preparing':
       if (isContactEnquiry) {
-        text = isBuyerView ? `${name} accepted your enquiry` : 'Enquiry accepted — mark delivered when done';
+        text = isBuyerView ? `${name} accepted your enquiry` : 'Enquiry accepted - mark delivered when done';
       } else if (isServiceBooking) {
         text = isBuyerView ? 'Your session is in progress' : 'Session in progress';
       } else {
@@ -272,7 +272,7 @@ export function deriveDisplayStatus(options: DeriveOptions): DisplayStatusResult
     case 'transit':
       if (roadEtaMinutes && hasRiderLocation) {
         text = isBuyerView
-          ? `Arriving in ${roadEtaMinutes > 3 ? `${roadEtaMinutes - 1}–${roadEtaMinutes + 1}` : roadEtaMinutes} min`
+          ? `Arriving in ${roadEtaMinutes > 3 ? `${roadEtaMinutes - 1}-${roadEtaMinutes + 1}` : roadEtaMinutes} min`
           : 'On the way';
       } else {
         text = isBuyerView ? 'On the way' : 'On the way';

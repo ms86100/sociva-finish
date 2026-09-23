@@ -248,13 +248,13 @@ async function processItem(
       finalConfidence = aiResult.confidence;
       finalReason = aiResult.reason;
     } catch (err) {
-      // AI failed — do NOT log, so item will be retried next cron run
+      // AI failed - do NOT log, so item will be retried next cron run
       console.error(`AI evaluation failed for ${type} ${item.id}:`, err);
       return false;
     }
   }
 
-  // 4) Log decision (UNIQUE index prevents duplicates — ON CONFLICT skip)
+  // 4) Log decision (UNIQUE index prevents duplicates - ON CONFLICT skip)
   const { error: logError } = await db.from("ai_review_log").insert({
     target_type: type,
     target_id: item.id,
@@ -267,7 +267,7 @@ async function processItem(
     society_id: societyId,
   });
 
-  // If duplicate (unique constraint violation), skip — already reviewed
+  // If duplicate (unique constraint violation), skip - already reviewed
   if (logError) {
     if (logError.code === "23505") {
       console.log(`Skipping duplicate review for ${type} ${item.id}`);
@@ -288,7 +288,7 @@ async function processItem(
         .single();
       if (current?.verification_status !== "pending") {
         console.log(`Seller ${item.id} status changed to ${current?.verification_status}, skipping AI update`);
-        return true; // logged but not updated — safe
+        return true; // logged but not updated - safe
       }
       await db
         .from("seller_profiles")

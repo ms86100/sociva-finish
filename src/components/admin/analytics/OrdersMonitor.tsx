@@ -94,9 +94,9 @@ export function OrdersMonitor() {
                             <span className={cn('text-[10px] px-2 py-0.5 rounded-full font-semibold', payInfo.color)}>{payInfo.label}</span>
                           </div>
                           <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
-                            <span className="font-semibold text-foreground">{order.buyer?.name || '—'}</span>
+                            <span className="font-semibold text-foreground">{order.buyer?.name || '-'}</span>
                             <span>→</span>
-                            <span className="font-semibold text-foreground">{order.seller?.business_name || '—'}</span>
+                            <span className="font-semibold text-foreground">{order.seller?.business_name || '-'}</span>
                           </div>
                           <div className="flex items-center gap-3 mt-0.5 text-[11px] text-muted-foreground">
                             <span className="font-bold text-foreground">₹{order.total_amount}</span>

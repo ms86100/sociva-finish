@@ -43,7 +43,7 @@ export function CategoryManagementDocs() {
       {/* 1. System Overview */}
       <Sub title="1. System Overview">
         <p>The Category Management system is the <strong>central configuration hub</strong> that controls how products and services are listed, displayed, and transacted on the platform.</p>
-        <p>Every listing's UI/UX — from the seller's product creation form to the buyer's action button — is driven by the category configuration.</p>
+        <p>Every listing's UI/UX - from the seller's product creation form to the buyer's action button - is driven by the category configuration.</p>
         <p><strong>Admin Interface Location:</strong> Admin Panel → Catalog Manager (<Code>AdminCatalogManager</Code>)</p>
         <div className="overflow-x-auto mt-2">
           <table className="w-full text-xs border border-border rounded-lg overflow-hidden">
@@ -70,7 +70,7 @@ export function CategoryManagementDocs() {
             <thead><tr className="bg-muted/50"><TH>Level</TH><TH>DB Table</TH><TH>Example</TH><TH>Purpose</TH></tr></thead>
             <tbody className="divide-y divide-border">
               <tr><TD className="font-semibold">Section</TD><TD><Code>parent_groups</Code></TD><TD>"Food & Beverages"</TD><TD>Visual grouping for buyers on home page</TD></tr>
-              <tr><TD className="font-semibold">Category</TD><TD><Code>category_config</Code></TD><TD>"Home Food"</TD><TD>Core configuration unit — defines behavior, form hints, transaction type</TD></tr>
+              <tr><TD className="font-semibold">Category</TD><TD><Code>category_config</Code></TD><TD>"Home Food"</TD><TD>Core configuration unit - defines behavior, form hints, transaction type</TD></tr>
               <tr><TD className="font-semibold">Subcategory</TD><TD><Code>subcategories</Code></TD><TD>"North Indian"</TD><TD>Buyer-facing filter within a category</TD></tr>
             </tbody>
           </table>
@@ -168,7 +168,7 @@ export function CategoryManagementDocs() {
           ].map(([flag, desc]) => (
             <div key={flag} className="flex items-start gap-2 text-xs">
               <CheckCircle size={12} className="text-emerald-500 mt-0.5 shrink-0" />
-              <div><Code>{flag}</Code> — {desc}</div>
+              <div><Code>{flag}</Code> - {desc}</div>
             </div>
           ))}
         </div>
@@ -177,7 +177,7 @@ export function CategoryManagementDocs() {
         <p>Customize the seller's product creation form per category: <Code>name_placeholder</Code>, <Code>description_placeholder</Code>, <Code>price_label</Code>, <Code>duration_label</Code>, <Code>price_prefix</Code>, <Code>show_veg_toggle</Code>, <Code>show_duration_field</Code>, <Code>primary_button_label</Code>.</p>
 
         <h4 className="text-xs font-bold text-foreground mt-3 mb-1">Display Configuration</h4>
-        <p><Code>supports_brand_display</Code>, <Code>supports_warranty_display</Code>, <Code>image_aspect_ratio</Code>, <Code>image_object_fit</Code> — control how product cards render for buyers.</p>
+        <p><Code>supports_brand_display</Code>, <Code>supports_warranty_display</Code>, <Code>image_aspect_ratio</Code>, <Code>image_object_fit</Code> - control how product cards render for buyers.</p>
 
         <p className="mt-2"><strong>Admin Actions:</strong> Add, Edit (full dialog), Delete (soft if active sellers), Toggle Active/Inactive, Drag-and-Drop Reorder, Generate AI Image.</p>
       </Sub>
@@ -185,7 +185,7 @@ export function CategoryManagementDocs() {
       {/* 5. Subcategories */}
       <Sub title="5. Subcategories">
         <p><strong>DB Table:</strong> <Code>subcategories</Code></p>
-        <p>Subcategories <strong>inherit</strong> their parent category's transaction type and behavior flags. They can <strong>override</strong> form hints (placeholders, labels, toggles) — if a field is <Code>null</Code>, the parent's value is used.</p>
+        <p>Subcategories <strong>inherit</strong> their parent category's transaction type and behavior flags. They can <strong>override</strong> form hints (placeholders, labels, toggles) - if a field is <Code>null</Code>, the parent's value is used.</p>
         <div className="overflow-x-auto mt-2">
           <table className="w-full text-xs border border-border rounded-lg overflow-hidden">
             <thead><tr className="bg-muted/50"><TH>Field</TH><TH>Purpose</TH></tr></thead>
@@ -288,13 +288,13 @@ export function CategoryManagementDocs() {
             <thead><tr className="bg-muted/50"><TH>Type</TH><TH>cart</TH><TH>qty</TH><TH>slot</TH><TH>duration</TH><TH>date_range</TH><TH>enquiry</TH><TH>negotiate</TH><TH>layout</TH></tr></thead>
             <tbody className="divide-y divide-border">
               {[
-                ['cart_purchase', '✅', '✅', '—', '—', '—', '—', '—', 'ecommerce'],
-                ['buy_now', '—', '✅', '—', '—', '—', '—', '—', 'ecommerce'],
-                ['book_slot', '—', '—', '✅', '✅', '—', '—', '—', 'service'],
-                ['request_service', '—', '—', '—', '—', '—', '✅', '—', 'service'],
-                ['request_quote', '—', '—', '—', '—', '—', '✅', '✅', 'service'],
-                ['contact_only', '—', '—', '—', '—', '—', '✅', '—', 'service'],
-                ['schedule_visit', '—', '—', '✅', '—', '✅', '—', '—', 'service'],
+                ['cart_purchase', '✅', '✅', '-', '-', '-', '-', '-', 'ecommerce'],
+                ['buy_now', '-', '✅', '-', '-', '-', '-', '-', 'ecommerce'],
+                ['book_slot', '-', '-', '✅', '✅', '-', '-', '-', 'service'],
+                ['request_service', '-', '-', '-', '-', '-', '✅', '-', 'service'],
+                ['request_quote', '-', '-', '-', '-', '-', '✅', '✅', 'service'],
+                ['contact_only', '-', '-', '-', '-', '-', '✅', '-', 'service'],
+                ['schedule_visit', '-', '-', '✅', '-', '✅', '-', '-', 'service'],
               ].map(([type, ...vals]) => (
                 <tr key={type}><TD><Code>{type}</Code></TD>{vals.map((v, i) => <TD key={i}>{v}</TD>)}</tr>
               ))}
@@ -318,7 +318,7 @@ export function CategoryManagementDocs() {
           <p className="pl-2">↓ Buyer clicks → appropriate flow (cart, booking, enquiry)</p>
         </div>
         <p className="text-xs text-primary flex items-center gap-1">
-          <Sparkles size={12} /> Changes take effect immediately — no code changes or deployments needed.
+          <Sparkles size={12} /> Changes take effect immediately - no code changes or deployments needed.
         </p>
       </Sub>
 
@@ -340,7 +340,7 @@ export function CategoryManagementDocs() {
           <p>• <strong>Schedule Warning Banner</strong>: Shown if service seller hasn't configured availability</p>
         </div>
         <p className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1 mt-2">
-          <AlertTriangle size={12} /> <Code>useSellerCategoryFlags(categories)</Code> merges flags across ALL seller's categories — if ANY supports a feature, the seller sees it.
+          <AlertTriangle size={12} /> <Code>useSellerCategoryFlags(categories)</Code> merges flags across ALL seller's categories - if ANY supports a feature, the seller sees it.
         </p>
       </Sub>
 
@@ -460,10 +460,10 @@ export function CategoryManagementDocs() {
         </div>
         <h4 className="text-xs font-bold text-foreground mt-3 mb-1">Utilities</h4>
         <div className="space-y-1 text-xs">
-          <p>• <Code>deriveActionType()</Code> — Resolves product action type with fallback chain</p>
-          <p>• <Code>ACTION_CONFIG</Code> — Button labels, icons, cart eligibility per action type</p>
-          <p>• <Code>TRANSACTION_TO_ACTION</Code> — Maps transaction_type → action_type</p>
-          <p>• <Code>deriveBehaviorFlags()</Code> — Auto-derives behavior flags from transaction type</p>
+          <p>• <Code>deriveActionType()</Code> - Resolves product action type with fallback chain</p>
+          <p>• <Code>ACTION_CONFIG</Code> - Button labels, icons, cart eligibility per action type</p>
+          <p>• <Code>TRANSACTION_TO_ACTION</Code> - Maps transaction_type → action_type</p>
+          <p>• <Code>deriveBehaviorFlags()</Code> - Auto-derives behavior flags from transaction type</p>
         </div>
       </Sub>
     </div>

@@ -275,16 +275,16 @@ export default function TestResultsPage() {
                           <Badge variant="secondary" className="text-xs font-normal">{r.module_name}</Badge>
                         </TableCell>
                         <TableCell className="hidden lg:table-cell text-xs text-muted-foreground">
-                          {r.page_or_api_url || "—"}
+                          {r.page_or_api_url || "-"}
                         </TableCell>
                         <TableCell className="hidden sm:table-cell text-xs tabular-nums">
-                          {r.duration_ms != null ? `${r.duration_ms.toFixed(0)}ms` : "—"}
+                          {r.duration_ms != null ? `${r.duration_ms.toFixed(0)}ms` : "-"}
                         </TableCell>
                         <TableCell className="hidden lg:table-cell text-xs text-muted-foreground font-mono">
                           {r.run_id?.slice(0, 8)}
                         </TableCell>
                         <TableCell className="hidden md:table-cell text-xs text-muted-foreground">
-                          {r.executed_at ? format(new Date(r.executed_at), "MMM d, HH:mm") : "—"}
+                          {r.executed_at ? format(new Date(r.executed_at), "MMM d, HH:mm") : "-"}
                         </TableCell>
                         <TableCell>
                           <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); setSelectedResult(r); }}>
@@ -329,11 +329,11 @@ export default function TestResultsPage() {
                       {selectedResult.outcome}
                     </Badge>
                   } />
-                  <DetailRow label="Page / URL" value={selectedResult.page_or_api_url || "—"} />
-                  <DetailRow label="Duration" value={selectedResult.duration_ms != null ? `${selectedResult.duration_ms.toFixed(1)} ms` : "—"} />
+                  <DetailRow label="Page / URL" value={selectedResult.page_or_api_url || "-"} />
+                  <DetailRow label="Duration" value={selectedResult.duration_ms != null ? `${selectedResult.duration_ms.toFixed(1)} ms` : "-"} />
                   <DetailRow label="Run ID" value={<span className="font-mono text-xs">{selectedResult.run_id}</span>} />
-                  <DetailRow label="File" value={<span className="font-mono text-xs break-all">{selectedResult.file_path || "—"}</span>} />
-                  <DetailRow label="Executed At" value={selectedResult.executed_at ? format(new Date(selectedResult.executed_at), "PPpp") : "—"} />
+                  <DetailRow label="File" value={<span className="font-mono text-xs break-all">{selectedResult.file_path || "-"}</span>} />
+                  <DetailRow label="Executed At" value={selectedResult.executed_at ? format(new Date(selectedResult.executed_at), "PPpp") : "-"} />
                   {selectedResult.http_status_code && (
                     <DetailRow label="HTTP Status" value={String(selectedResult.http_status_code)} />
                   )}

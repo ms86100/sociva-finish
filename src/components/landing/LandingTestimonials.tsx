@@ -5,13 +5,13 @@ import { Quote } from 'lucide-react';
 
 const TESTIMONIALS = [
   {
-    quote: "My son is allergic to nuts. Mrs. Patel on the 5th floor makes his tiffin every day — she knows exactly what to avoid. No Swiggy filter can replace that.",
+    quote: "My son is allergic to nuts. Mrs. Patel on the 5th floor makes his tiffin every day - she knows exactly what to avoid. No Swiggy filter can replace that.",
     name: 'Priya M.',
     role: 'Working Parent',
     society: 'Prestige Lakeside',
   },
   {
-    quote: "I tried Zomato for my baking business — 30% commission killed my margins. Here I keep everything. 22 repeat customers, all from my own society.",
+    quote: "I tried Zomato for my baking business - 30% commission killed my margins. Here I keep everything. 22 repeat customers, all from my own society.",
     name: 'Anita K.',
     role: 'Home Baker & Seller',
     society: 'Brigade Gateway',

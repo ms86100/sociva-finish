@@ -127,7 +127,7 @@ Deno.serve(async (req) => {
       const now = Math.floor(Date.now() / 1000);
       const expiresAt = now + 60; // 60 seconds
 
-      // Token payload contains ONLY IDs + timing — NO PII
+      // Token payload contains ONLY IDs + timing - NO PII
       // Include nonce for deduplication
       const nonce = crypto.randomUUID();
       const payload = JSON.stringify({
@@ -364,7 +364,7 @@ Deno.serve(async (req) => {
       }
 
     } else if (action === 'rate_check_manual') {
-      // GA BLOCKER 3: Rate limit for manual entry — 20/min per user
+      // GA BLOCKER 3: Rate limit for manual entry - 20/min per user
       const { allowed: manualAllowed } = await checkRateLimit(`manual-entry:${userId}`, 20, 60);
       if (!manualAllowed) {
         return rateLimitResponse(corsHeaders);

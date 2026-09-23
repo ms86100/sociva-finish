@@ -12,7 +12,7 @@ export function HomeDiscoveryDocs() {
       />
 
       {/* ─── HomePage ─── */}
-      <DocSection title="HomePage — Main Dashboard" id="home-page">
+      <DocSection title="HomePage - Main Dashboard" id="home-page">
         <p>The Home page (/) is the primary entry point for authenticated, approved users. Renders inside AppLayout with bottom navigation and notification header.</p>
 
         <DocSubSection title="Pre-Conditions & Guards">
@@ -45,24 +45,24 @@ export function HomeDiscoveryDocs() {
       </DocSection>
 
       {/* ─── SearchPage ─── */}
-      <DocSection title="SearchPage — Full-Text Search" id="search-page">
+      <DocSection title="SearchPage - Full-Text Search" id="search-page">
         <p>The /search page provides comprehensive product and seller search with advanced filtering.</p>
 
         <DocSubSection title="Search Header (Sticky)">
           <DocList items={[
             'Back button (circular, returns to previous page)',
             'Search input with magnifying glass icon, auto-focus on load',
-            'TypewriterPlaceholder — animated placeholder text cycling through search suggestions when input is empty',
+            'TypewriterPlaceholder - animated placeholder text cycling through search suggestions when input is empty',
             'Clear (X) button appears when query is not empty',
           ]} />
         </DocSubSection>
 
         <DocSubSection title="Filter Bar (Horizontal Scroll)">
           <DocList items={[
-            'SearchFilters component — expandable filter panel with price range',
-            'Veg filter toggle — green border when active, filters to is_veg = true products',
-            'Non-veg filter toggle — red/destructive border when active, filters to is_veg = false products',
-            'Sort buttons: "Top Rated" (by rating), "Price ↑" (ascending), "Price ↓" (descending) — toggle on/off',
+            'SearchFilters component - expandable filter panel with price range',
+            'Veg filter toggle - green border when active, filters to is_veg = true products',
+            'Non-veg filter toggle - red/destructive border when active, filters to is_veg = false products',
+            'Sort buttons: "Top Rated" (by rating), "Price ↑" (ascending), "Price ↓" (descending) - toggle on/off',
           ]} />
         </DocSubSection>
 
@@ -70,7 +70,7 @@ export function HomeDiscoveryDocs() {
           <DocList items={[
             '"Nearby societies" toggle with Globe icon and Switch component',
             'When enabled, search expands to nearby societies within a configurable radius',
-            'Radius slider appears (1-10 km range, 1 km steps) — adjustable with drag',
+            'Radius slider appears (1-10 km range, 1 km steps) - adjustable with drag',
             'Products from other societies show distance_km and society_name badges',
           ]} />
         </DocSubSection>
@@ -90,7 +90,7 @@ export function HomeDiscoveryDocs() {
         <DocSubSection title="Results Display">
           <DocList items={[
             'Loading state: 6 skeleton cards in a 2-column grid',
-            'Results: ProductGridByCategory — groups products by category with section headers showing category icon, name, and count',
+            'Results: ProductGridByCategory - groups products by category with section headers showing category icon, name, and count',
             'Each product renders as a ProductListingCard with image, name, price, seller info, veg/non-veg badge, and action button',
             'Tapping a product opens ProductDetailSheet (bottom drawer)',
             'Empty search state: "No results" with option to enable Browse Beyond if not already active',
@@ -100,7 +100,7 @@ export function HomeDiscoveryDocs() {
       </DocSection>
 
       {/* ─── CategoriesPage ─── */}
-      <DocSection title="CategoriesPage — Browse All Categories" id="categories-page">
+      <DocSection title="CategoriesPage - Browse All Categories" id="categories-page">
         <p>The /categories route displays all active parent groups as visual cards.</p>
         <DocList items={[
           'Each parent group card shows: icon (from parent_groups table), display name, description, color theme',
@@ -112,7 +112,7 @@ export function HomeDiscoveryDocs() {
       </DocSection>
 
       {/* ─── CategoryGroupPage ─── */}
-      <DocSection title="CategoryGroupPage — Filtered View" id="category-group-page">
+      <DocSection title="CategoryGroupPage - Filtered View" id="category-group-page">
         <p>The /category/:category route shows all sellers and products within a specific parent group.</p>
         <DocList items={[
           'Header shows the group name and icon',
@@ -125,7 +125,7 @@ export function HomeDiscoveryDocs() {
       </DocSection>
 
       {/* ─── FavoritesPage ─── */}
-      <DocSection title="FavoritesPage — Saved Items" id="favorites-page">
+      <DocSection title="FavoritesPage - Saved Items" id="favorites-page">
         <p>The /favorites route shows all products the user has saved/favorited.</p>
         <DocList items={[
           'Heart icon button on product cards toggles favorite status',
@@ -156,8 +156,8 @@ export function HomeDiscoveryDocs() {
         <DocSubSection title="Header">
           <DocList items={[
             'Society name display (configurable)',
-            'Notification bell icon with unread count badge — links to /notifications/inbox',
-            'Search icon — links to /search',
+            'Notification bell icon with unread count badge - links to /notifications/inbox',
+            'Search icon - links to /search',
           ]} />
         </DocSubSection>
 

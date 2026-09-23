@@ -7,7 +7,7 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-// Shared across warm isolates — avoid re-querying admin_settings on every OTP
+// Shared across warm isolates - avoid re-querying admin_settings on every OTP
 let _admin: ReturnType<typeof createClient> | null = null;
 function getAdmin() {
   if (!_admin) {
@@ -54,7 +54,7 @@ async function getMsg91Creds(): Promise<Msg91Creds | null> {
     return _credsCache;
   }
 
-  // Single query for all keys (was 3 round-trips) — bounded so DB overload can't hang the worker
+  // Single query for all keys (was 3 round-trips) - bounded so DB overload can't hang the worker
   const { data: rows } = await withTimeout(
     Promise.resolve(
       getAdmin()
@@ -95,7 +95,7 @@ Deno.serve(async (req) => {
       phone === "0123456789" ||
       phone === "0987654321" ||
       phone === "9876543201" ||
-      phone === "9535115316" || // TEMP E2E — remove after seller session
+      phone === "9535115316" || // TEMP E2E - remove after seller session
       phone === "8448802907"; // Staging TestFlight QA until MSG91 secrets are set
 
     if (resend && !reqId && !isQaBypassPhone) {

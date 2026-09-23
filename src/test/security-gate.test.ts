@@ -14,7 +14,7 @@ import {
 
 // ─── Gate Token Logic ───────────────────────────────────────────────────────
 
-describe('Gate Token — Edge Function Rules', () => {
+describe('Gate Token - Edge Function Rules', () => {
   it('token format has 2 parts', () => {
     expect('encryptedPayload.hmacSignature'.split('.')).toHaveLength(2);
   });
@@ -51,9 +51,9 @@ describe('Gate Token — Edge Function Rules', () => {
   });
 });
 
-// ─── Guard Kiosk Access — Real Helper ───────────────────────────────────────
+// ─── Guard Kiosk Access - Real Helper ───────────────────────────────────────
 
-describe('Guard Kiosk — Access Control (Real Helper)', () => {
+describe('Guard Kiosk - Access Control (Real Helper)', () => {
   it('non-admin non-officer blocked', () => {
     expect(hasGuardAccess({ isAdmin: false, isSocietyAdmin: false, isSecurityOfficer: false })).toBe(false);
   });
@@ -77,7 +77,7 @@ describe('Guard Kiosk — Access Control (Real Helper)', () => {
 
 // ─── Visitor OTP ───────────────────────────────────────────────────────────
 
-describe('Visitor OTP — Verification', () => {
+describe('Visitor OTP - Verification', () => {
   it('valid 6-digit OTP accepted', () => {
     expect(isOTPValid('482917')).toBe(true);
   });
@@ -104,7 +104,7 @@ describe('Visitor OTP — Verification', () => {
 
 // ─── Manual Entry ──────────────────────────────────────────────────────────
 
-describe('Manual Entry — Validation', () => {
+describe('Manual Entry - Validation', () => {
   it('valid flat + name passes', () => {
     expect(validateManualEntry('A-101', 'John').valid).toBe(true);
   });
@@ -134,9 +134,9 @@ describe('Manual Entry — Validation', () => {
   });
 });
 
-// ─── Worker Validation — Real Helper ────────────────────────────────────────
+// ─── Worker Validation - Real Helper ────────────────────────────────────────
 
-describe('Worker — Gate Validation (Real Helper)', () => {
+describe('Worker - Gate Validation (Real Helper)', () => {
   it('active with flats → valid', () => {
     expect(validateWorkerEntry({ status: 'active', deactivated_at: null, flat_count: 3 }).valid).toBe(true);
   });
@@ -214,7 +214,7 @@ describe('Parcel Management', () => {
 
 // ─── Security Audit Metrics ─────────────────────────────────────────────────
 
-describe('Security Audit — Metrics', () => {
+describe('Security Audit - Metrics', () => {
   it('pagination range page 2', () => {
     expect(paginationRange(2, 20)).toEqual({ start: 40, end: 59 });
   });
@@ -240,7 +240,7 @@ describe('Security Audit — Metrics', () => {
 
 // ─── Write Safety ───────────────────────────────────────────────────────────
 
-describe('Write Safety — Real Helper', () => {
+describe('Write Safety - Real Helper', () => {
   it('write uses profile society', () => {
     expect(getWriteSocietyId('home', 'viewed')).toBe('home');
   });
@@ -288,7 +288,7 @@ describe('Guard Confirmation Poller', () => {
 
 // ─── SLA & Haversine ────────────────────────────────────────────────────────
 
-describe('Security — SLA & Distance', () => {
+describe('Security - SLA & Distance', () => {
   it('SLA deadline computed correctly', () => {
     const created = new Date('2026-01-01T00:00:00Z');
     expect(computeSLADeadline(created, 24).toISOString()).toBe('2026-01-02T00:00:00.000Z');

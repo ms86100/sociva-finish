@@ -129,7 +129,7 @@ export function friendlyError(error: unknown): string {
   return 'Something went wrong. Please try again.';
 }
 
-/** Round a 0–100 percentage for display (avoids 33.333333333333336%). */
+/** Round a 0-100 percentage for display (avoids 33.333333333333336%). */
 export function formatPercent(value: number | null | undefined, digits = 0): string {
   const n = Number(value);
   if (!Number.isFinite(n)) return '0%';

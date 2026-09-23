@@ -80,7 +80,7 @@ function StoreLocationPicker({ latitude, longitude, label, onLocationSet, hasSoc
   label?: string | null;
   onLocationSet: (lat: number, lng: number, name?: string, formattedAddress?: string) => void;
   hasSociety: boolean;
-  /** False when society membership exists but society row has no lat/lng — pin is mandatory. */
+  /** False when society membership exists but society row has no lat/lng - pin is mandatory. */
   societyHasCoords: boolean | null;
   existingStoreLocations?: { id: string; business_name: string; latitude: number; longitude: number; store_location_label?: string | null }[];
   societyLocation?: { name: string; latitude: number; longitude: number } | null;
@@ -105,7 +105,7 @@ function StoreLocationPicker({ latitude, longitude, label, onLocationSet, hasSoc
         <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2.5">
           <p className="text-xs font-medium text-foreground">Your society has no map location on file</p>
           <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">
-            Set your store pin here before continuing — you won&apos;t be able to submit without it.
+            Set your store pin here before continuing - you won&apos;t be able to submit without it.
           </p>
         </div>
       )}
@@ -143,7 +143,7 @@ function StoreLocationPicker({ latitude, longitude, label, onLocationSet, hasSoc
                       <MapPin size={14} className="text-primary" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium truncate">Society — {societyLocation.name}</p>
+                      <p className="text-sm font-medium truncate">Society - {societyLocation.name}</p>
                       <p className="text-[10px] text-muted-foreground truncate">
                         {societyLocation.latitude.toFixed(4)}, {societyLocation.longitude.toFixed(4)}
                       </p>
@@ -187,7 +187,7 @@ function StoreLocationPicker({ latitude, longitude, label, onLocationSet, hasSoc
                       <Home size={14} className="text-primary" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium truncate">Delivery — {addr.label}</p>
+                      <p className="text-sm font-medium truncate">Delivery - {addr.label}</p>
                       <p className="text-[10px] text-muted-foreground truncate">{addr.building_name || `${addr.latitude.toFixed(4)}, ${addr.longitude.toFixed(4)}`}</p>
                     </div>
                   </button>
@@ -207,7 +207,7 @@ function StoreLocationPicker({ latitude, longitude, label, onLocationSet, hasSoc
             <Navigation size={14} className="mr-2" />
             Set selling location
           </Button>
-          <p className="text-[10px] text-destructive">Required — your store won&apos;t be visible without a location</p>
+          <p className="text-[10px] text-destructive">Required - your store won&apos;t be visible without a location</p>
         </div>
       )}
       <OnboardingLocationSheet
@@ -329,15 +329,15 @@ const STEP_META_BASE = [
   { label: 'Sell', icon: Search, title: 'What would you like to sell?', helper: 'Describe it or browse Product, Service, and Listing categories.' },
   { label: 'Type', icon: Tags, title: 'Pick a subcategory', helper: 'This becomes the initial name of your listing. Propose one if yours is missing.' },
   { label: 'Listing', icon: Package, title: 'Add listing details', helper: 'Only the fields that match your category. Start with one item.' },
-  { label: 'Store', icon: Store, title: 'Name your store and submit', helper: 'We review your store next — you can keep editing from the Seller Dashboard.' },
+  { label: 'Store', icon: Store, title: 'Name your store and submit', helper: 'We review your store next - you can keep editing from the Seller Dashboard.' },
 ];
 
 const FULFILLMENT_OPTIONS = [
   { value: 'self_pickup', label: 'Self Pickup', description: 'Customers pick up from your location', icon: Store, disabled: false },
   { value: 'seller_delivery', label: 'I Deliver', description: 'You deliver to customers', icon: Truck, disabled: false },
   { value: 'pickup_and_seller_delivery', label: 'Both', description: 'Buyer can choose pickup or you deliver', icon: Truck, disabled: false },
-  { value: 'platform_delivery', label: 'Delivery Partner', description: 'Platform delivery partner delivers — available in future plans', icon: Truck, disabled: true },
-  { value: 'pickup_and_platform_delivery', label: 'Pickup + Delivery Partner', description: 'Buyer can choose pickup or delivery partner — available in future plans', icon: Truck, disabled: true },
+  { value: 'platform_delivery', label: 'Delivery Partner', description: 'Platform delivery partner delivers - available in future plans', icon: Truck, disabled: true },
+  { value: 'pickup_and_platform_delivery', label: 'Pickup + Delivery Partner', description: 'Buyer can choose pickup or delivery partner - available in future plans', icon: Truck, disabled: true },
 ];
 
 // ─── Main Page ──────────────────────────────────────────────────────────────
@@ -396,7 +396,7 @@ export default function BecomeSellerPage() {
     });
   }, [app.step, app.submissionComplete, app.isCheckingExisting]); // eslint-disable-line react-hooks/exhaustive-deps -- fire on step change only
 
-  // Abandon when leaving mid-flow (route unmount) — refs avoid stale closure
+  // Abandon when leaving mid-flow (route unmount) - refs avoid stale closure
   const abandonRef = useRef({
     step: app.step,
     sellerId: app.draftSellerId as string | null,
@@ -1034,7 +1034,7 @@ export default function BecomeSellerPage() {
               <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-success/20 flex items-center justify-center">
                 <CheckCircle2 className="text-success" size={40} />
               </div>
-              <h1 className="text-2xl font-bold mb-2">Approved — recharge to go live</h1>
+              <h1 className="text-2xl font-bold mb-2">Approved - recharge to go live</h1>
               <p className="text-muted-foreground mb-2 max-w-xs mx-auto">
                 <strong>{storeLabel}</strong> passed review.
               </p>
@@ -1195,7 +1195,7 @@ export default function BecomeSellerPage() {
                 <h1 className="text-2xl font-bold mb-2">We're reviewing your store</h1>
                 <p className="text-muted-foreground mb-2">Thank you for submitting <strong>{existingSeller.business_name}</strong>.</p>
                 <p className="text-sm text-muted-foreground mb-6">
-                  You'll get a notification when review finishes — usually within a day. You can open the Seller Dashboard now to finish location, payments, and photos.
+                  You'll get a notification when review finishes - usually within a day. You can open the Seller Dashboard now to finish location, payments, and photos.
                 </p>
                 <div className="space-y-3">
                   <Button
@@ -1224,7 +1224,7 @@ export default function BecomeSellerPage() {
                       {pendingCategoryNames.length === 1
                         ? <>The category you requested, <strong>&ldquo;{pendingCategoryNames[0]}&rdquo;</strong>, is still under review, so it is not live yet.</>
                         : <>The categories you requested are still under review, so they are not live yet.</>}
-                      {' '}We&apos;ll notify you when {pendingCategoryNames.length === 1 ? "it's" : "they're"} approved — usually within 24 hours.
+                      {' '}We&apos;ll notify you when {pendingCategoryNames.length === 1 ? "it's" : "they're"} approved - usually within 24 hours.
                     </p>
                   </>
                 ) : (
@@ -1440,7 +1440,7 @@ export default function BecomeSellerPage() {
             <button onClick={() => handleStepBack(2)} className="flex items-center gap-1 text-sm text-muted-foreground"><ArrowLeft size={16} />Change subcategory</button>
             {rejectionFeedback && (
               <div className="bg-destructive/10 border border-destructive/20 rounded-xl p-4 text-left">
-                <p className="text-xs font-semibold text-destructive mb-1">Admin feedback — please address before resubmitting:</p>
+                <p className="text-xs font-semibold text-destructive mb-1">Admin feedback - please address before resubmitting:</p>
                 <p className="text-sm text-foreground">{rejectionFeedback}</p>
               </div>
             )}
@@ -1549,8 +1549,8 @@ export default function BecomeSellerPage() {
 
               <div className="bg-muted rounded-lg p-4 space-y-2 text-sm">
                 <h4 className="font-semibold">Summary</h4>
-                <div className="flex justify-between"><span className="text-muted-foreground">Category</span><span className="font-medium">{selectedCategoryConfig?.displayName || '—'}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">{domainStepLabel}</span><span className="font-medium">{seedProductName || draftProducts[0]?.name || '—'}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">Category</span><span className="font-medium">{selectedCategoryConfig?.displayName || '-'}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">{domainStepLabel}</span><span className="font-medium">{seedProductName || draftProducts[0]?.name || '-'}</span></div>
                 <div className="flex justify-between"><span className="text-muted-foreground">Items</span><span className="font-medium">{draftProducts.length}</span></div>
                 <p className="text-[11px] text-muted-foreground pt-1">Store location defaults from your profile/society. Override later in the Seller Dashboard.</p>
               </div>

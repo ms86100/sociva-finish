@@ -111,7 +111,7 @@ export function StoreStatusCard({ sellerProfile, sellerProfiles, onToggleAvailab
     );
   }
 
-  // Approved — show live card with toggle
+  // Approved - show live card with toggle
   return (
     <div className="bg-card rounded-xl p-4 shadow-sm border">
       {/* Row 1: Store icon + name + toggle */}

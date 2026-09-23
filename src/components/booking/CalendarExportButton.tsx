@@ -33,13 +33,13 @@ function showCalendarResult(result: AddToCalendarResult) {
       showFeedback({
         title: mobile
           ? 'Open the calendar prompt to save your booking'
-          : 'Calendar file downloaded — open it to save the event',
+          : 'Calendar file downloaded - open it to save the event',
         variant: 'success',
       });
       break;
     }
     case 'cancelled':
-      // User dismissed the system editor — no error toast
+      // User dismissed the system editor - no error toast
       break;
     case 'denied':
       toast.error(result.message || 'Calendar permission denied', {

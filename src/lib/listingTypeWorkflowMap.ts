@@ -19,10 +19,10 @@ export const LISTING_TYPE_TO_WORKFLOW_FALLBACK: Record<string, string> = {
   schedule_visit: 'service_booking',
 };
 
-// FULFILLMENT_DEPENDENT_TYPES removed — is_conditional flag in DB table is the source of truth
+// FULFILLMENT_DEPENDENT_TYPES removed - is_conditional flag in DB table is the source of truth
 
 /**
- * Fallback lookup — only used when DB map is not yet loaded.
+ * Fallback lookup - only used when DB map is not yet loaded.
  * Prefer `getWorkflowKeyFromMap()` from useWorkflowMap.ts for DB-driven resolution.
  */
 export function getWorkflowKey(listingType: string): string {

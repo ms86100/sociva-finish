@@ -140,7 +140,7 @@ export default function SecurityAuditPage() {
                 <p className="text-2xl font-bold tabular-nums">
                   {metrics.avgConfirmationMs
                     ? `${(metrics.avgConfirmationMs / 1000).toFixed(1)}s`
-                    : '—'}
+                    : '-'}
                 </p>
                 <p className="text-[10px] text-muted-foreground">Avg Confirm Time</p>
               </CardContent>

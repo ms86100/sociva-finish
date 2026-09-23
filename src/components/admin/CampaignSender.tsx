@@ -328,7 +328,7 @@ export function CampaignSender() {
             Campaign composer
           </CardTitle>
           <p className="text-[11px] text-muted-foreground">
-            Plain text only — no markdown. Put coupon codes in the body.
+            Plain text only - no markdown. Put coupon codes in the body.
           </p>
         </CardHeader>
         <CardContent className="space-y-4">

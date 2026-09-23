@@ -628,7 +628,7 @@ export default function SellerDetailPage() {
             {seller.availability_start && seller.availability_end && (
               <span className="shrink-0 flex items-center gap-1 text-xs">
                 <Clock size={12} />
-                {seller.availability_start.slice(0, 5)}–{seller.availability_end.slice(0, 5)}
+                {seller.availability_start.slice(0, 5)}-{seller.availability_end.slice(0, 5)}
               </span>
             )}
           </div>
@@ -841,7 +841,7 @@ export default function SellerDetailPage() {
         </Tabs>
       </div>
 
-      {/* Cart Footer removed — using global FloatingCartBar via showCart={true} */}
+      {/* Cart Footer removed - using global FloatingCartBar via showCart={true} */}
 
       <ProductDetailSheet
         product={selectedProduct}

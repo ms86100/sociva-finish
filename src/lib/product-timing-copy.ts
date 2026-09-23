@@ -1,9 +1,9 @@
-/** Seller-facing copy for prep time vs order lead time (display/UX only — not order SLAs). */
+/** Seller-facing copy for prep time vs order lead time (display/UX only - not order SLAs). */
 
 export const PREP_TIME_LABEL = 'Estimated prep time (minutes)';
 
 export const PREP_TIME_HELP =
-  'Shown to buyers as an estimate after you accept the order. Sociva does not auto-cancel or enforce this — you manage fulfillment yourself.';
+  'Shown to buyers as an estimate after you accept the order. Sociva does not auto-cancel or enforce this - you manage fulfillment yourself.';
 
 export const LEAD_TIME_LABEL = 'Pre-order lead time';
 

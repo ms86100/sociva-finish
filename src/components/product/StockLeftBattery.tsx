@@ -2,7 +2,7 @@ import { cn } from '@/lib/utils';
 
 /**
  * Compact Blinkit-style stock battery for product cards.
- * Shows remaining units with a fill gauge — builds urgency without fear copy.
+ * Shows remaining units with a fill gauge - builds urgency without fear copy.
  */
 export function StockLeftBattery({
   quantity,
@@ -71,7 +71,7 @@ export function resolveCardTrustSignal(input: {
   const inactiveAfter = input.inactiveAfterMs ?? 7 * 24 * 60 * 60 * 1000;
   const age = Date.now() - new Date(last).getTime();
   if (!Number.isFinite(age) || age > inactiveAfter) {
-    // Do not scare buyers — omit negative "unresponsive" messaging.
+    // Do not scare buyers - omit negative "unresponsive" messaging.
     return null;
   }
   const label = (input.activityLabel || '').trim();

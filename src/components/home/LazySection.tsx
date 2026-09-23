@@ -3,7 +3,7 @@ import { useRef, useState, useEffect, ReactNode } from 'react';
 
 /**
  * Defers rendering of children until the wrapper scrolls into view.
- * No enter animation — motion was costing main-thread time on mobile.
+ * No enter animation - motion was costing main-thread time on mobile.
  */
 export function LazySection({ children, className }: { children: ReactNode; className?: string }) {
   const ref = useRef<HTMLDivElement>(null);

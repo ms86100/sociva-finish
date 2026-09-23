@@ -15,20 +15,20 @@ export function WorkflowEngineDocs() {
       {/* ─── TABLE OF CONTENTS ─── */}
       <DocSection title="Table of Contents">
         <div className="space-y-0.5">
-          <p>1. How the Workflow System Works — End-to-End Overview</p>
+          <p>1. How the Workflow System Works - End-to-End Overview</p>
           <p>2. Actors & Their Roles</p>
           <p>3. Workflow Types & Their Pipelines</p>
-          <p>4. Where Workflows Are Linked — Category Management</p>
+          <p>4. Where Workflows Are Linked - Category Management</p>
           <p>5. Which Action Triggers Which Workflow</p>
-          <p>6. Override System — Category-Specific Overrides</p>
+          <p>6. Override System - Category-Specific Overrides</p>
           <p>7. Fallback & Resolution Logic</p>
-          <p>8. Behavioral Flags — is_transit, requires_otp, is_success</p>
+          <p>8. Behavioral Flags - is_transit, requires_otp, is_success</p>
           <p>9. What Happens When an Order is Created</p>
           <p>10. Status-by-Status Deep Dive</p>
           <p>11. Data Model Reference</p>
-          <p>12. DB Trigger — How Validation Works</p>
-          <p>13. Frontend Integration — Hooks & UI</p>
-          <p>14. Admin Workflow Manager — User Manual</p>
+          <p>12. DB Trigger - How Validation Works</p>
+          <p>13. Frontend Integration - Hooks & UI</p>
+          <p>14. Admin Workflow Manager - User Manual</p>
           <p>15. OTP Verification & Delivery Gate</p>
           <p>16. Notification Templates</p>
           <p>17. Cross-System Integration</p>
@@ -39,18 +39,18 @@ export function WorkflowEngineDocs() {
       {/* ═════════════════════════════════════════════════════════════ */}
       {/* 1. END-TO-END OVERVIEW */}
       {/* ═════════════════════════════════════════════════════════════ */}
-      <DocSection title="1. How the Workflow System Works — End-to-End Overview">
+      <DocSection title="1. How the Workflow System Works - End-to-End Overview">
         <DocInfoCard title="The Big Picture" icon="🗺️">
-          <p>Every order, booking, or enquiry on the platform follows a <strong>workflow</strong> — a sequence of statuses with rules about who can move the order to the next status. These workflows are 100% database-driven. No status names, no transition rules, and no UI labels are hardcoded in the frontend or backend code.</p>
+          <p>Every order, booking, or enquiry on the platform follows a <strong>workflow</strong> - a sequence of statuses with rules about who can move the order to the next status. These workflows are 100% database-driven. No status names, no transition rules, and no UI labels are hardcoded in the frontend or backend code.</p>
           <p className="mt-2"><strong>The system has three layers:</strong></p>
-          <p>1. <strong>Pipeline Definition</strong> (<code className="text-[10px] bg-muted px-1 rounded">category_status_flows</code>) — Defines what statuses exist, in what order, with what labels and behavior flags.</p>
-          <p>2. <strong>Transition Rules</strong> (<code className="text-[10px] bg-muted px-1 rounded">category_status_transitions</code>) — Defines which actor can move from status A to status B. Non-linear moves (cancellation, rescheduling) are explicitly configured here.</p>
-          <p>3. <strong>Category Linkage</strong> (<code className="text-[10px] bg-muted px-1 rounded">category_config.transaction_type</code>) — Links each product category to its workflow type.</p>
+          <p>1. <strong>Pipeline Definition</strong> (<code className="text-[10px] bg-muted px-1 rounded">category_status_flows</code>) - Defines what statuses exist, in what order, with what labels and behavior flags.</p>
+          <p>2. <strong>Transition Rules</strong> (<code className="text-[10px] bg-muted px-1 rounded">category_status_transitions</code>) - Defines which actor can move from status A to status B. Non-linear moves (cancellation, rescheduling) are explicitly configured here.</p>
+          <p>3. <strong>Category Linkage</strong> (<code className="text-[10px] bg-muted px-1 rounded">category_config.transaction_type</code>) - Links each product category to its workflow type.</p>
         </DocInfoCard>
 
         <DocInfoCard title="Resolution Chain (How the system picks a workflow)" icon="🔗">
           <p>When the system needs to determine which workflow applies to an order, it follows this chain:</p>
-          <DocFlowStep number={1} title="Check stored transaction_type on the order" desc="New orders have transaction_type set at creation time. If present, this is the single source of truth — no further resolution needed." />
+          <DocFlowStep number={1} title="Check stored transaction_type on the order" desc="New orders have transaction_type set at creation time. If present, this is the single source of truth - no further resolution needed." />
           <DocFlowStep number={2} title="Legacy fallback: Resolve from order attributes" desc="For older orders without stored transaction_type, the system uses resolveTransactionType() which examines order_type, fulfillment_type, delivery_handled_by, and listing_type to determine the correct workflow key." />
           <DocFlowStep number={3} title="Load flow steps with override cascade" desc="Query category_status_flows WHERE parent_group = seller's primary_group AND transaction_type = resolved key. If no rows found, retry with parent_group = 'default'." />
           <DocFlowStep number={4} title="Load transition rules with same cascade" desc="Same override-then-default logic applies to category_status_transitions." />
@@ -75,10 +75,10 @@ export function WorkflowEngineDocs() {
         <DocInfoCard title="Buyer (Resident / Customer)" icon="🛍️">
           <p><strong>Identity:</strong> Any authenticated user browsing the marketplace.</p>
           <p><strong>Can trigger:</strong></p>
-          <p>• <strong>Order creation</strong> — Places an order, books a service, or sends an enquiry.</p>
-          <p>• <strong>Cancellation</strong> — Can cancel from early statuses where allowed by transitions.</p>
-          <p>• <strong>Completion confirmation</strong> — Marks delivered → completed to confirm receipt.</p>
-          <p>• <strong>Rescheduling</strong> — For bookings, can trigger rescheduling (side action).</p>
+          <p>• <strong>Order creation</strong> - Places an order, books a service, or sends an enquiry.</p>
+          <p>• <strong>Cancellation</strong> - Can cancel from early statuses where allowed by transitions.</p>
+          <p>• <strong>Completion confirmation</strong> - Marks delivered → completed to confirm receipt.</p>
+          <p>• <strong>Rescheduling</strong> - For bookings, can trigger rescheduling (side action).</p>
           <p><strong>Cannot do:</strong> Accept orders, mark as preparing/ready, assign delivery, or change system statuses.</p>
           <p><strong>UI:</strong> Sees <code className="text-[10px] bg-muted px-1 rounded">buyer_hint</code> messages. Action buttons built from transitions filtered by actor=buyer.</p>
         </DocInfoCard>
@@ -86,13 +86,13 @@ export function WorkflowEngineDocs() {
         <DocInfoCard title="Seller (Vendor / Service Provider)" icon="🏪">
           <p><strong>Identity:</strong> User with an active seller_profiles record linked to the order.</p>
           <p><strong>Can trigger:</strong></p>
-          <p>• <strong>Accept</strong> — placed → accepted</p>
-          <p>• <strong>Prepare</strong> — accepted → preparing</p>
-          <p>• <strong>Ready</strong> — preparing → ready</p>
-          <p>• <strong>Confirm booking</strong> — booking_requested → confirmed</p>
-          <p>• <strong>Respond to enquiry</strong> — inquiry_sent → seller_responded</p>
-          <p>• <strong>Cancel</strong> — Only from statuses where transition rules allow it</p>
-          <p><strong>When delivery_handled_by = 'seller':</strong> The seller also acts as the delivery actor — they can trigger transit steps (picked_up, on_the_way) and complete delivery via OTP.</p>
+          <p>• <strong>Accept</strong> - placed → accepted</p>
+          <p>• <strong>Prepare</strong> - accepted → preparing</p>
+          <p>• <strong>Ready</strong> - preparing → ready</p>
+          <p>• <strong>Confirm booking</strong> - booking_requested → confirmed</p>
+          <p>• <strong>Respond to enquiry</strong> - inquiry_sent → seller_responded</p>
+          <p>• <strong>Cancel</strong> - Only from statuses where transition rules allow it</p>
+          <p><strong>When delivery_handled_by = 'seller':</strong> The seller also acts as the delivery actor - they can trigger transit steps (picked_up, on_the_way) and complete delivery via OTP.</p>
         </DocInfoCard>
 
         <DocInfoCard title="Delivery Partner" icon="🚚">
@@ -137,14 +137,14 @@ export function WorkflowEngineDocs() {
           <DocTable
             headers={['Step', 'Status', 'Actor', 'Buyer Hint', 'Seller Hint', 'System Action']}
             rows={[
-              ['1', 'placed', 'buyer', 'Waiting for seller', 'New order — review it', 'Buzzer + timer starts'],
+              ['1', 'placed', 'buyer', 'Waiting for seller', 'New order - review it', 'Buzzer + timer starts'],
               ['2', 'accepted', 'seller', 'Seller confirmed', 'Start preparing', 'Timer cleared'],
               ['3', 'preparing', 'seller', 'Being prepared', 'Prepare order items', 'Stall detection active'],
               ['4', 'ready', 'seller', 'Ready for pickup', 'Hand to delivery', 'Delivery assignment created'],
-              ['5', 'picked_up', 'delivery', 'On the way!', '—', 'GPS tracking starts'],
-              ['6', 'delivered', 'delivery', 'Delivered!', '—', 'OTP verified, review prompt'],
-              ['7', 'completed', 'buyer', 'Complete', '—', 'Settlement eligible'],
-              ['—', 'cancelled', 'any', 'Order cancelled', 'Order cancelled', 'Refund triggered'],
+              ['5', 'picked_up', 'delivery', 'On the way!', '-', 'GPS tracking starts'],
+              ['6', 'delivered', 'delivery', 'Delivered!', '-', 'OTP verified, review prompt'],
+              ['7', 'completed', 'buyer', 'Complete', '-', 'Settlement eligible'],
+              ['-', 'cancelled', 'any', 'Order cancelled', 'Order cancelled', 'Refund triggered'],
             ]}
           />
         </DocInfoCard>
@@ -154,13 +154,13 @@ export function WorkflowEngineDocs() {
           <DocTable
             headers={['Step', 'Status', 'Actor', 'Key Flags', 'System Action']}
             rows={[
-              ['1', 'placed', 'buyer', '—', 'Buzzer + timer starts'],
-              ['2', 'accepted', 'seller', '—', 'Timer cleared'],
+              ['1', 'placed', 'buyer', '-', 'Buzzer + timer starts'],
+              ['2', 'accepted', 'seller', '-', 'Timer cleared'],
               ['3', 'preparing', 'seller', 'is_transit: true/false (configurable)', 'GPS tracking if is_transit=true'],
               ['4', 'on_the_way', 'seller', 'is_transit: true', 'GPS tracking active, map visible'],
               ['5', 'delivered', 'seller', 'requires_otp: true', 'OTP verified via verify_delivery_otp_and_complete'],
               ['6', 'completed', 'system', 'is_terminal + is_success', 'Settlement + review eligible'],
-              ['—', 'cancelled', 'any', 'is_terminal', 'Refund triggered'],
+              ['-', 'cancelled', 'any', 'is_terminal', 'Refund triggered'],
             ]}
           />
         </DocInfoCard>
@@ -170,11 +170,11 @@ export function WorkflowEngineDocs() {
             headers={['Step', 'Status', 'Actor', 'Buyer Hint', 'System Action']}
             rows={[
               ['1', 'placed', 'buyer', 'Waiting for seller', 'Buzzer'],
-              ['2', 'accepted', 'seller', 'Confirmed', '—'],
-              ['3', 'preparing', 'seller', 'Being prepared', '—'],
+              ['2', 'accepted', 'seller', 'Confirmed', '-'],
+              ['3', 'preparing', 'seller', 'Being prepared', '-'],
               ['4', 'ready', 'seller', 'Ready for pickup!', 'Buyer notified + location shared'],
               ['5', 'completed', 'buyer', 'Picked up', 'Review prompt'],
-              ['—', 'cancelled', 'any', 'Cancelled', 'Refund if applicable'],
+              ['-', 'cancelled', 'any', 'Cancelled', 'Refund if applicable'],
             ]}
           />
         </DocInfoCard>
@@ -186,11 +186,11 @@ export function WorkflowEngineDocs() {
               ['1', 'booking_requested', 'buyer', 'Slot soft-locked'],
               ['2', 'confirmed', 'seller', 'Reminders scheduled'],
               ['3', 'scheduled', 'system', '24h + 1h reminders'],
-              ['4', 'in_progress', 'seller', '—'],
+              ['4', 'in_progress', 'seller', '-'],
               ['5', 'completed', 'seller', 'Review prompt'],
-              ['—', 'rescheduled', 'any (side action)', 'Old slot released, new slot booked'],
-              ['—', 'cancelled', 'any', 'Slot released + fee check'],
-              ['—', 'no_show', 'system', 'No-show fee applied'],
+              ['-', 'rescheduled', 'any (side action)', 'Old slot released, new slot booked'],
+              ['-', 'cancelled', 'any', 'Slot released + fee check'],
+              ['-', 'no_show', 'system', 'No-show fee applied'],
             ]}
           />
         </DocInfoCard>
@@ -204,7 +204,7 @@ export function WorkflowEngineDocs() {
       {/* ═════════════════════════════════════════════════════════════ */}
       {/* 4. WHERE WORKFLOWS ARE LINKED */}
       {/* ═════════════════════════════════════════════════════════════ */}
-      <DocSection title="4. Where Workflows Are Linked — Category Management">
+      <DocSection title="4. Where Workflows Are Linked - Category Management">
         <DocInfoCard title="The Linkage Chain" icon="🔗">
           <p>Understanding how a product's category connects to its workflow is critical:</p>
           <DocFlowStep number={1} title="Product → Category" desc="Every product has a 'category' field (e.g., home_food, yoga_classes, plumbing)." />
@@ -232,11 +232,11 @@ export function WorkflowEngineDocs() {
           <p>1. Open the category editor for the target category</p>
           <p>2. Find the <strong>"Linked Workflow"</strong> dropdown (populated from available transaction_types in category_status_flows)</p>
           <p>3. Select the desired workflow (e.g., change from cart_purchase to seller_delivery)</p>
-          <p>4. Save — the change takes effect for all NEW orders in that category</p>
+          <p>4. Save - the change takes effect for all NEW orders in that category</p>
           <p className="mt-1"><strong>⚠️ Important:</strong> Changing a category's transaction_type does NOT affect existing orders. Existing orders retain their original workflow.</p>
         </DocInfoCard>
 
-        <DocInfoCard title="listing_type_workflow_map — Advanced Mapping" icon="🗂️">
+        <DocInfoCard title="listing_type_workflow_map - Advanced Mapping" icon="🗂️">
           <p>For categories where the same category can have multiple listing types (e.g., a yoga studio that offers both bookable classes and contact-only enquiries), the <code className="text-[10px] bg-muted px-1 rounded">listing_type_workflow_map</code> table provides fine-grained mapping:</p>
           <DocTable
             headers={['listing_type', 'Maps To transaction_type', 'When Used']}
@@ -295,7 +295,7 @@ export function WorkflowEngineDocs() {
       {/* ═════════════════════════════════════════════════════════════ */}
       {/* 6. OVERRIDE SYSTEM */}
       {/* ═════════════════════════════════════════════════════════════ */}
-      <DocSection title="6. Override System — Category-Specific Overrides">
+      <DocSection title="6. Override System - Category-Specific Overrides">
         <DocInfoCard title="What Are Overrides?" icon="🎭">
           <p>The override system allows you to customize a workflow for a specific category group without affecting other categories.</p>
           <p className="mt-1"><strong>Example:</strong> The <code className="text-[10px] bg-muted px-1 rounded">default/seller_delivery</code> workflow has 6 steps. But for <code className="text-[10px] bg-muted px-1 rounded">food_beverages</code> sellers, you might want different steps (e.g., is_transit enabled on 'preparing' for live tracking during food prep).</p>
@@ -315,10 +315,10 @@ export function WorkflowEngineDocs() {
           <DocTable
             headers={['Seller primary_group', 'Override Exists?', 'Workflow Used', 'Editing Default Affects This Seller?']}
             rows={[
-              ['food_beverages', 'Yes (food_beverages/seller_delivery)', 'food_beverages override', '❌ No — override takes priority'],
-              ['food_beverages', 'No', 'default/seller_delivery', '✅ Yes — no override, falls back to default'],
-              ['retail', 'No', 'default/seller_delivery', '✅ Yes — falls back to default'],
-              ['retail', 'Yes (retail/seller_delivery)', 'retail override', '❌ No — override takes priority'],
+              ['food_beverages', 'Yes (food_beverages/seller_delivery)', 'food_beverages override', '❌ No - override takes priority'],
+              ['food_beverages', 'No', 'default/seller_delivery', '✅ Yes - no override, falls back to default'],
+              ['retail', 'No', 'default/seller_delivery', '✅ Yes - falls back to default'],
+              ['retail', 'Yes (retail/seller_delivery)', 'retail override', '❌ No - override takes priority'],
             ]}
           />
         </DocInfoCard>
@@ -327,7 +327,7 @@ export function WorkflowEngineDocs() {
           <p>In the <strong>Admin → Workflows</strong> page:</p>
           <p>• Each default workflow card shows override badges below it (e.g., <strong>"Override: Food Beverages · 10 steps"</strong>)</p>
           <p>• Override badges have an amber/warning color with a ⚠️ icon to make them prominent</p>
-          <p>• Below each override badge: <em>"category override — these take priority over default"</em></p>
+          <p>• Below each override badge: <em>"category override - these take priority over default"</em></p>
           <p>• When editing a default workflow that has overrides, a <strong>warning banner</strong> appears at the top of the editor listing which categories have overrides and won't be affected</p>
         </DocInfoCard>
 
@@ -344,7 +344,7 @@ export function WorkflowEngineDocs() {
           <p className="mt-1"><strong>To delete an override:</strong></p>
           <p>1. Click the override badge to open the editor</p>
           <p>2. Click the "Delete" button in the editor header</p>
-          <p>3. Confirm deletion — sellers in that group will now fall back to the default workflow</p>
+          <p>3. Confirm deletion - sellers in that group will now fall back to the default workflow</p>
         </DocInfoCard>
       </DocSection>
 
@@ -366,7 +366,7 @@ export function WorkflowEngineDocs() {
             rows={[
               ['New category created, no workflow configured', 'Falls back to default group', 'default/{transaction_type}'],
               ['Seller has no primary_group set', 'primary_group defaults to "default"', 'default/{transaction_type}'],
-              ['Override exists but is empty (no steps)', 'Uses the empty override (this is a misconfiguration — fix it!)', '⚠️ Empty override blocks all transitions'],
+              ['Override exists but is empty (no steps)', 'Uses the empty override (this is a misconfiguration - fix it!)', '⚠️ Empty override blocks all transitions'],
               ['Seller changes primary_group', 'Next order uses new group workflow', 'New group override or default'],
               ['transaction_type column is NULL on order', 'Frontend resolves via resolveTransactionType()', 'Resolved dynamically from order attributes'],
             ]}
@@ -375,7 +375,7 @@ export function WorkflowEngineDocs() {
 
         <DocInfoCard title="Common Pitfall: Override Masks Default Changes" icon="⚠️" variant="warning">
           <p><strong>Problem:</strong> Admin edits the default seller_delivery workflow (e.g., enables is_transit on 'preparing'). But food_beverages sellers still don't see the map during preparing.</p>
-          <p><strong>Cause:</strong> A food_beverages/seller_delivery override exists. Overrides are complete replacements — they don't merge with the default. The override still has is_transit=false on preparing.</p>
+          <p><strong>Cause:</strong> A food_beverages/seller_delivery override exists. Overrides are complete replacements - they don't merge with the default. The override still has is_transit=false on preparing.</p>
           <p><strong>Fix:</strong> Edit the override directly, or delete the override if you want all sellers to use the default.</p>
         </DocInfoCard>
       </DocSection>
@@ -383,8 +383,8 @@ export function WorkflowEngineDocs() {
       {/* ═════════════════════════════════════════════════════════════ */}
       {/* 8. BEHAVIORAL FLAGS */}
       {/* ═════════════════════════════════════════════════════════════ */}
-      <DocSection title="8. Behavioral Flags — is_transit, requires_otp, is_success">
-        <DocInfoCard title="is_transit — Enables Live GPS Tracking" icon="🚚">
+      <DocSection title="8. Behavioral Flags - is_transit, requires_otp, is_success">
+        <DocInfoCard title="is_transit - Enables Live GPS Tracking" icon="🚚">
           <p>When a flow step has <code className="text-[10px] bg-muted px-1 rounded">is_transit = true</code>:</p>
           <p>• The <strong>Google Map</strong> with live rider/seller tracking is shown to the buyer</p>
           <p>• <strong>SellerGPSTracker</strong> activates for seller self-delivery (broadcasts seller's location)</p>
@@ -394,37 +394,37 @@ export function WorkflowEngineDocs() {
           <p className="mt-1"><strong>Configurable per override:</strong> You might want is_transit=true on 'preparing' for food delivery (so buyers see the map early) but is_transit=false for retail sellers (where preparation doesn't involve movement).</p>
         </DocInfoCard>
 
-        <DocInfoCard title="requires_otp — Delivery Verification Gate" icon="🔐">
+        <DocInfoCard title="requires_otp - Delivery Verification Gate" icon="🔐">
           <p>When a flow step has <code className="text-[10px] bg-muted px-1 rounded">requires_otp = true</code>:</p>
           <p>• The action button changes to <strong>"Verify & Deliver"</strong> instead of the normal "Mark {'{status}'}"</p>
           <p>• Clicking opens the <strong>OTP verification dialog</strong> where the delivery person enters the buyer's 4-digit code</p>
-          <p>• The <strong>DB trigger</strong> (<code className="text-[10px] bg-muted px-1 rounded">enforce_delivery_otp_gate</code>) blocks direct status updates — only the <code className="text-[10px] bg-muted px-1 rounded">verify_delivery_otp_and_complete</code> RPC can transition through OTP-protected steps</p>
+          <p>• The <strong>DB trigger</strong> (<code className="text-[10px] bg-muted px-1 rounded">enforce_delivery_otp_gate</code>) blocks direct status updates - only the <code className="text-[10px] bg-muted px-1 rounded">verify_delivery_otp_and_complete</code> RPC can transition through OTP-protected steps</p>
           <p>• <strong>Bulletproof frontend gate:</strong> If a delivery assignment exists and the next status is terminal, the OTP dialog is forced regardless of the requires_otp flag (catches race conditions). If the DB rejects with an OTP error, the dialog auto-opens.</p>
         </DocInfoCard>
 
-        <DocInfoCard title="is_success — Terminal Success State" icon="✅">
+        <DocInfoCard title="is_success - Terminal Success State" icon="✅">
           <p>When a flow step has <code className="text-[10px] bg-muted px-1 rounded">is_terminal = true AND is_success = true</code>:</p>
           <p>• The order is considered <strong>successfully completed</strong></p>
           <p>• <strong>Review prompt</strong> appears for the buyer</p>
-          <p>• <strong>Settlement eligibility</strong> — payment can be released to seller</p>
+          <p>• <strong>Settlement eligibility</strong> - payment can be released to seller</p>
           <p>• <strong>Celebration banner</strong> shown to buyer with delivery duration</p>
           <p>• <strong>Reorder button</strong> becomes available</p>
         </DocInfoCard>
 
-        <DocInfoCard title="is_deprecated — Legacy Step Handling" icon="🏚️">
+        <DocInfoCard title="is_deprecated - Legacy Step Handling" icon="🏚️">
           <p>When a flow step has <code className="text-[10px] bg-muted px-1 rounded">is_deprecated = true</code>:</p>
           <p>• The step is <strong>hidden from new orders'</strong> timelines</p>
           <p>• If an existing order is IN this status, it still displays correctly</p>
           <p>• Used for graceful evolution: add new steps, deprecate old ones, existing orders can still complete their original flow via escape transitions</p>
         </DocInfoCard>
 
-        <DocInfoCard title="creates_tracking_assignment — Auto-Create Delivery Assignment" icon="📍">
+        <DocInfoCard title="creates_tracking_assignment - Auto-Create Delivery Assignment" icon="📍">
           <p>When a step has <code className="text-[10px] bg-muted px-1 rounded">creates_tracking_assignment = true</code>:</p>
           <p>• Transitioning to this step automatically creates a <code className="text-[10px] bg-muted px-1 rounded">delivery_assignments</code> row</p>
           <p>• OTP is generated, delivery fee calculated, and rider assignment begins</p>
         </DocInfoCard>
 
-        <DocInfoCard title="is_side_action — Non-Linear Transitions" icon="↩️">
+        <DocInfoCard title="is_side_action - Non-Linear Transitions" icon="↩️">
           <p>In the <code className="text-[10px] bg-muted px-1 rounded">category_status_transitions</code> table, some transitions are marked <code className="text-[10px] bg-muted px-1 rounded">is_side_action = true</code>:</p>
           <p>• These are <strong>not part of the primary forward progression</strong> (e.g., cancellation, rescheduling, no-show)</p>
           <p>• They appear as <strong>secondary buttons</strong> in the UI, not the primary CTA</p>
@@ -518,7 +518,7 @@ export function WorkflowEngineDocs() {
       {/* 11. DATA MODEL */}
       {/* ═════════════════════════════════════════════════════════════ */}
       <DocSection title="11. Data Model Reference">
-        <DocInfoCard title="category_status_flows — Pipeline Definition" icon="📊">
+        <DocInfoCard title="category_status_flows - Pipeline Definition" icon="📊">
           <p>Each row = one status step in a workflow. Uniquely identified by (parent_group, transaction_type, status_key).</p>
         </DocInfoCard>
         <DocTable
@@ -527,11 +527,11 @@ export function WorkflowEngineDocs() {
             ['parent_group', 'text', 'Category group (default, food_beverages, services, retail, etc.)'],
             ['transaction_type', 'text', 'Workflow key (cart_purchase, seller_delivery, service_booking, etc.)'],
             ['status_key', 'text', 'Machine-readable status identifier (placed, accepted, preparing, etc.)'],
-            ['sort_order', 'integer', 'Pipeline position — controls timeline display order'],
+            ['sort_order', 'integer', 'Pipeline position - controls timeline display order'],
             ['display_label', 'text', 'Human-readable label shown in UI'],
             ['color', 'text', 'Badge color for UI rendering'],
             ['icon', 'text', 'Lucide icon name for timeline nodes'],
-            ['actor', 'text', 'Primary actor(s) — supports comma-separated (e.g., "seller,delivery")'],
+            ['actor', 'text', 'Primary actor(s) - supports comma-separated (e.g., "seller,delivery")'],
             ['is_terminal', 'boolean', 'If true, no further transitions allowed'],
             ['is_success', 'boolean', 'If true AND is_terminal, marks successful completion'],
             ['is_transit', 'boolean', 'If true, enables GPS tracking and map UI'],
@@ -547,7 +547,7 @@ export function WorkflowEngineDocs() {
           ]}
         />
 
-        <DocInfoCard title="category_status_transitions — Transition Rules" icon="🔀">
+        <DocInfoCard title="category_status_transitions - Transition Rules" icon="🔀">
           <p>Each row = one allowed status change. Multiple rows per status enable non-linear flows.</p>
         </DocInfoCard>
         <DocTable
@@ -573,7 +573,7 @@ export function WorkflowEngineDocs() {
       {/* ═════════════════════════════════════════════════════════════ */}
       {/* 12. DB TRIGGER */}
       {/* ═════════════════════════════════════════════════════════════ */}
-      <DocSection title="12. DB Trigger — How Validation Works">
+      <DocSection title="12. DB Trigger - How Validation Works">
         <DocInfoCard title="validate_order_status_transition" icon="⚙️">
           <p>Fires on every UPDATE to orders where the status column changes.</p>
           <DocFlowStep number={1} title="Detect Change" desc="OLD.status ≠ NEW.status → trigger fires." />
@@ -596,11 +596,11 @@ export function WorkflowEngineDocs() {
       {/* ═════════════════════════════════════════════════════════════ */}
       {/* 13. FRONTEND INTEGRATION */}
       {/* ═════════════════════════════════════════════════════════════ */}
-      <DocSection title="13. Frontend Integration — Hooks & UI">
+      <DocSection title="13. Frontend Integration - Hooks & UI">
         <DocInfoCard title="useCategoryStatusFlow(parentGroup, orderType, fulfillmentType, ...)" icon="🪝">
           <p>Loads the ordered status pipeline. Uses React Query with 5-minute staleTime for caching.</p>
           <p><strong>Override cascade:</strong> Fetches for exact parent_group first, falls back to 'default'.</p>
-          <p><strong>Returns:</strong> flowSteps[] — array of step objects with all flags and labels.</p>
+          <p><strong>Returns:</strong> flowSteps[] - array of step objects with all flags and labels.</p>
         </DocInfoCard>
 
         <DocInfoCard title="useStatusTransitions(parentGroup, transactionType)" icon="🪝">
@@ -609,29 +609,29 @@ export function WorkflowEngineDocs() {
         </DocInfoCard>
 
         <DocInfoCard title="Key Helper Functions" icon="🔧">
-          <p>• <code className="text-[10px] bg-muted px-1 rounded">getNextStatusForActor(flow, currentStatus, actor, transitions)</code> — Returns the next valid status for a given actor</p>
-          <p>• <code className="text-[10px] bg-muted px-1 rounded">getNextStatusForActors(flow, currentStatus, actors[], transitions)</code> — Multi-actor variant (seller who also delivers)</p>
-          <p>• <code className="text-[10px] bg-muted px-1 rounded">getStepOtpType(flow, statusKey)</code> — Returns the typed OTP intent ('delivery' | null). Used by action bars to decouple delivery OTP from generic OTP.</p>
-          <p>• <code className="text-[10px] bg-muted px-1 rounded">stepRequiresOtp(flow, statusKey)</code> — Thin wrapper: returns true if any OTP type is set. DB trigger is the safety net.</p>
-          <p>• <code className="text-[10px] bg-muted px-1 rounded">isTerminalStatus(flow, status)</code> — Checks if status is terminal</p>
-          <p>• <code className="text-[10px] bg-muted px-1 rounded">isSuccessfulTerminal(flow, status)</code> — Checks if terminal AND successful</p>
-          <p>• <code className="text-[10px] bg-muted px-1 rounded">canActorCancel(transitions, currentStatus, actor)</code> — Checks cancellation availability</p>
-          <p>• <code className="text-[10px] bg-muted px-1 rounded">getSideActionsForActor(transitions, currentStatus, actor)</code> — Returns side actions (reschedule, no-show, etc.)</p>
+          <p>• <code className="text-[10px] bg-muted px-1 rounded">getNextStatusForActor(flow, currentStatus, actor, transitions)</code> - Returns the next valid status for a given actor</p>
+          <p>• <code className="text-[10px] bg-muted px-1 rounded">getNextStatusForActors(flow, currentStatus, actors[], transitions)</code> - Multi-actor variant (seller who also delivers)</p>
+          <p>• <code className="text-[10px] bg-muted px-1 rounded">getStepOtpType(flow, statusKey)</code> - Returns the typed OTP intent ('delivery' | null). Used by action bars to decouple delivery OTP from generic OTP.</p>
+          <p>• <code className="text-[10px] bg-muted px-1 rounded">stepRequiresOtp(flow, statusKey)</code> - Thin wrapper: returns true if any OTP type is set. DB trigger is the safety net.</p>
+          <p>• <code className="text-[10px] bg-muted px-1 rounded">isTerminalStatus(flow, status)</code> - Checks if status is terminal</p>
+          <p>• <code className="text-[10px] bg-muted px-1 rounded">isSuccessfulTerminal(flow, status)</code> - Checks if terminal AND successful</p>
+          <p>• <code className="text-[10px] bg-muted px-1 rounded">canActorCancel(transitions, currentStatus, actor)</code> - Checks cancellation availability</p>
+          <p>• <code className="text-[10px] bg-muted px-1 rounded">getSideActionsForActor(transitions, currentStatus, actor)</code> - Returns side actions (reschedule, no-show, etc.)</p>
         </DocInfoCard>
 
         <DocInfoCard title="Where UI Reads Workflow Data" icon="🎨">
-          <p>• <strong>OrderDetailPage</strong> — Timeline, step labels, buyer/seller hints, action bar, OTP dialog — all from workflow data</p>
-          <p>• <strong>Seller Dashboard</strong> — Action buttons from transitions filtered by actor=seller</p>
-          <p>• <strong>DeliveryActionCard</strong> — Delivery partner actions driven by workflow steps</p>
-          <p>• <strong>Status Badges</strong> — Colors and icons from flow data, no hardcoded styling</p>
-          <p>• <strong>Notifications</strong> — Title/body from workflow step's notification_title/notification_body</p>
+          <p>• <strong>OrderDetailPage</strong> - Timeline, step labels, buyer/seller hints, action bar, OTP dialog - all from workflow data</p>
+          <p>• <strong>Seller Dashboard</strong> - Action buttons from transitions filtered by actor=seller</p>
+          <p>• <strong>DeliveryActionCard</strong> - Delivery partner actions driven by workflow steps</p>
+          <p>• <strong>Status Badges</strong> - Colors and icons from flow data, no hardcoded styling</p>
+          <p>• <strong>Notifications</strong> - Title/body from workflow step's notification_title/notification_body</p>
         </DocInfoCard>
       </DocSection>
 
       {/* ═════════════════════════════════════════════════════════════ */}
-      {/* 14. ADMIN WORKFLOW MANAGER — USER MANUAL */}
+      {/* 14. ADMIN WORKFLOW MANAGER - USER MANUAL */}
       {/* ═════════════════════════════════════════════════════════════ */}
-      <DocSection title="14. Admin Workflow Manager — Complete User Manual">
+      <DocSection title="14. Admin Workflow Manager - Complete User Manual">
         <DocInfoCard title="Accessing the Workflow Manager" icon="🏠">
           <p><strong>Path:</strong> Profile → Admin Panel → Commerce section → Workflows</p>
           <p>Or navigate directly to the admin page and find the Workflows card.</p>
@@ -641,7 +641,7 @@ export function WorkflowEngineDocs() {
           <p>The main view shows all configured workflows as cards:</p>
           <p>• Each card shows the <strong>workflow name</strong> (e.g., "Cart Purchase"), <strong>parent_group</strong>, and <strong>step count</strong></p>
           <p>• <strong>Default workflows</strong> (parent_group='default') are the base configurations</p>
-          <p>• <strong>Override badges</strong> appear below default cards — amber-colored badges with ⚠️ icon showing category-specific overrides</p>
+          <p>• <strong>Override badges</strong> appear below default cards - amber-colored badges with ⚠️ icon showing category-specific overrides</p>
           <p>• Click a default card to edit it. Click an override badge to edit that override specifically.</p>
         </DocInfoCard>
 
@@ -670,12 +670,12 @@ export function WorkflowEngineDocs() {
 
         <DocInfoCard title="Notification Configuration Per Step" icon="🔔">
           <p>Each step has notification settings:</p>
-          <p>• <strong>notify_buyer</strong> — Toggle push notification to buyer</p>
-          <p>• <strong>notification_title</strong> — Push title (e.g., "Order on the way!")</p>
-          <p>• <strong>notification_body</strong> — Push body (e.g., "Your Dal Makhani is being delivered")</p>
-          <p>• <strong>notification_action</strong> — Deep link action (e.g., open order detail page)</p>
-          <p>• <strong>notify_seller</strong> — Toggle push notification to seller</p>
-          <p>• <strong>seller_notification_title/body</strong> — Seller-specific notification content</p>
+          <p>• <strong>notify_buyer</strong> - Toggle push notification to buyer</p>
+          <p>• <strong>notification_title</strong> - Push title (e.g., "Order on the way!")</p>
+          <p>• <strong>notification_body</strong> - Push body (e.g., "Your Dal Makhani is being delivered")</p>
+          <p>• <strong>notification_action</strong> - Deep link action (e.g., open order detail page)</p>
+          <p>• <strong>notify_seller</strong> - Toggle push notification to seller</p>
+          <p>• <strong>seller_notification_title/body</strong> - Seller-specific notification content</p>
           <p className="mt-1">New categories automatically inherit notification settings from the default group via the <code className="text-[10px] bg-muted px-1 rounded">trg_inherit_notification_defaults</code> trigger.</p>
         </DocInfoCard>
 
@@ -689,11 +689,11 @@ export function WorkflowEngineDocs() {
 
         <DocInfoCard title="Save Validations" icon="✅">
           <p>On save, the editor checks:</p>
-          <p>• ✅ <strong>Terminal required</strong> — At least one step must be terminal</p>
-          <p>• ✅ <strong>No duplicate keys</strong> — Each status_key must be unique</p>
-          <p>• ⚠️ <strong>Orphan warning</strong> — Non-terminal step with no outgoing transitions</p>
-          <p>• ⚠️ <strong>Backward flow warning</strong> — Transition from higher to lower sort_order (valid for reschedule, warning only)</p>
-          <p>• 🔄 <strong>Transit status sync</strong> — Any change to is_transit flags auto-updates the system_settings.transit_statuses list</p>
+          <p>• ✅ <strong>Terminal required</strong> - At least one step must be terminal</p>
+          <p>• ✅ <strong>No duplicate keys</strong> - Each status_key must be unique</p>
+          <p>• ⚠️ <strong>Orphan warning</strong> - Non-terminal step with no outgoing transitions</p>
+          <p>• ⚠️ <strong>Backward flow warning</strong> - Transition from higher to lower sort_order (valid for reschedule, warning only)</p>
+          <p>• 🔄 <strong>Transit status sync</strong> - Any change to is_transit flags auto-updates the system_settings.transit_statuses list</p>
         </DocInfoCard>
 
         <DocInfoCard title="Warning Banner for Default Workflows" icon="⚠️" variant="warning">
@@ -711,13 +711,13 @@ export function WorkflowEngineDocs() {
           <DocFlowStep number={1} title="OTP Generated" desc="When a delivery_assignment is created, a 4-digit delivery_code is generated and hashed. The plaintext code is visible to the buyer in their order detail page." />
           <DocFlowStep number={2} title="Buyer Shares Code" desc="The buyer sees a prominent OTP card in their order detail. They share the code with the delivery person only after receiving their items." />
           <DocFlowStep number={3} title="Delivery Person Enters Code" desc="The seller/rider taps 'Verify & Deliver' and enters the 4-digit code in the OTP dialog." />
-          <DocFlowStep number={4} title="Atomic Verification" desc="The verify_delivery_otp_and_complete RPC: sets app.otp_verified flag, verifies the code against the hash, updates order status to 'completed', and clears the delivery assignment — all atomically." />
+          <DocFlowStep number={4} title="Atomic Verification" desc="The verify_delivery_otp_and_complete RPC: sets app.otp_verified flag, verifies the code against the hash, updates order status to 'completed', and clears the delivery assignment - all atomically." />
         </DocInfoCard>
 
         <DocInfoCard title="Three Layers of OTP Protection" icon="🛡️">
-          <p><strong>Layer 1 — Typed OTP intent:</strong> <code className="text-[10px] bg-muted px-1 rounded">getStepOtpType(flow, nextStatus)</code> checks the <code className="text-[10px] bg-muted px-1 rounded">otp_type</code> column. If <code className="text-[10px] bg-muted px-1 rounded">'delivery'</code>, the action bar shows the OTP dialog ONLY when a <code className="text-[10px] bg-muted px-1 rounded">deliveryAssignmentId</code> exists. If no delivery context, a normal advance button is shown (DB trigger is safety net).</p>
-          <p><strong>Layer 2 — Frontend delivery gate:</strong> If a delivery_assignment exists AND the next status is terminal (delivered/completed), the OTP dialog is forced regardless of the otp_type flag.</p>
-          <p><strong>Layer 3 — DB trigger:</strong> <code className="text-[10px] bg-muted px-1 rounded">enforce_delivery_otp_gate</code> blocks any direct status update to delivered/completed if a delivery_code exists and app.otp_verified is not set. The <code className="text-[10px] bg-muted px-1 rounded">requires_otp</code> boolean column is auto-synced from <code className="text-[10px] bg-muted px-1 rounded">otp_type</code> for backward compatibility with this trigger.</p>
+          <p><strong>Layer 1 - Typed OTP intent:</strong> <code className="text-[10px] bg-muted px-1 rounded">getStepOtpType(flow, nextStatus)</code> checks the <code className="text-[10px] bg-muted px-1 rounded">otp_type</code> column. If <code className="text-[10px] bg-muted px-1 rounded">'delivery'</code>, the action bar shows the OTP dialog ONLY when a <code className="text-[10px] bg-muted px-1 rounded">deliveryAssignmentId</code> exists. If no delivery context, a normal advance button is shown (DB trigger is safety net).</p>
+          <p><strong>Layer 2 - Frontend delivery gate:</strong> If a delivery_assignment exists AND the next status is terminal (delivered/completed), the OTP dialog is forced regardless of the otp_type flag.</p>
+          <p><strong>Layer 3 - DB trigger:</strong> <code className="text-[10px] bg-muted px-1 rounded">enforce_delivery_otp_gate</code> blocks any direct status update to delivered/completed if a delivery_code exists and app.otp_verified is not set. The <code className="text-[10px] bg-muted px-1 rounded">requires_otp</code> boolean column is auto-synced from <code className="text-[10px] bg-muted px-1 rounded">otp_type</code> for backward compatibility with this trigger.</p>
         </DocInfoCard>
       </DocSection>
 
@@ -778,7 +778,7 @@ export function WorkflowEngineDocs() {
         </DocInfoCard>
 
         <DocInfoCard title="Edited default but sellers don't see the change" icon="🟡">
-          <p><strong>Cause:</strong> An override exists for the seller's primary_group. Overrides completely replace the default — they don't merge.</p>
+          <p><strong>Cause:</strong> An override exists for the seller's primary_group. Overrides completely replace the default - they don't merge.</p>
           <p><strong>Fix:</strong> Check for override badges under the default workflow card. Edit the override directly, or delete it to fall back to default.</p>
         </DocInfoCard>
 
@@ -788,11 +788,11 @@ export function WorkflowEngineDocs() {
         </DocInfoCard>
 
         <DocInfoCard title="New category has no workflow" icon="🟡">
-          <p><strong>Cause:</strong> Normal and expected — the fallback to 'default' parent_group handles this automatically.</p>
+          <p><strong>Cause:</strong> Normal and expected - the fallback to 'default' parent_group handles this automatically.</p>
           <p><strong>The system ensures every order always has a valid workflow.</strong> If you want a custom workflow for the new category, create an override in the workflow editor.</p>
         </DocInfoCard>
 
-        <DocInfoCard title="Order stuck — no action buttons visible" icon="🟡">
+        <DocInfoCard title="Order stuck - no action buttons visible" icon="🟡">
           <p><strong>Possible causes:</strong></p>
           <p>1. No transition exists for the current actor from the current status → add it in the transition matrix</p>
           <p>2. Flow is still loading (async) → wait a moment, or check network errors</p>

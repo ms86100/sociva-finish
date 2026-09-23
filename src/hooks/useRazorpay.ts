@@ -232,7 +232,7 @@ export function useRazorpay() {
             // Race-proof: Razorpay fires ondismiss AFTER handler in some SDK versions.
             // If success already fired, skip dismiss entirely to prevent state reset.
             if (successFired) {
-              console.log('[Razorpay] ondismiss suppressed — success already fired');
+              console.log('[Razorpay] ondismiss suppressed - success already fired');
               return;
             }
             console.log('Payment modal closed');
@@ -261,7 +261,7 @@ export function useRazorpay() {
       lockBodyForCheckout();
       const nativeLayout = getRazorpayNativeLayout();
 
-      // Open Razorpay — use rAF to ensure the CSS changes are painted
+      // Open Razorpay - use rAF to ensure the CSS changes are painted
       // before the SDK injects its overlay, preventing the brief
       // non-interactive flash on iOS WebView
       requestAnimationFrame(() => {

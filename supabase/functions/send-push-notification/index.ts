@@ -142,7 +142,7 @@ async function sendApnsDirectNotification(
     }
 
     if (statusCode === 410) {
-      console.warn(`[APNs] Token gone (410) — device unregistered`);
+      console.warn(`[APNs] Token gone (410) - device unregistered`);
       return { success: false, error: "INVALID_TOKEN" };
     }
 
@@ -328,7 +328,7 @@ Deno.serve(async (req) => {
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     if (!authHeader || authHeader !== `Bearer ${serviceRoleKey}`) {
       return new Response(
-        JSON.stringify({ error: "Unauthorized — service role required" }),
+        JSON.stringify({ error: "Unauthorized - service role required" }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -424,7 +424,7 @@ Deno.serve(async (req) => {
 
         // iOS with stored APNs token → direct APNs delivery (primary path)
         if (tokenRecord.platform === "ios" && tokenRecord.apns_token && apnsConfigured) {
-          console.log(`[Push] iOS device — using direct APNs for token prefix: ${tokenRecord.apns_token.substring(0, 16)}…`);
+          console.log(`[Push] iOS device - using direct APNs for token prefix: ${tokenRecord.apns_token.substring(0, 16)}…`);
           result = await sendApnsDirectNotification(
             tokenRecord.apns_token,
             title,
@@ -455,12 +455,12 @@ Deno.serve(async (req) => {
             );
           }
         } else if (isApnsOnlyToken) {
-          // APNs-only token but APNs not configured — skip
-          console.log(`[Push] iOS APNs-only token but APNs not configured — skipping`);
+          // APNs-only token but APNs not configured - skip
+          console.log(`[Push] iOS APNs-only token but APNs not configured - skipping`);
           result = { success: false, error: "APNS_NOT_CONFIGURED" };
         } else {
           // Android or iOS without APNs token → FCM
-          console.log(`[Push] ${tokenRecord.platform} device — using FCM`);
+          console.log(`[Push] ${tokenRecord.platform} device - using FCM`);
           result = await sendFCMNotification(
             accessToken,
             serviceAccount.project_id,

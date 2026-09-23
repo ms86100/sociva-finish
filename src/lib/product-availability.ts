@@ -1,5 +1,5 @@
 /**
- * Buyer-facing product availability — distinguishes seller toggle-off from empty stock.
+ * Buyer-facing product availability - distinguishes seller toggle-off from empty stock.
  */
 
 export type ProductAvailabilityState = 'available' | 'unavailable' | 'out_of_stock';

@@ -1,5 +1,5 @@
 // One-shot: delete storage objects for a user folder. POST { userId, buckets }
-// Audit P0: require service_role or admin — never unauthenticated.
+// Audit P0: require service_role or admin - never unauthenticated.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const cors = {

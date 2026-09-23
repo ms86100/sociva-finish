@@ -23,7 +23,7 @@ export function LandingFinalCTA() {
           The Best Things in Your Society<br className="hidden sm:block" /> Aren't on Any App. Until Now.
         </h2>
         <p className="text-lg md:text-xl text-muted-foreground max-w-xl mx-auto mb-10 leading-relaxed">
-          Home-cooked meals, trusted services, hidden talents — discover what your neighbors have been making all along.
+          Home-cooked meals, trusted services, hidden talents - discover what your neighbors have been making all along.
         </p>
 
         <Button

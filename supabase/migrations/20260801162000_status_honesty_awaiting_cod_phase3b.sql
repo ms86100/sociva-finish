@@ -1,4 +1,4 @@
--- Phase 3b: Status honesty — split unpaid checkout vs COD mid-flow cash confirm
+-- Phase 3b: Status honesty - split unpaid checkout vs COD mid-flow cash confirm
 -- payment_pending  = unpaid online checkout hold only
 -- awaiting_cod_confirmation = COD mid-flow (after delivery / buyer_received)
 --

@@ -31,14 +31,14 @@ function cleanupStaleEvents() {
   }
 }
 
-/** DB-backed terminal statuses — loaded once at init. No hardcoded fallbacks. */
+/** DB-backed terminal statuses - loaded once at init. No hardcoded fallbacks. */
 let terminalStatusesCache: Set<string> = new Set();
 
 const MAX_RECONNECT_RETRIES = 5;
 const RECONNECT_BASE_DELAY_MS = 3000;
 const RECONNECT_MAX_DELAY_MS = 30000;
 
-/** Don't churn realtime reconnects when the tab is hidden — they'll fail anyway. */
+/** Don't churn realtime reconnects when the tab is hidden - they'll fail anyway. */
 function isTabVisible(): boolean {
   return typeof document === 'undefined' || document.visibilityState === 'visible';
 }
@@ -181,7 +181,7 @@ export function useLiveActivityOrchestrator(): void {
 
       let flowEntries = flowEntriesRef.current;
       if (!flowEntries || flowEntries.length === 0) {
-        console.warn(TAG, 'flowEntries empty on realtime event — fetching inline');
+        console.warn(TAG, 'flowEntries empty on realtime event - fetching inline');
         await fetchFlowEntries();
         flowEntries = flowEntriesRef.current;
       }
@@ -220,7 +220,7 @@ export function useLiveActivityOrchestrator(): void {
       const row = payload.new as any;
       if (!row?.order_id) return;
 
-      // Gap 5: Filter — only process events for this buyer's active orders
+      // Gap 5: Filter - only process events for this buyer's active orders
       if (!activeOrderIdsRef.current.has(row.order_id)) return;
 
       try {
@@ -279,7 +279,7 @@ export function useLiveActivityOrchestrator(): void {
 
     const subscribe = () => {
       // Bug 1 fix: always subscribe without server-side filter to avoid stale filter locking out new orders
-      console.log(TAG, `Subscribing to delivery assignment INSERT+UPDATE (attempt ${retryCount + 1}, no server filter — client-side filtering)`);
+      console.log(TAG, `Subscribing to delivery assignment INSERT+UPDATE (attempt ${retryCount + 1}, no server filter - client-side filtering)`);
 
       const insertOpts: any = { event: 'INSERT', schema: 'public', table: 'delivery_assignments' };
       const updateOpts: any = { event: 'UPDATE', schema: 'public', table: 'delivery_assignments' };
@@ -376,7 +376,7 @@ export function useLiveActivityOrchestrator(): void {
           .not('status', 'in', `(${terminalArr.map(s => `"${s}"`).join(',')})`);
 
         if (!data || data.length === 0) {
-          // All orders are terminal — end any lingering Live Activities
+          // All orders are terminal - end any lingering Live Activities
           for (const [orderId] of lastKnownRef) {
             console.log(TAG, `Polling: order ${orderId} no longer active, ending LA`);
             if (isNative) await LiveActivityManager.end(orderId);
@@ -404,7 +404,7 @@ export function useLiveActivityOrchestrator(): void {
         }
 
         if (hasMismatch) {
-          console.log(TAG, 'Polling heartbeat detected status change — re-syncing');
+          console.log(TAG, 'Polling heartbeat detected status change - re-syncing');
           await syncActiveOrders(userId);
         }
       } catch { /* best-effort */ }
@@ -434,7 +434,7 @@ export function useLiveActivityOrchestrator(): void {
 
     const handleVisibility = () => {
       if (document.visibilityState === 'visible' && mountedRef.current) {
-        console.log(TAG, 'Visibility regained — immediate sync');
+        console.log(TAG, 'Visibility regained - immediate sync');
         doSync();
       }
     };
@@ -472,7 +472,7 @@ export function useLiveActivityOrchestrator(): void {
         const { App } = await import('@capacitor/app');
         const listener = await App.addListener('appStateChange', async ({ isActive }) => {
           if (!isActive || !mountedRef.current) return;
-          console.log(TAG, 'App resumed — re-hydrating');
+          console.log(TAG, 'App resumed - re-hydrating');
 
           invalidateStatusFlowCache();
           LiveActivityManager.resetHydration();

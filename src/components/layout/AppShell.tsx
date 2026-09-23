@@ -18,7 +18,7 @@ import { useBrowsingLocation } from '@/contexts/BrowsingLocationContext';
 import { cn } from '@/lib/utils';
 import { isGuestBrowsePath, authReturnPath } from '@/lib/guest-browse-routes';
 import { hasPreciseCoordinates } from '@/lib/buyerLocation';
-import { needsLocationOnboarding } from '@/lib/location-onboarding';
+import { needsLocationOnboarding, isLocationOnboardingExemptPath, setPendingBrowseReturn } from '@/lib/location-onboarding';
 
 /**
  * Persistent chrome shell. Header / BottomNav stay mounted across route changes.
@@ -113,8 +113,10 @@ export function AppShellGate() {
     const hasCoords = hasPreciseCoordinates(browsingLocation?.lat, browsingLocation?.lng);
     if (
       path !== '/discover-location' &&
+      !isLocationOnboardingExemptPath(path) &&
       needsLocationOnboarding(hasCoords)
     ) {
+      setPendingBrowseReturn(authReturnPath(path, location.search || ''));
       return <Navigate to="/discover-location" replace />;
     }
 

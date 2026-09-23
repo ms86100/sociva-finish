@@ -150,11 +150,11 @@ export function AdminCatalogManager() {
     <div className="space-y-4">
       <div className="rounded-2xl border border-border/60 bg-muted/30 p-3 text-xs space-y-1.5">
         <p className="font-bold text-foreground text-[11px] uppercase tracking-wider">How catalog fits together</p>
-        <p><span className="font-semibold">Section</span> — aisle (Food, Services…)</p>
-        <p><span className="font-semibold">Category</span> — what sellers sell + buyer journey (cart / book / enquire)</p>
-        <p><span className="font-semibold">Subcategory</span> — optional form tweaks (veg/duration)</p>
-        <p><span className="font-semibold">Attributes</span> — extra fields on the product form for that category</p>
-        <p><span className="font-semibold">Workflow</span> — order statuses for that journey (managed under Workflows)</p>
+        <p><span className="font-semibold">Section</span> - aisle (Food, Services…)</p>
+        <p><span className="font-semibold">Category</span> - what sellers sell + buyer journey (cart / book / enquire)</p>
+        <p><span className="font-semibold">Subcategory</span> - optional form tweaks (veg/duration)</p>
+        <p><span className="font-semibold">Attributes</span> - extra fields on the product form for that category</p>
+        <p><span className="font-semibold">Workflow</span> - order statuses for that journey (managed under Workflows)</p>
       </div>
       <Tabs value={subTab} onValueChange={setSubTab}>
         <TabsList className="w-full grid grid-cols-4 bg-muted/60 p-1 rounded-2xl">

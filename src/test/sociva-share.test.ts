@@ -15,7 +15,7 @@ describe('sociva-share', () => {
       url: 'https://www.sociva.in/api/share/product/abc',
     });
     expect(text).toContain('Found this on Sociva');
-    expect(text).toContain('Chicken Biryani — ₹199');
+    expect(text).toContain('Chicken Biryani - ₹199');
     expect(text).toContain('Mountain Studio Cafe');
     expect(text).toContain('https://www.sociva.in/api/share/product/abc');
   });

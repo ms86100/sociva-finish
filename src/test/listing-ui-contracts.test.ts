@@ -1,5 +1,5 @@
 /**
- * Listing / marketplace UI contracts — guards against spacing & data regressions.
+ * Listing / marketplace UI contracts - guards against spacing & data regressions.
  */
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -57,7 +57,7 @@ describe('marketplace listing UI contracts', () => {
     expect(src).toContain('SellerLocationLine');
   });
 
-  it('price history shows a min–max range instead of a slant chart', () => {
+  it('price history shows a min-max range instead of a slant chart', () => {
     const src = readSrc('src/components/product/PriceHistoryChart.tsx');
     expect(src).toContain('Price range');
     expect(src).not.toContain('LineChart');

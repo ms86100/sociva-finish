@@ -17,7 +17,7 @@ interface CategoryGroup {
 
 /**
  * Coordinate-based product discovery grouped by category.
- * Derives from the shared marketplace data cache — zero additional RPC calls.
+ * Derives from the shared marketplace data cache - zero additional RPC calls.
  */
 export function useProductsByCategory(limit = 50) {
   const { data: sellers, isLoading, error } = useMarketplaceData();

@@ -73,7 +73,7 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      // Skip future scheduled orders — they are not due for fulfilment yet
+      // Skip future scheduled orders - they are not due for fulfilment yet
       const scheduledDate = (row as any).scheduled_date as string | null;
       const prepStart = (row as any).preparation_start_at as string | null;
       if (scheduledDate) {
@@ -105,8 +105,8 @@ Deno.serve(async (req) => {
       const storeName = (row as any).seller_profiles?.business_name || "your store";
       const title = "⏰ Update order status";
       const body = itemLine
-        ? `Order #${orderRef} (${itemLine}) is still Accepted — tap to mark Preparing or advance.`
-        : `Order #${orderRef} is still Accepted — tap to mark Preparing or advance the status.`;
+        ? `Order #${orderRef} (${itemLine}) is still Accepted - tap to mark Preparing or advance.`
+        : `Order #${orderRef} is still Accepted - tap to mark Preparing or advance the status.`;
 
       const { error: insErr } = await supabase.from("notification_queue").insert({
         user_id: sellerUserId,

@@ -1,4 +1,4 @@
-/** Store-level packaging fee — once per seller in a multi-vendor cart. */
+/** Store-level packaging fee - once per seller in a multi-vendor cart. */
 
 export function resolveSellerPackagingFee(raw: unknown): number {
   const n = Number(raw);

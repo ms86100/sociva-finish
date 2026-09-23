@@ -171,7 +171,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Handle existing society validation — also rate-limited
+    // Handle existing society validation - also rate-limited
     const rlValidate = await checkRateLimit(`validate-society:${userId}`, 20, 60);
     if (!rlValidate.allowed) return rateLimitResponse(corsHeaders);
 

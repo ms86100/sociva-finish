@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { resolveStockSaveValues } from '@/lib/product-stock-form';
 
 describe('resolveStockSaveValues', () => {
-  it('keeps toggles independent — empty stock with tracking on is a validation error, not disabled', () => {
+  it('keeps toggles independent - empty stock with tracking on is a validation error, not disabled', () => {
     const result = resolveStockSaveValues({
       tracks_stock: true,
       stock_quantity: '',

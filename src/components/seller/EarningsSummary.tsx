@@ -12,7 +12,7 @@ interface EarningsSummaryProps {
   pending?: number;
   paidOut?: number;
   compact?: boolean;
-  /** When true, numbers are portfolio-summed — must stay labeled. */
+  /** When true, numbers are portfolio-summed - must stay labeled. */
   allStores?: boolean;
   kpiError?: boolean;
   financeError?: boolean;
@@ -87,7 +87,7 @@ export function EarningsSummary({
           <ChevronRight className="text-muted-foreground" size={18} />
         </div>
         <p className="text-[10px] text-muted-foreground mb-3">
-          Completed sales after refunds — not money you can withdraw yet.
+          Completed sales after refunds - not money you can withdraw yet.
         </p>
         {kpiError ? (
           <p className={cn('text-sm text-destructive mb-3')}>Sales totals could not be loaded.</p>

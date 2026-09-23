@@ -23,7 +23,7 @@ BEGIN
   LIMIT 1;
 
   IF v_worker_secret IS NULL OR length(v_worker_secret) < 32 THEN
-    RAISE WARNING 'fn_invoke_notification_worker: pnq_worker_secret missing — skip wake';
+    RAISE WARNING 'fn_invoke_notification_worker: pnq_worker_secret missing - skip wake';
     RETURN;
   END IF;
 

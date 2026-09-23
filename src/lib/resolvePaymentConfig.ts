@@ -1,7 +1,7 @@
 // @ts-nocheck
 /**
  * Canonical resolver for seller payment configuration per fulfillment type.
- * Used by cart, checkout, settings, and admin — single source of truth.
+ * Used by cart, checkout, settings, and admin - single source of truth.
  */
 
 export interface PaymentConfig {
@@ -60,10 +60,10 @@ export function resolvePaymentConfig(
   if (config) {
     const configOnline = config.accepts_online ?? false;
     if (paymentMode.isRazorpay) {
-      // Razorpay is infra-level — if config says online, it's available
+      // Razorpay is infra-level - if config says online, it's available
       acceptsOnline = configOnline;
     } else {
-      // UPI deep link — requires accepts_upi + a UPI ID + upi_verification_status === 'valid'
+      // UPI deep link - requires accepts_upi + a UPI ID + upi_verification_status === 'valid'
       acceptsOnline =
         configOnline &&
         !!(seller.accepts_upi) &&

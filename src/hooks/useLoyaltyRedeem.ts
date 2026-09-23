@@ -7,7 +7,7 @@ import { useFinancialCapabilities } from '@/hooks/useFinancialCapabilities';
 import { toast } from 'sonner';
 
 /**
- * Phase 1 platform-funded loyalty — client is display/quote only.
+ * Phase 1 platform-funded loyalty - client is display/quote only.
  * Authoritative redeem happens inside create_multi_vendor_orders (_loyalty_points).
  */
 export function useLoyaltyRedeem() {
@@ -91,9 +91,9 @@ export function useLoyaltyRedeem() {
     setAppliedPoints(max);
   }, [appliedPoints, refreshQuote, redeemEnabled]);
 
-  /** @deprecated Redemption is server-side at checkout — kept as no-op for call-site safety */
+  /** @deprecated Redemption is server-side at checkout - kept as no-op for call-site safety */
   const redeemPoints = useCallback(async (_points: number, _orderId: string) => {
-    console.warn('[Loyalty] redeemPoints is deprecated — checkout RPC applies loyalty');
+    console.warn('[Loyalty] redeemPoints is deprecated - checkout RPC applies loyalty');
   }, []);
 
   const releaseForOrders = useCallback(async (orderIds: string[]) => {

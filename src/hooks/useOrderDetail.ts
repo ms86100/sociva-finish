@@ -135,7 +135,7 @@ export function useOrderDetail(id: string | undefined) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasAutoCancelAt, order?.status, order?.auto_cancel_at, flow, urgencyTick]);
 
-  /** Seller response window already passed — Accept must be blocked (server also enforces). */
+  /** Seller response window already passed - Accept must be blocked (server also enforces). */
   const isAcceptanceExpired = useMemo(() => {
     return isOrderAcceptanceExpired(order?.auto_cancel_at, order?.status);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -242,7 +242,7 @@ export function useOrderDetail(id: string | undefined) {
     }
   };
 
-  // Realtime subscription — invalidates cache instead of manual fetch
+  // Realtime subscription - invalidates cache instead of manual fetch
   useEffect(() => {
     if (!id) return;
     const channel = supabase.channel(`order-${id}`)
@@ -264,7 +264,7 @@ export function useOrderDetail(id: string | undefined) {
     };
   }, [id]);
 
-  // Heartbeat polling only for active orders — sparse safety net (realtime is primary).
+  // Heartbeat polling only for active orders - sparse safety net (realtime is primary).
   // Capped at 20 beats (~30 min) to avoid indefinite polling on stuck payment_pending orders.
   useEffect(() => {
     if (!id || !order || isTerminalStatus(flow, order.status)) return;
@@ -335,7 +335,7 @@ export function useOrderDetail(id: string | undefined) {
         _new_status: newStatus,
       });
       if (error) throw error;
-      // Optimistic update — immediately reflect in UI
+      // Optimistic update - immediately reflect in UI
       queryClient.setQueryData(['order-detail', id], (old: any) =>
         old ? { ...old, order: { ...old.order, status: newStatus } } : old
       );
@@ -360,7 +360,7 @@ export function useOrderDetail(id: string | undefined) {
       isAcceptanceExpired &&
       ['accepted', 'confirmed', 'scheduled', 'preparing'].includes(newStatus)
     ) {
-      toast.error('Response time expired — this order can no longer be accepted', {
+      toast.error('Response time expired - this order can no longer be accepted', {
         id: `order-${order.id}-expired`,
       });
       invalidateOrder();
@@ -382,9 +382,9 @@ export function useOrderDetail(id: string | undefined) {
           _rejection_reason: rejectionReason || null,
         });
         if (error) throw error;
-        // Prefer server-confirmed status — do not optimistic-succeed without RPC confirmation
+        // Prefer server-confirmed status - do not optimistic-succeed without RPC confirmation
         if (!data) {
-          throw new Error('Order status was not updated — refresh and retry');
+          throw new Error('Order status was not updated - refresh and retry');
         }
         confirmedStatus = data as OrderStatus;
       } else {
@@ -424,9 +424,9 @@ export function useOrderDetail(id: string | undefined) {
 
       if (errMsg.includes('Delivery OTP verification required') || errMsg.includes('otp')) {
         window.dispatchEvent(new CustomEvent('delivery-otp-required', { detail: { orderId: order.id } }));
-        toast.info('OTP verification required — please enter the delivery code', { id: `order-${order.id}-otp` });
+        toast.info('OTP verification required - please enter the delivery code', { id: `order-${order.id}-otp` });
       } else if (/response time expired|can no longer be accepted/i.test(errMsg)) {
-        toast.error('Response time expired — this order can no longer be accepted', { id: `order-${order.id}-expired` });
+        toast.error('Response time expired - this order can no longer be accepted', { id: `order-${order.id}-expired` });
         invalidateOrder();
       } else {
         toast.error(
@@ -435,7 +435,7 @@ export function useOrderDetail(id: string | undefined) {
             : errMsg.includes('Not authorized')
               ? 'You are not authorized to perform this action'
               : errMsg.includes('concurrently') || errMsg.includes('40001')
-                ? 'Order changed — refresh and try again'
+                ? 'Order changed - refresh and try again'
                 : errMsg.includes('notification_queue')
                   ? 'Order updated, but notification delivery failed. Retrying in the background.'
                   : `Failed to update order: ${errMsg || 'Unknown error'}`,

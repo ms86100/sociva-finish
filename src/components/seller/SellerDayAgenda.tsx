@@ -84,7 +84,7 @@ export function SellerDayAgenda({ sellerId }: SellerDayAgendaProps) {
                       {booking.start_time?.slice(0, 5)}
                     </span>
                     <span className="text-[10px] text-muted-foreground">
-                      – {booking.end_time?.slice(0, 5)}
+                      - {booking.end_time?.slice(0, 5)}
                     </span>
                     <Badge variant="secondary" className={cn('text-[9px] h-4 ml-auto', getFlowLabel(booking.status).color)}>
                       {getFlowLabel(booking.status).label}

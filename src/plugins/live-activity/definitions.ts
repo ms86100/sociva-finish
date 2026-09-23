@@ -22,7 +22,7 @@ export interface LiveActivityData {
   vehicle_type: string | null;
   /** Human-readable progress stage, e.g. "Preparing → Picked Up → On the way" */
   progress_stage: string | null;
-  /** 0.0–1.0 progress percentage for the animated bar */
+  /** 0.0-1.0 progress percentage for the animated bar */
   progress_percent: number | null;
   /** Seller / business display name */
   seller_name: string | null;

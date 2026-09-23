@@ -71,7 +71,7 @@ async function flushImpressions() {
       }
     } catch { /* analytics optional */ }
   } catch {
-    // Silent fail — analytics must never break UI
+    // Silent fail - analytics must never break UI
   }
 }
 

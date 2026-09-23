@@ -73,7 +73,7 @@ export function ParentGroupTabs({ activeGroup, onGroupChange, activeParentGroups
     );
   }
 
-  // Always horizontal scrollable chips — works for 1 or N groups
+  // Always horizontal scrollable chips - works for 1 or N groups
   const showAll = filteredGroups.length > 1 || festivalTabs.length > 0;
   const tabs: ParentGroupInfo[] = [
     ...(showAll ? [{ value: '__all__', label: 'All', icon: 'LayoutGrid', color: '', description: '', layoutType: 'ecommerce' as const }] : []),

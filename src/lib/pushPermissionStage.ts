@@ -21,7 +21,7 @@ function withTimeout(promise, ms) {
   ]);
 }
 
-/** Dynamic import of @capacitor/preferences — avoids top-level import on web. */
+/** Dynamic import of @capacitor/preferences - avoids top-level import on web. */
 async function getPrefs() {
   try {
     const { Preferences } = await import('@capacitor/preferences');
@@ -50,7 +50,7 @@ export async function setPushStage(stage: PushStage): Promise<void> {
   try {
     const prefs = await getPrefs();
     if (!prefs) return;
-    // Preferences has hung on device builds — never block Enable Notifications.
+    // Preferences has hung on device builds - never block Enable Notifications.
     await withTimeout(prefs.set({ key: KEY, value: stage }), PREFS_TIMEOUT_MS);
   } catch (e) {
     console.warn('[PushStage] Failed to save stage:', e);

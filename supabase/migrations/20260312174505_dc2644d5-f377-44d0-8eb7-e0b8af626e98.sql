@@ -1,5 +1,5 @@
 
--- Phase A: Fix products SELECT RLS — remove society-equality gate
+-- Phase A: Fix products SELECT RLS - remove society-equality gate
 -- Allow any authenticated user to see approved products from approved sellers
 DROP POLICY IF EXISTS "Anyone can view available products from approved sellers" ON public.products;
 
@@ -24,7 +24,7 @@ USING (
   OR is_admin(auth.uid())
 );
 
--- Phase A: Rewrite search_sellers_by_location — remove society-equality gate
+-- Phase A: Rewrite search_sellers_by_location - remove society-equality gate
 -- Rely on coordinate/radius + sell_beyond for society-resident sellers
 CREATE OR REPLACE FUNCTION public.search_sellers_by_location(
   _lat double precision,
@@ -87,7 +87,7 @@ BEGIN
     -- Bounding box pre-filter
     AND COALESCE(sp.latitude, s.latitude::double precision) BETWEEN (_lat - _box_delta) AND (_lat + _box_delta)
     AND COALESCE(sp.longitude, s.longitude::double precision) BETWEEN (_lng - _box_delta) AND (_lng + _box_delta)
-    -- Precise haversine — use minimum of search radius and seller delivery radius
+    -- Precise haversine - use minimum of search radius and seller delivery radius
     AND public.haversine_km(_lat, _lng,
         COALESCE(sp.latitude, s.latitude::double precision),
         COALESCE(sp.longitude, s.longitude::double precision)

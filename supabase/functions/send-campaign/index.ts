@@ -309,7 +309,7 @@ Deno.serve(async (req) => {
 
     if (!roleRow) {
       return new Response(
-        JSON.stringify({ error: "Forbidden — admin role required" }),
+        JSON.stringify({ error: "Forbidden - admin role required" }),
         { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -335,7 +335,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    // campaigns.society_id is NOT NULL — prefer target society, else sender profile, else first active society.
+    // campaigns.society_id is NOT NULL - prefer target society, else sender profile, else first active society.
     let campaignSocietyId = societyId;
     if (!campaignSocietyId) {
       const { data: senderProfile } = await adminClient
@@ -362,7 +362,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    // ── Query device tokens (paginated) — shared by dry_run and send ──
+    // ── Query device tokens (paginated) - shared by dry_run and send ──
     let allTokens: any[] = [];
     let from = 0;
     const pageSize = 1000;

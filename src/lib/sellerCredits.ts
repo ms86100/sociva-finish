@@ -1,5 +1,5 @@
 /**
- * Sociva Credits — prepaid seller→platform usage.
+ * Sociva Credits - prepaid seller→platform usage.
  * Never mix with seller payable (/seller/wallet) or customer payments.
  * Billing amounts come from Admin → Monetization. Do not hard-code rates here.
  */

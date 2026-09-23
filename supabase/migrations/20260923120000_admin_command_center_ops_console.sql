@@ -1,4 +1,4 @@
--- Admin Command Center ops console (staging only — do not apply to production yet).
+-- Admin Command Center ops console (staging only - do not apply to production yet).
 -- Patches filtered list RPCs for open/pending_any semantics and adds attention queue,
 -- growth snapshot, and reports list helpers.
 

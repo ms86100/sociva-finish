@@ -86,7 +86,7 @@ export function SocietyHealthDashboard() {
               <p className="text-sm font-bold">
                 {metrics.avgResponseHours !== null
                   ? metrics.avgResponseHours < 1 ? '<1h' : `${metrics.avgResponseHours}h`
-                  : '—'}
+                  : '-'}
               </p>
               <p className="text-[9px] text-muted-foreground">Avg Response</p>
             </div>
@@ -95,7 +95,7 @@ export function SocietyHealthDashboard() {
             <div className="p-3 text-center">
               <ShieldCheck size={14} className="mx-auto text-success mb-1" />
               <p className="text-sm font-bold">
-                {disputeRate !== null ? `${disputeRate}%` : '—'}
+                {disputeRate !== null ? `${disputeRate}%` : '-'}
               </p>
               <p className="text-[9px] text-muted-foreground">Resolved</p>
             </div>

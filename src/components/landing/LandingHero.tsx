@@ -40,7 +40,7 @@ export function LandingHero() {
           </h1>
 
           <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-10 leading-relaxed">
-            Home-cooked meals, trusted tutors, skilled handymen — the best things in your society aren't on any delivery app. {platformName} brings them to your doorstep.
+            Home-cooked meals, trusted tutors, skilled handymen - the best things in your society aren't on any delivery app. {platformName} brings them to your doorstep.
           </p>
 
           <motion.div

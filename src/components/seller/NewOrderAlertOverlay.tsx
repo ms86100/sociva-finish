@@ -227,7 +227,7 @@ export function NewOrderAlertOverlay({ orders, onDismiss, onDismissAll, onSnooze
                     <p className={`text-[11px] mt-1 ${buyerLocation.outsideRadius ? 'text-destructive font-medium' : 'text-muted-foreground'}`}>
                       {buyerLocation.distanceLabel}
                       {buyerLocation.outsideRadius && buyerLocation.radiusKm != null
-                        ? ` — outside your ${buyerLocation.radiusKm} km radius. Reject if this is not your area.`
+                        ? ` - outside your ${buyerLocation.radiusKm} km radius. Reject if this is not your area.`
                         : ''}
                     </p>
                   )}
@@ -239,7 +239,7 @@ export function NewOrderAlertOverlay({ orders, onDismiss, onDismissAll, onSnooze
                   : order.status === 'preparing'
                   ? 'This order was auto-accepted. Start preparing!'
                   : queueCount > 1
-                    ? `${queueCount} orders waiting — tap to view this one`
+                    ? `${queueCount} orders waiting - tap to view this one`
                     : 'Check the buyer location, then accept or reject'}
               </p>
             </div>

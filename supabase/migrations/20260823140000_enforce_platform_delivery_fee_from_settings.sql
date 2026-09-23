@@ -74,7 +74,7 @@ $a$;
     return json_build_object('success', false, 'error', 'unauthorized');
   end if;
 
-  -- P0: never trust client delivery fee — resolve from admin system_settings
+  -- P0: never trust client delivery fee - resolve from admin system_settings
   _delivery_fee := public.resolve_platform_delivery_fee(
     coalesce(_fulfillment_type, 'delivery'),
     _seller_groups

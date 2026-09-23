@@ -1,5 +1,5 @@
 /**
- * Delivery tracking geometry — snap, interpolate, and pose a vehicle
+ * Delivery tracking geometry - snap, interpolate, and pose a vehicle
  * along decoded route coordinates (never linear lat/lng teleport).
  */
 
@@ -43,7 +43,7 @@ export function haversineMeters(a: LatLng, b: LatLng): number {
   return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
 }
 
-/** Bearing in degrees clockwise from north (0–360). */
+/** Bearing in degrees clockwise from north (0-360). */
 export function bearingDegrees(from: LatLng, to: LatLng): number {
   const toRad = (d: number) => (d * Math.PI) / 180;
   const φ1 = toRad(from.lat);
@@ -252,7 +252,7 @@ export function nextDisplayDistance(args: {
 
   if (delta < 0 && Math.abs(delta) < BACKWARD_IGNORE_METERS) return display;
   if (delta <= 0) {
-    // Genuine reroute / backtrack — ease back slowly
+    // Genuine reroute / backtrack - ease back slowly
     const step = Math.min(Math.abs(delta), (Math.abs(delta) / Math.max(durationMs, 1)) * dtMs);
     return Math.max(0, display - step);
   }

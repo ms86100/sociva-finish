@@ -184,7 +184,7 @@ export default function ProfileEditPage() {
         }).eq('id', user.id);
         await refreshProfile();
       } catch {
-        // Non-critical — don't block address save
+        // Non-critical - don't block address save
       }
     }
 
@@ -313,7 +313,7 @@ export default function ProfileEditPage() {
 
   const handleAddNew = () => {
     const defaults: any = {};
-    // Prefer marketplace browse pin (checkout / discovery) over society HQ —
+    // Prefer marketplace browse pin (checkout / discovery) over society HQ -
     // Apple Review society may be Mountain View while buyer browses Shriram.
     const fromBrowse = seedFromBrowsingLocation(browsingLocation);
     if (fromBrowse) {
@@ -409,7 +409,7 @@ export default function ProfileEditPage() {
           <div className="mx-4 mt-3 rounded-xl border border-border bg-muted/40 px-3 py-2.5">
             <p className="text-xs font-medium text-foreground">Almost there</p>
             <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">
-              Add your delivery address once — we&apos;ll link your society from that location. Then add your name.
+              Add your delivery address once - we&apos;ll link your society from that location. Then add your name.
             </p>
           </div>
         )}

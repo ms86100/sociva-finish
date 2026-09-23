@@ -292,15 +292,15 @@ export async function completeStep1Intent(
     if (await tryContinue()) return;
   }
 
-  throw new Error('Could not complete Step 1 — no free category available for this seller');
+  throw new Error('Could not complete Step 1 - no free category available for this seller');
 }
 
-/** Step 2 — pick first subcategory and continue. */
+/** Step 2 - pick first subcategory and continue. */
 export async function completeStep2Subcategory(page: Page) {
   await dismissOpenDialogs(page);
   await expect(page.getByText(/Pick a subcategory/i).first()).toBeVisible({ timeout: 15_000 });
 
-  // Subcategory grid buttons (2-col) — click first visible option like "Facial"
+  // Subcategory grid buttons (2-col) - click first visible option like "Facial"
   const gridBtn = page.locator('div.grid button[type="button"]').first();
   await expect(gridBtn).toBeVisible({ timeout: 10_000 });
   await gridBtn.click();
@@ -319,7 +319,7 @@ export async function completeStep2Subcategory(page: Page) {
     throw new Error(`Step 2 continue did not reach listing. URL=${page.url()} body=${(await page.locator('h1').first().textContent().catch(() => ''))}`);
   }
   if (await page.getByText(/Unable to load your store/i).isVisible({ timeout: 500 }).catch(() => false)) {
-    throw new Error('Draft seller id missing after step 2 — store draft was not persisted');
+    throw new Error('Draft seller id missing after step 2 - store draft was not persisted');
   }
 }
 
@@ -369,7 +369,7 @@ export async function fillStoreNameAndSubmit(page: Page, storeName: string) {
   // Navigate to store step if on listing
   const toStore = page.getByRole('button', { name: /Continue to store name/i }).first();
   if (await toStore.isVisible({ timeout: 3_000 }).catch(() => false)) {
-    // Need at least one product — DraftProductManager may have seeded one
+    // Need at least one product - DraftProductManager may have seeded one
     await toStore.click();
     await page.waitForTimeout(1500);
   }

@@ -1,4 +1,4 @@
-/** Client/server checkout guard messages — keep in sync with create_multi_vendor_orders errors. */
+/** Client/server checkout guard messages - keep in sync with create_multi_vendor_orders errors. */
 
 export const BUYER_SOCIETY_REQUIRED_MSG =
   'Link your account to a society in Profile settings before placing an order.';
@@ -45,7 +45,7 @@ export function assertBuyerCanCheckout(opts: {
   fulfillmentType: 'delivery' | 'self_pickup';
   hasDeliveryAddress: boolean;
   hasPreciseDeliveryCoords: boolean;
-  /** Saved address with flat/house number — required for delivery (not browse pin alone). */
+  /** Saved address with flat/house number - required for delivery (not browse pin alone). */
   hasDeliveryUnitDetail?: boolean;
 }): string | null {
   if (!opts.profileSocietyId) {

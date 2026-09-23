@@ -119,7 +119,7 @@ serve(async (req) => {
       console.warn('Client sellerId mismatch; using order seller_id', { sellerId, resolvedSellerId });
     }
 
-    // Amount from DB only — never trust client-supplied amount
+    // Amount from DB only - never trust client-supplied amount
     const dbAmount = orders.reduce((sum: number, o: any) => sum + Number(o.total_amount || 0), 0);
     if (dbAmount <= 0) {
       return new Response(
@@ -182,7 +182,7 @@ serve(async (req) => {
               { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
             );
           }
-          console.log('Existing Razorpay order', existingRzpId, 'not reusable — creating new one');
+          console.log('Existing Razorpay order', existingRzpId, 'not reusable - creating new one');
         }
       } catch (e) {
         console.warn('Failed to fetch existing Razorpay order, creating new one:', e);

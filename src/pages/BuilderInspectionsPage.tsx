@@ -160,7 +160,7 @@ export default function BuilderInspectionsPage() {
       <Drawer open={!!selectedChecklist} onOpenChange={(open) => { if (!open) setSelectedChecklist(null); }}>
         <DrawerContent className="max-h-[85vh] overflow-y-auto">
           <DrawerHeader>
-            <DrawerTitle>Inspection – Flat {selectedChecklist?.flat_number}</DrawerTitle>
+            <DrawerTitle>Inspection - Flat {selectedChecklist?.flat_number}</DrawerTitle>
           </DrawerHeader>
           {selectedChecklist && (
             <div className="mt-4 space-y-4">

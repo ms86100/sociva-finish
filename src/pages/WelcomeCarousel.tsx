@@ -118,7 +118,7 @@ export default function WelcomeCarousel() {
           transition={{ delay: 0.35, duration: 0.4 }}
           className="text-muted-foreground text-base leading-relaxed mb-8 px-2"
         >
-          Home-cooked meals, trusted tutors, skilled handymen — the best things in your society aren't on any delivery app. Until now.
+          Home-cooked meals, trusted tutors, skilled handymen - the best things in your society aren't on any delivery app. Until now.
         </motion.p>
 
         <motion.div
@@ -168,8 +168,8 @@ export default function WelcomeCarousel() {
 
         <div className="space-y-3">
           {[
-            { icon: MapPin, title: 'GPS-Verified Residents', desc: 'Proof of residence at signup — no faking it' },
-            { icon: Lock, title: 'Gated Community, Gated App', desc: 'Society code required — your world stays private' },
+            { icon: MapPin, title: 'GPS-Verified Residents', desc: 'Proof of residence at signup - no faking it' },
+            { icon: Lock, title: 'Gated Community, Gated App', desc: 'Society code required - your world stays private' },
             { icon: BadgeCheck, title: 'Reputation You Can See', desc: 'Trust scores built from real neighbor interactions' },
           ].map(({ icon: Icon, title, desc }) => (
             <div key={title} className="flex items-start gap-3.5 bg-card/80 backdrop-blur-sm p-4 rounded-2xl border border-border">
@@ -195,7 +195,7 @@ export default function WelcomeCarousel() {
         <h2 className="text-3xl font-extrabold mb-2 text-foreground leading-tight">
           The Best Things Were<br />Always Next Door
         </h2>
-        <p className="text-muted-foreground text-sm mb-6">Homemade pickles, birthday cakes, AC repairs, yoga classes — all from people who live where you live.</p>
+        <p className="text-muted-foreground text-sm mb-6">Homemade pickles, birthday cakes, AC repairs, yoga classes - all from people who live where you live.</p>
 
         <div className="grid grid-cols-2 gap-3">
           {displayGroups.map(({ icon: Icon, title, desc, color }) => (
@@ -228,15 +228,15 @@ export default function WelcomeCarousel() {
           Your Skill Deserves<br /><span className="text-primary">An Audience.</span>
         </h2>
         <p className="text-muted-foreground text-sm mb-7 leading-relaxed">
-          You cook, bake, teach, repair, or create something wonderful. Your neighbors just don't know yet. Give your talent a storefront — zero commission, zero risk.
+          You cook, bake, teach, repair, or create something wonderful. Your neighbors just don't know yet. Give your talent a storefront - zero commission, zero risk.
         </p>
 
         <div className="space-y-3 mb-7">
           {[
-            { icon: Sparkles, text: 'Zero commission — you keep every rupee' },
+            { icon: Sparkles, text: 'Zero commission - you keep every rupee' },
             { icon: Clock, text: 'Set up in 2 minutes, start earning today' },
             { icon: Heart, text: 'Repeat customers who live in your building' },
-            { icon: CheckCircle2, text: 'Orders, payments, reviews — all handled' },
+            { icon: CheckCircle2, text: 'Orders, payments, reviews - all handled' },
           ].map(({ icon: Icon, text }) => (
             <div key={text} className="flex items-center gap-3">
               <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
@@ -272,7 +272,7 @@ export default function WelcomeCarousel() {
             ))}
           </div>
           <p className="text-sm text-foreground leading-relaxed italic mb-4">
-            "My son is allergic to nuts. Mrs. Patel makes his tiffin every day — she knows exactly what to avoid. No Swiggy filter can replace a neighbor who cares."
+            "My son is allergic to nuts. Mrs. Patel makes his tiffin every day - she knows exactly what to avoid. No Swiggy filter can replace a neighbor who cares."
           </p>
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center">
@@ -288,17 +288,17 @@ export default function WelcomeCarousel() {
         {/* Live Stats */}
         <div className="flex justify-around bg-card rounded-2xl p-4 border border-border mb-6">
           <div className="text-center">
-            <p className="text-2xl font-bold text-primary tabular-nums">{stats.societies > 0 ? `${stats.societies}+` : '—'}</p>
+            <p className="text-2xl font-bold text-primary tabular-nums">{stats.societies > 0 ? `${stats.societies}+` : '-'}</p>
             <p className="text-[10px] text-muted-foreground font-medium mt-0.5">Societies</p>
           </div>
           <div className="w-px bg-border" />
           <div className="text-center">
-            <p className="text-2xl font-bold text-primary tabular-nums">{stats.sellers > 0 ? `${stats.sellers}+` : '—'}</p>
+            <p className="text-2xl font-bold text-primary tabular-nums">{stats.sellers > 0 ? `${stats.sellers}+` : '-'}</p>
             <p className="text-[10px] text-muted-foreground font-medium mt-0.5">Verified Sellers</p>
           </div>
           <div className="w-px bg-border" />
           <div className="text-center">
-            <p className="text-2xl font-bold text-primary tabular-nums">{stats.orders > 0 ? `${stats.orders}+` : '—'}</p>
+            <p className="text-2xl font-bold text-primary tabular-nums">{stats.orders > 0 ? `${stats.orders}+` : '-'}</p>
             <p className="text-[10px] text-muted-foreground font-medium mt-0.5">Orders Placed</p>
           </div>
         </div>

@@ -589,9 +589,9 @@ export function AdminBannerManager() {
         return !row || Number(row.product_count) === 0;
       }).length;
       if (emptyCount > 0 && emptyCount < form.sections.length) {
-        adminNotify.info('Some sections are empty — they will stay hidden until sellers add matching products');
+        adminNotify.info('Some sections are empty - they will stay hidden until sellers add matching products');
       } else if (emptyCount === form.sections.length) {
-        adminNotify.warning('All sections are currently empty — the festival will stay hidden until inventory appears');
+        adminNotify.warning('All sections are currently empty - the festival will stay hidden until inventory appears');
       }
     }
     saveMutation.mutate(form);
@@ -1155,7 +1155,7 @@ export function AdminBannerManager() {
                             if (count === 0) {
                               return (
                                 <div className="flex items-center gap-1.5 text-[10px] text-amber-600">
-                                  <CircleAlert size={11} /> 0 products · 0 sellers — section will stay hidden until inventory appears
+                                  <CircleAlert size={11} /> 0 products · 0 sellers - section will stay hidden until inventory appears
                                 </div>
                               );
                             }
@@ -1223,12 +1223,12 @@ export function AdminBannerManager() {
                       <Label className="text-xs font-semibold">Target Societies</Label>
                       <p className="text-[10px] text-muted-foreground">
                         {form.target_society_ids.length === 0
-                          ? 'Global — visible to all societies'
+                          ? 'Global - visible to all societies'
                           : (() => {
                               const selected = allSocieties.filter((s: any) => form.target_society_ids.includes(s.id));
                               const buyers = selected.reduce((n: number, s: any) => n + (s.buyer_count || 0), 0);
                               const sellers = selected.reduce((n: number, s: any) => n + (s.seller_count || 0), 0);
-                              return `${form.target_society_ids.length} society(ies) · audience buyer — ${buyers} · seller — ${sellers}`;
+                              return `${form.target_society_ids.length} society(ies) · audience buyer - ${buyers} · seller - ${sellers}`;
                             })()}
                       </p>
                     </div>
@@ -1316,7 +1316,7 @@ export function AdminBannerManager() {
                             )}
                           </div>
                           <p className="text-[10px] text-muted-foreground mt-0.5">
-                            buyer — {s.buyer_count} · seller — {s.seller_count}
+                            buyer - {s.buyer_count} · seller - {s.seller_count}
                             {s.builder_name ? ` · ${s.builder_name}` : ''}
                           </p>
                         </div>
@@ -1331,7 +1331,7 @@ export function AdminBannerManager() {
                     )}
                     {!societiesLoading && allSocieties.length > 0 && allSocieties.every((s: any) => s.is_test) && !societySearch.trim() && (
                       <p className="text-[10px] text-amber-700 dark:text-amber-400 text-center py-1.5 px-1 border-t border-border/40 mt-1 pt-1.5">
-                        Only integration-test societies exist right now. Real societies were wiped by a test reset/seed — re-add them under Admin → Societies.
+                        Only integration-test societies exist right now. Real societies were wiped by a test reset/seed - re-add them under Admin → Societies.
                       </p>
                     )}
                   </div>
@@ -1439,7 +1439,7 @@ export function AdminBannerManager() {
                   )}
                   {!form.title.trim() && (
                     <div className="p-3 rounded-xl bg-destructive/10 border border-destructive/20">
-                      <p className="text-xs text-destructive font-semibold">⚠️ Title is empty — go back to add one.</p>
+                      <p className="text-xs text-destructive font-semibold">⚠️ Title is empty - go back to add one.</p>
                     </div>
                   )}
                 </div>

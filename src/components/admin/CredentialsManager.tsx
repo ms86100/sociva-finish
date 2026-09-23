@@ -39,7 +39,7 @@ const CREDENTIAL_TABS = [
       { key: 'razorpay_key_id', label: 'Razorpay Key ID', description: 'Public key for UPI/card payments via Razorpay', placeholder: 'rzp_live_...' },
       { key: 'razorpay_key_secret', label: 'Razorpay Key Secret', description: 'Secret key for payment verification (keep private)', placeholder: 'Your secret key' },
       { key: 'razorpay_webhook_secret', label: 'Razorpay Webhook Secret', description: 'HMAC secret from Razorpay Dashboard → Webhooks (not the API key secret)', placeholder: 'whsec_...' },
-      { key: 'razorpay_route_enabled', label: 'Razorpay Route Payouts', description: 'Enable only after seller linked accounts exist. When false, settlements stay Eligible (owed) — never auto-marked paid out.', placeholder: 'false', isToggle: true },
+      { key: 'razorpay_route_enabled', label: 'Razorpay Route Payouts', description: 'Enable only after seller linked accounts exist. When false, settlements stay Eligible (owed) - never auto-marked paid out.', placeholder: 'false', isToggle: true },
     ] as (CredentialConfig & { isToggle?: boolean })[],
   },
   {
@@ -122,7 +122,7 @@ export function CredentialsManager() {
           };
         });
       } else {
-        // P0: never SELECT raw admin_settings.value — meta RPC is required
+        // P0: never SELECT raw admin_settings.value - meta RPC is required
         console.error('get_admin_credential_meta failed', error);
         adminNotify.error('Credential settings could not be loaded safely. Secrets were not exposed.', { id: 'credential-meta-unavailable' });
         rows = [];
@@ -316,7 +316,7 @@ export function CredentialsManager() {
       );
     }
 
-    // Razorpay Route payouts gate (default off — settled only after real transfer id)
+    // Razorpay Route payouts gate (default off - settled only after real transfer id)
     if (config.isToggle && config.key === 'razorpay_route_enabled') {
       const routeOn = setting?.is_active === true && String(setting?.value || '').toLowerCase() === 'true';
       return (
@@ -340,8 +340,8 @@ export function CredentialsManager() {
                     if (error) throw error;
                     adminNotify.success(
                       checked
-                        ? 'Route payouts ON — process-settlements will transfer only when sellers have razorpay_account_id'
-                        : 'Razorpay Route payouts off — settlements stay Eligible (owed)',
+                        ? 'Route payouts ON - process-settlements will transfer only when sellers have razorpay_account_id'
+                        : 'Razorpay Route payouts off - settlements stay Eligible (owed)',
                       { id: 'razorpay-route-updated', title: 'Route payout setting updated' },
                     );
                     await fetchSettings();
@@ -385,7 +385,7 @@ export function CredentialsManager() {
           </div>
         )}
         {isSecret && configuredKeys[config.key] && (
-          <p className="text-[11px] text-muted-foreground">Configured — enter a new value to rotate. Raw secrets are never shown.</p>
+          <p className="text-[11px] text-muted-foreground">Configured - enter a new value to rotate. Raw secrets are never shown.</p>
         )}
         <div className="flex gap-2">
           <div className="relative flex-1">
@@ -429,7 +429,7 @@ export function CredentialsManager() {
             Credentials Manager
           </CardTitle>
           <CardDescription className="text-xs">
-            Manage API keys and secrets for all third-party integrations. Secrets are write-only in this UI — edge functions still resolve raw values from the database.
+            Manage API keys and secrets for all third-party integrations. Secrets are write-only in this UI - edge functions still resolve raw values from the database.
           </CardDescription>
         </CardHeader>
         <CardContent>

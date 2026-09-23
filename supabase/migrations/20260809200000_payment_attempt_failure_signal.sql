@@ -7,7 +7,7 @@
 --
 -- Fix: two new nullable columns on orders that are updated by the webhook on
 -- every failed attempt. Realtime fires → frontend switches banner copy from
--- "Verifying payment..." to "Last payment attempt failed — retry or cancel."
+-- "Verifying payment..." to "Last payment attempt failed - retry or cancel."
 -- The order status stays payment_pending so the buyer can retry; the
 -- authoritative paid transition still comes from payment.captured / webhook.
 
@@ -18,7 +18,7 @@ ALTER TABLE public.orders
   ADD COLUMN IF NOT EXISTS last_payment_failed_at   TIMESTAMPTZ;
 
 -- Called by the webhook (service_role only) when payment.failed fires.
--- Only touches orders still in payment_pending — never overwrites a paid order.
+-- Only touches orders still in payment_pending - never overwrites a paid order.
 CREATE OR REPLACE FUNCTION public.record_payment_attempt_failure(
   p_order_ids          uuid[],
   p_failure_code       text,

@@ -121,7 +121,7 @@ export function useSellerStatusNudge(sellerIds: string[], paused: boolean) {
     void scheduleIncomingOrderLocalNotification({
       orderId: order.id,
       title: '⏰ Update order status',
-      body: 'Order is still Accepted — tap to mark Preparing or advance.',
+      body: 'Order is still Accepted - tap to mark Preparing or advance.',
       amount: order.total_amount,
     });
   }, []);
@@ -246,7 +246,7 @@ export function useSellerStatusNudge(sellerIds: string[], paused: boolean) {
 
   useEffect(() => () => stopBuzzing(), [stopBuzzing]);
 
-  // Same ack bus as incoming alerts — opening the order / tapping notification stops nudge ring
+  // Same ack bus as incoming alerts - opening the order / tapping notification stops nudge ring
   useEffect(() => {
     if (!sellerIds.length) return;
     const onAck = (event: Event) => {

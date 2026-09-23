@@ -110,7 +110,7 @@ const respond = async (entryId: string, approved: boolean) => {
       .eq('user_id', profile?.id);
 
     if (error) {
-      // RLS blocks updates after expiry — inform user
+      // RLS blocks updates after expiry - inform user
       if (error.code === '42501' || error.message?.includes('row-level security')) {
         toast.error('This entry has expired and can no longer be confirmed.');
       } else {

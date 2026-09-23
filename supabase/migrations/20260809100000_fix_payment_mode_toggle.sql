@@ -6,7 +6,7 @@
 -- should never go through the secret upsert path.
 --
 -- This migration adds a scoped RPC that only writes payment_gateway_mode and
--- razorpay_route_enabled — no vault, no secret handling.
+-- razorpay_route_enabled - no vault, no secret handling.
 
 BEGIN;
 

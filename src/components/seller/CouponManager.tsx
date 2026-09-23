@@ -182,7 +182,7 @@ export function CouponManager() {
     if (error) { toast.error('Failed to update coupon visibility'); return; }
     setCoupons(coupons.map(c => c.id === id ? { ...c, show_to_buyers: !current } : c));
     showFeedback({
-        title: !current ? 'Coupon now visible to buyers at checkout' : 'Coupon hidden — buyers must enter code manually',
+        title: !current ? 'Coupon now visible to buyers at checkout' : 'Coupon hidden - buyers must enter code manually',
         variant: 'success',
       });
   };

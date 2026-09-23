@@ -84,7 +84,7 @@ function PaginatedList<T>({
       {items.length > pageSize && (
         <div className="flex items-center justify-between gap-2 pt-1">
           <p className="text-[11px] text-muted-foreground">
-            {safePage * pageSize + 1}–{Math.min((safePage + 1) * pageSize, items.length)} of {items.length} {itemLabel}
+            {safePage * pageSize + 1}-{Math.min((safePage + 1) * pageSize, items.length)} of {items.length} {itemLabel}
           </p>
           <div className="flex gap-1">
             <Button type="button" size="sm" variant="outline" className="h-7 px-2" disabled={safePage <= 0} onClick={() => setPage((p) => Math.max(0, p - 1))}>
@@ -249,7 +249,7 @@ export default function AdminSellerCreditsPage() {
         isolatedCases: isolated?.cases,
       });
       if (runCert) {
-        toast.success(isolated?.ok ? 'Billing certification passed (10/10).' : 'Billing certification finished with failures — see checklist.');
+        toast.success(isolated?.ok ? 'Billing certification passed (10/10).' : 'Billing certification finished with failures - see checklist.');
         refresh();
       } else if (!silent && Boolean((verify.data as { ok?: boolean } | null)?.ok)) {
         toast.success('Live purchase proof refreshed.');
@@ -553,7 +553,7 @@ export default function AdminSellerCreditsPage() {
             <p className="text-sm font-semibold">Feature flags</p>
             <p className="text-xs text-muted-foreground">
               Purchase lets sellers buy credits via Razorpay. Spend/gating charges those credits on orders, enquiries, bookings, and contacts.
-              Spend is currently {spendOn ? 'ON' : 'OFF'} — marketplace selling is {spendOn ? 'credit-gated' : 'not blocked by credits'}.
+              Spend is currently {spendOn ? 'ON' : 'OFF'} - marketplace selling is {spendOn ? 'credit-gated' : 'not blocked by credits'}.
             </p>
             {flagsQuery.isError && (
               <p className="text-xs text-destructive">
@@ -585,7 +585,7 @@ export default function AdminSellerCreditsPage() {
             )}
             {spendOn && (
               <p className="text-xs text-destructive font-medium">
-                Spend is ON — sellers are credit-gated. Turn OFF unless you are running a controlled billing test.
+                Spend is ON - sellers are credit-gated. Turn OFF unless you are running a controlled billing test.
               </p>
             )}
             {!flagsQuery.data?.resolutionReady && (
@@ -625,11 +625,11 @@ export default function AdminSellerCreditsPage() {
                         : item.status === 'blocked' ? 'text-muted-foreground'
                           : 'text-amber-700'
                   }>
-                    {item.status === 'pass' ? '✓' : item.status === 'fail' ? '✗' : item.status === 'blocked' ? '—' : '?'}
+                    {item.status === 'pass' ? '✓' : item.status === 'fail' ? '✗' : item.status === 'blocked' ? '-' : '?'}
                   </span>
                   <span>
                     {item.label}
-                    {item.detail ? ` — ${item.detail}` : ''}
+                    {item.detail ? ` - ${item.detail}` : ''}
                   </span>
                 </li>
               ))}
@@ -638,7 +638,7 @@ export default function AdminSellerCreditsPage() {
               <p className="text-xs text-amber-700">Spend enable is disabled until all checklist items pass.</p>
             )}
             {spendGoLiveReady && !spendOn && (
-              <p className="text-xs text-green-700">Checklist is green — you can turn Spend / gating ON in Feature flags.</p>
+              <p className="text-xs text-green-700">Checklist is green - you can turn Spend / gating ON in Feature flags.</p>
             )}
           </CardContent>
         </Card>
@@ -651,7 +651,7 @@ export default function AdminSellerCreditsPage() {
           <CardContent className="p-4 space-y-3">
             <p className="text-sm font-semibold">Billing rates</p>
             <p className="text-xs text-muted-foreground">
-              Who pays: the seller, in Sociva Credits (not the buyer, not seller earnings). When Spend is OFF, rates are stored for future use and nothing is charged — but stores still need credits to become discoverable.
+              Who pays: the seller, in Sociva Credits (not the buyer, not seller earnings). When Spend is OFF, rates are stored for future use and nothing is charged - but stores still need credits to become discoverable.
               Changing a rate applies to future events only. Existing reservations keep their snapshot.
             </p>
             <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Change reason" />
@@ -686,7 +686,7 @@ export default function AdminSellerCreditsPage() {
                   </div>
                   <p className="text-[11px] text-muted-foreground">{EVENT_EXPLAIN[rule.event_type]}</p>
                   <p className="text-[11px] text-muted-foreground">
-                    Last updated {rule.updated_at ? format(new Date(rule.updated_at), 'MMM d, yyyy · h:mm a') : '—'}
+                    Last updated {rule.updated_at ? format(new Date(rule.updated_at), 'MMM d, yyyy · h:mm a') : '-'}
                     {rule.updated_by ? ` · ${rule.updated_by}` : ''}
                   </p>
                 </div>
@@ -700,7 +700,7 @@ export default function AdminSellerCreditsPage() {
             <p className="text-sm font-semibold">Booking billing resolution</p>
             <p className="text-xs text-muted-foreground">
               Confirmed bookings reserve credits. Completed / delivered commits the snapshot. Cancelled / rejected / failed / seller failure releases.
-              After appointment + grace, unresolved bookings follow the unresolved policy. Buyer no-show follows the no-show policy. Disputes after commit use Admin reversal — not a second booking workflow.
+              After appointment + grace, unresolved bookings follow the unresolved policy. Buyer no-show follows the no-show policy. Disputes after commit use Admin reversal - not a second booking workflow.
             </p>
             <div className="flex items-center gap-2">
               <Input
@@ -787,11 +787,11 @@ export default function AdminSellerCreditsPage() {
               </Button>
             </div>
             <p className="text-[11px] text-muted-foreground">
-              Contact debounce: first call/message in this window is charged; repeats are not. Runtime reads this setting (1–168 hours).
+              Contact debounce: first call/message in this window is charged; repeats are not. Runtime reads this setting (1-168 hours).
             </p>
             <p className="text-[11px] text-muted-foreground">
               V1 system-controlled (not Admin-configurable): seller cancellation / seller failure always releases reserved credits.
-              Disputes after commit use Charge reversal below — not a second booking workflow.
+              Disputes after commit use Charge reversal below - not a second booking workflow.
             </p>
           </CardContent>
         </Card>
@@ -807,16 +807,16 @@ export default function AdminSellerCreditsPage() {
               <p className="text-xs font-medium">Buyer visibility (Spend / gating)</p>
               {!spendOn ? (
                 <p className="text-[11px] text-muted-foreground">
-                  Spend is OFF — sellers are not charged, but buyer discovery still requires available credits at or above the activation floor. Health labels below are seller-facing warnings only.
+                  Spend is OFF - sellers are not charged, but buyer discovery still requires available credits at or above the activation floor. Health labels below are seller-facing warnings only.
                 </p>
               ) : (
                 <>
                   <p className="text-[11px] text-muted-foreground">
-                    Spend is ON — products drop out of buyer discovery when available credits are ₹0 or below the activation floor
+                    Spend is ON - products drop out of buyer discovery when available credits are ₹0 or below the activation floor
                     {orderCompletedRule?.enabled
                       ? ` (currently ${formatPrice(discoveryActivationMin ?? 0)} from the enabled Order completed billing rate).`
                       : ' (any balance above ₹0 when Order completed billing is disabled).'}
-                    {' '}Health thresholds below are warnings only — they do not hide listings.
+                    {' '}Health thresholds below are warnings only - they do not hide listings.
                   </p>
                   <ul className="text-[11px] text-muted-foreground space-y-1 list-disc pl-4">
                     <li>
@@ -842,7 +842,7 @@ export default function AdminSellerCreditsPage() {
               <Input type="number" min="0" value={healthyMin || thresholdValue('healthy_min')} onChange={(e) => setHealthyMin(e.target.value)} placeholder="Healthy min" />
               <Button size="sm" variant="outline" onClick={() => saveThreshold('healthy_min', healthyMin, 'Healthy threshold')}>Save</Button>
             </div>
-            <p className="text-[11px] text-muted-foreground">Healthy min: available below this is Low (warning only — products stay visible).</p>
+            <p className="text-[11px] text-muted-foreground">Healthy min: available below this is Low (warning only - products stay visible).</p>
             <div className="flex items-center gap-2">
               <Input type="number" min="0" value={lowMin || thresholdValue('low_min')} onChange={(e) => setLowMin(e.target.value)} placeholder="Low/critical boundary" />
               <Button size="sm" variant="outline" onClick={() => saveThreshold('low_min', lowMin, 'Low/critical boundary')}>Save</Button>
@@ -852,7 +852,7 @@ export default function AdminSellerCreditsPage() {
               <Input type="number" min="0" value={criticalMin || thresholdValue('critical_min')} onChange={(e) => setCriticalMin(e.target.value)} placeholder="Critical max" />
               <Button size="sm" variant="outline" onClick={() => saveThreshold('critical_min', criticalMin, 'Critical threshold')}>Save</Button>
             </div>
-            <p className="text-[11px] text-muted-foreground">Critical max (`critical_min`): available at or below this (and above 0) is Critical (warning only — products stay visible).</p>
+            <p className="text-[11px] text-muted-foreground">Critical max (`critical_min`): available at or below this (and above 0) is Critical (warning only - products stay visible).</p>
           </CardContent>
         </Card>
         </AdminCreditTabPanel>
@@ -918,7 +918,7 @@ export default function AdminSellerCreditsPage() {
           <CardContent className="p-4 space-y-2">
             <p className="text-sm font-semibold">Unified financial timeline</p>
             <p className="text-xs text-muted-foreground">
-              Merged ledger movements and captured purchases across all stores — use this for financial audit.
+              Merged ledger movements and captured purchases across all stores - use this for financial audit.
             </p>
             <PaginatedList
               items={flagsQuery.data?.timeline || []}
@@ -977,7 +977,7 @@ export default function AdminSellerCreditsPage() {
                   <p>Purchase {row.id}</p>
                   <p>Paid {formatPrice(Number(row.amount) || 0)} · Credits {formatPrice(Number(row.credits_granted) || 0)} · {row.status}</p>
                   <p>{row.provider} · {row.provider_payment_id || 'no payment ref'} · {row.provider_order_id || 'no order ref'}</p>
-                  <p>Created {row.created_at ? format(new Date(row.created_at), 'MMM d, yyyy · h:mm a') : '—'}</p>
+                  <p>Created {row.created_at ? format(new Date(row.created_at), 'MMM d, yyyy · h:mm a') : '-'}</p>
                   {row.captured_at && <p>Confirmed {format(new Date(row.captured_at), 'MMM d, yyyy · h:mm a')}</p>}
                   {row.failure_reason && <p>Failed {row.failure_reason}</p>}
                   {row.status === 'captured' && (
@@ -1008,7 +1008,7 @@ export default function AdminSellerCreditsPage() {
           <CardContent className="p-4 space-y-3">
             <p className="text-sm font-semibold">Store lookup</p>
             <p className="text-xs text-muted-foreground">
-              Search by store name, seller phone, or id. Pick a store for adjustments and reversals — you do not need to copy UUIDs manually.
+              Search by store name, seller phone, or id. Pick a store for adjustments and reversals - you do not need to copy UUIDs manually.
             </p>
             <div className="relative">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -1105,7 +1105,7 @@ export default function AdminSellerCreditsPage() {
                 <p>Seller: {selectedReverseCharge?.business_name || reverseSeller}</p>
                 <p>Event: {reverseEvent} · Reference: {reverseRefType}/{reverseRefId}</p>
                 {selectedReverseCharge && (
-                  <p>Original charge: {formatPrice(Number(selectedReverseCharge.amount) || 0)} — a separate reversal ledger row will be added; the original charge stays.</p>
+                  <p>Original charge: {formatPrice(Number(selectedReverseCharge.amount) || 0)} - a separate reversal ledger row will be added; the original charge stays.</p>
                 )}
               </div>
             )}

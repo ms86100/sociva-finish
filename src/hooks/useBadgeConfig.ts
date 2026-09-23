@@ -15,7 +15,7 @@ export interface BadgeConfigRow {
 }
 
 /**
- * Fetches badge_config from DB — sorted by priority.
+ * Fetches badge_config from DB - sorted by priority.
  * Used by ProductListingCard to render badges purely from DB config.
  */
 export function useBadgeConfig() {
@@ -26,7 +26,7 @@ export function useBadgeConfig() {
       const { badgeConfigRows } = await loadAppBootstrap();
       return badgeConfigRows as BadgeConfigRow[];
     },
-    staleTime: 30 * 60 * 1000, // 30 min — badge config is near-static
+    staleTime: 30 * 60 * 1000, // 30 min - badge config is near-static
   });
 
 

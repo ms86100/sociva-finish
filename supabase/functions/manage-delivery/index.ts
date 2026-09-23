@@ -154,7 +154,7 @@ async function handleAssign(req: Request, db: any, userId: string) {
   }
   const isReassign = assignment.status === 'assigned';
 
-  // Bug 10 fix: Authorization — only the order's seller, a society admin, or platform admin can assign
+  // Bug 10 fix: Authorization - only the order's seller, a society admin, or platform admin can assign
   const { data: order } = await db.from('orders').select('seller_id').eq('id', assignment.order_id).single();
   if (!order) return jsonResponse({ error: 'Order not found' }, 404);
 
@@ -298,7 +298,7 @@ async function handleUpdateStatus(req: Request, db: any, userId: string) {
 
   const updateData: Record<string, any> = { status };
 
-  // Bug 3 fix: Check if the NEXT step in the workflow requires OTP — generate OTP dynamically
+  // Bug 3 fix: Check if the NEXT step in the workflow requires OTP - generate OTP dynamically
   const { data: nextFlowStep } = await db
     .from('category_status_flows')
     .select('requires_otp')
@@ -508,7 +508,7 @@ async function handleComplete(req: Request, db: any, userId: string) {
     return jsonResponse({ error: 'Assignment not in deliverable status' }, 400);
   }
 
-  // Bug 11 fix: Authorization — only the assigned rider, seller, or buyer can complete
+  // Bug 11 fix: Authorization - only the assigned rider, seller, or buyer can complete
   const { data: order } = await db.from('orders').select('seller_id, buyer_id').eq('id', assignment.order_id).single();
   if (!order) return jsonResponse({ error: 'Order not found' }, 404);
 
@@ -624,7 +624,7 @@ async function handleWebhook(req: Request, db: any) {
   } else {
     // DELIVERY-01 FIX: Reject webhooks entirely when no secret is configured
     // This prevents unauthenticated delivery status manipulation in production
-    console.error('3PL webhook secret not configured — rejecting webhook');
+    console.error('3PL webhook secret not configured - rejecting webhook');
     return jsonResponse({ error: 'Webhook authentication not configured' }, 503);
   }
 
@@ -653,13 +653,13 @@ async function handleWebhook(req: Request, db: any) {
   if (rider_name) updateData.rider_name = rider_name;
   if (rider_phone) updateData.rider_phone = rider_phone;
 
-  // Bug 12 fix: Map 3PL 'delivered' to 'at_gate' — require OTP for final confirmation
+  // Bug 12 fix: Map 3PL 'delivered' to 'at_gate' - require OTP for final confirmation
   const statusMap: Record<string, string> = {
     'assigned': 'assigned',
     'picked_up': 'picked_up',
     'in_transit': 'picked_up',
     'arrived': 'at_gate',
-    'delivered': 'at_gate', // Intentionally mapped to at_gate — OTP still required
+    'delivered': 'at_gate', // Intentionally mapped to at_gate - OTP still required
     'failed': 'failed',
     'cancelled': 'cancelled',
   };

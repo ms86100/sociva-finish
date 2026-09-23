@@ -120,7 +120,7 @@ export function OrderChat({
         })
         .subscribe(async (status) => {
           if (status === 'SUBSCRIBED') {
-            // Now safe to fetch — any INSERT after this moment will be delivered.
+            // Now safe to fetch - any INSERT after this moment will be delivered.
             fetchMessages();
             markMessagesAsRead();
             if (user?.id) {
@@ -373,7 +373,7 @@ export function OrderChat({
             )}
           </div>
 
-          {/* Input — pinned above keyboard */}
+          {/* Input - pinned above keyboard */}
           <div className="sticky bottom-0 px-3 pt-3 border-t bg-card shrink-0 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))] z-10">
             {disabled ? (
               <p className="text-center text-sm text-muted-foreground">Chat is disabled for completed orders</p>

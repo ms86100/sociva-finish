@@ -1,5 +1,5 @@
 /* ══════════════════════════════════════════════════
-   Sociva Design System — Ultra Clean Marketplace
+   Sociva Design System - Ultra Clean Marketplace
    Inspired by Blinkit · Zepto · Swiggy Instamart
    ══════════════════════════════════════════════════ */
 
@@ -21,7 +21,7 @@
     --app-safe-left: var(--safe-area-inset-left);
     --keyboard-inset: 0px;
 
-    /* ═══ LIGHT — Warm white, punchy green ═══ */
+    /* ═══ LIGHT - Warm white, punchy green ═══ */
     --background: 40 20% 99%;
     --foreground: 240 10% 8%;
 
@@ -110,7 +110,7 @@
     --sidebar-border: 40 10% 90%;
     --sidebar-ring: 151 65% 38%;
 
-    /* ═══ Component surface tokens — Light ═══ */
+    /* ═══ Component surface tokens - Light ═══ */
     --header-bg: 40 20% 99% / 0.95;
     --nav-bg: 40 20% 99% / 0.98;
     --nav-border: 40 10% 90% / 0.6;
@@ -123,7 +123,7 @@
   }
 
   /* ═══════════════════════════════════════════════
-     DARK MODE — Neutral near-black, vivid green
+     DARK MODE - Neutral near-black, vivid green
      ═══════════════════════════════════════════════ */
   .dark {
     --background: 0 0% 5%;
@@ -213,7 +213,7 @@
     --sidebar-border: 0 0% 16%;
     --sidebar-ring: 151 65% 44%;
 
-    /* ═══ Component surface tokens — Dark ═══ */
+    /* ═══ Component surface tokens - Dark ═══ */
     --header-bg: 0 0% 5% / 0.97;
     --nav-bg: 20 10% 5% / 0.98;
     --nav-border: 20 8% 16% / 0.6;
@@ -350,7 +350,7 @@
   }
 }
 
-/* Map pin animation — driven by classList toggle, no React re-renders */
+/* Map pin animation - driven by classList toggle, no React re-renders */
 .map-pin-container.is-panning .map-pin-icon {
   transform: translateY(-12px) scale(1.1);
 }
@@ -360,7 +360,7 @@
 }
 
 @layer utilities {
-  /* Sequential cards / banners / alerts — consistent vertical rhythm */
+  /* Sequential cards / banners / alerts - consistent vertical rhythm */
   .stack-gap {
     @apply flex flex-col gap-3;
   }
@@ -486,7 +486,7 @@
     padding-top: var(--app-safe-top);
   }
 
-  /* Shell reserved status-bar space — avoid double padding on page helpers */
+  /* Shell reserved status-bar space - avoid double padding on page helpers */
   .app-content-safe-top {
     padding-top: var(--app-safe-top, 28px);
   }
@@ -535,7 +535,7 @@
     @apply font-extrabold text-base text-foreground tracking-tight flex items-center gap-2;
   }
 
-  /* Vertical marketplace lists (Top Sellers, etc.) — use gap, not space-y on Link children */
+  /* Vertical marketplace lists (Top Sellers, etc.) - use gap, not space-y on Link children */
   .marketplace-stack {
     @apply flex flex-col gap-4;
   }
@@ -606,7 +606,7 @@ html.large-font a {
   grid-row: 1 / -1;
 }
 
-/* items-4: default 2x2 grid — no overrides needed */
+/* items-4: default 2x2 grid - no overrides needed */
 
 /* Sonner close button */
 [data-sonner-toast] [data-close-button] {
@@ -621,7 +621,7 @@ body.razorpay-active [data-sonner-toaster] {
   pointer-events: none !important;
 }
 
-/* Razorpay checkout layout — platform-scoped (classes set by useRazorpay) */
+/* Razorpay checkout layout - platform-scoped (classes set by useRazorpay) */
 
 /* Hide ALL app-level sticky/fixed elements behind Razorpay */
 body.razorpay-active header,
@@ -634,9 +634,9 @@ body.razorpay-active [style*="position: sticky"] {
   pointer-events: none !important;
 }
 
-/* iOS: full-screen overlay — no separate backdrop needed */
+/* iOS: full-screen overlay - no separate backdrop needed */
 
-/* Direct body overlays only — never nest safe-area padding on inner frames */
+/* Direct body overlays only - never nest safe-area padding on inner frames */
 body.razorpay-active.razorpay-android > div[style*="z-index"],
 body.razorpay-active.razorpay-android > div[style*="position: fixed"],
 body.razorpay-active.razorpay-android > div[style*="position:fixed"],
@@ -899,7 +899,7 @@ body.razorpay-active.razorpay-ios iframe[src*="checkout.razorpay"] {
   display: none;
 }
 
-/* Horizontal mood/filter rails — never show a native scrollbar */
+/* Horizontal mood/filter rails - never show a native scrollbar */
 .taste-rail-scroll {
   overflow-x: auto;
   overflow-y: hidden;
@@ -919,7 +919,7 @@ body.razorpay-active.razorpay-ios iframe[src*="checkout.razorpay"] {
 }
 
 /* ═══════════════════════════════════════════════════
-   Festival Banner — Premium Visual Layer
+   Festival Banner - Premium Visual Layer
    ═══════════════════════════════════════════════════ */
 
 /* ── Card with glow edge + depth ── */
@@ -952,9 +952,9 @@ body.razorpay-active.razorpay-ios iframe[src*="checkout.razorpay"] {
   box-shadow: var(--shadow-elevated);
 }
 
-/* Entrance animations migrated to Framer Motion — see FestivalBannerModule.tsx */
+/* Entrance animations migrated to Framer Motion - see FestivalBannerModule.tsx */
 
-/* ── Floating orbs (ambient light particles) — kept as CSS for GPU efficiency ── */
+/* ── Floating orbs (ambient light particles) - kept as CSS for GPU efficiency ── */
 .festival-orb {
   position: absolute;
   border-radius: 50%;
@@ -1097,7 +1097,7 @@ body.razorpay-active.razorpay-ios iframe[src*="checkout.razorpay"] {
   pointer-events: none;
 }
 
-/* ── Emoji gentle float — kept as CSS for GPU efficiency ── */
+/* ── Emoji gentle float - kept as CSS for GPU efficiency ── */
 .festival-emoji-float {
   display: inline-block;
   animation: emoji-float 3s ease-in-out infinite;
@@ -1174,7 +1174,7 @@ body.razorpay-active.razorpay-ios iframe[src*="checkout.razorpay"] {
 
 /* ═══ Theme-based overlay animations ═══ */
 
-/* Sparkle — drifting radial gradient dots (Diwali, Christmas) */
+/* Sparkle - drifting radial gradient dots (Diwali, Christmas) */
 .banner-anim-sparkle {
   position: relative;
   overflow: hidden;
@@ -1194,7 +1194,7 @@ body.razorpay-active.razorpay-ios iframe[src*="checkout.razorpay"] {
   to { background-position: 48px 48px, 58px 60px; }
 }
 
-/* Glow — pulsing box-shadow (Ugadi, Eid) */
+/* Glow - pulsing box-shadow (Ugadi, Eid) */
 .banner-anim-glow {
   animation: glow-pulse 4s ease-in-out infinite;
 }
@@ -1203,7 +1203,7 @@ body.razorpay-active.razorpay-ios iframe[src*="checkout.razorpay"] {
   50% { box-shadow: inset 0 0 50px rgba(255, 255, 255, 0.18); }
 }
 
-/* Shimmer — sliding linear gradient (Holi, New Arrivals) */
+/* Shimmer - sliding linear gradient (Holi, New Arrivals) */
 .banner-anim-shimmer {
   position: relative;
   overflow: hidden;
@@ -1222,7 +1222,7 @@ body.razorpay-active.razorpay-ios iframe[src*="checkout.razorpay"] {
   100% { background-position: -200% 0; }
 }
 
-/* Pulse — gentle scale oscillation (Navratri, Flash Sale) */
+/* Pulse - gentle scale oscillation (Navratri, Flash Sale) */
 .banner-anim-pulse {
   animation: banner-pulse 4s ease-in-out infinite;
 }
@@ -1231,7 +1231,7 @@ body.razorpay-active.razorpay-ios iframe[src*="checkout.razorpay"] {
   50% { transform: scale(1.012); }
 }
 
-/* Confetti — falling dot overlay (Celebrations, Holi) */
+/* Confetti - falling dot overlay (Celebrations, Holi) */
 .banner-anim-confetti {
   position: relative;
   overflow: hidden;
@@ -1254,7 +1254,7 @@ body.razorpay-active.razorpay-ios iframe[src*="checkout.razorpay"] {
   to { background-position: 10px 40px, 25px 60px, 40px 50px, 15px 75px; }
 }
 
-/* ── Twinkle — alternating star flashes ── */
+/* ── Twinkle - alternating star flashes ── */
 .banner-anim-twinkle { position: relative; overflow: hidden; }
 .banner-anim-twinkle::after {
   content: ''; position: absolute; inset: 0;
@@ -1265,7 +1265,7 @@ body.razorpay-active.razorpay-ios iframe[src*="checkout.razorpay"] {
   pointer-events: none;
 }
 
-/* ── Glitter — dense sparkle dots ── */
+/* ── Glitter - dense sparkle dots ── */
 .banner-anim-glitter { position: relative; overflow: hidden; }
 .banner-anim-glitter::after {
   content: ''; position: absolute; inset: 0;
@@ -1276,7 +1276,7 @@ body.razorpay-active.razorpay-ios iframe[src*="checkout.razorpay"] {
   pointer-events: none;
 }
 
-/* ── Starburst — radiating glow ── */
+/* ── Starburst - radiating glow ── */
 .banner-anim-starburst {
   position: relative; overflow: hidden;
 }
@@ -1291,7 +1291,7 @@ body.razorpay-active.razorpay-ios iframe[src*="checkout.razorpay"] {
   50% { opacity: 1; transform: scale(1.2); }
 }
 
-/* ── Northern Lights — gradient shift ── */
+/* ── Northern Lights - gradient shift ── */
 .banner-anim-northern_lights {
   animation: northern-shift 6s ease-in-out infinite;
 }
@@ -1300,7 +1300,7 @@ body.razorpay-active.razorpay-ios iframe[src*="checkout.razorpay"] {
   50% { filter: hue-rotate(30deg); }
 }
 
-/* ── Neon Glow — colored box-shadow pulse ── */
+/* ── Neon Glow - colored box-shadow pulse ── */
 .banner-anim-neon_glow {
   animation: neon-pulse 2.5s ease-in-out infinite;
 }
@@ -1309,7 +1309,7 @@ body.razorpay-active.razorpay-ios iframe[src*="checkout.razorpay"] {
   50% { box-shadow: inset 0 0 40px rgba(0,255,200,0.15); }
 }
 
-/* ── Firefly — floating dots ── */
+/* ── Firefly - floating dots ── */
 .banner-anim-firefly { position: relative; overflow: hidden; }
 .banner-anim-firefly::after {
   content: ''; position: absolute; inset: 0;
@@ -1325,7 +1325,7 @@ body.razorpay-active.razorpay-ios iframe[src*="checkout.razorpay"] {
   100% { background-position: 0 0, 20px 30px; }
 }
 
-/* ── Candlelight — warm flicker glow ── */
+/* ── Candlelight - warm flicker glow ── */
 .banner-anim-candlelight {
   animation: candle-flicker 3s ease-in-out infinite;
 }
@@ -1336,7 +1336,7 @@ body.razorpay-active.razorpay-ios iframe[src*="checkout.razorpay"] {
   75% { box-shadow: inset 0 0 40px rgba(255,165,0,0.15); }
 }
 
-/* ── Diya Flame — warm orange glow ── */
+/* ── Diya Flame - warm orange glow ── */
 .banner-anim-diya_flame {
   animation: diya-glow 2.5s ease-in-out infinite;
 }
@@ -1345,7 +1345,7 @@ body.razorpay-active.razorpay-ios iframe[src*="checkout.razorpay"] {
   50% { box-shadow: inset 0 -10px 50px rgba(255,140,0,0.25); }
 }
 
-/* ── Lantern Sway — gentle rocking ── */
+/* ── Lantern Sway - gentle rocking ── */
 .banner-anim-lantern_sway {
   animation: lantern-rock 3s ease-in-out infinite;
   transform-origin: top center;
@@ -1356,7 +1356,7 @@ body.razorpay-active.razorpay-ios iframe[src*="checkout.razorpay"] {
   75% { transform: rotate(-0.5deg); }
 }
 
-/* ── Fairy Lights — twinkling dots ── */
+/* ── Fairy Lights - twinkling dots ── */
 .banner-anim-fairy_lights { position: relative; overflow: hidden; }
 .banner-anim-fairy_lights::after {
   content: ''; position: absolute; inset: 0;
@@ -1372,7 +1372,7 @@ body.razorpay-active.razorpay-ios iframe[src*="checkout.razorpay"] {
   100% { opacity: 1; }
 }
 
-/* ── Spotlight — sweeping light ── */
+/* ── Spotlight - sweeping light ── */
 .banner-anim-spotlight { position: relative; overflow: hidden; }
 .banner-anim-spotlight::after {
   content: ''; position: absolute; inset: 0;
@@ -1385,7 +1385,7 @@ body.razorpay-active.razorpay-ios iframe[src*="checkout.razorpay"] {
   100% { transform: translateX(200%); }
 }
 
-/* ── Fireworks — bursting dots ── */
+/* ── Fireworks - bursting dots ── */
 .banner-anim-fireworks { position: relative; overflow: hidden; }
 .banner-anim-fireworks::after {
   content: ''; position: absolute; inset: 0;
@@ -1402,7 +1402,7 @@ body.razorpay-active.razorpay-ios iframe[src*="checkout.razorpay"] {
   100% { opacity: 0; transform: scale(1.3); }
 }
 
-/* ── Firecrackers — rapid flash ── */
+/* ── Firecrackers - rapid flash ── */
 .banner-anim-firecrackers {
   animation: cracker-flash 2s steps(3) infinite;
 }
@@ -1413,7 +1413,7 @@ body.razorpay-active.razorpay-ios iframe[src*="checkout.razorpay"] {
   45% { filter: brightness(1.1); }
 }
 
-/* ── Color Burst — hue rotate splash ── */
+/* ── Color Burst - hue rotate splash ── */
 .banner-anim-color_burst {
   animation: color-burst 4s ease-in-out infinite;
 }
@@ -1422,7 +1422,7 @@ body.razorpay-active.razorpay-ios iframe[src*="checkout.razorpay"] {
   50% { filter: saturate(1.3) hue-rotate(15deg); }
 }
 
-/* ── Gulal Splash — colored powder overlay ── */
+/* ── Gulal Splash - colored powder overlay ── */
 .banner-anim-gulal_splash { position: relative; overflow: hidden; }
 .banner-anim-gulal_splash::after {
   content: ''; position: absolute; inset: 0;
@@ -1437,7 +1437,7 @@ body.razorpay-active.razorpay-ios iframe[src*="checkout.razorpay"] {
   50% { transform: scale(1.15) rotate(2deg); }
 }
 
-/* ── Pichkari Spray — water spray effect ── */
+/* ── Pichkari Spray - water spray effect ── */
 .banner-anim-pichkari_spray { position: relative; overflow: hidden; }
 .banner-anim-pichkari_spray::after {
   content: ''; position: absolute; inset: 0;
@@ -1451,7 +1451,7 @@ body.razorpay-active.razorpay-ios iframe[src*="checkout.razorpay"] {
   100% { background-position: -200% -200%; }
 }
 
-/* ── Balloon Pop — scale bounce ── */
+/* ── Balloon Pop - scale bounce ── */
 .banner-anim-balloon_pop {
   animation: balloon-bounce 3s ease-in-out infinite;
 }
@@ -1461,7 +1461,7 @@ body.razorpay-active.razorpay-ios iframe[src*="checkout.razorpay"] {
   30% { transform: scale(0.995); }
 }
 
-/* ── Bubble Float — rising circles ── */
+/* ── Bubble Float - rising circles ── */
 .banner-anim-bubble_float { position: relative; overflow: hidden; }
 .banner-anim-bubble_float::after {
   content: ''; position: absolute; inset: 0;
@@ -1502,7 +1502,7 @@ body.razorpay-active.razorpay-ios iframe[src*="checkout.razorpay"] {
   to { background-position: 0 18px; }
 }
 
-/* ── Petal Shower — falling petals ── */
+/* ── Petal Shower - falling petals ── */
 .banner-anim-petal_shower { position: relative; overflow: hidden; }
 .banner-anim-petal_shower::after {
   content: ''; position: absolute; inset: 0;
@@ -1527,7 +1527,7 @@ body.razorpay-active.razorpay-ios iframe[src*="checkout.razorpay"] {
   pointer-events: none;
 }
 
-/* ── Dust Motes — floating particles ── */
+/* ── Dust Motes - floating particles ── */
 .banner-anim-dust_motes { position: relative; overflow: hidden; }
 .banner-anim-dust_motes::after {
   content: ''; position: absolute; inset: 0;
@@ -1537,7 +1537,7 @@ body.razorpay-active.razorpay-ios iframe[src*="checkout.razorpay"] {
   pointer-events: none;
 }
 
-/* ── Wave — undulating motion ── */
+/* ── Wave - undulating motion ── */
 .banner-anim-wave {
   animation: wave-motion 3s ease-in-out infinite;
 }
@@ -1546,7 +1546,7 @@ body.razorpay-active.razorpay-ios iframe[src*="checkout.razorpay"] {
   50% { transform: translateY(-2px); }
 }
 
-/* ── Ripple — expanding ring ── */
+/* ── Ripple - expanding ring ── */
 .banner-anim-ripple { position: relative; overflow: hidden; }
 .banner-anim-ripple::after {
   content: ''; position: absolute;
@@ -1591,7 +1591,7 @@ body.razorpay-active.razorpay-ios iframe[src*="checkout.razorpay"] {
   75% { transform: rotate(-0.8deg); }
 }
 
-/* ── Spin — slow rotation ── */
+/* ── Spin - slow rotation ── */
 .banner-anim-spin { position: relative; overflow: hidden; }
 .banner-anim-spin::after {
   content: ''; position: absolute; inset: -50%;
@@ -1739,7 +1739,7 @@ body.razorpay-active.razorpay-ios iframe[src*="checkout.razorpay"] {
   50% { border-radius: 28px 20px 28px 20px; }
 }
 
-/* ── Typewriter — blinking cursor ── */
+/* ── Typewriter - blinking cursor ── */
 .banner-anim-typewriter { position: relative; }
 .banner-anim-typewriter::after {
   content: ''; position: absolute; right: 16px; top: 50%;
@@ -1770,7 +1770,7 @@ body.razorpay-active.razorpay-ios iframe[src*="checkout.razorpay"] {
   100% { opacity: 1; }
 }
 
-/* ── Rangoli Draw — expanding pattern ── */
+/* ── Rangoli Draw - expanding pattern ── */
 .banner-anim-rangoli_draw { position: relative; overflow: hidden; }
 .banner-anim-rangoli_draw::after {
   content: ''; position: absolute; inset: 0;
@@ -1784,18 +1784,18 @@ body.razorpay-active.razorpay-ios iframe[src*="checkout.razorpay"] {
   50% { transform: scale(1.2); opacity: 1; }
 }
 
-/* ── Toran Sway — garland rocking ── */
+/* ── Toran Sway - garland rocking ── */
 .banner-anim-toran_sway {
   animation: lantern-rock 2.5s ease-in-out infinite;
   transform-origin: top center;
 }
 
-/* ── Aarti Glow — warm sacred glow ── */
+/* ── Aarti Glow - warm sacred glow ── */
 .banner-anim-aarti_glow {
   animation: diya-glow 2s ease-in-out infinite;
 }
 
-/* ── Dhol Beat — rhythmic scale ── */
+/* ── Dhol Beat - rhythmic scale ── */
 .banner-anim-dhol_beat {
   animation: dhol-beat 1.5s ease-in-out infinite;
 }
@@ -1807,7 +1807,7 @@ body.razorpay-active.razorpay-ios iframe[src*="checkout.razorpay"] {
   60% { transform: scale(1); }
 }
 
-/* ── Bell Ring — oscillation ── */
+/* ── Bell Ring - oscillation ── */
 .banner-anim-bell_ring {
   animation: bell-ring 2s ease-in-out infinite;
   transform-origin: top center;
@@ -1820,7 +1820,7 @@ body.razorpay-active.razorpay-ios iframe[src*="checkout.razorpay"] {
   40% { transform: rotate(0); }
 }
 
-/* ── Crescent Moon — soft glow ── */
+/* ── Crescent Moon - soft glow ── */
 .banner-anim-crescent_moon {
   animation: moon-glow 4s ease-in-out infinite;
 }
@@ -1842,7 +1842,7 @@ body.razorpay-active.razorpay-ios iframe[src*="checkout.razorpay"] {
   to { background-position: 20px -20px; }
 }
 
-/* ── Peacock Fan — iridescent shimmer ── */
+/* ── Peacock Fan - iridescent shimmer ── */
 .banner-anim-peacock_fan {
   animation: peacock-iridescent 4s ease-in-out infinite;
 }
@@ -1851,7 +1851,7 @@ body.razorpay-active.razorpay-ios iframe[src*="checkout.razorpay"] {
   50% { filter: hue-rotate(20deg) saturate(1.15); }
 }
 
-/* ── Lotus Bloom — opening scale ── */
+/* ── Lotus Bloom - opening scale ── */
 .banner-anim-lotus_bloom {
   animation: lotus-open 4s ease-in-out infinite;
 }
@@ -1860,7 +1860,7 @@ body.razorpay-active.razorpay-ios iframe[src*="checkout.razorpay"] {
   50% { transform: scale(1.01); filter: brightness(1.05); }
 }
 
-/* ── Coconut Break — impact flash ── */
+/* ── Coconut Break - impact flash ── */
 .banner-anim-coconut_break {
   animation: cracker-flash 3s ease-in-out infinite;
 }
@@ -1871,7 +1871,7 @@ body.razorpay-active.razorpay-ios iframe[src*="checkout.razorpay"] {
   transform-origin: top center;
 }
 
-/* ── Kolam Trace — drawing pattern ── */
+/* ── Kolam Trace - drawing pattern ── */
 .banner-anim-kolam_trace { position: relative; overflow: hidden; }
 .banner-anim-kolam_trace::after {
   content: ''; position: absolute; inset: 0;
@@ -2080,7 +2080,7 @@ body.razorpay-active.razorpay-ios iframe[src*="checkout.razorpay"] {
   50% { opacity: 1; transform: scale(1); }
 }
 
-/* ── Gold Coins — falling gold dots ── */
+/* ── Gold Coins - falling gold dots ── */
 .banner-anim-gold_coins { position: relative; overflow: hidden; }
 .banner-anim-gold_coins::after {
   content: ''; position: absolute; inset: 0;
@@ -2123,7 +2123,7 @@ body.razorpay-active.razorpay-ios iframe[src*="checkout.razorpay"] {
   50% { opacity: 1; transform: scale(1.15); }
 }
 
-/* Native-feeling pull-to-refresh (Capacitor WebView — scroll lives on #root) */
+/* Native-feeling pull-to-refresh (Capacitor WebView - scroll lives on #root) */
 .ptr-host {
   display: flex;
   align-items: flex-end;

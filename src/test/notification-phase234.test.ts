@@ -1,5 +1,5 @@
 /**
- * Unit tests for Phase 2–4 notification remediation helpers.
+ * Unit tests for Phase 2-4 notification remediation helpers.
  */
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
@@ -53,7 +53,7 @@ describe('notification dual fields', () => {
 });
 
 describe('quiet hours', () => {
-  it('wraps midnight window (22–7)', () => {
+  it('wraps midnight window (22-7)', () => {
     expect(isWithinQuietHours({ enabled: true, startHour: 22, endHour: 7, hour: 23 })).toBe(true);
     expect(isWithinQuietHours({ enabled: true, startHour: 22, endHour: 7, hour: 3 })).toBe(true);
     expect(isWithinQuietHours({ enabled: true, startHour: 22, endHour: 7, hour: 10 })).toBe(false);

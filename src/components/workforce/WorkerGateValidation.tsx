@@ -159,7 +159,7 @@ export function WorkerGateValidation() {
                 <XCircle className="mx-auto text-destructive mb-1" size={40} />
               )}
               <p className={`font-bold text-lg ${result.valid ? 'text-success' : 'text-destructive'}`}>
-                {result.valid ? 'VALID — Entry Allowed' : 'ENTRY BLOCKED'}
+                {result.valid ? 'VALID - Entry Allowed' : 'ENTRY BLOCKED'}
               </p>
             </div>
 

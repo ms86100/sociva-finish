@@ -1,9 +1,9 @@
-# Sociva Notification System — Deep Audit Report
+# Sociva Notification System - Deep Audit Report
 
 **Date:** 2026-08-07  
 **Scope:** Push (FCM/APNs), in-app inbox, realtime, cross-device sync, seller acceptance timers, Android sound/channels, WhatsApp where entangled with the same queue  
-**Constraint (original):** Audit only — no application/backend behavior changes  
-**Remediation:** See § Remediation status (2026-08-07) — P0/P1 client + PNQ + migration fixes shipped  
+**Constraint (original):** Audit only - no application/backend behavior changes  
+**Remediation:** See § Remediation status (2026-08-07) - P0/P1 client + PNQ + migration fixes shipped  
 **Companion canvas:** `~/.cursor/projects/c-Users-thech-OneDrive-Desktop-Sociva-finish-sociva-v1-main-sociva-v1-main/canvases/notification-system-audit.canvas.tsx` (open beside chat in Cursor)
 
 ---
@@ -12,11 +12,11 @@
 
 Sociva’s notification spine is mature at the **enqueue → queue → multi-channel deliver** layer: most events land in `notification_queue`, are claimed by `process-notification-queue` (PNQ), and fan out to **in-app** (`user_notifications`), **push** (FCM/APNs), and **WhatsApp** (best-effort). Client push registration, Android channels, and inbox UI exist and are wired.
 
-The critical production failure mode — **sellers still seeing order-acceptance timers / ringing overlays after a buyer cancels** — is **not** caused by Postgres leaving `auto_cancel_at` set. Cancel correctly nulls the SLA timestamp. The failure is a **client state reconciliation gap**:
+The critical production failure mode - **sellers still seeing order-acceptance timers / ringing overlays after a buyer cancels** - is **not** caused by Postgres leaving `auto_cancel_at` set. Cancel correctly nulls the SLA timestamp. The failure is a **client state reconciliation gap**:
 
 1. Global seller alert realtime (`useNewOrderAlert`) only **adds** alerts on actionable statuses; it never dismisses on `cancelled` / terminal.
 2. Seller list SLA UI (`SellerOrderCard`) is bound to **stale React Query** (`seller-orders`); resume invalidates badge keys only, not order lists.
-3. The intended fix bridge — FCM → `order-terminal-push` → invalidate `seller-orders` — usually cannot fire because PNQ **omits `order_id` / `is_terminal` from push `data`**.
+3. The intended fix bridge - FCM → `order-terminal-push` → invalidate `seller-orders` - usually cannot fire because PNQ **omits `order_id` / `is_terminal` from push `data`**.
 4. In-app “New Order” rows are **not deleted** on cancel; they are marked read later by deferred stale cleanup (cold start +10s / inbox open).
 
 Android “professional ringing sound” is incompletely provisioned: code references `gate_bell` / `orders_alert`, but **`public/sounds/gate_bell.mp3` is absent** from the workspace and **no `android/.../res/raw` sound asset** was found. Channel importance/vibration are correctly configured for heads-up in principle; missing assets + Android channel immutability explain poor/default sound UX.
@@ -77,7 +77,7 @@ Event (DB trigger / edge / client insert)
 
 ### 2.4 What is *not* used
 
-- `@capacitor/local-notifications` — **no usages** in the repo. Foreground UX is Cap push handlers + Web Audio / MP3 loops, not scheduled local notifications.
+- `@capacitor/local-notifications` - **no usages** in the repo. Foreground UX is Cap push handlers + Web Audio / MP3 loops, not scheduled local notifications.
 
 ---
 
@@ -100,7 +100,7 @@ Event (DB trigger / edge / client insert)
 Per claimed item (`process-notification-queue/index.ts`):
 
 1. Recover stuck `processing` (>3 min) and orphan failed rows (>1h without in-app).
-2. Preference gate (`orders` / `chat` / `promotions`) — still writes in-app; may skip push.
+2. Preference gate (`orders` / `chat` / `promotions`) - still writes in-app; may skip push.
 3. 60s dedup on `(user_id, type, reference_path)`.
 4. Order guards: if live order is terminal / status mismatch / stale (>5 min) under conditions → insert in-app as `is_read: true`, skip push (`push_skip_reason: stale_or_terminal`).
 5. Insert `user_notifications` (unique on `queue_item_id`).
@@ -126,8 +126,8 @@ Per claimed item (`process-notification-queue/index.ts`):
 |--------|--------|
 | Mark read / mark all | `user_notifications.is_read = true` (no delete API in inbox hooks) |
 | Home banner dismiss | `is_read` + `localStorage` dismissed IDs |
-| Stale cleanup | Marks order-linked unread rows read when order is terminal — deferred (cold start 10s / inbox) |
-| Terminal push event | Intended to invalidate seller/buyer order queries — often broken (see §5) |
+| Stale cleanup | Marks order-linked unread rows read when order is terminal - deferred (cold start 10s / inbox) |
+| Terminal push event | Intended to invalidate seller/buyer order queries - often broken (see §5) |
 | Push tap | Deep link via `resolveNotificationRoute` / `pickNotificationRoute` |
 
 ### 3.5 Cross-device sync (as designed)
@@ -143,26 +143,26 @@ Per claimed item (`process-notification-queue/index.ts`):
 
 ## 4. Findings (severity + evidence)
 
-### P0 — Correctness / stale seller UX
+### P0 - Correctness / stale seller UX
 
 | ID | Finding | Evidence |
 |----|---------|----------|
 | **P0-1** | Seller new-order realtime never dismisses on cancel/terminal | `useNewOrderAlert.ts` UPDATE handler only calls `handleNewOrder` when status ∈ `ACTIONABLE_STATUSES`; no `else` → `dismissById` / invalidate |
-| **P0-2** | Push terminal sync cannot identify order | PNQ builds `pushData` with route/status/high_priority/target_role but **does not copy `order_id`/`orderId`/`is_terminal`** (`process-notification-queue/index.ts` ~737–745). Client requires `data.orderId\|order_id` (`usePushNotifications.ts` ~401–420) |
-| **P0-3** | Seller dashboard SLA continues on stale cache | `SellerOrderCard` countdown from props `auto_cancel_at` + `status`; `useAppLifecycle` resume invalidates only badge/count keys — **not** `seller-orders`. `order-terminal-push` would invalidate lists but rarely fires (P0-2) |
+| **P0-2** | Push terminal sync cannot identify order | PNQ builds `pushData` with route/status/high_priority/target_role but **does not copy `order_id`/`orderId`/`is_terminal`** (`process-notification-queue/index.ts` ~737-745). Client requires `data.orderId\|order_id` (`usePushNotifications.ts` ~401-420) |
+| **P0-3** | Seller dashboard SLA continues on stale cache | `SellerOrderCard` countdown from props `auto_cancel_at` + `status`; `useAppLifecycle` resume invalidates only badge/count keys - **not** `seller-orders`. `order-terminal-push` would invalidate lists but rarely fires (P0-2) |
 
-### P1 — Reliability / consistency
+### P1 - Reliability / consistency
 
 | ID | Finding | Evidence |
 |----|---------|----------|
-| **P1-1** | Inbox Realtime is INSERT-only | `PushNotificationProvider.tsx` — no UPDATE subscription for cross-device read sync |
+| **P1-1** | Inbox Realtime is INSERT-only | `PushNotificationProvider.tsx` - no UPDATE subscription for cross-device read sync |
 | **P1-2** | Stale in-app “New Order” rows linger until deferred cleanup | Cancel does not delete/update prior rows; `cleanupStaleDeliveryNotifications` on cold start (+10s) or inbox open |
 | **P1-3** | Snooze can resurrect cancelled orders | `useNewOrderAlert.snooze` `setTimeout` re-adds same object without re-checking live status |
 | **P1-4** | Dual-write / bypass paths skip unified lifecycle | `society-notifications.enqueueAndProcess`, `send-push-notification`, campaign direct FCM |
-| **P1-5** | `gate_bell` asset missing from workspace | Code fetches `/sounds/gate_bell.mp3`; `public/` has no `sounds/`; no `res/raw` found — Android/iOS may fall back to default/silent |
+| **P1-5** | `gate_bell` asset missing from workspace | Code fetches `/sounds/gate_bell.mp3`; `public/` has no `sounds/`; no `res/raw` found - Android/iOS may fall back to default/silent |
 | **P1-6** | Buyer cancel may not set `app.acting_as='buyer'` | Unlike `buyer_advance_order`; can affect cancel title/notify branch quality |
 
-### P2 — Hygiene / ops / architecture debt
+### P2 - Hygiene / ops / architecture debt
 
 | ID | Finding | Evidence |
 |----|---------|----------|
@@ -229,10 +229,10 @@ On cancel / expire / accept / reject / complete, **all devices** should within ~
 
 | Item | Current | File |
 |------|---------|------|
-| Channel `orders_alert` | importance **5**, vibration **true**, lights **true**, sound `gate_bell` | `usePushNotifications.ts` ~279–288 |
-| Channel `general` | importance **3**, sound `default` | same ~296–305 |
+| Channel `orders_alert` | importance **5**, vibration **true**, lights **true**, sound `gate_bell` | `usePushNotifications.ts` ~279-288 |
+| Channel `general` | importance **3**, sound `default` | same ~296-305 |
 | FCM high priority | `channel_id: orders_alert`, `sound: gate_bell`, icon `ic_stat_sociva` | PNQ `sendFcmDirect` |
-| High-priority rules | Seller: `placed\|enquired\|requested\|quoted`; Buyer: `payment_failed\|refund_failed\|otp` | PNQ ~719–724 |
+| High-priority rules | Seller: `placed\|enquired\|requested\|quoted`; Buyer: `payment_failed\|refund_failed\|otp` | PNQ ~719-724 |
 | Foreground | Web Audio beeps if prefs.sounds + `high_priority=true`; seller overlay loops `/sounds/gate_bell.mp3` | `usePushNotifications`, `useNewOrderAlert` |
 | Capacitor config | `presentationOptions: ['badge','sound','alert']` | `capacitor.config.ts` |
 
@@ -240,17 +240,17 @@ Separate channel: `sociva_live_delivery` for live delivery foreground service (n
 
 ### 6.2 Why sound feels wrong / default
 
-1. **Asset gap:** Workspace has **no** `public/sounds/gate_bell.mp3` and **no** discovered `res/raw/gate_bell` — FCM/`createChannel` may silently fall back to system default or silence depending on OEM.
+1. **Asset gap:** Workspace has **no** `public/sounds/gate_bell.mp3` and **no** discovered `res/raw/gate_bell` - FCM/`createChannel` may silently fall back to system default or silence depending on OEM.
 2. **Android channel immutability:** Once `orders_alert` is created on a device, changing `sound` in code **does not update** the user’s channel. A new channel id (e.g. `orders_alert_v2`) is required after shipping a new sound.
 3. **No LocalNotifications path** for guaranteed foreground ringing when FCM is suppressed (app open / OEM battery).
 4. **Campaign / bypass pushes** may not use `orders_alert` / `gate_bell`.
 5. **User prefs:** `notification_preferences.sounds` gates some foreground synthesis; OS channel settings can still mute independently.
 
-### 6.3 Professional delivery-app style — recommended requirements (do not implement yet)
+### 6.3 Professional delivery-app style - recommended requirements (do not implement yet)
 
 | Concern | Recommendation |
 |---------|----------------|
-| Asset | Short looping-capable bell/ring (~1–3s), royalty-cleared; place in `android/app/src/main/res/raw/order_ring.ogg` (and iOS bundle); web copy under `public/sounds/` |
+| Asset | Short looping-capable bell/ring (~1-3s), royalty-cleared; place in `android/app/src/main/res/raw/order_ring.ogg` (and iOS bundle); web copy under `public/sounds/` |
 | Channel | New max-importance channel `orders_incoming_v1`: importance IMPORTANCE_HIGH (4) or MAX (5), `bypassDnd` only if product/legal allows, vibration pattern, lights, custom sound, `showBadge` |
 | Heads-up | High priority FCM (`priority: HIGH` + Android `priority: HIGH`) + importance ≥ HIGH; full-screen intent only for extreme cases (careful with Play policy) |
 | Foreground (app open) | Do **not** rely on tray alone: play local sound + strong haptic via LocalNotifications or in-app player; suppress duplicate if overlay already ringing |
@@ -267,7 +267,7 @@ Separate channel: `sociva_live_delivery` for live delivery foreground service (n
 
 1. **Single event bus:** Domain events (`order.cancelled`, `order.accepted`, …) → Notification Orchestrator → channel adapters.
 2. **Order state is truth; notifications are projections.** Never let tray/overlay/inbox disagree with `orders.status` for >1s while online.
-3. **Lifecycle-aware notifications:** create / supersede / invalidate / expire — not append-only forever.
+3. **Lifecycle-aware notifications:** create / supersede / invalidate / expire - not append-only forever.
 4. **Push carries sync metadata** always: `entity_type`, `entity_id`, `status`, `is_terminal`, `notif_id`, `collapse_key`.
 5. **Realtime + push + poll** as layered reliability (at-least-once), with idempotent client reducers.
 
@@ -316,34 +316,34 @@ Separate channel: `sociva_live_delivery` for live delivery foreground service (n
 
 ## 8. Phased implementation plan (ordered, no code in this audit)
 
-### Phase 0 — Stop the bleeding (1–2 days)
+### Phase 0 - Stop the bleeding (1-2 days)
 
 1. In `useNewOrderAlert` UPDATE handler: on non-actionable/terminal → `dismissById`, stop buzz, invalidate `seller-orders` + `seller-dashboard-stats`.
 2. Re-check status before snooze re-queue.
 3. In PNQ `pushData`: always include `order_id`, `status`, `is_terminal` (string booleans).
 4. Confirm cancel push uses same collapse `tag` as new-order push.
 
-### Phase 1 — Inbox & projection hygiene (3–5 days)
+### Phase 1 - Inbox & projection hygiene (3-5 days)
 
 1. Server-side: on order terminal transition, mark related unread `user_notifications` as read (or insert superseding cancel notif and close priors).
 2. Subscribe Realtime to `user_notifications` UPDATE for cross-device read sync.
 3. On resume, invalidate `seller-orders` (not only badges) when seller mode.
 
-### Phase 2 — Android sound / heads-up (2–4 days)
+### Phase 2 - Android sound / heads-up (2-4 days)
 
 1. Add professional ring asset to Android `res/raw` + web `public/sounds` + iOS bundle.
 2. Ship **new** channel id `orders_incoming_v1` (do not mutate old channel).
 3. Wire LocalNotifications or dedicated foreground ring for app-open incoming orders.
 4. Document OEM testing matrix; deep-link to channel settings.
 
-### Phase 3 — Orchestrator hardening (1–2 weeks)
+### Phase 3 - Orchestrator hardening (1-2 weeks)
 
 1. Collapse bypass paths into queue (campaign, society, license) with feature flags.
 2. Formalize notification lifecycle APIs (create / supersede / expire).
 3. Unify column model (`data` vs `payload`).
 4. Observability: dashboards for queue lag, push skip reasons, terminal sync miss rate.
 
-### Phase 4 — Scale / fault tolerance (ongoing)
+### Phase 4 - Scale / fault tolerance (ongoing)
 
 1. DLQ + pager on sustained PNQ failures.
 2. Per-user rate limits; quiet hours.
@@ -357,41 +357,41 @@ Separate channel: `sociva_live_delivery` for live delivery foreground service (n
 1. **Live project verification:** Confirm production DB trigger URL for PNQ matches the deployed project (historical multi-project migrations).
 2. **Whether `gate_bell` exists only in built APK artifacts** not checked into this workspace (Capacitor sync / CI asset step?).
 3. **OEM-specific mute rates** for `orders_alert` in the field (no analytics cited in-repo).
-4. **Exact production copy of `buyer_cancel_order`** vs migration snapshots — confirm `app.acting_as` and notify flags on live DB.
+4. **Exact production copy of `buyer_cancel_order`** vs migration snapshots - confirm `app.acting_as` and notify flags on live DB.
 5. **Rules engine coverage:** How many live events still use only legacy `fn_enqueue_order_status_notification` vs `notification_rules`.
 6. **WhatsApp:** Whether marketing/utility template approvals cover all enqueue types currently marked eligible.
 7. **Multi-store sellers:** Confirm all `seller_id`s on a user are in `sellerIdsRef` for alert dismiss after fix.
-8. **iOS Critical Alerts / Android full-screen intent** — product/legal appetite (not currently used).
+8. **iOS Critical Alerts / Android full-screen intent** - product/legal appetite (not currently used).
 
 ---
 
-## Appendix A — Buyer vs seller quick reference
+## Appendix A - Buyer vs seller quick reference
 
 | Concern | Buyer | Seller |
 |---------|-------|--------|
 | New order urgency | N/A (they placed it) | Overlay + `orders_alert` + SLA countdown |
-| Cancel | Initiates RPC; detail self-updates | Must rely on realtime/push/list refresh — currently incomplete |
+| Cancel | Initiates RPC; detail self-updates | Must rely on realtime/push/list refresh - currently incomplete |
 | Inbox filters | Hides seller-only / `target_role=seller` | Broader |
 | High-priority push | payment/OTP failures | placed/enquired/requested/quoted |
 | Stale cleanup | Delivery + order types on cold start | Same function; does not clear overlay |
 
-## Appendix B — Evidence index (primary symbols)
+## Appendix B - Evidence index (primary symbols)
 
-- `process-notification-queue/index.ts` — `sendFcmDirect`, stale guards, `pushData` construction  
-- `src/hooks/usePushNotifications.ts` — channels, terminal push parsing  
-- `src/hooks/useNewOrderAlert.ts` — `ACTIONABLE_STATUSES`, UPDATE noop gap, snooze  
-- `src/components/seller/SellerOrderCard.tsx` — `slaSeconds` / `slaIsActive`  
-- `src/hooks/useAppLifecycle.ts` — resume keys; `order-terminal-push`  
-- `src/components/notifications/PushNotificationProvider.tsx` — INSERT-only realtime  
-- `src/hooks/queries/useNotifications.ts` — `cleanupStaleDeliveryNotifications`  
-- `src/components/order/OrderCancellation.tsx` — `buyer_cancel_order`  
+- `process-notification-queue/index.ts` - `sendFcmDirect`, stale guards, `pushData` construction  
+- `src/hooks/usePushNotifications.ts` - channels, terminal push parsing  
+- `src/hooks/useNewOrderAlert.ts` - `ACTIONABLE_STATUSES`, UPDATE noop gap, snooze  
+- `src/components/seller/SellerOrderCard.tsx` - `slaSeconds` / `slaIsActive`  
+- `src/hooks/useAppLifecycle.ts` - resume keys; `order-terminal-push`  
+- `src/components/notifications/PushNotificationProvider.tsx` - INSERT-only realtime  
+- `src/hooks/queries/useNotifications.ts` - `cleanupStaleDeliveryNotifications`  
+- `src/components/order/OrderCancellation.tsx` - `buyer_cancel_order`  
 - Migrations clearing `auto_cancel_at` on cancel/advance (Apr 2026)
 
 ---
 
 ## Remediation status (2026-08-07)
 
-Concrete code fixes shipped after this audit. Phases 0–4 + practical P2 hygiene implemented.
+Concrete code fixes shipped after this audit. Phases 0-4 + practical P2 hygiene implemented.
 
 ### Fixed
 
@@ -413,17 +413,17 @@ Concrete code fixes shipped after this audit. Phases 0–4 + practical P2 hygien
 | **P2-5** | Live `trigger_process_notification_queue` reaffirmed for project `kkzkuyhgdvyecmxtmkpy` | migration `20260807122130_...` |
 | **P2-6 / Phase 2** | `@capacitor/local-notifications` for foreground/app-open incoming-order ring; cancel on terminal; Android channel-settings deep link; OEM matrix below | `local-order-notifications.ts`, `useNewOrderAlert.ts`, `notification-channel-settings.ts` |
 | **Phase 3** | Lifecycle helpers create / supersede / expire; dual fields; structured PNQ observability (`queue_lag`, `push_skip`, `batch_summary`) | `notification-lifecycle.ts`, PNQ, `notification-ops.ts` |
-| **Phase 4** | DLQ table `notification_dead_letter`; per-user push rate limits; quiet hours prefs; device token health scoring / prune on FCM invalid; outbox skipped (documented — trigger + self-schedule sufficient) | migration + PNQ + Notifications settings UI |
+| **Phase 4** | DLQ table `notification_dead_letter`; per-user push rate limits; quiet hours prefs; device token health scoring / prune on FCM invalid; outbox skipped (documented - trigger + self-schedule sufficient) | migration + PNQ + Notifications settings UI |
 
 ### Deferred / impossible
 
 | Item | Why |
 |------|-----|
-| Mutating legacy `orders_alert` channel sound on existing installs | Impossible on Android — `orders_incoming_v1` shipped instead |
+| Mutating legacy `orders_alert` channel sound on existing installs | Impossible on Android - `orders_incoming_v1` shipped instead |
 | Full Notification Orchestrator rewrite | Not required; queue collapse + lifecycle helpers achieve the practical goal |
 | Heavy outbox redesign | Trigger→HTTP already recoverable via PNQ self-schedule + orphan recovery; noted in migration comment |
-| iOS Critical Alerts / Android full-screen intent | Product/legal — not enabled |
-| Deleting `.tmp-fn-deploy` | User deploy scratch — left intact |
+| iOS Critical Alerts / Android full-screen intent | Product/legal - not enabled |
+| Deleting `.tmp-fn-deploy` | User deploy scratch - left intact |
 
 ### OEM testing matrix (checklist)
 
@@ -444,4 +444,4 @@ Concrete code fixes shipped after this audit. Phases 0–4 + practical P2 hygien
 3. Rebuild native Android (`npx cap sync android`) so LocalNotifications plugin + `res/raw/order_ring.mp3` ship.
 4. Verify: buyer cancel while seller has overlay open → buzz/local notif stops + SLA timer clears without refresh.
 
-*Remediation updated 2026-08-07 (Phases 2–4 + P2 hygiene).*
+*Remediation updated 2026-08-07 (Phases 2-4 + P2 hygiene).*

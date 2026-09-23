@@ -150,7 +150,7 @@ function SellerCard({ seller, s, idx }: { seller: any; s: ReturnType<typeof useS
     <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.02 }}>
       <Card className={cn('border-0 shadow-[var(--shadow-card)] hover:shadow-[var(--shadow-md)] transition-all duration-300 rounded-2xl', isPending && 'ring-1 ring-warning/30')}>
         <CardContent className="p-0">
-          {/* Compact Header — always visible */}
+          {/* Compact Header - always visible */}
           <div className="p-3 cursor-pointer flex items-center gap-3" onClick={() => s.setExpandedId(isExpanded ? null : seller.id)}>
             {seller.profile_image_url ? (
               <img src={seller.profile_image_url} alt="" className="w-10 h-10 rounded-xl object-cover shrink-0" />
@@ -204,7 +204,7 @@ function SellerCard({ seller, s, idx }: { seller: any; s: ReturnType<typeof useS
                   <div><span className="font-semibold text-foreground">Store mode:</span> {seller.default_action_type.replace(/_/g, ' ')}</div>
                 )}
                 {seller.profile?.phone && <div className="flex items-center gap-1"><Phone size={9} /> {seller.profile.phone}</div>}
-                {(seller.availability_start || seller.availability_end) && <div className="flex items-center gap-1"><Calendar size={9} /> {seller.availability_start || '—'} – {seller.availability_end || '—'}</div>}
+                {(seller.availability_start || seller.availability_end) && <div className="flex items-center gap-1"><Calendar size={9} /> {seller.availability_start || '-'} - {seller.availability_end || '-'}</div>}
                 <div className="flex items-center gap-1"><CreditCard size={9} /> COD: {seller.accepts_cod ? '✓' : '✗'} | UPI: {seller.accepts_upi ? '✓' : '✗'}</div>
                 {seller.fulfillment_mode && <div className="flex items-center gap-1"><Truck size={9} /> {seller.fulfillment_mode.replace(/_/g, ' ')}</div>}
                 {seller.society?.address && <div className="flex items-center gap-1 col-span-2"><MapPin size={9} /> {seller.society.address}</div>}
@@ -215,7 +215,7 @@ function SellerCard({ seller, s, idx }: { seller: any; s: ReturnType<typeof useS
               {seller.description && <p className="text-xs text-muted-foreground px-1">{seller.description}</p>}
               {seller.cover_image_url && <img src={seller.cover_image_url} alt="Cover" className="w-full h-24 rounded-xl object-cover" />}
 
-              {/* Licenses — inline compact */}
+              {/* Licenses - inline compact */}
               {seller.licenses.length > 0 && (
                 <div className="space-y-2">
                   <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest px-1">Licenses ({seller.licenses.length})</p>
@@ -246,7 +246,7 @@ function SellerCard({ seller, s, idx }: { seller: any; s: ReturnType<typeof useS
                 </div>
               )}
 
-              {/* Opening catalog — clubbed with first-time application */}
+              {/* Opening catalog - clubbed with first-time application */}
               <ApplicationCatalogPreview
                 products={openingCatalog}
                 formatPrice={s.formatPrice}

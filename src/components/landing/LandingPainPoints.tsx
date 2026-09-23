@@ -7,19 +7,19 @@ const PAINS = [
   {
     icon: ChefHat,
     pain: "Mrs. Sharma's dal makhani is legendary. But she's not on Zomato.",
-    solution: "The best home-cooked food in your society has no delivery app listing. Here, every home kitchen finally has a storefront — and you're the first customer.",
+    solution: "The best home-cooked food in your society has no delivery app listing. Here, every home kitchen finally has a storefront - and you're the first customer.",
     color: 'bg-primary/10 text-primary',
   },
   {
     icon: Truck,
     pain: "Your nani's mango pickle sat in a steel jar. No brand. Just her hands, and love.",
-    solution: "Someone in your society still makes it that way — the same oil, the same patience, the same taste that waited for you after school. Buy it from her kitchen. Or sell the recipe your family is afraid will die with this generation.",
+    solution: "Someone in your society still makes it that way - the same oil, the same patience, the same taste that waited for you after school. Buy it from her kitchen. Or sell the recipe your family is afraid will die with this generation.",
     color: 'bg-warning/10 text-warning',
   },
   {
     icon: ShieldAlert,
     pain: 'Your kid needs math help. The retired professor lives in C-block.',
-    solution: "Tutors, yoga instructors, music teachers — they're already your neighbors. No strangers entering your home. No background-check anxiety.",
+    solution: "Tutors, yoga instructors, music teachers - they're already your neighbors. No strangers entering your home. No background-check anxiety.",
     color: 'bg-destructive/10 text-destructive',
   },
 ];
@@ -41,7 +41,7 @@ export function LandingPainPoints() {
             You're Missing Out on What's Right Next Door
           </h2>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            The best food, services, and skills in your society have no app — until now.
+            The best food, services, and skills in your society have no app - until now.
           </p>
         </motion.div>
 

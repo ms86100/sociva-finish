@@ -10,7 +10,7 @@ const PROD_REF = 'kkzkuyhgdvyecmxtmkpy';
 const STAGING_REF = 'wwuanzbusxoyzixuprxs';
 
 // Prefer VITE_* when present; production builds may fall back to live defaults.
-// Staging builds NEVER fall back — missing/wrong env fails the app at boot.
+// Staging builds NEVER fall back - missing/wrong env fails the app at boot.
 const LIVE_SUPABASE_URL = `https://${PROD_REF}.supabase.co`;
 const LIVE_SUPABASE_KEY =
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imtremt1eWhnZHZ5ZWNteHRta3B5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM4MzIyMTEsImV4cCI6MjA4OTQwODIxMX0.-dmjGjRYs7u8TkR14oPwOXWipNXgSxZRjuwc6q98VkA';

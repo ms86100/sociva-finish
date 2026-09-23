@@ -218,7 +218,7 @@ export function CampaignAudiencePicker({
                   <label
                     key={u.id}
                     className={`flex items-start gap-2 px-3 py-2 text-xs ${disabled ? 'opacity-50' : 'hover:bg-muted/40 cursor-pointer'}`}
-                    title={disabled ? 'No push token — cannot receive this campaign' : undefined}
+                    title={disabled ? 'No push token - cannot receive this campaign' : undefined}
                   >
                     <Checkbox
                       checked={checked}

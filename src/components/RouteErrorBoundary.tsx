@@ -22,7 +22,7 @@ interface State {
 /**
  * Granular error boundary for route groups.
  * Unlike the global ErrorBoundary, this allows recovery without
- * a full page reload — users can navigate back or retry.
+ * a full page reload - users can navigate back or retry.
  *
  * AppShell renders sibling routes through a single <Outlet />, so React
  * reuses this component instance across Home ↔ Orders. Without a pathname

@@ -134,7 +134,7 @@ async function fetchPortfolioCounts(sellerIds: string[]): Promise<SellerBoardCou
 
 /**
  * Consolidated seller dashboard KPIs via get_seller_dashboard_kpis RPC.
- * Financial totals fail transparently — no silent 90-day / 2000-order fallback.
+ * Financial totals fail transparently - no silent 90-day / 2000-order fallback.
  * Pass `portfolioSellerIds` when sellerId is ALL_STORES_ID for labeled rollup.
  */
 export function useSellerOrderStats(
@@ -158,7 +158,7 @@ export function useSellerOrderStats(
 }
 
 /**
- * Filter counts via get_seller_order_board_counts — must match list filter semantics.
+ * Filter counts via get_seller_order_board_counts - must match list filter semantics.
  */
 export function useSellerOrderFilterCounts(
   sellerId: string | null,

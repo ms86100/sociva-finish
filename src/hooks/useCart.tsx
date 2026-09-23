@@ -64,7 +64,7 @@ function useIsCartActiveRoute(): boolean {
   );
 
   // Home needs cart for add-to-cart steppers, but the full JOIN must not race
-  // marketplace RPCs on cold start — wait ~1.2s after landing on /.
+  // marketplace RPCs on cold start - wait ~1.2s after landing on /.
   useEffect(() => {
     if (!isHome) {
       setHomeDeferredReady(true);
@@ -86,21 +86,21 @@ function useIsCartActiveRoute(): boolean {
  * MUST always agree. The following multi-layer defenses ensure that the cart page
  * can NEVER show "Your cart is empty" while the badge shows a non-zero count:
  *
- * Layer 1 — queryFn self-heal: If fetchCartItems returns [], we do a cheap COUNT
+ * Layer 1 - queryFn self-heal: If fetchCartItems returns [], we do a cheap COUNT
  *           check. If rows exist, we retry once with a delay. This catches transient
  *           PostgREST/network glitches at the data layer.
  *
- * Layer 2 — reconcile guard: After mutations, reconcile() double-checks before
+ * Layer 2 - reconcile guard: After mutations, reconcile() double-checks before
  *           accepting an empty result. If the count query disagrees, it invalidates
  *           instead of clobbering the cache.
  *
- * Layer 3 — mismatch recovery: A useEffect detects when items=[] but the count
+ * Layer 3 - mismatch recovery: A useEffect detects when items=[] but the count
  *           cache says >0. It triggers up to 3 aggressive refetches with staggered
  *           delays (0ms, 500ms, 1500ms). isRecoveringCart stays true throughout.
  *
- * Layer 4 — CartPage veto: The empty-state UI is gated on BOTH items.length===0
+ * Layer 4 - CartPage veto: The empty-state UI is gated on BOTH items.length===0
  *           AND !isRecoveringCart AND !isFetching AND pendingMutations===0.
- *           This is the last line of defense — even if all other layers fail,
+ *           This is the last line of defense - even if all other layers fail,
  *           the user sees "Loading your cart…" instead of a false empty state.
  */
 
@@ -218,12 +218,12 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const { browsingLocation } = useBrowsingLocation();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  // Popups — call at top level (valid hook location)
+  // Popups - call at top level (valid hook location)
   const { showAddPopup, showRemovePopup } = useCartPopup();
   // Perf: stable userId string prevents query key churn from object reference changes
   const userId = user?.id ?? null;
 
-  // Global mutation counter — prevents stale reads from overwriting optimistic state
+  // Global mutation counter - prevents stale reads from overwriting optimistic state
   const mutationSeqRef = useRef(0);
   const [pendingMutations, setPendingMutations] = useState(0);
   const [recoveryAttempts, setRecoveryAttempts] = useState(0);
@@ -400,7 +400,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     () => resolvedItems.reduce((sum, item) => sum + (item.product?.price || 0) * item.quantity, 0),
     [resolvedItems],
   );
-  // Layer 3: Detect mismatch — items array is empty but count cache says otherwise
+  // Layer 3: Detect mismatch - items array is empty but count cache says otherwise
   const hasCartCountMismatch = !!user && isFetched && !isFetching && pendingMutations === 0
     && items.length === 0 && fallbackItemCount > 0;
   const isRecoveringCart = hasCartCountMismatch && recoveryAttempts < MAX_RECOVERY_ATTEMPTS;
@@ -449,7 +449,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         return false;
       }
 
-      // Match DB trigger validate_cart_item_category — fail before optimistic UI.
+      // Match DB trigger validate_cart_item_category - fail before optimistic UI.
       if (pCategory) {
         const { data: catRow } = await supabase
           .from('category_config')
@@ -457,7 +457,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
           .eq('category', pCategory)
           .maybeSingle();
         if (catRow && catRow.supports_cart !== true) {
-          toast.error('This item uses a booking/enquiry flow — it cannot be added to cart.', { id: 'cart-category-block' });
+          toast.error('This item uses a booking/enquiry flow - it cannot be added to cart.', { id: 'cart-category-block' });
           return false;
         }
       }
@@ -482,7 +482,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       }
       if (availability.status !== 'open') { const msg = formatStoreClosedMessage(availability); toast.error(msg || 'This store is currently closed. Please try again later.', { id: 'cart-store-closed' }); return false; }
 
-      // Stock validation — enforce stock ceiling
+      // Stock validation - enforce stock ceiling
       let maxQty = 99;
       const pStock = (product as any).stock_quantity;
       if (pStock != null) {
@@ -492,7 +492,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         if (stockCheck?.stock_quantity != null) maxQty = stockCheck.stock_quantity;
       }
 
-      // Guest local cart (Swiggy-style) — no OTP until Place Order
+      // Guest local cart (Swiggy-style) - no OTP until Place Order
       if (!user) {
         const guestLines = readGuestCart();
         const existingQty = guestLines.find((i) => i.product_id === product.id)?.quantity || 0;
@@ -514,7 +514,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         return true;
       }
 
-      // Read current items from cache (avoids stale closure — items is not in deps)
+      // Read current items from cache (avoids stale closure - items is not in deps)
       const currentItems = queryClient.getQueryData(cartKey()) as (CartItem & { product: Product })[] | undefined;
       const existingQty = (currentItems || []).find(i => i.product_id === product.id)?.quantity || 0;
       if (maxQty <= 0) {
@@ -522,12 +522,12 @@ export function CartProvider({ children }: { children: ReactNode }) {
         return false;
       }
       if (existingQty >= maxQty) {
-        // + should already be disabled in UI — no toast
+        // + should already be disabled in UI - no toast
         return false;
       }
       quantity = Math.min(quantity, maxQty - existingQty);
 
-      // Committed to mutation — track it
+      // Committed to mutation - track it
       mutationStarted = true;
       setPendingMutations(c => c + 1);
 
@@ -593,7 +593,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         } else {
           const dbMsg = error?.message || error?.details || '';
           if (dbMsg.includes('does not support cart')) {
-            toast.error('This item uses a booking/enquiry flow — it cannot be added to cart.', { id: 'cart-category-block' });
+            toast.error('This item uses a booking/enquiry flow - it cannot be added to cart.', { id: 'cart-category-block' });
           } else if (dbMsg.includes('Product not found')) {
             toast.error('This product is no longer available.', { id: 'cart-product-gone' });
           } else {
@@ -726,12 +726,12 @@ export function CartProvider({ children }: { children: ReactNode }) {
     }
     if (quantity <= 0) { await removeItem(productId); return; }
 
-    // Stock validation — fetch ceiling
+    // Stock validation - fetch ceiling
     let maxQty = 99;
     const { data: stockCheck } = await supabase.from('products').select('stock_quantity').eq('id', productId).maybeSingle();
     if (stockCheck?.stock_quantity != null) maxQty = stockCheck.stock_quantity;
     if (quantity > maxQty) {
-      // At stock ceiling — UI disables +; do not toast or show "Quantity updated"
+      // At stock ceiling - UI disables +; do not toast or show "Quantity updated"
       return;
     }
     const cappedQuantity = quantity;
@@ -860,7 +860,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // Keep cart-count cache in sync with items (eliminates split-brain)
-  // RULE 2: Never downgrade count to 0 from item sync — only server verification can do that
+  // RULE 2: Never downgrade count to 0 from item sync - only server verification can do that
   useEffect(() => {
     if (hasHydrated && user && !hasCartCountMismatch) {
       if (itemCount === 0 && fallbackItemCount > 0) return; // Don't blindly zero the count
@@ -898,7 +898,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     removeItem,
     clearCart,
     cartVerified: userId ? cartVerified : true,
-    // RULE 3: refresh is non-destructive — safe invalidation only, no reconcile
+    // RULE 3: refresh is non-destructive - safe invalidation only, no reconcile
     refresh: async () => {
       if (user) {
         await queryClient.invalidateQueries({ queryKey: cartKey() });

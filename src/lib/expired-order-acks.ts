@@ -22,7 +22,7 @@ export function acknowledgeExpiredOrder(orderId: string): void {
   try {
     localStorage.setItem(EXPIRED_ACK_KEY, JSON.stringify(arr));
   } catch {
-    /* quota — ignore */
+    /* quota - ignore */
   }
 }
 

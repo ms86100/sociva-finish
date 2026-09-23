@@ -1,7 +1,7 @@
 // @ts-nocheck
 /**
  * Demand-stats RPC hook. Chart analytics live in `@/hooks/useSellerAnalytics`
- * (settled GMV only — single money source with dashboard KPIs).
+ * (settled GMV only - single money source with dashboard KPIs).
  */
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';

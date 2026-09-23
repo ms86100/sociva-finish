@@ -166,7 +166,7 @@ BEGIN
   ) INTO _transition_valid;
 
   IF NOT _transition_valid THEN
-    RAISE EXCEPTION 'Invalid status transition from "%" to "%" — no transition rule defined', _order_record.status, _next_step_status;
+    RAISE EXCEPTION 'Invalid status transition from "%" to "%" - no transition rule defined', _order_record.status, _next_step_status;
   END IF;
 
   -- Set OTP verified flag (bypasses enforce_otp_gate since we already verified)

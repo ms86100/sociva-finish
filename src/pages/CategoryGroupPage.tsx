@@ -390,7 +390,7 @@ export default function CategoryGroupPage() {
                 Top Sellers in {parentGroup?.label || ''}
               </h3>
             </div>
-            {/* marketplace-stack uses gap — space-y margins do not apply to inline <a>/Link roots */}
+            {/* marketplace-stack uses gap - space-y margins do not apply to inline <a>/Link roots */}
             <div className="marketplace-stack">
               {topSellers.slice(0, 5).map((seller: any) => (
                 <SellerCard key={seller.id} seller={seller} />

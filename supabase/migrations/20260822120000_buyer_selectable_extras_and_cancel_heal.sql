@@ -451,7 +451,7 @@ SELECT
   'buyer_custom_options',
   'buyer_custom_options',
   'Buyer options',
-  'Reusable chips and notes any seller can offer — admin can rename or add more later',
+  'Reusable chips and notes any seller can offer - admin can rename or add more later',
   '✨',
   'tags',
   ARRAY(SELECT category FROM public.category_config ORDER BY category),

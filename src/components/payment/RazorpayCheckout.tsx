@@ -107,7 +107,7 @@ export function RazorpayCheckout({
         if (razorpayOrderId) {
           console.log('[Payment] Razorpay order_id for reconciliation:', razorpayOrderId);
         }
-        // Mark success as terminal — prevents drawer lifecycle from reverting to 'pending'
+        // Mark success as terminal - prevents drawer lifecycle from reverting to 'pending'
         successFinalRef.current = true;
         setStatus('success');
         onPaymentSuccess(paymentId);
@@ -127,7 +127,7 @@ export function RazorpayCheckout({
         paymentInFlightRef.current = false;
         // Guard: if payment already succeeded, don't reset to pending
         if (successFinalRef.current || ['verifying', 'success', 'confirming'].includes(statusRef.current)) {
-          console.log('[Payment] onDismiss suppressed — successFinal:', successFinalRef.current, 'status:', statusRef.current);
+          console.log('[Payment] onDismiss suppressed - successFinal:', successFinalRef.current, 'status:', statusRef.current);
           return;
         }
         // Close the drawer entirely instead of resetting to 'pending' (which causes a loop)
@@ -152,7 +152,7 @@ export function RazorpayCheckout({
     // CRITICAL: If success already fired, NEVER call onPaymentFailed or onDismiss.
     // The drawer close lifecycle must not undo a successful payment.
     if (successFinalRef.current || status === 'success') {
-      // Silent close — parent already handled success
+      // Silent close - parent already handled success
       onClose();
       return;
     }
@@ -288,7 +288,7 @@ export function RazorpayCheckout({
               <div>
                 <p className="font-semibold text-foreground">Payment Received</p>
                 <p className="text-sm text-muted-foreground">
-                  We're confirming your order — check your orders page for updates
+                  We're confirming your order - check your orders page for updates
                 </p>
               </div>
             </div>

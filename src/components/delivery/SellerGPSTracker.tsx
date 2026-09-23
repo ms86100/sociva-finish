@@ -226,7 +226,7 @@ export function SellerGPSTracker({ assignmentId, orderId, autoStart = true, deli
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Not now</AlertDialogCancel>
-            <AlertDialogAction onClick={beginTrackingAfterDisclosure}>I understand — Start</AlertDialogAction>
+            <AlertDialogAction onClick={beginTrackingAfterDisclosure}>I understand - Start</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -270,7 +270,7 @@ export function SellerGPSTracker({ assignmentId, orderId, autoStart = true, deli
         </div>
       )}
 
-      {/* Tracking paused alert (native only — watchdog detected stale) */}
+      {/* Tracking paused alert (native only - watchdog detected stale) */}
       {isNative && trackingPaused && (
         <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-2.5 space-y-2">
           <p className="text-xs text-destructive font-medium">Location updates paused</p>

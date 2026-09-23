@@ -75,7 +75,7 @@ export function OfferingImageGalleryUpload({
       setAdding(false);
       return;
     }
-    // Append against latest gallery — avoids stale closure replacing prior photos
+    // Append against latest gallery - avoids stale closure replacing prior photos
     // when uploads finish close together.
     setImages([...current, url]);
   };

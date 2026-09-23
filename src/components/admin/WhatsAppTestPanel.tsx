@@ -22,15 +22,15 @@ type SendResult = {
 function friendlyError(code?: string, fallback?: string) {
   switch (code) {
     case 'unauthorized':
-      return 'Unauthorized — admin session required';
+      return 'Unauthorized - admin session required';
     case 'token_expired':
-      return 'WhatsApp token expired — refresh WHATSAPP_ACCESS_TOKEN';
+      return 'WhatsApp token expired - refresh WHATSAPP_ACCESS_TOKEN';
     case 'invalid_phone':
-      return 'Invalid phone — use country code digits only (e.g. 9198XXXXXXXX)';
+      return 'Invalid phone - use country code digits only (e.g. 9198XXXXXXXX)';
     case 'rate_limited':
-      return 'Rate limited by Meta — wait and retry';
+      return 'Rate limited by Meta - wait and retry';
     case 'missing_credentials':
-      return 'Missing WhatsApp credentials — set secrets or Admin → Credentials';
+      return 'Missing WhatsApp credentials - set secrets or Admin → Credentials';
     case 'meta_error':
       return fallback || 'Meta API rejected the message';
     default:

@@ -27,7 +27,7 @@ function statusLabel(state: string): string {
 }
 
 /**
- * Single Permission Center — Get the most from Sociva.
+ * Single Permission Center - Get the most from Sociva.
  * All surfaces (Profile / Home / post-login) share this component + usePermissionLifecycle.
  */
 export function PermissionCenter({
@@ -55,7 +55,7 @@ export function PermissionCenter({
 
   if (attentionOnly) {
     if (variant === 'banner') {
-      // Home strip is location-only — notification prompts belong in Profile / post-login.
+      // Home strip is location-only - notification prompts belong in Profile / post-login.
       if (!showLocSoftPrompt) return null;
     } else if (!notifNeedsAttention && !locNeedsAttention) {
       return null;
@@ -63,7 +63,7 @@ export function PermissionCenter({
   }
 
   const closeSheet = () => {
-    // Close UI first — never wait on Preferences / RPC.
+    // Close UI first - never wait on Preferences / RPC.
     onDismissed?.();
     void dismissAll();
   };
@@ -117,7 +117,7 @@ export function PermissionCenter({
     locationPermission === 'denied' || locationPermission === 'restricted';
 
   if (variant === 'banner') {
-    // Compact home strip — location soft prompt only (no notification Enable spinner here).
+    // Compact home strip - location soft prompt only (no notification Enable spinner here).
     if (!showLocSoftPrompt) return null;
 
     return (

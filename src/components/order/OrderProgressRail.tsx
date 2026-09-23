@@ -13,7 +13,7 @@ interface OrderProgressRailProps {
 }
 
 /**
- * Shared Swiggy-style horizontal progress rail — identical for buyer and seller.
+ * Shared Swiggy-style horizontal progress rail - identical for buyer and seller.
  */
 export function OrderProgressRail({
   stages,

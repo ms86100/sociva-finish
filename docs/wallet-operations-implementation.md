@@ -1,4 +1,4 @@
-# SOCIVA Financial Operations — Implementation Handoff
+# SOCIVA Financial Operations - Implementation Handoff
 
 **Status:** Implemented in repository, disabled by default, not deployed or professionally approved  
 **Migrations:** `20260808055445_wallet_financial_hardening.sql`, `20260808062611_wallet_financial_operations.sql`

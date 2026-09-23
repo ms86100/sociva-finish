@@ -21,7 +21,7 @@ Deno.serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-    // P0: service_role (or CRON_SECRET) only — never accept anon JWT
+    // P0: service_role (or CRON_SECRET) only - never accept anon JWT
     const authHeader = req.headers.get("Authorization") || "";
     const token = authHeader.replace(/^Bearer\s+/i, "");
     const allowed =
@@ -61,7 +61,7 @@ Deno.serve(async (req) => {
     }
 
     if (!timer) {
-      // Already accepted/cancelled/cleared — nothing to do
+      // Already accepted/cancelled/cleared - nothing to do
       return new Response(
         JSON.stringify({ ok: true, skipped: true, reason: "no_timer" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } },

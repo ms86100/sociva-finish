@@ -96,7 +96,7 @@ export function matchesDueWindow(
 
   const dueAt = resolveOrderDueAt(order, now);
   if (dueAt == null) {
-    // No explicit due — treat prep-due transit age as soft due
+    // No explicit due - treat prep-due transit age as soft due
     const age = transitAgeMs(order, now);
     if (age == null) return false;
     if (window === 'due_1h') return age < 60 * 60 * 1000;

@@ -1,6 +1,6 @@
 
 -- ============================================================
--- Blocker 1: seller_advance_order RPC — enforces app.acting_as = 'seller'
+-- Blocker 1: seller_advance_order RPC - enforces app.acting_as = 'seller'
 -- ============================================================
 CREATE OR REPLACE FUNCTION public.seller_advance_order(
   _order_id uuid,
@@ -34,7 +34,7 @@ BEGIN
 
   -- Verify the caller is the seller
   IF v_order.seller_user_id IS NULL OR v_order.seller_user_id != auth.uid() THEN
-    RAISE EXCEPTION 'Not authorized — you are not the seller of this order';
+    RAISE EXCEPTION 'Not authorized - you are not the seller of this order';
   END IF;
 
   v_parent_group := COALESCE(v_order.primary_group, 'default');
@@ -151,7 +151,7 @@ BEGIN
     RETURN NEW;
   END IF;
 
-  -- Terminal delivery statuses handled by OTP RPC — don't double-sync
+  -- Terminal delivery statuses handled by OTP RPC - don't double-sync
   IF NEW.status IN ('delivered', 'failed', 'cancelled') THEN
     RETURN NEW;
   END IF;

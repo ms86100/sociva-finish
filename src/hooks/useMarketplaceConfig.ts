@@ -5,10 +5,10 @@ import { loadAppBootstrap } from '@/lib/app-bootstrap';
 
 /**
  * System-wide marketplace config from system_settings + admin_settings.
- * Single source of truth — no frontend defaults for business logic.
+ * Single source of truth - no frontend defaults for business logic.
  *
  * Uses shared cache key ['system-settings-all'] so useSystemSettingsRaw
- * and useMarketplaceLabels can read from the same cache — zero duplicate queries.
+ * and useMarketplaceLabels can read from the same cache - zero duplicate queries.
  */
 export interface MarketplaceConfig {
   lowStockThreshold: number;
@@ -147,7 +147,7 @@ export function useMarketplaceConfig(): MarketplaceConfig {
     // its own system_settings + admin_settings queries.
     queryFn: async (): Promise<SettingsCacheData> => {
       // After invalidateAppBootstrap(), cache is empty so this hits the network.
-      // Do not pass force:true on every mount — that would defeat the TTL cache.
+      // Do not pass force:true on every mount - that would defeat the TTL cache.
       const { sysMap, adminMap } = await loadAppBootstrap();
       return { sysMap, adminMap, config: buildConfig(sysMap, adminMap) };
     },

@@ -66,7 +66,7 @@ const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
     return null;
   }
 
-  // D4: Build CSS variables via style element — sanitized keys and values only
+  // D4: Build CSS variables via style element - sanitized keys and values only
   const cssRules: string[] = [];
   for (const [theme, prefix] of Object.entries(THEMES)) {
     const vars = colorConfig

@@ -122,7 +122,7 @@ export default function SellerProductFormPage({
       navigate(paths.products, { replace: true, state: { productSaved: true } });
       return;
     }
-    // Validation failed — jump to the step with the first error field
+    // Validation failed - jump to the step with the first error field
     const firstErrorField = (window as any).__productFormFirstError;
     if (firstErrorField) {
       const targetStepKey = fieldToStepMap[firstErrorField];
@@ -193,7 +193,7 @@ export default function SellerProductFormPage({
           </span>
         </div>
 
-        {/* Step indicator — compact on phone */}
+        {/* Step indicator - compact on phone */}
         <div className="flex items-center gap-1 mb-4 overflow-x-auto pb-1 -mx-1 px-1">
           {activeSteps.map((s, idx) => {
             const Icon = s.icon;
@@ -256,7 +256,7 @@ export default function SellerProductFormPage({
                     {step.key === 'service' && <StepService sp={sp} />}
                   </div>
 
-                  {/* Mobile step navigation — in-card so tab bar never covers Cancel/Next */}
+                  {/* Mobile step navigation - in-card so tab bar never covers Cancel/Next */}
                   <div className="flex sm:hidden items-center justify-between gap-3 px-4 py-3 border-t bg-muted/20">
                     <Button
                       variant="outline"
@@ -311,13 +311,13 @@ export default function SellerProductFormPage({
               </motion.div>
             </AnimatePresence>
 
-            {/* Mobile Preview — always visible */}
+            {/* Mobile Preview - always visible */}
             <div className="mt-4 lg:hidden">
               <ProductFormPreviewMobile formData={sp.formData} sellerProfile={sp.sellerProfile} attributeBlocks={sp.attributeBlocks} />
             </div>
           </div>
 
-          {/* Desktop Preview — always visible */}
+          {/* Desktop Preview - always visible */}
           <ProductFormPreviewPanel formData={sp.formData} sellerProfile={sp.sellerProfile} attributeBlocks={sp.attributeBlocks} />
         </div>
       </div>
@@ -505,12 +505,12 @@ function StepConfig({ sp }: { sp: ReturnType<typeof useSellerProducts> }) {
   const actionCfg = ACTION_CONFIG[actionType];
   const ActionIcon = actionCfg?.icon;
   const helperText = storeDefault
-    ? 'Set during store configuration — all your products use this flow'
-    : 'Determined by your category — all products in this category use the same flow';
+    ? 'Set during store configuration - all your products use this flow'
+    : 'Determined by your category - all products in this category use the same flow';
 
   return (
     <>
-      {/* Read-only buyer interaction — chosen during store configuration */}
+      {/* Read-only buyer interaction - chosen during store configuration */}
       <div>
         <Label className="text-sm font-semibold">How customers buy this</Label>
         <div className="mt-1.5 flex items-center gap-3 p-3 bg-muted/50 rounded-xl border">

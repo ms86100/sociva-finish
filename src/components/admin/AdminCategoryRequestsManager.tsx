@@ -307,7 +307,7 @@ function RequestDetailSheet({ request, onClose }: { request: CategoryRequestRow 
           {request.draft_product_id && (
             <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/30 text-xs flex items-center gap-2">
               <AlertCircle size={14} className="text-blue-600 shrink-0" />
-              <span>This request is linked to a pending product draft — it will be auto-relinked on approval.</span>
+              <span>This request is linked to a pending product draft - it will be auto-relinked on approval.</span>
             </div>
           )}
 
@@ -342,7 +342,7 @@ function RequestDetailSheet({ request, onClose }: { request: CategoryRequestRow 
                   </div>
                   {isSubcat ? (
                     <div className="p-2 rounded-lg bg-muted/40 text-[11px] text-muted-foreground">
-                      Will be added under <span className="font-semibold text-foreground">{parentCategory?.displayName ?? parentCategory?.display_name ?? '—'}</span>
+                      Will be added under <span className="font-semibold text-foreground">{parentCategory?.displayName ?? parentCategory?.display_name ?? '-'}</span>
                     </div>
                   ) : (
                     <div className="space-y-1">
@@ -401,7 +401,7 @@ function RequestDetailSheet({ request, onClose }: { request: CategoryRequestRow 
                               .filter((c: any) => c.isActive ?? c.is_active)
                               .map((c: any) => (
                                 <SelectItem key={c.category} value={c.category}>
-                                  {(c.displayName ?? c.display_name)} — {c.parentGroup ?? c.parent_group}
+                                  {(c.displayName ?? c.display_name)} - {c.parentGroup ?? c.parent_group}
                                 </SelectItem>
                               ))}
                           </SelectContent>

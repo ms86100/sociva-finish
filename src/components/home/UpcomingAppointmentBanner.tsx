@@ -40,7 +40,7 @@ export function UpcomingAppointmentBanner() {
     let cancelled = false;
 
     (async () => {
-      // Use IST for date/time comparisons — booking dates are stored as IST dates
+      // Use IST for date/time comparisons - booking dates are stored as IST dates
       const nowIST = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
       const today = format(nowIST, 'yyyy-MM-dd');
       const { data } = await supabase

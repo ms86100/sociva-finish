@@ -122,7 +122,7 @@ export function useCategoryConfigs() {
   const { data: configs = [], isLoading, refetch } = useQuery({
     queryKey: ['category-configs'],
     queryFn: fetchCategoryConfigs,
-    staleTime: 30 * 60 * 1000, // 30 min — category config is near-static
+    staleTime: 30 * 60 * 1000, // 30 min - category config is near-static
   });
 
   const groupedConfigs = useMemo(() => {
@@ -177,7 +177,7 @@ export function useCategoryBehavior(category: ServiceCategory | null) {
   };
 }
 
-// Hook to get behavior for a parent group — now just returns fallback
+// Hook to get behavior for a parent group - now just returns fallback
 // Category-level config from DB is the source of truth
 export function useGroupBehavior(_parentGroup: ParentGroup | null) {
   return DEFAULT_FALLBACK_BEHAVIOR;

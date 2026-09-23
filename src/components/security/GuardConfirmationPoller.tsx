@@ -73,7 +73,7 @@ export function GuardConfirmationPoller({
         if (data.confirmation_status === 'confirmed') handleResolution('confirmed');
         else if (data.confirmation_status === 'denied') handleResolution('denied');
       } catch {
-        // Silently ignore poll errors — realtime is primary
+        // Silently ignore poll errors - realtime is primary
       }
     }, 4000);
 
@@ -129,7 +129,7 @@ export function GuardConfirmationPoller({
           <Clock className="mx-auto text-warning" size={64} />
           <p className="text-2xl font-bold text-warning">NO RESPONSE</p>
           <p className="text-sm text-muted-foreground">
-            Resident did not respond. QR was valid — use judgment.
+            Resident did not respond. QR was valid - use judgment.
           </p>
           <p className="text-xs text-muted-foreground">
             {residentName} • Block {block}, Flat {flatNumber}

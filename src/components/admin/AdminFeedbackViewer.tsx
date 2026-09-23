@@ -42,7 +42,7 @@ export default function AdminFeedbackViewer() {
 
   const avgRating = feedback.length
     ? (feedback.reduce((sum, f) => sum + f.rating, 0) / feedback.length).toFixed(1)
-    : '—';
+    : '-';
 
   if (isLoading) {
     return (

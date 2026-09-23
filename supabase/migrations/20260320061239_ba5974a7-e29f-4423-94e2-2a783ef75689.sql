@@ -29,7 +29,7 @@ BEGIN
 END;
 $$;
 
--- Blocker 2: Remove pg_sleep(0.5) from trigger — it blocks the INSERT transaction
+-- Blocker 2: Remove pg_sleep(0.5) from trigger - it blocks the INSERT transaction
 CREATE OR REPLACE FUNCTION public.trigger_process_notification_queue()
 RETURNS TRIGGER
 LANGUAGE plpgsql

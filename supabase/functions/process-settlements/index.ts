@@ -133,7 +133,7 @@ Deno.serve(async (req) => {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader || authHeader !== `Bearer ${serviceRoleKey}`) {
       return new Response(
-        JSON.stringify({ error: "Unauthorized — service role required" }),
+        JSON.stringify({ error: "Unauthorized - service role required" }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
@@ -265,7 +265,7 @@ Deno.serve(async (req) => {
           })
           .eq("id", settlement.id)
           .in("settlement_status", ["pending", "eligible", "processing"]);
-        errors.push({ id: settlement.id, error: `Order ${orderPay} — settlement held` });
+        errors.push({ id: settlement.id, error: `Order ${orderPay} - settlement held` });
         continue;
       }
 
@@ -343,7 +343,7 @@ Deno.serve(async (req) => {
             ],
             route_enabled: true,
             message:
-              "Eligible marked where possible; Route transfers skipped — Razorpay credentials missing.",
+              "Eligible marked where possible; Route transfers skipped - Razorpay credentials missing.",
           }),
           {
             status: 200,

@@ -85,7 +85,7 @@ BEGIN
   LOOP
     INSERT INTO public.notification_queue (user_id, title, body, type, data)
     VALUES (_prompt.buyer_id, 'How was your order?',
-      'Rate your experience with ' || COALESCE(_prompt.seller_name, 'the seller') || ' — your review helps the community!',
+      'Rate your experience with ' || COALESCE(_prompt.seller_name, 'the seller') || ' - your review helps the community!',
       'review_nudge', jsonb_build_object('order_id', _prompt.order_id, 'action', 'review'))
     ON CONFLICT DO NOTHING;
     UPDATE public.review_prompts SET nudge_sent = true, updated_at = now() WHERE id = _prompt.id;

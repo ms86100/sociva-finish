@@ -45,7 +45,7 @@ export function CategoryGroupGrid({
     );
   }
 
-  // Compact variant — Blinkit-style category grid with larger icons
+  // Compact variant - Blinkit-style category grid with larger icons
   if (variant === 'compact') {
     const visibleGroups = filteredGroups.filter(g => groupedConfigs[g.value]?.length > 0);
     return (

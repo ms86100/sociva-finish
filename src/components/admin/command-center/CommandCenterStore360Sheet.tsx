@@ -68,7 +68,7 @@ export function CommandCenterStore360Sheet({
                 {!store.is_available && <Badge variant="secondary">Unavailable</Badge>}
               </div>
               <p className="text-sm text-muted-foreground mt-1">
-                {store.owner_name || 'Owner'} · {store.owner_phone || '—'}
+                {store.owner_name || 'Owner'} · {store.owner_phone || '-'}
               </p>
               <p className="text-xs text-muted-foreground">
                 {store.society_name || 'No society'} · joined{' '}

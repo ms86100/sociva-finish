@@ -1,5 +1,5 @@
 /**
- * Guest (logged-out) cart — Swiggy-style local cart until checkout OTP.
+ * Guest (logged-out) cart - Swiggy-style local cart until checkout OTP.
  * Merged into server cart_items after login.
  */
 

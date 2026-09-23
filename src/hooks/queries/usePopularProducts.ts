@@ -30,7 +30,7 @@ export function usePopularProducts(limit = 12) {
 }
 
 /**
- * Products for a specific parentGroup — derives from shared marketplace data.
+ * Products for a specific parentGroup - derives from shared marketplace data.
  * Zero additional RPC calls for the main product list.
  */
 export function useCategoryProducts(parentGroup: string | null) {

@@ -47,7 +47,7 @@ export function BookingsHub({ sellerId }: BookingsHubProps) {
           <div className="flex items-start gap-2 p-3 rounded-lg bg-primary/5 border border-primary/20">
             <Sparkles size={14} className="text-primary mt-0.5 shrink-0" />
             <p className="text-[11px] text-foreground/80 leading-relaxed">
-              Slots now <strong>auto-generate</strong> whenever you save your hours. You no longer need to manually regenerate — the system rebuilds future unbooked slots automatically. Use the <strong>Slots</strong> tab to block individual times.
+              Slots now <strong>auto-generate</strong> whenever you save your hours. You no longer need to manually regenerate - the system rebuilds future unbooked slots automatically. Use the <strong>Slots</strong> tab to block individual times.
             </p>
           </div>
           <ServiceAvailabilityManager sellerId={sellerId} />

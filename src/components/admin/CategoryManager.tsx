@@ -249,7 +249,7 @@ export function CategoryManager() {
             ))}
           </div>
           <p className="text-[11px] text-muted-foreground">
-            Tip: tap a chip above to jump to one section. New sections appear at the bottom of <span className="font-medium">All</span> — or hard-refresh if a just-created section is missing.
+            Tip: tap a chip above to jump to one section. New sections appear at the bottom of <span className="font-medium">All</span> - or hard-refresh if a just-created section is missing.
           </p>
           <ScrollArea className="h-[500px]">
             <div className="space-y-5 pr-4">
@@ -326,7 +326,7 @@ export function CategoryManager() {
               <div className="space-y-2">
                 <Label className="text-xs font-semibold">Seller domain</Label>
                 <p className="text-[10px] text-muted-foreground">
-                  Product / Service / Listing — controls which onboarding form family sellers see.
+                  Product / Service / Listing - controls which onboarding form family sellers see.
                 </p>
                 <Select
                   value={cm.editForm.seller_domain}

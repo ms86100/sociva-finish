@@ -278,7 +278,7 @@ describeDb("Buyer Discovery E2E", () => {
       expect(BUYER_PROFILE.browse_beyond_community).toBe(true);
     });
 
-    it("should have a valid search radius (1–10 km)", () => {
+    it("should have a valid search radius (1-10 km)", () => {
       expect(BUYER_PROFILE.search_radius_km).toBeGreaterThanOrEqual(1);
       expect(BUYER_PROFILE.search_radius_km).toBeLessThanOrEqual(10);
     });
@@ -652,7 +652,7 @@ describeDb("Buyer Discovery E2E", () => {
 // PART 2: REAL DATABASE INTEGRATION TESTS
 // =====================================================================
 
-describeDb("Buyer Discovery — Real DB Integration", () => {
+describeDb("Buyer Discovery - Real DB Integration", () => {
   let buyerClient: SupabaseClient;
   let adminClient: SupabaseClient;
   let seedData: { society_id: string; society_2_id: string };
@@ -666,7 +666,7 @@ describeDb("Buyer Discovery — Real DB Integration", () => {
     ]);
   }, 30000);
 
-  describe("1. Real DB — Seller Profile Visibility", () => {
+  describe("1. Real DB - Seller Profile Visibility", () => {
     it("buyer can only see approved seller profiles", async () => {
       const { data } = await buyerClient
         .from("seller_profiles")
@@ -696,7 +696,7 @@ describeDb("Buyer Discovery — Real DB Integration", () => {
     });
   });
 
-  describe("2. Real DB — Category Config Visibility", () => {
+  describe("2. Real DB - Category Config Visibility", () => {
     it("buyer sees only active categories", async () => {
       const { data } = await buyerClient
         .from("category_config")
@@ -727,7 +727,7 @@ describeDb("Buyer Discovery — Real DB Integration", () => {
     });
   });
 
-  describe("3. Real DB — Cross-Society Discovery RPC", () => {
+  describe("3. Real DB - Cross-Society Discovery RPC", () => {
     it("search_nearby_sellers returns only approved sellers with products", async () => {
       // This RPC requires a society with coordinates
       const { data: society } = await adminClient
@@ -739,7 +739,7 @@ describeDb("Buyer Discovery — Real DB Integration", () => {
         .single();
 
       if (!society) {
-        // No societies with coordinates — skip gracefully
+        // No societies with coordinates - skip gracefully
         expect(true).toBe(true);
         return;
       }

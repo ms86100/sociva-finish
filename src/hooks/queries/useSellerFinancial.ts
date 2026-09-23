@@ -97,9 +97,9 @@ export function useSellerPayoutReadiness() {
         razorpayRouteMode: routeReady,
         canRequestWithdrawal: enabled && routeReady,
         reason: !enabled
-          ? 'Bank withdrawals are not open yet. Your online earnings stay in Available until we enable transfers — your balance is still tracked here.'
+          ? 'Bank withdrawals are not open yet. Your online earnings stay in Available until we enable transfers - your balance is still tracked here.'
           : !routeReady
-            ? 'Bank transfer setup is in progress. Your Available balance is safe — withdrawals will open once transfer routing is active.'
+            ? 'Bank transfer setup is in progress. Your Available balance is safe - withdrawals will open once transfer routing is active.'
             : null,
       };
     },

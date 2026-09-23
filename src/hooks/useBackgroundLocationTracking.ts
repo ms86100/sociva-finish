@@ -64,10 +64,10 @@ export function useBackgroundLocationTracking(assignmentId: string | null) {
     });
     // Check for terminal signal (server returns 200 with { terminal: true })
     if (data && typeof data === 'object' && data.terminal) {
-      console.log('[LocationTracking] Delivery terminal — auto-stopping');
+      console.log('[LocationTracking] Delivery terminal - auto-stopping');
       throw new Error('DELIVERY_TERMINAL');
     }
-    // Handle 429 rate limit — wait and signal caller to slow down
+    // Handle 429 rate limit - wait and signal caller to slow down
     if (error) {
       let errorBody: any = null;
       try {
@@ -76,12 +76,12 @@ export function useBackgroundLocationTracking(assignmentId: string | null) {
       const msg = errorBody?.error || (typeof data === 'object' ? data?.error : '') || '';
       if (msg === 'Rate limited' || msg === 'Rate limited') {
         const retryMs = errorBody?.retry_after_ms || data?.retry_after_ms || 2500;
-        console.log(`[LocationTracking] Rate limited — waiting ${retryMs}ms`);
+        console.log(`[LocationTracking] Rate limited - waiting ${retryMs}ms`);
         await new Promise(r => setTimeout(r, retryMs));
         throw new Error('RATE_LIMITED');
       }
       if (msg === 'Delivery is no longer active') {
-        console.log('[LocationTracking] Delivery terminal — auto-stopping');
+        console.log('[LocationTracking] Delivery terminal - auto-stopping');
         throw new Error('DELIVERY_TERMINAL');
       }
     }
@@ -101,7 +101,7 @@ export function useBackgroundLocationTracking(assignmentId: string | null) {
           await postLocation(nextPayload);
         } catch (err: any) {
           if (err?.message === 'RATE_LIMITED') {
-            // Stop flushing — will retry on next location update or online event
+            // Stop flushing - will retry on next location update or online event
             console.log('[LocationTracking] Queue flush paused due to rate limit');
             break;
           }
@@ -168,7 +168,7 @@ export function useBackgroundLocationTracking(assignmentId: string | null) {
         return;
       }
       if (err?.message === 'RATE_LIMITED') {
-        // Don't queue — the point was too soon, just skip
+        // Don't queue - the point was too soon, just skip
         console.log('[LocationTracking] Skipping point due to rate limit');
         return;
       }
@@ -199,7 +199,7 @@ export function useBackgroundLocationTracking(assignmentId: string | null) {
       console.error('[LocationTracking] Recovery getCurrentPosition failed:', err);
       if (mountedRef.current) {
         setState(s => ({ ...s, trackingPaused: true }));
-        toast.error('Location updates paused — keep the app open to resume', { id: 'tracking-paused', duration: 8000 });
+        toast.error('Location updates paused - keep the app open to resume', { id: 'tracking-paused', duration: 8000 });
       }
     }
   }, [isNative, sendLocation]);
@@ -210,7 +210,7 @@ export function useBackgroundLocationTracking(assignmentId: string | null) {
       if (!mountedRef.current) return;
       const gap = Date.now() - lastSentRef.current;
       if (gap > STALE_THRESHOLD_MS && lastSentRef.current > 0) {
-        console.warn(`[LocationTracking] No update for ${Math.round(gap / 1000)}s — attempting recovery`);
+        console.warn(`[LocationTracking] No update for ${Math.round(gap / 1000)}s - attempting recovery`);
         attemptRecovery();
       }
     }, HEALTH_CHECK_INTERVAL_MS);
@@ -295,7 +295,7 @@ export function useBackgroundLocationTracking(assignmentId: string | null) {
 
       watchIdRef.current = watchId;
 
-      // Do NOT start LiveDeliveryService here — SPECIAL_USE FGS start/stop during OTP
+      // Do NOT start LiveDeliveryService here - SPECIAL_USE FGS start/stop during OTP
       // completion has force-closed the Android WebView. Keep GPS via watchPosition only.
 
       let level: TrackingState['permissionLevel'] = 'when_in_use';
@@ -362,7 +362,7 @@ export function useBackgroundLocationTracking(assignmentId: string | null) {
   const startTracking = useCallback(async () => {
     if (state.isTracking || startingRef.current) return;
     if (!assignmentId) {
-      console.warn('[LocationTracking] startTracking ignored — no delivery assignment id yet');
+      console.warn('[LocationTracking] startTracking ignored - no delivery assignment id yet');
       toast.error('Delivery assignment not ready yet. Open the order again and tap Start Sharing.', {
         id: 'loc-no-assignment',
         duration: 8000,

@@ -60,7 +60,7 @@ Deno.serve(async (req) => {
       await supabase.from("notification_queue").insert({
         user_id: seller.user_id,
         type: "seller_daily_summary",
-        title: `📊 Daily Summary — ${seller.business_name}`,
+        title: `📊 Daily Summary - ${seller.business_name}`,
         body,
         reference_path: "/seller",
         payload: {

@@ -98,7 +98,7 @@ See also `public/.well-known/ASSETLINKS_README.md` and `docs/ANDROID_SIGNING.md`
 npm run build && npx cap sync android
 cd android && ./gradlew bundleRelease
 ```
-(Requires `android/keystore.properties` — copy from `keystore.properties.example`.)
+(Requires `android/keystore.properties` - copy from `keystore.properties.example`.)
 
 ---
 

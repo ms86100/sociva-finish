@@ -104,7 +104,7 @@ function buildSettingsFromMap(map: Record<string, string>): SystemSettings {
 }
 
 /**
- * Full settings object — reads from the shared ['system-settings-all'] cache
+ * Full settings object - reads from the shared ['system-settings-all'] cache
  * populated by useMarketplaceConfig. Zero additional network calls.
  * Depends on useMarketplaceConfig() so admin invalidations re-render with live fees.
  */
@@ -123,7 +123,7 @@ export function useSystemSettings(): SystemSettings {
 }
 
 /**
- * Selector-based hook — only re-renders when the selected value changes.
+ * Selector-based hook - only re-renders when the selected value changes.
  * Usage: const symbol = useSystemSetting(s => s.currencySymbol);
  */
 export function useSystemSetting<T>(selector: (settings: SystemSettings) => T): T {

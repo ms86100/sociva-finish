@@ -200,7 +200,7 @@ export function SearchFilters({
             </div>
           </div>
 
-          {/* Veg / Non-Veg — food listings only */}
+          {/* Veg / Non-Veg - food listings only */}
           {showDietary && (
           <div>
             <Label className="text-sm font-semibold">Dietary Preference</Label>

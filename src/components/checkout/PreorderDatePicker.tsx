@@ -23,7 +23,7 @@ interface PreorderDatePickerProps {
   selectedTime: string | null;
   onDateChange: (date: Date | null) => void;
   onTimeChange: (time: string | null) => void;
-  /** Optional cutoff time (e.g. "18:00") — slots after this are filtered out */
+  /** Optional cutoff time (e.g. "18:00") - slots after this are filtered out */
   cutoffTime?: string | null;
 }
 
@@ -48,7 +48,7 @@ export function PreorderDatePicker({ leadTimeHours, selectedDate, selectedTime, 
       if (h < 22) slots.push(`${String(h).padStart(2, '0')}:30`);
     }
 
-    // Apply cutoff time filter — remove slots at or after the cutoff
+    // Apply cutoff time filter - remove slots at or after the cutoff
     let filtered = slots;
     if (cutoffHour) {
       filtered = filtered.filter(slot => {

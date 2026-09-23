@@ -39,7 +39,7 @@ describe('Sticky auth: Profile loading guard', () => {
 });
 
 describe('Sticky auth: /auth bounce guard', () => {
-  /** Mirrors App.tsx — home requires society_id; incomplete users go to profile/edit. */
+  /** Mirrors App.tsx - home requires society_id; incomplete users go to profile/edit. */
   const computeAuthedHome = (
     user: { id: string } | null,
     profile: { society_id?: string | null } | null,
@@ -156,7 +156,7 @@ describe('Sticky auth: 401 recovery before hard sign-out', () => {
     const signOut = vi.fn();
     const { data, error } = await refreshSession();
     if (!error && data.session) {
-      // recovered — do not signOut
+      // recovered - do not signOut
     } else {
       await signOut();
     }

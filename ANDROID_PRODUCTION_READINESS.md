@@ -1,7 +1,7 @@
 # Sociva Android Production Readiness Report
 
 **Date:** 2026-08-01  
-**Scope:** Investigation (Phases 1–14) plus **P0/P1 Capacitor Android hardening** (see §15–§16).  
+**Scope:** Investigation (Phases 1-14) plus **P0/P1 Capacitor Android hardening** (see §15-§16).  
 **Workspace:** `sociva-v1-main`
 
 ---
@@ -11,7 +11,7 @@
 | Item | Finding |
 |------|---------|
 | **Stack** | Vite + React 18 + TypeScript + Capacitor 8 + Supabase + TanStack Query. Confirmed via `package.json`, `capacitor.config.ts`, `android/`. |
-| **What it is** | A **Capacitor WebView wrapper** around the same SPA shipped on web — not a Kotlin/Compose rewrite. Prefer hardening this stack over a native rewrite. |
+| **What it is** | A **Capacitor WebView wrapper** around the same SPA shipped on web - not a Kotlin/Compose rewrite. Prefer hardening this stack over a native rewrite. |
 | **Android maturity** | **Mid-stage scaffolding.** Project exists (`app.sociva.community`, targetSdk 36, minSdk 24), Codemagic `android-release` can produce an AAB, store listing assets and docs exist. Runtime native hardening is incomplete. |
 | **Biggest Play Store blockers** | (1) Missing `google-services.json` → FCM push dead on Android. (2) App Links / deep-link native wiring incomplete (`assetlinks.json` placeholder; no HTTPS/`sociva` intent-filters in app manifest). (3) Privacy Policy understates **background location** used for seller delivery tracking. (4) No verified device QA for UPI deep-links + Razorpay Checkout inside Capacitor WebView. (5) Version / signing / Data Safety / Play publish path not production-closed. |
 
@@ -78,17 +78,17 @@ From `android/app/capacitor.build.gradle`: App, Browser, Camera, Geolocation, Ha
 ### Strengths
 
 - Safe-area aware chrome: `viewport-fit=cover` in `index.html`; headers/nav use `env(safe-area-inset-*)`.
-- Splash auto-hide fail-safe (4s) in `src/lib/capacitor.ts` — reduces permanent black-screen risk.
+- Splash auto-hide fail-safe (4s) in `src/lib/capacitor.ts` - reduces permanent black-screen risk.
 - Persistent shell (`AppShell` / `BottomNav`) and HashRouter reduce refresh/deeplink 404s in WebView.
 - Offline banner (`OfflineBanner` + `useNetworkStatus`).
-- Razorpay overlay patched for safe-area / height (`useRazorpay.ts` MutationObserver) — shows awareness of WebView checkout UX pain.
+- Razorpay overlay patched for safe-area / height (`useRazorpay.ts` MutationObserver) - shows awareness of WebView checkout UX pain.
 
 ### Gaps vs “native feel” (expected for Capacitor; ship-hardened, don’t rewrite)
 
 | Gap | Evidence | Impact |
 |-----|----------|--------|
-| **No Android hardware back handler** | No `App.addListener('backButton'|…)` matches in `src/` | Back exits app or ignores sheet/stack expectations — Play review / UX failure |
-| Hash routing | `HashRouter` in `src/App.tsx` | Works; URLs are `/#/…` — fine for Capacitor, awkward for marketing links |
+| **No Android hardware back handler** | No `App.addListener('backButton'|…)` matches in `src/` | Back exits app or ignores sheet/stack expectations - Play review / UX failure |
+| Hash routing | `HashRouter` in `src/App.tsx` | Works; URLs are `/#/…` - fine for Capacitor, awkward for marketing links |
 | WebView scroll/keyboard | Capacitor Keyboard `resize: body` | Generally OK; complex forms/chat may still feel webby |
 | Razorpay = injected web checkout | `checkout.razorpay.com/v1/checkout.js` | Not native SDK; overlays, UPI handoff, and dismiss races remain risk |
 | UPI apps via `window.open(scheme://…)` | `UpiDeepLinkCheckout.tsx` | Not `Browser`/`App` intent APIs; package-visibility on Android 11+ may block discovery |
@@ -111,8 +111,8 @@ From `android/app/capacitor.build.gradle`: App, Browser, Camera, Geolocation, Ha
 
 ### Positives
 
-- **App bootstrap RPC** collapses static config into one round-trip with localStorage SWR (`src/lib/app-bootstrap.ts`) — important on mobile RTT.
-- React Query defaults: `staleTime` 10m, `gcTime` 60m, `refetchOnWindowFocus: false` (`src/App.tsx`) — suitable for Capacitor.
+- **App bootstrap RPC** collapses static config into one round-trip with localStorage SWR (`src/lib/app-bootstrap.ts`) - important on mobile RTT.
+- React Query defaults: `staleTime` 10m, `gcTime` 60m, `refetchOnWindowFocus: false` (`src/App.tsx`) - suitable for Capacitor.
 - Resume path invalidates only lightweight keys (`cart-count`, unread notifications) in `useAppLifecycle.ts`.
 - Production Capacitor loads **bundled** assets (not live Lovable URL) when `CAPACITOR_ENV` ≠ development.
 
@@ -122,9 +122,9 @@ From `android/app/capacitor.build.gradle`: App, Browser, Camera, Geolocation, Ha
 |------|--------|
 | Cold start still network-bound | Auth restore + bootstrap + first feed still need connectivity |
 | Background geolocation | High CPU/battery when sellers track deliveries (`useBackgroundLocationTracking.ts`) |
-| Large SPA surface | Admin + marketplace + docs in one bundle — WebView memory on low-end devices |
-| No Android R8 minify | `minifyEnabled false` — larger APK/AAB, slightly easier reverse-engineering |
-| Transistorsoft dependency fragility | `scripts/patch-android-builds.cjs` required postinstall — build breaks if patch drifts |
+| Large SPA surface | Admin + marketplace + docs in one bundle - WebView memory on low-end devices |
+| No Android R8 minify | `minifyEnabled false` - larger APK/AAB, slightly easier reverse-engineering |
+| Transistorsoft dependency fragility | `scripts/patch-android-builds.cjs` required postinstall - build breaks if patch drifts |
 
 ---
 
@@ -133,9 +133,9 @@ From `android/app/capacitor.build.gradle`: App, Browser, Camera, Geolocation, Ha
 | Topic | Finding | Severity |
 |-------|---------|----------|
 | Supabase anon key in client | Expected; RLS must remain authoritative | Monitor |
-| Auth tokens | localStorage + Preferences mirror (`capacitor-storage.ts`); `allowBackup="true"` on application | **High** — backup may expose tokens |
+| Auth tokens | localStorage + Preferences mirror (`capacitor-storage.ts`); `allowBackup="true"` on application | **High** - backup may expose tokens |
 | Sticky auth restore | `restoreAuthSession` → `setSession`; 401 recovery before hard sign-out (`App.tsx`, `useAuthState.ts`) | Good |
-| Razorpay keys | Checkout uses server-returned `razorpay_key_id` (`useRazorpay.ts`) — correct pattern | Good |
+| Razorpay keys | Checkout uses server-returned `razorpay_key_id` (`useRazorpay.ts`) - correct pattern | Good |
 | WebView debugging | Disabled in production (`webContentsDebuggingEnabled: isDev`) | Good |
 | Mixed content | Only in dev | Good |
 | `allowNavigation` | Supabase + sociva + `*.razorpay.com` / `*.razorpay.in` | Needed for payments; keep tight |
@@ -165,7 +165,7 @@ Recent payment-trust work is solid at the **business-rules** layer:
 | **Razorpay** | Loads Checkout.js inside WebView; DOM patched for overlay; `allowNavigation` for Razorpay hosts; `allowIntentUrls` for UPI inside Razorpay | Known Capacitor pain: blank checkout, stuck processing, double-callback; needs device matrix QA |
 | **COD** | In-app status flow | Lowest mobile risk |
 
-**Recommendation:** For first Play launch, prefer **Razorpay live** (or COD-heavy societies) only after device QA — or keep UPI deep-link but add Android `<queries>` for UPI packages and replace `window.open` with a Capacitor-safe open path. Do not assume web payment QA covers WebView.
+**Recommendation:** For first Play launch, prefer **Razorpay live** (or COD-heavy societies) only after device QA - or keep UPI deep-link but add Android `<queries>` for UPI packages and replace `window.open` with a Capacitor-safe open path. Do not assume web payment QA covers WebView.
 
 ### Seller mobile
 
@@ -178,10 +178,10 @@ Recent payment-trust work is solid at the **business-rules** layer:
 
 | Capability | Status |
 |------------|--------|
-| Offline banner | Yes — `OfflineBanner` |
-| Bootstrap cache | Yes — localStorage SWR up to 7 days max age |
-| React Query persistence | **No** `persistQueryClient` — cache dies on process kill |
-| `networkMode` | `'online'` — queries/mutations pause offline (correct for money ops) |
+| Offline banner | Yes - `OfflineBanner` |
+| Bootstrap cache | Yes - localStorage SWR up to 7 days max age |
+| React Query persistence | **No** `persistQueryClient` - cache dies on process kill |
+| `networkMode` | `'online'` - queries/mutations pause offline (correct for money ops) |
 | Checkout guard | Blocks when `!navigator.onLine` (`useCartPage.ts`) |
 | True offline browsing / cart sync | **Not production-grade offline-first** |
 
@@ -210,16 +210,16 @@ Recent payment-trust work is solid at the **business-rules** layer:
    - **Mismatch** with actual continuous tracking during deliveries. Play requires accurate Data Safety form, prominent in-app disclosure, and often a video for background location. iOS plist already describes background delivery use; Android privacy text does not.
 
 2. **Push notifications**  
-   - Runtime permission `POST_NOTIFICATIONS` (Android 13+) via Capacitor plugin annotations — must be declared accurately in Data Safety.
+   - Runtime permission `POST_NOTIFICATIONS` (Android 13+) via Capacitor plugin annotations - must be declared accurately in Data Safety.
 
 3. **App Links**  
-   - `public/.well-known/assetlinks.json` still has `SHA256_FINGERPRINT_PLACEHOLDER` — **invalid** for verified App Links.
+   - `public/.well-known/assetlinks.json` still has `SHA256_FINGERPRINT_PLACEHOLDER` - **invalid** for verified App Links.
 
 4. **Permissions surface**  
    - App manifest currently lists only `INTERNET`. Capacitor plugins declare permissions via annotations / merge; release APK must be inspected (`aapt dump permissions`) and Play declarations must match **camera, precise location, background location, notifications, etc.**
 
 5. **Payments**  
-   - UPI / Razorpay / COD; ensure Play payments policy for physical goods / local services is satisfied (India marketplace — typically OK if not selling digital goods that require Play Billing).
+   - UPI / Razorpay / COD; ensure Play payments policy for physical goods / local services is satisfied (India marketplace - typically OK if not selling digital goods that require Play Billing).
 
 6. **Version identity**  
    - Play expects monotonic `versionCode`; repo still at `1` / `"1.0"` while marketing docs say `2.0.0`.
@@ -237,10 +237,10 @@ Recent payment-trust work is solid at the **business-rules** layer:
 | Splash hang | Mitigated | 4s force-hide |
 | Auth session loss on WebView storage purge | Mitigated | Preferences backup + setSession |
 | Missing Firebase plugin / null messaging | High if JSON absent | `build.gradle` logs and skips google-services |
-| Razorpay script/WebView crash or stuck UI | Medium–High | Multiple guards; still needs device proof |
+| Razorpay script/WebView crash or stuck UI | Medium-High | Multiple guards; still needs device proof |
 | UPI intent failure / no app opens | Medium | No `<queries>`; `window.open` |
 | Background geolocation OEM kills | Medium | Transistorsoft helps; battery OEM variance |
-| Hardware back on payment sheet | Medium | No back handler — user may kill checkout mid-flow |
+| Hardware back on payment sheet | Medium | No back handler - user may kill checkout mid-flow |
 | No Android Crashlytics/Sentry | High ops impact | Blind production crashes |
 | Plugin Gradle patch failure | Medium on CI | Codemagic verifies patch |
 
@@ -269,53 +269,53 @@ Overall crash/ops posture: **web-layer ErrorBoundary exists; native Android cras
 
 | Change area | Regression risk if touched pre-ship |
 |-------------|-------------------------------------|
-| Push (`PUSH_NOTIFICATION_FREEZE.md`) | **Very high** — frozen after iOS verification; Android unproven |
-| Sticky auth / Preferences | High — silent logout storms |
-| Payment mode toggle / UPI harden / Razorpay webhook | High — money path; unit tests help but not WebView |
-| Capacitor config `allowNavigation` / `allowIntentUrls` | High — can break checkout or open phishing surface |
-| `patch-android-builds.cjs` / Transistorsoft | High — CI/build break |
-| HashRouter / deep link parser | Medium — notification routing |
-| Bootstrap RPC shape | Medium — blank home if contract drifts |
+| Push (`PUSH_NOTIFICATION_FREEZE.md`) | **Very high** - frozen after iOS verification; Android unproven |
+| Sticky auth / Preferences | High - silent logout storms |
+| Payment mode toggle / UPI harden / Razorpay webhook | High - money path; unit tests help but not WebView |
+| Capacitor config `allowNavigation` / `allowIntentUrls` | High - can break checkout or open phishing surface |
+| `patch-android-builds.cjs` / Transistorsoft | High - CI/build break |
+| HashRouter / deep link parser | Medium - notification routing |
+| Bootstrap RPC shape | Medium - blank home if contract drifts |
 
-**Safe pre-ship work:** manifest/config, Firebase file, privacy copy, versionCode, CI Play upload, device QA — not broad refactors.
+**Safe pre-ship work:** manifest/config, Firebase file, privacy copy, versionCode, CI Play upload, device QA - not broad refactors.
 
 ---
 
 ## 11. Prioritized Implementation Plan
 
-### P0 — Blockers (must before production Play)
+### P0 - Blockers (must before production Play)
 
 | # | Item | Effort | Owner hint |
 |---|------|--------|------------|
-| P0-1 | Add `google-services.json`; prove FCM receive + tap-through on Android 13/14 device | 1–2 d | Mobile + backend |
+| P0-1 | Add `google-services.json`; prove FCM receive + tap-through on Android 13/14 device | 1-2 d | Mobile + backend |
 | P0-2 | Fix Digital Asset Links + add App Link / `sociva` intent-filters; verify `adb` deep link | 1 d | Mobile |
-| P0-3 | Align Privacy Policy + Play Data Safety + in-app disclosure for **background location**; prepare Play declaration | 1–2 d | Legal/product + eng |
-| P0-4 | Android payment device QA: UPI schemes + Razorpay Checkout; add `<queries>` / safer open if UPI fails | 2–3 d | Mobile + QA |
-| P0-5 | Hardware back button handling for root / sheets / checkout | 0.5–1 d | Mobile |
+| P0-3 | Align Privacy Policy + Play Data Safety + in-app disclosure for **background location**; prepare Play declaration | 1-2 d | Legal/product + eng |
+| P0-4 | Android payment device QA: UPI schemes + Razorpay Checkout; add `<queries>` / safer open if UPI fails | 2-3 d | Mobile + QA |
+| P0-5 | Hardware back button handling for root / sheets / checkout | 0.5-1 d | Mobile |
 | P0-6 | Release signing, bump versionCode/Name, signed AAB smoke install | 0.5 d | Release eng |
 
-### P1 — Strongly recommended before broad rollout
+### P1 - Strongly recommended before broad rollout
 
 | # | Item | Effort |
 |---|------|--------|
 | P1-1 | `allowBackup` hardening for auth storage | 0.5 d |
 | P1-2 | Firebase Crashlytics (or Sentry) on Android | 1 d |
-| P1-3 | Codemagic publish to Play **internal** track | 0.5–1 d |
-| P1-4 | Replace UPI `window.open` with Capacitor Browser / intentional intent plugin | 1–2 d |
+| P1-3 | Codemagic publish to Play **internal** track | 0.5-1 d |
+| P1-4 | Replace UPI `window.open` with Capacitor Browser / intentional intent plugin | 1-2 d |
 | P1-5 | Dump merged manifest permissions; sync Play Console declarations | 0.5 d |
-| P1-6 | Playwright remains web-only — add Maestro/Detox or manual gate checklist in CI release notes | 1–2 d |
+| P1-6 | Playwright remains web-only - add Maestro/Detox or manual gate checklist in CI release notes | 1-2 d |
 
-### P2 — Post-launch hardening
+### P2 - Post-launch hardening
 
 | # | Item | Effort |
 |---|------|--------|
-| P2-1 | R8 minify + keep rules for Capacitor/Razorpay | 1–2 d |
-| P2-2 | React Query persistence for read-only caches | 1–2 d |
+| P2-1 | R8 minify + keep rules for Capacitor/Razorpay | 1-2 d |
+| P2-2 | React Query persistence for read-only caches | 1-2 d |
 | P2-3 | Reduce WebView “webby” feel (haptics audit, transitions already partial) | ongoing |
-| P2-4 | Evaluate native Razorpay Android SDK only if Checkout.js fail rate high | 1–2 w |
+| P2-4 | Evaluate native Razorpay Android SDK only if Checkout.js fail rate high | 1-2 w |
 | P2-5 | Android Live Delivery parity if product requires it | multi-week |
 
-**Rewrite?** Not recommended. Gaps are wrapper/config/policy/QA — not a signal to abandon Capacitor for v1.
+**Rewrite?** Not recommended. Gaps are wrapper/config/policy/QA - not a signal to abandon Capacitor for v1.
 
 ---
 
@@ -401,7 +401,7 @@ flowchart LR
 - [ ] UPI + Razorpay money paths  
 - [ ] Hardware back behavior acceptable  
 - [ ] Account deletion works end-to-end  
-- [ ] Offline banner only — no false “order placed” offline  
+- [ ] Offline banner only - no false “order placed” offline  
 
 ### Store
 
@@ -414,7 +414,7 @@ flowchart LR
 
 ## 15. Go / No-Go Recommendation
 
-# **NO-GO** — do not submit to Play production until user/Firebase/device gates below are closed.
+# **NO-GO** - do not submit to Play production until user/Firebase/device gates below are closed.
 
 Code hardening for P0/P1 (Capacitor wrapper) was applied on **2026-08-01**. Remaining blockers are **operator** actions (Firebase JSON, live Asset Links SHA-256, signing keystore, Play Data Safety, physical device QA).
 
@@ -426,7 +426,7 @@ Code hardening for P0/P1 (Capacitor wrapper) was applied on **2026-08-01**. Rema
 | **P0-2** App Links + `sociva://` | **Done (code)** / **Needs user action (SHA)** | Manifest intent-filters + `autoVerify`; deep-link parser hardened. Replace `TODO_REPLACE_SHA256` in `assetlinks.json` and deploy to www.sociva.in. |
 | **P0-3** Privacy + background location disclosure | **Done (code)** / **Needs Play form** | Privacy fallback copy + in-app AlertDialog before tracking. Complete Play Data Safety (`docs/ANDROID_PLAY_DATA_SAFETY.md`). If DB overrides privacy MD, update that too. |
 | **P0-4** Payments Android | **Done (code)** / **Needs device QA** | `<queries>` for UPI; `Browser.open` path; `docs/ANDROID_PAYMENT_QA.md`. |
-| **P0-5** Hardware back | **Done** | `useAndroidBackButton` — dismiss overlays → history → double-back minimize. |
+| **P0-5** Hardware back | **Done** | `useAndroidBackButton` - dismiss overlays → history → double-back minimize. |
 | **P0-6** Version + signing stubs | **Done (code)** / **Needs keystore** | `versionCode` 2 / `versionName` `2.0.0`; `keystore.properties.example`; `docs/ANDROID_SIGNING.md`. |
 | **P1-1** `allowBackup="false"` | **Done** | Manifest hardened. |
 | **P1-2** Crashlytics Gradle | **Done (stub)** | Plugin + dep apply only when `google-services.json` present. |
@@ -449,7 +449,7 @@ Without a real Firebase Android config, verified Asset Links on the live domain,
 
 ### After Go
 
-Prefer **staged rollout** (internal → 5–20% production) and monitor payment success rate and ANRs for 72 hours before 100%.
+Prefer **staged rollout** (internal → 5-20% production) and monitor payment success rate and ANRs for 72 hours before 100%.
 
 ---
 
@@ -476,7 +476,7 @@ Prefer **staged rollout** (internal → 5–20% production) and monitor payment 
 
 ---
 
-## Appendix A — Key file index
+## Appendix A - Key file index
 
 | Concern | Paths |
 |---------|-------|
@@ -495,6 +495,6 @@ Prefer **staged rollout** (internal → 5–20% production) and monitor payment 
 | CI | `.github/workflows/e2e.yml`, `codemagic.yaml` |
 | Store docs | `STORE_METADATA.md`, `PRE_SUBMISSION_CHECKLIST.md`, `DEPLOYMENT.md` |
 
-## Appendix B — Native feel vs rewrite
+## Appendix B - Native feel vs rewrite
 
 Sociva is a **feature-rich Capacitor SPA**. Remaining “native feel” gaps (back button, system sharesheets, perfect payment SDK, jank on low-end WebViews) are normal. Closing P0/P1 above is far cheaper and lower risk than a Kotlin rewrite. Revisit native modules only for **payments SDK** or **live tracking UX** if metrics demand it after launch.

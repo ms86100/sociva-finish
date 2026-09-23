@@ -54,7 +54,7 @@ export function TransitionRulesEditor({ editSteps, transitions, hasTransition, t
   return (
     <div>
       <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-3">Transition Rules</p>
-      <p className="text-[11px] text-muted-foreground mb-3">Active transitions — click actor badges to toggle, ✕ to remove a link.</p>
+      <p className="text-[11px] text-muted-foreground mb-3">Active transitions - click actor badges to toggle, ✕ to remove a link.</p>
 
       <div className="space-y-3">
         {nonTerminalSteps.map(fromStep => {

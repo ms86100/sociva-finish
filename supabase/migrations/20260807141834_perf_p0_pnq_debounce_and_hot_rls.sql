@@ -136,7 +136,7 @@ SELECT cron.schedule(
 );
 
 -- ── 4. Hot-path RLS: wrap auth.uid() / is_admin() in (select ...) ────────────
--- Same predicates — only InitPlan caching changes (advisor auth_rls_initplan).
+-- Same predicates - only InitPlan caching changes (advisor auth_rls_initplan).
 
 DROP POLICY IF EXISTS "Users can view their own orders" ON public.orders;
 CREATE POLICY "Users can view their own orders"

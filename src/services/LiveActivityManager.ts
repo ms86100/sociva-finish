@@ -41,18 +41,18 @@ export function getOperationLog(): OperationLogEntry[] {
   return [...operationLog];
 }
 
-/** DB-backed terminal and start status sets — loaded via three-tier fallback in statusFlowCache. */
+/** DB-backed terminal and start status sets - loaded via three-tier fallback in statusFlowCache. */
 let TERMINAL_STATUSES = new Set<string>();
 let START_STATUSES = new Set<string>();
 
 async function loadStatusSets(): Promise<void> {
-  // Always re-fetch — if previous load got safe fallback, this allows upgrade to real data
+  // Always re-fetch - if previous load got safe fallback, this allows upgrade to real data
   try {
     const [terminal, start] = await Promise.all([getTerminalStatuses(), getStartStatuses()]);
     TERMINAL_STATUSES = terminal;
     START_STATUSES = start;
   } catch (e) {
-    console.error(TAG, 'CRITICAL: Failed to load status sets — using current fallback sets', e);
+    console.error(TAG, 'CRITICAL: Failed to load status sets - using current fallback sets', e);
   }
 }
 
@@ -112,7 +112,7 @@ class _LiveActivityManager {
         try {
           const { data: { user } } = await supabase.auth.getUser();
           if (!user) {
-            console.warn(TAG, 'PUSH TOKEN — no authenticated user, skipping save');
+            console.warn(TAG, 'PUSH TOKEN - no authenticated user, skipping save');
             return;
           }
 
@@ -178,7 +178,7 @@ class _LiveActivityManager {
 
   private async _doHydrate(): Promise<void> {
     this.hydrating = true;
-    console.log(TAG, 'HYDRATE START — reconciling persisted + native state');
+    console.log(TAG, 'HYDRATE START - reconciling persisted + native state');
 
     this.setupTokenListener();
 
@@ -220,7 +220,7 @@ class _LiveActivityManager {
 
         // If multiple native activities for same entity → end all but the last
         if (acts.length > 1) {
-          console.warn(TAG, `HYDRATE DEDUP — ${acts.length} activities for entity=${entityId}, keeping last`);
+          console.warn(TAG, `HYDRATE DEDUP - ${acts.length} activities for entity=${entityId}, keeping last`);
           const toEnd = acts.slice(0, -1);
           const keeper = acts[acts.length - 1];
           for (const stale of toEnd) {
@@ -268,14 +268,14 @@ class _LiveActivityManager {
 
       this.persistMap();
       this.canStart = true;
-      console.log(TAG, `HYDRATE COMPLETE — tracking ${this.active.size} activities`);
+      console.log(TAG, `HYDRATE COMPLETE - tracking ${this.active.size} activities`);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       console.warn(TAG, 'HYDRATE FAILED:', msg);
 
       if (msg.includes('not implemented') || msg.includes('not enabled') || msg.includes('not available')) {
         this.canStart = false;
-        console.warn(TAG, 'HYDRATE — native Live Activities not available, disabling starts');
+        console.warn(TAG, 'HYDRATE - native Live Activities not available, disabling starts');
       }
     } finally {
       this.hydrating = false;
@@ -308,14 +308,14 @@ class _LiveActivityManager {
     console.log(TAG, `TRIGGER entity=${data.entity_id} status=${data.workflow_status} native=${this.isSupported}`);
 
     if (!this.isSupported) {
-      console.log(TAG, 'SKIP — not a native platform');
+      console.log(TAG, 'SKIP - not a native platform');
       return;
     }
 
     await this.hydrate();
 
     if (!this.canStart) {
-      console.log(TAG, 'SKIP — native Live Activities not available');
+      console.log(TAG, 'SKIP - native Live Activities not available');
       return;
     }
 
@@ -333,11 +333,11 @@ class _LiveActivityManager {
     // No active entry and status qualifies → start
     if (!existing && START_STATUSES.has(workflow_status)) {
       if (this.starting.has(entity_id)) {
-        console.log(TAG, `SKIP — start already in-flight for ${entity_id}`);
+        console.log(TAG, `SKIP - start already in-flight for ${entity_id}`);
         return;
       }
 
-      // Re-check after hydration — hydration may have populated it
+      // Re-check after hydration - hydration may have populated it
       const hydrated = this.active.get(entity_id);
       if (hydrated) {
         console.log(TAG, `POST-HYDRATE: entity=${entity_id} already active, updating instead of starting`);
@@ -383,7 +383,7 @@ class _LiveActivityManager {
         const msg = e instanceof Error ? e.message : String(e);
         if (msg.includes('not authorized') || msg.includes('not allowed') || msg.includes('denied')) {
           this.canStart = false;
-          console.warn(TAG, 'Permission denied — disabling future starts');
+          console.warn(TAG, 'Permission denied - disabling future starts');
         }
         recordLAError('START', entity_id, e);
         addOpsEntry({ timestamp: Date.now(), action: 'start', entityId: entity_id, status: workflow_status, success: false, error: msg });
@@ -398,14 +398,14 @@ class _LiveActivityManager {
       // Status change = high-priority: bypass throttle for instant Dynamic Island update
       const statusChanged = existing.lastStatus !== null && existing.lastStatus !== workflow_status;
       if (statusChanged) {
-        console.log(TAG, `UPDATE (INSTANT — status changed ${existing.lastStatus} → ${workflow_status}) entity=${entity_id}`);
+        console.log(TAG, `UPDATE (INSTANT - status changed ${existing.lastStatus} → ${workflow_status}) entity=${entity_id}`);
         this.doUpdate(existing, data);
       } else {
         console.log(TAG, `UPDATE (throttled) entity=${entity_id} status=${workflow_status}`);
         this.throttledUpdate(existing, data);
       }
     } else {
-      console.log(TAG, `SKIP — no active entry and status '${workflow_status}' not in START_STATUSES`);
+      console.log(TAG, `SKIP - no active entry and status '${workflow_status}' not in START_STATUSES`);
     }
   }
 
@@ -413,13 +413,13 @@ class _LiveActivityManager {
   async end(entityId: string): Promise<void> {
     const entry = this.active.get(entityId);
     if (!entry) {
-      console.log(TAG, `END — no active entry for ${entityId}, trying native fallback`);
+      console.log(TAG, `END - no active entry for ${entityId}, trying native fallback`);
       // Bug 2 fix: fallback to native layer for cold-restart desync
       try {
         const { activities } = await LiveActivity.getActiveActivities();
         const match = activities.find(a => a.entityId === entityId);
         if (match) {
-          console.log(TAG, `END NATIVE FALLBACK — found native activity ${match.activityId} for ${entityId}`);
+          console.log(TAG, `END NATIVE FALLBACK - found native activity ${match.activityId} for ${entityId}`);
           await LiveActivity.endLiveActivity({ activityId: match.activityId });
           this.deleteTokenFromBackend(entityId);
           addOpsEntry({ timestamp: Date.now(), action: 'end', entityId, success: true, activityId: match.activityId });
@@ -449,7 +449,7 @@ class _LiveActivityManager {
 
   /** End all active activities (e.g. on logout) */
   async endAll(): Promise<void> {
-    console.log(TAG, `END ALL — ${this.active.size} activities`);
+    console.log(TAG, `END ALL - ${this.active.size} activities`);
     const ids = Array.from(this.active.keys());
     await Promise.all(ids.map((id) => this.end(id)));
     this.clearPersistedMap();
@@ -459,7 +459,7 @@ class _LiveActivityManager {
   /** Force re-hydration (e.g. on app resume). Skips if hydration is currently running. */
   resetHydration(): void {
     if (this.hydrating) {
-      console.log(TAG, 'RESET HYDRATION SKIPPED — hydration in progress');
+      console.log(TAG, 'RESET HYDRATION SKIPPED - hydration in progress');
       return;
     }
     this.hydrationPromise = null;
@@ -508,7 +508,7 @@ class _LiveActivityManager {
   private async doUpdate(entry: ActiveEntry, data: LiveActivityData): Promise<void> {
     // Bug 8: Guard against stale timer firing after end() already removed the entry
     if (!this.active.has(data.entity_id)) {
-      console.log(TAG, `SKIP doUpdate — entity ${data.entity_id} no longer active (ended during throttle)`);
+      console.log(TAG, `SKIP doUpdate - entity ${data.entity_id} no longer active (ended during throttle)`);
       return;
     }
     entry.lastUpdate = Date.now();

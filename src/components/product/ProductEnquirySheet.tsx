@@ -43,7 +43,7 @@ const ACTION_META: Record<string, { title: string; icon: typeof Send; placeholde
   request_service: {
     title: 'Request Service',
     icon: Send,
-    placeholder: 'Describe what you need — scope, timing, any specific requirements…',
+    placeholder: 'Describe what you need - scope, timing, any specific requirements…',
     submitLabel: 'Send Request',
   },
   request_quote: {

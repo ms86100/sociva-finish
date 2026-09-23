@@ -1,16 +1,16 @@
 # Codemagic Setup Guide
 
-Build your iOS and Android apps in the cloud — no Mac required!
+Build your iOS and Android apps in the cloud - no Mac required!
 
 ---
 
 ## Quick Start
 
-1. **Connect GitHub** — Go to Settings → GitHub → Connect and push your project to GitHub
-2. **Sign up for Codemagic** — Go to [codemagic.io](https://codemagic.io) and sign up (free tier available)
-3. **Add your repository** — Connect the GitHub repo to Codemagic
-4. **Configure secrets** — Add the required credentials (see below)
-5. **Start build** — Trigger a build and Codemagic does the rest!
+1. **Connect GitHub** - Go to Settings → GitHub → Connect and push your project to GitHub
+2. **Sign up for Codemagic** - Go to [codemagic.io](https://codemagic.io) and sign up (free tier available)
+3. **Add your repository** - Connect the GitHub repo to Codemagic
+4. **Configure secrets** - Add the required credentials (see below)
+5. **Start build** - Trigger a build and Codemagic does the rest!
 
 ---
 

@@ -1,7 +1,7 @@
 /**
  * Guest marketplace cards store a flat product snapshot (seller_name, optional
  * fulfillment_mode) without nested `product.seller`. Cart checkout reads
- * seller.fulfillment_mode / payment configs — hydrate those for guests.
+ * seller.fulfillment_mode / payment configs - hydrate those for guests.
  */
 
 import { supabase } from '@/integrations/supabase/client';

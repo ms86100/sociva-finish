@@ -21,7 +21,7 @@ export async function runPushDiagnostics(userId?: string): Promise<DiagnosticRes
   results.push({
     step: '1. Platform',
     ok: isNative,
-    detail: isNative ? `Native (${platform})` : `Web — push not supported`,
+    detail: isNative ? `Native (${platform})` : `Web - push not supported`,
   });
   if (!isNative) return results;
 
@@ -46,7 +46,7 @@ export async function runPushDiagnostics(userId?: string): Promise<DiagnosticRes
     if (!granted) {
       // Check if this is a fresh install (prompt) or previously denied
       const isDenied = perm.receive === 'denied';
-      extraDetail += ` | ${isDenied ? 'User previously denied — must enable in Settings' : 'OS prompt never shown or was suppressed'}`;
+      extraDetail += ` | ${isDenied ? 'User previously denied - must enable in Settings' : 'OS prompt never shown or was suppressed'}`;
       
       try {
         const reqResult = await PN.requestPermissions();
@@ -107,7 +107,7 @@ export async function runPushDiagnostics(userId?: string): Promise<DiagnosticRes
       results.push({
         step: '6. device_tokens in DB',
         ok: count > 0,
-        detail: `${count} token(s) found${count > 0 ? ` — latest: ${data![0].platform}` : ''}`,
+        detail: `${count} token(s) found${count > 0 ? ` - latest: ${data![0].platform}` : ''}`,
       });
 
       if (platform === 'ios') {
@@ -136,7 +136,7 @@ export async function runPushDiagnostics(userId?: string): Promise<DiagnosticRes
             ? 'No iOS tokens in DB'
             : iosTokensWithApns.length === totalIosTokens.length
               ? `All ${totalIosTokens.length} iOS token(s) have apns_token ✓`
-              : `${iosTokensWithApns.length}/${totalIosTokens.length} iOS tokens have apns_token — direct APNs delivery will fail for the rest`,
+              : `${iosTokensWithApns.length}/${totalIosTokens.length} iOS tokens have apns_token - direct APNs delivery will fail for the rest`,
         });
       }
     } catch (e) {
@@ -147,14 +147,14 @@ export async function runPushDiagnostics(userId?: string): Promise<DiagnosticRes
       }
     }
   } else {
-    results.push({ step: '6. device_tokens in DB', ok: false, detail: 'No userId provided — skipped' });
+    results.push({ step: '6. device_tokens in DB', ok: false, detail: 'No userId provided - skipped' });
     if (platform === 'ios') {
-      results.push({ step: '6b. Runtime token matches DB (iOS)', ok: false, detail: 'No userId provided — skipped' });
-      results.push({ step: '6c. APNs token in DB (iOS)', ok: false, detail: 'No userId provided — skipped' });
+      results.push({ step: '6b. Runtime token matches DB (iOS)', ok: false, detail: 'No userId provided - skipped' });
+      results.push({ step: '6c. APNs token in DB (iOS)', ok: false, detail: 'No userId provided - skipped' });
     }
   }
 
-  // 7. Edge function test — uses notification_queue (service-role not needed)
+  // 7. Edge function test - uses notification_queue (service-role not needed)
   if (userId) {
     if (platform === 'ios' && !runtimeFcmToken) {
       results.push({
@@ -195,7 +195,7 @@ export async function runPushDiagnostics(userId?: string): Promise<DiagnosticRes
             results.push({
               step: '7. Queued test notification',
               ok: true,
-              detail: `Queued (id: ${insertData?.id?.substring(0, 8)}…) — existing queue items: ${count ?? '?'}`,
+              detail: `Queued (id: ${insertData?.id?.substring(0, 8)}…) - existing queue items: ${count ?? '?'}`,
             });
           }
         }
@@ -205,7 +205,7 @@ export async function runPushDiagnostics(userId?: string): Promise<DiagnosticRes
       }
     }
   } else {
-    results.push({ step: '7. Queued test notification', ok: false, detail: 'No userId — skipped' });
+    results.push({ step: '7. Queued test notification', ok: false, detail: 'No userId - skipped' });
   }
 
   return results;

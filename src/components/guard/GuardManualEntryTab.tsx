@@ -119,7 +119,7 @@ useEffect(() => {
           <Input value={nameInput} onChange={e => setNameInput(e.target.value)} placeholder="Person's claimed name" className="h-14 text-center text-lg" />
           <Button onClick={handleManualEntry} disabled={!flatInput.trim() || !nameInput.trim() || manualStatus === 'sent' || isSending} className="w-full h-14 text-lg" variant="outline">
             {isSending ? <Loader2 size={20} className="mr-2 animate-spin" /> : <Send size={20} className="mr-2" />}
-            {manualStatus === 'sent' ? 'Request Sent — Waiting...' : 'Send to Resident'}
+            {manualStatus === 'sent' ? 'Request Sent - Waiting...' : 'Send to Resident'}
           </Button>
         </CardContent>
       </Card>

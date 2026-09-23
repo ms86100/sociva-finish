@@ -1,6 +1,6 @@
 /**
  * Store completion checklist for sellers (especially pending / incomplete stores).
- * Pure helpers — safe to unit test.
+ * Pure helpers - safe to unit test.
  */
 
 export interface StoreCompletionInput {

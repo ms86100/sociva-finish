@@ -1,7 +1,7 @@
 import { isUpcomingScheduled, type ScheduledOrderLike } from '@/lib/scheduled-orders';
 
 /**
- * Seller ops board taxonomy — single source of truth for KPI cards,
+ * Seller ops board taxonomy - single source of truth for KPI cards,
  * OrderFilters chips, and infinite-list filter predicates.
  *
  * Every `order_status` enum value maps to exactly one board bucket
@@ -14,7 +14,7 @@ import { isUpcomingScheduled, type ScheduledOrderLike } from '@/lib/scheduled-or
  *   A full refund (payment_status = refunded and no residual) contributes 0.
  *   A partial refund reduces GMV by the refunded amount only.
  * Used by dashboard EarningsSummary, SellerEarningsPage overview, and analytics.
- * Seller Wallet payable numbers come from get_seller_financial_summary — never mix them.
+ * Seller Wallet payable numbers come from get_seller_financial_summary - never mix them.
  */
 
 export type SellerBoardBucket =
@@ -30,7 +30,7 @@ export type SellerBoardBucket =
   | 'terminal_fail'
   | 'hidden';
 
-/** Filter chip values — includes time/overlay filters beyond status buckets. */
+/** Filter chip values - includes time/overlay filters beyond status buckets. */
 export type SellerOrderFilter =
   | 'all'
   | 'today'
@@ -110,7 +110,7 @@ export const STATUS_TO_BUCKET: Record<string, SellerBoardBucket> = {
   returned: 'terminal_fail',
   failed: 'terminal_fail',
 
-  // Unpaid checkout phantoms — hidden unless buyer_confirmed (handled in resolveBoardBucket)
+  // Unpaid checkout phantoms - hidden unless buyer_confirmed (handled in resolveBoardBucket)
   payment_pending: 'hidden',
 };
 
@@ -323,7 +323,7 @@ type AggregateRow = ScheduledOrderLike & {
   is_refunded?: boolean;
 };
 
-/** Future scheduled orders waiting for their prep window — not instant action needed. */
+/** Future scheduled orders waiting for their prep window - not instant action needed. */
 export function isFutureScheduledAwaitingPrep(
   row: ScheduledOrderLike & { status?: string | null },
   now = new Date(),
@@ -504,7 +504,7 @@ export const KPI_TO_FILTER: Record<string, SellerOrderFilter> = {
 
 /**
  * Sentinel for multi-store portfolio mode (SellerSwitcher “All stores”).
- * Never pass this to PostgREST `.eq('seller_id', …)` — resolve real UUIDs first.
+ * Never pass this to PostgREST `.eq('seller_id', …)` - resolve real UUIDs first.
  */
 export const ALL_STORES_ID = '__all_stores__';
 

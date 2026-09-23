@@ -29,7 +29,7 @@ test.describe('Financial release · seller COD and liabilities @financial @criti
       .map((key) => parseMinorUnits(summary[key]))
       .reduce((total, amount) => total + amount, 0);
 
-    await expect(page.getByText('Ledger only — not a bank payout')).toBeVisible();
+    await expect(page.getByText('Ledger only - not a bank payout')).toBeVisible();
     const owedCard = page.getByText(/Owed \(pending \/ eligible\)/).locator('..');
     await expect(owedCard).toBeVisible();
     const owedText = await owedCard.textContent();

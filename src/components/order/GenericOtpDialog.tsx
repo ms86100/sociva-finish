@@ -66,7 +66,7 @@ export function GenericOtpDialog({ orderId, targetStatus, open, onOpenChange, on
     } catch (error: any) {
       const msg = error?.message || 'Invalid code';
       const friendly = msg.toLowerCase().includes('invalid otp') ? 'Invalid code, please try again'
-        : msg.toLowerCase().includes('expired') ? 'Code expired — ask for a new one'
+        : msg.toLowerCase().includes('expired') ? 'Code expired - ask for a new one'
         : msg;
       setErrorMessage(friendly);
       toast.error(friendly);

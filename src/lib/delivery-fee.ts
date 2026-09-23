@@ -1,5 +1,5 @@
 /**
- * Platform delivery fee — must match create_multi_vendor_orders /
+ * Platform delivery fee - must match create_multi_vendor_orders /
  * resolve_platform_delivery_fee on the server.
  */
 export function resolvePlatformDeliveryFee(opts: {

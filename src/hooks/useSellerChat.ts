@@ -83,7 +83,7 @@ export function useSellerChat(buyerId: string | undefined, sellerId: string | un
     },
   });
 
-  // Realtime subscription — subscribe FIRST, then refetch on SUBSCRIBED to avoid race.
+  // Realtime subscription - subscribe FIRST, then refetch on SUBSCRIBED to avoid race.
   useEffect(() => {
     if (!conversationId) return;
     const channel = supabase
@@ -113,7 +113,7 @@ export function useSellerChat(buyerId: string | undefined, sellerId: string | un
     return () => { supabase.removeChannel(channel); };
   }, [conversationId, qc]);
 
-  // Send message — optimistic insert into the cache so it renders instantly.
+  // Send message - optimistic insert into the cache so it renders instantly.
   const sendMutation = useMutation({
     mutationFn: async ({ text, senderId }: { text: string; senderId: string }) => {
       let cid = conversationId;
@@ -153,7 +153,7 @@ export function useSellerChat(buyerId: string | undefined, sellerId: string | un
       const recipientProfileOrUserId = senderId === buyerId ? sellerId : buyerId;
       if (recipientProfileOrUserId) {
         let notifyUserId = recipientProfileOrUserId;
-        // seller_id on conversations is seller_profiles.id — resolve to auth user_id
+        // seller_id on conversations is seller_profiles.id - resolve to auth user_id
         if (recipientProfileOrUserId === sellerId) {
           const { data: sp } = await supabase
             .from('seller_profiles')

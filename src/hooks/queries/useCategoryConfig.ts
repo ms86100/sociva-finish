@@ -7,6 +7,6 @@ export function useCategoryConfig() {
   return useQuery({
     queryKey: ['category-configs'], // Shared cache key with useCategoryConfigs
     queryFn: fetchCategoryConfigs,
-    staleTime: jitteredStaleTime(30 * 60 * 1000), // 30 min + jitter — near-static config
+    staleTime: jitteredStaleTime(30 * 60 * 1000), // 30 min + jitter - near-static config
   });
 }

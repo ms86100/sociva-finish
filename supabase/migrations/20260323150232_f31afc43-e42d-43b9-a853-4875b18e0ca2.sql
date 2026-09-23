@@ -3,7 +3,7 @@
 -- Bug 4 Fix: Add actor enforcement to validate_order_status_transition via session flag
 
 -- ============================================================
--- Bug 2: verify_delivery_otp_and_complete — accept rider OR seller
+-- Bug 2: verify_delivery_otp_and_complete - accept rider OR seller
 -- ============================================================
 CREATE OR REPLACE FUNCTION public.verify_delivery_otp_and_complete(
   _order_id uuid,
@@ -139,7 +139,7 @@ END;
 $$;
 
 -- ============================================================
--- Bug 4: validate_order_status_transition — add actor enforcement via session flag
+-- Bug 4: validate_order_status_transition - add actor enforcement via session flag
 -- ============================================================
 CREATE OR REPLACE FUNCTION public.validate_order_status_transition()
 RETURNS trigger
@@ -205,7 +205,7 @@ BEGIN
         AND allowed_actor = _acting_as
     ) INTO _valid;
   ELSE
-    -- No actor flag set (direct update from seller via RLS) — validate transition exists for any actor
+    -- No actor flag set (direct update from seller via RLS) - validate transition exists for any actor
     SELECT EXISTS (
       SELECT 1 FROM public.category_status_transitions
       WHERE parent_group = COALESCE(_parent_group, 'default')
@@ -263,7 +263,7 @@ BEGIN
   END IF;
 
   IF v_order.buyer_id != auth.uid() THEN
-    RAISE EXCEPTION 'Not authorized — you are not the buyer of this order';
+    RAISE EXCEPTION 'Not authorized - you are not the buyer of this order';
   END IF;
 
   v_parent_group := COALESCE(v_order.primary_group, 'default');

@@ -77,5 +77,5 @@ try {
         }
     }
 } catch(Exception e) {
-    logger.info("google-services.json not found, google-services / Crashlytics plugins not applied. Push Notifications and Crashlytics won't work until you add android/app/google-services.json — see android-config/README.md")
+    logger.info("google-services.json not found, google-services / Crashlytics plugins not applied. Push Notifications and Crashlytics won't work until you add android/app/google-services.json - see android-config/README.md")
 }

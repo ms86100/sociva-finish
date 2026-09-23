@@ -9,7 +9,7 @@ const corsHeaders = {
 /**
  * Creates dedicated integration-test users with known credentials.
  * Uses service_role to auto-confirm and create profiles.
- * Idempotent — skips if users already exist.
+ * Idempotent - skips if users already exist.
  */
 const TEST_USERS = [
   {
@@ -71,7 +71,7 @@ Deno.serve(async (req) => {
     });
 
     // Get or create the test societies.
-    // Look up by SLUG (the unique key) — looking up by name would miss a
+    // Look up by SLUG (the unique key) - looking up by name would miss a
     // renamed row and then fail the insert on societies_slug_key.
     const ensureSociety = async (society: Record<string, unknown>): Promise<string> => {
       const { data: existing } = await supabase

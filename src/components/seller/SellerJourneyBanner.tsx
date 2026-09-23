@@ -74,7 +74,7 @@ function BannerFrame({
 
 /**
  * Keep auth sellerProfiles fresh while a store is under review / awaiting credits.
- * Auth realtime often goes CLOSED on long sessions — poll + notification hooks cover that.
+ * Auth realtime often goes CLOSED on long sessions - poll + notification hooks cover that.
  */
 function useSellerJourneyLiveRefresh(hasOpenJourney: boolean) {
   const { user, refreshProfile } = useAuth();

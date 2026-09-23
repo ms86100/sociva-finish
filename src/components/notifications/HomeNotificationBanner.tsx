@@ -15,7 +15,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 const DISMISSED_KEY = 'home_banner_dismissed_ids';
 const MAX_STORED = 50;
 
-/** Read dismissed IDs from localStorage — survives navigation & remounts */
+/** Read dismissed IDs from localStorage - survives navigation & remounts */
 function getDismissedIds(): Set<string> {
   try {
     const raw = localStorage.getItem(DISMISSED_KEY);
@@ -34,7 +34,7 @@ function addDismissedId(id: string) {
   const arr = [...set].slice(-MAX_STORED);
   try {
     localStorage.setItem(DISMISSED_KEY, JSON.stringify(arr));
-  } catch { /* quota exceeded — harmless */ }
+  } catch { /* quota exceeded - harmless */ }
 }
 
 export function HomeNotificationBanner({ embedded = false }: { embedded?: boolean }) {

@@ -100,7 +100,7 @@ export async function trySeedTestUsers(): Promise<SeedData | null> {
     return await ensureTestUsersSeeded();
   } catch (err) {
     console.warn(
-      `[integration] Skipping DB integration suite — ${(err as Error).message}`
+      `[integration] Skipping DB integration suite - ${(err as Error).message}`
     );
     return null;
   }

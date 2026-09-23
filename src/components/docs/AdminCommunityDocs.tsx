@@ -16,13 +16,13 @@ export function AdminCommunityDocs() {
 
         <DocInfoCard title="Navigation Structure" icon="🧭">
           <p>The admin panel uses a sticky top navigation bar with tabs. Some tabs show urgency badges when pending actions exist:</p>
-          <p>• <strong>Dashboard</strong> — Overview statistics, pending action items, and platform health metrics.</p>
-          <p>• <strong>Users</strong> — User management with verification workflow and role assignment.</p>
-          <p>• <strong>Sellers</strong> — Seller application review, profile management, and license verification.</p>
-          <p>• <strong>Products</strong> — Product approval queue and catalog oversight.</p>
-          <p>• <strong>Services</strong> — Platform-wide service booking overview and monitoring.</p>
-          <p>• <strong>Catalog</strong> — Category management, parent groups, attribute blocks, and license configuration.</p>
-          <p>• <strong>Settings</strong> — Partitioned into Platform, Notifications, and System sub-tabs.</p>
+          <p>• <strong>Dashboard</strong> - Overview statistics, pending action items, and platform health metrics.</p>
+          <p>• <strong>Users</strong> - User management with verification workflow and role assignment.</p>
+          <p>• <strong>Sellers</strong> - Seller application review, profile management, and license verification.</p>
+          <p>• <strong>Products</strong> - Product approval queue and catalog oversight.</p>
+          <p>• <strong>Services</strong> - Platform-wide service booking overview and monitoring.</p>
+          <p>• <strong>Catalog</strong> - Category management, parent groups, attribute blocks, and license configuration.</p>
+          <p>• <strong>Settings</strong> - Partitioned into Platform, Notifications, and System sub-tabs.</p>
         </DocInfoCard>
 
         <DocInfoCard title="User Management" icon="👥">
@@ -51,11 +51,11 @@ export function AdminCommunityDocs() {
         </DocInfoCard>
 
         <DocInfoCard title="Catalog Manager" icon="📚">
-          <p>The most powerful admin tool — controls how every category behaves across the entire platform:</p>
-          <p>• <strong>Parent Groups</strong> — Top-level category groupings (Food & Kitchen, Services, Retail, etc.) with icons, sort order, and license requirements.</p>
-          <p>• <strong>Categories</strong> — Per-category configuration: transaction type (cart, contact, book, etc.), layout type (food, ecommerce, service), feature toggles (add-ons, veg toggle, duration field, staff management, recurring bookings), UI labels and placeholders.</p>
-          <p>• <strong>Attribute Blocks</strong> — Define specification block templates that sellers can use on products (e.g., "Dimensions", "Materials", "Warranty").</p>
-          <p>• <strong>License Configuration</strong> — Configure which parent groups require seller licensing.</p>
+          <p>The most powerful admin tool - controls how every category behaves across the entire platform:</p>
+          <p>• <strong>Parent Groups</strong> - Top-level category groupings (Food & Kitchen, Services, Retail, etc.) with icons, sort order, and license requirements.</p>
+          <p>• <strong>Categories</strong> - Per-category configuration: transaction type (cart, contact, book, etc.), layout type (food, ecommerce, service), feature toggles (add-ons, veg toggle, duration field, staff management, recurring bookings), UI labels and placeholders.</p>
+          <p>• <strong>Attribute Blocks</strong> - Define specification block templates that sellers can use on products (e.g., "Dimensions", "Materials", "Warranty").</p>
+          <p>• <strong>License Configuration</strong> - Configure which parent groups require seller licensing.</p>
           <p>Changes to category configuration immediately affect all sellers in that category.</p>
         </DocInfoCard>
 
@@ -63,7 +63,7 @@ export function AdminCommunityDocs() {
           <p><strong>Platform Settings:</strong> Platform name, app version, default country code, address field labels (block/flat customization), currency symbol, and branding.</p>
           <p><strong>Notification Settings:</strong> Push notification templates, delivery notification preferences, and in-app alert configuration.</p>
           <p><strong>System Settings:</strong> Platform fee percentage, auto-approval toggles (for residents and sellers), maintenance mode, feature flags per society, seller response timeout, and marketplace labels customization.</p>
-          <p><strong>Marketplace Labels:</strong> Customizable text for all marketplace-facing strings (checkout messages, empty states, community support text) — allows non-technical admins to adjust copy without code changes.</p>
+          <p><strong>Marketplace Labels:</strong> Customizable text for all marketplace-facing strings (checkout messages, empty states, community support text) - allows non-technical admins to adjust copy without code changes.</p>
         </DocInfoCard>
       </DocSection>
 
@@ -81,7 +81,7 @@ export function AdminCommunityDocs() {
         </DocInfoCard>
 
         <DocInfoCard title="Admin Team" icon="👤">
-          <p>Manage society admin team: add/remove admins, assign community roles (chairman, secretary, treasurer, committee member). Admin limit is configurable and enforced by a database trigger — attempting to add beyond the limit returns an error.</p>
+          <p>Manage society admin team: add/remove admins, assign community roles (chairman, secretary, treasurer, committee member). Admin limit is configurable and enforced by a database trigger - attempting to add beyond the limit returns an error.</p>
         </DocInfoCard>
 
         <DocInfoCard title="Society Dashboard" icon="📊">
@@ -95,10 +95,10 @@ export function AdminCommunityDocs() {
         <p>A society-wide communication platform for announcements, polls, events, and discussions.</p>
 
         <DocInfoCard title="Post Types" icon="📣">
-          <p>• <strong>Announcement</strong> — General notices from admins or residents.</p>
-          <p>• <strong>Poll</strong> — Multiple choice voting with configurable deadline. Poll options are stored as JSON with vote tracking.</p>
-          <p>• <strong>Event</strong> — With date, location, and RSVP functionality (going/maybe/not going).</p>
-          <p>• <strong>Discussion</strong> — Open forum threads for community conversation.</p>
+          <p>• <strong>Announcement</strong> - General notices from admins or residents.</p>
+          <p>• <strong>Poll</strong> - Multiple choice voting with configurable deadline. Poll options are stored as JSON with vote tracking.</p>
+          <p>• <strong>Event</strong> - With date, location, and RSVP functionality (going/maybe/not going).</p>
+          <p>• <strong>Discussion</strong> - Open forum threads for community conversation.</p>
         </DocInfoCard>
 
         <DocInfoCard title="Post Features" icon="💬">
@@ -119,7 +119,7 @@ export function AdminCommunityDocs() {
 
         <DocInfoCard title="Resolution Workflow" icon="🔄">
           <DocFlowStep number={1} title="Submitted" desc="Ticket created with auto-generated SLA deadline. Visible to society admins and committee." />
-          <DocFlowStep number={2} title="Acknowledged" desc="Admin acknowledges receipt — timestamp recorded in acknowledged_at." />
+          <DocFlowStep number={2} title="Acknowledged" desc="Admin acknowledges receipt - timestamp recorded in acknowledged_at." />
           <DocFlowStep number={3} title="In Progress" desc="Committee discusses via internal notes (dispute_comments with is_committee_note flag). Regular comments are visible to the submitter." />
           <DocFlowStep number={4} title="Resolved" desc="Resolution note is added, resolved_at timestamp recorded, and the submitter is notified." />
         </DocInfoCard>
@@ -153,7 +153,7 @@ export function AdminCommunityDocs() {
       <DocSection title="6. Guard Kiosk (/guard)">
         <p>A simplified, kiosk-mode interface designed for security staff at the gate with large touch targets.</p>
         <p>Features: QR code scanner for visitor verification, manual visitor entry form, worker attendance check-in/check-out, domestic help verification, and parcel logging.</p>
-        <p>The interface is optimized for speed — one-tap operations with minimal navigation, suitable for high-traffic gate environments.</p>
+        <p>The interface is optimized for speed - one-tap operations with minimal navigation, suitable for high-traffic gate environments.</p>
       </DocSection>
 
       {/* ─── DOMESTIC HELP ─── */}
@@ -185,11 +185,11 @@ export function AdminCommunityDocs() {
         <p>Comprehensive analytics dashboards for society and platform administrators.</p>
 
         <DocInfoCard title="Society-Level Reports" icon="📊">
-          <p>• <strong>Society Dashboard</strong> — Member count, active sellers, order volume, and revenue metrics.</p>
-          <p>• <strong>Society Finances</strong> — Platform fee collection, settlement summaries, and financial health.</p>
-          <p>• <strong>Activity Feed</strong> — Chronological log of all society activity (orders, bulletins, disputes, entries) via the <code className="text-[10px] bg-muted px-1 rounded">audit_log</code> table.</p>
-          <p>• <strong>Top Products</strong> — Most ordered products within the society.</p>
-          <p>• <strong>Search Demand</strong> — What residents are searching for, helping identify unmet needs.</p>
+          <p>• <strong>Society Dashboard</strong> - Member count, active sellers, order volume, and revenue metrics.</p>
+          <p>• <strong>Society Finances</strong> - Platform fee collection, settlement summaries, and financial health.</p>
+          <p>• <strong>Activity Feed</strong> - Chronological log of all society activity (orders, bulletins, disputes, entries) via the <code className="text-[10px] bg-muted px-1 rounded">audit_log</code> table.</p>
+          <p>• <strong>Top Products</strong> - Most ordered products within the society.</p>
+          <p>• <strong>Search Demand</strong> - What residents are searching for, helping identify unmet needs.</p>
         </DocInfoCard>
 
         <DocInfoCard title="Audit Logging" icon="📝">
@@ -203,9 +203,9 @@ export function AdminCommunityDocs() {
         <p>The platform uses a multi-channel notification system to keep all stakeholders informed.</p>
 
         <DocInfoCard title="Notification Channels" icon="🔔">
-          <p>• <strong>Push Notifications</strong> — Delivered via FCM (Android) and APNs (iOS) for: new orders, order status changes, new messages, visitor check-ins, delivery updates, parcel arrivals, and appointment reminders.</p>
-          <p>• <strong>In-App Notifications</strong> — Stored in <code className="text-[10px] bg-muted px-1 rounded">notification_queue</code> and displayed in the Notification Inbox with read/unread status.</p>
-          <p>• <strong>Seller Alert Overlay</strong> — Full-screen new order buzzer with persistent audio alert for time-sensitive orders.</p>
+          <p>• <strong>Push Notifications</strong> - Delivered via FCM (Android) and APNs (iOS) for: new orders, order status changes, new messages, visitor check-ins, delivery updates, parcel arrivals, and appointment reminders.</p>
+          <p>• <strong>In-App Notifications</strong> - Stored in <code className="text-[10px] bg-muted px-1 rounded">notification_queue</code> and displayed in the Notification Inbox with read/unread status.</p>
+          <p>• <strong>Seller Alert Overlay</strong> - Full-screen new order buzzer with persistent audio alert for time-sensitive orders.</p>
         </DocInfoCard>
 
         <DocInfoCard title="Delivery Pipeline" icon="⚡">
@@ -229,11 +229,11 @@ export function AdminCommunityDocs() {
         <p>A dedicated portal for real estate builders who manage multiple societies.</p>
 
         <DocInfoCard title="Builder Features" icon="🏗️">
-          <p>• <strong>Multi-Society Management</strong> — Builders can manage announcements and updates across all their societies from one dashboard.</p>
-          <p>• <strong>Construction Milestones</strong> — Post progress updates with photos, completion percentages, and stage labels via the <code className="text-[10px] bg-muted px-1 rounded">construction_milestones</code> table.</p>
-          <p>• <strong>Builder Announcements</strong> — Society-specific announcements from the builder team.</p>
-          <p>• <strong>Snag Management</strong> — Track and resolve construction defects reported by residents, with collective escalation support when multiple residents report similar issues.</p>
-          <p>• <strong>Feature Packages</strong> — Builders can have specific feature packages assigned, controlling which capabilities are available in their societies.</p>
+          <p>• <strong>Multi-Society Management</strong> - Builders can manage announcements and updates across all their societies from one dashboard.</p>
+          <p>• <strong>Construction Milestones</strong> - Post progress updates with photos, completion percentages, and stage labels via the <code className="text-[10px] bg-muted px-1 rounded">construction_milestones</code> table.</p>
+          <p>• <strong>Builder Announcements</strong> - Society-specific announcements from the builder team.</p>
+          <p>• <strong>Snag Management</strong> - Track and resolve construction defects reported by residents, with collective escalation support when multiple residents report similar issues.</p>
+          <p>• <strong>Feature Packages</strong> - Builders can have specific feature packages assigned, controlling which capabilities are available in their societies.</p>
         </DocInfoCard>
       </DocSection>
     </div>

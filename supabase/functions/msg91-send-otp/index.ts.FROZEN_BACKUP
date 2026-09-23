@@ -98,7 +98,7 @@ Deno.serve(async (req) => {
       console.log("MSG91 Widget send response:", JSON.stringify(data));
     }
 
-    // Strictly check for success — do NOT use response.ok as fallback
+    // Strictly check for success - do NOT use response.ok as fallback
     if (data.type === "success") {
       return new Response(
         JSON.stringify({

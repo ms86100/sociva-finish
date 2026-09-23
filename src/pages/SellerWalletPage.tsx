@@ -142,7 +142,7 @@ export default function SellerWalletPage() {
 
         {summaryQuery.isError && (
           <div className="rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-            Wallet totals could not be loaded. Refresh to try again — incomplete numbers are not shown.
+            Wallet totals could not be loaded. Refresh to try again - incomplete numbers are not shown.
           </div>
         )}
 
@@ -159,7 +159,7 @@ export default function SellerWalletPage() {
 
         <Card className="border-warning/30 bg-warning/5">
           <CardContent className="p-3 space-y-1">
-            <p className="text-sm font-medium">COD collected — not withdrawable</p>
+            <p className="text-sm font-medium">COD collected - not withdrawable</p>
             <p className="text-lg font-bold tabular-nums">{formatPrice(finance?.codCollected || 0)}</p>
             <p className="text-[11px] text-muted-foreground">
               Cash on delivery was collected by you in cash. Sociva does not hold it and it never becomes Available.
@@ -210,7 +210,7 @@ export default function SellerWalletPage() {
                 </p>
                 <p className="text-xs text-muted-foreground pl-6">
                   {readinessQuery.data?.reason ||
-                    'Your online earnings are tracked in Available above. Sociva enables bank transfers platform-wide when payout controls are turned on — you will be notified when withdrawals open.'}
+                    'Your online earnings are tracked in Available above. Sociva enables bank transfers platform-wide when payout controls are turned on - you will be notified when withdrawals open.'}
                 </p>
                 <p className="text-[11px] text-muted-foreground pl-6">
                   COD cash you collect stays separate and is never withdrawable through Sociva.

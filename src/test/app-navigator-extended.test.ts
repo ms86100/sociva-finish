@@ -11,10 +11,10 @@ import {
 } from './helpers/business-rules';
 
 // ════════════════════════════════════════════════════
-// SECTION 1: PROFILE PAGE — DEEP
+// SECTION 1: PROFILE PAGE - DEEP
 // ════════════════════════════════════════════════════
 
-describe('Profile Page — Menu & Verification', () => {
+describe('Profile Page - Menu & Verification', () => {
   it('TC-PR001: localStorage large font persistence', () => {
     localStorage.setItem('app_large_font', 'true');
     expect(localStorage.getItem('app_large_font')).toBe('true');
@@ -48,10 +48,10 @@ describe('Profile Page — Menu & Verification', () => {
 });
 
 // ════════════════════════════════════════════════════
-// SECTION 2: DELIVERY PARTNER — Write Safety
+// SECTION 2: DELIVERY PARTNER - Write Safety
 // ════════════════════════════════════════════════════
 
-describe('Delivery Partner — Write Safety', () => {
+describe('Delivery Partner - Write Safety', () => {
   it('TC-DPD001: Write uses profile society, not effective', () => {
     expect(getWriteSocietyId('home-society', 'viewed-society')).toBe('home-society');
   });
@@ -79,7 +79,7 @@ describe('Delivery Partner — Write Safety', () => {
 // SECTION 3: WORKER VALIDATION
 // ════════════════════════════════════════════════════
 
-describe('Worker — Gate Validation', () => {
+describe('Worker - Gate Validation', () => {
   it('TC-WV001: Null worker → invalid', () => {
     const result = validateWorkerEntry(null);
     expect(result.valid).toBe(false);
@@ -112,10 +112,10 @@ describe('Worker — Gate Validation', () => {
 });
 
 // ════════════════════════════════════════════════════
-// SECTION 4: WORKER ATTENDANCE — Absent Workers
+// SECTION 4: WORKER ATTENDANCE - Absent Workers
 // ════════════════════════════════════════════════════
 
-describe('Worker Attendance — Absent Workers', () => {
+describe('Worker Attendance - Absent Workers', () => {
   it('TC-WA001: Identifies absent workers', () => {
     expect(computeAbsentWorkers(['w1', 'w2', 'w3'], ['w1'])).toEqual(['w2', 'w3']);
   });
@@ -131,10 +131,10 @@ describe('Worker Attendance — Absent Workers', () => {
 });
 
 // ════════════════════════════════════════════════════
-// SECTION 5: WORKER SALARY & LEAVE — Write Safety
+// SECTION 5: WORKER SALARY & LEAVE - Write Safety
 // ════════════════════════════════════════════════════
 
-describe('Worker Salary/Leave — Write Safety', () => {
+describe('Worker Salary/Leave - Write Safety', () => {
   it('TC-WSL001: Salary write uses profile society', () => {
     expect(getWriteSocietyId('home', 'viewed')).toBe('home');
   });
@@ -220,7 +220,7 @@ describe('Inspection Score', () => {
 // SECTION 8: REPORT METRICS
 // ════════════════════════════════════════════════════
 
-describe('Report Metrics — Extended', () => {
+describe('Report Metrics - Extended', () => {
   it('TC-RPT001: 100% resolution', () => {
     expect(computeDisputeResolutionRate(10, 10)).toBe(100);
   });
@@ -259,10 +259,10 @@ describe('Haversine Distance', () => {
 });
 
 // ════════════════════════════════════════════════════
-// SECTION 10: NOTIFICATION TITLES — EXTENDED
+// SECTION 10: NOTIFICATION TITLES - EXTENDED
 // ════════════════════════════════════════════════════
 
-describe('Notification Titles — Extended', () => {
+describe('Notification Titles - Extended', () => {
   it('TC-NTE001: picked_up', () => {
     expect(getOrderNotifTitle('picked_up', 'buyer')).toBe('📦 Order Picked Up');
   });
@@ -278,10 +278,10 @@ describe('Notification Titles — Extended', () => {
 });
 
 // ════════════════════════════════════════════════════
-// SECTION 11: SELLER STATS — Cancellation Rate
+// SECTION 11: SELLER STATS - Cancellation Rate
 // ════════════════════════════════════════════════════
 
-describe('Seller Stats — Cancellation Rate', () => {
+describe('Seller Stats - Cancellation Rate', () => {
   it('TC-SS001: 0 cancelled → 0%', () => {
     expect(computeCancellationRate(10, 0)).toBe(0);
   });

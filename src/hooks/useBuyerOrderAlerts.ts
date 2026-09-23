@@ -7,7 +7,7 @@ import { subscribeBuyerOrderUpdates } from '@/lib/buyer-orders-realtime-bus';
 
 /**
  * Buyer order status alerts via the shared realtime bus.
- * Drives query invalidation + native haptics only — no toasts.
+ * Drives query invalidation + native haptics only - no toasts.
  */
 
 const HAPTIC_MAP: Record<string, 'success' | 'warning' | 'error'> = {

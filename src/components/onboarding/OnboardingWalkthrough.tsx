@@ -133,7 +133,7 @@ export function OnboardingWalkthrough({ onComplete, slides: customSlides }: Onbo
         <p className="text-center text-muted-foreground max-w-xs">{slide.description}</p>
       </div>
 
-      {/* Navigation — clear of bottom nav / home indicator */}
+      {/* Navigation - clear of bottom nav / home indicator */}
       <div className="px-6 pt-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] space-y-4 shrink-0">
         {/* Dots */}
         <div className="flex justify-center gap-2">
@@ -160,7 +160,7 @@ export function OnboardingWalkthrough({ onComplete, slides: customSlides }: Onbo
   );
 }
 
-// Hook to manage onboarding state — persisted in localStorage
+// Hook to manage onboarding state - persisted in localStorage
 export function useOnboarding(userId?: string | null) {
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [hasChecked, setHasChecked] = useState(false);

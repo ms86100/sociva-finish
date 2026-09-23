@@ -69,10 +69,10 @@ test.describe('Cross-User Buyer-Seller Flow @critical', () => {
         const notification = await waitForNotification(db, orderId, 10_000);
         expect(notification).toBeTruthy();
       } catch {
-        console.warn('Transition notification not found — may be expected');
+        console.warn('Transition notification not found - may be expected');
       }
     } else {
-      console.warn('Order not visible to seller — may be cross-society restriction');
+      console.warn('Order not visible to seller - may be cross-society restriction');
     }
   });
 });

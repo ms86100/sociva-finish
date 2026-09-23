@@ -30,7 +30,7 @@ export function isWithinQuietHours(opts: {
 
   if (start === end) return true; // full-day quiet if misconfigured equal
   if (start < end) return hour >= start && hour < end;
-  // wraps midnight e.g. 22–7
+  // wraps midnight e.g. 22-7
   return hour >= start || hour < end;
 }
 

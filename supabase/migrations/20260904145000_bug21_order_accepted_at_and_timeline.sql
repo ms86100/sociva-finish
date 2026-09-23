@@ -77,7 +77,7 @@ BEGIN
      AND v_order.auto_cancel_at IS NOT NULL
      AND v_order.auto_cancel_at <= now()
      AND _new_status IN ('accepted', 'confirmed', 'scheduled', 'preparing') THEN
-    RAISE EXCEPTION 'Seller response time expired — this order can no longer be accepted'
+    RAISE EXCEPTION 'Seller response time expired - this order can no longer be accepted'
       USING ERRCODE = 'P0001';
   END IF;
 
@@ -143,7 +143,7 @@ BEGIN
   RETURNING id, status INTO v_updated_id, v_final_status;
 
   IF v_updated_id IS NULL THEN
-    RAISE EXCEPTION 'Order status changed concurrently — refresh and retry'
+    RAISE EXCEPTION 'Order status changed concurrently - refresh and retry'
       USING ERRCODE = '40001';
   END IF;
 

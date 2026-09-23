@@ -118,7 +118,7 @@ export function DeliveryArrivalOverlay({
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground">Distance</span>
                 <span className="font-semibold text-foreground">
-                  {distance !== null ? (distance < 100 ? `${distance}m` : `${(distance / 1000).toFixed(1)} km`) : '—'}
+                  {distance !== null ? (distance < 100 ? `${distance}m` : `${(distance / 1000).toFixed(1)} km`) : '-'}
                 </span>
               </div>
               {eta != null && (

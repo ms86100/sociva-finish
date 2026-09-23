@@ -22,7 +22,7 @@ export function SmartSuggestionBanner() {
   if (isLoading || !suggestions || suggestions.length === 0) return null;
 
   const handleReorder = async (suggestion: typeof suggestions[0]) => {
-    // Global mutex — block ALL reorders while one is in-flight
+    // Global mutex - block ALL reorders while one is in-flight
     if (isReorderingRef.current) return;
     isReorderingRef.current = true;
     setReorderingId(suggestion.id);

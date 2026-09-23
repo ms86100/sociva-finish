@@ -12,7 +12,7 @@ const GENERIC_LABELS = [
   'service road', 'main road', 'road',
 ];
 
-/** Quality tiers – higher is better */
+/** Quality tiers - higher is better */
 export enum LabelQuality {
   Coords = 0,
   Route = 1,
@@ -57,7 +57,7 @@ export function cleanLocationTitle(raw: string): string {
   const first = parts[0];
   const second = parts[1];
 
-  // House number only ("2", "14A") is not a place name — skip to the locality.
+  // House number only ("2", "14A") is not a place name - skip to the locality.
   if (/^\d+[A-Za-z]?$/.test(first) && second) {
     return cleanLocationTitle(parts.slice(1).join(', '));
   }
@@ -312,7 +312,7 @@ export async function findNearbyPlaceName(
   lng: number,
   options?: { maxDistanceMeters?: number }
 ): Promise<ResolvedLabel | null> {
-  // Generous radius — POI coordinates registered in Google can be 30-80m off
+  // Generous radius - POI coordinates registered in Google can be 30-80m off
   // from the actual storefront, so a tight filter misses the establishment
   // directly under the pin and we fall back to a useless area name.
   const maxDistanceMeters = options?.maxDistanceMeters ?? 90;

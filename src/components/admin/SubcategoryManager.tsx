@@ -396,7 +396,7 @@ export function SubcategoryManager() {
           </div>
         )}
 
-        {/* Add/Edit Dialog — Rich form matching Category edit dialog */}
+        {/* Add/Edit Dialog - Rich form matching Category edit dialog */}
         <Dialog open={isDialogOpen} onOpenChange={(o) => { if (!o) resetForm(); setIsDialogOpen(o); }}>
           <DialogContent className="rounded-2xl max-w-md">
             <DialogHeader>

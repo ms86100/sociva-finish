@@ -44,7 +44,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const effectiveSocietyId = viewAsSocietyId || profile?.society_id || null;
   const effectiveSociety = viewAsSocietyId ? viewAsSociety : society;
 
-  // Amplitude identity — no PII beyond internal ids / role flags
+  // Amplitude identity - no PII beyond internal ids / role flags
   const identifiedUserRef = useRef<string | null>(null);
   useEffect(() => {
     if (!user?.id) {
@@ -65,7 +65,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [user?.id, profile?.society_id, isSeller, isAdmin, hasSellerProfile]);
 
-  // Perf: Defer non-critical prefetches — only fire after a short idle delay
+  // Perf: Defer non-critical prefetches - only fire after a short idle delay
   // This prevents auth restore from triggering a burst of queries that slows the first click
   useEffect(() => {
     if (!effectiveSocietyId || !profile) return;
@@ -182,7 +182,7 @@ export function useAuth() {
   return context;
 }
 
-/** Soft read for boot gates / HMR — returns null outside provider instead of throwing. */
+/** Soft read for boot gates / HMR - returns null outside provider instead of throwing. */
 export function useOptionalAuth() {
   return useContext(AuthContext) ?? null;
 }

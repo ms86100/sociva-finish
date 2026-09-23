@@ -8,13 +8,13 @@ const STEPS = [
     icon: MapPin,
     step: '1',
     title: 'Prove You Live Here',
-    desc: "GPS verifies you're a real resident. No outsiders, no fake profiles — just families who share your compound.",
+    desc: "GPS verifies you're a real resident. No outsiders, no fake profiles - just families who share your compound.",
   },
   {
     icon: Search,
     step: '2',
     title: 'Discover Hidden Gems',
-    desc: "Find the home baker in Tower B, the yoga teacher in A-block, the uncle who repairs everything. They've always been here — now you can find them.",
+    desc: "Find the home baker in Tower B, the yoga teacher in A-block, the uncle who repairs everything. They've always been here - now you can find them.",
   },
   {
     icon: ShoppingBag,

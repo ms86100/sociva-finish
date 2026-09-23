@@ -184,7 +184,7 @@ END;
 $$;
 
 -- ============================================================
--- 7. fn_enqueue_from_rule v2 — adds rate limit, state validation,
+-- 7. fn_enqueue_from_rule v2 - adds rate limit, state validation,
 --    dynamic multiplier, audit log entry, safe rendering
 -- ============================================================
 CREATE OR REPLACE FUNCTION public.fn_enqueue_from_rule(

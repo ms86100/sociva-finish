@@ -7,7 +7,7 @@ import { getCurrentPosition, isLocationError } from '@/lib/native-location';
 import { syncInstallationPermissions } from '@/lib/installation';
 import { loadGoogleMapsScript } from '@/hooks/useGoogleMaps';
 import { GoogleMapConfirm } from '@/components/auth/GoogleMapConfirm';
-import { markLocationOnboardingDone } from '@/lib/location-onboarding';
+import { markLocationOnboardingDone, consumePendingBrowseReturn } from '@/lib/location-onboarding';
 import { toast } from 'sonner';
 import { useDiscoveryAtmosphereProducts } from '@/hooks/useDiscoveryAtmosphereProducts';
 import { fetchNearbySellersPreview, type NearbyPreviewSeller } from '@/lib/discovery-nearby';
@@ -23,7 +23,7 @@ const FINDING_FLOOR_MS = 700;
 const FOUND_HOLD_MS = 900;
 
 /**
- * Sociva discovery front door — location explain + Places manual + map confirm + finding / empty.
+ * Sociva discovery front door - location explain + Places manual + map confirm + finding / empty.
  * Never hard-blocks the app if GPS is denied (App Store 5.1.1 + 5.1.5).
  */
 export default function LocationDiscoveryPage() {
@@ -103,7 +103,7 @@ export default function LocationDiscoveryPage() {
           setPreviewSellers(sellers);
           setFindingPhase('found');
           await new Promise((r) => setTimeout(r, FOUND_HOLD_MS));
-          navigate('/', { replace: true });
+          navigate(consumePendingBrowseReturn('/'), { replace: true });
           return;
         }
 
@@ -126,7 +126,7 @@ export default function LocationDiscoveryPage() {
       if (stepRef.current !== 'manual') cameFromManualRef.current = false;
       setDetected({ lat: pos.latitude, lng: pos.longitude, label });
       goToStep('confirm');
-      // Lifecycle only — independent of browsing pin / login
+      // Lifecycle only - independent of browsing pin / login
       void syncInstallationPermissions({ locationPermission: 'enabled' });
     } catch (err) {
       if (isLocationError(err) && err.code === 'permission_denied') {
@@ -143,7 +143,7 @@ export default function LocationDiscoveryPage() {
           description: 'Select your location manually instead.',
         });
       }
-      // Stay on explain / manual — never open Bangalore map fallback
+      // Stay on explain / manual - never open Bangalore map fallback
       // Manual pin can still be set without GPS permission.
     } finally {
       setBusy(false);

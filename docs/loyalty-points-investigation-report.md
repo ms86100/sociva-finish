@@ -1,4 +1,4 @@
-# Loyalty Points Feature — Complete Investigation Report
+# Loyalty Points Feature - Complete Investigation Report
 
 **Date:** 2026-08-07  
 **Workspace:** `sociva-v1-main`  
@@ -42,7 +42,7 @@ Buyer-facing copy (`LoyaltyCard.tsx`):
 
 > Earn 1 point per ₹10 spent · +10 bonus for reviews
 
-At 1 pt = ₹1, that is effectively **~10% cashback** on delivered GMV — aggressive for a multi-vendor marketplace if liability is platform-borne.
+At 1 pt = ₹1, that is effectively **~10% cashback** on delivered GMV - aggressive for a multi-vendor marketplace if liability is platform-borne.
 
 ### Who funds loyalty points?
 
@@ -50,10 +50,10 @@ At 1 pt = ₹1, that is effectively **~10% cashback** on delivered GMV — aggre
 
 Evidence:
 
-1. **No store funding model** — no `seller_id` on ledger, no seller settings for earn/redeem rates, no seller dashboard controls (grep of `src/**/seller/**` = zero loyalty hits).
-2. **Coupons are the contrast** — seller coupons are per-`seller_id`, applied inside `create_multi_vendor_orders` to `coupon_discount` / `total_amount`, and thus reduce settlement gross. Loyalty is **not** a parameter to that RPC.
-3. **Settlement math ignores loyalty** — `create_settlement_on_delivery_impl` sets `_gross := COALESCE(p_new.total_amount, 0)` (`20260801120000_ship_readiness_p0_money_truth.sql`). Since order totals never subtract loyalty, sellers are settled as if no loyalty discount occurred.
-4. **Client reduces what the buyer pays** (`finalAmount` includes loyalty) for Razorpay/UPI session amount — so collected cash can be **less than** order/settlement gross → **platform shortfall**, not seller-funded discount.
+1. **No store funding model** - no `seller_id` on ledger, no seller settings for earn/redeem rates, no seller dashboard controls (grep of `src/**/seller/**` = zero loyalty hits).
+2. **Coupons are the contrast** - seller coupons are per-`seller_id`, applied inside `create_multi_vendor_orders` to `coupon_discount` / `total_amount`, and thus reduce settlement gross. Loyalty is **not** a parameter to that RPC.
+3. **Settlement math ignores loyalty** - `create_settlement_on_delivery_impl` sets `_gross := COALESCE(p_new.total_amount, 0)` (`20260801120000_ship_readiness_p0_money_truth.sql`). Since order totals never subtract loyalty, sellers are settled as if no loyalty discount occurred.
+4. **Client reduces what the buyer pays** (`finalAmount` includes loyalty) for Razorpay/UPI session amount - so collected cash can be **less than** order/settlement gross → **platform shortfall**, not seller-funded discount.
 
 There are **no code comments or docs** stating “platform absorbs loyalty” or “seller funds loyalty.” Liability is emergent from the implementation gap, not an explicit product decision.
 
@@ -62,7 +62,7 @@ There are **no code comments or docs** stating “platform absorbs loyalty” or
 | Actor | Pays when points earned? | Pays when points redeemed? | Documented? |
 |-------|--------------------------|----------------------------|-------------|
 | Platform | Creates unfunded liability (points = ₹) | Absorbs gap if buyer pays less than order total / settlement | **Implicit only** |
-| Store owner | No | No (settlement not reduced) | N/A — no controls |
+| Store owner | No | No (settlement not reduced) | N/A - no controls |
 | Customer | Earns liability claim | Spends claim for discount | UI only |
 
 ---
@@ -135,11 +135,11 @@ flowchart TD
 | Enable / disable loyalty for store | **Missing** | No settings / columns |
 | Configure earn rate | **Missing** | Hardcoded in trigger `/ 10` |
 | Configure redeem rate / caps | **Missing** | Hardcoded 1:1 in RPC + client |
-| Loyalty campaigns | **Missing** | — |
+| Loyalty campaigns | **Missing** | - |
 | View points issued against their GMV | **Missing** | Ledger has no seller attribution |
-| Absorb / opt out of platform redemptions | **Missing** | — |
+| Absorb / opt out of platform redemptions | **Missing** | - |
 
-**What sellers do have (related but separate):** `CouponManager.tsx` — seller-funded coupons with limits, dates, visibility. That is the only discount control sellers own.
+**What sellers do have (related but separate):** `CouponManager.tsx` - seller-funded coupons with limits, dates, visibility. That is the only discount control sellers own.
 
 **Seller-facing loyalty UI:** none. Loyalty appears only on buyer Orders / Cart.
 
@@ -189,7 +189,7 @@ flowchart LR
 1. **Online pay:** platform may collect `order_total − N` while owing seller ~`order_total − platform_fee` → **platform funds the N rupees** (or books a loss / cash gap).
 2. **COD:** UI shows lower “To Pay”; order/seller still see full `total_amount` → **operational confusion** and possible over/under collection at door.
 3. **Multi-store:** one redemption tied to first order; discount may have applied to whole-cart `finalAmount` without proportional allocation across seller orders.
-4. **Earn after redeem:** customer can earn points on the *undiscounted* order total even when they paid less — over-issuing points on top of the discount.
+4. **Earn after redeem:** customer can earn points on the *undiscounted* order total even when they paid less - over-issuing points on top of the discount.
 
 **Contrast with coupons:** coupon discount is server-validated and written into the order, so settlement gross already reflects seller promo cost.
 
@@ -206,9 +206,9 @@ flowchart LR
 | Triggers | `trg_earn_loyalty_on_delivery` on `orders` | Earn on delivery/complete |
 | Triggers | `trg_earn_loyalty_on_review` on `reviews` | +10 bonus |
 | RPCs | `get_loyalty_balance`, `get_loyalty_history`, `redeem_loyalty_points` | Read/redeem |
-| Order create | `create_multi_vendor_orders` | **Coupon only** — no loyalty args |
+| Order create | `create_multi_vendor_orders` | **Coupon only** - no loyalty args |
 | Settlements | `create_settlement_on_delivery_impl` | Gross = order total |
-| Edge functions | None loyalty-specific | — |
+| Edge functions | None loyalty-specific | - |
 | Frontend hooks | `useLoyalty.ts`, `useLoyaltyRedeem.ts` | Balance, history, apply/redeem |
 | Frontend UI | `LoyaltyCard.tsx`, `CartPage.tsx`, `OrdersPage.tsx` | Display + redeem toggle |
 | Types | `src/integrations/supabase/types.ts` | Table + RPCs generated |
@@ -235,7 +235,7 @@ Confirmed present and matching migration:
 | Outstanding liability (sum of positive balances) | 107 pts ≈ ₹107 |
 | Breakdown | earned/order: 6 rows / 107 pts; bonus/review: 1 / 10; redeemed/redemption: 1 / −10 |
 
-Sample redemption: order `76308f5e-…` had **−10 pts redeemed** while `orders.total_amount` remained **30.00** and `coupon_discount` **0** — direct evidence that redemption does not mutate order money fields.
+Sample redemption: order `76308f5e-…` had **−10 pts redeemed** while `orders.total_amount` remained **30.00** and `coupon_discount` **0** - direct evidence that redemption does not mutate order money fields.
 
 ### What works / partial / missing
 
@@ -254,19 +254,19 @@ See **Status matrix** below.
 1. Toggle on Cart → local `appliedPoints`
 2. `finalAmount` reduced for display + Razorpay session
 3. Orders created **without** loyalty discount
-4. `redeem_loyalty_points(_points, _order_id)` fired with `.catch(() => {})` — **non-blocking**
-5. On RPC failure, toast says points “will be restored” (`useLoyaltyRedeem.ts`) but **no restore path exists** (and if RPC failed, points were never deducted — message is wrong; if payment already reflected discount, buyer got free discount)
+4. `redeem_loyalty_points(_points, _order_id)` fired with `.catch(() => {})` - **non-blocking**
+5. On RPC failure, toast says points “will be restored” (`useLoyaltyRedeem.ts`) but **no restore path exists** (and if RPC failed, points were never deducted - message is wrong; if payment already reflected discount, buyer got free discount)
 
 ### Security / integrity issues (document as critical)
 
-1. **Money truth gap (P0)** — discount not on order; settlement/payment inconsistency.
-2. **Best-effort redeem after pay (P0)** — can grant economic discount without ledger debit.
-3. **Race on redeem (P0)** — balance check then insert without `FOR UPDATE` / advisory lock; concurrent redeems can overdraw.
-4. **`get_loyalty_balance(_user_id)` (P1)** — SECURITY DEFINER allows optional `_user_id`; any authenticated caller can read another user’s balance if they know the UUID.
-5. **No order ownership check in redeem (P1)** — `_order_id` not validated as belonging to `auth.uid()`; only used as `reference_id` text (fraud/abuse limited but audit-wrong).
-6. **No clawback (P1)** — cancel/refund neither restores redeemed points nor reverses earned points.
-7. **Earn rate economics (P1)** — ~10% cashback at 1:1 redeem is high for platform-funded liability.
-8. **Schema stubs unused (P2)** — `expired`, `adjusted`, `referral`, ongoing `signup` bonus.
+1. **Money truth gap (P0)** - discount not on order; settlement/payment inconsistency.
+2. **Best-effort redeem after pay (P0)** - can grant economic discount without ledger debit.
+3. **Race on redeem (P0)** - balance check then insert without `FOR UPDATE` / advisory lock; concurrent redeems can overdraw.
+4. **`get_loyalty_balance(_user_id)` (P1)** - SECURITY DEFINER allows optional `_user_id`; any authenticated caller can read another user’s balance if they know the UUID.
+5. **No order ownership check in redeem (P1)** - `_order_id` not validated as belonging to `auth.uid()`; only used as `reference_id` text (fraud/abuse limited but audit-wrong).
+6. **No clawback (P1)** - cancel/refund neither restores redeemed points nor reverses earned points.
+7. **Earn rate economics (P1)** - ~10% cashback at 1:1 redeem is high for platform-funded liability.
+8. **Schema stubs unused (P2)** - `expired`, `adjusted`, `referral`, ongoing `signup` bonus.
 
 ### Incomplete vs coupons (seller-funded baseline)
 
@@ -289,20 +289,20 @@ Compare options:
 | Model | Who funds | Scalability | Fairness to sellers | Ease | Fit for Sociva |
 |-------|-----------|-------------|---------------------|------|----------------|
 | **A. Platform wallet (current intent, broken)** | Platform | Simple ledger | Sellers insulated if settlement correct | Easy UX | Good **if** platform promo budget + money truth fixed |
-| **B. Per-store loyalty** | Each seller | N programs, complex UX | Fair — each store pays own rewards | Harder (settings, balances per store) | Good later for retention per brand |
+| **B. Per-store loyalty** | Each seller | N programs, complex UX | Fair - each store pays own rewards | Harder (settings, balances per store) | Good later for retention per brand |
 | **C. Hybrid: platform points + seller boosters** | Platform base; sellers buy boosts | Medium | Clear cost attribution | Medium | **Recommended mid-term** |
 | **D. Points as non-cash perks only** | Platform (non-₹) | High | Neutral | Easy | Weak vs current “= ₹ off” copy |
 
-**Recommended near-term:** **Model A fixed** — keep **one global buyer balance** (matches current UX and society marketplace habit), **platform-funded**, with:
+**Recommended near-term:** **Model A fixed** - keep **one global buyer balance** (matches current UX and society marketplace habit), **platform-funded**, with:
 
 1. Explicit product rule: “Sociva Rewards funded by platform.”
 2. Atomic checkout: reserve → apply discount on order(s) → capture payment → commit redemption (or rollback).
 3. Settlement: either  
    - **(A1)** settle sellers on **pre-loyalty** merchandise total and book loyalty as `platform_subsidy` / reduced platform fee, or  
    - **(A2)** reduce buyer payment and reduce **platform fee / take rate** first; never silently underpay or overpay sellers relative to collected funds.
-4. Conservative economics until accounting is solid: e.g. 1 pt per ₹50–100, redeem 1 pt = ₹1 with max 5–10% of order, expiry 6–12 months.
+4. Conservative economics until accounting is solid: e.g. 1 pt per ₹50-100, redeem 1 pt = ₹1 with max 5-10% of order, expiry 6-12 months.
 
-**Recommended mid-term:** evolve to **Model C** — optional seller “double points weekends” billed to seller wallet / reduced settlement, separate from base platform earn.
+**Recommended mid-term:** evolve to **Model C** - optional seller “double points weekends” billed to seller wallet / reduced settlement, separate from base platform earn.
 
 ### Gaps → robust design
 
@@ -345,28 +345,28 @@ sequenceDiagram
 
 ### Prioritized action items
 
-#### P0 — Before any marketing / scale
+#### P0 - Before any marketing / scale
 
-1. **Stop silent money mismatch** — either disable redeem toggle in production until fixed, or implement atomic apply:
+1. **Stop silent money mismatch** - either disable redeem toggle in production until fixed, or implement atomic apply:
    - Extend `create_multi_vendor_orders` (or new RPC) with `_loyalty_points` validated server-side.
    - Persist `loyalty_discount` on orders (new column).
    - Include in `total_amount` / payment amount consistently.
-2. **Settlement + payment reconciliation** — define and implement who pays N rupees; write `platform_subsidy` (or equivalent) so seller `net_amount` matches product policy.
-3. **Make redeem transactional** — debit points in same transaction as order create (or reserve-before-pay); remove best-effort `.catch(() => {})`.
-4. **Fix concurrency** — lock balance (`SELECT … FOR UPDATE` on a balances row or advisory lock per user) inside redeem.
-5. **Correct failure UX** — remove false “will be restored” toast; surface real success/failure and block navigation if debit failed after discount was promised.
+2. **Settlement + payment reconciliation** - define and implement who pays N rupees; write `platform_subsidy` (or equivalent) so seller `net_amount` matches product policy.
+3. **Make redeem transactional** - debit points in same transaction as order create (or reserve-before-pay); remove best-effort `.catch(() => {})`.
+4. **Fix concurrency** - lock balance (`SELECT … FOR UPDATE` on a balances row or advisory lock per user) inside redeem.
+5. **Correct failure UX** - remove false “will be restored” toast; surface real success/failure and block navigation if debit failed after discount was promised.
 
-#### P1 — Production hardening
+#### P1 - Production hardening
 
 6. Decide and document **funding model** (platform vs hybrid) in product + finance.
 7. **Tune earn/redeem economics** (lower cashback; caps; min order).
-8. **Clawbacks** — on cancel/refund: reverse unearned / restore redeemed as policy requires.
+8. **Clawbacks** - on cancel/refund: reverse unearned / restore redeemed as policy requires.
 9. **Validate `_order_id` ownership** on redeem; restrict `get_loyalty_balance` to self (drop free `_user_id` or admin-only).
-10. **Multi-seller allocation** — proportional loyalty discount across seller groups or disallow like coupons.
-11. **Admin liability dashboard** — outstanding points, issuance, redemptions, subsidy cost.
-12. Earn only when **payment confirmed** (or COD completed), not merely status string — align with money truth migration philosophy.
+10. **Multi-seller allocation** - proportional loyalty discount across seller groups or disallow like coupons.
+11. **Admin liability dashboard** - outstanding points, issuance, redemptions, subsidy cost.
+12. Earn only when **payment confirmed** (or COD completed), not merely status string - align with money truth migration philosophy.
 
-#### P2 — Growth features
+#### P2 - Growth features
 
 13. Expiry job writing `type='expired'`.
 14. Ongoing signup / referral bonuses (sources already in CHECK).
@@ -397,11 +397,11 @@ sequenceDiagram
 | Apply discount to order total | **Missing** | Critical |
 | Apply discount to settlements | **Missing** | Critical |
 | Atomic checkout + redeem | **Missing** | Best-effort post-hoc |
-| Seller controls / UI | **Missing** | — |
-| Platform admin / liability | **Missing** | — |
+| Seller controls / UI | **Missing** | - |
+| Platform admin / liability | **Missing** | - |
 | Expiration | **Missing** | Type only |
 | Referral / ongoing signup | **Missing** | CHECK / one-time backfill only |
-| Cancel/refund clawback | **Missing** | — |
+| Cancel/refund clawback | **Missing** | - |
 | Edge functions | **N/A / Missing** | Not required if RPCs solid |
 | Docs / product funding statement | **Missing** | This report is first thorough write-up |
 | Live usage | **Working (tiny)** | 107 pts outstanding |
@@ -453,7 +453,7 @@ Per brief: investigation only; listed for triage.
 
 ---
 
-## Update (2026-08-07) — Phase 1 platform-funded shipped
+## Update (2026-08-07) - Phase 1 platform-funded shipped
 
 Product decision confirmed: **platform-funded** global rewards. Implementation status and QA: see [`loyalty-phase1-platform-funded.md`](./loyalty-phase1-platform-funded.md).
 

@@ -21,7 +21,7 @@ BEGIN
   UPDATE public.orders
   SET
     status = 'cancelled',
-    rejection_reason = 'Order automatically cancelled — payment was not completed',
+    rejection_reason = 'Order automatically cancelled - payment was not completed',
     updated_at = now(),
     auto_cancel_at = null
   WHERE id = ANY(_order_ids)

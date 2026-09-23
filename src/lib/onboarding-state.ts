@@ -1,5 +1,5 @@
 /**
- * Pure onboarding state helpers — safe to unit test without React/Supabase.
+ * Pure onboarding state helpers - safe to unit test without React/Supabase.
  */
 import type { SubcategoryPreferences } from '@/hooks/useSellerApplication';
 import { NEW_ONBOARDING_TOTAL_STEPS } from '@/lib/listing-intent';
@@ -102,7 +102,7 @@ export function clampOnboardingStep(step: number): number {
   return Math.max(1, Math.min(step, NEW_ONBOARDING_TOTAL_STEPS));
 }
 
-/** Restore step from backup — never force step 5+. */
+/** Restore step from backup - never force step 5+. */
 export function restoreStepFromBackup(backupStep: number | undefined | null): number {
   return clampOnboardingStep(Number(backupStep) || 1);
 }

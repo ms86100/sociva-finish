@@ -9,9 +9,9 @@
 export type CartPaymentMethod = 'cod' | 'upi' | 'online' | 'card' | string;
 
 export type OnlineGateOptions = {
-  /** Platform Razorpay Checkout.js collect — multi-seller allowed (P5). */
+  /** Platform Razorpay Checkout.js collect - multi-seller allowed (P5). */
   isRazorpay?: boolean;
-  /** Direct VPA deep-link — always single-seller. */
+  /** Direct VPA deep-link - always single-seller. */
   isUpiDeepLink?: boolean;
 };
 
@@ -36,7 +36,7 @@ export function requiresSingleSellerForOnline(
   return true;
 }
 
-/** Deep-link UPI is always single-VPA — never multi-seller. */
+/** Deep-link UPI is always single-VPA - never multi-seller. */
 export function blocksUpiDeepLinkMultiSeller(
   sellerCount: number,
   isUpiDeepLink: boolean,
@@ -58,7 +58,7 @@ export function multiStoreBannerCopy(
   if (isOnlinePaymentMethod(paymentMethod) && opts?.isRazorpay) {
     return {
       title: `Items from ${sellerCount} stores`,
-      body: 'One online payment covers all stores. Each seller accepts and fulfills their portion independently — if one store cancels, only that store’s amount is refunded.',
+      body: 'One online payment covers all stores. Each seller accepts and fulfills their portion independently - if one store cancels, only that store’s amount is refunded.',
     };
   }
   if (isOnlinePaymentMethod(paymentMethod)) {
@@ -81,5 +81,5 @@ export function onlineMultiSellerBlockedMessage(isRazorpay: boolean): string {
 
 export function razorpayMultiStoreConfirmHint(sellerCount: number): string | null {
   if (sellerCount <= 1) return null;
-  return `${sellerCount} separate orders will be created — one per store. One payment covers the full amount.`;
+  return `${sellerCount} separate orders will be created - one per store. One payment covers the full amount.`;
 }

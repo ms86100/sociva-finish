@@ -1,6 +1,6 @@
 // @ts-nocheck
 /**
- * Sociva Green System — light 50-level pastels for category cards.
+ * Sociva Green System - light 50-level pastels for category cards.
  * Softer, more cohesive, brand-aligned backgrounds.
  */
 export const CATEGORY_PASTELS: Record<string, string> = {

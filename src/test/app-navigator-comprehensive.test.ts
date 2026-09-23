@@ -34,10 +34,10 @@ describe('Categories Page', () => {
 });
 
 // ════════════════════════════════════════════════════
-// SECTION 2: CART & CHECKOUT — DEEP
+// SECTION 2: CART & CHECKOUT - DEEP
 // ════════════════════════════════════════════════════
 
-describe('Cart & Checkout — Deep', () => {
+describe('Cart & Checkout - Deep', () => {
   it('TC-CART001: Items grouped by seller', () => {
     const groups = groupBySeller([
       { seller_id: 's1', id: '1' }, { seller_id: 's1', id: '2' }, { seller_id: 's2', id: '3' },
@@ -61,7 +61,7 @@ describe('Cart & Checkout — Deep', () => {
     ];
     expect(findUnavailableProducts(fresh, ['p1', 'p2'])).toEqual(['p2']);
   });
-  it('TC-CART006: Coupon discount validation — active coupon', () => {
+  it('TC-CART006: Coupon discount validation - active coupon', () => {
     const coupon = {
       is_active: true, society_id: 's1', expires_at: null,
       starts_at: '2020-01-01', usage_limit: 100, times_used: 5,
@@ -69,7 +69,7 @@ describe('Cart & Checkout — Deep', () => {
     };
     expect(isCouponApplicable(coupon, 's1', 500, 0).applicable).toBe(true);
   });
-  it('TC-CART007: Coupon — cross-society rejected', () => {
+  it('TC-CART007: Coupon - cross-society rejected', () => {
     const coupon = {
       is_active: true, society_id: 's1', expires_at: null,
       starts_at: '2020-01-01', usage_limit: null, times_used: 0,
@@ -77,7 +77,7 @@ describe('Cart & Checkout — Deep', () => {
     };
     expect(isCouponApplicable(coupon, 's2', 500, 0).reason).toBe('Cross-society');
   });
-  it('TC-CART008: Coupon — expired rejected', () => {
+  it('TC-CART008: Coupon - expired rejected', () => {
     const coupon = {
       is_active: true, society_id: 's1', expires_at: '2020-01-01',
       starts_at: '2019-01-01', usage_limit: null, times_used: 0,
@@ -85,7 +85,7 @@ describe('Cart & Checkout — Deep', () => {
     };
     expect(isCouponApplicable(coupon, 's1', 500, 0).reason).toBe('Expired');
   });
-  it('TC-CART009: Coupon — below minimum rejected', () => {
+  it('TC-CART009: Coupon - below minimum rejected', () => {
     const coupon = {
       is_active: true, society_id: 's1', expires_at: null,
       starts_at: '2020-01-01', usage_limit: null, times_used: 0,
@@ -93,7 +93,7 @@ describe('Cart & Checkout — Deep', () => {
     };
     expect(isCouponApplicable(coupon, 's1', 200, 0).reason).toBe('Below minimum');
   });
-  it('TC-CART010: Coupon — per-user limit reached', () => {
+  it('TC-CART010: Coupon - per-user limit reached', () => {
     const coupon = {
       is_active: true, society_id: 's1', expires_at: null,
       starts_at: '2020-01-01', usage_limit: null, times_used: 0,
@@ -101,7 +101,7 @@ describe('Cart & Checkout — Deep', () => {
     };
     expect(isCouponApplicable(coupon, 's1', 500, 2).reason).toBe('Per-user limit reached');
   });
-  it('TC-CART011: Coupon — usage limit reached', () => {
+  it('TC-CART011: Coupon - usage limit reached', () => {
     const coupon = {
       is_active: true, society_id: 's1', expires_at: null,
       starts_at: '2020-01-01', usage_limit: 10, times_used: 10,
@@ -109,7 +109,7 @@ describe('Cart & Checkout — Deep', () => {
     };
     expect(isCouponApplicable(coupon, 's1', 500, 0).reason).toBe('Usage limit reached');
   });
-  it('TC-CART012: Coupon — inactive rejected', () => {
+  it('TC-CART012: Coupon - inactive rejected', () => {
     const coupon = {
       is_active: false, society_id: 's1', expires_at: null,
       starts_at: '2020-01-01', usage_limit: null, times_used: 0,
@@ -117,7 +117,7 @@ describe('Cart & Checkout — Deep', () => {
     };
     expect(isCouponApplicable(coupon, 's1', 500, 0).reason).toBe('Coupon inactive');
   });
-  it('TC-CART013: Coupon — not started yet', () => {
+  it('TC-CART013: Coupon - not started yet', () => {
     const coupon = {
       is_active: true, society_id: 's1', expires_at: null,
       starts_at: '2099-01-01', usage_limit: null, times_used: 0,
@@ -163,7 +163,7 @@ describe('Seller Detail Access Control', () => {
 // SECTION 4: BUILDER ANALYTICS & INSPECTIONS
 // ════════════════════════════════════════════════════
 
-describe('Builder — Inspection & Progress', () => {
+describe('Builder - Inspection & Progress', () => {
   it('TC-BLD001: Builder member has progress access', () => {
     expect(hasProgressManageAccess({ isAdmin: false, isSocietyAdmin: false, isBuilderMember: true })).toBe(true);
   });
@@ -187,10 +187,10 @@ describe('Builder — Inspection & Progress', () => {
 });
 
 // ════════════════════════════════════════════════════
-// SECTION 5: AUTHORIZED PERSONS — Write Safety
+// SECTION 5: AUTHORIZED PERSONS - Write Safety
 // ════════════════════════════════════════════════════
 
-describe('Authorized Persons — Write Safety', () => {
+describe('Authorized Persons - Write Safety', () => {
   it('TC-AP001: Write uses profile society ID', () => {
     expect(getWriteSocietyId('home', 'viewed')).toBe('home');
   });
@@ -204,7 +204,7 @@ describe('Authorized Persons — Write Safety', () => {
 // SECTION 6: ORDER DETAIL
 // ════════════════════════════════════════════════════
 
-describe('Order Detail — Notifications', () => {
+describe('Order Detail - Notifications', () => {
   it('TC-OD001: Each status maps to notification title', () => {
     expect(getOrderNotifTitle('accepted', 'buyer')).toBeTruthy();
     expect(getOrderNotifTitle('preparing', 'buyer')).toBeTruthy();
@@ -224,7 +224,7 @@ describe('Order Detail — Notifications', () => {
 // SECTION 7: DASHBOARD SEARCH
 // ════════════════════════════════════════════════════
 
-describe('Society Dashboard — Search', () => {
+describe('Society Dashboard - Search', () => {
   it('TC-DASH001: Matches by label', () => {
     expect(dashboardItemMatchesSearch({ label: 'Total Revenue' }, 'revenue')).toBe(true);
   });
@@ -240,10 +240,10 @@ describe('Society Dashboard — Search', () => {
 });
 
 // ════════════════════════════════════════════════════
-// SECTION 8: SLA COMPUTATION — EXTENDED
+// SECTION 8: SLA COMPUTATION - EXTENDED
 // ════════════════════════════════════════════════════
 
-describe('SLA — Extended', () => {
+describe('SLA - Extended', () => {
   it('TC-SLA001: 24h SLA', () => {
     const created = new Date('2026-01-01T00:00:00Z');
     expect(computeSLADeadline(created, 24).toISOString()).toBe('2026-01-02T00:00:00.000Z');
@@ -259,10 +259,10 @@ describe('SLA — Extended', () => {
 });
 
 // ════════════════════════════════════════════════════
-// SECTION 9: FINANCES — EXTENDED
+// SECTION 9: FINANCES - EXTENDED
 // ════════════════════════════════════════════════════
 
-describe('Finances — Extended', () => {
+describe('Finances - Extended', () => {
   it('TC-FIN001: Large sums computed', () => {
     const result = computeFinanceSummary(
       [{ amount: 50000 }, { amount: 30000 }],

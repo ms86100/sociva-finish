@@ -18,7 +18,7 @@ BEGIN
   WHERE token = p_token
     AND user_id != p_user_id;
 
-  -- 2. Upsert for the current user — never overwrite a good apns_token with null
+  -- 2. Upsert for the current user - never overwrite a good apns_token with null
   INSERT INTO public.device_tokens (user_id, token, platform, apns_token, updated_at)
   VALUES (p_user_id, p_token, p_platform, p_apns_token, now())
   ON CONFLICT (user_id, token)

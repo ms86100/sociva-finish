@@ -4,7 +4,7 @@ import * as path from 'path';
 const BASE_URL = process.env.BASE_URL || 'http://127.0.0.1:5173';
 
 /**
- * Dedicated config for multi-image E2E — always captures screenshot/video/trace evidence.
+ * Dedicated config for multi-image E2E - always captures screenshot/video/trace evidence.
  * Does not depend on global.setup email seller auth.
  */
 export default defineConfig({

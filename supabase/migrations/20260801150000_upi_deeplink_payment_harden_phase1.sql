@@ -124,7 +124,7 @@ BEGIN
         payment_confirmed_by_seller = false,
         payment_confirmed_at = now(),
         status = 'cancelled'::order_status,
-        rejection_reason = 'Seller could not verify UPI payment — order cancelled',
+        rejection_reason = 'Seller could not verify UPI payment - order cancelled',
         auto_cancel_at = NULL,
         updated_at = now()
     WHERE id = _order_id;

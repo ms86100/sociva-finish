@@ -1,6 +1,6 @@
 -- Allow system actor to cancel unaccepted placed orders (acceptance timeout).
 -- expire_unaccepted_order sets app.acting_as = 'system', but no placed→cancelled
--- rows existed for system — sweep aborted and overdue orders stayed accept-able
+-- rows existed for system - sweep aborted and overdue orders stayed accept-able
 -- until seller_advance_order's hard gate (separate fix).
 
 BEGIN;

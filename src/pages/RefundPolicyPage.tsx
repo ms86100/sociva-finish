@@ -40,10 +40,10 @@ export default function RefundPolicyPage() {
           <section>
             <h2 className="font-semibold text-foreground text-base mb-2">3. Refund Eligibility</h2>
             <ul className="list-disc list-inside text-muted-foreground space-y-2 leading-relaxed">
-              <li>Order cancelled before preparation — full refund</li>
-              <li>Seller cancels after accepting — full refund</li>
-              <li>Product not delivered or significantly different from description — eligible for refund after dispute review</li>
-              <li>Quality complaints — reviewed on a case-by-case basis through the dispute resolution system</li>
+              <li>Order cancelled before preparation - full refund</li>
+              <li>Seller cancels after accepting - full refund</li>
+              <li>Product not delivered or significantly different from description - eligible for refund after dispute review</li>
+              <li>Quality complaints - reviewed on a case-by-case basis through the dispute resolution system</li>
             </ul>
           </section>
 

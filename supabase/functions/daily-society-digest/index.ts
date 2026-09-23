@@ -106,7 +106,7 @@ Deno.serve(async (req) => {
           },
           body: JSON.stringify({
             userId: member.id,
-            title: `📊 Daily Update — ${society.name}`,
+            title: `📊 Daily Update - ${society.name}`,
             body,
             data: { type: "digest" },
           }),

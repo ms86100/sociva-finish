@@ -567,7 +567,7 @@ BEGIN
     RAISE EXCEPTION 'admin only';
   END IF;
   IF p_key IN ('seller_failure_policy', 'dispute_policy') THEN
-    RAISE EXCEPTION 'V1 locked: seller failure always releases; disputes use Admin reversal — this setting is not configurable';
+    RAISE EXCEPTION 'V1 locked: seller failure always releases; disputes use Admin reversal - this setting is not configurable';
   END IF;
   IF p_key NOT IN (
     'booking_resolution_grace_minutes',

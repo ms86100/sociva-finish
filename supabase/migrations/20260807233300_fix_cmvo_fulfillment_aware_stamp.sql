@@ -55,7 +55,7 @@ $b$;
 $b$;
 
   IF position(trim(both E'\n' from old_block) in norm) = 0 THEN
-    RAISE EXCEPTION 'Stamp block not found in create_multi_vendor_orders — inspect live definition';
+    RAISE EXCEPTION 'Stamp block not found in create_multi_vendor_orders - inspect live definition';
   END IF;
 
   norm := replace(norm, trim(both E'\n' from old_block), trim(both E'\n' from new_block));

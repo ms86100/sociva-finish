@@ -68,7 +68,7 @@ import {
 } from '@/lib/sellerPaymentReadiness';
 import { track } from '@/lib/analytics';
 
-// Lazy: heavy secondary tabs — keep Orders path lean
+// Lazy: heavy secondary tabs - keep Orders path lean
 const QuickActions = lazy(() =>
   import('@/components/seller/QuickActions').then((m) => ({ default: m.QuickActions })),
 );
@@ -158,13 +158,13 @@ export default function SellerDashboardPage() {
   // Service bookings for schedule tab
   const { data: serviceBookings = [] } = useSellerServiceBookings(isPortfolio ? null : activeSellerId);
 
-  // Support tickets — keyed off seller's profiles.id (user_id), NOT seller_profiles.id.
+  // Support tickets - keyed off seller's profiles.id (user_id), NOT seller_profiles.id.
   const activeSellerUserId = sellerProfile?.user_id || user?.id || '';
   const { data: supportTickets = [] } = useSellerTickets(activeSellerUserId);
   useSellerSupportRealtime(activeSellerUserId);
   const { data: hasBookableServices = false } = useSellerHasBookableServices(isPortfolio ? null : activeSellerId);
 
-  // Synced by GlobalChatAlerts / useChatAlerts — no second realtime subscription
+  // Synced by GlobalChatAlerts / useChatAlerts - no second realtime subscription
   const { data: chatUnreadCount = 0 } = useQuery({
     queryKey: ['chat-unread-count', user?.id],
     queryFn: async () => 0,
@@ -187,7 +187,7 @@ export default function SellerDashboardPage() {
     queryClient.removeQueries({ queryKey: ['seller-financial-summary'] });
     queryClient.removeQueries({ queryKey: ['seller-financial-activity'] });
     if (user && isPortfolio) {
-      // Portfolio: no single store profile — still leave loading false quickly
+      // Portfolio: no single store profile - still leave loading false quickly
       setIsLoadingProfile(false);
       setRenderError(null);
     } else if (user && activeSellerId) {
@@ -609,7 +609,7 @@ export default function SellerDashboardPage() {
             )}
             {isPortfolio && (
               <p className="text-[11px] text-muted-foreground -mt-1">
-                Showing orders from all stores — labeled portfolio totals above.
+                Showing orders from all stores - labeled portfolio totals above.
               </p>
             )}
 
@@ -732,7 +732,7 @@ export default function SellerDashboardPage() {
             )}
           </TabsContent>
 
-          {/* ── Schedule Tab — bookings + scheduled cart orders ── */}
+          {/* ── Schedule Tab - bookings + scheduled cart orders ── */}
           <TabsContent value="schedule" className="space-y-4 mt-3">
             {isPortfolio || !sellerProfile ? pickStoreBanner : (
               <Suspense fallback={<TabFallback />}>
@@ -785,7 +785,7 @@ export default function SellerDashboardPage() {
             )}
           </TabsContent>
 
-          {/* ── Stats Tab — Deduplicated ── */}
+          {/* ── Stats Tab - Deduplicated ── */}
           <TabsContent value="stats" className="space-y-4 mt-3">
             {isPortfolio || !sellerProfile ? (
               pickStoreBanner

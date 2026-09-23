@@ -22,7 +22,7 @@ BEGIN
 
   IF position('interval ''3 minutes''' in def) = 0
      AND position('interval ''3 minute''' in def) = 0 THEN
-    RAISE NOTICE 'create_multi_vendor_orders: no 3-minute auto_cancel interval found — skipping patch';
+    RAISE NOTICE 'create_multi_vendor_orders: no 3-minute auto_cancel interval found - skipping patch';
     RETURN;
   END IF;
 
@@ -87,7 +87,7 @@ END;
 $$;
 
 REVOKE ALL ON FUNCTION public.auto_cancel_expired_unpaid_orders() FROM PUBLIC;
--- Cron / service_role only — not callable by clients
+-- Cron / service_role only - not callable by clients
 GRANT EXECUTE ON FUNCTION public.auto_cancel_expired_unpaid_orders() TO service_role;
 
 -- ── Cron: every 10 minutes (replace any prior auto-cancel HTTP jobs) ─────────

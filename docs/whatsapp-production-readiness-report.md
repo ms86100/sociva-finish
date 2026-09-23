@@ -7,14 +7,14 @@
 
 ---
 
-## PHASE 1 — Meta production readiness (evidence-based)
+## PHASE 1 - Meta production readiness (evidence-based)
 
 ### Sources (Meta official)
 
 | Topic | Source |
 |---|---|
 | Messaging limits / TIER_250 / scaling paths | [Messaging Limits](https://developers.facebook.com/documentation/business-messaging/whatsapp/messaging-limits) (updated May 21, 2026) |
-| Recipient allowlist = test numbers only | Meta Cloud API Calling Troubleshooting: error `131030` — *“Only occurs when using public test numbers (PTNs)”* |
+| Recipient allowlist = test numbers only | Meta Cloud API Calling Troubleshooting: error `131030` - *“Only occurs when using public test numbers (PTNs)”* |
 | Templates outside 24h customer service window | Meta WhatsApp Cloud API send / template guides |
 | Authentication templates for OTP | Meta Authentication Templates documentation |
 | Test assets vs production | Meta Get Started / Cloud API overview (test numbers require adding recipients; production business numbers do not) |
@@ -29,13 +29,13 @@
 - Your production sender `+91 99029 20804` is a registered business phone number, not a PTN.
 - Live proof: API accepted a free-form text send to `918448802907` from Phone Number ID `1188855344317220` without any recipient allowlist step.
 
-**What you still have instead of a whitelist:** a **portfolio messaging limit** — max unique WhatsApp users you can deliver to **outside** a customer service window in a rolling 24h period. Live value for Sociva: **`TIER_250`**.
+**What you still have instead of a whitelist:** a **portfolio messaging limit** - max unique WhatsApp users you can deliver to **outside** a customer service window in a rolling 24h period. Live value for Sociva: **`TIER_250`**.
 
 ---
 
 ### Q2. Can any customer receive messages from 9902920804 without being a test recipient?
 
-**Yes, technically — with product rules:**
+**Yes, technically - with product rules:**
 
 | Condition | Requirement |
 |---|---|
@@ -44,7 +44,7 @@
 | Volume | Shared **TIER_250** unique users / 24h outside CSW until you scale |
 | Cannot message | Your own business number as recipient; numbers not on WhatsApp |
 
-So: no Meta “test recipient” list — but **not** “blast anyone anytime.”
+So: no Meta “test recipient” list - but **not** “blast anyone anytime.”
 
 ---
 
@@ -54,7 +54,7 @@ From Meta Messaging Limits (official):
 
 | Item | Without Business Verification |
 |---|---|
-| Starting portfolio limit | **250** unique users / 24h outside CSW (`TIER_250`) — **confirmed live on Sociva** |
+| Starting portfolio limit | **250** unique users / 24h outside CSW (`TIER_250`) - **confirmed live on Sociva** |
 | Path to 2,000 | Verify business **OR** partner verify **OR** deliver **2,000** high-quality template messages to unique users in 30 days |
 | Automatic scale to 10k / 100k / unlimited | Only after reaching 2,000 and meeting quality + utilization criteria |
 | Official Business Account / green check | Generally requires verified business (not available as “unverified soft launch”) |
@@ -92,7 +92,7 @@ Verification is **not** a hard “API off” switch for a production number that
 | **Auth OTP templates** | Must use Meta authentication category; may face extra eligibility checks depending on account state |
 | **Marketing at marketplace scale** | Unsafe/illegal without opt-in; poor quality → limit freezes / restrictions |
 | **Temporary user tokens** | Production must use **permanent System User** token with WhatsApp permissions |
-| **App / WABA not in Live mode** (if still Development for some assets) | Can limit webhook/production behavior — confirm App Mode = Live |
+| **App / WABA not in Live mode** (if still Development for some assets) | Can limit webhook/production behavior - confirm App Mode = Live |
 
 ---
 
@@ -127,9 +127,9 @@ Allowed if you:
 
 ---
 
-## PHASE 2 — Application notification inventory & plan
+## PHASE 2 - Application notification inventory & plan
 
-*(Analysis only — implementation deferred until this report is accepted.)*
+*(Analysis only - implementation deferred until this report is accepted.)*
 
 ### Current architecture
 
@@ -143,7 +143,7 @@ user_notifications (in-app) + FCM/APNs (push)
 
 - **SMS:** MSG91 OTP only (`msg91-send-otp` / verify).
 - **Email:** none for transactional.
-- **WhatsApp:** `send-whatsapp` + `notificationService.ts` scaffold — **admin test only**, not commerce.
+- **WhatsApp:** `send-whatsapp` + `notificationService.ts` scaffold - **admin test only**, not commerce.
 
 ### Existing events (push + in-app today)
 
@@ -169,11 +169,11 @@ user_notifications (in-app) + FCM/APNs (push)
 
 **Buyer (P0):** booking confirmed/cancelled/reminders; order accepted; out for delivery; cancelled; delivery OTP; refund completed/approved/rejected; payment verified/failed.
 
-**Buyer (P1–P2):** quote received; ready; delivered; reschedule/no-show; review reminder; optional WA OTP; marketing only with opt-in + marketing templates.
+**Buyer (P1-P2):** quote received; ready; delivered; reschedule/no-show; review reminder; optional WA OTP; marketing only with opt-in + marketing templates.
 
 **Seller (P0):** new enquiry/booking/order; cancellation; refund requested.
 
-**Seller (P1–P2):** UPI pending; reminders; settlements; store approve/reject/suspend; review; low stock; earnings summary.
+**Seller (P1-P2):** UPI pending; reminders; settlements; store approve/reject/suspend; review; low stock; earnings summary.
 
 **Do not WA-spam:** every toast, society digests, favorited-product marketing without opt-in.
 
@@ -195,7 +195,7 @@ user_notifications (in-app) + FCM/APNs (push)
 
 ---
 
-## Delivery investigation — 8448802907 (2026-08-03)
+## Delivery investigation - 8448802907 (2026-08-03)
 
 | Finding | Evidence |
 |---|---|
@@ -203,12 +203,12 @@ user_notifications (in-app) + FCM/APNs (push)
 | Handset never received | User report |
 | Sample Meta templates blocked on production number | `#131058` Hello World / Jasper templates only from Public Test Numbers |
 | Root cause | Outside **24h customer service window** + **no approved custom templates** yet → Meta accepts then fails/suppresses free-form delivery |
-| Fix submitted | Custom templates `sociva_*` created — status **PENDING** Meta review |
+| Fix submitted | Custom templates `sociva_*` created - status **PENDING** Meta review |
 | Immediate workaround | Recipient must WhatsApp **+91 99029 20804** first (“hi”), then free-form delivers; or wait for `sociva_hello` APPROVED |
 
 ## Immediate action checklist
 
-- [x] Send “hello im from sociva” to 8448802907 from 9902920804 (API accepted — delivery blocked by CSW/templates)
+- [x] Send “hello im from sociva” to 8448802907 from 9902920804 (API accepted - delivery blocked by CSW/templates)
 - [x] Root-cause documented; custom templates submitted
 - [ ] Confirm delivery after user messages business number OR templates approve
 - [ ] Confirm payment method on WABA

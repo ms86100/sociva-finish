@@ -1,6 +1,6 @@
 /**
  * ═══════════════════════════════════════════════════════════════════════════════
- * DELIVERY & PAYMENT HARDENING — AUDIT-PROOF E2E TEST SUITE
+ * DELIVERY & PAYMENT HARDENING - AUDIT-PROOF E2E TEST SUITE
  * ═══════════════════════════════════════════════════════════════════════════════
  *
  * Tests the hardened delivery partner and Razorpay payment integrations.
@@ -40,7 +40,7 @@ const SEED = await trySeedTestUsers();
 const describeDb = SEED ? describe : describe.skip;
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// MODULE 1 — DELIVERY ASSIGNMENT & TRACKING (Business Rule Tests)
+// MODULE 1 - DELIVERY ASSIGNMENT & TRACKING (Business Rule Tests)
 // ═══════════════════════════════════════════════════════════════════════════════
 
 describeDb('Module 1: Delivery Assignment & Tracking', () => {
@@ -56,7 +56,7 @@ describeDb('Module 1: Delivery Assignment & Tracking', () => {
       expect(shouldFire('ready', 'delivery', true)).toBe(false); // idempotent
     });
 
-    it('DA-02: idempotent — second ready transition does NOT create duplicate assignment', () => {
+    it('DA-02: idempotent - second ready transition does NOT create duplicate assignment', () => {
       const existingAssignment = { id: 'asgn-1', order_id: 'ord-1' };
       const shouldCreate = !existingAssignment;
       expect(shouldCreate).toBe(false);
@@ -183,7 +183,7 @@ describeDb('Module 1: Delivery Assignment & Tracking', () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// MODULE 2 — PAYMENT PROCESSING (RAZORPAY) — Business Rule Tests
+// MODULE 2 - PAYMENT PROCESSING (RAZORPAY) - Business Rule Tests
 // ═══════════════════════════════════════════════════════════════════════════════
 
 describeDb('Module 2: Payment Processing (Razorpay)', () => {
@@ -305,7 +305,7 @@ describeDb('Module 2: Payment Processing (Razorpay)', () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// MODULE 3 — SECURITY & ABUSE CASES — Business Rule Tests
+// MODULE 3 - SECURITY & ABUSE CASES - Business Rule Tests
 // ═══════════════════════════════════════════════════════════════════════════════
 
 describeDb('Module 3: Security & Abuse Cases', () => {
@@ -353,7 +353,7 @@ describeDb('Module 3: Security & Abuse Cases', () => {
     expect(shouldMarkPaid).toBe(false);
   });
 
-  it('SEC-05: concurrent delivery completion attempts — only first succeeds', () => {
+  it('SEC-05: concurrent delivery completion attempts - only first succeeds', () => {
     let completionCount = 0;
     const tryComplete = () => {
       if (completionCount > 0) return false; // already completed
@@ -403,7 +403,7 @@ describeDb('Module 3: Security & Abuse Cases', () => {
 // REAL DATABASE INTEGRATION TESTS
 // ═══════════════════════════════════════════════════════════════════════════════
 
-describeDb('Delivery & Payment Hardening — Real DB Integration', () => {
+describeDb('Delivery & Payment Hardening - Real DB Integration', () => {
   let adminClient: SupabaseClient;
   let sellerClient: SupabaseClient;
   let buyerClient: SupabaseClient;
@@ -420,7 +420,7 @@ describeDb('Delivery & Payment Hardening — Real DB Integration', () => {
   }, 30000);
 
   // ─── DB-DA: Delivery Assignment DB Trigger Tests ────────────────────────────
-  describe('DB-DA: Delivery Assignment — Trigger Enforcement', () => {
+  describe('DB-DA: Delivery Assignment - Trigger Enforcement', () => {
 
     it('DB-DA-01: validate_delivery_assignment_status rejects invalid status', async () => {
       const { data: assignments } = await adminClient
@@ -513,7 +513,7 @@ describeDb('Delivery & Payment Hardening — Real DB Integration', () => {
         .select('failure_owner, assigned_at, at_gate_at, max_otp_attempts, otp_attempt_count')
         .limit(1);
 
-      // Query should succeed — columns exist
+      // Query should succeed - columns exist
       expect(data).toBeDefined();
     });
 
@@ -541,7 +541,7 @@ describeDb('Delivery & Payment Hardening — Real DB Integration', () => {
   });
 
   // ─── DB-PM: Payment Records DB Trigger Tests ───────────────────────────────
-  describe('DB-PM: Payment Records — Trigger Enforcement', () => {
+  describe('DB-PM: Payment Records - Trigger Enforcement', () => {
 
     it('DB-PM-01: validate_payment_mode rejects invalid mode', async () => {
       const { data: records } = await adminClient
@@ -651,7 +651,7 @@ describeDb('Delivery & Payment Hardening — Real DB Integration', () => {
   });
 
   // ─── DB-AF: Order Amount Freeze Trigger ─────────────────────────────────────
-  describe('DB-AF: Order Amount Freeze — Trigger Enforcement', () => {
+  describe('DB-AF: Order Amount Freeze - Trigger Enforcement', () => {
 
     it('DB-AF-01: total_amount update blocked when razorpay_order_id is set', async () => {
       // Find an order that has razorpay_order_id set
@@ -662,7 +662,7 @@ describeDb('Delivery & Payment Hardening — Real DB Integration', () => {
         .limit(1);
 
       if (!orders || orders.length === 0) {
-        // No orders with razorpay_order_id — test passes by design
+        // No orders with razorpay_order_id - test passes by design
         expect(true).toBe(true);
         return;
       }
@@ -765,7 +765,7 @@ describeDb('Delivery & Payment Hardening — Real DB Integration', () => {
     });
   });
 
-  // ─── DB-SEC: Security — Abuse Prevention ────────────────────────────────────
+  // ─── DB-SEC: Security - Abuse Prevention ────────────────────────────────────
   describe('DB-SEC: Security & Abuse Prevention', () => {
 
     it('DB-SEC-01: delivery_assignments unique index on razorpay_payment_id prevents dupes', async () => {

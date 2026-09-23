@@ -64,7 +64,7 @@ describe('computeStoreStatus', () => {
     expect(result.status).toBe('open');
   });
 
-  it('treats numeric 0–6 operating days as Sun–Sat', () => {
+  it('treats numeric 0-6 operating days as Sun-Sat', () => {
     mockTime('2026-03-07T14:00:00'); // Saturday
     const result = computeStoreStatus('09:00', '21:00', ['0', '1', '2', '3', '4', '5', '6'], true);
     expect(result.status).toBe('open');
@@ -94,14 +94,14 @@ describe('computeStoreStatus', () => {
     expect(result.status).toBe('closed');
   });
 
-  it('handles overnight hours 20:00–03:00 IST (seller opens at 8pm, closes at 3am IST)', () => {
-    // 20:00–03:00 is an overnight window. Seller opens at 8pm IST, closes at 3am IST next day.
+  it('handles overnight hours 20:00-03:00 IST (seller opens at 8pm, closes at 3am IST)', () => {
+    // 20:00-03:00 is an overnight window. Seller opens at 8pm IST, closes at 3am IST next day.
     // Device may be in CET, but stored times are already IST; store-availability uses UTC+5:30 internally.
     // Test: mocked time = 10pm IST (so seller is inside the overnight window, should be "open")
     // mockTime sets the system time; computeStoreStatus converts to IST internally.
     mockTime('2026-03-07T17:00:00.000Z'); // 5pm UTC → 10:30pm IST
     const result = computeStoreStatus('20:00', '03:00', ['Sat', 'Sun'], true);
-    // At 10:30pm IST, the seller is within the 20:00–03:00 overnight window → open
+    // At 10:30pm IST, the seller is within the 20:00-03:00 overnight window → open
     expect(result.status).toBe('open');
     expect(result.minutesUntilOpen).toBe(0);
   });

@@ -109,7 +109,7 @@ END;
 $$;
 
 -- ============================================================
--- Blocker 2: validate_order_fulfillment_type — accept booking types
+-- Blocker 2: validate_order_fulfillment_type - accept booking types
 -- ============================================================
 CREATE OR REPLACE FUNCTION public.validate_order_fulfillment_type()
 RETURNS trigger
@@ -179,7 +179,7 @@ END;
 $$;
 
 -- ============================================================
--- Blocker 5: create_multi_vendor_orders — new overload matching frontend
+-- Blocker 5: create_multi_vendor_orders - new overload matching frontend
 -- (keeps the old 17-arg overload intact for backward compatibility)
 -- ============================================================
 CREATE OR REPLACE FUNCTION public.create_multi_vendor_orders(

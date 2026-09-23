@@ -15,14 +15,14 @@ export interface UserFriendlyStatus {
 
 /**
  * Converts the technical DiagnosticResult[] into 4 simple user-facing status items.
- * No technical jargon — just plain language.
+ * No technical jargon - just plain language.
  */
 export function summariseDiagnostics(results: DiagnosticResult[]): UserFriendlyStatus[] {
   const find = (prefix: string) => results.find((r) => r.step.startsWith(prefix));
 
   // Special case: running on web (non-native). Push notifications are only
   // supported inside the installed mobile app, so showing 4 red items
-  // (including a misleading "Could not send test — please try again later")
+  // (including a misleading "Could not send test - please try again later")
   // is confusing. Surface a single, accurate status instead.
   const platformResult = find('1. Platform');
   const isWeb = platformResult && !platformResult.ok && /web/i.test(platformResult.detail ?? '');
@@ -30,7 +30,7 @@ export function summariseDiagnostics(results: DiagnosticResult[]): UserFriendlyS
     return [
       {
         label: 'Platform',
-        ok: true, // not an error — just not applicable here
+        ok: true, // not an error - just not applicable here
         actionType: 'none',
         message: 'Push notifications work in the mobile app. Web preview is not supported.',
       },
@@ -74,7 +74,7 @@ export function summariseDiagnostics(results: DiagnosticResult[]): UserFriendlyS
       actionType: setupOk ? 'none' : 'retry',
       message: setupOk
         ? 'Your device is set up for notifications'
-        : 'Setup incomplete — tap to retry',
+        : 'Setup incomplete - tap to retry',
       detail: !setupOk ? (pluginResult?.detail ?? platformResult?.detail) : undefined,
     },
     {
@@ -83,7 +83,7 @@ export function summariseDiagnostics(results: DiagnosticResult[]): UserFriendlyS
       actionType: registeredOk ? 'none' : 'retry',
       message: registeredOk
         ? 'Your device is registered'
-        : 'Registration pending — tap to retry',
+        : 'Registration pending - tap to retry',
       detail: !registeredOk ? dbResult?.detail : undefined,
     },
     {
@@ -93,7 +93,7 @@ export function summariseDiagnostics(results: DiagnosticResult[]): UserFriendlyS
       message: deliveryOk
         ? 'Everything is working correctly'
         : deliverySkipped
-          ? 'Test skipped — fix the steps above first'
+          ? 'Test skipped - fix the steps above first'
           : 'Test notification could not be queued',
       detail: !deliveryOk ? queueResult?.detail : undefined,
     },

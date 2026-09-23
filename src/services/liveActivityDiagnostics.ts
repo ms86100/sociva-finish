@@ -45,7 +45,7 @@ export function getRecentLAErrors() {
   return [...recentErrors];
 }
 
-/** Run full diagnostics — safe to call anytime */
+/** Run full diagnostics - safe to call anytime */
 export async function runLiveActivityDiagnostics(dryRun = true): Promise<DiagnosticResult> {
   const result: DiagnosticResult = {
     timestamp: new Date().toISOString(),
@@ -72,7 +72,7 @@ export async function runLiveActivityDiagnostics(dryRun = true): Promise<Diagnos
     result.checks.pluginAvailable = true;
     result.checks.getActivitiesWorks = true;
     result.checks.activeCount = res.activities.length;
-    console.log(TAG, `getActiveActivities OK — ${res.activities.length} active`, res.activities);
+    console.log(TAG, `getActiveActivities OK - ${res.activities.length} active`, res.activities);
   } catch (e: any) {
     result.checks.pluginAvailable = false;
     result.errors.push(`getActiveActivities failed: ${e?.message ?? e}`);
@@ -98,7 +98,7 @@ export async function runLiveActivityDiagnostics(dryRun = true): Promise<Diagnos
       };
       const { activityId } = await LiveActivity.startLiveActivity(testData);
       result.checks.startTestResult = 'success';
-      console.log(TAG, `Test start OK — activityId=${activityId}`);
+      console.log(TAG, `Test start OK - activityId=${activityId}`);
       // End immediately
       await LiveActivity.endLiveActivity({ activityId });
     } catch (e: any) {

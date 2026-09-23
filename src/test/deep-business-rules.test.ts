@@ -17,10 +17,10 @@ import {
 } from './helpers/business-rules';
 
 // ════════════════════════════════════════════════════
-// SECTION 1: formatPrice — Currency Formatting
+// SECTION 1: formatPrice - Currency Formatting
 // ════════════════════════════════════════════════════
 
-describe('formatPrice — Currency Formatting', () => {
+describe('formatPrice - Currency Formatting', () => {
   it('TC-FP001: Formats number with ₹ prefix', () => { expect(formatPrice(1999)).toBe('₹1,999'); });
   it('TC-FP002: Formats string number', () => { expect(formatPrice('250')).toBe('₹250'); });
   it('TC-FP003: NaN returns ₹0', () => { expect(formatPrice('abc')).toBe('₹0'); expect(formatPrice(NaN)).toBe('₹0'); });
@@ -72,10 +72,10 @@ describe('CSV Export Utility', () => {
 });
 
 // ════════════════════════════════════════════════════
-// SECTION 3: Feature Gating — Real Helper
+// SECTION 3: Feature Gating - Real Helper
 // ════════════════════════════════════════════════════
 
-describe('Feature Gating — Real Helper', () => {
+describe('Feature Gating - Real Helper', () => {
   it('TC-FG001: No society → disabled', () => {
     expect(getFeatureState({ source: 'package', is_enabled: true, society_configurable: true }, false)).toBe('disabled');
   });
@@ -145,10 +145,10 @@ describe('Status Label Mapping', () => {
 });
 
 // ════════════════════════════════════════════════════
-// SECTION 6: Notification Chain — Real Helper
+// SECTION 6: Notification Chain - Real Helper
 // ════════════════════════════════════════════════════
 
-describe('Notification Chain — Real Helper', () => {
+describe('Notification Chain - Real Helper', () => {
   it('TC-NC001: buyer accepted', () => { expect(getOrderNotifTitle('accepted', 'buyer')).toBe('✅ Order Accepted!'); });
   it('TC-NC002: buyer delivered', () => { expect(getOrderNotifTitle('delivered', 'buyer')).toBe('🚚 Order Delivered'); });
   it('TC-NC003: seller placed', () => { expect(getOrderNotifTitle('placed', 'seller')).toBe('🆕 New Order Received!'); });
@@ -160,10 +160,10 @@ describe('Notification Chain — Real Helper', () => {
 });
 
 // ════════════════════════════════════════════════════
-// SECTION 7: Haversine — Real Helper
+// SECTION 7: Haversine - Real Helper
 // ════════════════════════════════════════════════════
 
-describe('Haversine — Real Helper', () => {
+describe('Haversine - Real Helper', () => {
   it('TC-HV001: Same point → 0', () => { expect(haversineDistance(0, 0, 0, 0)).toBe(0); });
   it('TC-HV002: ~111km for 1°', () => { const d = haversineDistance(0, 0, 1, 0); expect(d).toBeGreaterThan(110000); expect(d).toBeLessThan(112000); });
   it('TC-HV003: Symmetric', () => {
@@ -179,10 +179,10 @@ describe('Haversine — Real Helper', () => {
 });
 
 // ════════════════════════════════════════════════════
-// SECTION 8: Worker Entry — Real Helper
+// SECTION 8: Worker Entry - Real Helper
 // ════════════════════════════════════════════════════
 
-describe('Worker Entry — Real Helper', () => {
+describe('Worker Entry - Real Helper', () => {
   it('TC-WE001: Null → invalid', () => { expect(validateWorkerEntry(null).valid).toBe(false); });
   it('TC-WE002: Suspended → invalid', () => { expect(validateWorkerEntry({ status: 'suspended', deactivated_at: null, flat_count: 2 }).valid).toBe(false); });
   it('TC-WE003: Deactivated → invalid', () => { expect(validateWorkerEntry({ status: 'active', deactivated_at: '2024-01-01', flat_count: 2 }).valid).toBe(false); });
@@ -192,10 +192,10 @@ describe('Worker Entry — Real Helper', () => {
 });
 
 // ════════════════════════════════════════════════════
-// SECTION 9: Coupon Validation — Real Helper
+// SECTION 9: Coupon Validation - Real Helper
 // ════════════════════════════════════════════════════
 
-describe('Coupon Validation — Real Helper', () => {
+describe('Coupon Validation - Real Helper', () => {
   const baseCoupon = {
     is_active: true, society_id: 's1', expires_at: null, starts_at: '2020-01-01',
     usage_limit: null, times_used: 0, per_user_limit: 5, min_order_amount: null,
@@ -211,10 +211,10 @@ describe('Coupon Validation — Real Helper', () => {
 });
 
 // ════════════════════════════════════════════════════
-// SECTION 10: Delivery Fee — Real Helper
+// SECTION 10: Delivery Fee - Real Helper
 // ════════════════════════════════════════════════════
 
-describe('Delivery Fee — Real Helper', () => {
+describe('Delivery Fee - Real Helper', () => {
   it('TC-DF001: self_pickup → 0', () => { expect(computeDeliveryFee(100, 300, 30, 'self_pickup')).toBe(0); });
   it('TC-DF002: Above threshold → 0', () => { expect(computeDeliveryFee(500, 300, 30, 'delivery')).toBe(0); });
   it('TC-DF003: Below threshold → fee', () => { expect(computeDeliveryFee(100, 300, 30, 'delivery')).toBe(30); });
@@ -222,10 +222,10 @@ describe('Delivery Fee — Real Helper', () => {
 });
 
 // ════════════════════════════════════════════════════
-// SECTION 11: SLA — Real Helper
+// SECTION 11: SLA - Real Helper
 // ════════════════════════════════════════════════════
 
-describe('SLA — Real Helper', () => {
+describe('SLA - Real Helper', () => {
   it('TC-SLA001: 48h deadline', () => {
     const d = computeSLADeadline(new Date('2026-01-01T00:00:00Z'), 48);
     expect(d.toISOString()).toBe('2026-01-03T00:00:00.000Z');
@@ -235,10 +235,10 @@ describe('SLA — Real Helper', () => {
 });
 
 // ════════════════════════════════════════════════════
-// SECTION 12: Report Metrics — Real Helper
+// SECTION 12: Report Metrics - Real Helper
 // ════════════════════════════════════════════════════
 
-describe('Report Metrics — Real Helper', () => {
+describe('Report Metrics - Real Helper', () => {
   it('TC-RM001: Dispute resolution rate', () => { expect(computeDisputeResolutionRate(10, 8)).toBe(80); });
   it('TC-RM002: Zero → 0%', () => { expect(computeDisputeResolutionRate(0, 0)).toBe(0); });
   it('TC-RM003: Maintenance collection', () => { expect(computeMaintenanceCollectionRate(80, 20)).toBe(80); });
@@ -248,20 +248,20 @@ describe('Report Metrics — Real Helper', () => {
 });
 
 // ════════════════════════════════════════════════════
-// SECTION 13: Absent Workers — Real Helper
+// SECTION 13: Absent Workers - Real Helper
 // ════════════════════════════════════════════════════
 
-describe('Absent Workers — Real Helper', () => {
+describe('Absent Workers - Real Helper', () => {
   it('TC-AW001: Some absent', () => { expect(computeAbsentWorkers(['w1', 'w2', 'w3'], ['w1'])).toEqual(['w2', 'w3']); });
   it('TC-AW002: All present', () => { expect(computeAbsentWorkers(['w1'], ['w1'])).toEqual([]); });
   it('TC-AW003: None present', () => { expect(computeAbsentWorkers(['w1', 'w2'], [])).toEqual(['w1', 'w2']); });
 });
 
 // ════════════════════════════════════════════════════
-// SECTION 14: Inspection & Milestone — Real Helper
+// SECTION 14: Inspection & Milestone - Real Helper
 // ════════════════════════════════════════════════════
 
-describe('Inspection & Milestone — Real Helper', () => {
+describe('Inspection & Milestone - Real Helper', () => {
   it('TC-IM001: Inspection score', () => {
     const r = computeInspectionScore([{ status: 'pass' }, { status: 'fail' }, { status: 'not_checked' }]);
     expect(r.passed).toBe(1);
@@ -276,10 +276,10 @@ describe('Inspection & Milestone — Real Helper', () => {
 });
 
 // ════════════════════════════════════════════════════
-// SECTION 15: Seller Access & Stats — Real Helper
+// SECTION 15: Seller Access & Stats - Real Helper
 // ════════════════════════════════════════════════════
 
-describe('Seller Access & Stats — Real Helper', () => {
+describe('Seller Access & Stats - Real Helper', () => {
   it('TC-SA001: Approved same-society → true', () => {
     expect(canAccessSellerDetail({ verificationStatus: 'approved', sellerSocietyId: 's1', buyerSocietyId: 's1', sellBeyondCommunity: false })).toBe(true);
   });

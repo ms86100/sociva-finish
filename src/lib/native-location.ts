@@ -22,7 +22,7 @@ export function isLocationError(err: unknown): err is LocationError {
 }
 
 /**
- * Ask for location permission on native. Web is a no-op — the browser
+ * Ask for location permission on native. Web is a no-op - the browser
  * prompts when getCurrentPosition runs.
  */
 export async function requestLocationPermission(): Promise<'granted' | 'denied' | 'prompt'> {

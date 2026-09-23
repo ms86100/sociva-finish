@@ -95,7 +95,7 @@ export const DEFAULT_FALLBACK_BEHAVIOR: CategoryBehavior = {
   isNegotiable: false,
 };
 
-// DEFAULT_GROUP_BEHAVIORS removed — category_config DB table is the source of truth
+// DEFAULT_GROUP_BEHAVIORS removed - category_config DB table is the source of truth
 
 export function getListingType(behavior: CategoryBehavior): ListingType {
   if (behavior.hasDateRange) return 'rental';
@@ -111,7 +111,7 @@ export function getOrderType(behavior: CategoryBehavior): OrderType {
   return 'purchase';
 }
 
-// ExtendedOrderStatus removed — workflow engine DB tables are the source of truth
-// EXTENDED_ORDER_STATUS_LABELS removed — now in order_status_config DB table
-// ITEM_CONDITION_LABELS removed — now in system_settings.item_condition_labels
-// RENTAL_PERIOD_LABELS removed — now in system_settings.rental_period_labels
+// ExtendedOrderStatus removed - workflow engine DB tables are the source of truth
+// EXTENDED_ORDER_STATUS_LABELS removed - now in order_status_config DB table
+// ITEM_CONDITION_LABELS removed - now in system_settings.item_condition_labels
+// RENTAL_PERIOD_LABELS removed - now in system_settings.rental_period_labels

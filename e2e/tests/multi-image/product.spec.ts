@@ -10,7 +10,7 @@ import {
   goToNewProduct,
 } from './helpers';
 
-const PRODUCT_NAME = `Test Product — Multi Image ${Date.now().toString().slice(-6)}`;
+const PRODUCT_NAME = `Test Product - Multi Image ${Date.now().toString().slice(-6)}`;
 
 test.describe.configure({ mode: 'serial' });
 
@@ -19,7 +19,7 @@ test.describe('Product multi-image E2E @critical', () => {
     await loginPhone(page);
   });
 
-  test('P01 — one image is enough to create @smoke @single-image', async ({ page }) => {
+  test('P01 - one image is enough to create @smoke @single-image', async ({ page }) => {
     await goToNewProduct(page);
     await shot(page, 'product', 'PRODUCT-P01-00-create-form');
 
@@ -34,11 +34,11 @@ test.describe('Product multi-image E2E @critical', () => {
 
     // Single-image gallery should not show multi-indicator on form after one photo
     const addBtn = page.getByRole('button', { name: /add photo|add$/i });
-    // Add may still be available (up to 5) — that's OK; buyer side asserts no carousel chrome
+    // Add may still be available (up to 5) - that's OK; buyer side asserts no carousel chrome
     expect(count).toBe(1);
   });
 
-  test('P02 — three images upload and retain order', async ({ page }) => {
+  test('P02 - three images upload and retain order', async ({ page }) => {
     await goToNewProduct(page);
     await fillMinimalProduct(page, `${PRODUCT_NAME} P02`);
 
@@ -59,7 +59,7 @@ test.describe('Product multi-image E2E @critical', () => {
     await shot(page, 'product', 'PRODUCT-P02-02-product-published');
   });
 
-  test('P03 — five images maximum filled', async ({ page }) => {
+  test('P03 - five images maximum filled', async ({ page }) => {
     await goToNewProduct(page);
     await fillMinimalProduct(page, `${PRODUCT_NAME} P03`);
 
@@ -81,7 +81,7 @@ test.describe('Product multi-image E2E @critical', () => {
     await shot(page, 'product', 'PRODUCT-P03-02-saved-five');
   });
 
-  test('P04 — sixth image rejected', async ({ page }) => {
+  test('P04 - sixth image rejected', async ({ page }) => {
     await goToNewProduct(page);
     await fillMinimalProduct(page, `${PRODUCT_NAME} P04`);
 
@@ -94,7 +94,7 @@ test.describe('Product multi-image E2E @critical', () => {
     await shot(page, 'product', 'PRODUCT-P04-01-five-images-before-sixth');
 
     expect(await galleryPreviewCount(page)).toBe(5);
-    // Attempt sixth — Add button must be gone; if file input forced, toast Maximum 5
+    // Attempt sixth - Add button must be gone; if file input forced, toast Maximum 5
     const addVisible = await page.getByRole('button', { name: /^add$/i }).isVisible().catch(() => false);
     expect(addVisible).toBe(false);
 
@@ -105,14 +105,14 @@ test.describe('Product multi-image E2E @critical', () => {
       await page.waitForTimeout(1_000);
       const toast = page.locator('text=/maximum 5|at most 5|5 photos/i');
       await expect(toast.first()).toBeVisible({ timeout: 5_000 }).catch(() => {
-        // UI may simply hide uploader — still assert count stays 5
+        // UI may simply hide uploader - still assert count stays 5
       });
     }
     expect(await galleryPreviewCount(page)).toBe(5);
     await shot(page, 'product', 'PRODUCT-P04-02-sixth-image-rejected');
   });
 
-  test('P05 — delete middle image then down to one', async ({ page }) => {
+  test('P05 - delete middle image then down to one', async ({ page }) => {
     await goToNewProduct(page);
     await fillMinimalProduct(page, `${PRODUCT_NAME} P05`);
     for (let i = 1; i <= 5; i++) {
@@ -121,7 +121,7 @@ test.describe('Product multi-image E2E @critical', () => {
     }
     await shot(page, 'product', 'PRODUCT-P05-01-before-delete');
 
-    // Delete photo 3 (middle) — remove buttons
+    // Delete photo 3 (middle) - remove buttons
     const removes = page.locator('#edit-prod-image_url button[aria-label="Remove photo"]');
     expect(await removes.count()).toBe(5);
     await removes.nth(2).click();
@@ -138,7 +138,7 @@ test.describe('Product multi-image E2E @critical', () => {
     await shot(page, 'product', 'PRODUCT-P05-03-one-image-remaining');
   });
 
-  test('P06 — cannot delete final image', async ({ page }) => {
+  test('P06 - cannot delete final image', async ({ page }) => {
     await goToNewProduct(page);
     await fillMinimalProduct(page, `${PRODUCT_NAME} P06`);
     await uploadOfferingPhoto(page, IMAGES[1]);
@@ -154,7 +154,7 @@ test.describe('Product multi-image E2E @critical', () => {
     await shot(page, 'product', 'PRODUCT-P06-final-image-protection');
   });
 
-  test('P07 — edit existing offering add then remove image', async ({ page }) => {
+  test('P07 - edit existing offering add then remove image', async ({ page }) => {
     const name = `${PRODUCT_NAME} P07`;
     await goToNewProduct(page);
     await fillMinimalProduct(page, name);

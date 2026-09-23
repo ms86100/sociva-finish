@@ -121,7 +121,7 @@ export default function BulletinPage() {
     ]);
   });
 
-  // Realtime — BULLETIN-01 FIX: filter by society_id to avoid cross-society triggers
+  // Realtime - BULLETIN-01 FIX: filter by society_id to avoid cross-society triggers
   useEffect(() => {
     if (!effectiveSocietyId) return;
     const channel = supabase

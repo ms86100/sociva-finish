@@ -63,7 +63,7 @@ $old$;
 $new$;
 
   IF position(old_stock in src) = 0 THEN
-    RAISE EXCEPTION 'create_multi_vendor_orders premature stock block not found — inspect live definition';
+    RAISE EXCEPTION 'create_multi_vendor_orders premature stock block not found - inspect live definition';
   END IF;
   src := replace(src, old_stock, new_stock);
 
@@ -111,7 +111,7 @@ $old$;
 $new$;
 
   IF position(old_cart in src) = 0 THEN
-    RAISE EXCEPTION 'create_multi_vendor_orders cart-clear block not found — inspect live definition';
+    RAISE EXCEPTION 'create_multi_vendor_orders cart-clear block not found - inspect live definition';
   END IF;
   src := replace(src, old_cart, new_cart);
 
@@ -119,7 +119,7 @@ $new$;
 END;
 $$;
 
--- Ops: Biryani zone delivery radius was 1km — most checkouts fail as out_of_range.
+-- Ops: Biryani zone delivery radius was 1km - most checkouts fail as out_of_range.
 UPDATE public.seller_profiles
 SET delivery_radius_km = 5
 WHERE id = '625f6f6e-97b9-490f-ad7f-666de0d96527'

@@ -35,7 +35,7 @@ export function ListingIntentStep({ value, onChange, onContinue }: ListingIntent
           }}
         />
         <p className="text-xs text-muted-foreground flex items-center gap-1">
-          <Sparkles size={12} />Describe it in your words — we&apos;ll suggest the category next.
+          <Sparkles size={12} />Describe it in your words - we&apos;ll suggest the category next.
         </p>
       </div>
 

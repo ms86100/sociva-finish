@@ -105,11 +105,11 @@ export function buildLiveActivityData(
   // Derive progress from DB sort_order
   let progressPercent = deriveProgressPercent(order.status, flowMap);
 
-  // ETA-based and GPS-based progress during transit — fully DB-driven via system_settings
+  // ETA-based and GPS-based progress during transit - fully DB-driven via system_settings
   const transitSet = new Set(config.transit_statuses_la);
   const isTransit = transitSet.has(order.status);
   if (isTransit) {
-    // Prefer ETA-based progress when available — gives a meaningful countdown
+    // Prefer ETA-based progress when available - gives a meaningful countdown
     if (delivery?.eta_minutes != null && delivery.eta_minutes >= 0) {
       // Bug 19: Use dynamic MAX_ETA from initial ETA or default to 15 for short deliveries
       const MAX_ETA = initialEtaMinutes && initialEtaMinutes > 5 ? initialEtaMinutes : 15;

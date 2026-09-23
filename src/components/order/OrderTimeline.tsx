@@ -20,11 +20,11 @@ const ACTION_LABELS: Record<string, string> = {
   order_cancelled: 'Order cancelled',
 };
 
-/** Buyer-facing copy — who did what, what happens next */
+/** Buyer-facing copy - who did what, what happens next */
 const STATUS_LABELS: Record<string, string> = {
   payment_pending: 'Complete payment',
   awaiting_cod_confirmation: 'Awaiting cash confirmation',
-  pending: 'Order received — waiting for seller',
+  pending: 'Order received - waiting for seller',
   placed: 'Order placed',
   accepted: 'Seller accepted',
   confirmed: 'Seller confirmed',

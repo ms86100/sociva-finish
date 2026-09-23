@@ -1,4 +1,4 @@
--- P1–P4 hardening: Sociva Balance copy, wallet spend gate, settlement accuracy, admin reporting.
+-- P1-P4 hardening: Sociva Balance copy, wallet spend gate, settlement accuracy, admin reporting.
 
 -- ── credit_wallet_from_refund: product language ────────────────────────────────
 CREATE OR REPLACE FUNCTION public.credit_wallet_from_refund(_refund_id uuid)

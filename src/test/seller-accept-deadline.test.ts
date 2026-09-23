@@ -29,6 +29,6 @@ describe('seller accept after response deadline', () => {
     const hook = readFileSync(resolve(__dirname, '../hooks/useOrderDetail.ts'), 'utf8');
     expect(hook).toMatch(/isAcceptanceExpired/);
     expect(page).toMatch(/!o\.isAcceptanceExpired/);
-    expect(page).toMatch(/Response time expired — accept is closed/);
+    expect(page).toMatch(/Response time expired - accept is closed/);
   });
 });

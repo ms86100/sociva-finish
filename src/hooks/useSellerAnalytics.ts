@@ -1,7 +1,7 @@
 // @ts-nocheck
 /**
  * Canonical seller analytics for the dashboard Stats tab.
- * Settled-only revenue/AOV — same GMV definition as get_seller_dashboard_kpis.
+ * Settled-only revenue/AOV - same GMV definition as get_seller_dashboard_kpis.
  */
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';

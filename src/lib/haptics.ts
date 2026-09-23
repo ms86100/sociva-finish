@@ -3,7 +3,7 @@
  *
  * Stack: Capacitor `@capacitor/haptics` (iOS UIFeedbackGenerator / Android Vibrator).
  *
- * IMPORTANT — Capacitor quirk (iOS + Android + web stubs):
+ * IMPORTANT - Capacitor quirk (iOS + Android + web stubs):
  *   `Haptics.selectionChanged()` is a silent no-op unless `selectionStart()`
  *   was called first. Our UI needs one-shot ticks on taps, so `hapticSelection()`
  *   maps to a light impact (and optionally a managed selection session for
@@ -14,7 +14,7 @@
  *   • impact('medium')   → add-to-cart, quantity change, primary actions
  *   • impact('heavy')    → destructive confirmations
  *   • notification(*)    → success / warning / error outcomes
- *   • vibrate(ms)        → long alerts (incoming order) — prefer sparingly
+ *   • vibrate(ms)        → long alerts (incoming order) - prefer sparingly
  *
  * Accessibility: respects `prefers-reduced-motion: reduce`.
  * Performance: per-style throttle avoids double-fire (global listener + explicit).
@@ -41,7 +41,7 @@ const NOTIFICATION_MAP: Record<HapticNotificationType, NotificationType> = {
   error: NotificationType.Error,
 };
 
-/** Min gap between identical haptic kinds (ms) — kills GlobalHapticListener doubles. */
+/** Min gap between identical haptic kinds (ms) - kills GlobalHapticListener doubles. */
 const THROTTLE_MS: Record<string, number> = {
   selection: 45,
   light: 45,
@@ -124,7 +124,7 @@ export function preloadHaptics(): Promise<void> {
       selectionSessionOpen = false;
     })
     .catch(() => {
-      /* plugin unavailable — later calls still no-op safely */
+      /* plugin unavailable - later calls still no-op safely */
     });
 }
 
@@ -143,7 +143,7 @@ export function hapticImpact(style: HapticImpactStyle = 'medium'): void {
   fire(Haptics.impact({ style: IMPACT_MAP[style] }));
 }
 
-/** Notification feedback — success / warning / error */
+/** Notification feedback - success / warning / error */
 export function hapticNotification(type: HapticNotificationType = 'success'): void {
   if (!shouldFire(type)) return;
   fire(Haptics.notification({ type: NOTIFICATION_MAP[type] }));

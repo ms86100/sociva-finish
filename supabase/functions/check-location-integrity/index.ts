@@ -51,7 +51,7 @@ Deno.serve(async (req) => {
         console.error(`  - seller_id=${r.id}, name="${r.business_name}", reason="${r.reason}"`);
       }
     } else {
-      console.log("✅ Location integrity check passed — all approved sellers have discoverable coordinates.");
+      console.log("✅ Location integrity check passed - all approved sellers have discoverable coordinates.");
     }
 
     return new Response(JSON.stringify({ violations: results.length, details: results }), {

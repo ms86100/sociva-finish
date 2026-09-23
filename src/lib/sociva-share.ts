@@ -67,7 +67,7 @@ export function buildProductShareText(opts: {
   const name = (opts.name || 'Product').trim();
   const seller = (opts.sellerName || 'a neighbour').trim();
   const price = (opts.priceLabel || '').trim();
-  const priceLine = price ? `${name} — ${price}` : name;
+  const priceLine = price ? `${name} - ${price}` : name;
   return [
     '*Found this on Sociva!*',
     priceLine,
@@ -160,7 +160,7 @@ async function tryShareWithImage(opts: {
 
 async function tryNativeShare(opts: { title: string; text: string; url: string }): Promise<boolean> {
   if (typeof navigator === 'undefined' || !navigator.share) return false;
-  // Prefer a single text payload (includes URL) — more reliable on iOS/Android WhatsApp.
+  // Prefer a single text payload (includes URL) - more reliable on iOS/Android WhatsApp.
   const payloads: ShareData[] = [
     { title: opts.title, text: opts.text },
     { title: opts.title, text: opts.text, url: opts.url },

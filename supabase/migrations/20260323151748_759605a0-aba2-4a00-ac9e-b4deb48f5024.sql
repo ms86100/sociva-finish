@@ -1,7 +1,7 @@
 
 -- ============================================================
--- Bug 3: Fix verify_delivery_otp_and_complete — add parent_group filter
--- Bug 4: Fix sync_delivery_to_order_status — remove hardcoded at_gate mapping
+-- Bug 3: Fix verify_delivery_otp_and_complete - add parent_group filter
+-- Bug 4: Fix sync_delivery_to_order_status - remove hardcoded at_gate mapping
 -- ============================================================
 
 -- Bug 3: Add parent_group filter to OTP RPC
@@ -165,7 +165,7 @@ BEGIN
     RETURN NEW;
   END IF;
 
-  -- Terminal delivery statuses handled by OTP RPC — don't double-sync
+  -- Terminal delivery statuses handled by OTP RPC - don't double-sync
   IF NEW.status IN ('delivered', 'failed', 'cancelled') THEN
     RETURN NEW;
   END IF;
@@ -224,7 +224,7 @@ BEGIN
   ORDER BY CASE WHEN csf.parent_group = v_parent_group THEN 0 ELSE 1 END
   LIMIT 1;
 
-  -- If no workflow match found, don't advance the order — the OTP RPC handles terminal states
+  -- If no workflow match found, don't advance the order - the OTP RPC handles terminal states
   IF v_target_order_status IS NULL THEN
     RETURN NEW;
   END IF;

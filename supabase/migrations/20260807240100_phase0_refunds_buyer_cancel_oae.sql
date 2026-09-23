@@ -1,5 +1,5 @@
 -- ============================================================
--- Phase 0 HARDENED — refunds SM, buyer cancel auto-refund, RPC-only,
+-- Phase 0 HARDENED - refunds SM, buyer cancel auto-refund, RPC-only,
 -- OAE vault wake, complete_refund_by_gateway_id
 -- ============================================================
 
@@ -72,7 +72,7 @@ DROP POLICY IF EXISTS "Users can update refund requests" ON public.refund_reques
 
 -- Keep SELECT policies for buyer/seller visibility; mutations via SECURITY DEFINER RPCs only.
 COMMENT ON TABLE public.refund_requests IS
-  'Refund ledger. Client INSERT/UPDATE revoked (Phase 0) — use request_refund / approve RPCs / service_role.';
+  'Refund ledger. Client INSERT/UPDATE revoked (Phase 0) - use request_refund / approve RPCs / service_role.';
 
 -- ------------------------------------------------------------
 -- 3) Paid buyer cancel pre-accept → auto-create approved refund
@@ -234,7 +234,7 @@ $function$;
 GRANT EXECUTE ON FUNCTION public.buyer_cancel_order(uuid, text, order_status) TO authenticated, service_role;
 
 -- ------------------------------------------------------------
--- 4) complete_refund_by_gateway_id — webhook reconcile (no raw payment_status)
+-- 4) complete_refund_by_gateway_id - webhook reconcile (no raw payment_status)
 -- ------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.complete_refund_by_gateway_id(
   p_gateway_refund_id text,
@@ -286,7 +286,7 @@ BEGIN
   END IF;
 
   IF r.id IS NULL THEN
-    -- No matching refund_request — do NOT mutate orders.payment_status.
+    -- No matching refund_request - do NOT mutate orders.payment_status.
     -- Escalate for ops; webhook should not invent refunded state.
     INSERT INTO public.audit_log (action, actor_id, target_type, target_id, metadata)
     VALUES (
@@ -341,7 +341,7 @@ REVOKE ALL ON FUNCTION public.complete_refund_by_gateway_id(text, text, text) FR
 GRANT EXECUTE ON FUNCTION public.complete_refund_by_gateway_id(text, text, text) TO service_role;
 
 -- ------------------------------------------------------------
--- 5) OAE wake: Vault service_role_key (like PNQ) — never hardcoded anon JWT
+-- 5) OAE wake: Vault service_role_key (like PNQ) - never hardcoded anon JWT
 -- ------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.schedule_order_acceptance_expiry(_order_id uuid)
 RETURNS jsonb
@@ -442,7 +442,7 @@ BEGIN
   END IF;
 
   IF v_service_key IS NULL OR length(v_service_key) < 20 THEN
-    RAISE WARNING 'schedule_order_acceptance_expiry: service_role key missing — cron-only fallback for %', _order_id;
+    RAISE WARNING 'schedule_order_acceptance_expiry: service_role key missing - cron-only fallback for %', _order_id;
   ELSE
     BEGIN
       PERFORM net.http_post(

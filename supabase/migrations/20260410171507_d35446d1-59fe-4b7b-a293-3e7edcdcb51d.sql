@@ -18,7 +18,7 @@ UPDATE public.seller_profiles SET primary_group = 'food_beverages'      WHERE pr
 UPDATE public.seller_profiles SET primary_group = 'education_learning'  WHERE primary_group = 'classes';
 
 -- ============================================================
--- 3. Fix buyer_advance_order — add resolve_transition_parent_group + prefer stored transaction_type
+-- 3. Fix buyer_advance_order - add resolve_transition_parent_group + prefer stored transaction_type
 -- ============================================================
 CREATE OR REPLACE FUNCTION public.buyer_advance_order(_order_id uuid, _new_status order_status)
 RETURNS void
@@ -46,7 +46,7 @@ BEGIN
   END IF;
 
   IF v_order.buyer_id != auth.uid() THEN
-    RAISE EXCEPTION 'Not authorized — you are not the buyer of this order';
+    RAISE EXCEPTION 'Not authorized - you are not the buyer of this order';
   END IF;
 
   v_parent_group := resolve_transition_parent_group(v_order.primary_group);
@@ -124,7 +124,7 @@ END;
 $$;
 
 -- ============================================================
--- 4. Fix generate_generic_otp — correct column names and signature
+-- 4. Fix generate_generic_otp - correct column names and signature
 -- ============================================================
 DROP FUNCTION IF EXISTS public.generate_generic_otp(uuid, text);
 

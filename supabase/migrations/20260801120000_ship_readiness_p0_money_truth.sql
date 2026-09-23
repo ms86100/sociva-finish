@@ -156,7 +156,7 @@ END;
 $$;
 
 -- ============================================================
--- 3. notification_queue INSERT — self only (service_role bypasses RLS)
+-- 3. notification_queue INSERT - self only (service_role bypasses RLS)
 -- ============================================================
 DROP POLICY IF EXISTS "Authenticated users can enqueue notifications" ON public.notification_queue;
 DROP POLICY IF EXISTS "Authenticated users can enqueue their own notifications" ON public.notification_queue;

@@ -28,17 +28,17 @@ export function formatOrderCancellationHeroReason(
 
   if (owner === 'buyer') {
     const who = view === 'buyer' ? 'You cancelled this order' : 'Cancelled by buyer';
-    return cleanedBuyer ? `${who} — ${cleanedBuyer}` : who;
+    return cleanedBuyer ? `${who} - ${cleanedBuyer}` : who;
   }
 
   if (owner === 'seller') {
     const who = view === 'seller' ? 'You rejected this order' : 'Rejected by seller';
     const detail = cleanedSeller || cleanedBuyer || raw;
-    return detail ? `${who} — ${detail}` : who;
+    return detail ? `${who} - ${detail}` : who;
   }
 
   if (owner === 'platform' || /not completed in time|seller didn't respond|payment was not completed/i.test(raw)) {
-    return raw ? `Auto-cancelled — ${raw}` : 'Auto-cancelled';
+    return raw ? `Auto-cancelled - ${raw}` : 'Auto-cancelled';
   }
 
   // Unknown actor: keep reason only

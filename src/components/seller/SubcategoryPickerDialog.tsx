@@ -75,9 +75,9 @@ interface SubcategoryPickerDialogProps {
   categoryConfigId: string;
   categoryName: string;
   categoryIcon: string;
-  /** Slug of the parent category (e.g. "snacks") — required to enable subcategory requests */
+  /** Slug of the parent category (e.g. "snacks") - required to enable subcategory requests */
   categorySlug?: string;
-  /** Slug of the parent group (e.g. "food_beverages") — used for request metadata */
+  /** Slug of the parent group (e.g. "food_beverages") - used for request metadata */
   parentGroupSlug?: string | null;
   /** Search text that opened this picker, so category-level aliases remain visible inside the category */
   initialSearch?: string;
@@ -295,7 +295,7 @@ export function SubcategoryPickerDialog({
 
         {/* Guidance */}
         <p className="text-xs text-muted-foreground mb-2">
-          ⭐ First pick becomes your <span className="font-semibold">primary specialty</span>. Pick 1–{SOFT_LIMIT} to start.
+          ⭐ First pick becomes your <span className="font-semibold">primary specialty</span>. Pick 1-{SOFT_LIMIT} to start.
         </p>
 
         {/* List */}
@@ -581,7 +581,7 @@ function EditableIdentityLabel({
 
       <p className="text-[10px] text-muted-foreground text-center mt-1">
         {editing
-          ? `${draft.length}/40 — this is your specialty label, not your store name`
+          ? `${draft.length}/40 - this is your specialty label, not your store name`
           : 'Shown as your specialty (for example, Home Meal Provider). Your store name comes next.'}
       </p>
     </div>

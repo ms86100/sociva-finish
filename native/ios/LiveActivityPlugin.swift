@@ -25,7 +25,7 @@ public class LiveActivityPlugin: CAPPlugin, CAPBridgedPlugin {
     private var tokenTasks: [String: Task<Void, Never>] = [:]
 
     override public func load() {
-        print("✅ LiveActivityPlugin loaded — Capacitor bridge registered")
+        print("✅ LiveActivityPlugin loaded - Capacitor bridge registered")
     }
 
     // MARK: - Build ContentState from call

@@ -1,12 +1,12 @@
 -- ============================================================
--- Audit Phase 0 — break-glass / auth hardening
+-- Audit Phase 0 - break-glass / auth hardening
 -- 1) Cron RPC is_admin + REVOKE FROM PUBLIC
 -- 2) payment_records: revoke client INSERT (SECURITY DEFINER / service only)
 -- 3) PNQ wake-up trigger: use vault service_role (not anon JWT)
 -- ============================================================
 
 -- ------------------------------------------------------------
--- 1. Cron management RPCs — admin-only when called as authenticated
+-- 1. Cron management RPCs - admin-only when called as authenticated
 -- ------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.enable_cron_job(p_jobid bigint)
 RETURNS void
@@ -116,7 +116,7 @@ BEGIN
 END $$;
 
 -- ------------------------------------------------------------
--- 2. payment_records — no client INSERT of paid/pending rows
+-- 2. payment_records - no client INSERT of paid/pending rows
 --    SECURITY DEFINER paths + service_role bypass RLS.
 -- ------------------------------------------------------------
 DROP POLICY IF EXISTS "System can create payment records" ON public.payment_records;
@@ -131,7 +131,7 @@ COMMENT ON TABLE public.payment_records IS
   'Payment ledger rows. Client INSERT revoked (audit P0). Only SECURITY DEFINER RPCs and service_role may insert.';
 
 -- ------------------------------------------------------------
--- 3. PNQ wake trigger — authorize with vault service_role key
+-- 3. PNQ wake trigger - authorize with vault service_role key
 -- ------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.trigger_process_notification_queue()
 RETURNS trigger
@@ -173,7 +173,7 @@ BEGIN
   END IF;
 
   IF v_service_key IS NULL OR length(v_service_key) < 20 THEN
-    RAISE WARNING 'trigger_process_notification_queue: service_role key missing — skip wake';
+    RAISE WARNING 'trigger_process_notification_queue: service_role key missing - skip wake';
     RETURN NEW;
   END IF;
 
@@ -203,10 +203,10 @@ END;
 $function$;
 
 COMMENT ON FUNCTION public.trigger_process_notification_queue() IS
-  'Debounced PNQ wake-up using vault/service_role Authorization (audit P0 — never anon).';
+  'Debounced PNQ wake-up using vault/service_role Authorization (audit P0 - never anon).';
 
 -- ------------------------------------------------------------
--- 4. Credential meta RPC — never return raw secrets to the client
+-- 4. Credential meta RPC - never return raw secrets to the client
 -- ------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.get_admin_credential_meta(p_keys text[])
 RETURNS TABLE (
@@ -248,7 +248,7 @@ REVOKE ALL ON FUNCTION public.get_admin_credential_meta(text[]) FROM PUBLIC, ano
 GRANT EXECUTE ON FUNCTION public.get_admin_credential_meta(text[]) TO authenticated, service_role;
 
 -- ------------------------------------------------------------
--- 5. Safety cron wake — same service_role auth (not hardcoded anon JWT)
+-- 5. Safety cron wake - same service_role auth (not hardcoded anon JWT)
 -- ------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.fn_wakeup_notification_queue_if_pending()
 RETURNS void
@@ -295,7 +295,7 @@ BEGIN
   END IF;
 
   IF v_service_key IS NULL OR length(v_service_key) < 20 THEN
-    RAISE WARNING 'fn_wakeup_notification_queue_if_pending: service_role key missing — skip wake';
+    RAISE WARNING 'fn_wakeup_notification_queue_if_pending: service_role key missing - skip wake';
     RETURN;
   END IF;
 

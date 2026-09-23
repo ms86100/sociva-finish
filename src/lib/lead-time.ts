@@ -1,6 +1,6 @@
 export type LeadTimeUnit = 'minutes' | 'hours';
 
-/** DB stores lead time as hours (numeric — supports fractions e.g. 0.5 = 30 min). */
+/** DB stores lead time as hours (numeric - supports fractions e.g. 0.5 = 30 min). */
 export function leadTimeToHours(value: number, unit: LeadTimeUnit): number | null {
   if (!Number.isFinite(value) || value <= 0) return null;
   if (unit === 'minutes') return Math.round((value / 60) * 100) / 100;

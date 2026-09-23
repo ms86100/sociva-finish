@@ -27,7 +27,7 @@ test.describe('Order Notification Validation @critical', () => {
 
     const orderId = await checkout.getOrderId();
 
-    // LAYER 1: DB — notification_queue entry exists
+    // LAYER 1: DB - notification_queue entry exists
     const notification = await pollNotificationQueue(db, orderId, 15_000);
     expect(notification).toBeTruthy();
     expect(notification.id).toBeTruthy();
@@ -36,7 +36,7 @@ test.describe('Order Notification Validation @critical', () => {
     const payload = validateNotificationPayload(notification, { orderId });
     expect(payload.order_id).toBe(orderId);
 
-    // LAYER 3: Processing check — give edge function time
+    // LAYER 3: Processing check - give edge function time
     await buyerPage.waitForTimeout(5_000);
     const { data: processed } = await db
       .from('notification_queue')

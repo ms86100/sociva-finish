@@ -125,12 +125,12 @@ function DiffValue({ label, value, type, formatPrice, variant }: {
           <span className="text-xs text-muted-foreground italic">No image</span>
         )
       ) : type === 'price' ? (
-        <p className="text-xs font-bold">{value != null ? formatPrice(value) : '—'}</p>
+        <p className="text-xs font-bold">{value != null ? formatPrice(value) : '-'}</p>
       ) : type === 'boolean' ? (
         <Badge variant={value ? 'default' : 'secondary'} className="text-[10px]">{value ? 'Yes' : 'No'}</Badge>
       ) : type === 'json' ? (
         <p className="text-[10px] text-muted-foreground break-all line-clamp-3">
-          {value ? JSON.stringify(value, null, 1) : '—'}
+          {value ? JSON.stringify(value, null, 1) : '-'}
         </p>
       ) : (
         <p className="text-xs break-words line-clamp-3">{value ?? <span className="text-muted-foreground italic">Empty</span>}</p>

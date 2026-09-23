@@ -29,7 +29,7 @@ async function getPrefs() {
   return _prefs;
 }
 
-/** Fire-and-forget native mirror — never blocks the caller */
+/** Fire-and-forget native mirror - never blocks the caller */
 function mirrorToNative(action: 'set' | 'remove', key: string, value?: string) {
   if (!Capacitor.isNativePlatform()) return;
   void (async () => {
@@ -42,14 +42,14 @@ function mirrorToNative(action: 'set' | 'remove', key: string, value?: string) {
         await p.remove({ key });
       }
     } catch {
-      // Silently ignore — localStorage is the source of truth at runtime
+      // Silently ignore - localStorage is the source of truth at runtime
     }
   })();
 }
 
 class CapacitorStorage implements SupportedStorage {
   getItem(key: string): string | null {
-    // Synchronous localStorage read — never blocks, never async
+    // Synchronous localStorage read - never blocks, never async
     try {
       return localStorage.getItem(key);
     } catch {
@@ -68,7 +68,7 @@ class CapacitorStorage implements SupportedStorage {
   }
 }
 
-/** Singleton — used by Supabase client */
+/** Singleton - used by Supabase client */
 export const capacitorStorage = new CapacitorStorage();
 
 const AUTH_SESSION_KEY = 'sb-auth-session-backup';
@@ -113,7 +113,7 @@ export function purgeLocalAuthTokens(): void {
 
 /**
  * Read backup tokens from Preferences (native) without mutating storage.
- * Web returns null — localStorage is the sole store.
+ * Web returns null - localStorage is the sole store.
  */
 export async function readBackupAuthTokens(): Promise<BackupAuthTokens | null> {
   if (!Capacitor.isNativePlatform()) return null;
@@ -134,7 +134,7 @@ export async function readBackupAuthTokens(): Promise<BackupAuthTokens | null> {
 
 /**
  * Read Preferences backup when localStorage was purged.
- * Caller must call supabase.auth.setSession(tokens) — do not only write JSON to localStorage.
+ * Caller must call supabase.auth.setSession(tokens) - do not only write JSON to localStorage.
  */
 export async function restoreAuthSession(): Promise<BackupAuthTokens | null> {
   if (!Capacitor.isNativePlatform()) return null;

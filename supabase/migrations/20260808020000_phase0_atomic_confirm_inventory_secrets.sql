@@ -558,4 +558,4 @@ REVOKE ALL ON FUNCTION public.upsert_admin_credential(text, text, text, boolean)
 GRANT EXECUTE ON FUNCTION public.upsert_admin_credential(text, text, text, boolean) TO authenticated, service_role;
 
 COMMENT ON TABLE public.admin_settings IS
-  'Platform credentials. No authenticated/anon SELECT of raw values — use get_admin_credential_meta / upsert_admin_credential. Edge: Deno.env → get_edge_credential (vault → table).';
+  'Platform credentials. No authenticated/anon SELECT of raw values - use get_admin_credential_meta / upsert_admin_credential. Edge: Deno.env → get_edge_credential (vault → table).';

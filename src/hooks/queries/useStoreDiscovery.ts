@@ -118,7 +118,7 @@ function mapToNearbySeller(seller: RpcSellerRow): NearbySeller {
 
 /**
  * Local sellers grouped by primary_group.
- * Derives from shared marketplace data — zero additional RPC calls.
+ * Derives from shared marketplace data - zero additional RPC calls.
  */
 export function useLocalSellers() {
   const { data: sellers, isLoading, error } = useMarketplaceData();
@@ -139,7 +139,7 @@ export function useLocalSellers() {
 
 /**
  * Nearby sellers grouped by distance band.
- * Derives from shared marketplace data — zero additional RPC calls.
+ * Derives from shared marketplace data - zero additional RPC calls.
  */
 export function useNearbySocietySellers(radiusKm: number = MARKETPLACE_RADIUS_KM, enabled: boolean = true) {
   const { effectiveSociety } = useAuth();

@@ -445,7 +445,7 @@ describeDb("Admin → Seller → Buyer E2E (Real DB)", () => {
 
     it("buyer can see the approved product (via admin, cross-society isolation verified)", async () => {
       // Buyer is in society_2, seller is in society_1
-      // RLS correctly isolates products by society — buyer won't see it directly
+      // RLS correctly isolates products by society - buyer won't see it directly
       const { data: buyerView } = await buyerClient
         .from("products")
         .select("id")
@@ -508,7 +508,7 @@ describeDb("Admin → Seller → Buyer E2E (Real DB)", () => {
       if (data) {
         expect(data.approval_status).toBe("approved");
       } else {
-        // If admin can't see it either, it's an RLS issue — just verify buyer didn't succeed
+        // If admin can't see it either, it's an RLS issue - just verify buyer didn't succeed
         expect(error !== null || true).toBe(true);
       }
     });
@@ -526,7 +526,7 @@ describeDb("Admin → Seller → Buyer E2E (Real DB)", () => {
         .eq("id", cleanup.productId)
         .maybeSingle();
 
-      // Product should still exist — either data is not null, or the buyer delete returned an error
+      // Product should still exist - either data is not null, or the buyer delete returned an error
       expect(data !== null || error !== null).toBe(true);
     });
 
@@ -647,13 +647,13 @@ describeDb("Admin → Seller → Buyer E2E (Real DB)", () => {
       if (error) {
         expect(error).not.toBeNull();
       } else {
-        // No trigger — verify product still has valid status
+        // No trigger - verify product still has valid status
         const { data } = await adminClient
           .from("products")
           .select("approval_status")
           .eq("id", cleanup.productId)
           .maybeSingle();
-        // If no trigger enforces it, the value may have been set — that's a known gap
+        // If no trigger enforces it, the value may have been set - that's a known gap
         expect(true).toBe(true);
       }
     });

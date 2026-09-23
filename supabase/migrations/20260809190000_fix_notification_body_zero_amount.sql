@@ -40,9 +40,9 @@ BEGIN
     IF _is_auto_accepted THEN
       _seller_title := '✅ Order Auto-Accepted';
       IF _notify_amount > 0 THEN
-        _seller_body := COALESCE(_buyer_name, 'Customer') || ' placed an order worth Rs ' || _notify_amount || '. Auto-accepted — start preparing!';
+        _seller_body := COALESCE(_buyer_name, 'Customer') || ' placed an order worth Rs ' || _notify_amount || '. Auto-accepted - start preparing!';
       ELSE
-        _seller_body := COALESCE(_buyer_name, 'Customer') || ' placed a new order. Auto-accepted — start preparing!';
+        _seller_body := COALESCE(_buyer_name, 'Customer') || ' placed a new order. Auto-accepted - start preparing!';
       END IF;
     ELSE
       _seller_title := '🔔 New Order Received';

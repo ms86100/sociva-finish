@@ -138,7 +138,7 @@ export function CommandCenterSellersList({
                         )}
                       </div>
                       <p className="text-xs text-muted-foreground mt-0.5">
-                        {seller.owner_name || 'Owner'} · {seller.owner_phone || '—'}
+                        {seller.owner_name || 'Owner'} · {seller.owner_phone || '-'}
                       </p>
                       <p className="text-xs text-muted-foreground">
                         {seller.society_name || (

@@ -322,19 +322,19 @@ describeDb('Orders & Payments Module', () => {
       expect(VALID_ORDER_TRANSITIONS['returned']).toHaveLength(0);
     });
 
-    it('ST-13: service flow — enquired → quoted is valid', () => {
+    it('ST-13: service flow - enquired → quoted is valid', () => {
       expect(VALID_ORDER_TRANSITIONS['enquired']).toContain('quoted');
     });
 
-    it('ST-14: service flow — quoted → scheduled is valid', () => {
+    it('ST-14: service flow - quoted → scheduled is valid', () => {
       expect(VALID_ORDER_TRANSITIONS['quoted']).toContain('scheduled');
     });
 
-    it('ST-15: service flow — scheduled → in_progress is valid', () => {
+    it('ST-15: service flow - scheduled → in_progress is valid', () => {
       expect(VALID_ORDER_TRANSITIONS['scheduled']).toContain('in_progress');
     });
 
-    it('ST-16: service flow — in_progress → completed is valid', () => {
+    it('ST-16: service flow - in_progress → completed is valid', () => {
       expect(VALID_ORDER_TRANSITIONS['in_progress']).toContain('completed');
     });
 
@@ -346,14 +346,14 @@ describeDb('Orders & Payments Module', () => {
       expect(ALL_STATUSES.length).toBeGreaterThanOrEqual(13);
     });
 
-    it('ST-18: delivery order at ready — seller next action is null (delivery takes over)', () => {
+    it('ST-18: delivery order at ready - seller next action is null (delivery takes over)', () => {
       const fulfillmentType: string = 'delivery';
       const status: string = 'ready';
       const nextStatus = (fulfillmentType === 'delivery' && status === 'ready') ? null : 'completed';
       expect(nextStatus).toBeNull();
     });
 
-    it('ST-19: self_pickup order at ready — next action is completed', () => {
+    it('ST-19: self_pickup order at ready - next action is completed', () => {
       const fulfillmentType: string = 'self_pickup';
       const status: string = 'ready';
       const nextStatus = (fulfillmentType !== 'delivery' && status === 'ready') ? 'completed' : null;
@@ -405,7 +405,7 @@ describeDb('Orders & Payments Module', () => {
       expect(isValid).toBe(false);
     });
 
-    it('CA-09: cancelled is terminal — undo impossible (O2 fix verified)', () => {
+    it('CA-09: cancelled is terminal - undo impossible (O2 fix verified)', () => {
       const allowed = VALID_ORDER_TRANSITIONS['cancelled'];
       expect(allowed).toHaveLength(0);
       expect(allowed).not.toContain('placed');
@@ -750,7 +750,7 @@ describeDb('Orders & Payments Module', () => {
 // PART 2: REAL DATABASE INTEGRATION TESTS
 // =====================================================================
 
-describeDb('Orders & Payments — Real DB Integration', () => {
+describeDb('Orders & Payments - Real DB Integration', () => {
   let sellerClient: SupabaseClient;
   let buyerClient: SupabaseClient;
   let adminClient: SupabaseClient;
@@ -766,7 +766,7 @@ describeDb('Orders & Payments — Real DB Integration', () => {
     ]);
   }, 30000);
 
-  describe('1. Order Status Transition — DB Trigger Enforcement', () => {
+  describe('1. Order Status Transition - DB Trigger Enforcement', () => {
     it('DB trigger rejects invalid status transition (placed → preparing)', async () => {
       // Find any existing placed order, or skip if none
       const { data: orders } = await adminClient
@@ -776,7 +776,7 @@ describeDb('Orders & Payments — Real DB Integration', () => {
         .limit(1);
 
       if (!orders || orders.length === 0) {
-        // No placed orders to test with — test the trigger via a known-bad transition
+        // No placed orders to test with - test the trigger via a known-bad transition
         expect(true).toBe(true);
         return;
       }
@@ -811,7 +811,7 @@ describeDb('Orders & Payments — Real DB Integration', () => {
     });
   });
 
-  describe('2. Cart Items — RLS Enforcement', () => {
+  describe('2. Cart Items - RLS Enforcement', () => {
     it('buyer can read only their own cart items', async () => {
       const { data, error } = await buyerClient
         .from('cart_items')
@@ -876,7 +876,7 @@ describeDb('Orders & Payments — Real DB Integration', () => {
     });
   });
 
-  describe('5. Payment Records — RLS', () => {
+  describe('5. Payment Records - RLS', () => {
     it('buyer can only see their own payment records', async () => {
       const { data, error } = await buyerClient
         .from('payment_records')
@@ -893,7 +893,7 @@ describeDb('Orders & Payments — Real DB Integration', () => {
     });
   });
 
-  describe('6. Delivery Assignment — DB Trigger Validation', () => {
+  describe('6. Delivery Assignment - DB Trigger Validation', () => {
     it('delivery_assignments status trigger rejects invalid status', async () => {
       const { data: assignments } = await adminClient
         .from('delivery_assignments')
@@ -915,7 +915,7 @@ describeDb('Orders & Payments — Real DB Integration', () => {
     });
   });
 
-  describe('7. Fulfillment Type — DB Trigger Validation', () => {
+  describe('7. Fulfillment Type - DB Trigger Validation', () => {
     it('order fulfillment_type trigger rejects invalid type', async () => {
       const { data: orders } = await adminClient
         .from('orders')

@@ -4,7 +4,7 @@
 
     <!--
       Activity Recognition is pulled in by Background Geolocation for motion detection.
-      Sociva is not a Health app — strip these so Play does not require Health policy.
+      Sociva is not a Health app - strip these so Play does not require Health policy.
       Delivery tracking still uses GPS / foreground location.
     -->
     <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" tools:node="remove" />

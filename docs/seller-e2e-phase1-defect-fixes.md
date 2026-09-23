@@ -1,4 +1,4 @@
-# Phase 1 defects — fix status
+# Phase 1 defects - fix status
 
 | ID | Severity | Issue | Fix |
 |----|----------|-------|-----|
@@ -19,7 +19,7 @@
 ## Deployed to prod DB already
 - Parent group deactivation
 - `get_app_bootstrap` active-only parent_groups
-- S1–S4 approved; S1 COD-only + open after pause trap
+- S1-S4 approved; S1 COD-only + open after pause trap
 - `whatsapp_messages` table + WhatsApp credential keys
 
 ## Needs FE deploy for full effect

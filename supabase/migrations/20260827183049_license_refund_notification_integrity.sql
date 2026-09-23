@@ -117,19 +117,19 @@ BEGIN
     -- already promoted licenses; strict gate requires approved.
     IF v_gate IS DISTINCT FROM 'ok' THEN
       IF v_gate LIKE 'missing:%' THEN
-        RAISE EXCEPTION 'LICENSE_MISSING: Cannot approve store — mandatory % is missing',
+        RAISE EXCEPTION 'LICENSE_MISSING: Cannot approve store - mandatory % is missing',
           split_part(v_gate, ':', 2);
       ELSIF v_gate LIKE 'expired:%' THEN
-        RAISE EXCEPTION 'LICENSE_EXPIRED: Cannot approve store — mandatory % is expired',
+        RAISE EXCEPTION 'LICENSE_EXPIRED: Cannot approve store - mandatory % is expired',
           split_part(v_gate, ':', 2);
       ELSIF v_gate LIKE 'rejected:%' THEN
-        RAISE EXCEPTION 'LICENSE_REJECTED: Cannot approve store — mandatory % was rejected',
+        RAISE EXCEPTION 'LICENSE_REJECTED: Cannot approve store - mandatory % was rejected',
           split_part(v_gate, ':', 2);
       ELSIF v_gate LIKE 'pending:%' THEN
-        RAISE EXCEPTION 'LICENSE_NOT_VERIFIED: Cannot approve store — mandatory % is still pending verification',
+        RAISE EXCEPTION 'LICENSE_NOT_VERIFIED: Cannot approve store - mandatory % is still pending verification',
           split_part(v_gate, ':', 2);
       ELSE
-        RAISE EXCEPTION 'LICENSE_INVALID: Cannot approve store — license requirement not met (% )', v_gate;
+        RAISE EXCEPTION 'LICENSE_INVALID: Cannot approve store - license requirement not met (% )', v_gate;
       END IF;
     END IF;
   END IF;

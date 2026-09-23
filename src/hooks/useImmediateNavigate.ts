@@ -6,7 +6,7 @@ const NAV_STALL_MS = 1200;
 
 /**
  * Navigate without blocking the main thread.
- * Previously used flushSync which forced a full sync render on every tap —
+ * Previously used flushSync which forced a full sync render on every tap -
  * catastrophic on Capacitor WebViews. Prefer startTransition so paint stays responsive.
  */
 export function useImmediateNavigate(source: string) {

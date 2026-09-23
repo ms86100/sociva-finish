@@ -97,7 +97,7 @@ end
     expect(cap).toMatch(/NSLocationAlwaysUsageDescription/);
     expect(yaml).toMatch(/Add :NSLocationAlwaysAndWhenInUseUsageDescription/);
     expect(yaml).toMatch(/Add :NSLocationAlwaysUsageDescription/);
-    expect(yaml).toMatch(/ITMS-90683 — NSLocationAlwaysAndWhenInUseUsageDescription missing/);
+    expect(yaml).toMatch(/ITMS-90683 - NSLocationAlwaysAndWhenInUseUsageDescription missing/);
   });
 
   it('writes ios/App/Podfile even when CI cwd is already ios/App', () => {

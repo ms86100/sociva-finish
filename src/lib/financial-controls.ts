@@ -1,5 +1,5 @@
 /**
- * Admin financial controls — labels, grouping, and display helpers.
+ * Admin financial controls - labels, grouping, and display helpers.
  * Values are changed only through maker-checker RPCs (never direct table writes).
  */
 
@@ -136,7 +136,7 @@ export const CONFIG_OPTIONS: Record<string, { label: string; values: { value: st
   provider_payout_mode: {
     label: 'Payout provider mode',
     values: [
-      { value: 'disabled', label: 'Disabled — no automated bank payouts' },
+      { value: 'disabled', label: 'Disabled - no automated bank payouts' },
       { value: 'razorpay_route_deferred', label: 'Razorpay Route (deferred settlement)' },
     ],
   },
@@ -160,7 +160,7 @@ export function formatControlValue(
   controlType: FinancialControlType,
   value: string | null | undefined,
 ): string {
-  if (value == null || value === '') return '—';
+  if (value == null || value === '') return '-';
   if (controlType === 'feature_flag') {
     return value === 'true' || value === 't' ? 'ON' : value === 'false' || value === 'f' ? 'OFF' : value;
   }

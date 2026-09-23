@@ -8,7 +8,7 @@ const IOS_APP_STORE_URL = 'https://apps.apple.com/in/app/sociva/id6759218504';
 /** Live Google Play listing (same package as Android release). */
 export const ANDROID_PLAY_STORE_URL =
   'https://play.google.com/store/apps/details?id=app.sociva.community&hl=en_IN';
-/** @deprecated Use ANDROID_PLAY_STORE_URL — APK sideload retired after Play launch. */
+/** @deprecated Use ANDROID_PLAY_STORE_URL - APK sideload retired after Play launch. */
 export const ANDROID_APK_URL = ANDROID_PLAY_STORE_URL;
 
 export function LandingDownload() {
@@ -35,7 +35,7 @@ export function LandingDownload() {
             Download Sociva
           </h2>
           <p className="text-muted-foreground text-base md:text-lg leading-relaxed">
-            Same account, same orders, same society — on your phone.
+            Same account, same orders, same society - on your phone.
           </p>
         </div>
 
@@ -80,7 +80,7 @@ export function LandingDownload() {
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Android</p>
               <h3 className="text-lg font-bold text-foreground">Google Play</h3>
               <p className="text-sm text-muted-foreground leading-relaxed">
-                Install Sociva from Google Play — same as iOS from the App Store.
+                Install Sociva from Google Play - same as iOS from the App Store.
               </p>
             </div>
             <Button variant="outline" className="w-full rounded-xl font-semibold border-primary/30" size="lg">

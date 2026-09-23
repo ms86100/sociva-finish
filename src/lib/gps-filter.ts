@@ -44,7 +44,7 @@ export function filterGPSPoint(
   const config = getTrackingConfigSync();
   const { lastAccepted, smoothedLat, smoothedLng } = state;
 
-  // First point — accept as-is
+  // First point - accept as-is
   if (!lastAccepted || smoothedLat == null || smoothedLng == null) {
     return {
       accepted: true,

@@ -30,7 +30,7 @@ const SIZES = {
 export function StatusPhaseIcon({ icon, iconColor, size = 'md', pulse }: StatusPhaseIconProps) {
   const IconComp = ICON_MAP[icon] || Package;
   const s = SIZES[size];
-  // iconColor is like "text-blue-500 bg-blue-500/15" — split into text + bg
+  // iconColor is like "text-blue-500 bg-blue-500/15" - split into text + bg
   const parts = iconColor.split(' ');
   const textClass = parts.find(p => p.startsWith('text-')) || 'text-primary';
   const bgClass = parts.find(p => p.startsWith('bg-')) || 'bg-primary/15';

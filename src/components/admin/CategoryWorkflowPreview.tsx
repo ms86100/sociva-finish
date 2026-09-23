@@ -7,7 +7,7 @@ import { Link2, AlertTriangle, ChevronRight, CheckCircle2, Truck, KeyRound, MapP
 import { formatName } from '@/components/admin/workflow/types';
 
 interface Props {
-  /** The workflow key (transaction_type) — used directly, no indirect resolution */
+  /** The workflow key (transaction_type) - used directly, no indirect resolution */
   workflowKey: string;
   parentGroup: string;
   category?: string;
@@ -43,7 +43,7 @@ export function CategoryWorkflowPreview({ workflowKey, parentGroup, category }: 
 
   const workflowLabel = formatName(workflowKey);
 
-  // Fetch workflow steps — try parent_group first, fallback to 'default'
+  // Fetch workflow steps - try parent_group first, fallback to 'default'
   useEffect(() => {
     if (!parentGroup || !workflowKey) return;
     setLoading(true);

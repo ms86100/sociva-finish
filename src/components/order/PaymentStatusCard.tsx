@@ -32,7 +32,7 @@ interface PaymentStatusCardProps {
   paymentType?: string;
   totalAmount: number;
   orderStatus: string;
-  /** Payment status from the orders table — used as fallback when no payment_records row exists */
+  /** Payment status from the orders table - used as fallback when no payment_records row exists */
   orderPaymentStatus?: string | null;
 }
 

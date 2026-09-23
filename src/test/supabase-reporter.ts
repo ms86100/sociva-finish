@@ -169,7 +169,7 @@ export default class SupabaseReporter implements Reporter {
 
     if (!projectId || !anonKey) {
       console.warn(
-        "\n⚠️ Skipping test-result upload — VITE_SUPABASE_PROJECT_ID / VITE_SUPABASE_PUBLISHABLE_KEY not set"
+        "\n⚠️ Skipping test-result upload - VITE_SUPABASE_PROJECT_ID / VITE_SUPABASE_PUBLISHABLE_KEY not set"
       );
       return;
     }

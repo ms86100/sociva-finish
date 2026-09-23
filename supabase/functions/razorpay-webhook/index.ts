@@ -14,17 +14,17 @@ const corsHeaders = {
 };
 
 async function getRazorpayWebhookSecret(supabase: any): Promise<string | null> {
-  // Prefer Deno.env / Vault — never fall back to razorpay_key_secret (wrong HMAC).
+  // Prefer Deno.env / Vault - never fall back to razorpay_key_secret (wrong HMAC).
   const secret = await resolveWebhookSecret(supabase);
   if (secret) return secret;
 
   console.error(
-    '[razorpay-webhook] razorpay_webhook_secret missing — paste Webhook Secret from Razorpay Dashboard → Webhooks. Refusing to verify with API key secret.',
+    '[razorpay-webhook] razorpay_webhook_secret missing - paste Webhook Secret from Razorpay Dashboard → Webhooks. Refusing to verify with API key secret.',
   );
   return null;
 }
 
-/** Parse order IDs from payment notes — supports multi-vendor (order_ids) and single (order_id) */
+/** Parse order IDs from payment notes - supports multi-vendor (order_ids) and single (order_id) */
 function resolveOrderIds(notes: any): string[] {
   if (notes?.order_ids) {
     try {
@@ -303,9 +303,9 @@ serve(async (req) => {
         );
       }
 
-      console.log(`Payment ${razorpayPaymentId} captured for ${allOrderIds.length} order(s) — confirming as ONE group:`, allOrderIds);
+      console.log(`Payment ${razorpayPaymentId} captured for ${allOrderIds.length} order(s) - confirming as ONE group:`, allOrderIds);
 
-      // P0: ONE confirm call with FULL order_ids — never one-at-a-time amount binding
+      // P0: ONE confirm call with FULL order_ids - never one-at-a-time amount binding
       const confirmRes = await fetch(`${supabaseUrl}/functions/v1/confirm-razorpay-payment`, {
         method: 'POST',
         headers: {
@@ -627,7 +627,7 @@ serve(async (req) => {
         : null;
 
       if (!gatewayRefundId) {
-        console.warn('[razorpay-webhook] refund event missing refund.id — ack without mutating orders');
+        console.warn('[razorpay-webhook] refund event missing refund.id - ack without mutating orders');
         await supabase
           .from('payment_provider_events')
           .update({
@@ -792,7 +792,7 @@ serve(async (req) => {
             error_message: `refund_reconcile_failed:${reconcileErr.message}`.slice(0, 1000),
           })
           .eq('id', providerEventRowId);
-        // Do not ACK success — Razorpay should retry; never leave money state via raw UPDATE
+        // Do not ACK success - Razorpay should retry; never leave money state via raw UPDATE
         return new Response(
           JSON.stringify({ error: 'refund_reconcile_failed', detail: reconcileErr.message }),
           { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },

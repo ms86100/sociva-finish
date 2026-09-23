@@ -90,7 +90,7 @@ export function DiscoveryManualSearch({ onBack, onPickPlace, onUseLocation, busy
 
       <div className="shrink-0 px-4 pt-3 pb-2 space-y-2">
         <p className="text-sm text-muted-foreground">
-          Type your society, locality, or address — then confirm the pin on the map.
+          Type your society, locality, or address - then confirm the pin on the map.
         </p>
         <div className="relative">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />

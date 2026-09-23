@@ -41,7 +41,7 @@ export function useAuthPage() {
   const [resendCooldown, setResendCooldown] = useState(0);
   const [otpReqId, setOtpReqId] = useState<string | null>(null);
   const [otpError, setOtpError] = useState<string | null>(null);
-  /** MSG91 OTP was consumed but GoTrue session not established — resend must start a fresh send. */
+  /** MSG91 OTP was consumed but GoTrue session not established - resend must start a fresh send. */
   const otpConsumedNeedsFreshRef = useRef(false);
   const OTP_SEND_TIMEOUT_MS = 28_000;
   const OTP_VERIFY_TIMEOUT_MS = 35_000;
@@ -90,7 +90,7 @@ export function useAuthPage() {
     return () => { cancelled = true; };
   }, [navigate]);
 
-  // Cooldown timer — chained timeout avoids re-creating intervals every tick
+  // Cooldown timer - chained timeout avoids re-creating intervals every tick
   useEffect(() => {
     if (resendCooldown <= 0) return;
     const timer = setTimeout(() => {
@@ -184,7 +184,7 @@ export function useAuthPage() {
         const alreadyUsed =
           /already verif|already been used|request a new|fetching record/i.test(errMsg);
         if (actuallyResend && alreadyUsed) {
-          // Stale reqId — start a brand-new send (not recursive retryOtp).
+          // Stale reqId - start a brand-new send (not recursive retryOtp).
           otpConsumedNeedsFreshRef.current = true;
           setOtpReqId(null);
           clearTimeout(timeoutId);
@@ -312,7 +312,7 @@ export function useAuthPage() {
 
       const { token_hash, is_new_user, access_token, refresh_token } = data;
       setIsNewUser(is_new_user);
-      // MSG91 (or Apple bypass) accepted this code — do not retry the same reqId.
+      // MSG91 (or Apple bypass) accepted this code - do not retry the same reqId.
       otpConsumedNeedsFreshRef.current = true;
 
       // Drop any stale session (e.g. Google/email account) before phone magic-link
@@ -336,7 +336,7 @@ export function useAuthPage() {
         authUser = sessData?.user ?? sessData?.session?.user ?? null;
       } else if (token_hash) {
         // Fallback: establish session using the magic link token.
-        // GoTrue's /verify endpoint occasionally 504s under DB pool contention —
+        // GoTrue's /verify endpoint occasionally 504s under DB pool contention -
         // retry with backoff before surfacing failure to the user.
         for (let attempt = 0; attempt < 4; attempt++) {
           if (controller.signal.aborted) throw new DOMException('Aborted', 'AbortError');
@@ -389,11 +389,11 @@ export function useAuthPage() {
         return;
       }
 
-  // Soft Permission Center after login — never surprise with native OS dialog
+  // Soft Permission Center after login - never surprise with native OS dialog
       markPostLoginPermissionSheet();
 
       // Guard: even if backend says "new user", trust the DB. If the profile
-      // already has a society_id, this is a returning user — skip onboarding.
+      // already has a society_id, this is a returning user - skip onboarding.
       // Prefer user from verifyOtp (avoids extra getUser round-trip).
       if (!authUser) {
         const { data: { user } } = await supabase.auth.getUser();
@@ -477,7 +477,7 @@ export function useAuthPage() {
     });
 
     if (matches && matches.length === 1 && matches[0].confidence >= 0.8) {
-      // High confidence single match — auto-select
+      // High confidence single match - auto-select
       const existing = societies.find(s => s.id === matches[0].society_id);
       if (existing) {
         setSelectedSociety(existing);
@@ -487,13 +487,13 @@ export function useAuthPage() {
     }
 
     if (matches && matches.length > 0 && matches[0].confidence >= 0.4) {
-      // Medium confidence — show confirmation UI
+      // Medium confidence - show confirmation UI
       setPotentialMatches(matches);
       setPendingPlaceDetails({ details, placeId });
       return;
     }
 
-    // No match — proceed with new society creation
+    // No match - proceed with new society creation
     const name = details.name;
     const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') + '-' + Date.now();
     setPendingNewSociety({

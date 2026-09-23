@@ -5,7 +5,7 @@ import { resolve } from 'path';
 const root = resolve(__dirname, '../..');
 const read = (rel: string) => readFileSync(resolve(root, rel), 'utf8');
 
-describe('permission lifecycle phases 2–4 (source)', () => {
+describe('permission lifecycle phases 2-4 (source)', () => {
   it('stops surprise OS notification prompts after login and checkout', () => {
     const auth = read('src/hooks/useAuthPage.ts');
     const cart = read('src/hooks/useCartPage.ts');
@@ -42,7 +42,7 @@ describe('permission lifecycle phases 2–4 (source)', () => {
     // Close UI first, then fire-and-forget dismiss
     expect(center).toMatch(/onDismissed\?\.\(\)/);
     expect(center).toMatch(/void dismissAll/);
-    // Sheet stays interactive — toast, not notify.block for enable failure
+    // Sheet stays interactive - toast, not notify.block for enable failure
     expect(center).toMatch(/toast\.(success|error)/);
     expect(center).not.toMatch(/notify\.block/);
     expect(center).toMatch(/z-\[260\]/);

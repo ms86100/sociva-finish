@@ -33,7 +33,7 @@ export function sanitizeAnalyticsProps(
       out[key] = trimmed.length > MAX_STRING ? `${trimmed.slice(0, MAX_STRING)}…` : trimmed;
       continue;
     }
-    // Skip nested objects/arrays — keep payload flat and safe
+    // Skip nested objects/arrays - keep payload flat and safe
   }
   return out;
 }

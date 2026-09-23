@@ -112,7 +112,7 @@ export function CommandCenterActivityFeed({
                         )}
                       </div>
                       <p className="text-xs text-muted-foreground mt-0.5">
-                        {event.actor_name || '—'}
+                        {event.actor_name || '-'}
                         {event.target_name ? ` → ${event.target_name}` : ''}
                       </p>
                       <p className="text-[11px] text-muted-foreground">

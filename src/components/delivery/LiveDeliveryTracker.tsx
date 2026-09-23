@@ -18,9 +18,9 @@ interface LiveDeliveryTrackerProps {
   trackingState?: DeliveryTrackingState;
   roadEtaMinutes?: number | null;
   statusHints?: Record<string, StatusHint>;
-  /** Workflow-derived transit flag — overrides system_settings when provided */
+  /** Workflow-derived transit flag - overrides system_settings when provided */
   isInTransit?: boolean;
-  /** Derived display status text — shown instead of raw workflow status */
+  /** Derived display status text - shown instead of raw workflow status */
   displayStatusText?: string | null;
 }
 
@@ -88,8 +88,8 @@ function getProximityMessage(
 
   if (isLocationStale) {
     return isBuyerView
-      ? 'Tracking paused — seller hasn’t confirmed delivery yet'
-      : 'Tracking paused — update location or confirm delivery with OTP';
+      ? 'Tracking paused - seller hasn’t confirmed delivery yet'
+      : 'Tracking paused - update location or confirm delivery with OTP';
   }
 
   if (proximityStatus === 'at_doorstep') return msg('at_doorstep');
@@ -140,7 +140,7 @@ export function LiveDeliveryTracker({ assignmentId, isBuyerView, trackingState, 
 
   const liveTrackingTitle = getSetting('ui_live_tracking_title') || 'Live Tracking';
   const deliveryPartnerLabel = getSetting('ui_delivery_partner_label') || 'Delivery Partner';
-  const staleWarning = getSetting('ui_location_stale_warning') || 'Location may be outdated — GPS is not updating';
+  const staleWarning = getSetting('ui_location_stale_warning') || 'Location may be outdated - GPS is not updating';
 
   if (tracking.isLoading) {
     return (
@@ -171,7 +171,7 @@ export function LiveDeliveryTracker({ assignmentId, isBuyerView, trackingState, 
           return smartEta && isInTransit ? (
             <Badge variant="secondary" className="bg-primary/10 text-primary">
               <Clock size={10} className="mr-1" />
-              {smartEta > 3 ? `${smartEta - 1}–${smartEta + 1} min` : `${smartEta} min`}
+              {smartEta > 3 ? `${smartEta - 1}-${smartEta + 1} min` : `${smartEta} min`}
             </Badge>
           ) : null;
         })()}

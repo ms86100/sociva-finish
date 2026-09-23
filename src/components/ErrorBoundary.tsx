@@ -31,7 +31,7 @@ export class ErrorBoundary extends Component<Props, State> {
 
   constructor(props: Props) {
     super(props);
-    // Signal EARLY that React has begun processing — before any child
+    // Signal EARLY that React has begun processing - before any child
     // render errors can fire. This prevents the 10-second safety net
     // in main.tsx from showing the raw HTML fallback while ErrorBoundary
     // is handling the error with its own UI.
@@ -54,7 +54,7 @@ export class ErrorBoundary extends Component<Props, State> {
     // Only clear auth tokens after repeated crashes (3+), not on first reload
     const fails = Number(sessionStorage.getItem('boot-fails') || '0');
     if (fails >= 3) {
-      // Clear whatever Supabase auth token this project uses — the key is
+      // Clear whatever Supabase auth token this project uses - the key is
       // derived from the project ref, so never hardcode a single ref here.
       try {
         Object.keys(localStorage)

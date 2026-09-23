@@ -507,7 +507,7 @@ export function UpiDeepLinkCheckout({
             </div>
           )}
 
-          {/* Done — claim submitted, not yet paid */}
+          {/* Done - claim submitted, not yet paid */}
           {step === 'done' && (
             <div className="text-center space-y-4 py-8">
               <div className="w-20 h-20 mx-auto rounded-full bg-accent/10 flex items-center justify-center">

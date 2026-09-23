@@ -179,7 +179,7 @@ export function useAuthPage() {
         navigate('/');
       }
     } catch {
-      // Network error or unexpected failure — never show raw errors
+      // Network error or unexpected failure - never show raw errors
       toast.error('Connection error. Please check your internet and try again.');
     } finally {
       setIsLoading(false);

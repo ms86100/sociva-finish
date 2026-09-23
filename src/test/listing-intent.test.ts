@@ -171,7 +171,7 @@ describe('resolveListingIntent', () => {
         },
       ],
     });
-    // clothing alias may still hit from "denim"/clothes — if category hit without good sub:
+    // clothing alias may still hit from "denim"/clothes - if category hit without good sub:
     if (r.suggestedCategorySlug === 'clothing' && !r.suggestedSubcategoryId) {
       expect(r.needsOtherSubcategory).toBe(true);
       expect(r.useCustomSubcategoryLabel).toBeTruthy();

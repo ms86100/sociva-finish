@@ -1,7 +1,7 @@
 -- ============================================================
 -- Order acceptance auto-cancel (exactly 5 minutes)
 -- Event-driven: schedule per-order timer on becoming `placed`.
--- Expiry cancels by primary key only (O(1)) — no pending-order scans.
+-- Expiry cancels by primary key only (O(1)) - no pending-order scans.
 -- ============================================================
 
 -- Older production snapshots can have the auto-accept trigger body without
@@ -83,7 +83,7 @@ EXCEPTION WHEN OTHERS THEN
 END;
 $$;
 
--- 4) O(1) cancel by order id — shared path for edge + one-shot cron
+-- 4) O(1) cancel by order id - shared path for edge + one-shot cron
 CREATE OR REPLACE FUNCTION public.expire_unaccepted_order(_order_id uuid)
 RETURNS jsonb
 LANGUAGE plpgsql
@@ -460,7 +460,7 @@ WHERE key = 'order_placed_seller_l2';
 
 UPDATE public.notification_rules
 SET delay_seconds = 240,
-    description = 'Urgent at 4 minutes — cancels in ~1 minute',
+    description = 'Urgent at 4 minutes - cancels in ~1 minute',
     updated_at = now()
 WHERE key = 'order_placed_seller_l3';
 
