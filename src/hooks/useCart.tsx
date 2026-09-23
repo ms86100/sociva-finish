@@ -25,7 +25,13 @@ import {
   removeGuestCartItem,
   setGuestCartQuantity,
   upsertGuestCartItem,
+  writeGuestCart,
 } from '@/lib/guest-cart';
+import {
+  applySellerHydration,
+  fetchSellersForGuestCart,
+  guestCartNeedsSellerHydration,
+} from '@/lib/guest-cart-enrich';
 
 const hasOwn = (obj: unknown, key: string) => Object.prototype.hasOwnProperty.call(obj ?? {}, key);
 
@@ -162,7 +168,7 @@ const CART_QUERY_KEY = ['cart-items'] as const;
 
 // ── Shared authoritative fetch ──
 const CART_ITEM_EMBED =
-  `*, product:products(*, seller:seller_profiles(id, business_name, user_id, is_available, availability_start, availability_end, operating_days, profile_image_url, cover_image_url, primary_group, accepts_cod, accepts_upi, upi_id, upi_verification_status, fulfillment_mode, minimum_order_amount, daily_order_limit, packaging_fee, pickup_payment_config, delivery_payment_config, store_location_label, society:societies(name)))`;
+  `*, product:products(*, seller:seller_profiles(id, business_name, user_id, is_available, availability_start, availability_end, operating_days, profile_image_url, cover_image_url, primary_group, accepts_cod, accepts_upi, upi_id, upi_verification_status, fulfillment_mode, minimum_order_amount, daily_order_limit, packaging_fee, pickup_payment_config, delivery_payment_config, store_location_label, latitude, longitude, society:societies(name, latitude, longitude)))`;
 
 function withProducts<T extends { product?: Product | null }>(rows: T[] | null | undefined) {
   // Keep unavailable products visible so a refresh can warn instead of silently dropping them.
@@ -350,11 +356,38 @@ export function CartProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const guestItems = useMemo(
-    () => guestCartToItems(readGuestCart()),
+  const guestLines = useMemo(
+    () => readGuestCart(),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [guestCartVersion],
   );
+
+  const guestSellerIds = useMemo(
+    () => [...new Set(guestLines.map((l) => l.product?.seller_id).filter(Boolean) as string[])],
+    [guestLines],
+  );
+
+  const { data: guestSellerMap } = useQuery({
+    queryKey: ['guest-cart-sellers', guestSellerIds.slice().sort().join(',')],
+    queryFn: () => fetchSellersForGuestCart(guestSellerIds),
+    enabled: !userId && isSessionRestored && guestSellerIds.length > 0 && guestCartNeedsSellerHydration(guestLines),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Persist enriched sellers back into guest cart so refresh / cart page stay consistent
+  useEffect(() => {
+    if (userId || !guestSellerMap || guestSellerMap.size === 0) return;
+    if (!guestCartNeedsSellerHydration(guestLines)) return;
+    const enriched = applySellerHydration(guestLines, guestSellerMap);
+    writeGuestCart(enriched);
+  }, [userId, guestSellerMap, guestLines]);
+
+  const guestItems = useMemo(() => {
+    const lines = guestSellerMap && guestSellerMap.size > 0
+      ? applySellerHydration(guestLines, guestSellerMap)
+      : guestLines;
+    return guestCartToItems(lines);
+  }, [guestLines, guestSellerMap]);
 
   const resolvedItems = userId ? items : guestItems;
   const hasHydratedGuest = !userId && isSessionRestored;
@@ -377,7 +410,13 @@ export function CartProvider({ children }: { children: ReactNode }) {
       resolvedItems.reduce<Record<string, SellerGroup>>((groups, item) => {
         const sellerId = item.product?.seller_id || 'unknown';
         if (!groups[sellerId]) {
-          groups[sellerId] = { sellerId, sellerName: (item.product as any)?.seller?.business_name || '', items: [], subtotal: 0 };
+          const p = item.product as any;
+          groups[sellerId] = {
+            sellerId,
+            sellerName: p?.seller?.business_name || p?.seller_name || '',
+            items: [],
+            subtotal: 0,
+          };
         }
         groups[sellerId].items.push(item);
         groups[sellerId].subtotal += (item.product?.price || 0) * item.quantity;
@@ -532,6 +571,18 @@ export function CartProvider({ children }: { children: ReactNode }) {
           );
         }
         await reconcile();
+        try {
+          const { track } = await import('@/lib/analytics');
+          track('add_to_cart', {
+            product_id: product.id,
+            product_name: product.name,
+            seller_id: product.seller_id,
+            category: product.category,
+            price: product.price,
+            quantity,
+            source: 'product_page',
+          });
+        } catch { /* analytics optional */ }
         return true;
       } catch (error: any) {
         rollback(snap);
@@ -647,6 +698,14 @@ export function CartProvider({ children }: { children: ReactNode }) {
         () => navigate('/'),
       );
       await reconcile();
+      try {
+        const { track } = await import('@/lib/analytics');
+        track('remove_from_cart', {
+          product_id: productId,
+          product_name: removedItem?.product?.name || null,
+          quantity: removedQty,
+        });
+      } catch { /* analytics optional */ }
     } catch (error) {
       rollback(snap);
       feedbackRemoveItemFailed();

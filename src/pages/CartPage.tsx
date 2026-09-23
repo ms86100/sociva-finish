@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useBlockPullToRefresh } from '@/hooks/usePullToRefresh';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Minus, Plus, Clock, Store, MapPin, Bell, ChevronRight, Trash2, AlertTriangle } from 'lucide-react';
@@ -30,14 +30,36 @@ import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
 import { useCartPage } from '@/hooks/useCartPage';
 import { useCategoryConfig } from '@/hooks/queries/useCategoryConfig';
+import { track } from '@/lib/analytics';
 import { setPendingAuthAction } from '@/lib/pending-auth-action';
+import { useBrowsingLocation } from '@/contexts/BrowsingLocationContext';
+import { getCartSellerInsights } from '@/lib/cart-seller-insights';
+import { formatDistanceKmLabel } from '@/lib/checkout-eta';
 
 export default function CartPage() {
   const c = useCartPage();
   const navigate = useNavigate();
+  const { browsingLocation } = useBrowsingLocation();
   const { data: categoryConfigs } = useCategoryConfig();
   const [showReviewSheet, setShowReviewSheet] = useState(false);
   const [justCleared, setJustCleared] = useState(false);
+
+  const goCompleteAddress = () => {
+    if (!c.user) {
+      setPendingAuthAction({ type: 'checkout', returnTo: '/cart' });
+      navigate('/auth', { state: { returnTo: '/profile/edit', from: '/cart' } });
+      return;
+    }
+    navigate('/profile/edit', { state: { returnTo: '/cart', focusAddress: true } });
+  };
+
+  useEffect(() => {
+    track('cart_opened', {
+      item_count: c.items?.length ?? 0,
+      cart_value: c.totalAmount ?? 0,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   useBlockPullToRefresh(
     !!c.showRazorpayCheckout ||
     !!c.isPlacingOrder ||
@@ -129,13 +151,32 @@ export default function CartPage() {
         </div>
         </SafeHeader>
 
-        {/* Delivery Time — #4: show estimate for all fulfillment types */}
-        {c.maxPrepTime > 0 && (
+        {/* Delivery Time — prep + real travel when coords known */}
+        {(c.checkoutEta?.etaMinutes != null || c.maxPrepTime > 0) && (
           <div className="mx-4 mt-3 flex items-center gap-3 bg-primary/5 border border-primary/15 rounded-xl p-3">
             <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0"><Clock size={18} className="text-primary" /></div>
             <div>
               {c.fulfillmentType === 'delivery' ? (
-                <><p className="text-sm font-semibold">Estimated delivery: ~{c.maxPrepTime + 15} minutes</p><p className="text-xs text-muted-foreground">Includes preparation + delivery time</p></>
+                c.checkoutEta?.distanceKnown && c.checkoutEta.etaMinutes != null ? (
+                  <>
+                    <p className="text-sm font-semibold">Delivering in ~{c.checkoutEta.etaMinutes} minutes</p>
+                    <p className="text-xs text-muted-foreground">
+                      {c.checkoutEta.distanceKm != null
+                        ? `${formatDistanceKmLabel(c.checkoutEta.distanceKm)} · `
+                        : ''}
+                      prep ~{c.checkoutEta.prepMinutes} min
+                      {c.checkoutEta.travelMinutes != null ? ` · travel ~${c.checkoutEta.travelMinutes} min` : ''}
+                    </p>
+                  </>
+                ) : c.maxPrepTime > 0 ? (
+                  <>
+                    <p className="text-sm font-semibold">Ready in ~{c.maxPrepTime} minutes</p>
+                    <p className="text-xs text-muted-foreground">
+                      Prep estimate · distance unavailable
+                      {c.checkoutEta?.distanceKnown === false ? ' · typically 10–20 min travel' : ''}
+                    </p>
+                  </>
+                ) : null
               ) : (
                 <><p className="text-sm font-semibold">Ready in ~{c.maxPrepTime} minutes</p><p className="text-xs text-muted-foreground">Estimated preparation time</p></>
               )}
@@ -191,23 +232,49 @@ export default function CartPage() {
 
         {/* Cart Items by Seller */}
         <div className="mt-4 space-y-3 px-4">
-          {c.sellerGroups.map((group) => (
+          {c.sellerGroups.map((group) => {
+            const leadProduct = group.items[0]?.product as any;
+            const insights = getCartSellerInsights(leadProduct);
+            const storeTitle = group.sellerName || insights.storeName;
+            return (
             <div key={group.sellerId} className="bg-card rounded-xl border border-border overflow-hidden">
-              <div className="px-3 py-2.5 border-b border-border flex items-center gap-2">
-                <Store size={14} className="text-primary" />
-                <span className="text-sm font-semibold flex-1 truncate">{group.sellerName}</span>
-                {/* #6: Seller contact shortcut */}
-                <Link to={`/seller/${group.sellerId}`} className="text-[10px] text-primary font-medium shrink-0">View Store</Link>
-                {(() => {
-                  const qty = group.items.reduce((sum, item) => sum + (item.quantity || 1), 0);
-                  return <span className="text-xs text-muted-foreground">{qty} item{qty !== 1 ? 's' : ''}</span>;
-                })()}
+              <div className="px-3 py-2.5 border-b border-border">
+                <div className="flex items-center gap-2">
+                  <Store size={14} className="text-primary shrink-0" />
+                  <span className="text-sm font-semibold flex-1 truncate">{storeTitle}</span>
+                  <Link to={`/seller/${group.sellerId}`} className="text-[10px] text-primary font-medium shrink-0">View Store</Link>
+                  {(() => {
+                    const qty = group.items.reduce((sum, item) => sum + (item.quantity || 1), 0);
+                    return <span className="text-xs text-muted-foreground shrink-0">{qty} item{qty !== 1 ? 's' : ''}</span>;
+                  })()}
+                </div>
+                {(insights.locationLabel || insights.distanceLabel || insights.ratingLabel) && (
+                  <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 pl-5 text-[11px] text-muted-foreground">
+                    {insights.locationLabel && (
+                      <span className="inline-flex items-center gap-1 min-w-0">
+                        <MapPin size={10} className="shrink-0 text-primary/80" />
+                        <span className="truncate">{insights.locationLabel}</span>
+                      </span>
+                    )}
+                    {insights.distanceLabel && <span>{insights.distanceLabel}</span>}
+                    {insights.ratingLabel && <span>{insights.ratingLabel}</span>}
+                  </div>
+                )}
               </div>
               {c.profile?.society_id && (group.items[0]?.product?.seller as any)?.society_id && (group.items[0]?.product?.seller as any)?.society_id !== c.profile.society_id && (
                 <div className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-muted-foreground bg-muted"><MapPin size={11} /><span>Seller from another community</span></div>
               )}
               <AnimatePresence initial={false}>
-                {group.items.map((item) => (
+                {group.items.map((item) => {
+                  const insights = getCartSellerInsights(item.product);
+                  // Store header already shows society + distance — item line adds prep / extras only
+                  const itemMetaBits = [
+                    group.items.length > 1 ? insights.locationLabel : null,
+                    group.items.length > 1 ? insights.distanceLabel : null,
+                    insights.prepLabel,
+                  ].filter(Boolean);
+                  const itemMeta = itemMetaBits.length ? itemMetaBits.join(' · ') : null;
+                  return (
                   <motion.div
                     key={item.id}
                     layout
@@ -240,6 +307,12 @@ export default function CartPage() {
                             <span className="shrink-0 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-accent/15 text-accent text-[10px] font-semibold"><Clock size={9} />Pre-order</span>
                           )}
                         </div>
+                        {item.product.description && (
+                          <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-2">{item.product.description}</p>
+                        )}
+                        {itemMeta && (
+                          <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-2">{itemMeta}</p>
+                        )}
                         <p className="text-sm font-bold mt-0.5">{c.formatPrice(item.product.price * item.quantity)}</p>
                         <p className="text-[11px] text-muted-foreground">{c.formatPrice(item.product.price)} × {item.quantity}</p>
                         {item.product.is_available === false && (
@@ -277,7 +350,8 @@ export default function CartPage() {
                       <button className="h-8 w-8 flex items-center justify-center text-muted-foreground" onClick={() => { c.removeItem(item.product_id); }}><Trash2 size={15} /></button>
                     </div>
                   </motion.div>
-                ))}
+                  );
+                })}
               </AnimatePresence>
               {/* #12: Add more from this seller */}
               <div className="flex border-t border-border">
@@ -294,11 +368,12 @@ export default function CartPage() {
                   to={`/seller/${group.sellerId}`}
                   className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold text-primary hover:bg-primary/5 transition-colors"
                 >
-                  <Plus size={12} /> Add more from {group.sellerName}
+                  <Plus size={12} /> Add more from {storeTitle}
                 </Link>
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
 
         {/* Notes */}
@@ -326,6 +401,72 @@ export default function CartPage() {
           {c.hasFulfillmentConflict && (
             <p className="text-xs text-warning mt-2 bg-warning/10 rounded-lg px-3 py-2">⚠️ Some sellers don't support this fulfillment mode. Separate handling may apply.</p>
           )}
+        </div>
+
+        {/* ONE destination block — pickup summary OR delivery address (complete / incomplete) */}
+        <div className="mt-4 mx-4">
+          {c.fulfillmentType === 'self_pickup' ? (
+            <div className="bg-card border border-border rounded-xl p-4 flex items-start gap-3">
+              <MapPin size={16} className="text-primary shrink-0 mt-0.5" />
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Pickup from</p>
+                <p className="text-sm font-medium mt-0.5">
+                  {c.sellerGroups[0]?.sellerName
+                    || getCartSellerInsights(c.sellerGroups[0]?.items[0]?.product).storeName}
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {getCartSellerInsights(c.sellerGroups[0]?.items[0]?.product).locationLabel
+                    || c.pickupLocationLabel
+                    || 'Seller location'}
+                </p>
+                {getCartSellerInsights(c.sellerGroups[0]?.items[0]?.product).distanceLabel && (
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    {getCartSellerInsights(c.sellerGroups[0]?.items[0]?.product).distanceLabel} from you
+                  </p>
+                )}
+              </div>
+            </div>
+          ) : c.hasCheckoutDestination ? (
+            <div className="bg-card border border-border rounded-xl p-4 flex items-start gap-3">
+              <MapPin size={16} className="text-primary shrink-0 mt-0.5" />
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Deliver to</p>
+                <p className="text-sm font-medium mt-0.5">{c.checkoutAddressLabel}</p>
+                {c.checkoutAddressDetail ? (
+                  <p className="text-xs text-muted-foreground">{c.checkoutAddressDetail}</p>
+                ) : null}
+              </div>
+              {c.addresses.length > 0 && (
+                <AddressPicker selectedId={c.selectedDeliveryAddress?.id} onSelect={c.setSelectedDeliveryAddress} />
+              )}
+            </div>
+          ) : (
+            <div className="rounded-xl border border-primary/25 bg-gradient-to-b from-primary/10 to-card p-4 space-y-3">
+              <div className="flex items-start gap-3">
+                <div className="h-10 w-10 rounded-full bg-primary/15 flex items-center justify-center shrink-0">
+                  <MapPin size={18} className="text-primary" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-foreground">Where should we deliver?</p>
+                  <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+                    You’re near {browsingLocation?.label || 'this area'}. Add your flat or house number once — neighbours get food to the right door.
+                  </p>
+                  {(browsingLocation?.fullAddress || browsingLocation?.label) && (
+                    <p className="text-[11px] text-muted-foreground mt-2 line-clamp-2">
+                      {browsingLocation.fullAddress || browsingLocation.label}
+                    </p>
+                  )}
+                </div>
+              </div>
+              <Button className="w-full rounded-xl font-semibold h-11" onClick={goCompleteAddress}>
+                {c.user
+                  ? (c.needsDeliveryUnit ? 'Add flat / house number' : 'Add door details')
+                  : 'Continue — add door details'}
+                <ChevronRight size={16} className="ml-1" />
+              </Button>
+            </div>
+          )}
+          {c.needsPreciseLocation && c.hasCheckoutDestination && <div className="mt-3"><PreciseLocationRequiredCard /></div>}
         </div>
 
         {/* Pre-order scheduling (mandatory) */}
@@ -450,38 +591,6 @@ export default function CartPage() {
           </div>
         </div>
 
-        {/* Address */}
-        <div className="mt-4 mx-4 bg-card border border-border rounded-xl p-4 flex items-center gap-3">
-          <MapPin size={16} className="text-primary shrink-0" />
-          <div className="flex-1 min-w-0">
-            {c.fulfillmentType === 'self_pickup' ? (
-              <><p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Pickup from</p><p className="text-sm font-medium mt-0.5">{c.sellerGroups[0]?.sellerName || ''}</p><p className="text-xs text-muted-foreground">{c.pickupLocationLabel}</p></>
-            ) : (
-              <>
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Deliver to</p>
-                <p className="text-sm font-medium mt-0.5">{c.checkoutAddressLabel}</p>
-                {c.checkoutAddressDetail ? (
-                  <p className="text-xs text-muted-foreground">{c.checkoutAddressDetail}</p>
-                ) : null}
-                {c.needsPreciseLocation && (
-                  <p className="text-xs font-semibold text-warning flex items-center gap-1.5 mt-1.5"><AlertTriangle size={14} /> Add your map pin so delivery can find you</p>
-                )}
-              </>
-            )}
-          </div>
-          {c.fulfillmentType !== 'self_pickup' && (
-            c.addresses.length > 0 ? (
-              <AddressPicker selectedId={c.selectedDeliveryAddress?.id} onSelect={c.setSelectedDeliveryAddress} />
-            ) : (
-              <Link to="/profile/edit" className="text-xs text-primary font-semibold shrink-0">Add</Link>
-            )
-          )}
-        </div>
-
-        {c.needsPreciseLocation && <PreciseLocationRequiredCard />}
-
-        {/* Multi-seller note moved to top — see #5 above */}
-
         <p className="mx-4 mt-4 text-center">
           <Link to="/terms" className="text-xs text-muted-foreground underline">
             Refunds, cancellation, and neighbourhood guarantee
@@ -489,41 +598,20 @@ export default function CartPage() {
         </p>
       </div>
 
-      {/* Sticky Footer */}
+      {/* Sticky Footer — single next action */}
       <div className="fixed bottom-0 left-0 right-0 z-40 bg-background border-t border-border pb-[var(--app-safe-bottom,0px)]">
-        {!c.user && (
-          <div className="mx-4 mt-2 rounded-xl border border-primary/20 bg-primary/5 px-3 py-2.5">
-            <p className="text-sm font-semibold text-foreground">Almost There</p>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Sign in with your phone to place this order. Your cart stays saved.
-            </p>
-          </div>
-        )}
         {c.user && c.noPaymentMethodAvailable && (
           <div className="mx-4 mt-2 bg-destructive/10 border border-destructive/20 rounded-lg px-3 py-2">
             <p className="text-xs text-destructive font-medium">No payment method available for this cart. Try ordering from each seller separately.</p>
           </div>
         )}
         <div className="px-4 py-3">
-          {c.user && c.fulfillmentType === 'delivery' && !c.hasCheckoutDestination && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="w-full mb-2 border-destructive text-destructive hover:bg-destructive/10"
-              onClick={() => navigate('/profile/addresses', { state: { returnTo: '/cart' } })}
-            >
-              <MapPin size={14} className="mr-1.5" />
-              {c.needsDeliveryUnit
-                ? 'Add flat / house number to continue'
-                : 'Add a delivery address to continue'}
-            </Button>
-          )}
           {c.user && c.needsPreciseLocation && c.selectedDeliveryAddress && (
             <Button
               variant="outline"
               size="sm"
               className="w-full mb-2 border-warning text-warning hover:bg-warning/10"
-              onClick={() => navigate('/profile/addresses', { state: { returnTo: '/cart' } })}
+              onClick={goCompleteAddress}
             >
               <MapPin size={14} className="mr-1.5" />
               Add your map pin to continue
@@ -548,9 +636,8 @@ export default function CartPage() {
                 className="px-8 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 font-bold"
                 size="lg"
                 onClick={() => {
-                  if (!c.user) {
-                    setPendingAuthAction({ type: 'checkout', returnTo: '/cart' });
-                    navigate('/auth', { state: { returnTo: '/cart', from: '/cart' } });
+                  if (!c.user || (c.fulfillmentType === 'delivery' && !c.hasCheckoutDestination)) {
+                    goCompleteAddress();
                     return;
                   }
                   if (c.blocksOnlineMultiSeller || c.multiStoreRequiresSplit) {
@@ -567,7 +654,7 @@ export default function CartPage() {
                   c.setShowConfirmDialog(true);
                 }}
                 disabled={
-                  !c.user
+                  !c.user || (c.fulfillmentType === 'delivery' && !c.hasCheckoutDestination)
                     ? false
                     : (
                       c.isPlacingOrder ||
@@ -576,13 +663,18 @@ export default function CartPage() {
                       c.blocksOnlineMultiSeller ||
                       c.multiStoreRequiresSplit ||
                       c.hasFulfillmentConflict ||
-                      (c.fulfillmentType === 'delivery' && !c.hasCheckoutDestination) ||
                       c.needsPreciseLocation ||
                       c.preorderMissingSchedule
                     )
                 }
               >
-                {!c.user ? 'Almost There' : c.isPlacingOrder ? 'Placing...' : 'Place Order'}
+                {!c.user
+                  ? (c.fulfillmentType === 'delivery' ? 'Continue' : 'Sign in to order')
+                  : (c.fulfillmentType === 'delivery' && !c.hasCheckoutDestination)
+                    ? 'Add door details'
+                    : c.isPlacingOrder
+                      ? 'Placing...'
+                      : 'Place Order'}
                 <ChevronRight size={18} className="ml-1" />
               </Button>
             </div>
@@ -605,7 +697,17 @@ export default function CartPage() {
                 <div className="flex justify-between"><span className="text-muted-foreground">Payment</span><span className="font-medium">{c.paymentMethod === 'cod' ? 'Cash on Delivery' : (c.paymentMode.isRazorpay ? 'Online Payment' : 'UPI')}</span></div>
                 {/* #9: Prominent delivery address in confirm dialog */}
                 {c.fulfillmentType === 'self_pickup' ? (
-                  <div className="flex justify-between"><span className="text-muted-foreground">Pickup from</span><span className="font-medium text-right">{c.pickupLocationLabel}</span></div>
+                  <div className="bg-muted rounded-lg p-2.5">
+                    <p className="text-xs font-semibold text-muted-foreground mb-1">Pickup from</p>
+                    <p className="font-medium">
+                      {c.sellerGroups[0]?.sellerName
+                        || getCartSellerInsights(c.sellerGroups[0]?.items[0]?.product).storeName}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {getCartSellerInsights(c.sellerGroups[0]?.items[0]?.product).locationLabel
+                        || c.pickupLocationLabel}
+                    </p>
+                  </div>
                 ) : (
                   <div className="bg-muted rounded-lg p-2.5">
                     <p className="text-xs font-semibold text-muted-foreground mb-1">Deliver to</p>

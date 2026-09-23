@@ -2,8 +2,10 @@
 import "./index.css";
 import { initializeCapacitorPlugins } from "./lib/capacitor";
 import { captureException, initObservability } from "./lib/observability";
+import { initAnalytics } from "./lib/analytics";
 
 initObservability();
+initAnalytics();
 
 // Bump when shipping bootstrap/critical-path fixes so returning users drop
 // stale Workbox caches that competed with first paint (e.g. splash-video / fat precache).

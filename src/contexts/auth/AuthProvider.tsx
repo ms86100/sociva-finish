@@ -1,5 +1,5 @@
 // @ts-nocheck
-import React, { useMemo, useEffect } from 'react';
+import React, { useMemo, useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { fetchCategoryConfigs } from '@/hooks/useCategoryBehavior';
@@ -16,6 +16,7 @@ import {
 import { useContext } from 'react';
 import { AuthContext } from './auth-context';
 import { actionableSellerProfiles } from '@/lib/seller-journey';
+import { identify, resetAnalytics, track } from '@/lib/analytics';
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const { state, setPartial, refreshProfile, setViewAsSociety, signOut } = useAuthState();
@@ -42,6 +43,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const effectiveSocietyId = viewAsSocietyId || profile?.society_id || null;
   const effectiveSociety = viewAsSocietyId ? viewAsSociety : society;
+
+  // Amplitude identity — no PII beyond internal ids / role flags
+  const identifiedUserRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!user?.id) {
+      identifiedUserRef.current = null;
+      return;
+    }
+    identify(user.id, {
+      society_id: profile?.society_id || null,
+      is_seller: isSeller,
+      is_admin: isAdmin,
+      has_seller_profile: hasSellerProfile,
+    });
+    if (identifiedUserRef.current !== user.id) {
+      identifiedUserRef.current = user.id;
+      track('login_completed', {
+        society_id: profile?.society_id || null,
+      });
+    }
+  }, [user?.id, profile?.society_id, isSeller, isAdmin, hasSellerProfile]);
 
   // Perf: Defer non-critical prefetches — only fire after a short idle delay
   // This prevents auth restore from triggering a burst of queries that slows the first click

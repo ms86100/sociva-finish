@@ -983,6 +983,7 @@ Deno.serve(async (req) => {
         if (rawPayload.reminder_type) pushData.reminder_type = String(rawPayload.reminder_type);
         if (item.id) pushData.queue_item_id = String(item.id);
         if (rawPayload.notif_id) pushData.notif_id = String(rawPayload.notif_id);
+        if (rawPayload.campaign_id) pushData.campaign_id = String(rawPayload.campaign_id);
         // Include queue creation time so the client can detect stale pushes buffered by FCM/APNs.
         if (item.created_at) pushData.created_at = String(item.created_at);
 

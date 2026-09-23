@@ -2,7 +2,7 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { format, isBefore, startOfToday } from 'date-fns';
+import { format, isBefore, parse, startOfToday } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '@/components/ui/drawer';
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogAction } from '@/components/ui/alert-dialog';
@@ -37,6 +37,7 @@ import {
   serviceLocationNeedsAddress,
   serviceLocationToFulfillmentType,
 } from '@/lib/service-location';
+import { setPendingAuthAction, type PendingBookingDraft } from '@/lib/pending-auth-action';
 
 interface ServiceBookingFlowProps {
   open: boolean;
@@ -51,6 +52,8 @@ interface ServiceBookingFlowProps {
   durationMinutes?: number;
   locationType?: string;
   subcategoryId?: string | null;
+  /** Restored after guest OTP so the buyer does not re-pick date/time */
+  initialDraft?: PendingBookingDraft | null;
 }
 
 const MAX_NOTES_LENGTH = 500;
@@ -61,6 +64,7 @@ type BookingStep = 'select' | 'review';
 export function ServiceBookingFlow({
   open, onOpenChange, productId, productName, sellerId, sellerName,
   price, category, imageUrl, durationMinutes, locationType, subcategoryId,
+  initialDraft = null,
 }: ServiceBookingFlowProps) {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -70,6 +74,7 @@ export function ServiceBookingFlow({
   const { config } = useCategoryBehavior(category as ServiceCategory);
 
   const isSubmittingRef = useRef(false);
+  const appliedDraftRef = useRef<string | null>(null);
 
   // Bug #2/#3: Fetch service_listings to get correct location_type and duration_minutes
   const { data: serviceListing } = useQuery({
@@ -93,10 +98,11 @@ export function ServiceBookingFlow({
   const [selectedLocationType, setSelectedLocationType] = useState<string>('at_seller');
 
   useEffect(() => {
-    if (open && allowedLocationTypes.length > 0) {
-      setSelectedLocationType(allowedLocationTypes[0]);
-    }
-  }, [open, productId, allowedLocationTypes.join('|')]);
+    if (!open || allowedLocationTypes.length === 0) return;
+    // Don't wipe a restored guest draft location choice.
+    if (initialDraft?.locationType) return;
+    setSelectedLocationType(allowedLocationTypes[0]);
+  }, [open, productId, allowedLocationTypes.join('|'), initialDraft?.locationType]);
 
   const { data: serviceSlots = [], refetch: refetchSlots } = useServiceSlots(open ? productId : undefined);
   const availableSlots = useMemo(
@@ -119,24 +125,67 @@ export function ServiceBookingFlow({
   const extraGroups = useProductExtraGroups(productSpecs);
 
   useEffect(() => {
-    if (open) {
-      setStep('select');
-      setSelectedDate(undefined);
-      setSelectedTime(undefined);
-      setNotes('');
-      setBuyerAddress('');
-      setSelectedAddons([]);
-      setSelectedExtras([]);
-      setRecurringConfig({ enabled: false, frequency: 'weekly' });
-      setSelectedLocationType(allowedLocationTypes[0] || 'at_seller');
+    if (!open) {
+      appliedDraftRef.current = null;
+      return;
+    }
+
+    const draftKey = initialDraft
+      ? `${productId}:${initialDraft.date || ''}:${initialDraft.time || ''}`
+      : null;
+
+    if (initialDraft && draftKey) {
+      if (appliedDraftRef.current === draftKey) return;
+      appliedDraftRef.current = draftKey;
+
+      let restoredDate: Date | undefined;
+      if (initialDraft.date) {
+        try {
+          restoredDate = parse(initialDraft.date, 'yyyy-MM-dd', new Date());
+          if (Number.isNaN(restoredDate.getTime())) restoredDate = undefined;
+        } catch {
+          restoredDate = undefined;
+        }
+      }
+      setStep(initialDraft.step === 'review' && restoredDate && initialDraft.time ? 'review' : 'select');
+      setSelectedDate(restoredDate);
+      setSelectedTime(initialDraft.time || undefined);
+      setNotes(typeof initialDraft.notes === 'string' ? initialDraft.notes : '');
+      setBuyerAddress(typeof initialDraft.buyerAddress === 'string' ? initialDraft.buyerAddress : '');
+      setSelectedAddons(Array.isArray(initialDraft.addons) ? initialDraft.addons : []);
+      setSelectedExtras(Array.isArray(initialDraft.extras) ? (initialDraft.extras as SelectedExtra[]) : []);
+      setRecurringConfig(
+        initialDraft.recurring?.enabled
+          ? { enabled: true, frequency: (initialDraft.recurring.frequency as RecurringConfig['frequency']) || 'weekly' }
+          : { enabled: false, frequency: 'weekly' },
+      );
+      setSelectedLocationType(initialDraft.locationType || allowedLocationTypes[0] || 'at_seller');
       setIsLoading(false);
       isSubmittingRef.current = false;
       if (productId) {
         supabase.from('products').select('specifications').eq('id', productId).maybeSingle()
           .then(({ data }) => setProductSpecs((data as any)?.specifications || null));
       }
+      return;
     }
-  }, [open, productId]);
+
+    appliedDraftRef.current = null;
+    setStep('select');
+    setSelectedDate(undefined);
+    setSelectedTime(undefined);
+    setNotes('');
+    setBuyerAddress('');
+    setSelectedAddons([]);
+    setSelectedExtras([]);
+    setRecurringConfig({ enabled: false, frequency: 'weekly' });
+    setSelectedLocationType(allowedLocationTypes[0] || 'at_seller');
+    setIsLoading(false);
+    isSubmittingRef.current = false;
+    if (productId) {
+      supabase.from('products').select('specifications').eq('id', productId).maybeSingle()
+        .then(({ data }) => setProductSpecs((data as any)?.specifications || null));
+    }
+  }, [open, productId, initialDraft]);
 
   const { data: subcategories = [] } = useSubcategories(config?.id || null);
   const activeSubcategory = useMemo(() => {
@@ -191,8 +240,29 @@ export function ServiceBookingFlow({
     isSubmittingRef.current = true;
 
     if (!user) {
-      notify.block('Please sign in first');
-      navigate('/auth');
+      const returnTo = productId ? `/product/${productId}` : '/';
+      const bookingDraft: PendingBookingDraft = {
+        date: selectedDate ? format(selectedDate, 'yyyy-MM-dd') : undefined,
+        time: selectedTime,
+        notes,
+        buyerAddress,
+        locationType: selectedLocationType,
+        step: 'review',
+        addons: selectedAddons,
+        extras: selectedExtras,
+        recurring: recurringConfig,
+      };
+      setPendingAuthAction({
+        type: 'book',
+        productId,
+        sellerId,
+        actionType: 'book',
+        returnTo,
+        bookingDraft,
+      });
+      notify.block('Sign in to book this service');
+      onOpenChange(false);
+      navigate('/auth', { state: { from: returnTo, returnTo } });
       isSubmittingRef.current = false;
       return;
     }

@@ -118,7 +118,7 @@ describe('onboarding meta persistence (Tests 2, 3, 5)', () => {
     const page = readSrc('src/pages/BecomeSellerPage.tsx');
     const hook = readSrc('src/hooks/useSellerApplication.ts');
     const intent = readSrc('src/components/seller/IntentCategoryStep.tsx');
-    expect(page).toContain('existingSeller && selectedGroup && !forceNew');
+    expect(page).toMatch(/existingSeller\s*&&\s*[\r\n\s]*selectedGroup\s*&&\s*[\r\n\s]*!forceNew/);
     expect(page).toContain('takenStore');
     expect(hook).toMatch(/if \(forceNew\) return;/);
     expect(intent).toContain('shouldSurfaceListingSuggestion');

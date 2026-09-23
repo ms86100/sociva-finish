@@ -44,6 +44,7 @@ import { fullStorePlaceLine } from '@/lib/location-label-resolver';
 import { SellerLocationLine } from '@/components/location/SellerLocationLine';
 import { buildProductShareText, productShareUrl, shareSocivaContent } from '@/lib/sociva-share';
 import { canShowRepeatRate } from '@/hooks/queries/useProductTrustMetrics';
+import { OfferingImageCarousel } from '@/components/product/OfferingImageCarousel';
 
 const PriceHistoryChart = lazy(() =>
   import('./PriceHistoryChart').then((m) => ({ default: m.PriceHistoryChart })),
@@ -228,7 +229,14 @@ export function ProductDetailSheet({ product, open, onOpenChange, onSelectProduc
               animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
             >
-              {product.image_url ? (<img src={product.image_url} alt={product.product_name} className="w-full h-full object-contain" />) : (<div className="w-full h-full flex items-center justify-center"><DynamicIcon name={categoryIcon || '🛍️'} size={72} /></div>)}
+              <OfferingImageCarousel
+                source={{
+                  image_url: product.image_url,
+                  secondary_images: (product as any).secondary_images ?? d.gallerySecondaryImages,
+                }}
+                alt={product.product_name}
+                fallbackIcon={categoryIcon || '🛍️'}
+              />
               <button onClick={() => onOpenChange(false)} className="absolute top-3 right-3 z-10 w-8 h-8 rounded-full bg-background/80 backdrop-blur-sm flex items-center justify-center shadow-md border border-border/30" aria-label="Close"><X size={18} className="text-foreground" /></button>
               {product && user && (
                 <div className="absolute top-3 right-14 z-10">

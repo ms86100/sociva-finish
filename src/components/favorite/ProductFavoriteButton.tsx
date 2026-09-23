@@ -9,6 +9,7 @@ import { hapticImpact, hapticNotification } from '@/lib/haptics';
 import { toast } from 'sonner';
 import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
 import { notify } from '@/lib/notify';
+import { useNavigate, useLocation } from 'react-router-dom';
 
 interface ProductFavoriteButtonProps {
   productId: string;
@@ -20,6 +21,8 @@ interface ProductFavoriteButtonProps {
 
 export function ProductFavoriteButton({ productId, initialFavorite = false, size = 'sm', className, onToggle }: ProductFavoriteButtonProps) {
   const { user } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
   const [isFavorite, setIsFavorite] = useState(initialFavorite);
   const [isLoading, setIsLoading] = useState(false);
   const controls = useAnimation();
@@ -28,7 +31,9 @@ export function ProductFavoriteButton({ productId, initialFavorite = false, size
     e.preventDefault();
     e.stopPropagation();
     if (!user) {
-      notify.block('Please log in to save products');
+      const returnTo = `${location.pathname || '/'}${location.search || ''}`;
+      notify.block('Sign in to save products');
+      navigate('/auth', { state: { from: returnTo, returnTo } });
       return;
     }
     if (isLoading) return;
@@ -62,7 +67,7 @@ export function ProductFavoriteButton({ productId, initialFavorite = false, size
     } finally {
       setIsLoading(false);
     }
-  }, [user, productId, isFavorite, isLoading, onToggle, controls]);
+  }, [user, productId, isFavorite, isLoading, onToggle, controls, navigate, location.pathname, location.search]);
 
   const iconSize = size === 'sm' ? 14 : 18;
 

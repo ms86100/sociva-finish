@@ -454,6 +454,14 @@ Deno.serve(async (req) => {
     const campaignId = campaign.id;
     console.log(`[Campaign] Created ${campaignId}, targeting ${allTokens.length} devices`);
 
+    // Include campaign_id in FCM/APNs data so client can attribute opens → orders
+    const pushPayload: Record<string, string> = {
+      ...(data && typeof data === "object" ? Object.fromEntries(
+        Object.entries(data).map(([k, v]) => [k, String(v ?? "")]),
+      ) : {}),
+      campaign_id: String(campaignId),
+    };
+
     if (allTokens.length === 0) {
       await adminClient
         .from("campaigns")
@@ -508,15 +516,15 @@ Deno.serve(async (req) => {
         // iOS with APNs token → direct APNs
         if (tokenRecord.platform === "ios" && tokenRecord.apns_token && apnsConfigured) {
           result = await sendApnsDirect(
-            tokenRecord.apns_token, title, body, apnsJwt, bundleId!, data
+            tokenRecord.apns_token, title, body, apnsJwt, bundleId!, pushPayload
           );
           // Fallback to FCM if APNs fails (not invalid token)
           if (!result.success && result.error !== "INVALID_TOKEN") {
-            result = await sendFCM(fcmAccessToken, serviceAccount.project_id, tokenRecord.token, title, body, data);
+            result = await sendFCM(fcmAccessToken, serviceAccount.project_id, tokenRecord.token, title, body, pushPayload);
           }
         } else {
           // Android or iOS without APNs token → FCM
-          result = await sendFCM(fcmAccessToken, serviceAccount.project_id, tokenRecord.token, title, body, data);
+          result = await sendFCM(fcmAccessToken, serviceAccount.project_id, tokenRecord.token, title, body, pushPayload);
         }
 
         return { ...result, id: tokenRecord.id };

@@ -14,13 +14,14 @@ import { toast } from 'sonner';
 import { useBrowsingLocation } from '@/contexts/BrowsingLocationContext';
 import { filterDiscoverableProductIds } from '@/lib/sellerDiscoverability';
 import { resolveProductAvailability } from '@/lib/product-availability';
-import { setPendingAuthAction } from '@/lib/pending-auth-action';
+import { track } from '@/lib/analytics';
 
 export interface ProductDetail {
   product_id: string;
   product_name: string;
   price: number;
   image_url: string | null;
+  secondary_images?: string[] | null;
   is_veg: boolean | null;
   category: string | null;
   description?: string | null;
@@ -63,6 +64,7 @@ export function useProductDetail(product: ProductDetail | null, open: boolean, o
   } | null>(null);
   const [canonicalStockQty, setCanonicalStockQty] = useState<number | null>(null);
   const [canonicalIsAvailable, setCanonicalIsAvailable] = useState(true);
+  const [gallerySecondaryImages, setGallerySecondaryImages] = useState<string[] | null>(null);
   const { formatPrice } = useCurrency();
 
   useEffect(() => {
@@ -71,10 +73,23 @@ export function useProductDetail(product: ProductDetail | null, open: boolean, o
     setSellerLocationExtras(null);
     setCanonicalStockQty(null);
     setCanonicalIsAvailable(true);
+    setGallerySecondaryImages(null);
+
+    try {
+      track('product_viewed', {
+        product_id: product.product_id,
+        product_name: product.product_name,
+        seller_id: product.seller_id,
+        seller_name: product.seller_name,
+        category: product.category,
+        price: product.price,
+        source: 'unknown',
+      });
+    } catch { /* analytics optional */ }
 
     const fetchData = async () => {
       const [productRes, similarRes] = await Promise.all([
-        supabase.from('products').select('specifications, stock_quantity, is_available, seller:seller_profiles!products_seller_id_fkey(store_location_label, latitude, longitude, society:societies(name, address))').eq('id', product.product_id).maybeSingle(),
+        supabase.from('products').select('specifications, stock_quantity, is_available, secondary_images, seller:seller_profiles!products_seller_id_fkey(store_location_label, latitude, longitude, society:societies(name, address))').eq('id', product.product_id).maybeSingle(),
         supabase.from('products')
           // action_type + category required so similar tap keeps Contact Seller (not default add_to_cart)
           .select('id, name, price, image_url, is_veg, seller_id, stock_quantity, category, description, action_type, seller:seller_profiles!products_seller_id_fkey(business_name, society_id)')
@@ -91,6 +106,8 @@ export function useProductDetail(product: ProductDetail | null, open: boolean, o
       });
       setCanonicalStockQty(productRes.data?.stock_quantity ?? null);
       setCanonicalIsAvailable(productRes.data?.is_available ?? true);
+      const secondary = (productRes.data as any)?.secondary_images;
+      setGallerySecondaryImages(Array.isArray(secondary) ? secondary.filter(Boolean) : []);
       const similar = similarRes.data || [];
       const allowed = await filterDiscoverableProductIds(
         similar.map((p: { id: string }) => p.id),
@@ -168,7 +185,7 @@ export function useProductDetail(product: ProductDetail | null, open: boolean, o
   return {
     trustSnapshot, productTrust, sellerLocationExtras, contactOpen, setContactOpen, enquiryOpen, setEnquiryOpen,
     showDetails, setShowDetails, reportOpen, setReportOpen, descExpanded, setDescExpanded,
-    similarProducts, loadedSpecs, formatPrice,
+    similarProducts, loadedSpecs, formatPrice, gallerySecondaryImages,
     actionType, config, isCartAction, cartItem, quantity, stockLimit, canIncrement,
     handleAdd, isNewSeller, ActionIcon, viewAllLabel, isStockEmpty, isBuyerUnavailable, availabilityOverlayLabel,
     items, updateQuantity, canonicalStockQty,

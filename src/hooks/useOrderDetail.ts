@@ -21,6 +21,7 @@ import { isOrderAcceptanceExpired } from '@/lib/expired-order-acks';
 import { Order, OrderStatus } from '@/types/Database';
 import { toast } from 'sonner';
 import { showFeedback } from '@/components/FeedbackPopupProvider';
+import { track } from '@/lib/analytics';
 
 async function fetchOrderData(id: string) {
   const { data, error } = await supabase
@@ -402,6 +403,21 @@ export function useOrderDetail(id: string | undefined) {
       if (isSellerView) invalidateSellerDashboardCaches(order.seller_id);
       supabase.functions.invoke('process-notification-queue').catch(() => {});
       if (order.society_id) logAudit(`order_${confirmedStatus}`, 'order', order.id, order.society_id, { old_status: order.status, new_status: confirmedStatus, rejection_reason: rejectionReason });
+      if (isSellerView) {
+        const fromPlaced = order.status === 'placed' || order.status === 'enquired';
+        if (fromPlaced && ['accepted', 'confirmed', 'scheduled', 'preparing'].includes(confirmedStatus)) {
+          track('order_accepted', {
+            order_id: order.id,
+            seller_id: order.seller_id,
+            new_status: confirmedStatus,
+          });
+        } else if (confirmedStatus === 'cancelled' && rejectionReason) {
+          track('order_rejected', {
+            order_id: order.id,
+            seller_id: order.seller_id,
+          });
+        }
+      }
     } catch (error: any) {
       console.error('Error updating order:', error, JSON.stringify(error));
       const errMsg = error?.message || error?.details || '';

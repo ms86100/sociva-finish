@@ -24,6 +24,7 @@ import { CommandCenterStore360Sheet } from '@/components/admin/command-center/Co
 import { CommandCenterAttentionInbox } from '@/components/admin/command-center/CommandCenterAttentionInbox';
 import { CommandCenterGrowthPanel } from '@/components/admin/command-center/CommandCenterGrowthPanel';
 import { CommandCenterTrustPanel } from '@/components/admin/command-center/CommandCenterTrustPanel';
+import { CommandCenterProductIntelligence } from '@/components/admin/command-center/CommandCenterProductIntelligence';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   useCommandCenterActivity,
@@ -53,7 +54,8 @@ type CommandCenterTab =
   | 'activity'
   | 'attention'
   | 'growth'
-  | 'trust';
+  | 'trust'
+  | 'intelligence';
 
 const VALID_TABS: CommandCenterTab[] = [
   'sellers',
@@ -67,6 +69,7 @@ const VALID_TABS: CommandCenterTab[] = [
   'attention',
   'growth',
   'trust',
+  'intelligence',
 ];
 
 const VALID_KPIS: KpiKey[] = [
@@ -625,6 +628,7 @@ export default function AdminCommandCenterPage() {
               <TabsTrigger value="attention" className="rounded-lg text-xs">Attention</TabsTrigger>
               <TabsTrigger value="growth" className="rounded-lg text-xs">Growth</TabsTrigger>
               <TabsTrigger value="trust" className="rounded-lg text-xs">Trust</TabsTrigger>
+              <TabsTrigger value="intelligence" className="rounded-lg text-xs">Intelligence</TabsTrigger>
             </TabsList>
 
             <TabsContent value="sellers" className="mt-4">
@@ -898,6 +902,10 @@ export default function AdminCommandCenterPage() {
                 onOpenStore360={setStore360SellerId}
                 isLoading={reportsQuery.isLoading}
               />
+            </TabsContent>
+
+            <TabsContent value="intelligence" className="mt-4">
+              <CommandCenterProductIntelligence societyId={societyScope} />
             </TabsContent>
           </Tabs>
         </div>

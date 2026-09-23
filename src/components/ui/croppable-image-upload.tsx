@@ -148,6 +148,12 @@ export function CroppableImageUpload({
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (isUploading || cropSrc) {
+      // Ignore overlapping picks while crop/upload is in flight (E2E + fast double-select)
+      if (inputRef.current) inputRef.current.value = '';
+      if (cameraInputRef.current) cameraInputRef.current.value = '';
+      return;
+    }
 
     const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
     if (!allowedTypes.includes(file.type)) {

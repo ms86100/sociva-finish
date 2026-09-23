@@ -77,8 +77,19 @@ export function AddressForm({ initial, onSave, onCancel, saving }: AddressFormPr
   const searchRef = useRef<HTMLDivElement>(null);
   const { predictions, isSearching, searchPlaces, getPlaceDetails, clearPredictions, isLoaded } = useAutocomplete();
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const promptedConfirmPinRef = useRef(false);
 
   const update = (key: keyof AddressData, value: any) => setForm(f => ({ ...f, [key]: value }));
+
+  // New address seeded from browse GPS / discovery pin — confirm pin before flat entry
+  useEffect(() => {
+    if (promptedConfirmPinRef.current) return;
+    if (initial?.id) return;
+    if (initial?.latitude == null || initial?.longitude == null) return;
+    if (initial?.flat_number) return;
+    promptedConfirmPinRef.current = true;
+    setShowMap(true);
+  }, [initial?.id, initial?.latitude, initial?.longitude, initial?.flat_number]);
 
   // Debounced search
   const handleSearchChange = useCallback((value: string) => {

@@ -22,6 +22,10 @@
     "test:e2e:debug": "playwright test --config e2e/playwright.config.ts --ui"
   },
   "dependencies": {
+    "@amplitude/analytics-browser": "^2.46.0",
+    "@amplitude/plugin-session-replay-browser": "^1.35.2",
+    "@amplitude/session-replay-browser": "^1.50.2",
+    "@amplitude/unified": "^1.1.35",
     "@capacitor-community/fcm": "^8.1.0",
     "@capacitor/android": "^8.0.2",
     "@capacitor/app": "^8.0.0",

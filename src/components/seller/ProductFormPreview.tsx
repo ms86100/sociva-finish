@@ -14,6 +14,7 @@ import { offeringCopy, type SellerDomain } from '@/lib/seller-domain';
 import type { ProductFormData } from '@/hooks/useSellerProducts';
 import type { SellerProfile } from '@/types/Database';
 import type { BlockData } from '@/hooks/useAttributeBlocks';
+import { OfferingImageCarousel } from '@/components/product/OfferingImageCarousel';
 
 interface ProductFormPreviewProps {
   formData: ProductFormData;
@@ -93,12 +94,14 @@ function ProductDetailPreview({
             <DrawerTitle>{name}</DrawerTitle>
           </DrawerHeader>
 
-          <div className="relative w-full aspect-[4/3] max-h-[45vh] bg-muted">
-            {formData.image_url ? (
-              <img src={formData.image_url} alt={name} className="w-full h-full object-contain" />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center text-4xl">🛍️</div>
-            )}
+          <div className="relative w-full aspect-[4/3] max-h-[45vh] bg-muted overflow-hidden">
+            <OfferingImageCarousel
+              source={{
+                image_url: formData.image_url,
+                secondary_images: formData.secondary_images,
+              }}
+              alt={name}
+            />
             <button
               onClick={() => onOpenChange(false)}
               className="absolute top-3 right-3 z-10 w-8 h-8 rounded-full bg-background/80 backdrop-blur-sm flex items-center justify-center shadow-md border border-border/30"

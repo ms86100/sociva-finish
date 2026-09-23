@@ -1,0 +1,10 @@
+---
+description: Onboarding Sociva credit amount is always 500 unless user overrides
+alwaysApply: true
+---
+
+# Onboarding Sociva credit
+
+When onboarding anyone (seller or user) and allocating Sociva credit, grant **exactly 500** only.
+
+Do not use larger welcome/onboarding amounts unless the user explicitly overrides for that specific case.

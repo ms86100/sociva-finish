@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { useMemo, memo, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Minus, Clock, AlertTriangle, Check, Star } from 'lucide-react';
+import { Plus, Minus, Clock, Check, Star } from 'lucide-react';
 import { formatDistanceToNowStrict } from 'date-fns';
 import { useHaptics } from '@/hooks/useHaptics';
 import { Badge } from '@/components/ui/badge';
@@ -27,6 +27,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { optimizedImageUrl, imageSrcSet, handleImageError } from '@/utils/imageHelpers';
 import { displaySellerStoreName } from '@/lib/seller-journey';
 import { SellerLocationLine } from '@/components/location/SellerLocationLine';
+import { resolveCardTrustSignal, StockLeftBattery } from '@/components/product/StockLeftBattery';
 
 export interface ProductWithSeller {
   id: string; seller_id: string; name: string; price: number; image_url: string | null; category: string;
@@ -124,7 +125,19 @@ function ProductListingCardInner({ product, layout = 'auto', onTap, onNavigate, 
   );
   const isUnavailable = availability.state !== 'available';
   const availabilityOverlayLabel = availability.overlayLabel;
-  const isSellerInactive = useMemo(() => { if (!(product as any).last_active_at) return false; return Date.now() - new Date((product as any).last_active_at).getTime() > 7 * 24 * 60 * 60 * 1000; }, [(product as any).last_active_at]);
+  const activityLabel = useMemo(() => {
+    if (!(product as any).last_active_at) return '';
+    return formatSellerActivity((product as any).last_active_at, ml);
+  }, [(product as any).last_active_at, ml]);
+  const trustSignal = useMemo(
+    () => resolveCardTrustSignal({
+      stockQuantity: product.stock_quantity,
+      prepMinutes: product.prep_time_minutes,
+      lastActiveAt: (product as any).last_active_at,
+      activityLabel,
+    }),
+    [product.stock_quantity, product.prep_time_minutes, (product as any).last_active_at, activityLabel],
+  );
 
   const storeAvailability = useMemo((): StoreAvailability => computeStoreStatus(product.seller_availability_start, product.seller_availability_end, product.seller_operating_days, product.seller_is_available ?? true), [product.seller_availability_start, product.seller_availability_end, product.seller_operating_days, product.seller_is_available]);
   const isStoreClosed = storeAvailability.status !== 'open';
@@ -185,7 +198,6 @@ function ProductListingCardInner({ product, layout = 'auto', onTap, onNavigate, 
     return null;
   }, [product.society_name, (product as any).society_name, distanceLabel]);
 
-  const activityLabel = useMemo(() => { if (!(product as any).last_active_at) return ''; return formatSellerActivity((product as any).last_active_at, ml); }, [(product as any).last_active_at, ml]);
   const onTimeBadgeMinOrders = ml.threshold('on_time_badge_min_orders');
 
   const placeholderBg = catConfig?.color ? `${catConfig.color}10` : undefined;
@@ -552,15 +564,18 @@ function ProductListingCardInner({ product, layout = 'auto', onTap, onNavigate, 
             </div>
           )}
 
-          {(activityLabel || isSellerInactive) && (
+          {trustSignal && (
             <div className="flex items-center gap-1 mt-0.5">
-              {isSellerInactive ? (
-                <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-destructive/10 text-destructive flex items-center gap-0.5">
-                  <AlertTriangle size={8} />Store may be unresponsive
+              {trustSignal.kind === 'stock' ? (
+                <StockLeftBattery quantity={trustSignal.quantity} />
+              ) : trustSignal.kind === 'prep' ? (
+                <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-primary">
+                  <Clock size={9} className="shrink-0" />
+                  Ready in ~{trustSignal.minutes} min
                 </span>
-              ) : activityLabel ? (
-                <span className="text-[9px] text-muted-foreground">{activityLabel}</span>
-              ) : null}
+              ) : (
+                <span className="text-[9px] text-muted-foreground">{trustSignal.label}</span>
+              )}
             </div>
           )}
 

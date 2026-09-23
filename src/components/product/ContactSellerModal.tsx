@@ -9,6 +9,7 @@ import { SellerChatSheet } from './SellerChatSheet';
 import { supabase } from '@/integrations/supabase/client';
 import { notify } from '@/lib/notify';
 import { sellerCreditCustomerMessage } from '@/lib/sellerCredits';
+import { setPendingAuthAction } from '@/lib/pending-auth-action';
 
 interface ContactSellerModalProps {
   open: boolean;
@@ -52,9 +53,17 @@ export function ContactSellerModal({
 
   const initiateContact = useCallback(async (type: 'call' | 'message') => {
     if (!buyerId) {
-      notify.block('Please sign in to contact this seller.');
+      const returnTo = productId ? `/product/${productId}` : '/';
+      setPendingAuthAction({
+        type: 'contact',
+        productId,
+        sellerId,
+        actionType: 'contact_seller',
+        returnTo,
+      });
+      notify.block('Sign in to contact this seller.');
       handleOpenChange(false);
-      navigate('/auth');
+      navigate('/auth', { state: { from: returnTo, returnTo } });
       return null;
     }
     if (actionLock.current) return null;

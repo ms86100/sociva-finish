@@ -17,11 +17,13 @@ import {
   PREP_TIME_LABEL,
   PREP_TIME_PLACEHOLDER,
 } from '@/lib/product-timing-copy';
+import { track } from '@/lib/analytics';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent } from '@/components/ui/card';
 import { VegBadge } from '@/components/ui/veg-badge';
-import { ProductImageUpload } from '@/components/ui/product-image-upload';
+import { OfferingImageGalleryUpload } from '@/components/ui/offering-image-gallery-upload';
+import { resolveOfferingImages, splitOfferingImages } from '@/lib/offering-images';
 import { useAuth } from '@/contexts/AuthContext';
 import { Plus, Trash2, Loader2, Package, Percent, CheckCircle2, Info, Pencil } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
@@ -66,6 +68,7 @@ interface DraftProduct {
   category: string;
   is_veg: boolean | null;
   image_url: string;
+  secondary_images?: string[] | null;
   prep_time_minutes?: number | null;
   stock_quantity?: number | null;
   low_stock_threshold?: number | null;
@@ -241,6 +244,7 @@ export function DraftProductManager({
     category: categories[0] || '',
     is_veg: null,
     image_url: '',
+    secondary_images: [],
     prep_time_minutes: null,
     action_type: effectiveDefaultActionType || 'add_to_cart',
     subcategory_id: seedSubcategoryId || null,
@@ -317,7 +321,7 @@ export function DraftProductManager({
       if (result.inserted === 0) return;
       return supabase
         .from('products')
-        .select('id, name, price, description, image_url, category, approval_status, seller_id, action_type, subcategory_id, tags, cuisine_type')
+        .select('id, name, price, description, image_url, secondary_images, category, approval_status, seller_id, action_type, subcategory_id, tags, cuisine_type')
         .eq('seller_id', sellerId)
         .then(({ data }) => {
           if (data) onProductsChange(data as DraftProduct[]);
@@ -517,6 +521,13 @@ export function DraftProductManager({
         newProduct.tags,
       );
 
+      const gallery = splitOfferingImages(
+        resolveOfferingImages({
+          image_url: newProduct.image_url,
+          secondary_images: newProduct.secondary_images,
+        }),
+      );
+
       const productPayload = {
         seller_id: sellerId,
         name: newProduct.name.trim(),
@@ -525,7 +536,8 @@ export function DraftProductManager({
         description: newProduct.description.trim() || null,
         category: placement.category || newProduct.category,
         is_veg: showFoodFacetEditor ? newProduct.is_veg : null,
-        image_url: newProduct.image_url.trim() || null,
+        image_url: gallery.image_url,
+        secondary_images: gallery.secondary_images.length ? gallery.secondary_images : null,
         is_available: true,
         approval_status: resolvedApprovalStatus,
         prep_time_minutes: prepParsed.minutes,
@@ -611,6 +623,13 @@ export function DraftProductManager({
         ? products.map((p, i) => (i === editingIndex ? savedRow : p))
         : [...products, savedRow];
       onProductsChange(nextProducts);
+      if (!isEditing) {
+        track('seller_listing_draft_created', {
+          product_id: savedProductId,
+          seller_id: sellerId,
+          category: productPayload.category || null,
+        });
+      }
       showFeedback({
         title: isEditing ? 'Product updated' : 'Product added',
         variant: 'success',
@@ -725,6 +744,7 @@ export function DraftProductManager({
       category: placement.category || categories[0] || '',
       is_veg: null,
       image_url: '',
+      secondary_images: [],
       prep_time_minutes: null,
       stock_quantity: null,
       low_stock_threshold: null,
@@ -1054,22 +1074,26 @@ export function DraftProductManager({
                 />
               </div>
 
-              {/* Product Image */}
+              {/* Product photos — 1 required, up to 5 */}
               <div className="space-y-2" id="prod-image_url">
                 <Label className="text-xs">{copy.imageLabel} <span className="text-destructive">*</span></Label>
                 {user ? (
                   <div className={fieldErrors.image_url ? 'rounded-md ring-2 ring-destructive' : ''}>
-                    <ProductImageUpload
-                      value={newProduct.image_url || null}
-                      onChange={(url) => {
-                        setNewProduct({ ...newProduct, image_url: url || '' });
+                    <OfferingImageGalleryUpload
+                      value={resolveOfferingImages({
+                        image_url: newProduct.image_url,
+                        secondary_images: newProduct.secondary_images,
+                      })}
+                      onChange={(urls) => {
+                        const split = splitOfferingImages(urls);
+                        setNewProduct({
+                          ...newProduct,
+                          image_url: split.image_url || '',
+                          secondary_images: split.secondary_images,
+                        });
                         if (fieldErrors.image_url) setFieldErrors(prev => { const { image_url, ...rest } = prev; return rest; });
                       }}
                       userId={user.id}
-                      productName={newProduct.name}
-                      categoryName={newProduct.category}
-                      description={newProduct.description}
-                      placeholder={copy.imagePlaceholder}
                       beforePick={beforePick}
                     />
                   </div>

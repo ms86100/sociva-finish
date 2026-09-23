@@ -166,10 +166,22 @@ export function SearchAutocomplete({ query, onSelect, maxHeight }: Props) {
   const hasResults = productSuggestions.length > 0 || sellerSuggestions.length > 0 || matchedCategories.length > 0;
   const optionCount = productSuggestions.length + sellerSuggestions.length + matchedCategories.length;
   const isVisible = trimmed.length >= 2 && hasResults && dismissedQuery !== trimmed;
+  const activeIndexRef = useRef(activeIndex);
+  activeIndexRef.current = activeIndex;
+  const optionCountRef = useRef(optionCount);
+  optionCountRef.current = optionCount;
+  const trimmedRef = useRef(trimmed);
+  trimmedRef.current = trimmed;
 
+  // Reset highlight when the query text changes — do not depend on dismissedQuery
+  // (clearing dismissal must not re-enter this effect and loop setState).
   useEffect(() => {
     setActiveIndex(-1);
-    if (dismissedQuery && dismissedQuery !== trimmed) setDismissedQuery('');
+  }, [trimmed]);
+
+  useEffect(() => {
+    if (!dismissedQuery) return;
+    if (dismissedQuery !== trimmed) setDismissedQuery('');
   }, [trimmed, dismissedQuery]);
 
   useEffect(() => {
@@ -183,17 +195,19 @@ export function SearchAutocomplete({ query, onSelect, maxHeight }: Props) {
     input.setAttribute('aria-expanded', 'true');
 
     const handleKeyDown = (event: KeyboardEvent) => {
+      const count = optionCountRef.current;
+      if (count <= 0) return;
       if (event.key === 'ArrowDown') {
         event.preventDefault();
-        setActiveIndex((current) => (current + 1) % optionCount);
+        setActiveIndex((current) => (current + 1) % count);
       } else if (event.key === 'ArrowUp') {
         event.preventDefault();
-        setActiveIndex((current) => (current <= 0 ? optionCount - 1 : current - 1));
-      } else if (event.key === 'Enter' && activeIndex >= 0) {
+        setActiveIndex((current) => (current <= 0 ? count - 1 : current - 1));
+      } else if (event.key === 'Enter' && activeIndexRef.current >= 0) {
         event.preventDefault();
-        rootRef.current?.querySelector<HTMLButtonElement>(`[data-option-index="${activeIndex}"]`)?.click();
+        rootRef.current?.querySelector<HTMLButtonElement>(`[data-option-index="${activeIndexRef.current}"]`)?.click();
       } else if (event.key === 'Escape') {
-        setDismissedQuery(trimmed);
+        setDismissedQuery(trimmedRef.current);
         setActiveIndex(-1);
       }
     };
@@ -204,7 +218,7 @@ export function SearchAutocomplete({ query, onSelect, maxHeight }: Props) {
       input.setAttribute('aria-expanded', 'false');
       input.removeAttribute('aria-activedescendant');
     };
-  }, [activeIndex, isVisible, listboxId, optionCount, trimmed]);
+  }, [isVisible, listboxId]);
 
   useEffect(() => {
     const input = rootRef.current?.parentElement?.querySelector('input');

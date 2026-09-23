@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
 import { cn } from '@/lib/utils';
 import { notify } from '@/lib/notify';
+import { useNavigate, useLocation } from 'react-router-dom';
 
 interface FavoriteButtonProps {
   sellerId: string;
@@ -25,6 +26,8 @@ export function FavoriteButton({
   onToggle,
 }: FavoriteButtonProps) {
   const { user } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
   const [isFavorite, setIsFavorite] = useState(initialFavorite);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -54,7 +57,9 @@ export function FavoriteButton({
     e.stopPropagation();
 
     if (!user) {
-      notify.block('Please sign in to add favorites');
+      const returnTo = `${location.pathname || '/'}${location.search || ''}`;
+      notify.block('Sign in to save favorites');
+      navigate('/auth', { state: { from: returnTo, returnTo } });
       return;
     }
 

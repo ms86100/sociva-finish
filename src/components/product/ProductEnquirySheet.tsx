@@ -19,6 +19,7 @@ import { buyerCanOrderFromSeller } from '@/lib/sellerDiscoverability';
 import { PRECISE_LOCATION_TITLE } from '@/lib/buyerLocation';
 import { ProductExtraPicker, useProductExtraGroups } from '@/components/product/ProductExtraPicker';
 import { extrasHaveRequiredGaps, sanitizeSelectedExtras, type SelectedExtra } from '@/lib/productExtras';
+import { setPendingAuthAction } from '@/lib/pending-auth-action';
 
 interface ProductEnquirySheetProps {
   open: boolean;
@@ -118,8 +119,17 @@ export function ProductEnquirySheet({
 
   const handleSubmit = async () => {
     if (!user) {
-      notify.block('Please sign in first');
-      navigate('/auth');
+      const returnTo = productId ? `/product/${productId}` : '/';
+      setPendingAuthAction({
+        type: 'enquire',
+        productId,
+        sellerId,
+        actionType,
+        returnTo,
+      });
+      notify.block('Sign in to continue');
+      onOpenChange(false);
+      navigate('/auth', { state: { from: returnTo, returnTo } });
       return;
     }
 

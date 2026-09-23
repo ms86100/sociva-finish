@@ -201,6 +201,14 @@ export function useAuthState() {
     setPartial({ isSigningOut: true });
     const currentUserId = state.user?.id;
 
+    try {
+      const { track, resetAnalytics } = await import('@/lib/analytics');
+      track('logout', {});
+      resetAnalytics();
+    } catch {
+      // analytics optional
+    }
+
     // Always clear local session first so UI cannot bounce back into the shell
     try {
       await supabase.auth.signOut({ scope: 'local' } as any);

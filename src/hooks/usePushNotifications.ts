@@ -11,6 +11,7 @@ import { LiveActivityManager } from '@/services/LiveActivityManager';
 import { getTerminalStatuses } from '@/services/statusFlowCache';
 import { pickNotificationRoute } from '@/lib/notification-routes';
 import { setPendingDeepLink } from '@/hooks/useDeepLinks';
+import { track, setAttribution } from '@/lib/analytics';
 import {
   mapPushReceiveToNotificationState,
   stampDeviceTokenInstallation,
@@ -20,7 +21,29 @@ import {
 /**
  * BUILD FINGERPRINT — bump on every push-related update.
  */
-export const PUSH_BUILD_ID = '2026-09-22-INSTALLATION-LIFECYCLE-P1';
+export const PUSH_BUILD_ID = '2026-09-23-ANALYTICS-PUSH-ATTRIBUTION';
+
+function pushAnalyticsProps(data: Record<string, string> | undefined, route?: string | null) {
+  if (!data) return {};
+  return {
+    queue_item_id: data.queue_item_id || null,
+    campaign_id: data.campaign_id || null,
+    notification_type: data.type || null,
+    route: route || data.route || data.action_url || data.reference_path || null,
+  };
+}
+
+function applyPushAttribution(data: Record<string, string> | undefined) {
+  if (!data) return;
+  const campaign_id = data.campaign_id || undefined;
+  const queue_item_id = data.queue_item_id || undefined;
+  if (!campaign_id && !queue_item_id) return;
+  setAttribution({
+    campaign_id: campaign_id || null,
+    queue_item_id: queue_item_id || null,
+    attribution_source: 'push',
+  });
+}
 
 type RegistrationState = 'idle' | 'registering' | 'registered' | 'failed';
 
@@ -472,6 +495,8 @@ export function usePushNotificationsInternal() {
 
         // Suppress duplicate alert if Live Activity is already tracking this order
         const data = notification?.data as Record<string, string> | undefined;
+        track('push_notification_received', pushAnalyticsProps(data));
+        applyPushAttribution(data);
         const orderId = data?.orderId ?? data?.order_id ?? data?.entity_id;
 
         // Staleness check: if the queue item has a created_at older than 10 minutes,
@@ -629,7 +654,14 @@ export function usePushNotificationsInternal() {
           const navState = isSellerOrder ? { state: { tab: 'selling' } } : undefined;
           toastOptions.action = {
             label: isStatusNudge ? 'Update Status' : 'View',
-            onClick: () => navigateRef.current(route, navState),
+            onClick: () => {
+              track('push_action_clicked', {
+                ...pushAnalyticsProps(data, route),
+                action: isStatusNudge ? 'update_status' : 'view',
+              });
+              applyPushAttribution(data);
+              navigateRef.current(route, navState);
+            },
           };
         }
 
@@ -676,6 +708,9 @@ export function usePushNotificationsInternal() {
           reference_path: data?.route || data?.action_url || data?.reference_path,
           payload: data,
         });
+        track('push_notification_opened', pushAnalyticsProps(data, route));
+        track('app_opened_from_push', pushAnalyticsProps(data, route));
+        applyPushAttribution(data);
         if (route && route !== '/notifications') {
           const isSellerRefund = String(data?.status || '').toLowerCase() === 'refund_requested'
             && String(data?.target_role || '').toLowerCase() === 'seller';

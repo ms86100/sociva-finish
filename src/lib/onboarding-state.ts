@@ -3,8 +3,75 @@
  */
 import type { SubcategoryPreferences } from '@/hooks/useSellerApplication';
 import { NEW_ONBOARDING_TOTAL_STEPS } from '@/lib/listing-intent';
+import { isShelvedSellerStore } from '@/lib/seller-journey';
 
 export const ONBOARDING_META_VERSION = 1;
+
+/** Human labels for the 4-step seller onboarding wizard (match BecomeSellerPage STEP_META). */
+export const ONBOARDING_STEP_LABELS: Record<number, string> = {
+  1: 'What would you like to sell?',
+  2: 'Pick a subcategory',
+  3: 'Add listing details',
+  4: 'Name your store and submit',
+};
+
+export function onboardingStepLabel(step: number | undefined | null): string {
+  const s = clampOnboardingStep(Number(step) || 1);
+  return ONBOARDING_STEP_LABELS[s] || ONBOARDING_STEP_LABELS[1];
+}
+
+/**
+ * Progress for an incomplete draft based on last saved wizard step.
+ * Step 1 → 0%, step 4 → 100%.
+ */
+export function draftProgressPercent(step: number | undefined | null): number {
+  const s = clampOnboardingStep(Number(step) || 1);
+  if (NEW_ONBOARDING_TOTAL_STEPS <= 1) return s >= 1 ? 100 : 0;
+  return Math.round(((s - 1) / (NEW_ONBOARDING_TOTAL_STEPS - 1)) * 100);
+}
+
+/** Label for where the seller stopped (incomplete step). */
+export function stoppedAtLabel(meta: Pick<OnboardingMeta, 'step'> | null | undefined): string {
+  return onboardingStepLabel(meta?.step);
+}
+
+export type IncompleteDraftStoreRow = {
+  id?: string;
+  business_name?: string | null;
+  verification_status?: string | null;
+};
+
+/** Live incomplete onboarding draft (not shelved [ARCHIVED]/[HOLD]). */
+export function isIncompleteDraftStore(
+  store: IncompleteDraftStoreRow | null | undefined,
+): boolean {
+  if (!store) return false;
+  if ((store.verification_status || '') !== 'draft') return false;
+  return !isShelvedSellerStore(store);
+}
+
+export function listIncompleteDraftStores<T extends IncompleteDraftStoreRow>(
+  stores: T[] | null | undefined,
+): T[] {
+  return (stores || []).filter(isIncompleteDraftStore);
+}
+
+/** Soft-archive display name that keeps the original title readable for QA. */
+export function buildArchivedDraftName(name: string | null | undefined): string {
+  const raw = (name || '').trim() || 'Untitled store';
+  if (/^\[(ARCHIVED|HOLD)\]/i.test(raw)) return raw;
+  return `[ARCHIVED] ${raw}`;
+}
+
+/**
+ * Whether starting a new store should be gated because incomplete drafts exist.
+ * Pure helper for one-draft-at-a-time product rule.
+ */
+export function shouldGateNewStoreOnboarding(
+  stores: IncompleteDraftStoreRow[] | null | undefined,
+): boolean {
+  return listIncompleteDraftStores(stores).length > 0;
+}
 
 export interface OnboardingMeta {
   v: number;
@@ -151,13 +218,15 @@ export type SameGroupStoreResolution =
   | { action: 'adopt-draft'; id: string; businessName: string }
   | { action: 'blocked'; id: string; businessName: string; status: string };
 
-/** One seller can have only one store per parent group. */
+/** One seller can have only one store per parent group. Shelved rows never block or adopt. */
 export function resolveSameGroupStore(
   stores: SameGroupStoreRow[],
   group: string,
   currentDraftId: string | null,
 ): SameGroupStoreResolution {
-  const hit = stores.find((s) => s.primary_group === group);
+  const hit = stores.find(
+    (s) => s.primary_group === group && !isShelvedSellerStore(s),
+  );
   if (!hit) return { action: 'create' };
   if (currentDraftId && hit.id === currentDraftId) return { action: 'update-current', id: hit.id };
   if (hit.verification_status === 'draft') {

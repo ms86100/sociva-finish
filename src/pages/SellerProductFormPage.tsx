@@ -11,7 +11,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { VegBadge } from '@/components/ui/veg-badge';
-import { ProductImageUpload } from '@/components/ui/product-image-upload';
+import { OfferingImageGalleryUpload } from '@/components/ui/offering-image-gallery-upload';
+import { resolveOfferingImages, splitOfferingImages } from '@/lib/offering-images';
 import { ProductCategory, ProductActionType } from '@/types/Database';
 import { ArrowLeft, ArrowRight, Loader2, Star, Award, Bell, Package, Tag, Settings2, Eye, Layers, Wrench, Check, Info } from 'lucide-react';
 import { ACTION_CONFIG } from '@/lib/marketplace-constants';
@@ -330,19 +331,24 @@ function StepBasics({ sp }: { sp: ReturnType<typeof useSellerProducts> }) {
   return (
     <>
       <div id="edit-prod-image_url">
-        <Label className="text-sm font-semibold">Product Image *</Label>
+        <Label className="text-sm font-semibold">Photos *</Label>
         {sp.user && (
           <div className={`mt-1.5 ${sp.fieldErrors.image_url ? 'rounded-md ring-2 ring-destructive' : ''}`}>
-            <ProductImageUpload
-              value={sp.formData.image_url}
-              onChange={(url) => {
-                sp.setFormData({ ...sp.formData, image_url: url });
+            <OfferingImageGalleryUpload
+              value={resolveOfferingImages({
+                image_url: sp.formData.image_url,
+                secondary_images: sp.formData.secondary_images,
+              })}
+              onChange={(urls) => {
+                const split = splitOfferingImages(urls);
+                sp.setFormData((prev) => ({
+                  ...prev,
+                  image_url: split.image_url,
+                  secondary_images: split.secondary_images,
+                }));
                 if (sp.fieldErrors.image_url) sp.setFieldErrors((prev) => { const { image_url, ...rest } = prev; return rest; });
               }}
               userId={sp.user.id}
-              productName={sp.formData.name}
-              categoryName={sp.activeCategoryConfig?.displayName || sp.formData.category || undefined}
-              description={sp.formData.description || undefined}
               beforePick={sp.persistDraftNow}
             />
           </div>

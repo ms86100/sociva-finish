@@ -4,6 +4,7 @@
  */
 
 import type { CartItem, Product } from '@/types/Database';
+import { normalizeGuestProductSeller } from '@/lib/guest-cart-enrich';
 
 const STORAGE_KEY = 'sociva_guest_cart_v1';
 
@@ -63,7 +64,7 @@ export function guestCartToItems(lines: GuestCartLine[] = loadRaw()): (CartItem 
     created_at: new Date().toISOString(),
     society_id: null,
     selected_extras: Array.isArray(row.selected_extras) ? row.selected_extras : [],
-    product: row.product,
+    product: (normalizeGuestProductSeller(row.product) || row.product) as Product,
   })) as (CartItem & { product: Product })[];
 }
 
@@ -90,6 +91,7 @@ export function upsertGuestCartItem(
   quantity: number,
   extras: unknown[] = [],
 ): GuestCartLine[] {
+  const normalized = (normalizeGuestProductSeller(product) || product) as Product;
   const lines = loadRaw();
   const extrasPayload = Array.isArray(extras) ? extras : [];
   const idx = lines.findIndex((row) => row.product_id === product.id);
@@ -97,14 +99,14 @@ export function upsertGuestCartItem(
     lines[idx] = {
       ...lines[idx],
       quantity: lines[idx].quantity + quantity,
-      product,
+      product: normalized,
       ...(extrasPayload.length ? { selected_extras: extrasPayload } : {}),
     };
   } else {
     lines.push({
       product_id: product.id,
       quantity,
-      product,
+      product: normalized,
       selected_extras: extrasPayload,
     });
   }

@@ -77,7 +77,7 @@ export default function LocationDiscoveryPage() {
           fullAddress: fullAddress || label,
           lat,
           lng,
-          source: 'gps',
+          source: cameFromManualRef.current ? 'address' : 'gps',
         });
         markLocationOnboardingDone();
         setFindingPhase('searching');

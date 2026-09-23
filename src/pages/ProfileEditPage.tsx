@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useSmartBack } from '@/hooks/useSmartBack';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { AddressForm } from '@/components/profile/AddressForm';
 import { AddressCard } from '@/components/profile/AddressCard';
 import { useAuth } from '@/contexts/AuthContext';
+import { useBrowsingLocation } from '@/contexts/BrowsingLocationContext';
 import { useDeliveryAddresses } from '@/hooks/useDeliveryAddresses';
 import { supabase } from '@/integrations/supabase/client';
 import {
@@ -22,12 +23,36 @@ import { ArrowLeft, Plus, Loader2, Mail, MapPin, Phone, User, ChevronRight, KeyR
 import { useEffect, useRef } from 'react';
 import { peekPendingAuthAction, resolvePendingReturnTo } from '@/lib/pending-auth-action';
 
+function seedFromBrowsingLocation(browsingLocation: {
+  lat?: number;
+  lng?: number;
+  label?: string;
+  fullAddress?: string;
+  secondaryLabel?: string;
+} | null) {
+  if (!browsingLocation?.lat || !browsingLocation?.lng) return null;
+  return {
+    latitude: browsingLocation.lat,
+    longitude: browsingLocation.lng,
+    full_address: browsingLocation.fullAddress || browsingLocation.secondaryLabel || browsingLocation.label || '',
+    building_name: browsingLocation.label || '',
+  };
+}
+
 export default function ProfileEditPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const goBack = useSmartBack('/profile');
   const { user, profile, society, refreshProfile, signOut } = useAuth();
+  const { browsingLocation } = useBrowsingLocation();
   const { showFeedback } = useFeedbackPopup();
   const { addresses, isLoading: addressesLoading, saveAddress, deleteAddress, setDefault, isSaving } = useDeliveryAddresses();
+
+  const pendingAuth = peekPendingAuthAction();
+  const returnTo =
+    (location.state as { returnTo?: string } | null)?.returnTo
+    || (pendingAuth ? resolvePendingReturnTo(pendingAuth, '/') : null);
+  const focusAddress = !!(location.state as { focusAddress?: boolean } | null)?.focusAddress;
 
   const [name, setName] = useState(
     profile?.name && profile.name !== 'User' ? profile.name : ''
@@ -128,7 +153,9 @@ export default function ProfileEditPage() {
         variant: 'success'
       });
       const pending = peekPendingAuthAction();
-      navigate(pending ? resolvePendingReturnTo(pending, '/') : '/');
+      const dest = returnTo
+        || (pending ? resolvePendingReturnTo(pending, '/') : '/');
+      navigate(dest);
     } catch (err) {
       console.error('Failed to update profile', err);
       toast.error('Failed to update profile');
@@ -286,7 +313,12 @@ export default function ProfileEditPage() {
 
   const handleAddNew = () => {
     const defaults: any = {};
-    if (society) {
+    // Prefer marketplace browse pin (checkout / discovery) over society HQ —
+    // Apple Review society may be Mountain View while buyer browses Shriram.
+    const fromBrowse = seedFromBrowsingLocation(browsingLocation);
+    if (fromBrowse) {
+      Object.assign(defaults, fromBrowse);
+    } else if (society) {
       defaults.building_name = society.name;
       if (society.latitude) defaults.latitude = society.latitude;
       if (society.longitude) defaults.longitude = society.longitude;
@@ -447,7 +479,13 @@ export default function ProfileEditPage() {
               </div>
             ) : showAddressForm || shouldAutoOpen ? (
               <AddressForm
-                initial={editingAddress || undefined}
+                initial={
+                  editingAddress
+                  || (shouldAutoOpen || focusAddress
+                    ? seedFromBrowsingLocation(browsingLocation) || undefined
+                    : undefined)
+                  || undefined
+                }
                 onSave={handleSaveAddress}
                 onCancel={() => { setShowAddressForm(false); setEditingAddress(null); setDismissedAutoOpen(true); }}
                 saving={isSaving || resolvingSociety}

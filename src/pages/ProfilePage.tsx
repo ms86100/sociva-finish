@@ -39,6 +39,7 @@ import { useTheme } from 'next-themes';
 import { Moon, Sun, RefreshCw } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { actionableSellerProfiles } from '@/lib/seller-journey';
+import { getReplayOptIn, setReplayOptIn, isAnalyticsEnabled } from '@/lib/analytics';
 
 export default function ProfilePage() {
   const navigate = useNavigate();
@@ -48,6 +49,7 @@ export default function ProfilePage() {
   } = useAuth();
   const settings = useSystemSettings();
   const { theme, setTheme } = useTheme();
+  const [replayOptIn, setReplayOptInState] = useState(() => getReplayOptIn());
   const { showFeedback } = useFeedbackPopup();
   const [largeFont, setLargeFont] = useState(() => getFlag('app_large_font'));
   const [isEditingAvatar, setIsEditingAvatar] = useState(false);
@@ -328,6 +330,30 @@ export default function ProfilePage() {
             </div>
             <Switch checked={theme === 'dark'} onCheckedChange={(checked) => setTheme(checked ? 'dark' : 'light')} />
           </div>
+          {true ? (
+            <div className="px-4 py-3 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <Shield size={16} className="text-muted-foreground" />
+                <div>
+                  <p className="text-sm font-medium">Session insights</p>
+                  <p className="text-[11px] text-muted-foreground">
+                    Help us improve UX (masks passwords, OTP, payments)
+                  </p>
+                </div>
+              </div>
+              <Switch
+                checked={replayOptIn}
+                onCheckedChange={(checked) => {
+                  setReplayOptIn(checked);
+                  setReplayOptInState(checked);
+                  showFeedback({
+                    title: checked ? 'Session insights on' : 'Session insights off',
+                    variant: 'info',
+                  });
+                }}
+              />
+            </div>
+          ) : null}
         </div>
 
         {/* Menu List */}

@@ -66,6 +66,7 @@ import {
   UPI_REQUIRED_FOR_GO_LIVE_MESSAGE,
   UPI_REQUIRED_TITLE,
 } from '@/lib/sellerPaymentReadiness';
+import { track } from '@/lib/analytics';
 
 // Lazy: heavy secondary tabs — keep Orders path lean
 const QuickActions = lazy(() =>
@@ -141,6 +142,13 @@ export default function SellerDashboardPage() {
   const activeSellerId = isPortfolio
     ? currentSellerId
     : resolveOperationalSellerId(currentSellerId, sellerProfiles);
+
+  useEffect(() => {
+    track('seller_dashboard_opened', {
+      seller_id: isPortfolio ? null : currentSellerId,
+      portfolio: isPortfolio,
+    });
+  }, [currentSellerId, isPortfolio]);
 
   // Health checks for StoreStatusCard badge (single-store only)
   const { data: healthData } = useSellerHealth(isPortfolio ? null : activeSellerId);

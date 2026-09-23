@@ -31,6 +31,8 @@ import {
   parseFoodFacets,
   serializeFoodFacets,
 } from '@/lib/food-facets';
+import { track } from '@/lib/analytics';
+import { resolveOfferingImages, splitOfferingImages } from '@/lib/offering-images';
 
 export interface ProductFormData {
   name: string;
@@ -45,6 +47,8 @@ export interface ProductFormData {
   is_recommended: boolean;
   is_urgent: boolean;
   image_url: string | null;
+  /** Extra gallery URLs (orders 2–5); primary is image_url. */
+  secondary_images: string[];
   action_type: ProductActionType;
   contact_phone: string;
   tracks_stock: boolean;
@@ -62,7 +66,7 @@ export interface ProductFormData {
 const INITIAL_FORM: ProductFormData = {
   name: '', description: '', price: '', mrp: '', prep_time_minutes: '',
   category: '', is_veg: null, is_available: true, is_bestseller: false,
-  is_recommended: false, is_urgent: false, image_url: null,
+  is_recommended: false, is_urgent: false, image_url: null, secondary_images: [],
   action_type: 'add_to_cart', contact_phone: '', tracks_stock: false, stock_quantity: '',
   tracks_low_stock_alert: false, low_stock_threshold: '', subcategory_id: '', lead_time_value: '', lead_time_unit: 'hours',
   accepts_preorders: false, tags: [], cuisine_type: null,
@@ -275,7 +279,12 @@ export function useSellerProducts(opts?: {
 
     if (formIntent === 'new') {
       if (hasWork && !saved?.editingProductId) {
-        setFormData(saved.formData);
+        setFormData({
+          ...saved.formData,
+          secondary_images: Array.isArray(saved.formData?.secondary_images)
+            ? saved.formData.secondary_images
+            : [],
+        });
         setAttributeBlocks(saved.attributeBlocks || []);
         setServiceFields(saved.serviceFields || INITIAL_SERVICE_FIELDS);
         setIsDialogOpen(true);
@@ -286,7 +295,12 @@ export function useSellerProducts(opts?: {
 
     if (formIntent === 'edit') {
       if (hasWork && saved?.editingProductId && saved.editingProductId === routeEditingProductId) {
-        setFormData(saved.formData);
+        setFormData({
+          ...saved.formData,
+          secondary_images: Array.isArray(saved.formData?.secondary_images)
+            ? saved.formData.secondary_images
+            : [],
+        });
         setAttributeBlocks(saved.attributeBlocks || []);
         setServiceFields(saved.serviceFields || INITIAL_SERVICE_FIELDS);
         const existing = products.find(p => p.id === saved.editingProductId);
@@ -298,7 +312,12 @@ export function useSellerProducts(opts?: {
     }
 
     if (saved && saved.formData && saved.formData.name?.trim() && validCategory) {
-      setFormData(saved.formData);
+      setFormData({
+        ...saved.formData,
+        secondary_images: Array.isArray(saved.formData?.secondary_images)
+          ? saved.formData.secondary_images
+          : [],
+      });
       setAttributeBlocks(saved.attributeBlocks || []);
       setServiceFields(saved.serviceFields || INITIAL_SERVICE_FIELDS);
       if (saved.editingProductId) {
@@ -334,7 +353,7 @@ export function useSellerProducts(opts?: {
           .select('id, user_id, business_name, description, verification_status, is_available, rating, total_reviews, avg_response_minutes, completed_order_count, cancellation_rate, last_active_at, society_id, primary_group, latitude, longitude, rejection_note, operating_days, sell_beyond_community, delivery_radius_km, cover_image_url, profile_image_url, categories, is_featured, availability_start, availability_end, accepts_cod, accepts_upi, upi_id, created_at, updated_at, fulfillment_mode, minimum_order_amount, daily_order_limit, pickup_payment_config, delivery_payment_config, default_action_type')
           .eq('id', sellerId).single(),
         supabase.from('products')
-          .select('id, name, description, price, mrp, image_url, category, is_veg, is_available, is_bestseller, is_recommended, is_urgent, seller_id, action_type, contact_phone, stock_quantity, low_stock_threshold, prep_time_minutes, created_at, updated_at, approval_status, subcategory_id, lead_time_hours, accepts_preorders, specifications, discount_percentage, tags, cuisine_type')
+          .select('id, name, description, price, mrp, image_url, secondary_images, category, is_veg, is_available, is_bestseller, is_recommended, is_urgent, seller_id, action_type, contact_phone, stock_quantity, low_stock_threshold, prep_time_minutes, created_at, updated_at, approval_status, subcategory_id, lead_time_hours, accepts_preorders, specifications, discount_percentage, tags, cuisine_type')
           .eq('seller_id', sellerId)
           .order('is_bestseller', { ascending: false })
           .order('created_at', { ascending: false }),
@@ -399,7 +418,11 @@ export function useSellerProducts(opts?: {
       mrp: (product as any).mrp?.toString() || '', prep_time_minutes: (product as any).prep_time_minutes?.toString() || '',
       category: product.category, is_veg: product.is_veg, is_available: product.is_available,
       is_bestseller: product.is_bestseller, is_recommended: product.is_recommended, is_urgent: product.is_urgent || false,
-      image_url: product.image_url, action_type: (product as any).action_type || 'add_to_cart',
+      image_url: product.image_url,
+      secondary_images: Array.isArray((product as any).secondary_images)
+        ? ((product as any).secondary_images as string[]).filter(Boolean)
+        : [],
+      action_type: (product as any).action_type || 'add_to_cart',
       contact_phone: (product as any).contact_phone || user?.phone || '',
       tracks_stock: (product as any).stock_quantity != null,
       stock_quantity: (product as any).stock_quantity?.toString() || '',
@@ -581,6 +604,12 @@ export function useSellerProducts(opts?: {
         : { tags: formData.tags || [], cuisine_type: formData.cuisine_type || null };
     // effectiveActionType (declared at hook scope) is the single source of truth
     // for buyer interaction — it uses the seller's configured default.
+    const gallery = splitOfferingImages(
+      resolveOfferingImages({
+        image_url: formData.image_url,
+        secondary_images: formData.secondary_images,
+      }),
+    );
     const productData = {
         seller_id: sellerProfile.id, name: formData.name.trim(), description: formData.description.trim() || null,
         price: isNaN(price) ? 0 : price, mrp: (mrp && !isNaN(mrp) && mrp > 0) ? mrp : null,
@@ -590,7 +619,8 @@ export function useSellerProducts(opts?: {
           ? formData.is_veg
           : null,
         is_bestseller: formData.is_bestseller, is_recommended: formData.is_recommended, is_urgent: formData.is_urgent,
-        image_url: formData.image_url, action_type: effectiveActionType, contact_phone: formData.contact_phone.trim() || null,
+        image_url: gallery.image_url, secondary_images: gallery.secondary_images.length ? gallery.secondary_images : null,
+        action_type: effectiveActionType, contact_phone: formData.contact_phone.trim() || null,
         stock_quantity: (stockQty !== null && !isNaN(stockQty) && stockQty >= 0) ? stockQty : null,
         low_stock_threshold: (lowStockThreshold !== null && !isNaN(lowStockThreshold) && lowStockThreshold > 0) ? lowStockThreshold : null, subcategory_id: placedSubcategoryId || null,
         lead_time_hours,
@@ -602,7 +632,7 @@ export function useSellerProducts(opts?: {
           ? {
               approval_status: (() => {
                 const ep = editingProduct as any;
-                const contentChanged = formData.name.trim() !== ep.name || (formData.description.trim() || null) !== (ep.description || null) || parseFloat(formData.price) !== ep.price || formData.category !== ep.category || formData.image_url !== ep.image_url || formData.action_type !== (ep.action_type || 'add_to_cart') || formData.subcategory_id !== (ep.subcategory_id || '') || (parseFloat(formData.mrp) || null) !== (ep.mrp || null) || JSON.stringify(attributeBlocks) !== JSON.stringify(ep.specifications?.blocks || []);
+                const contentChanged = formData.name.trim() !== ep.name || (formData.description.trim() || null) !== (ep.description || null) || parseFloat(formData.price) !== ep.price || formData.category !== ep.category || formData.image_url !== ep.image_url || JSON.stringify(formData.secondary_images || []) !== JSON.stringify(ep.secondary_images || []) || formData.action_type !== (ep.action_type || 'add_to_cart') || formData.subcategory_id !== (ep.subcategory_id || '') || (parseFloat(formData.mrp) || null) !== (ep.mrp || null) || JSON.stringify(attributeBlocks) !== JSON.stringify(ep.specifications?.blocks || []);
                 if (contentChanged && ['approved', 'rejected'].includes(ep.approval_status)) return 'pending';
                 return ep.approval_status;
               })(),
@@ -692,6 +722,11 @@ export function useSellerProducts(opts?: {
       setIsDialogOpen(false);
       resetForm();
       if (sellerProfile) fetchData(sellerProfile.id);
+      track(editingProduct ? 'product_updated' : 'product_created', {
+        product_id: savedProductId,
+        seller_id: sellerProfile?.id,
+        category: formData.category || null,
+      });
       showFeedback({
         title: editingProduct ? 'Product updated' : 'Product saved successfully',
         variant: 'success',

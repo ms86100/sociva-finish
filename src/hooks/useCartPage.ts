@@ -25,6 +25,7 @@ import { useDeliveryAddresses } from '@/hooks/useDeliveryAddresses';
 import { useBrowsingLocation } from '@/contexts/BrowsingLocationContext';
 import { hasPreciseCoordinates } from '@/lib/buyerLocation';
 import { locationAlignsWithBrowse } from '@/lib/buyerOrderLocation';
+import { computeCheckoutEta, sellerCoordsFromCartItems } from '@/lib/checkout-eta';
 import { hapticImpact, hapticNotification, hapticSelection } from '@/lib/haptics';
 import { toast } from 'sonner';
 import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
@@ -544,6 +545,18 @@ export function useCartPage() {
     return pt && pt > max ? pt : max;
   }, 0);
 
+  const checkoutEta = useMemo(() => {
+    const sellerCoords = sellerCoordsFromCartItems(items);
+    return computeCheckoutEta({
+      fulfillmentType,
+      prepMinutes: maxPrepTime,
+      buyerLat: checkoutLat ?? null,
+      buyerLng: checkoutLng ?? null,
+      sellerLat: sellerCoords?.lat ?? null,
+      sellerLng: sellerCoords?.lng ?? null,
+    });
+  }, [items, fulfillmentType, maxPrepTime, checkoutLat, checkoutLng]);
+
   // Pre-order detection: check if any cart item requires pre-ordering
   const hasPreorderItems = items.some(item => (item.product as any)?.accepts_preorders === true);
   const maxLeadTimeHours = items.reduce((max, item) => {
@@ -1012,6 +1025,19 @@ export function useCartPage() {
       }
       setOrderStep('creating');
       try {
+        try {
+          const { track } = await import('@/lib/analytics');
+          track('checkout_started', {
+            cart_value: finalAmount,
+            seller_count: sellerGroups.length,
+            payment_method: paymentMethod,
+            fulfillment_type: fulfillmentType,
+          });
+          track('payment_started', {
+            cart_value: finalAmount,
+            payment_method: paymentMode.isRazorpay ? 'razorpay' : paymentMode.isUpiDeepLink ? 'upi' : paymentMethod,
+          });
+        } catch { /* analytics optional */ }
         const orderIds = await createOrdersForAllSellers('pending');
         if (orderIds.length === 0) throw new Error('Failed to create orders');
         setPendingOrderIds(orderIds);
@@ -1061,6 +1087,21 @@ export function useCartPage() {
       if (orderIds.length === 0) throw new Error('Failed to create orders');
       hapticNotification('success');
       prefetchFlowData();
+      try {
+        const { track } = await import('@/lib/analytics');
+        track('checkout_started', {
+          cart_value: finalAmount,
+          seller_count: sellerGroups.length,
+          payment_method: 'cod',
+          fulfillment_type: fulfillmentType,
+        });
+        track('order_completed', {
+          order_count: orderIds.length,
+          cart_value: finalAmount,
+          payment_method: 'cod',
+          seller_count: sellerGroups.length,
+        });
+      } catch { /* analytics optional */ }
       // Loyalty + wallet already reserved+committed server-side for COD inside create_multi_vendor_orders
       if (effectiveLoyaltyDiscount > 0) {
         loyalty.clearAppliedPoints();
@@ -1157,6 +1198,22 @@ export function useCartPage() {
 
     // Navigate on next animation frame (deterministic, no magic delays)
     await new Promise(r => requestAnimationFrame(r));
+    try {
+      const { track } = await import('@/lib/analytics');
+      if (confirmOk) {
+        track('payment_success', {
+          order_count: orderIds.length,
+          cart_value: finalAmount,
+          payment_method: 'razorpay',
+        });
+        track('order_completed', {
+          order_count: orderIds.length,
+          cart_value: finalAmount,
+          payment_method: 'razorpay',
+          seller_count: sellerGroups.length,
+        });
+      }
+    } catch { /* analytics optional */ }
     await navigateAfterCheckout(navigate, orderIds);
 
     // Cleanup AFTER navigation — never claim success or clear cart unless confirm OK
@@ -1196,6 +1253,14 @@ export function useCartPage() {
       return;
     }
     setShowRazorpayCheckout(false);
+    try {
+      const { track } = await import('@/lib/analytics');
+      track('payment_failed', {
+        payment_method: 'razorpay',
+        cart_value: finalAmount,
+        order_count: pendingOrderIds.length,
+      });
+    } catch { /* analytics optional */ }
 
     if (pendingOrderIds.length > 0) {
       // Single check — covers webhook confirming while modal was open
@@ -1428,7 +1493,7 @@ export function useCartPage() {
     fulfillmentType, setFulfillmentType, orderStep,
     settings, formatPrice, currencySymbol,
     effectiveDeliveryFee, effectivePackagingFee, finalAmount, acceptsCod, acceptsUpi, onlineDisabledReason,
-    hasUrgentItem, itemCount, maxPrepTime,
+    hasUrgentItem, itemCount, maxPrepTime, checkoutEta,
     effectiveCouponDiscount, effectiveLoyaltyDiscount, loyalty,
     effectiveWalletCredit, payableBeforeWallet, wallet,
     firstSellerFulfillmentMode,

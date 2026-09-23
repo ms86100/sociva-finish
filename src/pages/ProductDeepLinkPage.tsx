@@ -31,7 +31,7 @@ export default function ProductDeepLinkPage() {
         const { data, error: fetchErr } = await supabase
           .from('products')
           .select(`
-            id, name, price, image_url, is_veg, category, description,
+            id, name, price, image_url, secondary_images, is_veg, category, description,
             prep_time_minutes, delivery_time_text, action_type, contact_phone,
             specifications, seller_id, mrp, discount_percentage, stock_quantity,
             service_duration_minutes, service_scope, minimum_charge, visit_charge,
@@ -76,6 +76,9 @@ export default function ProductDeepLinkPage() {
           product_name: data.name,
           price: data.price,
           image_url: data.image_url,
+          secondary_images: Array.isArray((data as any).secondary_images)
+            ? (data as any).secondary_images
+            : [],
           is_veg: data.is_veg,
           category: data.category,
           description: data.description,

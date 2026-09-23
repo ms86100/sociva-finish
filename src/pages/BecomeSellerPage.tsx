@@ -32,6 +32,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDeliveryAddresses } from '@/hooks/useDeliveryAddresses';
 import { useSellerApplication } from '@/hooks/useSellerApplication';
+import { track } from '@/lib/analytics';
+import { trackSellerOnboardingStep } from '@/lib/analytics-journey';
 import { ensureSellerSocietyForSubmit } from '@/lib/seller-society';
 import type { SellerFormData } from '@/hooks/useSellerApplication';
 import { useSubcategories } from '@/hooks/useSubcategories';
@@ -351,6 +353,73 @@ export default function BecomeSellerPage() {
   const [societyLoc, setSocietyLoc] = useState<{ name: string; latitude: number; longitude: number } | null>(null);
   const [societyHasCoords, setSocietyHasCoords] = useState<boolean | null>(null);
 
+  /** Ensure in-progress draft appears even if auth sellerProfiles is briefly stale after saveDraft. */
+  const storesForOnboardingPanel = useMemo(() => {
+    const list = [...(sellerProfiles || [])];
+    const id = app.draftSellerId;
+    if (id && !list.some((s) => s.id === id)) {
+      list.unshift({
+        id,
+        business_name: (app.formData?.business_name || '').trim() || 'Untitled store',
+        verification_status: 'draft',
+        primary_group: app.selectedGroup,
+        categories: app.formData?.categories || [],
+        onboarding_meta: { v: 1, step: app.step },
+      } as any);
+    }
+    return list;
+  }, [sellerProfiles, app.draftSellerId, app.formData?.business_name, app.formData?.categories, app.selectedGroup, app.step]);
+
+  // Keep auth store list fresh while on become-seller so draft cards stay accurate
+  useEffect(() => {
+    if (app.isCheckingExisting) return;
+    void refreshProfile();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [app.draftSellerId, app.isCheckingExisting]);
+
+  useEffect(() => {
+    track('seller_onboarding_started', {
+      force_new: forceNew,
+      resume: Boolean(resumeSellerId),
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Per-step entered (funnel base)
+  useEffect(() => {
+    if (app.submissionComplete || app.isCheckingExisting) return;
+    if (!app.step || app.step < 1) return;
+    trackSellerOnboardingStep({
+      step: app.step,
+      action: 'started',
+      sellerId: app.draftSellerId,
+    });
+  }, [app.step, app.submissionComplete, app.isCheckingExisting]); // eslint-disable-line react-hooks/exhaustive-deps -- fire on step change only
+
+  // Abandon when leaving mid-flow (route unmount) — refs avoid stale closure
+  const abandonRef = useRef({
+    step: app.step,
+    sellerId: app.draftSellerId as string | null,
+    done: app.submissionComplete,
+  });
+  abandonRef.current = {
+    step: app.step,
+    sellerId: app.draftSellerId,
+    done: app.submissionComplete,
+  };
+  useEffect(() => {
+    return () => {
+      const { step, sellerId, done } = abandonRef.current;
+      if (done || !step || step < 1) return;
+      trackSellerOnboardingStep({
+        step,
+        action: 'abandoned',
+        sellerId,
+        props: { reason: 'route_leave' },
+      });
+    };
+  }, []);
+
   // Deep-link resume: /become-seller?seller=<id>
   useEffect(() => {
     if (!resumeSellerId || forceNew) return;
@@ -408,13 +477,42 @@ export default function BecomeSellerPage() {
     handleProceedToSettings, handleProceedToProducts, handleSaveDraftAndExit, handleSubmit,
     setExistingSeller, setDraftSellerId, handleStepBack, handleBackToGroupPicker, handleGroupSelect, submissionComplete,
     loadSellerDataIntoForm, reloadProducts, rejectionFeedback, setRejectionFeedback,
-    resumeExistingStore, startNewStoreOnboarding, saveDraft,
+    resumeExistingStore, startNewStoreOnboarding, requestStartNewStoreOnboarding,
+    renameDraftStore, deleteDraftStore, saveDraft,
     listingIntentPhrase, setListingIntentPhrase,
     commerceModel, setCommerceModel, applyCommerceModelChange,
     seedProductName, setSeedProductName,
     offeringNames, setOfferingNames,
     softListingTag, setSoftListingTag,
   } = app;
+
+  const [welcomeBack, setWelcomeBack] = useState<{ stoppedAt: string; businessName: string } | null>(null);
+
+  const handleResumeDraft = useCallback(async (store: { id: string }) => {
+    const result = await resumeExistingStore(store.id);
+    if (result?.stoppedAt) {
+      setWelcomeBack({
+        stoppedAt: result.stoppedAt,
+        businessName: result.businessName || 'your store',
+      });
+    }
+  }, [resumeExistingStore]);
+
+  const handleRequestAddNewStore = useCallback(() => {
+    const result = requestStartNewStoreOnboarding();
+    // Panel also gates Add; this covers "Add another store" / "Register Another Category".
+    if (result.gated) {
+      setExistingSeller(null);
+      setSelectedGroup(null);
+      setStep(1);
+      notify.block(
+        'You already have a store setup in progress. Continue it from Your stores, or delete the draft and start again.',
+        { title: 'Finish or remove your unfinished store', id: 'seller-draft-gate' },
+      );
+      return;
+    }
+    setWelcomeBack(null);
+  }, [requestStartNewStoreOnboarding, setStep, setExistingSeller, setSelectedGroup]);
 
   // Resume / review can show "add a product" falsely if products weren't loaded yet
   useEffect(() => {
@@ -423,6 +521,14 @@ export default function BecomeSellerPage() {
       void reloadProducts(draftSellerId);
     }
   }, [step, draftSellerId, reloadProducts]);
+
+  // Clear welcome banner once seller advances or dismisses
+  useEffect(() => {
+    if (!welcomeBack) return;
+    const t = window.setTimeout(() => setWelcomeBack(null), 12000);
+    return () => window.clearTimeout(t);
+  }, [welcomeBack]);
+
 
   const pendingOfferings = useMemo(
     () => pendingOfferingNamesForProducts(
@@ -514,11 +620,24 @@ export default function BecomeSellerPage() {
   const softTag = (softListingTag || null) as SoftListingTag;
 
   const persistCommerceChoice = useCallback(async (model: BuyerJourneyId) => {
+    const from = commerceModel || null;
     const ok = await applyCommerceModelChange(model);
     if (!ok) return false;
     handleSetStoreActionType(commerceModelToDefaultAction(model));
+    if (from && from !== model) {
+      track('seller_commerce_model_changed', {
+        from,
+        to: model,
+        seller_id: draftSellerId,
+      });
+    } else {
+      track('seller_commerce_model_selected', {
+        commerce_model: model,
+        seller_id: draftSellerId,
+      });
+    }
     return true;
-  }, [applyCommerceModelChange, handleSetStoreActionType]);
+  }, [applyCommerceModelChange, handleSetStoreActionType, commerceModel, draftSellerId]);
 
   const offeringChips = useMemo(() => {
     const catalogNames = (allSubs || []).map((s: any) => s.display_name).filter(Boolean);
@@ -690,6 +809,12 @@ export default function BecomeSellerPage() {
   const continueFromIntentCategory = useCallback(async (categorySlug: string) => {
     const cfg = configs.find((c: any) => c.category === categorySlug);
     if (!cfg) {
+      trackSellerOnboardingStep({
+        step: 1,
+        action: 'validation_failed',
+        sellerId: draftSellerId,
+        props: { error_code: 'category_not_found', field: 'category' },
+      });
       notify.block('Category not found');
       return;
     }
@@ -699,6 +824,12 @@ export default function BecomeSellerPage() {
       p.id !== draftSellerId,
     );
     if (takenStore) {
+      trackSellerOnboardingStep({
+        step: 1,
+        action: 'validation_failed',
+        sellerId: draftSellerId,
+        props: { error_code: 'store_type_taken', field: 'category' },
+      });
       notify.block(
         `You already have "${takenStore.business_name || 'a store'}" in this store type. Manage that store, or offer items from a different type.`,
         { title: 'Store type already used', id: 'seller-group-taken' },
@@ -737,7 +868,37 @@ export default function BecomeSellerPage() {
       groupOverride: cfg.parentGroup,
       formOverrides: overrides,
     });
-    if (!id) return;
+    if (!id) {
+      trackSellerOnboardingStep({
+        step: 1,
+        action: 'error',
+        sellerId: draftSellerId,
+        props: { error_code: 'save_draft_failed' },
+      });
+      return;
+    }
+    const phrase = intentPhrase.trim();
+    if (phrase) {
+      track('seller_intent_captured', {
+        intent_phrase_len: phrase.length,
+        seller_id: id,
+      });
+    }
+    track('seller_category_selected', {
+      category: cfg.category,
+      parent_group: cfg.parentGroup,
+      seller_id: id,
+    });
+    trackSellerOnboardingStep({
+      step: 1,
+      action: 'completed',
+      sellerId: id,
+      props: {
+        category: cfg.category,
+        commerce_model: model,
+        intent_phrase_len: phrase.length || 0,
+      },
+    });
     setSelectedGroup(cfg.parentGroup);
     setStep(2);
   }, [
@@ -748,6 +909,12 @@ export default function BecomeSellerPage() {
 
   const continueFromSubcategory = useCallback(async (sub: { id: string; displayName: string }) => {
     if (!selectedCategoryConfig) {
+      trackSellerOnboardingStep({
+        step: 2,
+        action: 'validation_failed',
+        sellerId: draftSellerId,
+        props: { error_code: 'category_missing', field: 'category' },
+      });
       notify.block('Select a category first');
       return;
     }
@@ -776,7 +943,15 @@ export default function BecomeSellerPage() {
       groupOverride: selectedCategoryConfig.parentGroup,
       formOverrides: overrides,
     });
-    if (!id) return;
+    if (!id) {
+      trackSellerOnboardingStep({
+        step: 2,
+        action: 'error',
+        sellerId: draftSellerId,
+        props: { error_code: 'save_draft_failed' },
+      });
+      return;
+    }
     const action = storeActionType
       || (commerceModel ? commerceModelToDefaultAction(commerceModel as BuyerJourneyId) : 'add_to_cart');
     const seeded = await ensureDraftProductsForOfferings({
@@ -787,13 +962,30 @@ export default function BecomeSellerPage() {
       subcategoryId: sub.id,
     });
     if (!seeded.ok && seeded.error) {
+      trackSellerOnboardingStep({
+        step: 2,
+        action: 'error',
+        sellerId: id,
+        props: { error_code: 'product_seed_failed' },
+      });
       notify.block(seeded.error, { title: 'Could not prefill listing', id: 'seller-product-seed' });
     }
+    track('seller_subcategory_selected', {
+      subcategory_id: sub.id,
+      category: selectedCategoryConfig.category,
+      seller_id: id,
+    });
+    trackSellerOnboardingStep({
+      step: 2,
+      action: 'completed',
+      sellerId: id,
+      props: { subcategory_id: sub.id, category: selectedCategoryConfig.category },
+    });
     await reloadProducts(id);
     setStep(3);
   }, [
     selectedCategoryConfig, setSeedProductName, setOfferingNames, setFormData,
-    saveDraft, storeActionType, commerceModel, reloadProducts, setStep,
+    saveDraft, storeActionType, commerceModel, reloadProducts, setStep, draftSellerId,
   ]);
 
   // Auto-save draft before opening native image picker (survives WebView reload)
@@ -891,7 +1083,7 @@ export default function BecomeSellerPage() {
               <Button
                 variant="ghost"
                 className="w-full"
-                onClick={startNewStoreOnboarding}
+                onClick={handleRequestAddNewStore}
               >
                 Add another store
               </Button>
@@ -938,12 +1130,14 @@ export default function BecomeSellerPage() {
               </p>
             </div>
             <ExistingStoresOnboardingPanel
-              stores={sellerProfiles}
+              stores={storesForOnboardingPanel}
               configs={configs}
               currentDraftId={draftSellerId}
-              onResumeDraft={(store) => void resumeExistingStore(store.id)}
+              onResumeDraft={(store) => void handleResumeDraft(store)}
               onAddNewStore={startNewStoreOnboarding}
               onManageStore={(id) => { setCurrentSellerId(id); navigate('/seller'); }}
+              onRenameDraft={renameDraftStore}
+              onDeleteDraft={deleteDraftStore}
             />
             <div className="flex flex-col gap-3 mt-4">
               <Button className="w-full" size="lg" onClick={() => { setCurrentSellerId(existingSeller.id); navigate('/seller'); }}>
@@ -1014,7 +1208,7 @@ export default function BecomeSellerPage() {
                   >
                     <ArrowRight size={16} className="mr-2" />Go to Seller Dashboard
                   </Button>
-                  <Button variant="outline" className="w-full" onClick={startNewStoreOnboarding}>Register Another Category</Button>
+                  <Button variant="outline" className="w-full" onClick={handleRequestAddNewStore}>Register Another Category</Button>
                 </div>
               </>
             ) : (
@@ -1051,7 +1245,7 @@ export default function BecomeSellerPage() {
                   <Link to="/seller/category-requests" className="block w-full">
                     <Button variant="outline" className="w-full" size="lg">My Category Requests</Button>
                   </Link>
-                  <Button variant="ghost" className="w-full mt-1" onClick={() => { setSelectedGroup(null); setExistingSeller(null); setStep(1); }}>Register Another Category</Button>
+                  <Button variant="ghost" className="w-full mt-1" onClick={handleRequestAddNewStore}>Register Another Category</Button>
                 </div>
               </>
             )}
@@ -1067,8 +1261,45 @@ export default function BecomeSellerPage() {
         {/* Top Bar */}
         <div className="flex items-center justify-between mb-6">
           <Link to="/" className="flex items-center gap-2 text-muted-foreground"><span className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-muted shrink-0"><ArrowLeft size={18} /></span><span>Back</span></Link>
-          {step >= 2 && <Button variant="ghost" size="sm" onClick={handleSaveDraftAndExit} disabled={isLoading}><Save size={14} className="mr-1" />Save Draft</Button>}
+          {step >= 2 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                abandonRef.current.done = true;
+                void handleSaveDraftAndExit();
+              }}
+              disabled={isLoading}
+            >
+              <Save size={14} className="mr-1" />Save Draft
+            </Button>
+          )}
         </div>
+
+        {welcomeBack && (
+          <div className="mb-4 rounded-xl border border-primary/30 bg-primary/5 p-3 relative">
+            <button
+              type="button"
+              className="absolute top-2 right-2 p-1 rounded-full text-muted-foreground hover:bg-muted"
+              aria-label="Dismiss"
+              onClick={() => setWelcomeBack(null)}
+            >
+              <X size={14} />
+            </button>
+            <p className="text-sm font-semibold pr-6">Welcome back!</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              You were setting up <strong className="text-foreground">{welcomeBack.businessName}</strong> and stopped at{' '}
+              <strong className="text-foreground">{welcomeBack.stoppedAt}</strong>. Your previous information is saved.
+            </p>
+            <Button
+              size="sm"
+              className="mt-2"
+              onClick={() => setWelcomeBack(null)}
+            >
+              Continue Setup
+            </Button>
+          </div>
+        )}
 
         {/* Step Header */}
         <div className="text-center mb-4">
@@ -1115,12 +1346,14 @@ export default function BecomeSellerPage() {
         {step === 1 && (
           <>
             <ExistingStoresOnboardingPanel
-              stores={sellerProfiles}
+              stores={storesForOnboardingPanel}
               configs={configs}
               currentDraftId={draftSellerId}
-              onResumeDraft={(store) => void resumeExistingStore(store.id)}
+              onResumeDraft={(store) => void handleResumeDraft(store)}
               onAddNewStore={startNewStoreOnboarding}
               onManageStore={(id) => { setCurrentSellerId(id); navigate('/seller'); }}
+              onRenameDraft={renameDraftStore}
+              onDeleteDraft={deleteDraftStore}
             />
             <PendingCategoryRequestsBanner variant="inline" />
             <IntentCategoryStep
@@ -1136,6 +1369,12 @@ export default function BecomeSellerPage() {
               }}
               onContinue={() => {
                 if (!selectedCategorySlug) {
+                  trackSellerOnboardingStep({
+                    step: 1,
+                    action: 'validation_failed',
+                    sellerId: draftSellerId,
+                    props: { error_code: 'category_required', field: 'category' },
+                  });
                   notify.block('Select a category to continue');
                   return;
                 }
@@ -1161,12 +1400,24 @@ export default function BecomeSellerPage() {
             onBack={() => handleStepBack(1)}
             onContinue={() => {
               if (!selectedSubcategoryId) {
+                trackSellerOnboardingStep({
+                  step: 2,
+                  action: 'validation_failed',
+                  sellerId: draftSellerId,
+                  props: { error_code: 'subcategory_required', field: 'subcategory' },
+                });
                 notify.block('Select or propose a subcategory');
                 return;
               }
               const sub = categorySubs.find((s: any) => s.id === selectedSubcategoryId);
               const name = sub?.display_name || seedProductName;
               if (!name) {
+                trackSellerOnboardingStep({
+                  step: 2,
+                  action: 'validation_failed',
+                  sellerId: draftSellerId,
+                  props: { error_code: 'subcategory_required', field: 'subcategory' },
+                });
                 notify.block('Select or propose a subcategory');
                 return;
               }
@@ -1215,13 +1466,31 @@ export default function BecomeSellerPage() {
             <Button className="w-full" onClick={async () => {
               if (draftSellerId) await reloadProducts(draftSellerId);
               if (draftProducts.length === 0) {
+                trackSellerOnboardingStep({
+                  step: 3,
+                  action: 'validation_failed',
+                  sellerId: draftSellerId,
+                  props: { error_code: 'listing_required', field: 'products' },
+                });
                 notify.block('Add at least one listing before continuing');
                 return;
               }
               if (pendingOfferings.length > 0) {
+                trackSellerOnboardingStep({
+                  step: 3,
+                  action: 'validation_failed',
+                  sellerId: draftSellerId,
+                  props: { error_code: 'pending_offerings', field: 'products' },
+                });
                 notify.block('Add remaining offerings before review');
                 return;
               }
+              trackSellerOnboardingStep({
+                step: 3,
+                action: 'completed',
+                sellerId: draftSellerId,
+                props: { draft_product_count: draftProducts.length },
+              });
               setStep(4);
             }} disabled={draftProducts.length === 0 || pendingOfferings.length > 0}>
               Continue to store name<ChevronRight size={16} className="ml-1" />

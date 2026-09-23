@@ -317,6 +317,20 @@ export function useSearchPage() {
           }).then(({ error: logErr }) => {
             if (logErr) console.warn('Committed search telemetry failed:', logErr.message);
           });
+          try {
+            const { track } = await import('@/lib/analytics');
+            track('search_submitted', {
+              search_term: normalizedTerm,
+              results_count: filtered.length,
+              category: selectedCategory || null,
+              society_id: effectiveSocietyId || null,
+            });
+            track(filtered.length === 0 ? 'search_no_results' : 'search_results_viewed', {
+              search_term: normalizedTerm,
+              results_count: filtered.length,
+              category: selectedCategory || null,
+            });
+          } catch { /* analytics optional */ }
         }
       }
     } catch (err) { if (!controller.signal.aborted) console.error('Search error:', err); }

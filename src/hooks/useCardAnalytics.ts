@@ -58,6 +58,18 @@ async function flushImpressions() {
         metadata: { price: data.price },
       }))
     );
+    try {
+      const { track } = await import('@/lib/analytics');
+      for (const data of batch) {
+        track('product_impression', {
+          product_id: data.productId,
+          seller_id: data.sellerId,
+          category: data.category,
+          price: data.price,
+          source: data.layout || 'unknown',
+        });
+      }
+    } catch { /* analytics optional */ }
   } catch {
     // Silent fail — analytics must never break UI
   }
@@ -88,6 +100,22 @@ async function emitSingle(eventType: string, data: CardEvent) {
       event_type: eventType,
       metadata: { price: data.price },
     });
+    try {
+      const { track } = await import('@/lib/analytics');
+      const map: Record<string, string> = {
+        click: 'product_clicked',
+        add_to_cart: 'add_to_cart',
+        wishlist: 'wishlist_toggled',
+      };
+      const name = map[eventType] || eventType;
+      track(name, {
+        product_id: data.productId,
+        seller_id: data.sellerId,
+        category: data.category,
+        price: data.price,
+        source: data.layout || 'unknown',
+      });
+    } catch { /* analytics optional */ }
   } catch {
     // Silent fail
   }

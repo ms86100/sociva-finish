@@ -69,6 +69,7 @@ function ThemeStatusBarSync() {
 }
 import { AuthProvider, useAuth, useOptionalAuth } from "@/contexts/AuthContext";
 import { AdminManagedSellerProvider } from "@/contexts/AdminManagedSellerContext";
+import { AnalyticsRouteTracker } from "@/components/analytics/AnalyticsRouteTracker";
 import { CartProvider } from "@/hooks/useCart";
 import { CartPopupProvider } from "@/components/CartPopupProvider";
 import { BrowsingLocationProvider } from "@/contexts/BrowsingLocationContext";
@@ -811,6 +812,7 @@ function App() {
                   <AdminManagedSellerProvider>
                   <SplashGate>
                     <NavigationHandler />
+                    <AnalyticsRouteTracker />
                 <BrowsingLocationProvider>
                   <CartPopupProvider>
                     <CartProvider>
