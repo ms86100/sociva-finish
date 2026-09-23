@@ -20,22 +20,22 @@ export function LottieEmptyState({ emoji, title, description, children, classNam
       variants={emptyState}
       initial="hidden"
       animate="show"
-      className={`flex flex-col items-center text-center ${className || ''}`}
+      className={`flex flex-col items-center text-center px-4 ${className || ''}`}
     >
       {/* Animated emoji with pulse ring */}
-      <div className="relative mb-4">
+      <div className="relative mb-5">
         <motion.div
           animate={{ scale: [1, 1.2, 1], opacity: [0.3, 0, 0.3] }}
           transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
-          className="absolute inset-0 rounded-full bg-primary/15"
+          className="absolute -inset-1 rounded-full bg-primary/12"
         />
         <motion.div
           initial={{ scale: 0.5, rotate: -10 }}
           animate={{ scale: 1, rotate: 0 }}
           transition={{ type: 'spring', stiffness: 300, damping: 12, delay: 0.15 }}
-          className="relative w-20 h-20 rounded-full bg-muted flex items-center justify-center"
+          className="relative w-20 h-20 rounded-full bg-muted/90 border border-border/40 flex items-center justify-center shadow-sm"
         >
-          <span className="text-4xl">{emoji}</span>
+          <span className="text-4xl" aria-hidden>{emoji}</span>
         </motion.div>
       </div>
 
@@ -43,7 +43,7 @@ export function LottieEmptyState({ emoji, title, description, children, classNam
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.2, duration: 0.3 }}
-        className="text-lg font-bold text-foreground mb-1"
+        className="text-lg font-bold tracking-tight text-foreground mb-1.5"
       >
         {title}
       </motion.h2>
@@ -53,7 +53,7 @@ export function LottieEmptyState({ emoji, title, description, children, classNam
           initial={{ opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3, duration: 0.3 }}
-          className="text-sm text-muted-foreground max-w-xs mb-4"
+          className="text-sm text-muted-foreground leading-relaxed max-w-[17rem] mb-5"
         >
           {description}
         </motion.p>

@@ -86,11 +86,15 @@ export function ProductCard({ product, variant = 'horizontal', onTap }: ProductC
       )}
       {product.image_url ? (
         <img
-          src={optimizedImageUrl(product.image_url, { width, quality: 78 })}
-          srcSet={imageSrcSet(product.image_url, 78) || undefined}
+          src={optimizedImageUrl(product.image_url, { width, quality: 85 })}
+          srcSet={imageSrcSet(product.image_url, 85) || undefined}
           sizes={`${width}px`}
           alt={product.name}
-          className={cn('w-full h-full object-cover transition-opacity duration-400', imgLoaded ? 'opacity-100' : 'opacity-0', className)}
+          className={cn(
+            'absolute inset-0 w-full h-full object-cover object-center transition-opacity duration-400',
+            imgLoaded ? 'opacity-100' : 'opacity-0',
+            className
+          )}
           loading="lazy"
           decoding="async"
           onLoad={() => setImgLoaded(true)}
@@ -235,9 +239,9 @@ export function ProductCard({ product, variant = 'horizontal', onTap }: ProductC
           </div>
         </div>
       </div>
-      <div className="flex flex-col items-center gap-2 shrink-0">
-        <div className="relative w-[88px] h-[88px] rounded-xl overflow-hidden product-image-bg shadow-sm">
-          {imageEl(176)}
+      <div className="flex flex-col items-center gap-1.5 shrink-0 w-[92px]">
+        <div className="relative w-[92px] h-[92px] rounded-xl overflow-hidden product-image-bg shadow-sm ring-1 ring-white/10">
+          {imageEl(184)}
           <AnimatePresence>
             {justAdded && (
               <motion.div
@@ -259,7 +263,7 @@ export function ProductCard({ product, variant = 'horizontal', onTap }: ProductC
           </AnimatePresence>
         </div>
         {isCartAction && quantity > 0 && !isStoreClosed ? (
-          <div className="flex items-center gap-1 -mt-4 relative z-10 bg-primary rounded-xl px-1.5 shadow-cta animate-stepper-pop">
+          <div className="flex items-center gap-1 relative z-10 bg-primary/95 backdrop-blur-md rounded-xl px-1.5 shadow-cta animate-stepper-pop">
             <Button size="sm" variant="ghost" className="h-9 w-9 p-0 text-primary-foreground hover:bg-primary-foreground/20 touch-manipulation" onClick={handleDecrement} aria-label="Decrease quantity"><Minus size={14} /></Button>
             <AnimatePresence mode="popLayout">
               <motion.span
@@ -278,7 +282,7 @@ export function ProductCard({ product, variant = 'horizontal', onTap }: ProductC
         ) : (
           <Button
             variant="outline"
-            className="w-full h-9 border-[1.5px] border-primary text-primary hover:bg-primary hover:text-primary-foreground -mt-4 relative z-10 bg-card shadow-sm font-extrabold text-[11px] uppercase tracking-wide rounded-xl touch-manipulation"
+            className="w-full h-9 border-[1.5px] border-primary text-primary hover:bg-primary hover:text-primary-foreground relative z-10 bg-card/90 backdrop-blur-md shadow-sm font-extrabold text-[11px] uppercase tracking-wide rounded-xl touch-manipulation"
             onClick={handleAdd}
             disabled={isDisabled}
           >

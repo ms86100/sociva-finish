@@ -11815,6 +11815,7 @@ export type Database = {
           _selected_extras?: Json
           _booking_date: string
           _buyer_address?: string
+          _coupon_id?: string | null
           _end_time: string
           _fulfillment_type?: string
           _idempotency_key: string

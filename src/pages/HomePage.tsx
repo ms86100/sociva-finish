@@ -21,6 +21,8 @@ import { WelcomeBackStrip } from '@/components/home/WelcomeBackStrip';
 import { WhatsNewSection } from '@/components/home/WhatsNewSection';
 
 import { useAuth } from '@/contexts/AuthContext';
+import { useCart } from '@/hooks/useCart';
+import { profileEditOnboardingState } from '@/lib/pending-auth-action';
 import { useBuyerRealtimeShell } from '@/hooks/useBuyerRealtimeShell';
 import { prefetchBuyerRoutes } from '@/lib/route-prefetch';
 import { trackRouteMount } from '@/lib/perf-telemetry';
@@ -28,6 +30,7 @@ import { trackRouteMount } from '@/lib/perf-telemetry';
 export default function HomePage() {
   useBuyerRealtimeShell();
   const { user, profile } = useAuth();
+  const { itemCount } = useCart();
   const { browsingLocation } = useBrowsingLocation();
   const needsPreciseLocation = !hasPreciseCoordinates(browsingLocation?.lat, browsingLocation?.lng);
   const { showOnboarding, hasChecked, completeOnboarding } = useOnboarding(user?.id);
@@ -54,12 +57,25 @@ export default function HomePage() {
   }, []);
 
   // Society membership is set on delivery-address onboarding.
+  // If they already have cart items (mid-checkout), send returnTo so they come back to cart.
   if (profile && !profile.society_id) {
-    return <Navigate to="/profile/edit" replace />;
+    return (
+      <Navigate
+        to="/profile/edit"
+        replace
+        state={profileEditOnboardingState({ itemCount, focusAddress: true })}
+      />
+    );
   }
 
   if (profile && (!profile.name || profile.name === 'User')) {
-    return <Navigate to="/profile/edit" replace />;
+    return (
+      <Navigate
+        to="/profile/edit"
+        replace
+        state={profileEditOnboardingState({ itemCount, focusAddress: false })}
+      />
+    );
   }
 
   if (hasChecked && showOnboarding && profile) {

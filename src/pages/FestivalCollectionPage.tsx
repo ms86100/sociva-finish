@@ -154,8 +154,8 @@ export default function FestivalCollectionPage() {
 
       <div className="px-4 py-4">
         {isLoading ? (
-          <div className="grid grid-cols-2 gap-3">
-            {[1, 2, 3, 4].map(i => (
+          <div className="grid grid-cols-3 gap-2 sm:gap-3">
+            {[1, 2, 3, 4, 5, 6].map(i => (
               <Skeleton key={i} className="h-56 rounded-2xl" />
             ))}
           </div>
@@ -174,7 +174,7 @@ export default function FestivalCollectionPage() {
           </motion.div>
         ) : (
           <>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-3 gap-2 sm:gap-3">
               {available.map(product => (
                 <ProductListingCard
                   key={product.id}
@@ -193,7 +193,7 @@ export default function FestivalCollectionPage() {
                 <p className="text-xs text-muted-foreground font-semibold mt-6 mb-2 uppercase tracking-wider">
                   Out of Stock
                 </p>
-                <div className="grid grid-cols-2 gap-3 opacity-60">
+                <div className="grid grid-cols-3 gap-2 sm:gap-3 opacity-60">
                   {outOfStock.map(product => (
                     <ProductListingCard
                       key={product.id}

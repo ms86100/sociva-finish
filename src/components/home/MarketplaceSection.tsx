@@ -11,7 +11,8 @@ import { ParentGroupTabs } from '@/components/home/ParentGroupTabs';
 import { CategoryImageGrid } from '@/components/home/CategoryImageGrid';
 import { FeaturedBanners } from '@/components/home/FeaturedBanners';
 import { FestivalBannerModule } from '@/components/home/FestivalBannerModule';
-import { useActiveFestivals, useFestivalTakeover, FESTIVAL_TAB_VALUE } from '@/hooks/queries/useActiveFestivals';
+import { FestivalHomeHero } from '@/components/home/FestivalHomeHero';
+import { useActiveFestivals, useFestivalTakeover } from '@/hooks/queries/useActiveFestivals';
 import { AutoHighlightStrip } from '@/components/home/AutoHighlightStrip';
 import { BuyAgainRow } from '@/components/home/BuyAgainRow';
 import { ShopByStoreDiscovery } from '@/components/home/ShopByStoreDiscovery';
@@ -38,7 +39,6 @@ import {
   productMatchesCommerceFacets,
   extractAvailableCommerceFacets,
 } from '@/lib/commerce-facets';
-import { isFoodParentGroup } from '@/lib/food-facets';
 import { useSellerContext } from '@/contexts/auth/contexts';
 import { pickSellerJourneyStore } from '@/lib/seller-journey';
 
@@ -115,18 +115,12 @@ export function MarketplaceSection() {
     return { label: 'Start selling to your neighbors', href: '/become-seller' };
   }, [sellerAttention, sellerProfiles]);
 
-  const [activeGroup, setActiveGroup] = useState<string | null>(null);
+  /** Leaf category slug (Home Food etc.) - preferred sticky rail, shared with Search. */
+  const [activeCategory, setActiveCategory] = useState<string | null>(null);
+  const [festivalFocused, setFestivalFocused] = useState(false);
   const [commerceFacets, setCommerceFacets] = useState<CommerceFacetState>(emptyCommerceFacetState());
   const { festivals } = useActiveFestivals();
   const takeover = useFestivalTakeover();
-  const festivalTabs = useMemo(
-    () => festivals.slice(0, 1).map((f) => ({
-      value: FESTIVAL_TAB_VALUE,
-      label: f.banner.title || 'Festival',
-    })),
-    [festivals],
-  );
-  const isFestivalTab = activeGroup === FESTIVAL_TAB_VALUE;
 
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [detailOpen, setDetailOpen] = useState(false);
@@ -137,6 +131,13 @@ export function MarketplaceSection() {
   // Cap discovery payload - 80 products was overkill for first paint
   const { data: localCategories = [], isLoading: loadingLocal } = useProductsByCategory(40);
   const { parentGroupInfos } = useParentGroups();
+
+  const activeCategoryConfig = useMemo(
+    () => (activeCategory ? categoryConfigs.find((c) => c.category === activeCategory) : null),
+    [activeCategory, categoryConfigs],
+  );
+  /** Parent group derived from selected leaf - used for facets / food scoping only. */
+  const activeGroup = activeCategoryConfig?.parentGroup ?? null;
 
   const allProductsRaw = useMemo(() => localCategories.flatMap(c => c.products), [localCategories]);
   const allProductIds = useMemo(() => allProductsRaw.map(p => p.id), [allProductsRaw]);
@@ -151,14 +152,11 @@ export function MarketplaceSection() {
   );
 
   const scopedProducts = useMemo(() => {
-    if (!activeGroup) return allProducts;
-    return allProducts.filter((p) => {
-      const group = (p as any).parentGroup;
-      if (group === activeGroup) return true;
-      if (isFoodParentGroup(activeGroup) && (isFoodParentGroup(group) || isFoodParentGroup(p.category))) return true;
-      return false;
-    });
-  }, [allProducts, activeGroup]);
+    if (activeCategory) {
+      return allProducts.filter((p) => p.category === activeCategory);
+    }
+    return allProducts;
+  }, [allProducts, activeCategory]);
 
   const dynamicFacetChips = useMemo(
     () => extractAvailableCommerceFacets(scopedProducts, { parentGroup: activeGroup, currentState: commerceFacets }),
@@ -173,8 +171,8 @@ export function MarketplaceSection() {
   }, [isFacetFilterActive, scopedProducts, commerceFacets]);
 
   const discoveryIntents = useMemo(
-    () => (isFestivalTab ? [] : buildDiscoveryIntents(localCategoriesWithFacets, { activeGroup })),
-    [isFestivalTab, localCategoriesWithFacets, activeGroup],
+    () => (festivalFocused ? [] : buildDiscoveryIntents(localCategoriesWithFacets, { activeGroup })),
+    [festivalFocused, localCategoriesWithFacets, activeGroup],
   );
 
   // Social proof only after scroll / idle - never blocks first paint
@@ -203,14 +201,40 @@ export function MarketplaceSection() {
       .slice(0, discoveryMaxItems || 10);
   }, [allProducts, newThisWeekDays, discoveryMaxItems, popularNearYou]);
 
-  const activeCategorySet = new Set(localCategories.map(c => c.category));
-  const activeParentGroupSet = new Set(localCategories.map(c => c.parentGroup));
+  const activeCategorySet = useMemo(
+    () => new Set(localCategories.map((c) => c.category)),
+    [localCategories],
+  );
+  const activeParentGroupSet = useMemo(
+    () => new Set(localCategories.map((c) => c.parentGroup)),
+    [localCategories],
+  );
 
-  const activeParentGroups = isFestivalTab
+  const activeParentGroups = festivalFocused
     ? []
-    : activeGroup
-      ? parentGroupInfos.filter(g => g.value === activeGroup && activeParentGroupSet.has(g.value))
-      : parentGroupInfos.filter(g => activeParentGroupSet.has(g.value));
+    : activeCategory && activeCategoryConfig
+      ? parentGroupInfos.filter(
+          (g) => g.value === activeCategoryConfig.parentGroup && activeParentGroupSet.has(g.value),
+        )
+      : parentGroupInfos.filter((g) => activeParentGroupSet.has(g.value));
+
+  const gridActiveCategories = useMemo(() => {
+    if (activeCategory) return new Set([activeCategory]);
+    return activeCategorySet;
+  }, [activeCategory, activeCategorySet]);
+
+  const exploreFestival = useCallback(() => {
+    setFestivalFocused(true);
+    setCommerceFacets(emptyCommerceFacetState());
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        document.getElementById('festival-home-destination')?.scrollIntoView({
+          behavior: 'smooth',
+          block: 'start',
+        });
+      });
+    });
+  }, []);
 
   const handleProductTap = useCallback((product: ProductWithSeller) => {
     const catConfig = categoryConfigs.find(c => c.category === product.category);
@@ -317,35 +341,39 @@ export function MarketplaceSection() {
 
   return (
     <div className="pb-2">
-      {/* Above-fold: categories first (Blinkit shop-first), then products */}
+      {/* Above-fold: festival hero (when active), then category rail, then products */}
       <div
         className="pt-1 pb-1"
         style={takeover.active ? { backgroundColor: takeover.bg } : undefined}
       >
+        {takeover.active && (
+          <FestivalHomeHero onExplore={exploreFestival} />
+        )}
         <ParentGroupTabs
-          activeGroup={activeGroup}
-          onGroupChange={(g) => {
-            setActiveGroup(g);
+          activeCategory={activeCategory}
+          onCategoryChange={(cat) => {
+            setActiveCategory(cat);
+            setFestivalFocused(false);
             setCommerceFacets(emptyCommerceFacetState());
           }}
-          activeParentGroups={activeParentGroupSet}
-          festivalTabs={festivalTabs}
+          activeCategories={activeCategorySet}
         />
       </div>
 
-      {!isFestivalTab && (
+      {!festivalFocused && (
         <CommerceFacetRail
           value={commerceFacets}
           onChange={setCommerceFacets}
           chips={dynamicFacetChips}
           parentGroup={activeGroup}
           className="py-1"
+          inventory={scopedProducts}
         />
       )}
 
-      {!isFestivalTab && <DiscoveryChipRail intents={discoveryIntents} />}
+      {!festivalFocused && !activeCategory && <DiscoveryChipRail intents={discoveryIntents} />}
 
-      {isFacetFilterActive && (
+      {isFacetFilterActive && !festivalFocused && (
         <div className="px-4 py-2">
           <div className="flex items-center justify-between mb-3">
             <div>
@@ -370,7 +398,7 @@ export function MarketplaceSection() {
             </button>
           </div>
           {facetFilteredProducts.length > 0 ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+            <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 gap-2 sm:gap-3">
               {facetFilteredProducts.map((product) => (
                 <ProductListingCard
                   key={product.id}
@@ -396,17 +424,21 @@ export function MarketplaceSection() {
         </div>
       )}
 
-      {(!activeGroup || isFestivalTab) && festivals.map((f) => (
-        <FestivalBannerModule
-          key={f.banner.id}
-          banner={f.banner}
-          sections={f.sections}
-          onProductTap={handleProductTap}
-          categoryConfigs={categoryConfigs}
-        />
-      ))}
+      {(!activeCategory || festivalFocused) && festivals.length > 0 && (
+        <div id="festival-home-destination" className="scroll-mt-28">
+          {festivals.map((f) => (
+            <FestivalBannerModule
+              key={f.banner.id}
+              banner={f.banner}
+              sections={f.sections}
+              onProductTap={handleProductTap}
+              categoryConfigs={categoryConfigs}
+            />
+          ))}
+        </div>
+      )}
 
-      {!isFestivalTab && (loadingLocal ? (
+      {!festivalFocused && (loadingLocal ? (
         <div className="px-4 mt-2">
           <ProductCardSkeleton count={6} />
         </div>
@@ -416,15 +448,15 @@ export function MarketplaceSection() {
             <CategoryImageGrid
               key={group.value}
               parentGroup={group.value}
-              title={group.label}
-              activeCategories={activeCategorySet}
+              title={activeCategoryConfig?.displayName || group.label}
+              activeCategories={gridActiveCategories}
             />
           ))}
         </div>
       ))}
 
       {/* Above-fold products - shop-first density after categories */}
-      {!activeGroup && !loadingLocal && popularNearYou.length > 0 && (
+      {!activeCategory && !festivalFocused && !loadingLocal && popularNearYou.length > 0 && (
         <>
           <SectionDivider />
           <GroupedSellerRow
@@ -438,7 +470,7 @@ export function MarketplaceSection() {
         </>
       )}
 
-      {!activeGroup && !loadingLocal && newThisWeek.length > 0 && (
+      {!activeCategory && !festivalFocused && !loadingLocal && newThisWeek.length > 0 && (
         <>
           <SectionDivider />
           <GroupedSellerRow
@@ -453,32 +485,32 @@ export function MarketplaceSection() {
       )}
 
       {/* Promos + deferred strips after shop surface */}
-      {!isFestivalTab && (
+      {!festivalFocused && (
         <LazySection>
           <FeaturedBanners />
         </LazySection>
       )}
 
-      {!isFestivalTab && (
+      {!festivalFocused && (
         <LazySection>
           <AutoHighlightStrip />
         </LazySection>
       )}
 
-      {!activeGroup && !isFestivalTab && (
+      {!activeCategory && !festivalFocused && (
         <LazySection>
           <BuyAgainRow />
         </LazySection>
       )}
 
-      {!isFestivalTab && (
+      {!festivalFocused && (
         <LazySection>
           <SectionDivider />
           <ShopByStoreDiscovery sectionTitle={ml.label('label_section_store_discovery')} />
         </LazySection>
       )}
 
-      {!isFestivalTab && (
+      {!festivalFocused && (
         <LazySection>
           <NearbySellersSection />
         </LazySection>

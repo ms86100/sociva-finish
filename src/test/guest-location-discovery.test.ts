@@ -14,6 +14,8 @@ import {
   clearPendingAuthAction,
   resolvePendingReturnTo,
   pendingAuthReturnPath,
+  resolveAfterOnboardingPath,
+  profileEditOnboardingState,
 } from '@/lib/pending-auth-action';
 import {
   clearGuestCart,
@@ -121,6 +123,19 @@ describe('pending auth action storage', () => {
     setPendingAuthAction({ type: 'book', productId: 'z', returnTo: '/product/z' });
     expect(pendingAuthReturnPath('/')).toBe('/product/z');
   });
+
+  it('after onboarding: cart intent wins over home', () => {
+    clearPendingAuthAction();
+    expect(resolveAfterOnboardingPath({ itemCount: 0 })).toBe('/');
+    expect(resolveAfterOnboardingPath({ itemCount: 2 })).toBe('/cart');
+    setPendingAuthAction({ type: 'checkout', returnTo: '/cart' });
+    expect(resolveAfterOnboardingPath({ itemCount: 0 })).toBe('/cart');
+    expect(resolveAfterOnboardingPath({ locationReturnTo: '/cart', itemCount: 0 })).toBe('/cart');
+    expect(resolveAfterOnboardingPath({ locationReturnTo: '/profile/edit', itemCount: 1 })).toBe('/cart');
+    expect(profileEditOnboardingState({ itemCount: 1 }).returnTo).toBe('/cart');
+    clearPendingAuthAction();
+    expect(profileEditOnboardingState({ itemCount: 0 }).returnTo).toBeUndefined();
+  });
 });
 
 describe('guest local cart', () => {
@@ -172,8 +187,9 @@ describe('guest location discovery wiring (source)', () => {
     const contact = read('components/product/ContactSellerModal.tsx');
     expect(cart).toMatch(/upsertGuestCartItem/);
     expect(cart).not.toMatch(/Sign in to add items to cart/);
-    expect(cartPage).toMatch(/Almost There/);
+    expect(cartPage).toMatch(/Where should we deliver\?/);
     expect(cartPage).toMatch(/type: 'checkout'/);
+    expect(cartPage).toMatch(/returnTo: '\/cart'/);
     expect(enquiry).toMatch(/setPendingAuthAction/);
     expect(booking).toMatch(/type: 'book'/);
     expect(booking).toMatch(/bookingDraft/);

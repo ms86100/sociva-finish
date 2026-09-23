@@ -231,14 +231,16 @@ export function FestivalBannerModule({ banner, sections, onProductTap, categoryC
 
       <div className="px-4 pb-4">
         <div
-          className="festival-offer-strip rounded-2xl px-4 py-3 flex items-center justify-between gap-3"
-          style={{ background: '#f6e2b8', color: '#5a3410' }}
+          className="festival-offer-strip rounded-2xl px-4 py-3 flex items-center justify-between gap-3 border border-white/20 bg-white/15 backdrop-blur-2xl backdrop-saturate-150 text-white"
         >
           <div className="min-w-0">
-            <p className="text-[11px] font-bold uppercase tracking-wider opacity-70">Festival offer</p>
+            <p className="text-[11px] font-bold uppercase tracking-wider text-white/70">Festival offer</p>
             <p className="text-sm font-extrabold truncate">{offerCopy}</p>
           </div>
-          <span className="shrink-0 text-[11px] font-bold rounded-full px-2.5 py-1 bg-[#5a3410]/10">
+          <span
+            className="shrink-0 text-[11px] font-bold rounded-full px-2.5 py-1 border border-white/20 bg-white/10"
+            style={{ color: accentColor }}
+          >
             Local sellers
           </span>
         </div>

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Sparkles, SlidersHorizontal, RotateCcw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { hapticSelection } from '@/lib/haptics';
@@ -41,6 +41,8 @@ interface CommerceFacetRailProps {
   showFilterButton?: boolean;
   sortBy?: SortKey;
   onSortChange?: (key: SortKey) => void;
+  /** Scoped listings - used for Veg / Non-Veg counts in the Taste sheet */
+  inventory?: Array<{ is_veg?: boolean | null }>;
 }
 
 export function CommerceFacetRail({
@@ -52,11 +54,23 @@ export function CommerceFacetRail({
   showFilterButton = true,
   sortBy,
   onSortChange,
+  inventory,
 }: CommerceFacetRailProps) {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [sortOpen, setSortOpen] = useState(false);
   const isFood = isFoodParentGroup(parentGroup);
   const activeCount = countActiveCommerceFacets(value);
+
+  const { vegCount, nonVegCount } = useMemo(() => {
+    const list = inventory || [];
+    let veg = 0;
+    let nonVeg = 0;
+    for (const p of list) {
+      if (p.is_veg === true) veg += 1;
+      else if (p.is_veg === false) nonVeg += 1;
+    }
+    return { vegCount: veg, nonVegCount: nonVeg };
+  }, [inventory]);
 
   const foodMoodCount = (
     facet: 'cuisine' | 'meal' | 'course',
@@ -121,7 +135,7 @@ export function CommerceFacetRail({
                   ? isFood
                     ? 'border-amber-500/50 bg-amber-500/15 text-foreground'
                     : 'border-primary/50 bg-primary/15 text-primary'
-                  : 'border-border/80 bg-background/90 text-muted-foreground backdrop-blur-sm'
+                  : 'border-border/50 bg-card/55 text-muted-foreground backdrop-blur-md'
               )}
               aria-label="Open filter drawer"
             >
@@ -280,14 +294,14 @@ export function CommerceFacetRail({
                   <TasteSheetChip
                     emoji="🥬"
                     label="Veg Only"
-                    count={0}
+                    count={vegCount}
                     active={!!value.veg}
                     onClick={() => onChange({ ...value, veg: !value.veg, nonVeg: false })}
                   />
                   <TasteSheetChip
                     emoji="🍖"
                     label="Non-Veg"
-                    count={0}
+                    count={nonVegCount}
                     active={!!value.nonVeg}
                     onClick={() => onChange({ ...value, nonVeg: !value.nonVeg, veg: false })}
                   />

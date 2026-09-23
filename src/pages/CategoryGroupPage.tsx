@@ -212,7 +212,7 @@ export default function CategoryGroupPage() {
               <Skeleton key={i} className="h-8 w-20 rounded-full" />
             ))}
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 gap-2 sm:gap-3">
             {[1, 2, 3, 4, 5, 6].map((i) => (
               <Skeleton key={i} className="h-56 w-full rounded-xl" />
             ))}
@@ -240,7 +240,7 @@ export default function CategoryGroupPage() {
   return (
     <AppLayout showHeader={false} safeTop={false}>
       {/* Sticky Header */}
-      <SafeHeader bordered={false}>
+      <SafeHeader bordered={false} blur>
         <div className="px-4 pt-1 pb-2">
           <div className="flex items-center gap-2.5 mb-2.5">
             <BackButton fallback="/" />
@@ -262,7 +262,7 @@ export default function CategoryGroupPage() {
               placeholder={`Search in ${parentGroup?.label || 'category'}…`}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 pr-8 h-9 bg-muted border-0 rounded-xl text-sm focus-visible:ring-1"
+              className="pl-9 pr-8 h-9 bg-card/55 backdrop-blur-md border border-border/40 rounded-xl text-sm focus-visible:ring-1"
             />
             {searchQuery && (
               <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
@@ -327,6 +327,7 @@ export default function CategoryGroupPage() {
             onChange={setFacets}
             chips={dynamicFacetChips}
             parentGroup={category}
+            inventory={scopedProducts}
           />
         </div>
       </SafeHeader>
@@ -334,7 +335,7 @@ export default function CategoryGroupPage() {
       {/* Product Grid */}
       <div className="p-4 pb-6">
         {productsLoading ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-3.5">
+          <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 gap-2 sm:gap-3.5">
             {[1, 2, 3, 4, 5, 6].map((i) => (
               <Skeleton key={i} className="h-56 w-full rounded-2xl" />
             ))}
@@ -344,7 +345,7 @@ export default function CategoryGroupPage() {
             <p className="text-[11px] text-muted-foreground mb-3 px-0.5">
               {`${displayProducts.length} ${displayProducts.length === 1 ? 'item' : 'items'}`}
             </p>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 sm:gap-3.5">
+            <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 gap-2 sm:gap-3.5">
               {displayProducts.map((product) => (
                 <ProductListingCard
                   key={product.id}

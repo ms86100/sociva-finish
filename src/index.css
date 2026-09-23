@@ -39,7 +39,7 @@
     --secondary-foreground: 240 8% 30%;
 
     --muted: 40 12% 93%;
-    --muted-foreground: 240 6% 48%;
+    --muted-foreground: 240 6% 44%;
 
     --accent: 151 65% 38%;
     --accent-foreground: 0 0% 100%;
@@ -52,6 +52,11 @@
     --ring: 151 65% 38%;
 
     --radius: 0.75rem;
+    --radius-card: 1rem;
+    --radius-chip: 0.875rem;
+    --space-stack: 0.75rem;
+    --space-stack-lg: 1rem;
+    --focus-ring: 0 0 0 2px hsl(var(--background)), 0 0 0 4px hsl(var(--ring) / 0.55);
 
     /* Semantic */
     --veg: 141 72% 32%;
@@ -93,8 +98,8 @@
     --shadow-sm: 0 1px 2px hsl(240 10% 8% / 0.04);
     --shadow-md: 0 4px 12px hsl(240 10% 8% / 0.06);
     --shadow-lg: 0 8px 30px hsl(240 10% 8% / 0.1);
-    --shadow-card: 0 1px 4px hsl(240 10% 8% / 0.05), 0 0 0 1px hsl(40 10% 90% / 0.5);
-    --shadow-elevated: 0 6px 20px hsl(240 10% 8% / 0.08);
+    --shadow-card: 0 1px 3px hsl(240 10% 8% / 0.04), 0 4px 12px hsl(240 10% 8% / 0.04), 0 0 0 1px hsl(40 10% 88% / 0.55);
+    --shadow-elevated: 0 6px 22px hsl(240 10% 8% / 0.09);
     --shadow-glow: 0 0 0 transparent;
     --shadow-cta: 0 4px 14px hsl(151 65% 38% / 0.25);
     --shadow-glow-green: 0 0 0 transparent;
@@ -143,7 +148,7 @@
     --secondary-foreground: 0 0% 72%;
 
     --muted: 0 0% 13%;
-    --muted-foreground: 0 0% 52%;
+    --muted-foreground: 0 0% 60%;
 
     --accent: 151 65% 44%;
     --accent-foreground: 0 0% 100%;
@@ -151,11 +156,16 @@
     --destructive: 4 66% 52%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 0 0% 16%;
+    --border: 0 0% 17%;
     --input: 0 0% 14%;
     --ring: 151 65% 44%;
 
     --radius: 0.75rem;
+    --radius-card: 1rem;
+    --radius-chip: 0.875rem;
+    --space-stack: 0.75rem;
+    --space-stack-lg: 1rem;
+    --focus-ring: 0 0 0 2px hsl(var(--background)), 0 0 0 4px hsl(var(--ring) / 0.5);
 
     /* Semantic */
     --veg: 151 65% 44%;
@@ -197,8 +207,8 @@
     --shadow-sm: 0 1px 2px hsl(0 0% 0% / 0.35);
     --shadow-md: 0 4px 12px hsl(0 0% 0% / 0.45);
     --shadow-lg: 0 8px 30px hsl(0 0% 0% / 0.55);
-    --shadow-card: 0 1px 4px hsl(0 0% 0% / 0.3);
-    --shadow-elevated: 0 6px 20px hsl(0 0% 0% / 0.45);
+    --shadow-card: 0 1px 3px hsl(0 0% 0% / 0.35), 0 4px 14px hsl(0 0% 0% / 0.28), 0 0 0 1px hsl(0 0% 100% / 0.04);
+    --shadow-elevated: 0 8px 24px hsl(0 0% 0% / 0.5);
     --shadow-glow: 0 0 20px hsl(151 65% 44% / 0.15);
     --shadow-cta: 0 4px 14px hsl(151 65% 44% / 0.3);
     --shadow-glow-green: 0 0 14px hsl(151 65% 44% / 0.2);
@@ -362,11 +372,13 @@
 @layer utilities {
   /* Sequential cards / banners / alerts - consistent vertical rhythm */
   .stack-gap {
-    @apply flex flex-col gap-3;
+    @apply flex flex-col;
+    gap: var(--space-stack);
   }
 
   .stack-gap-lg {
-    @apply flex flex-col gap-4;
+    @apply flex flex-col;
+    gap: var(--space-stack-lg);
   }
 
   .animate-slide-up {
@@ -440,22 +452,61 @@
   }
 
   .glass {
-    @apply backdrop-blur-xl;
+    @apply backdrop-blur-xl backdrop-saturate-150;
     background: var(--gradient-glass);
-    border-bottom: 1px solid hsl(var(--border));
+    border-bottom: 1px solid hsl(var(--border) / 0.35);
   }
 
   .glass-card {
-    @apply backdrop-blur-md rounded-2xl;
-    border: 1px solid hsl(var(--border));
-    background: hsl(var(--card));
+    @apply backdrop-blur-xl backdrop-saturate-150;
+    border-radius: var(--radius-card);
+    border: 1px solid hsl(var(--border) / 0.45);
+    background: linear-gradient(
+      165deg,
+      hsl(var(--card) / 0.88) 0%,
+      hsl(var(--card) / 0.72) 100%
+    );
     box-shadow: var(--shadow-card);
   }
 
   .glass-tinted {
-    @apply backdrop-blur-md rounded-2xl;
-    background: hsl(var(--card) / 0.9);
+    @apply backdrop-blur-md;
+    border-radius: var(--radius-card);
+    background: hsl(var(--card) / 0.86);
     box-shadow: var(--shadow-sm);
+  }
+
+  /* Footer-nav style frosted panel for sticky headers / filter rails */
+  .glass-panel {
+    @apply backdrop-blur-2xl backdrop-saturate-150;
+    background: hsl(var(--background) / 0.78);
+    border-color: hsl(var(--border) / 0.28);
+  }
+
+  /* Shared keyboard focus - use on custom controls missing ring utilities */
+  .focus-ring {
+    outline: none;
+  }
+  .focus-ring:focus-visible {
+    box-shadow: var(--focus-ring);
+  }
+
+  /* Compact filter / status chips (not category photo chips) */
+  .surface-chip {
+    @apply inline-flex items-center justify-center gap-1 font-semibold leading-none;
+    border-radius: var(--radius-chip);
+    min-height: 2rem;
+    padding: 0.375rem 0.75rem;
+    font-size: 0.75rem;
+    background: hsl(var(--secondary));
+    color: hsl(var(--secondary-foreground));
+    border: 1px solid hsl(var(--border) / 0.5);
+  }
+  .surface-chip-active {
+    background: hsl(var(--primary));
+    color: hsl(var(--primary-foreground));
+    border-color: hsl(var(--primary) / 0.8);
+    box-shadow: var(--shadow-cta);
   }
 
   .dark .glow-green {

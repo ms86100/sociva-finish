@@ -133,26 +133,26 @@ export default function FavoritesPage() {
 
           <TabsContent value="products">
             {productsLoading ? (
-              <div className="grid grid-cols-2 gap-3 sm:gap-3.5">
-                {[1, 2, 3, 4].map((i) => (
+              <div className="grid grid-cols-3 gap-2 sm:gap-3.5">
+                {[1, 2, 3, 4, 5, 6].map((i) => (
                   <Skeleton key={i} className="h-48 rounded-2xl" />
                 ))}
               </div>
             ) : savedProducts.length > 0 ? (
-              <div className="grid grid-cols-2 gap-3 sm:gap-3.5">
+              <div className="grid grid-cols-3 gap-2 sm:gap-3.5">
                 {savedProducts.map((product: any) => (
                   <Link
                     key={product.id}
                     to={`/product/${product.id}`}
                     className="group/fav block min-w-0 rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                   >
-                    <div className="rounded-2xl border border-border/60 bg-card overflow-hidden shadow-card transition-[box-shadow,border-color] duration-200 hover:shadow-elevated hover:border-border">
+                    <div className="rounded-2xl glass-card overflow-hidden transition-[box-shadow,border-color] duration-200 hover:shadow-elevated hover:border-border">
                       <div className="aspect-square product-image-bg relative">
                         {product.image_url ? (
                           <img
-                            src={optimizedImageUrl(product.image_url, { width: 400, quality: 78 })}
+                            src={optimizedImageUrl(product.image_url, { width: 480, quality: 85 })}
                             alt={product.name}
-                            className="w-full h-full object-cover transition-transform duration-500 group-hover/fav:scale-[1.03]"
+                            className="absolute inset-0 w-full h-full object-cover object-center transition-transform duration-500 group-hover/fav:scale-[1.03]"
                             loading="lazy"
                             decoding="async"
                             onError={handleImageError}
@@ -174,8 +174,8 @@ export default function FavoritesPage() {
                           />
                         </div>
                       </div>
-                      <div className="p-2.5">
-                        <p className="text-xs font-semibold text-foreground line-clamp-2 leading-snug">{product.name}</p>
+                      <div className="p-2">
+                        <p className="text-[11px] font-semibold text-foreground line-clamp-2 leading-snug">{product.name}</p>
                         {product.seller_name && (
                           <p className="text-[10px] text-muted-foreground truncate mt-0.5">{product.seller_name}</p>
                         )}

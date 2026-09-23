@@ -23,6 +23,7 @@ import { isFoodParentGroup } from '@/lib/food-facets';
 import { CommunitySuggestions } from '@/components/search/CommunitySuggestions';
 import { SearchAutocomplete } from '@/components/search/SearchAutocomplete';
 import { PreciseLocationRequiredCard } from '@/components/location/PreciseLocationRequiredCard';
+import { CategoryPhotoChipRail, buildLeafPhotoChipItems } from '@/components/category/CategoryPhotoChipRail';
 import { type ProductDetail } from '@/hooks/useProductDetail';
 import { useSearchKeyboardInset } from '@/hooks/useChatViewport';
 import { selectSearchResultsForDisplay } from '@/lib/searchRanking';
@@ -183,8 +184,19 @@ export default function SearchPage() {
             <CommunitySuggestions onSuggestionTap={(term) => s.setQuery(term)} />
           )}
 
-          {/* Category Bubbles */}
-          <CategoryBubbleRow categories={s.categoryConfigs.filter(c => s.popularProducts.some(p => p.category === c.category))} selectedCategory={s.selectedCategory} onCategoryTap={s.handleCategoryTap} isLoading={s.categoriesLoading || s.isLoadingPopular} />
+          {/* Leaf-category filters - identical CategoryPhotoChipRail + buildLeafPhotoChipItems as Home */}
+          <CategoryPhotoChipRail
+            className="mb-3"
+            railClassName="py-1"
+            items={buildLeafPhotoChipItems(
+              s.categoryConfigs,
+              s.popularProducts.map((p) => p.category).filter(Boolean),
+            )}
+            selectedId={s.selectedCategory}
+            onSelect={s.handleCategoryTap}
+            isLoading={s.categoriesLoading || s.isLoadingPopular}
+            allowDeselect
+          />
 
           {/* Filter presets */}
           <FilterPresets activePreset={s.activePreset} onPresetSelect={s.handlePresetSelect} includeVeg={hasFoodResults} />
@@ -199,7 +211,7 @@ export default function SearchPage() {
 
           {/* Results */}
           {s.showLoading ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5 mt-2">
+            <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 gap-2.5 mt-2">
               {[1, 2, 3, 4, 5, 6].map((i) => <Skeleton key={i} className="h-52 w-full rounded-xl" />)}
             </div>
           ) : visibleProducts.length > 0 ? (
@@ -252,34 +264,6 @@ export default function SearchPage() {
   );
 }
 
-// ── Category Bubble Row ──
-function CategoryBubbleRow({ categories, selectedCategory, onCategoryTap, isLoading }: {
-  categories: { category: string; displayName: string; icon: string; color: string }[];
-  selectedCategory: string | null;
-  onCategoryTap: (cat: string) => void;
-  isLoading: boolean;
-}) {
-  if (isLoading) return <div className="flex gap-2 mb-3 overflow-hidden">{[1, 2, 3, 4, 5, 6].map((i) => <Skeleton key={i} className="h-16 w-16 rounded-2xl shrink-0" />)}</div>;
-  return (
-    <div className="taste-rail-scroll scrollbar-hide mb-3">
-      <div className="flex gap-2">
-        {categories.map((cat) => (
-          <button key={cat.category} onClick={() => onCategoryTap(cat.category)} className={`flex flex-col items-center gap-1.5 px-3 py-2 rounded-2xl min-w-[68px] transition-all shrink-0 ${selectedCategory === cat.category ? 'bg-primary text-primary-foreground shadow-md scale-[1.03]' : 'bg-muted/60 hover:bg-muted'}`}>
-            <div className="w-9 h-9 rounded-full overflow-hidden flex items-center justify-center bg-background/40 border border-white/20">
-              {cat.imageUrl || (cat as any).image_url ? (
-                <img src={cat.imageUrl || (cat as any).image_url} alt="" className="w-full h-full object-cover" />
-              ) : (
-                <span className="text-xl leading-none"><DynamicIcon name={cat.icon} size={20} /></span>
-              )}
-            </div>
-            <span className={`text-[10px] font-medium leading-tight text-center line-clamp-1 ${selectedCategory === cat.category ? 'text-primary-foreground' : 'text-foreground'}`}>{cat.displayName}</span>
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 // ── Product Grid By Category ──
 function ProductGridByCategory({ products, facetRows, categoryMap, categoryConfigs, marketplaceConfig, badgeConfigs, showCount, totalCount, onNavigate, onProductTap }: {
   products: ProductSearchResult[];
@@ -329,7 +313,7 @@ function ProductGridByCategory({ products, facetRows, categoryMap, categoryConfi
               <span className="text-[11px] font-semibold text-accent ml-auto">From {formatPrice(Math.min(...items.map(p => p.price)))}</span>
             </div>
             <motion.div
-              className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 sm:gap-3.5"
+              className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 gap-2 sm:gap-3.5"
               variants={staggerGrid}
               initial="hidden"
               animate="show"

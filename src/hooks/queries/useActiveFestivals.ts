@@ -22,8 +22,6 @@ export interface ActiveFestival {
   sections: FestivalSection[];
 }
 
-export const FESTIVAL_TAB_VALUE = '__festival__';
-
 export function useActiveFestivals() {
   const { effectiveSocietyId } = useAuth();
 

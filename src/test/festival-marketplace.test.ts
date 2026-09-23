@@ -17,9 +17,10 @@ describe('festival marketplace experience', () => {
     expect(sql).not.toMatch(/EXISTS \(\s*SELECT 1 FROM public\.festival_seller_participation fsp\s*WHERE fsp\.banner_id = p_banner_id AND fsp\.seller_id = sp\.id AND fsp\.opted_in = true/);
   });
 
-  it('home festival is a destination with product rails, not Coming soon chips', () => {
+  it('home festival is a destination with product rails, not a peer category chip', () => {
     const moduleSrc = read('src/components/home/FestivalBannerModule.tsx');
     const homeSrc = read('src/components/home/MarketplaceSection.tsx');
+    const heroSrc = read('src/components/home/FestivalHomeHero.tsx');
     const tabsSrc = read('src/components/home/ParentGroupTabs.tsx');
     expect(moduleSrc).toMatch(/ProductCarousel/);
     expect(moduleSrc).toMatch(/GroupedSellerRow/);
@@ -27,12 +28,22 @@ describe('festival marketplace experience', () => {
     expect(moduleSrc).toMatch(/FestivalStringLights/);
     expect(moduleSrc).toMatch(/festival-merch-card/);
     expect(moduleSrc).toMatch(/festival-offer-strip/);
+    expect(moduleSrc).toMatch(/backdrop-blur/);
     expect(moduleSrc).toMatch(/tone="festival"/);
     expect(moduleSrc).not.toMatch(/Coming soon/);
+    expect(moduleSrc).not.toMatch(/#f6e2b8/);
     expect(homeSrc).toMatch(/FestivalBannerModule/);
-    expect(homeSrc).toMatch(/FESTIVAL_TAB_VALUE/);
-    expect(tabsSrc).toMatch(/festivalTabs/);
+    expect(homeSrc).toMatch(/FestivalHomeHero/);
+    expect(homeSrc).toMatch(/festival-home-destination/);
+    expect(homeSrc).toMatch(/festivalFocused/);
+    expect(homeSrc).not.toMatch(/festivalTabs/);
+    expect(homeSrc).not.toMatch(/FESTIVAL_TAB_VALUE/);
+    expect(heroSrc).toMatch(/Explore festival/);
+    expect(heroSrc).toMatch(/useFestivalTakeover/);
+    expect(heroSrc).toMatch(/FestivalStringLights/);
+    expect(tabsSrc).not.toMatch(/festivalTabs/);
     expect(tabsSrc).toMatch(/useFestivalTakeover/);
+    expect(tabsSrc).toMatch(/CategoryPhotoChipRail/);
   });
 
   it('header and rails pick up festival takeover chrome', () => {

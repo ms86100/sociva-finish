@@ -81,15 +81,15 @@ function HeaderInner({
           'sticky top-0 z-40',
           festivalChrome
             ? 'border-b border-white/10'
-            : 'bg-[hsl(var(--header-bg))] border-b border-border/50',
-          !IS_NATIVE && !festivalChrome && 'backdrop-blur-xl',
+            : 'bg-[hsl(var(--header-bg))] border-b border-border/40',
+          !IS_NATIVE && !festivalChrome && 'backdrop-blur-xl backdrop-saturate-150',
           className
         )}
         style={festivalChrome ? { backgroundColor: takeover.bg } : undefined}
         data-festival-takeover={festivalChrome ? 'true' : undefined}
       >
         <div
-          className="px-4 pb-2.5 space-y-2.5"
+          className="px-4 pb-3 space-y-2.5"
           style={{ paddingTop: 'calc(var(--app-safe-top, 28px) + 8px)' }}
         >
           {title ? (
@@ -180,7 +180,7 @@ function HeaderInner({
                       <button
                         type="button"
                         onClick={() => handleRouteNav('/profile')}
-                        className="h-9 w-9 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-[11px] font-bold overflow-hidden"
+                        className="h-9 w-9 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-[11px] font-bold overflow-hidden ring-2 ring-background shadow-sm"
                         aria-label="Open profile"
                       >
                         {isProfileLoading && !profile ? (
@@ -201,10 +201,10 @@ function HeaderInner({
                 className="block w-full text-left"
               >
                 <div className={cn(
-                  'flex items-center gap-3 border px-3.5 shadow-sm',
+                  'flex items-center gap-3 border px-3.5 shadow-sm transition-colors',
                   festivalChrome
                     ? 'festival-takeover-search rounded-full py-3 border-white/30'
-                    : 'bg-secondary border-border rounded-xl py-2.5'
+                    : 'bg-[hsl(var(--search-bg))] border-[hsl(var(--search-border))] rounded-xl py-2.5 hover:border-border/70'
                 )}>
                   <Search
                     size={18}

@@ -152,5 +152,8 @@ describe('commerce facets extraction and filtering', () => {
     expect(rail).toContain('FOOD_CUISINES');
     expect(rail).toContain('FOOD_MEALS');
     expect(rail).toContain('FOOD_COURSES');
+    expect(rail).toContain('vegCount');
+    expect(rail).toContain('nonVegCount');
+    expect(rail).not.toMatch(/label="Veg Only"\s*\n\s*count=\{0\}/);
   });
 });

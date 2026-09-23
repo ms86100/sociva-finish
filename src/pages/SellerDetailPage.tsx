@@ -51,8 +51,13 @@ import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvid
 import { PreciseLocationRequiredCard } from '@/components/location/PreciseLocationRequiredCard';
 import { buyerCanOrderFromSeller } from '@/lib/sellerDiscoverability';
 import { TasteRail } from '@/components/food/TasteRail';
-import { availableTasteMoods, countFoodFacets, isFoodParentGroup } from '@/lib/food-facets';
+import { countFoodFacets, isFoodParentGroup } from '@/lib/food-facets';
 import { emptyTasteBrowseState, productMatchesTasteBrowse } from '@/lib/food-taste';
+import {
+  buildFoodMenuSections,
+  foodMenuSectionAnchorId,
+  type FoodMenuSectionId,
+} from '@/lib/food-menu-sections';
 
 export default function SellerDetailPage() {
   const { id } = useParams();
@@ -86,6 +91,10 @@ export default function SellerDetailPage() {
   };
   const [menuSearch, setMenuSearch] = useState('');
   const [taste, setTaste] = useState(emptyTasteBrowseState);
+  /** When set, menu list shows only this section. Null = full menu (scroll-spy highlights chips). */
+  const [activeFoodSectionId, setActiveFoodSectionId] = useState<FoodMenuSectionId | null>(null);
+  const [spiedFoodSectionId, setSpiedFoodSectionId] = useState<FoodMenuSectionId | null>(null);
+  const foodSectionChipRailRef = useRef<HTMLDivElement>(null);
   const [distanceKm, setDistanceKm] = useState<number | null>(null);
   const [isReportOpen, setIsReportOpen] = useState(false);
   const [reportType, setReportType] = useState<string>('');
@@ -316,7 +325,7 @@ export default function SellerDetailPage() {
     return isFoodParentGroup(cfg?.parentGroup);
   });
 
-  const filteredProducts = (() => {
+  const filteredProducts = useMemo(() => {
     let result = activeCategory === 'all' ? products : products.filter((p) => p.category === activeCategory);
     if (menuSearch.trim()) {
       const q = menuSearch.toLowerCase();
@@ -326,7 +335,117 @@ export default function SellerDetailPage() {
       result = result.filter((p) => productMatchesTasteBrowse(p, { ...taste, openNow: false }));
     }
     return result;
-  })();
+  }, [activeCategory, products, menuSearch, isFoodStore, taste]);
+
+  const foodMenuSections = useMemo(
+    () => (isFoodStore ? buildFoodMenuSections(filteredProducts) : []),
+    [isFoodStore, filteredProducts],
+  );
+
+  const visibleFoodMenuSections = useMemo(() => {
+    if (!activeFoodSectionId) return foodMenuSections;
+    return foodMenuSections.filter((s) => s.id === activeFoodSectionId);
+  }, [foodMenuSections, activeFoodSectionId]);
+
+  /**
+   * Chip green state: All when no filter; otherwise only the selected section.
+   * Scroll-spy must not paint a section chip as "active" or a tap would look
+   * like a deselect (double-tap bug). Spy only scrolls the rail while All is on.
+   */
+  const foodSectionChipScrollId = activeFoodSectionId ?? spiedFoodSectionId;
+
+  // Drop section filter if veg/search removed that section from the menu
+  useEffect(() => {
+    if (
+      activeFoodSectionId &&
+      foodMenuSections.length > 0 &&
+      !foodMenuSections.some((s) => s.id === activeFoodSectionId)
+    ) {
+      setActiveFoodSectionId(null);
+    }
+  }, [foodMenuSections, activeFoodSectionId]);
+
+  // Scroll-spy only when showing the full menu (no section filter)
+  useEffect(() => {
+    if (
+      !isFoodStore ||
+      foodMenuSections.length === 0 ||
+      activeTab !== 'menu' ||
+      activeFoodSectionId
+    ) {
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((e) => e.isIntersecting)
+          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
+        const top = visible[0];
+        if (!top?.target?.id) return;
+        const sectionId = top.target.id.replace(/^seller-food-/, '') as FoodMenuSectionId;
+        setSpiedFoodSectionId(sectionId);
+      },
+      { root: null, rootMargin: '-18% 0px -62% 0px', threshold: [0, 0.1, 0.25] },
+    );
+
+    for (const section of foodMenuSections) {
+      const el = document.getElementById(foodMenuSectionAnchorId(section.id));
+      if (el) observer.observe(el);
+    }
+
+    if (!spiedFoodSectionId || !foodMenuSections.some((s) => s.id === spiedFoodSectionId)) {
+      setSpiedFoodSectionId(foodMenuSections[0]?.id ?? null);
+    }
+
+    return () => observer.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isFoodStore, foodMenuSections, activeTab, activeFoodSectionId]);
+
+  useEffect(() => {
+    if (!foodSectionChipScrollId || !foodSectionChipRailRef.current) return;
+    const chip = foodSectionChipRailRef.current.querySelector<HTMLElement>(
+      `[data-food-section-chip="${foodSectionChipScrollId}"]`,
+    );
+    chip?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+  }, [foodSectionChipScrollId]);
+
+  /** Always select (filter) on tap - never toggle off. Use All chip to clear. */
+  const selectFoodSectionFilter = (sectionId: FoodMenuSectionId) => {
+    setActiveFoodSectionId(sectionId);
+  };
+
+  const clearFoodSectionFilter = () => {
+    setActiveFoodSectionId(null);
+  };
+
+  const openProductDetail = (product: Product) => {
+    if (!seller) return;
+    setSelectedProduct({
+      product_id: product.id,
+      product_name: product.name,
+      price: product.price,
+      image_url: product.image_url,
+      is_veg: product.is_veg,
+      category: product.category,
+      description: product.description,
+      prep_time_minutes: product.prep_time_minutes,
+      fulfillment_mode: (seller as any).fulfillment_mode || null,
+      delivery_note: (seller as any).delivery_note || null,
+      action_type: product.action_type || 'add_to_cart',
+      contact_phone: product.contact_phone || null,
+      specifications: product.specifications,
+      seller_id: seller.id,
+      seller_name: seller.business_name,
+      seller_rating: seller.rating,
+      seller_reviews: seller.total_reviews,
+      seller_verified: seller.verification_status === 'approved',
+      society_name: (seller as any).society?.name || null,
+      distance_km: distanceKm,
+      is_same_society: seller.society_id === effectiveSocietyId,
+    });
+    setDetailOpen(true);
+  };
 
   const categories = ['all', ...new Set(products.map((p) => p.category))];
 
@@ -559,7 +678,7 @@ export default function SellerDetailPage() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.2, type: 'spring', stiffness: 260, damping: 24 }}
       >
-        <div className="bg-card rounded-xl shadow-elevated p-4 space-y-2.5">
+        <div className="bg-card/70 backdrop-blur-xl backdrop-saturate-150 rounded-xl shadow-elevated p-4 space-y-2.5 border border-border/40">
           <div className="flex items-start gap-3">
             {seller.profile_image_url && (
               <div className="w-12 h-12 rounded-full border border-border overflow-hidden shrink-0">
@@ -679,9 +798,9 @@ export default function SellerDetailPage() {
       {/* Tabs */}
       <div ref={tabsRef} className="px-4 mt-4 scroll-mt-4">
         <Tabs value={activeTab} onValueChange={handleTabChange}>
-          <TabsList className="w-full">
-            <TabsTrigger value="menu" className="flex-1">Menu</TabsTrigger>
-            <TabsTrigger value="reviews" className="flex-1">
+          <TabsList className="w-full bg-card/55 backdrop-blur-xl border border-border/35 rounded-xl">
+            <TabsTrigger value="menu" className="flex-1 data-[state=active]:bg-card/90 data-[state=active]:backdrop-blur-md">Menu</TabsTrigger>
+            <TabsTrigger value="reviews" className="flex-1 data-[state=active]:bg-card/90 data-[state=active]:backdrop-blur-md">
               Reviews ({seller.total_reviews})
             </TabsTrigger>
           </TabsList>
@@ -694,7 +813,7 @@ export default function SellerDetailPage() {
                 placeholder="Search the menu"
                 value={menuSearch}
                 onChange={(e) => setMenuSearch(e.target.value)}
-                className="pl-8 pr-8 h-9 bg-muted border-0 rounded-lg text-sm"
+                className="pl-8 pr-8 h-9 bg-card/55 backdrop-blur-md border border-border/40 rounded-xl text-sm"
               />
               {menuSearch && (
                 <button onClick={() => setMenuSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
@@ -708,15 +827,49 @@ export default function SellerDetailPage() {
                   value={taste}
                   onChange={setTaste}
                   showMoods
+                  moods={[]}
                   showUtilities
                   showOpenNow={false}
-                  moods={availableTasteMoods(products)}
                   inventory={products}
                 />
               </div>
             )}
-            {categories.length > 2 && (
-              <div className="flex gap-2 overflow-x-auto scrollbar-hide mb-4 -mx-4 px-4 sticky top-0 z-10 bg-background py-2 border-b border-border/50">
+            {isFoodStore && foodMenuSections.length > 1 && (
+              <div
+                ref={foodSectionChipRailRef}
+                className="flex gap-2 overflow-x-auto scrollbar-hide mb-3 -mx-4 px-4 sticky top-0 z-10 glass-panel py-2 border-b border-border/30 bg-background/90 backdrop-blur-md"
+              >
+                <button
+                  type="button"
+                  data-food-section-chip="all"
+                  onClick={clearFoodSectionFilter}
+                  className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-colors flex items-center gap-1.5 border ${
+                    activeFoodSectionId === null
+                      ? 'bg-primary text-primary-foreground border-primary/80'
+                      : 'bg-card/60 backdrop-blur-md text-muted-foreground border-border/40'
+                  }`}
+                >
+                  All
+                </button>
+                {foodMenuSections.map((section) => (
+                  <button
+                    key={section.id}
+                    type="button"
+                    data-food-section-chip={section.id}
+                    onClick={() => selectFoodSectionFilter(section.id)}
+                    className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-colors flex items-center gap-1.5 border ${
+                      activeFoodSectionId === section.id
+                        ? 'bg-primary text-primary-foreground border-primary/80'
+                        : 'bg-card/60 backdrop-blur-md text-muted-foreground border-border/40'
+                    }`}
+                  >
+                    {section.label}
+                  </button>
+                ))}
+              </div>
+            )}
+            {!isFoodStore && categories.length > 2 && (
+              <div className="flex gap-2 overflow-x-auto scrollbar-hide mb-4 -mx-4 px-4 sticky top-0 z-10 glass-panel py-2 border-b border-border/30">
                 {categories.map((cat) => {
                   const categoryInfo = allCategoryConfigs.find((c) => c.category === cat);
                   const catImage = categoryInfo?.imageUrl || (categoryInfo as any)?.image_url;
@@ -729,10 +882,10 @@ export default function SellerDetailPage() {
                         const el = document.getElementById(`seller-cat-${cat}`);
                         if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
                       }}
-                      className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-colors flex items-center gap-1.5 ${
+                      className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-colors flex items-center gap-1.5 border ${
                         activeCategory === cat
-                          ? 'bg-primary text-primary-foreground'
-                          : 'bg-muted text-muted-foreground'
+                          ? 'bg-primary text-primary-foreground border-primary/80'
+                          : 'bg-card/60 backdrop-blur-md text-muted-foreground border-border/40'
                       }`}
                     >
                       {cat !== 'all' && catImage && (
@@ -748,6 +901,30 @@ export default function SellerDetailPage() {
             )}
 
             {filteredProducts.length > 0 ? (
+              isFoodStore ? (
+                <div className="space-y-0">
+                  {visibleFoodMenuSections.map((section) => (
+                    <div
+                      key={section.id}
+                      id={foodMenuSectionAnchorId(section.id)}
+                      className="scroll-mt-14"
+                    >
+                      <p className="text-xs font-bold text-muted-foreground uppercase tracking-wide pt-4 pb-2 px-1">
+                        {section.label}
+                      </p>
+                      {section.products.map((product) => (
+                        <div
+                          key={product.id}
+                          onClick={() => openProductDetail(product)}
+                          className="cursor-pointer"
+                        >
+                          <ProductCard product={product} />
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              ) : (
               <motion.div
                 className="space-y-0"
                 key={activeCategory}
@@ -768,55 +945,20 @@ export default function SellerDetailPage() {
                           {categoryInfo?.displayName || cat}
                         </p>
                         {catProducts.map(product => (
-                          <div key={product.id} onClick={() => {
-                            setSelectedProduct({
-                              product_id: product.id, product_name: product.name, price: product.price,
-                              image_url: product.image_url, is_veg: product.is_veg, category: product.category,
-                              description: product.description, prep_time_minutes: product.prep_time_minutes,
-                              fulfillment_mode: (seller as any).fulfillment_mode || null,
-                              delivery_note: (seller as any).delivery_note || null,
-                              action_type: product.action_type || 'add_to_cart',
-                              contact_phone: product.contact_phone || null,
-                              specifications: product.specifications, seller_id: seller!.id,
-                              seller_name: seller!.business_name, seller_rating: seller!.rating,
-                              seller_reviews: seller!.total_reviews,
-                              seller_verified: seller!.verification_status === 'approved',
-                              society_name: (seller as any).society?.name || null,
-                              distance_km: distanceKm,
-                              is_same_society: seller!.society_id === effectiveSocietyId,
-                            });
-                            setDetailOpen(true);
-                          }} className="cursor-pointer">
+                          <div key={product.id} onClick={() => openProductDetail(product)} className="cursor-pointer">
                             <ProductCard product={product} />
                           </div>
                         ))}
                       </div>
                     );
                   }) : filteredProducts.map((product) => (
-                    <div key={product.id} onClick={() => {
-                      setSelectedProduct({
-                        product_id: product.id, product_name: product.name, price: product.price,
-                        image_url: product.image_url, is_veg: product.is_veg, category: product.category,
-                        description: product.description, prep_time_minutes: product.prep_time_minutes,
-                        fulfillment_mode: (seller as any).fulfillment_mode || null,
-                        delivery_note: (seller as any).delivery_note || null,
-                        action_type: product.action_type || 'add_to_cart',
-                        contact_phone: product.contact_phone || null,
-                        specifications: product.specifications, seller_id: seller!.id,
-                        seller_name: seller!.business_name, seller_rating: seller!.rating,
-                        seller_reviews: seller!.total_reviews,
-                        seller_verified: seller!.verification_status === 'approved',
-                        society_name: (seller as any).society?.name || null,
-                        distance_km: distanceKm,
-                        is_same_society: seller!.society_id === effectiveSocietyId,
-                      });
-                      setDetailOpen(true);
-                    }} className="cursor-pointer">
+                    <div key={product.id} onClick={() => openProductDetail(product)} className="cursor-pointer">
                       <ProductCard product={product} />
                     </div>
                   ));
                 })()}
               </motion.div>
+              )
             ) : needsLocation ? (
               <PreciseLocationRequiredCard className="mx-0 mt-4" />
             ) : productsError ? (

@@ -38,6 +38,8 @@ import {
   serviceLocationToFulfillmentType,
 } from '@/lib/service-location';
 import { setPendingAuthAction, type PendingBookingDraft } from '@/lib/pending-auth-action';
+import { CouponInput } from '@/components/cart/CouponInput';
+import { amountAfterCoupon, calculateCouponDiscount } from '@/lib/coupon';
 
 interface ServiceBookingFlowProps {
   open: boolean;
@@ -121,6 +123,15 @@ export function ServiceBookingFlow({
   const [recurringConfig, setRecurringConfig] = useState<RecurringConfig>({ enabled: false, frequency: 'weekly' });
   const [isLoading, setIsLoading] = useState(false);
   const [selfBookError, setSelfBookError] = useState(false);
+  const [appliedCoupon, setAppliedCoupon] = useState<{
+    id: string;
+    code: string;
+    discountAmount: number;
+    discount_type?: string;
+    discount_value?: number;
+    max_discount_amount?: number | null;
+    min_order_amount?: number | null;
+  } | null>(null);
   const { viewportHeight, keyboardInset, isKeyboardOpen } = useKeepDrawerFieldVisible(open);
   const extraGroups = useProductExtraGroups(productSpecs);
 
@@ -179,6 +190,7 @@ export function ServiceBookingFlow({
     setSelectedExtras([]);
     setRecurringConfig({ enabled: false, frequency: 'weekly' });
     setSelectedLocationType(allowedLocationTypes[0] || 'at_seller');
+    setAppliedCoupon(null);
     setIsLoading(false);
     isSubmittingRef.current = false;
     if (productId) {
@@ -216,7 +228,24 @@ export function ServiceBookingFlow({
   const needsAddress = serviceLocationNeedsAddress(effectiveLocationType);
 
   const addonTotal = selectedAddons.reduce((s, a) => s + a.price, 0);
-  const totalAmount = price + addonTotal;
+  const merchandiseTotal = price + addonTotal;
+  const effectiveCouponDiscount = appliedCoupon
+    ? calculateCouponDiscount(merchandiseTotal, {
+        discount_type: appliedCoupon.discount_type || 'flat',
+        discount_value: appliedCoupon.discount_value ?? appliedCoupon.discountAmount,
+        max_discount_amount: appliedCoupon.max_discount_amount,
+        min_order_amount: appliedCoupon.min_order_amount,
+      })
+    : 0;
+  const totalAmount = amountAfterCoupon(merchandiseTotal, effectiveCouponDiscount);
+
+  // Drop coupon if merchandise falls below min order (e.g. add-ons removed).
+  useEffect(() => {
+    if (!appliedCoupon?.min_order_amount) return;
+    if (merchandiseTotal < appliedCoupon.min_order_amount) {
+      setAppliedCoupon(null);
+    }
+  }, [merchandiseTotal, appliedCoupon?.min_order_amount, appliedCoupon?.id]);
 
   const isDateValid = selectedDate && !isBefore(selectedDate, startOfToday());
   const isSelectValid = isDateValid && selectedTime && (!needsAddress || buyerAddress.trim().length > 0);
@@ -314,7 +343,7 @@ export function ServiceBookingFlow({
         return;
       }
 
-      if (price <= 0) {
+      if (merchandiseTotal <= 0) {
         toast.error('Invalid service price');
         setIsLoading(false);
         isSubmittingRef.current = false;
@@ -366,7 +395,7 @@ export function ServiceBookingFlow({
         _booking_date: dateStr,
         _start_time: slot.start_time,
         _end_time: slot.end_time,
-        _total_amount: totalAmount,
+        _total_amount: merchandiseTotal,
         _product_name: productName,
         _unit_price: price,
         _idempotency_key: idempotencyKey,
@@ -390,6 +419,7 @@ export function ServiceBookingFlow({
             }
           : null,
         _selected_extras: extras,
+        _coupon_id: appliedCoupon?.id || null,
       });
 
       if (bookErr) throw bookErr;
@@ -672,8 +702,20 @@ export function ServiceBookingFlow({
                 </div>
               )}
 
+              {/* Coupon - same seller-scoped coupons as cart checkout */}
+              <div className="space-y-2" data-testid="booking-coupon-section">
+                <p className="text-xs font-medium text-muted-foreground">Have a coupon?</p>
+                <CouponInput
+                  sellerId={sellerId}
+                  totalAmount={merchandiseTotal}
+                  appliedCoupon={appliedCoupon}
+                  onApply={setAppliedCoupon}
+                  onRemove={() => setAppliedCoupon(null)}
+                />
+              </div>
+
               {/* Price breakdown */}
-              <div className="p-3 rounded-lg bg-muted space-y-1.5">
+              <div className="p-3 rounded-lg bg-muted space-y-1.5" data-testid="booking-price-breakdown">
                 <div className="flex justify-between text-sm">
                   <span>Service</span>
                   <span className="tabular-nums">{formatPrice(price)}</span>
@@ -682,6 +724,12 @@ export function ServiceBookingFlow({
                   <div className="flex justify-between text-sm">
                     <span>Add-ons</span>
                     <span className="tabular-nums">{formatPrice(addonTotal)}</span>
+                  </div>
+                )}
+                {appliedCoupon && effectiveCouponDiscount > 0 && (
+                  <div className="flex justify-between text-sm text-primary">
+                    <span>Coupon ({appliedCoupon.code})</span>
+                    <span className="tabular-nums">-{formatPrice(effectiveCouponDiscount)}</span>
                   </div>
                 )}
                 <div className="flex justify-between text-sm font-bold pt-1.5 border-t border-border">

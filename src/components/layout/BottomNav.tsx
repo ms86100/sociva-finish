@@ -74,16 +74,16 @@ function BottomNavInner() {
 
   return (
     <nav
-      className="fixed inset-x-0 bottom-0 z-50 border-t border-border/20"
+      className="fixed inset-x-0 bottom-0 z-50 border-t border-border/25"
       style={{ paddingBottom: 'max(var(--app-safe-bottom, 0px), env(safe-area-inset-bottom, 0px))' }}
     >
       {/* Solid fill on native - backdrop-blur tanks Android WebView scroll/nav FPS */}
       <div className={cn(
         'absolute inset-0 bg-background',
-        !IS_NATIVE && 'bg-background/70 backdrop-blur-2xl backdrop-saturate-150',
+        !IS_NATIVE && 'bg-background/78 backdrop-blur-2xl backdrop-saturate-150',
       )} />
 
-      <div className="relative flex items-center justify-around px-1 h-16">
+      <div className="relative flex items-center justify-around px-1.5 h-16">
         {visibleItems.map(({ to, icon: Icon, label }) => {
           const displayLabel = !user && to === '/profile' ? 'Sign in' : label;
           const isActive = location.pathname === to ||
@@ -96,7 +96,7 @@ function BottomNavInner() {
               type="button"
               onClick={() => handleNav(to)}
               className={cn(
-                'flex flex-col items-center justify-center gap-1 px-3 py-1 rounded-2xl min-w-[52px] relative active:scale-95 transition-transform',
+                'flex flex-col items-center justify-center gap-1 px-3 py-1.5 rounded-2xl min-w-[56px] min-h-[44px] relative active:scale-95 transition-colors duration-150',
                 isActive
                   ? 'text-primary'
                   : 'text-muted-foreground hover:text-foreground'
@@ -104,7 +104,7 @@ function BottomNavInner() {
             >
               <div className="relative flex items-center justify-center w-11 h-8 rounded-full">
                 {isActive && (
-                  <div className="absolute inset-0 rounded-full bg-primary/15" />
+                  <div className="absolute inset-0 rounded-full bg-primary/18" />
                 )}
                 <Icon
                   size={20}
@@ -112,13 +112,13 @@ function BottomNavInner() {
                   className="relative z-10"
                 />
                 {showCartBadge && (
-                  <span className="absolute -top-1 -right-1 min-w-[16px] h-[16px] px-0.5 rounded-full bg-primary text-primary-foreground text-[8px] font-bold flex items-center justify-center shadow-sm z-10">
+                  <span className="absolute -top-1 -right-1 min-w-[16px] h-[16px] px-0.5 rounded-full bg-primary text-primary-foreground text-[8px] font-bold flex items-center justify-center shadow-sm z-10 ring-2 ring-background">
                     {itemCount > 9 ? '9+' : itemCount}
                   </span>
                 )}
               </div>
               <span className={cn(
-                'text-[10px] leading-none',
+                'text-[10px] leading-none tracking-wide',
                 isActive ? 'font-bold' : 'font-medium'
               )}>
                 {displayLabel}

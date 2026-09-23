@@ -36,8 +36,8 @@ export function SafeHeader({
       className={cn(
         'sticky top-0',
         zIndex,
-        blur ? 'bg-background/95 backdrop-blur-sm' : 'bg-background',
-        bordered && 'border-b border-border',
+        blur ? 'glass-panel border-b border-border/28' : 'bg-background',
+        bordered && !blur && 'border-b border-border/60',
         className,
       )}
       style={{ paddingTop: 'calc(var(--app-safe-top, 28px) + 12px)' }}
