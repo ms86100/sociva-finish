@@ -513,7 +513,9 @@ export default function CartPage() {
               onClick={() => navigate('/profile/addresses', { state: { returnTo: '/cart' } })}
             >
               <MapPin size={14} className="mr-1.5" />
-              Add a delivery address to continue
+              {c.needsDeliveryUnit
+                ? 'Add flat / house number to continue'
+                : 'Add a delivery address to continue'}
             </Button>
           )}
           {c.user && c.needsPreciseLocation && c.selectedDeliveryAddress && (

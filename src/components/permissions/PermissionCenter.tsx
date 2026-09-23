@@ -2,11 +2,11 @@
 import { useState } from 'react';
 import { Bell, MapPin, X, ExternalLink, Loader2, Sparkles } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { usePermissionLifecycle } from '@/hooks/usePermissionLifecycle';
 import { openAppNotificationSettings } from '@/lib/notification-channel-settings';
 import { openLocationSettings } from '@/lib/location-settings';
-import { notify } from '@/lib/notify';
 import { cn } from '@/lib/utils';
 
 type Variant = 'card' | 'banner' | 'sheet';
@@ -42,7 +42,6 @@ export function PermissionCenter({
     showLocSoftPrompt,
     notifNeedsAttention,
     locNeedsAttention,
-    dismissNotifPrompt,
     dismissLocPrompt,
     dismissAll,
     enableNotifications,
@@ -63,22 +62,28 @@ export function PermissionCenter({
     }
   }
 
+  const closeSheet = () => {
+    // Close UI first — never wait on Preferences / RPC.
+    onDismissed?.();
+    void dismissAll();
+  };
+
   const handleEnableNotif = async () => {
     setBusyNotif(true);
     try {
       const result = await Promise.race([
         enableNotifications(),
-        new Promise<'denied'>((resolve) => setTimeout(() => resolve('denied'), 15000)),
+        new Promise<'settings'>((resolve) => setTimeout(() => resolve('settings'), 15000)),
       ]);
-      if (result === 'settings') {
-        const opened = await openAppNotificationSettings();
-        if (!opened) {
-          notify.block('Open Settings → Sociva → Notifications to enable alerts.');
-        }
-      } else if (result === 'granted') {
-        notify.success('Notifications enabled');
-      } else {
-        notify.block('Notifications were not enabled. Try again from Profile.');
+      if (result === 'granted') {
+        toast.success('Notifications enabled');
+        if (variant === 'sheet') onDismissed?.();
+        return;
+      }
+      // Still not granted → open Settings (or toast if open fails). Keep sheet interactive.
+      const opened = await openAppNotificationSettings();
+      if (!opened) {
+        toast.error('Open Settings → Sociva → Notifications to enable alerts.');
       }
     } finally {
       setBusyNotif(false);
@@ -95,21 +100,16 @@ export function PermissionCenter({
       if (result === 'settings') {
         const opened = await openLocationSettings();
         if (!opened.opened) {
-          notify.block('Open Settings → Sociva → Location to enable nearby discovery.');
+          toast.error('Open Settings → Sociva → Location to enable nearby discovery.');
         }
       } else if (result === 'granted') {
-        notify.success('Location enabled');
+        toast.success('Location enabled');
       } else {
-        notify.block('Could not get your location yet. You can pick a place manually.');
+        toast.error('Could not get your location yet. You can pick a place manually.');
       }
     } finally {
       setBusyLoc(false);
     }
-  };
-
-  const handleMaybeLater = async () => {
-    await dismissAll();
-    onDismissed?.();
   };
 
   const notifDenied = notificationPermission === 'denied';
@@ -186,7 +186,7 @@ export function PermissionCenter({
         {variant === 'sheet' && (
           <button
             type="button"
-            onClick={() => void handleMaybeLater()}
+            onClick={closeSheet}
             className="text-muted-foreground hover:text-foreground"
             aria-label="Close"
           >
@@ -279,7 +279,7 @@ export function PermissionCenter({
       {(notificationPermission !== 'enabled' || locationPermission !== 'enabled') && (
         <button
           type="button"
-          onClick={() => void handleMaybeLater()}
+          onClick={closeSheet}
           className="w-full text-center text-xs font-medium text-muted-foreground hover:text-foreground py-1"
         >
           Maybe later
@@ -289,10 +289,19 @@ export function PermissionCenter({
   );
 
   if (variant === 'sheet') {
+    // z above ActionBlockedDialog (~50) and FeedbackPopup (250) so dismiss always works
     return (
-      <div className="fixed inset-x-0 bottom-0 z-[60] p-4 pb-[max(env(safe-area-inset-bottom),16px)] pointer-events-none">
-        <div className="mx-auto max-w-md rounded-2xl border border-border bg-background p-4 shadow-2xl pointer-events-auto">
-          {body}
+      <div className="fixed inset-0 z-[260] flex flex-col justify-end">
+        <button
+          type="button"
+          className="absolute inset-0 bg-black/50"
+          aria-label="Dismiss"
+          onClick={closeSheet}
+        />
+        <div className="relative z-[1] p-4 pb-[max(env(safe-area-inset-bottom),16px)] pointer-events-none">
+          <div className="mx-auto max-w-md rounded-2xl border border-border bg-background p-4 shadow-2xl pointer-events-auto">
+            {body}
+          </div>
         </div>
       </div>
     );

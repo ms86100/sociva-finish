@@ -9,6 +9,11 @@ export type LocationPermissionState =
   | 'restricted'
   | 'unknown';
 
+export function shouldDeferPostLoginPermissionSheet(pathname: string): boolean {
+  const path = (pathname || '/').split('?')[0];
+  return path === '/cart' || path.startsWith('/cart/');
+}
+
 export function shouldShowLocSoftPrompt(opts: {
   locationPermission: LocationPermissionState;
   locCooldown: boolean;

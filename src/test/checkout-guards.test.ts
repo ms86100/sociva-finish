@@ -4,9 +4,11 @@ import { resolve } from 'path';
 import {
   assertBuyerCanCheckout,
   checkoutErrorMessage,
+  hasDeliveryUnitDetail,
   BUYER_SOCIETY_REQUIRED_MSG,
   BUYER_DELIVERY_LOCATION_MSG,
   DELIVERY_ADDRESS_REQUIRED_MSG,
+  DELIVERY_UNIT_REQUIRED_MSG,
 } from '@/lib/checkout-guards';
 
 const read = (path: string) => readFileSync(resolve(__dirname, '../..', path), 'utf8');
@@ -37,35 +39,70 @@ describe('checkout guards', () => {
     ).toBeNull();
   });
 
-  it('requires delivery address and coords for delivery', () => {
+  it('requires saved delivery address before unit/coords for delivery', () => {
     expect(
       assertBuyerCanCheckout({
         profileSocietyId: 'soc-1',
         fulfillmentType: 'delivery',
         hasDeliveryAddress: false,
         hasPreciseDeliveryCoords: false,
+        hasDeliveryUnitDetail: false,
       }),
     ).toBe(DELIVERY_ADDRESS_REQUIRED_MSG);
+  });
 
+  it('requires flat/house unit on a saved delivery address', () => {
+    expect(
+      assertBuyerCanCheckout({
+        profileSocietyId: 'soc-1',
+        fulfillmentType: 'delivery',
+        hasDeliveryAddress: true,
+        hasPreciseDeliveryCoords: true,
+        hasDeliveryUnitDetail: false,
+      }),
+    ).toBe(DELIVERY_UNIT_REQUIRED_MSG);
+  });
+
+  it('requires precise coords after address + unit are present', () => {
     expect(
       assertBuyerCanCheckout({
         profileSocietyId: 'soc-1',
         fulfillmentType: 'delivery',
         hasDeliveryAddress: true,
         hasPreciseDeliveryCoords: false,
+        hasDeliveryUnitDetail: true,
       }),
     ).toBe(BUYER_DELIVERY_LOCATION_MSG);
   });
 
-  it('allows delivery when the browse pin has precise coords even without a saved address', () => {
+  it('blocks browse-pin-only delivery even when coords look precise', () => {
     expect(
       assertBuyerCanCheckout({
         profileSocietyId: 'soc-1',
         fulfillmentType: 'delivery',
         hasDeliveryAddress: false,
         hasPreciseDeliveryCoords: true,
+        hasDeliveryUnitDetail: false,
+      }),
+    ).toBe(DELIVERY_ADDRESS_REQUIRED_MSG);
+  });
+
+  it('allows delivery when saved address has unit + pin', () => {
+    expect(
+      assertBuyerCanCheckout({
+        profileSocietyId: 'soc-1',
+        fulfillmentType: 'delivery',
+        hasDeliveryAddress: true,
+        hasPreciseDeliveryCoords: true,
+        hasDeliveryUnitDetail: true,
       }),
     ).toBeNull();
+  });
+
+  it('detects flat_number as unit detail', () => {
+    expect(hasDeliveryUnitDetail({ flat_number: 'A-201' })).toBe(true);
+    expect(hasDeliveryUnitDetail({ flat_number: '  ' })).toBe(false);
+    expect(hasDeliveryUnitDetail(null)).toBe(false);
   });
 
   it('maps server error codes to user-facing copy', () => {
@@ -85,6 +122,7 @@ describe('checkout guards', () => {
   it('cart page uses client guards and server error mapping', () => {
     expect(cartHook).toMatch(/assertBuyerCanCheckout/);
     expect(cartHook).toMatch(/checkoutErrorMessage/);
+    expect(cartHook).toMatch(/hasDeliveryUnitDetail/);
     expect(cartHook).toMatch(/buyer_society_required/);
     expect(cartHook).toMatch(/seller_location_required/);
   });

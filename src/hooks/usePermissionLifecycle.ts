@@ -17,6 +17,7 @@ import {
 import { setPushStage } from '@/lib/pushPermissionStage';
 import {
   notifNeedsAttention as computeNotifNeedsAttention,
+  shouldDeferPostLoginPermissionSheet,
   shouldShowLocSoftPrompt,
   shouldShowNotifSoftPrompt,
 } from '@/lib/permission-prompt-rules';
@@ -160,10 +161,10 @@ export function usePermissionLifecycle() {
     return () => remove?.();
   }, [refreshFromOs]);
 
-  const dismissNotifPrompt = useCallback(async () => {
+  const dismissNotifPrompt = useCallback(() => {
     writeCooldown(NOTIF_COOLDOWN_KEY);
     setNotifCooldown(true);
-    await setPushStage('deferred');
+    void setPushStage('deferred');
   }, []);
 
   const dismissLocPrompt = useCallback(() => {
@@ -171,15 +172,16 @@ export function usePermissionLifecycle() {
     setLocCooldown(true);
   }, []);
 
-  const dismissAll = useCallback(async () => {
-    await dismissNotifPrompt();
+  const dismissAll = useCallback(() => {
+    dismissNotifPrompt();
     dismissLocPrompt();
   }, [dismissNotifPrompt, dismissLocPrompt]);
 
   const enableNotifications = useCallback(async (): Promise<'granted' | 'denied' | 'settings'> => {
     if (notificationPermission === 'denied') return 'settings';
     if (!Capacitor.isNativePlatform()) return 'denied';
-    await setPushStage('full');
+    // Never block OS prompt on Preferences
+    void setPushStage('full');
 
     // Never hang the Enable button on token registration or installation RPC.
     const timed = <T,>(p: Promise<T>, ms: number) =>
@@ -204,11 +206,11 @@ export function usePermissionLifecycle() {
         setNotifCooldown(false);
         return 'granted';
       }
-      if (mapped === 'denied') return 'settings';
+      // Denied or still prompt/not_requested after request → Settings path
+      return 'settings';
     } catch {
-      // fall through
+      return 'settings';
     }
-    return 'denied';
   }, [notificationPermission, requestFullPermission]);
 
   const enableLocation = useCallback(async (): Promise<'granted' | 'denied' | 'settings'> => {
@@ -309,6 +311,14 @@ export function usePermissionLifecycle() {
   };
 }
 
+export function peekPostLoginPermissionSheet(): boolean {
+  try {
+    return sessionStorage.getItem(POST_LOGIN_SHEET_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
 export function consumePostLoginPermissionSheet(): boolean {
   try {
     if (sessionStorage.getItem(POST_LOGIN_SHEET_KEY) === '1') {
@@ -328,3 +338,5 @@ export function markPostLoginPermissionSheet() {
     // ignore
   }
 }
+
+export { shouldDeferPostLoginPermissionSheet } from '@/lib/permission-prompt-rules';

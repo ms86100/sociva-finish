@@ -29,6 +29,29 @@ describe('permission lifecycle phases 2–4 (source)', () => {
     expect(profile).toMatch(/PermissionCenter/);
     expect(shell).toMatch(/PostLoginPermissionSheet/);
     expect(sheet).toMatch(/consumePostLoginPermissionSheet/);
+    expect(sheet).toMatch(/shouldDeferPostLoginPermissionSheet/);
+    expect(sheet).toMatch(/peekPostLoginPermissionSheet/);
+  });
+
+  it('defers post-login sheet on checkout and dismisses without awaiting Preferences', () => {
+    const hook = read('src/hooks/usePermissionLifecycle.ts');
+    const rules = read('src/lib/permission-prompt-rules.ts');
+    const center = read('src/components/permissions/PermissionCenter.tsx');
+    expect(hook).toMatch(/shouldDeferPostLoginPermissionSheet/);
+    expect(rules).toMatch(/path === '\/cart'/);
+    // Close UI first, then fire-and-forget dismiss
+    expect(center).toMatch(/onDismissed\?\.\(\)/);
+    expect(center).toMatch(/void dismissAll/);
+    // Sheet stays interactive — toast, not notify.block for enable failure
+    expect(center).toMatch(/toast\.(success|error)/);
+    expect(center).not.toMatch(/notify\.block/);
+    expect(center).toMatch(/z-\[260\]/);
+  });
+
+  it('enable notifications returns settings when OS still not granted', () => {
+    const hook = read('src/hooks/usePermissionLifecycle.ts');
+    expect(hook).toMatch(/void setPushStage\('full'\)/);
+    expect(hook).toMatch(/return 'settings'/);
   });
 
   it('keeps home soft banner location-only (notifications via profile/sheet)', () => {

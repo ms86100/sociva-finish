@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   notifNeedsAttention,
+  shouldDeferPostLoginPermissionSheet,
   shouldShowHomeLocationBanner,
   shouldShowLocSoftPrompt,
   shouldShowNotifSoftPrompt,
@@ -102,5 +103,12 @@ describe('permission soft-prompt rules', () => {
         notifCooldown: true,
       }),
     ).toBe(false);
+  });
+
+  it('defers post-login sheet on cart/checkout paths', () => {
+    expect(shouldDeferPostLoginPermissionSheet('/cart')).toBe(true);
+    expect(shouldDeferPostLoginPermissionSheet('/cart?x=1')).toBe(true);
+    expect(shouldDeferPostLoginPermissionSheet('/')).toBe(false);
+    expect(shouldDeferPostLoginPermissionSheet('/profile')).toBe(false);
   });
 });

@@ -6,6 +6,7 @@ import { supabase } from '@/integrations/supabase/client';
 import {
   assertBuyerCanCheckout,
   checkoutErrorMessage,
+  hasDeliveryUnitDetail,
 } from '@/lib/checkout-guards';
 import { PaymentMethod } from '@/types/Database';
 import { fetchStatusFlow, fetchStatusTransitions, statusFlowQueryKey, statusTransitionsQueryKey } from '@/hooks/useCategoryStatusFlow';
@@ -525,6 +526,10 @@ export function useCartPage() {
     : browsingLocation?.lng;
   const needsPreciseLocation = fulfillmentType === 'delivery'
     && !hasPreciseCoordinates(checkoutLat, checkoutLng);
+  const hasAlignedSavedAddress = !!(selectedDeliveryAddress && selectedAlignsWithBrowse);
+  const hasUnitDetail = hasAlignedSavedAddress && hasDeliveryUnitDetail(selectedDeliveryAddress);
+  const needsDeliveryUnit =
+    fulfillmentType === 'delivery' && hasAlignedSavedAddress && !hasDeliveryUnitDetail(selectedDeliveryAddress);
   const checkoutAddressLabel = selectedAlignsWithBrowse && selectedDeliveryAddress
     ? selectedDeliveryAddress.label
     : (browsingLocation?.label || 'Selected location');
@@ -797,8 +802,11 @@ export function useCartPage() {
     const checkoutBlock = assertBuyerCanCheckout({
       profileSocietyId: profile.society_id,
       fulfillmentType,
-      hasDeliveryAddress: !!selectedDeliveryAddress,
-      hasPreciseDeliveryCoords: hasPreciseCoordinates(checkoutLat, checkoutLng),
+      hasDeliveryAddress: hasAlignedSavedAddress,
+      hasPreciseDeliveryCoords:
+        hasAlignedSavedAddress
+        && hasPreciseCoordinates(selectedDeliveryAddress?.latitude, selectedDeliveryAddress?.longitude),
+      hasDeliveryUnitDetail: hasUnitDetail,
     });
     if (checkoutBlock) {
       notify.block(checkoutBlock);
@@ -1431,7 +1439,12 @@ export function useCartPage() {
     checkoutThisStoreOnly,
     selectedDeliveryAddress, setSelectedDeliveryAddress, addresses, addressesLoading,
     needsPreciseLocation, pickupLocationLabel, checkoutAddressLabel, checkoutAddressDetail,
-    hasCheckoutDestination: hasPreciseCoordinates(checkoutLat, checkoutLng),
+    needsDeliveryUnit,
+    hasCheckoutDestination:
+      fulfillmentType !== 'delivery'
+      || (hasAlignedSavedAddress
+        && hasUnitDetail
+        && hasPreciseCoordinates(selectedDeliveryAddress?.latitude, selectedDeliveryAddress?.longitude)),
     handlePlaceOrder, handleRazorpaySuccess, handleRazorpayFailed, handleRazorpayDismiss,
     handleUpiDeepLinkSuccess, handleUpiDeepLinkFailed,
     hasActivePaymentSession, sessionSellerUpiId, sessionSellerName, sessionAmount,

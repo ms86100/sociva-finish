@@ -15,6 +15,9 @@ export const BUYER_DELIVERY_LOCATION_MSG =
 export const DELIVERY_ADDRESS_REQUIRED_MSG =
   'Please add a delivery address with a map pin before continuing.';
 
+export const DELIVERY_UNIT_REQUIRED_MSG =
+  'Please add your flat / house number so the seller can find you.';
+
 export function checkoutErrorMessage(error?: string | null, fallbackMessage?: string | null): string {
   switch (error) {
     case 'buyer_society_required':
@@ -30,21 +33,35 @@ export function checkoutErrorMessage(error?: string | null, fallbackMessage?: st
   }
 }
 
+/** True when a saved delivery address includes unit detail (same bar as AddressForm). */
+export function hasDeliveryUnitDetail(address?: {
+  flat_number?: string | null;
+} | null): boolean {
+  return !!(address?.flat_number && String(address.flat_number).trim());
+}
+
 export function assertBuyerCanCheckout(opts: {
   profileSocietyId?: string | null;
   fulfillmentType: 'delivery' | 'self_pickup';
   hasDeliveryAddress: boolean;
   hasPreciseDeliveryCoords: boolean;
+  /** Saved address with flat/house number — required for delivery (not browse pin alone). */
+  hasDeliveryUnitDetail?: boolean;
 }): string | null {
   if (!opts.profileSocietyId) {
     return BUYER_SOCIETY_REQUIRED_MSG;
   }
   if (opts.fulfillmentType === 'delivery') {
-    if (opts.hasPreciseDeliveryCoords) return null;
     if (!opts.hasDeliveryAddress) {
       return DELIVERY_ADDRESS_REQUIRED_MSG;
     }
-    return BUYER_DELIVERY_LOCATION_MSG;
+    if (!opts.hasDeliveryUnitDetail) {
+      return DELIVERY_UNIT_REQUIRED_MSG;
+    }
+    if (!opts.hasPreciseDeliveryCoords) {
+      return BUYER_DELIVERY_LOCATION_MSG;
+    }
+    return null;
   }
   return null;
 }
