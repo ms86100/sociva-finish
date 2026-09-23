@@ -2,6 +2,8 @@
 import { useEffect } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { App, URLOpenListenerEvent } from '@capacitor/app';
+import { Browser } from '@capacitor/browser';
+import { isAppUpdatePath, storeUrlForPlatform } from '@/lib/app-update-link';
 
 const PENDING_DEEP_LINK_KEY = 'sociva_pending_deep_link';
 
@@ -123,6 +125,14 @@ export function useDeepLinks() {
 
       try {
         let path = resolveDeepLinkPath(event.url);
+
+        if (isAppUpdatePath(path)) {
+          const storeUrl = storeUrlForPlatform(Capacitor.getPlatform());
+          Browser.open({ url: storeUrl }).catch(() => {
+            window.location.href = storeUrl;
+          });
+          return;
+        }
 
         if (path && path !== '/') {
           // Validate the top-level route segment exists

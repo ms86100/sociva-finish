@@ -20,6 +20,14 @@
       "destination": "/pamphlets/index.html"
     },
     {
+      "source": "/update",
+      "destination": "/update/index.html"
+    },
+    {
+      "source": "/update/",
+      "destination": "/update/index.html"
+    },
+    {
       "source": "/a4.html",
       "destination": "/pamphlets/a4.html"
     },
@@ -28,7 +36,7 @@
       "destination": "/pamphlets/a5.html"
     },
     {
-      "source": "/((?!api/|\\.well-known/|downloads/|delete-account|pamphlets/|a4\\.html|a5\\.html).*)",
+      "source": "/((?!api/|\\.well-known/|downloads/|delete-account|pamphlets/|update(?:/|$)|a4\\.html|a5\\.html).*)",
       "destination": "/index.html"
     }
   ],
@@ -59,6 +67,13 @@
     },
     {
       "source": "/.well-known/assetlinks.json",
+      "headers": [
+        { "key": "Content-Type", "value": "application/json" },
+        { "key": "Cache-Control", "value": "public, max-age=300" }
+      ]
+    },
+    {
+      "source": "/.well-known/apple-app-site-association",
       "headers": [
         { "key": "Content-Type", "value": "application/json" },
         { "key": "Cache-Control", "value": "public, max-age=300" }

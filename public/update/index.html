@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Update Sociva</title>
+  <meta name="description" content="Update the Sociva app from the App Store or Google Play." />
+  <link rel="canonical" href="https://sociva.in/update" />
+  <style>
+    :root { color-scheme: light dark; }
+    body { margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background: #0b0f14; color: #e8eef5; }
+    main { max-width: 28rem; margin: 0 auto; padding: 3rem 1.25rem; text-align: center; }
+    h1 { font-size: 1.6rem; margin: 0 0 0.5rem; }
+    p { color: #b7c2ce; line-height: 1.5; }
+    a { display: inline-block; margin-top: 1.25rem; background: #fff; color: #0b0f14; text-decoration: none; font-weight: 700; border-radius: 999px; padding: 0.85rem 1.4rem; }
+  </style>
+  <script>
+    (function () {
+      var ios = 'https://apps.apple.com/in/app/sociva/id6759218504';
+      var android = 'https://play.google.com/store/apps/details?id=app.sociva.community&hl=en_IN';
+      var ua = navigator.userAgent || '';
+      var target = /android/i.test(ua) ? android : ios;
+      var link = document.getElementById('store');
+      document.addEventListener('DOMContentLoaded', function () {
+        var el = document.getElementById('store');
+        if (el) el.href = target;
+        window.location.replace(target);
+      });
+      if (link) link.href = target;
+    })();
+  </script>
+</head>
+<body>
+  <main>
+    <h1>Update Sociva</h1>
+    <p>Opening the store. If nothing happens, use the button.</p>
+    <a id="store" href="https://apps.apple.com/in/app/sociva/id6759218504">Open the store</a>
+  </main>
+</body>
+</html>
