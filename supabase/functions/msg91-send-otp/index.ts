@@ -95,7 +95,8 @@ Deno.serve(async (req) => {
       phone === "0123456789" ||
       phone === "0987654321" ||
       phone === "9876543201" ||
-      phone === "9535115316"; // TEMP E2E — remove after seller session
+      phone === "9535115316" || // TEMP E2E — remove after seller session
+      phone === "8448802907"; // Staging TestFlight QA until MSG91 secrets are set
 
     if (resend && !reqId && !isQaBypassPhone) {
       return new Response(

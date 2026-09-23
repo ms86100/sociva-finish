@@ -76,6 +76,7 @@ export function CommandCenterOrdersList({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All payment</SelectItem>
+            <SelectItem value="pending_any">Payment pending (any)</SelectItem>
             <SelectItem value="pending">pending</SelectItem>
             <SelectItem value="payment_pending">payment_pending</SelectItem>
             <SelectItem value="paid">paid</SelectItem>

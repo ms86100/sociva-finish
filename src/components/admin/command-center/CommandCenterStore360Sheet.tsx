@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { format } from 'date-fns';
 import { Link } from 'react-router-dom';
-import { Star, Store, X } from 'lucide-react';
+import { Star, Store } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
@@ -96,6 +96,20 @@ export function CommandCenterStore360Sheet({
                 <Button size="sm" className="rounded-xl text-xs" asChild>
                   <Link to={`/admin/stores/${sellerId}`} onClick={() => onOpenChange(false)}>
                     Manage store
+                  </Link>
+                </Button>
+              )}
+              {store.verification_status === 'pending' && (
+                <Button size="sm" variant="outline" className="rounded-xl text-xs" asChild>
+                  <Link to="/admin?tab=sellers" onClick={() => onOpenChange(false)}>
+                    Review verification
+                  </Link>
+                </Button>
+              )}
+              {(store.quality?.open_refunds ?? 0) > 0 && (
+                <Button size="sm" variant="outline" className="rounded-xl text-xs" asChild>
+                  <Link to="/admin/refunds" onClick={() => onOpenChange(false)}>
+                    Open refunds
                   </Link>
                 </Button>
               )}

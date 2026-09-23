@@ -5,6 +5,8 @@ export const QA_OTP_BYPASS_PHONES = [
   '9876543201',
   // TEMP E2E ONLY — remove after seller-dashboard session (no production UI copy)
   '9535115316',
+  // Staging TestFlight QA — MSG91 secrets missing on staging; use OTP 1234
+  '8448802907',
 ] as const;
 
 export const QA_OTP_CODE = '1234';

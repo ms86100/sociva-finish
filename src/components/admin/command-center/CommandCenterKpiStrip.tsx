@@ -67,8 +67,10 @@ function buildCards(snapshot: CommandCenterSnapshot): KpiCard[] {
       value:
         (snapshot.attention?.pending_store_verifications ?? 0) +
         (snapshot.attention?.pending_product_approvals ?? 0) +
+        (snapshot.attention?.open_disputes ?? 0) +
         (snapshot.attention?.open_refunds ?? 0) +
-        (snapshot.attention?.payment_pending_orders ?? 0),
+        (snapshot.attention?.payment_pending_orders ?? 0) +
+        (snapshot.attention?.unanswered_enquiries ?? snapshot.enquiries?.unanswered ?? 0),
       color: 'bg-orange-500',
     },
   ];

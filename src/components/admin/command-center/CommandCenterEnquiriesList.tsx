@@ -55,6 +55,8 @@ export function CommandCenterEnquiriesList({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All statuses</SelectItem>
+            <SelectItem value="open">Open</SelectItem>
+            <SelectItem value="unanswered">Unanswered</SelectItem>
             <SelectItem value="enquired">enquired</SelectItem>
             <SelectItem value="quoted">quoted</SelectItem>
             <SelectItem value="placed">placed</SelectItem>

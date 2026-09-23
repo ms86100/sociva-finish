@@ -1,6 +1,6 @@
 // @ts-nocheck
-import { useMemo, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { format } from 'date-fns';
 import { ArrowLeft, RefreshCw } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -21,18 +21,26 @@ import { CommandCenterActivityFeed } from '@/components/admin/command-center/Com
 import { CommandCenterCategoryIntelligence } from '@/components/admin/command-center/CommandCenterCategoryIntelligence';
 import { CommandCenterGlobalSearch } from '@/components/admin/command-center/CommandCenterGlobalSearch';
 import { CommandCenterStore360Sheet } from '@/components/admin/command-center/CommandCenterStore360Sheet';
+import { CommandCenterAttentionInbox } from '@/components/admin/command-center/CommandCenterAttentionInbox';
+import { CommandCenterGrowthPanel } from '@/components/admin/command-center/CommandCenterGrowthPanel';
+import { CommandCenterTrustPanel } from '@/components/admin/command-center/CommandCenterTrustPanel';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   useCommandCenterActivity,
+  useCommandCenterAttentionQueue,
   useCommandCenterBookings,
   useCommandCenterCategoryIntelligence,
   useCommandCenterDisputes,
   useCommandCenterEnquiries,
+  useCommandCenterGrowth,
   useCommandCenterOrders,
   useCommandCenterProducts,
+  useCommandCenterReports,
   useCommandCenterSellers,
   useCommandCenterSnapshot,
+  type CommandCenterAttentionRow,
 } from '@/hooks/useCommandCenter';
+import { useCurrency } from '@/hooks/useCurrency';
 
 type CommandCenterTab =
   | 'sellers'
@@ -43,37 +51,92 @@ type CommandCenterTab =
   | 'disputes'
   | 'categories'
   | 'activity'
-  | 'attention';
+  | 'attention'
+  | 'growth'
+  | 'trust';
+
+const VALID_TABS: CommandCenterTab[] = [
+  'sellers',
+  'orders',
+  'products',
+  'bookings',
+  'enquiries',
+  'disputes',
+  'categories',
+  'activity',
+  'attention',
+  'growth',
+  'trust',
+];
+
+const VALID_KPIS: KpiKey[] = [
+  'stores',
+  'pending_stores',
+  'live_listings',
+  'pending_products',
+  'orders_today',
+  'open_disputes',
+  'attention',
+];
 
 function startOfTodayIso() {
   const now = new Date();
   return new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
 }
 
+function daysAgoIso(n: number) {
+  const now = new Date();
+  const d = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  d.setDate(d.getDate() - n);
+  return d.toISOString();
+}
+
+function isoDayKey(iso: string | null | undefined) {
+  if (!iso) return null;
+  return iso.slice(0, 10);
+}
+
+function readParam(sp: URLSearchParams, key: string, fallback = 'all') {
+  return sp.get(key) || fallback;
+}
+
 export default function AdminCommandCenterPage() {
   const { viewAsSocietyId, effectiveSocietyId, isAdmin } = useAuth();
   const societyScope = isAdmin ? viewAsSocietyId : effectiveSocietyId;
   const listRef = useRef<HTMLDivElement | null>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const urlHydrated = useRef(false);
+  const { formatPrice } = useCurrency();
 
-  const [activeTab, setActiveTab] = useState<CommandCenterTab>('sellers');
-  const [activeKpi, setActiveKpi] = useState<KpiKey | null>(null);
+  const initialTab = (() => {
+    const t = searchParams.get('tab') as CommandCenterTab | null;
+    return t && VALID_TABS.includes(t) ? t : 'sellers';
+  })();
+  const initialKpi = (() => {
+    const k = searchParams.get('kpi') as KpiKey | null;
+    return k && VALID_KPIS.includes(k) ? k : null;
+  })();
+
+  const [activeTab, setActiveTab] = useState<CommandCenterTab>(initialTab);
+  const [activeKpi, setActiveKpi] = useState<KpiKey | null>(initialKpi);
   const [store360SellerId, setStore360SellerId] = useState<string | null>(null);
 
   const [sellerPage, setSellerPage] = useState(0);
-  const [sellerVerification, setSellerVerification] = useState('all');
+  const [sellerVerification, setSellerVerification] = useState(() => readParam(searchParams, 'ov'));
   const [sellerActiveOnly, setSellerActiveOnly] = useState('all');
   const [sellerSearch, setSellerSearch] = useState('');
 
   const [orderPage, setOrderPage] = useState(0);
-  const [orderStatus, setOrderStatus] = useState('all');
-  const [orderPaymentStatus, setOrderPaymentStatus] = useState('all');
+  const [orderStatus, setOrderStatus] = useState(() => readParam(searchParams, 'os'));
+  const [orderPaymentStatus, setOrderPaymentStatus] = useState(() => readParam(searchParams, 'ops'));
   const [orderSearch, setOrderSearch] = useState('');
   const [orderSellerId, setOrderSellerId] = useState<string | null>(null);
-  const [orderFrom, setOrderFrom] = useState<string | null>(null);
+  const [orderFrom, setOrderFrom] = useState<string | null>(() => searchParams.get('of'));
 
   const [productPage, setProductPage] = useState(0);
-  const [productApproval, setProductApproval] = useState('all');
-  const [productAvailableOnly, setProductAvailableOnly] = useState('all');
+  const [productApproval, setProductApproval] = useState(() => readParam(searchParams, 'pa'));
+  const [productAvailableOnly, setProductAvailableOnly] = useState(() => readParam(searchParams, 'pav'));
   const [productSearch, setProductSearch] = useState('');
   const [productSellerId, setProductSellerId] = useState<string | null>(null);
 
@@ -83,12 +146,12 @@ export default function AdminCommandCenterPage() {
   const [bookingSellerId, setBookingSellerId] = useState<string | null>(null);
 
   const [enquiryPage, setEnquiryPage] = useState(0);
-  const [enquiryStatus, setEnquiryStatus] = useState('all');
+  const [enquiryStatus, setEnquiryStatus] = useState(() => readParam(searchParams, 'es'));
   const [enquirySearch, setEnquirySearch] = useState('');
   const [enquirySellerId, setEnquirySellerId] = useState<string | null>(null);
 
   const [disputePage, setDisputePage] = useState(0);
-  const [disputeStatus, setDisputeStatus] = useState('all');
+  const [disputeStatus, setDisputeStatus] = useState(() => readParam(searchParams, 'ds'));
   const [disputeSearch, setDisputeSearch] = useState('');
   const [disputeSellerId, setDisputeSellerId] = useState<string | null>(null);
 
@@ -96,10 +159,53 @@ export default function AdminCommandCenterPage() {
   const [activityEventType, setActivityEventType] = useState('all');
   const [activitySellerId, setActivitySellerId] = useState<string | null>(null);
 
+  const [attentionPage, setAttentionPage] = useState(0);
+  const [reportPage, setReportPage] = useState(0);
+  const [reportStatus, setReportStatus] = useState('all');
+
   const [categoryDrill, setCategoryDrill] = useState<string | null>(null);
   const [subcategoryDrill, setSubcategoryDrill] = useState<string | null>(null);
 
+  useEffect(() => {
+    urlHydrated.current = true;
+  }, []);
+
+  useEffect(() => {
+    if (!urlHydrated.current) return;
+    const next = new URLSearchParams();
+    if (activeTab !== 'sellers') next.set('tab', activeTab);
+    if (activeKpi) next.set('kpi', activeKpi);
+    if (sellerVerification !== 'all') next.set('ov', sellerVerification);
+    if (orderStatus !== 'all') next.set('os', orderStatus);
+    if (orderPaymentStatus !== 'all') next.set('ops', orderPaymentStatus);
+    if (orderFrom) next.set('of', orderFrom);
+    if (productApproval !== 'all') next.set('pa', productApproval);
+    if (productAvailableOnly !== 'all') next.set('pav', productAvailableOnly);
+    if (enquiryStatus !== 'all') next.set('es', enquiryStatus);
+    if (disputeStatus !== 'all') next.set('ds', disputeStatus);
+    setSearchParams(next, { replace: true });
+  }, [
+    activeTab,
+    activeKpi,
+    sellerVerification,
+    orderStatus,
+    orderPaymentStatus,
+    orderFrom,
+    productApproval,
+    productAvailableOnly,
+    enquiryStatus,
+    disputeStatus,
+    setSearchParams,
+  ]);
+
   const snapshotQuery = useCommandCenterSnapshot(societyScope);
+  const growthQuery = useCommandCenterGrowth(societyScope);
+  const attentionQuery = useCommandCenterAttentionQueue(societyScope, attentionPage);
+  const reportsQuery = useCommandCenterReports(
+    societyScope,
+    reportStatus === 'all' ? null : reportStatus,
+    reportPage,
+  );
 
   const sellerFilters = useMemo(
     () => ({
@@ -252,15 +358,62 @@ export default function AdminCommandCenterPage() {
     }
     if (key === 'open_disputes') {
       setActiveTab('disputes');
-      setDisputeStatus('all');
+      setDisputeStatus('open');
       setDisputePage(0);
       return;
     }
     setActiveTab('attention');
   };
 
+  const drillAttentionKind = (kind: string, row: CommandCenterAttentionRow) => {
+    const normalized = kind
+      .replace('pending_store_verifications', 'pending_store')
+      .replace('pending_product_approvals', 'pending_product')
+      .replace('unanswered_enquiries', 'unanswered')
+      .replace('payment_pending_orders', 'payment_pending');
+
+    if (normalized === 'pending_store') {
+      applyKpi('pending_stores');
+      if (row.seller_id) setStore360SellerId(row.seller_id);
+      return;
+    }
+    if (normalized === 'pending_product') {
+      applyKpi('pending_products');
+      return;
+    }
+    if (normalized === 'open_disputes') {
+      applyKpi('open_disputes');
+      return;
+    }
+    if (normalized === 'unanswered') {
+      setActiveKpi(null);
+      setActiveTab('enquiries');
+      setEnquiryStatus('unanswered');
+      setEnquiryPage(0);
+      listRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      return;
+    }
+    if (normalized === 'open_refunds') {
+      navigate('/admin/refunds');
+      return;
+    }
+    if (normalized === 'payment_pending') {
+      setActiveKpi(null);
+      setActiveTab('orders');
+      setOrderPaymentStatus('pending_any');
+      setOrderStatus('all');
+      setOrderSellerId(null);
+      setOrderFrom(null);
+      setOrderPage(0);
+      listRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
+
   const refreshAll = () => {
     snapshotQuery.refetch();
+    growthQuery.refetch();
+    attentionQuery.refetch();
+    reportsQuery.refetch();
     sellersQuery.refetch();
     ordersQuery.refetch();
     productsQuery.refetch();
@@ -272,6 +425,15 @@ export default function AdminCommandCenterPage() {
   };
 
   const snapshot = snapshotQuery.data;
+  const growth = growthQuery.data;
+
+  const orderFromLabel = (() => {
+    if (!orderFrom) return null;
+    const fromDay = isoDayKey(orderFrom);
+    if (fromDay === isoDayKey(startOfTodayIso())) return 'Showing orders from today';
+    if (fromDay === isoDayKey(daysAgoIso(30))) return 'Showing orders from last 30 days';
+    return `Showing orders from ${format(new Date(orderFrom), 'dd MMM yyyy')}`;
+  })();
 
   return (
     <AppLayout showHeader={false} safeTop={false}>
@@ -333,19 +495,63 @@ export default function AdminCommandCenterPage() {
           <>
             <CommandCenterKpiStrip snapshot={snapshot} activeKey={activeKpi} onSelect={applyKpi} />
 
+            <div className="flex flex-wrap gap-2 text-xs">
+              <Link
+                to="/admin/refunds"
+                className="inline-flex items-center rounded-xl bg-muted/60 px-3 py-1.5 font-medium hover:bg-muted"
+              >
+                Open refunds · {snapshot.refunds?.open ?? 0}
+              </Link>
+              <button
+                type="button"
+                className="inline-flex items-center rounded-xl bg-muted/60 px-3 py-1.5 font-medium hover:bg-muted"
+                onClick={() => {
+                  setActiveTab('orders');
+                  setOrderPaymentStatus('pending_any');
+                  setOrderStatus('all');
+                  setOrderSellerId(null);
+                  setOrderFrom(null);
+                  setOrderPage(0);
+                  setActiveKpi(null);
+                  listRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }}
+              >
+                Payment pending · {snapshot.attention?.payment_pending_orders ?? snapshot.orders?.payment_pending ?? 0}
+              </button>
+              {growth && (
+                <span className="inline-flex items-center rounded-xl bg-muted/60 px-3 py-1.5 font-medium tabular-nums">
+                  GMV 30d · {formatPrice(growth.orders?.gmv_30d ?? 0)}
+                </span>
+              )}
+            </div>
+
             <Card className="border-0 shadow-[var(--shadow-card)] rounded-2xl">
               <CardContent className="p-4 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3 text-xs">
-                <div>
+                <button
+                  type="button"
+                  className="text-left"
+                  onClick={() => {
+                    setActiveTab('orders');
+                    setOrderStatus('all');
+                    setOrderPaymentStatus('all');
+                    setOrderSellerId(null);
+                    setOrderFrom(daysAgoIso(30));
+                    setOrderPage(0);
+                    setActiveKpi(null);
+                    listRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  }}
+                >
                   <p className="text-muted-foreground">Orders (30d)</p>
                   <p className="text-lg font-bold tabular-nums">{snapshot.orders?.month ?? 0}</p>
-                </div>
+                </button>
                 <button
                   type="button"
                   className="text-left"
                   onClick={() => {
                     setActiveTab('enquiries');
-                    setEnquiryStatus('enquired');
+                    setEnquiryStatus('open');
                     setEnquiryPage(0);
+                    setActiveKpi(null);
                     listRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
                   }}
                 >
@@ -357,8 +563,10 @@ export default function AdminCommandCenterPage() {
                   className="text-left"
                   onClick={() => {
                     setActiveTab('enquiries');
-                    setEnquiryStatus('enquired');
+                    setEnquiryStatus('unanswered');
                     setEnquiryPage(0);
+                    setActiveKpi(null);
+                    listRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
                   }}
                 >
                   <p className="text-muted-foreground">Unanswered</p>
@@ -387,10 +595,10 @@ export default function AdminCommandCenterPage() {
                   <p className="text-muted-foreground">Open disputes</p>
                   <p className="text-lg font-bold tabular-nums">{snapshot.disputes?.open ?? 0}</p>
                 </button>
-                <div>
+                <Link to="/admin/refunds" className="text-left block">
                   <p className="text-muted-foreground">Open refunds</p>
                   <p className="text-lg font-bold tabular-nums">{snapshot.refunds?.open ?? 0}</p>
-                </div>
+                </Link>
               </CardContent>
             </Card>
 
@@ -405,7 +613,7 @@ export default function AdminCommandCenterPage() {
 
         <div ref={listRef}>
           <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as CommandCenterTab)}>
-            <TabsList className="w-full grid grid-cols-3 lg:grid-cols-9 rounded-xl h-auto min-h-10 p-1">
+            <TabsList className="w-full grid grid-cols-3 lg:grid-cols-11 rounded-xl h-auto min-h-10 p-1">
               <TabsTrigger value="sellers" className="rounded-lg text-xs">Stores</TabsTrigger>
               <TabsTrigger value="orders" className="rounded-lg text-xs">Orders</TabsTrigger>
               <TabsTrigger value="products" className="rounded-lg text-xs">Products</TabsTrigger>
@@ -415,9 +623,17 @@ export default function AdminCommandCenterPage() {
               <TabsTrigger value="categories" className="rounded-lg text-xs">Categories</TabsTrigger>
               <TabsTrigger value="activity" className="rounded-lg text-xs">Activity</TabsTrigger>
               <TabsTrigger value="attention" className="rounded-lg text-xs">Attention</TabsTrigger>
+              <TabsTrigger value="growth" className="rounded-lg text-xs">Growth</TabsTrigger>
+              <TabsTrigger value="trust" className="rounded-lg text-xs">Trust</TabsTrigger>
             </TabsList>
 
             <TabsContent value="sellers" className="mt-4">
+              {sellerVerification === 'pending' && (
+                <FilterBanner
+                  label="Showing pending store verifications"
+                  onClear={() => { setSellerVerification('all'); setSellerPage(0); setActiveKpi(null); }}
+                />
+              )}
               <CommandCenterSellersList
                 rows={sellersQuery.data?.rows || []}
                 total={sellersQuery.data?.total || 0}
@@ -433,14 +649,23 @@ export default function AdminCommandCenterPage() {
                 onOpenStore360={setStore360SellerId}
                 isLoading={sellersQuery.isLoading}
               />
+              {activeKpi === 'pending_stores' && snapshot && (
+                <ListVsKpi listTotal={sellersQuery.data?.total || 0} kpiTotal={snapshot.sellers?.pending ?? 0} />
+              )}
             </TabsContent>
 
             <TabsContent value="orders" className="mt-4">
               {orderSellerId && (
                 <FilterBanner label="Filtered to one store" onClear={() => { setOrderSellerId(null); setOrderPage(0); }} />
               )}
-              {orderFrom && (
-                <FilterBanner label="Showing orders from today" onClear={() => { setOrderFrom(null); setOrderPage(0); }} />
+              {orderFromLabel && (
+                <FilterBanner label={orderFromLabel} onClear={() => { setOrderFrom(null); setOrderPage(0); setActiveKpi(null); }} />
+              )}
+              {orderPaymentStatus === 'pending_any' && (
+                <FilterBanner
+                  label="Showing payment pending (any)"
+                  onClear={() => { setOrderPaymentStatus('all'); setOrderPage(0); }}
+                />
               )}
               <CommandCenterOrdersList
                 rows={ordersQuery.data?.rows || []}
@@ -455,11 +680,41 @@ export default function AdminCommandCenterPage() {
                 onSearchChange={(v) => { setOrderSearch(v); setOrderPage(0); }}
                 isLoading={ordersQuery.isLoading}
               />
+              {activeKpi === 'orders_today' && snapshot && (
+                <ListVsKpi listTotal={ordersQuery.data?.total || 0} kpiTotal={snapshot.orders?.today ?? 0} />
+              )}
+              {orderPaymentStatus === 'pending_any' && snapshot && (
+                <ListVsKpi
+                  listTotal={ordersQuery.data?.total || 0}
+                  kpiTotal={snapshot.attention?.payment_pending_orders ?? snapshot.orders?.payment_pending ?? 0}
+                />
+              )}
             </TabsContent>
 
             <TabsContent value="products" className="mt-4">
               {productSellerId && (
                 <FilterBanner label="Filtered to one store" onClear={() => { setProductSellerId(null); setProductPage(0); }} />
+              )}
+              {activeKpi === 'live_listings' && productApproval === 'approved' && productAvailableOnly === 'live' && (
+                <FilterBanner
+                  label="Showing live listings"
+                  onClear={() => {
+                    setProductApproval('all');
+                    setProductAvailableOnly('all');
+                    setProductPage(0);
+                    setActiveKpi(null);
+                  }}
+                />
+              )}
+              {(activeKpi === 'pending_products' || productApproval === 'pending') && productApproval === 'pending' && (
+                <FilterBanner
+                  label="Showing pending products"
+                  onClear={() => {
+                    setProductApproval('all');
+                    setProductPage(0);
+                    setActiveKpi(null);
+                  }}
+                />
               )}
               <CommandCenterProductsList
                 rows={productsQuery.data?.rows || []}
@@ -474,6 +729,12 @@ export default function AdminCommandCenterPage() {
                 onSearchChange={(v) => { setProductSearch(v); setProductPage(0); }}
                 isLoading={productsQuery.isLoading}
               />
+              {activeKpi === 'live_listings' && snapshot && (
+                <ListVsKpi listTotal={productsQuery.data?.total || 0} kpiTotal={snapshot.listings?.live_products ?? 0} />
+              )}
+              {activeKpi === 'pending_products' && snapshot && (
+                <ListVsKpi listTotal={productsQuery.data?.total || 0} kpiTotal={snapshot.listings?.pending_products ?? 0} />
+              )}
             </TabsContent>
 
             <TabsContent value="bookings" className="mt-4">
@@ -497,6 +758,18 @@ export default function AdminCommandCenterPage() {
               {enquirySellerId && (
                 <FilterBanner label="Filtered to one store" onClear={() => { setEnquirySellerId(null); setEnquiryPage(0); }} />
               )}
+              {enquiryStatus === 'open' && (
+                <FilterBanner
+                  label="Showing open enquiries"
+                  onClear={() => { setEnquiryStatus('all'); setEnquiryPage(0); }}
+                />
+              )}
+              {enquiryStatus === 'unanswered' && (
+                <FilterBanner
+                  label="Showing unanswered enquiries"
+                  onClear={() => { setEnquiryStatus('all'); setEnquiryPage(0); }}
+                />
+              )}
               <CommandCenterEnquiriesList
                 rows={enquiriesQuery.data?.rows || []}
                 total={enquiriesQuery.data?.total || 0}
@@ -508,11 +781,26 @@ export default function AdminCommandCenterPage() {
                 onSearchChange={(v) => { setEnquirySearch(v); setEnquiryPage(0); }}
                 isLoading={enquiriesQuery.isLoading}
               />
+              {enquiryStatus === 'open' && snapshot && (
+                <ListVsKpi listTotal={enquiriesQuery.data?.total || 0} kpiTotal={snapshot.enquiries?.open ?? 0} />
+              )}
+              {enquiryStatus === 'unanswered' && snapshot && (
+                <ListVsKpi
+                  listTotal={enquiriesQuery.data?.total || 0}
+                  kpiTotal={snapshot.enquiries?.unanswered ?? snapshot.attention?.unanswered_enquiries ?? 0}
+                />
+              )}
             </TabsContent>
 
             <TabsContent value="disputes" className="mt-4">
               {disputeSellerId && (
                 <FilterBanner label="Filtered to one store" onClear={() => { setDisputeSellerId(null); setDisputePage(0); }} />
+              )}
+              {disputeStatus === 'open' && (
+                <FilterBanner
+                  label="Showing open disputes"
+                  onClear={() => { setDisputeStatus('all'); setDisputePage(0); setActiveKpi(null); }}
+                />
               )}
               <CommandCenterDisputesList
                 rows={disputesQuery.data?.rows || []}
@@ -526,6 +814,9 @@ export default function AdminCommandCenterPage() {
                 onSelectSeller={(sellerId) => drillToSeller(sellerId, 'orders')}
                 isLoading={disputesQuery.isLoading}
               />
+              {(activeKpi === 'open_disputes' || disputeStatus === 'open') && snapshot && (
+                <ListVsKpi listTotal={disputesQuery.data?.total || 0} kpiTotal={snapshot.disputes?.open ?? 0} />
+              )}
             </TabsContent>
 
             <TabsContent value="categories" className="mt-4">
@@ -567,18 +858,46 @@ export default function AdminCommandCenterPage() {
               />
             </TabsContent>
 
-            <TabsContent value="attention" className="mt-4 space-y-3">
+            <TabsContent value="attention" className="mt-4 space-y-4">
+              <CommandCenterAttentionInbox
+                rows={attentionQuery.data?.rows || []}
+                total={attentionQuery.data?.total || 0}
+                page={attentionPage}
+                onPageChange={setAttentionPage}
+                onDrillKind={drillAttentionKind}
+                isLoading={attentionQuery.isLoading}
+              />
               {snapshot && (
-                <>
+                <div className="space-y-3">
+                  <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                    Attention summary
+                  </p>
                   <AttentionRow label="Pending store verifications" count={snapshot.attention?.pending_store_verifications ?? 0} actionLabel="View pending stores" onClick={() => applyKpi('pending_stores')} />
                   <AttentionRow label="Pending product approvals" count={snapshot.attention?.pending_product_approvals ?? 0} actionLabel="View pending products" onClick={() => applyKpi('pending_products')} />
                   <AttentionRow label="Open disputes" count={snapshot.attention?.open_disputes ?? 0} actionLabel="View disputes" onClick={() => applyKpi('open_disputes')} />
-                  <AttentionRow label="Unanswered enquiries" count={snapshot.attention?.unanswered_enquiries ?? snapshot.enquiries?.unanswered ?? 0} actionLabel="View enquiries" onClick={() => { setActiveTab('enquiries'); setEnquiryStatus('enquired'); setEnquiryPage(0); }} />
+                  <AttentionRow label="Unanswered enquiries" count={snapshot.attention?.unanswered_enquiries ?? snapshot.enquiries?.unanswered ?? 0} actionLabel="View enquiries" onClick={() => { setActiveTab('enquiries'); setEnquiryStatus('unanswered'); setEnquiryPage(0); }} />
                   <AttentionRow label="Open refunds" count={snapshot.attention?.open_refunds ?? 0} actionLabel="Refund console" to="/admin/refunds" />
-                  <AttentionRow label="Payment-pending orders" count={snapshot.attention?.payment_pending_orders ?? 0} actionLabel="View orders" onClick={() => { setActiveTab('orders'); setOrderPaymentStatus('payment_pending'); setOrderPage(0); }} />
-                  <AttentionRow label="Open enquiries" count={snapshot.enquiries?.open ?? 0} actionLabel="View enquiries" onClick={() => { setActiveTab('enquiries'); setEnquiryStatus('enquired'); setEnquiryPage(0); }} />
-                </>
+                  <AttentionRow label="Payment-pending orders" count={snapshot.attention?.payment_pending_orders ?? 0} actionLabel="View orders" onClick={() => { setActiveTab('orders'); setOrderPaymentStatus('pending_any'); setOrderPage(0); }} />
+                  <AttentionRow label="Open enquiries" count={snapshot.enquiries?.open ?? 0} actionLabel="View enquiries" onClick={() => { setActiveTab('enquiries'); setEnquiryStatus('open'); setEnquiryPage(0); }} />
+                </div>
               )}
+            </TabsContent>
+
+            <TabsContent value="growth" className="mt-4">
+              <CommandCenterGrowthPanel data={growth} isLoading={growthQuery.isLoading} />
+            </TabsContent>
+
+            <TabsContent value="trust" className="mt-4">
+              <CommandCenterTrustPanel
+                rows={reportsQuery.data?.rows || []}
+                total={reportsQuery.data?.total || 0}
+                page={reportPage}
+                onPageChange={setReportPage}
+                status={reportStatus}
+                onStatusChange={(v) => { setReportStatus(v); setReportPage(0); }}
+                onOpenStore360={setStore360SellerId}
+                isLoading={reportsQuery.isLoading}
+              />
             </TabsContent>
           </Tabs>
         </div>
@@ -601,6 +920,16 @@ function FilterBanner({ label, onClear }: { label: string; onClear: () => void }
       <span>{label}</span>
       <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={onClear}>Clear</Button>
     </div>
+  );
+}
+
+function ListVsKpi({ listTotal, kpiTotal }: { listTotal: number; kpiTotal: number }) {
+  const mismatch = listTotal !== kpiTotal;
+  return (
+    <p className={`mt-3 text-xs ${mismatch ? 'text-amber-600 font-semibold' : 'text-muted-foreground'}`}>
+      List {listTotal} · KPI {kpiTotal}
+      {mismatch ? ' · mismatch' : ''}
+    </p>
   );
 }
 

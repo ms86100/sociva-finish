@@ -142,7 +142,15 @@ export function CommandCenterProductsList({
                   <div className="text-right shrink-0">
                     <p className="text-sm font-bold tabular-nums">{formatPrice(product.price)}</p>
                     <Button asChild size="sm" variant="outline" className="h-8 mt-2 rounded-xl text-xs">
-                      <Link to={`/products/${product.product_id}`}>Open</Link>
+                      <Link
+                        to={
+                          product.approval_status === 'pending' && product.seller_id
+                            ? `/admin/stores/${product.seller_id}`
+                            : `/products/${product.product_id}`
+                        }
+                      >
+                        Open
+                      </Link>
                     </Button>
                   </div>
                 </div>

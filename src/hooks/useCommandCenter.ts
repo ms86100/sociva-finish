@@ -757,3 +757,132 @@ export function useCommandCenterCategoryIntelligence(
     staleTime: 30_000,
   });
 }
+
+export type AttentionQueueKind =
+  | 'pending_store_verifications'
+  | 'pending_product_approvals'
+  | 'open_disputes'
+  | 'unanswered_enquiries'
+  | 'open_refunds'
+  | 'payment_pending_orders'
+  | string;
+
+export type CommandCenterAttentionRow = {
+  kind: AttentionQueueKind;
+  entity_id: string;
+  entity_type: string;
+  title: string;
+  subtitle: string | null;
+  status: string | null;
+  seller_id: string | null;
+  seller_name: string | null;
+  society_id: string | null;
+  created_at: string;
+  priority?: number;
+};
+
+export type CommandCenterGrowthSnapshot = {
+  as_of: string;
+  society_id: string | null;
+  buyers: {
+    new_7d: number;
+    new_30d: number;
+    with_order_7d: number;
+    with_order_30d: number;
+  };
+  sellers: {
+    new_7d: number;
+    new_30d: number;
+    pending: number;
+    approved_7d: number;
+  };
+  orders: {
+    placed_7d: number;
+    placed_30d: number;
+    gmv_30d: number;
+  };
+  listings: {
+    live: number;
+    pending: number;
+  };
+};
+
+export type CommandCenterReportRow = {
+  report_id: string;
+  report_type: string | null;
+  description: string | null;
+  status: string;
+  admin_notes: string | null;
+  reporter_id: string | null;
+  reporter_name: string | null;
+  reported_user_id: string | null;
+  reported_user_name: string | null;
+  reported_seller_id: string | null;
+  reported_seller_name: string | null;
+  seller_society_id: string | null;
+  created_at: string;
+  updated_at: string | null;
+};
+
+export function useCommandCenterAttentionQueue(
+  societyId: string | null | undefined,
+  page = 0,
+  pageSize = 50,
+) {
+  return useQuery({
+    queryKey: ['admin-command-center-attention-queue', societyId ?? 'all', page, pageSize],
+    queryFn: async () => {
+      const { data, error } = await adminRpc('admin_list_attention_queue', {
+        p_society_id: societyId || null,
+        p_kinds: null,
+        p_limit: pageSize,
+        p_offset: page * pageSize,
+      });
+      if (error) throw error;
+      return listPayload<CommandCenterAttentionRow>(data);
+    },
+    staleTime: 20_000,
+  });
+}
+
+export function useCommandCenterGrowth(societyId: string | null | undefined) {
+  return useQuery({
+    queryKey: ['admin-command-center-growth', societyId ?? 'all'],
+    queryFn: async () => {
+      const { data, error } = await adminRpc('admin_get_growth_snapshot', {
+        p_society_id: societyId || null,
+      });
+      if (error) throw error;
+      return (data || {}) as CommandCenterGrowthSnapshot;
+    },
+    staleTime: 30_000,
+  });
+}
+
+export function useCommandCenterReports(
+  societyId: string | null | undefined,
+  status: string | null = null,
+  page = 0,
+  pageSize = 50,
+) {
+  return useQuery({
+    queryKey: [
+      'admin-command-center-reports',
+      societyId ?? 'all',
+      status ?? 'all',
+      page,
+      pageSize,
+    ],
+    queryFn: async () => {
+      const { data, error } = await adminRpc('admin_list_reports_filtered', {
+        p_society_id: societyId || null,
+        p_status: status || null,
+        p_limit: pageSize,
+        p_offset: page * pageSize,
+      });
+      if (error) throw error;
+      return listPayload<CommandCenterReportRow>(data);
+    },
+    staleTime: 20_000,
+  });
+}

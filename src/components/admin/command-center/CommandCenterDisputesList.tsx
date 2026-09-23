@@ -63,7 +63,7 @@ export function CommandCenterDisputesList({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All statuses</SelectItem>
-            <SelectItem value="open">open</SelectItem>
+            <SelectItem value="open">Open (active)</SelectItem>
             <SelectItem value="acknowledged">acknowledged</SelectItem>
             <SelectItem value="in_review">in_review</SelectItem>
             <SelectItem value="resolved">resolved</SelectItem>
