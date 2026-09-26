@@ -15,6 +15,8 @@ export const CUSTOMER_UNAVAILABLE_REQUESTS =
 
 export const CUSTOMER_UNAVAILABLE_TITLE = 'Seller unavailable';
 
+export const CONTACT_COULD_NOT_START = 'Could not start contact. Please try again.';
+
 /** @deprecated Use CUSTOMER_UNAVAILABLE_ORDERS or sellerCreditCustomerMessage */
 export const CUSTOMER_STORE_UNAVAILABLE = CUSTOMER_UNAVAILABLE_ORDERS;
 
@@ -229,23 +231,26 @@ export function isSellerCreditInsufficientError(message?: string | null): boolea
   return Boolean(message && /SELLER_CREDIT_INSUFFICIENT/i.test(message));
 }
 
+function isCreditUnavailableMessage(message?: string | null): boolean {
+  return Boolean(
+    isSellerCreditInsufficientError(message)
+    || /temporarily unavailable for new/i.test(message || '')
+    || /unavailable for new (orders|requests)/i.test(message || '')
+    || /isn['’]t accepting new (orders|requests)/i.test(message || ''),
+  );
+}
+
 export function sellerCreditCustomerMessage(
   message?: string | null,
   eventType?: string | null,
 ): string {
-  if (eventType === 'ORDER_COMPLETED') return CUSTOMER_UNAVAILABLE_ORDERS;
-  if (eventType && eventType !== 'ORDER_COMPLETED') return CUSTOMER_UNAVAILABLE_REQUESTS;
-  if (/unavailable for new requests|isn['’]t accepting new requests/i.test(message || '')) {
-    return CUSTOMER_UNAVAILABLE_REQUESTS;
-  }
-  if (
-    isSellerCreditInsufficientError(message)
-    || /temporarily unavailable for new/i.test(message || '')
-    || /unavailable for new orders/i.test(message || '')
-    || /isn['’]t accepting new orders/i.test(message || '')
-  ) {
+  if (isCreditUnavailableMessage(message)) {
+    if (eventType === 'ORDER_COMPLETED') return CUSTOMER_UNAVAILABLE_ORDERS;
+    if (eventType && eventType !== 'ORDER_COMPLETED') return CUSTOMER_UNAVAILABLE_REQUESTS;
+    if (/requests/i.test(message || '')) return CUSTOMER_UNAVAILABLE_REQUESTS;
     return CUSTOMER_UNAVAILABLE_ORDERS;
   }
+  if (eventType === 'CONTACT_REQUEST') return CONTACT_COULD_NOT_START;
   return message || CUSTOMER_UNAVAILABLE_ORDERS;
 }
 

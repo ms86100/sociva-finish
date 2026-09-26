@@ -23,7 +23,7 @@ interface SellerChatSheetProps {
 
 export function SellerChatSheet({ open, onOpenChange, buyerId, sellerId, productId, productName, sellerName }: SellerChatSheetProps) {
   const { messages, isLoading, getOrCreate, sendMessage, isSending } = useSellerChat(buyerId, sellerId, productId);
-  const { viewportHeight, viewportTop, keyboardInset } = useChatViewport(open);
+  const { keyboardInset } = useChatViewport(open);
   const [text, setText] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -75,8 +75,6 @@ export function SellerChatSheet({ open, onOpenChange, buyerId, sellerId, product
   if (!open) return null;
 
   const containerStyle: React.CSSProperties = {
-    height: `${Math.max(viewportHeight, 320)}px`,
-    top: viewportTop,
     paddingTop: 'env(safe-area-inset-top, 0px)',
     paddingBottom: keyboardInset ? `${keyboardInset}px` : undefined,
     pointerEvents: 'auto' as const,
@@ -84,7 +82,7 @@ export function SellerChatSheet({ open, onOpenChange, buyerId, sellerId, product
 
   return createPortal(
     <div
-      className="fixed inset-x-0 z-[60] bg-background flex flex-col overflow-hidden"
+      className="fixed inset-0 z-[80] bg-background flex flex-col overflow-hidden"
       style={containerStyle}
     >
       {/* Header */}
@@ -98,7 +96,7 @@ export function SellerChatSheet({ open, onOpenChange, buyerId, sellerId, product
             <p className="text-xs text-muted-foreground truncate">Re: {productName}</p>
           </div>
         </div>
-        <Button variant="ghost" size="icon" onClick={() => onOpenChange(false)} className="shrink-0" aria-label="Close chat">
+        <Button type="button" variant="ghost" size="icon" onClick={() => onOpenChange(false)} className="shrink-0" aria-label="Close chat">
           <X size={20} />
         </Button>
       </div>
@@ -156,6 +154,7 @@ export function SellerChatSheet({ open, onOpenChange, buyerId, sellerId, product
           }}
         />
         <Button
+          type="button"
           size="icon"
           className="shrink-0 h-10 w-10 rounded-xl"
           onClick={() => void handleSend()}

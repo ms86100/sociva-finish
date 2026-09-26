@@ -56,6 +56,10 @@ describe('Sociva Credits', () => {
     expect(sellerCreditCustomerMessage('SELLER_CREDIT_INSUFFICIENT: x', 'ORDER_COMPLETED')).toBe(CUSTOMER_UNAVAILABLE_ORDERS);
     expect(sellerCreditCustomerMessage('SELLER_CREDIT_INSUFFICIENT: x', 'ENQUIRY_CREATED')).toBe(CUSTOMER_UNAVAILABLE_REQUESTS);
     expect(sellerCreditCustomerMessage('SELLER_CREDIT_INSUFFICIENT: x', 'SERVICE_BOOKING')).toBe(CUSTOMER_UNAVAILABLE_REQUESTS);
+    expect(sellerCreditCustomerMessage('SELLER_CREDIT_INSUFFICIENT: x', 'CONTACT_REQUEST')).toBe(CUSTOMER_UNAVAILABLE_REQUESTS);
+    expect(sellerCreditCustomerMessage('duplicate key value violates unique constraint', 'CONTACT_REQUEST')).toBe(
+      'Could not start contact. Please try again.',
+    );
     expect(creditHealth(0)).toBe('exhausted');
     expect(creditHealth(25, { healthyMin: 100, lowMin: 50 })).toBe('critical');
     expect(creditHealth(1, { healthyMin: 100, lowMin: 50, criticalMin: 1 })).toBe('critical');

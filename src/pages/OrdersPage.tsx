@@ -18,6 +18,7 @@ import { BuyerBookingsCalendar } from '@/components/booking/BuyerBookingsCalenda
 import { SafeSectionWrapper } from '@/components/SafeSectionWrapper';
 import { useAuth } from '@/contexts/AuthContext';
 import { useBuyerRealtimeShell } from '@/hooks/useBuyerRealtimeShell';
+import { deriveDisplayStatus } from '@/lib/deriveDisplayStatus';
 import { useOrdersList } from '@/hooks/useOrdersList';
 import { useFlowStepLabels } from '@/hooks/useFlowStepLabels';
 import { useCurrency } from '@/hooks/useCurrency';
@@ -65,6 +66,16 @@ function OrderCard({
   const statusInfo = getFlowLabel(status, type);
   const seller = firstEmbed((order as any).seller);
   const buyer = firstEmbed((order as any).buyer);
+  const contactLabel = (order as any).transaction_type === 'contact_enquiry'
+    ? deriveDisplayStatus({
+        orderStatus: status,
+        isBuyerView: type === 'buyer',
+        transactionType: 'contact_enquiry',
+        sellerName: type === 'buyer'
+          ? displaySellerStoreName(seller?.business_name)
+          : (buyer?.name || 'Customer'),
+      }).text
+    : null;
   const items = Array.isArray((order as any).items) ? (order as any).items : [];
   const canReorder = type === 'buyer' && successTerminals.has(status);
   const isCompleted = successTerminals.has(status);
@@ -136,7 +147,7 @@ function OrderCard({
             <div className="flex items-center gap-2 mt-1.5 flex-wrap">
               <span className={`inline-flex items-center gap-1 text-[11px] ${dotColor}`}>
                 {isCompleted ? <CheckCircle size={11} /> : <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" />}
-                {statusInfo.label}
+                {contactLabel || statusInfo.label}
               </span>
               {transitAge && (
                 <span

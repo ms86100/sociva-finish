@@ -115,6 +115,11 @@ export function ContactSellerModal({
   };
 
   const handleMessage = async () => {
+    if (phase === 'success' && interactionId) {
+      setChatOpen(true);
+      handleOpenChange(false);
+      return;
+    }
     const result = await initiateContact('message');
     if (!result) return;
     handleOpenChange(false);
