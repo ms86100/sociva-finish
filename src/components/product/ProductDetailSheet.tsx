@@ -45,6 +45,7 @@ import { SellerLocationLine } from '@/components/location/SellerLocationLine';
 import { buildProductShareText, productShareUrl, shareSocivaContent } from '@/lib/sociva-share';
 import { canShowRepeatRate } from '@/hooks/queries/useProductTrustMetrics';
 import { OfferingImageCarousel } from '@/components/product/OfferingImageCarousel';
+import { homeServiceBuyerLabel } from '@/lib/home-service-label';
 
 const PriceHistoryChart = lazy(() =>
   import('./PriceHistoryChart').then((m) => ({ default: m.PriceHistoryChart })),
@@ -82,6 +83,12 @@ export function ProductDetailSheet({ product, open, onOpenChange, onSelectProduc
   const { user } = useAuth();
   const navigate = useNavigate();
   const d = useProductDetail(product, open, onOpenChange);
+  const homeVisitLabel = homeServiceBuyerLabel({
+    sellerHome: (product as any)?.seller_home_service_available,
+    productHome: (product as any)?.home_service_available,
+    fulfillmentMode: (product as any)?.seller_fulfillment_mode || product?.fulfillment_mode,
+    category: product?.category,
+  });
   const { data: categoryConfigs } = useCategoryConfig();
   const sheetCatCfg = categoryConfigs?.find((c: any) => c.category === product?.category);
   const showVeg = shouldShowVegBadge(product?.is_veg, {
@@ -317,6 +324,11 @@ export function ProductDetailSheet({ product, open, onOpenChange, onSelectProduc
                     exit={{ opacity: 0, height: 0 }}
                     transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
                   >
+                    {homeVisitLabel && (
+                      <div className="flex items-center gap-1.5 text-xs text-foreground bg-primary/10 rounded-lg px-3 py-2">
+                        <span>{homeVisitLabel}{Number((product as any)?.home_service_fee) > 0 ? ` - home visit fee ${d.formatPrice(Number((product as any).home_service_fee))}` : ''}</span>
+                      </div>
+                    )}
                     {product.fulfillment_mode && (<div className="flex items-center gap-1.5 text-xs text-muted-foreground bg-muted rounded-lg px-3 py-2"><Truck size={14} className="text-accent shrink-0" /><span>{product.fulfillment_mode === 'self_pickup' && 'Self Pickup Only'}{product.fulfillment_mode === 'delivery' && 'Seller Delivers'}{product.fulfillment_mode === 'both' && 'Pickup or Delivery'}</span></div>)}
                     {product.delivery_note && <p className="text-xs text-muted-foreground italic">- {product.delivery_note}</p>}
                     {product.description && <div><h4 className="text-xs font-bold text-foreground mb-1">Highlights</h4><p className={`text-xs text-muted-foreground leading-relaxed ${!d.descExpanded ? 'line-clamp-3' : ''}`}>{product.description}</p>{product.description.length > 120 && <button onClick={() => d.setDescExpanded(!d.descExpanded)} className="text-[10px] font-medium text-primary mt-0.5">{d.descExpanded ? 'Show less' : 'Read more'}</button>}</div>}

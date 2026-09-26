@@ -1062,6 +1062,13 @@ export function useCartPage() {
         }
       } catch (error: any) {
         console.error('Error creating orders:', error);
+        try {
+          const { track } = await import('@/lib/analytics');
+          track('payment_failed', {
+            payment_method: paymentMode.isRazorpay ? 'razorpay' : 'upi',
+            cart_value: finalAmount,
+          });
+        } catch { /* analytics optional */ }
         // Extract actual RPC error message instead of letting friendlyError sanitize it
         const rawMessage = error?.message ?? error?.details ?? error?.hint ?? String(error);
         if (
@@ -1095,12 +1102,6 @@ export function useCartPage() {
           payment_method: 'cod',
           fulfillment_type: fulfillmentType,
         });
-        track('order_completed', {
-          order_count: orderIds.length,
-          cart_value: finalAmount,
-          payment_method: 'cod',
-          seller_count: sellerGroups.length,
-        });
       } catch { /* analytics optional */ }
       // Loyalty + wallet already reserved+committed server-side for COD inside create_multi_vendor_orders
       if (effectiveLoyaltyDiscount > 0) {
@@ -1122,6 +1123,10 @@ export function useCartPage() {
       supabase.functions.invoke('process-notification-queue').catch(() => {});
     } catch (error: any) {
       console.error('Error placing COD order:', error);
+      try {
+        const { track } = await import('@/lib/analytics');
+        track('payment_failed', { payment_method: 'cod', cart_value: finalAmount });
+      } catch { /* analytics optional */ }
       // Extract actual RPC error message instead of letting friendlyError sanitize it
       const rawMessage = error?.message ?? error?.details ?? error?.hint ?? String(error);
       if (
@@ -1211,6 +1216,13 @@ export function useCartPage() {
           cart_value: finalAmount,
           payment_method: 'razorpay',
           seller_count: sellerGroups.length,
+        });
+      } else {
+        track('payment_failed', {
+          payment_method: 'razorpay',
+          cart_value: finalAmount,
+          order_count: orderIds.length,
+          error_code: 'confirm_pending',
         });
       }
     } catch { /* analytics optional */ }
@@ -1340,6 +1352,15 @@ export function useCartPage() {
     if (upiCompletionRef.current) return;
     upiCompletionRef.current = true;
     setShowUpiDeepLink(false);
+    try {
+      const { track } = await import('@/lib/analytics');
+      track('payment_failed', {
+        payment_method: 'upi',
+        cart_value: finalAmount,
+        order_count: pendingOrderIds.length,
+        error_code: explicitCancel ? 'buyer_cancelled' : 'not_confirmed',
+      });
+    } catch { /* analytics optional */ }
     if (!user?.id) { notify.block('Your session expired. Sign in again before continuing.', { id: 'checkout-session', title: 'Sign in required' }); setPendingOrderIds([]); clearPaymentSession(); return; }
     if (pendingOrderIds.length > 0) {
       if (await anyOrderPaidOrBuyerConfirmed(pendingOrderIds)) {

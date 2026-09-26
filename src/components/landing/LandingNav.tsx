@@ -29,7 +29,7 @@ export function LandingNav() {
   return (
     <nav className="sticky z-50 glass border-b border-border" style={{ top: 'var(--app-safe-top)' }}>
       <div className="container mx-auto flex items-center justify-between h-14 px-4 lg:px-8">
-        <Link to="/" className="flex items-center gap-2 overflow-visible py-0.5">
+        <Link to="/landing" className="flex items-center gap-2 overflow-visible py-0.5">
           <span 
             className="text-xl font-black tracking-[0.12em] leading-none"
             style={{

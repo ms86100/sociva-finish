@@ -64,6 +64,7 @@ export default defineConfig(({ mode }) => {
               /^\/downloads\//,
               /^\/pamphlets(\/|$)/,
               /^\/delete-account(\/|$)/,
+              /^\/update(\/|$)/,
               /^\/a4\.html$/,
               /^\/a5\.html$/,
             ],

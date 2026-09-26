@@ -158,12 +158,12 @@ describe('guest local cart', () => {
 });
 
 describe('guest location discovery wiring (source)', () => {
-  it('does not force web guests from / to marketing landing', () => {
+  it('sends website product browse to the marketing landing page', () => {
     const shell = read('components/layout/AppShell.tsx');
     expect(shell).toMatch(/isGuestBrowsePath/);
+    expect(shell).toMatch(/isNativePlatform/);
+    expect(shell).toMatch(/Navigate to="\/landing"/);
     expect(shell).toMatch(/needsLocationOnboarding/);
-    expect(shell).not.toMatch(/Navigate to="\/landing"/);
-    expect(shell).toMatch(/Swiggy-style/);
   });
 
   it('exposes cart as a public guest route', () => {

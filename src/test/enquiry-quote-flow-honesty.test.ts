@@ -54,6 +54,22 @@ describe('Enquiry & Quote Flow Honesty', () => {
     expect(status.icon).toBe('Receipt');
   });
 
+  it('returns Enquiry sent for a contact enquiry when flow is missing', () => {
+    expect(() => deriveDisplayStatus({
+      orderStatus: 'enquired',
+      isBuyerView: true,
+      transactionType: 'contact_enquiry',
+    })).not.toThrow();
+
+    const status = deriveDisplayStatus({
+      orderStatus: 'enquired',
+      isBuyerView: true,
+      transactionType: 'contact_enquiry',
+    });
+
+    expect(status.text).toBe('Enquiry sent');
+  });
+
   it('preserves regular order placed copy for standard e-commerce orders', () => {
     const status = deriveDisplayStatus({
       orderStatus: 'placed',

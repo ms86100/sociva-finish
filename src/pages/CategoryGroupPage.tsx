@@ -33,6 +33,7 @@ import {
 import {
   readFoodFacetsFromSearchParams,
 } from '@/lib/food-facets';
+import { diversifyRankedProducts, shouldDiversifySort } from '@/lib/sellerDiversity';
 
 export default function CategoryGroupPage() {
   const { category } = useParams<{ category: string }>();
@@ -67,6 +68,10 @@ export default function CategoryGroupPage() {
       contact_phone: product.contact_phone,
       prep_time_minutes: product.prep_time_minutes,
       fulfillment_mode: product.fulfillment_mode,
+      seller_fulfillment_mode: product.seller_fulfillment_mode || product.fulfillment_mode,
+      home_service_available: product.home_service_available ?? null,
+      seller_home_service_available: product.seller_home_service_available === true,
+      home_service_fee: product.home_service_fee ?? null,
       delivery_note: product.delivery_note,
       _catIcon: catConfig?.icon || '🛍️',
       _catName: catConfig?.displayName || product.category,
@@ -189,7 +194,15 @@ export default function CategoryGroupPage() {
       case 'newest': sorted.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()); break;
       case 'rating': sorted.sort((a, b) => (b.seller_rating ?? 0) - (a.seller_rating ?? 0)); break;
     }
-    return sorted;
+    if (!shouldDiversifySort(sortBy)) return sorted;
+    return diversifyRankedProducts(sorted, {
+      sellerId: (product) => product.seller_id,
+      base: (product, index) => {
+        const distance = product.distance_km == null ? 8 : Number(product.distance_km);
+        return Math.max(0, 40 - distance * 4) - index * 0.001;
+      },
+      createdAt: (product) => product.created_at,
+    });
   }, [scopedProducts, searchQuery, sortBy, facets]);
 
   const handleSubCategorySelect = (cat: ServiceCategory | null) => {

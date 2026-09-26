@@ -149,6 +149,16 @@ export function useSellerChat(buyerId: string | undefined, sellerId: string | un
         old.map((m) => (m.id === tempId ? (inserted as Message) : m)),
       );
 
+      try {
+        const { track } = await import('@/lib/analytics');
+        track('chat_message_sent', {
+          conversation_id: cid,
+          seller_id: sellerId,
+          product_id: productId,
+          sender_role: senderId === buyerId ? 'buyer' : 'seller',
+        });
+      } catch { /* analytics optional */ }
+
       // Determine recipient for notification (auth user_id, not seller profile id)
       const recipientProfileOrUserId = senderId === buyerId ? sellerId : buyerId;
       if (recipientProfileOrUserId) {

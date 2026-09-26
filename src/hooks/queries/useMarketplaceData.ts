@@ -1,5 +1,7 @@
 // @ts-nocheck
 import { useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 import { useMarketplaceSellers, MarketplaceSeller } from './useMarketplaceSellers';
 import { useMarketplaceProducts, MarketplaceProduct } from './useMarketplaceProducts';
 
@@ -31,6 +33,9 @@ export interface RpcSellerRow {
   avg_response_minutes: number | null;
   last_active_at: string | null;
   completed_order_count: number | null;
+  home_service_available?: boolean | null;
+  home_service_fee?: number | null;
+  fulfillment_mode?: string | null;
 }
 
 /**
@@ -54,6 +59,40 @@ export function useMarketplaceData() {
 
   const productsQuery = useMarketplaceProducts(sellerIds);
   const products = productsQuery.data;
+  const homeServiceQuery = useQuery({
+    queryKey: ['seller-home-service', sellerIds.join(',')],
+    enabled: sellerIds.length > 0,
+    staleTime: 10 * 60 * 1000,
+    queryFn: async () => {
+      const rows: Array<{
+        id: string;
+        home_service_available: boolean | null;
+        home_service_fee: number | null;
+        fulfillment_mode: string | null;
+      }> = [];
+      for (let i = 0; i < sellerIds.length; i += 80) {
+        const chunk = sellerIds.slice(i, i + 80);
+        const { data, error } = await supabase
+          .from('seller_profiles')
+          .select('id, home_service_available, home_service_fee, fulfillment_mode')
+          .in('id', chunk);
+        if (error) return rows;
+        rows.push(...((data || []) as typeof rows));
+      }
+      return rows;
+    },
+  });
+  const homeBySeller = useMemo(() => {
+    const map = new Map<string, { home: boolean; fee: number | null; mode: string | null }>();
+    for (const row of homeServiceQuery.data || []) {
+      map.set(row.id, {
+        home: row.home_service_available === true,
+        fee: row.home_service_fee,
+        mode: row.fulfillment_mode,
+      });
+    }
+    return map;
+  }, [homeServiceQuery.data]);
 
   // Combine sellers + products into backward-compatible shape
   const data = useMemo((): RpcSellerRow[] => {
@@ -111,8 +150,11 @@ export function useMarketplaceData() {
       avg_response_minutes: s.avg_response_minutes ?? null,
       last_active_at: s.last_active_at ?? null,
       completed_order_count: s.completed_order_count ?? null,
+      home_service_available: homeBySeller.get(s.seller_id)?.home ?? false,
+      home_service_fee: homeBySeller.get(s.seller_id)?.fee ?? null,
+      fulfillment_mode: homeBySeller.get(s.seller_id)?.mode ?? null,
     }));
-  }, [sellers, products]);
+  }, [sellers, products, homeBySeller]);
 
   return {
     data,

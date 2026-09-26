@@ -30,4 +30,4 @@ adb shell pm get-app-links app.sociva.community
 curl -s https://www.sociva.in/.well-known/assetlinks.json
 ```
 
-Until the placeholder is replaced and deployed, `android:autoVerify="true"` will not verify and HTTPS links may open in the browser instead of the app. The custom scheme `sociva://` still works without Asset Links.
+The fingerprint currently published in `assetlinks.json` is the upload keystore. Play App Signing uses a second certificate. Add that SHA-256 from Play Console, Setup, App signing, beside the existing one, then deploy this file. Until that second fingerprint is present, verified App Links can fail and HTTPS taps open in the browser. The share page still offers an Android intent for `app.sociva.community`, and the custom scheme `sociva://` still works without Asset Links.

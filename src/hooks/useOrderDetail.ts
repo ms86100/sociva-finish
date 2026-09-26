@@ -403,6 +403,21 @@ export function useOrderDetail(id: string | undefined) {
       if (isSellerView) invalidateSellerDashboardCaches(order.seller_id);
       supabase.functions.invoke('process-notification-queue').catch(() => {});
       if (order.society_id) logAudit(`order_${confirmedStatus}`, 'order', order.id, order.society_id, { old_status: order.status, new_status: confirmedStatus, rejection_reason: rejectionReason });
+      const txn = (order as { transaction_type?: string | null }).transaction_type || 'order';
+      track('order_status_changed', {
+        order_id: order.id,
+        seller_id: order.seller_id,
+        from_status: order.status,
+        to_status: confirmedStatus,
+        transaction_type: txn,
+      });
+      if (confirmedStatus === 'cancelled' && txn !== 'contact_enquiry') {
+        track('order_cancelled', {
+          order_id: order.id,
+          seller_id: order.seller_id,
+          reason_code: rejectionReason ? 'seller_rejected' : 'status_change',
+        });
+      }
       if (isSellerView) {
         const fromPlaced = order.status === 'placed' || order.status === 'enquired';
         if (fromPlaced && ['accepted', 'confirmed', 'scheduled', 'preparing'].includes(confirmedStatus)) {

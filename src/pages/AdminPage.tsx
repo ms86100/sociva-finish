@@ -20,6 +20,7 @@ import { WhatsAppTestPanel } from '@/components/admin/WhatsAppTestPanel';
 import { AppNavigator } from '@/components/admin/AppNavigator';
 import { AdminAIReviewLog } from '@/components/admin/AdminAIReviewLog';
 import { CampaignSender } from '@/components/admin/CampaignSender';
+import { AppUpdateManager } from '@/components/admin/AppUpdateManager';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { AdminSidebarNav } from '@/components/admin/AdminSidebarNav';
 import { SellerApplicationReview } from '@/components/admin/SellerApplicationReview';
@@ -419,6 +420,7 @@ export default function AdminPage() {
             </div>
           )}
           {admin.activeTab === 'campaigns' && <CampaignSender />}
+          {admin.activeTab === 'app-update' && <AppUpdateManager />}
           {admin.activeTab === 'ai-review' && <AdminAIReviewLog />}
           {admin.activeTab === 'feedback' && <AdminFeedbackViewer />}
           {admin.activeTab === 'test-scenarios' && <AdminTestScenariosTab />}

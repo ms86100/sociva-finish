@@ -5,7 +5,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
 import { resolveDeepLinkPath } from '@/hooks/useDeepLinks';
-import { isAppUpdatePath, storeUrlForPlatform } from '@/lib/app-update-link';
+import { isAppUpdatePath, storeUpdateButtons, storeUrlForPlatform } from '@/lib/app-update-link';
 import { ANDROID_PLAY_STORE_URL, IOS_APP_STORE_URL } from '@/components/landing/LandingDownload';
 
 const read = (rel: string) => readFileSync(resolve(process.cwd(), rel), 'utf8');
@@ -48,6 +48,11 @@ describe('resolveDeepLinkPath', () => {
     expect(isAppUpdatePath('/orders/1')).toBe(false);
     expect(storeUrlForPlatform('android')).toBe(ANDROID_PLAY_STORE_URL);
     expect(storeUrlForPlatform('ios')).toBe(IOS_APP_STORE_URL);
+    expect(storeUpdateButtons('android').map((button) => button.id)).toEqual(['android']);
+    expect(storeUpdateButtons('ios').map((button) => button.id)).toEqual(['ios']);
+    expect(storeUpdateButtons('web').map((button) => button.id)).toEqual(['ios', 'android']);
+    expect(storeUpdateButtons('android')[0].url).toBe(ANDROID_PLAY_STORE_URL);
+    expect(storeUpdateButtons('ios')[0].url).toBe(IOS_APP_STORE_URL);
     const page = read('public/update/index.html');
     expect(page).toContain('id6759218504');
     expect(page).toContain('app.sociva.community');

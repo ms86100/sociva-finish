@@ -60,6 +60,7 @@ export function CommandCenterOrdersList({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All statuses</SelectItem>
+            <SelectItem value="orders_today">Today (IST)</SelectItem>
             <SelectItem value="placed">placed</SelectItem>
             <SelectItem value="accepted">accepted</SelectItem>
             <SelectItem value="preparing">preparing</SelectItem>

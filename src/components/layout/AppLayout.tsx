@@ -4,7 +4,6 @@ import { Header } from './Header';
 import { BottomNav } from './BottomNav';
 import { FloatingCartBar } from '@/components/cart/FloatingCartBar';
 import { NavigatorBackButton } from '@/components/admin/NavigatorBackButton';
-import { EnableNotificationsBanner } from '@/components/notifications/EnableNotificationsBanner';
 import { useAppLayoutShell } from '@/contexts/AppLayoutContext';
 import { NavigationStackTracker } from '@/components/navigation/NavigationStackTracker';
 import { cn } from '@/lib/utils';
@@ -83,7 +82,6 @@ export function AppLayout({
           className,
         )}
       >
-        <EnableNotificationsBanner />
         {children}
       </main>
       <NavigatorBackButton />

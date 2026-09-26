@@ -6,7 +6,7 @@
 
     <!-- App Information -->
     <title>Sociva - Community Marketplace</title>
-    <meta name="description" content="Your society&#39;s private marketplace. Buy, sell, and connect with verified neighbors — food, services, rentals, and more.">
+    <meta name="description" content="Your society&#39;s private marketplace. Buy, sell, and connect with verified neighbors - food, services, rentals, and more.">
     <meta name="author" content="Sociva" />
     <meta name="keywords" content="community marketplace, society marketplace, homemade food, local services, neighborhood, hyperlocal, residential" />
 
@@ -30,7 +30,7 @@
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/manifest.json" />
 
-    <!-- Instant first paint while JS downloads — do NOT preload unused media -->
+    <!-- Instant first paint while JS downloads - do NOT preload unused media -->
     <style>
       html, body { margin: 0; background: #1a1a2e; }
       #boot-splash {
@@ -68,8 +68,32 @@
   
   <meta property="og:title" content="Sociva - Community Marketplace">
   <meta name="twitter:title" content="Sociva - Community Marketplace">
-  <meta property="og:description" content="Your society&#39;s private marketplace. Buy, sell, and connect with verified neighbors — food, services, rentals, and more.">
-  <meta name="twitter:description" content="Your society&#39;s private marketplace. Buy, sell, and connect with verified neighbors — food, services, rentals, and more.">
+  <meta property="og:description" content="Your society&#39;s private marketplace. Buy, sell, and connect with verified neighbors - food, services, rentals, and more.">
+  <meta name="twitter:description" content="Your society&#39;s private marketplace. Buy, sell, and connect with verified neighbors - food, services, rentals, and more.">
+  <script>
+    (function () {
+      try {
+        var cap = window.Capacitor;
+        if (cap && typeof cap.isNativePlatform === 'function' && cap.isNativePlatform()) return;
+        var raw = (location.hash || '').replace(/^#/, '') || '/';
+        var path = raw.split('?')[0] || '/';
+        if (path === '/landing') return;
+        var exact = { '/': 1, '/search': 1, '/categories': 1, '/discover-location': 1, '/cart': 1 };
+        var blocked = !!exact[path]
+          || path.indexOf('/category/') === 0
+          || path.indexOf('/discovery/') === 0
+          || path.indexOf('/product/') === 0
+          || path.indexOf('/festival-collection/') === 0;
+        var seller = path.match(/^\/seller\/([^/]+)\/?$/);
+        if (seller) {
+          var appPages = { products: 1, settings: 1, dashboard: 1, orders: 1, credits: 1, wallet: 1, payouts: 1, analytics: 1, onboarding: 1, become: 1, delivery: 1, notifications: 1, support: 1, reviews: 1, store: 1, stores: 1, messages: 1, earnings: 1, coupons: 1, 'category-requests': 1 };
+          if (!appPages[seller[1]]) blocked = true;
+        }
+        if (!blocked) return;
+        location.replace(location.pathname + location.search + '#/landing');
+      } catch (e) {}
+    })();
+  </script>
 </head>
 
   <body style="background-color: #1a1a2e">

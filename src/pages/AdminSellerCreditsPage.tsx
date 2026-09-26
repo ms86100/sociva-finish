@@ -949,6 +949,9 @@ export default function AdminSellerCreditsPage() {
                   {row.created_at ? format(new Date(row.created_at), 'MMM d, yyyy · h:mm a') : ''} · {row.business_name} · {row.type}
                   {row.event_type ? `/${row.event_type}` : ''} · {formatPrice(Number(row.amount) || 0)} · after {formatPrice(Number(row.balance_after) || 0)}
                   {row.description ? ` · ${row.description}` : ''}
+                  {row.type === 'admin_adjustment'
+                    ? ` · Granted by ${row.created_by_name || 'system - no admin recorded'}`
+                    : ''}
                 </p>
               )}
             />

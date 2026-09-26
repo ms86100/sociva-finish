@@ -73,6 +73,9 @@ export type AnalyticsEventName =
   | 'seller_dashboard_opened'
   | 'order_accepted'
   | 'order_rejected'
+  | 'order_status_changed'
+  | 'order_cancelled'
+  | 'enquiry_cancelled'
   // Seller onboarding journey (v2)
   | 'seller_onboarding_step_started'
   | 'seller_onboarding_step_completed'
@@ -91,6 +94,12 @@ export type AnalyticsEventName =
   | 'push_notification_opened'
   | 'app_opened_from_push'
   | 'push_action_clicked'
+  // Contact and chat
+  | 'contact_started'
+  | 'contact_failed'
+  | 'chat_message_sent'
+  // Credits (server). Client dictionary so unknown-event warnings stay quiet.
+  | 'sociva_credit_adjusted'
   // Wishlist
   | 'wishlist_toggled';
 
@@ -126,6 +135,9 @@ export const ANALYTICS_EVENT_NAMES = [
   'seller_dashboard_opened',
   'order_accepted',
   'order_rejected',
+  'order_status_changed',
+  'order_cancelled',
+  'enquiry_cancelled',
   'seller_onboarding_step_started',
   'seller_onboarding_step_completed',
   'seller_onboarding_step_abandoned',
@@ -142,6 +154,10 @@ export const ANALYTICS_EVENT_NAMES = [
   'push_notification_opened',
   'app_opened_from_push',
   'push_action_clicked',
+  'contact_started',
+  'contact_failed',
+  'chat_message_sent',
+  'sociva_credit_adjusted',
   'wishlist_toggled',
 ] as const satisfies readonly AnalyticsEventName[];
 

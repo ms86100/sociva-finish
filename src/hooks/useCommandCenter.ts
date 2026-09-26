@@ -69,6 +69,14 @@ export type CommandCenterSnapshot = {
     payment_pending_orders: number;
     unanswered_enquiries?: number;
   };
+  buckets?: {
+    pending_stores: number;
+    pending_products: number;
+    orders_today: number;
+    unanswered_enquiries: number;
+    open_disputes: number;
+    payment_waiting: number;
+  };
 };
 
 export type CommandCenterSellerRow = {

@@ -56,6 +56,8 @@ export interface SellerSettingsFormData {
   pickup_payment_config: PaymentConfigData;
   delivery_payment_config: PaymentConfigData;
   auto_accept_enabled: boolean;
+  home_service_available: boolean;
+  home_service_fee: string;
   upi_validation_status?: string;
   upi_holder_name?: string;
 }
@@ -74,6 +76,8 @@ const DEFAULT_FORM: SellerSettingsFormData = {
   pickup_payment_config: { ...DEFAULT_PAYMENT_CONFIG },
   delivery_payment_config: { ...DEFAULT_PAYMENT_CONFIG },
   auto_accept_enabled: false,
+  home_service_available: false,
+  home_service_fee: '',
 };
 
 // IST is UTC+5:30, CET is UTC+1. When a seller in CET sets "03:00", we need to
@@ -162,6 +166,8 @@ export function useSellerSettings(opts?: { sellerIdOverride?: string | null }) {
           pickup_payment_config: profile.pickup_payment_config ?? { accepts_cod: profile.accepts_cod ?? true, accepts_online: profile.accepts_upi ?? false },
           delivery_payment_config: profile.delivery_payment_config ?? { accepts_cod: profile.accepts_cod ?? true, accepts_online: profile.accepts_upi ?? false },
           auto_accept_enabled: profile.auto_accept_enabled ?? false,
+          home_service_available: profile.home_service_available === true,
+          home_service_fee: Number(profile.home_service_fee) > 0 ? String(profile.home_service_fee) : '',
         });
       }
     } catch (error) { console.error('Error fetching profile:', error); }
@@ -282,6 +288,11 @@ export function useSellerSettings(opts?: { sellerIdOverride?: string | null }) {
         pickup_payment_config: formData.pickup_payment_config,
         delivery_payment_config: formData.delivery_payment_config,
         auto_accept_enabled: formData.auto_accept_enabled,
+        home_service_available: formData.home_service_available === true,
+        home_service_fee: (() => {
+          const fee = parseFloat(formData.home_service_fee);
+          return formData.home_service_available && !isNaN(fee) && fee > 0 ? fee : null;
+        })(),
       };
       if (upiOnline && formData.upi_id.trim()) {
         updatePayload.upi_verification_status = 'valid';

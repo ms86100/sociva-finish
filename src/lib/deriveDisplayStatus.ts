@@ -44,7 +44,7 @@ interface FlowStep {
 
 interface DeriveOptions {
   orderStatus: string;
-  flow: FlowStep[];
+  flow?: FlowStep[] | null;
   isBuyerView: boolean;
   orderType?: string | null;
   isEnquiryOrder?: boolean;
@@ -67,11 +67,12 @@ interface DeriveOptions {
 
 function getPhase(
   status: string,
-  flow: FlowStep[],
+  flow?: FlowStep[] | null,
   fulfillmentType?: string | null,
   transactionType?: string | null,
 ): DisplayStatusResult['phase'] {
-  const step = flow.find(s => s.status_key === status);
+  const steps = Array.isArray(flow) ? flow : [];
+  const step = steps.find(s => s.status_key === status);
   if (step?.is_terminal && step?.is_success) return 'delivered';
   if (step?.is_terminal && !step?.is_success) return 'cancelled';
 
@@ -88,7 +89,7 @@ function getPhase(
 function computeProgressPercent(
   phase: DisplayStatusResult['phase'],
   orderStatus: string,
-  flow: FlowStep[],
+  flow?: FlowStep[] | null,
   totalRouteDistance?: number | null,
   remainingDistance?: number | null,
 ): number {
@@ -104,7 +105,8 @@ function computeProgressPercent(
         return Math.max(40, Math.min(95, 40 + routeProgress * 0.55));
       }
       // Fallback: position within transit steps
-      const transitSteps = flow.filter(s => s.is_transit);
+      const steps = Array.isArray(flow) ? flow : [];
+      const transitSteps = steps.filter(s => s.is_transit);
       const currentIdx = transitSteps.findIndex(s => s.status_key === orderStatus);
       if (transitSteps.length > 0 && currentIdx >= 0) {
         return 40 + ((currentIdx + 1) / transitSteps.length) * 55;
@@ -154,6 +156,7 @@ export function deriveDisplayStatus(options: DeriveOptions): DisplayStatusResult
     remainingDistance,
     hasRiderLocation,
   } = options;
+  const steps = Array.isArray(flow) ? flow : [];
 
   // Scheduled / rescheduled are already accepted into a future slot - not a fresh "new order".
   if (orderStatus === 'scheduled' || orderStatus === 'rescheduled') {
@@ -195,8 +198,8 @@ export function deriveDisplayStatus(options: DeriveOptions): DisplayStatusResult
     };
   }
 
-  const phase = getPhase(orderStatus, flow, fulfillmentType, transactionType);
-  const progressPercent = computeProgressPercent(phase, orderStatus, flow, totalRouteDistance, remainingDistance);
+  const phase = getPhase(orderStatus, steps, fulfillmentType, transactionType);
+  const progressPercent = computeProgressPercent(phase, orderStatus, steps, totalRouteDistance, remainingDistance);
   const etaFlag = phase === 'transit' ? computeEtaFlag(roadEtaMinutes, estimatedDeliveryAt) : null;
 
   // Build ETA text

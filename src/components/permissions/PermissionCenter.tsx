@@ -196,6 +196,7 @@ export function PermissionCenter({
       </div>
 
       <div className="rounded-xl border border-border/60 divide-y divide-border/60 overflow-hidden">
+        {notificationPermission !== 'enabled' && (
         <div className="p-3.5 space-y-2">
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2 min-w-0">
@@ -234,6 +235,7 @@ export function PermissionCenter({
             </Button>
           )}
         </div>
+        )}
 
         <div className="p-3.5 space-y-2">
           <div className="flex items-center justify-between gap-2">

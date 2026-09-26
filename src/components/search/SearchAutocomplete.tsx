@@ -7,6 +7,8 @@ import { useResolvedCategoryAliases } from '@/hooks/useResolvedCategoryAliases';
 import { useBrowsingLocation } from '@/contexts/BrowsingLocationContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCurrency } from '@/hooks/useCurrency';
+import { useMarketplaceData } from '@/hooks/queries/useMarketplaceData';
+import { categoryIsSuggestable, liveCategorySlugs, suggestionShowsPrice } from '@/lib/searchSuggestionRules';
 import { MARKETPLACE_RADIUS_KM } from '@/lib/marketplace-constants';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Store, Package, Tag, Wrench, Calendar, MessageCircle } from 'lucide-react';
@@ -59,6 +61,7 @@ export function SearchAutocomplete({ query, onSelect, maxHeight }: Props) {
   const [dismissedQuery, setDismissedQuery] = useState('');
   const { configs: categoryConfigs } = useCategoryConfigs();
   const { index: aliasIndex } = useResolvedCategoryAliases();
+  const { data: marketplaceSellers, isLoading: marketplaceLoading } = useMarketplaceData();
   const trimmed = query.trim();
   const lower = trimmed.toLowerCase();
 
@@ -93,8 +96,22 @@ export function SearchAutocomplete({ query, onSelect, maxHeight }: Props) {
       }
     }
 
-    return out.slice(0, 4);
+    return out;
   }, [lower, categoryConfigs, aliasIndex]);
+
+  const liveSlugs = useMemo(
+    () => liveCategorySlugs(marketplaceSellers),
+    [marketplaceSellers],
+  );
+  const visibleCategories = useMemo(() => {
+    const activeBySlug = new Map(categoryConfigs.map((c) => [c.category, c.isActive !== false]));
+    return matchedCategories.filter((cat) => categoryIsSuggestable(
+      cat.slug,
+      activeBySlug.get(cat.slug),
+      liveSlugs,
+      !marketplaceLoading,
+    )).slice(0, 4);
+  }, [matchedCategories, categoryConfigs, liveSlugs, marketplaceLoading]);
 
 
 
@@ -163,8 +180,8 @@ export function SearchAutocomplete({ query, onSelect, maxHeight }: Props) {
     return groups;
   }, [productSuggestions]);
 
-  const hasResults = productSuggestions.length > 0 || sellerSuggestions.length > 0 || matchedCategories.length > 0;
-  const optionCount = productSuggestions.length + sellerSuggestions.length + matchedCategories.length;
+  const hasResults = productSuggestions.length > 0 || sellerSuggestions.length > 0 || visibleCategories.length > 0;
+  const optionCount = productSuggestions.length + sellerSuggestions.length + visibleCategories.length;
   const isVisible = trimmed.length >= 2 && hasResults && dismissedQuery !== trimmed;
   const activeIndexRef = useRef(activeIndex);
   activeIndexRef.current = activeIndex;
@@ -297,7 +314,9 @@ export function SearchAutocomplete({ query, onSelect, maxHeight }: Props) {
                   <p className="text-[13px] font-medium text-foreground truncate">{product.product_name}</p>
                   {product.seller_name && <p className="text-[11px] text-muted-foreground truncate">{displaySellerStoreName(product.seller_name)}</p>}
                 </div>
-                <span className="text-[12px] font-bold text-primary shrink-0">{formatPrice(product.price)}</span>
+                {suggestionShowsPrice(product.action_type, product.price) && (
+                  <span className="text-[12px] font-bold text-primary shrink-0">{formatPrice(product.price)}</span>
+                )}
               </button>
             ))}
           </div>
@@ -324,13 +343,13 @@ export function SearchAutocomplete({ query, onSelect, maxHeight }: Props) {
           </div>
         )}
 
-        {matchedCategories.length > 0 && (
+        {visibleCategories.length > 0 && (
           <div role="group" aria-label="Categories">
             <div className="px-3 pt-2 pb-1 flex items-center gap-1.5">
               <Tag size={11} className="text-muted-foreground" />
               <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Categories</span>
             </div>
-            {matchedCategories.map((cat) => (
+            {visibleCategories.map((cat) => (
               <button key={cat.slug} {...optionProps()} onClick={() => navigate(`/category/${cat.parentGroup}?sub=${cat.slug}`)}>
                 <div className="w-8 h-8 rounded-lg bg-primary/10 overflow-hidden flex items-center justify-center shrink-0">
                   {cat.imageUrl ? (

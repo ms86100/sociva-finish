@@ -5,6 +5,7 @@ import {
   isAnalyticsEventName,
   sellerOnboardingStepKey,
 } from '@/lib/analytics-events';
+import { contactFailureCode } from '@/lib/analytics-marketplace';
 import {
   SELLER_ONBOARDING_FLOW_VERSION,
   trackSellerOnboardingStep,
@@ -31,6 +32,14 @@ describe('analytics privacy', () => {
   });
 });
 
+describe('contact failure codes', () => {
+  it('keeps credit and duplicate failures distinct from a generic miss', () => {
+    expect(contactFailureCode('SELLER_CREDIT_INSUFFICIENT')).toBe('credit_blocked');
+    expect(contactFailureCode('duplicate key value violates unique constraint')).toBe('duplicate_contact');
+    expect(contactFailureCode('timeout')).toBe('contact_failed');
+  });
+});
+
 describe('analytics event dictionary', () => {
   it('includes core funnel and journey v2 events', () => {
     expect(isAnalyticsEventName('product_viewed')).toBe(true);
@@ -41,6 +50,12 @@ describe('analytics event dictionary', () => {
     expect(isAnalyticsEventName('seller_commerce_model_changed')).toBe(true);
     expect(isAnalyticsEventName('seller_listing_draft_created')).toBe(true);
     expect(isAnalyticsEventName('push_notification_opened')).toBe(true);
+    expect(isAnalyticsEventName('contact_started')).toBe(true);
+    expect(isAnalyticsEventName('contact_failed')).toBe(true);
+    expect(isAnalyticsEventName('order_status_changed')).toBe(true);
+    expect(isAnalyticsEventName('enquiry_cancelled')).toBe(true);
+    expect(isAnalyticsEventName('chat_message_sent')).toBe(true);
+    expect(isAnalyticsEventName('sociva_credit_adjusted')).toBe(true);
     expect(isAnalyticsEventName('app_opened_from_push')).toBe(true);
     expect(isAnalyticsEventName('not_a_real_event')).toBe(false);
     expect(ANALYTICS_EVENT_NAMES.length).toBeGreaterThan(40);

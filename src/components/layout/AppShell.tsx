@@ -5,7 +5,6 @@ import { Header } from './Header';
 import { BottomNav } from './BottomNav';
 import { FloatingCartBar } from '@/components/cart/FloatingCartBar';
 import { NavigatorBackButton } from '@/components/admin/NavigatorBackButton';
-import { EnableNotificationsBanner } from '@/components/notifications/EnableNotificationsBanner';
 import { PostLoginPermissionSheet } from '@/components/permissions/PostLoginPermissionSheet';
 import { NavigationStackTracker } from '@/components/navigation/NavigationStackTracker';
 import {
@@ -13,6 +12,7 @@ import {
   useAppLayoutOptions,
   DEFAULT_LAYOUT_OPTIONS,
 } from '@/contexts/AppLayoutContext';
+import { Capacitor } from '@capacitor/core';
 import { useAuth } from '@/contexts/AuthContext';
 import { useBrowsingLocation } from '@/contexts/BrowsingLocationContext';
 import { cn } from '@/lib/utils';
@@ -50,7 +50,6 @@ function AppShellChrome() {
           options.className,
         )}
       >
-        <EnableNotificationsBanner />
         <PostLoginPermissionSheet />
         <Outlet />
       </main>
@@ -78,7 +77,8 @@ export function AppShell() {
 
 /**
  * Gate for shell routes.
- * - Guests may browse discovery paths (App Store 5.1.1(v)).
+ * - The installed app may browse without an account (App Store 5.1.1(v)).
+ * - The website does not. Product browse on sociva.in opens the marketing page.
  * - Authenticated users without society keep today's /profile/edit redirect.
  * - Native never opens the marketing landing site.
  */
@@ -87,6 +87,7 @@ export function AppShellGate() {
   const location = useLocation();
   const { browsingLocation } = useBrowsingLocation();
   const [bootGaveUp, setBootGaveUp] = useState(false);
+  const path = location.pathname || '/';
 
   useEffect(() => {
     if (isSessionRestored) return;
@@ -94,16 +95,18 @@ export function AppShellGate() {
     return () => clearTimeout(t);
   }, [isSessionRestored]);
 
+  // Website visitors download the app. The native app keeps guest browse.
+  if (!Capacitor.isNativePlatform() && isGuestBrowsePath(path)) {
+    return <Navigate to="/landing" replace />;
+  }
+
   if (!isSessionRestored && !bootGaveUp) {
     return null;
   }
 
-  const path = location.pathname || '/';
   const guestOk = isGuestBrowsePath(path);
 
   if (!user) {
-    // Swiggy-style: web guests stay in marketplace (location → Home), not marketing landing.
-    // Marketing site remains at /landing for explicit links only.
 
     if (!guestOk) {
       const returnTo = authReturnPath(path, location.search || '');

@@ -55,6 +55,7 @@ describe('Seller credits monetization integrity', () => {
     const admin = read('src/pages/AdminSellerCreditsPage.tsx');
     expect(admin).toMatch(/Configuration history/);
     expect(admin).toMatch(/Financial activity/);
+    expect(admin).toMatch(/Granted by/);
     expect(admin).toMatch(/Charge reversal/);
     expect(admin).toMatch(/unresolved_after_grace_policy/);
     expect(admin).toMatch(/contact_debounce_hours/);

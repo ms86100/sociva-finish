@@ -9,6 +9,8 @@ import { MarketplaceSection } from '@/components/home/MarketplaceSection';
 import { CommunityTeaser } from '@/components/home/CommunityTeaser';
 import { LazySection } from '@/components/home/LazySection';
 import { HomeNotificationBanner } from '@/components/notifications/HomeNotificationBanner';
+import { HomePushEnableCard } from '@/components/notifications/HomePushEnableCard';
+import { AppUpdateBanner } from '@/components/home/AppUpdateBanner';
 import { SellerJourneyBanner } from '@/components/seller/SellerJourneyBanner';
 import { PreciseLocationRequiredCard } from '@/components/location/PreciseLocationRequiredCard';
 import { useBrowsingLocation } from '@/contexts/BrowsingLocationContext';
@@ -92,6 +94,8 @@ export default function HomePage() {
         <div className="stack-gap mx-4 mt-3">
           <SellerJourneyBanner />
           <HomeNotificationBanner embedded />
+          <AppUpdateBanner />
+          <HomePushEnableCard />
           {needsPreciseLocation && <PreciseLocationRequiredCard />}
         </div>
         <div className="mt-1">

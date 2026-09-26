@@ -5,6 +5,7 @@ import { ProductWithSeller } from '@/components/product/ProductListingCard';
 import { useMarketplaceData } from './useMarketplaceData';
 import { useAuth } from '@/contexts/AuthContext';
 import { mapProduct } from './useNearbyProducts';
+import { diversifyRankedProducts, shouldDiversifySort } from '@/lib/sellerDiversity';
 
 interface CategoryGroup {
   category: string;
@@ -51,24 +52,34 @@ export function useProductsByCategory(limit = 50) {
       }
     }
 
-    // Group by category
+    // Group by category, then spread sellers before the per-category cap.
     const grouped: Record<string, ProductWithSeller[]> = {};
     for (const product of allProducts) {
       const cat = product.category;
       if (!grouped[cat]) grouped[cat] = [];
-      if (grouped[cat].length < limit) grouped[cat].push(product);
+      grouped[cat].push(product);
     }
 
     const result: CategoryGroup[] = [];
     for (const [category, items] of Object.entries(grouped)) {
       const cfg = configMap.get(category);
+      const spread = shouldDiversifySort('relevance')
+        ? diversifyRankedProducts(items, {
+            sellerId: (product) => product.seller_id,
+            base: (product, index) => {
+              const distance = product.distance_km == null ? 8 : Number(product.distance_km);
+              return Math.max(0, 40 - distance * 4) - index * 0.001;
+            },
+            createdAt: (product) => product.created_at,
+          })
+        : items;
       result.push({
         category,
         parentGroup: cfg?.parent_group || category,
         displayName: cfg?.display_name || category,
         icon: cfg?.icon || '📦',
         imageUrl: cfg?.imageUrl || null,
-        products: items,
+        products: spread.slice(0, limit),
       });
     }
 

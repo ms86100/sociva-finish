@@ -17,16 +17,24 @@ describe('admin command center ops console (phases 0-4)', () => {
   const growth = read('src/components/admin/command-center/CommandCenterGrowthPanel.tsx');
   const trust = read('src/components/admin/command-center/CommandCenterTrustPanel.tsx');
 
-  it('wires KPI trust helpers and drills', () => {
-    expect(page).toMatch(/daysAgoIso/);
+  it('wires the six action cards and keeps reports under More', () => {
     expect(page).toMatch(/setDisputeStatus\('open'\)/);
-    expect(page).toMatch(/setEnquiryStatus\('open'\)/);
     expect(page).toMatch(/setEnquiryStatus\('unanswered'\)/);
     expect(page).toMatch(/setOrderPaymentStatus\('pending_any'\)/);
-    expect(page).toMatch(/ListVsKpi/);
+    expect(page).toMatch(/setOrderStatus\('orders_today'\)/);
+    expect(page).not.toMatch(/ListVsKpi/);
+    expect(page).not.toMatch(/startOfTodayIso/);
     expect(page).toMatch(/useSearchParams/);
     expect(page).toMatch(/\/admin\/refunds/);
-    expect(page).toMatch(/last 30 days/);
+    expect(page).toMatch(/All societies/);
+    expect(page).toMatch(/None right now/);
+    expect(kpi).toMatch(/pending_stores/);
+    expect(kpi).toMatch(/pending_products/);
+    expect(kpi).toMatch(/orders_today/);
+    expect(kpi).toMatch(/unanswered_enquiries/);
+    expect(kpi).toMatch(/open_disputes/);
+    expect(kpi).toMatch(/payment_waiting/);
+    expect(kpi).not.toMatch(/Needs attention/);
   });
 
   it('exposes pending_any and enquiry open/unanswered filters', () => {
@@ -37,9 +45,10 @@ describe('admin command center ops console (phases 0-4)', () => {
     expect(disputes).toMatch(/Open \(active\)/);
   });
 
-  it('includes open_disputes and unanswered in Needs attention KPI', () => {
+  it('keeps open disputes and unanswered enquiries as their own cards', () => {
     expect(kpi).toMatch(/open_disputes/);
     expect(kpi).toMatch(/unanswered_enquiries/);
+    expect(kpi).not.toMatch(/unanswered_enquiries \?\?/);
   });
 
   it('wires attention queue hook and inbox UI', () => {

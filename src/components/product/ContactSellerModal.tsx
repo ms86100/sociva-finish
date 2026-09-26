@@ -9,6 +9,8 @@ import { SellerChatSheet } from './SellerChatSheet';
 import { supabase } from '@/integrations/supabase/client';
 import { notify } from '@/lib/notify';
 import { sellerCreditCustomerMessage } from '@/lib/sellerCredits';
+import { track } from '@/lib/analytics';
+import { contactFailureCode } from '@/lib/analytics-marketplace';
 import { setPendingAuthAction } from '@/lib/pending-auth-action';
 
 interface ContactSellerModalProps {
@@ -82,6 +84,12 @@ export function ContactSellerModal({
 
     if (error) {
       setPhase('choose');
+      track('contact_failed', {
+        seller_id: sellerId,
+        product_id: productId,
+        channel: type,
+        error_code: contactFailureCode(error.message),
+      });
       notify.block(sellerCreditCustomerMessage(error.message, 'CONTACT_REQUEST'));
       return null;
     }
@@ -93,6 +101,12 @@ export function ContactSellerModal({
 
     if (!id || !revealedPhone) {
       setPhase('choose');
+      track('contact_failed', {
+        seller_id: sellerId,
+        product_id: productId,
+        channel: type,
+        error_code: 'incomplete',
+      });
       notify.block('Could not start contact. Please try again.');
       return null;
     }
@@ -101,6 +115,12 @@ export function ContactSellerModal({
     setOrderId(oid);
     setPhone(revealedPhone);
     setPhase('success');
+    track('contact_started', {
+      seller_id: sellerId,
+      product_id: productId,
+      channel: type,
+      order_id: oid,
+    });
 
     supabase.functions.invoke('process-notification-queue').catch(() => {});
 

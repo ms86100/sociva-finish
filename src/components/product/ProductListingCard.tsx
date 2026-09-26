@@ -26,6 +26,7 @@ import { optimizedImageUrl, imageSrcSet, handleImageError } from '@/utils/imageH
 import { displaySellerStoreName } from '@/lib/seller-journey';
 import { SellerLocationLine } from '@/components/location/SellerLocationLine';
 import { listingPlaceChip } from '@/lib/location-label-resolver';
+import { homeServiceBuyerLabel } from '@/lib/home-service-label';
 
 export interface ProductWithSeller {
   id: string; seller_id: string; name: string; price: number; image_url: string | null; category: string;
@@ -163,6 +164,12 @@ function ProductListingCardInner({ product, layout = 'auto', onTap, onNavigate, 
     visit_charge: product.visit_charge,
     seller_is_available: product.seller_is_available ?? !isStoreClosed,
   }, glanceKind);
+  const homeServiceLabel = homeServiceBuyerLabel({
+    sellerHome: (product as any).seller_home_service_available,
+    productHome: (product as any).home_service_available,
+    fulfillmentMode: (product as any).seller_fulfillment_mode || product.fulfillment_mode,
+    category: product.category,
+  });
   const isServiceLayout = resolvedLayout === 'service';
   const serviceStartingPrice = product.minimum_charge ?? product.visit_charge ?? product.price;
 
@@ -460,6 +467,9 @@ function ProductListingCardInner({ product, layout = 'auto', onTap, onNavigate, 
             <h4 className="mt-1 h-[34px] overflow-hidden font-semibold leading-snug text-foreground text-[12px] line-clamp-2">
               {product.name}
             </h4>
+            {homeServiceLabel && (
+              <p className="text-[10px] font-medium text-primary truncate leading-none mt-0.5">{homeServiceLabel}</p>
+            )}
             {isCartAction && quantity > 0 && !canIncrement && product.stock_quantity != null && (
               <p className="text-[11px] text-warning font-medium mt-0.5">Only {product.stock_quantity} left</p>
             )}
@@ -505,6 +515,9 @@ function ProductListingCardInner({ product, layout = 'auto', onTap, onNavigate, 
           >
             {product.name}
           </h4>
+          {homeServiceLabel && (
+            <p className="text-[10px] font-medium text-primary truncate leading-none mt-0.5">{homeServiceLabel}</p>
+          )}
 
           {/* Immediately under title - no mt-auto empty band */}
           <div className="mt-0.5 shrink-0 space-y-0" data-slot="listing-footer">

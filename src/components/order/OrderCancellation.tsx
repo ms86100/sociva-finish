@@ -19,6 +19,7 @@ import { toast } from 'sonner';
 import { useSystemSettingsRaw } from '@/hooks/useSystemSettingsRaw';
 import { notify } from '@/lib/notify';
 import { showFeedback } from '@/components/FeedbackPopupProvider';
+import { track } from '@/lib/analytics';
 
 interface OrderCancellationProps {
   orderId: string;
@@ -85,6 +86,11 @@ export function OrderCancellation({ orderId, orderStatus, onCancelled, canCancel
       });
 
       if (error) throw error;
+
+      track(isEnquiry ? 'enquiry_cancelled' : 'order_cancelled', {
+        order_id: orderId,
+        reason_code: reason === 'other' ? 'other' : reason,
+      });
 
       setIsOpen(false);
 

@@ -33,12 +33,14 @@ export default function ProductDeepLinkPage() {
             prep_time_minutes, delivery_time_text, action_type, contact_phone,
             specifications, seller_id, mrp, discount_percentage, stock_quantity,
             service_duration_minutes, service_scope, minimum_charge, visit_charge,
+            home_service_available,
             lead_time_hours, accepts_preorders, price_stable_since,
             seller:seller_profiles!products_seller_id_fkey(
               id, business_name, rating, total_reviews, society_id,
               latitude, longitude, is_featured, is_available,
               availability_start, availability_end, operating_days,
               fulfillment_mode, delivery_note, avg_response_minutes, last_active_at,
+              home_service_available, home_service_fee, service_radius_km,
               society:societies(name)
             )
           `;
@@ -113,6 +115,10 @@ export default function ProductDeepLinkPage() {
           accepts_preorders: data.accepts_preorders,
           price_stable_since: data.price_stable_since,
           fulfillment_mode: seller?.fulfillment_mode || null,
+          seller_fulfillment_mode: seller?.fulfillment_mode || null,
+          home_service_available: data.home_service_available ?? null,
+          seller_home_service_available: seller?.home_service_available === true,
+          home_service_fee: seller?.home_service_fee ?? null,
           delivery_note: seller?.delivery_note || null,
           seller_id: seller?.id || data.seller_id,
           seller_name: seller?.business_name || '',

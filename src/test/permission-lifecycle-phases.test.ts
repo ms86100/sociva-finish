@@ -54,12 +54,14 @@ describe('permission lifecycle phases 2-4 (source)', () => {
     expect(hook).toMatch(/return 'settings'/);
   });
 
-  it('keeps home soft banner location-only (notifications via profile/sheet)', () => {
-    const center = read('src/components/permissions/PermissionCenter.tsx');
-    const bannerBranch = center.slice(center.indexOf("variant === 'banner'"));
-    expect(bannerBranch).toMatch(/Discover more around you/);
-    expect(bannerBranch).toMatch(/showLocSoftPrompt/);
-    expect(bannerBranch).not.toMatch(/Don't miss what's happening nearby/);
+  it('keeps the home precise-location card and does not repeat Enable Location in the shell', () => {
+    const shell = read('src/components/layout/AppShell.tsx');
+    const layout = read('src/components/layout/AppLayout.tsx');
+    const home = read('src/pages/HomePage.tsx');
+    expect(shell).not.toMatch(/EnableNotificationsBanner/);
+    expect(layout).not.toMatch(/EnableNotificationsBanner/);
+    expect(home).toMatch(/PreciseLocationRequiredCard/);
+    expect(shell).toMatch(/PostLoginPermissionSheet/);
   });
 
   it('uses Open Settings for denied location and notifications', () => {

@@ -526,6 +526,19 @@ export default function SellerSettingsPage({
                 <div className="space-y-3">
                   <Label>Fulfillment Mode</Label>
                   <div className="p-4 bg-muted rounded-lg space-y-3">
+                    <div className="flex items-start justify-between gap-3 rounded-lg border border-border p-3">
+                      <div>
+                        <p className="text-sm font-medium">Home service available</p>
+                        <p className="text-xs text-muted-foreground">You can visit the customer. Buyers request it in chat. This does not turn the listing into a delivery order. Your service radius still applies.</p>
+                      </div>
+                      <Switch checked={formData.home_service_available === true} onCheckedChange={(checked) => setFormData({ ...formData, home_service_available: checked })} />
+                    </div>
+                    {formData.home_service_available && (
+                      <div className="space-y-2">
+                        <Label htmlFor="home_service_fee" className="text-xs">Home service fee ({currencySymbol}, optional)</Label>
+                        <Input id="home_service_fee" type="number" min="0" step="1" placeholder="Leave empty for no extra charge" value={formData.home_service_fee} onChange={(e) => setFormData({ ...formData, home_service_fee: e.target.value })} />
+                      </div>
+                    )}
                     <RadioGroup value={formData.fulfillment_mode} onValueChange={(value) => setFormData({ ...formData, fulfillment_mode: value })} className="space-y-2">
                       <label className="flex items-center gap-3 p-2 rounded-lg hover:bg-background/50 cursor-pointer"><RadioGroupItem value="self_pickup" /><div><p className="text-sm font-medium">Self Pickup Only</p><p className="text-xs text-muted-foreground">Buyer picks up from your location</p></div></label>
                       <label className="flex items-center gap-3 p-2 rounded-lg hover:bg-background/50 cursor-pointer"><RadioGroupItem value="seller_delivery" /><div><p className="text-sm font-medium">I Deliver</p><p className="text-xs text-muted-foreground">You deliver to buyer's location</p></div></label>

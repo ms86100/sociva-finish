@@ -18,6 +18,7 @@ import { SafeHeader } from '@/components/layout/SafeHeader';
 import { TypewriterPlaceholder } from '@/components/search/TypewriterPlaceholder';
 import { useCurrency } from '@/hooks/useCurrency';
 import { useSearchPage, ProductSearchResult } from '@/hooks/useSearchPage';
+import { useMarketplaceData } from '@/hooks/queries/useMarketplaceData';
 import { applyProductFacetRow, useProductFacets, type ProductFacetRow } from '@/hooks/queries/useProductFacets';
 import { isFoodParentGroup } from '@/lib/food-facets';
 import { CommunitySuggestions } from '@/components/search/CommunitySuggestions';
@@ -27,12 +28,13 @@ import { CategoryPhotoChipRail, buildLeafPhotoChipItems } from '@/components/cat
 import { type ProductDetail } from '@/hooks/useProductDetail';
 import { useSearchKeyboardInset } from '@/hooks/useChatViewport';
 import { selectSearchResultsForDisplay } from '@/lib/searchRanking';
+import { diversifyRankedProducts, shouldDiversifySort } from '@/lib/sellerDiversity';
 
 const ProductDetailSheet = lazy(() =>
   import('@/components/product/ProductDetailSheet').then((m) => ({ default: m.ProductDetailSheet })),
 );
 
-function toProductWithSeller(p: ProductSearchResult, row?: ProductFacetRow | null): ProductWithSeller {
+function toProductWithSeller(p: ProductSearchResult, row?: ProductFacetRow | null, seller?: any): ProductWithSeller {
   return applyProductFacetRow({
     id: p.product_id, seller_id: p.seller_id, name: p.product_name, price: p.price,
     image_url: p.image_url, is_veg: p.is_veg, is_available: true,
@@ -45,6 +47,10 @@ function toProductWithSeller(p: ProductSearchResult, row?: ProductFacetRow | nul
     is_same_society: p.is_same_society, created_at: '', updated_at: '',
     seller_name: p.seller_name, seller_rating: p.seller_rating,
     fulfillment_mode: p.fulfillment_mode || null, delivery_note: p.delivery_note || null,
+    seller_fulfillment_mode: seller?.fulfillment_mode || (p as any).seller_fulfillment_mode || p.fulfillment_mode || null,
+    home_service_available: (p as any).home_service_available ?? null,
+    seller_home_service_available: seller?.home_service_available === true || (p as any).seller_home_service_available === true,
+    home_service_fee: seller?.home_service_fee ?? (p as any).home_service_fee ?? null,
     action_type: p.action_type || null, contact_phone: p.contact_phone || null,
     tags: p.tags || null, cuisine_type: p.cuisine_type || null,
     prep_time_minutes: p.prep_time_minutes || null,
@@ -53,6 +59,12 @@ function toProductWithSeller(p: ProductSearchResult, row?: ProductFacetRow | nul
 
 export default function SearchPage() {
   const s = useSearchPage();
+  const { data: marketplaceSellers } = useMarketplaceData();
+  const sellersById = useMemo(() => {
+    const map = new Map<string, any>();
+    for (const seller of marketplaceSellers || []) map.set(seller.seller_id, seller);
+    return map;
+  }, [marketplaceSellers]);
   const keyboard = useSearchKeyboardInset(true);
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [detailOpen, setDetailOpen] = useState(false);
@@ -70,10 +82,20 @@ export default function SearchPage() {
   const productIds = useMemo(() => s.displayProducts.map((p) => p.product_id), [s.displayProducts]);
   const { data: facetRows = {} } = useProductFacets(productIds, productIds.length > 0);
 
-  const rankedSearch = useMemo(
-    () => selectSearchResultsForDisplay(s.query, s.displayProducts, s.isSearchActive && s.query.trim().length >= 2),
-    [s.query, s.displayProducts, s.isSearchActive],
-  );
+  const rankedSearch = useMemo(() => {
+    const ranked = selectSearchResultsForDisplay(s.query, s.displayProducts, s.isSearchActive && s.query.trim().length >= 2);
+    if (!shouldDiversifySort(s.filters.sortBy)) return ranked;
+    const items = diversifyRankedProducts(ranked.items, {
+      sellerId: (product) => product.seller_id,
+      base: (_product, index) => ranked.items.length - index,
+      createdAt: (product) => product.created_at,
+    });
+    return {
+      items,
+      preview: items.slice(0, ranked.preview.length),
+      hiddenCount: Math.max(0, items.length - ranked.preview.length),
+    };
+  }, [s.query, s.displayProducts, s.isSearchActive, s.filters.sortBy]);
   const visibleProducts = s.isSearchActive && s.query.trim().length >= 2 && !showAllResults
     ? rankedSearch.preview
     : rankedSearch.items;
@@ -89,6 +111,10 @@ export default function SearchPage() {
       description: product.description,
       prep_time_minutes: product.prep_time_minutes,
       fulfillment_mode: product.fulfillment_mode,
+      seller_fulfillment_mode: product.seller_fulfillment_mode || product.fulfillment_mode,
+      home_service_available: product.home_service_available ?? null,
+      seller_home_service_available: product.seller_home_service_available === true,
+      home_service_fee: product.home_service_fee ?? null,
       delivery_note: product.delivery_note,
       action_type: product.action_type,
       contact_phone: product.contact_phone,
@@ -216,7 +242,7 @@ export default function SearchPage() {
             </div>
           ) : visibleProducts.length > 0 ? (
             <>
-              <ProductGridByCategory products={visibleProducts} facetRows={facetRows} categoryMap={s.categoryMap} categoryConfigs={s.categoryConfigs} marketplaceConfig={s.mc} badgeConfigs={s.badgeConfigs} showCount={s.isSearchActive} totalCount={rankedSearch.items.length} onNavigate={s.navigate} onProductTap={handleProductTap} />
+              <ProductGridByCategory products={visibleProducts} facetRows={facetRows} sellersById={sellersById} categoryMap={s.categoryMap} categoryConfigs={s.categoryConfigs} marketplaceConfig={s.mc} badgeConfigs={s.badgeConfigs} showCount={s.isSearchActive} totalCount={rankedSearch.items.length} onNavigate={s.navigate} onProductTap={handleProductTap} />
               {rankedSearch.hiddenCount > 0 && !showAllResults && (
                 <button
                   type="button"
@@ -265,9 +291,10 @@ export default function SearchPage() {
 }
 
 // ── Product Grid By Category ──
-function ProductGridByCategory({ products, facetRows, categoryMap, categoryConfigs, marketplaceConfig, badgeConfigs, showCount, totalCount, onNavigate, onProductTap }: {
+function ProductGridByCategory({ products, facetRows, sellersById, categoryMap, categoryConfigs, marketplaceConfig, badgeConfigs, showCount, totalCount, onNavigate, onProductTap }: {
   products: ProductSearchResult[];
   facetRows?: Record<string, ProductFacetRow>;
+  sellersById: Map<string, any>;
   categoryMap: Record<string, { icon: string; displayName: string; color: string; imageUrl?: string | null }>;
   categoryConfigs: { category: string; displayName: string; icon: string; imageUrl?: string; behavior?: any }[];
   marketplaceConfig?: MarketplaceConfig;
@@ -321,7 +348,7 @@ function ProductGridByCategory({ products, facetRows, categoryMap, categoryConfi
             >
               {items.map((p) => (
                 <motion.div key={p.product_id} variants={cardEntrance}>
-                  <ProductListingCard product={toProductWithSeller(p, facetRows?.[p.product_id])} categoryConfigs={categoryConfigs as any} marketplaceConfig={marketplaceConfig} badgeConfigs={badgeConfigs} onNavigate={onNavigate} onTap={onProductTap} />
+                  <ProductListingCard product={toProductWithSeller(p, facetRows?.[p.product_id], sellersById.get(p.seller_id))} categoryConfigs={categoryConfigs as any} marketplaceConfig={marketplaceConfig} badgeConfigs={badgeConfigs} onNavigate={onNavigate} onTap={onProductTap} />
                 </motion.div>
               ))}
             </motion.div>

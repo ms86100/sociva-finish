@@ -66,9 +66,11 @@ function OrderCard({
   const statusInfo = getFlowLabel(status, type);
   const seller = firstEmbed((order as any).seller);
   const buyer = firstEmbed((order as any).buyer);
-  const contactLabel = (order as any).transaction_type === 'contact_enquiry'
+  const isContactEnquiry = (order as any).transaction_type === 'contact_enquiry';
+  const contactLabel = isContactEnquiry
     ? deriveDisplayStatus({
         orderStatus: status,
+        flow: [],
         isBuyerView: type === 'buyer',
         transactionType: 'contact_enquiry',
         sellerName: type === 'buyer'
@@ -201,14 +203,22 @@ function OrderCard({
                     {items.length} item{items.length !== 1 ? 's' : ''}
                   </p>
                 )}
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  <span className="font-semibold text-foreground">{formatPrice(order.total_amount)}</span>
-                  {sellerLocation ? ` · ${sellerLocation}` : ''}
-                </p>
+                {(!isContactEnquiry || sellerLocation) && (
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {!isContactEnquiry && (
+                      <span className="font-semibold text-foreground">{formatPrice(order.total_amount)}</span>
+                    )}
+                    {!isContactEnquiry && sellerLocation ? ' · ' : ''}
+                    {sellerLocation || ''}
+                  </p>
+                )}
               </>
             ) : (
               <p className="text-xs text-muted-foreground mt-1">
-                {items.length} item{items.length !== 1 ? 's' : ''} · <span className="font-semibold text-foreground">{formatPrice(order.total_amount)}</span>
+                {items.length} item{items.length !== 1 ? 's' : ''}
+                {!isContactEnquiry && (
+                  <> · <span className="font-semibold text-foreground">{formatPrice(order.total_amount)}</span></>
+                )}
               </p>
             )}
           </div>

@@ -20,7 +20,7 @@ const SPEC_SECTIONS = [
   { id: 'drilldown', label: 'Drill-down chain', migration: /orders_30d/, hook: /CommandCenterSellerRow/, page: /drillToSeller/ },
   { id: 'society_scope', label: 'Society scoping', migration: /p_society_id/, hook: /p_society_id/, page: /SocietySwitcher/ },
   { id: 'admin_guard', label: 'Admin guard', migration: /NOT public\.is_admin/, hook: /admin_list_/, page: /CommandCenter/ },
-  { id: 'complete_label', label: 'Phase complete marker', migration: /admin_category_intelligence/, hook: /Store360Data/, page: /complete/ },
+  { id: 'complete_label', label: 'Phase complete marker', migration: /admin_category_intelligence/, hook: /Store360Data/, page: /All societies/ },
 ] as const;
 
 describe('admin command center complete spec audit', () => {

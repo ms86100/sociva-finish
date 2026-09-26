@@ -4,6 +4,8 @@
  * Humans (and in-app App Links) are redirected into the SPA: /#/product/:id
  */
 
+import { buildShareOpenScript } from '../../../src/lib/share-android-handoff';
+
 export const config = { runtime: 'edge' };
 
 const SUPABASE_URL =
@@ -128,12 +130,15 @@ export default async function handler(req: Request): Promise<Response> {
   <meta name="twitter:title" content="${escapeHtml(title)}" />
   <meta name="twitter:description" content="${escapeHtml(description)}" />
   <meta name="twitter:image" content="${escapeHtml(image)}" />
-  <meta http-equiv="refresh" content="0;url=${escapeHtml(deepLink)}" />
   <link rel="canonical" href="${escapeHtml(deepLink)}" />
 </head>
-<body style="font-family:system-ui,sans-serif;background:#0a0a0f;color:#fff;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0">
+<body style="font-family:system-ui,sans-serif;background:#0a0a0f;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;margin:0;padding:24px;text-align:center">
   <p>Opening <strong>${escapeHtml(title)}</strong> on Sociva…</p>
-  <script>location.replace(${JSON.stringify(deepLink)});</script>
+  <div id="sociva-android-actions" style="display:none;flex-direction:column;gap:12px;margin-top:20px;width:min(320px,100%)">
+    <a id="sociva-open-app" href="${escapeHtml(deepLink)}" style="display:block;background:#fff;color:#0a0a0f;text-decoration:none;font-weight:700;border-radius:999px;padding:12px 16px">Open in the Sociva app</a>
+    <a id="sociva-store" href="https://play.google.com/store/apps/details?id=app.sociva.community&amp;hl=en_IN" style="display:block;color:#fff;text-decoration:underline;font-size:14px">Get it on Google Play</a>
+  </div>
+  <script>${buildShareOpenScript(url.toString(), deepLink)}</script>
 </body>
 </html>`;
 
