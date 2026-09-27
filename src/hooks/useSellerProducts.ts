@@ -168,6 +168,9 @@ export function useSellerProducts(opts?: {
 
   const showVegToggle = activeSubcategory?.show_veg_toggle ?? activeCategoryConfig?.formHints.showVegToggle ?? false;
   const showDurationField = activeSubcategory?.show_duration_field ?? activeCategoryConfig?.formHints.showDurationField ?? false;
+  const actionRequiresAvailability = allActions.find((a) => a.action_type === effectiveActionType)?.requires_availability ?? false;
+  const showInstantPrepField = effectiveActionType === 'add_to_cart' && !actionRequiresAvailability;
+  const showPrepTimeField = showDurationField || showInstantPrepField;
 
   const allowedCategories = useMemo(() => {
     const sellerCats: string[] = (sellerProfile as any)?.categories || [];
@@ -498,7 +501,7 @@ export function useSellerProducts(opts?: {
     const stockResolved = resolveStockSaveValues(formData);
     Object.assign(errors, stockResolved.errors);
 
-    if (showDurationField && formData.prep_time_minutes.trim()) {
+    if (showPrepTimeField && formData.prep_time_minutes.trim()) {
       const prepParsed = parsePrepTimeMinutes(formData.prep_time_minutes);
       if (prepParsed.error) errors.prep_time_minutes = prepParsed.error;
     }
@@ -828,7 +831,7 @@ export function useSellerProducts(opts?: {
     user, sellerProfile, primaryGroup, products, isLoading, isDialogOpen, setIsDialogOpen,
     editingProduct, isSaving, licenseBlocked, isBulkOpen, setIsBulkOpen,
     attributeBlocks, setAttributeBlocks, formData, setFormData, patchFormData, deleteTarget, setDeleteTarget,
-    activeCategoryConfig, showVegToggle, showDurationField, allowedCategories, subcategories,
+    activeCategoryConfig, showVegToggle, showDurationField, showPrepTimeField, showInstantPrepField, allowedCategories, subcategories,
     configs, sellerProfiles, resetForm, beginNewProduct, openEditDialog, attachEditingProduct, handleSave, confirmDelete,
     toggleAvailability, fetchData, serviceFields, setServiceFields, isCurrentCategoryService,
     currentCategorySupportsAddons, currentCategorySupportsRecurring, currentCategorySupportsStaffAssignment,

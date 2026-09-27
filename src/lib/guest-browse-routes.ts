@@ -42,7 +42,7 @@ const SELLER_APP_SEGMENTS = new Set([
   'category-requests',
 ]);
 
-const SELLER_STOREFRONT = /^\/seller\/([^/]+)\/?$/;
+const SELLER_STOREFRONT = /^\/sellers?\/([^/]+)\/?$/;
 
 export function isGuestBrowsePath(pathname: string): boolean {
   const path = (pathname || '/').split('?')[0] || '/';

@@ -6,6 +6,9 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+export const LISTING_PRICE_REQUIRED =
+  'Please enter a price. This listing needs an amount before it can be saved.';
+
 /**
  * Maps technical/system error messages to user-friendly text.
  * Use in catch blocks instead of showing raw error.message.
@@ -22,6 +25,9 @@ export function friendlyError(error: unknown): string {
     ? String((error as any).code ?? '').toLowerCase()
     : '';
 
+  if (lower.includes('price is required')) {
+    return LISTING_PRICE_REQUIRED;
+  }
   if (lower.includes('invalid category') || lower.includes('category does not exist')) {
     return 'Please pick a category before saving. If you don\'t see yours, use the closest "Other" category or request a new one.';
   }

@@ -335,6 +335,7 @@ export function useSendTicketMessage() {
     },
     onSuccess: (_, vars) => {
       queryClient.invalidateQueries({ queryKey: ['ticket-messages', vars.ticket_id] });
+      supabase.functions.invoke('process-notification-queue').catch(() => {});
     },
   });
 }
@@ -356,6 +357,7 @@ export function useResolveTicket() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['support-tickets'] });
+      supabase.functions.invoke('process-notification-queue').catch(() => {});
       showFeedback({
         title: 'Ticket updated',
         variant: 'success',

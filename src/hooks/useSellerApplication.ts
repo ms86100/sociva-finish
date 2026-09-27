@@ -18,6 +18,7 @@ import { commerceModelFromCategory } from '@/lib/seller-domain';
 import {
   buildArchivedDraftName,
   buildOnboardingMeta,
+  isPlaceholderStoreName,
   listIncompleteDraftStores,
   parseOnboardingMeta,
   pruneSubcategoryPreferences,
@@ -859,7 +860,8 @@ export function useSellerApplication(opts?: { forceNew?: boolean }) {
       });
 
       // Never overwrite an existing store title with the Untitled placeholder during resume/edit.
-      const businessName = trimmedName || (targetId ? null : 'Untitled store');
+      const nameForSave = isPlaceholderStoreName(trimmedName) ? '' : trimmedName;
+      const businessName = nameForSave || (targetId ? null : 'Untitled store');
 
       const taxonomyPayload: any = {
         categories: effectiveForm.categories,
@@ -1076,6 +1078,16 @@ export function useSellerApplication(opts?: { forceNew?: boolean }) {
         props: { error_code: 'declaration_required', field: 'declaration' },
       });
       notify.block('Please accept the seller declaration');
+      return;
+    }
+    if (isPlaceholderStoreName(formData.business_name)) {
+      trackSellerOnboardingStep({
+        step: 4,
+        action: 'validation_failed',
+        sellerId: draftSellerId,
+        props: { error_code: 'store_name_required', field: 'business_name' },
+      });
+      notify.block('Please enter a store name. Buyers will see this on your store.');
       return;
     }
     if (formData.operating_days.length === 0) {

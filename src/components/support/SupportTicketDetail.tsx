@@ -8,6 +8,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { CheckCircle2, Clock, AlertTriangle, Send, Loader2 } from 'lucide-react';
 import { formatDistanceToNow, format } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { getDrawerKeyboardStyle, useKeepDrawerFieldVisible } from '@/hooks/useChatViewport';
 
 interface SupportTicketDetailProps {
   ticket: SupportTicket | null;
@@ -33,6 +34,8 @@ export function SupportTicketDetail({ ticket, open, onOpenChange, viewRole }: Su
   const [newMessage, setNewMessage] = useState('');
   const [rejectReason, setRejectReason] = useState('');
   const [showReject, setShowReject] = useState(false);
+  const { viewportHeight, keyboardInset, isKeyboardOpen } = useKeepDrawerFieldVisible(open && !!ticket);
+  const keyboardStyle = getDrawerKeyboardStyle({ viewportHeight, keyboardInset, isKeyboardOpen });
 
   if (!ticket) return null;
 
@@ -62,7 +65,16 @@ export function SupportTicketDetail({ ticket, open, onOpenChange, viewRole }: Su
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" className="h-[85vh] flex flex-col p-0">
+      <SheetContent
+        side="bottom"
+        className="flex h-[85vh] max-h-[85vh] flex-col p-0"
+        style={{
+          bottom: keyboardStyle.bottom,
+          ...(isKeyboardOpen
+            ? { height: keyboardStyle.maxHeight, maxHeight: keyboardStyle.maxHeight, paddingBottom: 0 }
+            : null),
+        }}
+      >
         <SheetHeader className="px-4 pt-4">
           <SheetTitle className="text-left">
             {ISSUE_LABELS[ticket.issue_type] || ticket.issue_type}
@@ -104,7 +116,7 @@ export function SupportTicketDetail({ ticket, open, onOpenChange, viewRole }: Su
         )}
 
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
+        <div data-drawer-scroll className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
           {messages.map((msg) => (
             <div
               key={msg.id}
@@ -153,6 +165,7 @@ export function SupportTicketDetail({ ticket, open, onOpenChange, viewRole }: Su
             {showReject && (
               <div className="space-y-2">
                 <Textarea
+                  data-keyboard-field
                   placeholder="Ask the customer for clarification..."
                   value={rejectReason}
                   onChange={(e) => setRejectReason(e.target.value)}
@@ -169,6 +182,7 @@ export function SupportTicketDetail({ ticket, open, onOpenChange, viewRole }: Su
             {!showReject && (
               <div className="flex gap-2">
                 <Textarea
+                  data-keyboard-field
                   placeholder="Type a message..."
                   value={newMessage}
                   onChange={(e) => setNewMessage(e.target.value)}

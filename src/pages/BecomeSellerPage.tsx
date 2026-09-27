@@ -65,6 +65,7 @@ import {
   type WorkflowConflict,
 } from '@/lib/offering-taxonomy';
 import { ensureDraftProductsForOfferings, pendingOfferingNamesForProducts } from '@/lib/onboarding-product-sync';
+import { isPlaceholderStoreName, storeNameFieldValue } from '@/lib/onboarding-state';
 import type { BuyerJourneyId } from '@/lib/buyer-journey';
 import { notify } from '@/lib/notify';
 import {
@@ -486,6 +487,9 @@ export default function BecomeSellerPage() {
     softListingTag, setSoftListingTag,
   } = app;
 
+  const businessNameRef = useRef(formData.business_name);
+  businessNameRef.current = formData.business_name;
+
   const [welcomeBack, setWelcomeBack] = useState<{ stoppedAt: string; businessName: string } | null>(null);
 
   const handleResumeDraft = useCallback(async (store: { id: string }) => {
@@ -577,9 +581,7 @@ export default function BecomeSellerPage() {
         : sellerDomain === 'service'
           ? 'Add service details'
           : 'Add listing details',
-      helper: sellerDomain
-        ? `Only the fields that match your category. Start with one ${domainStepLabel.toLowerCase()}.`
-        : base[2].helper,
+      helper: 'Enter a price and a store name. Then you submit for review.',
     };
     return base;
   }, [domainStepLabel, sellerDomain]);
@@ -1260,7 +1262,11 @@ export default function BecomeSellerPage() {
       <div className="p-4 pb-24">
         {/* Top Bar */}
         <div className="flex items-center justify-between mb-6">
-          <Link to="/" className="flex items-center gap-2 text-muted-foreground"><span className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-muted shrink-0"><ArrowLeft size={18} /></span><span>Back</span></Link>
+          {step <= 1 ? (
+            <Link to="/" className="flex items-center gap-2 text-muted-foreground"><span className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-muted shrink-0"><ArrowLeft size={18} /></span><span>Back</span></Link>
+          ) : (
+            <button type="button" onClick={() => handleStepBack(step - 1)} className="flex items-center gap-2 text-muted-foreground"><span className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-muted shrink-0"><ArrowLeft size={18} /></span><span>Back</span></button>
+          )}
           {step >= 2 && (
             <Button
               variant="ghost"
@@ -1288,7 +1294,7 @@ export default function BecomeSellerPage() {
             </button>
             <p className="text-sm font-semibold pr-6">Welcome back!</p>
             <p className="text-xs text-muted-foreground mt-1">
-              You were setting up <strong className="text-foreground">{welcomeBack.businessName}</strong> and stopped at{' '}
+              You were setting up <strong className="text-foreground">{isPlaceholderStoreName(welcomeBack.businessName) ? 'your new store' : welcomeBack.businessName}</strong> and stopped at{' '}
               <strong className="text-foreground">{welcomeBack.stoppedAt}</strong>. Your previous information is saved.
             </p>
             <Button
@@ -1313,13 +1319,20 @@ export default function BecomeSellerPage() {
           {STEP_META.map((meta, i) => {
             const stepNum = i + 1; const Icon = meta.icon;
             const isCompleted = step > stepNum; const isActive = step === stepNum;
+            const circle = (
+              <div className={cn('w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center transition-all text-xs', isCompleted && 'bg-primary text-primary-foreground', isActive && 'bg-primary/20 text-primary ring-2 ring-primary', !isCompleted && !isActive && 'bg-muted text-muted-foreground')}>
+                {isCompleted ? <CheckCircle2 size={14} /> : <Icon size={12} />}
+              </div>
+            );
             return (
               <div key={meta.label} className="flex flex-col items-center gap-1 min-w-[3rem] flex-1">
-                <div className="p-0.5">
-                  <div className={cn('w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center transition-all text-xs', isCompleted && 'bg-primary text-primary-foreground', isActive && 'bg-primary/20 text-primary ring-2 ring-primary', !isCompleted && !isActive && 'bg-muted text-muted-foreground')}>
-                    {isCompleted ? <CheckCircle2 size={14} /> : <Icon size={12} />}
-                  </div>
-                </div>
+                {isCompleted ? (
+                  <button type="button" className="p-0.5" aria-label={`Back to ${meta.label}`} onClick={() => handleStepBack(stepNum)}>
+                    {circle}
+                  </button>
+                ) : (
+                  <div className="p-0.5">{circle}</div>
+                )}
                 <span className={cn('text-[9px] sm:text-[10px] font-medium text-center leading-tight truncate w-full', isActive ? 'text-primary' : 'text-muted-foreground')}>{meta.label}</span>
               </div>
             );
@@ -1336,7 +1349,7 @@ export default function BecomeSellerPage() {
             {seedProductName && step >= 3 && (
               <><ChevronRight size={12} className="text-muted-foreground" /><span className="text-muted-foreground truncate">{seedProductName}</span></>
             )}
-            {formData.business_name.trim() && step >= 4 && (
+            {!isPlaceholderStoreName(formData.business_name) && step >= 4 && (
               <><span className="text-muted-foreground">|</span><span className="font-medium truncate">"{formData.business_name}"</span></>
             )}
           </div>
@@ -1438,6 +1451,19 @@ export default function BecomeSellerPage() {
         {step === 3 && draftSellerId && (
           <div className="space-y-5">
             <button onClick={() => handleStepBack(2)} className="flex items-center gap-1 text-sm text-muted-foreground"><ArrowLeft size={16} />Change subcategory</button>
+            <div className="space-y-2">
+              <Label htmlFor="listing_store_name">Store name</Label>
+              <Input
+                id="listing_store_name"
+                placeholder="e.g. Greenfield Parking"
+                value={storeNameFieldValue(formData.business_name)}
+                onChange={(e) => {
+                  businessNameRef.current = e.target.value;
+                  setFormData({ ...formData, business_name: e.target.value });
+                }}
+              />
+              <p className="text-xs text-muted-foreground">Buyers will see this name on your store.</p>
+            </div>
             {rejectionFeedback && (
               <div className="bg-destructive/10 border border-destructive/20 rounded-xl p-4 text-left">
                 <p className="text-xs font-semibold text-destructive mb-1">Admin feedback - please address before resubmitting:</p>
@@ -1455,6 +1481,7 @@ export default function BecomeSellerPage() {
               seedProductNames={seedProductName ? [seedProductName] : []}
               commerceModel={commerceModel}
               onStoreCategoriesChange={(cats) => setFormData((f) => ({ ...f, categories: cats }))}
+              onListingSaved={() => saveDraft({ silent: true, formOverrides: { business_name: businessNameRef.current } })}
               seedSubcategoryId={selectedSubcategoryId || (() => {
                 const cat = formData.categories[0];
                 if (!cat) return null;
@@ -1491,6 +1518,10 @@ export default function BecomeSellerPage() {
                 sellerId: draftSellerId,
                 props: { draft_product_count: draftProducts.length },
               });
+              const name = String(businessNameRef.current || '').trim();
+              if (!isPlaceholderStoreName(name)) {
+                await saveDraft({ silent: true, formOverrides: { business_name: name } });
+              }
               setStep(4);
             }} disabled={draftProducts.length === 0 || pendingOfferings.length > 0}>
               Continue to store name<ChevronRight size={16} className="ml-1" />
@@ -1500,10 +1531,8 @@ export default function BecomeSellerPage() {
 
         {/* Step 4: Business name + submit */}
         {step === 4 && (() => {
+          const nameMissing = isPlaceholderStoreName(formData.business_name);
           const validationErrors: { key: string; message: string; step: number }[] = [];
-          if (!formData.business_name.trim() || formData.business_name.trim() === 'Untitled store') {
-            validationErrors.push({ key: 'name', message: 'Enter your business / store name', step: 4 });
-          }
           if (draftProducts.length === 0) validationErrors.push({ key: 'products', message: 'Add at least one listing before submitting', step: 3 });
           if (formData.categories.length === 0) validationErrors.push({ key: 'categories', message: 'Select a category', step: 1 });
           if (licenseBlocksContinue) {
@@ -1523,11 +1552,14 @@ export default function BecomeSellerPage() {
                 <Label htmlFor="business_name">Business / Store Name *</Label>
                 <Input
                   id="business_name"
-                  placeholder={groups.find(g => g.slug === selectedGroup)?.placeholder_hint || 'e.g., Your Store Name'}
-                  value={formData.business_name}
-                  onChange={(e) => setFormData({ ...formData, business_name: e.target.value })}
+                  placeholder={groups.find(g => g.slug === selectedGroup)?.placeholder_hint || 'e.g. Greenfield Parking'}
+                  value={storeNameFieldValue(formData.business_name)}
+                  onChange={(e) => {
+                    businessNameRef.current = e.target.value;
+                    setFormData({ ...formData, business_name: e.target.value });
+                  }}
                 />
-                <p className="text-xs text-muted-foreground">Buyers see this on your store, products, orders, and invoices.</p>
+                <p className="text-xs text-muted-foreground">Buyers will see this name. After you submit, we review the store.</p>
               </div>
 
               <div className="space-y-2">
@@ -1583,7 +1615,7 @@ export default function BecomeSellerPage() {
                 className="w-full"
                 size="lg"
                 onClick={handleSubmit}
-                disabled={isLoading || !acceptedDeclaration || validationErrors.length > 0}
+                disabled={isLoading || !acceptedDeclaration || nameMissing || validationErrors.length > 0}
               >
                 {isLoading ? <Loader2 className="animate-spin mr-2" size={18} /> : <Send size={18} className="mr-2" />}
                 Submit for review

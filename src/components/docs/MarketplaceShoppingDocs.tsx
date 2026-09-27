@@ -145,7 +145,7 @@ export function MarketplaceShoppingDocs() {
 
         <DocSubSection title="Preparation & Timing Banners">
           <DocList items={[
-            'Preparation time banner: "Ready in ~X minutes" (shown when maxPrepTime > 0)',
+            'Preparation time banner: each store shows seller preparation plus delivery travel. Several items from one store add their prep times. Stores are not added together.',
             'Urgent order warning: "Time-sensitive order - Seller must respond within 5 min or auto-cancelled" (for urgent items)',
             'Minimum order warning per seller: "Seller: Minimum order ₹X. Add ₹Y more to place this order"',
           ]} />

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { formatPrice } from '@/lib/format-price';
 import { escapeIlike, jitteredStaleTime } from '@/lib/query-utils';
-import { friendlyError, cn } from '@/lib/utils';
+import { friendlyError, cn, LISTING_PRICE_REQUIRED } from '@/lib/utils';
 import { convertToHashRoute, safeJSONParse } from '@/lib/median';
 import { ACTION_CONFIG, SORT_OPTIONS } from '@/lib/marketplace-constants';
 import {
@@ -160,6 +160,10 @@ describe('friendlyError - Error Mapping', () => {
   it('never exposes database column errors', () => {
     expect(friendlyError({ code: '42703', message: 'column sp.payment_config does not exist' }))
       .not.toContain('payment_config');
+  });
+  it('explains a missing listing price instead of a generic failure', () => {
+    expect(friendlyError({ code: 'P0001', message: 'Price is required for this category' }))
+      .toBe(LISTING_PRICE_REQUIRED);
   });
   it('never exposes ON CONFLICT constraint errors', () => {
     expect(friendlyError({ code: '42P10', message: 'there is no unique or exclusion constraint matching the ON CONFLICT specification' }))

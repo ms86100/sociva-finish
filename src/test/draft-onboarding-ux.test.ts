@@ -5,11 +5,13 @@ import {
   buildArchivedDraftName,
   draftProgressPercent,
   isIncompleteDraftStore,
+  isPlaceholderStoreName,
   listIncompleteDraftStores,
   onboardingStepLabel,
   resolveSameGroupStore,
   shouldGateNewStoreOnboarding,
   stoppedAtLabel,
+  storeNameFieldValue,
 } from '@/lib/onboarding-state';
 
 const root = process.cwd();
@@ -17,6 +19,18 @@ const root = process.cwd();
 function readSrc(rel: string) {
   return readFileSync(join(root, rel), 'utf8');
 }
+
+describe('store name placeholder', () => {
+  it('treats a blank or Untitled store name as unset', () => {
+    expect(isPlaceholderStoreName('Untitled store')).toBe(true);
+    expect(isPlaceholderStoreName('  untitled store  ')).toBe(true);
+    expect(isPlaceholderStoreName('')).toBe(true);
+    expect(isPlaceholderStoreName(null)).toBe(true);
+    expect(isPlaceholderStoreName('Tadka Ghar')).toBe(false);
+    expect(storeNameFieldValue('Untitled store')).toBe('');
+    expect(storeNameFieldValue('Tadka Ghar')).toBe('Tadka Ghar');
+  });
+});
 
 describe('draft onboarding UX helpers', () => {
   it('maps wizard steps to seller-friendly labels', () => {
@@ -112,6 +126,7 @@ describe('draft onboarding UX wiring', () => {
   it('hook exposes rename, delete, and gated start APIs', () => {
     const src = readSrc('src/hooks/useSellerApplication.ts');
     expect(src).toContain('renameDraftStore');
+    expect(src).toContain('isPlaceholderStoreName');
     expect(src).toContain('deleteDraftStore');
     expect(src).toContain('requestStartNewStoreOnboarding');
     expect(src).toContain('buildArchivedDraftName');
@@ -122,7 +137,8 @@ describe('draft onboarding UX wiring', () => {
     const src = readSrc('src/components/seller/ExistingStoresOnboardingPanel.tsx');
     expect(src).toContain('Continue Setup');
     expect(src).toContain('Delete Draft');
-    expect(src).toContain('Rename');
+    expect(src).toContain('Rename store');
+    expect(src).toContain('Store name not set yet');
     expect(src).toContain('You stopped at:');
     expect(src).toContain('You already have a store setup in progress');
   });
@@ -130,6 +146,9 @@ describe('draft onboarding UX wiring', () => {
   it('BecomeSellerPage wires welcome back and draft actions', () => {
     const src = readSrc('src/pages/BecomeSellerPage.tsx');
     expect(src).toContain('Welcome back!');
+    expect(src).toContain('your new store');
+    expect(src).toContain('listing_store_name');
+    expect(src).toContain('handleStepBack(step - 1)');
     expect(src).toContain('handleResumeDraft');
     expect(src).toContain('onRenameDraft={renameDraftStore}');
     expect(src).toContain('onDeleteDraft={deleteDraftStore}');

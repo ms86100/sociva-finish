@@ -17,6 +17,7 @@ import { useContext } from 'react';
 import { AuthContext } from './auth-context';
 import { actionableSellerProfiles } from '@/lib/seller-journey';
 import { identify, resetAnalytics, track } from '@/lib/analytics';
+import { stageFromSellerStore } from '@/lib/marketplace-intelligence';
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const { state, setPartial, refreshProfile, setViewAsSociety, signOut } = useAuthState();
@@ -44,14 +45,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const effectiveSocietyId = viewAsSocietyId || profile?.society_id || null;
   const effectiveSociety = viewAsSocietyId ? viewAsSociety : society;
 
-  // Amplitude identity - no PII beyond internal ids / role flags
+  // Amplitude identity. Name and store are allowed. Phone and email are not.
   const identifiedUserRef = useRef<string | null>(null);
+  const currentStore = useMemo(() => {
+    const list = (sellerProfiles || []) as Array<{
+      id?: string;
+      business_name?: string | null;
+      verification_status?: string | null;
+      is_available?: boolean | null;
+    }>;
+    return list.find((store) => store.id === currentSellerId) || liveSellerProfiles[0] || null;
+  }, [sellerProfiles, currentSellerId, liveSellerProfiles]);
   useEffect(() => {
     if (!user?.id) {
       identifiedUserRef.current = null;
       return;
     }
     identify(user.id, {
+      name: profile?.name || null,
+      store_name: currentStore?.business_name || null,
+      seller_onboarding_stage: stageFromSellerStore(currentStore),
+      seller_verification_status: currentStore?.verification_status || null,
       society_id: profile?.society_id || null,
       is_seller: isSeller,
       is_admin: isAdmin,
@@ -63,7 +77,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         society_id: profile?.society_id || null,
       });
     }
-  }, [user?.id, profile?.society_id, isSeller, isAdmin, hasSellerProfile]);
+  }, [
+    user?.id,
+    profile?.name,
+    profile?.society_id,
+    currentStore,
+    isSeller,
+    isAdmin,
+    hasSellerProfile,
+  ]);
 
   // Perf: Defer non-critical prefetches - only fire after a short idle delay
   // This prevents auth restore from triggering a burst of queries that slows the first click

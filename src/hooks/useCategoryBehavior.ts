@@ -52,6 +52,7 @@ interface CategoryConfigRow {
   transaction_type?: string | null;
   default_action_type?: string | null;
   seller_domain?: string | null;
+  requires_price?: boolean | null;
 }
 
 /** Pure snake_case row -> camelCase CategoryConfig mapper. */
@@ -91,6 +92,7 @@ export const mapCategoryConfigRows = (rows: CategoryConfigRow[]): CategoryConfig
     transactionType: row.transaction_type || (row as any).transaction_type || null,
     defaultActionType: row.default_action_type || (row as any).default_action_type || null,
     sellerDomain: (row.seller_domain as any) || (row as any).seller_domain || null,
+    requiresPrice: row.requires_price === true || (row as any).requires_price === true,
     imageUrl: row.image_url || null,
     display: {
       supportsBrandDisplay: row.supports_brand_display,

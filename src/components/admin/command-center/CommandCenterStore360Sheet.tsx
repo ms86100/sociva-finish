@@ -1,6 +1,8 @@
 // @ts-nocheck
+import { useQuery } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { Link } from 'react-router-dom';
+import { supabase } from '@/integrations/supabase/client';
 import { Star, Store } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -34,6 +36,22 @@ export function CommandCenterStore360Sheet({
   const { formatPrice } = useCurrency();
   const storeQuery = useCommandCenterStore360(sellerId);
   const store = storeQuery.data;
+  const insights = useQuery({
+    queryKey: ['store-360-insights', sellerId],
+    enabled: open && Boolean(sellerId),
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('seller_store_insights' as never, {
+        p_seller_id: sellerId,
+      } as never);
+      if (error) throw error;
+      return data as {
+        views_30d?: number;
+        cart_adds_30d?: number;
+        credit_available?: number;
+        out_for_delivery?: number;
+      };
+    },
+  });
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -89,6 +107,10 @@ export function CommandCenterStore360Sheet({
               <Metric label="Pending listings" value={store.listings?.pending ?? 0} />
               <Metric label="Open disputes" value={store.quality?.open_disputes ?? 0} />
               <Metric label="Unanswered enquiries" value={store.activity?.enquiries_unanswered ?? 0} />
+              <Metric label="Views (30d)" value={Number(insights.data?.views_30d) || 0} />
+              <Metric label="Cart adds (30d)" value={Number(insights.data?.cart_adds_30d) || 0} />
+              <Metric label="Out for delivery" value={Number(insights.data?.out_for_delivery) || 0} />
+              <Metric label="Credit available" value={Number(insights.data?.credit_available) || 0} />
             </div>
 
             <div className="flex gap-2 flex-wrap">
@@ -135,6 +157,7 @@ export function CommandCenterStore360Sheet({
                   >
                     <span className="font-mono text-xs text-muted-foreground">#{o.order_id.slice(0, 8)}</span>
                     <span className="ml-2 capitalize">{o.status}</span>
+                    {o.buyer_name ? <span className="ml-2 text-muted-foreground">{o.buyer_name}</span> : null}
                     <span className="float-right font-semibold">{formatPrice(o.total_amount)}</span>
                   </Link>
                 ))}

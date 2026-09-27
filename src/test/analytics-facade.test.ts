@@ -28,6 +28,7 @@ describe('analytics privacy', () => {
     expect(out.otp).toBeUndefined();
     expect(out.phone).toBeUndefined();
     expect(out.password).toBeUndefined();
+    expect(sanitizeAnalyticsProps({ campaign_id: 'camp-1', route: '/seller/store' }).campaign_id).toBe('camp-1');
     expect(String(out.note).length).toBeLessThanOrEqual(201);
   });
 });

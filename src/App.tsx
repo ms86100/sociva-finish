@@ -56,7 +56,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { ActionBlockedDialog } from "@/components/feedback/ActionBlockedDialog";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider, QueryCache, MutationCache } from "@tanstack/react-query";
-import { HashRouter, Routes, Route, Navigate, useNavigate, useLocation } from "react-router-dom";
+import { HashRouter, Routes, Route, Navigate, useNavigate, useLocation, useParams } from "react-router-dom";
 import { Capacitor } from "@capacitor/core";
 import { syncStatusBarForTheme } from "@/lib/capacitor";
 
@@ -520,6 +520,11 @@ class SafeSellerAlert extends React.Component<
   render() { return this.state.failed ? null : this.props.children; }
 }
 
+function LegacySellersRedirect() {
+  const { id } = useParams();
+  return <Navigate to={id ? `/seller/${id}` : '/'} replace />;
+}
+
 function AppRoutes() {
   const { user, profile, isSessionRestored, isSigningOut } = useAuth();
   const deferredNavigate = useNavigate();
@@ -687,6 +692,8 @@ function AppRoutes() {
           <Route path="/seller/coupons" element={<Navigate to="/seller" replace />} />
           {/* Public storefront - must stay after all static /seller/* routes */}
           <Route path="/seller/:id" element={<RouteErrorBoundary sectionName="Seller Store"><SellerDetailPage /></RouteErrorBoundary>} />
+          {/* What's new used /sellers/:id; keep that path opening the same store */}
+          <Route path="/sellers/:id" element={<LegacySellersRedirect />} />
           <Route path="/admin" element={<AdminRoute><RouteErrorBoundary sectionName="Admin"><AdminPage /></RouteErrorBoundary></AdminRoute>} />
           <Route path="/admin/financial-trace" element={<AdminRoute><RouteErrorBoundary sectionName="Financial Trace"><AdminFinancialTracePage /></RouteErrorBoundary></AdminRoute>} />
           <Route path="/admin/financial-controls" element={<AdminRoute><RouteErrorBoundary sectionName="Financial Controls"><AdminFinancialControlsPage /></RouteErrorBoundary></AdminRoute>} />

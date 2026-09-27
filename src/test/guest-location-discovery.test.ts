@@ -51,10 +51,12 @@ describe('guest browse allow-list', () => {
     expect(isGuestBrowsePath('/festival-collection/diwali')).toBe(true);
     expect(isGuestBrowsePath('/seller/store-uuid')).toBe(true);
     expect(isGuestBrowsePath('/seller/store-uuid/')).toBe(true);
+    expect(isGuestBrowsePath('/sellers/store-uuid')).toBe(true);
 
     expect(isGuestBrowsePath('/orders')).toBe(false);
     expect(isGuestBrowsePath('/profile')).toBe(false);
     expect(isGuestBrowsePath('/seller/products')).toBe(false);
+    expect(isGuestBrowsePath('/sellers/products')).toBe(false);
     expect(isGuestBrowsePath('/admin')).toBe(false);
   });
 

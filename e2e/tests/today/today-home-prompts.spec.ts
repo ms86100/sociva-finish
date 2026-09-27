@@ -128,6 +128,16 @@ test('the public website stays on the marketing page without the app prompts', a
   await expect(page.getByRole('button', { name: 'iOS - Update' })).toHaveCount(0);
 });
 
+test('an old what is new store link opens the store page', async ({ page }) => {
+  await pretendNativeApp(page, 'ios');
+  await pinNearSalon(page);
+  const id = '11111111-1111-4111-8111-111111111111';
+  await page.goto(`/#/sellers/${id}`);
+  await expect(page).toHaveURL(new RegExp(`#/seller/${id}`));
+  await expect(page.getByRole('heading', { name: 'Page not found' })).toHaveCount(0);
+  await expect(page.getByText('Seller not found')).toBeVisible();
+});
+
 test('search shows the priced gentleman package', async ({ page }) => {
   await pretendNativeApp(page, 'android');
   await pinNearSalon(page);

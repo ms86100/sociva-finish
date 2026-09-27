@@ -80,7 +80,7 @@ describe('Seller credits monetization integrity', () => {
     expect(credits).toMatch(/summary\?\.spendEnabled/);
     expect(credits).toMatch(/positive credit balance is still required for discovery|make your products visible/);
     expect(card).toMatch(/summary\?\.spendEnabled/);
-    expect(card).toMatch(/make your store visible/);
+    expect(card).toMatch(/Buyers cannot find your store in search until you recharge Sociva Credits/);
   });
 
   it('labels refunds and routes refund notifications to credits', () => {

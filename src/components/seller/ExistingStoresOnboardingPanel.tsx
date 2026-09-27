@@ -31,6 +31,7 @@ import {
   listIncompleteDraftStores,
   parseOnboardingMeta,
   shouldGateNewStoreOnboarding,
+  isPlaceholderStoreName,
   stoppedAtLabel,
 } from '@/lib/onboarding-state';
 import type { CategoryConfig } from '@/types/categories';
@@ -171,7 +172,9 @@ export function ExistingStoresOnboardingPanel({
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold truncate">
-                    {displaySellerStoreName(store.business_name, 'Untitled store')}
+                    {isPlaceholderStoreName(store.business_name)
+                      ? 'Store name not set yet'
+                      : displaySellerStoreName(store.business_name, 'Store name not set yet')}
                   </p>
                   <p className="text-[11px] text-muted-foreground truncate">{categoryLabel}</p>
                   <div className="mt-1 flex flex-wrap gap-1">
@@ -223,20 +226,21 @@ export function ExistingStoresOnboardingPanel({
                   </Button>
                   <div className="flex items-center gap-3">
                     {onRenameDraft && (
-                      <button
+                      <Button
                         type="button"
-                        className="text-[11px] text-primary underline-offset-2 hover:underline"
+                        size="sm"
+                        variant="outline"
                         onClick={() => {
                           setRenameStore(store);
                           setRenameValue(
-                            displaySellerStoreName(store.business_name, '') === 'Untitled store'
+                            isPlaceholderStoreName(store.business_name)
                               ? ''
                               : displaySellerStoreName(store.business_name, ''),
                           );
                         }}
                       >
-                        Rename
-                      </button>
+                        Rename store
+                      </Button>
                     )}
                     {onDeleteDraft && (
                       <button
@@ -343,7 +347,7 @@ export function ExistingStoresOnboardingPanel({
             <AlertDialogTitle>You already have a store setup in progress</AlertDialogTitle>
             <AlertDialogDescription>
               {mostRecentDraft
-                ? `Continue “${displaySellerStoreName(mostRecentDraft.business_name, 'Untitled store')}” where you left off, or delete it and start again.`
+                ? `Continue "${isPlaceholderStoreName(mostRecentDraft.business_name) ? 'your new store' : displaySellerStoreName(mostRecentDraft.business_name, 'your store')}" where you left off, or delete it and start again.`
                 : 'Continue your unfinished setup, or delete it and start again.'}
             </AlertDialogDescription>
           </AlertDialogHeader>

@@ -211,7 +211,11 @@ async function sendFCM(
       android: { priority: "high", notification: { sound: "default", channel_id: "general", icon: "ic_stat_sociva" } },
       apns: {
         headers: { "apns-push-type": "alert", "apns-priority": "10" },
-        payload: { aps: { alert: { title, body }, sound: "default", badge: 1 } },
+        // Copy custom keys into the Apple payload. Overriding aps alone drops them on iOS.
+        payload: {
+          aps: { alert: { title, body }, sound: "default", badge: 1 },
+          ...(data || {}),
+        },
       },
     },
   };

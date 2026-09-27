@@ -31,6 +31,8 @@ import {
   PREP_TIME_HELP,
   PREP_TIME_LABEL,
   PREP_TIME_PLACEHOLDER,
+  INSTANT_PREP_TIME_HELP,
+  INSTANT_PREP_TIME_LABEL,
 } from '@/lib/product-timing-copy';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FoodFacetChips } from '@/components/seller/FoodFacetChips';
@@ -549,10 +551,12 @@ function StepConfig({ sp }: { sp: ReturnType<typeof useSellerProducts> }) {
       )}
 
       <div className="grid grid-cols-2 gap-4">
-        {sp.showDurationField && (
+        {(sp.showPrepTimeField || sp.showDurationField) && (
           <div>
             <Label className="text-sm font-semibold">
-              {sp.activeCategoryConfig?.formHints.durationLabel || PREP_TIME_LABEL}
+              {sp.showInstantPrepField
+                ? INSTANT_PREP_TIME_LABEL
+                : (sp.activeCategoryConfig?.formHints.durationLabel || PREP_TIME_LABEL)}
             </Label>
             <Input
               type="text"
@@ -575,7 +579,9 @@ function StepConfig({ sp }: { sp: ReturnType<typeof useSellerProducts> }) {
             {sp.fieldErrors.prep_time_minutes ? (
               <p className="text-xs text-destructive mt-1">{sp.fieldErrors.prep_time_minutes}</p>
             ) : (
-              <p className="text-[10px] text-muted-foreground mt-1">{PREP_TIME_HELP}</p>
+              <p className="text-[10px] text-muted-foreground mt-1">
+                {sp.showInstantPrepField ? INSTANT_PREP_TIME_HELP : PREP_TIME_HELP}
+              </p>
             )}
           </div>
         )}

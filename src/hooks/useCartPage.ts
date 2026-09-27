@@ -25,7 +25,14 @@ import { useDeliveryAddresses } from '@/hooks/useDeliveryAddresses';
 import { useBrowsingLocation } from '@/contexts/BrowsingLocationContext';
 import { hasPreciseCoordinates } from '@/lib/buyerLocation';
 import { locationAlignsWithBrowse } from '@/lib/buyerOrderLocation';
-import { computeCheckoutEta, sellerCoordsFromCartItems } from '@/lib/checkout-eta';
+import {
+  checkoutEtaBanner,
+  computeCheckoutEta,
+  formatDistanceKmLabel,
+  sellerCoordsFromCartItems,
+  sumSequentialPrepMinutes,
+  type CheckoutEtaBanner,
+} from '@/lib/checkout-eta';
 import { hapticImpact, hapticNotification, hapticSelection } from '@/lib/haptics';
 import { toast } from 'sonner';
 import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
@@ -540,22 +547,6 @@ export function useCartPage() {
 
   const hasUrgentItem = items.some((item) => (item.product as any)?.is_urgent);
   const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
-  const maxPrepTime = items.reduce((max, item) => {
-    const pt = (item.product as any)?.prep_time_minutes;
-    return pt && pt > max ? pt : max;
-  }, 0);
-
-  const checkoutEta = useMemo(() => {
-    const sellerCoords = sellerCoordsFromCartItems(items);
-    return computeCheckoutEta({
-      fulfillmentType,
-      prepMinutes: maxPrepTime,
-      buyerLat: checkoutLat ?? null,
-      buyerLng: checkoutLng ?? null,
-      sellerLat: sellerCoords?.lat ?? null,
-      sellerLng: sellerCoords?.lng ?? null,
-    });
-  }, [items, fulfillmentType, maxPrepTime, checkoutLat, checkoutLng]);
 
   // Pre-order detection: check if any cart item requires pre-ordering
   const hasPreorderItems = items.some(item => (item.product as any)?.accepts_preorders === true);
@@ -587,6 +578,40 @@ export function useCartPage() {
     }
     return ids;
   }, [items]);
+
+  const sellerCheckoutEtas = useMemo(() => {
+    return sellerGroups.map((group) => {
+      const prepMinutes = sumSequentialPrepMinutes(group.items.map((item) => ({
+        prep_time_minutes: (item.product as any)?.prep_time_minutes,
+        quantity: item.quantity,
+        action_type: (item.product as any)?.action_type,
+      })));
+      const sellerCoords = sellerCoordsFromCartItems(group.items);
+      const eta = computeCheckoutEta({
+        fulfillmentType,
+        prepMinutes,
+        buyerLat: checkoutLat ?? null,
+        buyerLng: checkoutLng ?? null,
+        sellerLat: sellerCoords?.lat ?? null,
+        sellerLng: sellerCoords?.lng ?? null,
+      });
+      const preorder = preorderSellerIds.has(group.sellerId)
+        || group.items.some((item) => (item.product as any)?.accepts_preorders === true);
+      const distanceLabel = eta.distanceKm != null ? formatDistanceKmLabel(eta.distanceKm) : null;
+      const banner: CheckoutEtaBanner | null = preorder
+        ? null
+        : checkoutEtaBanner(eta, fulfillmentType, distanceLabel);
+      return {
+        sellerId: group.sellerId,
+        sellerName: group.sellerName,
+        eta,
+        banner,
+      };
+    });
+  }, [sellerGroups, fulfillmentType, checkoutLat, checkoutLng, preorderSellerIds]);
+
+  const checkoutEta = sellerGroups.length === 1 ? (sellerCheckoutEtas[0]?.eta ?? null) : null;
+  const maxPrepTime = checkoutEta?.prepMinutes ?? 0;
 
   const createOrdersForAllSellers = async (paymentStatus: 'pending' | 'paid', transactionRef?: string) => {
     if (!user || !profile || sellerGroups.length === 0) return [];
@@ -1514,7 +1539,7 @@ export function useCartPage() {
     fulfillmentType, setFulfillmentType, orderStep,
     settings, formatPrice, currencySymbol,
     effectiveDeliveryFee, effectivePackagingFee, finalAmount, acceptsCod, acceptsUpi, onlineDisabledReason,
-    hasUrgentItem, itemCount, maxPrepTime, checkoutEta,
+    hasUrgentItem, itemCount, maxPrepTime, checkoutEta, sellerCheckoutEtas,
     effectiveCouponDiscount, effectiveLoyaltyDiscount, loyalty,
     effectiveWalletCredit, payableBeforeWallet, wallet,
     firstSellerFulfillmentMode,

@@ -86,7 +86,7 @@ export function WhatsNewSection() {
         {newSellers.map((s) => (
           <motion.div key={s.id} variants={scaleIn} whileTap={{ scale: 0.96 }}>
             <Link
-              to={`/sellers/${s.id}`}
+              to={`/seller/${s.id}`}
               className="shrink-0 w-28 block"
             >
               <div className="w-28 h-28 rounded-xl bg-muted overflow-hidden">

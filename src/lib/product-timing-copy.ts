@@ -2,6 +2,11 @@
 
 export const PREP_TIME_LABEL = 'Estimated prep time (minutes)';
 
+export const INSTANT_PREP_TIME_LABEL = 'Preparation time (minutes)';
+
+export const INSTANT_PREP_TIME_HELP =
+  'Leave blank if this can be prepared right away. A number is added to the buyer\'s delivery time.';
+
 export const PREP_TIME_HELP =
   'Shown to buyers as an estimate after you accept the order. Sociva does not auto-cancel or enforce this - you manage fulfillment yourself.';
 

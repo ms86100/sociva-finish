@@ -51,6 +51,7 @@ export function FeedbackSheet({ triggerLabel, onSubmitted, triggerOpen, onOpenCh
       setRating(0);
       setMessage('');
       onSubmitted?.();
+      supabase.functions.invoke('process-notification-queue').catch(() => {});
       window.setTimeout(() => {
         showFeedback({
           title: 'Feedback received',

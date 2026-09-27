@@ -148,10 +148,7 @@ export function ProductDetailSheet({ product, open, onOpenChange, onSelectProduc
       } catch {
         // Recently viewed history is best-effort.
       }
-      // Server-side view tracking
-      if (user) {
-        supabase.from('product_views' as any).insert({ product_id: product.product_id, viewer_id: user.id } as any).then(() => {});
-      }
+      // Product views are recorded by track('product_viewed') as one row per person per day.
     }
   }, [open, product?.product_id, user]);
 

@@ -28,7 +28,7 @@ export function needsLocationOnboarding(hasBrowsingCoords: boolean): boolean {
 export function isLocationOnboardingExemptPath(pathname: string): boolean {
   const path = (pathname || '/').split('?')[0] || '/';
   if (path.startsWith('/product/')) return true;
-  if (/^\/seller\/[^/]+\/?$/.test(path)) return true;
+  if (/^\/sellers?\/[^/]+\/?$/.test(path)) return true;
   return false;
 }
 

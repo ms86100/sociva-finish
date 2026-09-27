@@ -34,7 +34,6 @@ import { track } from '@/lib/analytics';
 import { setPendingAuthAction } from '@/lib/pending-auth-action';
 import { useBrowsingLocation } from '@/contexts/BrowsingLocationContext';
 import { getCartSellerInsights } from '@/lib/cart-seller-insights';
-import { formatDistanceKmLabel } from '@/lib/checkout-eta';
 
 export default function CartPage() {
   const c = useCartPage();
@@ -151,34 +150,28 @@ export default function CartPage() {
         </div>
         </SafeHeader>
 
-        {/* Delivery Time - prep + real travel when coords known */}
-        {(c.checkoutEta?.etaMinutes != null || c.maxPrepTime > 0) && (
-          <div className="mx-4 mt-3 flex items-center gap-3 bg-primary/5 border border-primary/15 rounded-xl p-3">
+        {/* Delivery time: seller prep plus existing travel, per store */}
+        {c.sellerCheckoutEtas?.some((group) => group.banner) && (
+          <div className="mx-4 mt-3 flex items-start gap-3 bg-primary/5 border border-primary/15 rounded-xl p-3">
             <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0"><Clock size={18} className="text-primary" /></div>
-            <div>
-              {c.fulfillmentType === 'delivery' ? (
-                c.checkoutEta?.distanceKnown && c.checkoutEta.etaMinutes != null ? (
-                  <>
-                    <p className="text-sm font-semibold">Delivering in ~{c.checkoutEta.etaMinutes} minutes</p>
-                    <p className="text-xs text-muted-foreground">
-                      {c.checkoutEta.distanceKm != null
-                        ? `${formatDistanceKmLabel(c.checkoutEta.distanceKm)} · `
-                        : ''}
-                      prep ~{c.checkoutEta.prepMinutes} min
-                      {c.checkoutEta.travelMinutes != null ? ` · travel ~${c.checkoutEta.travelMinutes} min` : ''}
-                    </p>
-                  </>
-                ) : c.maxPrepTime > 0 ? (
-                  <>
-                    <p className="text-sm font-semibold">Ready in ~{c.maxPrepTime} minutes</p>
-                    <p className="text-xs text-muted-foreground">
-                      Prep estimate · distance unavailable
-                      {c.checkoutEta?.distanceKnown === false ? ' · typically 10-20 min travel' : ''}
-                    </p>
-                  </>
-                ) : null
+            <div className="min-w-0">
+              {c.sellerCheckoutEtas.length > 1 ? (
+                <>
+                  <p className="text-sm font-semibold">Each store prepares on its own</p>
+                  <div className="mt-1 space-y-1">
+                    {c.sellerCheckoutEtas.map((group) => group.banner && (
+                      <p key={group.sellerId} className="text-xs text-muted-foreground">
+                        <span className="font-medium text-foreground">{group.sellerName || 'Store'}:</span>{' '}
+                        {group.banner.title}. {group.banner.detail}
+                      </p>
+                    ))}
+                  </div>
+                </>
               ) : (
-                <><p className="text-sm font-semibold">Ready in ~{c.maxPrepTime} minutes</p><p className="text-xs text-muted-foreground">Estimated preparation time</p></>
+                <>
+                  <p className="text-sm font-semibold">{c.sellerCheckoutEtas[0]?.banner?.title}</p>
+                  <p className="text-xs text-muted-foreground">{c.sellerCheckoutEtas[0]?.banner?.detail}</p>
+                </>
               )}
             </div>
           </div>

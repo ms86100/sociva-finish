@@ -27,16 +27,31 @@ interface FeedbackRow {
 }
 
 export default function AdminFeedbackViewer() {
-  const { data: feedback = [], isLoading } = useQuery({
+  const { data: feedback = [], isLoading, isError } = useQuery({
     queryKey: ['admin-user-feedback'],
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from('user_feedback')
-        .select('*, profile:profiles!user_feedback_user_id_fkey(name, flat_number, block)')
+        .select('id, user_id, rating, message, page_context, created_at')
         .order('created_at', { ascending: false })
         .limit(100);
       if (error) throw error;
-      return (data || []) as FeedbackRow[];
+      const rows = (data || []) as FeedbackRow[];
+      const userIds = [...new Set(rows.map((row) => row.user_id).filter(Boolean))];
+      let profiles: Array<{ id: string; name: string | null; flat_number: string | null; block: string | null }> = [];
+      if (userIds.length > 0) {
+        const { data: profileRows, error: profileError } = await supabase
+          .from('profiles')
+          .select('id, name, flat_number, block')
+          .in('id', userIds);
+        if (profileError) throw profileError;
+        profiles = profileRows || [];
+      }
+      const byId = new Map(profiles.map((profile) => [profile.id, profile]));
+      return rows.map((row) => ({
+        ...row,
+        profile: byId.get(row.user_id) || null,
+      })) as FeedbackRow[];
     },
   });
 
@@ -50,6 +65,15 @@ export default function AdminFeedbackViewer() {
         {[1, 2, 3].map((i) => (
           <Skeleton key={i} className="h-20 w-full rounded-xl" />
         ))}
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="p-8 text-center text-muted-foreground">
+        <p className="font-medium">Could not load feedback</p>
+        <p className="text-sm mt-1">Refresh and try again.</p>
       </div>
     );
   }

@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
+  checkoutEtaBanner,
   computeCheckoutEta,
   formatDistanceKmLabel,
+  instantPrepStampMinutes,
   resolveSellerCoords,
+  sumSequentialPrepMinutes,
   travelMinutesFromDistanceKm,
   MIN_TRAVEL_MINUTES,
   HANDOFF_BUFFER_MIN,
@@ -81,5 +84,128 @@ describe('checkout-eta', () => {
     expect(formatDistanceKmLabel(0.05)).toBe('Nearby');
     expect(formatDistanceKmLabel(0.4)).toBe('400 m');
     expect(formatDistanceKmLabel(2.3)).toBe('2.3 km');
+  });
+
+  it('sums prep sequentially and ignores quantity, blanks, and services', () => {
+    expect(sumSequentialPrepMinutes([
+      { prep_time_minutes: 10, quantity: 1 },
+      { prep_time_minutes: 10, quantity: 2 },
+      { prep_time_minutes: 10, quantity: 1 },
+    ])).toBe(30);
+    expect(sumSequentialPrepMinutes([
+      { prep_time_minutes: 10, quantity: 2 },
+    ])).toBe(10);
+    expect(sumSequentialPrepMinutes([
+      { prep_time_minutes: null },
+      { prep_time_minutes: 0 },
+      { prep_time_minutes: 15 },
+    ])).toBe(15);
+    expect(sumSequentialPrepMinutes([
+      { prep_time_minutes: null },
+      { prep_time_minutes: 0 },
+    ])).toBe(0);
+    expect(sumSequentialPrepMinutes([
+      { prep_time_minutes: 45, action_type: 'book', quantity: 1 },
+      { prep_time_minutes: 10, action_type: 'add_to_cart' },
+    ])).toBe(10);
+  });
+
+  it('adds sequential prep on top of the existing travel formula', () => {
+    const travelOnly = computeCheckoutEta({
+      fulfillmentType: 'delivery',
+      prepMinutes: 0,
+      buyerLat: 12.97,
+      buyerLng: 77.59,
+      sellerLat: 12.971,
+      sellerLng: 77.594,
+    });
+    const withPrep = computeCheckoutEta({
+      fulfillmentType: 'delivery',
+      prepMinutes: sumSequentialPrepMinutes([
+        { prep_time_minutes: 10 },
+        { prep_time_minutes: 10 },
+        { prep_time_minutes: 10 },
+      ]),
+      buyerLat: 12.97,
+      buyerLng: 77.59,
+      sellerLat: 12.971,
+      sellerLng: 77.594,
+    });
+    expect(travelOnly.travelMinutes).not.toBeNull();
+    expect(withPrep.prepMinutes).toBe(30);
+    expect(withPrep.travelMinutes).toBe(travelOnly.travelMinutes);
+    expect(withPrep.etaMinutes).toBe(30 + (travelOnly.travelMinutes ?? 0));
+    expect(checkoutEtaBanner(withPrep, 'delivery', '1.2 km')?.detail).toContain('30 min for the seller to prepare');
+    expect(checkoutEtaBanner(withPrep, 'delivery', '1.2 km')?.detail).toContain('min to deliver');
+  });
+
+  it('blank prep stays travel-only and does not invent a prep wait', () => {
+    const result = computeCheckoutEta({
+      fulfillmentType: 'delivery',
+      prepMinutes: sumSequentialPrepMinutes([{ prep_time_minutes: null }, { prep_time_minutes: 0 }]),
+      buyerLat: 12.97,
+      buyerLng: 77.59,
+      sellerLat: 13.0,
+      sellerLng: 77.6,
+    });
+    expect(result.prepMinutes).toBe(0);
+    expect(result.etaMinutes).toBe(result.travelMinutes);
+    expect(instantPrepStampMinutes({
+      fulfillmentType: 'delivery',
+      prepMinutes: result.prepMinutes,
+      travelMinutes: result.travelMinutes,
+    })).toBeNull();
+  });
+
+  it('pickup stamp is prep only', () => {
+    const result = computeCheckoutEta({
+      fulfillmentType: 'self_pickup',
+      prepMinutes: 20,
+      buyerLat: 12.97,
+      buyerLng: 77.59,
+      sellerLat: 13.0,
+      sellerLng: 77.6,
+    });
+    expect(result.etaMinutes).toBe(20);
+    expect(instantPrepStampMinutes({
+      fulfillmentType: 'self_pickup',
+      prepMinutes: 20,
+      travelMinutes: result.travelMinutes,
+    })).toBe(20);
+  });
+
+  it('does not stamp instant prep onto scheduled or pre-order orders', () => {
+    expect(instantPrepStampMinutes({
+      scheduled: true,
+      fulfillmentType: 'delivery',
+      prepMinutes: 30,
+      travelMinutes: 8,
+    })).toBeNull();
+    expect(instantPrepStampMinutes({
+      preorder: true,
+      fulfillmentType: 'delivery',
+      prepMinutes: 30,
+      travelMinutes: 8,
+    })).toBeNull();
+    expect(instantPrepStampMinutes({
+      fulfillmentType: 'delivery',
+      prepMinutes: 30,
+      travelMinutes: null,
+    })).toBe(30);
+  });
+
+  it('unknown distance mentions preparation and does not invent travel', () => {
+    const result = computeCheckoutEta({
+      fulfillmentType: 'delivery',
+      prepMinutes: 30,
+      buyerLat: null,
+      buyerLng: null,
+      sellerLat: null,
+      sellerLng: null,
+    });
+    const banner = checkoutEtaBanner(result, 'delivery');
+    expect(banner?.title).toBe('Ready in about 30 min');
+    expect(banner?.detail).toBe('Seller preparation time. Delivery travel will be confirmed.');
+    expect(banner?.detail).not.toMatch(/10-20/);
   });
 });

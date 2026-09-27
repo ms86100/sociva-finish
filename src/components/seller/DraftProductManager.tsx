@@ -13,8 +13,8 @@ import { parsePrepTimeMinutes } from '@/lib/prep-time-minutes';
 import {
   PREORDERS_TOGGLE_HELP,
   PREORDERS_TOGGLE_LABEL,
-  PREP_TIME_HELP,
-  PREP_TIME_LABEL,
+  INSTANT_PREP_TIME_HELP,
+  INSTANT_PREP_TIME_LABEL,
   PREP_TIME_PLACEHOLDER,
 } from '@/lib/product-timing-copy';
 import { track } from '@/lib/analytics';
@@ -30,7 +30,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { toast } from 'sonner';
 import { useCategoryConfigs } from '@/hooks/useCategoryBehavior';
 import { useSubcategories } from '@/hooks/useSubcategories';
-import { friendlyError } from '@/lib/utils';
+import { friendlyError, LISTING_PRICE_REQUIRED } from '@/lib/utils';
 import { inferSellerDomain, domainFormFlags, offeringCopy } from '@/lib/seller-domain';
 import { AttributeBlockBuilder } from '@/components/seller/AttributeBlockBuilder';
 import { useBlockLibrary, filterByCategory, type BlockData } from '@/hooks/useAttributeBlocks';
@@ -96,6 +96,8 @@ interface DraftProductManagerProps {
   seedSubcategoryId?: string | null;
   commerceModel?: CommerceModel | null;
   onStoreCategoriesChange?: (categories: string[]) => void;
+  /** Persist the store name the seller typed on this step. */
+  onListingSaved?: () => void | Promise<void>;
 }
 
 // Action-type-driven check: does this product's action_type require availability?
@@ -117,6 +119,7 @@ export function DraftProductManager({
   seedSubcategoryId,
   commerceModel,
   onStoreCategoriesChange,
+  onListingSaved,
 }: DraftProductManagerProps) {
   const { user } = useAuth();
   const { data: allActions = [] } = useActionTypeMap();
@@ -395,6 +398,7 @@ export function DraftProductManager({
   const supportsStaffAssignment = (activeConfig as any)?.supportsStaffAssignment ?? false;
 
   const requiresPrice = useMemo(() => {
+    if (activeConfig?.requiresPrice === true) return true;
     if (domainFlags.allowZeroPrice) return false;
     if (!activeConfig) return true;
     return activeConfig.behavior.supportsCart || !activeConfig.behavior.enquiryOnly;
@@ -450,7 +454,7 @@ export function DraftProductManager({
   const handleAddProduct = async () => {
     const errors: Record<string, string> = {};
     if (!newProduct.name.trim()) errors.name = copy.nameRequired;
-    if (requiresPrice && newProduct.price <= 0) errors.price = 'Price must be greater than 0';
+    if (requiresPrice && newProduct.price <= 0) errors.price = LISTING_PRICE_REQUIRED;
     if (newProduct.mrp && newProduct.mrp > 0 && newProduct.price > newProduct.mrp) errors.price = 'Price cannot exceed MRP';
     if (!newProduct.image_url.trim()) errors.image_url = copy.imageRequired;
 
@@ -466,7 +470,7 @@ export function DraftProductManager({
     });
     Object.assign(errors, stockResolved.errors);
 
-    if (showDurationField && !isService && prepTimeInput.trim()) {
+    if (!isService && prepTimeInput.trim()) {
       const prepParsed = parsePrepTimeMinutes(prepTimeInput);
       if (prepParsed.error) errors.prep_time_minutes = prepParsed.error;
     }
@@ -502,7 +506,7 @@ export function DraftProductManager({
         return currentStatus;
       })();
 
-      const prepParsed = showDurationField && !isService && prepTimeInput.trim()
+      const prepParsed = !isService
         ? parsePrepTimeMinutes(prepTimeInput)
         : { minutes: null as number | null };
 
@@ -634,6 +638,7 @@ export function DraftProductManager({
         title: isEditing ? 'Product updated' : 'Product added',
         variant: 'success',
       });
+      await onListingSaved?.();
 
       const remaining = pendingOfferingNamesForProducts(seedNames, nextProducts.map((p) => p.name));
       if (!isEditing && remaining[0]) {
@@ -1149,10 +1154,10 @@ export function DraftProductManager({
                 </>
               )}
 
-              {showDurationField && !isService && (
+              {!isService && (
                 <div className="space-y-2">
                   <Label htmlFor="prod-prep" className="text-xs">
-                    {activeConfig?.formHints.durationLabel || PREP_TIME_LABEL}
+                    {INSTANT_PREP_TIME_LABEL}
                   </Label>
                   <Input
                     id="prod-prep"
@@ -1179,7 +1184,7 @@ export function DraftProductManager({
                   {fieldErrors.prep_time_minutes ? (
                     <p className="text-[10px] text-destructive">{fieldErrors.prep_time_minutes}</p>
                   ) : (
-                    <p className="text-[10px] text-muted-foreground">{PREP_TIME_HELP}</p>
+                    <p className="text-[10px] text-muted-foreground">{INSTANT_PREP_TIME_HELP}</p>
                   )}
                 </div>
               )}

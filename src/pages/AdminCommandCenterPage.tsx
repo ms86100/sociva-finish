@@ -26,6 +26,7 @@ import { CommandCenterAttentionInbox } from '@/components/admin/command-center/C
 import { CommandCenterGrowthPanel } from '@/components/admin/command-center/CommandCenterGrowthPanel';
 import { CommandCenterTrustPanel } from '@/components/admin/command-center/CommandCenterTrustPanel';
 import { CommandCenterProductIntelligence } from '@/components/admin/command-center/CommandCenterProductIntelligence';
+import { CommandCenterMarketPanel } from '@/components/admin/command-center/CommandCenterMarketPanel';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   useCommandCenterActivity,
@@ -58,7 +59,8 @@ type CommandCenterTab =
   | 'attention'
   | 'growth'
   | 'trust'
-  | 'intelligence';
+  | 'intelligence'
+  | 'market';
 
 const VALID_TABS: CommandCenterTab[] = [
   'sellers',
@@ -73,6 +75,7 @@ const VALID_TABS: CommandCenterTab[] = [
   'growth',
   'trust',
   'intelligence',
+  'market',
 ];
 
 const VALID_KPIS: KpiKey[] = COMMAND_CENTER_BUCKETS.map((bucket) => bucket.id);
@@ -86,6 +89,7 @@ const MORE_OPTIONS: Array<{ value: string; label: string; tab: CommandCenterTab 
   { value: 'growth', label: 'Growth', tab: 'growth' },
   { value: 'trust', label: 'Trust', tab: 'trust' },
   { value: 'intelligence', label: 'Intelligence', tab: 'intelligence' },
+  { value: 'market', label: 'Market', tab: 'market' },
   { value: 'attention', label: 'Attention', tab: 'attention' },
 ];
 
@@ -830,6 +834,10 @@ export default function AdminCommandCenterPage() {
 
             <TabsContent value="intelligence" className="mt-4">
               <CommandCenterProductIntelligence societyId={societyScope} />
+            </TabsContent>
+
+            <TabsContent value="market" className="mt-4">
+              <CommandCenterMarketPanel />
             </TabsContent>
           </Tabs>
         </div>

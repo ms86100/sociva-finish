@@ -81,6 +81,9 @@ const SellerAnalyticsTab = lazy(() =>
 const DemandInsights = lazy(() =>
   import('@/components/seller/DemandInsights').then((m) => ({ default: m.DemandInsights })),
 );
+const StoreInsightsPanel = lazy(() =>
+  import('@/components/seller/StoreInsightsPanel').then((m) => ({ default: m.StoreInsightsPanel })),
+);
 const SellerRefundList = lazy(() =>
   import('@/components/seller/SellerRefundList').then((m) => ({ default: m.SellerRefundList })),
 );
@@ -791,6 +794,7 @@ export default function SellerDashboardPage() {
               pickStoreBanner
             ) : (
               <Suspense fallback={<TabFallback />}>
+                <StoreInsightsPanel sellerId={sellerProfile.id} />
                 <SellerReliabilityScore sellerId={sellerProfile.id} />
                 <LowStockAlerts sellerId={sellerProfile.id} />
                 <SellerAnalyticsTab sellerId={sellerProfile.id} />

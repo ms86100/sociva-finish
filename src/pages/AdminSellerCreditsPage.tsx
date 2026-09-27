@@ -833,7 +833,7 @@ export default function AdminSellerCreditsPage() {
                     Examples with current settings: ₹0 → hidden from buyers; {formatPrice(midBalanceExample)} → still visible (above activation floor) but Critical/Low warnings on the seller credits page; {formatPrice(healthyMinDisplay)} → visible and Healthy.
                   </p>
                   <p className="text-[11px] text-muted-foreground">
-                    New sellers with no recharge: not visible until balance meets the activation floor. Sellers see “Recharge Sociva Credits to make your store visible”; buyers see a generic unavailable message.
+                    New sellers with no recharge: not visible until balance meets the activation floor. Sellers with no credits are told to recharge before accepting new orders. Buyers see a generic unavailable message.
                   </p>
                 </>
               )}

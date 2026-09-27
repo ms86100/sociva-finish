@@ -19,6 +19,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn, friendlyError } from '@/lib/utils';
 import { notify } from '@/lib/notify';
+import { getDrawerKeyboardStyle, useKeepDrawerFieldVisible } from '@/hooks/useChatViewport';
 
 interface OrderHelpSheetProps {
   orderId: string;
@@ -107,6 +108,7 @@ export function OrderHelpSheet({
 }: OrderHelpSheetProps) {
   const { user } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
+  const { viewportHeight, keyboardInset, isKeyboardOpen } = useKeepDrawerFieldVisible(isOpen);
   const [step, setStep] = useState<Step>('diagnosis');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [selectedSubtype, setSelectedSubtype] = useState<string | null>(null);
@@ -302,14 +304,18 @@ export function OrderHelpSheet({
   const currentSubtypeLabel = SUBTYPES[selectedCategory!]?.find(s => s.id === selectedSubtype)?.label || '';
 
   return (
-    <Drawer open={isOpen} onOpenChange={handleOpen}>
+    <Drawer open={isOpen} onOpenChange={handleOpen} repositionInputs={false}>
       <DrawerTrigger asChild>
         <Button variant="ghost" size="sm" className="text-muted-foreground">
           <HelpCircle size={16} className="mr-2" />
           Need help?
         </Button>
       </DrawerTrigger>
-      <DrawerContent className="max-h-[85vh]">
+      <DrawerContent
+        data-drawer-scroll
+        className="max-h-[min(92dvh,100%)] overflow-y-auto"
+        style={getDrawerKeyboardStyle({ viewportHeight, keyboardInset, isKeyboardOpen })}
+      >
         <DrawerHeader className="flex items-center gap-2">
           {step !== 'diagnosis' && step !== 'resolution' && (
             <Button
@@ -479,6 +485,7 @@ export function OrderHelpSheet({
                 </div>
 
                 <Textarea
+                  data-keyboard-field
                   placeholder="Add details (optional)..."
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}

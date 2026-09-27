@@ -355,6 +355,12 @@ export default function OrderDetailPage() {
   const { getSetting } = useSystemSettingsRaw(['proximity_thresholds', 'ui_setting_up_tracking']);
   const { data: orderTickets = [] } = useOrderTickets(o.order?.id);
   const [selectedTicket, setSelectedTicket] = useState<any>(null);
+  useEffect(() => {
+    const ticketId = new URLSearchParams(location.search).get('ticket');
+    if (!ticketId || orderTickets.length === 0) return;
+    const match = orderTickets.find((ticket) => ticket.id === ticketId);
+    if (match) setSelectedTicket(match);
+  }, [location.search, orderTickets]);
   const [showSuccessOverlay, setShowSuccessOverlay] = useState(() => !!(location.state as any)?.fromCheckout);
   const checkoutOrderCount = (location.state as any)?.orderCount || 1;
   // Notification → Action deep-link continuity: scroll to + pulse the Accept Order hero.

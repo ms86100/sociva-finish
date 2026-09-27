@@ -10,6 +10,8 @@ import {
   isAnalyticsEventName,
 } from '@/lib/analytics-events';
 import { sanitizeAnalyticsProps } from '@/lib/analytics-privacy';
+import { persistAnalyticsFact } from '@/lib/analytics-facts';
+import { identifyTraitsForAmplitude } from '@/lib/marketplace-intelligence';
 
 const REPLAY_OPT_IN_KEY = 'sociva_analytics_replay_opt_in';
 /** How long push / campaign attribution sticks on subsequent events (30 min). */
@@ -115,15 +117,17 @@ export function initAnalytics(): boolean {
 }
 
 export function track(event: AnalyticsEventName | string, props?: AnalyticsProps): void {
-  if (!initialized) return;
   const name = String(event || '').trim();
   if (!name) return;
   if (!isAnalyticsEventName(name) && import.meta.env.DEV) {
     console.warn('[Analytics] Unknown event name (still sent):', name);
   }
+  const merged: AnalyticsProps = { ...getAttribution(), ...props };
+  const safe = sanitizeAnalyticsProps(merged as Record<string, unknown>);
+  void persistAnalyticsFact(name, safe);
+  if (!initialized) return;
   try {
-    const merged: AnalyticsProps = { ...getAttribution(), ...props };
-    amplitude.track(name, sanitizeAnalyticsProps(merged as Record<string, unknown>));
+    amplitude.track(name, safe);
   } catch (err) {
     console.warn('[Analytics] track failed', err);
   }
@@ -136,7 +140,9 @@ export function identify(
   if (!initialized || !userId) return;
   try {
     const id = new amplitude.Identify();
-    const safe = sanitizeAnalyticsProps(traits as Record<string, unknown>);
+    const safe = sanitizeAnalyticsProps(
+      identifyTraitsForAmplitude(traits || {}) as Record<string, unknown>,
+    );
     for (const [k, v] of Object.entries(safe)) {
       if (v === null) id.unset(k);
       else id.set(k, v as string | number | boolean);
@@ -155,7 +161,9 @@ export function setUserProperties(
   if (!initialized) return;
   try {
     const id = new amplitude.Identify();
-    const safe = sanitizeAnalyticsProps(traits as Record<string, unknown>);
+    const safe = sanitizeAnalyticsProps(
+      identifyTraitsForAmplitude(traits) as Record<string, unknown>,
+    );
     for (const [k, v] of Object.entries(safe)) {
       if (v === null) id.unset(k);
       else id.set(k, v as string | number | boolean);

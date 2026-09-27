@@ -15,6 +15,17 @@ export const ONBOARDING_STEP_LABELS: Record<number, string> = {
   4: 'Name your store and submit',
 };
 
+/** Placeholder written before the seller has chosen a name. */
+export function isPlaceholderStoreName(name: string | null | undefined): boolean {
+  const raw = String(name || '').trim().toLowerCase();
+  return !raw || raw === 'untitled store';
+}
+
+/** Empty input when the stored name is still the placeholder. */
+export function storeNameFieldValue(name: string | null | undefined): string {
+  return isPlaceholderStoreName(name) ? '' : String(name || '').trim();
+}
+
 export function onboardingStepLabel(step: number | undefined | null): string {
   const s = clampOnboardingStep(Number(step) || 1);
   return ONBOARDING_STEP_LABELS[s] || ONBOARDING_STEP_LABELS[1];

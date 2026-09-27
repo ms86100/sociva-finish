@@ -77,6 +77,8 @@ export interface CategoryConfig {
   defaultActionType?: string | null;
   /** Seller-facing Product / Service / Listing domain (additive; may be inferred when null). */
   sellerDomain?: SellerDomain | null;
+  /** When true, a blank price cannot be saved. */
+  requiresPrice?: boolean;
   supportsAddons: boolean;
   supportsRecurring: boolean;
   supportsStaffAssignment: boolean;

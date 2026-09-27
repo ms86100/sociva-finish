@@ -68,6 +68,10 @@ export function useAdminData() {
   const tabParam = useMemo(() => new URLSearchParams(location.search).get('tab'), [location.search]);
   const [activeTab, setActiveTab] = useState(tabParam || 'sellers');
 
+  useEffect(() => {
+    if (tabParam) setActiveTab(tabParam);
+  }, [tabParam]);
+
   const [pendingUsers, setPendingUsers] = useState<Profile[]>([]);
   const [allUsers, setAllUsers] = useState<AdminDirectoryUser[]>([]);
   const [userDeviceMap, setUserDeviceMap] = useState<Record<string, UserDeviceInfo>>({});
