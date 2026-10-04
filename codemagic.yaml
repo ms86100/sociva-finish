@@ -27,6 +27,8 @@ workflows:
         BUNDLE_ID: "app.sociva.community"
         WIDGET_BUNDLE_ID: "app.sociva.community.LiveDeliveryWidget"
         APP_NAME: "Sociva"
+        # Xcode 26 altool cannot resolve this bundle id on its own.
+        APP_STORE_CONNECT_ALTOOL_ADDITIONAL_ARGUMENTS: "--use-old-altool --apple-id 6759218504"
         CAPACITOR_ENV: "production"
         VITE_APP_ENV: "production"
         VITE_SUPABASE_URL: "https://kkzkuyhgdvyecmxtmkpy.supabase.co"
@@ -301,6 +303,7 @@ workflows:
               <key>com.apple.developer.associated-domains</key>
               <array>
                   <string>applinks:www.sociva.in</string>
+                  <string>applinks:sociva.in</string>
               </array>
           </dict>
           </plist>
@@ -930,6 +933,8 @@ workflows:
         BUNDLE_ID: "app.sociva.community"
         WIDGET_BUNDLE_ID: "app.sociva.community.LiveDeliveryWidget"
         APP_NAME: "Sociva Staging"
+        # Xcode 26 altool cannot resolve this bundle id on its own.
+        APP_STORE_CONNECT_ALTOOL_ADDITIONAL_ARGUMENTS: "--use-old-altool --apple-id 6759218504"
         CAPACITOR_ENV: "staging"
         VITE_APP_ENV: "staging"
         VITE_SUPABASE_URL: "https://wwuanzbusxoyzixuprxs.supabase.co"
@@ -1208,6 +1213,7 @@ workflows:
               <key>com.apple.developer.associated-domains</key>
               <array>
                   <string>applinks:www.sociva.in</string>
+                  <string>applinks:sociva.in</string>
               </array>
           </dict>
           </plist>
@@ -2028,6 +2034,8 @@ workflows:
         BUNDLE_ID: "app.sociva.community"
         WIDGET_BUNDLE_ID: "app.sociva.community.LiveDeliveryWidget"
         APP_NAME: "Sociva"
+        # Xcode 26 altool cannot resolve this bundle id on its own.
+        APP_STORE_CONNECT_ALTOOL_ADDITIONAL_ARGUMENTS: "--use-old-altool --apple-id 6759218504"
         CAPACITOR_ENV: "production"
         VITE_SUPABASE_URL: "https://kkzkuyhgdvyecmxtmkpy.supabase.co"
         VITE_SUPABASE_PUBLISHABLE_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imtremt1eWhnZHZ5ZWNteHRta3B5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM4MzIyMTEsImV4cCI6MjA4OTQwODIxMX0.-dmjGjRYs7u8TkR14oPwOXWipNXgSxZRjuwc6q98VkA"
@@ -2236,6 +2244,7 @@ workflows:
               <key>com.apple.developer.associated-domains</key>
               <array>
                   <string>applinks:www.sociva.in</string>
+                  <string>applinks:sociva.in</string>
               </array>
           </dict>
           </plist>
