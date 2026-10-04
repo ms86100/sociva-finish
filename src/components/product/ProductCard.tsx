@@ -62,7 +62,13 @@ export function ProductCard({ product, variant = 'horizontal', onTap }: ProductC
   const canIncrement = quantity < stockLimit && !effectiveStoreClosed;
   const hasDiscount = (product as any).mrp && (product as any).mrp > product.price;
 
-  const handleAdd = useCallback(() => {
+  const stopRowOpen = (e?: { stopPropagation?: () => void; preventDefault?: () => void }) => {
+    e?.stopPropagation?.();
+    e?.preventDefault?.();
+  };
+
+  const handleAdd = useCallback((e?: { stopPropagation?: () => void; preventDefault?: () => void }) => {
+    stopRowOpen(e);
     if (!isCartAction) { hapticSelection(); if (onTap) onTap(product); return; }
     if (quantity === 0) {
       setJustAdded(true);
@@ -72,12 +78,17 @@ export function ProductCard({ product, variant = 'horizontal', onTap }: ProductC
     addItem(product);
   }, [isCartAction, onTap, product, addItem, quantity]);
 
-  const handleIncrement = () => {
+  const handleIncrement = (e?: { stopPropagation?: () => void; preventDefault?: () => void }) => {
+    stopRowOpen(e);
     if (!canIncrement) return;
     hapticImpact('light');
     updateQuantity(product.id, quantity + 1);
   };
-  const handleDecrement = () => { hapticImpact('light'); updateQuantity(product.id, quantity - 1); };
+  const handleDecrement = (e?: { stopPropagation?: () => void; preventDefault?: () => void }) => {
+    stopRowOpen(e);
+    hapticImpact('light');
+    updateQuantity(product.id, quantity - 1);
+  };
 
   const imageEl = (width: number, className?: string) => (
     <>
@@ -180,7 +191,7 @@ export function ProductCard({ product, variant = 'horizontal', onTap }: ProductC
           </div>
           <div className="mt-3">
             {isCartAction && quantity > 0 && !effectiveStoreClosed ? (
-              <div className="flex items-center justify-center gap-3 border-[1.5px] border-primary rounded-xl bg-primary/5">
+              <div className="flex items-center justify-center gap-3 border-[1.5px] border-primary rounded-xl bg-primary/5" onClick={stopRowOpen}>
                 <Button size="sm" variant="ghost" className="h-11 w-11 p-0 text-primary touch-manipulation" onClick={handleDecrement} aria-label="Decrease quantity"><Minus size={16} /></Button>
                 <AnimatePresence mode="popLayout">
                   <motion.span
@@ -263,7 +274,7 @@ export function ProductCard({ product, variant = 'horizontal', onTap }: ProductC
           </AnimatePresence>
         </div>
         {isCartAction && quantity > 0 && !isStoreClosed ? (
-          <div className="flex items-center gap-1 relative z-10 bg-primary/95 backdrop-blur-md rounded-xl px-1.5 shadow-cta animate-stepper-pop">
+          <div className="flex items-center gap-1 relative z-10 bg-primary/95 backdrop-blur-md rounded-xl px-1.5 shadow-cta animate-stepper-pop" onClick={stopRowOpen}>
             <Button size="sm" variant="ghost" className="h-9 w-9 p-0 text-primary-foreground hover:bg-primary-foreground/20 touch-manipulation" onClick={handleDecrement} aria-label="Decrease quantity"><Minus size={14} /></Button>
             <AnimatePresence mode="popLayout">
               <motion.span

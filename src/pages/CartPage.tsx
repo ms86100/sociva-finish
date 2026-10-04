@@ -40,7 +40,6 @@ export default function CartPage() {
   const navigate = useNavigate();
   const { browsingLocation } = useBrowsingLocation();
   const { data: categoryConfigs } = useCategoryConfig();
-  const [showReviewSheet, setShowReviewSheet] = useState(false);
   const [justCleared, setJustCleared] = useState(false);
 
   const goCompleteAddress = () => {
@@ -137,8 +136,8 @@ export default function CartPage() {
         <div className="px-4 pb-3.5 flex items-center gap-3">
           <BackButton fallback="/" />
           <div className="flex-1 min-w-0">
-            <h1 className="text-base font-bold">Checkout</h1>
-            <p className="text-xs text-muted-foreground">Shipment of {c.itemCount} item{c.itemCount !== 1 ? 's' : ''}</p>
+            <h1 className="text-base font-bold">Cart</h1>
+            <p className="text-xs text-muted-foreground">{c.itemCount} item{c.itemCount !== 1 ? 's' : ''}</p>
           </div>
           <AlertDialog>
             <AlertDialogTrigger asChild><Button variant="ghost" size="sm" className="text-destructive text-xs h-8 min-w-[44px] px-2">Clear</Button></AlertDialogTrigger>
@@ -207,7 +206,7 @@ export default function CartPage() {
             <div className="min-w-0 flex-1">
               <p className="text-sm font-medium">{c.multiStoreCopy?.title || `Your cart has items from ${c.sellerGroups.length} sellers`}</p>
               <p className="text-xs text-muted-foreground mt-0.5">
-                {c.multiStoreCopy?.body || 'Separate orders will be created for each. Each seller will receive and fulfill their order independently.'}
+                {c.multiStoreCopy?.body || 'Each store is a separate order.'}
               </p>
               {c.blocksOnlineMultiSeller && (
                 <p className="text-xs text-destructive font-medium mt-2">
@@ -582,7 +581,7 @@ export default function CartPage() {
             {c.appliedCoupon && (<div className="flex justify-between text-primary"><span>Coupon ({c.appliedCoupon.code})</span><span>-{c.formatPrice(Math.min(c.effectiveCouponDiscount, c.totalAmount))}</span></div>)}
             {c.loyalty.redeemEnabled && c.effectiveLoyaltyDiscount > 0 && (<div className="flex justify-between text-primary"><span>Loyalty Points</span><span>-{c.formatPrice(c.effectiveLoyaltyDiscount)}</span></div>)}
             {c.effectiveWalletCredit > 0 && (<div className="flex justify-between text-emerald-700"><span>Sociva Balance</span><span>-{c.formatPrice(c.effectiveWalletCredit)}</span></div>)}
-            <div className="flex justify-between"><span className="text-muted-foreground">Delivery Fee</span><span className={`font-medium ${c.effectiveDeliveryFee === 0 ? 'text-primary' : ''}`}>{c.fulfillmentType === 'delivery' ? (c.effectiveDeliveryFee === 0 ? 'FREE' : c.formatPrice(c.effectiveDeliveryFee)) : 'Self Pickup'}</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">Delivery Fee</span><span className={`font-medium ${c.effectiveDeliveryFee === 0 ? 'text-primary' : ''}`}>{c.fulfillmentType === 'delivery' ? (c.effectiveDeliveryFee === 0 ? 'FREE' : c.formatPrice(c.effectiveDeliveryFee)) : 'Pickup'}</span></div>
             {c.effectivePackagingFee > 0 && (<div className="flex justify-between"><span className="text-muted-foreground">Packaging</span><span className="font-medium">{c.formatPrice(c.effectivePackagingFee)}</span></div>)}
             <div className="border-t border-border pt-2 mt-1 flex justify-between font-bold"><span>To Pay</span><span>{c.formatPrice(c.finalAmount)}</span></div>
           </div>
@@ -688,7 +687,7 @@ export default function CartPage() {
                 {/* Prominent fulfillment badge */}
                 <div className={`flex items-center gap-2 p-2.5 rounded-lg border-2 ${c.fulfillmentType === 'delivery' ? 'border-primary bg-primary/5' : 'border-accent bg-accent/10'}`}>
                   <span className="text-lg">{c.fulfillmentType === 'delivery' ? '🚚' : '📦'}</span>
-                  <span className="font-semibold text-foreground">{c.fulfillmentType === 'delivery' ? 'Delivery' : 'Self Pickup'}</span>
+                  <span className="font-semibold text-foreground">{c.fulfillmentType === 'delivery' ? 'Delivery' : 'Pickup'}</span>
                 </div>
                 <div className="flex justify-between"><span className="text-muted-foreground">Items</span><span className="font-medium">{c.itemCount} item{c.itemCount !== 1 ? 's' : ''}</span></div>
                 <div className="flex justify-between"><span className="text-muted-foreground">Payment</span><span className="font-medium">{c.paymentMethod === 'cod' ? 'Cash on Delivery' : (c.paymentMode.isRazorpay ? 'Online Payment' : 'UPI')}</span></div>
@@ -729,7 +728,7 @@ export default function CartPage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <Button variant="outline" onClick={() => { c.setShowConfirmDialog(false); setShowReviewSheet(true); }}>Review Cart</Button>
+            <Button variant="outline" onClick={() => c.setShowConfirmDialog(false)}>Review Cart</Button>
             <AlertDialogAction
               onClick={() => {
                 if (c.blocksOnlineMultiSeller || c.multiStoreRequiresSplit) {
@@ -748,119 +747,6 @@ export default function CartPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-      {/* Review Cart Sheet */}
-      <Sheet open={showReviewSheet} onOpenChange={setShowReviewSheet}>
-        <SheetContent side="bottom" className="max-h-[85vh] overflow-y-auto">
-          <SheetHeader className="text-left">
-            <SheetTitle>Order Summary</SheetTitle>
-            <SheetDescription>Review your items before confirming</SheetDescription>
-          </SheetHeader>
-
-          <div className="mt-4 space-y-4">
-            {/* Items by seller */}
-            {c.sellerGroups.map((group) => (
-              <div key={group.sellerId} className="border border-border rounded-xl overflow-hidden">
-                <div className="px-3 py-2 bg-muted flex items-center gap-2">
-                  <Store size={14} className="text-primary" />
-                  <span className="text-sm font-semibold">{group.sellerName}</span>
-                </div>
-                <div className="divide-y divide-border">
-                  {group.items.map((item) => (
-                    <div key={item.id} className="flex items-center justify-between px-3 py-2.5">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">{item.product?.name || 'Item'}</p>
-                        <p className="text-xs text-muted-foreground tabular-nums">
-                          {c.formatPrice(item.product?.price || 0)} × {item.quantity}
-                        </p>
-                      </div>
-                      <span className="text-sm font-bold tabular-nums ml-3">
-                        {c.formatPrice((item.product?.price || 0) * item.quantity)}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-                <div className="px-3 py-2 bg-muted/50 flex justify-between text-sm">
-                  <span className="text-muted-foreground">Subtotal</span>
-                  <span className="font-semibold">{c.formatPrice(group.subtotal)}</span>
-                </div>
-              </div>
-            ))}
-
-            {/* Pricing breakdown */}
-            <div className="bg-muted rounded-xl p-4 space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Items Total</span>
-                <span className="font-medium">{c.formatPrice(c.totalAmount)}</span>
-              </div>
-              {c.appliedCoupon && (
-                <div className="flex justify-between text-primary">
-                  <span>Coupon ({c.appliedCoupon.code})</span>
-                  <span>-{c.formatPrice(Math.min(c.effectiveCouponDiscount, c.totalAmount))}</span>
-                </div>
-              )}
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Delivery</span>
-                <span className={`font-medium ${c.effectiveDeliveryFee === 0 ? 'text-primary' : ''}`}>
-                  {c.fulfillmentType === 'delivery' ? (c.effectiveDeliveryFee === 0 ? 'FREE' : c.formatPrice(c.effectiveDeliveryFee)) : 'Self Pickup'}
-                </span>
-              </div>
-              {c.effectivePackagingFee > 0 && (
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Packaging</span>
-                  <span className="font-medium">{c.formatPrice(c.effectivePackagingFee)}</span>
-                </div>
-              )}
-              <div className="border-t border-border pt-2 flex justify-between font-bold text-base">
-                <span>Total</span>
-                <span>{c.formatPrice(c.finalAmount)}</span>
-              </div>
-            </div>
-
-            {/* Fulfillment & Payment */}
-            <div className="space-y-2">
-              <div className="flex items-center gap-2 px-1">
-                <span className="text-lg">{c.fulfillmentType === 'delivery' ? '🚚' : '📦'}</span>
-                <span className="text-sm font-medium">{c.fulfillmentType === 'delivery' ? 'Delivery' : 'Self Pickup'}</span>
-              </div>
-              {c.fulfillmentType === 'delivery' && (
-                <div className="px-1">
-                  <p className="text-xs text-muted-foreground">
-                    {[c.checkoutAddressLabel, c.checkoutAddressDetail].filter(Boolean).join(' • ')}
-                  </p>
-                </div>
-              )}
-              <div className="flex items-center gap-2 px-1">
-                <span className="text-lg">💳</span>
-                <span className="text-sm font-medium">
-                  {c.paymentMethod === 'cod' ? 'Cash on Delivery' : (c.paymentMode?.isRazorpay ? 'Online Payment' : 'UPI')}
-                </span>
-              </div>
-            </div>
-
-            {/* Confirm button */}
-            <Button
-              className="w-full rounded-xl font-bold"
-              size="lg"
-              onClick={() => {
-                if (c.blocksOnlineMultiSeller || c.multiStoreRequiresSplit) {
-                  toast.error(
-                    'Checkout one store at a time - tap “Checkout this store” on a seller card.',
-                    { id: 'online-multi-seller-blocked', duration: 7000 },
-                  );
-                  setShowReviewSheet(false);
-                  return;
-                }
-                setShowReviewSheet(false);
-                c.setShowConfirmDialog(true);
-              }}
-            >
-              Looks Good, Confirm
-              <ChevronRight size={18} className="ml-1" />
-            </Button>
-          </div>
-        </SheetContent>
-      </Sheet>
 
       <AlertDialog open={!!c.priceChangeInfo} onOpenChange={(open) => { if (!open) c.dismissPriceChangeInfo(); }}>
         <AlertDialogContent>

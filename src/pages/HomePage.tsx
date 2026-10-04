@@ -91,15 +91,12 @@ export default function HomePage() {
   return (
     <AppLayout>
       <div className="pb-4 space-y-0">
-        <div className="stack-gap mx-4 mt-3">
-          <SellerJourneyBanner />
-          <HomeNotificationBanner embedded />
-          <AppUpdateBanner />
-          <HomePushEnableCard />
-          {needsPreciseLocation && <PreciseLocationRequiredCard />}
-        </div>
         <div className="mt-1">
           <ActiveOrderStrip />
+        </div>
+        <div className="stack-gap mx-4 mt-3">
+          <AppUpdateBanner />
+          {needsPreciseLocation && <PreciseLocationRequiredCard />}
         </div>
         <MarketplaceSection />
 
@@ -126,6 +123,12 @@ export default function HomePage() {
             </div>
           );
         })()}
+
+        <div className="stack-gap mx-4 mt-3">
+          <SellerJourneyBanner />
+          <HomeNotificationBanner embedded />
+          <HomePushEnableCard />
+        </div>
 
         {/* Below-fold - mount on scroll to cut home query fan-out.
             Do not use reveal-on-scroll: nothing adds .revealed, so sections

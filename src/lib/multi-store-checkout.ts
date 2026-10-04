@@ -58,18 +58,18 @@ export function multiStoreBannerCopy(
   if (isOnlinePaymentMethod(paymentMethod) && opts?.isRazorpay) {
     return {
       title: `Items from ${sellerCount} stores`,
-      body: 'One online payment covers all stores. Each seller accepts and fulfills their portion independently - if one store cancels, only that store’s amount is refunded.',
+      body: 'One online payment covers all stores. If one store cancels, only that store’s amount is refunded.',
     };
   }
   if (isOnlinePaymentMethod(paymentMethod)) {
     return {
       title: `Items from ${sellerCount} stores`,
-      body: 'UPI pays one seller’s VPA only. Checkout each store separately, or switch to Cash on Delivery to place all orders together.',
+      body: 'UPI pays one seller at a time. Use Checkout this store, or switch to Cash on Delivery.',
     };
   }
   return {
     title: `Items from ${sellerCount} stores`,
-    body: 'Cash on Delivery will create a separate order for each store. Each seller accepts and fulfills independently.',
+    body: 'Cash on Delivery places a separate order for each store.',
   };
 }
 

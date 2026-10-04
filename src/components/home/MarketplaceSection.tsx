@@ -13,7 +13,6 @@ import { FeaturedBanners } from '@/components/home/FeaturedBanners';
 import { FestivalBannerModule } from '@/components/home/FestivalBannerModule';
 import { FestivalHomeHero } from '@/components/home/FestivalHomeHero';
 import { useActiveFestivals, useFestivalTakeover } from '@/hooks/queries/useActiveFestivals';
-import { AutoHighlightStrip } from '@/components/home/AutoHighlightStrip';
 import { BuyAgainRow } from '@/components/home/BuyAgainRow';
 import { ShopByStoreDiscovery } from '@/components/home/ShopByStoreDiscovery';
 import { NearbySellersSection } from '@/components/marketplace/NearbySellersSection';
@@ -22,7 +21,7 @@ import { LazySection } from '@/components/home/LazySection';
 import { ProductListingCard, ProductWithSeller } from '@/components/product/ProductListingCard';
 import { GroupedSellerRow } from '@/components/home/GroupedSellerRow';
 import { ProductCardSkeleton } from '@/components/product/ProductCardSkeleton';
-import { ShoppingBag, Sparkles, Flame, UtensilsCrossed, Wrench, Heart, Users } from 'lucide-react';
+import { ShoppingBag, Flame, UtensilsCrossed, Wrench, Heart, Users } from 'lucide-react';
 import { useCategoryConfigs } from '@/hooks/useCategoryBehavior';
 import { useMarketplaceConfig } from '@/hooks/useMarketplaceConfig';
 import { useBadgeConfig } from '@/hooks/useBadgeConfig';
@@ -184,7 +183,6 @@ export function MarketplaceSection() {
   }, [allProductIds.length > 0]); // eslint-disable-line react-hooks/exhaustive-deps
   useSocialProof(socialProofReady ? allProductIds : []);
 
-  const newThisWeekDays = ml.threshold('new_this_week_days');
   const discoveryMaxItems = ml.threshold('discovery_max_items');
 
   const popularNearYou = useMemo(() => {
@@ -192,14 +190,6 @@ export function MarketplaceSection() {
       .sort((a, b) => ((b as any).completed_order_count || 0) - ((a as any).completed_order_count || 0))
       .slice(0, discoveryMaxItems || 10);
   }, [allProducts, discoveryMaxItems]);
-
-  const newThisWeek = useMemo(() => {
-    const cutoff = Date.now() - (newThisWeekDays || 7) * 24 * 60 * 60 * 1000;
-    const popularIds = new Set(popularNearYou.map(p => p.id));
-    return allProducts
-      .filter(p => new Date(p.created_at).getTime() >= cutoff && !popularIds.has(p.id))
-      .slice(0, discoveryMaxItems || 10);
-  }, [allProducts, newThisWeekDays, discoveryMaxItems, popularNearYou]);
 
   const activeCategorySet = useMemo(
     () => new Set(localCategories.map((c) => c.category)),
@@ -474,30 +464,10 @@ export function MarketplaceSection() {
         </>
       )}
 
-      {!activeCategory && !festivalFocused && !loadingLocal && newThisWeek.length > 0 && (
-        <>
-          <SectionDivider />
-          <GroupedSellerRow
-            title={ml.label('label_discovery_new')}
-            icon={<Sparkles size={15} className="text-primary" />}
-            products={newThisWeek}
-            onProductTap={handleProductTap}
-            categoryConfigs={categoryConfigs}
-            seeAllLink="/discovery/new"
-          />
-        </>
-      )}
-
-      {/* Promos + deferred strips after shop surface */}
+      {/* Promos + buy-again + stores. Popular near you is the one product rail. */}
       {!festivalFocused && (
         <LazySection>
           <FeaturedBanners />
-        </LazySection>
-      )}
-
-      {!festivalFocused && (
-        <LazySection>
-          <AutoHighlightStrip />
         </LazySection>
       )}
 

@@ -91,6 +91,7 @@ describe('marketplace listing UI contracts', () => {
     expect(src).toContain('object-cover object-center');
     expect(src).not.toContain('-mt-4');
     expect(src).toContain('backdrop-blur-md');
+    expect(src).toContain('stopPropagation');
   });
 
   it('imageHelpers scales by width only so CSS cover never stretches', () => {

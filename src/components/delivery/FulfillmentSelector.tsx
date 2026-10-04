@@ -34,11 +34,11 @@ export function FulfillmentSelector({ value, onChange, deliveryFee, freeDelivery
     if (mode === 'self_pickup') {
       return (
         <div className="space-y-2">
-          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Fulfillment</h3>
+          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">How you'll get it</h3>
           <div className="flex items-center gap-2 p-3 rounded-xl border-2 border-primary bg-primary/5">
             <Package size={20} className="text-primary" />
             <div>
-              <span className="text-sm font-medium text-primary">Self Pickup</span>
+              <span className="text-sm font-medium text-primary">Pickup</span>
               <span className="text-[11px] text-primary font-medium ml-2">FREE</span>
             </div>
           </div>
@@ -48,7 +48,7 @@ export function FulfillmentSelector({ value, onChange, deliveryFee, freeDelivery
     // seller_delivery or platform_delivery - delivery is forced
     return (
       <div className="space-y-2">
-        <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Fulfillment</h3>
+        <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">How you'll get it</h3>
         <div className="flex items-center gap-2 p-3 rounded-xl border-2 border-primary bg-primary/5">
           <Truck size={20} className="text-primary" />
           <div>
@@ -72,7 +72,7 @@ export function FulfillmentSelector({ value, onChange, deliveryFee, freeDelivery
   // Buyer has a choice: pickup or delivery
   return (
     <div className="space-y-2">
-      <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Fulfillment</h3>
+      <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">How you'll get it</h3>
       <div className="grid grid-cols-2 gap-2">
         <button
           onClick={() => onChange('self_pickup')}
@@ -84,7 +84,7 @@ export function FulfillmentSelector({ value, onChange, deliveryFee, freeDelivery
         >
           <Package size={20} className={value === 'self_pickup' ? 'text-primary' : 'text-muted-foreground'} />
           <span className={`text-sm font-medium ${value === 'self_pickup' ? 'text-primary' : 'text-foreground'}`}>
-            Self Pickup
+            Pickup
           </span>
           <span className="text-[11px] text-primary font-medium">FREE</span>
         </button>
