@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { BackButton } from '@/components/navigation/BackButton';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { SafeHeader } from '@/components/layout/SafeHeader';
 import { Card, CardContent } from '@/components/ui/card';
@@ -33,7 +34,6 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import {
-  ArrowLeft,
   Banknote,
   Clock,
   LayoutGrid,
@@ -117,9 +117,7 @@ export default function SellerWalletPage() {
     <AppLayout showHeader={false} safeTop={false}>
       <SafeHeader>
         <div className="px-4 pb-3 flex items-center gap-3">
-          <Link to="/seller" className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-muted shrink-0">
-            <ArrowLeft size={18} />
-          </Link>
+          <BackButton fallback="/seller" />
           <div>
             <h1 className="text-xl font-bold">{isPortfolio ? 'Seller Wallet · All stores' : 'Seller Wallet'}</h1>
             <p className="text-[11px] text-muted-foreground">Money you can withdraw after settlement</p>

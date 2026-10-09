@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { AlertTriangle, RefreshCw, ArrowLeft } from 'lucide-react';
 import { captureException } from '@/lib/observability';
+import { requestSmartBack } from '@/lib/navigation-stack';
 
 interface Props {
   children: ReactNode;
@@ -65,7 +66,7 @@ class RouteErrorBoundaryInner extends Component<Props, State> {
   };
 
   private handleGoBack = () => {
-    window.history.back();
+    requestSmartBack();
   };
 
   private handleLogin = () => {

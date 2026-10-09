@@ -13,8 +13,8 @@ import {
 } from '@/contexts/AdminManagedSellerContext';
 import { useCommandCenterStore360 } from '@/hooks/useCommandCenter';
 import { useCurrency } from '@/hooks/useCurrency';
+import { BackButton } from '@/components/navigation/BackButton';
 import {
-  ArrowLeft,
   Calendar,
   ClipboardList,
   MessageSquare,
@@ -123,12 +123,7 @@ export default function AdminStoreManagerPage() {
     <AppLayout showHeader={false} showNav={false} showCart={false} safeTop={false}>
       <SafeHeader>
         <div className="px-4 pb-3 flex items-center gap-3">
-          <Link
-            to="/admin"
-            className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-muted shrink-0"
-          >
-            <ArrowLeft size={18} />
-          </Link>
+          <BackButton fallback={routeSellerId ? '/admin/stores' : '/admin/command-center'} />
           <div className="min-w-0">
             <h1 className="text-xl font-bold">Store manager</h1>
             <p className="text-xs text-muted-foreground">Search, audit, and manage seller stores</p>

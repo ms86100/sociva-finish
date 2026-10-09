@@ -29,7 +29,7 @@ export function BackButton({
       onClick={onClick || (() => goBack({ fallback }))}
       aria-label={ariaLabel}
       className={cn(
-        'inline-flex items-center justify-center w-10 h-10 rounded-full bg-muted shrink-0',
+        'inline-flex items-center justify-center w-11 h-11 rounded-full bg-muted shrink-0',
         'active:scale-95 transition-transform',
         className,
       )}

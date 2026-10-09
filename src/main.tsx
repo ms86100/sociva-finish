@@ -2,10 +2,24 @@
 import "./index.css";
 import { initializeCapacitorPlugins } from "./lib/capacitor";
 import { captureException, initObservability } from "./lib/observability";
-import { initAnalytics } from "./lib/analytics";
 
-initObservability();
-initAnalytics();
+// Amplitude loads after first paint. captureException stays sync and queues
+// anything that happens before Sentry arrives. The Sentry SDK itself is still
+// a dynamic import inside initObservability.
+function scheduleAnalyticsAndObservability() {
+  const start = () => {
+    initObservability();
+    import("./lib/analytics")
+      .then((mod) => mod.initAnalytics())
+      .catch((err) => console.warn("[Bootstrap] Analytics init failed:", err));
+  };
+  const ric = window.requestIdleCallback;
+  if (typeof ric === "function") {
+    ric(start, { timeout: 2000 });
+  } else {
+    setTimeout(start, 1);
+  }
+}
 
 // Bump when shipping bootstrap/critical-path fixes so returning users drop
 // stale Workbox caches that competed with first paint (e.g. splash-video / fat precache).
@@ -162,6 +176,7 @@ async function bootstrap() {
   const bootSplash = document.getElementById('boot-splash');
   bootSplash?.remove();
   sessionStorage.removeItem('boot-fails');
+  scheduleAnalyticsAndObservability();
   mark('afterRenderApp');
 
   window.setTimeout(() => {
@@ -189,5 +204,7 @@ bootstrap().then(() => {
   if (String(e).includes("Reloading after cache reset")) return;
   console.error('[Bootstrap] Fatal error:', e);
   captureException(e, { source: 'bootstrap' });
+  // Flush the queued exception without blocking the on-screen fallback.
+  initObservability();
   showFatalFallback();
 });

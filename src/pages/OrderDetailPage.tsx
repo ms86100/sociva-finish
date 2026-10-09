@@ -50,7 +50,7 @@ import { describeBuyerOrderLocation } from '@/lib/buyerOrderLocation';
 import { formatOrderCancellationHeroReason } from '@/lib/order-cancellation-copy';
 import { displaySellerStoreName } from '@/lib/seller-journey';
 import { format } from 'date-fns';
-import { peekPreviousPath } from '@/lib/navigation-stack';
+import { useSmartBack } from '@/hooks/useSmartBack';
 import { getString, setString } from '@/lib/persistent-kv';
 import { cn } from '@/lib/utils';
 
@@ -338,6 +338,7 @@ export default function OrderDetailPage() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const location = useLocation();
+  const goBack = useSmartBack('/orders');
   const { user } = useAuth();
   const o = useOrderDetail(id);
   const { dismissById } = useNewOrderAlertContext();
@@ -737,26 +738,9 @@ export default function OrderDetailPage() {
           sellerName={o.isSellerView ? (buyer?.name || 'Customer') : storeDisplayName}
           displayStatus={displayStatus}
           orderId={order.id}
-          onBack={() => {
-            const returnTo = location.state?.returnTo;
-            if (typeof returnTo === 'string' && returnTo.startsWith('/')) {
-              navigate(returnTo);
-              return;
-            }
-            const sellingFallback = o.isSellerView ? '/orders?tab=selling' : '/orders';
-            if (location.state?.from !== 'deeplink') {
-              const previous = peekPreviousPath(location.pathname);
-              if (previous) {
-                if (previous === '/orders' || previous.startsWith('/orders?')) {
-                  navigate(o.isSellerView ? '/orders?tab=selling' : previous);
-                  return;
-                }
-                navigate(previous);
-                return;
-              }
-            }
-            navigate(sellingFallback);
-          }}
+          onBack={() => goBack({
+            fallback: o.isSellerView ? '/orders?tab=selling' : '/orders',
+          })}
           onCopyId={o.copyOrderId}
           onRefresh={handleRefresh}
           onChatOpen={o.canChat && o.chatRecipientId ? () => o.setIsChatOpen(true) : undefined}

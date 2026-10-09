@@ -5,7 +5,6 @@ import { BottomNav } from './BottomNav';
 import { FloatingCartBar } from '@/components/cart/FloatingCartBar';
 import { NavigatorBackButton } from '@/components/admin/NavigatorBackButton';
 import { useAppLayoutShell } from '@/contexts/AppLayoutContext';
-import { NavigationStackTracker } from '@/components/navigation/NavigationStackTracker';
 import { cn } from '@/lib/utils';
 
 interface AppLayoutProps {
@@ -66,7 +65,6 @@ export function AppLayout({
 
   return (
     <div className="min-h-[100dvh] bg-background">
-      <NavigationStackTracker />
       {showHeader && (
         <Header
           showCart={showCart}

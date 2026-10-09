@@ -98,6 +98,11 @@ export function resolveDeepLinkPath(rawUrl: string): string {
   if (shareStore?.[1]) {
     return `/seller/${decodeURIComponent(shareStore[1])}`;
   }
+  // Public alias. The in-app store route is /seller/:id, not /store/:id.
+  const storeAlias = path.match(/^\/store\/([^/?#]+)/i);
+  if (storeAlias?.[1]) {
+    return `/seller/${decodeURIComponent(storeAlias[1])}`;
+  }
 
   return path;
 }

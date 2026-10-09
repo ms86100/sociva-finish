@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { useBackInterceptor } from '@/hooks/useBackInterceptor';
 import { createPortal } from 'react-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -37,6 +38,7 @@ export function OrderChat({
   const [isSending, setIsSending] = useState(false);
   const lastSentRef = useRef<number>(0);
   const [reportOpen, setReportOpen] = useState(false);
+  useBackInterceptor(isOpen && !reportOpen, onClose, 'overlay');
   const [peerTyping, setPeerTyping] = useState(false);
   const [peerOnline, setPeerOnline] = useState(false);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);

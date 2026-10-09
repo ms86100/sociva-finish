@@ -24,6 +24,8 @@ describe('android share handoff', () => {
     expect(script).toContain('if (!android || inApp)');
     expect(script).toContain('if (!stay) location.href = intent');
     expect(script).toContain('/#/product/p1');
+    expect(script).toContain('https://apps.apple.com/in/app/sociva/id6759218504');
+    expect(script).toContain('sociva-app-store');
   });
 
   it('leaves the public share URL and iOS association file unchanged', () => {
@@ -31,6 +33,9 @@ describe('android share handoff', () => {
     const apple = read('public/.well-known/apple-app-site-association');
     expect(productApi).toContain('og:image');
     expect(productApi).toContain('buildShareOpenScript');
+    expect(productApi).toContain('id="sociva-app-store"');
+    expect(productApi).toContain('id6759218504');
+    expect(read('api/share/store/[id].ts')).toContain('id="sociva-app-store"');
     expect(productApi).not.toContain('http-equiv="refresh"');
     expect(apple).toContain('6HBR38JB8Z.app.sociva.community');
     expect(apple).toContain('"/*"');

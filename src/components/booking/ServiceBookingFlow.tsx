@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { useState, useMemo, useEffect, useRef } from 'react';
+import { useBackInterceptor } from '@/hooks/useBackInterceptor';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { format, isBefore, parse, startOfToday } from 'date-fns';
@@ -113,6 +114,7 @@ export function ServiceBookingFlow({
   );
 
   const [step, setStep] = useState<BookingStep>('select');
+  useBackInterceptor(open && step === 'review', () => setStep('select'), 'overlay');
   const [selectedDate, setSelectedDate] = useState<Date | undefined>();
   const [selectedTime, setSelectedTime] = useState<string | undefined>();
   const [notes, setNotes] = useState('');

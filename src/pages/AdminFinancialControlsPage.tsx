@@ -2,8 +2,8 @@ import { FormEvent, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
+import { BackButton } from '@/components/navigation/BackButton';
 import {
-  ArrowLeft,
   Check,
   Clock,
   RefreshCw,
@@ -418,9 +418,7 @@ export default function AdminFinancialControlsPage() {
     <AppLayout showHeader={false} safeTop={false}>
       <SafeHeader>
         <div className="px-4 pb-3 flex items-center gap-3">
-          <Link to="/admin" className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-muted">
-            <ArrowLeft size={18} />
-          </Link>
+          <BackButton fallback="/admin" />
           <div className="flex-1 min-w-0">
             <h1 className="text-xl font-bold">Financial controls</h1>
             <p className="text-xs text-muted-foreground">

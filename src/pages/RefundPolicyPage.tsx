@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { Link } from 'react-router-dom';
-import { ArrowLeft } from 'lucide-react';
+import { BackButton } from '@/components/navigation/BackButton';
 import { useSystemSettings } from '@/hooks/useSystemSettings';
 
 export default function RefundPolicyPage() {
@@ -10,9 +10,7 @@ export default function RefundPolicyPage() {
     <div className="min-h-[100dvh] bg-background">
       <div className="max-w-3xl mx-auto px-4 py-8">
         <div className="flex items-center gap-3 mb-8">
-          <button onClick={() => window.history.back()} className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-muted shrink-0">
-            <ArrowLeft size={18} />
-          </button>
+          <BackButton fallback="/" />
           <div>
             <h1 className="text-2xl font-bold text-foreground">Refund & Cancellation Policy</h1>
             <p className="text-sm text-muted-foreground">Effective for all orders placed on {platformName}</p>

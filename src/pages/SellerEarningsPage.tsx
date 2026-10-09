@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
+import { BackButton } from '@/components/navigation/BackButton';
 import { supabase } from '@/integrations/supabase/client';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { SafeHeader } from '@/components/layout/SafeHeader';
@@ -118,9 +119,7 @@ export default function SellerEarningsPage() {
     <AppLayout showHeader={false} safeTop={false}>
       <SafeHeader>
         <div className="px-4 pb-3 flex items-center gap-3">
-          <Link to="/seller" className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-muted shrink-0">
-            <ArrowLeft size={18} className="text-foreground" />
-          </Link>
+          <BackButton fallback="/seller" />
           <h1 className="text-xl font-bold">
             {isPortfolio ? 'Sales · All stores' : 'Sales'}
           </h1>

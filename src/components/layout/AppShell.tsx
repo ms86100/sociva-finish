@@ -6,7 +6,6 @@ import { BottomNav } from './BottomNav';
 import { FloatingCartBar } from '@/components/cart/FloatingCartBar';
 import { NavigatorBackButton } from '@/components/admin/NavigatorBackButton';
 import { PostLoginPermissionSheet } from '@/components/permissions/PostLoginPermissionSheet';
-import { NavigationStackTracker } from '@/components/navigation/NavigationStackTracker';
 import {
   AppLayoutShellProvider,
   useAppLayoutOptions,
@@ -33,7 +32,6 @@ function AppShellChrome() {
 
   return (
     <div className="min-h-[100dvh] bg-background">
-      <NavigationStackTracker />
       <div className={cn(!showHeader && 'hidden')}>
         <Header
           showCart={showCart}

@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { useState, useCallback, useEffect, useRef } from 'react';
+import { useBackInterceptor } from '@/hooks/useBackInterceptor';
 import { createPortal } from 'react-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -30,6 +31,7 @@ export function DiscoveryManualSearch({ onBack, onPickPlace, onUseLocation, busy
   const { isLoaded: mapsLoaded } = useGoogleMaps();
   const { predictions, isSearching, searchPlaces, getPlaceDetails, clearPredictions } = useAutocomplete();
   const blocked = loading || busy;
+  useBackInterceptor(true, onBack, 'page');
 
   useEffect(() => {
     const timer = setTimeout(() => inputRef.current?.focus(), 120);

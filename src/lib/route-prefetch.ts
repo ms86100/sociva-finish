@@ -4,7 +4,35 @@
  * routes after the current page has painted, so navigations feel instant.
  *
  * Bottom-nav pages (except Home) are lazy - prefetch them first after idle.
+ * On slow web connections those downloads compete with the page itself, so
+ * prefetch waits. Native bundles are local files, so prefetch stays on.
  */
+import { Capacitor } from '@capacitor/core';
+
+const SLOW_EFFECTIVE_TYPES = new Set(['slow-2g', '2g', '3g']);
+
+function readConnection() {
+  if (typeof navigator === 'undefined') return null;
+  return navigator.connection || navigator.mozConnection || navigator.webkitConnection || null;
+}
+
+/**
+ * Prefetch on native, on fast links, and when the browser does not report a
+ * connection type. Skip only for explicit data-saver or slow cellular.
+ */
+export function shouldPrefetchRoutes() {
+  try {
+    if (Capacitor.isNativePlatform()) return true;
+  } catch {
+    // Missing native bridge still follows the web connection check.
+  }
+  const connection = readConnection();
+  if (!connection) return true;
+  if (connection.saveData) return false;
+  const effectiveType = String(connection.effectiveType || '');
+  if (SLOW_EFFECTIVE_TYPES.has(effectiveType)) return false;
+  return true;
+}
 
 const PREFETCH_KEYS = new Set<string>();
 
@@ -35,6 +63,7 @@ function prefetch(key: string, importer: Importer) {
  * Prefetch high-traffic routes after first paint (Home stays eager).
  */
 export function prefetchBuyerRoutes() {
+  if (!shouldPrefetchRoutes()) return;
   // Bottom-nav tabs first - highest chance of next tap
   whenIdle(() => prefetch('search', () => import('@/pages/SearchPage')), 400);
   whenIdle(() => prefetch('orders', () => import('@/pages/OrdersPage')), 600);
@@ -54,6 +83,7 @@ export function prefetchBuyerRoutes() {
 
 /** Warm the become-seller chunk while the seller is on their dashboard. */
 export function prefetchSellerRoutes() {
+  if (!shouldPrefetchRoutes()) return;
   whenIdle(() => prefetch('become-seller', () => import('@/pages/BecomeSellerPage')), 200);
   whenIdle(() => prefetch('seller-products', () => import('@/pages/SellerProductsPage')), 600);
   whenIdle(() => prefetch('seller-settings', () => import('@/pages/SellerSettingsPage')), 900);

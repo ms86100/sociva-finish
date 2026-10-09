@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { useState, useCallback, useRef, useEffect } from 'react';
+import { useBackInterceptor } from '@/hooks/useBackInterceptor';
 import { createPortal } from 'react-dom';
 
 import { Button } from '@/components/ui/button';
@@ -84,6 +85,11 @@ export function OnboardingLocationSheet({ open, onOpenChange, onConfirm }: Onboa
     clearPredictions();
     onOpenChange(false);
   };
+
+  useBackInterceptor(open, () => {
+    if (step === 'confirm') handleBack();
+    else handleClose();
+  }, 'overlay');
 
   if (!open) return null;
 

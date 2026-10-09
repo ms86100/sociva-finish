@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { ArrowLeft } from 'lucide-react';
+import { BackButton } from '@/components/navigation/BackButton';
 
 /**
  * Public account-deletion instructions for Google Play / App Store reviewers
@@ -10,13 +10,7 @@ export default function DeleteAccountPage() {
     <div className="min-h-[100dvh] bg-background">
       <div className="max-w-3xl mx-auto px-4 py-8">
         <div className="flex items-center gap-3 mb-8">
-          <Link
-            to="/"
-            className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-muted shrink-0"
-            aria-label="Back"
-          >
-            <ArrowLeft size={18} />
-          </Link>
+          <BackButton fallback="/" />
           <div>
             <h1 className="text-2xl font-bold text-foreground">Delete your Sociva account</h1>
             <p className="text-sm text-muted-foreground">Sociva - Your Society, Your Store</p>

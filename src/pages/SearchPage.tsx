@@ -1,8 +1,10 @@
 // @ts-nocheck
-import { useEffect, useMemo, useState, lazy, Suspense } from 'react';
+import { useEffect, useMemo, useRef, useState, lazy, Suspense } from 'react';
 import { motion } from 'framer-motion';
 import { staggerGrid, cardEntrance } from '@/lib/motion-variants';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigationType } from 'react-router-dom';
+import { Capacitor } from '@capacitor/core';
+import { useBackInterceptor } from '@/hooks/useBackInterceptor';
 import { Input } from '@/components/ui/input';
 import { SearchFilters } from '@/components/search/SearchFilters';
 import { FilterPresets } from '@/components/search/FilterPresets';
@@ -10,7 +12,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { ProductListingCard, ProductWithSeller } from '@/components/product/ProductListingCard';
 import { MarketplaceConfig } from '@/hooks/useMarketplaceConfig';
 import { BadgeConfigRow } from '@/hooks/useBadgeConfig';
-import { ArrowLeft, Search as SearchIcon, X, Globe, ShoppingBag } from 'lucide-react';
+import { Search as SearchIcon, X, Globe, ShoppingBag } from 'lucide-react';
+import { BackButton } from '@/components/navigation/BackButton';
 import { LottieEmptyState } from '@/components/ui/LottieEmptyState';
 import { DynamicIcon } from '@/components/ui/DynamicIcon';
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -28,6 +31,7 @@ import { CategoryPhotoChipRail, buildLeafPhotoChipItems } from '@/components/cat
 import { type ProductDetail } from '@/hooks/useProductDetail';
 import { useSearchKeyboardInset } from '@/hooks/useChatViewport';
 import { selectSearchResultsForDisplay } from '@/lib/searchRanking';
+import { isJourneyBack } from '@/lib/search-journey';
 import { diversifyRankedProducts, shouldDiversifySort } from '@/lib/sellerDiversity';
 
 const ProductDetailSheet = lazy(() =>
@@ -57,8 +61,24 @@ function toProductWithSeller(p: ProductSearchResult, row?: ProductFacetRow | nul
   } as ProductWithSeller, row);
 }
 
+function releaseSearchKeyboard(input: HTMLInputElement | null) {
+  const focused = !!input && document.activeElement === input;
+  if (!focused || !input) return;
+  input.blur();
+  if (!Capacitor.isNativePlatform()) return;
+  void import('@capacitor/keyboard').then(({ Keyboard }) => Keyboard.hide()).catch(() => {});
+}
+
+function isTypingTarget(target: EventTarget | null) {
+  return target instanceof Element && !!target.closest('input, textarea, [contenteditable="true"]');
+}
+
 export default function SearchPage() {
   const s = useSearchPage();
+  const location = useLocation();
+  const navigationType = useNavigationType();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [inputFocused, setInputFocused] = useState(false);
   const { data: marketplaceSellers } = useMarketplaceData();
   const sellersById = useMemo(() => {
     const map = new Map<string, any>();
@@ -73,6 +93,19 @@ export default function SearchPage() {
   useEffect(() => {
     setShowAllResults(false);
   }, [s.query, s.selectedCategory, s.filters]);
+
+  // Focus once when search is opened. A callback ref here ran on every
+  // results/keyboard render and called focus() again, so Back hid the
+  // keyboard and this page immediately reopened it.
+  useEffect(() => {
+    if (isJourneyBack(navigationType, location.state)) return undefined;
+    const id = window.setTimeout(() => inputRef.current?.focus(), 280);
+    return () => window.clearTimeout(id);
+  }, []);
+
+  useBackInterceptor(inputFocused, () => {
+    releaseSearchKeyboard(inputRef.current);
+  });
 
   const foodCategorySet = useMemo(
     () => new Set(s.categoryConfigs.filter((c) => isFoodParentGroup(c.parentGroup)).map((c) => c.category)),
@@ -101,6 +134,7 @@ export default function SearchPage() {
     : rankedSearch.items;
 
   const handleProductTap = (product: ProductWithSeller) => {
+    releaseSearchKeyboard(inputRef.current);
     setSelectedProduct({
       product_id: product.id,
       product_name: product.name,
@@ -139,32 +173,67 @@ export default function SearchPage() {
       <div
         className={keyboard.isKeyboardOpen ? undefined : 'pb-24'}
         style={keyboard.resultsPaddingBottom ? { paddingBottom: keyboard.resultsPaddingBottom } : undefined}
+        onMouseDown={(event) => {
+          if (isTypingTarget(event.target)) return;
+          // Keep this tap. Otherwise the first touch only blurs the field and the click is dropped.
+          event.preventDefault();
+        }}
+        onClick={(event) => {
+          if (isTypingTarget(event.target)) return;
+          releaseSearchKeyboard(inputRef.current);
+        }}
       >
         {/* Sticky search header */}
         <SafeHeader zIndex="z-40" bordered={false} className="overflow-visible">
           <div className="px-4 pt-3 pb-2">
             <div className="flex items-center gap-2">
-              <button onClick={() => s.navigate('/')} className="shrink-0 h-10 w-10 rounded-full bg-muted flex items-center justify-center"><ArrowLeft size={18} className="text-foreground" /></button>
+              <BackButton fallback="/" />
               <div className="flex-1 relative">
                 <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={15} />
                 {!s.query && <div className="absolute left-9 top-1/2 -translate-y-1/2 pointer-events-none pr-16 overflow-hidden whitespace-nowrap max-w-[calc(100%-4rem)]"><TypewriterPlaceholder context="search" /></div>}
                 <Input
+                  ref={inputRef}
                   placeholder=""
                   value={s.query}
                   onChange={(e) => s.setQuery(e.target.value)}
+                  onFocus={() => setInputFocused(true)}
+                  onBlur={() => setInputFocused(false)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' && !event.defaultPrevented) {
+                      event.currentTarget.blur();
+                    }
+                  }}
                   autoCorrect="off"
                   autoCapitalize="off"
                   spellCheck={false}
                   enterKeyHint="search"
                   inputMode="search"
                   className="pl-9 pr-16 h-10 rounded-xl text-sm bg-muted border-0 focus-visible:ring-1"
-                  ref={(el) => { if (el) setTimeout(() => el.focus(), 300); }}
                 />
-                {s.query && <button onClick={() => s.setQuery('')} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-foreground"><X size={14} /></button>}
+                {s.query && (
+                  <button
+                    type="button"
+                    aria-label="Clear search"
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      s.setQuery('');
+                      inputRef.current?.focus();
+                    }}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-foreground"
+                  >
+                    <X size={14} />
+                  </button>
+                )}
                 <SearchAutocomplete
                   query={s.query}
                   maxHeight={keyboard.autocompleteMaxHeight}
-                  onSelect={(p) => { s.setQuery(''); setSelectedProduct(p); setDetailOpen(true); }}
+                  onSelect={(p) => {
+                    releaseSearchKeyboard(inputRef.current);
+                    s.setQuery('');
+                    setSelectedProduct(p);
+                    setDetailOpen(true);
+                  }}
                 />
               </div>
             </div>

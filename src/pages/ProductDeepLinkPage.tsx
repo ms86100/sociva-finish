@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { useEffect, useState, useCallback } from 'react';
-import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
+import { useSmartBack } from '@/hooks/useSmartBack';
 import { supabase } from '@/integrations/supabase/client';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { ProductDetailSheet } from '@/components/product/ProductDetailSheet';
@@ -13,8 +14,7 @@ import { buyerCanOrderFromSeller } from '@/lib/sellerDiscoverability';
 
 export default function ProductDeepLinkPage() {
   const { productId } = useParams<{ productId: string }>();
-  const navigate = useNavigate();
-  const location = useLocation();
+  const goBack = useSmartBack('/');
   const { browsingLocation } = useBrowsingLocation();
   const [product, setProduct] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -153,18 +153,15 @@ export default function ProductDeepLinkPage() {
   const handleSheetClose = useCallback((open: boolean) => {
     setSheetOpen(open);
     if (!open) {
-      // Only navigate to seller page if we haven't already navigated elsewhere
-      // (e.g., add-to-cart celebration popup navigates to /cart)
-      const currentPath = location.pathname;
-      if (currentPath === '/' || currentPath.startsWith('/product/')) {
-        if (product?.seller_id) {
-          navigate(`/seller/${product.seller_id}`, { replace: true });
-        } else {
-          navigate('/', { replace: true });
-        }
-      }
+      // Dismissing the sheet leaves this product route. A link inside the
+      // sheet (store, cart) navigates first; only go back if we are still here.
+      window.setTimeout(() => {
+        const hash = window.location.hash.replace(/^#/, '') || '/';
+        const path = hash.split('?')[0] || '/';
+        if (path.startsWith('/product/')) goBack({ fallback: '/' });
+      }, 0);
     }
-  }, [product, navigate, location.pathname]);
+  }, [goBack]);
 
   if (isLoading) {
     return (
@@ -184,7 +181,7 @@ export default function ProductDeepLinkPage() {
         <div className="flex flex-col items-center justify-center min-h-[60vh] p-6 text-center">
           <p className="text-lg font-semibold mb-2">Oops!</p>
           <p className="text-sm text-muted-foreground mb-4">{error}</p>
-          <Button onClick={() => navigate('/', { replace: true })}>
+          <Button onClick={() => goBack({ fallback: '/' })}>
             <ArrowLeft size={16} className="mr-2" />
             Go Home
           </Button>

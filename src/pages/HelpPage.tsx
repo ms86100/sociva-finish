@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
+import { BackButton } from '@/components/navigation/BackButton';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { SafeHeader } from '@/components/layout/SafeHeader';
 import { Card, CardContent } from '@/components/ui/card';
@@ -112,9 +113,7 @@ export default function HelpPage({ sections: customSections }: HelpPageProps) {
       <div className="pb-8">
         <SafeHeader>
           <div className="px-4 pb-3.5 flex items-center gap-3">
-          <Link to="/profile" className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-muted shrink-0">
-            <ArrowLeft size={18} />
-          </Link>
+          <BackButton fallback="/profile" />
           <h1 className="text-lg font-bold text-foreground">Help & Guide</h1>
           </div>
         </SafeHeader>

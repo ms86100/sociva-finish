@@ -1,6 +1,7 @@
 // @ts-nocheck
 /// <reference types="@types/google.maps" />
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { useBackInterceptor } from '@/hooks/useBackInterceptor';
 import { createPortal } from 'react-dom';
 import { Button } from '@/components/ui/button';
 import { MapPin, Check, Loader2, ArrowLeft, LocateFixed } from 'lucide-react';
@@ -63,6 +64,7 @@ export function GoogleMapConfirm({
   const [isGeocoding, setIsGeocoding] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [isLocatingGps, setIsLocatingGps] = useState(false);
+  useBackInterceptor(true, onBack, 'overlay');
 
   const displayNameRef = useRef(name);
   const formattedAddressRef = useRef('');

@@ -1,6 +1,8 @@
 // @ts-nocheck
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { useSmartBack } from '@/hooks/useSmartBack';
+import { useBackInterceptor } from '@/hooks/useBackInterceptor';
 import { supabase } from '@/integrations/supabase/client';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
@@ -1012,6 +1014,17 @@ export default function BecomeSellerPage() {
   const liveExistingStore = existingSeller?.id
     ? sellerProfiles.find((p) => p.id === existingSeller.id)
     : null;
+  const goBack = useSmartBack('/profile');
+  const showingExistingStoreScreen = !!(
+    existingSeller
+    && selectedGroup
+    && !forceNew
+    && !isShelvedSellerStore(existingSeller)
+    && !isShelvedSellerStore(liveExistingStore)
+  );
+  useBackInterceptor(step > 1 && !submissionComplete && !showingExistingStoreScreen, () => {
+    void handleStepBack(step - 1);
+  });
   const liveVerificationStatus =
   (liveExistingStore as any)?.verification_status
   ?? (liveSubmittedStore as any)?.verification_status
@@ -1120,7 +1133,7 @@ export default function BecomeSellerPage() {
       return (
         <AppLayout showHeader={false} showNav={false}>
           <div className="p-4 safe-top max-w-md mx-auto">
-            <Link to="/" className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-muted shrink-0 mb-6"><ArrowLeft size={18} /></Link>
+            <button type="button" onClick={() => goBack({ fallback: '/profile' })} className="inline-flex items-center justify-center w-11 h-11 rounded-full bg-muted shrink-0 mb-6" aria-label="Go back"><ArrowLeft size={18} /></button>
             <div className="text-center py-4">
               <div className="text-[44px] leading-none mb-3" aria-hidden>🏪</div>
               <h1 className="text-2xl font-bold mb-2">You already have a store in this category</h1>
@@ -1157,7 +1170,7 @@ export default function BecomeSellerPage() {
     return (
       <AppLayout showHeader={false} showNav={false}>
         <div className="p-4 safe-top">
-          <Link to="/" className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-muted shrink-0 mb-6"><ArrowLeft size={18} /></Link>
+          <button type="button" onClick={() => goBack({ fallback: '/profile' })} className="inline-flex items-center justify-center w-11 h-11 rounded-full bg-muted shrink-0 mb-6" aria-label="Go back"><ArrowLeft size={18} /></button>
           <div className="text-center py-8 max-w-md mx-auto">
             {isRejected ? (
               <>
@@ -1263,7 +1276,7 @@ export default function BecomeSellerPage() {
         {/* Top Bar */}
         <div className="flex items-center justify-between mb-6">
           {step <= 1 ? (
-            <Link to="/" className="flex items-center gap-2 text-muted-foreground"><span className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-muted shrink-0"><ArrowLeft size={18} /></span><span>Back</span></Link>
+            <button type="button" onClick={() => goBack({ fallback: '/profile' })} className="flex items-center gap-2 text-muted-foreground"><span className="inline-flex items-center justify-center w-11 h-11 rounded-full bg-muted shrink-0"><ArrowLeft size={18} /></span><span>Back</span></button>
           ) : (
             <button type="button" onClick={() => handleStepBack(step - 1)} className="flex items-center gap-2 text-muted-foreground"><span className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-muted shrink-0"><ArrowLeft size={18} /></span><span>Back</span></button>
           )}

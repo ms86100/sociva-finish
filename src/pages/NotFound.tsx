@@ -3,22 +3,19 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Home, ArrowLeft } from "lucide-react";
+import { useSmartBack } from "@/hooks/useSmartBack";
 
 const NotFound = () => {
   const location = useLocation();
   const navigate = useNavigate();
+  const goBack = useSmartBack('/');
 
   useEffect(() => {
     console.error("404 Error: User attempted to access non-existent route:", location.pathname);
   }, [location.pathname]);
 
   const handleGoBack = () => {
-    // On cold start from deep link, there's no history to go back to
-    if (window.history.length <= 2) {
-      navigate('/', { replace: true });
-    } else {
-      window.history.back();
-    }
+    goBack({ fallback: '/' });
   };
 
   return (

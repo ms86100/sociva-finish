@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { useState, useEffect } from 'react';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
@@ -11,7 +11,8 @@ import { VegBadge } from '@/components/ui/veg-badge';
 import { Badge } from '@/components/ui/badge';
 import { ProductActionType, ProductCategory } from '@/types/Database';
 import { SellerSwitcher } from '@/components/seller/SellerSwitcher';
-import { ArrowLeft, Plus, Edit, Trash2, Star, Store, ShieldAlert, Upload, Send, CheckCircle2, Clock, XCircle, FileText, Eye, AlertTriangle } from 'lucide-react';
+import { Plus, Edit, Trash2, Star, Store, ShieldAlert, Upload, Send, CheckCircle2, Clock, XCircle, FileText, Eye, AlertTriangle } from 'lucide-react';
+import { BackButton } from '@/components/navigation/BackButton';
 import { DynamicIcon } from '@/components/ui/DynamicIcon';
 import { toast } from 'sonner';
 import { BulkProductUpload } from '@/components/seller/BulkProductUpload';
@@ -83,9 +84,7 @@ export default function SellerProductsPage({
     <AppLayout showHeader={false}>
       <div className="p-4">
         <div className="flex items-center justify-between gap-2 mb-6">
-          <Link to={paths.back} className="shrink-0 inline-flex items-center justify-center w-10 h-10 rounded-full bg-muted text-muted-foreground">
-            <ArrowLeft size={18} />
-          </Link>
+          <BackButton fallback={paths.hub} className="text-muted-foreground" />
           <div className="flex items-center gap-2 shrink-0">
             {/* Bulk Add: desktop/tablet only - hidden on mobile to keep Add Product prominent */}
             <Button variant="outline" size="sm" onClick={() => sp.setIsBulkOpen(true)} className="hidden md:inline-flex">

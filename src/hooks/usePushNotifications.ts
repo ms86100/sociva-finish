@@ -11,6 +11,7 @@ import { LiveActivityManager } from '@/services/LiveActivityManager';
 import { getTerminalStatuses } from '@/services/statusFlowCache';
 import { pickNotificationRoute } from '@/lib/notification-routes';
 import { setPendingDeepLink } from '@/hooks/useDeepLinks';
+import { beginExternalEntry } from '@/lib/navigation-stack';
 import { track, setAttribution } from '@/lib/analytics';
 import {
   mapPushReceiveToNotificationState,
@@ -651,7 +652,6 @@ export function usePushNotificationsInternal() {
           const isSellerRefund = String(data?.status || '').toLowerCase() === 'refund_requested'
             && String(data?.target_role || '').toLowerCase() === 'seller';
           const isSellerOrder = !isSellerRefund && (data?.type === 'order' || data?.type === 'order_created');
-          const navState = isSellerOrder ? { state: { tab: 'selling' } } : undefined;
           toastOptions.action = {
             label: isStatusNudge ? 'Update Status' : 'View',
             onClick: () => {
@@ -660,7 +660,10 @@ export function usePushNotificationsInternal() {
                 action: isStatusNudge ? 'update_status' : 'view',
               });
               applyPushAttribution(data);
-              navigateRef.current(route, navState);
+              beginExternalEntry(route);
+              navigateRef.current(route, {
+                state: { from: 'push', ...(isSellerOrder ? { tab: 'selling' } : {}) },
+              });
             },
           };
         }
@@ -715,10 +718,12 @@ export function usePushNotificationsInternal() {
           const isSellerRefund = String(data?.status || '').toLowerCase() === 'refund_requested'
             && String(data?.target_role || '').toLowerCase() === 'seller';
           const isSellerOrder = !isSellerRefund && (data?.type === 'order' || data?.type === 'order_created');
-          const navState = isSellerOrder ? { state: { tab: 'selling' } } : undefined;
           // Store as pending deep link for retry after auth hydration (cold start safety)
           setPendingDeepLink(route);
-          navigateRef.current(route, navState);
+          beginExternalEntry(route);
+          navigateRef.current(route, {
+            state: { from: 'push', ...(isSellerOrder ? { tab: 'selling' } : {}) },
+          });
         }
       });
       cleanupListeners.push(() => tapListener.remove());

@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ArrowLeft, CheckCircle2, XCircle, Clock, Search, Filter, BarChart3, FileText, AlertTriangle } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useSmartBack } from "@/hooks/useSmartBack";
 import { SafeHeader } from '@/components/layout/SafeHeader';
 import { format } from "date-fns";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
@@ -35,7 +35,7 @@ interface TestResult {
 }
 
 export default function TestResultsPage() {
-  const navigate = useNavigate();
+  const goBack = useSmartBack('/admin');
   const [search, setSearch] = useState("");
   const [outcomeFilter, setOutcomeFilter] = useState<string>("all");
   const [moduleFilter, setModuleFilter] = useState<string>("all");
@@ -110,7 +110,7 @@ export default function TestResultsPage() {
       {/* Header */}
       <SafeHeader>
       <div className="px-4 pb-3 flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
+        <Button variant="ghost" size="icon" onClick={() => goBack({ fallback: '/admin' })}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <div>

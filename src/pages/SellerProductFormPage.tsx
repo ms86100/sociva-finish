@@ -1,6 +1,8 @@
 // @ts-nocheck
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { useSmartBack } from '@/hooks/useSmartBack';
+import { useBackInterceptor } from '@/hooks/useBackInterceptor';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -67,6 +69,8 @@ export default function SellerProductFormPage({
   });
   const { formatPrice, currencySymbol } = useCurrency();
   const [currentStep, setCurrentStep] = useState(0);
+  const goBack = useSmartBack(paths.products);
+  useBackInterceptor(currentStep > 0, () => setCurrentStep((prev) => Math.max(0, prev - 1)));
 
   // Filter steps: hide "service" if not a service category
   const activeSteps = useMemo(() => {
@@ -156,7 +160,7 @@ export default function SellerProductFormPage({
   const handleBack = () => {
     if (currentStep === 0) {
       sp.resetForm();
-      navigate(paths.products);
+      goBack({ fallback: paths.products });
     } else {
       setCurrentStep(prev => prev - 1);
     }

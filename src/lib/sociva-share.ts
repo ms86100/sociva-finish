@@ -102,16 +102,20 @@ async function tryCapacitorShare(opts: {
   if (!Capacitor.isNativePlatform()) return false;
   try {
     const { Share } = await import('@capacitor/share');
+    // Text already includes the canonical URL. Passing `url` as well makes the
+    // Android plugin append it a second time.
     await Share.share({
       title: opts.title,
       text: opts.text,
-      url: opts.url,
       dialogTitle: opts.title,
     });
     return true;
   } catch (err) {
     const message = String((err as Error)?.message || err || '');
-    if (/cancel|abort|dismiss/i.test(message)) throw Object.assign(new Error(message), { name: 'AbortError' });
+    if (/cancel|abort|dismiss/i.test(message)) {
+      throw Object.assign(new Error(message), { name: 'AbortError' });
+    }
+    console.error('[sociva-share] Capacitor Share failed', err);
     return false;
   }
 }
@@ -122,7 +126,8 @@ async function tryCapacitorClipboard(text: string): Promise<boolean> {
     const { Clipboard } = await import('@capacitor/clipboard');
     await Clipboard.write({ string: text });
     return true;
-  } catch {
+  } catch (err) {
+    console.error('[sociva-share] Capacitor Clipboard failed', err);
     return false;
   }
 }
@@ -198,17 +203,24 @@ export async function shareSocivaContent(opts: {
       await navigator.clipboard.writeText(opts.text);
       return 'copied';
     }
-  } catch {
-    // fall through to WhatsApp
+  } catch (err) {
+    console.error('[sociva-share] Clipboard write failed', err);
   }
 
   try {
     const wa = `https://wa.me/?text=${encodeURIComponent(opts.text)}`;
+    if (Capacitor.isNativePlatform()) {
+      const { Browser } = await import('@capacitor/browser');
+      await Browser.open({ url: wa });
+      return 'whatsapp';
+    }
     const opened = window.open(wa, '_blank', 'noopener,noreferrer');
     if (opened) return 'whatsapp';
-    // Popup blocked (common in Capacitor WebView)
+    // Popup blocked (common in a desktop browser)
+    console.error('[sociva-share] WhatsApp window.open returned null');
     return 'failed';
-  } catch {
+  } catch (err) {
+    console.error('[sociva-share] WhatsApp fallback failed', err);
     return 'failed';
   }
 }

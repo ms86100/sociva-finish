@@ -41,6 +41,15 @@ describe('resolveDeepLinkPath', () => {
     );
   });
 
+  it('keeps a direct /product/:id App Link on the product route', () => {
+    expect(resolveDeepLinkPath('https://sociva.in/product/abc123')).toBe('/product/abc123');
+  });
+
+  it('maps /store/:id to the in-app seller route', () => {
+    expect(resolveDeepLinkPath('https://www.sociva.in/store/xyz')).toBe('/seller/xyz');
+    expect(resolveDeepLinkPath('https://sociva.in/store/xyz?og=1')).toBe('/seller/xyz');
+  });
+
   it('keeps /update as the store link instead of an in-app route', () => {
     expect(resolveDeepLinkPath('https://sociva.in/update')).toBe('/update');
     expect(isAppUpdatePath(resolveDeepLinkPath('https://www.sociva.in/update/'))).toBe(true);

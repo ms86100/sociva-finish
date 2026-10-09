@@ -1,12 +1,12 @@
 // @ts-nocheck
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { SafeHeader } from '@/components/layout/SafeHeader';
 import { Card, CardContent } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { ArrowLeft, Bell, MessageCircle, Tag, Volume2, Loader2, AlertTriangle, ExternalLink, Moon } from 'lucide-react';
+import { Bell, MessageCircle, Tag, Volume2, Loader2, AlertTriangle, ExternalLink, Moon } from 'lucide-react';
+import { BackButton } from '@/components/navigation/BackButton';
 import { PushNotifications } from '@capacitor/push-notifications';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -149,9 +149,7 @@ export default function NotificationsPage() {
       <div>
         <SafeHeader>
           <div className="px-4 pb-3.5 flex items-center gap-3">
-          <Link to="/profile" className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-muted shrink-0 active:scale-95 transition-transform">
-            <ArrowLeft size={18} />
-          </Link>
+          <BackButton fallback="/profile" />
           <div className="flex-1 min-w-0">
             <h1 className="text-lg font-bold">Notification Settings</h1>
             <p className="text-xs text-muted-foreground">Choose what notifications you want to receive</p>

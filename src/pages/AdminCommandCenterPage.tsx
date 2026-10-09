@@ -2,7 +2,8 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { format } from 'date-fns';
-import { ArrowLeft, RefreshCw } from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
+import { BackButton } from '@/components/navigation/BackButton';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { SafeHeader } from '@/components/layout/SafeHeader';
 import { Button } from '@/components/ui/button';
@@ -490,12 +491,7 @@ export default function AdminCommandCenterPage() {
     <AppLayout showHeader={false} safeTop={false}>
       <SafeHeader>
         <div className="px-4 pb-3 flex items-center gap-3">
-          <Link
-            to="/admin"
-            className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-muted"
-          >
-            <ArrowLeft size={18} />
-          </Link>
+          <BackButton fallback="/admin" />
           <div className="min-w-0 flex-1">
             <h1 className="text-xl font-bold">Command Center</h1>
             <p className="text-sm text-muted-foreground">{societyLabel}</p>

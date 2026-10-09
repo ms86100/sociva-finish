@@ -10,7 +10,8 @@ import { useCurrency } from '@/hooks/useCurrency';
 import { buyerStoreStatusLabel, sumOrderAmounts } from '@/lib/checkout-groups';
 import { resolveOrderProgress } from '@/lib/orderProgressStages';
 import { OrderProgressRail } from '@/components/order/OrderProgressRail';
-import { ArrowLeft, ChevronRight, Package, Store } from 'lucide-react';
+import { ChevronRight, Package, Store } from 'lucide-react';
+import { BackButton } from '@/components/navigation/BackButton';
 import { format } from 'date-fns';
 import { parseTimestamp } from '@/lib/relative-time';
 import { firstEmbed } from '@/lib/supabase-embed';
@@ -31,12 +32,7 @@ export default function CheckoutDetailPage() {
     <AppLayout showHeader={false} safeTop={false}>
       <SafeHeader>
         <div className="px-4 pb-3.5 flex items-center gap-3">
-          <Link
-            to="/orders"
-            className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-muted shrink-0"
-          >
-            <ArrowLeft size={18} />
-          </Link>
+          <BackButton fallback="/orders" />
           <h1 className="text-lg font-bold text-foreground">Checkout</h1>
         </div>
       </SafeHeader>

@@ -137,6 +137,7 @@ export default async function handler(req: Request): Promise<Response> {
   <div id="sociva-android-actions" style="display:none;flex-direction:column;gap:12px;margin-top:20px;width:min(320px,100%)">
     <a id="sociva-open-app" href="${escapeHtml(deepLink)}" style="display:block;background:#fff;color:#0a0a0f;text-decoration:none;font-weight:700;border-radius:999px;padding:12px 16px">Open in the Sociva app</a>
     <a id="sociva-store" href="https://play.google.com/store/apps/details?id=app.sociva.community&amp;hl=en_IN" style="display:block;color:#fff;text-decoration:underline;font-size:14px">Get it on Google Play</a>
+    <a id="sociva-app-store" href="https://apps.apple.com/in/app/sociva/id6759218504" style="display:block;color:#fff;text-decoration:underline;font-size:14px">Download on the App Store</a>
   </div>
   <script>${buildShareOpenScript(url.toString(), deepLink)}</script>
 </body>

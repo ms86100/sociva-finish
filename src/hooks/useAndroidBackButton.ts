@@ -3,74 +3,71 @@ import { useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Capacitor } from '@capacitor/core';
 import { toast } from 'sonner';
-import { isTabRootPath, peekPreviousPath, resolveBackFallback } from '@/lib/navigation-stack';
-
-const ROOT_PATHS = new Set(['/', '/home', '/welcome', '/landing', '/auth']);
+import {
+  handleSystemBackLayers,
+  isExitRoot,
+  peekPreviousPath,
+  toNavPath,
+} from '@/lib/navigation-stack';
+import { runSmartBack } from '@/hooks/useSmartBack';
 
 /**
  * Android hardware back:
- * 1) Close topmost Radix dialog/sheet (Escape)
- * 2) Else navigate back if history allows
- * 3) Else double-back to minimize (Android only - no-op on iOS)
+ * 1. Close the top overlay / wizard step
+ * 2. Return along the in-app journey
+ * 3. On Home only, a second press minimizes the app
  */
 export function useAndroidBackButton() {
   const navigate = useNavigate();
   const location = useLocation();
   const lastBackAtRef = useRef(0);
+  const navigateRef = useRef(navigate);
+  const locationRef = useRef(location);
+  navigateRef.current = navigate;
+  locationRef.current = location;
 
   useEffect(() => {
-    if (Capacitor.getPlatform() !== 'android') return;
+    if (Capacitor.getPlatform() !== 'android') return undefined;
 
     let remove: (() => void) | undefined;
+    let cancelled = false;
 
     (async () => {
       try {
         const { App } = await import('@capacitor/app');
+        const listener = await App.addListener('backButton', () => {
+          if (handleSystemBackLayers()) return;
 
-        const listener = await App.addListener('backButton', ({ canGoBack }) => {
-          // 1) Dismiss open overlays (dialogs, sheets, alert-dialogs)
-          const openOverlay = document.querySelector('[role="dialog"][data-state="open"]');
-          if (openOverlay) {
-            document.dispatchEvent(
-              new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true, cancelable: true })
-            );
-            return;
-          }
-
-          // 2) In-app history
-          const path = location.pathname || '/';
-          const atRoot = ROOT_PATHS.has(path) || isTabRootPath(path);
-          if (!atRoot) {
-            const returnTo = location.state?.returnTo;
-            if (typeof returnTo === 'string' && returnTo.startsWith('/')) {
-              navigate(returnTo);
+          const loc = locationRef.current;
+          const full = toNavPath(loc.pathname, loc.search);
+          const atExit = isExitRoot(loc.pathname) && !peekPreviousPath(full);
+          if (atExit) {
+            const now = Date.now();
+            if (now - lastBackAtRef.current < 2000) {
+              App.minimizeApp();
               return;
             }
-            const previous = peekPreviousPath(path);
-            if (previous) {
-              navigate(previous);
-              return;
-            }
-            navigate(resolveBackFallback(path));
+            lastBackAtRef.current = now;
+            toast.message('Press back again to exit', { id: 'android-back-exit', duration: 2000 });
             return;
           }
 
-          // 3) Root: double-back to minimize
-          const now = Date.now();
-          if (now - lastBackAtRef.current < 2000) {
-            App.minimizeApp();
-            return;
-          }
-          lastBackAtRef.current = now;
-          toast.message('Press back again to exit', { id: 'android-back-exit', duration: 2000 });
+          runSmartBack(navigateRef.current, loc);
         });
 
+        if (cancelled) {
+          listener.remove();
+          return;
+        }
         remove = () => listener.remove();
       } catch (err) {
         console.error('Failed to register Android backButton listener:', err);
       }
     })();
 
-    return () => remove?.();
-  }, [navigate, location.pathname]);
+    return () => {
+      cancelled = true;
+      remove?.();
+    };
+  }, []);
 }

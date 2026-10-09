@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useSmartBack } from '@/hooks/useSmartBack';
+import { useBackInterceptor } from '@/hooks/useBackInterceptor';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -67,6 +68,7 @@ export default function ProfileEditPage() {
   const [showAddressForm, setShowAddressForm] = useState(false);
   const [editingAddress, setEditingAddress] = useState<any>(null);
   const [step, setStep] = useState<1 | 2>(1);
+  useBackInterceptor(step === 2, () => setStep(1));
   const [dismissedAutoOpen, setDismissedAutoOpen] = useState(false);
   const [resolvingSociety, setResolvingSociety] = useState(false);
   const [inviteCode, setInviteCode] = useState('');

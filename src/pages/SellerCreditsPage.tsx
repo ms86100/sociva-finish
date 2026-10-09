@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { BackButton } from '@/components/navigation/BackButton';
 import { useQuery } from '@tanstack/react-query';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { SafeHeader } from '@/components/layout/SafeHeader';
@@ -36,7 +37,7 @@ import { functionInvokeErrorMessage, parseFunctionInvokeError } from '@/lib/func
 import { openNativeRazorpayCheckout } from '@/lib/razorpay-native-checkout';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
-import { ArrowLeft, CheckCircle2, Coins } from 'lucide-react';
+import { CheckCircle2, Coins } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const MIN_RECHARGE = 100;
@@ -275,9 +276,7 @@ export default function SellerCreditsPage() {
       <AppLayout showHeader={false} safeTop={false}>
         <SafeHeader>
           <div className="px-4 pb-3 flex items-center gap-3">
-            <Link to="/seller" className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-muted shrink-0">
-              <ArrowLeft size={18} />
-            </Link>
+            <BackButton fallback="/seller" />
             <h1 className="text-xl font-bold">Sociva Credits</h1>
           </div>
         </SafeHeader>
@@ -321,9 +320,7 @@ export default function SellerCreditsPage() {
       <SafeHeader>
         <div className="px-4 pb-3 space-y-2">
           <div className="flex items-center gap-3">
-            <Link to="/seller" className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-muted shrink-0">
-              <ArrowLeft size={18} />
-            </Link>
+            <BackButton fallback="/seller" />
             <div className="min-w-0 flex-1">
               <h1 className="text-lg font-bold leading-tight">Sociva Credits</h1>
               {!isPortfolio && currentSeller?.business_name && (

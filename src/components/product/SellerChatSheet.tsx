@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { useBackInterceptor } from '@/hooks/useBackInterceptor';
 import { createPortal } from 'react-dom';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -27,6 +28,7 @@ export function SellerChatSheet({ open, onOpenChange, buyerId, sellerId, product
   const [text, setText] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  useBackInterceptor(open, () => onOpenChange(false), 'overlay');
 
   useEffect(() => {
     if (open) {

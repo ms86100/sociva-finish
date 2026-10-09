@@ -147,10 +147,12 @@ export default defineConfig(({ mode }) => {
             const p = id.replace(/\\/g, "/");
 
             // Split vendor chunks more aggressively for better code splitting
+            // Match the React packages only. "/react/" also matches
+            // @sentry/react and would put Sentry on the first-paint download.
             if (
-              p.includes("/react-dom/") ||
-              p.includes("/react/") ||
-              p.includes("/scheduler/")
+              p.includes("/node_modules/react-dom/") ||
+              p.includes("/node_modules/react/") ||
+              p.includes("/node_modules/scheduler/")
             ) {
               return "react";
             }
@@ -163,12 +165,12 @@ export default defineConfig(({ mode }) => {
             if (p.includes("@radix-ui")) return "ui-radix";
             if (p.includes("@supabase")) return "supabase";
             if (p.includes("framer-motion")) return "framer-motion";
-            // Do NOT force a single lucide chunk — that pulled ~400KB onto the
+            // Do NOT force a single lucide chunk - that pulled ~400KB onto the
             // critical path whenever any entry import touched lucide-react.
             // Per-route tree-shaking keeps Home icons small.
             if (p.includes("react-hook-form") || p.includes("@hookform") || p.includes("/zod/")) return "forms";
             if (p.includes("@vis.gl/react-google-maps") || p.includes("/google.maps")) return "maps";
-            // Do NOT force a shared "charts" chunk — recharts must stay with
+            // Do NOT force a shared "charts" chunk - recharts must stay with
             // lazy product/analytics routes so Home cold start does not download it.
             if (p.includes("date-fns")) return "date";
             if (p.includes("@capacitor")) return "capacitor";

@@ -84,6 +84,10 @@ import { KeyboardAwareInputs } from "@/components/haptics/KeyboardAwareInputs";
 import { initializeMedianBridge } from "@/lib/median";
 import { useDeepLinks, consumePendingDeepLink } from "@/hooks/useDeepLinks";
 import { useAndroidBackButton } from "@/hooks/useAndroidBackButton";
+import { runSmartBack } from "@/hooks/useSmartBack";
+import { beginExternalEntry, subscribeSmartBack } from "@/lib/navigation-stack";
+import { NavigationStackTracker } from "@/components/navigation/NavigationStackTracker";
+import { ScrollRestoration } from "@/components/navigation/ScrollRestoration";
 import { useSecurityOfficer } from "@/hooks/useSecurityOfficer";
 import { useAppLifecycle } from "@/hooks/useAppLifecycle";
 import { useReorderInterceptor } from "@/hooks/useReorderInterceptor";
@@ -122,7 +126,7 @@ const LocationDiscoveryPage = lazyWithRetry(() => import("./pages/LocationDiscov
 const SellerDetailPage = lazyWithRetry(() => import("./pages/SellerDetailPage"));
 const OrderDetailPage = lazyWithRetry(() => import("./pages/OrderDetailPage"));
 const CheckoutDetailPage = lazyWithRetry(() => import("./pages/CheckoutDetailPage"));
-import ProfileEditPage from "./pages/ProfileEditPage";
+const ProfileEditPage = lazyWithRetry(() => import("./pages/ProfileEditPage"));
 const FavoritesPage = lazyWithRetry(() => import("./pages/FavoritesPage"));
 const BecomeSellerPage = lazyWithRetry(() => import("./pages/BecomeSellerPage"));
 const SellerDashboardPage = lazyWithRetry(() => import("./pages/SellerDashboardPage"));
@@ -157,8 +161,8 @@ const ProductDeepLinkPage = lazyWithRetry(() => import("./pages/ProductDeepLinkP
 const PrivacyPolicyPage = lazyWithRetry(() => import("./pages/PrivacyPolicyPage"));
 const DeleteAccountPage = lazyWithRetry(() => import("./pages/DeleteAccountPage"));
 const TermsPage = lazyWithRetry(() => import("./pages/TermsPage"));
-import CategoryGroupPage from "./pages/CategoryGroupPage";
-import CategoriesPage from "./pages/CategoriesPage";
+const CategoryGroupPage = lazyWithRetry(() => import("./pages/CategoryGroupPage"));
+const CategoriesPage = lazyWithRetry(() => import("./pages/CategoriesPage"));
 const DiscoveryListingsPage = lazyWithRetry(() => import("./pages/DiscoveryListingsPage"));
 const PricingPage = lazyWithRetry(() => import("./pages/PricingPage"));
 const HelpPage = lazyWithRetry(() => import("./pages/HelpPage"));
@@ -416,11 +420,19 @@ function WorkerRoute({ children }: { children: React.ReactNode }) {
 
 function NavigationHandler() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, isSessionRestored } = useAuth();
+  const navigateRef = useRef(navigate);
+  const locationRef = useRef(location);
+  navigateRef.current = navigate;
+  locationRef.current = location;
   useEffect(() => {
     const cleanup = initializeMedianBridge(navigate);
     return cleanup;
   }, [navigate]);
+  useEffect(() => subscribeSmartBack((opts) => {
+    runSmartBack(navigateRef.current, locationRef.current, opts);
+  }), []);
   useDeepLinks();
   useAppLifecycle();
   useAndroidBackButton();
@@ -543,6 +555,7 @@ function AppRoutes() {
           return;
         }
         console.log('[AppRoutes] Navigating to deferred deep link:', pendingPath);
+        beginExternalEntry(pendingPath);
         deferredNavigate(pendingPath, { state: { from: 'deeplink' } });
       }
     }, 300); // Allow more time for context providers to initialize
@@ -824,6 +837,8 @@ function App() {
             <OfflineBanner />
             <Sonner />
             <HashRouter>
+              <NavigationStackTracker />
+              <ScrollRestoration />
               <PullToRefreshHost />
               <ActionBlockedDialog />
               <GlobalHapticListener />

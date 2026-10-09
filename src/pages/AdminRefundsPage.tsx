@@ -1,7 +1,8 @@
 // @ts-nocheck
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, RefreshCw, Wallet, ShieldAlert } from 'lucide-react';
+import { RefreshCw, Wallet, ShieldAlert } from 'lucide-react';
+import { BackButton } from '@/components/navigation/BackButton';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { SafeHeader } from '@/components/layout/SafeHeader';
 import { Button } from '@/components/ui/button';
@@ -47,9 +48,7 @@ export default function AdminRefundsPage() {
     <AppLayout showHeader={false} safeTop={false}>
       <SafeHeader>
         <div className="px-4 pb-3 flex items-center gap-3">
-          <Link to="/admin" className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-muted">
-            <ArrowLeft size={18} />
-          </Link>
+          <BackButton fallback="/admin" />
           <div>
             <h1 className="text-xl font-bold">Refund & Sociva Balance</h1>
             <p className="text-xs text-muted-foreground">

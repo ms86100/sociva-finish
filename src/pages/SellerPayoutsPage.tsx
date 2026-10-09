@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
+import { BackButton } from '@/components/navigation/BackButton';
 import { supabase } from '@/integrations/supabase/client';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { SafeHeader } from '@/components/layout/SafeHeader';
@@ -11,7 +12,6 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCurrency } from '@/hooks/useCurrency';
 import {
-  ArrowLeft,
   Banknote,
   TrendingUp,
   Clock,
@@ -153,9 +153,7 @@ export default function SellerPayoutsPage() {
       <AppLayout showHeader={false} safeTop={false}>
         <SafeHeader>
           <div className="px-4 pb-3 flex items-center gap-3">
-            <Link to="/seller/wallet" className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-muted shrink-0">
-              <ArrowLeft size={18} className="text-foreground" />
-            </Link>
+            <BackButton fallback="/seller/wallet" />
             <h1 className="text-xl font-bold">Payouts</h1>
           </div>
         </SafeHeader>
@@ -176,9 +174,7 @@ export default function SellerPayoutsPage() {
     <AppLayout showHeader={false} safeTop={false}>
       <SafeHeader>
         <div className="px-4 pb-3 flex items-center gap-3">
-          <Link to="/seller/wallet" className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-muted shrink-0">
-            <ArrowLeft size={18} className="text-foreground" />
-          </Link>
+          <BackButton fallback="/seller/wallet" />
           <h1 className="text-xl font-bold">
             {isPortfolio ? 'Payouts · All stores' : 'Payouts'}
           </h1>

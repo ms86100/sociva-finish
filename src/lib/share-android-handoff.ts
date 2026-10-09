@@ -1,5 +1,6 @@
 const ANDROID_PACKAGE = 'app.sociva.community';
 const PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=app.sociva.community&hl=en_IN';
+const APP_STORE_URL = 'https://apps.apple.com/in/app/sociva/id6759218504';
 
 function withStay(pageUrl: string): string {
   if (/[?&]stay=1(?:&|$)/.test(pageUrl)) return pageUrl;
@@ -31,12 +32,15 @@ export function buildShareOpenScript(pageUrl: string, deepLink: string): string 
     var inApp = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
     var deepLink = ${JSON.stringify(deepLink)};
     var play = ${JSON.stringify(PLAY_STORE_URL)};
+    var appStore = ${JSON.stringify(APP_STORE_URL)};
     var intent = ${JSON.stringify(androidShareIntentUrl(pageUrl))};
     var stay = /[?&]stay=1(?:&|$)/.test(location.search);
     var actions = document.getElementById('sociva-android-actions');
     var openBtn = document.getElementById('sociva-open-app');
     var storeBtn = document.getElementById('sociva-store');
+    var appStoreBtn = document.getElementById('sociva-app-store');
     if (storeBtn) storeBtn.setAttribute('href', play);
+    if (appStoreBtn) appStoreBtn.setAttribute('href', appStore);
     if (openBtn) openBtn.setAttribute('href', intent);
     if (!android || inApp) {
       location.replace(deepLink);

@@ -11,6 +11,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useImmediateNavigate } from '@/hooks/useImmediateNavigate';
 import type { FeatureKey } from '@/hooks/useEffectiveFeatures';
 import { authReturnPath } from '@/lib/guest-browse-routes';
+import { isTabRootPath } from '@/lib/navigation-stack';
 
 const IS_NATIVE = Capacitor.isNativePlatform();
 
@@ -51,7 +52,8 @@ function BottomNavInner() {
       navigateImmediately('/auth', { state: { from: returnTo, returnTo } });
       return;
     }
-    navigateImmediately(to);
+    const replaceTabs = isTabRootPath(location.pathname) && isTabRootPath(to);
+    navigateImmediately(to, { replace: replaceTabs });
   }, [location.pathname, navigateImmediately, user]);
 
   const isPrimaryRoleUser = isAdmin || isSocietyAdmin || isBuilderMember;

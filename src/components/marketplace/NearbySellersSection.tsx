@@ -8,6 +8,7 @@ import { motion } from 'framer-motion';
 import { staggerContainer, cardEntrance } from '@/lib/motion-variants';
 
 import { displaySellerStoreName, isShelvedSellerStore } from '@/lib/seller-journey';
+import { handleImageError, optimizedImageUrl } from '@/utils/imageHelpers';
 
 export function NearbySellersSection() {
   const { profile } = useAuth();
@@ -66,9 +67,12 @@ export function NearbySellersSection() {
             <div className="w-10 h-10 rounded-lg overflow-hidden bg-muted mb-2">
               {seller.cover_image_url ? (
                 <img
-                  src={seller.cover_image_url}
+                  src={optimizedImageUrl(seller.cover_image_url, { width: 128, quality: 70 })}
                   alt={storeName}
                   className="w-full h-full object-cover"
+                  loading="lazy"
+                  decoding="async"
+                  onError={handleImageError}
                 />
               ) : (
                 <div className="w-full h-full flex items-center justify-center">

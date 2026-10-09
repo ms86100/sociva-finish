@@ -1,8 +1,9 @@
 // @ts-nocheck
 import { Link } from 'react-router-dom';
+import { BackButton } from '@/components/navigation/BackButton';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent } from '@/components/ui/card';
-import { ArrowLeft, Shield, Check, X, AlertTriangle } from 'lucide-react';
+import { Shield, Check, X, AlertTriangle } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSystemSettings } from '@/hooks/useSystemSettings';
 
@@ -65,9 +66,7 @@ export default function CommunityRulesPage() {
   return (
     <AppLayout showHeader={false} showNav={false}>
       <div className="p-4 pb-8">
-        <Link to="/help" className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-muted shrink-0 mb-4">
-          <ArrowLeft size={18} className="text-foreground" />
-        </Link>
+        <BackButton fallback="/help" className="mb-4" />
 
         <div className="text-center mb-6">
           <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-warning/10 flex items-center justify-center">

@@ -16,6 +16,7 @@ import {
   getExpiredOrderAcks,
   isOrderAcceptanceExpired,
 } from '@/lib/expired-order-acks';
+import { handleImageError, optimizedImageUrl } from '@/utils/imageHelpers';
 
 function CompactCountdown({ autoCancelAt, onExpire }: { autoCancelAt: string; onExpire?: () => void }) {
   const calc = useCallback(() => {
@@ -216,7 +217,14 @@ export function ActiveOrderStrip() {
                 {/* Thumbnail */}
                 <div className="w-9 h-9 rounded-xl bg-primary/10 shrink-0 overflow-hidden flex items-center justify-center">
                   {order.first_product_image ? (
-                    <img src={order.first_product_image} alt="" className="w-full h-full object-cover" loading="lazy" />
+                    <img
+                      src={optimizedImageUrl(order.first_product_image, { width: 96, quality: 70 })}
+                      alt=""
+                      className="w-full h-full object-cover"
+                      loading="lazy"
+                      decoding="async"
+                      onError={handleImageError}
+                    />
                   ) : (
                     <span className="text-sm">📦</span>
                   )}

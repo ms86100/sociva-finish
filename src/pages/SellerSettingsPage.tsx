@@ -17,7 +17,8 @@ import { CroppableImageUpload } from '@/components/ui/croppable-image-upload';
 import { DAYS_OF_WEEK } from '@/types/Database';
 import { Slider } from '@/components/ui/slider';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { ArrowLeft, Loader2, PauseCircle, PlayCircle, Clock, Banknote, AlertTriangle, Building2, Globe, Truck, Eye, MapPin, Navigation, Palmtree, Camera, CreditCard, PartyPopper, Smartphone, Plus } from 'lucide-react';
+import { Loader2, PauseCircle, PlayCircle, Clock, Banknote, AlertTriangle, Building2, Globe, Truck, Eye, MapPin, Navigation, Palmtree, Camera, CreditCard, PartyPopper, Smartphone, Plus } from 'lucide-react';
+import { BackButton } from '@/components/navigation/BackButton';
 import { DynamicIcon } from '@/components/ui/DynamicIcon';
 import { cn } from '@/lib/utils';
 import { LicenseUpload } from '@/components/seller/LicenseUpload';
@@ -178,7 +179,7 @@ export default function SellerSettingsPage({
     <AppLayout showHeader={false} showNav={false} safeTop={false}>
       <SafeHeader>
         <div className="px-4 pb-3 flex items-center gap-3">
-          <Link to={paths.back} className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-muted shrink-0"><ArrowLeft size={18} /></Link>
+          <BackButton fallback={paths.hub} />
           <div className="min-w-0">
             <h1 className="text-xl font-bold">{isAdminManage ? 'Admin · Store Settings' : 'Store Settings'}</h1>
             {isAdminManage && (

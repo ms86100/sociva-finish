@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { useState, useCallback, useRef } from 'react';
+import { useBackInterceptor } from '@/hooks/useBackInterceptor';
 import { useNavigate } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { useBrowsingLocation } from '@/contexts/BrowsingLocationContext';
@@ -183,6 +184,10 @@ export default function LocationDiscoveryPage() {
       // optional
     }
   };
+
+  useBackInterceptor(step === 'empty', () => {
+    handleTryAnother();
+  });
 
   if (step === 'manual') {
     return (

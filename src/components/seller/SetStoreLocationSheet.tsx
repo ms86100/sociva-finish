@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { useState, useCallback, useRef, useEffect } from 'react';
+import { useBackInterceptor } from '@/hooks/useBackInterceptor';
 import { createPortal } from 'react-dom';
 
 import { Button } from '@/components/ui/button';
@@ -136,6 +137,11 @@ export function SetStoreLocationSheet({ open, onOpenChange, sellerId, onSuccess 
     clearPredictions();
     onOpenChange(false);
   };
+
+  useBackInterceptor(open, () => {
+    if (step === 'confirm') handleBack();
+    else handleClose();
+  }, 'overlay');
 
   if (!open) return null;
 

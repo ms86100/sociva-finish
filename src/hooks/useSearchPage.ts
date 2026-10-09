@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { useSearchParams, useNavigate, useNavigationType } from 'react-router-dom';
+import { useSearchParams, useNavigate, useNavigationType, useLocation } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useBrowsingLocation } from '@/contexts/BrowsingLocationContext';
@@ -15,6 +15,7 @@ import { useCurrency } from '@/hooks/useCurrency';
 import { MARKETPLACE_RADIUS_KM } from '@/lib/marketplace-constants';
 import { committedSearchKey, getSessionQueryId } from '@/lib/searchTelemetry';
 import { readSearchQueryParam, resolveSearchQueryFromUrl } from '@/lib/searchQuery';
+import { isJourneyBack, readSearchJourney, writeSearchJourney } from '@/lib/search-journey';
 import { isFoodParentGroup } from '@/lib/food-facets';
 import { hasPreciseCoordinates } from '@/lib/buyerLocation';
 import { useRegisterScreenRefresh } from '@/hooks/usePullToRefresh';
@@ -96,6 +97,7 @@ export function useSearchPage() {
   const { user, effectiveSocietyId, profile } = useAuth();
   const { browsingLocation } = useBrowsingLocation();
   const navigate = useNavigate();
+  const location = useLocation();
   const navigationType = useNavigationType();
   const { items: cartItems, addItem, updateQuantity } = useCart();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -128,9 +130,11 @@ export function useSearchPage() {
 
   const [query, setQuery] = useState(() => readSearchQueryParam(searchParams));
   const debouncedQuery = useDebounce(query, 300);
-  const [filters, setFilters] = useState<FilterState>(() => loadSavedFilters(user?.id));
+  const journeyBack = isJourneyBack(navigationType, location.state);
+  const journeySnapshot = journeyBack ? readSearchJourney(readSearchQueryParam(searchParams)) : null;
+  const [filters, setFilters] = useState<FilterState>(() => journeySnapshot?.filters || loadSavedFilters(user?.id));
   const [activePreset, setActivePreset] = useState<string | null>(null);
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(() => journeySnapshot?.selectedCategory ?? null);
   const [results, setResults] = useState<ProductSearchResult[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
@@ -145,6 +149,10 @@ export function useSearchPage() {
     }
     setQuery((current) => resolveSearchQueryFromUrl(current, urlQuery));
   }, [searchParams, navigationType]);
+
+  useEffect(() => {
+    writeSearchJourney(query, { filters, selectedCategory });
+  }, [query, filters, selectedCategory]);
 
   useEffect(() => {
     const currentUrlQuery = readSearchQueryParam(searchParams);
