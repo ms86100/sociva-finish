@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import { useBrowsingLocation } from '@/contexts/BrowsingLocationContext';
 import { useNavigate } from 'react-router-dom';
 import { useProductsByCategory } from '@/hooks/queries/useProductsByCategory';
+import { useMarketplaceData } from '@/hooks/queries/useMarketplaceData';
 import { useProductFacets } from '@/hooks/queries/useProductFacets';
 import { useParentGroups } from '@/hooks/useParentGroups';
 import { useSocialProof } from '@/hooks/queries/useSocialProof';
@@ -41,6 +42,7 @@ import {
 import { useSellerContext } from '@/contexts/auth/contexts';
 import { pickSellerJourneyStore } from '@/lib/seller-journey';
 import { buildProductDetailPayload, buildRelatedProductDetailPayload } from '@/lib/product-detail-payload';
+import { CommerceModeTiles, countListingsByMode } from '@/components/home/CommerceModeTiles';
 
 function getPublicOrigin() {
   const origin = window.location.origin || '';
@@ -130,6 +132,7 @@ export function MarketplaceSection() {
 
   // Cap discovery payload - 80 products was overkill for first paint
   const { data: localCategories = [], isLoading: loadingLocal } = useProductsByCategory(40);
+  const { data: marketplaceSellers = [] } = useMarketplaceData();
   const { parentGroupInfos } = useParentGroups();
 
   const activeCategoryConfig = useMemo(
@@ -192,6 +195,13 @@ export function MarketplaceSection() {
       .slice(0, discoveryMaxItems || 10);
   }, [allProducts, discoveryMaxItems]);
 
+  const modeCounts = useMemo(() => {
+    const loaded = marketplaceSellers.flatMap((seller) =>
+      Array.isArray(seller.matching_products) ? seller.matching_products : [],
+    );
+    return countListingsByMode(loaded, categoryConfigs);
+  }, [marketplaceSellers, categoryConfigs]);
+
   const activeCategorySet = useMemo(
     () => new Set(localCategories.map((c) => c.category)),
     [localCategories],
@@ -235,6 +245,9 @@ export function MarketplaceSection() {
   if (!loadingLocal && localCategories.length === 0) {
     return (
       <div className="pb-2">
+        <div className="pt-2 pb-1">
+          <CommerceModeTiles counts={modeCounts} />
+        </div>
         {festivals.map((f) => (
           <FestivalBannerModule
             key={f.banner.id}
@@ -262,15 +275,15 @@ export function MarketplaceSection() {
 
           <div className="grid grid-cols-3 gap-2.5">
             {[
-              { icon: <UtensilsCrossed size={20} className="text-warning" />, bg: 'bg-warning/10', title: 'Home-cooked meals', desc: 'Fresh food from your neighbors' },
-              { icon: <Wrench size={20} className="text-primary" />, bg: 'bg-primary/10', title: 'Local services', desc: 'Trusted help nearby' },
-              { icon: <Heart size={20} className="text-destructive" />, bg: 'bg-destructive/10', title: 'Zero commission', desc: 'Sellers keep 100%' },
+              { icon: <UtensilsCrossed size={20} />, well: 'bg-mode-shop/15 text-mode-shop-ink', title: 'Home-cooked meals', desc: 'Fresh food from your neighbors' },
+              { icon: <Wrench size={20} />, well: 'bg-mode-services/15 text-mode-services-ink', title: 'Local services', desc: 'Trusted help nearby' },
+              { icon: <Heart size={20} />, well: 'bg-offer/15 text-offer-ink', title: 'Zero commission', desc: 'Sellers keep 100%' },
             ].map((card) => (
               <div
                 key={card.title}
                 className="flex flex-col items-center gap-2 p-3 rounded-2xl bg-card border border-border text-center"
               >
-                <div className={cn('w-10 h-10 rounded-xl flex items-center justify-center', card.bg)}>
+                <div className={cn('w-10 h-10 rounded-xl flex items-center justify-center', card.well)}>
                   {card.icon}
                 </div>
                 <p className="text-[11px] font-bold text-foreground leading-tight">{card.title}</p>
@@ -305,7 +318,7 @@ export function MarketplaceSection() {
 
   return (
     <div className="pb-2">
-      {/* Above-fold: festival hero (when active), then category rail, then products */}
+      {/* Above-fold: festival hero (when active), mode tiles, category rail, then products */}
       <div
         className="pt-1 pb-1"
         style={takeover.active ? { backgroundColor: takeover.bg } : undefined}
@@ -313,6 +326,9 @@ export function MarketplaceSection() {
         {takeover.active && (
           <FestivalHomeHero onExplore={exploreFestival} />
         )}
+        <div className="pt-1 pb-1">
+          <CommerceModeTiles counts={modeCounts} />
+        </div>
         <ParentGroupTabs
           activeCategory={activeCategory}
           onCategoryChange={(cat) => {
@@ -334,8 +350,6 @@ export function MarketplaceSection() {
           inventory={scopedProducts}
         />
       )}
-
-      {!festivalFocused && !activeCategory && <DiscoveryChipRail intents={discoveryIntents} />}
 
       {isFacetFilterActive && !festivalFocused && (
         <div className="px-4 py-2">
@@ -388,6 +402,22 @@ export function MarketplaceSection() {
         </div>
       )}
 
+      {!activeCategory && !festivalFocused && !loadingLocal && popularNearYou.length > 0 && (
+        <div data-testid="home-popular-rail">
+          <SectionDivider />
+          <GroupedSellerRow
+            title={browsingLocation?.label ? `${ml.label('label_discovery_popular')} · ${browsingLocation.label}` : ml.label('label_discovery_popular')}
+            icon={<Flame size={15} className="text-destructive" />}
+            products={popularNearYou}
+            onProductTap={handleProductTap}
+            categoryConfigs={categoryConfigs}
+            seeAllLink="/discovery/popular"
+          />
+        </div>
+      )}
+
+      {!festivalFocused && !activeCategory && <DiscoveryChipRail intents={discoveryIntents} />}
+
       {(!activeCategory || festivalFocused) && festivals.length > 0 && (
         <div id="festival-home-destination" className="scroll-mt-28">
           {festivals.map((f) => (
@@ -419,22 +449,7 @@ export function MarketplaceSection() {
         </div>
       ))}
 
-      {/* Above-fold products - shop-first density after categories */}
-      {!activeCategory && !festivalFocused && !loadingLocal && popularNearYou.length > 0 && (
-        <>
-          <SectionDivider />
-          <GroupedSellerRow
-            title={browsingLocation?.label ? `${ml.label('label_discovery_popular')} · ${browsingLocation.label}` : ml.label('label_discovery_popular')}
-            icon={<Flame size={15} className="text-destructive" />}
-            products={popularNearYou}
-            onProductTap={handleProductTap}
-            categoryConfigs={categoryConfigs}
-            seeAllLink="/discovery/popular"
-          />
-        </>
-      )}
-
-      {/* Promos + buy-again + stores. Popular near you is the one product rail. */}
+      {/* Promos sit under the category grids so the product rail stays above the fold. */}
       {!festivalFocused && (
         <LazySection>
           <FeaturedBanners />

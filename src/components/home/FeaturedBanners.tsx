@@ -143,7 +143,7 @@ export function FeaturedBanners() {
   if (isLoading) {
     return (
       <div className="px-4 my-4">
-        <Skeleton className="w-full aspect-[2.5/1] rounded-2xl" />
+        <Skeleton className="w-full aspect-[2.4/1] rounded-2xl" />
       </div>
     );
   }
@@ -174,7 +174,7 @@ export function FeaturedBanners() {
                   }
                 }}
                 className={cn(
-                  'shrink-0 w-[85vw] sm:w-[400px] rounded-3xl overflow-hidden snap-center',
+                  'shrink-0 w-[85vw] sm:w-[400px] aspect-[2.4/1] rounded-3xl overflow-hidden snap-center',
                   'border border-border/20 dark:border-transparent',
                   'banner-depth',
                   'transition-all duration-200 active:scale-[0.99]',
@@ -220,9 +220,9 @@ const BannerContent = forwardRef<HTMLDivElement, { banner: any }>(
 
     if (template === 'image_only') {
       return image_url ? (
-        <img ref={ref as any} src={optimizedImageUrl(image_url, { width: 600, quality: 80 })} alt={title || 'Featured'} className="w-full h-36 object-cover" loading="lazy" decoding="async" onError={handleImageError} />
+        <img ref={ref as any} src={optimizedImageUrl(image_url, { width: 600, quality: 80 })} alt={title || 'Featured'} className="w-full h-full object-cover" loading="lazy" decoding="async" onError={handleImageError} />
       ) : (
-        <div ref={ref} className="w-full h-36 flex items-center justify-center p-6 bg-primary">
+        <div ref={ref} className="w-full h-full flex items-center justify-center p-6 bg-primary">
           <h3 className="text-lg font-bold text-primary-foreground text-center">{title || 'Featured'}</h3>
         </div>
       );
@@ -230,7 +230,7 @@ const BannerContent = forwardRef<HTMLDivElement, { banner: any }>(
 
     if (template === 'text_overlay') {
       return (
-        <div ref={ref} className="relative w-full h-36">
+        <div ref={ref} className="relative w-full h-full">
           {image_url ? (
              <img src={optimizedImageUrl(image_url, { width: 600, quality: 80 })} alt="" className="w-full h-full object-cover" loading="lazy" decoding="async" onError={handleImageError} />
           ) : (
@@ -251,7 +251,7 @@ const BannerContent = forwardRef<HTMLDivElement, { banner: any }>(
 
     if (template === 'split_left') {
       return (
-        <div ref={ref} className="flex h-36" style={{ backgroundColor: bg_color }}>
+        <div ref={ref} className="flex h-full" style={{ backgroundColor: bg_color }}>
           <div className="flex-1 flex flex-col justify-center p-3">
             <h3 className="text-white font-bold text-sm leading-tight">{title}</h3>
             {subtitle && <p className="text-white/80 text-[10px] mt-1">{subtitle}</p>}
@@ -274,7 +274,7 @@ const BannerContent = forwardRef<HTMLDivElement, { banner: any }>(
       return (
         <div
           ref={ref}
-          className="w-full h-36 flex flex-col items-center justify-center text-center p-3"
+          className="w-full h-full flex flex-col items-center justify-center text-center p-3"
           style={{ background: `linear-gradient(135deg, ${bg_color}, ${bg_color}cc)` }}
         >
           <h3 className="text-white font-extrabold text-base">{title}</h3>
@@ -290,7 +290,7 @@ const BannerContent = forwardRef<HTMLDivElement, { banner: any }>(
 
     // minimal_text
     return (
-      <div ref={ref} className="w-full h-36 flex flex-col items-center justify-center p-5 bg-card border-l-4" style={{ borderColor: bg_color }}>
+      <div ref={ref} className="w-full h-full flex flex-col items-center justify-center p-5 bg-card border-l-4" style={{ borderColor: bg_color }}>
         <h3 className="font-bold text-base text-foreground">{title}</h3>
         {subtitle && <p className="text-xs text-muted-foreground mt-1 text-center">{subtitle}</p>}
         {button_text && (
