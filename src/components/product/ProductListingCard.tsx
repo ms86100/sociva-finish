@@ -89,17 +89,23 @@ function ProductListingCardInner({ product, layout = 'auto', onTap, onNavigate, 
   const handleAdd = (e: React.MouseEvent) => {
     e.stopPropagation();
     e.preventDefault();
+    if (isAdding) return;
     trackAdd();
     if (!isCartAction) {
       if (onTap) onTap(product);
       return;
     }
     impact('medium');
+    setIsAdding(true);
     void (async () => {
-      const ok = await addItem(product as any);
-      if (ok) {
-        setJustAdded(true);
-        setTimeout(() => setJustAdded(false), 600);
+      try {
+        const ok = await addItem(product as any);
+        if (ok) {
+          setJustAdded(true);
+          setTimeout(() => setJustAdded(false), 600);
+        }
+      } finally {
+        setIsAdding(false);
       }
     })();
   };
@@ -193,6 +199,7 @@ function ProductListingCardInner({ product, layout = 'auto', onTap, onNavigate, 
 
   const [imgLoaded, setImgLoaded] = useState(false);
   const [justAdded, setJustAdded] = useState(false);
+  const [isAdding, setIsAdding] = useState(false);
 
   const handleAddWithFeedback = useCallback((e: React.MouseEvent) => {
     handleAdd(e);
@@ -410,9 +417,12 @@ function ProductListingCardInner({ product, layout = 'auto', onTap, onNavigate, 
                 <motion.button
                   whileTap={{ scale: 0.94 }}
                   onClick={handleAddWithFeedback}
+                  disabled={isAdding}
+                  aria-busy={isAdding || undefined}
                   aria-label={isCartAction ? 'Add to cart' : actionConfig.shortLabel}
                   className={cn(
                     'bg-card/95 backdrop-blur-md text-primary font-extrabold text-[10px] px-2.5 py-1.5 rounded-xl',
+                    'disabled:opacity-70',
                     'border-[1.5px] border-primary shadow-sm',
                     'hover:bg-primary hover:text-primary-foreground',
                     'transition-colors uppercase tracking-wide',

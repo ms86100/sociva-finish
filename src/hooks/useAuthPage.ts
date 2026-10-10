@@ -52,6 +52,7 @@ export function useAuthPage() {
   const [selectedSociety, setSelectedSociety] = useState<Society | null>(null);
   const [isLoadingSocieties, setIsLoadingSocieties] = useState(false);
   const [inviteCode, setInviteCode] = useState('');
+  const [inviteError, setInviteError] = useState<string | null>(null);
   const [gpsStatus, setGpsStatus] = useState<'idle' | 'loading' | 'verified' | 'failed' | 'unavailable'>('idle');
   const [gpsDistance, setGpsDistance] = useState<number | null>(null);
 
@@ -591,8 +592,10 @@ export function useAuthPage() {
   const handleSocietyComplete = async () => {
     if (!selectedSociety) { notify.block('Please select your society'); return; }
     if (selectedSociety.invite_code && inviteCode.trim().toLowerCase() !== selectedSociety.invite_code.trim().toLowerCase()) {
+      setInviteError('Invalid invite code for this society');
       toast.error('Invalid invite code for this society'); return;
     }
+    setInviteError(null);
     setIsLoading(true);
     try {
       let finalSocietyId = selectedSociety.id;
@@ -653,6 +656,7 @@ export function useAuthPage() {
     setSelectedPlace(null);
     setAdjustedCoords(null);
     setInviteCode('');
+    setInviteError(null);
     setGpsStatus('idle');
     setGpsDistance(null);
     setSocietySearch('');
@@ -676,7 +680,7 @@ export function useAuthPage() {
     resendCooldown,
     // Society
     societies, societySearch, selectedSociety, isLoadingSocieties,
-    inviteCode, setInviteCode, gpsStatus, gpsDistance,
+    inviteCode, setInviteCode, inviteError, setInviteError, gpsStatus, gpsDistance,
     // Google Maps
     predictions, isSearching, mapsLoaded, selectedPlace,
     // New society

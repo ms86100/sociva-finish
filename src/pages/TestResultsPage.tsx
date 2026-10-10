@@ -321,7 +321,7 @@ export default function TestResultsPage() {
                   <span className="line-clamp-2">{selectedResult.test_name}</span>
                 </SheetTitle>
               </SheetHeader>
-              <ScrollArea className="h-[calc(100vh-100px)] mt-4">
+              <ScrollArea className="h-[calc(100dvh-100px)] mt-4">
                 <div className="space-y-4 pr-4">
                   <DetailRow label="Module" value={selectedResult.module_name} />
                   <DetailRow label="Outcome" value={

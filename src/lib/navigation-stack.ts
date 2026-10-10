@@ -26,7 +26,11 @@ const stack: StackEntry[] = [];
 let absorbNextRecord = false;
 
 type InterceptorKind = 'overlay' | 'page';
-type Interceptor = { kind: InterceptorKind; run: () => boolean };
+type Interceptor = { kind: InterceptorKind; run: () => boolean; systemOnly: boolean };
+export type BackInterceptorOptions = {
+  /** Only hardware/system Back. The on-screen arrow skips it (e.g. keyboard dismiss). */
+  systemOnly?: boolean;
+};
 const interceptors: Interceptor[] = [];
 
 const scrollPositions = new Map<string, number>();
@@ -260,8 +264,12 @@ export function resolveBackFallback(pathname: string): string {
   return '/';
 }
 
-export function registerBackInterceptor(kind: InterceptorKind, run: () => boolean): () => void {
-  const entry = { kind, run };
+export function registerBackInterceptor(
+  kind: InterceptorKind,
+  run: () => boolean,
+  options?: BackInterceptorOptions,
+): () => void {
+  const entry: Interceptor = { kind, run, systemOnly: options?.systemOnly === true };
   interceptors.push(entry);
   return () => {
     const index = interceptors.lastIndexOf(entry);
@@ -269,18 +277,25 @@ export function registerBackInterceptor(kind: InterceptorKind, run: () => boolea
   };
 }
 
-export function runBackInterceptors(kind: InterceptorKind): boolean {
+export function runBackInterceptors(kind: InterceptorKind, source: 'system' | 'in-app' = 'system'): boolean {
   for (let i = interceptors.length - 1; i >= 0; i -= 1) {
     if (interceptors[i].kind !== kind) continue;
+    if (source === 'in-app' && interceptors[i].systemOnly) continue;
     if (interceptors[i].run()) return true;
   }
   return false;
 }
 
-/** Close the top Radix/Vaul dialog or drawer. Returns true when one was open. */
+const OPEN_OVERLAY_SELECTOR = [
+  '[role="dialog"][data-state="open"]',
+  '[role="alertdialog"][data-state="open"]',
+  '[role="listbox"][data-state="open"]',
+].join(', ');
+
+/** Close the top Radix/Vaul dialog, alert dialog, drawer, or select list. Returns true when one was open. */
 export function tryCloseTopOverlay(): boolean {
   if (typeof document === 'undefined') return false;
-  const open = document.querySelectorAll('[role="dialog"][data-state="open"]');
+  const open = document.querySelectorAll(OPEN_OVERLAY_SELECTOR);
   if (open.length === 0) return false;
   document.dispatchEvent(
     new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true, cancelable: true }),
@@ -296,6 +311,14 @@ export function handleSystemBackLayers(): boolean {
   if (runBackInterceptors('overlay')) return true;
   if (tryCloseTopOverlay()) return true;
   if (runBackInterceptors('page')) return true;
+  return false;
+}
+
+/** Same layers for the on-screen back arrow, minus system-only interceptors. */
+export function handleInAppBackLayers(): boolean {
+  if (runBackInterceptors('overlay', 'in-app')) return true;
+  if (tryCloseTopOverlay()) return true;
+  if (runBackInterceptors('page', 'in-app')) return true;
   return false;
 }
 

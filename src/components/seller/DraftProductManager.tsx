@@ -962,7 +962,9 @@ export function DraftProductManager({
                   <Input
                     id="prod-price"
                     type="number"
+                    inputMode="decimal"
                     min={0}
+                    onWheel={(e) => e.currentTarget.blur()}
                     placeholder={requiresPrice ? '150' : '0 = On request'}
                     value={newProduct.price || ''}
                     onChange={(e) => {
@@ -978,7 +980,9 @@ export function DraftProductManager({
                   <Input
                     id="prod-mrp"
                     type="number"
+                    inputMode="decimal"
                     min={0}
+                    onWheel={(e) => e.currentTarget.blur()}
                     placeholder="e.g., 200"
                     value={newProduct.mrp || ''}
                     onChange={(e) => setNewProduct({ ...newProduct, mrp: e.target.value ? Number(e.target.value) : null })}

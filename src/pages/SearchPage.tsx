@@ -73,6 +73,11 @@ function isTypingTarget(target: EventTarget | null) {
   return target instanceof Element && !!target.closest('input, textarea, [contenteditable="true"]');
 }
 
+/** Filter, sort, and chip taps refine the query, so the keyboard stays up. */
+function isKeepKeyboardTarget(target: EventTarget | null) {
+  return target instanceof Element && !!target.closest('[data-keep-keyboard]');
+}
+
 export default function SearchPage() {
   const s = useSearchPage();
   const location = useLocation();
@@ -103,9 +108,21 @@ export default function SearchPage() {
     return () => window.clearTimeout(id);
   }, []);
 
-  useBackInterceptor(inputFocused, () => {
+  // Android Back hides the IME itself but leaves the field focused. Gating on
+  // focus alone made the next Back a silent blur, so leaving took three presses.
+  // The on-screen arrow is an explicit exit, so it skips this keyboard step.
+  useBackInterceptor(inputFocused && keyboard.isKeyboardOpen, () => {
     releaseSearchKeyboard(inputRef.current);
-  });
+  }, 'page', { systemOnly: true });
+
+  const keyboardWasOpenRef = useRef(false);
+  useEffect(() => {
+    const wasOpen = keyboardWasOpenRef.current;
+    keyboardWasOpenRef.current = keyboard.isKeyboardOpen;
+    if (wasOpen && !keyboard.isKeyboardOpen && document.activeElement === inputRef.current) {
+      inputRef.current?.blur();
+    }
+  }, [keyboard.isKeyboardOpen]);
 
   const foodCategorySet = useMemo(
     () => new Set(s.categoryConfigs.filter((c) => isFoodParentGroup(c.parentGroup)).map((c) => c.category)),
@@ -179,7 +196,7 @@ export default function SearchPage() {
           event.preventDefault();
         }}
         onClick={(event) => {
-          if (isTypingTarget(event.target)) return;
+          if (isTypingTarget(event.target) || isKeepKeyboardTarget(event.target)) return;
           releaseSearchKeyboard(inputRef.current);
         }}
       >
@@ -239,7 +256,7 @@ export default function SearchPage() {
             </div>
           </div>
           {/* Filter bar */}
-          <div className="px-4 pb-2">
+          <div className="px-4 pb-2" data-keep-keyboard>
             <div className="taste-rail-scroll">
               <div className="flex items-center gap-2">
                 <SearchFilters
@@ -274,35 +291,37 @@ export default function SearchPage() {
         {s.needsPreciseLocation && <PreciseLocationRequiredCard className="mx-4 mt-3" />}
 
         <div className="px-4">
-          {/* Community search suggestions */}
-          {!s.isSearchActive && (
-            <CommunitySuggestions onSuggestionTap={(term) => s.setQuery(term)} />
-          )}
-
-          {/* Leaf-category filters - identical CategoryPhotoChipRail + buildLeafPhotoChipItems as Home */}
-          <CategoryPhotoChipRail
-            className="mb-3"
-            railClassName="py-1"
-            items={buildLeafPhotoChipItems(
-              s.categoryConfigs,
-              s.popularProducts.map((p) => p.category).filter(Boolean),
+          <div data-keep-keyboard>
+            {/* Community search suggestions */}
+            {!s.isSearchActive && (
+              <CommunitySuggestions onSuggestionTap={(term) => s.setQuery(term)} />
             )}
-            selectedId={s.selectedCategory}
-            onSelect={s.handleCategoryTap}
-            isLoading={s.categoriesLoading || s.isLoadingPopular}
-            allowDeselect
-          />
 
-          {/* Filter presets */}
-          <FilterPresets activePreset={s.activePreset} onPresetSelect={s.handlePresetSelect} includeVeg={hasFoodResults} />
+            {/* Leaf-category filters - identical CategoryPhotoChipRail + buildLeafPhotoChipItems as Home */}
+            <CategoryPhotoChipRail
+              className="mb-3"
+              railClassName="py-1"
+              items={buildLeafPhotoChipItems(
+                s.categoryConfigs,
+                s.popularProducts.map((p) => p.category).filter(Boolean),
+              )}
+              selectedId={s.selectedCategory}
+              onSelect={s.handleCategoryTap}
+              isLoading={s.categoriesLoading || s.isLoadingPopular}
+              allowDeselect
+            />
 
-          {/* Active filter pills */}
-          {s.pills.length > 0 && (
-            <div className="flex items-center gap-1.5 mb-3 overflow-x-auto scrollbar-hide">
-              {s.pills.map((label, i) => <span key={i} className="text-[11px] px-2.5 py-1 rounded-full bg-primary/10 text-primary font-medium whitespace-nowrap">{label}</span>)}
-              <button onClick={s.clearFilters} className="text-[11px] text-muted-foreground underline whitespace-nowrap ml-1">Clear</button>
-            </div>
-          )}
+            {/* Filter presets */}
+            <FilterPresets activePreset={s.activePreset} onPresetSelect={s.handlePresetSelect} includeVeg={hasFoodResults} />
+
+            {/* Active filter pills */}
+            {s.pills.length > 0 && (
+              <div className="flex items-center gap-1.5 mb-3 overflow-x-auto scrollbar-hide">
+                {s.pills.map((label, i) => <span key={i} className="text-[11px] px-2.5 py-1 rounded-full bg-primary/10 text-primary font-medium whitespace-nowrap">{label}</span>)}
+                <button onClick={s.clearFilters} className="text-[11px] text-muted-foreground underline whitespace-nowrap ml-1">Clear</button>
+              </div>
+            )}
+          </div>
 
           {/* Results */}
           {s.showLoading ? (

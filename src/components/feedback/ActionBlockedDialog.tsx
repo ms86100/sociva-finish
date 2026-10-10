@@ -59,7 +59,10 @@ export function ActionBlockedDialog() {
     <AlertDialog
       open={s.open}
       onOpenChange={(open) => {
-        if (!open) acknowledgeNotify();
+        if (open) return;
+        // Escape / Android Back must never confirm a confirmation prompt.
+        if (s.confirmation) closeNotify();
+        else acknowledgeNotify();
       }}
     >
       <AlertDialogContent className="sm:max-w-sm rounded-[1.75rem] border-border/80 shadow-[0_24px_60px_-18px_hsl(var(--foreground)/0.35)] max-h-[calc(100dvh-var(--app-safe-top,0px)-var(--app-safe-bottom,0px)-2rem)]">

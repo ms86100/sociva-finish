@@ -115,7 +115,7 @@ export default function FestivalCollectionPage() {
   }, [user, bannerId, sectionId, categoryConfigs]);
 
   return (
-    <div className="min-h-screen bg-background pb-20">
+    <div className="min-h-[100dvh] bg-background pb-20">
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}

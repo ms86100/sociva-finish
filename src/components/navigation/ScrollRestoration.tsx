@@ -2,11 +2,22 @@
 import { useLayoutEffect } from 'react';
 import { useLocation, useNavigationType } from 'react-router-dom';
 import { readScrollPosition, saveScrollPosition, toNavPath } from '@/lib/navigation-stack';
+import { getScrollRoot } from '@/lib/pull-to-refresh';
 
 /**
- * Restores window scroll when the user comes back to a route.
+ * Restores scroll when the user comes back to a route.
+ * html/body are overflow:hidden, so the page scrolls inside #root, not window.
  * Query-only replaces (search typing) keep the current scroll.
  */
+function readScrollY(): number {
+  return getScrollRoot()?.scrollTop ?? 0;
+}
+
+function scrollToY(y: number) {
+  const root = getScrollRoot();
+  if (root) root.scrollTop = y;
+}
+
 export function ScrollRestoration() {
   const location = useLocation();
   const navType = useNavigationType();
@@ -16,19 +27,19 @@ export function ScrollRestoration() {
   useLayoutEffect(() => {
     if (isBack) {
       const y = readScrollPosition(full);
-      const restore = () => window.scrollTo(0, y);
+      const restore = () => scrollToY(y);
       restore();
       const frame = requestAnimationFrame(restore);
       return () => {
         cancelAnimationFrame(frame);
-        saveScrollPosition(full, window.scrollY);
+        saveScrollPosition(full, readScrollY());
       };
     }
     if (navType === 'PUSH') {
-      window.scrollTo(0, 0);
+      scrollToY(0);
     }
     return () => {
-      saveScrollPosition(full, window.scrollY);
+      saveScrollPosition(full, readScrollY());
     };
   }, [full, isBack, navType]);
 

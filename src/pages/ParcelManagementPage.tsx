@@ -212,7 +212,7 @@ export default function ParcelManagementPage() {
               <DrawerTrigger asChild>
                 <Button size="sm"><Plus size={16} className="mr-1" /> Log</Button>
               </DrawerTrigger>
-              <DrawerContent className="max-h-[80vh] overflow-y-auto">
+              <DrawerContent className="max-h-[80dvh] overflow-y-auto">
                 <DrawerHeader>
                   <DrawerTitle>{canLogParcels ? 'Log Parcel for Resident' : 'Log a Parcel'}</DrawerTitle>
                   <DrawerDescription>{canLogParcels ? 'Enter flat number to identify the resident' : 'Record a delivery for tracking'}</DrawerDescription>

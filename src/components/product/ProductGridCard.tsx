@@ -42,6 +42,7 @@ export function ProductGridCard({ product, behavior, onTap, className, viewOnly 
   const { formatPrice } = useCurrency();
   const [imgLoaded, setImgLoaded] = useState(false);
   const [justAdded, setJustAdded] = useState(false);
+  const [isAdding, setIsAdding] = useState(false);
 
   const { data: categoryConfigs } = useCategoryConfig();
   const catCfg = categoryConfigs?.find(c => c.category === product.category);
@@ -73,13 +74,19 @@ export function ProductGridCard({ product, behavior, onTap, className, viewOnly 
   const handleAdd = (e: React.MouseEvent) => {
     e.stopPropagation();
     e.preventDefault();
+    if (isAdding) return;
     if (!isCartAction) { if (onTap) onTap(product); return; }
     hapticImpact('medium');
+    setIsAdding(true);
     void (async () => {
-      const ok = await addItem(product);
-      if (ok && quantity === 0) {
-        setJustAdded(true);
-        setTimeout(() => setJustAdded(false), 600);
+      try {
+        const ok = await addItem(product);
+        if (ok && quantity === 0) {
+          setJustAdded(true);
+          setTimeout(() => setJustAdded(false), 600);
+        }
+      } finally {
+        setIsAdding(false);
       }
     })();
   };
@@ -217,8 +224,10 @@ export function ProductGridCard({ product, behavior, onTap, className, viewOnly 
             ) : (
               <button
                 onClick={handleAdd}
+                disabled={isAdding}
+                aria-busy={isAdding || undefined}
                 aria-label={isCartAction ? 'Add to cart' : actionConfig.shortLabel}
-                className="bg-card text-primary font-extrabold text-[11px] px-5 py-2 rounded-xl border-[1.5px] border-primary shadow-sm hover:bg-primary hover:text-primary-foreground transition-colors uppercase tracking-wide active:scale-95 min-h-[40px] touch-manipulation"
+                className="bg-card text-primary font-extrabold text-[11px] px-5 py-2 rounded-xl border-[1.5px] border-primary shadow-sm hover:bg-primary hover:text-primary-foreground transition-colors uppercase tracking-wide active:scale-95 min-h-[40px] touch-manipulation disabled:opacity-70"
               >
                 {justAdded ? 'ADDED' : (isCartAction ? 'ADD' : actionConfig.shortLabel)}
               </button>

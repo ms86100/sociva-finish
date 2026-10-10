@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { useEffect, useRef } from 'react';
-import { registerBackInterceptor } from '@/lib/navigation-stack';
+import { registerBackInterceptor, type BackInterceptorOptions } from '@/lib/navigation-stack';
 
 /**
  * Consume Back while this UI is active.
@@ -11,15 +11,17 @@ export function useBackInterceptor(
   enabled: boolean,
   handler: () => void,
   kind: 'overlay' | 'page' = 'page',
+  options?: BackInterceptorOptions,
 ) {
   const handlerRef = useRef(handler);
   handlerRef.current = handler;
+  const systemOnly = options?.systemOnly === true;
 
   useEffect(() => {
     if (!enabled) return undefined;
     return registerBackInterceptor(kind, () => {
       handlerRef.current();
       return true;
-    });
-  }, [enabled, kind]);
+    }, { systemOnly });
+  }, [enabled, kind, systemOnly]);
 }

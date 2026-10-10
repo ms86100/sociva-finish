@@ -28,6 +28,7 @@ import { profileEditOnboardingState } from '@/lib/pending-auth-action';
 import { useBuyerRealtimeShell } from '@/hooks/useBuyerRealtimeShell';
 import { prefetchBuyerRoutes } from '@/lib/route-prefetch';
 import { trackRouteMount } from '@/lib/perf-telemetry';
+import { getScrollRoot } from '@/lib/pull-to-refresh';
 
 export default function HomePage() {
   useBuyerRealtimeShell();
@@ -44,12 +45,15 @@ export default function HomePage() {
     if (!hasRestoredRef.current && profile) {
       const saved = sessionStorage.getItem(scrollKey);
       if (saved) {
-        requestAnimationFrame(() => window.scrollTo(0, parseInt(saved, 10)));
+        requestAnimationFrame(() => {
+          const root = getScrollRoot();
+          if (root) root.scrollTop = parseInt(saved, 10);
+        });
       }
       hasRestoredRef.current = true;
     }
     return () => {
-      sessionStorage.setItem(scrollKey, String(window.scrollY));
+      sessionStorage.setItem(scrollKey, String(getScrollRoot()?.scrollTop ?? 0));
     };
   }, [profile]);
 

@@ -42,7 +42,7 @@ export default function VisitorManagementPage() {
               {v.visitors.length > 0 && <Button size="sm" variant="outline" onClick={v.handleExport} title="Export CSV"><Download size={16} /></Button>}
               <DrawerTrigger asChild><Button size="sm"><UserPlus size={16} className="mr-1" />Add</Button></DrawerTrigger>
             </div>
-            <DrawerContent className="max-h-[85vh] overflow-y-auto">
+            <DrawerContent className="max-h-[85dvh] overflow-y-auto">
               <DrawerHeader><DrawerTitle>Add Visitor</DrawerTitle><DrawerDescription>Pre-approve a visitor with an OTP for gate entry</DrawerDescription></DrawerHeader>
               <div className="space-y-4 py-4">
                 <div><Label>Visitor Name *</Label><Input value={v.visitorName} onChange={e => v.setVisitorName(e.target.value)} placeholder="Enter name" /></div>

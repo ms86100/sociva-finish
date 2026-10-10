@@ -255,7 +255,7 @@ export default function BulletinPage() {
 
       {/* Help Request Detail Sheet */}
       <Drawer open={!!selectedHelp} onOpenChange={(o) => !o && setSelectedHelp(null)}>
-        <DrawerContent className="max-h-[80vh] overflow-y-auto">
+        <DrawerContent className="max-h-[80dvh] overflow-y-auto">
           {selectedHelp && (
             <>
               <DrawerHeader>

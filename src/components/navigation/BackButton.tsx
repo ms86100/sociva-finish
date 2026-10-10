@@ -2,6 +2,7 @@
 import { ArrowLeft } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useSmartBack } from '@/hooks/useSmartBack';
+import { handleInAppBackLayers } from '@/lib/navigation-stack';
 
 type BackButtonProps = {
   fallback?: string;
@@ -13,6 +14,7 @@ type BackButtonProps = {
 
 /**
  * Consistent circular back control used across headers.
+ * Closes the same overlays and wizard steps as hardware Back before leaving.
  */
 export function BackButton({
   fallback,
@@ -26,7 +28,10 @@ export function BackButton({
   return (
     <button
       type="button"
-      onClick={onClick || (() => goBack({ fallback }))}
+      onClick={onClick || (() => {
+        if (handleInAppBackLayers()) return;
+        goBack({ fallback });
+      })}
       aria-label={ariaLabel}
       className={cn(
         'inline-flex items-center justify-center w-11 h-11 rounded-full bg-muted shrink-0',

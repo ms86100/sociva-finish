@@ -33,9 +33,7 @@ export function SellerChatSheet({ open, onOpenChange, buyerId, sellerId, product
   useEffect(() => {
     if (open) {
       getOrCreate();
-      document.body.style.overflow = 'hidden';
     }
-    return () => { document.body.style.overflow = ''; };
   }, [open, getOrCreate]);
 
   // Auto-scroll to bottom on new messages
@@ -143,6 +141,7 @@ export function SellerChatSheet({ open, onOpenChange, buyerId, sellerId, product
           value={text}
           onChange={(e) => handleTextChange(e.target.value)}
           placeholder="Type a message…"
+          enterKeyHint="send"
           rows={1}
           className="flex-1 min-h-[40px] max-h-[120px] resize-none rounded-xl text-base md:text-sm py-2.5"
           onFocus={() => {

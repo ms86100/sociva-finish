@@ -227,13 +227,13 @@ export default function AuthPage() {
                         <div className="space-y-2"><Label>Landmark</Label><Input placeholder="Near park, temple, mall..." value={auth.newSocietyData.landmark} onChange={(e) => auth.setNewSocietyData({ ...auth.newSocietyData, landmark: e.target.value })} className="h-12 rounded-xl" /></div>
                         <div className="grid grid-cols-2 gap-3">
                           <div className="space-y-2"><Label>City *</Label><Input placeholder="City" value={auth.newSocietyData.city} onChange={(e) => auth.setNewSocietyData({ ...auth.newSocietyData, city: e.target.value })} className="h-12 rounded-xl" /></div>
-                          <div className="space-y-2"><Label>Pincode *</Label><Input placeholder="PIN code" value={auth.newSocietyData.pincode} onChange={(e) => auth.setNewSocietyData({ ...auth.newSocietyData, pincode: e.target.value.replace(/\D/g, '').slice(0, 6) })} className="h-12 rounded-xl" /></div>
+                          <div className="space-y-2"><Label>Pincode *</Label><Input placeholder="PIN code" inputMode="numeric" autoComplete="postal-code" value={auth.newSocietyData.pincode} onChange={(e) => auth.setNewSocietyData({ ...auth.newSocietyData, pincode: e.target.value.replace(/\D/g, '').slice(0, 6) })} className="h-12 rounded-xl" /></div>
                         </div>
                         <div className="space-y-2">
                           <Label>Contact Number *</Label>
                           <div className="flex gap-2">
                             <div className="flex items-center px-3 bg-muted rounded-xl border border-input text-sm font-medium h-12">{auth.settings.defaultCountryCode}</div>
-                            <Input placeholder="Your phone number" value={auth.newSocietyData.contact} onChange={(e) => auth.setNewSocietyData({ ...auth.newSocietyData, contact: e.target.value.replace(/\D/g, '').slice(0, 10) })} maxLength={10} className="flex-1 h-12 rounded-xl" />
+                            <Input type="tel" inputMode="numeric" autoComplete="tel-national" placeholder="Your phone number" value={auth.newSocietyData.contact} onChange={(e) => auth.setNewSocietyData({ ...auth.newSocietyData, contact: e.target.value.replace(/\D/g, '').slice(0, 10) })} maxLength={10} className="flex-1 h-12 rounded-xl" />
                           </div>
                         </div>
                         <div className="bg-muted/50 rounded-xl p-3 text-xs text-muted-foreground">Your request will be reviewed by our team. We'll contact you once the society is approved.</div>
@@ -349,7 +349,18 @@ export default function AuthPage() {
                          {auth.selectedSociety?.invite_code && (
                            <div className="space-y-2 pt-1">
                              <Label>Invite Code</Label>
-                             <Input placeholder="Enter society invite code" value={auth.inviteCode} onChange={(e) => auth.setInviteCode(e.target.value)} className="h-12 rounded-xl" />
+                             <Input
+                               placeholder="Enter society invite code"
+                               value={auth.inviteCode}
+                               onChange={(e) => { auth.setInviteCode(e.target.value); auth.setInviteError(null); }}
+                               autoCapitalize="none"
+                               autoCorrect="off"
+                               spellCheck={false}
+                               aria-invalid={!!auth.inviteError}
+                               aria-describedby={auth.inviteError ? 'invite-code-error' : undefined}
+                               className={`h-12 rounded-xl ${auth.inviteError ? 'border-destructive' : ''}`}
+                             />
+                             {auth.inviteError && <p id="invite-code-error" role="alert" className="text-xs text-destructive">{auth.inviteError}</p>}
                            </div>
                          )}
 

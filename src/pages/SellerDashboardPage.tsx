@@ -513,7 +513,7 @@ export default function SellerDashboardPage() {
             />
 
             <Sheet open={healthSheetOpen} onOpenChange={setHealthSheetOpen}>
-              <SheetContent side="bottom" className="max-h-[70vh] overflow-y-auto">
+              <SheetContent side="bottom" className="max-h-[70dvh] overflow-y-auto">
                 <SheetHeader>
                   <SheetTitle>Store Health Checklist</SheetTitle>
                 </SheetHeader>

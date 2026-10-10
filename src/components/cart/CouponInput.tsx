@@ -158,7 +158,20 @@ export function CouponInput({ sellerId, totalAmount, onApply, onRemove, appliedC
       <div className="flex gap-2">
         <div className="relative flex-1">
           <Ticket className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
-          <Input placeholder="Enter coupon code" value={code} onChange={e => { setCode(e.target.value.toUpperCase()); setValidationMessage(''); }} className="pl-9 uppercase" aria-invalid={!!validationMessage} aria-describedby={validationMessage ? 'coupon-validation-message' : undefined} />
+          <Input
+            placeholder="Enter coupon code"
+            value={code}
+            onChange={e => { setCode(e.target.value.toUpperCase()); setValidationMessage(''); }}
+            onKeyDown={e => {
+              if (e.key !== 'Enter') return;
+              e.preventDefault();
+              if (!isValidating && code.trim()) handleApply();
+            }}
+            enterKeyHint="go"
+            autoCapitalize="characters"
+            autoCorrect="off"
+            spellCheck={false}
+            className="pl-9 uppercase" aria-invalid={!!validationMessage} aria-describedby={validationMessage ? 'coupon-validation-message' : undefined} />
         </div>
         <Button variant="outline" onClick={handleApply} disabled={isValidating || !code.trim()}>{isValidating ? 'Checking...' : 'Apply'}</Button>
       </div>

@@ -50,7 +50,6 @@ export function OrderChat({
 
   useEffect(() => {
     if (isOpen && orderId) {
-      document.body.style.overflow = 'hidden';
       // Silence the seller bell + register this chat as active.
       setActiveChat(orderId);
       silenceChatBell(orderId);
@@ -134,7 +133,6 @@ export function OrderChat({
       channelRef.current = channel;
 
       return () => {
-        document.body.style.overflow = '';
         clearActiveChat(orderId);
         setPeerTyping(false);
         setPeerOnline(false);
@@ -143,8 +141,6 @@ export function OrderChat({
         if (peerTypingClearRef.current) clearTimeout(peerTypingClearRef.current);
         supabase.removeChannel(channel);
       };
-    } else {
-      document.body.style.overflow = '';
     }
   }, [isOpen, orderId, user?.id, otherUserId]);
 
@@ -384,6 +380,7 @@ export function OrderChat({
                 <Textarea
                   ref={textareaRef}
                   placeholder="Type a message..."
+                  enterKeyHint="send"
                   value={newMessage}
                   onChange={(e) => handleTextChange(e.target.value)}
                   onKeyDown={(e) => {

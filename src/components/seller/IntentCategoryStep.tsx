@@ -121,7 +121,7 @@ export function IntentCategoryStep({
             onChange={(e) => onPhraseChange(e.target.value)}
             placeholder='e.g. "homemade food", "chess classes", "AC repair"'
             className="h-12 pl-9 rounded-2xl"
-            autoFocus
+            enterKeyHint="search"
           />
         </div>
       </div>

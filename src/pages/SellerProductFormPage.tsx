@@ -27,6 +27,7 @@ import { ServiceFieldsSection } from '@/components/seller/ServiceFieldsSection';
 import { useCurrency } from '@/hooks/useCurrency';
 import { cn } from '@/lib/utils';
 import { sanitizePrepTimeMinutesInput } from '@/lib/prep-time-minutes';
+import { sanitizeDecimalInput } from '@/lib/numeric-input';
 import {
   PREORDERS_TOGGLE_HELP,
   PREORDERS_TOGGLE_LABEL,
@@ -472,11 +473,12 @@ function StepPricing({ sp, currencySymbol }: { sp: ReturnType<typeof useSellerPr
         <div id="edit-prod-price">
           <Label className="text-sm font-semibold">{sp.activeCategoryConfig?.formHints.priceLabel || 'Price'} ({currencySymbol}) *</Label>
           <Input
-            type="number"
+            type="text"
+            inputMode="decimal"
             placeholder="0"
             value={sp.formData.price}
             onChange={(e) => {
-              sp.setFormData({ ...sp.formData, price: e.target.value });
+              sp.setFormData({ ...sp.formData, price: sanitizeDecimalInput(e.target.value) });
               if (sp.fieldErrors.price) sp.setFieldErrors((prev) => { const { price, ...rest } = prev; return rest; });
             }}
             className={`mt-1.5 ${sp.fieldErrors.price ? 'border-destructive' : ''}`}
@@ -486,10 +488,11 @@ function StepPricing({ sp, currencySymbol }: { sp: ReturnType<typeof useSellerPr
         <div>
           <Label className="text-sm font-semibold">MRP ({currencySymbol})</Label>
           <Input
-            type="number"
+            type="text"
+            inputMode="decimal"
             placeholder="Original price"
             value={sp.formData.mrp}
-            onChange={(e) => sp.setFormData({ ...sp.formData, mrp: e.target.value })}
+            onChange={(e) => sp.setFormData({ ...sp.formData, mrp: sanitizeDecimalInput(e.target.value) })}
             className="mt-1.5"
           />
         </div>
@@ -532,6 +535,9 @@ function StepConfig({ sp }: { sp: ReturnType<typeof useSellerProducts> }) {
         <div id="edit-prod-contact_phone">
           <Label className="text-sm font-semibold">Contact Phone *</Label>
           <Input
+            type="tel"
+            inputMode="tel"
+            autoComplete="tel"
             placeholder="e.g., +91 98765 43210"
             value={sp.formData.contact_phone}
             onChange={(e) => {

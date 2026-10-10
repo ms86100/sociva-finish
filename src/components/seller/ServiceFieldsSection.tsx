@@ -5,6 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { Clock, MapPin, Users } from 'lucide-react';
 import { SERVICE_LOCATION_OPTIONS } from '@/lib/service-location';
+import { sanitizeWholeNumberInput } from '@/lib/numeric-input';
 
 export interface ServiceFieldsData {
   service_type: string;
@@ -92,26 +93,26 @@ export function ServiceFieldsSection({ data, onChange, errors = {} }: ServiceFie
       <div className="grid grid-cols-3 gap-3">
         <div className="space-y-1" id="edit-prod-duration_minutes">
           <Label className="text-xs">Duration (min) *</Label>
-          <Input type="number" min="5" value={data.duration_minutes} onChange={(e) => update('duration_minutes', e.target.value)} className={`h-9 text-xs ${errors.duration_minutes ? 'border-destructive' : ''}`} />
+          <Input type="text" inputMode="numeric" value={data.duration_minutes} onChange={(e) => update('duration_minutes', sanitizeWholeNumberInput(e.target.value))} className={`h-9 text-xs ${errors.duration_minutes ? 'border-destructive' : ''}`} />
           {errors.duration_minutes && <p className="text-xs text-destructive">{errors.duration_minutes}</p>}
         </div>
         <div className="space-y-1">
           <Label className="text-xs">Buffer (min)</Label>
-          <Input type="number" min="0" value={data.buffer_minutes} onChange={(e) => update('buffer_minutes', e.target.value)} className="h-9 text-xs" />
+          <Input type="text" inputMode="numeric" value={data.buffer_minutes} onChange={(e) => update('buffer_minutes', sanitizeWholeNumberInput(e.target.value))} className="h-9 text-xs" />
         </div>
         <div className="space-y-1">
           <Label className="text-xs flex items-center gap-1"><Users size={10} />Max/Slot</Label>
-          <Input type="number" min="1" value={data.max_bookings_per_slot} onChange={(e) => update('max_bookings_per_slot', e.target.value)} className="h-9 text-xs" />
+          <Input type="text" inputMode="numeric" value={data.max_bookings_per_slot} onChange={(e) => update('max_bookings_per_slot', sanitizeWholeNumberInput(e.target.value))} className="h-9 text-xs" />
         </div>
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1">
           <Label className="text-xs">Cancel Notice (hrs)</Label>
-          <Input type="number" min="0" value={data.cancellation_notice_hours} onChange={(e) => update('cancellation_notice_hours', e.target.value)} className="h-9 text-xs" />
+          <Input type="text" inputMode="numeric" value={data.cancellation_notice_hours} onChange={(e) => update('cancellation_notice_hours', sanitizeWholeNumberInput(e.target.value))} className="h-9 text-xs" />
         </div>
         <div className="space-y-1">
           <Label className="text-xs">Reschedule Notice (hrs)</Label>
-          <Input type="number" min="0" value={data.rescheduling_notice_hours} onChange={(e) => update('rescheduling_notice_hours', e.target.value)} className="h-9 text-xs" />
+          <Input type="text" inputMode="numeric" value={data.rescheduling_notice_hours} onChange={(e) => update('rescheduling_notice_hours', sanitizeWholeNumberInput(e.target.value))} className="h-9 text-xs" />
         </div>
       </div>
       <div className="space-y-1">

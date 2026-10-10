@@ -114,7 +114,7 @@ export default function SocietyNoticesPage() {
                 <Plus size={16} /> Post Notice
               </Button>
             </DrawerTrigger>
-            <DrawerContent className="max-h-[85vh] overflow-y-auto">
+            <DrawerContent className="max-h-[85dvh] overflow-y-auto">
               <DrawerHeader><DrawerTitle>Post Official Notice</DrawerTitle></DrawerHeader>
               <div className="space-y-4 mt-4">
                 <div>

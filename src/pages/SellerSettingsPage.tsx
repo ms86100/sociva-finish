@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { useState, useEffect, useMemo } from 'react';
 import { SetStoreLocationSheet } from '@/components/seller/SetStoreLocationSheet';
+import { sanitizeDecimalInput } from '@/lib/numeric-input';
 import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -498,7 +499,7 @@ export default function SellerSettingsPage({
                       <Switch checked={formData.minimum_order_amount !== ''} onCheckedChange={(checked) => setFormData({ ...formData, minimum_order_amount: checked ? '100' : '' })} />
                     </div>
                     {formData.minimum_order_amount !== '' && (
-                      <div className="space-y-2 pt-2 border-t"><Label htmlFor="min_order" className="text-xs">Minimum Amount ({currencySymbol})</Label><Input id="min_order" type="number" min="0" placeholder="e.g. 100" value={formData.minimum_order_amount} onChange={(e) => setFormData({ ...formData, minimum_order_amount: e.target.value })} /></div>
+                      <div className="space-y-2 pt-2 border-t"><Label htmlFor="min_order" className="text-xs">Minimum Amount ({currencySymbol})</Label><Input id="min_order" type="text" inputMode="decimal" placeholder="e.g. 100" value={formData.minimum_order_amount} onChange={(e) => setFormData({ ...formData, minimum_order_amount: sanitizeDecimalInput(e.target.value) })} /></div>
                     )}
                   </div>
                 </div>
@@ -509,12 +510,11 @@ export default function SellerSettingsPage({
                     <Label htmlFor="packaging_fee" className="text-xs">Amount ({currencySymbol})</Label>
                     <Input
                       id="packaging_fee"
-                      type="number"
-                      min="0"
-                      step="1"
+                      type="text"
+                      inputMode="decimal"
                       placeholder="e.g. 10"
                       value={formData.packaging_fee}
-                      onChange={(e) => setFormData({ ...formData, packaging_fee: e.target.value })}
+                      onChange={(e) => setFormData({ ...formData, packaging_fee: sanitizeDecimalInput(e.target.value) })}
                     />
                   </div>
                 </div>
@@ -537,7 +537,7 @@ export default function SellerSettingsPage({
                     {formData.home_service_available && (
                       <div className="space-y-2">
                         <Label htmlFor="home_service_fee" className="text-xs">Home service fee ({currencySymbol}, optional)</Label>
-                        <Input id="home_service_fee" type="number" min="0" step="1" placeholder="Leave empty for no extra charge" value={formData.home_service_fee} onChange={(e) => setFormData({ ...formData, home_service_fee: e.target.value })} />
+                        <Input id="home_service_fee" type="text" inputMode="decimal" placeholder="Leave empty for no extra charge" value={formData.home_service_fee} onChange={(e) => setFormData({ ...formData, home_service_fee: sanitizeDecimalInput(e.target.value) })} />
                       </div>
                     )}
                     <RadioGroup value={formData.fulfillment_mode} onValueChange={(value) => setFormData({ ...formData, fulfillment_mode: value })} className="space-y-2">

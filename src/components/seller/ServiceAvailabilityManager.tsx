@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Calendar, Clock, CheckCircle2, Loader2, AlertCircle, Users } from 'lucide-react';
 import { format, addDays } from 'date-fns';
 import { friendlyError } from '@/lib/utils';
+import { sanitizeWholeNumberInput } from '@/lib/numeric-input';
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -191,18 +192,18 @@ export function ServiceAvailabilityManager({ sellerId, onComplete }: ServiceAvai
         <div className="grid grid-cols-3 gap-2">
           <div>
             <Label className="text-[11px] text-muted-foreground">Length (min)</Label>
-            <Input type="number" min={5} max={480} step={5} value={slotMinutes}
-              onChange={(e) => setSlotMinutes(Number(e.target.value))} className="h-8 text-xs" />
+            <Input type="text" inputMode="numeric" value={slotMinutes}
+              onChange={(e) => setSlotMinutes(Number(sanitizeWholeNumberInput(e.target.value)))} className="h-8 text-xs" />
           </div>
           <div>
             <Label className="text-[11px] text-muted-foreground">Buffer (min)</Label>
-            <Input type="number" min={0} max={120} step={5} value={bufferMinutes}
-              onChange={(e) => setBufferMinutes(Number(e.target.value))} className="h-8 text-xs" />
+            <Input type="text" inputMode="numeric" value={bufferMinutes}
+              onChange={(e) => setBufferMinutes(Number(sanitizeWholeNumberInput(e.target.value)))} className="h-8 text-xs" />
           </div>
           <div>
             <Label className="text-[11px] text-muted-foreground flex items-center gap-1"><Users size={10} /> Max/slot</Label>
-            <Input type="number" min={1} max={99} value={maxCapacity}
-              onChange={(e) => setMaxCapacity(Number(e.target.value))} className="h-8 text-xs" />
+            <Input type="text" inputMode="numeric" value={maxCapacity}
+              onChange={(e) => setMaxCapacity(Number(sanitizeWholeNumberInput(e.target.value)))} className="h-8 text-xs" />
           </div>
         </div>
       </div>

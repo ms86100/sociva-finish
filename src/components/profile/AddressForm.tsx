@@ -464,7 +464,7 @@ export function AddressForm({ initial, onSave, onCancel, saving }: AddressFormPr
         </div>
         <div>
           <Label htmlFor="pincode" className="text-xs">Pincode</Label>
-          <Input id="pincode" value={form.pincode} onChange={e => update('pincode', e.target.value)} placeholder="e.g. 400001" className="mt-1" maxLength={6} />
+          <Input id="pincode" inputMode="numeric" autoComplete="postal-code" value={form.pincode} onChange={e => update('pincode', e.target.value)} placeholder="e.g. 400001" className="mt-1" maxLength={6} />
         </div>
       </div>
 

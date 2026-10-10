@@ -41,11 +41,9 @@ export function SellerContactChatSheet({
   useEffect(() => {
     if (open) {
       getOrCreate();
-      document.body.style.overflow = 'hidden';
       if (activeConvId) setActiveConversation(activeConvId);
     }
     return () => {
-      document.body.style.overflow = '';
       if (activeConvId) clearActiveConversation(activeConvId);
     };
   }, [open, getOrCreate, activeConvId]);
@@ -135,6 +133,7 @@ export function SellerContactChatSheet({
           value={text}
           onChange={(e) => handleTextChange(e.target.value)}
           placeholder="Type a reply…"
+          enterKeyHint="send"
           rows={1}
           className="flex-1 min-h-[40px] max-h-[120px] resize-none rounded-xl text-base md:text-sm py-2.5"
           onKeyDown={(e) => {

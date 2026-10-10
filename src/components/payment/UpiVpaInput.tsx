@@ -84,6 +84,10 @@ export function UpiVpaInput({
       <div className="relative">
         <Input
           id="upi_id"
+          inputMode="email"
+          autoCapitalize="none"
+          autoCorrect="off"
+          spellCheck={false}
           value={value}
           onChange={(e) => handleChange(e.target.value)}
           placeholder={placeholder}

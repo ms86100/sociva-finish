@@ -121,7 +121,7 @@ export default function DeliveryPartnerManagementPage() {
               <DrawerTrigger asChild>
                 <Button size="sm"><Plus size={16} className="mr-1" /> Add</Button>
               </DrawerTrigger>
-              <DrawerContent className="max-h-[80vh] overflow-y-auto">
+              <DrawerContent className="max-h-[80dvh] overflow-y-auto">
                 <DrawerHeader>
                   <DrawerTitle>Add Delivery Partner</DrawerTitle>
                 </DrawerHeader>
