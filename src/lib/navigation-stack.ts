@@ -10,7 +10,7 @@
  * whatever screen happened to be open before the link.
  */
 
-export const TAB_ROOT_PATHS = new Set(['/', '/orders', '/cart', '/society', '/profile']);
+export const TAB_ROOT_PATHS = new Set(['/', '/shop', '/book', '/services', '/orders']);
 
 const EXIT_ROOTS = new Set(['/', '/welcome', '/landing']);
 

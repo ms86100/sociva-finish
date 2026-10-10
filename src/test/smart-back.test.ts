@@ -22,14 +22,14 @@ describe('navigation stack', () => {
   });
 
   it('identifies tab roots', () => {
-    expect(isTabRootPath('/profile')).toBe(true);
+    expect(isTabRootPath('/orders')).toBe(true);
     expect(isTabRootPath('/seller')).toBe(false);
   });
 
   it('hides header back on tab roots by default', () => {
-    expect(shouldShowHeaderBack('/profile')).toBe(false);
+    expect(shouldShowHeaderBack('/orders')).toBe(false);
     expect(shouldShowHeaderBack('/seller/wallet')).toBe(true);
-    expect(shouldShowHeaderBack('/profile', true)).toBe(true);
+    expect(shouldShowHeaderBack('/orders', true)).toBe(true);
   });
 
   it('tracks meaningful previous paths', () => {

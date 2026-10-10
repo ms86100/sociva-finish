@@ -176,7 +176,8 @@ describe('guest location discovery wiring (source)', () => {
     expect(app).toMatch(/path="\/cart"/);
     expect(app).not.toMatch(/path="\/cart"[^>]*ProtectedRoute/);
     expect(bottomNav).toMatch(/GUEST_AUTH_ROUTES/);
-    expect(bottomNav).toMatch(/to: '\/cart'/);
+    expect(bottomNav).not.toMatch(/GUEST_AUTH_ROUTES = new Set\(\[[^\]]*'\/cart'/);
+    expect(header).toMatch(/handleRouteNav\('\/cart'\)/);
     expect(header).toMatch(/Available near you/);
     expect(header).toMatch(/Sign in/);
   });

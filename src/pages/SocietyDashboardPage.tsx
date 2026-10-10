@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { SafeHeader } from '@/components/layout/SafeHeader';
+import { BackButton } from '@/components/navigation/BackButton';
 import { Input } from '@/components/ui/input';
 import { SocietyTrustBadge } from '@/components/trust/SocietyTrustBadge';
 import { useAuth } from '@/contexts/AuthContext';
@@ -228,6 +229,7 @@ export default function SocietyDashboardPage() {
       <SafeHeader zIndex="z-40">
         <div className="px-3 pt-2.5 pb-2">
           <div className="flex items-center gap-2 mb-2">
+            <BackButton fallback="/" />
             <h1 className="text-base font-bold text-foreground flex-1 truncate">
               {effectiveSociety?.name || 'Society'}
             </h1>

@@ -40,12 +40,13 @@ describe('commerce-mode UI contracts', () => {
     expect(cartBlock.length).toBeGreaterThan(0);
   });
 
-  it('Society stays reachable from Profile via the same visibility rule as BottomNav', () => {
+  it('Society stays reachable from Profile via the shared visibility rule, not a bottom tab', () => {
     const profile = read('pages/ProfilePage.tsx');
     const nav = read('components/layout/BottomNav.tsx');
     expect(profile).toMatch(/useSocietyEntryVisible\(\)/);
     expect(profile).toMatch(/label: 'My Society', to: '\/society'/);
-    expect(nav).toMatch(/useSocietyEntryVisible\(\)/);
+    expect(read('App.tsx')).toMatch(/path="\/society"/);
+    expect(nav).not.toMatch(/to: '\/society'/);
   });
 
   it('respects the OS reduced-motion preference app-wide', () => {

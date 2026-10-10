@@ -1,13 +1,11 @@
 // @ts-nocheck
 import { memo, useCallback } from 'react';
-import { Home, Building2, ShoppingCart, User, Shield, ClipboardList, Briefcase, ListChecks, PackageSearch } from 'lucide-react';
+import { Home, ShoppingBag, CalendarCheck, Wrench, User, Shield, ClipboardList, Briefcase, ListChecks, PackageSearch } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 import { Capacitor } from '@capacitor/core';
 import { cn } from '@/lib/utils';
 import { hapticSelection } from '@/lib/haptics';
 import { useEffectiveFeatures } from '@/hooks/useEffectiveFeatures';
-import { useCartCount } from '@/hooks/useCartCount';
-import { useSocietyEntryVisible } from '@/hooks/useSocietyEntryVisible';
 import { useAuth } from '@/contexts/AuthContext';
 import { useImmediateNavigate } from '@/hooks/useImmediateNavigate';
 import type { FeatureKey } from '@/hooks/useEffectiveFeatures';
@@ -18,12 +16,13 @@ const IS_NATIVE = Capacitor.isNativePlatform();
 
 const GUEST_AUTH_ROUTES = new Set(['/orders', '/profile']);
 
-const residentNavItems: { to: string; icon: typeof Home; label: string; featureKey?: FeatureKey; badge?: string }[] = [
+/** Cart lives in the header and floating bar; Account behind the header avatar; Society in Profile. */
+const residentNavItems: { to: string; icon: typeof Home; label: string; featureKey?: FeatureKey }[] = [
   { to: '/', icon: Home, label: 'Home' },
+  { to: '/shop', icon: ShoppingBag, label: 'Shop' },
+  { to: '/book', icon: CalendarCheck, label: 'Book' },
+  { to: '/services', icon: Wrench, label: 'Services' },
   { to: '/orders', icon: PackageSearch, label: 'Orders' },
-  { to: '/cart', icon: ShoppingCart, label: 'Cart', badge: 'cart' },
-  { to: '/society', icon: Building2, label: 'Society' },
-  { to: '/profile', icon: User, label: 'Account' },
 ];
 
 const securityNavItems: { to: string; icon: typeof Shield; label: string }[] = [
@@ -42,8 +41,6 @@ function BottomNavInner() {
   const location = useLocation();
   const { isFeatureEnabled } = useEffectiveFeatures();
   const { user, isAdmin, isSocietyAdmin, isBuilderMember, isSecurityOfficer, isWorker } = useAuth();
-  const societyEntryVisible = useSocietyEntryVisible();
-  const itemCount = useCartCount();
   const navigateImmediately = useImmediateNavigate('BottomNav');
 
   const handleNav = useCallback((to: string) => {
@@ -66,7 +63,6 @@ function BottomNavInner() {
       : residentNavItems;
 
   const visibleItems = navItems.filter(item => {
-    if (item.to === '/society' && !societyEntryVisible) return false;
     if ('featureKey' in item && item.featureKey) return isFeatureEnabled((item as any).featureKey);
     return true;
   });
@@ -87,15 +83,15 @@ function BottomNavInner() {
           const displayLabel = !user && to === '/profile' ? 'Sign in' : label;
           const isActive = location.pathname === to ||
             (to !== '/' && location.pathname.startsWith(to));
-          const showCartBadge = to === '/cart' && itemCount > 0 && location.pathname !== '/cart';
 
           return (
             <button
               key={to}
               type="button"
               onClick={() => handleNav(to)}
+              aria-current={isActive ? 'page' : undefined}
               className={cn(
-                'flex flex-col items-center justify-center gap-1 px-3 py-1.5 rounded-2xl min-w-[56px] min-h-[44px] relative active:scale-95 transition-colors duration-150',
+                'flex flex-1 min-w-0 flex-col items-center justify-center gap-1 px-1 py-1.5 rounded-2xl min-h-[44px] relative active:scale-95 transition-colors duration-150',
                 isActive
                   ? 'text-primary'
                   : 'text-muted-foreground hover:text-foreground'
@@ -110,14 +106,9 @@ function BottomNavInner() {
                   strokeWidth={isActive ? 2.4 : 1.7}
                   className="relative z-10"
                 />
-                {showCartBadge && (
-                  <span className="absolute -top-1 -right-1 min-w-[16px] h-[16px] px-0.5 rounded-full bg-primary text-primary-foreground text-[8px] font-bold flex items-center justify-center shadow-sm z-10 ring-2 ring-background">
-                    {itemCount > 9 ? '9+' : itemCount}
-                  </span>
-                )}
               </div>
               <span className={cn(
-                'text-[10px] leading-none tracking-wide',
+                'max-w-full truncate text-[10px] leading-none tracking-wide',
                 isActive ? 'font-bold' : 'font-medium'
               )}>
                 {displayLabel}

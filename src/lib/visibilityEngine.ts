@@ -15,6 +15,7 @@ export const CART_HIDDEN_ROUTES = ['/cart', '/checkout', '/checkouts'] as const;
 /** Shopper browse surfaces only - never seller tools, profile, or account. */
 const CART_BAR_ALLOWED_ROUTES: RegExp[] = [
   /^\/$/,
+  /^\/(shop|book|services)$/,
   /^\/search/,
   /^\/categories$/,
   /^\/category(\/|$)/,

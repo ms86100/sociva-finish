@@ -165,6 +165,7 @@ const TermsPage = lazyWithRetry(() => import("./pages/TermsPage"));
 const CategoryGroupPage = lazyWithRetry(() => import("./pages/CategoryGroupPage"));
 const CategoriesPage = lazyWithRetry(() => import("./pages/CategoriesPage"));
 const DiscoveryListingsPage = lazyWithRetry(() => import("./pages/DiscoveryListingsPage"));
+const CommerceModePage = lazyWithRetry(() => import("./pages/CommerceModePage"));
 const PricingPage = lazyWithRetry(() => import("./pages/PricingPage"));
 const HelpPage = lazyWithRetry(() => import("./pages/HelpPage"));
 const NotificationsPage = lazyWithRetry(() => import("./pages/NotificationsPage"));
@@ -330,7 +331,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-/** Incomplete profile → address onboarding, keeping cart/checkout returnTo when present. */
+/** Incomplete profile â†’ address onboarding, keeping cart/checkout returnTo when present. */
 function SocietyOnboardingRedirect() {
   const { itemCount } = useCart();
   return (
@@ -639,6 +640,9 @@ function AppRoutes() {
           <Route path="/categories" element={<RouteErrorBoundary sectionName="Categories"><CategoriesPage /></RouteErrorBoundary>} />
           <Route path="/category/:category" element={<RouteErrorBoundary sectionName="Category"><CategoryGroupPage /></RouteErrorBoundary>} />
           <Route path="/discovery/:type" element={<RouteErrorBoundary sectionName="Discovery"><DiscoveryListingsPage /></RouteErrorBoundary>} />
+          <Route path="/shop" element={<RouteErrorBoundary key="shop" sectionName="Shop"><CommerceModePage /></RouteErrorBoundary>} />
+          <Route path="/book" element={<RouteErrorBoundary key="book" sectionName="Book"><CommerceModePage /></RouteErrorBoundary>} />
+          <Route path="/services" element={<RouteErrorBoundary key="services" sectionName="Services"><CommerceModePage /></RouteErrorBoundary>} />
           <Route path="/product/:productId" element={<RouteErrorBoundary sectionName="Product"><ProductDeepLinkPage /></RouteErrorBoundary>} />
           <Route path="/festival-collection/:bannerId/:sectionId" element={<RouteErrorBoundary sectionName="Festival Collection"><FestivalCollectionPage /></RouteErrorBoundary>} />
           <Route path="/cart" element={<RouteErrorBoundary sectionName="Cart"><CartPage /></RouteErrorBoundary>} />
