@@ -1970,8 +1970,8 @@ workflows:
 
       - name: Stamp Play versionCode
         script: |
-          export PLAY_VERSION_CODE="${PLAY_VERSION_CODE:-60}"
-          export PLAY_VERSION_NAME="${PLAY_VERSION_NAME:-2.0.60}"
+          export PLAY_VERSION_CODE="${PLAY_VERSION_CODE:-67}"
+          export PLAY_VERSION_NAME="${PLAY_VERSION_NAME:-2.0.67}"
           python3 - <<'PY'
           import os, re
           code = os.environ["PLAY_VERSION_CODE"]
@@ -2893,8 +2893,8 @@ workflows:
 
       - name: Stamp Play versionCode
         script: |
-          export PLAY_VERSION_CODE="${PLAY_VERSION_CODE:-60}"
-          export PLAY_VERSION_NAME="${PLAY_VERSION_NAME:-2.0.60}"
+          export PLAY_VERSION_CODE="${PLAY_VERSION_CODE:-67}"
+          export PLAY_VERSION_NAME="${PLAY_VERSION_NAME:-2.0.67}"
           python3 - <<'PY'
           import os, re
           code = os.environ["PLAY_VERSION_CODE"]

@@ -29,6 +29,7 @@ async function enqueueUnacknowledgedOrderReminders(supabase: any): Promise<{ sca
       seller_profiles!inner(user_id, business_name)
     `)
     .in("status", UNACKED_STATUSES)
+    .gte("status_changed_at", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
     .order("status_changed_at", { ascending: true })
     .limit(100);
 
@@ -181,7 +182,7 @@ Deno.serve(async (req) => {
         .join(", ");
 
       const storeName = (row as any).seller_profiles?.business_name || "your store";
-      const title = "⏰ Update order status";
+      const title = "Update order status";
       const body = itemLine
         ? `Order #${orderRef} (${itemLine}) is still Accepted - tap to mark Preparing or advance.`
         : `Order #${orderRef} is still Accepted - tap to mark Preparing or advance the status.`;

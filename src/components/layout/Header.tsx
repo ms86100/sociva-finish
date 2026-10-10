@@ -205,12 +205,16 @@ function HeaderInner({
                           festivalChrome && 'text-white hover:bg-white/10 hover:text-white'
                         )}
                         onClick={() => handleRouteNav('/notifications/inbox')}
-                        aria-label="Notifications"
+                        aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : 'Notifications'}
+                        data-testid="header-notifications"
                       >
                         <Bell size={18} />
                         {unreadCount > 0 && (
-                          <span className="absolute top-0.5 right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[9px] font-bold text-destructive-foreground">
-                            {unreadCount > 9 ? '9+' : unreadCount}
+                          <span
+                            className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[9px] font-bold leading-none text-destructive-foreground tabular-nums"
+                            data-testid="header-notifications-badge"
+                          >
+                            {unreadCount > 99 ? '99+' : unreadCount}
                           </span>
                         )}
                       </Button>

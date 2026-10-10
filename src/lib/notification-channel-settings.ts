@@ -5,6 +5,7 @@
 import { Capacitor } from '@capacitor/core';
 
 export const ORDERS_INCOMING_CHANNEL_ID = 'orders_incoming_v3';
+export const ORDER_ALERT_NATIVE_CAPABILITY = 'order_alert_native_v1';
 export const ORDERS_INCOMING_SOUND = 'gate_bell';
 export const ANDROID_PACKAGE_ID = 'app.sociva.community';
 

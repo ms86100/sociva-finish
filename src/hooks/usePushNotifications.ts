@@ -18,13 +18,37 @@ import {
   stampDeviceTokenInstallation,
   syncInstallationPermissions,
 } from '@/lib/installation';
-import { ORDERS_INCOMING_CHANNEL_ID, ORDERS_INCOMING_SOUND } from '@/lib/notification-channel-settings';
+import { ORDER_ALERT_NATIVE_CAPABILITY, ORDERS_INCOMING_CHANNEL_ID, ORDERS_INCOMING_SOUND } from '@/lib/notification-channel-settings';
 import { orderBellAlreadyPlayed } from '@/lib/local-order-notifications';
 
 /**
  * BUILD FINGERPRINT - bump on every push-related update.
  */
-export const PUSH_BUILD_ID = '2026-09-23-ANALYTICS-PUSH-ATTRIBUTION';
+export const PUSH_BUILD_ID = '2026-10-10-ORDER-ALERT-VERSION-GATE';
+
+async function stampClientBuild(token: string) {
+  if (!Capacitor.isNativePlatform() || !token) return;
+  let versionCode: number | null = null;
+  let versionName: string | null = null;
+  let capability: string | null = null;
+  try {
+    const { App } = await import('@capacitor/app');
+    const info = await App.getInfo();
+    versionName = info.version || null;
+    const parsed = Number.parseInt(String(info.build), 10);
+    versionCode = Number.isFinite(parsed) ? parsed : null;
+    if (Capacitor.getPlatform() === 'android') capability = ORDER_ALERT_NATIVE_CAPABILITY;
+  } catch (err) {
+    pushLog('warn', 'CLIENT_BUILD_READ_FAILED', { error: String(err) });
+  }
+  const { error } = await supabase.rpc('stamp_device_token_client_build', {
+    p_token: token,
+    p_app_version_code: versionCode,
+    p_app_version_name: versionName,
+    p_alert_capability: capability,
+  });
+  if (error) pushLog('warn', 'CLIENT_BUILD_STAMP_FAILED', { error: error.message });
+}
 
 function pushAnalyticsProps(data: Record<string, string> | undefined, route?: string | null) {
   if (!data) return {};
@@ -160,6 +184,7 @@ export function usePushNotificationsInternal() {
 
       // Analytics join only - delivery still uses device_tokens + claim_device_token
       await stampDeviceTokenInstallation(fcmToken);
+      await stampClientBuild(fcmToken);
       await syncInstallationPermissions({
         notificationPermission: 'enabled',
         pushToken: fcmToken,

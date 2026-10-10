@@ -1,6 +1,12 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { getCredential } from "../_shared/credentials.ts";
+import {
+  androidTokenUsesNativeAlert,
+  LEGACY_ANDROID_ORDER_CHANNEL,
+  loadSellerAlertAndroidGate,
+  NATIVE_ANDROID_ORDER_CHANNEL,
+} from "../_shared/seller-alert-gate.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -246,12 +252,15 @@ async function sendFCMNotification(
   threadId?: string,
   imageUrl?: string,
   highPriority = true,
+  nativeClosedApp = false,
 ): Promise<{ success: boolean; error?: string }> {
   const fcmUrl = `https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`;
 
   const androidSound = highPriority ? "gate_bell" : "default";
-  const androidChannel = highPriority ? "orders_incoming_v3" : "general";
-  const closedAppSellerAlert = isClosedAppSellerAlert(data, highPriority);
+  const androidChannel = nativeClosedApp
+    ? NATIVE_ANDROID_ORDER_CHANNEL
+    : (highPriority ? LEGACY_ANDROID_ORDER_CHANNEL : "general");
+  const closedAppSellerAlert = nativeClosedApp;
   const dataPayload: Record<string, string> = { ...(data || {}) };
   if (closedAppSellerAlert) {
     dataPayload.title = title;
@@ -416,11 +425,24 @@ Deno.serve(async (req) => {
       sound: highPriority ? 'gate_bell' : 'default',
     }));
 
+    const gate = await loadSellerAlertAndroidGate(supabase);
+    let effectiveGate = gate;
+
     // Fetch device tokens for user
-    const { data: tokens, error: tokensError } = await supabase
+    let { data: tokens, error: tokensError } = await supabase
       .from("device_tokens")
-      .select("id, token, platform, apns_token, updated_at")
+      .select("id, token, platform, apns_token, updated_at, alert_capability, app_version_code")
       .eq("user_id", userId);
+
+    if (tokensError) {
+      const fallback = await supabase
+        .from("device_tokens")
+        .select("id, token, platform, apns_token, updated_at")
+        .eq("user_id", userId);
+      tokens = fallback.data;
+      tokensError = fallback.error;
+      effectiveGate = { mode: "legacy", minVersionCode: gate.minVersionCode };
+    }
 
     if (tokensError) {
       throw new Error(`Failed to fetch tokens: ${tokensError.message}`);
@@ -456,6 +478,7 @@ Deno.serve(async (req) => {
       deduped.map(async (tokenRecord: any) => {
         let result: { success: boolean; error?: string };
         const isApnsOnlyToken = tokenRecord.token.startsWith("apns:");
+        const nativeClosedApp = androidTokenUsesNativeAlert(tokenRecord, effectiveGate);
 
         // iOS with stored APNs token → direct APNs delivery (primary path)
         if (tokenRecord.platform === "ios" && tokenRecord.apns_token && apnsConfigured) {
@@ -487,6 +510,7 @@ Deno.serve(async (req) => {
               threadId,
               imageUrl,
               highPriority,
+              nativeClosedApp,
             );
           }
         } else if (isApnsOnlyToken) {
@@ -506,6 +530,7 @@ Deno.serve(async (req) => {
             threadId,
             imageUrl,
             highPriority,
+            nativeClosedApp,
           );
         }
 

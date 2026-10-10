@@ -1,6 +1,6 @@
 -- Seller order alerts must leave a durable row.
 -- A committed order either has a notification_queue row or a notification_failures row.
--- This migration is not applied to production until device tests pass.
+-- Payload format is unchanged by this file. Android data-only is a separate per-token gate.
 
 CREATE TABLE IF NOT EXISTS public.notification_failures (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),

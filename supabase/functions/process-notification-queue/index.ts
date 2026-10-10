@@ -9,6 +9,12 @@ import {
   updateTokenHealth,
 } from "../_shared/notification-ops.ts";
 import { resolveQueueDisplayCopy } from "../_shared/notification-display-copy.ts";
+import {
+  androidTokenUsesNativeAlert,
+  LEGACY_ANDROID_ORDER_CHANNEL,
+  loadSellerAlertAndroidGate,
+  NATIVE_ANDROID_ORDER_CHANNEL,
+} from "../_shared/seller-alert-gate.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -43,14 +49,6 @@ function isSellerOrderAlert(item: { type?: string; payload?: Record<string, unkn
     payload.reminder_type === "unacked_order" ||
     payload.reminder_type === "status_nudge"
   );
-}
-
-function isClosedAppSellerAlert(data: Record<string, string> | undefined, highPriority: boolean): boolean {
-  if (!highPriority || !data) return false;
-  return isSellerOrderAlert({
-    type: data.type,
-    payload: data,
-  });
 }
 
 // ─── APNs Direct Delivery ───
@@ -173,12 +171,15 @@ async function sendFcmDirect(
   accessToken: string, projectId: string, deviceToken: string,
   title: string, body: string, data?: Record<string, string>,
   threadId?: string, imageUrl?: string, highPriority = true,
+  nativeClosedApp = false,
 ): Promise<{ success: boolean; error?: string }> {
-  // New channel id required when sound changes (Android channel settings are immutable).
-  // iOS bundle ships gate_bell.mp3 via Codemagic (ios-config → App resources).
+  // Legacy installs keep notification + data on orders_incoming_v2.
+  // Data-only on orders_incoming_v3 runs only when this token is verified.
   const androidSound = highPriority ? "gate_bell" : "default";
-  const androidChannel = highPriority ? "orders_incoming_v3" : "general";
-  const closedAppSellerAlert = isClosedAppSellerAlert(data, highPriority);
+  const androidChannel = nativeClosedApp
+    ? NATIVE_ANDROID_ORDER_CHANNEL
+    : (highPriority ? LEGACY_ANDROID_ORDER_CHANNEL : "general");
+  const closedAppSellerAlert = nativeClosedApp;
   const dataPayload: Record<string, string> = { ...(data || {}) };
   if (closedAppSellerAlert) {
     dataPayload.title = title;
@@ -208,9 +209,9 @@ async function sendFcmDirect(
   const apnsHeaders: Record<string, string> = { "apns-push-type": "alert", "apns-priority": "10" };
   if (threadId) apnsHeaders["apns-collapse-id"] = threadId.substring(0, 64);
 
-  // Seller order alerts are data-only on Android so a killed process still starts
-  // OrderAlertMessagingService and the OS posts the lock-screen notification.
-  // iOS stays an alert push, which the system shows with the phone locked.
+  // Verified Android installs get a data message so OrderAlertMessagingService
+  // can post the alert when the app is closed. Every other install gets a
+  // normal notification. iOS stays an alert push on both paths.
   const message = closedAppSellerAlert
     ? {
       message: {
@@ -329,13 +330,26 @@ async function deliverPushToUser(
   highPriority = false,
 ): Promise<{ successCount: number; failCount: number }> {
   const startMs = Date.now();
+  const gate = await loadSellerAlertAndroidGate(supabase);
+  let effectiveGate = gate;
 
   // Fetch valid device tokens (prefer healthier / recently successful)
-  const { data: tokens, error: tokensErr } = await supabase
+  let { data: tokens, error: tokensErr } = await supabase
     .from("device_tokens")
-    .select("id, token, platform, apns_token, updated_at, invalid_count, health_score, consecutive_failures, last_success_at")
+    .select("id, token, platform, apns_token, updated_at, invalid_count, health_score, consecutive_failures, last_success_at, alert_capability, app_version_code")
     .eq("user_id", userId)
     .eq("invalid", false);
+
+  if (tokensErr) {
+    const fallback = await supabase
+      .from("device_tokens")
+      .select("id, token, platform, apns_token, updated_at, invalid_count, health_score, consecutive_failures, last_success_at")
+      .eq("user_id", userId)
+      .eq("invalid", false);
+    tokens = fallback.data;
+    tokensErr = fallback.error;
+    effectiveGate = { mode: "legacy", minVersionCode: gate.minVersionCode };
+  }
 
   if (tokensErr || !tokens || tokens.length === 0) {
     pnqLog("push_no_tokens", { notification_id: notificationId, user_id: userId });
@@ -366,6 +380,7 @@ async function deliverPushToUser(
     let result: { success: boolean; error?: string };
     const isApnsOnlyToken = tokenRecord.token.startsWith("apns:");
 
+    const nativeClosedApp = androidTokenUsesNativeAlert(tokenRecord, effectiveGate);
     try {
       // iOS with APNs token → direct APNs (primary), FCM fallback if available
       if (tokenRecord.platform === "ios" && tokenRecord.apns_token && creds.apnsConfigured) {
@@ -377,7 +392,7 @@ async function deliverPushToUser(
         if (!result.success && result.error !== "INVALID_TOKEN" && !isApnsOnlyToken && creds.fcmConfigured) {
           console.log(`[Push] APNs failed for ${notificationId} (${result.error}), falling back to FCM`);
           result = await withTimeout(
-            sendFcmDirect(creds.fcmAccessToken!, creds.serviceAccount!.project_id, tokenRecord.token, title, body, pushData, threadId, imageUrl, highPriority),
+            sendFcmDirect(creds.fcmAccessToken!, creds.serviceAccount!.project_id, tokenRecord.token, title, body, pushData, threadId, imageUrl, highPriority, nativeClosedApp),
             PUSH_TIMEOUT_MS,
           );
         }
@@ -387,7 +402,7 @@ async function deliverPushToUser(
       } else if (creds.fcmConfigured) {
         // Android or iOS without APNs → FCM
         result = await withTimeout(
-          sendFcmDirect(creds.fcmAccessToken!, creds.serviceAccount!.project_id, tokenRecord.token, title, body, pushData, threadId, imageUrl, highPriority),
+          sendFcmDirect(creds.fcmAccessToken!, creds.serviceAccount!.project_id, tokenRecord.token, title, body, pushData, threadId, imageUrl, highPriority, nativeClosedApp),
           PUSH_TIMEOUT_MS,
         );
       } else {
@@ -892,8 +907,6 @@ Deno.serve(async (req) => {
             body: displayCopy.body,
             payload: item.payload || {},
             whatsappPref: userPrefs?.whatsapp !== false,
-            whatsappOptedInAt: userPrefs?.whatsapp_opted_in_at ?? null,
-            promotionsPref: userPrefs?.promotions === true,
             notificationId: item.id,
           });
           if (wa.attempted) {
