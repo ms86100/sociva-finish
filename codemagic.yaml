@@ -17,7 +17,7 @@ workflows:
     instance_type: mac_mini_m2
 
     integrations:
-      app_store_connect: App Store Connect
+      app_store_connect: Sociva Codemagic
 
     environment:
       ios_signing:
@@ -1097,7 +1097,7 @@ workflows:
     instance_type: mac_mini_m2
 
     integrations:
-      app_store_connect: App Store Connect
+      app_store_connect: Sociva Codemagic
 
     environment:
       ios_signing:
