@@ -117,7 +117,7 @@ export function PaymentStatusCard({ orderId, paymentType, totalAmount, orderStat
           </div>
         </div>
         <div className="text-right">
-          <span className={cn("text-xs font-medium", config.color)}>
+          <span className={cn("inline-flex text-[11px] font-semibold px-2 py-0.5 rounded-full bg-secondary", config.color)}>
             {config.label}
           </span>
           {paymentRecord?.transaction_reference && (

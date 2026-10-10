@@ -129,7 +129,7 @@ export function OrderProgressRail({
             >
               <p
                 className={cn(
-                  'text-[9px] leading-tight mt-1 px-0.5',
+                  'text-[11px] leading-tight mt-1.5 px-0.5',
                   isCurrent
                     ? 'font-bold text-foreground'
                     : isComplete
@@ -148,7 +148,7 @@ export function OrderProgressRail({
         <motion.p
           initial={{ opacity: 0, y: 2 }}
           animate={{ opacity: 1, y: 0 }}
-          className="text-[10px] text-muted-foreground text-center"
+          className="text-xs text-muted-foreground text-center"
         >
           {hint}
         </motion.p>

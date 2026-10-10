@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useBlockPullToRefresh } from '@/hooks/usePullToRefresh';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Minus, Plus, Clock, Store, MapPin, Bell, ChevronRight, Trash2, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Minus, Plus, Clock, Store, MapPin, Bell, ChevronRight, Trash2, AlertTriangle, Truck, Package } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { SafeHeader } from '@/components/layout/SafeHeader';
 import { Button } from '@/components/ui/button';
@@ -574,16 +574,17 @@ export default function CartPage() {
         )}
 
         {/* Bill Details */}
-        <div className="mt-5 mx-4 bg-muted rounded-xl p-4">
-          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Bill Details</h3>
+        <div className="mt-5 mx-4 bg-card border border-border/60 rounded-2xl p-4 shadow-card">
+          <h3 className="text-sm font-extrabold tracking-tight mb-3">Bill</h3>
           <div className="space-y-2 text-sm">
-            {c.sellerGroups.map((group) => (<div key={group.sellerId} className="flex justify-between"><span className="text-muted-foreground truncate mr-2">{group.sellerName}</span><span className="font-medium">{c.formatPrice(group.subtotal)}</span></div>))}
-            {c.appliedCoupon && (<div className="flex justify-between text-primary"><span>Coupon ({c.appliedCoupon.code})</span><span>-{c.formatPrice(Math.min(c.effectiveCouponDiscount, c.totalAmount))}</span></div>)}
-            {c.loyalty.redeemEnabled && c.effectiveLoyaltyDiscount > 0 && (<div className="flex justify-between text-primary"><span>Loyalty Points</span><span>-{c.formatPrice(c.effectiveLoyaltyDiscount)}</span></div>)}
-            {c.effectiveWalletCredit > 0 && (<div className="flex justify-between text-emerald-700"><span>Sociva Balance</span><span>-{c.formatPrice(c.effectiveWalletCredit)}</span></div>)}
-            <div className="flex justify-between"><span className="text-muted-foreground">Delivery Fee</span><span className={`font-medium ${c.effectiveDeliveryFee === 0 ? 'text-primary' : ''}`}>{c.fulfillmentType === 'delivery' ? (c.effectiveDeliveryFee === 0 ? 'FREE' : c.formatPrice(c.effectiveDeliveryFee)) : 'Pickup'}</span></div>
-            {c.effectivePackagingFee > 0 && (<div className="flex justify-between"><span className="text-muted-foreground">Packaging</span><span className="font-medium">{c.formatPrice(c.effectivePackagingFee)}</span></div>)}
-            <div className="border-t border-border pt-2 mt-1 flex justify-between font-bold"><span>To Pay</span><span>{c.formatPrice(c.finalAmount)}</span></div>
+            {c.sellerGroups.map((group) => (<div key={group.sellerId} className="flex justify-between"><span className="text-muted-foreground truncate mr-2">{group.sellerName}</span><span className="font-medium tabular-nums">{c.formatPrice(group.subtotal)}</span></div>))}
+            {c.appliedCoupon && (<div className="flex justify-between text-primary"><span>Coupon ({c.appliedCoupon.code})</span><span className="tabular-nums">-{c.formatPrice(Math.min(c.effectiveCouponDiscount, c.totalAmount))}</span></div>)}
+            {c.loyalty.redeemEnabled && c.effectiveLoyaltyDiscount > 0 && (<div className="flex justify-between text-primary"><span>Loyalty Points</span><span className="tabular-nums">-{c.formatPrice(c.effectiveLoyaltyDiscount)}</span></div>)}
+            {c.effectiveWalletCredit > 0 && (<div className="flex justify-between text-emerald-700"><span>Sociva Balance</span><span className="tabular-nums">-{c.formatPrice(c.effectiveWalletCredit)}</span></div>)}
+            <div className="flex justify-between"><span className="text-muted-foreground">Delivery Fee</span><span className={`font-medium tabular-nums ${c.effectiveDeliveryFee === 0 ? 'text-primary' : ''}`}>{c.fulfillmentType === 'delivery' ? (c.effectiveDeliveryFee === 0 ? 'FREE' : c.formatPrice(c.effectiveDeliveryFee)) : 'Pickup'}</span></div>
+            {c.effectivePackagingFee > 0 && (<div className="flex justify-between"><span className="text-muted-foreground">Packaging</span><span className="font-medium tabular-nums">{c.formatPrice(c.effectivePackagingFee)}</span></div>)}
+            <div className="flex justify-between text-xs text-muted-foreground"><span>Payment</span><span>{c.paymentMethod === 'cod' ? 'Cash on delivery' : (c.paymentMode.isRazorpay ? 'Online' : 'UPI')}</span></div>
+            <div className="border-t border-border pt-2 mt-1 flex justify-between font-bold"><span>To pay</span><span className="tabular-nums">{c.formatPrice(c.finalAmount)}</span></div>
           </div>
         </div>
 
@@ -685,12 +686,16 @@ export default function CartPage() {
             <AlertDialogDescription asChild>
               <div className="space-y-3 text-sm">
                 {/* Prominent fulfillment badge */}
-                <div className={`flex items-center gap-2 p-2.5 rounded-lg border-2 ${c.fulfillmentType === 'delivery' ? 'border-primary bg-primary/5' : 'border-accent bg-accent/10'}`}>
-                  <span className="text-lg">{c.fulfillmentType === 'delivery' ? '🚚' : '📦'}</span>
+                <div className={`flex items-center gap-2 p-2.5 rounded-xl border ${c.fulfillmentType === 'delivery' ? 'border-primary bg-primary/5' : 'border-accent bg-accent/10'}`}>
+                  {c.fulfillmentType === 'delivery' ? <Truck size={18} className="text-primary" /> : <Package size={18} className="text-accent" />}
                   <span className="font-semibold text-foreground">{c.fulfillmentType === 'delivery' ? 'Delivery' : 'Pickup'}</span>
                 </div>
                 <div className="flex justify-between"><span className="text-muted-foreground">Items</span><span className="font-medium">{c.itemCount} item{c.itemCount !== 1 ? 's' : ''}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Payment</span><span className="font-medium">{c.paymentMethod === 'cod' ? 'Cash on Delivery' : (c.paymentMode.isRazorpay ? 'Online Payment' : 'UPI')}</span></div>
+                {c.appliedCoupon && (
+                  <div className="flex justify-between text-primary"><span>Coupon ({c.appliedCoupon.code})</span><span className="font-medium tabular-nums">-{c.formatPrice(Math.min(c.effectiveCouponDiscount, c.totalAmount))}</span></div>
+                )}
+                <div className="flex justify-between"><span className="text-muted-foreground">Payment</span><span className="font-medium">{c.paymentMethod === 'cod' ? 'Cash on delivery' : (c.paymentMode.isRazorpay ? 'Online' : 'UPI')}</span></div>
+                <div className="flex justify-between font-bold"><span>To pay</span><span className="tabular-nums">{c.formatPrice(c.finalAmount)}</span></div>
                 {/* #9: Prominent delivery address in confirm dialog */}
                 {c.fulfillmentType === 'self_pickup' ? (
                   <div className="bg-muted rounded-lg p-2.5">

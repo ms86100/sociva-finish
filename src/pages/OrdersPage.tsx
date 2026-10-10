@@ -147,7 +147,7 @@ function OrderCard({
             </div>
 
             <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-              <span className={`inline-flex items-center gap-1 text-[11px] ${dotColor}`}>
+              <span className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-secondary ${dotColor}`}>
                 {isCompleted ? <CheckCircle size={11} /> : <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" />}
                 {contactLabel || statusInfo.label}
               </span>
