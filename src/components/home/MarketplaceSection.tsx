@@ -21,6 +21,8 @@ import { showFeedback } from '@/components/FeedbackPopupProvider';
 import { LazySection } from '@/components/home/LazySection';
 import { ProductListingCard, ProductWithSeller } from '@/components/product/ProductListingCard';
 import { GroupedSellerRow } from '@/components/home/GroupedSellerRow';
+import { IntentProductRail } from '@/components/discovery/IntentProductRail';
+import { useIntentRailModel } from '@/hooks/useIntentRailModel';
 import { ProductCardSkeleton } from '@/components/product/ProductCardSkeleton';
 import { ShoppingBag, Flame, UtensilsCrossed, Wrench, Heart, Users } from 'lucide-react';
 import { useCategoryConfigs } from '@/hooks/useCategoryBehavior';
@@ -38,11 +40,12 @@ import {
   hasActiveCommerceFacets,
   productMatchesCommerceFacets,
   extractAvailableCommerceFacets,
+  omitSoleActionChips,
 } from '@/lib/commerce-facets';
+import { filterByMode } from '@/lib/commerce-mode';
 import { useSellerContext } from '@/contexts/auth/contexts';
 import { pickSellerJourneyStore } from '@/lib/seller-journey';
 import { buildProductDetailPayload, buildRelatedProductDetailPayload } from '@/lib/product-detail-payload';
-import { CommerceModeTiles, countListingsByMode } from '@/components/home/CommerceModeTiles';
 
 function getPublicOrigin() {
   const origin = window.location.origin || '';
@@ -132,6 +135,15 @@ export function MarketplaceSection() {
 
   // Cap discovery payload - 80 products was overkill for first paint
   const { data: localCategories = [], isLoading: loadingLocal } = useProductsByCategory(40);
+  // Home is the cart catalog. Book and enquiry listings stay on their own tabs.
+  const cartCategories = useMemo(() => {
+    return localCategories
+      .map((group) => ({
+        ...group,
+        products: filterByMode(group.products, 'shop', categoryConfigs),
+      }))
+      .filter((group) => group.products.length > 0);
+  }, [localCategories, categoryConfigs]);
   const { data: marketplaceSellers = [] } = useMarketplaceData();
   const { parentGroupInfos } = useParentGroups();
 
@@ -142,13 +154,13 @@ export function MarketplaceSection() {
   /** Parent group derived from selected leaf - used for facets / food scoping only. */
   const activeGroup = activeCategoryConfig?.parentGroup ?? null;
 
-  const allProductsRaw = useMemo(() => localCategories.flatMap(c => c.products), [localCategories]);
+  const allProductsRaw = useMemo(() => cartCategories.flatMap(c => c.products), [cartCategories]);
   const allProductIds = useMemo(() => allProductsRaw.map(p => p.id), [allProductsRaw]);
   const { data: facetRows = {} } = useProductFacets(allProductIds, allProductIds.length > 0);
-  const localCategoriesWithFacets = useMemo(() => localCategories.map((group) => ({
+  const localCategoriesWithFacets = useMemo(() => cartCategories.map((group) => ({
     ...group,
     products: group.products.map((p) => applyProductFacetRow({ ...p, parentGroup: group.parentGroup }, facetRows[p.id])),
-  })), [localCategories, facetRows]);
+  })), [cartCategories, facetRows]);
   const allProducts = useMemo(
     () => localCategoriesWithFacets.flatMap((c) => c.products),
     [localCategoriesWithFacets],
@@ -162,7 +174,7 @@ export function MarketplaceSection() {
   }, [allProducts, activeCategory]);
 
   const dynamicFacetChips = useMemo(
-    () => extractAvailableCommerceFacets(scopedProducts, { parentGroup: activeGroup, currentState: commerceFacets, categoryConfigs }),
+    () => omitSoleActionChips(extractAvailableCommerceFacets(scopedProducts, { parentGroup: activeGroup, currentState: commerceFacets, categoryConfigs })),
     [scopedProducts, activeGroup, commerceFacets, categoryConfigs]
   );
 
@@ -189,26 +201,26 @@ export function MarketplaceSection() {
 
   const discoveryMaxItems = ml.threshold('discovery_max_items');
 
-  const popularNearYou = useMemo(() => {
-    return [...allProducts]
-      .sort((a, b) => ((b as any).completed_order_count || 0) - ((a as any).completed_order_count || 0))
-      .slice(0, discoveryMaxItems || 10);
-  }, [allProducts, discoveryMaxItems]);
+  const intentRails = useIntentRailModel('shop', allProducts, categoryConfigs, discoveryMaxItems || 10);
 
-  const modeCounts = useMemo(() => {
-    const loaded = marketplaceSellers.flatMap((seller) =>
-      Array.isArray(seller.matching_products) ? seller.matching_products : [],
-    );
-    return countListingsByMode(loaded, categoryConfigs);
-  }, [marketplaceSellers, categoryConfigs]);
+  const sellerImages = useMemo(() => {
+    const images = new Map<string, { profileImage: string | null; coverImage: string | null }>();
+    for (const seller of marketplaceSellers) {
+      images.set(seller.seller_id, {
+        profileImage: seller.profile_image_url || null,
+        coverImage: seller.cover_image_url || null,
+      });
+    }
+    return images;
+  }, [marketplaceSellers]);
 
   const activeCategorySet = useMemo(
-    () => new Set(localCategories.map((c) => c.category)),
-    [localCategories],
+    () => new Set(cartCategories.map((c) => c.category)),
+    [cartCategories],
   );
   const activeParentGroupSet = useMemo(
-    () => new Set(localCategories.map((c) => c.parentGroup)),
-    [localCategories],
+    () => new Set(cartCategories.map((c) => c.parentGroup)),
+    [cartCategories],
   );
 
   const activeParentGroups = festivalFocused
@@ -242,12 +254,9 @@ export function MarketplaceSection() {
     setDetailOpen(true);
   }, [categoryConfigs]);
 
-  if (!loadingLocal && localCategories.length === 0) {
+  if (!loadingLocal && cartCategories.length === 0) {
     return (
       <div className="pb-2">
-        <div className="pt-2 pb-1">
-          <CommerceModeTiles counts={modeCounts} />
-        </div>
         {festivals.map((f) => (
           <FestivalBannerModule
             key={f.banner.id}
@@ -318,7 +327,7 @@ export function MarketplaceSection() {
 
   return (
     <div className="pb-2">
-      {/* Above-fold: festival hero (when active), mode tiles, category rail, then products */}
+      {/* Above-fold: festival hero (when active), category rail, then products */}
       <div
         className="pt-1 pb-1"
         style={takeover.active ? { backgroundColor: takeover.bg } : undefined}
@@ -326,9 +335,6 @@ export function MarketplaceSection() {
         {takeover.active && (
           <FestivalHomeHero onExplore={exploreFestival} />
         )}
-        <div className="pt-1 pb-1">
-          <CommerceModeTiles counts={modeCounts} />
-        </div>
         <ParentGroupTabs
           activeCategory={activeCategory}
           onCategoryChange={(cat) => {
@@ -402,18 +408,66 @@ export function MarketplaceSection() {
         </div>
       )}
 
-      {!activeCategory && !festivalFocused && !loadingLocal && popularNearYou.length > 0 && (
+      {!activeCategory && !festivalFocused && !loadingLocal && (
+        <LazySection>
+          <BuyAgainRow />
+        </LazySection>
+      )}
+
+      {!activeCategory && !festivalFocused && !loadingLocal && intentRails.primary && (
         <div data-testid="home-popular-rail">
           <SectionDivider />
           <GroupedSellerRow
-            title={browsingLocation?.label ? `${ml.label('label_discovery_popular')} · ${browsingLocation.label}` : ml.label('label_discovery_popular')}
+            title={intentRails.primary.title}
+            subtitle={browsingLocation?.label || undefined}
             icon={<Flame size={15} className="text-destructive" />}
-            products={popularNearYou}
+            products={intentRails.primary.products}
+            sellerImages={sellerImages}
             onProductTap={handleProductTap}
             categoryConfigs={categoryConfigs}
             seeAllLink="/discovery/popular"
           />
         </div>
+      )}
+
+      {!activeCategory && !festivalFocused && intentRails.foodPopular && (
+        <GroupedSellerRow
+          title={intentRails.foodPopular.title}
+          subtitle={browsingLocation?.label || undefined}
+          products={intentRails.foodPopular.products}
+          sellerImages={sellerImages}
+          onProductTap={handleProductTap}
+          categoryConfigs={categoryConfigs}
+        />
+      )}
+
+      {!activeCategory && !festivalFocused && intentRails.recentlyViewed && (
+        <IntentProductRail
+          title={intentRails.recentlyViewed.title}
+          products={intentRails.recentlyViewed.products}
+          onProductTap={handleProductTap}
+          categoryConfigs={categoryConfigs}
+        />
+      )}
+
+      {!activeCategory && !festivalFocused && ['newlyListed', 'sinceLastVisit', 'moreInCategory', 'favourites'].map((key) => {
+        const rail = intentRails[key];
+        if (!rail) return null;
+        return (
+          <IntentProductRail
+            key={key}
+            title={rail.title}
+            products={rail.products}
+            onProductTap={handleProductTap}
+            categoryConfigs={categoryConfigs}
+          />
+        );
+      })}
+
+      {!festivalFocused && (
+        <LazySection>
+          <FeaturedBanners />
+        </LazySection>
       )}
 
       {!festivalFocused && !activeCategory && <DiscoveryChipRail intents={discoveryIntents} />}
@@ -448,19 +502,6 @@ export function MarketplaceSection() {
           ))}
         </div>
       ))}
-
-      {/* Promos sit under the category grids so the product rail stays above the fold. */}
-      {!festivalFocused && (
-        <LazySection>
-          <FeaturedBanners />
-        </LazySection>
-      )}
-
-      {!activeCategory && !festivalFocused && (
-        <LazySection>
-          <BuyAgainRow />
-        </LazySection>
-      )}
 
       {!festivalFocused && (
         <LazySection>

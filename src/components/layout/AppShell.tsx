@@ -76,7 +76,9 @@ export function AppShell() {
 /**
  * Gate for shell routes.
  * - The installed app may browse without an account (App Store 5.1.1(v)).
- * - The website does not. Product browse on sociva.in opens the marketing page.
+ * - A signed-out website visitor on a browse route opens the marketing page.
+ * - A signed-in website session stays in the app. /landing would send them home,
+ *   and home would send them back, which blanks the page after login.
  * - Authenticated users without society keep today's /profile/edit redirect.
  * - Native never opens the marketing landing site.
  */
@@ -93,13 +95,14 @@ export function AppShellGate() {
     return () => clearTimeout(t);
   }, [isSessionRestored]);
 
-  // Website visitors download the app. The native app keeps guest browse.
-  if (!Capacitor.isNativePlatform() && isGuestBrowsePath(path)) {
-    return <Navigate to="/landing" replace />;
-  }
-
   if (!isSessionRestored && !bootGaveUp) {
     return null;
+  }
+
+  // Only signed-out website visitors. Checking this before the session is known
+  // treats a restoring login as a guest and starts the / to /landing loop.
+  if (!Capacitor.isNativePlatform() && !user && isGuestBrowsePath(path)) {
+    return <Navigate to="/landing" replace />;
   }
 
   const guestOk = isGuestBrowsePath(path);

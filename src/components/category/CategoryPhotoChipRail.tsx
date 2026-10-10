@@ -21,7 +21,7 @@ export const CATEGORY_PHOTO_CHIP_TOKENS = {
   buttonActive: 'bg-primary text-primary-foreground shadow-md scale-[1.03]',
   buttonInactive: 'bg-muted/60 hover:bg-muted active:scale-95',
   photo:
-    'w-9 h-9 rounded-full overflow-hidden flex items-center justify-center border',
+    'w-11 h-11 rounded-full overflow-hidden flex items-center justify-center border',
   photoActive: 'bg-primary-foreground/15 border-primary-foreground/25',
   photoInactive: 'bg-background/40 border-white/20',
   label:

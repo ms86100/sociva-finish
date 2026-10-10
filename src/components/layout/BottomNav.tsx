@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { memo, useCallback } from 'react';
-import { Home, ShoppingBag, CalendarCheck, Wrench, User, Shield, ClipboardList, Briefcase, ListChecks, PackageSearch } from 'lucide-react';
+import { Home, CalendarCheck, Wrench, User, Shield, ClipboardList, Briefcase, ListChecks, PackageSearch } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 import { Capacitor } from '@capacitor/core';
 import { cn } from '@/lib/utils';
@@ -16,13 +16,13 @@ const IS_NATIVE = Capacitor.isNativePlatform();
 
 const GUEST_AUTH_ROUTES = new Set(['/orders', '/profile']);
 
-/** Cart lives in the header and floating bar; Account behind the header avatar; Society in Profile. */
+/** Cart lives in the header and floating bar. Account is a tab. Society stays inside Profile. */
 const residentNavItems: { to: string; icon: typeof Home; label: string; featureKey?: FeatureKey }[] = [
   { to: '/', icon: Home, label: 'Home' },
-  { to: '/shop', icon: ShoppingBag, label: 'Shop' },
   { to: '/book', icon: CalendarCheck, label: 'Book' },
-  { to: '/services', icon: Wrench, label: 'Services' },
+  { to: '/services', icon: Wrench, label: 'Contact' },
   { to: '/orders', icon: PackageSearch, label: 'Orders' },
+  { to: '/profile', icon: User, label: 'Account' },
 ];
 
 const securityNavItems: { to: string; icon: typeof Shield; label: string }[] = [

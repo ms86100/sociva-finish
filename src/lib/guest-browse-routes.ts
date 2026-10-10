@@ -12,6 +12,7 @@ const GUEST_BROWSE_EXACT = new Set([
   '/shop',
   '/book',
   '/services',
+  '/contact',
 ]);
 
 const GUEST_BROWSE_PREFIXES = [

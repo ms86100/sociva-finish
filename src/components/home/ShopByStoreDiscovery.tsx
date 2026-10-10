@@ -12,12 +12,14 @@ import {
 } from '@/hooks/queries/useStoreDiscovery';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { MapPin, ChevronDown, Building2, Phone } from 'lucide-react';
+import { MapPin, ChevronDown, Building2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useState, useMemo } from 'react';
 import { staggerContainer, cardEntrance } from '@/lib/motion-variants';
 import { RichSellerCard } from './RichSellerCard';
-import { isServiceOrContactSeller } from '@/lib/marketplace-constants';
+import { useCategoryConfigs } from '@/hooks/useCategoryBehavior';
+import { useMarketplaceData } from '@/hooks/queries/useMarketplaceData';
+import { filterByMode } from '@/lib/commerce-mode';
 
 /* ── Main Component ── */
 
@@ -28,6 +30,19 @@ export function ShopByStoreDiscovery({ sectionTitle }: { sectionTitle?: string }
   const radiusKm = profile?.search_radius_km ?? 10;
   const { data: localGrouped = {}, isLoading: loadingLocal } = useLocalSellers();
   const { data: nearbyBands = [], isLoading: loadingNearby } = useNearbySocietySellers(radiusKm, browseBeyond);
+  const { configs: categoryConfigs } = useCategoryConfigs();
+  const { data: marketplaceSellers = [] } = useMarketplaceData();
+
+  // Home store row is cart-only. A priced booking is still a booking.
+  const cartShowcase = useMemo(() => {
+    const bySeller = new Map<string, ReturnType<typeof filterByMode>>();
+    for (const seller of marketplaceSellers) {
+      const items = Array.isArray(seller.matching_products) ? seller.matching_products : [];
+      const cart = filterByMode(items, 'shop', categoryConfigs);
+      if (cart.length > 0) bySeller.set(seller.seller_id, cart.slice(0, 3));
+    }
+    return bySeller;
+  }, [marketplaceSellers, categoryConfigs]);
 
   // Collect local seller IDs for deduplication and flat list for single-row presentation
   const localSellersList = useMemo(() => {
@@ -44,15 +59,14 @@ export function ShopByStoreDiscovery({ sectionTitle }: { sectionTitle?: string }
     return list;
   }, [localGrouped]);
 
-  const { shopSellers, contactSellers } = useMemo(() => {
-    const shop: LocalSeller[] = [];
-    const contact: LocalSeller[] = [];
-    for (const s of localSellersList) {
-      if (isServiceOrContactSeller(s.topProducts)) contact.push(s);
-      else shop.push(s);
-    }
-    return { shopSellers: shop, contactSellers: contact };
-  }, [localSellersList]);
+  const shopSellers = useMemo(
+    () => localSellersList.flatMap((seller) => {
+      const cart = cartShowcase.get(seller.id);
+      if (!cart?.length) return [];
+      return [{ ...seller, topProducts: cart }];
+    }),
+    [localSellersList, cartShowcase],
+  );
 
   const localSellerIds = useMemo(() => {
     return new Set(localSellersList.map(s => s.id));
@@ -60,21 +74,25 @@ export function ShopByStoreDiscovery({ sectionTitle }: { sectionTitle?: string }
 
   // Filter nearby bands to remove sellers already shown in local section
   const dedupedBands = useMemo(() => {
-    if (localSellerIds.size === 0) return nearbyBands;
     return nearbyBands.map(band => ({
       ...band,
       societies: band.societies.map(society => {
         const filteredGroups: Record<string, NearbySeller[]> = {};
         for (const [group, sellers] of Object.entries(society.sellersByGroup)) {
-          const filtered = sellers.filter(s => !localSellerIds.has(s.seller_id));
+          const filtered = sellers.flatMap((s) => {
+            if (localSellerIds.has(s.seller_id)) return [];
+            const cart = cartShowcase.get(s.seller_id);
+            if (!cart?.length) return [];
+            return [{ ...s, topProducts: cart }];
+          });
           if (filtered.length > 0) filteredGroups[group] = filtered;
         }
         return { ...society, sellersByGroup: filteredGroups };
       }).filter(society => Object.keys(society.sellersByGroup).length > 0),
     })).filter(band => band.societies.length > 0);
-  }, [nearbyBands, localSellerIds]);
+  }, [nearbyBands, localSellerIds, cartShowcase]);
 
-  const hasLocal = shopSellers.length > 0 || contactSellers.length > 0;
+  const hasLocal = shopSellers.length > 0;
   const hasNearby = dedupedBands.length > 0;
 
   if (!loadingLocal && !loadingNearby && !hasLocal && !hasNearby) return null;
@@ -135,24 +153,6 @@ export function ShopByStoreDiscovery({ sectionTitle }: { sectionTitle?: string }
           ) : (
             renderSellerRow(shopSellers, false)
           )}
-        </section>
-      )}
-
-      {/* ━━━ Contact / enquire / book (non-cart) - same card language, CTA differs ━━━ */}
-      {!loadingLocal && contactSellers.length > 0 && (
-        <section>
-          <div className="flex items-center gap-2 px-4 mb-2.5">
-            <Phone size={16} className="text-primary" />
-            <h3 className="font-bold text-sm text-foreground">
-              Contact & book nearby
-              {localSectionName && (
-                <span className="font-normal text-muted-foreground ml-1">
-                  - {localSectionName}
-                </span>
-              )}
-            </h3>
-          </div>
-          {renderSellerRow(contactSellers, true)}
         </section>
       )}
 

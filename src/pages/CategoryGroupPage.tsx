@@ -29,7 +29,9 @@ import {
   hasActiveCommerceFacets,
   productMatchesCommerceFacets,
   extractAvailableCommerceFacets,
+  omitSoleActionChips,
 } from '@/lib/commerce-facets';
+import { filterByMode } from '@/lib/commerce-mode';
 import {
   readFoodFacetsFromSearchParams,
 } from '@/lib/food-facets';
@@ -89,8 +91,12 @@ export default function CategoryGroupPage() {
   const productIds = useMemo(() => allProducts.map((p) => p.id), [allProducts]);
   const { data: facetRows = {} } = useProductFacets(productIds, productIds.length > 0);
   const productsWithFacets = useMemo(
-    () => allProducts.map((p) => applyProductFacetRow(p, facetRows[p.id])),
-    [allProducts, facetRows],
+    () => filterByMode(
+      allProducts.map((p) => applyProductFacetRow(p, facetRows[p.id])),
+      'shop',
+      categoryConfigs,
+    ),
+    [allProducts, facetRows, categoryConfigs],
   );
 
   const foodFromUrl = readFoodFacetsFromSearchParams(searchParams);
@@ -108,16 +114,16 @@ export default function CategoryGroupPage() {
   }, [productsWithFacets, activeSubCategory]);
 
   const dynamicFacetChips = useMemo(() => {
-    return extractAvailableCommerceFacets(scopedProducts, {
+    return omitSoleActionChips(extractAvailableCommerceFacets(scopedProducts, {
       parentGroup: category,
       currentState: facets,
       categoryConfigs,
-    });
+    }));
   }, [scopedProducts, category, facets, categoryConfigs]);
 
   const activeCategorySet = useMemo(
-    () => new Set(allProducts.map((p) => p.category)),
-    [allProducts]
+    () => new Set(productsWithFacets.map((p) => p.category)),
+    [productsWithFacets]
   );
   const subCategories = useMemo(
     () => allSubCategories.filter((c) => activeCategorySet.has(c.category) || c.category === activeSubCategory),
@@ -141,7 +147,11 @@ export default function CategoryGroupPage() {
     for (const s of marketplaceSellers) {
       const items = s.matching_products;
       if (!Array.isArray(items)) continue;
-      const categoryProducts = items.filter((p: any) => categorySet.has(p.category));
+      const categoryProducts = filterByMode(
+        items.filter((p: any) => categorySet.has(p.category)),
+        'shop',
+        categoryConfigs,
+      );
       if (categoryProducts.length === 0) continue;
       if (!sellerMap.has(s.seller_id)) {
         sellerMap.set(s.seller_id, {
@@ -172,7 +182,7 @@ export default function CategoryGroupPage() {
     return Array.from(sellerMap.values())
       .sort((a, b) => (b.rating || 0) - (a.rating || 0))
       .slice(0, 10);
-  }, [marketplaceSellers, category, queryClient]);
+  }, [marketplaceSellers, category, queryClient, categoryConfigs]);
 
   const displayProducts = useMemo(() => {
     let filtered = scopedProducts;

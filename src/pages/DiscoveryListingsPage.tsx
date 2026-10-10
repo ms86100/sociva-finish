@@ -22,8 +22,10 @@ import {
   emptyCommerceFacetState,
   extractAvailableCommerceFacets,
   hasActiveCommerceFacets,
+  omitSoleActionChips,
   productMatchesCommerceFacets,
 } from '@/lib/commerce-facets';
+import { filterByMode } from '@/lib/commerce-mode';
 
 export default function DiscoveryListingsPage() {
   const { type } = useParams<{ type: string }>();
@@ -38,7 +40,10 @@ export default function DiscoveryListingsPage() {
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [detailOpen, setDetailOpen] = useState(false);
 
-  const allProductsRaw = useMemo(() => localCategories.flatMap(c => c.products), [localCategories]);
+  const allProductsRaw = useMemo(
+    () => filterByMode(localCategories.flatMap(c => c.products), 'shop', categoryConfigs),
+    [localCategories, categoryConfigs],
+  );
   const productIds = useMemo(() => allProductsRaw.map((p) => p.id), [allProductsRaw]);
   const { data: facetRows = {} } = useProductFacets(productIds, productIds.length > 0);
   const allProducts = useMemo(
@@ -101,7 +106,7 @@ export default function DiscoveryListingsPage() {
   );
 
   const dynamicFacetChips = useMemo(
-    () => extractAvailableCommerceFacets(productsForFacets, { parentGroup: dominantGroup, currentState: facets, categoryConfigs }),
+    () => omitSoleActionChips(extractAvailableCommerceFacets(productsForFacets, { parentGroup: dominantGroup, currentState: facets, categoryConfigs })),
     [productsForFacets, dominantGroup, facets, categoryConfigs],
   );
 

@@ -1,12 +1,12 @@
 // @ts-nocheck
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/contexts/AuthContext';
+import { useOptionalAuth } from '@/contexts/AuthContext';
 import { useBrowsingLocation } from '@/contexts/BrowsingLocationContext';
 import { filterDiscoverableProductIds } from '@/lib/sellerDiscoverability';
 
 export function useProductFavorites() {
-  const { user } = useAuth();
+  const user = useOptionalAuth()?.user;
 
   return useQuery({
     queryKey: ['product-favorites', user?.id],
@@ -25,7 +25,7 @@ export function useProductFavorites() {
 }
 
 export function useProductFavoritesList() {
-  const { user } = useAuth();
+  const user = useOptionalAuth()?.user;
   const { browsingLocation } = useBrowsingLocation();
 
   return useQuery({

@@ -160,12 +160,15 @@ describe('guest local cart', () => {
 });
 
 describe('guest location discovery wiring (source)', () => {
-  it('sends website product browse to the marketing landing page', () => {
+  it('sends only a signed-out website visitor to the marketing landing page', () => {
     const shell = read('components/layout/AppShell.tsx');
-    expect(shell).toMatch(/isGuestBrowsePath/);
-    expect(shell).toMatch(/isNativePlatform/);
-    expect(shell).toMatch(/Navigate to="\/landing"/);
-    expect(shell).toMatch(/needsLocationOnboarding/);
+    const gate = shell.slice(shell.indexOf('export function AppShellGate'));
+    const sessionCheck = gate.indexOf('if (!isSessionRestored && !bootGaveUp)');
+    const landing = gate.indexOf('Navigate to="/landing"');
+    expect(sessionCheck).toBeGreaterThan(-1);
+    expect(landing).toBeGreaterThan(sessionCheck);
+    expect(gate).toMatch(/!Capacitor\.isNativePlatform\(\) && !user && isGuestBrowsePath\(path\)/);
+    expect(gate).toMatch(/needsLocationOnboarding/);
   });
 
   it('exposes cart as a public guest route', () => {

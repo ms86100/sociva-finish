@@ -4,6 +4,7 @@ import { optimizedImageUrl, handleImageError } from '@/utils/imageHelpers';
 import { Link } from 'react-router-dom';
 import { useCategoryConfigs } from '@/hooks/useCategoryBehavior';
 import { useProductsByCategory } from '@/hooks/queries/useProductsByCategory';
+import { filterByMode } from '@/lib/commerce-mode';
 import { Skeleton } from '@/components/ui/skeleton';
 import { DynamicIcon } from '@/components/ui/DynamicIcon';
 import { useMarketplaceLabels } from '@/hooks/useMarketplaceLabels';
@@ -46,12 +47,21 @@ function buildCategoryMeta(
 }
 
 function CategoryImageGridInner({ parentGroup, title, activeCategories }: CategoryImageGridProps) {
-  const { groupedConfigs, isLoading } = useCategoryConfigs();
+  const { groupedConfigs, configs: categoryConfigs, isLoading } = useCategoryConfigs();
   const { data: productCategories = [], isLoading: productsLoading } = useProductsByCategory();
   const ml = useMarketplaceLabels();
+  const cartCategories = useMemo(
+    () => productCategories
+      .map((group) => ({
+        ...group,
+        products: filterByMode(group.products, 'shop', categoryConfigs),
+      }))
+      .filter((group) => group.products.length > 0),
+    [productCategories, categoryConfigs],
+  );
 
   const allCategories = groupedConfigs[parentGroup] || [];
-  const metaMap = useMemo(() => buildCategoryMeta(productCategories), [productCategories]);
+  const metaMap = useMemo(() => buildCategoryMeta(cartCategories), [cartCategories]);
 
   const categories = useMemo(() => {
     const filtered = activeCategories

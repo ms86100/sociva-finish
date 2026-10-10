@@ -311,7 +311,8 @@ describe('CommerceModePage guest access', () => {
     const gateStart = app.indexOf('<Route element={<AppShellGate />}>');
     const gateEnd = app.indexOf('</Route>', gateStart);
     const gate = app.slice(gateStart, gateEnd);
-    for (const path of ['/shop', '/book', '/services']) {
+    expect(gate).toMatch(/path="\/shop" element={<Navigate to="\/" replace \/>}/);
+    for (const path of ['/book', '/services']) {
       expect(gate, path).toMatch(new RegExp(`path="${path}" element={<RouteErrorBoundary[^>]*><CommerceModePage />`));
     }
     expect(app).not.toMatch(/path="\/(shop|book|services)"[^\n]*ProtectedRoute/);

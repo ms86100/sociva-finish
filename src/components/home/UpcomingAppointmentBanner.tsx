@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/contexts/AuthContext';
+import { useOptionalAuth } from '@/contexts/AuthContext';
 import { format, differenceInHours } from 'date-fns';
 import { Calendar, Clock, ChevronRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -24,7 +24,7 @@ function timeToMinutes(t: string): number {
 }
 
 export function UpcomingAppointmentBanner() {
-  const { user } = useAuth();
+  const user = useOptionalAuth()?.user;
   const navigate = useNavigate();
   const [booking, setBooking] = useState<UpcomingBooking | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -40,6 +40,7 @@ export function UpcomingAppointmentBanner() {
     let cancelled = false;
 
     (async () => {
+      try {
       // Use IST for date/time comparisons - booking dates are stored as IST dates
       const nowIST = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
       const today = format(nowIST, 'yyyy-MM-dd');
@@ -92,6 +93,9 @@ export function UpcomingAppointmentBanner() {
           product_name: product?.name || 'Service',
           seller_name: sellerName,
         });
+      }
+      } catch {
+        if (!cancelled) setBooking(null);
       }
     })();
     return () => { cancelled = true; };

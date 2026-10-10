@@ -9,26 +9,34 @@ import { staggerContainer, cardEntrance } from '@/lib/motion-variants';
 
 import { displaySellerStoreName, isShelvedSellerStore } from '@/lib/seller-journey';
 import { handleImageError, optimizedImageUrl } from '@/utils/imageHelpers';
+import { useCategoryConfigs } from '@/hooks/useCategoryBehavior';
+import { filterByMode } from '@/lib/commerce-mode';
 
 export function NearbySellersSection() {
   const { profile } = useAuth();
   const { data: sellers } = useMarketplaceData();
+  const { configs: categoryConfigs } = useCategoryConfigs();
   const navigate = useNavigate();
 
   const nearbySellers = useMemo(() => {
     if (!sellers || !profile?.society_id) return [];
 
-    const localSellers = sellers.filter(
+    const cartSellers = sellers.filter((s: any) => {
+      const items = Array.isArray(s.matching_products) ? s.matching_products : [];
+      return filterByMode(items, 'shop', categoryConfigs).length > 0;
+    });
+
+    const localSellers = cartSellers.filter(
       (s: any) => !s.society_name || s.distance_km === 0 || s.distance_km === null
     );
 
     if (localSellers.length >= 5) return [];
 
-    return sellers
+    return cartSellers
       .filter((s: any) => s.distance_km && s.distance_km > 0 && s.is_available && !isShelvedSellerStore(s))
       .sort((a: any, b: any) => (a.distance_km || 999) - (b.distance_km || 999))
       .slice(0, 6);
-  }, [sellers, profile?.society_id]);
+  }, [sellers, profile?.society_id, categoryConfigs]);
 
   if (nearbySellers.length === 0) return null;
 

@@ -8,6 +8,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { useProductsByCategory } from '@/hooks/queries/useProductsByCategory';
+import { useCategoryConfigs } from '@/hooks/useCategoryBehavior';
+import { filterByMode } from '@/lib/commerce-mode';
 
 /**
  * Extract the target sub-category from a banner link_url like
@@ -27,14 +29,15 @@ export function FeaturedBanners() {
   const [activeIndex, setActiveIndex] = useState(0);
 
   const { data: productCategories = [] } = useProductsByCategory();
+  const { configs: categoryConfigs } = useCategoryConfigs();
 
   const categoriesWithProducts = useMemo(() => {
     const set = new Set<string>();
     for (const cat of productCategories) {
-      if (cat.products.length > 0) set.add(cat.category);
+      if (filterByMode(cat.products, 'shop', categoryConfigs).length > 0) set.add(cat.category);
     }
     return set;
-  }, [productCategories]);
+  }, [productCategories, categoryConfigs]);
 
   const { data: rawBanners = [], isLoading } = useQuery({
     queryKey: ['featured-banners', effectiveSocietyId],

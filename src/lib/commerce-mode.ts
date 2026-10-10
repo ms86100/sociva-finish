@@ -3,7 +3,8 @@ import { deriveActionType } from '@/lib/marketplace-constants';
 
 /**
  * Buyer-facing commerce modes. Mirrors action_type_workflow_map.checkout_mode:
- * cart -> shop, booking -> book, inquiry/contact -> services.
+ * cart -> home (the Shop tab is retired; /shop redirects there),
+ * booking -> book, inquiry/contact -> services.
  */
 export type CommerceMode = 'shop' | 'book' | 'services';
 

@@ -56,26 +56,28 @@ beforeEach(() => {
   resetNavigationStackForTests();
 });
 
-describe('resident bottom nav: Home, Shop, Book, Services, Orders', () => {
-  it('renders the five commerce tabs and no Cart, Society or Account tab', () => {
+describe('resident bottom nav: Home, Book, Contact, Orders, Account', () => {
+  it('renders the five tabs and no Cart or Society tab', () => {
     auth.value.user = { id: 'u1' };
     renderNav('/');
-    expect(labels()).toEqual(['Home', 'Shop', 'Book', 'Services', 'Orders']);
+    expect(labels()).toEqual(['Home', 'Book', 'Contact', 'Orders', 'Account']);
   });
 
-  it('shows the same tabs to guests', () => {
+  it('shows guests Sign in in the Account slot', () => {
     renderNav('/');
-    expect(labels()).toEqual(['Home', 'Shop', 'Book', 'Services', 'Orders']);
+    expect(labels()).toEqual(['Home', 'Book', 'Contact', 'Orders', 'Sign in']);
   });
 
-  it('lets guests browse mode tabs without signing in', () => {
+  it('lets guests open Book without signing in', () => {
     renderNav('/');
-    fireEvent.click(screen.getByRole('button', { name: 'Shop' }));
-    expect(navigate).toHaveBeenCalledWith('/shop', { replace: true });
+    fireEvent.click(screen.getByRole('button', { name: 'Book' }));
+    expect(navigate).toHaveBeenCalledWith('/book', { replace: true });
   });
 
-  it('sends guests to sign-in for Orders with a return path', () => {
-    renderNav('/shop');
+  it('sends guests to sign-in for Account and Orders', () => {
+    renderNav('/');
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
+    expect(navigate).toHaveBeenCalledWith('/auth', { state: { from: '/profile', returnTo: '/profile' } });
     fireEvent.click(screen.getByRole('button', { name: 'Orders' }));
     expect(navigate).toHaveBeenCalledWith('/auth', { state: { from: '/orders', returnTo: '/orders' } });
   });
@@ -83,12 +85,12 @@ describe('resident bottom nav: Home, Shop, Book, Services, Orders', () => {
   it('replaces between tabs but pushes from a non-tab page', () => {
     auth.value.user = { id: 'u1' };
     const { unmount } = renderNav('/book');
-    fireEvent.click(screen.getByRole('button', { name: 'Services' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Contact' }));
     expect(navigate).toHaveBeenLastCalledWith('/services', { replace: true });
     unmount();
     renderNav('/cart');
-    fireEvent.click(screen.getByRole('button', { name: 'Shop' }));
-    expect(navigate).toHaveBeenLastCalledWith('/shop', { replace: false });
+    fireEvent.click(screen.getByRole('button', { name: 'Account' }));
+    expect(navigate).toHaveBeenLastCalledWith('/profile', { replace: false });
   });
 
   it('marks only the current tab active', () => {
@@ -113,15 +115,17 @@ describe('role nav variants are unchanged', () => {
 });
 
 describe('back navigation with mode tabs', () => {
-  it('mode tabs are tab roots; Cart, Profile and Society are back-able pages', () => {
-    for (const path of ['/', '/shop', '/book', '/services', '/orders']) {
+  it('mode tabs are tab roots; Cart and Society are back-able pages', () => {
+    for (const path of ['/', '/profile', '/book', '/services', '/orders']) {
       expect(isTabRootPath(path), path).toBe(true);
     }
-    for (const path of ['/cart', '/profile', '/society']) {
+    expect(isTabRootPath('/shop')).toBe(false);
+    for (const path of ['/cart', '/society']) {
       expect(isTabRootPath(path), path).toBe(false);
       expect(shouldShowHeaderBack(path), path).toBe(true);
       expect(resolveBackFallback(path), path).toBe('/');
     }
+    expect(shouldShowHeaderBack('/profile')).toBe(false);
   });
 
   it('Back from a mode tab returns Home, and only Home exits the app', () => {
@@ -134,7 +138,7 @@ describe('back navigation with mode tabs', () => {
 
   it('Back from Cart opened on a mode tab returns to that tab', () => {
     recordNavigationPath('/', 'REPLACE');
-    recordNavigationPath('/shop', 'REPLACE');
+    recordNavigationPath('/book', 'REPLACE');
     recordNavigationPath('/cart', 'PUSH');
     expect(planBackNavigation('/cart')).toEqual({ type: 'history' });
   });
@@ -147,7 +151,7 @@ describe('back navigation with mode tabs', () => {
 
 describe('cart stays single and reachable', () => {
   it('floating cart bar shows on mode tabs and nowhere new', () => {
-    for (const path of ['/shop', '/book', '/services']) {
+    for (const path of ['/', '/book', '/services']) {
       expect(shouldShowFloatingCartBar(path, 1), path).toBe(true);
       expect(shouldShowFloatingCartBar(path, 0), path).toBe(false);
     }

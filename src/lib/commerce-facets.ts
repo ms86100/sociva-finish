@@ -19,6 +19,13 @@ export interface CommerceFacetState {
   subCategory?: string | null;
 }
 
+/** A single action chip is not a choice. Home and category browse hide it. */
+export function omitSoleActionChips<T extends { type: string }>(chips: readonly T[]): T[] {
+  const actionCount = chips.reduce((n, chip) => n + (chip.type === 'action_type' ? 1 : 0), 0);
+  if (actionCount > 1) return [...chips];
+  return chips.filter((chip) => chip.type !== 'action_type');
+}
+
 export function emptyCommerceFacetState(): CommerceFacetState {
   return {
     cuisine: null,

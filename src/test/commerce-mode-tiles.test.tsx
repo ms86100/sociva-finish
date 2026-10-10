@@ -7,6 +7,7 @@ import {
   COMMERCE_MODE_TILES_HEIGHT_PX,
   CommerceModeTiles,
   countListingsByMode,
+  modeCountsAreComplete,
 } from '@/components/home/CommerceModeTiles';
 
 const society = vi.hoisted(() => ({ visible: false }));
@@ -17,10 +18,13 @@ vi.mock('@/hooks/useSocietyEntryVisible', () => ({
 
 const read = (p: string) => readFileSync(resolve(process.cwd(), 'src', p), 'utf8');
 
-function renderTiles(counts = { shop: 12, book: 4, services: 0 }) {
+function renderTiles(
+  counts = { shop: 12, book: 4, services: 0 },
+  complete = { shop: true, book: true, services: true },
+) {
   return render(
     <MemoryRouter>
-      <CommerceModeTiles counts={counts} />
+      <CommerceModeTiles counts={counts} complete={complete} />
     </MemoryRouter>,
   );
 }
@@ -41,6 +45,26 @@ describe('commerce mode tiles', () => {
       { action_type: null, category: 'tuition' },
       { action_type: 'contact_seller', category: 'salon' },
     ], configs)).toEqual({ shop: 2, book: 2, services: 1 });
+  });
+
+  it('hides a mode count when a seller in that mode hit the page cap', () => {
+    const cappedBook = Array.from({ length: 60 }, () => ({ action_type: 'book', category: 'medical_specialist' }));
+    expect(modeCountsAreComplete([
+      { matching_products: cappedBook },
+      { matching_products: [{ action_type: 'add_to_cart', category: 'home_food' }, { action_type: 'contact_seller', category: 'salon' }] },
+    ])).toEqual({ shop: true, book: false, services: true });
+    expect(modeCountsAreComplete([
+      { matching_products: [{ action_type: 'book', category: 'medical_specialist' }] },
+    ]).book).toBe(true);
+  });
+
+  it('does not render an incomplete count as if it were the mode total', () => {
+    renderTiles({ shop: 123, book: 84, services: 20 }, { shop: true, book: false, services: true });
+    expect(screen.getByTestId('commerce-mode-tile-count-shop')).toHaveTextContent('123');
+    expect(screen.getByTestId('commerce-mode-tile-count-services')).toHaveTextContent('20');
+    expect(screen.queryByTestId('commerce-mode-tile-count-book')).toBeNull();
+    expect(screen.getByTestId('commerce-mode-tile-shop').className).toMatch(/bg-card/);
+    expect(screen.getByTestId('commerce-mode-tile-book').className).not.toMatch(/bg-mode-book(?!-)/);
   });
 
   it('keeps the bento short enough to leave room for a product row', () => {
@@ -66,13 +90,13 @@ describe('commerce mode tiles', () => {
     expect(screen.queryByTestId('commerce-mode-tile-count-shop')).toBeNull();
   });
 
-  it('places tiles, then the product rail, then category grids, then banners', () => {
+  it('keeps mode tiles off Home and limits Home to add-to-cart listings', () => {
     const home = read('components/home/MarketplaceSection.tsx');
     const populated = home.slice(home.lastIndexOf('return ('));
-    expect(populated.indexOf('<CommerceModeTiles')).toBeGreaterThan(-1);
-    expect(populated.indexOf('<CommerceModeTiles')).toBeLessThan(populated.indexOf('<ParentGroupTabs'));
-    expect(populated.indexOf('home-popular-rail')).toBeLessThan(populated.indexOf('<CategoryImageGrid'));
-    expect(populated.indexOf('<CategoryImageGrid')).toBeLessThan(populated.indexOf('<FeaturedBanners'));
+    expect(home).not.toMatch(/CommerceModeTiles/);
+    expect(home).toMatch(/filterByMode\(group\.products, 'shop', categoryConfigs\)/);
+    expect(populated.indexOf('home-popular-rail')).toBeLessThan(populated.indexOf('<FeaturedBanners'));
+    expect(populated.indexOf('<FeaturedBanners')).toBeLessThan(populated.indexOf('<CategoryImageGrid'));
     expect(home).toMatch(/label_empty_marketplace_title/);
     expect(home).toMatch(/Home-cooked meals/);
     expect(home).toMatch(/bg-mode-shop\/15/);

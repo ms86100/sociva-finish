@@ -22,6 +22,11 @@ import {
 } from '@/lib/commerce-facets';
 import { buildProductDetailPayload, buildRelatedProductDetailPayload } from '@/lib/product-detail-payload';
 import { cn } from '@/lib/utils';
+import { IntentProductRail } from '@/components/discovery/IntentProductRail';
+import { YourConversationsRow } from '@/components/discovery/YourConversationsRow';
+import { UpcomingAppointmentBanner } from '@/components/home/UpcomingAppointmentBanner';
+import { GroupedSellerRow } from '@/components/home/GroupedSellerRow';
+import { useIntentRailModel } from '@/hooks/useIntentRailModel';
 
 const ProductDetailSheet = lazy(() =>
   import('@/components/product/ProductDetailSheet').then((m) => ({ default: m.ProductDetailSheet })),
@@ -40,16 +45,16 @@ export const COMMERCE_MODE_COPY: Record<CommerceMode, {
     emptyHint: 'Sellers near you have not listed items for delivery or pickup yet.',
   },
   book: {
-    title: 'Book',
-    subtitle: 'Reserve a slot with providers near you',
+    title: 'Book a service',
+    subtitle: 'Reserve a time with someone nearby',
     empty: 'Nothing to book nearby yet',
     emptyHint: 'No classes, sessions or appointments are open for booking near you yet.',
   },
   services: {
-    title: 'Services',
-    subtitle: 'Request a quote or contact pros near you',
-    empty: 'No services nearby yet',
-    emptyHint: 'No local professionals are taking enquiries near you yet.',
+    title: 'Contact a seller',
+    subtitle: 'Ask a question or request a quote',
+    empty: 'No one nearby is taking enquiries yet',
+    emptyHint: 'Sellers near you have not listed anything to enquire about yet.',
   },
 };
 
@@ -61,7 +66,7 @@ const MODE_ACCENT: Record<CommerceMode, { chip: string; icon: typeof ShoppingBag
 
 export function commerceModeFromPath(pathname: string): CommerceMode {
   if (pathname.startsWith('/book')) return 'book';
-  if (pathname.startsWith('/services')) return 'services';
+  if (pathname.startsWith('/services') || pathname.startsWith('/contact')) return 'services';
   return 'shop';
 }
 
@@ -118,6 +123,7 @@ function CommerceModeView({ mode }: { mode: CommerceMode }) {
       : scoped),
     [scoped, facets, categoryConfigs],
   );
+  const intentRails = useIntentRailModel(mode, enriched, categoryConfigs);
 
   const handleProductTap = useCallback((product: ProductWithSeller) => {
     setSelectedProduct(buildProductDetailPayload(product, categoryConfigs));
@@ -174,6 +180,38 @@ function CommerceModeView({ mode }: { mode: CommerceMode }) {
               </>
             )}
 
+            {mode === 'book' && <div className="px-4"><UpcomingAppointmentBanner /></div>}
+            {mode === 'services' && !activeCategory && (
+              <YourConversationsRow
+                sellerNames={new Map(enriched.filter((p) => p.seller_id && p.seller_name).map((p) => [p.seller_id, p.seller_name as string]))}
+              />
+            )}
+            {!activeCategory && (mode === 'book' || mode === 'services') && intentRails.primary && (
+              <GroupedSellerRow
+                title={intentRails.primary.title}
+                subtitle={browsingLocation?.label || undefined}
+                icon={mode === 'book'
+                  ? <CalendarCheck size={15} className="text-primary" />
+                  : <Wrench size={15} className="text-primary" />}
+                products={intentRails.primary.products}
+                onProductTap={handleProductTap}
+                categoryConfigs={categoryConfigs}
+              />
+            )}
+            {!activeCategory && ['recentlyViewed', 'newlyListed', 'sinceLastVisit', 'moreInCategory', 'favourites'].map((key) => {
+              const rail = intentRails[key];
+              if (!rail) return null;
+              return (
+                <IntentProductRail
+                  key={key}
+                  title={rail.title}
+                  products={rail.products}
+                  onProductTap={handleProductTap}
+                  categoryConfigs={categoryConfigs}
+                />
+              );
+            })}
+
             {topUpError && (
               <div
                 role="alert"
@@ -192,6 +230,11 @@ function CommerceModeView({ mode }: { mode: CommerceMode }) {
             )}
 
             <div className="px-3 sm:px-4 pt-2">
+              {!isLoading && visible.length > 0 && mode !== 'shop' && (
+                <h2 className="px-1 pb-2 font-extrabold text-[15px] tracking-tight text-foreground">
+                  {mode === 'book' ? 'Available to book' : 'Listings you can enquire about'}
+                </h2>
+              )}
               {isLoading ? (
                 <div data-testid="commerce-mode-loading">
                   <ProductCardSkeleton count={9} />

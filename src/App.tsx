@@ -640,7 +640,8 @@ function AppRoutes() {
           <Route path="/categories" element={<RouteErrorBoundary sectionName="Categories"><CategoriesPage /></RouteErrorBoundary>} />
           <Route path="/category/:category" element={<RouteErrorBoundary sectionName="Category"><CategoryGroupPage /></RouteErrorBoundary>} />
           <Route path="/discovery/:type" element={<RouteErrorBoundary sectionName="Discovery"><DiscoveryListingsPage /></RouteErrorBoundary>} />
-          <Route path="/shop" element={<RouteErrorBoundary key="shop" sectionName="Shop"><CommerceModePage /></RouteErrorBoundary>} />
+          <Route path="/shop" element={<Navigate to="/" replace />} />
+          <Route path="/contact" element={<Navigate to="/services" replace />} />
           <Route path="/book" element={<RouteErrorBoundary key="book" sectionName="Book"><CommerceModePage /></RouteErrorBoundary>} />
           <Route path="/services" element={<RouteErrorBoundary key="services" sectionName="Services"><CommerceModePage /></RouteErrorBoundary>} />
           <Route path="/product/:productId" element={<RouteErrorBoundary sectionName="Product"><ProductDeepLinkPage /></RouteErrorBoundary>} />

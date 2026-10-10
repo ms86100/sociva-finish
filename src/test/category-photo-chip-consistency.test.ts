@@ -103,7 +103,7 @@ describe('category photo chip consistency', () => {
       CATEGORY_PHOTO_CHIP_TOKENS.label,
       CATEGORY_PHOTO_CHIP_TOKENS.buttonActive,
       CATEGORY_PHOTO_CHIP_TOKENS.buttonInactive,
-      'w-9 h-9',
+      'w-11 h-11',
       'rounded-2xl',
       'text-[10px]',
       'line-clamp-2',

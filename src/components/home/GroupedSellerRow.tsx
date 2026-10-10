@@ -16,6 +16,8 @@ interface GroupedSellerRowProps {
   onProductTap?: (p: ProductWithSeller) => void;
   categoryConfigs?: any[];
   seeAllLink?: string;
+  subtitle?: string;
+  sellerImages?: ReadonlyMap<string, { profileImage: string | null; coverImage: string | null }>;
   /** Maximum sellers to render in the row */
   maxSellers?: number;
   /** Maximum top products per seller card */
@@ -44,6 +46,8 @@ export function GroupedSellerRow({
   onProductTap,
   categoryConfigs = [],
   seeAllLink,
+  subtitle,
+  sellerImages,
   maxSellers = 12,
   maxProductsPerSeller = 2,
   tone = 'default',
@@ -88,6 +92,7 @@ export function GroupedSellerRow({
           is_veg: p.is_veg ?? null,
           mrp: (p as any).mrp ?? null,
           discount_percentage: (p as any).discount_percentage ?? null,
+          action_type: p.action_type ?? null,
         });
       }
       g.productMap.set(p.id, p);
@@ -104,16 +109,28 @@ export function GroupedSellerRow({
   const finalSeeAllLink = seeAllLink || fallbackLink;
 
   const festival = tone === 'festival';
+  const storeCount = groups.length;
+  const span = storeCount === 1 ? 'fill' : storeCount === 2 ? 'pair' : 'grid';
+  const rowClass = storeCount >= 3
+    ? 'grid grid-cols-3 gap-2 px-4 pb-2 items-stretch'
+    : storeCount === 2
+      ? 'grid grid-cols-2 gap-2.5 px-4 pb-2 items-stretch'
+      : 'px-4 pb-2';
 
   return (
     <div>
       <div className="flex items-center justify-between px-4 mb-3">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 min-w-0">
           {icon}
-          <h3 className={cn(
-            'font-extrabold text-lg tracking-tight',
-            festival ? 'text-white' : 'text-foreground'
-          )}>{title}</h3>
+          <div className="min-w-0">
+            <h3 className={cn(
+              'font-extrabold text-lg tracking-tight truncate',
+              festival ? 'text-white' : 'text-foreground'
+            )}>{title}</h3>
+            {subtitle && !festival && (
+              <p className="text-xs text-muted-foreground truncate">{subtitle}</p>
+            )}
+          </div>
         </div>
         {finalSeeAllLink && (
           <Link
@@ -129,7 +146,7 @@ export function GroupedSellerRow({
         )}
       </div>
       <motion.div
-        className="flex gap-2.5 overflow-x-auto scrollbar-hide px-4 pb-2 snap-x items-stretch"
+        className={rowClass}
         initial="hidden"
         animate="show"
         variants={{ hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.05 } } }}
@@ -137,20 +154,22 @@ export function GroupedSellerRow({
         {groups.map(g => (
           <motion.div
             key={g.sellerId}
+            className="min-w-0 h-full"
             variants={{ hidden: { opacity: 0, y: 12, scale: 0.97 }, show: { opacity: 1, y: 0, scale: 1 } }}
             transition={{ type: 'spring', stiffness: 260, damping: 24 }}
           >
             <RichSellerCard
               id={g.sellerId}
               name={g.sellerName}
-              profileImage={null}
-              coverImage={null}
+              profileImage={sellerImages?.get(g.sellerId)?.profileImage ?? null}
+              coverImage={sellerImages?.get(g.sellerId)?.coverImage ?? null}
               categories={g.categories}
               topProducts={g.topProducts}
               totalReviews={g.totalReviews}
               isFeatured={g.isFeatured}
-              groupLabel={g.groupLabel}
+              groupLabel={span === 'grid' ? null : g.groupLabel}
               compact
+              span={span}
               onProductTap={
                 onProductTap
                   ? (tp) => {
