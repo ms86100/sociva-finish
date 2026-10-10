@@ -34,6 +34,7 @@ import { PermissionCenter } from '@/components/permissions/PermissionCenter';
 import { toast } from 'sonner';
 import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
 import { useSystemSettings } from '@/hooks/useSystemSettings';
+import { useSocietyEntryVisible } from '@/hooks/useSocietyEntryVisible';
 import { getFlag, setFlag, getString, removeKey } from '@/lib/persistent-kv';
 import { useTheme } from 'next-themes';
 import { Moon, Sun, RefreshCw } from 'lucide-react';
@@ -48,6 +49,7 @@ export default function ProfilePage() {
     isProfileLoading, profileError, sellerProfiles,
   } = useAuth();
   const settings = useSystemSettings();
+  const societyEntryVisible = useSocietyEntryVisible();
   const { theme, setTheme } = useTheme();
   const [replayOptIn, setReplayOptInState] = useState(() => getReplayOptIn());
   const { showFeedback } = useFeedbackPopup();
@@ -139,6 +141,7 @@ export default function ProfilePage() {
   ];
 
   const menuItems = [
+    ...(societyEntryVisible ? [{ icon: Building2, label: 'My Society', to: '/society' }] : []),
     ...(isBuilderMember
       ? [{ icon: Building2, label: 'Builder Dashboard', to: '/builder' }]
       : []),

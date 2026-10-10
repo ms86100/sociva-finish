@@ -2,6 +2,7 @@
 import React, { useState, useEffect, lazy, Suspense, ComponentType, useRef } from "react";
 import { StagingBanner } from "@/components/dev/StagingBanner";
 import { MinVersionGate } from "@/components/system/MinVersionGate";
+import { MotionConfig } from "framer-motion";
 
 // Fallback component shown when a lazy page fails to resolve
 function LazyLoadFailed() {
@@ -830,6 +831,7 @@ function App() {
   return (
     <ErrorBoundary>
       <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false} themes={['light', 'dark']}>
+       <MotionConfig reducedMotion="user">
         <ThemeStatusBarSync />
         <QueryClientProvider client={queryClient}>
           <TooltipProvider>
@@ -871,6 +873,7 @@ function App() {
             </HashRouter>
           </TooltipProvider>
         </QueryClientProvider>
+       </MotionConfig>
       </ThemeProvider>
     </ErrorBoundary>
   );

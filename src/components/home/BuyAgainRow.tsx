@@ -13,6 +13,8 @@ import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 import { notify } from '@/lib/notify';
+import { useCategoryConfigs } from '@/hooks/useCategoryBehavior';
+import { resolveCommerceMode } from '@/lib/commerce-mode';
 
 interface BuyAgainProduct {
   id: string;
@@ -37,6 +39,7 @@ export function BuyAgainRow() {
   const { browsingLocation } = useBrowsingLocation();
   const { items, addItem } = useCart();
   const { formatPrice } = useCurrency();
+  const { configs: categoryConfigs } = useCategoryConfigs();
 
   const { data: products = [] } = useQuery({
     queryKey: ['buy-again', user?.id, browsingLocation?.lat, browsingLocation?.lng],
@@ -125,8 +128,8 @@ export function BuyAgainRow() {
 
   // Filter out bookable/non-cart products - they don't belong in "Buy Again"
   const cartableProducts = useMemo(() =>
-    products.filter(p => !p.action_type || ['add_to_cart', 'buy_now'].includes(p.action_type)),
-    [products]
+    products.filter(p => resolveCommerceMode(p, categoryConfigs) === 'shop'),
+    [products, categoryConfigs]
   );
 
   // Group products by category

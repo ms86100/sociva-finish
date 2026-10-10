@@ -5,6 +5,7 @@ import { ServiceCategory, ItemCondition, RentalPeriodType } from '@/types/catego
 import { useMarketplaceConfig } from '@/hooks/useMarketplaceConfig';
 import { ProductActionType } from '@/types/Database';
 import { ACTION_CONFIG } from '@/lib/marketplace-constants';
+import { resolveListingAction } from '@/lib/commerce-mode';
 import { VegBadge } from '@/components/ui/veg-badge';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -67,13 +68,16 @@ export function ListingCard({
   onRent,
   compact = false,
 }: ListingCardProps) {
-  const { behavior, listingType, supportsCart, requiresTimeSlot, hasDateRange, enquiryOnly, isNegotiable, hasDuration } = 
+  const { config, behavior, listingType, supportsCart, requiresTimeSlot, hasDateRange, enquiryOnly, isNegotiable, hasDuration } = 
     useCategoryBehavior(listing.category);
   const marketplaceConfig = useMarketplaceConfig();
   const { formatPrice } = useCurrency();
 
-  // Use action_type from the listing (set by DB trigger), fallback to deriving from behavior
-  const actionType: ProductActionType = (listing.action_type as ProductActionType) || 'add_to_cart';
+  const actionType: ProductActionType = resolveListingAction(
+    listing.action_type,
+    listing.category,
+    config ? [config] : null,
+  );
   const actionConfig = ACTION_CONFIG[actionType] || ACTION_CONFIG.add_to_cart;
   const ActionIcon = actionConfig.icon;
 

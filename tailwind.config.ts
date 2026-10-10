@@ -16,6 +16,21 @@ export default {
     extend: {
       fontFamily: {
         sans: ['system-ui', '-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'Roboto', 'sans-serif'],
+        display: ['"Plus Jakarta Sans"', 'system-ui', '-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'Roboto', 'sans-serif'],
+      },
+      fontSize: {
+        "display-lg": ["1.75rem", { lineHeight: "2.125rem", letterSpacing: "-0.02em", fontWeight: "800" }],
+        "display-md": ["1.375rem", { lineHeight: "1.75rem", letterSpacing: "-0.015em", fontWeight: "800" }],
+        "display-sm": ["1.125rem", { lineHeight: "1.5rem", letterSpacing: "-0.01em", fontWeight: "700" }],
+        price: ["0.9375rem", { lineHeight: "1.25rem", letterSpacing: "-0.01em", fontWeight: "800" }],
+      },
+      transitionDuration: {
+        micro: "var(--dur-micro)",
+        macro: "var(--dur-macro)",
+      },
+      transitionTimingFunction: {
+        standard: "var(--ease-standard)",
+        emphasized: "var(--ease-emphasized)",
       },
       colors: {
         border: "hsl(var(--border))",
@@ -75,6 +90,27 @@ export default {
         "rating-star": "hsl(var(--rating-star))",
         "nav-active": "hsl(var(--nav-active))",
         "nav-active-foreground": "hsl(var(--nav-active-foreground))",
+        // Commerce modes
+        "mode-shop": {
+          DEFAULT: "hsl(var(--mode-shop))",
+          foreground: "hsl(var(--mode-shop-foreground))",
+          ink: "hsl(var(--mode-shop-ink))",
+        },
+        "mode-book": {
+          DEFAULT: "hsl(var(--mode-book))",
+          foreground: "hsl(var(--mode-book-foreground))",
+          ink: "hsl(var(--mode-book-ink))",
+        },
+        "mode-services": {
+          DEFAULT: "hsl(var(--mode-services))",
+          foreground: "hsl(var(--mode-services-foreground))",
+          ink: "hsl(var(--mode-services-ink))",
+        },
+        offer: {
+          DEFAULT: "hsl(var(--offer))",
+          foreground: "hsl(var(--offer-foreground))",
+          ink: "hsl(var(--offer-ink))",
+        },
       },
       borderRadius: {
         lg: "var(--radius)",

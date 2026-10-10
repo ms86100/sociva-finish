@@ -8,8 +8,9 @@ import { useBrowsingLocation } from '@/contexts/BrowsingLocationContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCurrency } from '@/hooks/useCurrency';
 import { useMarketplaceData } from '@/hooks/queries/useMarketplaceData';
-import { categoryIsSuggestable, liveCategorySlugs, suggestionShowsPrice } from '@/lib/searchSuggestionRules';
+import { categoryIsSuggestable, liveCategorySlugs, suggestionIntent, suggestionShowsPrice } from '@/lib/searchSuggestionRules';
 import { MARKETPLACE_RADIUS_KM } from '@/lib/marketplace-constants';
+import { resolveListingAction } from '@/lib/commerce-mode';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Store, Package, Tag, Wrench, Calendar, MessageCircle } from 'lucide-react';
 import { DynamicIcon } from '@/components/ui/DynamicIcon';
@@ -37,13 +38,6 @@ const INTENT_GROUPS = [
   { key: 'bookable', label: 'Bookable', icon: Calendar },
   { key: 'enquiries', label: 'Enquiries', icon: MessageCircle },
 ] as const;
-
-function canonicalIntent(actionType?: string | null) {
-  if (actionType === 'request_service') return 'services';
-  if (actionType === 'book') return 'bookable';
-  if (['request_quote', 'contact_seller', 'schedule_visit', 'make_offer'].includes(actionType || '')) return 'enquiries';
-  return 'products';
-}
 
 /**
  * Search autocomplete using full-text search (tsvector/tsquery).
@@ -176,9 +170,9 @@ export function SearchAutocomplete({ query, onSelect, maxHeight }: Props) {
 
   const groupedProducts = useMemo(() => {
     const groups: Record<string, any[]> = { products: [], services: [], bookable: [], enquiries: [] };
-    productSuggestions.forEach((product: any) => groups[canonicalIntent(product.action_type)].push(product));
+    productSuggestions.forEach((product: any) => groups[suggestionIntent(product, categoryConfigs)].push(product));
     return groups;
-  }, [productSuggestions]);
+  }, [productSuggestions, categoryConfigs]);
 
   const hasResults = productSuggestions.length > 0 || sellerSuggestions.length > 0 || visibleCategories.length > 0;
   const optionCount = productSuggestions.length + sellerSuggestions.length + visibleCategories.length;
@@ -314,7 +308,7 @@ export function SearchAutocomplete({ query, onSelect, maxHeight }: Props) {
                   <p className="text-[13px] font-medium text-foreground truncate">{product.product_name}</p>
                   {product.seller_name && <p className="text-[11px] text-muted-foreground truncate">{displaySellerStoreName(product.seller_name)}</p>}
                 </div>
-                {suggestionShowsPrice(product.action_type, product.price) && (
+                {suggestionShowsPrice(resolveListingAction(product.action_type, product.category, categoryConfigs), product.price) && (
                   <span className="text-[12px] font-bold text-primary shrink-0">{formatPrice(product.price)}</span>
                 )}
               </button>

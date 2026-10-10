@@ -7,6 +7,25 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Plus Jakarta Sans (SIL OFL 1.1, see public/fonts/PlusJakartaSans-OFL.txt).
+   Self-hosted so it renders offline inside the native shell. Display use only. */
+@font-face {
+  font-family: 'Plus Jakarta Sans';
+  font-style: normal;
+  font-weight: 200 800;
+  font-display: swap;
+  src: url('/fonts/plus-jakarta-sans-latin-ext-wght.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Plus Jakarta Sans';
+  font-style: normal;
+  font-weight: 200 800;
+  font-display: swap;
+  src: url('/fonts/plus-jakarta-sans-latin-wght.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
 @layer base {
   :root {
     /* Capacitor JS sets concrete --app-safe-top / --safe-area-inset-* on native.
@@ -125,6 +144,26 @@
     --buyagain-card-border: 151 65% 38% / 0.15;
     --buyagain-badge-bg: 151 65% 38% / 0.1;
     --buyagain-badge-text: 151 65% 38%;
+
+    /* ═══ Commerce modes - Light. fill/foreground and ink/background >= 4.5:1 ═══ */
+    --mode-shop: 151 70% 28%;
+    --mode-shop-foreground: 0 0% 100%;
+    --mode-shop-ink: 151 70% 28%;
+    --mode-book: 243 60% 52%;
+    --mode-book-foreground: 0 0% 100%;
+    --mode-book-ink: 243 60% 52%;
+    --mode-services: 36 95% 52%;
+    --mode-services-foreground: 30 40% 10%;
+    --mode-services-ink: 30 90% 32%;
+    --offer: 6 78% 48%;
+    --offer-foreground: 0 0% 100%;
+    --offer-ink: 6 78% 48%;
+
+    /* Motion */
+    --dur-micro: 180ms;
+    --dur-macro: 280ms;
+    --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+    --ease-emphasized: cubic-bezier(0.3, 0, 0, 1.15);
   }
 
   /* ═══════════════════════════════════════════════
@@ -233,6 +272,20 @@
     --buyagain-card-border: 170 35% 25% / 0.3;
     --buyagain-badge-bg: 170 35% 18% / 0.8;
     --buyagain-badge-text: 0 0% 100%;
+
+    /* ═══ Commerce modes - Dark. fill/foreground and ink/background >= 4.5:1 ═══ */
+    --mode-shop: 151 65% 46%;
+    --mode-shop-foreground: 0 0% 5%;
+    --mode-shop-ink: 151 60% 52%;
+    --mode-book: 243 85% 72%;
+    --mode-book-foreground: 0 0% 5%;
+    --mode-book-ink: 243 90% 76%;
+    --mode-services: 38 92% 55%;
+    --mode-services-foreground: 0 0% 5%;
+    --mode-services-ink: 38 92% 58%;
+    --offer: 8 90% 64%;
+    --offer-foreground: 0 0% 5%;
+    --offer-ink: 8 90% 66%;
   }
 
 }

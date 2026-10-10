@@ -10,6 +10,7 @@ export type AtmosphereProduct = {
   price: number;
   image_url: string;
   action_type: string | null;
+  category?: string | null;
 };
 
 export function useDiscoveryAtmosphereProducts(enabled = true) {
@@ -20,7 +21,7 @@ export function useDiscoveryAtmosphereProducts(enabled = true) {
     queryFn: async (): Promise<AtmosphereProduct[]> => {
       const { data, error } = await supabase
         .from('products')
-        .select('id, name, price, image_url, action_type')
+        .select('id, name, price, image_url, action_type, category')
         .eq('approval_status', 'approved')
         .eq('is_available', true)
         .not('image_url', 'is', null)

@@ -5,6 +5,8 @@ import { Button } from '@/components/ui/button';
 import { floatSlow, orbitBob, discoveryPulse } from '@/lib/motion-variants';
 import type { AtmosphereProduct } from '@/hooks/useDiscoveryAtmosphereProducts';
 import { cn } from '@/lib/utils';
+import { useCategoryConfigs } from '@/hooks/useCategoryBehavior';
+import { resolveCommerceMode, type CommerceMode } from '@/lib/commerce-mode';
 
 type Props = {
   products: AtmosphereProduct[];
@@ -38,13 +40,12 @@ const CARD_SLOTS = [
   { className: 'right-[26%] top-[42%] rotate-[-5deg]', delay: 1.4 },
 ];
 
-function actionGhost(actionType: string | null | undefined) {
-  if (actionType === 'book') return 'Book';
-  if (actionType === 'contact_seller' || actionType === 'enquire') return 'View';
-  return 'Add';
-}
+const MODE_GHOST: Record<CommerceMode, string> = { shop: 'Add', book: 'Book', services: 'View' };
 
 export function DiscoveryMomentHero({ products, busy, onUseLocation, onSelectManual }: Props) {
+  const { configs: categoryConfigs } = useCategoryConfigs();
+  const actionGhost = (product: AtmosphereProduct | null) =>
+    product ? MODE_GHOST[resolveCommerceMode(product, categoryConfigs)] : 'Add';
   const cards = CARD_SLOTS.map((slot, i) => ({
     ...slot,
     product: products[i % Math.max(products.length, 1)] || null,
@@ -83,7 +84,7 @@ export function DiscoveryMomentHero({ products, busy, onUseLocation, onSelectMan
                   {slot.product?.price != null ? `₹${Math.round(slot.product.price)}` : '-'}
                 </span>
                 <span className="rounded-md bg-white/20 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white">
-                  {actionGhost(slot.product?.action_type)}
+                  {actionGhost(slot.product)}
                 </span>
               </div>
             </div>

@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils';
 import { hapticSelection } from '@/lib/haptics';
 import { useEffectiveFeatures } from '@/hooks/useEffectiveFeatures';
 import { useCartCount } from '@/hooks/useCartCount';
+import { useSocietyEntryVisible } from '@/hooks/useSocietyEntryVisible';
 import { useAuth } from '@/contexts/AuthContext';
 import { useImmediateNavigate } from '@/hooks/useImmediateNavigate';
 import type { FeatureKey } from '@/hooks/useEffectiveFeatures';
@@ -39,8 +40,9 @@ const workerNavItems: { to: string; icon: typeof Briefcase; label: string }[] = 
 
 function BottomNavInner() {
   const location = useLocation();
-  const { features, isFeatureEnabled, isLoading } = useEffectiveFeatures();
-  const { user, isAdmin, isSocietyAdmin, isBuilderMember, isSecurityOfficer, isWorker, effectiveSocietyId } = useAuth();
+  const { isFeatureEnabled } = useEffectiveFeatures();
+  const { user, isAdmin, isSocietyAdmin, isBuilderMember, isSecurityOfficer, isWorker } = useAuth();
+  const societyEntryVisible = useSocietyEntryVisible();
   const itemCount = useCartCount();
   const navigateImmediately = useImmediateNavigate('BottomNav');
 
@@ -63,13 +65,8 @@ function BottomNavInner() {
       ? workerNavItems
       : residentNavItems;
 
-  const hasAnyFeature = features.some(f => f.is_enabled && f.society_configurable);
-
   const visibleItems = navItems.filter(item => {
-    if (item.to === '/society') {
-      if (!effectiveSocietyId && !isAdmin) return false;
-      if (!isLoading && !hasAnyFeature && !isAdmin) return false;
-    }
+    if (item.to === '/society' && !societyEntryVisible) return false;
     if ('featureKey' in item && item.featureKey) return isFeatureEnabled((item as any).featureKey);
     return true;
   });

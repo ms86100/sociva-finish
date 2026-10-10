@@ -1,6 +1,7 @@
 import { isFoodParentGroup, productMatchesFoodFacets, TASTE_MOODS, type TasteMood } from './food-facets';
 import { computeStoreStatus } from './store-availability';
 import { ACTION_MODE_IMAGES, SERVICE_MODE_IMAGES, DURATION_IMAGES } from './filter-images';
+import { resolveListingAction, type CategoryActionConfig } from './commerce-mode';
 
 export interface CommerceFacetState {
   // Food facets
@@ -131,7 +132,8 @@ export function productMatchesCommerceFacets(
     seller_operating_days?: string[] | null;
     seller_is_available?: boolean | null;
   },
-  state: CommerceFacetState
+  state: CommerceFacetState,
+  categoryConfigs?: readonly CategoryActionConfig[] | null,
 ): boolean {
   if (state.subCategory && product.category !== state.subCategory) {
     return false;
@@ -156,7 +158,7 @@ export function productMatchesCommerceFacets(
   }
 
   if (state.actionType) {
-    const productAction = product.action_type || 'add_to_cart';
+    const productAction = resolveListingAction(product.action_type, product.category, categoryConfigs);
     if (productAction !== state.actionType) return false;
   }
 
@@ -256,6 +258,7 @@ export function extractAvailableCommerceFacets(
   options?: {
     parentGroup?: string | null;
     currentState?: CommerceFacetState;
+    categoryConfigs?: readonly CategoryActionConfig[] | null;
   }
 ): DynamicFacetChip[] {
   if (!products || products.length === 0) return [];
@@ -303,7 +306,7 @@ export function extractAvailableCommerceFacets(
   // 2. Action Types present in inventory
   const actionCounts = new Map<string, number>();
   for (const p of products) {
-    const act = p.action_type || 'add_to_cart';
+    const act = resolveListingAction(p.action_type, p.category, options?.categoryConfigs);
     actionCounts.set(act, (actionCounts.get(act) || 0) + 1);
   }
 

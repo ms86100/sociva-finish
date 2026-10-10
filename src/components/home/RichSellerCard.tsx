@@ -13,6 +13,8 @@ import {
   isCartPricedAction,
   shouldShowMonetaryPrice,
 } from '@/lib/marketplace-constants';
+import { useCategoryConfigs } from '@/hooks/useCategoryBehavior';
+import { resolveListingAction } from '@/lib/commerce-mode';
 
 export function sanitizeSellerName(name: string): string {
   const stripped = (name || '').replace(/^\[(ARCHIVED|HOLD)\]\s*/i, '').trim();
@@ -60,9 +62,14 @@ export function RichSellerCard({
   const sanitized = sanitizeSellerName(name);
   const hue = useMemo(() => hashToHue(id), [id]);
 
-  const pricedProducts = topProducts.filter((p) => shouldShowMonetaryPrice(p.action_type, p.price));
+  const { configs: categoryConfigs } = useCategoryConfigs();
+  const resolvedActions = useMemo(
+    () => new Map(topProducts.map((p) => [p.id, resolveListingAction(p.action_type, p.category, categoryConfigs)])),
+    [topProducts, categoryConfigs],
+  );
+  const pricedProducts = topProducts.filter((p) => shouldShowMonetaryPrice(resolvedActions.get(p.id), p.price));
   const minPrice = pricedProducts.length > 0 ? Math.min(...pricedProducts.map((p) => p.price)) : null;
-  const dominantAction = topProducts.find((p) => p.action_type)?.action_type || 'contact_seller';
+  const dominantAction = (topProducts[0] && resolvedActions.get(topProducts[0].id)) || 'contact_seller';
   const isServiceCard = serviceMode || (topProducts.length > 0 && pricedProducts.length === 0);
   const footerLabel = isServiceCard
     ? getCommercePriceLabel(dominantAction, null, formatPrice)
@@ -143,6 +150,7 @@ export function RichSellerCard({
                   <ProductMini
                     key={product.id}
                     product={product}
+                    actionType={resolvedActions.get(product.id)}
                     onTap={onProductTap ? (e) => { e.stopPropagation(); onProductTap(product); } : undefined}
                   />
                 ) : (
@@ -168,10 +176,10 @@ export function RichSellerCard({
   );
 }
 
-function ProductMini({ product, onTap }: { product: TopProduct; onTap?: (e: React.MouseEvent) => void }) {
+function ProductMini({ product, actionType, onTap }: { product: TopProduct; actionType?: string; onTap?: (e: React.MouseEvent) => void }) {
   const { formatPrice } = useCurrency();
-  const label = getCommercePriceLabel(product.action_type, product.price, formatPrice);
-  const showPrice = shouldShowMonetaryPrice(product.action_type, product.price);
+  const label = getCommercePriceLabel(actionType, product.price, formatPrice);
+  const showPrice = shouldShowMonetaryPrice(actionType, product.price);
   return (
     <div
       onClick={onTap}
@@ -188,7 +196,7 @@ function ProductMini({ product, onTap }: { product: TopProduct; onTap?: (e: Reac
         />
       ) : (
         <div className="w-full h-10 shrink-0 flex items-center justify-center bg-secondary">
-          {isCartPricedAction(product.action_type) ? (
+          {isCartPricedAction(actionType) ? (
             <ShoppingBag size={14} className="text-muted-foreground" />
           ) : (
             <Phone size={14} className="text-muted-foreground" />

@@ -101,8 +101,8 @@ export default function DiscoveryListingsPage() {
   );
 
   const dynamicFacetChips = useMemo(
-    () => extractAvailableCommerceFacets(productsForFacets, { parentGroup: dominantGroup, currentState: facets }),
-    [productsForFacets, dominantGroup, facets],
+    () => extractAvailableCommerceFacets(productsForFacets, { parentGroup: dominantGroup, currentState: facets, categoryConfigs }),
+    [productsForFacets, dominantGroup, facets, categoryConfigs],
   );
 
   const displayProducts = useMemo(() => {
@@ -116,7 +116,7 @@ export default function DiscoveryListingsPage() {
     }
 
     if (hasActiveCommerceFacets(facets)) {
-      filtered = filtered.filter((p) => productMatchesCommerceFacets(p, facets));
+      filtered = filtered.filter((p) => productMatchesCommerceFacets(p, facets, categoryConfigs));
     }
 
     const sorted = [...filtered];
@@ -129,7 +129,7 @@ export default function DiscoveryListingsPage() {
       case 'rating': sorted.sort((a, b) => (b.seller_rating ?? 0) - (a.seller_rating ?? 0)); break;
     }
     return sorted;
-  }, [productsForFacets, searchQuery, sortBy, facets]);
+  }, [productsForFacets, searchQuery, sortBy, facets, categoryConfigs]);
 
   const handleProductTap = useCallback((product: ProductWithSeller) => {
     const catConfig = categoryConfigs.find(c => c.category === product.category);

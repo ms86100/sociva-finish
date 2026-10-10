@@ -1,4 +1,18 @@
 import { shouldShowMonetaryPrice } from '@/lib/marketplace-constants';
+import { modeForAction, resolveListingAction, type CategoryActionConfig } from '@/lib/commerce-mode';
+
+export type SuggestionIntent = 'products' | 'services' | 'bookable' | 'enquiries';
+
+export function suggestionIntent(
+  product: { action_type?: string | null; category?: string | null },
+  categoryConfigs?: readonly CategoryActionConfig[] | null,
+): SuggestionIntent {
+  const action = resolveListingAction(product.action_type, product.category, categoryConfigs);
+  const mode = modeForAction(action);
+  if (mode === 'shop') return 'products';
+  if (mode === 'book') return 'bookable';
+  return action === 'request_service' ? 'services' : 'enquiries';
+}
 
 export function suggestionShowsPrice(
   actionType?: string | null,

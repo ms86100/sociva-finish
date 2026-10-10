@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { useState, useCallback, useMemo, memo } from 'react';
-import { Bell, MapPin, ChevronDown, Search } from 'lucide-react';
+import { Bell, MapPin, ChevronDown, Search, ShoppingCart } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
 
 import { useLocation } from 'react-router-dom';
@@ -13,6 +13,7 @@ import { BackButton } from '@/components/navigation/BackButton';
 import { shouldShowHeaderBack } from '@/lib/navigation-stack';
 
 import { useUnreadNotificationCount } from '@/hooks/useUnreadNotificationCount';
+import { useCartCount } from '@/hooks/useCartCount';
 import { useBrowsingLocation } from '@/contexts/BrowsingLocationContext';
 import { LocationSelectorSheet } from '@/components/location/LocationSelectorSheet';
 import { useFestivalTakeover } from '@/hooks/queries/useActiveFestivals';
@@ -33,6 +34,7 @@ interface HeaderProps {
  * Role shortcuts (admin/seller/builder) live in Profile - keeps marketplace focused.
  */
 function HeaderInner({
+  showCart = true,
   title,
   showBack,
   className,
@@ -48,6 +50,8 @@ function HeaderInner({
 
   const { profile, society, user, viewAsSocietyId, effectiveSociety, effectiveSocietyId, setViewAsSociety, isAdmin, isBuilderMember, isProfileLoading } = useAuth();
   const unreadCount = useUnreadNotificationCount();
+  const cartCount = useCartCount();
+  const showCartButton = showCart && location.pathname !== '/cart';
   const { browsingLocation, hasOverride } = useBrowsingLocation();
   const takeover = useFestivalTakeover();
   const festivalChrome = takeover.active && !title;
@@ -146,6 +150,29 @@ function HeaderInner({
                 </button>
 
                 <div className="flex items-center gap-1 shrink-0 pt-0.5">
+                  {showCartButton && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className={cn(
+                        'relative h-9 w-9 rounded-full',
+                        festivalChrome && 'text-white hover:bg-white/10 hover:text-white'
+                      )}
+                      onClick={() => handleRouteNav('/cart')}
+                      aria-label={cartCount > 0 ? `Cart, ${cartCount} item${cartCount === 1 ? '' : 's'}` : 'Cart'}
+                      data-testid="header-cart"
+                    >
+                      <ShoppingCart size={18} />
+                      {cartCount > 0 && (
+                        <span
+                          className="absolute top-0.5 right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-bold text-primary-foreground ring-2 ring-background"
+                          data-testid="header-cart-badge"
+                        >
+                          {cartCount > 9 ? '9+' : cartCount}
+                        </span>
+                      )}
+                    </Button>
+                  )}
                   {!user ? (
                     <Button
                       variant={festivalChrome ? 'ghost' : 'default'}

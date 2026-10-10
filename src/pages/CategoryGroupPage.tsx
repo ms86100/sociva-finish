@@ -111,8 +111,9 @@ export default function CategoryGroupPage() {
     return extractAvailableCommerceFacets(scopedProducts, {
       parentGroup: category,
       currentState: facets,
+      categoryConfigs,
     });
-  }, [scopedProducts, category, facets]);
+  }, [scopedProducts, category, facets, categoryConfigs]);
 
   const activeCategorySet = useMemo(
     () => new Set(allProducts.map((p) => p.category)),
@@ -183,7 +184,7 @@ export default function CategoryGroupPage() {
       );
     }
 
-    filtered = filtered.filter((p) => productMatchesCommerceFacets(p, facets));
+    filtered = filtered.filter((p) => productMatchesCommerceFacets(p, facets, categoryConfigs));
 
     const sorted = [...filtered];
     switch (sortBy) {
@@ -203,7 +204,7 @@ export default function CategoryGroupPage() {
       },
       createdAt: (product) => product.created_at,
     });
-  }, [scopedProducts, searchQuery, sortBy, facets]);
+  }, [scopedProducts, searchQuery, sortBy, facets, categoryConfigs]);
 
   const handleSubCategorySelect = (cat: ServiceCategory | null) => {
     setActiveSubCategory(cat);

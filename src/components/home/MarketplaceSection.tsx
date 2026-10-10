@@ -158,16 +158,16 @@ export function MarketplaceSection() {
   }, [allProducts, activeCategory]);
 
   const dynamicFacetChips = useMemo(
-    () => extractAvailableCommerceFacets(scopedProducts, { parentGroup: activeGroup, currentState: commerceFacets }),
-    [scopedProducts, activeGroup, commerceFacets]
+    () => extractAvailableCommerceFacets(scopedProducts, { parentGroup: activeGroup, currentState: commerceFacets, categoryConfigs }),
+    [scopedProducts, activeGroup, commerceFacets, categoryConfigs]
   );
 
   const isFacetFilterActive = hasActiveCommerceFacets(commerceFacets);
 
   const facetFilteredProducts = useMemo(() => {
     if (!isFacetFilterActive) return [];
-    return scopedProducts.filter((p) => productMatchesCommerceFacets(p, commerceFacets));
-  }, [isFacetFilterActive, scopedProducts, commerceFacets]);
+    return scopedProducts.filter((p) => productMatchesCommerceFacets(p, commerceFacets, categoryConfigs));
+  }, [isFacetFilterActive, scopedProducts, commerceFacets, categoryConfigs]);
 
   const discoveryIntents = useMemo(
     () => (festivalFocused ? [] : buildDiscoveryIntents(localCategoriesWithFacets, { activeGroup })),

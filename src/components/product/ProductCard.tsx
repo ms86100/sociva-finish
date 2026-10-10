@@ -15,6 +15,8 @@ import { useCurrency } from '@/hooks/useCurrency';
 import { resolveProductAvailability } from '@/lib/product-availability';
 import { computeStoreStatus, formatStoreClosedMessage } from '@/lib/store-availability';
 import { optimizedImageUrl, imageSrcSet, handleImageError } from '@/utils/imageHelpers';
+import { useCategoryConfigs } from '@/hooks/useCategoryBehavior';
+import { resolveListingAction } from '@/lib/commerce-mode';
 
 interface ProductCardProps {
   product: Product;
@@ -28,7 +30,11 @@ export function ProductCard({ product, variant = 'horizontal', onTap }: ProductC
   const [justAdded, setJustAdded] = useState(false);
   const [imgLoaded, setImgLoaded] = useState(false);
 
-  const actionType: ProductActionType = (product.action_type as ProductActionType) || 'add_to_cart';
+  const { configs: categoryConfigs } = useCategoryConfigs();
+  const actionType: ProductActionType = useMemo(
+    () => resolveListingAction(product.action_type, product.category, categoryConfigs),
+    [product.action_type, product.category, categoryConfigs],
+  );
   const actionConfig = ACTION_CONFIG[actionType] || ACTION_CONFIG.add_to_cart;
   const isCartAction = actionConfig.isCart;
   const isContactAction = !isCartAction;
