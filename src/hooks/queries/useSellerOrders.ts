@@ -15,6 +15,7 @@ import {
   type SellerOrderFilter,
 } from '@/lib/seller-order-board';
 import { istDateString } from '@/lib/scheduled-orders';
+import { isTransientNetworkError } from '@/lib/network-timeout';
 
 const PAGE_SIZE = 20;
 
@@ -67,13 +68,14 @@ function mapCountsRpc(raw: Record<string, unknown> | null): SellerBoardCounts {
 
 async function fetchCountsClientFallback(sellerId: string): Promise<SellerBoardCounts> {
   const since = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
-  const { data: orders } = await supabase
+  const { data: orders, error: ordersError } = await supabase
     .from('orders')
     .select('id, status, created_at, payment_status, scheduled_date, scheduled_time_start, scheduled_time, preparation_start_at, scheduled_fulfillment_at')
     .eq('seller_id', sellerId)
     .gte('created_at', since)
     .order('created_at', { ascending: false })
     .limit(2000);
+  if (ordersError) throw ordersError;
 
   const ids = (orders || []).map((o: any) => o.id);
   let refundedIds = new Set<string>();
@@ -118,6 +120,8 @@ async function fetchOneSellerCounts(sellerId: string): Promise<SellerBoardCounts
     p_seller_id: sellerId,
   });
   if (!error && data) return mapCountsRpc(data as Record<string, unknown>);
+  // A heavier fallback query cannot succeed where the network just failed.
+  if (isTransientNetworkError(error)) throw error;
   console.warn('[useSellerOrderFilterCounts] RPC fallback:', error?.message);
   return fetchCountsClientFallback(sellerId);
 }
@@ -127,6 +131,7 @@ async function fetchPortfolioCounts(sellerIds: string[]): Promise<SellerBoardCou
     p_seller_ids: sellerIds,
   });
   if (!error && data) return mapCountsRpc(data as Record<string, unknown>);
+  if (isTransientNetworkError(error)) throw error;
   console.warn('[useSellerOrderFilterCounts] portfolio RPC fallback:', error?.message);
   const parts = await Promise.all(sellerIds.map(fetchOneSellerCounts));
   return sumBoardCounts(parts);
@@ -240,7 +245,8 @@ export function useSellerOrdersInfinite(
           } else {
             refundQ = refundQ.in('orders.seller_id', ids);
           }
-          const { data: refundRows } = await refundQ;
+          const { data: refundRows, error: refundError } = await refundQ;
+          if (refundError) throw refundError;
           const refundOrderIds = [...new Set((refundRows || []).map((r: any) => r.order_id))];
           if (refundOrderIds.length === 0) {
             query = query.eq('payment_status', 'refunded');
@@ -264,7 +270,9 @@ export function useSellerOrdersInfinite(
         query = query.lt('created_at', pageParam);
       }
 
-      const { data } = await query;
+      const { data, error } = await query;
+      // Never turn a failed request into "no orders" - the seller would think the board is empty.
+      if (error) throw error;
       let rows = (data as any[]) || [];
 
       if (typedFilter === 'pending') {

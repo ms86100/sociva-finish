@@ -27,9 +27,14 @@ export function PostLoginPermissionSheet() {
     const pending = peekPendingAuthAction();
     if (pending?.type === 'checkout') return;
 
-    if (!consumePostLoginPermissionSheet()) return;
+    // Login navigates away before this timer used to fire, and consuming
+    // the mark first meant the sheet never opened. Wait until Home is showing.
+    if (location.pathname !== '/') return;
 
-    const t = setTimeout(() => setOpen(true), 800);
+    const t = setTimeout(() => {
+      if (!consumePostLoginPermissionSheet()) return;
+      setOpen(true);
+    }, 800);
     return () => clearTimeout(t);
   }, [location.pathname, open]);
 

@@ -1,6 +1,6 @@
 /**
  * Capacitor LocalNotifications for reliable foreground / app-open order ringing.
- * Uses channel orders_incoming_v2 + sound gate_bell. Cancel on terminal.
+ * Uses channel orders_incoming_v3 + sound gate_bell. Cancel on terminal.
  */
 import { Capacitor } from '@capacitor/core';
 import {
@@ -8,7 +8,19 @@ import {
   ORDERS_INCOMING_SOUND,
 } from '@/lib/notification-channel-settings';
 
-const CHANNEL_CREATED_KEY = 'sociva_ln_channel_v2';
+const CHANNEL_CREATED_KEY = 'sociva_ln_channel_v3';
+const recentBells = new Map<string, number>();
+
+/** Remember that this order already started a bell, so a second path does not stack another one. */
+export function noteOrderBell(orderId: string): void {
+  if (!orderId) return;
+  recentBells.set(orderId, Date.now());
+}
+
+export function orderBellAlreadyPlayed(orderId: string, withinMs = 8000): boolean {
+  const started = recentBells.get(orderId);
+  return !!started && Date.now() - started < withinMs;
+}
 
 /** Stable positive 31-bit int from order UUID (LocalNotifications requires numeric id). */
 export function orderNotificationId(orderId: string): number {
@@ -69,6 +81,7 @@ export async function scheduleIncomingOrderLocalNotification(opts: {
   body?: string;
   amount?: number;
 }): Promise<void> {
+  if (opts.orderId) noteOrderBell(opts.orderId);
   if (!Capacitor.isNativePlatform()) return;
   try {
     const ok = await ensureLocalNotificationPermission();

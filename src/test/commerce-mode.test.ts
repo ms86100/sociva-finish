@@ -3,8 +3,10 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import {
   ACTION_TO_MODE,
+  categoriesOwnedByMode,
   filterByMode,
   modeForAction,
+  owningModeForCategory,
   resolveCommerceMode,
   resolveListingAction,
   type CategoryActionConfig,
@@ -218,5 +220,39 @@ describe('society entry visibility (BottomNav and Profile share one rule)', () =
   });
   it('stays visible while features are still loading', () => {
     expect(isSocietyEntryVisible({ ...base, featuresLoading: true, hasAnyFeature: false })).toBe(true);
+  });
+});
+
+describe('category chip ownership', () => {
+  const buckets = {
+    shop: [{ category: 'home_food' }, { category: 'home_food' }],
+    book: [
+      { category: 'salon' },
+      { category: 'salon' },
+      { category: 'salon' },
+      { category: 'medical' },
+    ],
+    services: [
+      { category: 'salon' },
+      { category: 'tuition' },
+      { category: 'tuition' },
+      { category: 'medical' },
+    ],
+  };
+
+  it('gives a category to the mode with more listings', () => {
+    expect(owningModeForCategory({ book: 3, services: 1 }, 'salon', CONFIGS)).toBe('book');
+    expect(owningModeForCategory({ services: 2 }, 'tuition', CONFIGS)).toBe('services');
+  });
+
+  it('uses the category transaction type when the counts tie', () => {
+    expect(owningModeForCategory({ book: 2, services: 2 }, 'salon', CONFIGS)).toBe('book');
+    expect(owningModeForCategory({ book: 2, services: 2 }, 'plumbing', CONFIGS)).toBe('services');
+  });
+
+  it('does not repeat a chip on the mode that lost the count', () => {
+    expect([...categoriesOwnedByMode(buckets, 'book', CONFIGS)].sort()).toEqual(['medical', 'salon']);
+    expect([...categoriesOwnedByMode(buckets, 'services', CONFIGS)].sort()).toEqual(['tuition']);
+    expect([...categoriesOwnedByMode(buckets, 'shop', CONFIGS)]).toEqual(['home_food']);
   });
 });

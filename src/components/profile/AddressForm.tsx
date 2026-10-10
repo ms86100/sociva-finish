@@ -4,7 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { MapPin, Navigation, Loader2, Home, Briefcase, Tag, Search, X, Plus, Pencil, Trash2 } from 'lucide-react';
-import { getCurrentPosition } from '@/lib/native-location';
+import { getCurrentPosition, locationFailureCopy } from '@/lib/native-location';
+import { openLocationSettings } from '@/lib/location-settings';
 import { GoogleMapConfirm } from '@/components/auth/GoogleMapConfirm';
 import { useAutocomplete } from '@/hooks/useGoogleMaps';
 import { extractBestLabel, extractBestFormattedAddress } from '@/lib/location-label-resolver';
@@ -163,8 +164,10 @@ export function AddressForm({ initial, onSave, onCancel, saving }: AddressFormPr
           }
         });
       }
-    } catch (err: any) {
-      toast.error('Could not detect location. Please enable location access.');
+    } catch (err) {
+      const copy = locationFailureCopy(err);
+      toast.error(copy.title, { description: copy.description });
+      if (copy.openSettings) void openLocationSettings();
     } finally {
       setDetecting(false);
     }

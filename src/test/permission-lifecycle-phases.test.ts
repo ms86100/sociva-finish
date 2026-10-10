@@ -31,6 +31,7 @@ describe('permission lifecycle phases 2-4 (source)', () => {
     expect(sheet).toMatch(/consumePostLoginPermissionSheet/);
     expect(sheet).toMatch(/shouldDeferPostLoginPermissionSheet/);
     expect(sheet).toMatch(/peekPostLoginPermissionSheet/);
+    expect(sheet).toMatch(/pathname !== '\/'/);
   });
 
   it('defers post-login sheet on checkout and dismisses without awaiting Preferences', () => {
@@ -67,9 +68,13 @@ describe('permission lifecycle phases 2-4 (source)', () => {
   it('uses Open Settings for denied location and notifications', () => {
     const loc = read('src/lib/location-settings.ts');
     const hook = read('src/hooks/usePermissionLifecycle.ts');
+    const native = read('src/lib/native-location.ts');
     expect(loc).toMatch(/openLocationSettings/);
     expect(hook).toMatch(/settings/);
     expect(hook).toMatch(/COOLDOWN_MS/);
+    expect(native).toMatch(/coarseLocation/);
+    expect(native).toMatch(/return 'unavailable'/);
+    expect(native).toMatch(/read\(false\)/);
   });
 
   it('admin diagnostics include permission health summary RPC', () => {

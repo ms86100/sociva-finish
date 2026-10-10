@@ -18,6 +18,21 @@ interface PushPayload {
   isHighPriority?: boolean;
 }
 
+function isClosedAppSellerAlert(data: Record<string, string> | undefined, highPriority: boolean): boolean {
+  if (!highPriority || !data) return false;
+  const status = data.status || "";
+  const sellerStatuses = [
+    "placed", "enquired", "requested", "quoted", "preparing",
+    "payment_verify_pending", "refund_requested",
+  ];
+  return (
+    (data.target_role === "seller" && sellerStatuses.includes(status)) ||
+    data.type === "seller_order_status_reminder" ||
+    data.reminder_type === "unacked_order" ||
+    data.reminder_type === "status_nudge"
+  );
+}
+
 interface FirebaseServiceAccount {
   type: string;
   project_id: string;
@@ -105,6 +120,7 @@ async function sendApnsDirectNotification(
         sound: apnsSound,
         badge: 1,
         "mutable-content": imageUrl ? 1 : 0,
+        ...(highPriority ? { "interruption-level": "time-sensitive" } : {}),
         ...(threadId ? { "thread-id": threadId } : {}),
       },
       ...(data || {}),
@@ -234,11 +250,20 @@ async function sendFCMNotification(
   const fcmUrl = `https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`;
 
   const androidSound = highPriority ? "gate_bell" : "default";
-  const androidChannel = highPriority ? "orders_incoming_v2" : "general";
+  const androidChannel = highPriority ? "orders_incoming_v3" : "general";
+  const closedAppSellerAlert = isClosedAppSellerAlert(data, highPriority);
+  const dataPayload: Record<string, string> = { ...(data || {}) };
+  if (closedAppSellerAlert) {
+    dataPayload.title = title;
+    dataPayload.body = body;
+    dataPayload.channel_id = androidChannel;
+  }
   const androidNotification: Record<string, unknown> = {
     sound: androidSound,
     channel_id: androidChannel,
     icon: "ic_stat_sociva",
+    visibility: "PUBLIC",
+    notification_priority: "PRIORITY_MAX",
   };
   if (threadId) androidNotification.tag = threadId;
   if (imageUrl) androidNotification.image = imageUrl;
@@ -251,6 +276,7 @@ async function sendFCMNotification(
     alert: { title, body },
     sound: fcmApnsSound,
     badge: 1,
+    ...(highPriority ? { "interruption-level": "time-sensitive" } : {}),
   };
   if (imageUrl) apnsAps["mutable-content"] = 1;
   if (threadId) apnsAps["thread-id"] = threadId;
@@ -261,24 +287,33 @@ async function sendFCMNotification(
   };
   if (threadId) apnsHeaders["apns-collapse-id"] = threadId.substring(0, 64);
 
-  const message: Record<string, unknown> = {
-    message: {
-      token: deviceToken,
-      notification: fcmNotification,
-      data: data || {},
-      android: {
-        priority: "high",
-        notification: androidNotification,
-      },
-      apns: {
-        headers: apnsHeaders,
-        payload: {
-          aps: apnsAps,
-          ...(imageUrl ? { image_url: imageUrl } : {}),
+  const message: Record<string, unknown> = closedAppSellerAlert
+    ? {
+      message: {
+        token: deviceToken,
+        data: dataPayload,
+        android: { priority: "high", ttl: "86400s" },
+        apns: {
+          headers: apnsHeaders,
+          payload: { aps: apnsAps, ...(imageUrl ? { image_url: imageUrl } : {}) },
         },
       },
-    },
-  };
+    }
+    : {
+      message: {
+        token: deviceToken,
+        notification: fcmNotification,
+        data: data || {},
+        android: {
+          priority: highPriority ? "high" : "normal",
+          notification: androidNotification,
+        },
+        apns: {
+          headers: apnsHeaders,
+          payload: { aps: apnsAps, ...(imageUrl ? { image_url: imageUrl } : {}) },
+        },
+      },
+    };
 
   try {
     const response = await fetch(fcmUrl, {

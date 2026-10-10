@@ -1,7 +1,6 @@
 // @ts-nocheck
-import { useState, useCallback, useMemo, memo } from 'react';
+import { useState, useCallback, useMemo, memo, useRef, useLayoutEffect } from 'react';
 import { Bell, MapPin, ChevronDown, Search, ShoppingCart } from 'lucide-react';
-import { Capacitor } from '@capacitor/core';
 
 import { useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -18,8 +17,6 @@ import { useBrowsingLocation } from '@/contexts/BrowsingLocationContext';
 import { LocationSelectorSheet } from '@/components/location/LocationSelectorSheet';
 import { useFestivalTakeover } from '@/hooks/queries/useActiveFestivals';
 import { formatLocationDisplay } from '@/lib/location-label-resolver';
-
-const IS_NATIVE = Capacitor.isNativePlatform();
 
 interface HeaderProps {
   showCart?: boolean;
@@ -78,15 +75,28 @@ function HeaderInner({
     [rawLocationLabel, fullAddress]
   );
 
+  const headerRef = useRef<HTMLElement>(null);
+  useLayoutEffect(() => {
+    const el = headerRef.current;
+    if (!el) return;
+    const apply = () => {
+      document.documentElement.style.setProperty('--app-header-offset', `${el.offsetHeight}px`);
+    };
+    apply();
+    const observer = new ResizeObserver(apply);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
   return (
     <>
       <header
+        ref={headerRef}
         className={cn(
           'sticky top-0 z-40',
           festivalChrome
             ? 'border-b border-white/10'
-            : 'bg-[hsl(var(--header-bg))] border-b border-border/40',
-          !IS_NATIVE && !festivalChrome && 'backdrop-blur-xl backdrop-saturate-150',
+            :           'bg-[hsl(var(--header-bg))] border-b border-border/40',
           className
         )}
         style={festivalChrome ? { backgroundColor: takeover.bg } : undefined}

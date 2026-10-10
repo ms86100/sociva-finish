@@ -412,10 +412,12 @@ workflows:
 
       - name: Copy custom notification sound
         script: |
-          if [ -f "ios-config/gate_bell.mp3" ]; then
-            cp ios-config/gate_bell.mp3 ios/App/App/gate_bell.mp3
-            echo "=== gate_bell.mp3 copied to ios/App/App/ ==="
+          if [ ! -f "ios-config/gate_bell.mp3" ]; then
+            echo "gate_bell.mp3 is required for seller order alerts"
+            exit 1
           fi
+          cp ios-config/gate_bell.mp3 ios/App/App/gate_bell.mp3
+          echo "=== gate_bell.mp3 copied to ios/App/App/ ==="
           if [ -f "ios/App/App/gate_bell.mp3" ]; then
             cd ios/App
             ruby -e "require 'xcodeproj'; project = Xcodeproj::Project.open('App.xcodeproj'); target = project.targets.find { |t| t.name == 'App' }; abort('App target not found') unless target; group = project.main_group.find_subpath('App', true); ref = group.files.find { |f| f.path == 'gate_bell.mp3' } || group.new_file('gate_bell.mp3'); unless target.resources_build_phase.files_references.any? { |f| f.path == 'gate_bell.mp3' }; target.resources_build_phase.add_file_reference(ref, true); end; project.save"
@@ -1322,10 +1324,12 @@ workflows:
 
       - name: Copy custom notification sound
         script: |
-          if [ -f "ios-config/gate_bell.mp3" ]; then
-            cp ios-config/gate_bell.mp3 ios/App/App/gate_bell.mp3
-            echo "=== gate_bell.mp3 copied to ios/App/App/ ==="
+          if [ ! -f "ios-config/gate_bell.mp3" ]; then
+            echo "gate_bell.mp3 is required for seller order alerts"
+            exit 1
           fi
+          cp ios-config/gate_bell.mp3 ios/App/App/gate_bell.mp3
+          echo "=== gate_bell.mp3 copied to ios/App/App/ ==="
           if [ -f "ios/App/App/gate_bell.mp3" ]; then
             cd ios/App
             ruby -e "require 'xcodeproj'; project = Xcodeproj::Project.open('App.xcodeproj'); target = project.targets.find { |t| t.name == 'App' }; abort('App target not found') unless target; group = project.main_group.find_subpath('App', true); ref = group.files.find { |f| f.path == 'gate_bell.mp3' } || group.new_file('gate_bell.mp3'); unless target.resources_build_phase.files_references.any? { |f| f.path == 'gate_bell.mp3' }; target.resources_build_phase.add_file_reference(ref, true); end; project.save"
@@ -1871,10 +1875,12 @@ workflows:
       - name: Copy custom notification sound (Android)
         script: |
           mkdir -p android/app/src/main/res/raw
-          if [ -f "ios-config/gate_bell.mp3" ]; then
-            cp ios-config/gate_bell.mp3 android/app/src/main/res/raw/gate_bell.mp3
-            echo "=== gate_bell.mp3 copied to Android res/raw/ ==="
+          if [ ! -f "ios-config/gate_bell.mp3" ]; then
+            echo "gate_bell.mp3 is required for seller order alerts"
+            exit 1
           fi
+          cp ios-config/gate_bell.mp3 android/app/src/main/res/raw/gate_bell.mp3
+          echo "=== gate_bell.mp3 copied to Android res/raw/ ==="
 
       - name: Copy google-services.json
         script: |
@@ -2339,9 +2345,11 @@ workflows:
 
       - name: Copy custom notification sound
         script: |
-          if [ -f "ios-config/gate_bell.mp3" ]; then
-            cp ios-config/gate_bell.mp3 ios/App/App/gate_bell.mp3
+          if [ ! -f "ios-config/gate_bell.mp3" ]; then
+            echo "gate_bell.mp3 is required for seller order alerts"
+            exit 1
           fi
+          cp ios-config/gate_bell.mp3 ios/App/App/gate_bell.mp3
           if [ -f "ios/App/App/gate_bell.mp3" ]; then
             cd ios/App
             ruby -e "require 'xcodeproj'; project = Xcodeproj::Project.open('App.xcodeproj'); target = project.targets.find { |t| t.name == 'App' }; abort('App target not found') unless target; group = project.main_group.find_subpath('App', true); ref = group.files.find { |f| f.path == 'gate_bell.mp3' } || group.new_file('gate_bell.mp3'); unless target.resources_build_phase.files_references.any? { |f| f.path == 'gate_bell.mp3' }; target.resources_build_phase.add_file_reference(ref, true); end; project.save"
@@ -2792,10 +2800,12 @@ workflows:
       - name: Copy custom notification sound (Android)
         script: |
           mkdir -p android/app/src/main/res/raw
-          if [ -f "ios-config/gate_bell.mp3" ]; then
-            cp ios-config/gate_bell.mp3 android/app/src/main/res/raw/gate_bell.mp3
-            echo "=== gate_bell.mp3 copied to Android res/raw/ ==="
+          if [ ! -f "ios-config/gate_bell.mp3" ]; then
+            echo "gate_bell.mp3 is required for seller order alerts"
+            exit 1
           fi
+          cp ios-config/gate_bell.mp3 android/app/src/main/res/raw/gate_bell.mp3
+          echo "=== gate_bell.mp3 copied to Android res/raw/ ==="
 
       - name: Copy google-services.json
         script: |

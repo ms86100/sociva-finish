@@ -38,16 +38,19 @@ export async function fetchStatusFlow(parentGroup: string, transactionType: stri
     .eq('parent_group', parentGroup)
     .eq('transaction_type', transactionType)
     .order('sort_order', { ascending: true });
+  // Throw instead of caching [] for 30 minutes - an empty flow hides the seller action bar.
+  if (error) throw error;
   let data = initialData;
 
-  if (!error && (!data || data.length === 0) && parentGroup !== 'default') {
+  if ((!data || data.length === 0) && parentGroup !== 'default') {
     const fallback = await supabase
       .from('category_status_flows')
       .select('status_key, sort_order, actor, is_terminal, is_success, requires_otp, is_transit, otp_type, display_label, color, icon, buyer_hint, is_deprecated, buyer_display_label, seller_display_label')
       .eq('parent_group', 'default')
       .eq('transaction_type', transactionType)
       .order('sort_order', { ascending: true });
-    if (!fallback.error && fallback.data) data = fallback.data;
+    if (fallback.error) throw fallback.error;
+    if (fallback.data) data = fallback.data;
   }
 
   // Telemetry guardrail: warn loudly when both group AND default lookups returned nothing.
@@ -108,14 +111,14 @@ export function useCategoryStatusFlow(
     [parentGroup, orderType, fulfillmentType, deliveryHandledBy, listingType, storedTransactionType]
   );
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: statusFlowQueryKey(parentGroup, transactionType),
     queryFn: () => fetchStatusFlow(parentGroup, transactionType),
     staleTime: jitteredStaleTime(30 * 60 * 1000),
     enabled: !!transactionType,
   });
 
-  return { flow: data || [], isLoading };
+  return { flow: data || [], isLoading, isError, refetch };
 }
 
 

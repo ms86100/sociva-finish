@@ -18,6 +18,40 @@ const corsHeaders = {
 const MAX_TOTAL_ATTEMPTS = 9; // 3 retry cycles of 3 attempts each
 const PUSH_TIMEOUT_MS = 5000;
 const DEFAULT_PUSH_RATE_PER_HOUR = 60;
+const NO_TOKEN_RETRY_MS = 5 * 60 * 1000;
+const NO_TOKEN_DEADLINE_MS = 30 * 60 * 1000;
+const MAX_PUSH_TOKENS = 8;
+
+function retryDelayMs(attempt: number): number {
+  const steps = [15_000, 30_000, 120_000, 300_000, 900_000];
+  const slot = steps[Math.min(Math.max(attempt, 1) - 1, steps.length - 1)];
+  const capped = Math.min(slot, 30 * 60 * 1000);
+  const jitter = Math.floor(Math.random() * Math.min(5_000, Math.floor(capped * 0.2)));
+  return capped + jitter;
+}
+
+function isSellerOrderAlert(item: { type?: string; payload?: Record<string, unknown> | null }): boolean {
+  const payload = item.payload || {};
+  const status = String(payload.status || "");
+  const sellerStatuses = [
+    "placed", "enquired", "requested", "quoted", "preparing",
+    "payment_verify_pending", "refund_requested",
+  ];
+  return (
+    (payload.target_role === "seller" && sellerStatuses.includes(status)) ||
+    item.type === "seller_order_status_reminder" ||
+    payload.reminder_type === "unacked_order" ||
+    payload.reminder_type === "status_nudge"
+  );
+}
+
+function isClosedAppSellerAlert(data: Record<string, string> | undefined, highPriority: boolean): boolean {
+  if (!highPriority || !data) return false;
+  return isSellerOrderAlert({
+    type: data.type,
+    payload: data,
+  });
+}
 
 // ─── APNs Direct Delivery ───
 
@@ -77,6 +111,7 @@ async function sendApnsDirect(
         sound: apnsSound,
         badge: 1,
         "mutable-content": imageUrl ? 1 : 0,
+        ...(highPriority ? { "interruption-level": "time-sensitive" } : {}),
         ...(threadId ? { "thread-id": threadId } : {}),
       },
       ...(data || {}),
@@ -142,26 +177,56 @@ async function sendFcmDirect(
   // New channel id required when sound changes (Android channel settings are immutable).
   // iOS bundle ships gate_bell.mp3 via Codemagic (ios-config → App resources).
   const androidSound = highPriority ? "gate_bell" : "default";
-  const androidChannel = highPriority ? "orders_incoming_v2" : "general";
-  const androidNotif: Record<string, unknown> = { sound: androidSound, channel_id: androidChannel, icon: "ic_stat_sociva" };
+  const androidChannel = highPriority ? "orders_incoming_v3" : "general";
+  const closedAppSellerAlert = isClosedAppSellerAlert(data, highPriority);
+  const dataPayload: Record<string, string> = { ...(data || {}) };
+  if (closedAppSellerAlert) {
+    dataPayload.title = title;
+    dataPayload.body = body;
+    dataPayload.channel_id = androidChannel;
+  }
+  const androidNotif: Record<string, unknown> = {
+    sound: androidSound,
+    channel_id: androidChannel,
+    icon: "ic_stat_sociva",
+    visibility: "PUBLIC",
+    notification_priority: "PRIORITY_MAX",
+  };
   if (threadId) androidNotif.tag = threadId;
   if (imageUrl) androidNotif.image = imageUrl;
   const fcmNotif: Record<string, unknown> = { title, body };
   if (imageUrl) fcmNotif.image = imageUrl;
   const fcmApnsSound = highPriority ? "gate_bell.mp3" : "default";
-  const apnsAps: Record<string, unknown> = { alert: { title, body }, sound: fcmApnsSound, badge: 1 };
+  const apnsAps: Record<string, unknown> = {
+    alert: { title, body },
+    sound: fcmApnsSound,
+    badge: 1,
+    ...(highPriority ? { "interruption-level": "time-sensitive" } : {}),
+  };
   if (imageUrl) apnsAps["mutable-content"] = 1;
   if (threadId) apnsAps["thread-id"] = threadId;
   const apnsHeaders: Record<string, string> = { "apns-push-type": "alert", "apns-priority": "10" };
   if (threadId) apnsHeaders["apns-collapse-id"] = threadId.substring(0, 64);
 
-  const message = {
-    message: {
-      token: deviceToken, notification: fcmNotif, data: data || {},
-      android: { priority: "high", notification: androidNotif },
-      apns: { headers: apnsHeaders, payload: { aps: apnsAps, ...(imageUrl ? { image_url: imageUrl } : {}) } },
-    },
-  };
+  // Seller order alerts are data-only on Android so a killed process still starts
+  // OrderAlertMessagingService and the OS posts the lock-screen notification.
+  // iOS stays an alert push, which the system shows with the phone locked.
+  const message = closedAppSellerAlert
+    ? {
+      message: {
+        token: deviceToken,
+        data: dataPayload,
+        android: { priority: "high", ttl: "86400s" },
+        apns: { headers: apnsHeaders, payload: { aps: apnsAps, ...(imageUrl ? { image_url: imageUrl } : {}) } },
+      },
+    }
+    : {
+      message: {
+        token: deviceToken, notification: fcmNotif, data: data || {},
+        android: { priority: highPriority ? "high" : "normal", notification: androidNotif },
+        apns: { headers: apnsHeaders, payload: { aps: apnsAps, ...(imageUrl ? { image_url: imageUrl } : {}) } },
+      },
+    };
 
   try {
     const resp = await fetch(`https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`, {
@@ -277,17 +342,19 @@ async function deliverPushToUser(
     return { successCount: 0, failCount: 0 };
   }
 
-  // Deduplicate: keep highest health per platform, then latest updated
+  // Send to every healthy token. Dedupe by token string so a second phone is not dropped.
   const sorted = [...tokens].sort((a: any, b: any) => {
     const hs = (b.health_score ?? 100) - (a.health_score ?? 100);
     if (hs !== 0) return hs;
     return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
   });
-  const seenPlatform = new Set<string>();
+  const seenToken = new Set<string>();
   const deduped = sorted.filter((t: any) => {
     if ((t.health_score ?? 100) < 10) return false;
-    if (seenPlatform.has(t.platform)) return false;
-    seenPlatform.add(t.platform);
+    const key = String(t.token || "");
+    if (!key || seenToken.has(key)) return false;
+    if (seenToken.size >= MAX_PUSH_TOKENS) return false;
+    seenToken.add(key);
     return true;
   });
 
@@ -360,7 +427,7 @@ async function scheduleNextRun(supabase: any, supabaseUrl: string): Promise<void
     const { data: dueRows } = await supabase
       .from("notification_queue")
       .select("id", { count: "exact", head: false })
-      .eq("status", "pending")
+      .in("status", ["pending", "blocked"])
       .or("next_retry_at.is.null,next_retry_at.lte." + new Date().toISOString())
       .limit(1);
     const hasDueNow = !!(dueRows && dueRows.length > 0);
@@ -370,7 +437,7 @@ async function scheduleNextRun(supabase: any, supabaseUrl: string): Promise<void
       const { data: futureRows } = await supabase
         .from("notification_queue")
         .select("next_retry_at")
-        .eq("status", "pending")
+        .in("status", ["pending", "blocked"])
         .not("next_retry_at", "is", null)
         .gt("next_retry_at", new Date().toISOString())
         .order("next_retry_at", { ascending: true })
@@ -856,16 +923,35 @@ Deno.serve(async (req) => {
           continue;
         }
 
-        // If push provider is not available, mark as processed (in-app already delivered above)
+        // Missing credentials must stay visible for seller order alerts.
         if (!pushAvailable || !creds) {
+          const sellerAlert = isSellerOrderAlert(item);
+          const lastError = "Push skipped - no push provider configured";
           await supabase.from("notification_queue")
             .update({
-              status: "processed", processed_at: new Date().toISOString(),
-              push_attempted: false, push_skip_reason: "no_credentials",
-              last_error: "Push skipped - no push provider configured",
+              status: sellerAlert ? "failed" : "processed",
+              processed_at: new Date().toISOString(),
+              push_attempted: false,
+              push_skip_reason: "no_credentials",
+              last_error: lastError,
             }).eq("id", item.id);
-          pnqLog("push_skip", { notification_id: item.id, reason: "no_credentials" });
-          processed++;
+          if (sellerAlert) {
+            await moveToDeadLetter(supabase, {
+              id: item.id,
+              user_id: item.user_id,
+              type: item.type,
+              title: item.title,
+              body: item.body,
+              reference_path: item.reference_path,
+              payload: item.payload,
+              retry_count: item.retry_count,
+              last_error: lastError,
+            });
+            deadLettered++;
+          } else {
+            processed++;
+          }
+          pnqLog("push_skip", { notification_id: item.id, reason: "no_credentials", seller_alert: sellerAlert });
           continue;
         }
 
@@ -874,7 +960,7 @@ Deno.serve(async (req) => {
         const targetRole = rawPayload.target_role || '';
         const notifStatus = rawPayload.status || '';
 
-        const SELLER_HIGH_PRIORITY_STATUSES = ['placed', 'enquired', 'requested', 'quoted', 'payment_verify_pending', 'refund_requested'];
+        const SELLER_HIGH_PRIORITY_STATUSES = ['placed', 'preparing', 'enquired', 'requested', 'quoted', 'payment_verify_pending', 'refund_requested'];
         const BUYER_HIGH_PRIORITY_STATUSES = ['payment_failed', 'refund_failed', 'otp'];
         const SELLER_LIFECYCLE_TYPES = [
           'seller_approved',
@@ -894,6 +980,7 @@ Deno.serve(async (req) => {
           item.type === 'seller_order_status_reminder' ||
           rawPayload.reminder_type === 'payment_verify' ||
           rawPayload.reminder_type === 'status_nudge' ||
+          rawPayload.reminder_type === 'unacked_order' ||
           rawPayload.high_priority === true ||
           rawPayload.high_priority === 'true' ||
           SELLER_LIFECYCLE_TYPES.includes(item.type);
@@ -998,8 +1085,46 @@ Deno.serve(async (req) => {
           threadId, imageUrl, item.id, isHighPriority,
         );
 
-        if (successCount > 0 || failCount === 0) {
-          // At least one token succeeded OR no tokens exist - mark processed
+        if (successCount === 0 && failCount === 0 && isSellerOrderAlert(item)) {
+          const ageMs = item.created_at ? Date.now() - new Date(item.created_at).getTime() : 0;
+          const lastError = "No device token for seller order alert";
+          pnqLog("push_skip", { notification_id: item.id, reason: "no_tokens", age_ms: ageMs });
+          if (ageMs >= NO_TOKEN_DEADLINE_MS) {
+            await supabase.from("notification_queue").update({
+              status: "failed",
+              processed_at: new Date().toISOString(),
+              push_attempted: true,
+              push_success_count: 0,
+              push_fail_count: 0,
+              push_skip_reason: "no_tokens",
+              last_error: lastError,
+            }).eq("id", item.id);
+            await moveToDeadLetter(supabase, {
+              id: item.id,
+              user_id: item.user_id,
+              type: item.type,
+              title: item.title,
+              body: item.body,
+              reference_path: item.reference_path,
+              payload: item.payload,
+              retry_count: item.retry_count,
+              last_error: lastError,
+            });
+            deadLettered++;
+          } else {
+            await supabase.from("notification_queue").update({
+              status: "blocked",
+              next_retry_at: new Date(Date.now() + NO_TOKEN_RETRY_MS).toISOString(),
+              push_attempted: true,
+              push_success_count: 0,
+              push_fail_count: 0,
+              push_skip_reason: "no_tokens",
+              last_error: lastError,
+            }).eq("id", item.id);
+            retriedCount++;
+          }
+        } else if (successCount > 0 || failCount === 0) {
+          // At least one token succeeded, or a non-order row has no tokens.
           const skipReason = (successCount === 0 && failCount === 0) ? "no_tokens" : null;
           if (skipReason) pnqLog("push_skip", { notification_id: item.id, reason: skipReason });
           await supabase.from("notification_queue")
@@ -1028,7 +1153,7 @@ Deno.serve(async (req) => {
           }
           processed++;
         } else {
-          // All tokens failed - re-queue with 15s delay
+          // All tokens failed. Invalid tokens are dropped by health; this row backs off.
           const retryCount = (item.retry_count || 0) + 1;
           if (retryCount >= MAX_TOTAL_ATTEMPTS) {
             const lastError = "All push delivery attempts exhausted";
@@ -1053,7 +1178,7 @@ Deno.serve(async (req) => {
             deadLettered++;
             console.error(`[Queue][${item.id}] Dead-lettered after ${retryCount} attempts`);
           } else {
-            const nextRetryAt = new Date(Date.now() + 15_000).toISOString();
+            const nextRetryAt = new Date(Date.now() + retryDelayMs(retryCount)).toISOString();
             await supabase.from("notification_queue").update({
               status: "pending", retry_count: retryCount,
               last_error: "Push delivery failed, re-queued",

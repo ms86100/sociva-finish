@@ -43,6 +43,8 @@ interface CommerceFacetRailProps {
   onSortChange?: (key: SortKey) => void;
   /** Scoped listings - used for Veg / Non-Veg counts in the Taste sheet */
   inventory?: Array<{ is_veg?: boolean | null }>;
+  /** Home meal chips stay unlabeled with a count, for example Breakfast rather than Breakfast (3). */
+  showCounts?: boolean;
 }
 
 export function CommerceFacetRail({
@@ -55,6 +57,7 @@ export function CommerceFacetRail({
   sortBy,
   onSortChange,
   inventory,
+  showCounts = true,
 }: CommerceFacetRailProps) {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [sortOpen, setSortOpen] = useState(false);
@@ -236,6 +239,7 @@ export function CommerceFacetRail({
                 <span className="text-xs">{chip.emoji}</span>
               ) : null}
               <span>{chip.label}</span>
+              {showCounts && (
               <span
                 className={cn(
                   'ml-0.5 text-[10px] font-medium opacity-75',
@@ -244,6 +248,7 @@ export function CommerceFacetRail({
               >
                 ({chip.count})
               </span>
+              )}
             </button>
           ))}
 
@@ -295,6 +300,7 @@ export function CommerceFacetRail({
                     emoji="🥬"
                     label="Veg Only"
                     count={vegCount}
+                    showCount={showCounts}
                     active={!!value.veg}
                     onClick={() => onChange({ ...value, veg: !value.veg, nonVeg: false })}
                   />
@@ -302,6 +308,7 @@ export function CommerceFacetRail({
                     emoji="🍖"
                     label="Non-Veg"
                     count={nonVegCount}
+                    showCount={showCounts}
                     active={!!value.nonVeg}
                     onClick={() => onChange({ ...value, nonVeg: !value.nonVeg, veg: false })}
                   />
@@ -317,6 +324,7 @@ export function CommerceFacetRail({
                         imageUrl={CUISINE_IMAGES[opt.id]}
                         label={opt.label}
                         count={count}
+                        showCount={showCounts}
                         active={active}
                         onClick={() => toggleFoodFacet('cuisine', opt.id)}
                       />
@@ -334,6 +342,7 @@ export function CommerceFacetRail({
                         imageUrl={MEAL_IMAGES[opt.id]}
                         label={opt.label}
                         count={count}
+                        showCount={showCounts}
                         active={active}
                         onClick={() => toggleFoodFacet('meal', opt.id)}
                       />
@@ -351,6 +360,7 @@ export function CommerceFacetRail({
                         imageUrl={COURSE_IMAGES[opt.id]}
                         label={opt.label}
                         count={count}
+                        showCount={showCounts}
                         active={active}
                         onClick={() => toggleFoodFacet('course', opt.id)}
                       />
@@ -386,7 +396,7 @@ export function CommerceFacetRail({
                           <span>{chip.emoji}</span>
                         ) : null}
                         <span>{chip.label}</span>
-                        <span className="text-[10px] opacity-75">({chip.count})</span>
+                        {showCounts && <span className="text-[10px] opacity-75">({chip.count})</span>}
                       </button>
                     ))}
                 </div>
@@ -420,7 +430,7 @@ export function CommerceFacetRail({
                           <span>{chip.emoji}</span>
                         ) : null}
                         <span>{chip.label}</span>
-                        <span className="text-[10px] opacity-75">({chip.count})</span>
+                        {showCounts && <span className="text-[10px] opacity-75">({chip.count})</span>}
                       </button>
                     ))}
                 </div>
@@ -454,7 +464,7 @@ export function CommerceFacetRail({
                           <span>{chip.emoji}</span>
                         ) : null}
                         <span>{chip.label}</span>
-                        <span className="text-[10px] opacity-75">({chip.count})</span>
+                        {showCounts && <span className="text-[10px] opacity-75">({chip.count})</span>}
                       </button>
                     ))}
                 </div>
@@ -488,7 +498,7 @@ export function CommerceFacetRail({
                           <span>{chip.emoji}</span>
                         ) : null}
                         <span>{chip.label}</span>
-                        <span className="text-[10px] opacity-75">({chip.count})</span>
+                        {showCounts && <span className="text-[10px] opacity-75">({chip.count})</span>}
                       </button>
                     ))}
                 </div>
@@ -551,6 +561,7 @@ function TasteSheetChip({
   imageUrl,
   label,
   count,
+  showCount = true,
   active,
   onClick,
 }: {
@@ -558,6 +569,7 @@ function TasteSheetChip({
   imageUrl?: string;
   label: string;
   count: number;
+  showCount?: boolean;
   active: boolean;
   onClick: () => void;
 }) {
@@ -581,7 +593,7 @@ function TasteSheetChip({
         <span>{emoji}</span>
       )}
       <span>{label}</span>
-      <span className="text-[10px] opacity-75">({count})</span>
+      {showCount && <span className="text-[10px] opacity-75">({count})</span>}
     </button>
   );
 }

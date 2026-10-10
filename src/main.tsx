@@ -23,7 +23,7 @@ function scheduleAnalyticsAndObservability() {
 
 // Bump when shipping bootstrap/critical-path fixes so returning users drop
 // stale Workbox caches that competed with first paint (e.g. splash-video / fat precache).
-const BUILD_CACHE_VERSION = "2026-08-23-slim-sw-precache-v3";
+const BUILD_CACHE_VERSION = "2026-10-10-book-button";
 
 // Performance markers for landing page load analysis
 const perfMarks = {};

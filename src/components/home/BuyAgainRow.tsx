@@ -7,10 +7,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useBrowsingLocation } from '@/contexts/BrowsingLocationContext';
 import { filterDiscoverableProductIds } from '@/lib/sellerDiscoverability';
 import { useCart } from '@/hooks/useCart';
-import { useCurrency } from '@/hooks/useCurrency';
 import { RefreshCw, Plus, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 import { notify } from '@/lib/notify';
 import { useCategoryConfigs } from '@/hooks/useCategoryBehavior';
@@ -28,17 +26,10 @@ interface BuyAgainProduct {
   action_type: string | null;
 }
 
-interface GroupedCategory {
-  category: string;
-  products: BuyAgainProduct[];
-  totalOrders: number;
-}
-
 export function BuyAgainRow() {
   const { user } = useAuth();
   const { browsingLocation } = useBrowsingLocation();
   const { items, addItem } = useCart();
-  const { formatPrice } = useCurrency();
   const { configs: categoryConfigs } = useCategoryConfigs();
 
   const { data: products = [] } = useQuery({
@@ -132,25 +123,12 @@ export function BuyAgainRow() {
     [products, categoryConfigs]
   );
 
-  // Group products by category
-  const grouped = useMemo((): GroupedCategory[] => {
-    const map: Record<string, BuyAgainProduct[]> = {};
-    for (const p of cartableProducts) {
-      const cat = p.category || 'Other';
-      if (!map[cat]) map[cat] = [];
-      map[cat].push(p);
-    }
-    return Object.entries(map)
-      .map(([category, prods]) => ({
-        category,
-        products: prods.sort((a, b) => b.order_count - a.order_count),
-        totalOrders: prods.reduce((s, p) => s + p.order_count, 0),
-      }))
-      .sort((a, b) => b.totalOrders - a.totalOrders)
-      .slice(0, 8);
-  }, [cartableProducts]);
+  const ordered = useMemo(
+    () => [...cartableProducts].sort((a, b) => b.order_count - a.order_count).slice(0, 8),
+    [cartableProducts],
+  );
 
-  if (cartableProducts.length < 3) return null;
+  if (ordered.length < 3) return null;
 
   const isInCart = (productId: string) => items.some(i => i.product_id === productId);
 
@@ -179,84 +157,57 @@ export function BuyAgainRow() {
   };
 
   return (
-    <div className="mt-5 mb-6">
+    <div className="mt-4 mb-2">
       <div className="flex items-center gap-2 px-4 mb-3">
         <div className="w-7 h-7 rounded-xl bg-primary/10 flex items-center justify-center">
           <RefreshCw size={13} className="text-primary" />
         </div>
-        <h3 className="font-extrabold text-base text-foreground tracking-tight">Frequently bought</h3>
+        <h3 className="font-extrabold text-base text-foreground tracking-tight">Order again</h3>
       </div>
 
       <div className="flex gap-3 overflow-x-auto scrollbar-hide px-4 pb-2">
-        {grouped.map((group, gi) => {
-          const displayProducts = group.products.slice(0, 2);
-          const moreCount = group.products.length - 2;
-
+        {ordered.map((product, index) => {
+          const inCart = isInCart(product.id);
+          const times = product.order_count > 0 ? product.order_count : 1;
           return (
-            <motion.div
-              key={group.category}
+            <motion.button
+              key={product.id}
+              type="button"
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: gi * 0.06 }}
-              className="shrink-0 w-[140px]"
+              transition={{ delay: index * 0.05 }}
+              onClick={() => void handleQuickAdd(product)}
+              className="shrink-0 w-[168px] text-left rounded-2xl bg-card border border-border overflow-hidden"
             >
-              {/* Card with teal/green tint */}
-              <div className="rounded-2xl bg-[hsl(var(--buyagain-card-bg))] border border-[hsl(var(--buyagain-card-border))] p-2.5 space-y-2">
-                {/* Product thumbnails grid */}
-                <div className="grid grid-cols-2 gap-1.5">
-                  {displayProducts.map((product) => {
-                    const inCart = isInCart(product.id);
-                    return (
-                      <button
-                        key={product.id}
-                        onClick={() => handleQuickAdd(product)}
-                        className="relative aspect-square rounded-xl bg-white dark:bg-card overflow-hidden border border-border/40"
-                      >
-                        {product.image_url ? (
-                          <img
-                            src={optimizedImageUrl(product.image_url, { width: 150, quality: 70 })}
-                            alt={product.name}
-                            className="w-full h-full object-cover"
-                            loading="lazy"
-                            decoding="async"
-                            onError={handleImageError}
-                          />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center text-lg">🛒</div>
-                        )}
-                        <div className={cn(
-                          'absolute bottom-0.5 right-0.5 w-5 h-5 rounded-full flex items-center justify-center shadow-sm',
-                          inCart ? 'bg-primary' : 'bg-primary/90'
-                        )}>
-                          {inCart ? (
-                            <Check size={10} className="text-primary-foreground" />
-                          ) : (
-                            <Plus size={10} className="text-primary-foreground" />
-                          )}
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-
-                {/* +N more badge */}
-                {moreCount > 0 && (
-                  <div className="text-center">
-                   <span className="text-[10px] font-bold text-[hsl(var(--buyagain-badge-text))] bg-[hsl(var(--buyagain-badge-bg))] px-2 py-0.5 rounded-full">
-                      +{moreCount} more
-                    </span>
-                  </div>
+              <div className="relative aspect-[4/3] bg-muted">
+                {product.image_url ? (
+                  <img
+                    src={optimizedImageUrl(product.image_url, { width: 320, quality: 70 })}
+                    alt={product.name}
+                    className="w-full h-full object-cover"
+                    loading="lazy"
+                    decoding="async"
+                    onError={handleImageError}
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-lg">🛒</div>
                 )}
+                <div className={cn(
+                  'absolute bottom-2 right-2 w-7 h-7 rounded-full flex items-center justify-center shadow-sm',
+                  inCart ? 'bg-primary' : 'bg-primary/90'
+                )}>
+                  {inCart ? (
+                    <Check size={14} className="text-primary-foreground" />
+                  ) : (
+                    <Plus size={14} className="text-primary-foreground" />
+                  )}
+                </div>
               </div>
-
-              {/* Category label below */}
-              <p className="text-[11px] font-semibold text-foreground text-center mt-1.5 line-clamp-2 leading-tight">
-                {group.category}
-              </p>
-              <p className="text-[9px] text-muted-foreground text-center mt-0.5">
-                {group.totalOrders}× ordered
-              </p>
-            </motion.div>
+              <div className="px-2.5 py-2">
+                <p className="text-[13px] font-semibold text-foreground line-clamp-2 leading-tight">{product.name}</p>
+                <p className="text-[11px] text-muted-foreground mt-1">Ordered {times} {times === 1 ? 'time' : 'times'}</p>
+              </div>
+            </motion.button>
           );
         })}
       </div>

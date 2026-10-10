@@ -76,7 +76,7 @@ export function useMarketplaceData() {
           .from('seller_profiles')
           .select('id, home_service_available, home_service_fee, fulfillment_mode')
           .in('id', chunk);
-        if (error) return rows;
+        if (error) throw error;
         rows.push(...((data || []) as typeof rows));
       }
       return rows;
@@ -156,10 +156,21 @@ export function useMarketplaceData() {
     }));
   }, [sellers, products, homeBySeller]);
 
+  const refetch = async () => {
+    await sellersQuery.refetch();
+    if (sellerIds.length > 0) await productsQuery.refetch();
+  };
+
   return {
     data,
     isLoading: sellersQuery.isLoading || productsQuery.isLoading,
     error: sellersQuery.error || productsQuery.error,
+    isError: sellersQuery.isError || productsQuery.isError,
+    isFetching: sellersQuery.isFetching || productsQuery.isFetching,
+    /** Fetch is waiting for connectivity (React Query networkMode 'online'). */
+    isPaused: sellersQuery.fetchStatus === 'paused' || productsQuery.fetchStatus === 'paused',
+    hasLocation: sellersQuery.hasLocation,
+    refetch,
     sellersReady: !sellersQuery.isLoading && !!sellers,
     sellers,
     // Expose infinite scroll controls

@@ -39,18 +39,21 @@ export async function runPushDiagnostics(userId?: string): Promise<DiagnosticRes
   // 3. Permission status
   try {
     const perm = await PN.checkPermissions();
-    const granted = perm.receive === 'granted';
-    
-    // Gather extra context for debugging
+    const grantedBefore = perm.receive === 'granted';
+    const isDenied = perm.receive === 'denied';
+    let granted = grantedBefore;
     let extraDetail = `receive: ${perm.receive}`;
-    if (!granted) {
-      // Check if this is a fresh install (prompt) or previously denied
-      const isDenied = perm.receive === 'denied';
-      extraDetail += ` | ${isDenied ? 'User previously denied - must enable in Settings' : 'OS prompt never shown or was suppressed'}`;
-      
+    if (isDenied) {
+      extraDetail += ' | User previously denied - must enable in Settings';
+    } else if (!granted) {
+      extraDetail += ' | OS prompt never shown or was suppressed';
       try {
         const reqResult = await PN.requestPermissions();
-        extraDetail += ` | requestPermissions() → ${reqResult.receive}`;
+        extraDetail += ` | requestPermissions() -> ${reqResult.receive}`;
+        granted = reqResult.receive === 'granted';
+        if (reqResult.receive === 'denied') {
+          extraDetail += ' | Android will not show the dialog again - open Settings';
+        }
       } catch (reqErr: any) {
         extraDetail += ` | requestPermissions() threw: ${reqErr?.message ?? String(reqErr)}`;
       }

@@ -22,40 +22,42 @@ import { Order, OrderStatus } from '@/types/Database';
 import { toast } from 'sonner';
 import { showFeedback } from '@/components/FeedbackPopupProvider';
 import { track } from '@/lib/analytics';
+import { combineSignals, timeoutSignal } from '@/lib/network-timeout';
 
-async function fetchOrderData(id: string) {
-  const { data, error } = await supabase
+/** Side lookups only decorate the order; a slow one must not hold the whole screen. */
+const ORDER_SIDE_LOOKUP_TIMEOUT_MS = 5_000;
+
+async function fetchOrderData(id: string, signal?: AbortSignal) {
+  let orderQuery = supabase
     .from('orders')
     .select(`*, seller:seller_profiles(id, business_name, user_id, primary_group, latitude, longitude, delivery_radius_km, profile:profiles!seller_profiles_user_id_fkey(name, phone, block, flat_number)), buyer:profiles!orders_buyer_id_fkey(name, phone, block, flat_number, phase, society_id), items:order_items(*, product:products(category, listing_type))`)
-    .eq('id', id)
-    .maybeSingle();
+    .eq('id', id);
+  if (signal) orderQuery = orderQuery.abortSignal(signal);
+  const { data, error } = await orderQuery.maybeSingle();
   if (error) throw error;
   if (!data) return null;
 
-  const societyId = (data as any).society_id || (data as any).buyer?.society_id;
-  if (societyId) {
-    const { data: society } = await supabase.from('societies').select('name').eq('id', societyId).maybeSingle();
-    (data as any).buyer_society_name = society?.name || null;
-  }
-
   // Derive parent_group inline from the first item's product category
-  let parentGroup: string | null = null;
   let listingType: string | null = null;
   const sellerPg = (data as any)?.seller?.primary_group;
   const firstItem = (data as any)?.items?.[0];
   const product = firstItem?.product;
+  if (product) listingType = product.listing_type || null;
 
-  if (product) {
-    listingType = product.listing_type || null;
-    if (!sellerPg && product.category) {
-      const { data: catConfig } = await supabase
-        .from('category_config')
-        .select('parent_group')
-        .eq('category', product.category as any)
-        .maybeSingle();
-      parentGroup = catConfig?.parent_group || null;
-    }
-  }
+  const societyId = (data as any).society_id || (data as any).buyer?.society_id;
+  const sideSignal = combineSignals(signal, timeoutSignal(ORDER_SIDE_LOOKUP_TIMEOUT_MS));
+
+  const [societyName, parentGroup] = await Promise.all([
+    societyId
+      ? supabase.from('societies').select('name').eq('id', societyId).abortSignal(sideSignal).maybeSingle()
+          .then(({ data: society }) => society?.name || null, () => null)
+      : Promise.resolve(null),
+    product && !sellerPg && product.category
+      ? supabase.from('category_config').select('parent_group').eq('category', product.category as any).abortSignal(sideSignal).maybeSingle()
+          .then(({ data: catConfig }) => catConfig?.parent_group || null, () => null)
+      : Promise.resolve(null),
+  ]);
+  if (societyId) (data as any).buyer_society_name = societyName;
 
   return { order: data as any, derivedParentGroup: parentGroup, derivedListingType: listingType };
 }
@@ -71,9 +73,16 @@ export function useOrderDetail(id: string | undefined) {
   const [isRejectionDialogOpen, setIsRejectionDialogOpen] = useState(false);
 
   // Main order query with React Query caching
-  const { data: orderData, isLoading } = useQuery({
+  const {
+    data: orderData,
+    isLoading,
+    isError: isOrderError,
+    isFetching: isOrderFetching,
+    fetchStatus: orderFetchStatus,
+    refetch: refetchOrderQuery,
+  } = useQuery({
     queryKey: ['order-detail', id],
-    queryFn: () => fetchOrderData(id!),
+    queryFn: ({ signal }) => fetchOrderData(id!, signal),
     enabled: !!id,
     staleTime: 2 * 60_000,
   });
@@ -116,7 +125,7 @@ export function useOrderDetail(id: string | undefined) {
   const orderFulfillmentType = (order as any)?.fulfillment_type || null;
   const deliveryHandledBy = (order as any)?.delivery_handled_by || null;
   const storedTransactionType = (order as any)?.transaction_type || null;
-  const { flow, isLoading: isFlowLoading } = useCategoryStatusFlow(effectiveParentGroup, orderType, orderFulfillmentType, deliveryHandledBy, derivedListingType, storedTransactionType);
+  const { flow, isLoading: isFlowLoading, isError: isFlowError, refetch: refetchFlow } = useCategoryStatusFlow(effectiveParentGroup, orderType, orderFulfillmentType, deliveryHandledBy, derivedListingType, storedTransactionType);
 
   // Timer-based tick to re-evaluate urgency when auto_cancel_at passes
   const [urgencyTick, setUrgencyTick] = useState(0);
@@ -598,5 +607,12 @@ export function useOrderDetail(id: string | undefined) {
     formatPrice, user,
     updateOrderStatus, buyerAdvanceOrder, handleReject, handleTimeout, copyOrderId, fetchOrder,
     transitions,
+    isOrderError,
+    isOrderFetching,
+    /** No cached order and the fetch is waiting for connectivity. */
+    isOrderPaused: orderFetchStatus === 'paused',
+    refetchOrder: () => refetchOrderQuery(),
+    isFlowError,
+    refetchFlow,
   };
 }

@@ -229,6 +229,9 @@ export function usePermissionLifecycle() {
           void syncInstallationPermissions({ locationPermission: 'denied' });
           return 'settings';
         }
+        if (perm === 'unavailable') {
+          return 'denied';
+        }
         // OS granted (or still prompt → try position). Mark enabled as soon as OS allows
         // so the home banner dismisses even if GPS fix times out.
         if (perm === 'granted') {

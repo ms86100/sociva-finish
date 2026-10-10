@@ -135,7 +135,7 @@
     --sidebar-ring: 151 65% 38%;
 
     /* ═══ Component surface tokens - Light ═══ */
-    --header-bg: 40 20% 99% / 0.95;
+    --header-bg: 40 20% 99%;
     --nav-bg: 40 20% 99% / 0.98;
     --nav-border: 40 10% 90% / 0.6;
     --search-bg: 40 15% 95% / 0.6;
@@ -263,7 +263,7 @@
     --sidebar-ring: 151 65% 44%;
 
     /* ═══ Component surface tokens - Dark ═══ */
-    --header-bg: 0 0% 5% / 0.97;
+    --header-bg: 0 0% 5%;
     --nav-bg: 20 10% 5% / 0.98;
     --nav-border: 20 8% 16% / 0.6;
     --search-bg: 0 0% 12% / 0.8;

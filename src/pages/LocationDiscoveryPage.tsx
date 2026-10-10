@@ -4,7 +4,8 @@ import { useBackInterceptor } from '@/hooks/useBackInterceptor';
 import { useNavigate } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { useBrowsingLocation } from '@/contexts/BrowsingLocationContext';
-import { getCurrentPosition, isLocationError } from '@/lib/native-location';
+import { getCurrentPosition, locationFailureCopy } from '@/lib/native-location';
+import { openLocationSettings } from '@/lib/location-settings';
 import { syncInstallationPermissions } from '@/lib/installation';
 import { loadGoogleMapsScript } from '@/hooks/useGoogleMaps';
 import { GoogleMapConfirm } from '@/components/auth/GoogleMapConfirm';
@@ -130,19 +131,11 @@ export default function LocationDiscoveryPage() {
       // Lifecycle only - independent of browsing pin / login
       void syncInstallationPermissions({ locationPermission: 'enabled' });
     } catch (err) {
-      if (isLocationError(err) && err.code === 'permission_denied') {
-        toast.error('Location permission denied', {
-          description: 'Select your location manually instead.',
-        });
+      const copy = locationFailureCopy(err);
+      toast.error(copy.title, { description: copy.description });
+      if (copy.openSettings) {
         void syncInstallationPermissions({ locationPermission: 'denied' });
-      } else if (isLocationError(err) && err.code === 'timeout') {
-        toast.error('Location timed out', {
-          description: 'Try again, or select your location manually.',
-        });
-      } else {
-        toast.error('Could not detect location', {
-          description: 'Select your location manually instead.',
-        });
+        void openLocationSettings();
       }
       // Stay on explain / manual - never open Bangalore map fallback
       // Manual pin can still be set without GPS permission.

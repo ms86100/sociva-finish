@@ -26,6 +26,66 @@ export function omitSoleActionChips<T extends { type: string }>(chips: readonly 
   return chips.filter((chip) => chip.type !== 'action_type');
 }
 
+const BOOK_PLACE_LABELS: Record<string, string> = {
+  home_visit: 'At your home',
+  at_store: 'At their place',
+  online: 'Online',
+};
+
+const CONTACT_PURPOSE_LABELS: Record<string, string> = {
+  request_service: 'Ask',
+  request_quote: 'Get a quote',
+  make_offer: 'Make an offer',
+};
+
+/**
+ * Book offers where and how long. Contact offers ask, quote, or offer,
+ * and only when more than one of those exists. Neither page repeats its own action.
+ */
+export function purposeChipsForMode(
+  mode: 'shop' | 'book' | 'services',
+  chips: readonly DynamicFacetChip[],
+  products: ReadonlyArray<{
+    action_type?: string | null;
+    category?: string | null;
+  }>,
+  options?: {
+    categoryConfigs?: readonly CategoryActionConfig[] | null;
+    actionType?: string | null;
+  },
+): DynamicFacetChip[] {
+  if (mode === 'book') {
+    return chips
+      .filter((chip) => chip.type === 'service_mode' || chip.type === 'duration')
+      .map((chip) => {
+        if (chip.type === 'duration') return { ...chip, label: 'Short session' };
+        const label = BOOK_PLACE_LABELS[String(chip.value)];
+        return label ? { ...chip, label } : chip;
+      });
+  }
+  if (mode === 'services') {
+    const counts = new Map<string, number>();
+    for (const product of products) {
+      const action = resolveListingAction(product.action_type, product.category, options?.categoryConfigs);
+      if (CONTACT_PURPOSE_LABELS[action]) {
+        counts.set(action, (counts.get(action) || 0) + 1);
+      }
+    }
+    if (counts.size < 2) return [];
+    return (Object.keys(CONTACT_PURPOSE_LABELS) as string[])
+      .filter((action) => (counts.get(action) || 0) > 0)
+      .map((action) => ({
+        id: `action:${action}`,
+        label: CONTACT_PURPOSE_LABELS[action],
+        count: counts.get(action) || 0,
+        type: 'action_type' as const,
+        value: action,
+        isActive: options?.actionType === action,
+      }));
+  }
+  return omitSoleActionChips(chips);
+}
+
 export function emptyCommerceFacetState(): CommerceFacetState {
   return {
     cuisine: null,

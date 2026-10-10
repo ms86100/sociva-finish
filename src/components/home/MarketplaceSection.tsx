@@ -24,7 +24,11 @@ import { GroupedSellerRow } from '@/components/home/GroupedSellerRow';
 import { IntentProductRail } from '@/components/discovery/IntentProductRail';
 import { useIntentRailModel } from '@/hooks/useIntentRailModel';
 import { ProductCardSkeleton } from '@/components/product/ProductCardSkeleton';
-import { ShoppingBag, Flame, UtensilsCrossed, Wrench, Heart, Users } from 'lucide-react';
+import { ShoppingBag, Flame, UtensilsCrossed, Wrench, Heart, Users, MapPin } from 'lucide-react';
+import { LoadFailureState } from '@/components/network/LoadFailureState';
+import { useSlowLoading } from '@/hooks/useSlowLoading';
+import { resolveMarketplaceStatus } from '@/lib/marketplace-status';
+import { useAuth } from '@/contexts/AuthContext';
 import { useCategoryConfigs } from '@/hooks/useCategoryBehavior';
 import { useMarketplaceConfig } from '@/hooks/useMarketplaceConfig';
 import { useBadgeConfig } from '@/hooks/useBadgeConfig';
@@ -134,7 +138,15 @@ export function MarketplaceSection() {
   useBadgeConfig();
 
   // Cap discovery payload - 80 products was overkill for first paint
-  const { data: localCategories = [], isLoading: loadingLocal } = useProductsByCategory(40);
+  const {
+    data: localCategories = [],
+    isLoading: loadingLocal,
+    isError: marketplaceFailed,
+    isFetching: marketplaceFetching,
+    isPaused: marketplacePaused,
+    hasLocation,
+    refetch: refetchMarketplace,
+  } = useProductsByCategory(40);
   // Home is the cart catalog. Book and enquiry listings stay on their own tabs.
   const cartCategories = useMemo(() => {
     return localCategories
@@ -144,6 +156,18 @@ export function MarketplaceSection() {
       }))
       .filter((group) => group.products.length > 0);
   }, [localCategories, categoryConfigs]);
+  const { user, profile, isProfileLoading, profileError } = useAuth();
+  const marketplaceStatus = resolveMarketplaceStatus({
+    hasContent: cartCategories.length > 0,
+    isLoading: loadingLocal,
+    hasLocation,
+    // Society / saved-address coordinates arrive with the auth profile.
+    locationPending: !!user && (isProfileLoading || (!profile && !profileError)),
+    isPaused: marketplacePaused,
+    isError: marketplaceFailed,
+  });
+  const showMarketplaceSkeleton = marketplaceStatus === 'loading';
+  const marketplaceSlow = useSlowLoading(showMarketplaceSkeleton);
   const { data: marketplaceSellers = [] } = useMarketplaceData();
   const { parentGroupInfos } = useParentGroups();
 
@@ -254,7 +278,37 @@ export function MarketplaceSection() {
     setDetailOpen(true);
   }, [categoryConfigs]);
 
-  if (!loadingLocal && cartCategories.length === 0) {
+  if (marketplaceStatus === 'no-location' || marketplaceStatus === 'offline' || marketplaceStatus === 'error') {
+    return (
+      <div className="px-4 py-6" data-testid={`marketplace-status-${marketplaceStatus}`}>
+        {marketplaceStatus === 'no-location' ? (
+          <div className="rounded-2xl border border-border bg-card px-5 py-8 text-center">
+            <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-muted">
+              <MapPin size={18} className="text-muted-foreground" />
+            </div>
+            <p className="text-sm font-semibold text-foreground">Set your location to see nearby sellers</p>
+            <p className="mx-auto mt-1 max-w-xs text-xs text-muted-foreground">
+              Choose your address or allow location access, and sellers around you will show up here.
+            </p>
+          </div>
+        ) : (
+          <LoadFailureState
+            variant={marketplaceStatus === 'offline' ? 'offline' : 'error'}
+            title={marketplaceStatus === 'offline' ? "You're offline" : "Couldn't load the marketplace"}
+            description={
+              marketplaceStatus === 'offline'
+                ? 'Sellers and products will load as soon as your connection is back.'
+                : 'This is a connection problem, not an empty marketplace. Check your internet and try again.'
+            }
+            onRetry={() => { void refetchMarketplace(); }}
+            retrying={marketplaceFetching}
+          />
+        )}
+      </div>
+    );
+  }
+
+  if (marketplaceStatus === 'empty') {
     return (
       <div className="pb-2">
         {festivals.map((f) => (
@@ -327,24 +381,21 @@ export function MarketplaceSection() {
 
   return (
     <div className="pb-2">
-      {/* Above-fold: festival hero (when active), category rail, then products */}
-      <div
-        className="pt-1 pb-1"
-        style={takeover.active ? { backgroundColor: takeover.bg } : undefined}
-      >
-        {takeover.active && (
+      {/* Festival hero scrolls away. The category rail stays under the header. */}
+      {takeover.active && (
+        <div className="pt-1" style={{ backgroundColor: takeover.bg }}>
           <FestivalHomeHero onExplore={exploreFestival} />
-        )}
-        <ParentGroupTabs
-          activeCategory={activeCategory}
-          onCategoryChange={(cat) => {
-            setActiveCategory(cat);
-            setFestivalFocused(false);
-            setCommerceFacets(emptyCommerceFacetState());
-          }}
-          activeCategories={activeCategorySet}
-        />
-      </div>
+        </div>
+      )}
+      <ParentGroupTabs
+        activeCategory={activeCategory}
+        onCategoryChange={(cat) => {
+          setActiveCategory(cat);
+          setFestivalFocused(false);
+          setCommerceFacets(emptyCommerceFacetState());
+        }}
+        activeCategories={activeCategorySet}
+      />
 
       {!festivalFocused && (
         <CommerceFacetRail
@@ -354,6 +405,7 @@ export function MarketplaceSection() {
           parentGroup={activeGroup}
           className="py-1"
           inventory={scopedProducts}
+          showCounts={false}
         />
       )}
 
@@ -408,12 +460,6 @@ export function MarketplaceSection() {
         </div>
       )}
 
-      {!activeCategory && !festivalFocused && !loadingLocal && (
-        <LazySection>
-          <BuyAgainRow />
-        </LazySection>
-      )}
-
       {!activeCategory && !festivalFocused && !loadingLocal && intentRails.primary && (
         <div data-testid="home-popular-rail">
           <SectionDivider />
@@ -439,6 +485,10 @@ export function MarketplaceSection() {
           onProductTap={handleProductTap}
           categoryConfigs={categoryConfigs}
         />
+      )}
+
+      {!activeCategory && !festivalFocused && !loadingLocal && !isFacetFilterActive && (
+        <BuyAgainRow />
       )}
 
       {!activeCategory && !festivalFocused && intentRails.recentlyViewed && (
@@ -486,8 +536,17 @@ export function MarketplaceSection() {
         </div>
       )}
 
-      {!festivalFocused && (loadingLocal ? (
+      {!festivalFocused && (showMarketplaceSkeleton ? (
         <div className="px-4 mt-2">
+          {marketplaceSlow && (
+            <LoadFailureState
+              variant="slow"
+              compact
+              className="mb-3"
+              description="Your connection seems slow. We're still trying."
+              onRetry={() => { void refetchMarketplace(); }}
+            />
+          )}
           <ProductCardSkeleton count={6} />
         </div>
       ) : (

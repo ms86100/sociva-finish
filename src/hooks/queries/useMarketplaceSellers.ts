@@ -80,7 +80,8 @@ export function useMarketplaceSellers() {
 
         if (error) {
           console.error('Marketplace sellers RPC error:', error);
-          return [];
+          // Throw so the UI can tell a failed request from a genuinely empty marketplace.
+          throw error;
         }
 
         return (data || []) as MarketplaceSeller[];
@@ -103,5 +104,6 @@ export function useMarketplaceSellers() {
   return {
     ...query,
     data: allSellers,
+    hasLocation: !!(lat && lng),
   };
 }

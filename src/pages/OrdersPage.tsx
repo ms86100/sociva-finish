@@ -20,6 +20,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useBuyerRealtimeShell } from '@/hooks/useBuyerRealtimeShell';
 import { deriveDisplayStatus } from '@/lib/deriveDisplayStatus';
 import { useOrdersList } from '@/hooks/useOrdersList';
+import { useSlowLoading } from '@/hooks/useSlowLoading';
+import { LoadFailureState } from '@/components/network/LoadFailureState';
 import { useFlowStepLabels } from '@/hooks/useFlowStepLabels';
 import { useCurrency } from '@/hooks/useCurrency';
 import { Order } from '@/types/Database';
@@ -301,7 +303,11 @@ function OrderList({
   const [buyerFilter, setBuyerFilter] = useState<'all' | 'active' | 'upcoming' | 'completed' | 'cancelled'>('all');
   const [sellerFilter, setSellerFilter] = useState<SellerReceivedFilter>('all');
   const listFilter = buyerFilter === 'upcoming' ? 'all' : buyerFilter;
-  const { orders, isLoading, hasMore, isLoadingMore, loadMore, successSet, terminalSet } = useOrdersList(type, userId, sellerId, listFilter);
+  const {
+    orders, isLoading, hasMore, isLoadingMore, loadMore, successSet, terminalSet,
+    isError: ordersFailed, isFetching: ordersFetching, isPaused: ordersPaused, refetch: refetchOrders,
+  } = useOrdersList(type, userId, sellerId, listFilter);
+  const ordersSlow = useSlowLoading(isLoading && buyerFilter !== 'upcoming');
   const queryClient = useQueryClient();
 
   const orderIds = orders.filter(Boolean).map(o => o.id).filter(Boolean);
@@ -370,6 +376,9 @@ function OrderList({
         animate="show"
         className="space-y-2.5"
       >
+        {ordersSlow && (
+          <LoadFailureState variant="slow" compact onRetry={() => { void refetchOrders(); }} />
+        )}
         {[1, 2, 3].map(i => (
           <motion.div key={i} variants={cardEntrance}>
             <Skeleton className="h-20 w-full rounded-xl" />
@@ -404,6 +413,35 @@ function OrderList({
     );
   }
 
+  if (orders.length === 0 && (ordersFailed || ordersPaused)) {
+    return (
+      <LoadFailureState
+        variant={ordersPaused ? 'offline' : 'error'}
+        title={ordersPaused ? "You're offline" : "Couldn't load orders"}
+        description={ordersPaused
+          ? 'Your orders will load as soon as your connection is back.'
+          : 'Your orders are safe. This is a connection problem - please try again.'}
+        onRetry={() => { void refetchOrders(); }}
+        retrying={ordersFetching}
+      />
+    );
+  }
+
+  const staleBanner = (ordersFailed || ordersPaused) ? (
+    <div
+      className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-border bg-muted/50 px-3 py-2"
+      role="status"
+      data-testid="orders-stale-banner"
+    >
+      <p className="text-xs text-muted-foreground">
+        {ordersPaused ? "You're offline - showing your last loaded orders." : "Couldn't refresh orders - showing your last loaded orders."}
+      </p>
+      <Button size="sm" variant="outline" className="h-7 shrink-0 text-xs" onClick={() => { void refetchOrders(); }} disabled={ordersFetching}>
+        {ordersFetching ? 'Retrying...' : 'Retry'}
+      </Button>
+    </div>
+  ) : null;
+
   const filteredForView = (buyerFilter === 'active'
     ? orders.filter(o => o && !isUpcomingScheduled(o as any))
     : orders
@@ -429,6 +467,7 @@ function OrderList({
 
   return (
     <div>
+      {staleBanner}
       {type === 'buyer' && (
         <div className="flex gap-2 mb-3 overflow-x-auto scrollbar-hide">
           {(['all', 'active', 'upcoming', 'completed', 'cancelled'] as const).map(f => (

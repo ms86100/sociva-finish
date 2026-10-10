@@ -99,6 +99,7 @@ import { NewOrderAlertProvider, useNewOrderAlertContext } from "@/contexts/NewOr
 import { NewOrderAlertOverlay } from "@/components/seller/NewOrderAlertOverlay";
 import { FeedbackPopupProvider } from "@/components/FeedbackPopupProvider";
 import { Skeleton } from "@/components/ui/skeleton";
+import { LoadFailureState } from "@/components/network/LoadFailureState";
 import { PageTransitionWrapper } from "@/components/layout/PageTransitionWrapper";
 import { AppShellGate } from "@/components/layout/AppShell";
 import { PullToRefreshHost } from "@/components/layout/PullToRefreshHost";
@@ -407,9 +408,27 @@ function ManagementRoute({ children }: { children: React.ReactNode }) {
 }
 
 function SellerRoute({ children }: { children: React.ReactNode }) {
-  const { hasSellerProfile, isAdmin, isLoading } = useAuth();
-  if (isLoading) return <div className="min-h-[100dvh] flex items-center justify-center bg-background"><Skeleton className="h-6 w-32 rounded-lg" /></div>;
-  if (!hasSellerProfile && !isAdmin) return <Navigate to="/" replace />;
+  const { hasSellerProfile, isAdmin, isLoading, user, profile, isProfileLoading, profileError, refreshProfile } = useAuth();
+  const routeSkeleton = <div className="min-h-[100dvh] flex items-center justify-center bg-background"><Skeleton className="h-6 w-32 rounded-lg" /></div>;
+  if (isLoading) return routeSkeleton;
+  if (!hasSellerProfile && !isAdmin) {
+    // Seller stores arrive with the auth profile; a slow or failed load must not bounce a real seller to Home.
+    if (user && (isProfileLoading || (!profile && !profileError))) return routeSkeleton;
+    if (user && profileError) {
+      return (
+        <div className="min-h-[100dvh] flex items-center justify-center bg-background p-4">
+          <LoadFailureState
+            variant="error"
+            title="Couldn't load your store"
+            description={profileError}
+            onRetry={() => { void refreshProfile(); }}
+            className="w-full max-w-sm"
+          />
+        </div>
+      );
+    }
+    return <Navigate to="/" replace />;
+  }
   return <>{children}</>;
 }
 

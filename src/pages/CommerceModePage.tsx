@@ -13,12 +13,14 @@ import { useCommerceModeListings } from '@/hooks/queries/useCommerceModeListings
 import { applyProductFacetRow, useProductFacets } from '@/hooks/queries/useProductFacets';
 import { hasPreciseCoordinates } from '@/lib/buyerLocation';
 import type { CommerceMode } from '@/lib/commerce-mode';
+import { categoriesOwnedByMode } from '@/lib/commerce-mode';
 import {
   type CommerceFacetState,
   emptyCommerceFacetState,
   extractAvailableCommerceFacets,
   hasActiveCommerceFacets,
   productMatchesCommerceFacets,
+  purposeChipsForMode,
 } from '@/lib/commerce-facets';
 import { buildProductDetailPayload, buildRelatedProductDetailPayload } from '@/lib/product-detail-payload';
 import { cn } from '@/lib/utils';
@@ -84,7 +86,7 @@ function CommerceModeView({ mode }: { mode: CommerceMode }) {
   const { browsingLocation } = useBrowsingLocation();
   const needsPreciseLocation = !hasPreciseCoordinates(browsingLocation?.lat, browsingLocation?.lng);
 
-  const { listings, categoryConfigs, isLoading, topUpError, retryTopUp } = useCommerceModeListings(mode);
+  const { listings, buckets, categoryConfigs, isLoading, topUpError, retryTopUp } = useCommerceModeListings(mode);
 
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [facets, setFacets] = useState<CommerceFacetState>(emptyCommerceFacetState());
@@ -101,7 +103,10 @@ function CommerceModeView({ mode }: { mode: CommerceMode }) {
     [listings, facetRows, categoryConfigs],
   );
 
-  const modeCategories = useMemo(() => new Set(enriched.map((p) => p.category)), [enriched]);
+  const modeCategories = useMemo(
+    () => categoriesOwnedByMode(buckets, mode, categoryConfigs),
+    [buckets, mode, categoryConfigs],
+  );
   const activeGroup = activeCategory
     ? categoryConfigs.find((c) => c.category === activeCategory)?.parentGroup ?? null
     : null;
@@ -113,9 +118,11 @@ function CommerceModeView({ mode }: { mode: CommerceMode }) {
 
   const facetChips = useMemo(() => {
     const chips = extractAvailableCommerceFacets(scoped, { parentGroup: activeGroup, currentState: facets, categoryConfigs });
-    const actionChips = chips.filter((c) => c.type === 'action_type');
-    return actionChips.length > 1 ? chips : chips.filter((c) => c.type !== 'action_type');
-  }, [scoped, activeGroup, facets, categoryConfigs]);
+    return purposeChipsForMode(mode, chips, scoped, {
+      categoryConfigs,
+      actionType: facets.actionType,
+    });
+  }, [scoped, activeGroup, facets, categoryConfigs, mode]);
 
   const visible = useMemo(
     () => (hasActiveCommerceFacets(facets)
@@ -240,7 +247,10 @@ function CommerceModeView({ mode }: { mode: CommerceMode }) {
                   <ProductCardSkeleton count={9} />
                 </div>
               ) : visible.length > 0 ? (
-                <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 gap-2 sm:gap-3" data-testid="commerce-mode-grid">
+                <div className={cn(
+                  'grid gap-2 sm:gap-3',
+                  mode === 'services' ? 'grid-cols-2' : 'grid-cols-3 sm:grid-cols-3 md:grid-cols-4',
+                )} data-testid="commerce-mode-grid">
                   {visible.map((product) => (
                     <ProductListingCard
                       key={product.id}

@@ -6,6 +6,7 @@ import {
   productMatchesCommerceFacets,
   emptyCommerceFacetState,
   normalizeServiceMode,
+  purposeChipsForMode,
 } from '@/lib/commerce-facets';
 
 describe('commerce facets extraction and filtering', () => {
@@ -155,5 +156,28 @@ describe('commerce facets extraction and filtering', () => {
     expect(rail).toContain('vegCount');
     expect(rail).toContain('nonVegCount');
     expect(rail).not.toMatch(/label="Veg Only"\s*\n\s*count=\{0\}/);
+  });
+
+  it('keeps Book filters to place and session, and Contact filters to a real choice', () => {
+    const chips = extractAvailableCommerceFacets(dummyProducts, {
+      parentGroup: 'home_services',
+      currentState: emptyCommerceFacetState(),
+    });
+    const book = purposeChipsForMode('book', chips, dummyProducts);
+    expect(book.map((chip) => chip.label)).toEqual(expect.arrayContaining(['At your home', 'Short session']));
+    expect(book.some((chip) => chip.type === 'action_type')).toBe(false);
+
+    const contact = purposeChipsForMode('services', [], [
+      { action_type: 'request_quote', category: 'tuition' },
+      { action_type: 'make_offer', category: 'tuition' },
+      { action_type: 'contact_seller', category: 'salon' },
+    ]);
+    expect(contact.map((chip) => chip.label)).toEqual(['Get a quote', 'Make an offer']);
+
+    const onlyAsk = purposeChipsForMode('services', [], [
+      { action_type: 'request_service', category: 'tuition' },
+      { action_type: 'contact_seller', category: 'salon' },
+    ]);
+    expect(onlyAsk).toEqual([]);
   });
 });

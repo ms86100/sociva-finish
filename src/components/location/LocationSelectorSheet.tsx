@@ -7,7 +7,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useCart } from '@/hooks/useCart';
 import { setPendingAuthAction, profileEditOnboardingState } from '@/lib/pending-auth-action';
 import { useBrowsingLocation } from '@/contexts/BrowsingLocationContext';
-import { getCurrentPosition } from '@/lib/native-location';
+import { getCurrentPosition, locationFailureCopy } from '@/lib/native-location';
+import { openLocationSettings } from '@/lib/location-settings';
 import { loadGoogleMapsScript } from '@/hooks/useGoogleMaps';
 import { GoogleMapConfirm } from '@/components/auth/GoogleMapConfirm';
 import { toast } from 'sonner';
@@ -75,8 +76,10 @@ export function LocationSelectorSheet({ open, onOpenChange }: LocationSelectorSh
 
       setDetectedLocation({ lat: pos.latitude, lng: pos.longitude, label });
       setStep('confirm');
-    } catch {
-      toast.error('Could not detect location. Please enable location access.');
+    } catch (err) {
+      const copy = locationFailureCopy(err);
+      toast.error(copy.title, { description: copy.description });
+      if (copy.openSettings) void openLocationSettings();
     } finally {
       setDetectingGps(false);
     }

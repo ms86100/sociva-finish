@@ -10,6 +10,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { ProductCard } from '@/components/product/ProductCard';
 import { ProductDetailSheet } from '@/components/product/ProductDetailSheet';
+import { ServiceBookingFlow } from '@/components/booking/ServiceBookingFlow';
 import { RatingStars } from '@/components/ui/rating-stars';
 import { ReviewList } from '@/components/review/ReviewList';
 import { FavoriteButton } from '@/components/favorite/FavoriteButton';
@@ -36,6 +37,7 @@ import { useCart } from '@/hooks/useCart';
 import { useAuth } from '@/contexts/AuthContext';
 import { SellerProfile, Product, DAYS_OF_WEEK } from '@/types/Database';
 import { useCategoryConfigs } from '@/hooks/useCategoryBehavior';
+import { resolveListingAction } from '@/lib/commerce-mode';
 import { Clock, Search, ShoppingCart, Calendar, Flag, X, ShieldCheck, AlertCircle, ChevronDown } from 'lucide-react';
 import { fullStorePlaceLine, shortStorePlaceLabel } from '@/lib/location-label-resolver';
 import { SellerLocationLine } from '@/components/location/SellerLocationLine';
@@ -102,6 +104,7 @@ export default function SellerDetailPage() {
   const [isSubmittingReport, setIsSubmittingReport] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [detailOpen, setDetailOpen] = useState(false);
+  const [bookingProduct, setBookingProduct] = useState<Product | null>(null);
   const marketplaceSeller = useMemo(
     () => marketplaceSellers.find((entry: any) => entry.seller_id === id) || null,
     [marketplaceSellers, id]
@@ -445,6 +448,16 @@ export default function SellerDetailPage() {
       is_same_society: seller.society_id === effectiveSocietyId,
     });
     setDetailOpen(true);
+  };
+
+  const openListingAction = (product: Product) => {
+    const action = resolveListingAction(product.action_type, product.category, allCategoryConfigs);
+    if (action === 'book') {
+      if (!seller) return;
+      setBookingProduct(product);
+      return;
+    }
+    openProductDetail(product);
   };
 
   const categories = ['all', ...new Set(products.map((p) => p.category))];
@@ -918,7 +931,7 @@ export default function SellerDetailPage() {
                           onClick={() => openProductDetail(product)}
                           className="cursor-pointer"
                         >
-                          <ProductCard product={product} />
+                          <ProductCard product={product} onTap={openListingAction} />
                         </div>
                       ))}
                     </div>
@@ -946,14 +959,14 @@ export default function SellerDetailPage() {
                         </p>
                         {catProducts.map(product => (
                           <div key={product.id} onClick={() => openProductDetail(product)} className="cursor-pointer">
-                            <ProductCard product={product} />
+                            <ProductCard product={product} onTap={openListingAction} />
                           </div>
                         ))}
                       </div>
                     );
                   }) : filteredProducts.map((product) => (
                     <div key={product.id} onClick={() => openProductDetail(product)} className="cursor-pointer">
-                      <ProductCard product={product} />
+                      <ProductCard product={product} onTap={openListingAction} />
                     </div>
                   ));
                 })()}
@@ -984,6 +997,23 @@ export default function SellerDetailPage() {
       </div>
 
       {/* Cart Footer removed - using global FloatingCartBar via showCart={true} */}
+
+      {bookingProduct && seller && (
+        <ServiceBookingFlow
+          open
+          onOpenChange={(open) => { if (!open) setBookingProduct(null); }}
+          productId={bookingProduct.id}
+          productName={bookingProduct.name}
+          sellerId={seller.id}
+          sellerName={seller.business_name}
+          price={bookingProduct.price}
+          category={bookingProduct.category || ''}
+          imageUrl={bookingProduct.image_url}
+          durationMinutes={bookingProduct.prep_time_minutes || undefined}
+          locationType={(bookingProduct as any).location_type || undefined}
+          subcategoryId={(bookingProduct as any).subcategory_id || undefined}
+        />
+      )}
 
       <ProductDetailSheet
         product={selectedProduct}

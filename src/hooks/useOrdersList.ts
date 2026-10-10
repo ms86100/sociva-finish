@@ -92,6 +92,11 @@ export function useOrdersList(
     hasMore: result.hasNextPage ?? false,
     isLoadingMore: result.isFetchingNextPage,
     loadMore: () => result.fetchNextPage(),
+    isError: result.isError,
+    isFetching: result.isFetching,
+    /** Waiting for connectivity (React Query networkMode 'online'). */
+    isPaused: result.fetchStatus === 'paused',
+    refetch: () => result.refetch(),
     successSet,
     terminalSet,
   };

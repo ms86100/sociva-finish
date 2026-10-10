@@ -5,6 +5,7 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 import { capacitorStorage } from '@/lib/capacitor-storage';
+import { createReadTimeoutFetch } from '@/lib/network-timeout';
 
 const PROD_REF = 'kkzkuyhgdvyecmxtmkpy';
 const STAGING_REF = 'wwuanzbusxoyzixuprxs';
@@ -87,6 +88,8 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
     persistSession: true,
     autoRefreshToken: true,
   },
+  // Only PostgREST reads are bounded; auth, storage, functions and writes pass through untouched.
+  global: { fetch: createReadTimeoutFetch() },
 });
 
 if (typeof console !== 'undefined') {

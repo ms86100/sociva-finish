@@ -186,6 +186,11 @@ export default function NotificationsPage() {
                 // Direct call in tap handler - preserves iOS user-gesture context
                 const permResult = await PushNotifications.requestPermissions();
 
+                if (permResult.receive === 'denied') {
+                  setOsPermission('denied');
+                  await openAppSettings();
+                  return;
+                }
                 if (permResult.receive !== 'granted') {
                   setOsPermission(permResult.receive as 'granted' | 'denied' | 'prompt');
                   return;

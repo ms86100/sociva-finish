@@ -45,16 +45,16 @@ export function ParentGroupTabs({
   return (
     <div
       className={cn(
-        'sticky top-[max(var(--app-safe-top),3.25rem)] z-20',
-        takeover.active ? 'border-b border-white/10' : 'bg-background/80 backdrop-blur-xl border-b border-border/30'
+        'sticky top-[var(--app-header-offset,0px)] z-[35] isolate w-full',
+        takeover.active ? 'border-b border-white/10' : 'border-b border-border'
       )}
-      style={barStyle}
+      style={takeover.active ? barStyle : { backgroundColor: 'hsl(var(--background))' }}
     >
       <CategoryPhotoChipRail
         items={items}
         selectedId={activeCategory}
         isLoading={isLoading}
-        railClassName="px-4 py-2"
+        railClassName="px-4 py-2.5 bg-background"
         allowDeselect
         onSelect={(id) => {
           hapticSelection();

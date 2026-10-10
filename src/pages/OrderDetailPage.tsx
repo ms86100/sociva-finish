@@ -53,6 +53,8 @@ import { format } from 'date-fns';
 import { useSmartBack } from '@/hooks/useSmartBack';
 import { getString, setString } from '@/lib/persistent-kv';
 import { cn } from '@/lib/utils';
+import { LoadFailureState } from '@/components/network/LoadFailureState';
+import { useSlowLoading } from '@/hooks/useSlowLoading';
 
 import { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
@@ -341,6 +343,7 @@ export default function OrderDetailPage() {
   const goBack = useSmartBack('/orders');
   const { user } = useAuth();
   const o = useOrderDetail(id);
+  const orderSlow = useSlowLoading(!!o.isLoading);
   const { dismissById } = useNewOrderAlertContext();
   const [deliveryAssignmentId, setDeliveryAssignmentId] = useState<string | null>(null);
   const [isOtpDialogOpen, setIsOtpDialogOpen] = useState(false);
@@ -624,7 +627,35 @@ export default function OrderDetailPage() {
     setRouteInfo(info);
   }, []);
 
-  if (o.isLoading) return <AppLayout showHeader={false}><div className="p-4 space-y-3"><Skeleton className="h-8 w-32" /><Skeleton className="h-28 w-full rounded-xl" /><Skeleton className="h-40 w-full rounded-xl" /></div></AppLayout>;
+  if (o.isLoading) return (
+    <AppLayout showHeader={false}>
+      <div className="p-4 space-y-3">
+        {orderSlow && (
+          <LoadFailureState variant="slow" compact onRetry={() => { void o.refetchOrder(); }}>
+            <Link to="/orders"><Button size="sm" variant="outline" className="w-full">View Orders</Button></Link>
+          </LoadFailureState>
+        )}
+        <Skeleton className="h-8 w-32" /><Skeleton className="h-28 w-full rounded-xl" /><Skeleton className="h-40 w-full rounded-xl" />
+      </div>
+    </AppLayout>
+  );
+  if (!order && (o.isOrderError || o.isOrderPaused)) return (
+    <AppLayout showHeader={false}>
+      <div className="p-4 py-16">
+        <LoadFailureState
+          variant={o.isOrderPaused ? 'offline' : 'error'}
+          title={o.isOrderPaused ? "You're offline" : "Couldn't load this order"}
+          description={o.isOrderPaused
+            ? 'This order will load as soon as your connection is back.'
+            : 'Your order is safe. This is a connection problem - please try again.'}
+          onRetry={() => { void o.refetchOrder(); }}
+          retrying={o.isOrderFetching}
+        >
+          <Link to="/orders"><Button size="sm" variant="outline" className="w-full">View Orders</Button></Link>
+        </LoadFailureState>
+      </div>
+    </AppLayout>
+  );
   if (!order) return <AppLayout showHeader={false}><div className="p-4 text-center py-16"><p className="text-sm text-muted-foreground">Order not found</p><Link to="/orders"><Button size="sm" className="mt-4">View Orders</Button></Link></div></AppLayout>;
 
   const seller = o.seller;
@@ -992,6 +1023,26 @@ export default function OrderDetailPage() {
             /></motion.div>
           )}
 
+          {/* Delivery OTP - always from delivery_assignments.delivery_code (seller verifies the same value).
+              Do NOT use GenericOtpCard here: regenerate wrote order_otp_codes and caused Invalid OTP. */}
+          {o.isBuyerView && isDeliveryOrder && buyerOtp && !isTerminalStatus(o.flow, order.status) && (isInTransit || ['picked_up', 'on_the_way', 'at_gate'].includes(order.status) || (() => {
+            const nextStatus = o.buyerNextStatus || o.nextStatus;
+            if (!nextStatus) return false;
+            const nextOtp = getStepOtpType(o.flow, nextStatus);
+            return nextOtp === 'delivery' || nextOtp === 'delivery_otp';
+          })()) && (
+            <div className="bg-primary/5 border-2 border-primary rounded-xl p-4 text-center">
+              <p className="text-xs text-muted-foreground mb-1">Your Delivery Code</p>
+              <p className="text-3xl font-bold tracking-[0.3em] text-primary">{buyerOtp}</p>
+              <p className="text-[11px] text-muted-foreground mt-1.5">
+                {(order as any).delivery_handled_by === 'platform'
+                  ? 'Share this code with the delivery person to confirm delivery'
+                  : 'Share this code with the seller to confirm delivery'}
+              </p>
+              <p className="text-[10px] text-warning mt-1.5">⚠️ Only share when you've received your items. This code confirms delivery is complete.</p>
+            </div>
+          )}
+
           {/* WhatsApp opt-in - opens 24h CSW after user sends Hi (dismissible / once opted-in) */}
           {o.isBuyerView && !isTerminalStatus(o.flow, order.status) && order.status !== 'cancelled' && order.status !== 'payment_pending' && (
             <motion.div variants={cardEntrance}>
@@ -1171,8 +1222,8 @@ export default function OrderDetailPage() {
                 const destLng = (order as any).delivery_lng || (buyer as any)?.longitude || null;
                 return destLat && destLng ? (
                   <SafeSectionWrapper name="DeliveryMap" resetKey={order.id}>
-                    <div className="-mx-4 border-y border-border/40 overflow-hidden bg-[#f3f3f1]">
-                      <Suspense fallback={<Skeleton className="h-[min(56vh,520px)] w-full" />}>
+                    <div className="rounded-2xl overflow-hidden border border-border/40 bg-[#f3f3f1]">
+                      <Suspense fallback={<Skeleton className="h-48 w-full" />}>
                       <DeliveryMapView
                         riderLat={originLat || sellerLatVal || destLat}
                         riderLng={originLng || sellerLngVal || destLng}
@@ -1244,26 +1295,6 @@ export default function OrderDetailPage() {
                 </a>
               )}
              </motion.div>
-          )}
-
-          {/* Delivery OTP - always from delivery_assignments.delivery_code (seller verifies the same value).
-              Do NOT use GenericOtpCard here: regenerate wrote order_otp_codes and caused Invalid OTP. */}
-          {o.isBuyerView && isDeliveryOrder && buyerOtp && !isTerminalStatus(o.flow, order.status) && (isInTransit || ['picked_up', 'on_the_way', 'at_gate'].includes(order.status) || (() => {
-            const nextStatus = o.buyerNextStatus || o.nextStatus;
-            if (!nextStatus) return false;
-            const nextOtp = getStepOtpType(o.flow, nextStatus);
-            return nextOtp === 'delivery' || nextOtp === 'delivery_otp';
-          })()) && (
-            <div className="bg-primary/5 border-2 border-primary/20 rounded-xl p-4 text-center">
-              <p className="text-xs text-muted-foreground mb-1">Your Delivery Code</p>
-              <p className="text-3xl font-bold tracking-[0.3em] text-primary">{buyerOtp}</p>
-              <p className="text-[11px] text-muted-foreground mt-1.5">
-                {(order as any).delivery_handled_by === 'platform'
-                  ? 'Share this code with the delivery person to confirm delivery'
-                  : 'Share this code with the seller to confirm delivery'}
-              </p>
-              <p className="text-[10px] text-warning mt-1.5">⚠️ Only share when you've received your items. This code confirms delivery is complete.</p>
-            </div>
           )}
 
           {/* Self-pickup OTP card - buyer sees the code to share with seller */}
@@ -1640,6 +1671,22 @@ export default function OrderDetailPage() {
           <div className="px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] flex flex-row items-center justify-center gap-2 min-h-12 text-sm text-muted-foreground">
             <Loader2 size={16} className="animate-spin" />
             <span>Loading actions…</span>
+          </div>
+        </div>
+      )}
+
+      {/* Seller Action Bar - flow failed to load (never silently hide Accept / status actions) */}
+      {o.isSellerView && o.isFlowError && !o.isFlowLoading && o.flow.length === 0 && !hasSellerActionBar && (
+        <div className={WORKFLOW_BAR} data-testid="seller-actions-load-failed">
+          <div className="px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] flex flex-row items-center justify-between gap-3 min-h-12 text-sm">
+            <span className="flex items-center gap-2 text-muted-foreground">
+              <AlertTriangle size={16} className="shrink-0" />
+              Couldn't load order actions
+            </span>
+            <Button size="sm" onClick={() => { void o.refetchFlow(); }}>
+              <RefreshCw size={14} className="mr-1.5" />
+              Retry
+            </Button>
           </div>
         </div>
       )}

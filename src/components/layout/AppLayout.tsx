@@ -66,12 +66,14 @@ export function AppLayout({
   return (
     <div className="min-h-[100dvh] bg-background">
       {showHeader && (
-        <Header
-          showCart={showCart}
-          showLocation={showLocation}
-          showBack={showBack}
-          title={headerTitle}
-        />
+        <div className="sticky top-0 z-40">
+          <Header
+            showCart={showCart}
+            showLocation={showLocation}
+            showBack={showBack}
+            title={headerTitle}
+          />
+        </div>
       )}
       <main
         className={cn(

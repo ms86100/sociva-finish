@@ -32,7 +32,7 @@ function AppShellChrome() {
 
   return (
     <div className="min-h-[100dvh] bg-background">
-      <div className={cn(!showHeader && 'hidden')}>
+      <div className={cn('sticky top-0 z-40', !showHeader && 'hidden')}>
         <Header
           showCart={showCart}
           showLocation={options.showLocation !== false}

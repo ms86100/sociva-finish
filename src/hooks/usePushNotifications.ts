@@ -18,6 +18,8 @@ import {
   stampDeviceTokenInstallation,
   syncInstallationPermissions,
 } from '@/lib/installation';
+import { ORDERS_INCOMING_CHANNEL_ID, ORDERS_INCOMING_SOUND } from '@/lib/notification-channel-settings';
+import { orderBellAlreadyPlayed } from '@/lib/local-order-notifications';
 
 /**
  * BUILD FINGERPRINT - bump on every push-related update.
@@ -332,22 +334,24 @@ export function usePushNotificationsInternal() {
       if (platform === 'android') {
         try {
           await PushNotifications.createChannel({
-            id: 'orders_incoming_v2',
+            id: ORDERS_INCOMING_CHANNEL_ID,
             name: 'Incoming Orders',
             description: 'High-priority ringing alerts for new seller orders',
             importance: 5,
             visibility: 1,
-            sound: 'gate_bell',
+            sound: ORDERS_INCOMING_SOUND,
             vibration: true,
             lights: true,
           });
-          pushLog('info', 'ANDROID_CHANNEL_CREATED', { channelId: 'orders_incoming_v2' });
+          pushLog('info', 'ANDROID_CHANNEL_CREATED', { channelId: ORDERS_INCOMING_CHANNEL_ID });
         } catch (chErr) {
-          pushLog('warn', 'ANDROID_CHANNEL_CREATE_FAILED', { channelId: 'orders_incoming_v2', error: String(chErr) });
+          pushLog('warn', 'ANDROID_CHANNEL_CREATE_FAILED', { channelId: ORDERS_INCOMING_CHANNEL_ID, error: String(chErr) });
         }
 
-        // Keep legacy channels so older queued pushes still resolve
+        // Keep legacy channels so older queued pushes still resolve.
+        // v2 is immutable and may already be silent on devices that created it without the bell.
         for (const legacy of [
+          { id: 'orders_incoming_v2', name: 'Incoming Orders (previous)', sound: 'gate_bell' },
           { id: 'orders_incoming_v1', name: 'Incoming Orders (legacy)', sound: 'order_ring' },
           { id: 'orders_alert', name: 'Order Alerts (legacy)', sound: 'gate_bell' },
         ] as const) {
@@ -389,16 +393,16 @@ export function usePushNotificationsInternal() {
         try {
           const { LocalNotifications } = await import('@capacitor/local-notifications');
           await LocalNotifications.createChannel({
-            id: 'orders_incoming_v2',
+            id: ORDERS_INCOMING_CHANNEL_ID,
             name: 'Incoming Orders',
             description: 'High-priority ringing alerts for new seller orders',
             importance: 5,
             visibility: 1,
-            sound: 'gate_bell',
+            sound: ORDERS_INCOMING_SOUND,
             vibration: true,
             lights: true,
           });
-          pushLog('info', 'LOCAL_NOTIF_CHANNEL_CREATED', { channelId: 'orders_incoming_v2' });
+          pushLog('info', 'LOCAL_NOTIF_CHANNEL_CREATED', { channelId: ORDERS_INCOMING_CHANNEL_ID });
           void import('@/lib/local-order-notifications').then(({ ensureLocalOrderNotificationAckListener }) => {
             void ensureLocalOrderNotificationAckListener();
           }).catch(() => {});
@@ -531,14 +535,13 @@ export function usePushNotificationsInternal() {
           }).catch(() => {});
         }
 
-        // Suppress if Live Activity is tracking
+        // A Live Activity for a different order must not hide this bell.
+        // Same-order suppression happens only when this order screen is already open.
         if (orderId && LiveActivityManager.isTracking(orderId)) {
-          pushLog('info', 'FOREGROUND_SUPPRESSED_LA_ACTIVE', { orderId });
-          return;
+          pushLog('info', 'FOREGROUND_LA_TRACKING_SAME_ORDER', { orderId });
         }
 
-        // Suppress self-action: if buyer is viewing this order page, skip sound/toast
-        // but still dispatch a refetch event so the detail page updates immediately
+        // If the seller is already looking at this order, skip sound and toast.
         const currentPath = window.location.hash || window.location.pathname;
         if (orderId && currentPath.includes(`/orders/${orderId}`)) {
           pushLog('info', 'FOREGROUND_SUPPRESSED_SELF_ACTION', { orderId });
@@ -546,21 +549,18 @@ export function usePushNotificationsInternal() {
           return;
         }
 
-        // Deduplicate haptics: skip if realtime already triggered within 3s
+        // Skip a second haptic if realtime already fired, but still ring once.
         const dedupKey = orderId && pushStatus ? `${orderId}-${pushStatus}` : '';
         const now = Date.now();
+        let skipHaptic = false;
         if (dedupKey) {
           const lastHaptic = recentHaptics.get(dedupKey);
           if (lastHaptic && now - lastHaptic < 3000) {
             pushLog('info', 'HAPTIC_DEDUP_SKIP', { dedupKey });
-            // Still show toast but skip haptic + sound
-            const toastOpts: Record<string, any> = { description: notification?.body };
-            if (orderId && pushStatus) toastOpts.id = `order-${orderId}-${pushStatus}`;
-            toast(notification?.title ?? 'New Notification', toastOpts);
-            return;
+            skipHaptic = true;
+          } else {
+            recentHaptics.set(dedupKey, now);
           }
-          recentHaptics.set(dedupKey, now);
-          // Cleanup old entries
           if (recentHaptics.size > 20) {
             for (const [k, v] of recentHaptics) {
               if (now - v > 10000) recentHaptics.delete(k);
@@ -568,33 +568,28 @@ export function usePushNotificationsInternal() {
           }
         }
 
-        hapticNotification('success');
+        if (!skipHaptic) hapticNotification('success');
 
-        // High-priority foreground: play gate_bell (bundled on iOS + web).
-        // Always play once for sellers too - overlay may not be mounted yet on push-only delivery.
+        // One bell per order. If the in-app alert already started it, do not schedule another.
         const isHighPriority = data?.high_priority === 'true';
-        const isStatusNudge = data?.type === 'seller_order_status_reminder' || data?.reminder_type === 'status_nudge';
+        const isStatusNudge = data?.type === 'seller_order_status_reminder'
+          || data?.reminder_type === 'status_nudge'
+          || data?.reminder_type === 'unacked_order';
         if (isStatusNudge && orderId) {
           window.dispatchEvent(new CustomEvent('seller-status-nudge', { detail: { orderId } }));
-          void import('@/lib/local-order-notifications').then(({ scheduleIncomingOrderLocalNotification }) =>
-            scheduleIncomingOrderLocalNotification({
-              orderId,
-              title: notification?.title || '⏰ Update order status',
-              body: notification?.body || 'Order is still Accepted - tap to mark Preparing.',
-            }),
-          );
         }
-        if (soundsEnabledRef.current && isHighPriority && !isPushStale) {
+        const bellAlreadyPlaying = !!(orderId && orderBellAlreadyPlayed(orderId));
+        if (soundsEnabledRef.current && isHighPriority && !isPushStale && !bellAlreadyPlaying) {
           if (orderId) {
             void import('@/lib/local-order-notifications').then(({ scheduleIncomingOrderLocalNotification }) =>
               scheduleIncomingOrderLocalNotification({
                 orderId,
-                title: notification?.title || 'New order',
+                title: notification?.title || (isStatusNudge ? 'Order still waiting' : 'New order'),
                 body: notification?.body || 'Tap to review',
               }),
             );
           }
-          void (async () => {
+          if (!Capacitor.isNativePlatform()) void (async () => {
             try {
               const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
               const tryUrls = ['/sounds/gate_bell.mp3', '/sounds/order_ring.mp3'];
@@ -652,8 +647,9 @@ export function usePushNotificationsInternal() {
           const isSellerRefund = String(data?.status || '').toLowerCase() === 'refund_requested'
             && String(data?.target_role || '').toLowerCase() === 'seller';
           const isSellerOrder = !isSellerRefund && (data?.type === 'order' || data?.type === 'order_created');
+          const isUnacked = data?.reminder_type === 'unacked_order';
           toastOptions.action = {
-            label: isStatusNudge ? 'Update Status' : 'View',
+            label: isUnacked ? 'Accept' : isStatusNudge ? 'Update Status' : 'View',
             onClick: () => {
               track('push_action_clicked', {
                 ...pushAnalyticsProps(data, route),

@@ -20,6 +20,14 @@ export function NotificationHealthCheck() {
     try {
       const results = await runPushDiagnostics(user?.id);
       setStatuses(summariseDiagnostics(results));
+      const permission = results.find((row) => row.step.startsWith('3. Permission'));
+      const cannotPromptAgain =
+        permission &&
+        !permission.ok &&
+        /previously denied|will not show the dialog again/i.test(permission.detail || '');
+      if (cannotPromptAgain) {
+        await handleOpenSettings();
+      }
     } catch {
       setStatuses([{
         label: 'Error',

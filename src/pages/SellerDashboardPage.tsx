@@ -67,6 +67,8 @@ import {
   UPI_REQUIRED_TITLE,
 } from '@/lib/sellerPaymentReadiness';
 import { track } from '@/lib/analytics';
+import { LoadFailureState } from '@/components/network/LoadFailureState';
+import { useSlowLoading } from '@/hooks/useSlowLoading';
 
 // Lazy: heavy secondary tabs - keep Orders path lean
 const QuickActions = lazy(() =>
@@ -118,10 +120,7 @@ export default function SellerDashboardPage() {
   const queryClient = useQueryClient();
   const settings = useSystemSettings();
   const paymentMode = usePaymentMode();
-  const [sellerProfile, setSellerProfile] = useState<SellerProfile | null>(null);
-  const [isLoadingProfile, setIsLoadingProfile] = useState(true);
   const [orderFilter, setOrderFilter] = useState<OrderFilter>('all');
-  const [renderError, setRenderError] = useState<string | null>(null);
   const [healthSheetOpen, setHealthSheetOpen] = useState(false);
   const [dashboardTab, setDashboardTab] = useState('orders');
 
@@ -161,8 +160,10 @@ export default function SellerDashboardPage() {
   // Service bookings for schedule tab
   const { data: serviceBookings = [] } = useSellerServiceBookings(isPortfolio ? null : activeSellerId);
 
-  // Support tickets - keyed off seller's profiles.id (user_id), NOT seller_profiles.id.
-  const activeSellerUserId = sellerProfile?.user_id || user?.id || '';
+  // Support tickets use the seller's profile user id, not the store id.
+  // The full store row is loaded further down, so read user_id from the auth list here.
+  const activeSellerUserId =
+    sellerProfiles.find((seller) => seller.id === activeSellerId)?.user_id || user?.id || '';
   const { data: supportTickets = [] } = useSellerTickets(activeSellerUserId);
   useSellerSupportRealtime(activeSellerUserId);
   const { data: hasBookableServices = false } = useSellerHasBookableServices(isPortfolio ? null : activeSellerId);
@@ -179,59 +180,71 @@ export default function SellerDashboardPage() {
     console.log('[SellerDashboard] Auth state:', { userId: user?.id, sellerProfilesCount: sellerProfiles?.length, activeSellerId, currentSellerId, isPortfolio });
   }, [user, sellerProfiles, activeSellerId, currentSellerId, isPortfolio]);
 
+  // Keep cached orders on screen when the dashboard opens; only a genuine store
+  // switch drops the previous store's board so it can never flash under the new one.
+  const previousScopeRef = useRef<string | null>(null);
   useEffect(() => {
-    setSellerProfile(null);
-    setIsLoadingProfile(true);
-    queryClient.removeQueries({ queryKey: ['seller-dashboard-stats'] });
-    queryClient.removeQueries({ queryKey: ['seller-orders'] });
-    queryClient.removeQueries({ queryKey: ['seller-order-filter-counts'] });
-    queryClient.removeQueries({ queryKey: ['seller-analytics-charts'] });
-    queryClient.removeQueries({ queryKey: ['seller-refund-requests'] });
-    queryClient.removeQueries({ queryKey: ['seller-financial-summary'] });
-    queryClient.removeQueries({ queryKey: ['seller-financial-activity'] });
-    if (user && isPortfolio) {
-      // Portfolio: no single store profile - still leave loading false quickly
-      setIsLoadingProfile(false);
-      setRenderError(null);
-    } else if (user && activeSellerId) {
-      fetchSellerProfile(activeSellerId);
-    } else {
-      setIsLoadingProfile(false);
+    const scope = user ? `${user.id}:${activeSellerId ?? ''}` : null;
+    const previousScope = previousScopeRef.current;
+    previousScopeRef.current = scope;
+    const keys = [
+      'seller-dashboard-stats',
+      'seller-orders',
+      'seller-order-filter-counts',
+      'seller-analytics-charts',
+      'seller-refund-requests',
+      'seller-financial-summary',
+      'seller-financial-activity',
+    ];
+    if (previousScope !== null && previousScope !== scope) {
+      keys.forEach((key) => queryClient.removeQueries({ queryKey: [key] }));
+    } else if (previousScope === null && scope) {
+      keys.forEach((key) => {
+        void queryClient.invalidateQueries({ queryKey: [key] }, { cancelRefetch: false });
+      });
     }
-  }, [user, activeSellerId, isPortfolio]);
+  }, [user, activeSellerId, isPortfolio, queryClient]);
 
-  const fetchSellerProfile = async (sellerId: string) => {
-    setIsLoadingProfile(true);
-    setRenderError(null);
-    try {
-      const { data: profile, error } = await supabase
+  const profileQueryEnabled = !!user && !!activeSellerId && !isPortfolio;
+  const profileQuery = useQuery({
+    queryKey: ['seller-dashboard-profile', activeSellerId],
+    queryFn: async ({ signal }) => {
+      const { data, error } = await supabase
         .from('seller_profiles')
         .select('id, user_id, business_name, description, verification_status, is_available, rating, total_reviews, avg_response_minutes, completed_order_count, cancellation_rate, last_active_at, society_id, primary_group, latitude, longitude, rejection_note, operating_days, sell_beyond_community, delivery_radius_km, cover_image_url, profile_image_url, categories, is_featured, availability_start, availability_end, accepts_cod, accepts_upi, upi_id, upi_verification_status, pickup_payment_config, delivery_payment_config, created_at, updated_at, fulfillment_mode, minimum_order_amount, daily_order_limit')
-        .eq('id', sellerId)
+        .eq('id', activeSellerId!)
+        .abortSignal(signal)
         .single();
-
       if (error) {
         console.error('[SellerDashboard] Profile fetch error:', error);
-        setRenderError(friendlyError(error) || 'Failed to load profile');
+        throw error;
       }
-      setSellerProfile(profile ? (profile as SellerProfile) : null);
+      return data as SellerProfile;
+    },
+    enabled: profileQueryEnabled,
+    staleTime: 30_000,
+  });
+  const sellerProfile: SellerProfile | null = profileQueryEnabled ? profileQuery.data ?? null : null;
+  const isLoadingProfile = profileQueryEnabled && profileQuery.isLoading;
+  const isProfileOffline = profileQueryEnabled && !sellerProfile && profileQuery.fetchStatus === 'paused';
+  const renderError = profileQueryEnabled && !sellerProfile && profileQuery.isError
+    ? friendlyError(profileQuery.error) || 'Failed to load profile'
+    : null;
+  const profileSlow = useSlowLoading(isLoadingProfile);
 
-      if (profile && user?.id) {
-        supabase
-          .from('seller_profiles')
-          .update({ last_active_at: new Date().toISOString() } as any)
-          .eq('id', sellerId)
-          .eq('user_id', user.id)
-          .then(() => undefined)
-          .catch(() => undefined);
-      }
-    } catch (error) {
-      console.error('[SellerDashboard] Unexpected error:', error);
-      setRenderError(friendlyError(error) || 'Failed to load seller dashboard');
-    } finally {
-      setIsLoadingProfile(false);
-    }
-  };
+  // Presence ping is a write: fire once per store per visit, never from the query (no retries / refetch loops).
+  const lastActivePingRef = useRef<string | null>(null);
+  useEffect(() => {
+    const sellerId = sellerProfile?.id;
+    if (!sellerId || !user?.id || lastActivePingRef.current === sellerId) return;
+    lastActivePingRef.current = sellerId;
+    supabase
+      .from('seller_profiles')
+      .update({ last_active_at: new Date().toISOString() } as any)
+      .eq('id', sellerId)
+      .eq('user_id', user.id)
+      .then(() => undefined, () => undefined);
+  }, [sellerProfile?.id, user?.id]);
 
   const { data: stats, isFetching: statsFetching, isError: statsError } = useSellerOrderStats(
     activeSellerId,
@@ -255,6 +268,11 @@ export default function SellerDashboardPage() {
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
+    isLoading: ordersLoading,
+    isError: ordersFailed,
+    isFetching: ordersFetching,
+    fetchStatus: ordersFetchStatus,
+    refetch: refetchOrders,
   } = useSellerOrdersInfinite(
     activeSellerId,
     orderFilter,
@@ -262,6 +280,8 @@ export default function SellerDashboardPage() {
   );
 
   const allOrders = ordersPages?.pages.flat() || [];
+  const ordersPaused = ordersFetchStatus === 'paused';
+  const ordersSlow = useSlowLoading(allOrders.length === 0 && ordersLoading);
   const slaToastShownRef = useRef<string>('');
 
   useEffect(() => {
@@ -314,8 +334,10 @@ export default function SellerDashboardPage() {
 
       if (error) throw error;
 
-      setSellerProfile({ ...sellerProfile, is_available: newVal });
-      fetchSellerProfile(sellerProfile.id);
+      queryClient.setQueryData(['seller-dashboard-profile', sellerProfile.id], (old: SellerProfile | undefined) =>
+        old ? { ...old, is_available: newVal } : old,
+      );
+      void queryClient.invalidateQueries({ queryKey: ['seller-dashboard-profile', sellerProfile.id] });
 
       const { showFeedback } = useFeedbackPopup();
       showFeedback({
@@ -339,22 +361,44 @@ export default function SellerDashboardPage() {
     }
   };
 
+  // Orders stay reachable even when the dashboard profile cannot load.
+  const sellingOrdersLink = (
+    <Link to="/orders?tab=selling">
+      <Button size="sm" variant="outline" className="w-full">Open my orders</Button>
+    </Link>
+  );
+
   if (isLoadingProfile) {
     const loadingStoreName = sellerProfiles.find((seller) => seller.id === activeSellerId)?.business_name;
     return (
       <AppLayout headerTitle="Seller Dashboard" showLocation={false}>
+        {profileSlow && (
+          <div className="px-4 pt-4">
+            <LoadFailureState variant="slow" compact onRetry={() => { void profileQuery.refetch(); }}>
+              {sellingOrdersLink}
+            </LoadFailureState>
+          </div>
+        )}
         <SellerDashboardLoadingState storeName={loadingStoreName} />
       </AppLayout>
     );
   }
 
-  if (renderError) {
+  if (isProfileOffline || renderError) {
     return (
       <AppLayout headerTitle="Seller Dashboard" showLocation={false}>
-        <div className="p-4 text-center py-12">
-          <p className="text-destructive mb-2">Something went wrong</p>
-          <p className="text-xs text-muted-foreground mb-4">{renderError}</p>
-          <Button onClick={() => activeSellerId && fetchSellerProfile(activeSellerId)}>Try Again</Button>
+        <div className="p-4 py-12">
+          <LoadFailureState
+            variant={isProfileOffline ? 'offline' : 'error'}
+            title={isProfileOffline ? "You're offline" : "Couldn't load your store"}
+            description={isProfileOffline
+              ? 'Your dashboard will load as soon as your connection is back.'
+              : renderError || undefined}
+            onRetry={() => { void profileQuery.refetch(); }}
+            retrying={profileQuery.isFetching}
+          >
+            {sellingOrdersLink}
+          </LoadFailureState>
         </div>
       </AppLayout>
     );
@@ -661,7 +705,40 @@ export default function SellerDashboardPage() {
                   counts={filterCounts || emptyBoardCounts()}
                 />
               </div>
-              {allOrders.length > 0 ? (
+              {allOrders.length > 0 && (ordersFailed || ordersPaused) && (
+                <div
+                  className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-border bg-muted/50 px-3 py-2"
+                  role="status"
+                  data-testid="seller-orders-stale-banner"
+                >
+                  <p className="text-xs text-muted-foreground">
+                    {ordersPaused ? "You're offline - showing your last loaded orders." : "Couldn't refresh orders - showing your last loaded orders."}
+                  </p>
+                  <Button size="sm" variant="outline" className="h-7 shrink-0 text-xs" onClick={() => { void refetchOrders(); }} disabled={ordersFetching}>
+                    {ordersFetching ? 'Retrying...' : 'Retry'}
+                  </Button>
+                </div>
+              )}
+              {allOrders.length === 0 && ordersLoading ? (
+                <div className="space-y-3" data-testid="seller-orders-loading">
+                  {ordersSlow && (
+                    <LoadFailureState variant="slow" compact onRetry={() => { void refetchOrders(); }} />
+                  )}
+                  <Skeleton className="h-24 w-full rounded-xl" />
+                  <Skeleton className="h-24 w-full rounded-xl" />
+                  <Skeleton className="h-24 w-full rounded-xl" />
+                </div>
+              ) : allOrders.length === 0 && (ordersFailed || ordersPaused) ? (
+                <LoadFailureState
+                  variant={ordersPaused ? 'offline' : 'error'}
+                  title={ordersPaused ? "You're offline" : "Couldn't load orders"}
+                  description={ordersPaused
+                    ? 'Your orders will load as soon as your connection is back.'
+                    : 'Your orders are safe. This is a connection problem - please try again.'}
+                  onRetry={() => { void refetchOrders(); }}
+                  retrying={ordersFetching}
+                />
+              ) : allOrders.length > 0 ? (
                 <motion.div
                   className="space-y-3"
                   variants={staggerContainer}

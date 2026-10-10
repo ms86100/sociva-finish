@@ -5,6 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { hapticVibrate, hapticNotification } from '@/lib/haptics';
 import {
   scheduleIncomingOrderLocalNotification,
+  noteOrderBell,
   cancelIncomingOrderLocalNotification,
   cancelAllIncomingOrderLocalNotifications,
 } from '@/lib/local-order-notifications';
@@ -183,6 +184,7 @@ export function useNewOrderAlert(sellerIds: string[]) {
     }
     pollDelayRef.current = MIN_POLL_MS;
     setPendingAlerts(prev => [...prev, order]);
+    noteOrderBell(order.id);
     invalidateSellerOrderCaches(order.seller_id);
     void scheduleIncomingOrderLocalNotification({
       orderId: order.id,

@@ -21,7 +21,7 @@ interface CategoryGroup {
  * Derives from the shared marketplace data cache - zero additional RPC calls.
  */
 export function useProductsByCategory(limit = 50) {
-  const { data: sellers, isLoading, error } = useMarketplaceData();
+  const { data: sellers, isLoading, error, isError, isFetching, isPaused, hasLocation, refetch } = useMarketplaceData();
   const { effectiveSocietyId } = useAuth();
   const queryClient = useQueryClient();
 
@@ -90,5 +90,10 @@ export function useProductsByCategory(limit = 50) {
     data,
     isLoading,
     error,
+    isError,
+    isFetching,
+    isPaused,
+    hasLocation,
+    refetch,
   };
 }

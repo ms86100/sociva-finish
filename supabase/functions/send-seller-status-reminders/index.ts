@@ -8,6 +8,84 @@ const corsHeaders = {
 
 const REMINDER_INTERVAL_MIN = 5;
 const TYPE = "seller_order_status_reminder";
+const UNACKED_STATUSES = ["placed", "enquired", "requested", "quoted", "preparing"];
+
+function unackedBucket(ageMs: number): number {
+  if (ageMs >= 20 * 60_000) return 3;
+  if (ageMs >= 10 * 60_000) return 2;
+  if (ageMs >= 3 * 60_000) return 1;
+  return 0;
+}
+
+async function enqueueUnacknowledgedOrderReminders(supabase: any): Promise<{ scanned: number; enqueued: number; skipped: number }> {
+  const { data: rows, error } = await supabase
+    .from("orders")
+    .select(`
+      id,
+      status,
+      created_at,
+      status_changed_at,
+      updated_at,
+      seller_profiles!inner(user_id, business_name)
+    `)
+    .in("status", UNACKED_STATUSES)
+    .order("status_changed_at", { ascending: true })
+    .limit(100);
+
+  if (error) {
+    console.error("[StatusReminder] unacked query failed:", error);
+    return { scanned: 0, enqueued: 0, skipped: 0 };
+  }
+
+  let enqueued = 0;
+  let skipped = 0;
+  for (const row of rows || []) {
+    const sellerUserId = (row as any).seller_profiles?.user_id as string | undefined;
+    const startedAt = (row as any).status_changed_at || (row as any).created_at || (row as any).updated_at;
+    const ageMs = startedAt ? Date.now() - new Date(startedAt).getTime() : 0;
+    const bucket = unackedBucket(ageMs);
+    if (!sellerUserId || !bucket) {
+      skipped++;
+      continue;
+    }
+
+    const orderId = row.id as string;
+    const orderRef = orderId.slice(-6).toUpperCase();
+    const { error: insErr } = await supabase.from("notification_queue").insert({
+      user_id: sellerUserId,
+      title: "New order is still waiting",
+      body: `Order #${orderRef} is still waiting - tap to accept.`,
+      type: TYPE,
+      reference_path: `/orders/${orderId}`,
+      idempotency_key: `${orderId}-unacked-${bucket}`,
+      payload: {
+        type: TYPE,
+        orderId,
+        order_id: orderId,
+        status: row.status,
+        target_role: "seller",
+        high_priority: true,
+        reminder_type: "unacked_order",
+        reminder_bucket: bucket,
+        action: "view_order",
+        reference_path: `/orders/${orderId}`,
+      },
+    });
+
+    if (insErr) {
+      if (insErr.code === "23505") {
+        skipped++;
+        continue;
+      }
+      console.warn("[StatusReminder] unacked enqueue failed:", orderId, insErr.message);
+      skipped++;
+      continue;
+    }
+    enqueued++;
+  }
+
+  return { scanned: rows?.length ?? 0, enqueued, skipped };
+}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -143,12 +221,17 @@ Deno.serve(async (req) => {
       enqueued++;
     }
 
-    console.log(`[StatusReminder] done enqueued=${enqueued} skipped=${skipped} scanned=${stuckOrders?.length ?? 0}`);
+    const unacked = await enqueueUnacknowledgedOrderReminders(supabase);
+    enqueued += unacked.enqueued;
+    skipped += unacked.skipped;
+
+    console.log(`[StatusReminder] done enqueued=${enqueued} skipped=${skipped} scanned=${stuckOrders?.length ?? 0} unacked_scanned=${unacked.scanned}`);
 
     return new Response(
       JSON.stringify({
         ok: true,
         scanned: stuckOrders?.length ?? 0,
+        unacked_scanned: unacked.scanned,
         enqueued,
         skipped,
       }),

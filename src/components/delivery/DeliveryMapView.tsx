@@ -208,7 +208,7 @@ function MapFallbackCard({
     ? roadDistanceMeters < 1000 ? `${roadDistanceMeters}m` : `${(roadDistanceMeters / 1000).toFixed(1)} km`
     : null;
   const mapsUrl = `https://www.google.com/maps/dir/${riderLat},${riderLng}/${destinationLat},${destinationLng}`;
-  const mapHeight = tall ? 'min-h-[280px]' : 'min-h-[200px]';
+  const mapHeight = tall ? 'min-h-48' : 'min-h-[200px]';
 
   const getErrorMessage = () => {
     if (errorType === 'AUTH_FAILED') {
@@ -456,7 +456,7 @@ export function DeliveryMapView({
       center: { lat: (riderLat + destinationLat) / 2, lng: (riderLng + destinationLng) / 2 },
       zoom: 14,
       disableDefaultUI: true,
-      gestureHandling: 'greedy',
+      gestureHandling: 'cooperative',
       clickableIcons: false,
       keyboardShortcuts: false,
       styles: SOCIVA_TRACKING_MAP_STYLE,
@@ -700,7 +700,7 @@ export function DeliveryMapView({
     retry();
   }, [retry]);
 
-  const mapHeight = tall ? 'h-[min(56vh,520px)]' : 'h-[min(42vh,380px)]';
+  const mapHeight = tall ? 'h-48' : 'h-[min(42vh,380px)]';
   const remainingKm = remainingHud != null
     ? remainingHud < 1000
       ? `${remainingHud} m`

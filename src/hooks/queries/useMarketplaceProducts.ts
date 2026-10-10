@@ -78,7 +78,7 @@ export function useMarketplaceProducts(
 
           if (error) {
             console.error('Marketplace products RPC error (batch):', error);
-            return [] as MarketplaceProduct[];
+            throw error;
           }
 
           return (data || []) as MarketplaceProduct[];
