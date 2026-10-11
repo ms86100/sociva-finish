@@ -724,6 +724,7 @@ workflows:
 
       - name: Set up code signing
         script: |
+          set -euo pipefail
           python3 scripts/refresh-ios-appstore-profile.py
           xcode-project use-profiles
 
@@ -862,7 +863,10 @@ workflows:
           set -e
           if [ "$status" -ne 0 ]; then
             echo "=== xcodebuild archive failed with status $status ==="
-            find "$HOME/Library/Developer/Xcode/DerivedData" "$HOME/Library/Logs" /tmp "$PWD/build" -type f \( -name '*.log' -o -name '*.txt' \) -mmin -30 2>/dev/null | while read -r f; do
+            find "$HOME/Library/Developer/Xcode/DerivedData" /tmp "$PWD/build" -type f \( -name '*.log' -o -name '*.txt' \) -mmin -15 2>/dev/null | while read -r f; do
+              case "$f" in
+                *CoreSimulator*|*CoreSimulatorService*) continue ;;
+              esac
               if grep -q "error:" "$f" 2>/dev/null; then
                 echo "----- $f -----"
                 grep -n "error:" "$f" | head -n 40
@@ -1660,6 +1664,7 @@ workflows:
 
       - name: Set up code signing
         script: |
+          set -euo pipefail
           python3 scripts/refresh-ios-appstore-profile.py
           xcode-project use-profiles
 
@@ -1798,7 +1803,10 @@ workflows:
           set -e
           if [ "$status" -ne 0 ]; then
             echo "=== xcodebuild archive failed with status $status ==="
-            find "$HOME/Library/Developer/Xcode/DerivedData" "$HOME/Library/Logs" /tmp "$PWD/build" -type f \( -name '*.log' -o -name '*.txt' \) -mmin -30 2>/dev/null | while read -r f; do
+            find "$HOME/Library/Developer/Xcode/DerivedData" /tmp "$PWD/build" -type f \( -name '*.log' -o -name '*.txt' \) -mmin -15 2>/dev/null | while read -r f; do
+              case "$f" in
+                *CoreSimulator*|*CoreSimulatorService*) continue ;;
+              esac
               if grep -q "error:" "$f" 2>/dev/null; then
                 echo "----- $f -----"
                 grep -n "error:" "$f" | head -n 40
@@ -2677,6 +2685,7 @@ workflows:
 
       - name: Set up iOS code signing
         script: |
+          set -euo pipefail
           python3 scripts/refresh-ios-appstore-profile.py
           xcode-project use-profiles
 
@@ -2791,7 +2800,10 @@ workflows:
           set -e
           if [ "$status" -ne 0 ]; then
             echo "=== xcodebuild archive failed with status $status ==="
-            find "$HOME/Library/Developer/Xcode/DerivedData" "$HOME/Library/Logs" /tmp "$PWD/build" -type f \( -name '*.log' -o -name '*.txt' \) -mmin -30 2>/dev/null | while read -r f; do
+            find "$HOME/Library/Developer/Xcode/DerivedData" /tmp "$PWD/build" -type f \( -name '*.log' -o -name '*.txt' \) -mmin -15 2>/dev/null | while read -r f; do
+              case "$f" in
+                *CoreSimulator*|*CoreSimulatorService*) continue ;;
+              esac
               if grep -q "error:" "$f" 2>/dev/null; then
                 echo "----- $f -----"
                 grep -n "error:" "$f" | head -n 40

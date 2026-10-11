@@ -16,6 +16,7 @@ import plistlib
 import subprocess
 import sys
 import tempfile
+from datetime import datetime, timezone
 
 MAIN_BUNDLE = "app.sociva.community"
 ENTITLEMENT = "com.apple.developer.usernotifications.time-sensitive"
@@ -29,11 +30,11 @@ PROFILE_DIRS = [
 def run(args: list[str], check: bool = True) -> subprocess.CompletedProcess[str]:
     print("+ " + " ".join(args), flush=True)
     result = subprocess.run(args, text=True, capture_output=True)
-    if result.stdout:
-        sys.stdout.write(result.stdout)
     if result.stderr:
         sys.stderr.write(result.stderr)
     if check and result.returncode != 0:
+        if result.stdout:
+            sys.stdout.write(result.stdout[-4000:])
         raise SystemExit(result.returncode)
     return result
 
@@ -96,6 +97,52 @@ def load_resource(resource: dict) -> dict:
     return items[0]
 
 
+def bundle_resource_id() -> str:
+    payload = parse_json(run([
+        "app-store-connect", "bundle-ids", "list",
+        "--bundle-id-identifier", MAIN_BUNDLE,
+        "--strict-match-identifier",
+        "--platform", "IOS",
+        "--json", "--no-color",
+    ]).stdout)
+    for item in as_list(payload):
+        identifier = (item.get("attributes") or {}).get("identifier")
+        if identifier == MAIN_BUNDLE and item.get("id"):
+            print(f"Bundle id resource {item['id']}", flush=True)
+            return item["id"]
+    raise SystemExit(f"Bundle id {MAIN_BUNDLE} was not found in App Store Connect")
+
+
+def distribution_certificate_ids() -> list[str]:
+    payload = parse_json(run([
+        "app-store-connect", "certificates", "list",
+        "--profile-type", "IOS_APP_STORE",
+        "--json", "--no-color",
+    ]).stdout)
+    chosen = []
+    for item in as_list(payload):
+        attrs = item.get("attributes") or {}
+        certificate_type = str(attrs.get("certificateType") or "")
+        display_name = str(attrs.get("displayName") or attrs.get("name") or "")
+        expires = str(attrs.get("expirationDate") or "")
+        if expires:
+            try:
+                expiry = datetime.strptime(expires[:19], "%Y-%m-%dT%H:%M:%S").replace(tzinfo=timezone.utc)
+            except ValueError:
+                expiry = None
+            if expiry is not None and expiry <= datetime.now(timezone.utc):
+                continue
+        if certificate_type not in ("DISTRIBUTION", "IOS_DISTRIBUTION") and "Distribution" not in display_name:
+            continue
+        if not item.get("id"):
+            continue
+        chosen.append(item["id"])
+        print(f"Certificate {item['id']} type={certificate_type} name={display_name}", flush=True)
+    if not chosen:
+        raise SystemExit("No Apple Distribution certificate is available for an App Store profile")
+    return chosen
+
+
 def main() -> None:
     listed = parse_json(run([
         "app-store-connect", "profiles", "list",
@@ -122,16 +169,8 @@ def main() -> None:
     if good is None:
         if not main_profiles:
             raise SystemExit(f"No App Store profile found for {MAIN_BUNDLE}")
-        source = main_profiles[0]["resource"]
-        relationships = source.get("relationships") or {}
-        bundle_id = ((relationships.get("bundleId") or {}).get("data") or {}).get("id")
-        cert_ids = [
-            item.get("id")
-            for item in ((relationships.get("certificates") or {}).get("data") or [])
-            if item.get("id")
-        ]
-        if not bundle_id or not cert_ids:
-            raise SystemExit("Could not read the bundle id or certificate from the current App Store profile")
+        bundle_id = bundle_resource_id()
+        cert_ids = distribution_certificate_ids()
         create_args = [
             "app-store-connect", "profiles", "create", bundle_id,
             "--type", "IOS_APP_STORE",
