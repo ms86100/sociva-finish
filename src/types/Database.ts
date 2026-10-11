@@ -229,6 +229,8 @@ export interface OrderItem {
   order_id: string;
   product_id: string | null;
   product_name: string;
+  variant_id?: string | null;
+  variant_label?: string | null;
   quantity: number;
   unit_price: number;
   status?: ItemStatus;
@@ -264,11 +266,14 @@ export interface CartItem {
   id: string;
   user_id: string;
   product_id: string;
+  /** Size chosen for products sold by size; null for products without sizes. */
+  variant_id?: string | null;
   quantity: number;
   created_at: string;
   selected_extras?: Array<Record<string, unknown>> | null;
   // Joined data
   product?: Product;
+  variant?: import('@/lib/product-variants').ProductVariant | null;
 }
 
 export interface Favorite {

@@ -175,14 +175,19 @@ export function sanitizeSelectedExtras(
 }
 
 export function extrasFromCartItems(
-  items: Array<{ product?: { name?: string | null } | null; selected_extras?: SelectedExtra[] | null }>,
+  items: Array<{
+    product?: { name?: string | null } | null;
+    variant?: { label?: string | null } | null;
+    selected_extras?: SelectedExtra[] | null;
+  }>,
 ): string {
   return items
     .map((item) => {
       const extras = formatSelectedExtras(item.selected_extras);
       if (!extras) return '';
       const name = item.product?.name || 'Item';
-      return `${name}\n${extras}`;
+      const size = item.variant?.label;
+      return `${size ? `${name} (${size})` : name}\n${extras}`;
     })
     .filter(Boolean)
     .join('\n\n');

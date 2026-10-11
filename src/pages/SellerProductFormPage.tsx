@@ -24,6 +24,7 @@ import { useBlockLibrary, filterByCategory } from '@/hooks/useAttributeBlocks';
 import { useSellerProducts } from '@/hooks/useSellerProducts';
 import { ProductFormPreviewPanel, ProductFormPreviewMobile } from '@/components/seller/ProductFormPreview';
 import { ServiceFieldsSection } from '@/components/seller/ServiceFieldsSection';
+import { ProductSizesEditor } from '@/components/seller/ProductSizesEditor';
 import { useCurrency } from '@/hooks/useCurrency';
 import { cn } from '@/lib/utils';
 import { sanitizePrepTimeMinutesInput } from '@/lib/prep-time-minutes';
@@ -118,7 +119,7 @@ export default function SellerProductFormPage({
   // Field-to-step mapping for error navigation
   const fieldToStepMap: Record<string, string> = {
     name: 'basics', image_url: 'basics', category: 'basics',
-    price: 'pricing', contact_phone: 'config',
+    price: 'pricing', sizes: 'pricing', contact_phone: 'config',
     stock_quantity: 'visibility', low_stock_threshold: 'visibility',
   };
 
@@ -320,12 +321,12 @@ export default function SellerProductFormPage({
 
             {/* Mobile Preview - always visible */}
             <div className="mt-4 lg:hidden">
-              <ProductFormPreviewMobile formData={sp.formData} sellerProfile={sp.sellerProfile} attributeBlocks={sp.attributeBlocks} />
+              <ProductFormPreviewMobile formData={sp.formData} sellerProfile={sp.sellerProfile} attributeBlocks={sp.attributeBlocks} sizeRows={sp.sizeRows} />
             </div>
           </div>
 
           {/* Desktop Preview - always visible */}
-          <ProductFormPreviewPanel formData={sp.formData} sellerProfile={sp.sellerProfile} attributeBlocks={sp.attributeBlocks} />
+          <ProductFormPreviewPanel formData={sp.formData} sellerProfile={sp.sellerProfile} attributeBlocks={sp.attributeBlocks} sizeRows={sp.sizeRows} />
         </div>
       </div>
     </AppLayout>
@@ -467,6 +468,27 @@ function StepBasics({ sp }: { sp: ReturnType<typeof useSellerProducts> }) {
 }
 
 function StepPricing({ sp, currencySymbol }: { sp: ReturnType<typeof useSellerProducts>; currencySymbol: string }) {
+  const sizesEditor = ((sp.sizesAllowed && sp.sizesEnabled) || sp.sizeRows.length > 0) && (
+    <ProductSizesEditor
+      rows={sp.sizeRows}
+      currencySymbol={currencySymbol}
+      error={sp.fieldErrors.sizes}
+      onAdd={sp.sizesEnabled ? sp.addSizeRow : undefined}
+      onChange={sp.updateSizeRow}
+      onRemove={sp.removeSizeRow}
+      onMove={sp.moveSizeRow}
+    />
+  );
+  if (sp.hasSizes) {
+    return (
+      <>
+        <p className="text-xs text-muted-foreground">
+          Price and stock come from your sizes. Buyers see the lowest available size price as the starting price.
+        </p>
+        {sizesEditor}
+      </>
+    );
+  }
   return (
     <>
       <div className="grid grid-cols-2 gap-4">
@@ -504,6 +526,7 @@ function StepPricing({ sp, currencySymbol }: { sp: ReturnType<typeof useSellerPr
           </p>
         </div>
       )}
+      {sizesEditor}
     </>
   );
 }
@@ -652,6 +675,12 @@ function StepVisibility({ sp }: { sp: ReturnType<typeof useSellerProducts> }) {
         <Switch checked={sp.formData.is_urgent} onCheckedChange={(checked) => sp.setFormData({ ...sp.formData, is_urgent: checked })} />
       </div>
 
+      {sp.hasSizes ? (
+      <div className="p-4 bg-muted/50 rounded-xl space-y-1">
+        <p className="text-xs font-bold text-muted-foreground flex items-center gap-1.5">📦 Stock Management</p>
+        <p className="text-xs text-muted-foreground">This item sells by size. Set stock for each size in the Pricing step.</p>
+      </div>
+      ) : (
       <div className="p-4 bg-muted/50 rounded-xl space-y-3">
         <p className="text-xs font-bold text-muted-foreground flex items-center gap-1.5">📦 Stock Management</p>
         <div className="flex items-center justify-between">
@@ -719,6 +748,7 @@ function StepVisibility({ sp }: { sp: ReturnType<typeof useSellerProducts> }) {
           </div>
         )}
       </div>
+      )}
 
       <div className="flex items-center justify-between p-3 bg-muted/50 rounded-xl">
         <span className="text-sm font-medium">Available for order</span>

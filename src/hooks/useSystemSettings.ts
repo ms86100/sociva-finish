@@ -14,6 +14,9 @@ export interface SystemSettings {
   headerTagline: string;
   appVersion: string;
   minSupportedAppVersion: string;
+  minSupportedAndroidVersion: string;
+  minSupportedIosVersion: string;
+  productSizesEnabled: boolean;
   addressBlockLabel: string;
   addressFlatLabel: string;
   termsLastUpdated: string;
@@ -47,6 +50,9 @@ const DEFAULTS: SystemSettings = {
   headerTagline: 'Your Society, Your Store',
   appVersion: '2.0.0',
   minSupportedAppVersion: '',
+  minSupportedAndroidVersion: '',
+  minSupportedIosVersion: '',
+  productSizesEnabled: false,
   addressBlockLabel: 'Block / Tower',
   addressFlatLabel: 'Flat Number',
   termsLastUpdated: 'February 13, 2026',
@@ -81,6 +87,9 @@ function buildSettingsFromMap(map: Record<string, string>): SystemSettings {
     headerTagline: map.header_tagline || DEFAULTS.headerTagline,
     appVersion: map.app_version || DEFAULTS.appVersion,
     minSupportedAppVersion: map.min_supported_app_version || '',
+    minSupportedAndroidVersion: map.min_supported_android_version || '',
+    minSupportedIosVersion: map.min_supported_ios_version || '',
+    productSizesEnabled: map.product_sizes_enabled === 'true',
     addressBlockLabel: map.address_block_label || DEFAULTS.addressBlockLabel,
     addressFlatLabel: map.address_flat_label || DEFAULTS.addressFlatLabel,
     termsLastUpdated: map.terms_last_updated || DEFAULTS.termsLastUpdated,

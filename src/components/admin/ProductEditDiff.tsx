@@ -5,6 +5,8 @@ import { Badge } from '@/components/ui/badge';
 import { useCurrency } from '@/hooks/useCurrency';
 import { GitCompareArrows, ChevronDown, ChevronUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { fetchProductVariants } from '@/lib/product-variants';
+import { reviewedSizes, type ReviewedSize } from '@/lib/seller-product-sizes';
 
 interface ProductEditDiffProps {
   productId: string;
@@ -21,6 +23,7 @@ interface DiffField {
 export function ProductEditDiff({ productId, currentProduct }: ProductEditDiffProps) {
   const { formatPrice } = useCurrency();
   const [snapshot, setSnapshot] = useState<Record<string, any> | null>(null);
+  const [currentSizes, setCurrentSizes] = useState<ReviewedSize[] | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [expanded, setExpanded] = useState(false);
 
@@ -33,6 +36,9 @@ export function ProductEditDiff({ productId, currentProduct }: ProductEditDiffPr
         .order('created_at', { ascending: false })
         .limit(1)
         .single();
+      if (Array.isArray(data?.snapshot?.sizes)) {
+        setCurrentSizes(reviewedSizes(await fetchProductVariants(productId)));
+      }
       setSnapshot(data?.snapshot || null);
       setIsLoading(false);
     }
@@ -62,6 +68,11 @@ export function ProductEditDiff({ productId, currentProduct }: ProductEditDiffPr
     { label: 'Contact Phone', oldValue: snapshot.contact_phone, newValue: currentProduct.contact_phone, type: 'text' },
     { label: 'Attributes', oldValue: snapshot.specifications, newValue: currentProduct.specifications, type: 'json' },
   ];
+  if (Array.isArray(snapshot.sizes) && currentSizes) {
+    const describe = (sizes: ReviewedSize[]) =>
+      sizes.length ? sizes.map((s) => `${s.label} ${formatPrice(s.price)}${s.compare_at_price != null ? ` (MRP ${formatPrice(s.compare_at_price)})` : ''}`).join(', ') : null;
+    fields.push({ label: 'Sizes', oldValue: describe(reviewedSizes(snapshot.sizes)), newValue: describe(currentSizes), type: 'text' });
+  }
 
   const changedFields = fields.filter(f => {
     if (f.type === 'json') return JSON.stringify(f.oldValue ?? null) !== JSON.stringify(f.newValue ?? null);

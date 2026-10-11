@@ -102,6 +102,14 @@ export function ProductDetailSheet({ product, open, onOpenChange, onSelectProduc
   const [selectedExtras, setSelectedExtras] = useState<SelectedExtra[]>([]);
   const extraGroups = useProductExtraGroups(d.loadedSpecs ?? product?.specifications);
   useEffect(() => { setSelectedExtras([]); }, [product?.product_id]);
+  const openSizesWithExtras = () => {
+    const extras = sanitizeSelectedExtras(selectedExtras, extraGroups);
+    if (extrasHaveRequiredGaps(extraGroups, extras)) {
+      notify.block('Please choose the required extra details');
+      return;
+    }
+    d.handleAdd(extras);
+  };
   const isServiceBookingAction = usesServiceBookingFlow(d.actionType);
 
   // Resume enquire / book / contact after guest OTP (including saved booking slot).
@@ -295,7 +303,7 @@ export function ProductDetailSheet({ product, open, onOpenChange, onSelectProduc
                 )}
               </motion.div>
               <motion.div variants={fadeSlideUp} className="flex items-baseline gap-2 flex-wrap">
-                {!showMoney ? (<span className="text-sm font-bold text-primary">{priceLabel}</span>) : (<span className="text-xl font-bold text-foreground tabular-nums">{d.formatPrice(animatedPrice)}</span>)}
+                {!showMoney ? (<span className="text-sm font-bold text-primary">{priceLabel}</span>) : (<span className="text-xl font-bold text-foreground tabular-nums">{d.isCartAction && d.hasSizes && <span className="text-xs font-semibold text-muted-foreground mr-1">From</span>}{d.formatPrice(animatedPrice)}</span>)}
                 {d.canonicalStockQty != null && d.canonicalStockQty > 0 && (
                   <span className="text-xs font-semibold text-muted-foreground tabular-nums">{d.canonicalStockQty} left</span>
                 )}
@@ -526,6 +534,19 @@ export function ProductDetailSheet({ product, open, onOpenChange, onSelectProduc
               <div className="w-full h-12 flex items-center justify-center bg-muted rounded-xl"><Clock size={16} className="text-muted-foreground mr-2" /><span className="text-sm font-medium text-muted-foreground">{storeClosedMsg}</span></div>
             ) : d.isStockEmpty || d.isBuyerUnavailable ? (
               <div className="w-full h-12 flex items-center justify-center bg-muted rounded-xl"><span className="text-sm font-medium text-muted-foreground">{d.availabilityOverlayLabel}</span></div>
+            ) : d.isCartAction && d.hasSizes ? (
+              d.quantity === 0 ? (
+                <Button data-haptic="medium" className="w-full h-12 text-base font-bold bg-accent hover:bg-accent/90 text-accent-foreground rounded-xl" onClick={openSizesWithExtras}>
+                  Choose size · From {d.formatPrice(product.price)}
+                </Button>
+              ) : (
+                <div className="flex items-center justify-between gap-3">
+                  <div><span className="text-lg font-bold text-foreground">{d.formatPrice(d.sizesTotal)}</span><span className="text-xs text-muted-foreground ml-1.5">{d.quantity} item{d.quantity > 1 ? 's' : ''}</span></div>
+                  <Button data-haptic="light" className="h-11 font-bold bg-accent hover:bg-accent/90 text-accent-foreground rounded-xl" onClick={openSizesWithExtras}>
+                    Change sizes
+                  </Button>
+                </div>
+              )
             ) : d.isCartAction ? (
               d.quantity === 0 ? (
                 <Button data-haptic="medium" className="w-full h-12 text-base font-bold bg-accent hover:bg-accent/90 text-accent-foreground rounded-xl" onClick={() => {

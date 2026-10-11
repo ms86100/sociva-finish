@@ -11,7 +11,7 @@ import {
 import { PaymentMethod } from '@/types/Database';
 import { fetchStatusFlow, fetchStatusTransitions, statusFlowQueryKey, statusTransitionsQueryKey } from '@/hooks/useCategoryStatusFlow';
 import { resolveTransactionType } from '@/lib/resolveTransactionType';
-import { extrasFromCartItems } from '@/lib/productExtras';
+import { buildSellerGroupsPayload, checkoutNotes } from '@/lib/checkout-payload';
 import { resolvePaymentConfig } from '@/lib/resolvePaymentConfig';
 import { useCart } from '@/hooks/useCart';
 import { useAuth } from '@/contexts/AuthContext';
@@ -51,6 +51,7 @@ import { reopenNotificationAsk } from '@/hooks/usePermissionLifecycle';
 import { resolvePlatformDeliveryFee } from '@/lib/delivery-fee';
 import { resolveSellerPackagingFee } from '@/lib/packaging-fee';
 import { toScheduledDateParam } from '@/lib/scheduled-orders';
+import { cartLineKey } from '@/lib/product-variants';
 // Store status validation now handled server-side in create_multi_vendor_orders RPC
 
 async function navigateAfterCheckout(
@@ -267,25 +268,29 @@ export function useCartPage() {
           if (user?.id && societyId) {
             const { data: orderItems } = await supabase
               .from('order_items')
-              .select('product_id, quantity')
+              .select('*')
               .in('order_id', unpaidIds);
             if (orderItems?.length) {
-              const qtyByProduct = new Map<string, number>();
-              for (const row of orderItems) {
+              const qtyByLine = new Map<string, { productId: string; variantId: string | null; quantity: number }>();
+              for (const row of orderItems as any[]) {
                 if (!row.product_id) continue;
-                qtyByProduct.set(
-                  row.product_id,
-                  (qtyByProduct.get(row.product_id) || 0) + Number(row.quantity || 0),
-                );
+                const variantId: string | null = row.variant_id ?? null;
+                const key = cartLineKey(row.product_id, variantId);
+                const prev = qtyByLine.get(key);
+                qtyByLine.set(key, {
+                  productId: row.product_id,
+                  variantId,
+                  quantity: (prev?.quantity || 0) + Number(row.quantity || 0),
+                });
               }
-              for (const [productId, quantity] of qtyByProduct) {
+              for (const { productId, variantId, quantity } of qtyByLine.values()) {
                 if (quantity <= 0) continue;
-                const { data: existing } = await supabase
+                const { data: sameProduct } = await supabase
                   .from('cart_items')
-                  .select('id, quantity')
+                  .select('*')
                   .eq('user_id', user.id)
-                  .eq('product_id', productId)
-                  .maybeSingle();
+                  .eq('product_id', productId);
+                const existing = (sameProduct as any[] | null)?.find((r) => (r.variant_id ?? null) === variantId);
                 if (existing?.id) {
                   await supabase
                     .from('cart_items')
@@ -297,7 +302,8 @@ export function useCartPage() {
                     product_id: productId,
                     quantity,
                     society_id: societyId,
-                  });
+                    ...(variantId ? { variant_id: variantId } : {}),
+                  } as any);
                 }
               }
               await queryClient.invalidateQueries({ queryKey: ['cart-items'] });
@@ -617,10 +623,7 @@ export function useCartPage() {
   const createOrdersForAllSellers = async (paymentStatus: 'pending' | 'paid', transactionRef?: string) => {
     if (!user || !profile || sellerGroups.length === 0) return [];
 
-    const sellerGroupsPayload = sellerGroups.map((group) => ({
-      seller_id: group.sellerId, subtotal: group.subtotal,
-      items: group.items.map((item) => ({ product_id: item.product_id, product_name: item.product?.name || 'Unknown', quantity: item.quantity, unit_price: item.product?.price || 0 })),
-    }));
+    const sellerGroupsPayload = buildSellerGroupsPayload(sellerGroups, notes);
 
     // Price + availability validation is now handled server-side in the RPC
 
@@ -632,7 +635,7 @@ export function useCartPage() {
 
     // Generate idempotency key if not already set for this attempt
     if (!idempotencyKeyRef.current) {
-      const cartHash = items.map(i => `${i.product_id}:${i.quantity}`).sort().join('|');
+      const cartHash = items.map(i => `${i.product_id}${i.variant_id ? `#${i.variant_id}` : ''}:${i.quantity}`).sort().join('|');
       idempotencyKeyRef.current = `${user.id}_${Date.now()}_${simpleHash(cartHash)}`;
     }
 
@@ -644,7 +647,7 @@ export function useCartPage() {
     const scheduledTimeStr = scheduledTime ? `${scheduledTime}:00` : null;
     const { data, error } = await supabase.rpc('create_multi_vendor_orders', {
       _buyer_id: user.id, _delivery_address: deliveryAddressText,
-      _notes: [extrasFromCartItems(items), notes].filter(Boolean).join('\n\n') || null, _payment_method: effectivePaymentMethod, _payment_status: paymentStatus,
+      _notes: checkoutNotes(items, notes), _payment_method: effectivePaymentMethod, _payment_status: paymentStatus,
       _coupon_id: appliedCoupon?.id || null,
       _coupon_discount: effectiveCouponDiscount,
       _seller_groups: sellerGroupsPayload, _fulfillment_type: fulfillmentType, _delivery_fee: effectiveDeliveryFee,
@@ -913,22 +916,14 @@ export function useCartPage() {
     // Do NOT client-update payment_status - trg_guard_order_payment_status blocks authenticated.
     if (finalAmount <= 0 && effectiveWalletCredit > 0) {
       try {
-        const sellerGroupsPayload = sellerGroups.map((group) => ({
-          seller_id: group.sellerId, subtotal: group.subtotal,
-          items: group.items.map((item) => ({
-            product_id: item.product_id,
-            product_name: item.product?.name || 'Unknown',
-            quantity: item.quantity,
-            unit_price: item.product?.price || 0,
-          })),
-        }));
+        const sellerGroupsPayload = buildSellerGroupsPayload(sellerGroups, notes);
         const deliveryAddressText = fulfillmentType === 'delivery'
           ? (selectedAlignsWithBrowse && selectedDeliveryAddress
             ? [selectedDeliveryAddress.flat_number && `Flat ${selectedDeliveryAddress.flat_number}`, selectedDeliveryAddress.block && `Block ${selectedDeliveryAddress.block}`, selectedDeliveryAddress.building_name, selectedDeliveryAddress.landmark].filter(Boolean).join(', ')
             : (browsingLocation?.fullAddress || browsingLocation?.label || 'Selected location'))
           : [profile.block && `Block ${profile.block}`, profile.flat_number].filter(Boolean).join(', ') || profile?.name || 'Self Pickup';
         if (!idempotencyKeyRef.current) {
-          const cartHash = items.map(i => `${i.product_id}:${i.quantity}`).sort().join('|');
+          const cartHash = items.map(i => `${i.product_id}${i.variant_id ? `#${i.variant_id}` : ''}:${i.quantity}`).sort().join('|');
           idempotencyKeyRef.current = `${user.id}_${Date.now()}_${simpleHash(cartHash)}`;
         }
         const scheduledDateStr = scheduledDate ? toScheduledDateParam(scheduledDate) : null;
@@ -936,7 +931,7 @@ export function useCartPage() {
         const { data, error } = await supabase.rpc('create_multi_vendor_orders', {
           _buyer_id: user.id,
           _delivery_address: deliveryAddressText,
-          _notes: [extrasFromCartItems(items), notes].filter(Boolean).join('\n\n') || null,
+          _notes: checkoutNotes(items, notes),
           _payment_method: 'wallet',
           _payment_status: 'pending',
           _coupon_id: appliedCoupon?.id || null,
@@ -1526,7 +1521,7 @@ export function useCartPage() {
       return;
     }
     for (const item of others) {
-      await removeItem(item.product_id);
+      await removeItem(item.product_id, item.variant_id ?? null);
     }
     showFeedback({
         title: `Ready to checkout ${group.sellerName} only. Other stores removed from cart.`,

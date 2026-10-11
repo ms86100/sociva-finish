@@ -299,6 +299,9 @@ export default function CartPage() {
                             <span className="shrink-0 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-accent/15 text-accent text-[10px] font-semibold"><Clock size={9} />Pre-order</span>
                           )}
                         </div>
+                        {item.variant?.label && (
+                          <p className="text-[11px] font-semibold text-foreground/80 mt-0.5">Size: {item.variant.label}</p>
+                        )}
                         {item.product.description && (
                           <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-2">{item.product.description}</p>
                         )}
@@ -323,7 +326,7 @@ export default function CartPage() {
                         const atStockMax = stockQty != null && item.quantity >= stockQty;
                         return (
                         <div className="inline-flex items-center bg-accent rounded-lg overflow-hidden">
-                          <button className="h-8 w-8 flex items-center justify-center active:scale-95 transition-transform" onClick={() => { c.updateQuantity(item.product_id, item.quantity - 1); }}><Minus size={14} className="text-accent-foreground" /></button>
+                          <button className="h-8 w-8 flex items-center justify-center active:scale-95 transition-transform" onClick={() => { c.updateQuantity(item.product_id, item.quantity - 1, item.variant_id ?? null); }}><Minus size={14} className="text-accent-foreground" /></button>
                           <AnimatePresence mode="popLayout"><motion.span key={item.quantity} initial={{ scale: 0.6, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.6, opacity: 0 }} transition={{ duration: 0.15 }} className="w-6 text-center text-sm font-bold text-accent-foreground tabular-nums">{item.quantity}</motion.span></AnimatePresence>
                           <button
                             className={`h-8 w-8 flex items-center justify-center transition-transform ${atStockMax ? 'opacity-40 cursor-not-allowed' : 'active:scale-95'}`}
@@ -331,7 +334,7 @@ export default function CartPage() {
                             aria-disabled={atStockMax}
                             onClick={() => {
                               if (atStockMax) return;
-                              c.updateQuantity(item.product_id, item.quantity + 1);
+                              c.updateQuantity(item.product_id, item.quantity + 1, item.variant_id ?? null);
                             }}
                           >
                             <Plus size={14} className="text-accent-foreground" />
@@ -339,7 +342,7 @@ export default function CartPage() {
                         </div>
                         );
                       })()}
-                      <button className="h-8 w-8 flex items-center justify-center text-muted-foreground" onClick={() => { c.removeItem(item.product_id); }}><Trash2 size={15} /></button>
+                      <button className="h-8 w-8 flex items-center justify-center text-muted-foreground" onClick={() => { c.removeItem(item.product_id, item.variant_id ?? null); }}><Trash2 size={15} /></button>
                     </div>
                   </motion.div>
                   );

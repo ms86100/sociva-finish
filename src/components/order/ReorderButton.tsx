@@ -16,6 +16,8 @@ import { buyerCanOrderFromSeller, filterDiscoverableProductIds } from '@/lib/sel
 import { PRECISE_LOCATION_TITLE } from '@/lib/buyerLocation';
 import { getClosedStoreReorderMessage, resolveReorderLines } from '@/lib/reorder';
 import { parseStoreClosedBuyerError } from '@/lib/store-availability';
+import { useLoadVariantProductIds } from '@/hooks/useProductVariants';
+import { fetchVariantsByIds } from '@/lib/product-variants';
 
 interface ReorderButtonProps {
   orderItems: OrderItem[];
@@ -38,6 +40,7 @@ export function ReorderButton({
   const { browsingLocation } = useBrowsingLocation();
   const navigate = useNavigate();
   const { replaceCart } = useCart();
+  const loadVariantProductIds = useLoadVariantProductIds();
   const [isLoading, setIsLoading] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
 
@@ -73,7 +76,7 @@ export function ReorderButton({
     setShowConfirm(false);
     setIsLoading(true);
     try {
-      const lines = await resolveReorderLines(orderItems, orderId);
+      const lines = await resolveReorderLines(orderItems, orderId, await loadVariantProductIds());
       const productIds = lines.map((item) => item.product_id);
 
       if (productIds.length === 0) {
@@ -125,9 +128,18 @@ export function ReorderButton({
       }
 
       // Warn buyer if any prices changed since original order
+      const sizedLines = lines.filter((l) => l.variant_id);
+      const sizedProductSet = new Set(sizedLines.map((l) => l.product_id));
+      const variantsById = sizedLines.length > 0
+        ? await fetchVariantsByIds(sizedLines.map((l) => l.variant_id as string))
+        : new Map();
       const priceChanged = discoverableProducts.some(p => {
+        if (sizedProductSet.has(p.id)) return false;
         const original = orderItems.find(oi => oi.product_id === p.id) || lines.find(oi => oi.product_id === p.id);
         return original && 'unit_price' in (original as any) && (original as any).unit_price != null && p.price !== (original as any).unit_price;
+      }) || sizedLines.some((l) => {
+        const current = variantsById.get(l.variant_id as string)?.price;
+        return l.unit_price != null && current != null && current !== l.unit_price;
       });
       if (priceChanged) {
         toast.info('Heads up: Some prices may have changed since your last order');
@@ -139,6 +151,7 @@ export function ReorderButton({
         .map((item) => ({
           product_id: item.product_id,
           quantity: item.quantity,
+          ...(item.variant_id ? { variant_id: item.variant_id } : {}),
         }));
 
       if (cartInserts.length === 0) {

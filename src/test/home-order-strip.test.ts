@@ -1,8 +1,11 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
 import { dismissHomeOrderStrip, getDismissedHomeOrderIds } from '@/lib/home-order-strip';
 import { resolveReorderLines } from '@/lib/reorder';
+
+// Grouped-listing lookups are covered in product-merges.test.ts; keep these offline.
+vi.mock('@/lib/product-merges', () => ({ remapMergedLines: async (lines: unknown[]) => lines }));
 
 const read = (path: string) => readFileSync(resolve(__dirname, '../..', path), 'utf8');
 

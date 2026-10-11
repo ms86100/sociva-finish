@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { createContext, useContext, useCallback, useEffect, useMemo, useRef, ReactNode, useState } from 'react';
+import { createContext, useContext, useCallback, useEffect, useMemo, useRef, ReactNode, useState, lazy, Suspense, useSyncExternalStore } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -32,6 +32,23 @@ import {
   fetchSellersForGuestCart,
   guestCartNeedsSellerHydration,
 } from '@/lib/guest-cart-enrich';
+import {
+  applyVariantToProduct,
+  cartLineKey,
+  fetchAllProductIdsWithVariants,
+  fetchProductIdsWithVariants,
+  fetchVariantsByIds,
+  isVariantLive,
+  variantErrorMessage,
+  VARIANT_PRODUCT_IDS_QUERY_KEY,
+  type ProductVariant,
+} from '@/lib/product-variants';
+import { closeVariantPicker, getVariantPickerRequest, openVariantPicker, subscribeVariantPicker } from '@/lib/variant-picker-store';
+
+const VariantPickerSheet = lazy(() => import('@/components/product/VariantPickerSheet'));
+
+const sameVariant = (a?: string | null, b?: string | null) => (a ?? null) === (b ?? null);
+const isPersistedLineId = (id?: string) => !!id && !id.startsWith('temp-') && !id.startsWith('guest-');
 
 const hasOwn = (obj: unknown, key: string) => Object.prototype.hasOwnProperty.call(obj ?? {}, key);
 
@@ -154,10 +171,11 @@ interface CartContextType {
   pendingMutations: number;
   /** True once the cart state has been positively confirmed (items arrived or server verified empty) */
   cartVerified: boolean;
-  addItem: (product: Product, quantity?: number, silent?: boolean, extras?: any[]) => Promise<boolean>;
-  replaceCart: (inserts: { product_id: string; quantity: number }[]) => Promise<void>;
-  updateQuantity: (productId: string, quantity: number) => Promise<void>;
-  removeItem: (productId: string) => Promise<void>;
+  /** Pass a variant for products sold by size; without one, a sized product opens the size picker. */
+  addItem: (product: Product, quantity?: number, silent?: boolean, extras?: any[], variant?: ProductVariant | null) => Promise<boolean>;
+  replaceCart: (inserts: { product_id: string; quantity: number; variant_id?: string | null }[]) => Promise<void>;
+  updateQuantity: (productId: string, quantity: number, variantId?: string | null) => Promise<void>;
+  removeItem: (productId: string, variantId?: string | null) => Promise<void>;
   clearCart: () => Promise<void>;
   refresh: () => Promise<void>;
 }
@@ -175,13 +193,25 @@ function withProducts<T extends { product?: Product | null }>(rows: T[] | null |
   return ((rows || []) as (CartItem & { product: Product })[]).filter((item) => item.product != null);
 }
 
+/** Size lines carry the size and price as the line's product, so totals and checkout use them. */
+async function withVariants(rows: (CartItem & { product: Product })[]) {
+  const variantIds = rows.map((r) => r.variant_id).filter(Boolean) as string[];
+  if (variantIds.length === 0) return rows;
+  const variants = await fetchVariantsByIds(variantIds);
+  return rows.map((row) => {
+    if (!row.variant_id) return row;
+    const variant = variants.get(row.variant_id) ?? null;
+    return { ...row, variant, product: applyVariantToProduct(row.product, variant) as Product };
+  });
+}
+
 async function fetchCartItems(userId: string) {
   const { data, error } = await supabase
     .from('cart_items')
     .select(CART_ITEM_EMBED)
     .eq('user_id', userId);
   if (error) throw error;
-  const filtered = withProducts(data as any);
+  const filtered = await withVariants(withProducts(data as any));
 
   // Embed/RLS can drop the product join while the cart row still exists.
   // A cheap head-count recovers that case without paying COUNT on every empty cart.
@@ -196,7 +226,7 @@ async function fetchCartItems(userId: string) {
         .select('*, product:products(*)')
         .eq('user_id', userId);
       if (retryError) throw retryError;
-      const recovered = withProducts(retry as any);
+      const recovered = await withVariants(withProducts(retry as any));
       if (recovered.length > 0) return recovered;
     }
   }
@@ -424,12 +454,14 @@ export function CartProvider({ children }: { children: ReactNode }) {
       }, {})
     ), [resolvedItems]);
 
-  // Per-product mutex to prevent race conditions on rapid taps
+  // Per-line (product + size) mutex to prevent race conditions on rapid taps
   const addItemLocksRef = useRef<Set<string>>(new Set());
 
-  const addItem = useCallback(async (product: Product, quantity = 1, silent = false, extras: any[] = []): Promise<boolean> => {
-    if (addItemLocksRef.current.has(product.id)) return false;
-    addItemLocksRef.current.add(product.id);
+  const addItem = useCallback(async (product: Product, quantity = 1, silent = false, extras: any[] = [], variant: ProductVariant | null = null): Promise<boolean> => {
+    const variantId = variant?.id ?? null;
+    const lockKey = cartLineKey(product.id, variantId);
+    if (addItemLocksRef.current.has(lockKey)) return false;
+    addItemLocksRef.current.add(lockKey);
     let mutationStarted = false;
 
     try {
@@ -447,6 +479,19 @@ export function CartProvider({ children }: { children: ReactNode }) {
       if (pActionType && !['add_to_cart', 'buy_now'].includes(pActionType)) {
         toast.error('This item cannot be added to cart', { id: 'cart-not-allowed' });
         return false;
+      }
+
+      // Products sold by size need a size; hand off to the size picker.
+      if (!variantId) {
+        const sizedIds = await queryClient.fetchQuery({
+          queryKey: VARIANT_PRODUCT_IDS_QUERY_KEY,
+          queryFn: fetchAllProductIdsWithVariants,
+          staleTime: 5 * 60 * 1000,
+        }).catch(() => new Set<string>());
+        if (sizedIds.has(product.id)) {
+          if (!silent) openVariantPicker(product, Array.isArray(extras) ? extras : []);
+          return false;
+        }
       }
 
       // Match DB trigger validate_cart_item_category - fail before optimistic UI.
@@ -482,32 +527,43 @@ export function CartProvider({ children }: { children: ReactNode }) {
       }
       if (availability.status !== 'open') { const msg = formatStoreClosedMessage(availability); toast.error(msg || 'This store is currently closed. Please try again later.', { id: 'cart-store-closed' }); return false; }
 
-      // Stock validation - enforce stock ceiling
+      // Stock validation - enforce stock ceiling (the size's own stock for sized products)
       let maxQty = 99;
-      const pStock = (product as any).stock_quantity;
-      if (pStock != null) {
-        maxQty = pStock;
+      let freshVariant: ProductVariant | null = null;
+      if (variantId) {
+        freshVariant = (await fetchVariantsByIds([variantId])).get(variantId) ?? null;
+        if (!freshVariant || freshVariant.product_id !== product.id || !isVariantLive(freshVariant)) {
+          toast.error('This size is no longer available.', { id: 'cart-variant-unavailable' });
+          return false;
+        }
+        if (freshVariant.stock_quantity != null) maxQty = freshVariant.stock_quantity;
       } else {
-        const { data: stockCheck } = await supabase.from('products').select('stock_quantity').eq('id', product.id).maybeSingle();
-        if (stockCheck?.stock_quantity != null) maxQty = stockCheck.stock_quantity;
+        const pStock = (product as any).stock_quantity;
+        if (pStock != null) {
+          maxQty = pStock;
+        } else {
+          const { data: stockCheck } = await supabase.from('products').select('stock_quantity').eq('id', product.id).maybeSingle();
+          if (stockCheck?.stock_quantity != null) maxQty = stockCheck.stock_quantity;
+        }
       }
+      const lineProduct = applyVariantToProduct(product, freshVariant) as Product;
 
       // Guest local cart (Swiggy-style) - no OTP until Place Order
       if (!user) {
         const guestLines = readGuestCart();
-        const existingQty = guestLines.find((i) => i.product_id === product.id)?.quantity || 0;
+        const existingQty = guestLines.find((i) => i.product_id === product.id && sameVariant(i.variant_id, variantId))?.quantity || 0;
         if (maxQty <= 0) {
-          toast.error('This item is out of stock', { id: 'stock-limit' });
+          toast.error(variantId ? 'This size is out of stock' : 'This item is out of stock', { id: 'stock-limit' });
           return false;
         }
         if (existingQty >= maxQty) return false;
         quantity = Math.min(quantity, maxQty - existingQty);
-        upsertGuestCartItem(product, quantity, extras);
+        upsertGuestCartItem(product, quantity, extras, freshVariant);
         if (!silent) {
           showAddPopup(
-            product.name || 'Item',
-            product.image_url || undefined,
-            product.price,
+            freshVariant ? `${product.name || 'Item'} (${freshVariant.label})` : (product.name || 'Item'),
+            lineProduct.image_url || undefined,
+            lineProduct.price,
             () => navigate('/cart', { replace: false }),
           );
         }
@@ -516,9 +572,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
       // Read current items from cache (avoids stale closure - items is not in deps)
       const currentItems = queryClient.getQueryData(cartKey()) as (CartItem & { product: Product })[] | undefined;
-      const existingQty = (currentItems || []).find(i => i.product_id === product.id)?.quantity || 0;
+      const existingQty = (currentItems || []).find(i => i.product_id === product.id && sameVariant(i.variant_id, variantId))?.quantity || 0;
       if (maxQty <= 0) {
-        toast.error('This item is out of stock', { id: 'stock-limit' });
+        toast.error(variantId ? 'This size is out of stock' : 'This item is out of stock', { id: 'stock-limit' });
         return false;
       }
       if (existingQty >= maxQty) {
@@ -536,25 +592,30 @@ export function CartProvider({ children }: { children: ReactNode }) {
       const snap = snapshot();
       const extrasPayload = Array.isArray(extras) ? extras : [];
 
+      const isThisLine = (item: CartItem) => item.product_id === product.id && sameVariant(item.variant_id, variantId);
       setOptimistic(prev => {
-        const existing = prev.find(item => item.product_id === product.id);
-        if (existing) return prev.map(item => item.product_id === product.id ? { ...item, quantity: Math.min(item.quantity + quantity, maxQty), ...(extrasPayload.length ? { selected_extras: extrasPayload } : {}) } : item);
-        return [...prev, { id: `temp-${crypto.randomUUID()}`, user_id: user.id, product_id: product.id, quantity, created_at: new Date().toISOString(), product, society_id: null, selected_extras: extrasPayload } as CartItem & { product: Product }];
+        const existing = prev.find(isThisLine);
+        if (existing) return prev.map(item => isThisLine(item) ? { ...item, quantity: Math.min(item.quantity + quantity, maxQty), ...(extrasPayload.length ? { selected_extras: extrasPayload } : {}) } : item);
+        return [...prev, { id: `temp-${crypto.randomUUID()}`, user_id: user.id, product_id: product.id, variant_id: variantId, variant: freshVariant, quantity, created_at: new Date().toISOString(), product: lineProduct, society_id: null, selected_extras: extrasPayload } as CartItem & { product: Product }];
       });
       queryClient.setQueryData(countKey(), (old: number | undefined) => (old || 0) + quantity);
 
       try {
-        const { data: existing } = await supabase.from('cart_items').select('quantity').eq('user_id', user.id).eq('product_id', product.id).maybeSingle();
+        // select('*') keeps this working before and after the variant_id column exists.
+        const { data: productRows, error: lookupError } = await supabase.from('cart_items').select('*').eq('user_id', user.id).eq('product_id', product.id);
+        if (lookupError) throw lookupError;
+        const existing = (productRows || []).find((row: any) => sameVariant(row.variant_id, variantId));
         if (existing) {
           const { error } = await supabase.from('cart_items').update({
             quantity: Math.min(existing.quantity + quantity, maxQty),
             ...(extrasPayload.length ? { selected_extras: extrasPayload } : {}),
-          }).eq('user_id', user.id).eq('product_id', product.id);
+          }).eq('user_id', user.id).eq('id', existing.id);
           if (error) throw error;
         } else {
           const { error } = await supabase.from('cart_items').insert({
             user_id: user.id,
             product_id: product.id,
+            ...(variantId ? { variant_id: variantId } : {}),
             quantity,
             ...(extrasPayload.length ? { selected_extras: extrasPayload } : {}),
           });
@@ -562,9 +623,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
         }
         if (!silent) {
           showAddPopup(
-            product.name || 'Item',
-            product.image_url || undefined,
-            product.price,
+            freshVariant ? `${product.name || 'Item'} (${freshVariant.label})` : (product.name || 'Item'),
+            lineProduct.image_url || undefined,
+            lineProduct.price,
             () => {
               navigate('/cart', { replace: false });
             }
@@ -575,10 +636,11 @@ export function CartProvider({ children }: { children: ReactNode }) {
           const { track } = await import('@/lib/analytics');
           track('add_to_cart', {
             product_id: product.id,
+            ...(variantId ? { variant_id: variantId, variant_label: freshVariant?.label } : {}),
             product_name: product.name,
             seller_id: product.seller_id,
             category: product.category,
-            price: product.price,
+            price: lineProduct.price,
             quantity,
             source: 'product_page',
           });
@@ -588,8 +650,17 @@ export function CartProvider({ children }: { children: ReactNode }) {
         rollback(snap);
         console.error('Cart addItem DB error:', error);
         const availabilityError = parseStoreAvailabilityError(error);
+        const sizeError = variantErrorMessage(error);
         if (availabilityError) {
           toast.error(availabilityError, { id: 'cart-availability-error' });
+        } else if (sizeError) {
+          // The product gained sizes after our cached list: refresh it and let the buyer pick.
+          if (String(error?.message || '').includes('VARIANT_REQUIRED')) {
+            queryClient.invalidateQueries({ queryKey: VARIANT_PRODUCT_IDS_QUERY_KEY });
+            if (!silent) openVariantPicker(product, extrasPayload);
+          } else {
+            toast.error(sizeError, { id: 'cart-variant-error' });
+          }
         } else {
           const dbMsg = error?.message || error?.details || '';
           if (dbMsg.includes('does not support cart')) {
@@ -603,13 +674,19 @@ export function CartProvider({ children }: { children: ReactNode }) {
         return false;
       }
     } finally {
-      addItemLocksRef.current.delete(product.id);
+      addItemLocksRef.current.delete(lockKey);
       if (mutationStarted) setPendingMutations(c => Math.max(0, c - 1));
     }
   }, [user, browsingLocation?.lat, browsingLocation?.lng, setOptimistic, cancelCartQueries, snapshot, rollback, reconcile, queryClient, countKey, showAddPopup, navigate, cartKey]);
 
   // After OTP: merge local guest cart into server cart (checkout resume handled by auth returnTo).
+  // addItem changes identity while the merge runs (location, popup); reading it through a ref
+  // keeps the merge from restarting part-way, which would re-add lines.
   const guestMergeRef = useRef(false);
+  const addItemRef = useRef(addItem);
+  addItemRef.current = addItem;
+  const mergeUserRef = useRef<string | null>(null);
+  mergeUserRef.current = userId ?? null;
   useEffect(() => {
     if (!userId) {
       guestMergeRef.current = false;
@@ -619,27 +696,33 @@ export function CartProvider({ children }: { children: ReactNode }) {
     const guestLines = readGuestCart();
     if (guestLines.length === 0) return;
     guestMergeRef.current = true;
+    // Claim the lines before merging so a reload or a second tab cannot add them twice.
+    clearGuestCart();
 
-    let cancelled = false;
     (async () => {
+      const notMerged: typeof guestLines = [];
       for (const line of guestLines) {
-        if (cancelled) return;
-        await addItem(
-          line.product,
-          line.quantity,
-          true,
-          Array.isArray(line.selected_extras) ? line.selected_extras : [],
-        );
+        if (mergeUserRef.current !== userId) {
+          notMerged.push(line);
+          continue;
+        }
+        let merged = false;
+        try {
+          merged = await addItemRef.current(
+            line.product,
+            line.quantity,
+            true,
+            Array.isArray(line.selected_extras) ? line.selected_extras : [],
+            line.variant_id ? (line.variant ?? ({ id: line.variant_id, product_id: line.product_id } as ProductVariant)) : null,
+          );
+        } catch {
+          merged = false;
+        }
+        if (!merged) notMerged.push(line);
       }
-      if (!cancelled) clearGuestCart();
-    })().catch(() => {
-      // best-effort merge; leave guest cart if server failed
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [userId, isSessionRestored, addItem]);
+      if (notMerged.length > 0) writeGuestCart([...notMerged, ...readGuestCart()]);
+    })();
+  }, [userId, isSessionRestored]);
 
   // Legacy pending add_to_cart (if any) still restores once.
   const pendingCartRestoreRef = useRef(false);
@@ -672,29 +755,40 @@ export function CartProvider({ children }: { children: ReactNode }) {
     };
   }, [userId, isSessionRestored, addItem]);
 
-  const removeItem = useCallback(async (productId: string) => {
+  const removeItem = useCallback(async (productId: string, variantId: string | null = null) => {
     if (!user) {
-      const removed = readGuestCart().find((i) => i.product_id === productId);
-      removeGuestCartItem(productId);
+      const removed = readGuestCart().find((i) => i.product_id === productId && sameVariant(i.variant_id, variantId));
+      removeGuestCartItem(productId, variantId);
       if (removed) {
-        showRemovePopup(removed.product?.name || 'Item', () => navigate('/'));
+        showRemovePopup(lineDisplayName(removed.product?.name, removed.variant?.label), () => navigate('/'));
       }
       return;
     }
+    const isThisLine = (item: CartItem) => item.product_id === productId && sameVariant(item.variant_id, variantId);
+    const cached = (queryClient.getQueryData(cartKey()) as (CartItem & { product: Product })[] | undefined) || [];
+    // Never fall back to a product-wide delete when this product has size lines.
+    if (!variantId && !cached.some(isThisLine) && cached.some((i) => i.product_id === productId && i.variant_id)) return;
+
     setPendingMutations(c => c + 1);
     await cancelCartQueries();
     const snap = snapshot();
-    const removedItem = (snap.items || []).find(item => item.product_id === productId);
+    const removedItem = (snap.items || []).find(isThisLine);
     const removedQty = removedItem?.quantity || 0;
 
-    setOptimistic(old => old.filter(item => item.product_id !== productId));
+    setOptimistic(old => old.filter(item => !isThisLine(item)));
     queryClient.setQueryData(countKey(), (old: number | undefined) => Math.max(0, (old || 0) - removedQty));
 
     try {
-      const { error } = await supabase.from('cart_items').delete().eq('user_id', user.id).eq('product_id', productId);
+      let del = supabase.from('cart_items').delete().eq('user_id', user.id);
+      if (isPersistedLineId(removedItem?.id)) del = del.eq('id', removedItem.id);
+      else {
+        del = del.eq('product_id', productId);
+        if (variantId) del = del.eq('variant_id', variantId);
+      }
+      const { error } = await del;
       if (error) throw error;
       showRemovePopup(
-        removedItem?.product?.name || 'Item',
+        lineDisplayName(removedItem?.product?.name, (removedItem as any)?.variant?.label),
         () => navigate('/'),
       );
       await reconcile();
@@ -712,24 +806,38 @@ export function CartProvider({ children }: { children: ReactNode }) {
     } finally {
       setPendingMutations(c => Math.max(0, c - 1));
     }
-  }, [user, setOptimistic, cancelCartQueries, snapshot, rollback, reconcile, queryClient, countKey, showRemovePopup, navigate]);
+  }, [user, setOptimistic, cancelCartQueries, snapshot, rollback, reconcile, queryClient, countKey, cartKey, showRemovePopup, navigate]);
 
-  const updateQuantity = useCallback(async (productId: string, quantity: number) => {
+  const updateQuantity = useCallback(async (productId: string, quantity: number, variantId: string | null = null) => {
     if (!user) {
       if (quantity <= 0) {
-        await removeItem(productId);
+        await removeItem(productId, variantId);
         return;
       }
-      setGuestCartQuantity(productId, quantity);
+      if (variantId) {
+        const v = (await fetchVariantsByIds([variantId])).get(variantId);
+        if (v?.stock_quantity != null && quantity > v.stock_quantity) return;
+      }
+      setGuestCartQuantity(productId, quantity, variantId);
       feedbackQuantityChanged();
       return;
     }
-    if (quantity <= 0) { await removeItem(productId); return; }
+    if (quantity <= 0) { await removeItem(productId, variantId); return; }
 
-    // Stock validation - fetch ceiling
+    const isThisLine = (item: CartItem) => item.product_id === productId && sameVariant(item.variant_id, variantId);
+    const cached = (queryClient.getQueryData(cartKey()) as (CartItem & { product: Product })[] | undefined) || [];
+    // Never fall back to a product-wide update when this product has size lines.
+    if (!variantId && !cached.some(isThisLine) && cached.some((i) => i.product_id === productId && i.variant_id)) return;
+
+    // Stock validation - fetch ceiling (the size's own stock for sized lines)
     let maxQty = 99;
-    const { data: stockCheck } = await supabase.from('products').select('stock_quantity').eq('id', productId).maybeSingle();
-    if (stockCheck?.stock_quantity != null) maxQty = stockCheck.stock_quantity;
+    if (variantId) {
+      const v = (await fetchVariantsByIds([variantId])).get(variantId);
+      if (v?.stock_quantity != null) maxQty = v.stock_quantity;
+    } else {
+      const { data: stockCheck } = await supabase.from('products').select('stock_quantity').eq('id', productId).maybeSingle();
+      if (stockCheck?.stock_quantity != null) maxQty = stockCheck.stock_quantity;
+    }
     if (quantity > maxQty) {
       // At stock ceiling - UI disables +; do not toast or show "Quantity updated"
       return;
@@ -738,26 +846,34 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setPendingMutations(c => c + 1);
     await cancelCartQueries();
     const snap = snapshot();
-    const oldItem = (snap.items || []).find(item => item.product_id === productId);
+    const oldItem = (snap.items || []).find(isThisLine);
     const qtyDelta = cappedQuantity - (oldItem?.quantity || 0);
 
-    setOptimistic(old => old.map(item => item.product_id === productId ? { ...item, quantity: cappedQuantity } : item));
+    setOptimistic(old => old.map(item => isThisLine(item) ? { ...item, quantity: cappedQuantity } : item));
     if (qtyDelta !== 0) queryClient.setQueryData(countKey(), (old: number | undefined) => Math.max(0, (old || 0) + qtyDelta));
 
     try {
-      const { error } = await supabase.from('cart_items').update({ quantity: cappedQuantity }).eq('user_id', user.id).eq('product_id', productId);
+      let upd = supabase.from('cart_items').update({ quantity: cappedQuantity }).eq('user_id', user.id);
+      if (isPersistedLineId(oldItem?.id)) upd = upd.eq('id', oldItem.id);
+      else {
+        upd = upd.eq('product_id', productId);
+        if (variantId) upd = upd.eq('variant_id', variantId);
+      }
+      const { error } = await upd;
       if (error) throw error;
       feedbackQuantityChanged();
       await reconcile();
     } catch (error) {
       rollback(snap);
       const availabilityError = parseStoreAvailabilityError(error);
+      const sizeError = variantErrorMessage(error);
       if (availabilityError) toast.error(availabilityError, { id: 'cart-qty-availability' });
+      else if (sizeError) toast.error(sizeError, { id: 'cart-qty-variant' });
       else feedbackQuantityFailed();
     } finally {
       setPendingMutations(c => Math.max(0, c - 1));
     }
-  }, [user, setOptimistic, removeItem, cancelCartQueries, snapshot, rollback, reconcile, queryClient, countKey]);
+  }, [user, setOptimistic, removeItem, cancelCartQueries, snapshot, rollback, reconcile, queryClient, countKey, cartKey]);
 
   const clearCart = useCallback(async () => {
     if (!user) {
@@ -781,8 +897,31 @@ export function CartProvider({ children }: { children: ReactNode }) {
   }, [user, setOptimistic, cancelCartQueries, snapshot, rollback, queryClient, countKey]);
 
   // Bug 3 fix: Snapshot cart before delete so we can restore on insert failure
-  const replaceCart = useCallback(async (inserts: { product_id: string; quantity: number }[]) => {
-    if (!user || inserts.length === 0) return;
+  const replaceCart = useCallback(async (requested: { product_id: string; quantity: number; variant_id?: string | null }[]) => {
+    if (!user || requested.length === 0) return;
+
+    // A size that was switched off, or a product that now sells by size, cannot be re-added as-is.
+    const variantMap = await fetchVariantsByIds(requested.map((i) => i.variant_id).filter(Boolean) as string[]);
+    const sizedProducts = await fetchProductIdsWithVariants(requested.filter((i) => !i.variant_id).map((i) => i.product_id));
+    const inserts = requested.filter((i) => {
+      if (!i.variant_id) return !sizedProducts.has(i.product_id);
+      const v = variantMap.get(i.variant_id);
+      return !!v && v.product_id === i.product_id && isVariantLive(v);
+    });
+    const skipped = requested.length - inserts.length;
+    if (inserts.length === 0) {
+      notify.block('The sizes from this order are no longer available. Please pick a size again.', { id: 'reorder-size-unavailable', title: 'Sizes unavailable' });
+      return;
+    }
+    if (skipped > 0) toast.info(`${skipped} item(s) skipped: that size is no longer available`);
+
+    const toRow = (i: { product_id: string; quantity: number; variant_id?: string | null }) => ({
+      user_id: user.id,
+      product_id: i.product_id,
+      ...(i.variant_id ? { variant_id: i.variant_id } : {}),
+      quantity: i.quantity,
+    });
+
     setPendingMutations(c => c + 1);
     await cancelCartQueries();
     const snap = snapshot();
@@ -793,7 +932,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       // Snapshot existing cart items for rollback
       const { data: existingItems } = await supabase
         .from('cart_items')
-        .select('product_id, quantity')
+        .select('*')
         .eq('user_id', user.id);
 
       const { error: clearErr } = await supabase.from('cart_items').delete().eq('user_id', user.id);
@@ -804,14 +943,12 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
       const { error } = await supabase
         .from('cart_items')
-        .insert(inserts.map(i => ({ user_id: user.id, product_id: i.product_id, quantity: i.quantity })));
+        .insert(inserts.map(toRow));
 
       if (error) {
         // Restore original cart items
         if (existingItems && existingItems.length > 0) {
-          await supabase.from('cart_items').insert(
-            existingItems.map(i => ({ user_id: user.id, product_id: i.product_id, quantity: i.quantity }))
-          );
+          await supabase.from('cart_items').insert(existingItems.map((i: any) => toRow(i)));
         }
         rollback(snap);
         throw error;
@@ -909,7 +1046,32 @@ export function CartProvider({ children }: { children: ReactNode }) {
     },
   }), [resolvedItems, itemCount, totalAmount, sellerGroups, userId, isLoading, isFetching, hasHydrated, isRecoveringCart, pendingMutations, addItem, replaceCart, updateQuantity, removeItem, clearCart, cartVerified, user, queryClient, cartKey, countKey]);
 
-  return <CartContext.Provider value={contextValue}>{children}</CartContext.Provider>;
+  return (
+    <CartContext.Provider value={contextValue}>
+      {children}
+      <VariantPickerHost />
+    </CartContext.Provider>
+  );
+}
+
+function lineDisplayName(name: string | null | undefined, sizeLabel: string | null | undefined): string {
+  const base = name || 'Item';
+  return sizeLabel ? `${base} (${sizeLabel})` : base;
+}
+
+function VariantPickerHost() {
+  const request = useSyncExternalStore(subscribeVariantPicker, getVariantPickerRequest, () => null);
+  const { pathname } = useLocation();
+  // The picker lives outside the page that opened it, so leaving that page must close it.
+  useEffect(() => {
+    closeVariantPicker();
+  }, [pathname]);
+  if (!request) return null;
+  return (
+    <Suspense fallback={null}>
+      <VariantPickerSheet product={request.product} extras={request.extras} />
+    </Suspense>
+  );
 }
 
 const EMPTY_CART_FALLBACK: any = {

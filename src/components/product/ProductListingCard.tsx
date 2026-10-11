@@ -27,6 +27,8 @@ import { displaySellerStoreName } from '@/lib/seller-journey';
 import { SellerLocationLine } from '@/components/location/SellerLocationLine';
 import { listingPlaceChip } from '@/lib/location-label-resolver';
 import { homeServiceBuyerLabel } from '@/lib/home-service-label';
+import { useVariantProductIds } from '@/hooks/useProductVariants';
+import { openVariantPicker } from '@/lib/variant-picker-store';
 
 export interface ProductWithSeller {
   id: string; seller_id: string; name: string; price: number; image_url: string | null; category: string;
@@ -55,9 +57,12 @@ interface ProductListingCardProps {
   badgeConfigs?: BadgeConfigRow[]; socialProofCount?: number;
   onViewClick?: () => void;
   compact?: boolean;
+  /** Seller preview: show the size starting price, or this note when no size is on. */
+  showFrom?: boolean;
+  priceNote?: string | null;
 }
 
-function ProductListingCardInner({ product, layout = 'auto', onTap, onNavigate, className, viewOnly = false, categoryConfigs = [], marketplaceConfig, badgeConfigs = [], socialProofCount, onViewClick, compact = false }: ProductListingCardProps) {
+function ProductListingCardInner({ product, layout = 'auto', onTap, onNavigate, className, viewOnly = false, categoryConfigs = [], marketplaceConfig, badgeConfigs = [], socialProofCount, onViewClick, compact = false, showFrom = false, priceNote = null }: ProductListingCardProps) {
   const { user } = useAuth();
   const { items, addItem, updateQuantity } = useCart();
   const { impact, selectionChanged } = useHaptics();
@@ -71,9 +76,13 @@ function ProductListingCardInner({ product, layout = 'auto', onTap, onNavigate, 
   }, [product.action_type, product.category, categoryConfigs]);
   const actionConfig = ACTION_CONFIG[actionType];
   const isCartAction = actionConfig.isCart;
+  const sizedProductIds = useVariantProductIds();
+  const hasSizes = isCartAction && sizedProductIds.has(product.id);
   const cartItem = isCartAction ? items.find((item) => item.product_id === product.id) : null;
-  const quantity = cartItem?.quantity || 0;
-  const stockLimit = product.stock_quantity != null ? product.stock_quantity : 99;
+  const quantity = hasSizes
+    ? items.reduce((sum, item) => (item.product_id === product.id ? sum + item.quantity : sum), 0)
+    : cartItem?.quantity || 0;
+  const stockLimit = !hasSizes && product.stock_quantity != null ? product.stock_quantity : 99;
   const canIncrement = quantity < stockLimit;
 
   const catConfig = useMemo(() => categoryConfigs.find(c => c.category === product.category) || null, [categoryConfigs, product.category]);
@@ -96,6 +105,10 @@ function ProductListingCardInner({ product, layout = 'auto', onTap, onNavigate, 
       return;
     }
     impact('medium');
+    if (hasSizes) {
+      openVariantPicker(product as any);
+      return;
+    }
     setIsAdding(true);
     void (async () => {
       try {
@@ -114,12 +127,14 @@ function ProductListingCardInner({ product, layout = 'auto', onTap, onNavigate, 
     e.preventDefault();
     if (!canIncrement) return;
     impact('light');
+    if (hasSizes) { openVariantPicker(product as any); return; }
     updateQuantity(product.id, quantity + 1);
   };
   const handleDecrement = (e: React.MouseEvent) => {
     e.stopPropagation();
     e.preventDefault();
     impact('light');
+    if (hasSizes) { openVariantPicker(product as any); return; }
     updateQuantity(product.id, quantity - 1);
   };
   const handleCardClick = () => { selectionChanged(); trackClick(); if (onTap) onTap(product); else onNavigate?.(`/seller/${product.seller_id}`); };
@@ -449,12 +464,14 @@ function ProductListingCardInner({ product, layout = 'auto', onTap, onNavigate, 
         )}>
           <div className="flex h-full flex-col overflow-hidden">
             <div className="min-h-[20px] flex items-baseline gap-1.5 overflow-hidden flex-wrap">
-              {!showMoney ? (
+              {priceNote ? (
+                <span className="text-sm font-medium text-muted-foreground leading-none">{priceNote}</span>
+              ) : !showMoney ? (
                 <span className="text-sm font-medium text-primary leading-none">{priceLabel}</span>
               ) : (
                 <>
                   <span className="font-extrabold text-[15px] text-foreground leading-none tracking-tight tabular-nums">
-                    {isServiceLayout && <span className="text-[10px] font-semibold text-muted-foreground mr-1">From</span>}
+                    {(isServiceLayout || hasSizes || showFrom) && <span className="text-[10px] font-semibold text-muted-foreground mr-1">From</span>}
                     {formatPrice(isServiceLayout ? serviceStartingPrice : product.price)}
                   </span>
                   {hasDiscount && (
@@ -493,12 +510,14 @@ function ProductListingCardInner({ product, layout = 'auto', onTap, onNavigate, 
           {/* Natural flow: price -> optional glance (collapses when empty) -> title reserved for footer align */}
           <div className="flex flex-col gap-0.5 shrink-0" data-slot="listing-price-group">
             <div className="min-h-[15px] flex items-baseline gap-1 overflow-hidden">
-              {!showMoney ? (
+              {priceNote ? (
+                <span className="text-xs font-medium text-muted-foreground leading-none truncate">{priceNote}</span>
+              ) : !showMoney ? (
                 <span className="text-xs font-medium text-primary leading-none truncate">{priceLabel}</span>
               ) : (
                 <>
                   <span className="font-extrabold text-[13px] sm:text-[14px] text-foreground leading-none tracking-tight tabular-nums">
-                    {isServiceLayout && <span className="text-[9px] font-semibold text-muted-foreground mr-0.5">From</span>}
+                    {(isServiceLayout || hasSizes || showFrom) && <span className="text-[9px] font-semibold text-muted-foreground mr-0.5">From</span>}
                     {formatPrice(isServiceLayout ? serviceStartingPrice : product.price)}
                   </span>
                   {hasDiscount && (

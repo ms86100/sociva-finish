@@ -17,6 +17,8 @@ import { computeStoreStatus, formatStoreClosedMessage } from '@/lib/store-availa
 import { optimizedImageUrl, imageSrcSet, handleImageError } from '@/utils/imageHelpers';
 import { useCategoryConfigs } from '@/hooks/useCategoryBehavior';
 import { resolveListingAction } from '@/lib/commerce-mode';
+import { useVariantProductIds } from '@/hooks/useProductVariants';
+import { openVariantPicker } from '@/lib/variant-picker-store';
 
 interface ProductCardProps {
   product: Product;
@@ -41,9 +43,13 @@ export function ProductCard({ product, variant = 'horizontal', onTap }: ProductC
   const priceLabel = getCommercePriceLabel(actionType, product.price, formatPrice);
   const showMoney = shouldShowMonetaryPrice(actionType, product.price);
 
+  const sizedProductIds = useVariantProductIds();
+  const hasSizes = isCartAction && sizedProductIds.has(product.id);
   const cartItem = isCartAction ? items.find((item) => item.product_id === product.id) : null;
-  const quantity = cartItem?.quantity || 0;
-  const stockLimit = (product as any).stock_quantity != null ? (product as any).stock_quantity : 99;
+  const quantity = hasSizes
+    ? items.reduce((sum, item) => (item.product_id === product.id ? sum + item.quantity : sum), 0)
+    : cartItem?.quantity || 0;
+  const stockLimit = !hasSizes && (product as any).stock_quantity != null ? (product as any).stock_quantity : 99;
 
   const seller = (product as any)?.seller;
   const storeAvailability = useMemo(() => {
@@ -76,23 +82,26 @@ export function ProductCard({ product, variant = 'horizontal', onTap }: ProductC
   const handleAdd = useCallback((e?: { stopPropagation?: () => void; preventDefault?: () => void }) => {
     stopRowOpen(e);
     if (!isCartAction) { hapticSelection(); if (onTap) onTap(product); return; }
+    hapticImpact('medium');
+    if (hasSizes) { openVariantPicker(product); return; }
     if (quantity === 0) {
       setJustAdded(true);
       setTimeout(() => setJustAdded(false), 600);
     }
-    hapticImpact('medium');
     addItem(product);
-  }, [isCartAction, onTap, product, addItem, quantity]);
+  }, [isCartAction, onTap, product, addItem, quantity, hasSizes]);
 
   const handleIncrement = (e?: { stopPropagation?: () => void; preventDefault?: () => void }) => {
     stopRowOpen(e);
     if (!canIncrement) return;
     hapticImpact('light');
+    if (hasSizes) { openVariantPicker(product); return; }
     updateQuantity(product.id, quantity + 1);
   };
   const handleDecrement = (e?: { stopPropagation?: () => void; preventDefault?: () => void }) => {
     stopRowOpen(e);
     hapticImpact('light');
+    if (hasSizes) { openVariantPicker(product); return; }
     updateQuantity(product.id, quantity - 1);
   };
 
@@ -183,11 +192,11 @@ export function ProductCard({ product, variant = 'horizontal', onTap }: ProductC
             <div className="flex-1 min-w-0">
               <h4 className="font-semibold text-sm line-clamp-2 leading-snug">{product.name}</h4>
               <div className="flex items-baseline gap-1.5 mt-1.5 flex-wrap">
-                <p className="text-base font-extrabold text-foreground tabular-nums">{showMoney ? priceLabel : <span className="text-primary text-sm font-bold">{priceLabel}</span>}</p>
+                <p className="text-base font-extrabold text-foreground tabular-nums">{hasSizes && showMoney && <span className="text-[10px] font-semibold text-muted-foreground mr-1">From</span>}{showMoney ? priceLabel : <span className="text-primary text-sm font-bold">{priceLabel}</span>}</p>
                 {hasDiscount && (
                   <span className="text-xs text-muted-foreground line-through tabular-nums">{formatPrice((product as any).mrp)}</span>
                 )}
-                {(product as any).stock_quantity != null && (product as any).stock_quantity > 0 && (
+                {!hasSizes && (product as any).stock_quantity != null && (product as any).stock_quantity > 0 && (
                   <span className="text-[11px] font-semibold text-muted-foreground tabular-nums">
                     {(product as any).stock_quantity} left
                   </span>
@@ -242,11 +251,11 @@ export function ProductCard({ product, variant = 'horizontal', onTap }: ProductC
             </div>
             {product.description && (<p className="text-sm text-muted-foreground line-clamp-2 mt-1">{product.description}</p>)}
             <div className="flex items-baseline gap-1.5 mt-2 flex-wrap">
-              <p className="font-extrabold text-base tabular-nums">{showMoney ? priceLabel : <span className="text-primary text-sm font-bold">{priceLabel}</span>}</p>
+              <p className="font-extrabold text-base tabular-nums">{hasSizes && showMoney && <span className="text-[10px] font-semibold text-muted-foreground mr-1">From</span>}{showMoney ? priceLabel : <span className="text-primary text-sm font-bold">{priceLabel}</span>}</p>
               {hasDiscount && (
                 <span className="text-xs text-muted-foreground line-through tabular-nums">{formatPrice((product as any).mrp)}</span>
               )}
-              {(product as any).stock_quantity != null && (product as any).stock_quantity > 0 && (
+              {!hasSizes && (product as any).stock_quantity != null && (product as any).stock_quantity > 0 && (
                 <span className="text-[11px] font-semibold text-muted-foreground tabular-nums">
                   {(product as any).stock_quantity} left
                 </span>

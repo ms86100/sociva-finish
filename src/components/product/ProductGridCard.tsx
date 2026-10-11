@@ -15,6 +15,8 @@ import { useCurrency } from '@/hooks/useCurrency';
 import { computeStoreStatus, formatStoreClosedMessage } from '@/lib/store-availability';
 import { useCategoryConfig } from '@/hooks/queries/useCategoryConfig';
 import { optimizedImageUrl, imageSrcSet, handleImageError } from '@/utils/imageHelpers';
+import { useVariantProductIds } from '@/hooks/useProductVariants';
+import { openVariantPicker } from '@/lib/variant-picker-store';
 
 export interface ProductWithSeller extends Product {
   seller_name?: string;
@@ -54,9 +56,13 @@ export function ProductGridCard({ product, behavior, onTap, className, viewOnly 
   const showVegBadge = (catCfg?.formHints?.showVegToggle ?? false) && (product.is_veg === true || product.is_veg === false);
   const placeholderEmoji = catCfg?.formHints?.placeholderEmoji || '📦';
 
+  const sizedProductIds = useVariantProductIds();
+  const hasSizes = isCartAction && sizedProductIds.has(product.id);
   const cartItem = isCartAction ? items.find((item) => item.product_id === product.id) : null;
-  const quantity = cartItem?.quantity || 0;
-  const stockLimit = (product as any).stock_quantity != null ? (product as any).stock_quantity : 99;
+  const quantity = hasSizes
+    ? items.reduce((sum, item) => (item.product_id === product.id ? sum + item.quantity : sum), 0)
+    : cartItem?.quantity || 0;
+  const stockLimit = !hasSizes && (product as any).stock_quantity != null ? (product as any).stock_quantity : 99;
   const canIncrement = quantity < stockLimit;
 
   const storeAvailability = useMemo(() => {
@@ -77,6 +83,7 @@ export function ProductGridCard({ product, behavior, onTap, className, viewOnly 
     if (isAdding) return;
     if (!isCartAction) { if (onTap) onTap(product); return; }
     hapticImpact('medium');
+    if (hasSizes) { openVariantPicker(product); return; }
     setIsAdding(true);
     void (async () => {
       try {
@@ -95,9 +102,14 @@ export function ProductGridCard({ product, behavior, onTap, className, viewOnly 
     e.preventDefault();
     if (!canIncrement) return;
     hapticImpact('light');
+    if (hasSizes) { openVariantPicker(product); return; }
     updateQuantity(product.id, quantity + 1);
   };
-  const handleDecrement = (e: React.MouseEvent) => { e.stopPropagation(); e.preventDefault(); hapticImpact('light'); updateQuantity(product.id, quantity - 1); };
+  const handleDecrement = (e: React.MouseEvent) => {
+    e.stopPropagation(); e.preventDefault(); hapticImpact('light');
+    if (hasSizes) { openVariantPicker(product); return; }
+    updateQuantity(product.id, quantity - 1);
+  };
   const handleCardClick = () => { hapticSelection(); if (onTap) { onTap(product); } else { navigate(`/seller/${product.seller_id}`); } };
 
   const isOutOfStock = !product.is_available || ((product as any).stock_quantity != null && (product as any).stock_quantity <= 0);
@@ -246,11 +258,11 @@ export function ProductGridCard({ product, behavior, onTap, className, viewOnly 
         )}
         <div className="flex-1 min-h-0.5" />
         <div className="flex items-baseline gap-1.5 mt-auto pt-1 flex-wrap">
-          <span className={cn('font-extrabold text-sm leading-none', showMoney ? 'text-foreground tabular-nums' : 'text-primary')}>{priceLabel}</span>
+          <span className={cn('font-extrabold text-sm leading-none', showMoney ? 'text-foreground tabular-nums' : 'text-primary')}>{hasSizes && showMoney && <span className="text-[9px] font-semibold text-muted-foreground mr-0.5">From</span>}{priceLabel}</span>
           {hasDiscount && (
             <span className="text-[10px] text-muted-foreground/80 line-through tabular-nums">{formatPrice((product as any).mrp)}</span>
           )}
-          {(product as any).stock_quantity != null && (product as any).stock_quantity > 0 && (
+          {!hasSizes && (product as any).stock_quantity != null && (product as any).stock_quantity > 0 && (
             <span className="text-[10px] font-semibold text-muted-foreground tabular-nums">
               {(product as any).stock_quantity} left
             </span>

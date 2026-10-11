@@ -22,6 +22,7 @@ import { ProductPerformanceBadge, getPerformanceLevel } from '@/components/selle
 import { resolveProductAvailability } from '@/lib/product-availability';
 import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
 import { adminStorePaths, SELLER_STORE_PATHS } from '@/contexts/AdminManagedSellerContext';
+import { fetchVariantCounts } from '@/lib/product-variants';
 
 export default function SellerProductsPage({
   sellerIdOverride,
@@ -34,6 +35,7 @@ export default function SellerProductsPage({
   const { formatPrice, currencySymbol } = useCurrency();
   const [viewCounts, setViewCounts] = useState<Record<string, number>>({});
   const [orderCounts, setOrderCounts] = useState<Record<string, number>>({});
+  const [sizeCounts, setSizeCounts] = useState<Record<string, number>>({});
   const paths = sellerIdOverride ? adminStorePaths(sellerIdOverride) : SELLER_STORE_PATHS;
   const isAdminManage = !!sellerIdOverride;
 
@@ -75,6 +77,7 @@ export default function SellerProductsPage({
         setOrderCounts(counts);
       }
     });
+    fetchVariantCounts(productIds).then(setSizeCounts);
   }, [sp.sellerProfile?.id, sp.products.length]);
   if (sp.isLoading) {
     return <AppLayout showHeader={false}><div className="p-4"><Skeleton className="h-8 w-32 mb-4" /><Skeleton className="h-12 w-full mb-4" />{[1, 2, 3].map((i) => <Skeleton key={i} className="h-24 w-full rounded-xl mb-3" />)}</div></AppLayout>;
@@ -179,7 +182,15 @@ export default function SellerProductsPage({
                             {isLowStock && <Badge className="bg-destructive/15 text-destructive text-[10px] px-1 gap-0.5"><AlertTriangle size={10} /> Low Stock ({stockQty})</Badge>}
                             <ProductPerformanceBadge level={perfLevel} />
                           </div>
-                          <p className="text-sm font-semibold text-primary">{formatPrice(product.price)}</p>
+                          {sizeCounts[product.id] > 0 ? (
+                            <p className="text-sm font-semibold text-primary">
+                              <span className="text-xs font-normal text-muted-foreground">From </span>
+                              {formatPrice(product.price)}
+                              <span className="text-xs font-normal text-muted-foreground"> · {sizeCounts[product.id]} {sizeCounts[product.id] === 1 ? 'size' : 'sizes'}</span>
+                            </p>
+                          ) : (
+                            <p className="text-sm font-semibold text-primary">{formatPrice(product.price)}</p>
+                          )}
                           <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                             {viewCounts[product.id] > 0 && (
                               <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">

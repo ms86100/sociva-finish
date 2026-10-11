@@ -13,6 +13,7 @@ import { notify } from '@/lib/notify';
 import { useBrowsingLocation } from '@/contexts/BrowsingLocationContext';
 import { buyerCanOrderFromSeller, filterDiscoverableProductIds } from '@/lib/sellerDiscoverability';
 import { PRECISE_LOCATION_TITLE } from '@/lib/buyerLocation';
+import { remapMergedLines } from '@/lib/product-merges';
 
 interface LastOrder {
   id: string;
@@ -20,7 +21,7 @@ interface LastOrder {
   item_count: number;
   total_amount: number;
   created_at: string;
-  items: { product_id: string; quantity: number }[];
+  items: { product_id: string; quantity: number; variant_id: string | null }[];
 }
 
 export function ReorderLastOrder() {
@@ -41,7 +42,7 @@ export function ReorderLastOrder() {
       .select(`
         id, total_amount, created_at,
         seller:seller_profiles!orders_seller_id_fkey(business_name),
-        order_items(product_id, quantity)
+        order_items(*)
       `)
       .eq('buyer_id', user.id)
       .in('status', ['completed', 'delivered'])
@@ -59,6 +60,7 @@ export function ReorderLastOrder() {
             items: data.order_items.map((i: any) => ({
               product_id: i.product_id,
               quantity: i.quantity,
+              variant_id: i.variant_id ?? null,
             })),
           });
         }
@@ -96,7 +98,8 @@ export function ReorderLastOrder() {
     setShowConfirm(false);
     setIsLoading(true);
     try {
-      const productIds = lastOrder.items.map(i => i.product_id).filter(Boolean);
+      const lines = await remapMergedLines(lastOrder.items.filter(i => i.product_id));
+      const productIds = lines.map(i => i.product_id);
       const { data: availableRows } = await supabase
         .from('products')
         .select('id, price, seller_id')
@@ -154,9 +157,9 @@ export function ReorderLastOrder() {
       const availableSet = new Set(available.map(p => p.id));
       const unavailableCount = productIds.length - availableSet.size;
 
-      const inserts = lastOrder.items
+      const inserts = lines
         .filter(i => availableSet.has(i.product_id))
-        .map(i => ({ product_id: i.product_id, quantity: i.quantity }));
+        .map(i => ({ product_id: i.product_id, quantity: i.quantity, ...(i.variant_id ? { variant_id: i.variant_id } : {}) }));
 
       if (inserts.length === 0) {
         notify.block(ml.label('label_reorder_unavailable'), { id: 'reorder-unavailable', title: 'Items unavailable' });

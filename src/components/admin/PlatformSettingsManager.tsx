@@ -8,6 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
+import { Switch } from '@/components/ui/switch';
 import { adminNotify } from '@/lib/admin-notify';
 import { Settings, Save, Loader2, RefreshCw, IndianRupee, Mail, Type, Percent, FileText, Info, Activity, MapPin, Users, TrendingUp } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
@@ -16,7 +17,7 @@ import { invalidateAppBootstrap } from '@/lib/app-bootstrap';
 interface SettingField {
   key: string;
   label: string;
-  type: 'text' | 'number' | 'email' | 'textarea';
+  type: 'text' | 'number' | 'email' | 'textarea' | 'toggle';
   icon: React.ElementType;
   group: string;
   description: string;
@@ -35,7 +36,9 @@ const SETTING_FIELDS: SettingField[] = [
   // ── Branding ──
   { key: 'header_tagline', label: 'Header Tagline', type: 'text', icon: Type, group: 'Branding', description: 'Shown below the logo in the app header' },
   { key: 'app_version', label: 'App Version', type: 'text', icon: Settings, group: 'Branding', description: 'Displayed on the Profile page' },
-  { key: 'min_supported_app_version', label: 'Minimum app version', type: 'text', icon: Settings, group: 'Branding', description: 'Older installs see an update screen. Leave empty to allow every version. Example: 2.0.60' },
+  { key: 'min_supported_app_version', label: 'Minimum app version (all phones)', type: 'text', icon: Settings, group: 'Branding', description: 'Phone apps below this see an update screen. Apps released before October 2026 only read this one. Android is numbered 2.0.x and iOS by date (for example 2026.1011.1430), so a value above every old iOS build also blocks every old Android build. Newer apps use the Android and iOS fields below when set. The website is never blocked. Leave empty to allow every version.' },
+  { key: 'min_supported_android_version', label: 'Minimum Android version', type: 'text', icon: Settings, group: 'Branding', description: 'For Android apps from October 2026 onwards. Example: 2.0.72. Leave empty to use the value above.' },
+  { key: 'min_supported_ios_version', label: 'Minimum iOS version', type: 'text', icon: Settings, group: 'Branding', description: 'For iOS apps from October 2026 onwards. Example: 2026.1011.1430. Leave empty to use the value above.' },
   // ── Address ──
   { key: 'address_block_label', label: 'Address Block Label', type: 'text', icon: Type, group: 'Address', description: 'Label for block/tower field (e.g., Block / Tower, Wing)' },
   { key: 'address_flat_label', label: 'Address Flat Label', type: 'text', icon: Type, group: 'Address', description: 'Label for flat/unit field (e.g., Flat Number, Unit)' },
@@ -53,6 +56,7 @@ const SETTING_FIELDS: SettingField[] = [
   { key: 'label_neighborhood_guarantee_badge', label: 'Guarantee Badge Text', type: 'text', icon: Type, group: 'Trust & Guarantee Branding', description: 'Shown on cart page' },
   { key: 'label_neighborhood_guarantee_emoji', label: 'Guarantee Emoji', type: 'text', icon: Type, group: 'Trust & Guarantee Branding', description: 'e.g. 🛡️' },
   // ── Marketplace Policy ──
+  { key: 'product_sizes_enabled', label: 'Product sizes', type: 'toggle', icon: Settings, group: 'Marketplace Policy', description: 'Lets sellers add sizes such as 250 g / 500 g / 1 kg. Before turning this on, set the minimum app versions above so phone apps without sizes show the update screen. Sizes that already exist keep working when this is off.' },
   { key: 'on_time_badge_min_orders', label: 'On-time Badge Min Orders', type: 'number', icon: Settings, group: 'Marketplace Policy', description: 'Minimum orders to show on-time badge' },
   { key: 'stable_price_days', label: 'Stable Price Days', type: 'number', icon: Settings, group: 'Marketplace Policy', description: 'Days of unchanged price for "Stable Price" badge' },
   { key: 'new_this_week_days', label: 'New This Week Days', type: 'number', icon: Settings, group: 'Marketplace Policy', description: 'Cutoff for "new this week" discovery' },
@@ -204,7 +208,13 @@ export function PlatformSettingsManager() {
                         </Badge>
                       )}
                     </Label>
-                    {field.type === 'textarea' ? (
+                    {field.type === 'toggle' ? (
+                      <Switch
+                        checked={values[field.key] === 'true'}
+                        onCheckedChange={(checked) => setValues(prev => ({ ...prev, [field.key]: checked ? 'true' : 'false' }))}
+                        aria-label={field.label}
+                      />
+                    ) : field.type === 'textarea' ? (
                       <Textarea
                         value={values[field.key] ?? ''}
                         onChange={(e) => setValues(prev => ({ ...prev, [field.key]: e.target.value }))}

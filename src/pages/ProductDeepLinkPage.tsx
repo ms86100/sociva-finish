@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { useEffect, useState, useCallback } from 'react';
-import { useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useSmartBack } from '@/hooks/useSmartBack';
 import { supabase } from '@/integrations/supabase/client';
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -11,9 +11,11 @@ import { ArrowLeft } from 'lucide-react';
 import { PreciseLocationRequiredCard } from '@/components/location/PreciseLocationRequiredCard';
 import { useBrowsingLocation } from '@/contexts/BrowsingLocationContext';
 import { buyerCanOrderFromSeller } from '@/lib/sellerDiscoverability';
+import { resolveMergedProductId } from '@/lib/product-merges';
 
 export default function ProductDeepLinkPage() {
   const { productId } = useParams<{ productId: string }>();
+  const navigate = useNavigate();
   const goBack = useSmartBack('/');
   const { browsingLocation } = useBrowsingLocation();
   const [product, setProduct] = useState<any>(null);
@@ -69,6 +71,11 @@ export default function ProductDeepLinkPage() {
 
         if (fetchErr) throw fetchErr;
         if (!data) {
+          const mergedInto = await resolveMergedProductId(productId);
+          if (mergedInto) {
+            navigate(`/product/${mergedInto}`, { replace: true });
+            return;
+          }
           setError('Product not found or no longer available');
           return;
         }

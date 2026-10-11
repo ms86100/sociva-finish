@@ -12,6 +12,7 @@ import { useCurrency } from '@/hooks/useCurrency';
 import { deriveActionType, ACTION_CONFIG } from '@/lib/marketplace-constants';
 import { offeringCopy, type SellerDomain } from '@/lib/seller-domain';
 import type { ProductFormData } from '@/hooks/useSellerProducts';
+import { previewSizePricing, type SizeRow } from '@/lib/seller-product-sizes';
 import type { SellerProfile } from '@/types/Database';
 import type { BlockData } from '@/hooks/useAttributeBlocks';
 import { OfferingImageCarousel } from '@/components/product/OfferingImageCarousel';
@@ -21,6 +22,18 @@ interface ProductFormPreviewProps {
   sellerProfile: SellerProfile | null;
   attributeBlocks?: BlockData[];
   sellerDomain?: SellerDomain;
+  sizeRows?: SizeRow[];
+}
+
+function resolvePreviewPrice(formData: ProductFormData, sizeRows?: SizeRow[]) {
+  const sizing = previewSizePricing(sizeRows || []);
+  if (!sizing.hasSizes) {
+    return { price: parseFloat(formData.price) || 0, from: false, note: null as string | null };
+  }
+  if (sizing.noneActive || sizing.price == null) {
+    return { price: 0, from: false, note: 'No size available' };
+  }
+  return { price: sizing.price, from: sizing.from, note: null as string | null };
 }
 
 function buildMockProduct(formData: ProductFormData, sellerProfile: SellerProfile | null, fallbackName: string): ProductWithSeller {
@@ -64,6 +77,7 @@ function ProductDetailPreview({
   sellerProfile,
   attributeBlocks,
   fallbackName,
+  sizeRows,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -71,6 +85,7 @@ function ProductDetailPreview({
   sellerProfile: SellerProfile | null;
   attributeBlocks?: BlockData[];
   fallbackName: string;
+  sizeRows?: SizeRow[];
   pageHint?: string;
 }) {
   const { formatPrice } = useCurrency();
@@ -81,8 +96,9 @@ function ProductDetailPreview({
     showVegToggle: previewCfg?.formHints?.showVegToggle,
     category: formData.category,
   });
-  const price = parseFloat(formData.price) || 0;
-  const mrp = formData.mrp ? parseFloat(formData.mrp) : null;
+  const previewPrice = resolvePreviewPrice(formData, sizeRows);
+  const price = previewPrice.price;
+  const mrp = previewPrice.note || previewPrice.from ? null : (formData.mrp ? parseFloat(formData.mrp) : null);
   const name = formData.name.trim() || fallbackName;
   const specs = attributeBlocks && attributeBlocks.length > 0 ? { blocks: attributeBlocks } : null;
 
@@ -129,7 +145,11 @@ function ProductDetailPreview({
             </div>
 
             <div className="flex items-baseline gap-2">
-              <span className="text-xl font-bold text-foreground">{formatPrice(price)}</span>
+              {previewPrice.note ? (
+                <span className="text-base font-semibold text-muted-foreground">{previewPrice.note}</span>
+              ) : (
+              <span className="text-xl font-bold text-foreground">{previewPrice.from ? 'From ' : ''}{formatPrice(price)}</span>
+              )}
               {mrp && mrp > price && (
                 <>
                   <span className="text-sm text-muted-foreground line-through">{formatPrice(mrp)}</span>
@@ -174,7 +194,7 @@ function ProductDetailPreview({
             const ctaConfig = ACTION_CONFIG[effectiveAction];
             return (
               <Button className="w-full h-12 text-base font-bold bg-accent hover:bg-accent/90 text-accent-foreground rounded-xl" disabled>
-                {ctaConfig.label} · {formatPrice(price)}
+                {ctaConfig.label} · {previewPrice.note ? previewPrice.note : `${previewPrice.from ? 'From ' : ''}${formatPrice(price)}`}
               </Button>
             );
           })()}
@@ -185,14 +205,15 @@ function ProductDetailPreview({
 }
 
 /** Desktop sticky preview panel */
-export function ProductFormPreviewPanel({ formData, sellerProfile, attributeBlocks, sellerDomain = 'product' }: ProductFormPreviewProps) {
+export function ProductFormPreviewPanel({ formData, sellerProfile, attributeBlocks, sellerDomain = 'product', sizeRows }: ProductFormPreviewProps) {
   const { configs } = useCategoryConfigs();
   const [detailOpen, setDetailOpen] = useState(false);
   const copy = offeringCopy(sellerDomain);
+  const previewPrice = resolvePreviewPrice(formData, sizeRows);
 
   const mockProduct = useMemo(
-    () => buildMockProduct(formData, sellerProfile, copy.previewFallbackName),
-    [formData, sellerProfile, copy.previewFallbackName],
+    () => buildMockProduct({ ...formData, price: previewPrice.note ? '' : String(previewPrice.price), mrp: previewPrice.from || previewPrice.note ? '' : formData.mrp }, sellerProfile, copy.previewFallbackName),
+    [formData, sellerProfile, copy.previewFallbackName, previewPrice.price, previewPrice.note, previewPrice.from],
   );
 
   return (
@@ -208,6 +229,8 @@ export function ProductFormPreviewPanel({ formData, sellerProfile, attributeBloc
             product={mockProduct}
             viewOnly
             categoryConfigs={configs}
+            showFrom={previewPrice.from}
+            priceNote={previewPrice.note}
             onViewClick={() => setDetailOpen(true)}
           />
         </div>
@@ -224,21 +247,23 @@ export function ProductFormPreviewPanel({ formData, sellerProfile, attributeBloc
         sellerProfile={sellerProfile}
         attributeBlocks={attributeBlocks}
         fallbackName={copy.previewFallbackName}
+        sizeRows={sizeRows}
       />
     </div>
   );
 }
 
 /** Mobile floating preview button + drawer */
-export function ProductFormPreviewMobile({ formData, sellerProfile, attributeBlocks, sellerDomain = 'product' }: ProductFormPreviewProps) {
+export function ProductFormPreviewMobile({ formData, sellerProfile, attributeBlocks, sellerDomain = 'product', sizeRows }: ProductFormPreviewProps) {
   const [open, setOpen] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
   const { configs } = useCategoryConfigs();
   const copy = offeringCopy(sellerDomain);
+  const previewPrice = resolvePreviewPrice(formData, sizeRows);
 
   const mockProduct = useMemo(
-    () => buildMockProduct(formData, sellerProfile, copy.previewFallbackName),
-    [formData, sellerProfile, copy.previewFallbackName],
+    () => buildMockProduct({ ...formData, price: previewPrice.note ? '' : String(previewPrice.price), mrp: previewPrice.from || previewPrice.note ? '' : formData.mrp }, sellerProfile, copy.previewFallbackName),
+    [formData, sellerProfile, copy.previewFallbackName, previewPrice.price, previewPrice.note, previewPrice.from],
   );
 
   return (
@@ -268,6 +293,8 @@ export function ProductFormPreviewMobile({ formData, sellerProfile, attributeBlo
                 product={mockProduct}
                 viewOnly
                 categoryConfigs={configs}
+                showFrom={previewPrice.from}
+                priceNote={previewPrice.note}
                 onViewClick={() => { setOpen(false); setTimeout(() => setDetailOpen(true), 300); }}
               />
             </div>
@@ -282,6 +309,7 @@ export function ProductFormPreviewMobile({ formData, sellerProfile, attributeBlo
         sellerProfile={sellerProfile}
         attributeBlocks={attributeBlocks}
         fallbackName={copy.previewFallbackName}
+        sizeRows={sizeRows}
       />
     </>
   );

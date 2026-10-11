@@ -20,6 +20,7 @@ import { showFeedback } from '@/components/FeedbackPopupProvider';
 import { leadTimeFromHours, leadTimeToHours, parseLeadTimeInput } from '@/lib/lead-time';
 import { normalizeServiceLocationTypes, primaryServiceLocationType } from '@/lib/service-location';
 import { resolveStockSaveValues } from '@/lib/product-stock-form';
+import { fetchMergedAwayProductIds } from '@/lib/product-merges';
 import { parsePrepTimeMinutes } from '@/lib/prep-time-minutes';
 import { useRegisterScreenRefresh } from '@/hooks/usePullToRefresh';
 import { mergeStoreCategories, resolveListingPlacement } from '@/lib/listing-placement';
@@ -33,6 +34,21 @@ import {
 } from '@/lib/food-facets';
 import { track } from '@/lib/analytics';
 import { resolveOfferingImages, splitOfferingImages } from '@/lib/offering-images';
+import { useQueryClient } from '@tanstack/react-query';
+import {
+  emptySizeRow,
+  loadSizeRows,
+  lowestActiveSizePrice,
+  sizeSaveErrorMessage,
+  syncProductSizes,
+  validateSizeRows,
+  reviewedSizes,
+  sizesNeedReview,
+  type ReviewedSize,
+  type SizeRow,
+} from '@/lib/seller-product-sizes';
+import { variantErrorMessage, VARIANT_PRODUCT_IDS_QUERY_KEY } from '@/lib/product-variants';
+import { useSystemSettings } from '@/hooks/useSystemSettings';
 
 export interface ProductFormData {
   name: string;
@@ -77,9 +93,12 @@ interface SellerProductDraft {
   attributeBlocks: BlockData[];
   serviceFields: ServiceFieldsData;
   editingProductId: string | null;
+  sizeRows?: SizeRow[];
 }
 
 export type SellerProductFormIntent = 'list' | 'new' | 'edit';
+
+const SIZES_DISABLED_FORM_ERROR = 'Sizes are not available yet. Remove the new sizes to save.';
 
 export function useSellerProducts(opts?: {
   formIntent?: SellerProductFormIntent;
@@ -91,6 +110,7 @@ export function useSellerProducts(opts?: {
   const routeEditingProductId = opts?.editingProductId;
   const sellerIdOverride = opts?.sellerIdOverride ?? null;
   const { user, sellerProfiles, currentSellerId, isAdmin } = useAuth();
+  const { productSizesEnabled } = useSystemSettings();
   const effectiveSellerId = useMemo(() => {
     if (isAdmin && sellerIdOverride) return sellerIdOverride;
     if (currentSellerId && !isPortfolioSellerId(currentSellerId)) return currentSellerId;
@@ -123,6 +143,10 @@ export function useSellerProducts(opts?: {
   const [deleteTarget, setDeleteTarget] = useState<Product | null>(null);
   const [draftRestored, setDraftRestored] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const queryClient = useQueryClient();
+  const [sizeRows, setSizeRows] = useState<SizeRow[]>([]);
+  const [originalSizeIds, setOriginalSizeIds] = useState<string[]>([]);
+  const [originalReviewedSizes, setOriginalReviewedSizes] = useState<ReviewedSize[]>([]);
 
   const activeCategoryConfig = useMemo(() => {
     if (!formData.category) return null;
@@ -171,6 +195,46 @@ export function useSellerProducts(opts?: {
   const actionRequiresAvailability = allActions.find((a) => a.action_type === effectiveActionType)?.requires_availability ?? false;
   const showInstantPrepField = effectiveActionType === 'add_to_cart' && !actionRequiresAvailability;
   const showPrepTimeField = showDurationField || showInstantPrepField;
+  // Same rule as the DB guard: sizes only for action types that check out through the cart.
+  const sizesAllowed = allActions.find((a) => a.action_type === effectiveActionType)?.checkout_mode === 'cart';
+  // Same rule as the DB insert guard: new sizes only while the admin switch is on.
+  const sizesEnabled = productSizesEnabled;
+  const hasSizes = sizeRows.some((r) => r.label.trim() || r.price.trim());
+
+  // Sizes live in their own table; load them whenever the form targets a saved product.
+  const editingProductIdForSizes = editingProduct?.id || null;
+  useEffect(() => {
+    if (!editingProductIdForSizes) return;
+    let cancelled = false;
+    loadSizeRows(editingProductIdForSizes).then((rows) => {
+      if (cancelled) return;
+      setSizeRows(rows);
+      setOriginalSizeIds(rows.map((r) => r.id).filter(Boolean) as string[]);
+      setOriginalReviewedSizes(reviewedSizes(validateSizeRows(rows).sizes));
+    });
+    return () => { cancelled = true; };
+  }, [editingProductIdForSizes]);
+
+  const addSizeRow = useCallback(() => setSizeRows((prev) => [...prev, emptySizeRow()]), []);
+  const updateSizeRow = useCallback((key: string, patch: Partial<SizeRow>) => {
+    setSizeRows((prev) => prev.map((r) => (r.key === key ? { ...r, ...patch } : r)));
+    setFieldErrors((prev) => {
+      if (!prev.sizes) return prev;
+      const { sizes, ...rest } = prev;
+      return rest;
+    });
+  }, []);
+  const removeSizeRow = useCallback((key: string) => setSizeRows((prev) => prev.filter((r) => r.key !== key)), []);
+  const moveSizeRow = useCallback((key: string, delta: -1 | 1) => {
+    setSizeRows((prev) => {
+      const from = prev.findIndex((r) => r.key === key);
+      const to = from + delta;
+      if (from < 0 || to < 0 || to >= prev.length) return prev;
+      const next = [...prev];
+      [next[from], next[to]] = [next[to], next[from]];
+      return next;
+    });
+  }, []);
 
   const allowedCategories = useMemo(() => {
     const sellerCats: string[] = (sellerProfile as any)?.categories || [];
@@ -248,8 +312,8 @@ export function useSellerProducts(opts?: {
   // ── Draft persistence ──
   const draftKey = buildDraftKey('seller-product-draft', sellerProfile?.id || 'unknown');
   const draftData = useMemo<SellerProductDraft>(() => ({
-    formData, attributeBlocks, serviceFields, editingProductId: editingProduct?.id || null,
-  }), [formData, attributeBlocks, serviceFields, editingProduct]);
+    formData, attributeBlocks, serviceFields, editingProductId: editingProduct?.id || null, sizeRows,
+  }), [formData, attributeBlocks, serviceFields, editingProduct, sizeRows]);
 
   const isFormDirty = formData.name.trim() !== '' || formData.description.trim() !== '' || formData.price !== '' || (formData.image_url ?? '') !== '';
   const formPageOpen = formIntent === 'new' || formIntent === 'edit' || isDialogOpen;
@@ -262,8 +326,9 @@ export function useSellerProducts(opts?: {
       attributeBlocks,
       serviceFields,
       editingProductId: editingProduct?.id || null,
+      sizeRows,
     });
-  }, [sellerProfile?.id, formData, attributeBlocks, serviceFields, editingProduct]);
+  }, [sellerProfile?.id, formData, attributeBlocks, serviceFields, editingProduct, sizeRows]);
 
   const attachEditingProduct = useCallback((product: Product) => {
     setEditingProduct(product);
@@ -290,6 +355,7 @@ export function useSellerProducts(opts?: {
         });
         setAttributeBlocks(saved.attributeBlocks || []);
         setServiceFields(saved.serviceFields || INITIAL_SERVICE_FIELDS);
+        setSizeRows(Array.isArray(saved.sizeRows) ? saved.sizeRows.filter((r) => !r.id) : []);
         setIsDialogOpen(true);
       }
       setDraftRestored(true);
@@ -326,6 +392,8 @@ export function useSellerProducts(opts?: {
       if (saved.editingProductId) {
         const existing = products.find(p => p.id === saved.editingProductId);
         if (existing) setEditingProduct(existing);
+      } else {
+        setSizeRows(Array.isArray(saved.sizeRows) ? saved.sizeRows.filter((r) => !r.id) : []);
       }
       setIsDialogOpen(true);
     }
@@ -366,7 +434,9 @@ export function useSellerProducts(opts?: {
       if (!profile) { setIsLoading(false); setSellerProfile(null); return; }
       setSellerProfile(profile as SellerProfile);
       setPrimaryGroup((profile as any).primary_group as ParentGroup | null);
-      setProducts((productRes.data || []) as Product[]);
+      const productRows = (productRes.data || []) as Product[];
+      const mergedAway = await fetchMergedAwayProductIds(productRows.filter((p) => !p.is_available).map((p) => p.id));
+      setProducts(mergedAway.size > 0 ? productRows.filter((p) => !mergedAway.has(p.id)) : productRows);
 
       if ((profile as any).primary_group) {
         const { data: groupData } = await supabase.from('parent_groups').select('id, requires_license, license_mandatory, license_type_name').eq('slug', (profile as any).primary_group).eq('requires_license', true).eq('license_mandatory', true).maybeSingle();
@@ -405,6 +475,7 @@ export function useSellerProducts(opts?: {
     const defaultCategory = allowedCategories.length === 1 ? allowedCategories[0].category as ProductCategory : '';
     setFormData({ ...INITIAL_FORM, category: defaultCategory });
     setEditingProduct(null); setAttributeBlocks([]); setServiceFields(INITIAL_SERVICE_FIELDS); setFieldErrors({});
+    setSizeRows([]); setOriginalSizeIds([]); setOriginalReviewedSizes([]);
     clearDraftFn();
   };
 
@@ -475,15 +546,23 @@ export function useSellerProducts(opts?: {
 
   const handleSave = async (): Promise<boolean> => {
     if (!sellerProfile || !user || isSaving) return false;
-    const price = parseFloat(formData.price);
+    let price = parseFloat(formData.price);
     const actionNeedsPrice = !['contact_seller', 'request_quote', 'make_offer'].includes(formData.action_type);
 
     // Collect all errors at once
     const errors: Record<string, string> = {};
+    const sizeCheck = validateSizeRows(sizeRows);
+    const sizes = sizeCheck.sizes;
+    if (sizes.length > 0) {
+      price = lowestActiveSizePrice(sizes) ?? Math.min(...sizes.map((s) => s.price));
+    }
     if (!formData.name.trim()) errors.name = 'Product name is required';
     if (!formData.category) errors.category = 'Category is required';
     if (!formData.image_url) errors.image_url = 'Product image is required';
-    if (actionNeedsPrice && (isNaN(price) || price <= 0)) errors.price = 'Please enter a valid price';
+    if (actionNeedsPrice && sizes.length === 0 && !sizeCheck.error && (isNaN(price) || price <= 0)) errors.price = 'Please enter a valid price';
+    if (sizeCheck.error) errors.sizes = sizeCheck.error;
+    else if (sizes.length > 0 && !sizesAllowed) errors.sizes = 'Sizes are only available for Add to Cart products. Remove the sizes to save.';
+    else if (!sizesEnabled && sizes.some((s) => !s.id)) errors.sizes = SIZES_DISABLED_FORM_ERROR;
     if (formData.action_type === 'contact_seller' && !formData.contact_phone.trim()) {
       const fallbackPhone = user?.phone || '';
       if (fallbackPhone) {
@@ -499,7 +578,7 @@ export function useSellerProducts(opts?: {
     }
 
     const stockResolved = resolveStockSaveValues(formData);
-    Object.assign(errors, stockResolved.errors);
+    if (sizes.length === 0) Object.assign(errors, stockResolved.errors);
 
     if (showPrepTimeField && formData.prep_time_minutes.trim()) {
       const prepParsed = parsePrepTimeMinutes(formData.prep_time_minutes);
@@ -525,6 +604,7 @@ export function useSellerProducts(opts?: {
         prep_time_minutes: 'Prep Time',
         lead_time_value: 'Pre-order lead time',
         is_veg: 'Dietary',
+        sizes: 'Sizes',
       };
       const firstMessage = Object.values(errors)[0];
       const missingNames = Object.keys(errors).map(k => fieldLabels[k] || k);
@@ -613,9 +693,15 @@ export function useSellerProducts(opts?: {
         secondary_images: formData.secondary_images,
       }),
     );
+    // With sizes the parent price follows the cheapest size that is on, so review the sizes instead.
+    const sizedProduct = sizes.length > 0 || originalSizeIds.length > 0;
+    const sizesChanged = sizedProduct && sizesNeedReview(originalReviewedSizes, sizes);
+    const priceChanged = editingProduct
+      ? (sizedProduct ? sizesChanged : price !== (editingProduct as any).price)
+      : false;
     const productData = {
         seller_id: sellerProfile.id, name: formData.name.trim(), description: formData.description.trim() || null,
-        price: isNaN(price) ? 0 : price, mrp: (mrp && !isNaN(mrp) && mrp > 0) ? mrp : null,
+        price: isNaN(price) ? 0 : price, mrp: sizes.length === 0 && (mrp && !isNaN(mrp) && mrp > 0) ? mrp : null,
         prep_time_minutes: prepTime,
         category: placedCategory,
         is_veg: (isFoodParentGroup(activeCategoryConfig?.parentGroup) || activeCategoryConfig?.layoutType === 'food')
@@ -624,7 +710,7 @@ export function useSellerProducts(opts?: {
         is_bestseller: formData.is_bestseller, is_recommended: formData.is_recommended, is_urgent: formData.is_urgent,
         image_url: gallery.image_url, secondary_images: gallery.secondary_images.length ? gallery.secondary_images : null,
         action_type: effectiveActionType, contact_phone: formData.contact_phone.trim() || null,
-        stock_quantity: (stockQty !== null && !isNaN(stockQty) && stockQty >= 0) ? stockQty : null,
+        stock_quantity: sizes.length === 0 && (stockQty !== null && !isNaN(stockQty) && stockQty >= 0) ? stockQty : null,
         low_stock_threshold: (lowStockThreshold !== null && !isNaN(lowStockThreshold) && lowStockThreshold > 0) ? lowStockThreshold : null, subcategory_id: placedSubcategoryId || null,
         lead_time_hours,
         accepts_preorders: formData.accepts_preorders,
@@ -635,14 +721,14 @@ export function useSellerProducts(opts?: {
           ? {
               approval_status: (() => {
                 const ep = editingProduct as any;
-                const contentChanged = formData.name.trim() !== ep.name || (formData.description.trim() || null) !== (ep.description || null) || parseFloat(formData.price) !== ep.price || formData.category !== ep.category || formData.image_url !== ep.image_url || JSON.stringify(formData.secondary_images || []) !== JSON.stringify(ep.secondary_images || []) || formData.action_type !== (ep.action_type || 'add_to_cart') || formData.subcategory_id !== (ep.subcategory_id || '') || (parseFloat(formData.mrp) || null) !== (ep.mrp || null) || JSON.stringify(attributeBlocks) !== JSON.stringify(ep.specifications?.blocks || []);
+                const contentChanged = formData.name.trim() !== ep.name || (formData.description.trim() || null) !== (ep.description || null) || priceChanged || formData.category !== ep.category || formData.image_url !== ep.image_url || JSON.stringify(formData.secondary_images || []) !== JSON.stringify(ep.secondary_images || []) || formData.action_type !== (ep.action_type || 'add_to_cart') || formData.subcategory_id !== (ep.subcategory_id || '') || (parseFloat(formData.mrp) || null) !== (ep.mrp || null) || JSON.stringify(attributeBlocks) !== JSON.stringify(ep.specifications?.blocks || []);
                 if (contentChanged && ['approved', 'rejected'].includes(ep.approval_status)) return 'pending';
                 return ep.approval_status;
               })(),
               ...((() => { const ep = editingProduct as any; if (ep.approval_status === 'pending') return { updated_while_pending: true }; return {}; })()),
               ...((() => {
                 const ep = editingProduct as any;
-                const contentChanged = formData.name.trim() !== ep.name || (formData.description.trim() || null) !== (ep.description || null) || parseFloat(formData.price) !== ep.price || formData.category !== ep.category || formData.image_url !== ep.image_url;
+                const contentChanged = formData.name.trim() !== ep.name || (formData.description.trim() || null) !== (ep.description || null) || priceChanged || formData.category !== ep.category || formData.image_url !== ep.image_url;
                 return contentChanged && ['approved', 'rejected'].includes(ep.approval_status) ? { rejection_note: null } : {};
               })()),
             }
@@ -681,7 +767,7 @@ export function useSellerProducts(opts?: {
           accepts_preorders: ep.accepts_preorders, contact_phone: ep.contact_phone,
           subcategory_id: ep.subcategory_id,
         };
-        const anyContentChanged = JSON.stringify(snapshotFields) !== JSON.stringify({
+        const anyContentChanged = sizesChanged || JSON.stringify(snapshotFields) !== JSON.stringify({
           name: productData.name, price: productData.price, mrp: productData.mrp, category: productData.category,
           description: productData.description, image_url: productData.image_url, is_veg: productData.is_veg,
           specifications: productData.specifications, action_type: productData.action_type,
@@ -695,7 +781,7 @@ export function useSellerProducts(opts?: {
         if (anyContentChanged && ['approved', 'rejected'].includes(ep.approval_status)) {
           const { error: snapErr } = await supabase.from('product_edit_snapshots').insert({
             product_id: editingProduct.id,
-            snapshot: snapshotFields,
+            snapshot: sizedProduct ? { ...snapshotFields, sizes: originalReviewedSizes } : snapshotFields,
           } as any);
           if (snapErr) {
             console.error('Failed to save edit snapshot:', snapErr);
@@ -719,6 +805,20 @@ export function useSellerProducts(opts?: {
         savedProductId = newId as string;
       }
 
+      if (sizes.length > 0 || originalSizeIds.length > 0) {
+        try {
+          const { archived } = await syncProductSizes(savedProductId, sizes, originalSizeIds);
+          if (archived > 0) {
+            toast.info(`${archived} removed size${archived > 1 ? 's were' : ' was'} in a cart or order, so it was hidden instead of deleted`, { id: 'product-sizes-archived' });
+          }
+        } catch (sizeErr) {
+          console.error('Product saved but sizes failed:', sizeErr);
+          toast.error(`Product saved, but sizes were not: ${sizeSaveErrorMessage(sizeErr)}`, { id: 'product-sizes-error', duration: 8000 });
+        }
+        queryClient.invalidateQueries({ queryKey: VARIANT_PRODUCT_IDS_QUERY_KEY });
+        queryClient.invalidateQueries({ queryKey: ['product-variants', savedProductId] });
+      }
+
       if (actionRequiresAvailability) {
         toast.info('Save your Store Hours to generate booking slots', { id: 'slots-hint' });
       }
@@ -738,7 +838,10 @@ export function useSellerProducts(opts?: {
     } catch (error: any) {
       console.error('Error saving product:', error);
       const msg = String(error?.message || '');
-      if (msg.includes('allowed categories')) {
+      const sizeMsg = variantErrorMessage(error);
+      if (sizeMsg) {
+        toast.error(sizeMsg, { id: 'product-save-error' });
+      } else if (msg.includes('allowed categories')) {
         const catLabel = configs.find((c) => c.category === formData.category)?.displayName || formData.category;
         toast.error(`"${catLabel}" isn't enabled for this store yet. Pick a category from your store setup or contact support.`, { id: 'product-save-error' });
       } else {
@@ -799,8 +902,12 @@ export function useSellerProducts(opts?: {
         errors.is_veg = 'Choose Veg or Non-Veg';
       }
     } else if (stepKey === 'pricing') {
+      const sizeCheck = validateSizeRows(sizeRows);
+      if (sizeCheck.error) errors.sizes = sizeCheck.error;
+      else if (sizeCheck.sizes.length > 0 && !sizesAllowed) errors.sizes = 'Sizes are only available for Add to Cart products. Remove the sizes to save.';
+      else if (!sizesEnabled && sizeCheck.sizes.some((s) => !s.id)) errors.sizes = SIZES_DISABLED_FORM_ERROR;
       const price = parseFloat(formData.price);
-      if (actionNeedsPrice && (isNaN(price) || price <= 0)) errors.price = 'Please enter a valid price';
+      if (actionNeedsPrice && sizeCheck.sizes.length === 0 && !sizeCheck.error && (isNaN(price) || price <= 0)) errors.price = 'Please enter a valid price';
     } else if (stepKey === 'config') {
       if (effectiveActionType === 'contact_seller') {
         const phone = formData.contact_phone.trim() || (user?.phone || '');
@@ -808,7 +915,7 @@ export function useSellerProducts(opts?: {
         else if (!/^[\d+\-\s()]{7,15}$/.test(phone)) errors.contact_phone = 'Please enter a valid phone number';
       }
     } else if (stepKey === 'visibility') {
-      Object.assign(errors, resolveStockSaveValues(formData).errors);
+      if (!hasSizes) Object.assign(errors, resolveStockSaveValues(formData).errors);
     } else if (stepKey === 'service') {
       if (isCurrentCategoryService) {
         const dur = parseInt(serviceFields.duration_minutes);
@@ -819,7 +926,7 @@ export function useSellerProducts(opts?: {
     }
     setFieldErrors(prev => {
       // Clear stale errors for this step's fields, then merge new ones
-      const stepKeys = ['name','image_url','category','price','contact_phone','stock_quantity','low_stock_threshold','service_type','location_type','duration_minutes','is_veg'];
+      const stepKeys = ['name','image_url','category','price','sizes','contact_phone','stock_quantity','low_stock_threshold','service_type','location_type','duration_minutes','is_veg'];
       const next = { ...prev };
       stepKeys.forEach(k => { delete next[k]; });
       return { ...next, ...errors };
@@ -837,5 +944,6 @@ export function useSellerProducts(opts?: {
     currentCategorySupportsAddons, currentCategorySupportsRecurring, currentCategorySupportsStaffAssignment,
     draftRestored, clearDraftFn, persistDraftNow, fieldErrors, setFieldErrors, derivedActionType, effectiveActionType, validateStep,
     applyListingPlacementFromName,
+    sizeRows, sizesAllowed, sizesEnabled, hasSizes, addSizeRow, updateSizeRow, removeSizeRow, moveSizeRow,
   };
 }

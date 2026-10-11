@@ -22,3 +22,23 @@ export function isVersionBelow(current: string | null | undefined, minimum: stri
   }
   return false;
 }
+
+export type AppPlatform = 'android' | 'ios' | 'web';
+
+export interface MinimumVersions {
+  shared?: string | null;
+  android?: string | null;
+  ios?: string | null;
+}
+
+/**
+ * Minimum version for one platform. The web app always serves the latest
+ * build, so it is never blocked. Android (2.0.x) and iOS (date based) number
+ * their builds differently, so a platform minimum wins over the shared one;
+ * the shared one is what installs older than the platform keys read.
+ */
+export function minimumVersionFor(platform: AppPlatform, mins: MinimumVersions): string {
+  if (platform === 'web') return '';
+  const own = ((platform === 'android' ? mins.android : mins.ios) || '').trim();
+  return own || (mins.shared || '').trim();
+}

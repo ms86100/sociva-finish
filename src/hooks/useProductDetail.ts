@@ -15,6 +15,8 @@ import { useBrowsingLocation } from '@/contexts/BrowsingLocationContext';
 import { filterDiscoverableProductIds } from '@/lib/sellerDiscoverability';
 import { resolveProductAvailability } from '@/lib/product-availability';
 import { track } from '@/lib/analytics';
+import { useVariantProductIds } from '@/hooks/useProductVariants';
+import { openVariantPicker } from '@/lib/variant-picker-store';
 
 export interface ProductDetail {
   product_id: string;
@@ -125,9 +127,13 @@ export function useProductDetail(product: ProductDetail | null, open: boolean, o
   const config = ACTION_CONFIG[actionType] || ACTION_CONFIG.add_to_cart;
   const isCartAction = config.isCart;
 
+  const sizedProductIds = useVariantProductIds();
+  const hasSizes = isCartAction && !!product?.product_id && sizedProductIds.has(product.product_id);
+  const sizeLines = hasSizes ? items.filter((item) => item.product_id === product?.product_id) : [];
   const cartItem = items.find((item) => item.product_id === product?.product_id);
-  const quantity = cartItem?.quantity || 0;
-  const stockLimit = canonicalStockQty ?? 99;
+  const quantity = hasSizes ? sizeLines.reduce((sum, l) => sum + l.quantity, 0) : cartItem?.quantity || 0;
+  const sizesTotal = sizeLines.reduce((sum, l) => sum + l.quantity * (l.product?.price || 0), 0);
+  const stockLimit = hasSizes ? 99 : canonicalStockQty ?? 99;
   const canIncrement = quantity < stockLimit;
 
   const availability = resolveProductAvailability({
@@ -164,7 +170,7 @@ export function useProductDetail(product: ProductDetail | null, open: boolean, o
       return;
     }
     hapticImpact('medium');
-    await addItem({
+    const cartProduct = {
       id: product.product_id, seller_id: product.seller_id,
       name: product.product_name, price: product.price,
       image_url: product.image_url, is_veg: product.is_veg,
@@ -173,10 +179,15 @@ export function useProductDetail(product: ProductDetail | null, open: boolean, o
       is_bestseller: false, is_recommended: false, is_urgent: false,
       created_at: '', updated_at: '',
       stock_quantity: canonicalStockQty,
-    } as any, 1, false, extras);
+    } as any;
+    if (hasSizes) {
+      openVariantPicker(cartProduct, extras ?? []);
+      return;
+    }
+    await addItem(cartProduct, 1, false, extras);
     // Don't close drawer here - let the celebration popup handle navigation
     // onOpenChange?.(false);
-  }, [product, actionType, isCartAction, addItem, onOpenChange, user, navigate]);
+  }, [product, actionType, isCartAction, addItem, onOpenChange, user, navigate, hasSizes, canonicalStockQty]);
 
   const isNewSeller = (product?.seller_reviews === 0) || (product?.seller_rating === 0);
   const ActionIcon = config.icon;
@@ -189,5 +200,6 @@ export function useProductDetail(product: ProductDetail | null, open: boolean, o
     actionType, config, isCartAction, cartItem, quantity, stockLimit, canIncrement,
     handleAdd, isNewSeller, ActionIcon, viewAllLabel, isStockEmpty, isBuyerUnavailable, availabilityOverlayLabel,
     items, updateQuantity, canonicalStockQty,
+    hasSizes, sizesTotal,
   };
 }
