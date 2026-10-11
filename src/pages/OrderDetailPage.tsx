@@ -30,6 +30,7 @@ import { GenericOtpDialog } from '@/components/order/GenericOtpDialog';
 import { GenericOtpCard } from '@/components/order/GenericOtpCard';
 import { isTransitOverdue, isInTransitStatus, formatTransitAgeChip } from '@/lib/order-due-windows';
 import { toast } from 'sonner';
+import { HomePushEnableCard } from '@/components/notifications/HomePushEnableCard';
 
 import { OrderItemCard } from '@/components/order/OrderItemCard';
 import { AppointmentDetailsCard } from '@/components/order/AppointmentDetailsCard';
@@ -1096,6 +1097,10 @@ export default function OrderDetailPage() {
                 </p>
               )}
             </motion.div>
+          )}
+
+          {o.isBuyerView && isFirstFlowStep(o.flow, order.status) && order.status !== 'payment_pending' && (Date.now() - new Date(order.created_at).getTime() < 60000) && (
+            <HomePushEnableCard force />
           )}
 
           {/* Scheduled order lifecycle (countdown + timeline) */}

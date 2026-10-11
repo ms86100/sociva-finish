@@ -7,7 +7,7 @@ import { friendlyError } from '@/lib/utils';
 import { Society } from '@/types/Database';
 import { useAutocomplete, PlaceDetails } from '@/hooks/useGoogleMaps';
 import { useSystemSettings } from '@/hooks/useSystemSettings';
-import { markPostLoginPermissionSheet } from '@/hooks/usePermissionLifecycle';
+import { markPostLoginPermissionSheet, reopenNotificationAsk } from '@/hooks/usePermissionLifecycle';
 import { notify } from '@/lib/notify';
 import { showFeedback } from '@/components/FeedbackPopupProvider';
 import { QA_OTP_REQ_ID } from '@/lib/qa-otp-bypass';
@@ -395,8 +395,10 @@ export function useAuthPage() {
         return;
       }
 
-  // Soft Permission Center after login - never surprise with native OS dialog
+      // Soft ask after login. The system dialog waits for Allow.
+      // Cart and address stay clear. A plain login asks again on Home.
       markPostLoginPermissionSheet();
+      if (!isCheckoutResume) reopenNotificationAsk();
 
       // Guard: even if backend says "new user", trust the DB. If the profile
       // already has a society_id, this is a returning user - skip onboarding.

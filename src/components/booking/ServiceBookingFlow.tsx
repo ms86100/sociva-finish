@@ -26,6 +26,7 @@ import { notify } from '@/lib/notify';
 import { friendlyError } from '@/lib/utils';
 import { isSellerCreditInsufficientError, sellerCreditCustomerMessage } from '@/lib/sellerCredits';
 import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
+import { reopenNotificationAsk } from '@/hooks/usePermissionLifecycle';
 import { useBrowsingLocation } from '@/contexts/BrowsingLocationContext';
 import { buyerCanOrderFromSeller } from '@/lib/sellerDiscoverability';
 import { PRECISE_LOCATION_TITLE } from '@/lib/buyerLocation';
@@ -457,6 +458,7 @@ export function ServiceBookingFlow({
         variant: 'success'
       });
       onOpenChange(false);
+      reopenNotificationAsk();
       navigate(`/orders/${orderId}`);
     } catch (err: any) {
       console.error('Service booking error:', err);

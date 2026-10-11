@@ -98,6 +98,7 @@ export default function HomePage() {
           <ActiveOrderStrip />
         </div>
         <div className="stack-gap mx-4 mt-3">
+          <HomePushEnableCard />
           <HomeNotificationBanner embedded />
           <AppUpdateBanner />
           {needsPreciseLocation && <PreciseLocationRequiredCard />}
@@ -130,7 +131,6 @@ export default function HomePage() {
 
         <div className="stack-gap mx-4 mt-3">
           <SellerJourneyBanner />
-          <HomePushEnableCard />
         </div>
 
         {/* Below-fold - mount on scroll to cut home query fan-out.

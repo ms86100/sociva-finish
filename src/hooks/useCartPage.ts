@@ -47,6 +47,7 @@ import {
 import { postCheckoutPath } from '@/lib/checkout-groups';
 import { resolveCheckoutGroupId } from '@/hooks/useCheckoutGroup';
 import { isSellerCreditInsufficientError, sellerCreditCustomerNotifyOptions } from '@/lib/sellerCredits';
+import { reopenNotificationAsk } from '@/hooks/usePermissionLifecycle';
 import { resolvePlatformDeliveryFee } from '@/lib/delivery-fee';
 import { resolveSellerPackagingFee } from '@/lib/packaging-fee';
 import { toScheduledDateParam } from '@/lib/scheduled-orders';
@@ -1142,6 +1143,7 @@ export function useCartPage() {
       // Optimistically clear cart cache BEFORE navigation to prevent back-button duplicates
       queryClient.setQueryData(['cart-items', user.id], []);
       queryClient.setQueryData(['cart-count', user.id], 0);
+      reopenNotificationAsk();
       await navigateAfterCheckout(navigate, orderIds);
       // Background: DB cleanup + trigger notifications (non-blocking)
       clearCartAndCache().catch(() => {});
@@ -1251,6 +1253,7 @@ export function useCartPage() {
         });
       }
     } catch { /* analytics optional */ }
+    if (confirmOk) reopenNotificationAsk();
     await navigateAfterCheckout(navigate, orderIds);
 
     // Cleanup AFTER navigation - never claim success or clear cart unless confirm OK
@@ -1367,6 +1370,7 @@ export function useCartPage() {
     clearPaymentSession();
     const dest = pendingOrderIds.length === 1 ? `/orders/${pendingOrderIds[0]}` : '/orders';
     setPendingOrderIds([]);
+    reopenNotificationAsk();
     // Clear cart so buyer cannot place a duplicate while awaiting seller verify
     try { await clearCartAndCache(); } catch { /* best-effort */ }
     navigate(dest);

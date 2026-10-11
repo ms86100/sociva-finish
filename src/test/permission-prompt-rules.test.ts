@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
+  notificationAskCopy,
   notifNeedsAttention,
+  shouldDeferNotificationAsk,
   shouldDeferPostLoginPermissionSheet,
   shouldShowHomeLocationBanner,
   shouldShowLocSoftPrompt,
@@ -91,10 +93,17 @@ describe('permission soft-prompt rules', () => {
         notificationPermission: 'not_requested',
         hasToken: true,
       }),
-    ).toBe(false);
+    ).toBe(true);
+    expect(
+      notifNeedsAttention({
+        isNative: true,
+        notificationPermission: 'denied',
+        hasToken: true,
+      }),
+    ).toBe(true);
   });
 
-  it('respects notif cooldown', () => {
+  it('respects notif cooldown and stays quiet during checkout', () => {
     expect(
       shouldShowNotifSoftPrompt({
         isNative: true,
@@ -103,12 +112,27 @@ describe('permission soft-prompt rules', () => {
         notifCooldown: true,
       }),
     ).toBe(false);
+    expect(
+      shouldShowNotifSoftPrompt({
+        isNative: true,
+        notificationPermission: 'not_requested',
+        notifCooldown: false,
+        checkoutInProgress: true,
+      }),
+    ).toBe(false);
   });
 
-  it('defers post-login sheet on cart/checkout paths', () => {
+  it('defers the ask on cart, address, and checkout, not on home', () => {
     expect(shouldDeferPostLoginPermissionSheet('/cart')).toBe(true);
     expect(shouldDeferPostLoginPermissionSheet('/cart?x=1')).toBe(true);
+    expect(shouldDeferNotificationAsk('/profile/edit')).toBe(true);
+    expect(shouldDeferNotificationAsk('/checkout')).toBe(true);
     expect(shouldDeferPostLoginPermissionSheet('/')).toBe(false);
     expect(shouldDeferPostLoginPermissionSheet('/profile')).toBe(false);
+  });
+
+  it('uses seller copy for incoming orders and buyer copy otherwise', () => {
+    expect(notificationAskCopy(true).title).toMatch(/new orders/i);
+    expect(notificationAskCopy(false).body).toMatch(/accepted, prepared, or on the way/);
   });
 });

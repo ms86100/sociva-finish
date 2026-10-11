@@ -9,9 +9,22 @@ export type LocationPermissionState =
   | 'restricted'
   | 'unknown';
 
+/** A few days. Saying no hides the home ask, then it comes back. */
+export const NOTIF_ASK_AGAIN_MS = 3 * 24 * 60 * 60 * 1000;
+
 export function shouldDeferPostLoginPermissionSheet(pathname: string): boolean {
   const path = (pathname || '/').split('?')[0];
-  return path === '/cart' || path.startsWith('/cart/');
+  return (
+    path === '/cart' ||
+    path.startsWith('/cart/') ||
+    path === '/profile/edit' ||
+    path.startsWith('/checkout')
+  );
+}
+
+/** Cart, delivery address, and checkout must not be interrupted by the ask. */
+export function shouldDeferNotificationAsk(pathname: string): boolean {
+  return shouldDeferPostLoginPermissionSheet(pathname);
 }
 
 export function shouldShowLocSoftPrompt(opts: {
@@ -40,10 +53,11 @@ export function shouldShowHomeLocationBanner(opts: {
 export function notifNeedsAttention(opts: {
   isNative: boolean;
   notificationPermission: NotificationPermissionState;
-  hasToken: boolean;
+  hasToken?: boolean;
 }): boolean {
   if (!opts.isNative) return false;
-  if (opts.hasToken) return false;
+  // Allowed means stop asking, even if the token has not been saved yet.
+  if (opts.notificationPermission === 'enabled') return false;
   // Ignore unknown while OS status is still loading - avoids flash + stuck Enable.
   return (
     opts.notificationPermission === 'not_requested' ||
@@ -51,12 +65,27 @@ export function notifNeedsAttention(opts: {
   );
 }
 
+export function notificationAskCopy(isSeller: boolean): { title: string; body: string } {
+  if (isSeller) {
+    return {
+      title: 'Hear new orders instantly',
+      body: 'Turn on notifications and the order bell rings when a new order arrives, even if the app is closed.',
+    };
+  }
+  return {
+    title: 'Stay in the loop',
+    body: 'Turn on notifications and you will know the moment an order is accepted, prepared, or on the way.',
+  };
+}
+
 export function shouldShowNotifSoftPrompt(opts: {
   isNative: boolean;
   notificationPermission: NotificationPermissionState;
-  hasToken: boolean;
+  hasToken?: boolean;
   notifCooldown: boolean;
+  checkoutInProgress?: boolean;
 }): boolean {
   if (opts.notifCooldown) return false;
+  if (opts.checkoutInProgress) return false;
   return notifNeedsAttention(opts);
 }

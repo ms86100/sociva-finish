@@ -16,6 +16,7 @@ import {
 } from '@/lib/installation';
 import { setPushStage } from '@/lib/pushPermissionStage';
 import {
+  NOTIF_ASK_AGAIN_MS,
   notifNeedsAttention as computeNotifNeedsAttention,
   shouldDeferPostLoginPermissionSheet,
   shouldShowLocSoftPrompt,
@@ -25,6 +26,7 @@ import {
 const NOTIF_COOLDOWN_KEY = 'sociva_notif_prompt_dismissed_until';
 const LOC_COOLDOWN_KEY = 'sociva_loc_prompt_dismissed_until';
 const POST_LOGIN_SHEET_KEY = 'sociva_post_login_permission_sheet';
+const NOTIF_REOPEN_EVENT = 'sociva:notif-ask-reopen';
 const COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
 
 function readCooldown(key: string): boolean {
@@ -37,9 +39,23 @@ function readCooldown(key: string): boolean {
   }
 }
 
-function writeCooldown(key: string) {
+function writeCooldown(key: string, ms = COOLDOWN_MS) {
   try {
-    localStorage.setItem(key, String(Date.now() + COOLDOWN_MS));
+    localStorage.setItem(key, String(Date.now() + ms));
+  } catch {
+    // ignore
+  }
+}
+
+/** Show the ask again now. Used after a plain login and after an order is placed. */
+export function reopenNotificationAsk() {
+  try {
+    localStorage.removeItem(NOTIF_COOLDOWN_KEY);
+  } catch {
+    // ignore
+  }
+  try {
+    window.dispatchEvent(new CustomEvent(NOTIF_REOPEN_EVENT));
   } catch {
     // ignore
   }
@@ -162,9 +178,18 @@ export function usePermissionLifecycle() {
   }, [refreshFromOs]);
 
   const dismissNotifPrompt = useCallback(() => {
-    writeCooldown(NOTIF_COOLDOWN_KEY);
+    writeCooldown(NOTIF_COOLDOWN_KEY, NOTIF_ASK_AGAIN_MS);
     setNotifCooldown(true);
     void setPushStage('deferred');
+  }, []);
+
+  useEffect(() => {
+    const onReopen = () => {
+      clearCooldown(NOTIF_COOLDOWN_KEY);
+      setNotifCooldown(false);
+    };
+    window.addEventListener(NOTIF_REOPEN_EVENT, onReopen);
+    return () => window.removeEventListener(NOTIF_REOPEN_EVENT, onReopen);
   }, []);
 
   const dismissLocPrompt = useCallback(() => {
