@@ -114,6 +114,7 @@ async function sendApnsDirectNotification(
   threadId?: string,
   imageUrl?: string,
   highPriority = true,
+  timeSensitive = false,
 ): Promise<{ success: boolean; error?: string }> {
   try {
     const cryptoKey = await importP8Key(p8Key);
@@ -126,7 +127,7 @@ async function sendApnsDirectNotification(
         sound: apnsSound,
         badge: 1,
         "mutable-content": imageUrl ? 1 : 0,
-        ...(highPriority ? { "interruption-level": "time-sensitive" } : {}),
+        ...(timeSensitive ? { "interruption-level": "time-sensitive" } : {}),
         ...(threadId ? { "thread-id": threadId } : {}),
       },
       ...(data || {}),
@@ -253,6 +254,7 @@ async function sendFCMNotification(
   imageUrl?: string,
   highPriority = true,
   nativeClosedApp = false,
+  timeSensitive = false,
 ): Promise<{ success: boolean; error?: string }> {
   const fcmUrl = `https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`;
 
@@ -285,7 +287,7 @@ async function sendFCMNotification(
     alert: { title, body },
     sound: fcmApnsSound,
     badge: 1,
-    ...(highPriority ? { "interruption-level": "time-sensitive" } : {}),
+    ...(timeSensitive ? { "interruption-level": "time-sensitive" } : {}),
   };
   if (imageUrl) apnsAps["mutable-content"] = 1;
   if (threadId) apnsAps["thread-id"] = threadId;
@@ -414,13 +416,15 @@ Deno.serve(async (req) => {
 
     // Priority detection: use explicit flag if provided, otherwise derive from data
     const SELLER_HP = ['placed', 'enquired', 'requested', 'quoted'];
+    const SELLER_TIME_SENSITIVE = ['placed', 'enquired', 'requested'];
     const BUYER_HP = ['payment_failed', 'refund_failed', 'otp'];
     const highPriority = reqHighPriority ??
       ((data?.target_role === 'seller' && SELLER_HP.includes(data?.status || '')) ||
        (data?.target_role === 'buyer' && BUYER_HP.includes(data?.status || '')));
+    const timeSensitive = data?.target_role === 'seller' && SELLER_TIME_SENSITIVE.includes(data?.status || '');
 
     console.log(JSON.stringify({
-      event: "push_priority", userId, isHighPriority: highPriority,
+      event: "push_priority", userId, isHighPriority: highPriority, timeSensitive,
       target_role: data?.target_role || 'unknown', status: data?.status || 'unknown',
       sound: highPriority ? 'gate_bell' : 'default',
     }));
@@ -495,6 +499,7 @@ Deno.serve(async (req) => {
             threadId,
             imageUrl,
             highPriority,
+            timeSensitive,
           );
 
           // If APNs fails and we have a real FCM token, fall back to FCM
@@ -511,6 +516,7 @@ Deno.serve(async (req) => {
               imageUrl,
               highPriority,
               nativeClosedApp,
+              timeSensitive,
             );
           }
         } else if (isApnsOnlyToken) {
@@ -531,6 +537,7 @@ Deno.serve(async (req) => {
             imageUrl,
             highPriority,
             nativeClosedApp,
+            timeSensitive,
           );
         }
 

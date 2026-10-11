@@ -300,6 +300,8 @@ workflows:
           <dict>
               <key>aps-environment</key>
               <string>production</string>
+              <key>com.apple.developer.usernotifications.time-sensitive</key>
+              <true/>
               <key>com.apple.developer.associated-domains</key>
               <array>
                   <string>applinks:www.sociva.in</string>
@@ -803,6 +805,10 @@ workflows:
             echo "ERROR: Push Notifications entitlement missing from App.entitlements"
             exit 1
           fi
+          if ! grep -q "com.apple.developer.usernotifications.time-sensitive" ios/App/App/App.entitlements; then
+            echo "ERROR: Time Sensitive Notifications entitlement missing from App.entitlements"
+            exit 1
+          fi
 
       - name: Verify NSSupportsLiveActivities in Info.plist
         script: |
@@ -859,6 +865,10 @@ workflows:
           unzip -qo "$(find /Users -path '*/build/ios/ipa/*.ipa' | head -1)" 2>/dev/null || true
           if ! grep -r "aps-environment" Payload/ 2>/dev/null; then
             echo "ERROR: Final IPA missing aps-environment entitlement"
+            exit 1
+          fi
+          if ! grep -r "com.apple.developer.usernotifications.time-sensitive" Payload/ 2>/dev/null; then
+            echo "ERROR: Final IPA missing Time Sensitive Notifications entitlement"
             exit 1
           fi
           echo "=== IPA push entitlement verified ==="
@@ -1212,6 +1222,8 @@ workflows:
           <dict>
               <key>aps-environment</key>
               <string>production</string>
+              <key>com.apple.developer.usernotifications.time-sensitive</key>
+              <true/>
               <key>com.apple.developer.associated-domains</key>
               <array>
                   <string>applinks:www.sociva.in</string>
@@ -1715,6 +1727,10 @@ workflows:
             echo "ERROR: Push Notifications entitlement missing from App.entitlements"
             exit 1
           fi
+          if ! grep -q "com.apple.developer.usernotifications.time-sensitive" ios/App/App/App.entitlements; then
+            echo "ERROR: Time Sensitive Notifications entitlement missing from App.entitlements"
+            exit 1
+          fi
 
       - name: Verify NSSupportsLiveActivities in Info.plist
         script: |
@@ -1771,6 +1787,10 @@ workflows:
           unzip -qo "$(find /Users -path '*/build/ios/ipa/*.ipa' | head -1)" 2>/dev/null || true
           if ! grep -r "aps-environment" Payload/ 2>/dev/null; then
             echo "ERROR: Final IPA missing aps-environment entitlement"
+            exit 1
+          fi
+          if ! grep -r "com.apple.developer.usernotifications.time-sensitive" Payload/ 2>/dev/null; then
+            echo "ERROR: Final IPA missing Time Sensitive Notifications entitlement"
             exit 1
           fi
           echo "=== IPA push entitlement verified ==="
@@ -2247,6 +2267,8 @@ workflows:
           <dict>
               <key>aps-environment</key>
               <string>production</string>
+              <key>com.apple.developer.usernotifications.time-sensitive</key>
+              <true/>
               <key>com.apple.developer.associated-domains</key>
               <array>
                   <string>applinks:www.sociva.in</string>
@@ -2708,6 +2730,10 @@ workflows:
             echo "ERROR: Push Notifications entitlement missing from App.entitlements"
             exit 1
           fi
+          if ! grep -q "com.apple.developer.usernotifications.time-sensitive" ios/App/App/App.entitlements; then
+            echo "ERROR: Time Sensitive Notifications entitlement missing from App.entitlements"
+            exit 1
+          fi
 
       - name: Verify NSSupportsLiveActivities in Info.plist (release-all)
         script: |
@@ -2739,6 +2765,10 @@ workflows:
           unzip -qo "$IPA" 2>/dev/null || true
           if ! grep -r "aps-environment" Payload/ 2>/dev/null; then
             echo "ERROR: Final IPA missing aps-environment entitlement"
+            exit 1
+          fi
+          if ! grep -r "com.apple.developer.usernotifications.time-sensitive" Payload/ 2>/dev/null; then
+            echo "ERROR: Final IPA missing Time Sensitive Notifications entitlement"
             exit 1
           fi
           echo "=== IPA push entitlement verified ==="

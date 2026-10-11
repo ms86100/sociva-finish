@@ -98,6 +98,7 @@ async function sendApnsDirect(
   data: Record<string, string> | undefined,
   p8Key: string, keyId: string, teamId: string, bundleId: string,
   threadId?: string, imageUrl?: string, highPriority = true,
+  timeSensitive = false,
 ): Promise<{ success: boolean; error?: string }> {
   try {
     const cryptoKey = await importP8Key(p8Key);
@@ -109,7 +110,7 @@ async function sendApnsDirect(
         sound: apnsSound,
         badge: 1,
         "mutable-content": imageUrl ? 1 : 0,
-        ...(highPriority ? { "interruption-level": "time-sensitive" } : {}),
+        ...(timeSensitive ? { "interruption-level": "time-sensitive" } : {}),
         ...(threadId ? { "thread-id": threadId } : {}),
       },
       ...(data || {}),
@@ -172,6 +173,7 @@ async function sendFcmDirect(
   title: string, body: string, data?: Record<string, string>,
   threadId?: string, imageUrl?: string, highPriority = true,
   nativeClosedApp = false,
+  timeSensitive = false,
 ): Promise<{ success: boolean; error?: string }> {
   // Legacy installs keep notification + data on orders_incoming_v2.
   // Data-only on orders_incoming_v3 runs only when this token is verified.
@@ -202,7 +204,7 @@ async function sendFcmDirect(
     alert: { title, body },
     sound: fcmApnsSound,
     badge: 1,
-    ...(highPriority ? { "interruption-level": "time-sensitive" } : {}),
+    ...(timeSensitive ? { "interruption-level": "time-sensitive" } : {}),
   };
   if (imageUrl) apnsAps["mutable-content"] = 1;
   if (threadId) apnsAps["thread-id"] = threadId;
@@ -328,6 +330,7 @@ async function deliverPushToUser(
   title: string, body: string, pushData: Record<string, string>,
   threadId?: string, imageUrl?: string, notificationId?: string,
   highPriority = false,
+  timeSensitive = false,
 ): Promise<{ successCount: number; failCount: number }> {
   const startMs = Date.now();
   const gate = await loadSellerAlertAndroidGate(supabase);
@@ -385,14 +388,14 @@ async function deliverPushToUser(
       // iOS with APNs token → direct APNs (primary), FCM fallback if available
       if (tokenRecord.platform === "ios" && tokenRecord.apns_token && creds.apnsConfigured) {
         result = await withTimeout(
-          sendApnsDirect(tokenRecord.apns_token, title, body, pushData, creds.apnsP8Key!, creds.apnsKeyId!, creds.apnsTeamId!, creds.apnsBundleId!, threadId, imageUrl, highPriority),
+          sendApnsDirect(tokenRecord.apns_token, title, body, pushData, creds.apnsP8Key!, creds.apnsKeyId!, creds.apnsTeamId!, creds.apnsBundleId!, threadId, imageUrl, highPriority, timeSensitive),
           PUSH_TIMEOUT_MS,
         );
         // FCM fallback if APNs fails (non-invalid) and we have a real FCM token + FCM configured
         if (!result.success && result.error !== "INVALID_TOKEN" && !isApnsOnlyToken && creds.fcmConfigured) {
           console.log(`[Push] APNs failed for ${notificationId} (${result.error}), falling back to FCM`);
           result = await withTimeout(
-            sendFcmDirect(creds.fcmAccessToken!, creds.serviceAccount!.project_id, tokenRecord.token, title, body, pushData, threadId, imageUrl, highPriority, nativeClosedApp),
+            sendFcmDirect(creds.fcmAccessToken!, creds.serviceAccount!.project_id, tokenRecord.token, title, body, pushData, threadId, imageUrl, highPriority, nativeClosedApp, timeSensitive),
             PUSH_TIMEOUT_MS,
           );
         }
@@ -402,7 +405,7 @@ async function deliverPushToUser(
       } else if (creds.fcmConfigured) {
         // Android or iOS without APNs → FCM
         result = await withTimeout(
-          sendFcmDirect(creds.fcmAccessToken!, creds.serviceAccount!.project_id, tokenRecord.token, title, body, pushData, threadId, imageUrl, highPriority, nativeClosedApp),
+          sendFcmDirect(creds.fcmAccessToken!, creds.serviceAccount!.project_id, tokenRecord.token, title, body, pushData, threadId, imageUrl, highPriority, nativeClosedApp, timeSensitive),
           PUSH_TIMEOUT_MS,
         );
       } else {
@@ -998,6 +1001,9 @@ Deno.serve(async (req) => {
           rawPayload.high_priority === 'true' ||
           SELLER_LIFECYCLE_TYPES.includes(item.type);
 
+        const SELLER_TIME_SENSITIVE_STATUSES = ['placed', 'enquired', 'requested'];
+        const timeSensitive = targetRole === 'seller' && SELLER_TIME_SENSITIVE_STATUSES.includes(notifStatus);
+
         // Quiet hours: suppress non-urgent push (inbox + WA already handled)
         if (
           userPrefs &&
@@ -1041,6 +1047,7 @@ Deno.serve(async (req) => {
           target_role: targetRole || 'unknown',
           status: notifStatus || 'unknown',
           isHighPriority,
+          timeSensitive,
           sound: isHighPriority ? 'gate_bell' : 'default',
         });
 
@@ -1095,7 +1102,7 @@ Deno.serve(async (req) => {
         const { successCount, failCount } = await deliverPushToUser(
           supabase, creds, item.user_id,
           displayCopy.title, displayCopy.body, pushData,
-          threadId, imageUrl, item.id, isHighPriority,
+          threadId, imageUrl, item.id, isHighPriority, timeSensitive,
         );
 
         if (successCount === 0 && failCount === 0 && isSellerOrderAlert(item)) {

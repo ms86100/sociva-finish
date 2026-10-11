@@ -24,7 +24,7 @@ import {
 } from '@/lib/notification-preferences';
 
 export default function NotificationsPage() {
-  const { user } = useAuth();
+  const { user, isSeller } = useAuth();
   const queryClient = useQueryClient();
   const { requestFullPermission } = usePushNotifications();
   const [osPermission, setOsPermission] = useState<'granted' | 'denied' | 'prompt' | 'loading'>('loading');
@@ -280,6 +280,23 @@ export default function NotificationsPage() {
               />
             </CardContent>
           </Card>
+
+          {Capacitor.getPlatform() === 'ios' && osPermission === 'granted' && isSeller && (
+            <button
+              type="button"
+              onClick={() => void openAppSettings()}
+              className="w-full flex items-center gap-3 rounded-xl border border-border bg-card p-4 text-left active:scale-[0.98] transition-transform"
+            >
+              <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center shrink-0">
+                <Bell size={20} className="text-muted-foreground" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-medium text-sm">Work Focus and the order bell</p>
+                <p className="text-xs text-muted-foreground">Work Focus plays the order bell when Time Sensitive Notifications is allowed. Open Settings and turn that on for Sociva.</p>
+              </div>
+              <ExternalLink size={16} className="text-muted-foreground shrink-0" />
+            </button>
+          )}
 
           {Capacitor.getPlatform() === 'android' && (
             <button
