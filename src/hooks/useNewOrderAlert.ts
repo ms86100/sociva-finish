@@ -10,6 +10,7 @@ import {
   cancelAllIncomingOrderLocalNotifications,
 } from '@/lib/local-order-notifications';
 import {
+  INCOMING_RING_STATUSES,
   isInsertAlertStatus,
   shouldKeepIncomingOrderAlert,
 } from '@/lib/order-alert-ack';
@@ -41,8 +42,11 @@ const BACKOFF_FACTOR = 1.5;
 const DEFAULT_SNOOZE_MINUTES = 5;
 const MAX_SNOOZE_CYCLES = 3; // After this many re-triggers, stop the bell loop.
 const BELL_LOOP_GAP_MS = 1500;
+/** Orders still waiting for a first response stay visible if the seller opens the app later. */
+const CATCH_UP_WINDOW_MS = 24 * 60 * 60 * 1000;
 /** Prefer gate_bell (shipped in iOS bundle + Android res/raw); fall back to order_ring alias. */
 const BELL_SOUND_CANDIDATES = ['/sounds/gate_bell.mp3', '/sounds/order_ring.mp3'];
+const ORDER_ALERT_SELECT = 'id, status, created_at, total_amount, seller_id, fulfillment_type, delivery_handled_by, delivery_address, delivery_lat, delivery_lng, society_id';
 
 const SNOOZE_PREF_KEY = 'seller_snooze_pref_minutes';
 
@@ -163,14 +167,19 @@ export function useNewOrderAlert(sellerIds: string[]) {
   }, []);
 
   const MAX_SEEN_IDS = 500;
-  const handleNewOrder = useCallback((order: NewOrder) => {
+  const handleNewOrder = useCallback((order: NewOrder, opts?: { catchUp?: boolean }) => {
     if (seenIdsRef.current.has(order.id)) return;
     if (dismissedIdsRef.current.has(order.id)) return;
-    if (!isActionableStatus(order.status)) return;
-    // Ignore orders created before this hook mounted (with 5-min buffer for Realtime replay
-    // of in-flight events). Prevents pre-mount WAL replay from ringing the overlay.
-    if (order.created_at < new Date(Date.now() - 5 * 60 * 1000).toISOString() &&
-        order.created_at < mountedAtRef.current) return;
+    if (opts?.catchUp) {
+      // Cold open: only orders still waiting for a first response. Skip preparing and confirmed.
+      if (!shouldKeepIncomingOrderAlert(order.status)) return;
+    } else {
+      if (!isActionableStatus(order.status)) return;
+      // Ignore orders created before this hook mounted (with 5-min buffer for Realtime replay
+      // of in-flight events). Prevents pre-mount WAL replay from ringing the overlay.
+      if (order.created_at < new Date(Date.now() - 5 * 60 * 1000).toISOString() &&
+          order.created_at < mountedAtRef.current) return;
+    }
     const snoozedUntil = snoozedUntilRef.current[order.id];
     if (snoozedUntil && Date.now() < snoozedUntil) return;
     seenIdsRef.current.add(order.id);
@@ -179,13 +188,15 @@ export function useNewOrderAlert(sellerIds: string[]) {
       const oldest = seenIdsOrderRef.current.shift();
       if (oldest) seenIdsRef.current.delete(oldest);
     }
-    if (!lastSeenAtRef.current || order.created_at > lastSeenAtRef.current) {
+    // Catch-up must not move the live poll cursor backward onto older accepted orders.
+    if (!opts?.catchUp && (!lastSeenAtRef.current || order.created_at > lastSeenAtRef.current)) {
       lastSeenAtRef.current = order.created_at;
     }
-    pollDelayRef.current = MIN_POLL_MS;
-    setPendingAlerts(prev => [...prev, order]);
+    if (!opts?.catchUp) pollDelayRef.current = MIN_POLL_MS;
+    setPendingAlerts(prev => (prev.some(o => o.id === order.id) ? prev : [...prev, order]));
     noteOrderBell(order.id);
     invalidateSellerOrderCaches(order.seller_id);
+    if (opts?.catchUp) return;
     void scheduleIncomingOrderLocalNotification({
       orderId: order.id,
       title: 'New order',
@@ -195,6 +206,25 @@ export function useNewOrderAlert(sellerIds: string[]) {
       amount: order.total_amount,
     });
   }, [invalidateSellerOrderCaches]);
+
+  const catchUpWaitingOrders = useCallback(async () => {
+    const ids = [...sellerIdsRef.current];
+    if (ids.length === 0) return;
+    const since = new Date(Date.now() - CATCH_UP_WINDOW_MS).toISOString();
+    try {
+      const { data } = await supabase
+        .from('orders')
+        .select(ORDER_ALERT_SELECT)
+        .in('seller_id', ids)
+        .in('status', [...INCOMING_RING_STATUSES])
+        .gte('created_at', since)
+        .order('created_at', { ascending: true });
+      if (!data) return;
+      data.forEach((order) => handleNewOrder(order as NewOrder, { catchUp: true }));
+    } catch {
+      // The next foreground pass retries.
+    }
+  }, [handleNewOrder]);
 
   const playBellOnce = useCallback(async () => {
     if (!isBuzzingRef.current) return;
@@ -504,7 +534,7 @@ export function useNewOrderAlert(sellerIds: string[]) {
       try {
         let query = supabase
           .from('orders')
-          .select('id, status, total_amount, created_at, seller_id, fulfillment_type, delivery_handled_by, delivery_address, delivery_lat, delivery_lng, society_id')
+          .select(ORDER_ALERT_SELECT)
           .in('seller_id', sellerIds)
           .in('status', [...ACTIONABLE_STATUSES])
           .order('created_at', { ascending: true });
@@ -540,6 +570,7 @@ export function useNewOrderAlert(sellerIds: string[]) {
       } else {
         pausedByVisibility = false;
         pollDelayRef.current = MIN_POLL_MS;
+        void catchUpWaitingOrders();
         if (!pollTimerRef.current) pollTimerRef.current = setTimeout(poll, 0);
       }
     };
@@ -550,7 +581,13 @@ export function useNewOrderAlert(sellerIds: string[]) {
       if (pollTimerRef.current) clearTimeout(pollTimerRef.current);
       document.removeEventListener('visibilitychange', handleVisibility);
     };
-  }, [enabled, sellerIds.join(','), handleNewOrder]);
+  }, [enabled, sellerIds.join(','), handleNewOrder, catchUpWaitingOrders]);
+
+  // Orders that arrived while the app was closed are older than this mount, so the live poll skips them.
+  useEffect(() => {
+    if (!enabled) return;
+    void catchUpWaitingOrders();
+  }, [enabled, sellerIds.join(','), catchUpWaitingOrders]);
 
   useEffect(() => {
     pendingAlertsRef.current = pendingAlerts;
