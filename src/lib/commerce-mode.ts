@@ -113,3 +113,20 @@ export function categoriesOwnedByMode(
   }
   return owned;
 }
+
+/**
+ * Categories with at least one listing on this mode.
+ * A salon enquiry still gets a Salon chip on Contact when most salon
+ * listings are bookings.
+ */
+export function categoriesListedInMode(
+  buckets: Record<CommerceMode, readonly { category?: string | null }[]>,
+  mode: CommerceMode,
+): Set<string> {
+  const listed = new Set<string>();
+  for (const listing of buckets[mode] || []) {
+    const category = listing.category;
+    if (category) listed.add(category);
+  }
+  return listed;
+}

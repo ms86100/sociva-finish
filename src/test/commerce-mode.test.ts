@@ -3,6 +3,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import {
   ACTION_TO_MODE,
+  categoriesListedInMode,
   categoriesOwnedByMode,
   filterByMode,
   modeForAction,
@@ -254,5 +255,11 @@ describe('category chip ownership', () => {
     expect([...categoriesOwnedByMode(buckets, 'book', CONFIGS)].sort()).toEqual(['medical', 'salon']);
     expect([...categoriesOwnedByMode(buckets, 'services', CONFIGS)].sort()).toEqual(['tuition']);
     expect([...categoriesOwnedByMode(buckets, 'shop', CONFIGS)]).toEqual(['home_food']);
+  });
+
+  it('still offers a filter for a category that has listings on this page', () => {
+    expect([...categoriesListedInMode(buckets, 'services')].sort()).toEqual(['medical', 'salon', 'tuition']);
+    expect([...categoriesListedInMode(buckets, 'book')].sort()).toEqual(['medical', 'salon']);
+    expect([...categoriesListedInMode(buckets, 'shop')]).toEqual(['home_food']);
   });
 });

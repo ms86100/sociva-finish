@@ -13,7 +13,7 @@ import { useCommerceModeListings } from '@/hooks/queries/useCommerceModeListings
 import { applyProductFacetRow, useProductFacets } from '@/hooks/queries/useProductFacets';
 import { hasPreciseCoordinates } from '@/lib/buyerLocation';
 import type { CommerceMode } from '@/lib/commerce-mode';
-import { categoriesOwnedByMode } from '@/lib/commerce-mode';
+import { categoriesListedInMode } from '@/lib/commerce-mode';
 import {
   type CommerceFacetState,
   emptyCommerceFacetState,
@@ -25,7 +25,6 @@ import {
 import { buildProductDetailPayload, buildRelatedProductDetailPayload } from '@/lib/product-detail-payload';
 import { cn } from '@/lib/utils';
 import { IntentProductRail } from '@/components/discovery/IntentProductRail';
-import { YourConversationsRow } from '@/components/discovery/YourConversationsRow';
 import { UpcomingAppointmentBanner } from '@/components/home/UpcomingAppointmentBanner';
 import { GroupedSellerRow } from '@/components/home/GroupedSellerRow';
 import { useIntentRailModel } from '@/hooks/useIntentRailModel';
@@ -104,8 +103,8 @@ function CommerceModeView({ mode }: { mode: CommerceMode }) {
   );
 
   const modeCategories = useMemo(
-    () => categoriesOwnedByMode(buckets, mode, categoryConfigs),
-    [buckets, mode, categoryConfigs],
+    () => categoriesListedInMode(buckets, mode),
+    [buckets, mode],
   );
   const activeGroup = activeCategory
     ? categoryConfigs.find((c) => c.category === activeCategory)?.parentGroup ?? null
@@ -188,11 +187,6 @@ function CommerceModeView({ mode }: { mode: CommerceMode }) {
             )}
 
             {mode === 'book' && <div className="px-4"><UpcomingAppointmentBanner /></div>}
-            {mode === 'services' && !activeCategory && (
-              <YourConversationsRow
-                sellerNames={new Map(enriched.filter((p) => p.seller_id && p.seller_name).map((p) => [p.seller_id, p.seller_name as string]))}
-              />
-            )}
             {!activeCategory && (mode === 'book' || mode === 'services') && intentRails.primary && (
               <GroupedSellerRow
                 title={intentRails.primary.title}
