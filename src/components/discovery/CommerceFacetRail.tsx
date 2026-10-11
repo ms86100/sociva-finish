@@ -107,6 +107,12 @@ export function CommerceFacetRail({
       next.durationMax = next.durationMax === chip.value ? null : chip.value;
     } else if (chip.type === 'price') {
       next.priceMax = next.priceMax === chip.value ? null : chip.value;
+    } else if (chip.type === 'spice') {
+      next.spiceLevel = next.spiceLevel === chip.value ? null : chip.value;
+    } else if (chip.type === 'pack') {
+      next.packSize = next.packSize === chip.value ? null : chip.value;
+    } else if (chip.type === 'catalogue') {
+      next.catalogueTag = next.catalogueTag === chip.value ? null : chip.value;
     }
 
     onChange(next);
@@ -179,9 +185,8 @@ export function CommerceFacetRail({
             Open Now
           </button>
 
-          {/* Quick Veg / Non-Veg for Food */}
-          {isFood && (
-            <>
+          {/* Quick Veg / Non-Veg for Food. Hide a diet the current list does not have. */}
+          {isFood && vegCount > 0 && (
               <button
                 type="button"
                 onClick={() => {
@@ -200,6 +205,8 @@ export function CommerceFacetRail({
                 </span>
                 Veg Only
               </button>
+          )}
+          {isFood && nonVegCount > 0 && (
               <button
                 type="button"
                 onClick={() => {
@@ -215,7 +222,6 @@ export function CommerceFacetRail({
               >
                 Non-Veg
               </button>
-            </>
           )}
 
           {/* Dynamic Facet Chips strictly from real inventory */}
@@ -368,6 +374,32 @@ export function CommerceFacetRail({
                   })}
                 </TasteSheetSection>
               </>
+            )}
+
+            {chips.some((c) => c.type === 'spice' || c.type === 'pack' || c.type === 'catalogue') && (
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2">From this catalogue</p>
+                <div className="flex flex-wrap gap-2">
+                  {chips
+                    .filter((c) => c.type === 'spice' || c.type === 'pack' || c.type === 'catalogue')
+                    .map((chip) => (
+                      <button
+                        key={chip.id}
+                        type="button"
+                        onClick={() => toggleChip(chip)}
+                        className={cn(
+                          'flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border transition-all',
+                          chip.isActive
+                            ? 'bg-primary text-primary-foreground border-primary'
+                            : 'bg-card border-border text-foreground hover:border-primary/40'
+                        )}
+                      >
+                        <span>{chip.label}</span>
+                        {showCounts && <span className="text-[10px] opacity-75">({chip.count})</span>}
+                      </button>
+                    ))}
+                </div>
+              </div>
             )}
 
             {!isFood && chips.some((c) => c.type === 'food_mood') && (

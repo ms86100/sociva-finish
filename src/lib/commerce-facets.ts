@@ -17,6 +17,12 @@ export interface CommerceFacetState {
   durationMax?: number | null;
   priceMax?: number | null;
   subCategory?: string | null;
+  /** Stored products.spice_level, lowercased. Shown only when the catalogue actually varies. */
+  spiceLevel?: string | null;
+  /** Stored products.serving_size. Shown only when pack sizes actually vary. */
+  packSize?: string | null;
+  /** A tag that exists on the product. Never inferred from the product name. */
+  catalogueTag?: string | null;
 }
 
 /** A single action chip is not a choice. Home and category browse hide it. */
@@ -55,13 +61,14 @@ export function purposeChipsForMode(
   },
 ): DynamicFacetChip[] {
   if (mode === 'book') {
-    return chips
+    const place = chips
       .filter((chip) => chip.type === 'service_mode' || chip.type === 'duration')
       .map((chip) => {
         if (chip.type === 'duration') return { ...chip, label: 'Short session' };
         const label = BOOK_PLACE_LABELS[String(chip.value)];
         return label ? { ...chip, label } : chip;
       });
+    return [...place, ...attributeChips(chips)];
   }
   if (mode === 'services') {
     const counts = new Map<string, number>();
@@ -71,17 +78,19 @@ export function purposeChipsForMode(
         counts.set(action, (counts.get(action) || 0) + 1);
       }
     }
-    if (counts.size < 2) return [];
-    return (Object.keys(CONTACT_PURPOSE_LABELS) as string[])
-      .filter((action) => (counts.get(action) || 0) > 0)
-      .map((action) => ({
-        id: `action:${action}`,
-        label: CONTACT_PURPOSE_LABELS[action],
-        count: counts.get(action) || 0,
-        type: 'action_type' as const,
-        value: action,
-        isActive: options?.actionType === action,
-      }));
+    const purpose = counts.size < 2
+      ? []
+      : (Object.keys(CONTACT_PURPOSE_LABELS) as string[])
+          .filter((action) => (counts.get(action) || 0) > 0)
+          .map((action) => ({
+            id: `action:${action}`,
+            label: CONTACT_PURPOSE_LABELS[action],
+            count: counts.get(action) || 0,
+            type: 'action_type' as const,
+            value: action,
+            isActive: options?.actionType === action,
+          }));
+    return [...purpose, ...attributeChips(chips)];
   }
   return omitSoleActionChips(chips);
 }
@@ -99,6 +108,9 @@ export function emptyCommerceFacetState(): CommerceFacetState {
     durationMax: null,
     priceMax: null,
     subCategory: null,
+    spiceLevel: null,
+    packSize: null,
+    catalogueTag: null,
   };
 }
 
@@ -114,7 +126,10 @@ export function hasActiveCommerceFacets(state: CommerceFacetState): boolean {
     state.serviceMode ||
     state.durationMax ||
     state.priceMax ||
-    state.subCategory
+    state.subCategory ||
+    state.spiceLevel ||
+    state.packSize ||
+    state.catalogueTag
   );
 }
 
@@ -131,6 +146,9 @@ export function countActiveCommerceFacets(state: CommerceFacetState): number {
   if (state.durationMax) count++;
   if (state.priceMax) count++;
   if (state.subCategory) count++;
+  if (state.spiceLevel) count++;
+  if (state.packSize) count++;
+  if (state.catalogueTag) count++;
   return count;
 }
 
@@ -141,7 +159,7 @@ export interface DynamicFacetChip {
   icon?: string;
   imageUrl?: string;
   count: number;
-  type: 'food_mood' | 'action_type' | 'service_mode' | 'duration' | 'price' | 'subcategory';
+  type: 'food_mood' | 'action_type' | 'service_mode' | 'duration' | 'price' | 'subcategory' | 'spice' | 'pack' | 'catalogue';
   value: any;
   isActive: boolean;
 }
@@ -190,6 +208,8 @@ export function productMatchesCommerceFacets(
     name?: string;
     price?: number | string | null;
     is_veg?: boolean | null;
+    spice_level?: string | null;
+    serving_size?: string | null;
     action_type?: string | null;
     service_duration_minutes?: number | null;
     delivery_time_text?: string | null;
@@ -244,6 +264,20 @@ export function productMatchesCommerceFacets(
     if (isNaN(rawPrice) || rawPrice <= 0 || rawPrice > state.priceMax) return false;
   }
 
+  if (state.spiceLevel) {
+    const level = (product.spice_level || '').trim().toLowerCase();
+    if (level !== state.spiceLevel) return false;
+  }
+
+  if (state.packSize) {
+    if ((product.serving_size || '').trim() !== state.packSize) return false;
+  }
+
+  if (state.catalogueTag) {
+    const tags = (product.tags || []).map((tag) => String(tag).trim().toLowerCase());
+    if (!tags.includes(state.catalogueTag.trim().toLowerCase())) return false;
+  }
+
   // Food facets (cuisine, meal, course)
   if (state.cuisine || state.meal || state.course) {
     return productMatchesFoodFacets(product, {
@@ -254,6 +288,107 @@ export function productMatchesCommerceFacets(
   }
 
   return true;
+}
+
+/** Buyer labels for tags that already exist on a product. A missing tag never becomes a filter. */
+const CATALOGUE_TAG_LABELS: Record<string, string> = {
+  saree: 'Saree',
+  festive: 'Festive',
+  wedding: 'Wedding',
+  ethnic: 'Ethnic',
+  chikankari: 'Chikankari',
+  embroidery: 'Embroidery',
+  printed: 'Printed',
+  silk: 'Silk',
+  cotton: 'Cotton',
+};
+
+const SPICE_LABELS: Record<string, string> = {
+  mild: 'Mild',
+  medium: 'Medium',
+  hot: 'Hot',
+};
+
+function attributeChips(chips: readonly DynamicFacetChip[]): DynamicFacetChip[] {
+  return chips.filter((chip) => chip.type === 'spice' || chip.type === 'pack' || chip.type === 'catalogue');
+}
+
+function pushWhenItNarrows(
+  counts: Map<string, number>,
+  total: number,
+  emit: (value: string, count: number) => void,
+) {
+  const covered = [...counts.values()].reduce((sum, count) => sum + count, 0);
+  const narrows = counts.size >= 2 || (counts.size === 1 && covered < total);
+  if (!narrows) return;
+  const ranked = [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  for (const [value, count] of ranked) {
+    if (count > 0 && count < total) emit(value, count);
+  }
+}
+
+function appendAttributeChips(
+  products: Array<{
+    tags?: string[] | null;
+    spice_level?: string | null;
+    serving_size?: string | null;
+  }>,
+  current: CommerceFacetState,
+  chips: DynamicFacetChip[],
+) {
+  const total = products.length;
+  if (total === 0) return;
+
+  const spiceCounts = new Map<string, number>();
+  const packCounts = new Map<string, number>();
+  const tagCounts = new Map<string, number>();
+
+  for (const product of products) {
+    const spice = (product.spice_level || '').trim().toLowerCase();
+    if (spice) spiceCounts.set(spice, (spiceCounts.get(spice) || 0) + 1);
+    const pack = (product.serving_size || '').trim();
+    if (pack) packCounts.set(pack, (packCounts.get(pack) || 0) + 1);
+    const seen = new Set<string>();
+    for (const raw of product.tags || []) {
+      const tag = String(raw).trim().toLowerCase();
+      if (!tag || seen.has(tag) || !CATALOGUE_TAG_LABELS[tag]) continue;
+      seen.add(tag);
+      tagCounts.set(tag, (tagCounts.get(tag) || 0) + 1);
+    }
+  }
+
+  pushWhenItNarrows(spiceCounts, total, (level, count) => {
+    chips.push({
+      id: `spice:${level}`,
+      label: SPICE_LABELS[level] || level.charAt(0).toUpperCase() + level.slice(1),
+      count,
+      type: 'spice',
+      value: level,
+      isActive: current.spiceLevel === level,
+    });
+  });
+
+  pushWhenItNarrows(packCounts, total, (pack, count) => {
+    chips.push({
+      id: `pack:${pack}`,
+      label: pack,
+      count,
+      type: 'pack',
+      value: pack,
+      isActive: current.packSize === pack,
+    });
+  });
+
+  pushWhenItNarrows(tagCounts, total, (tag, count) => {
+    chips.push({
+      id: `tag:${tag}`,
+      label: CATALOGUE_TAG_LABELS[tag],
+      count,
+      type: 'catalogue',
+      value: tag,
+      isActive: current.catalogueTag === tag,
+    });
+  });
 }
 
 function appendPriceChips(
@@ -317,6 +452,8 @@ export function extractAvailableCommerceFacets(
     cuisine_type?: string | null;
     price?: number | string | null;
     action_type?: string | null;
+    spice_level?: string | null;
+    serving_size?: string | null;
     service_duration_minutes?: number | null;
     delivery_time_text?: string | null;
     service_scope?: string | null;
@@ -364,6 +501,8 @@ export function extractAvailableCommerceFacets(
   if (isFood || foodish) {
     pushFoodMoods();
   }
+
+  appendAttributeChips(products, current, chips);
 
   if (isFood) {
     appendPriceChips(products, current, chips);

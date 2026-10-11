@@ -9,6 +9,7 @@ export interface ProductFacetRow {
   subcategory_id: string | null;
   stock_quantity: number | null;
   serving_size: string | null;
+  spice_level: string | null;
   unit_type: string | null;
   price_per_unit: string | null;
   prep_time_minutes: number | null;
@@ -30,6 +31,7 @@ export function applyProductFacetRow<T extends Record<string, any>>(product: T, 
     subcategory_id: row.subcategory_id || product.subcategory_id,
     stock_quantity: row.stock_quantity ?? product.stock_quantity,
     serving_size: row.serving_size ?? product.serving_size,
+    spice_level: row.spice_level ?? product.spice_level,
     unit_type: row.unit_type ?? product.unit_type,
     price_per_unit: row.price_per_unit ?? product.price_per_unit,
     prep_time_minutes: row.prep_time_minutes ?? product.prep_time_minutes,
@@ -52,7 +54,7 @@ export function useProductFacets(productIds: string[], enabled = true) {
       if (unique.length === 0) return {};
       const { data, error } = await supabase
         .from('products')
-        .select('id, tags, cuisine_type, subcategory_id, stock_quantity, serving_size, unit_type, price_per_unit, prep_time_minutes, service_duration_minutes, delivery_time_text, service_scope, description, minimum_charge, visit_charge')
+        .select('id, tags, cuisine_type, subcategory_id, stock_quantity, serving_size, spice_level, unit_type, price_per_unit, prep_time_minutes, service_duration_minutes, delivery_time_text, service_scope, description, minimum_charge, visit_charge')
         .in('id', unique);
       if (error) {
         console.error('Product facets load failed:', error);

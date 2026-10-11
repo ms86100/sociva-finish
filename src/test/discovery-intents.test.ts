@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildDiscoveryIntents, type DiscoveryCategoryInput } from '@/lib/discovery-intents';
+import { buildDiscoveryIntents, relevantBrowseIntents, type DiscoveryCategoryInput } from '@/lib/discovery-intents';
 
 const homeFood: DiscoveryCategoryInput = {
   category: 'home_food',
@@ -37,6 +37,41 @@ describe('buildDiscoveryIntents', () => {
     const intents = buildDiscoveryIntents([homeFood]);
     expect(intents.some((i) => i.label === 'Breakfast')).toBe(false);
     expect(intents.some((i) => i.id === 'mood:dessert')).toBe(true);
+  });
+
+  it('hides a category that has no items for the selected meal', () => {
+    const restaurant: DiscoveryCategoryInput = {
+      category: 'restaurant',
+      parentGroup: 'food_beverages',
+      displayName: 'Restaurant',
+      icon: 'Utensils',
+      products: [{ id: '9', name: 'Dinner thali', tags: ['meal:dinner'] }],
+    };
+    const breakfastHome: DiscoveryCategoryInput = {
+      ...homeFood,
+      products: [{ id: '8', name: 'Idli', tags: ['meal:breakfast'] }],
+    };
+    const intents = relevantBrowseIntents([breakfastHome, restaurant], {
+      facets: { meal: 'breakfast' },
+    });
+    expect(intents.map((intent) => intent.label)).toContain('Home Food');
+    expect(intents.map((intent) => intent.label)).toContain('Breakfast');
+    expect(intents.map((intent) => intent.label)).not.toContain('Restaurant');
+  });
+
+  it('keeps Breakfast selected as a switch even when a category is already chosen', () => {
+    const breakfastHome: DiscoveryCategoryInput = {
+      ...homeFood,
+      products: [
+        { id: '8', name: 'Idli', tags: ['meal:breakfast'] },
+        { id: '9', name: 'Dal', tags: ['meal:lunch'] },
+      ],
+    };
+    const intents = relevantBrowseIntents([breakfastHome], {
+      category: 'home_food',
+      facets: { meal: 'breakfast' },
+    });
+    expect(intents.map((intent) => intent.id)).toEqual(expect.arrayContaining(['cat:home_food', 'mood:breakfast', 'mood:lunch']));
   });
 
   it('omits empty categories entirely', () => {

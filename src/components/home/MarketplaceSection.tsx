@@ -6,9 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { useProductsByCategory } from '@/hooks/queries/useProductsByCategory';
 import { useMarketplaceData } from '@/hooks/queries/useMarketplaceData';
 import { useProductFacets } from '@/hooks/queries/useProductFacets';
-import { useParentGroups } from '@/hooks/useParentGroups';
 import { useSocialProof } from '@/hooks/queries/useSocialProof';
-import { ParentGroupTabs } from '@/components/home/ParentGroupTabs';
 import { categoriesForBuyerChip, categoryMatchesBuyerChip } from '@/lib/buyer-chip-groups';
 import { CategoryImageGrid } from '@/components/home/CategoryImageGrid';
 import { FeaturedBanners } from '@/components/home/FeaturedBanners';
@@ -170,8 +168,6 @@ export function MarketplaceSection() {
   const showMarketplaceSkeleton = marketplaceStatus === 'loading';
   const marketplaceSlow = useSlowLoading(showMarketplaceSkeleton);
   const { data: marketplaceSellers = [] } = useMarketplaceData();
-  const { parentGroupInfos } = useParentGroups();
-
   const activeCategoryConfig = useMemo(
     () => (activeCategory ? categoryConfigs.find((c) => c.category === activeCategory) : null),
     [activeCategory, categoryConfigs],
@@ -211,8 +207,8 @@ export function MarketplaceSection() {
   }, [isFacetFilterActive, scopedProducts, commerceFacets, categoryConfigs]);
 
   const discoveryIntents = useMemo(
-    () => (festivalFocused ? [] : buildDiscoveryIntents(localCategoriesWithFacets, { activeGroup })),
-    [festivalFocused, localCategoriesWithFacets, activeGroup],
+    () => buildDiscoveryIntents(localCategoriesWithFacets, { maxChips: 40 }),
+    [localCategoriesWithFacets],
   );
 
   // Social proof only after scroll / idle - never blocks first paint
@@ -239,27 +235,35 @@ export function MarketplaceSection() {
     return images;
   }, [marketplaceSellers]);
 
-  const activeCategorySet = useMemo(
-    () => new Set(cartCategories.map((c) => c.category)),
-    [cartCategories],
-  );
-  const activeParentGroupSet = useMemo(
-    () => new Set(cartCategories.map((c) => c.parentGroup)),
-    [cartCategories],
-  );
-
-  const activeParentGroups = festivalFocused
-    ? []
-    : activeCategory && activeCategoryConfig
-      ? parentGroupInfos.filter(
-          (g) => g.value === activeCategoryConfig.parentGroup && activeParentGroupSet.has(g.value),
-        )
-      : parentGroupInfos.filter((g) => activeParentGroupSet.has(g.value));
-
-  const gridActiveCategories = useMemo(() => {
-    if (activeCategory) return new Set(categoriesForBuyerChip(activeCategory));
-    return activeCategorySet;
-  }, [activeCategory, activeCategorySet]);
+  const shopSections = useMemo(() => {
+    if (festivalFocused) return [];
+    const configByCategory = new Map(categoryConfigs.map((config) => [config.category, config]));
+    if (activeCategory) {
+      const config = configByCategory.get(activeCategory);
+      if (!config) return [];
+      return [{
+        key: activeCategory,
+        parentGroup: config.parentGroup,
+        title: config.displayName || activeCategory,
+        categories: new Set(categoriesForBuyerChip(activeCategory)),
+      }];
+    }
+    return [...cartCategories]
+      .sort((a, b) => {
+        const aOrder = configByCategory.get(a.category)?.displayOrder ?? 999;
+        const bOrder = configByCategory.get(b.category)?.displayOrder ?? 999;
+        if (aOrder !== bOrder) return aOrder - bOrder;
+        const aTitle = configByCategory.get(a.category)?.displayName || a.category;
+        const bTitle = configByCategory.get(b.category)?.displayName || b.category;
+        return aTitle.localeCompare(bTitle);
+      })
+      .map((group) => ({
+        key: group.category,
+        parentGroup: group.parentGroup,
+        title: configByCategory.get(group.category)?.displayName || group.category,
+        categories: new Set([group.category]),
+      }));
+  }, [festivalFocused, activeCategory, categoryConfigs, cartCategories]);
 
   const exploreFestival = useCallback(() => {
     setFestivalFocused(true);
@@ -388,15 +392,17 @@ export function MarketplaceSection() {
           <FestivalHomeHero onExplore={exploreFestival} />
         </div>
       )}
-      <ParentGroupTabs
-        activeCategory={activeCategory}
-        onCategoryChange={(cat) => {
-          setActiveCategory(cat);
-          setFestivalFocused(false);
-          setCommerceFacets(emptyCommerceFacetState());
-        }}
-        activeCategories={activeCategorySet}
-      />
+      {discoveryIntents.length > 0 && (
+        <div
+          className="sticky top-[var(--app-header-offset,0px)] z-[35] isolate w-full border-b border-border bg-background"
+        >
+          <DiscoveryChipRail
+            intents={discoveryIntents}
+            showTitle={false}
+            className="py-2.5"
+          />
+        </div>
+      )}
 
       {!festivalFocused && (
         <CommerceFacetRail
@@ -521,8 +527,6 @@ export function MarketplaceSection() {
         </LazySection>
       )}
 
-      {!festivalFocused && !activeCategory && <DiscoveryChipRail intents={discoveryIntents} />}
-
       {(!activeCategory || festivalFocused) && festivals.length > 0 && (
         <div id="festival-home-destination" className="scroll-mt-28">
           {festivals.map((f) => (
@@ -552,12 +556,12 @@ export function MarketplaceSection() {
         </div>
       ) : (
         <div>
-          {activeParentGroups.map((group) => (
+          {shopSections.map((section) => (
             <CategoryImageGrid
-              key={group.value}
-              parentGroup={group.value}
-              title={activeCategoryConfig?.displayName || group.label}
-              activeCategories={gridActiveCategories}
+              key={section.key}
+              parentGroup={section.parentGroup}
+              title={section.title}
+              activeCategories={section.categories}
             />
           ))}
         </div>

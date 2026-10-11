@@ -100,7 +100,9 @@ function CategoryImageGridInner({ parentGroup, title, activeCategories }: Catego
           <h3 className="font-extrabold text-[15px] text-foreground tracking-tight">{title}</h3>
         </div>
         <Link
-          to={`/category/${parentGroup}`}
+          to={categories.length === 1
+            ? `/category/${parentGroup}?sub=${categories[0].category}`
+            : `/category/${parentGroup}`}
           className="text-[11px] font-bold text-primary flex items-center gap-0.5 px-2.5 py-1 rounded-full bg-primary/10 hover:bg-primary/20 transition-colors"
         >
           See all <ChevronRight size={12} />

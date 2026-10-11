@@ -23,6 +23,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useMarketplaceData } from '@/hooks/queries/useMarketplaceData';
 import { applyProductFacetRow, useProductFacets } from '@/hooks/queries/useProductFacets';
 import { CommerceFacetRail } from '@/components/discovery/CommerceFacetRail';
+import { DiscoveryChipRail } from '@/components/home/DiscoveryChipRail';
+import { relevantBrowseIntents } from '@/lib/discovery-intents';
 import {
   CommerceFacetState,
   emptyCommerceFacetState,
@@ -33,7 +35,10 @@ import {
 } from '@/lib/commerce-facets';
 import { filterByMode } from '@/lib/commerce-mode';
 import {
+  productMatchesFoodFacets,
   readFoodFacetsFromSearchParams,
+  TASTE_MOODS,
+  writeFoodFacetsToSearchParams,
 } from '@/lib/food-facets';
 import { diversifyRankedProducts, shouldDiversifySort } from '@/lib/sellerDiversity';
 
@@ -42,11 +47,10 @@ export default function CategoryGroupPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
-  const subCategory = searchParams.get('sub') as ServiceCategory | null;
+  const activeSubCategory = searchParams.get('sub') as ServiceCategory | null;
 
   const { groupedConfigs, configs: categoryConfigs, isLoading: configsLoading } = useCategoryConfigs();
   const { getGroupBySlug, isLoading: groupsLoading } = useParentGroups();
-  const [activeSubCategory, setActiveSubCategory] = useState<ServiceCategory | null>(subCategory);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<SortKey>('relevance');
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
@@ -100,12 +104,13 @@ export default function CategoryGroupPage() {
   );
 
   const foodFromUrl = readFoodFacetsFromSearchParams(searchParams);
-  const [facets, setFacets] = useState<CommerceFacetState>(() => ({
-    ...emptyCommerceFacetState(),
+  const [facetExtras, setFacetExtras] = useState<CommerceFacetState>(emptyCommerceFacetState);
+  const facets: CommerceFacetState = {
+    ...facetExtras,
     cuisine: foodFromUrl.cuisine,
     meal: foodFromUrl.meal,
     course: foodFromUrl.course,
-  }));
+  };
 
   const scopedProducts = useMemo(() => {
     return activeSubCategory
@@ -118,18 +123,38 @@ export default function CategoryGroupPage() {
       parentGroup: category,
       currentState: facets,
       categoryConfigs,
-    }));
+    })).filter((chip) => chip.type !== 'food_mood');
   }, [scopedProducts, category, facets, categoryConfigs]);
 
-  const activeCategorySet = useMemo(
-    () => new Set(productsWithFacets.map((p) => p.category)),
-    [productsWithFacets]
+  const browseGroups = useMemo(() => {
+    return allSubCategories
+      .map((config) => ({
+        category: config.category,
+        parentGroup: category || config.parentGroup,
+        displayName: config.displayName,
+        icon: config.icon,
+        imageUrl: config.imageUrl || config.image_url || null,
+        products: productsWithFacets.filter((product) => product.category === config.category),
+      }))
+      .filter((group) => group.products.length > 0);
+  }, [allSubCategories, productsWithFacets, category]);
+
+  const browseIntents = useMemo(
+    () => relevantBrowseIntents(browseGroups, {
+      category: activeSubCategory,
+      facets: foodFromUrl,
+    }),
+    [browseGroups, activeSubCategory, foodFromUrl],
   );
-  const subCategories = useMemo(
-    () => allSubCategories.filter((c) => activeCategorySet.has(c.category) || c.category === activeSubCategory),
-    [allSubCategories, activeCategorySet, activeSubCategory]
-  );
-  const showAllTab = subCategories.length > 1;
+
+  const selectedBrowseIds = useMemo(() => {
+    const ids: string[] = [];
+    if (activeSubCategory) ids.push(`cat:${activeSubCategory}`);
+    for (const mood of TASTE_MOODS) {
+      if (facets[mood.facet] === mood.value) ids.push(`mood:${mood.id}`);
+    }
+    return ids;
+  }, [activeSubCategory, facets]);
 
   // Derive top sellers from shared marketplace data (no N+1 RPC loop)
   const { data: marketplaceSellers } = useMarketplaceData();
@@ -216,12 +241,50 @@ export default function CategoryGroupPage() {
     });
   }, [scopedProducts, searchQuery, sortBy, facets, categoryConfigs]);
 
-  const handleSubCategorySelect = (cat: ServiceCategory | null) => {
-    setActiveSubCategory(cat);
-    const next = new URLSearchParams(searchParams);
-    if (cat) next.set('sub', cat);
-    else next.delete('sub');
+  const handleFacetChange = (nextFacets: CommerceFacetState) => {
+    setFacetExtras(nextFacets);
+    const next = writeFoodFacetsToSearchParams(new URLSearchParams(searchParams), {
+      cuisine: nextFacets.cuisine || null,
+      meal: nextFacets.meal || null,
+      course: nextFacets.course || null,
+    });
+    if (activeSubCategory && (nextFacets.cuisine || nextFacets.meal || nextFacets.course)) {
+      const group = browseGroups.find((item) => item.category === activeSubCategory);
+      const still = group?.products.some((product) => productMatchesFoodFacets(product, {
+        cuisine: nextFacets.cuisine || null,
+        meal: nextFacets.meal || null,
+        course: nextFacets.course || null,
+      }));
+      if (!still) next.delete('sub');
+    }
     setSearchParams(next, { replace: true });
+  };
+
+  const selectBrowseIntent = (intent: { id: string; kind: 'category' | 'food_mood' }) => {
+    const next = new URLSearchParams(searchParams);
+    if (intent.kind === 'category') {
+      const slug = intent.id.replace(/^cat:/, '');
+      if (activeSubCategory === slug) next.delete('sub');
+      else next.set('sub', slug);
+      setSearchParams(next, { replace: true });
+      return;
+    }
+    const mood = TASTE_MOODS.find((item) => intent.id === `mood:${item.id}`);
+    if (!mood) return;
+    const turningOff = facets[mood.facet] === mood.value;
+    const food = {
+      cuisine: facets.cuisine || null,
+      meal: facets.meal || null,
+      course: facets.course || null,
+      [mood.facet]: turningOff ? null : mood.value,
+    };
+    const written = writeFoodFacetsToSearchParams(next, food);
+    if (!turningOff && activeSubCategory) {
+      const group = browseGroups.find((item) => item.category === activeSubCategory);
+      const still = group?.products.some((product) => productMatchesFoodFacets(product, food));
+      if (!still) written.delete('sub');
+    }
+    setSearchParams(written, { replace: true });
   };
 
   const isLoading = groupsLoading || configsLoading;
@@ -303,52 +366,21 @@ export default function CategoryGroupPage() {
             />
           </div>
 
-          {subCategories.length > 0 && (
-            <div className="taste-rail-scroll pb-1">
-              <div className="flex gap-1.5">
-                {showAllTab && (
-                  <button
-                    onClick={() => handleSubCategorySelect(null)}
-                    className={cn(
-                      'px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap border transition-colors',
-                      !activeSubCategory
-                        ? 'bg-foreground text-background border-foreground'
-                        : 'bg-background text-foreground border-border'
-                    )}
-                  >
-                    All
-                  </button>
-                )}
-                {subCategories.map((config) => (
-                  <button
-                    key={config.category}
-                    onClick={() => handleSubCategorySelect(config.category)}
-                    className={cn(
-                      'px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap border transition-colors flex items-center gap-1.5',
-                      activeSubCategory === config.category
-                        ? 'bg-foreground text-background border-foreground'
-                        : 'bg-background text-foreground border-border'
-                    )}
-                  >
-                    {config.imageUrl || (config as any).image_url ? (
-                      <span className="w-3.5 h-3.5 rounded-full overflow-hidden shrink-0 inline-flex items-center justify-center">
-                        <img src={config.imageUrl || (config as any).image_url} alt="" className="w-full h-full object-cover" />
-                      </span>
-                    ) : (
-                      <DynamicIcon name={config.icon} size={12} />
-                    )}
-                    {config.displayName}
-                  </button>
-                ))}
-              </div>
-            </div>
+          {browseIntents.length > 0 && (
+            <DiscoveryChipRail
+              intents={browseIntents}
+              showTitle={false}
+              selectedIds={selectedBrowseIds}
+              onSelect={selectBrowseIntent}
+              className="px-0 pb-1"
+            />
           )}
         </div>
 
         <div className="border-t border-border/40">
           <CommerceFacetRail
             value={facets}
-            onChange={setFacets}
+            onChange={handleFacetChange}
             chips={dynamicFacetChips}
             parentGroup={category}
             inventory={scopedProducts}

@@ -110,3 +110,74 @@ export function buildDiscoveryIntents(
   }
   return unique;
 }
+
+export interface BrowseSelection {
+  category?: string | null;
+  facets?: Partial<{ cuisine: string | null; meal: string | null; course: string | null }>;
+}
+
+/**
+ * One filter row for a category page.
+ * Category chips only stay when they still have items for the active meal or cuisine.
+ * Meal chips stay available so the buyer can switch, but only when that meal exists
+ * in the selected category.
+ */
+export function relevantBrowseIntents(
+  groups: DiscoveryCategoryInput[],
+  selection?: BrowseSelection,
+): DiscoveryIntent[] {
+  const facets = {
+    cuisine: selection?.facets?.cuisine || null,
+    meal: selection?.facets?.meal || null,
+    course: selection?.facets?.course || null,
+  };
+  const category = selection?.category || null;
+  const hasFacet = !!(facets.cuisine || facets.meal || facets.course);
+
+  const categoryIntents: DiscoveryIntent[] = groups
+    .map((group) => {
+      const products = hasFacet
+        ? group.products.filter((product) => productMatchesFoodFacets(product, facets))
+        : group.products;
+      if (products.length === 0) return null;
+      return {
+        id: `cat:${group.category}`,
+        label: group.displayName,
+        icon: group.icon,
+        imageUrl: firstImage(products) || group.imageUrl || null,
+        count: products.length,
+        href: `/category/${group.parentGroup}?sub=${encodeURIComponent(group.category)}`,
+        kind: 'category' as const,
+      };
+    })
+    .filter((intent): intent is DiscoveryIntent => intent !== null)
+    .sort((a, b) => b.count - a.count);
+
+  const moodScope = (category
+    ? groups.filter((group) => group.category === category)
+    : groups.filter((group) => isFoodParentGroup(group.parentGroup))
+  ).flatMap((group) => group.products);
+
+  const moodIntents: DiscoveryIntent[] = [];
+  if (moodScope.length > 0) {
+    for (const mood of TASTE_MOODS) {
+      const count = moodCount(mood, moodScope);
+      if (count <= 0) continue;
+      const facet = { cuisine: null, meal: null, course: null, [mood.facet]: mood.value };
+      moodIntents.push({
+        id: `mood:${mood.id}`,
+        label: mood.label,
+        icon: mood.emoji,
+        imageUrl: firstImage(moodScope.filter((product) => productMatchesFoodFacets(product, facet as any))) || mood.imageUrl || null,
+        count,
+        href: foodFacetsBrowsePath(
+          groups.find((group) => isFoodParentGroup(group.parentGroup))?.parentGroup || 'food_beverages',
+          { [mood.facet]: mood.value },
+        ),
+        kind: 'food_mood',
+      });
+    }
+  }
+
+  return [...categoryIntents, ...moodIntents];
+}

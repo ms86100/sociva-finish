@@ -129,9 +129,9 @@ describe('category photo chip consistency', () => {
     // Both screens only reference the shared component; neither redefines chip chrome
     expect(tabs).toMatch(/<CategoryPhotoChipRail/);
     expect(search).toMatch(/<CategoryPhotoChipRail/);
-    // Home wires leaf selection through ParentGroupTabs
-    expect(home).toMatch(/activeCategory=/);
-    expect(home).toMatch(/onCategoryChange=/);
-    expect(home).toMatch(/activeCategories=/);
+    // Home filter is the live Nearby set, and a tap opens that filter directly.
+    expect(home).toMatch(/DiscoveryChipRail/);
+    expect(home).toMatch(/showTitle=\{false\}/);
+    expect(home).toMatch(/maxChips: 40/);
   });
 });

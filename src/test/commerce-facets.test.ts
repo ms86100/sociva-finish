@@ -180,4 +180,51 @@ describe('commerce facets extraction and filtering', () => {
     ]);
     expect(onlyAsk).toEqual([]);
   });
+
+  it('builds spice, pack, and catalogue filters only from values that narrow the list', () => {
+    const pickles = [
+      { id: 'p1', name: 'Mango', category: 'pickles', parentGroup: 'food_beverages', price: 180, is_veg: true, spice_level: 'hot', serving_size: '250 g', tags: ['cuisine:north_indian'] },
+      { id: 'p2', name: 'Lemon', category: 'pickles', parentGroup: 'food_beverages', price: 160, is_veg: true, spice_level: 'medium', serving_size: '500 g', tags: ['cuisine:north_indian'] },
+      { id: 'p3', name: 'Amla', category: 'pickles', parentGroup: 'food_beverages', price: 200, is_veg: true, spice_level: 'medium', serving_size: '250 g', tags: ['cuisine:north_indian'] },
+    ];
+    const chips = extractAvailableCommerceFacets(pickles, {
+      parentGroup: 'food_beverages',
+      currentState: emptyCommerceFacetState(),
+    });
+    expect(chips.filter((chip) => chip.type === 'spice').map((chip) => chip.label).sort()).toEqual(['Hot', 'Medium']);
+    expect(chips.filter((chip) => chip.type === 'pack').map((chip) => chip.value).sort()).toEqual(['250 g', '500 g']);
+    expect(chips.some((chip) => /mom|pickle seller/i.test(chip.label))).toBe(false);
+
+    const hot = { ...emptyCommerceFacetState(), spiceLevel: 'hot' };
+    expect(pickles.filter((product) => productMatchesCommerceFacets(product, hot)).map((product) => product.id)).toEqual(['p1']);
+
+    const sameSpice = pickles.map((product) => ({ ...product, spice_level: 'medium', serving_size: '250 g' }));
+    const flat = extractAvailableCommerceFacets(sameSpice, {
+      parentGroup: 'food_beverages',
+      currentState: emptyCommerceFacetState(),
+    });
+    expect(flat.some((chip) => chip.type === 'spice' || chip.type === 'pack')).toBe(false);
+  });
+
+  it('uses clothing tags that exist and ignores a material that was never stored', () => {
+    const clothing = [
+      { id: 'c1', name: 'Silk saree', category: 'clothing', parentGroup: 'clothing', price: 2400, action_type: 'contact_seller', tags: ['saree', 'festive'] },
+      { id: 'c2', name: 'Cotton saree', category: 'clothing', parentGroup: 'clothing', price: 1800, action_type: 'contact_seller', tags: ['saree', 'ethnic'] },
+    ];
+    const chips = extractAvailableCommerceFacets(clothing, {
+      parentGroup: 'clothing',
+      currentState: emptyCommerceFacetState(),
+    });
+    const labels = chips.filter((chip) => chip.type === 'catalogue').map((chip) => chip.label);
+    expect(labels).toEqual(expect.arrayContaining(['Festive', 'Ethnic']));
+    expect(labels).not.toContain('Silk');
+    expect(labels).not.toContain('Saree');
+
+    const contact = purposeChipsForMode('services', chips, clothing);
+    expect(contact.map((chip) => chip.label)).toEqual(expect.arrayContaining(['Festive', 'Ethnic']));
+    expect(contact.some((chip) => chip.type === 'action_type')).toBe(false);
+
+    const festive = { ...emptyCommerceFacetState(), catalogueTag: 'festive' };
+    expect(clothing.filter((product) => productMatchesCommerceFacets(product, festive)).map((product) => product.id)).toEqual(['c1']);
+  });
 });
