@@ -1,4 +1,5 @@
 // @ts-nocheck
+import { buyerChipCategory, isBuyerChipAlias } from '@/lib/buyer-chip-groups';
 import { cn } from '@/lib/utils';
 import { DynamicIcon } from '@/components/ui/DynamicIcon';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -39,18 +40,20 @@ type LeafChipSource = {
 };
 
 /**
- * Inventory-backed leaf categories for Home + Search chip rails.
- * Prefer short leaf labels (Home Food, Beauty) over parent groups (Food & Beverages).
+ * Inventory-backed leaf categories for Home, Book, Contact, and Search.
+ * Coaching inventory uses the Tuition chip. Beauty inventory uses the Salon chip.
  */
 export function buildLeafPhotoChipItems(
   configs: LeafChipSource[],
   inventoryCategories: Iterable<string>,
 ): PhotoChipItem[] {
-  const live = inventoryCategories instanceof Set
-    ? inventoryCategories
-    : new Set(inventoryCategories);
+  const live = new Set<string>();
+  for (const category of inventoryCategories) {
+    const chip = buyerChipCategory(category);
+    if (chip) live.add(chip);
+  }
   return configs
-    .filter((c) => live.has(c.category))
+    .filter((c) => live.has(c.category) && !isBuyerChipAlias(c.category))
     .map((c) => ({
       id: c.category,
       label: c.displayName,

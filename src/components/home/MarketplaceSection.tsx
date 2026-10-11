@@ -9,6 +9,7 @@ import { useProductFacets } from '@/hooks/queries/useProductFacets';
 import { useParentGroups } from '@/hooks/useParentGroups';
 import { useSocialProof } from '@/hooks/queries/useSocialProof';
 import { ParentGroupTabs } from '@/components/home/ParentGroupTabs';
+import { categoriesForBuyerChip, categoryMatchesBuyerChip } from '@/lib/buyer-chip-groups';
 import { CategoryImageGrid } from '@/components/home/CategoryImageGrid';
 import { FeaturedBanners } from '@/components/home/FeaturedBanners';
 import { FestivalBannerModule } from '@/components/home/FestivalBannerModule';
@@ -192,7 +193,7 @@ export function MarketplaceSection() {
 
   const scopedProducts = useMemo(() => {
     if (activeCategory) {
-      return allProducts.filter((p) => p.category === activeCategory);
+      return allProducts.filter((p) => categoryMatchesBuyerChip(p.category, activeCategory));
     }
     return allProducts;
   }, [allProducts, activeCategory]);
@@ -256,7 +257,7 @@ export function MarketplaceSection() {
       : parentGroupInfos.filter((g) => activeParentGroupSet.has(g.value));
 
   const gridActiveCategories = useMemo(() => {
-    if (activeCategory) return new Set([activeCategory]);
+    if (activeCategory) return new Set(categoriesForBuyerChip(activeCategory));
     return activeCategorySet;
   }, [activeCategory, activeCategorySet]);
 

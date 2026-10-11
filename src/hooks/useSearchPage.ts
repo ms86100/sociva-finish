@@ -18,6 +18,7 @@ import { readSearchQueryParam, resolveSearchQueryFromUrl } from '@/lib/searchQue
 import { isJourneyBack, readSearchJourney, writeSearchJourney } from '@/lib/search-journey';
 import { isFoodParentGroup } from '@/lib/food-facets';
 import { hasPreciseCoordinates } from '@/lib/buyerLocation';
+import { categoriesForBuyerChip } from '@/lib/buyer-chip-groups';
 import { useRegisterScreenRefresh } from '@/hooks/usePullToRefresh';
 
 export interface ProductSearchResult {
@@ -216,7 +217,10 @@ export function useSearchPage() {
         return;
       }
       const products: ProductSearchResult[] = [];
-      const effectiveCategories = selectedCategory ? [selectedCategory, ...filters.categories.filter(c => c !== selectedCategory)] : filters.categories;
+      const selectedChipCategories = selectedCategory ? categoriesForBuyerChip(selectedCategory) : [];
+      const effectiveCategories = selectedCategory
+        ? [...new Set([...selectedChipCategories, ...filters.categories.filter((c) => !selectedChipCategories.includes(c))])]
+        : filters.categories;
       const radius = browseBeyond ? searchRadius : 2;
       const normalizedTerm = term.trim();
       const startedAt = performance.now();
@@ -258,7 +262,9 @@ export function useSearchPage() {
           const { data: legacyData, error: legacyError } = await supabase.rpc('search_products_fts' as any, {
             _query: normalizedTerm,
             _lat: lat ?? null, _lng: lng ?? null, _radius_km: radius,
-            _category: selectedCategory || (effectiveCategories.length === 1 ? effectiveCategories[0] : null),
+            _category: selectedChipCategories.length === 1
+              ? selectedChipCategories[0]
+              : (selectedChipCategories.length > 1 ? null : (effectiveCategories.length === 1 ? effectiveCategories[0] : null)),
             _limit: 50,
             _offset: 0,
           });
@@ -287,7 +293,7 @@ export function useSearchPage() {
           (foodCategorySet.size === 0 || (p.category && foodCategorySet.has(p.category))) && p.is_veg === false,
         );
       }
-      if (effectiveCategories.length > 0 && term.length >= 2) filtered = filtered.filter((p) => p.category && effectiveCategories.includes(p.category as any));
+      if (effectiveCategories.length > 0) filtered = filtered.filter((p) => p.category && effectiveCategories.includes(p.category as any));
       if (filters.priceRange[0] > 0 || filters.priceRange[1] < settings.maxPriceFilter) filtered = filtered.filter((p) => p.price >= filters.priceRange[0] && p.price <= filters.priceRange[1]);
 
       if (filters.sortBy === 'price_low') filtered.sort((a, b) => a.price - b.price);

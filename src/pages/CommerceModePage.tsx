@@ -14,6 +14,7 @@ import { applyProductFacetRow, useProductFacets } from '@/hooks/queries/useProdu
 import { hasPreciseCoordinates } from '@/lib/buyerLocation';
 import type { CommerceMode } from '@/lib/commerce-mode';
 import { categoriesListedInMode } from '@/lib/commerce-mode';
+import { categoryMatchesBuyerChip } from '@/lib/buyer-chip-groups';
 import {
   type CommerceFacetState,
   emptyCommerceFacetState,
@@ -111,7 +112,7 @@ function CommerceModeView({ mode }: { mode: CommerceMode }) {
     : null;
 
   const scoped = useMemo(
-    () => (activeCategory ? enriched.filter((p) => p.category === activeCategory) : enriched),
+    () => (activeCategory ? enriched.filter((p) => categoryMatchesBuyerChip(p.category, activeCategory)) : enriched),
     [enriched, activeCategory],
   );
 

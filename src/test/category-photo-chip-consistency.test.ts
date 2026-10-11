@@ -41,15 +41,25 @@ describe('category photo chip consistency', () => {
           imageUrl: null,
         },
         {
+          category: 'salon',
+          displayName: 'Salon',
+          icon: 'Scissors',
+        },
+        {
           category: 'tuition',
           displayName: 'Tuition',
           icon: 'Book',
         },
+        {
+          category: 'coaching',
+          displayName: 'Coaching',
+          icon: 'BookOpen',
+        },
       ],
-      ['home_food', 'beauty'],
+      ['home_food', 'beauty', 'coaching'],
     );
-    expect(items.map((i) => i.label)).toEqual(['Home Food', 'Beauty']);
-    expect(items.map((i) => i.id)).toEqual(['home_food', 'beauty']);
+    expect(items.map((i) => i.label)).toEqual(['Home Food', 'Salon', 'Tuition']);
+    expect(items.map((i) => i.id)).toEqual(['home_food', 'salon', 'tuition']);
     expect(items.every((i) => !/Food & Beverages|Personal Care|Education & Learning/i.test(i.label))).toBe(true);
     expect(items[0].imageUrl).toBe('https://example.com/food.jpg');
   });
