@@ -85,11 +85,19 @@ export default function CategoryGroupPage() {
     setDetailOpen(true);
   }, [categoryConfigs]);
 
-  const parentGroup = category ? getGroupBySlug(category) : undefined;
-  const allSubCategories = category ? groupedConfigs[category] || [] : [];
+  const parentFromRoute = category ? getGroupBySlug(category) : undefined;
+  const leafFromRoute = !parentFromRoute && category
+    ? categoryConfigs.find((config) => config.category === category)
+    : null;
+  const parentGroup = parentFromRoute
+    || (leafFromRoute ? getGroupBySlug(leafFromRoute.parentGroup) : undefined);
+  const routeLeaf = parentFromRoute ? activeSubCategory : (activeSubCategory || category || null);
+  const catalogKey = parentGroup?.value || leafFromRoute?.parentGroup || null;
+  const allSubCategories = catalogKey ? groupedConfigs[catalogKey] || [] : [];
 
   const { data: allProducts = [], isLoading: productsLoading } = useCategoryProducts(
-    category || null,
+    catalogKey,
+    routeLeaf,
   );
 
   const productIds = useMemo(() => allProducts.map((p) => p.id), [allProducts]);
@@ -113,48 +121,48 @@ export default function CategoryGroupPage() {
   };
 
   const scopedProducts = useMemo(() => {
-    return activeSubCategory
-      ? productsWithFacets.filter((p) => p.category === activeSubCategory)
+    return routeLeaf
+      ? productsWithFacets.filter((p) => p.category === routeLeaf)
       : productsWithFacets;
-  }, [productsWithFacets, activeSubCategory]);
+  }, [productsWithFacets, routeLeaf]);
 
   const dynamicFacetChips = useMemo(() => {
     return omitSoleActionChips(extractAvailableCommerceFacets(scopedProducts, {
-      parentGroup: category,
+      parentGroup: catalogKey || category,
       currentState: facets,
       categoryConfigs,
     })).filter((chip) => chip.type !== 'food_mood');
-  }, [scopedProducts, category, facets, categoryConfigs]);
+  }, [scopedProducts, catalogKey, facets, categoryConfigs]);
 
   const browseGroups = useMemo(() => {
     return allSubCategories
       .map((config) => ({
         category: config.category,
-        parentGroup: category || config.parentGroup,
+        parentGroup: catalogKey || config.parentGroup,
         displayName: config.displayName,
         icon: config.icon,
         imageUrl: config.imageUrl || config.image_url || null,
         products: productsWithFacets.filter((product) => product.category === config.category),
       }))
       .filter((group) => group.products.length > 0);
-  }, [allSubCategories, productsWithFacets, category]);
+  }, [allSubCategories, productsWithFacets, catalogKey]);
 
   const browseIntents = useMemo(
     () => relevantBrowseIntents(browseGroups, {
-      category: activeSubCategory,
+      category: routeLeaf,
       facets: foodFromUrl,
     }),
-    [browseGroups, activeSubCategory, foodFromUrl],
+    [browseGroups, routeLeaf, foodFromUrl],
   );
 
   const selectedBrowseIds = useMemo(() => {
     const ids: string[] = [];
-    if (activeSubCategory) ids.push(`cat:${activeSubCategory}`);
+    if (routeLeaf) ids.push(`cat:${routeLeaf}`);
     for (const mood of TASTE_MOODS) {
       if (facets[mood.facet] === mood.value) ids.push(`mood:${mood.id}`);
     }
     return ids;
-  }, [activeSubCategory, facets]);
+  }, [routeLeaf, facets]);
 
   // Derive top sellers from shared marketplace data (no N+1 RPC loop)
   const { data: marketplaceSellers } = useMarketplaceData();
@@ -309,7 +317,16 @@ export default function CategoryGroupPage() {
     );
   }
 
-  if (!parentGroup && !groupsLoading) {
+  const openLeaf = routeLeaf
+    ? categoryConfigs.find((config) => config.category === routeLeaf)
+    : null;
+  const pageTitle = openLeaf?.displayName
+    || (routeLeaf
+      ? routeLeaf.split('_').filter(Boolean).map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(' ')
+      : parentGroup?.label)
+    || 'Category';
+
+  if (!parentGroup && !routeLeaf && !groupsLoading && !configsLoading) {
     return (
       <AppLayout showHeader={false}>
         <div className="p-4 text-center">
@@ -322,7 +339,7 @@ export default function CategoryGroupPage() {
     );
   }
 
-  if (!parentGroup) return null;
+  if (!parentGroup && !routeLeaf) return null;
 
   return (
     <AppLayout showHeader={false} safeTop={false}>
@@ -339,14 +356,14 @@ export default function CategoryGroupPage() {
               ) : (
                 <DynamicIcon name={parentGroup?.icon || 'Package'} size={18} />
               )}
-              <span className="truncate">{parentGroup?.label || category}</span>
+              <span className="truncate">{pageTitle}</span>
             </h1>
           </div>
 
           <div className="relative mb-2">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <Input
-              placeholder={`Search in ${parentGroup?.label || 'category'}…`}
+              placeholder={`Search in ${pageTitle}`}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-9 pr-8 h-9 bg-card/55 backdrop-blur-md border border-border/40 rounded-xl text-sm focus-visible:ring-1"

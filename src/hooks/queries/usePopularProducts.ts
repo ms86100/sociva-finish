@@ -2,6 +2,7 @@
 import { useMemo } from 'react';
 import { ProductWithSeller } from '@/components/product/ProductListingCard';
 import { useMarketplaceData } from './useMarketplaceData';
+import { useCategoryConfigs } from '@/hooks/useCategoryBehavior';
 import { flattenSellersToProducts, mapProduct } from './useNearbyProducts';
 import { useBrowsingLocation } from '@/contexts/BrowsingLocationContext';
 import { MARKETPLACE_RADIUS_KM } from '@/lib/marketplace-constants';
@@ -33,21 +34,20 @@ export function usePopularProducts(limit = 12) {
  * Products for a specific parentGroup - derives from shared marketplace data.
  * Zero additional RPC calls for the main product list.
  */
-export function useCategoryProducts(parentGroup: string | null) {
+export function useCategoryProducts(parentGroup: string | null, leafCategory?: string | null) {
   const { data: sellers, isLoading, error } = useMarketplaceData();
-  const queryClient = useQueryClient();
+  const { configs } = useCategoryConfigs();
 
   const data = useMemo((): ProductWithSeller[] => {
-    if (!parentGroup || !sellers || sellers.length === 0) return [];
+    if ((!parentGroup && !leafCategory) || !sellers || sellers.length === 0) return [];
 
-    // Get categories for this parent group from cache
-    const configs: any[] | undefined = queryClient.getQueryData(['category-configs']);
     const categorySet = new Set(
       (configs || [])
-        .filter((c: any) => (c.parent_group || c.parentGroup) === parentGroup)
+        .filter((c: any) => (c.parentGroup || c.parent_group) === parentGroup)
         .map((c: any) => c.category)
     );
-    if (categorySet.size === 0) return [];
+    if (leafCategory) categorySet.add(leafCategory);
+    if (parentGroup && categorySet.size === 0) return [];
 
     const products: ProductWithSeller[] = [];
     const seenIds = new Set<string>();
@@ -56,14 +56,16 @@ export function useCategoryProducts(parentGroup: string | null) {
       const items = seller.matching_products;
       if (!Array.isArray(items)) continue;
       for (const p of items) {
-        if (!categorySet.has(p.category)) continue;
+        const matchesLeaf = !!leafCategory && p.category === leafCategory;
+        const matchesParent = parentGroup ? categorySet.has(p.category) : matchesLeaf;
+        if (!matchesParent && !matchesLeaf) continue;
         if (seenIds.has(p.id)) continue;
         seenIds.add(p.id);
         products.push(mapProduct(p, seller));
       }
     }
     return products;
-  }, [parentGroup, sellers, queryClient]);
+  }, [parentGroup, leafCategory, sellers, configs]);
 
   return { data, isLoading, error };
 }

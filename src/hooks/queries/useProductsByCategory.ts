@@ -1,8 +1,8 @@
 // @ts-nocheck
 import { useMemo } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import { ProductWithSeller } from '@/components/product/ProductListingCard';
 import { useMarketplaceData } from './useMarketplaceData';
+import { useCategoryConfigs } from '@/hooks/useCategoryBehavior';
 import { useAuth } from '@/contexts/AuthContext';
 import { mapProduct } from './useNearbyProducts';
 import { diversifyRankedProducts, shouldDiversifySort } from '@/lib/sellerDiversity';
@@ -20,16 +20,24 @@ interface CategoryGroup {
  * Coordinate-based product discovery grouped by category.
  * Derives from the shared marketplace data cache - zero additional RPC calls.
  */
+function categoryLabel(slug: string, displayName?: string | null) {
+  const name = (displayName || '').trim();
+  if (name && name !== slug) return name;
+  return slug
+    .split('_')
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
 export function useProductsByCategory(limit = 50) {
   const { data: sellers, isLoading, error, isError, isFetching, isPaused, hasLocation, refetch } = useMarketplaceData();
   const { effectiveSocietyId } = useAuth();
-  const queryClient = useQueryClient();
+  const { configs } = useCategoryConfigs();
 
   const data = useMemo((): CategoryGroup[] => {
     if (!sellers || sellers.length === 0) return [];
 
-    // Get category configs from cache
-    const configs: any[] | undefined = queryClient.getQueryData(['category-configs']);
     const configMap = new Map(
       (configs || []).map((c: any) => [
         c.category,
@@ -76,7 +84,7 @@ export function useProductsByCategory(limit = 50) {
       result.push({
         category,
         parentGroup: cfg?.parent_group || category,
-        displayName: cfg?.display_name || category,
+        displayName: categoryLabel(category, cfg?.display_name),
         icon: cfg?.icon || '📦',
         imageUrl: cfg?.imageUrl || null,
         products: spread.slice(0, limit),
@@ -84,7 +92,7 @@ export function useProductsByCategory(limit = 50) {
     }
 
     return result;
-  }, [sellers, queryClient, limit]);
+  }, [sellers, configs, limit]);
 
   return {
     data,
