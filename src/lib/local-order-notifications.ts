@@ -1,6 +1,6 @@
 /**
  * Capacitor LocalNotifications for reliable foreground / app-open order ringing.
- * Uses channel orders_incoming_v3 + sound gate_bell. Cancel on terminal.
+ * Uses channel orders_incoming_v3. iOS plays gate_bell.caf. Android plays gate_bell. Cancel on terminal.
  */
 import { Capacitor } from '@capacitor/core';
 import {
@@ -95,9 +95,8 @@ export async function scheduleIncomingOrderLocalNotification(opts: {
       || (opts.amount != null && opts.amount > 0 ? `₹${Number(opts.amount).toFixed(0)} - tap to review` : 'Tap to review and accept');
 
     const platform = Capacitor.getPlatform();
-    // iOS requires the extension and the file in the app bundle (gate_bell.mp3).
-    // Android channel/res/raw uses the base name without extension.
-    const sound = platform === 'ios' ? 'gate_bell.mp3' : ORDERS_INCOMING_SOUND;
+    // iOS system sounds must be the CAF in the app bundle. Android keeps the MP3 resource name.
+    const sound = platform === 'ios' ? 'gate_bell.caf' : ORDERS_INCOMING_SOUND;
 
     await LocalNotifications.schedule({
       notifications: [{

@@ -414,17 +414,20 @@ workflows:
 
       - name: Copy custom notification sound
         script: |
-          if [ ! -f "ios-config/gate_bell.mp3" ]; then
-            echo "gate_bell.mp3 is required for seller order alerts"
+          if [ ! -f "ios-config/gate_bell.caf" ]; then
+            echo "gate_bell.caf is required for iOS seller order alerts"
             exit 1
           fi
-          cp ios-config/gate_bell.mp3 ios/App/App/gate_bell.mp3
-          echo "=== gate_bell.mp3 copied to ios/App/App/ ==="
-          if [ -f "ios/App/App/gate_bell.mp3" ]; then
-            cd ios/App
-            ruby -e "require 'xcodeproj'; project = Xcodeproj::Project.open('App.xcodeproj'); target = project.targets.find { |t| t.name == 'App' }; abort('App target not found') unless target; group = project.main_group.find_subpath('App', true); ref = group.files.find { |f| f.path == 'gate_bell.mp3' } || group.new_file('gate_bell.mp3'); unless target.resources_build_phase.files_references.any? { |f| f.path == 'gate_bell.mp3' }; target.resources_build_phase.add_file_reference(ref, true); end; project.save"
-            echo "=== gate_bell.mp3 linked to Xcode project ==="
+          if [ ! -f "ios-config/gate_bell.mp3" ]; then
+            echo "gate_bell.mp3 is required for Android and in-app order alerts"
+            exit 1
           fi
+          cp ios-config/gate_bell.caf ios/App/App/gate_bell.caf
+          cp ios-config/gate_bell.mp3 ios/App/App/gate_bell.mp3
+          echo "=== gate_bell.caf and gate_bell.mp3 copied to ios/App/App/ ==="
+          cd ios/App
+          ruby -e "require 'xcodeproj'; project = Xcodeproj::Project.open('App.xcodeproj'); target = project.targets.find { |t| t.name == 'App' }; abort('App target not found') unless target; group = project.main_group.find_subpath('App', true); %w[gate_bell.caf gate_bell.mp3].each do |name|; ref = group.files.find { |f| f.path == name } || group.new_file(name); unless target.resources_build_phase.files_references.any? { |f| f.path == name }; target.resources_build_phase.add_file_reference(ref, true); end; end; project.save"
+          echo "=== gate_bell.caf linked to Xcode project ==="
 
       - name: Copy Live Activity native plugin files + Privacy Manifest
         script: |
@@ -1354,17 +1357,20 @@ workflows:
 
       - name: Copy custom notification sound
         script: |
-          if [ ! -f "ios-config/gate_bell.mp3" ]; then
-            echo "gate_bell.mp3 is required for seller order alerts"
+          if [ ! -f "ios-config/gate_bell.caf" ]; then
+            echo "gate_bell.caf is required for iOS seller order alerts"
             exit 1
           fi
-          cp ios-config/gate_bell.mp3 ios/App/App/gate_bell.mp3
-          echo "=== gate_bell.mp3 copied to ios/App/App/ ==="
-          if [ -f "ios/App/App/gate_bell.mp3" ]; then
-            cd ios/App
-            ruby -e "require 'xcodeproj'; project = Xcodeproj::Project.open('App.xcodeproj'); target = project.targets.find { |t| t.name == 'App' }; abort('App target not found') unless target; group = project.main_group.find_subpath('App', true); ref = group.files.find { |f| f.path == 'gate_bell.mp3' } || group.new_file('gate_bell.mp3'); unless target.resources_build_phase.files_references.any? { |f| f.path == 'gate_bell.mp3' }; target.resources_build_phase.add_file_reference(ref, true); end; project.save"
-            echo "=== gate_bell.mp3 linked to Xcode project ==="
+          if [ ! -f "ios-config/gate_bell.mp3" ]; then
+            echo "gate_bell.mp3 is required for Android and in-app order alerts"
+            exit 1
           fi
+          cp ios-config/gate_bell.caf ios/App/App/gate_bell.caf
+          cp ios-config/gate_bell.mp3 ios/App/App/gate_bell.mp3
+          echo "=== gate_bell.caf and gate_bell.mp3 copied to ios/App/App/ ==="
+          cd ios/App
+          ruby -e "require 'xcodeproj'; project = Xcodeproj::Project.open('App.xcodeproj'); target = project.targets.find { |t| t.name == 'App' }; abort('App target not found') unless target; group = project.main_group.find_subpath('App', true); %w[gate_bell.caf gate_bell.mp3].each do |name|; ref = group.files.find { |f| f.path == name } || group.new_file(name); unless target.resources_build_phase.files_references.any? { |f| f.path == name }; target.resources_build_phase.add_file_reference(ref, true); end; end; project.save"
+          echo "=== gate_bell.caf linked to Xcode project ==="
 
       - name: Copy Live Activity native plugin files + Privacy Manifest
         script: |
@@ -2403,15 +2409,20 @@ workflows:
 
       - name: Copy custom notification sound
         script: |
-          if [ ! -f "ios-config/gate_bell.mp3" ]; then
-            echo "gate_bell.mp3 is required for seller order alerts"
+          if [ ! -f "ios-config/gate_bell.caf" ]; then
+            echo "gate_bell.caf is required for iOS seller order alerts"
             exit 1
           fi
-          cp ios-config/gate_bell.mp3 ios/App/App/gate_bell.mp3
-          if [ -f "ios/App/App/gate_bell.mp3" ]; then
-            cd ios/App
-            ruby -e "require 'xcodeproj'; project = Xcodeproj::Project.open('App.xcodeproj'); target = project.targets.find { |t| t.name == 'App' }; abort('App target not found') unless target; group = project.main_group.find_subpath('App', true); ref = group.files.find { |f| f.path == 'gate_bell.mp3' } || group.new_file('gate_bell.mp3'); unless target.resources_build_phase.files_references.any? { |f| f.path == 'gate_bell.mp3' }; target.resources_build_phase.add_file_reference(ref, true); end; project.save"
+          if [ ! -f "ios-config/gate_bell.mp3" ]; then
+            echo "gate_bell.mp3 is required for Android and in-app order alerts"
+            exit 1
           fi
+          cp ios-config/gate_bell.caf ios/App/App/gate_bell.caf
+          cp ios-config/gate_bell.mp3 ios/App/App/gate_bell.mp3
+          echo "=== gate_bell.caf and gate_bell.mp3 copied to ios/App/App/ ==="
+          cd ios/App
+          ruby -e "require 'xcodeproj'; project = Xcodeproj::Project.open('App.xcodeproj'); target = project.targets.find { |t| t.name == 'App' }; abort('App target not found') unless target; group = project.main_group.find_subpath('App', true); %w[gate_bell.caf gate_bell.mp3].each do |name|; ref = group.files.find { |f| f.path == name } || group.new_file(name); unless target.resources_build_phase.files_references.any? { |f| f.path == name }; target.resources_build_phase.add_file_reference(ref, true); end; end; project.save"
+          echo "=== gate_bell.caf linked to Xcode project ==="
 
       - name: Copy Live Activity native plugin files
         script: |

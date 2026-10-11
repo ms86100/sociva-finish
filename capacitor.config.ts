@@ -69,8 +69,9 @@ const config: CapacitorConfig = {
     },
     LocalNotifications: {
       smallIcon: 'ic_stat_sociva',
-      // iOS: file must exist in app bundle (Codemagic copies ios-config/gate_bell.mp3).
-      // Android: res/raw/gate_bell.mp3 (extension omitted in channel sound).
+      // Default for notifications that do not set their own sound.
+      // Seller order alerts on iOS pass gate_bell.caf at schedule time.
+      // Android channels and res/raw keep the MP3 name gate_bell.
       sound: 'gate_bell.mp3',
     },
     Keyboard: {

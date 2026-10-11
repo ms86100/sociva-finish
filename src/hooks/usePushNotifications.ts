@@ -355,7 +355,8 @@ export function usePushNotificationsInternal() {
 
       // Create high-importance notification channels for order alerts (Android 8+).
       // Channel settings are immutable after first create - ship a new id when sound changes.
-      // iOS custom sound is gate_bell.mp3 in the app bundle (Codemagic copies ios-config/gate_bell.mp3).
+      // iOS custom notification sound is gate_bell.caf in the app bundle.
+      // Android channels below stay on the MP3 resource name gate_bell.
       if (platform === 'android') {
         try {
           await PushNotifications.createChannel({

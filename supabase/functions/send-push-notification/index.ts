@@ -7,6 +7,7 @@ import {
   loadSellerAlertAndroidGate,
   NATIVE_ANDROID_ORDER_CHANNEL,
 } from "../_shared/seller-alert-gate.ts";
+import { iosApnsSound, isIosTimeSensitiveSellerAlert } from "../_shared/ios-time-sensitive.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -120,7 +121,7 @@ async function sendApnsDirectNotification(
     const cryptoKey = await importP8Key(p8Key);
     const jwt = await createApnsJwt(cryptoKey, keyId, teamId);
 
-    const apnsSound = highPriority ? "gate_bell.mp3" : "default";
+    const apnsSound = iosApnsSound(highPriority);
     const apnsPayload: Record<string, unknown> = {
       aps: {
         alert: { title, body },
@@ -282,7 +283,7 @@ async function sendFCMNotification(
   const fcmNotification: Record<string, unknown> = { title, body };
   if (imageUrl) fcmNotification.image = imageUrl;
 
-  const fcmApnsSound = highPriority ? "gate_bell.mp3" : "default";
+  const fcmApnsSound = iosApnsSound(highPriority);
   const apnsAps: Record<string, unknown> = {
     alert: { title, body },
     sound: fcmApnsSound,
@@ -416,17 +417,22 @@ Deno.serve(async (req) => {
 
     // Priority detection: use explicit flag if provided, otherwise derive from data
     const SELLER_HP = ['placed', 'enquired', 'requested', 'quoted'];
-    const SELLER_TIME_SENSITIVE = ['placed', 'enquired', 'requested'];
     const BUYER_HP = ['payment_failed', 'refund_failed', 'otp'];
     const highPriority = reqHighPriority ??
       ((data?.target_role === 'seller' && SELLER_HP.includes(data?.status || '')) ||
        (data?.target_role === 'buyer' && BUYER_HP.includes(data?.status || '')));
-    const timeSensitive = data?.target_role === 'seller' && SELLER_TIME_SENSITIVE.includes(data?.status || '');
+    const timeSensitive = isIosTimeSensitiveSellerAlert({
+      targetRole: data?.target_role,
+      status: data?.status,
+      type: data?.type,
+      reminderType: data?.reminder_type,
+    });
 
     console.log(JSON.stringify({
       event: "push_priority", userId, isHighPriority: highPriority, timeSensitive,
       target_role: data?.target_role || 'unknown', status: data?.status || 'unknown',
-      sound: highPriority ? 'gate_bell' : 'default',
+      ios_sound: iosApnsSound(highPriority),
+      android_sound: highPriority ? 'gate_bell' : 'default',
     }));
 
     const gate = await loadSellerAlertAndroidGate(supabase);

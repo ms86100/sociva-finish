@@ -9,6 +9,7 @@ import {
   updateTokenHealth,
 } from "../_shared/notification-ops.ts";
 import { resolveQueueDisplayCopy } from "../_shared/notification-display-copy.ts";
+import { iosApnsSound, isIosTimeSensitiveSellerAlert } from "../_shared/ios-time-sensitive.ts";
 import {
   androidTokenUsesNativeAlert,
   LEGACY_ANDROID_ORDER_CHANNEL,
@@ -103,7 +104,7 @@ async function sendApnsDirect(
   try {
     const cryptoKey = await importP8Key(p8Key);
     const jwt = await createApnsJwt(cryptoKey, keyId, teamId);
-    const apnsSound = highPriority ? "gate_bell.mp3" : "default";
+    const apnsSound = iosApnsSound(highPriority);
     const apnsPayload: Record<string, unknown> = {
       aps: {
         alert: { title, body },
@@ -199,7 +200,7 @@ async function sendFcmDirect(
   if (imageUrl) androidNotif.image = imageUrl;
   const fcmNotif: Record<string, unknown> = { title, body };
   if (imageUrl) fcmNotif.image = imageUrl;
-  const fcmApnsSound = highPriority ? "gate_bell.mp3" : "default";
+  const fcmApnsSound = iosApnsSound(highPriority);
   const apnsAps: Record<string, unknown> = {
     alert: { title, body },
     sound: fcmApnsSound,
@@ -1001,8 +1002,13 @@ Deno.serve(async (req) => {
           rawPayload.high_priority === 'true' ||
           SELLER_LIFECYCLE_TYPES.includes(item.type);
 
-        const SELLER_TIME_SENSITIVE_STATUSES = ['placed', 'enquired', 'requested'];
-        const timeSensitive = targetRole === 'seller' && SELLER_TIME_SENSITIVE_STATUSES.includes(notifStatus);
+        const timeSensitive = isIosTimeSensitiveSellerAlert({
+          targetRole,
+          status: notifStatus,
+          type: rawPayload.type,
+          queueType: item.type,
+          reminderType: rawPayload.reminder_type,
+        });
 
         // Quiet hours: suppress non-urgent push (inbox + WA already handled)
         if (
@@ -1048,7 +1054,8 @@ Deno.serve(async (req) => {
           status: notifStatus || 'unknown',
           isHighPriority,
           timeSensitive,
-          sound: isHighPriority ? 'gate_bell' : 'default',
+          ios_sound: iosApnsSound(isHighPriority),
+          android_sound: isHighPriority ? 'gate_bell' : 'default',
         });
 
         // ── INLINE PUSH DELIVERY (no function-to-function call) ──
