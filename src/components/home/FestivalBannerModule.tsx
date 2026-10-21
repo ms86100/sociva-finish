@@ -275,6 +275,7 @@ export function FestivalBannerModule({ banner, sections, onProductTap, categoryC
             categoryConfigs={categoryConfigs}
             maxSellers={8}
             maxProductsPerSeller={2}
+            minSellers={1}
             tone="festival"
             accentColor={accentColor}
           />

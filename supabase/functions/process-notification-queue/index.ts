@@ -41,14 +41,16 @@ function isSellerOrderAlert(item: { type?: string; payload?: Record<string, unkn
   const payload = item.payload || {};
   const status = String(payload.status || "");
   const sellerStatuses = [
-    "placed", "enquired", "requested", "quoted", "preparing",
+    "placed", "enquired", "requested", "quoted", "preparing", "confirmed",
     "payment_verify_pending", "refund_requested",
   ];
   return (
     (payload.target_role === "seller" && sellerStatuses.includes(status)) ||
     item.type === "seller_order_status_reminder" ||
     payload.reminder_type === "unacked_order" ||
-    payload.reminder_type === "status_nudge"
+    payload.reminder_type === "status_nudge" ||
+    payload.reminder_type === "scheduled_prep" ||
+    payload.reminder_type === "scheduled_late"
   );
 }
 
@@ -977,7 +979,7 @@ Deno.serve(async (req) => {
         const targetRole = rawPayload.target_role || '';
         const notifStatus = rawPayload.status || '';
 
-        const SELLER_HIGH_PRIORITY_STATUSES = ['placed', 'preparing', 'enquired', 'requested', 'quoted', 'payment_verify_pending', 'refund_requested'];
+        const SELLER_HIGH_PRIORITY_STATUSES = ['placed', 'preparing', 'enquired', 'requested', 'quoted', 'confirmed', 'payment_verify_pending', 'refund_requested'];
         const BUYER_HIGH_PRIORITY_STATUSES = ['payment_failed', 'refund_failed', 'otp'];
         const SELLER_LIFECYCLE_TYPES = [
           'seller_approved',

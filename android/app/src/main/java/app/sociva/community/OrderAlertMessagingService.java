@@ -41,13 +41,19 @@ public class OrderAlertMessagingService extends MessagingService {
         String type = data.get("type");
         String reminder = data.get("reminder_type");
         if ("seller_order_status_reminder".equals(type)) return true;
-        if ("unacked_order".equals(reminder) || "status_nudge".equals(reminder)) return true;
+        if ("unacked_order".equals(reminder)
+            || "status_nudge".equals(reminder)
+            || "scheduled_prep".equals(reminder)
+            || "scheduled_late".equals(reminder)) {
+            return true;
+        }
         if (!"seller".equals(role) || status == null) return false;
         return "placed".equals(status)
             || "preparing".equals(status)
             || "enquired".equals(status)
             || "requested".equals(status)
             || "quoted".equals(status)
+            || "confirmed".equals(status)
             || "payment_verify_pending".equals(status)
             || "refund_requested".equals(status);
     }

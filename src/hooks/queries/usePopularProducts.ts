@@ -47,7 +47,6 @@ export function useCategoryProducts(parentGroup: string | null, leafCategory?: s
         .map((c: any) => c.category)
     );
     if (leafCategory) categorySet.add(leafCategory);
-    if (parentGroup && categorySet.size === 0) return [];
 
     const products: ProductWithSeller[] = [];
     const seenIds = new Set<string>();
@@ -57,7 +56,11 @@ export function useCategoryProducts(parentGroup: string | null, leafCategory?: s
       if (!Array.isArray(items)) continue;
       for (const p of items) {
         const matchesLeaf = !!leafCategory && p.category === leafCategory;
-        const matchesParent = parentGroup ? categorySet.has(p.category) : matchesLeaf;
+        const matchesParent = parentGroup
+          ? (categorySet.size > 0
+            ? categorySet.has(p.category)
+            : seller.primary_group === parentGroup || p.category === parentGroup)
+          : matchesLeaf;
         if (!matchesParent && !matchesLeaf) continue;
         if (seenIds.has(p.id)) continue;
         seenIds.add(p.id);

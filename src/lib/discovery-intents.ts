@@ -1,10 +1,14 @@
 import {
   TASTE_MOODS,
+  CATEGORY_PRIMARY_MEAL,
   isFoodParentGroup,
   productMatchesFoodFacets,
+  listingMatchesCategoryChip,
+  mealOwnedByCategoryChip,
   foodFacetsBrowsePath,
   type TasteMood,
 } from '@/lib/food-facets';
+import { listingPhotoForFacet, pickListingChipPhoto } from '@/lib/chip-listing-photo';
 
 export interface DiscoveryCategoryInput {
   category: string;
@@ -14,6 +18,7 @@ export interface DiscoveryCategoryInput {
   imageUrl?: string | null;
   products: Array<{
     id?: string;
+    category?: string | null;
     image_url?: string | null;
     tags?: string[] | null;
     cuisine_type?: string | null;
@@ -31,11 +36,14 @@ export interface DiscoveryIntent {
   kind: 'category' | 'food_mood';
 }
 
-function firstImage(products: DiscoveryCategoryInput['products']): string | null {
-  return products.find((p) => p.image_url)?.image_url || null;
+function listingsInGroup(group: DiscoveryCategoryInput) {
+  return group.products.map((product) => ({
+    ...product,
+    category: product.category || group.category,
+  }));
 }
 
-function moodCount(mood: TasteMood, products: DiscoveryCategoryInput['products']): number {
+function moodCount(mood: TasteMood, products: ReturnType<typeof listingsInGroup>): number {
   const selected = {
     cuisine: mood.facet === 'cuisine' ? mood.value : null,
     meal: mood.facet === 'meal' ? mood.value : null,
@@ -44,9 +52,39 @@ function moodCount(mood: TasteMood, products: DiscoveryCategoryInput['products']
   return products.filter((p) => productMatchesFoodFacets(p, selected as any)).length;
 }
 
+function liveCategoryIds(groups: DiscoveryCategoryInput[]): Set<string> {
+  return new Set(groups.filter((group) => group.products.length > 0).map((group) => group.category));
+}
+
+function chipCountForGroup(
+  group: DiscoveryCategoryInput,
+  allListings: ReturnType<typeof listingsInGroup>,
+): number {
+  if (!CATEGORY_PRIMARY_MEAL[group.category]) return group.products.length;
+  return allListings.filter((product) => listingMatchesCategoryChip(product, group.category)).length;
+}
+
+function takeUniqueIntents(intents: DiscoveryIntent[], maxChips?: number): DiscoveryIntent[] {
+  const seenIds = new Set<string>();
+  const seenLabels = new Set<string>();
+  const unique: DiscoveryIntent[] = [];
+  for (const intent of intents) {
+    if (intent.count <= 0) continue;
+    if (seenIds.has(intent.id)) continue;
+    const labelKey = intent.label.trim().toLowerCase();
+    if (seenLabels.has(labelKey)) continue;
+    seenIds.add(intent.id);
+    seenLabels.add(labelKey);
+    unique.push(intent);
+    if (maxChips != null && unique.length >= maxChips) break;
+  }
+  return unique;
+}
+
 /**
  * Homepage / search shortcuts from live inventory only.
  * Never emits a chip whose result set is empty.
+ * Chip photos are listing images: one listing per chip, unused photos first.
  */
 export function buildDiscoveryIntents(
   groups: DiscoveryCategoryInput[],
@@ -57,6 +95,9 @@ export function buildDiscoveryIntents(
   const scoped = activeGroup
     ? groups.filter((g) => g.parentGroup === activeGroup)
     : groups;
+  const usedPhotos = new Set<string>();
+  const scopedListings = scoped.flatMap((g) => listingsInGroup(g));
+  const coveredCategories = liveCategoryIds(scoped);
 
   const categoryIntents: DiscoveryIntent[] = scoped
     .filter((g) => g.products.length > 0)
@@ -64,8 +105,8 @@ export function buildDiscoveryIntents(
       id: `cat:${g.category}`,
       label: g.displayName,
       icon: g.icon,
-      imageUrl: firstImage(g.products) || g.imageUrl || null,
-      count: g.products.length,
+      imageUrl: pickListingChipPhoto(listingsInGroup(g), usedPhotos) || g.imageUrl || null,
+      count: chipCountForGroup(g, scopedListings),
       href: `/category/${g.parentGroup}?sub=${encodeURIComponent(g.category)}`,
       kind: 'category' as const,
     }))
@@ -73,19 +114,19 @@ export function buildDiscoveryIntents(
 
   const foodProducts = scoped
     .filter((g) => isFoodParentGroup(g.parentGroup))
-    .flatMap((g) => g.products);
+    .flatMap((g) => listingsInGroup(g));
 
   const moodIntents: DiscoveryIntent[] = [];
   if (foodProducts.length > 0 && (!activeGroup || isFoodParentGroup(activeGroup))) {
     for (const mood of TASTE_MOODS) {
+      if (mealOwnedByCategoryChip(mood, coveredCategories)) continue;
       const count = moodCount(mood, foodProducts);
       if (count <= 0) continue;
-      const facet = { cuisine: null, meal: null, course: null, [mood.facet]: mood.value };
       moodIntents.push({
         id: `mood:${mood.id}`,
         label: mood.label,
         icon: mood.emoji,
-        imageUrl: firstImage(foodProducts.filter((p) => productMatchesFoodFacets(p, facet as any))) || mood.imageUrl || null,
+        imageUrl: listingPhotoForFacet(foodProducts, mood, usedPhotos),
         count,
         href: foodFacetsBrowsePath('food_beverages', { [mood.facet]: mood.value }),
         kind: 'food_mood',
@@ -99,16 +140,7 @@ export function buildDiscoveryIntents(
     ? [...moodIntents, ...categoryIntents]
     : [...categoryIntents, ...moodIntents];
 
-  const seen = new Set<string>();
-  const unique: DiscoveryIntent[] = [];
-  for (const intent of mixed) {
-    if (intent.count <= 0) continue;
-    if (seen.has(intent.id)) continue;
-    seen.add(intent.id);
-    unique.push(intent);
-    if (unique.length >= maxChips) break;
-  }
-  return unique;
+  return takeUniqueIntents(mixed, maxChips);
 }
 
 export interface BrowseSelection {
@@ -133,18 +165,25 @@ export function relevantBrowseIntents(
   };
   const category = selection?.category || null;
   const hasFacet = !!(facets.cuisine || facets.meal || facets.course);
+  const usedPhotos = new Set<string>();
+  const allListings = groups.flatMap((group) => listingsInGroup(group));
+  const coveredCategories = liveCategoryIds(groups);
 
   const categoryIntents: DiscoveryIntent[] = groups
     .map((group) => {
+      const own = listingsInGroup(group);
+      const pool = CATEGORY_PRIMARY_MEAL[group.category]
+        ? allListings.filter((product) => listingMatchesCategoryChip(product, group.category))
+        : own;
       const products = hasFacet
-        ? group.products.filter((product) => productMatchesFoodFacets(product, facets))
-        : group.products;
+        ? pool.filter((product) => productMatchesFoodFacets(product, facets))
+        : pool;
       if (products.length === 0) return null;
       return {
         id: `cat:${group.category}`,
         label: group.displayName,
         icon: group.icon,
-        imageUrl: firstImage(products) || group.imageUrl || null,
+        imageUrl: pickListingChipPhoto(own.length ? own : products, usedPhotos) || group.imageUrl || null,
         count: products.length,
         href: `/category/${group.parentGroup}?sub=${encodeURIComponent(group.category)}`,
         kind: 'category' as const,
@@ -153,22 +192,21 @@ export function relevantBrowseIntents(
     .filter((intent): intent is DiscoveryIntent => intent !== null)
     .sort((a, b) => b.count - a.count);
 
-  const moodScope = (category
-    ? groups.filter((group) => group.category === category)
-    : groups.filter((group) => isFoodParentGroup(group.parentGroup))
-  ).flatMap((group) => group.products);
+  const moodScope = category
+    ? allListings.filter((product) => listingMatchesCategoryChip(product, category))
+    : groups.filter((group) => isFoodParentGroup(group.parentGroup)).flatMap((group) => listingsInGroup(group));
 
   const moodIntents: DiscoveryIntent[] = [];
   if (moodScope.length > 0) {
     for (const mood of TASTE_MOODS) {
+      if (mealOwnedByCategoryChip(mood, coveredCategories)) continue;
       const count = moodCount(mood, moodScope);
       if (count <= 0) continue;
-      const facet = { cuisine: null, meal: null, course: null, [mood.facet]: mood.value };
       moodIntents.push({
         id: `mood:${mood.id}`,
         label: mood.label,
         icon: mood.emoji,
-        imageUrl: firstImage(moodScope.filter((product) => productMatchesFoodFacets(product, facet as any))) || mood.imageUrl || null,
+        imageUrl: listingPhotoForFacet(moodScope, mood, usedPhotos),
         count,
         href: foodFacetsBrowsePath(
           groups.find((group) => isFoodParentGroup(group.parentGroup))?.parentGroup || 'food_beverages',
@@ -179,5 +217,5 @@ export function relevantBrowseIntents(
     }
   }
 
-  return [...categoryIntents, ...moodIntents];
+  return takeUniqueIntents([...categoryIntents, ...moodIntents]);
 }

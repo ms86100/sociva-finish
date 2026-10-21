@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useMemo, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { AlertCircle, CalendarCheck, PackageSearch, ShoppingBag, Wrench } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { ParentGroupTabs } from '@/components/home/ParentGroupTabs';
@@ -14,7 +14,7 @@ import { applyProductFacetRow, useProductFacets } from '@/hooks/queries/useProdu
 import { hasPreciseCoordinates } from '@/lib/buyerLocation';
 import type { CommerceMode } from '@/lib/commerce-mode';
 import { categoriesListedInMode } from '@/lib/commerce-mode';
-import { categoryMatchesBuyerChip } from '@/lib/buyer-chip-groups';
+import { listingMatchesCategoryChip } from '@/lib/food-facets';
 import {
   type CommerceFacetState,
   emptyCommerceFacetState,
@@ -28,6 +28,7 @@ import { cn } from '@/lib/utils';
 import { IntentProductRail } from '@/components/discovery/IntentProductRail';
 import { UpcomingAppointmentBanner } from '@/components/home/UpcomingAppointmentBanner';
 import { GroupedSellerRow } from '@/components/home/GroupedSellerRow';
+import { BuyAgainRow, type BuyAgainProduct } from '@/components/home/BuyAgainRow';
 import { useIntentRailModel } from '@/hooks/useIntentRailModel';
 
 const ProductDetailSheet = lazy(() =>
@@ -88,7 +89,8 @@ function CommerceModeView({ mode }: { mode: CommerceMode }) {
 
   const { listings, buckets, categoryConfigs, isLoading, topUpError, retryTopUp } = useCommerceModeListings(mode);
 
-  const [activeCategory, setActiveCategory] = useState<string | null>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [activeCategory, setActiveCategory] = useState<string | null>(searchParams.get('sub'));
   const [facets, setFacets] = useState<CommerceFacetState>(emptyCommerceFacetState());
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [detailOpen, setDetailOpen] = useState(false);
@@ -112,7 +114,7 @@ function CommerceModeView({ mode }: { mode: CommerceMode }) {
     : null;
 
   const scoped = useMemo(
-    () => (activeCategory ? enriched.filter((p) => categoryMatchesBuyerChip(p.category, activeCategory)) : enriched),
+    () => (activeCategory ? enriched.filter((p) => listingMatchesCategoryChip(p, activeCategory)) : enriched),
     [enriched, activeCategory],
   );
 
@@ -137,10 +139,39 @@ function CommerceModeView({ mode }: { mode: CommerceMode }) {
     setDetailOpen(true);
   }, [categoryConfigs]);
 
-  const resetFilters = useCallback(() => {
-    setActiveCategory(null);
+  const handleRepeatTap = useCallback((item: BuyAgainProduct) => {
+    handleProductTap({
+      id: item.id,
+      seller_id: item.seller_id,
+      name: item.name,
+      price: item.price,
+      image_url: item.image_url,
+      category: item.category,
+      action_type: item.action_type,
+      seller_name: item.seller_name,
+      is_veg: null,
+      is_available: true,
+      is_bestseller: false,
+      is_recommended: false,
+      is_urgent: false,
+      description: null,
+      created_at: '',
+      updated_at: '',
+    });
+  }, [handleProductTap]);
+
+  const selectCategory = useCallback((cat: string | null) => {
+    setActiveCategory(cat);
     setFacets(emptyCommerceFacetState());
-  }, []);
+    const next = new URLSearchParams(searchParams);
+    if (cat) next.set('sub', cat);
+    else next.delete('sub');
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams]);
+
+  const resetFilters = useCallback(() => {
+    selectCategory(null);
+  }, [selectCategory]);
 
   const hasListings = enriched.length > 0;
 
@@ -170,10 +201,7 @@ function CommerceModeView({ mode }: { mode: CommerceMode }) {
               <>
                 <ParentGroupTabs
                   activeCategory={activeCategory}
-                  onCategoryChange={(cat) => {
-                    setActiveCategory(cat);
-                    setFacets(emptyCommerceFacetState());
-                  }}
+                  onCategoryChange={selectCategory}
                   activeCategories={modeCategories}
                 />
                 <CommerceFacetRail
@@ -188,6 +216,9 @@ function CommerceModeView({ mode }: { mode: CommerceMode }) {
             )}
 
             {mode === 'book' && <div className="px-4"><UpcomingAppointmentBanner /></div>}
+            {!activeCategory && (mode === 'book' || mode === 'services') && (
+              <BuyAgainRow mode={mode} onOpenListing={handleRepeatTap} />
+            )}
             {!activeCategory && (mode === 'book' || mode === 'services') && intentRails.primary && (
               <GroupedSellerRow
                 title={intentRails.primary.title}

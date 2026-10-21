@@ -6,6 +6,7 @@ import {
   categoriesListedInMode,
   categoriesOwnedByMode,
   filterByMode,
+  listingBelongsToMode,
   modeForAction,
   owningModeForCategory,
   resolveCommerceMode,
@@ -26,6 +27,7 @@ const CONFIGS: CategoryActionConfig[] = [
   { category: 'salon', transactionType: 'service_booking', behavior: { supportsCart: false, enquiryOnly: false } },
   { category: 'plumbing', transactionType: 'request_service', behavior: { supportsCart: false, enquiryOnly: false } },
   { category: 'furniture_resale', transactionType: 'contact_enquiry', behavior: { supportsCart: false, enquiryOnly: true } },
+  { category: 'agarbatti', transactionType: 'contact_enquiry', behavior: { supportsCart: false, enquiryOnly: true } },
   { category: 'flats', transactionType: 'schedule_visit', behavior: { supportsCart: false, enquiryOnly: false } },
   { category: 'unmapped_cart', transactionType: 'self_service_v2', behavior: { supportsCart: true, enquiryOnly: false } },
   { category: 'unmapped_enquiry', transactionType: null, behavior: { supportsCart: false, enquiryOnly: true } },
@@ -134,6 +136,38 @@ describe('commerce-mode: resolveListingAction', () => {
     expect(resolveListingAction(null, null, CONFIGS)).toBe('add_to_cart');
     expect(resolveListingAction(null, 'not_configured', CONFIGS)).toBe('add_to_cart');
     expect(resolveListingAction('book', 'not_configured', CONFIGS)).toBe('book');
+  });
+});
+
+describe('commerce-mode: listingBelongsToMode fail-closed routing', () => {
+  const beardTrim = { action_type: 'book', category: 'salon', name: 'Beard trim beard design' };
+  const incense = { action_type: 'contact_seller', category: 'agarbatti', name: 'Soothe Your Soul Premium Agarbatti' };
+  const dumBiryani = { action_type: 'add_to_cart', category: 'home_food', name: 'Dum biryani' };
+
+  it('excludes beard-trim book rows from shop and includes them on book', () => {
+    expect(listingBelongsToMode(beardTrim, 'shop', CONFIGS)).toBe(false);
+    expect(listingBelongsToMode(beardTrim, 'book', CONFIGS)).toBe(true);
+    expect(listingBelongsToMode(beardTrim, 'services', CONFIGS)).toBe(false);
+  });
+
+  it('excludes contact incense from Home and includes it on services', () => {
+    expect(listingBelongsToMode(incense, 'shop', CONFIGS)).toBe(false);
+    expect(listingBelongsToMode(incense, 'book', CONFIGS)).toBe(false);
+    expect(listingBelongsToMode(incense, 'services', CONFIGS)).toBe(true);
+  });
+
+  it('does not default a missing action_type onto Home', () => {
+    expect(listingBelongsToMode({ action_type: null, category: null }, 'shop', CONFIGS)).toBe(false);
+    expect(listingBelongsToMode({ action_type: '', category: '' }, 'shop', CONFIGS)).toBe(false);
+    expect(listingBelongsToMode({ action_type: null, category: 'not_configured' }, 'shop', CONFIGS)).toBe(false);
+    expect(listingBelongsToMode({ action_type: undefined, category: undefined }, 'shop')).toBe(false);
+    expect(listingBelongsToMode({ action_type: null, category: 'salon' }, 'shop', CONFIGS)).toBe(false);
+    expect(listingBelongsToMode({ action_type: null, category: 'salon' }, 'book', CONFIGS)).toBe(true);
+  });
+
+  it('still lets a cart listing through on shop', () => {
+    expect(listingBelongsToMode(dumBiryani, 'shop', CONFIGS)).toBe(true);
+    expect(listingBelongsToMode(dumBiryani, 'book', CONFIGS)).toBe(false);
   });
 });
 

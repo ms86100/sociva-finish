@@ -13,7 +13,7 @@ import {
  * 2) Vault via get_edge_credential RPC (falls back to admin_settings server-side)
  *
  * Never prefer admin_settings SELECT from the edge. Authenticated admin UI must
- * use get_admin_credential_meta (meta-only — no raw secrets).
+ * use get_admin_credential_meta (meta-only - no raw secrets).
  */
 export async function getCredential(
   supabase: any,
@@ -65,7 +65,7 @@ async function readRazorpayCredentialSources(supabase: any) {
   };
 }
 
-/** Razorpay key pair — complete env pair first, otherwise complete vault/admin pair. Never mix. */
+/** Razorpay key pair - complete env pair first, otherwise complete vault/admin pair. Never mix. */
 export async function getRazorpayCredentials(supabase: any): Promise<{
   keyId: string;
   keySecret: string;

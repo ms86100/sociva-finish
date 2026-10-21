@@ -20,7 +20,6 @@ import {
   type FoodCuisineId,
   type FoodMealId,
 } from '@/lib/food-facets';
-import { CUISINE_IMAGES, MEAL_IMAGES, COURSE_IMAGES } from '@/lib/filter-images';
 import {
   Drawer,
   DrawerContent,
@@ -327,7 +326,7 @@ export function CommerceFacetRail({
                       <TasteSheetChip
                         key={opt.id}
                         emoji={CUISINE_EMOJI[opt.id as FoodCuisineId]}
-                        imageUrl={CUISINE_IMAGES[opt.id]}
+                        imageUrl={chips.find((c) => c.id === `mood:${opt.id}`)?.imageUrl}
                         label={opt.label}
                         count={count}
                         showCount={showCounts}
@@ -345,7 +344,7 @@ export function CommerceFacetRail({
                       <TasteSheetChip
                         key={opt.id}
                         emoji={MEAL_EMOJI[opt.id as FoodMealId]}
-                        imageUrl={MEAL_IMAGES[opt.id]}
+                        imageUrl={chips.find((c) => c.id === `mood:${opt.id}`)?.imageUrl}
                         label={opt.label}
                         count={count}
                         showCount={showCounts}
@@ -363,7 +362,7 @@ export function CommerceFacetRail({
                       <TasteSheetChip
                         key={opt.id}
                         emoji={COURSE_EMOJI[opt.id as FoodCourseId]}
-                        imageUrl={COURSE_IMAGES[opt.id]}
+                        imageUrl={chips.find((c) => c.id === `mood:${opt.id}`)?.imageUrl}
                         label={opt.label}
                         count={count}
                         showCount={showCounts}

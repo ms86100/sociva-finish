@@ -51,7 +51,7 @@ export function inferSellerDomain(input: CategoryDomainInput): SellerDomain {
   }
   if (group === 'resale' || slug === 'pet_food') return 'product';
   if (input.supportsCart || action === 'add_to_cart') return 'product';
-  if (input.isPhysicalProduct && group === 'food_beverages') return 'product';
+  if (input.isPhysicalProduct && (group === 'food_beverages' || group === 'puja')) return 'product';
   return 'service';
 }
 

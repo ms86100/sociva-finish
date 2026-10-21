@@ -260,6 +260,35 @@ describe('resolveListingIntent', () => {
     }
   });
 
+  it('maps agarbatti and incense onto Puja, not Food', () => {
+    const pujaCatalog: IntentCatalogCategory[] = [
+      ...categories,
+      {
+        slug: 'agarbatti',
+        id: 'cfg-agarbatti',
+        displayName: 'Agarbatti & Dhoop',
+        parentGroup: 'puja',
+        transactionType: 'contact_enquiry',
+        supportsCart: false,
+      },
+      {
+        slug: 'other-food_beverages',
+        id: 'cfg-other-food',
+        displayName: 'Other Food & Beverages',
+        parentGroup: 'food_beverages',
+        transactionType: 'cart_purchase',
+        supportsCart: true,
+      },
+    ];
+    for (const phrase of ['Agarbatti', 'Incense sticks', 'Royal Rose Dhoop']) {
+      const r = resolveListingIntent({ phrase, categories: pujaCatalog, subcategories });
+      expect(r.suggestedCategorySlug).toBe('agarbatti');
+      expect(r.suggestedParentGroup).toBe('puja');
+      expect(r.commerceModel).toBe('contact');
+      expect(shouldSurfaceListingSuggestion(r)).toBe(true);
+    }
+  });
+
   it('maps gujiya to a food category instead of Other Rentals', () => {
     const foodCatalog: IntentCatalogCategory[] = [
       ...categories,

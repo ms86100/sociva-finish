@@ -33,8 +33,8 @@ import {
   extractAvailableCommerceFacets,
   omitSoleActionChips,
 } from '@/lib/commerce-facets';
-import { filterByMode } from '@/lib/commerce-mode';
 import {
+  listingMatchesCategoryChip,
   productMatchesFoodFacets,
   readFoodFacetsFromSearchParams,
   TASTE_MOODS,
@@ -68,6 +68,7 @@ export default function CategoryGroupPage() {
       description: product.description,
       seller_id: product.seller_id,
       seller_name: product.seller_name || '',
+      seller_profile_image_url: (product as any).seller_profile_image_url || product.seller?.profile_image_url || null,
       seller_rating: product.seller_rating || 0,
       seller_reviews: product.seller_reviews || 0,
       action_type: product.action_type,
@@ -103,12 +104,8 @@ export default function CategoryGroupPage() {
   const productIds = useMemo(() => allProducts.map((p) => p.id), [allProducts]);
   const { data: facetRows = {} } = useProductFacets(productIds, productIds.length > 0);
   const productsWithFacets = useMemo(
-    () => filterByMode(
-      allProducts.map((p) => applyProductFacetRow(p, facetRows[p.id])),
-      'shop',
-      categoryConfigs,
-    ),
-    [allProducts, facetRows, categoryConfigs],
+    () => allProducts.map((p) => applyProductFacetRow(p, facetRows[p.id])),
+    [allProducts, facetRows],
   );
 
   const foodFromUrl = readFoodFacetsFromSearchParams(searchParams);
@@ -122,7 +119,7 @@ export default function CategoryGroupPage() {
 
   const scopedProducts = useMemo(() => {
     return routeLeaf
-      ? productsWithFacets.filter((p) => p.category === routeLeaf)
+      ? productsWithFacets.filter((p) => listingMatchesCategoryChip(p, routeLeaf))
       : productsWithFacets;
   }, [productsWithFacets, routeLeaf]);
 
@@ -180,11 +177,7 @@ export default function CategoryGroupPage() {
     for (const s of marketplaceSellers) {
       const items = s.matching_products;
       if (!Array.isArray(items)) continue;
-      const categoryProducts = filterByMode(
-        items.filter((p: any) => categorySet.has(p.category)),
-        'shop',
-        categoryConfigs,
-      );
+      const categoryProducts = items.filter((p: any) => categorySet.has(p.category));
       if (categoryProducts.length === 0) continue;
       if (!sellerMap.has(s.seller_id)) {
         sellerMap.set(s.seller_id, {
@@ -490,6 +483,7 @@ export default function CategoryGroupPage() {
             description: sp.description || null,
             seller_id: sp.seller_id,
             seller_name: sp.seller?.business_name || '',
+            seller_profile_image_url: sp.seller?.profile_image_url || (sp as any).seller_profile_image_url || null,
             seller_rating: 0,
             seller_reviews: 0,
             action_type: sp.action_type,

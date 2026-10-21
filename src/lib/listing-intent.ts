@@ -122,6 +122,14 @@ export const CATEGORY_ALIAS_MAP: Record<string, string[]> = {
   flat_rent: ['flat for rent', 'apartment rent', 'house rent', 'pg'],
   roommate: ['roommate', 'flatmate', 'paying guest'],
   parking: ['parking spot', 'car parking', 'bike parking'],
+  agarbatti: [
+    'agarbatti', 'agarbathi', 'incense', 'incense sticks', 'dhoop', 'dhoopbatti',
+    'dhoop batti', 'agarbatti dhoop', 'sandal incense', 'heritage sandal',
+  ],
+  puja_samagri: [
+    'puja samagri', 'pooja samagri', 'puja items', 'pooja items', 'puja kit',
+    'camphor', 'kapoor', 'kumkum', 'diya', 'diyas',
+  ],
 };
 
 /**
@@ -142,6 +150,9 @@ export const SUBCATEGORY_NOUN_ALIASES: Record<string, string[]> = {
   electrician: ['electric', 'wiring'],
   tiffin: ['tiffin', 'dabba', 'meal'],
   cake: ['cake', 'bakery', 'pastry'],
+  agarbatti: ['agarbatti', 'incense', 'dhoop'],
+  dhoop: ['dhoop', 'dhoopbatti'],
+  incense: ['incense', 'agarbatti', 'dhoop'],
 };
 
 export const INTENT_EXAMPLE_CHIPS = [
@@ -156,6 +167,7 @@ export const INTENT_EXAMPLE_CHIPS = [
   'Flat for rent',
   'Bridal makeup',
   'Tuition',
+  'Agarbatti',
 ] as const;
 
 export interface IntentCatalogCategory {

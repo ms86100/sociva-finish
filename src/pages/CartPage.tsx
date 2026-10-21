@@ -124,6 +124,7 @@ export default function CartPage() {
             )}
           </AnimatePresence>
         </div>
+        <BuyAgainRow mode="shop" />
       </AppLayout>
     );
   }
@@ -370,6 +371,8 @@ export default function CartPage() {
             );
           })}
         </div>
+
+        <BuyAgainRow mode="shop" />
 
         {/* Notes */}
         <div className="mt-4 px-4">

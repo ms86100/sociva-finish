@@ -171,6 +171,7 @@ export default function SearchPage() {
       contact_phone: product.contact_phone,
       seller_id: product.seller_id,
       seller_name: product.seller_name || '',
+      seller_profile_image_url: (product as any).seller_profile_image_url || (product as any).seller?.profile_image_url || null,
       seller_rating: product.seller_rating || 0,
       seller_reviews: product.seller_reviews || 0,
       society_name: (product as any).society_name || null,

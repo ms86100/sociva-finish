@@ -7,7 +7,8 @@ import { useProductsByCategory } from '@/hooks/queries/useProductsByCategory';
 import { useMarketplaceData } from '@/hooks/queries/useMarketplaceData';
 import { useProductFacets } from '@/hooks/queries/useProductFacets';
 import { useSocialProof } from '@/hooks/queries/useSocialProof';
-import { categoriesForBuyerChip, categoryMatchesBuyerChip } from '@/lib/buyer-chip-groups';
+import { categoriesForBuyerChip } from '@/lib/buyer-chip-groups';
+import { listingMatchesCategoryChip } from '@/lib/food-facets';
 import { CategoryImageGrid } from '@/components/home/CategoryImageGrid';
 import { FeaturedBanners } from '@/components/home/FeaturedBanners';
 import { FestivalBannerModule } from '@/components/home/FestivalBannerModule';
@@ -36,6 +37,7 @@ import { cn } from '@/lib/utils';
 import { DiscoveryChipRail } from '@/components/home/DiscoveryChipRail';
 import { CommerceFacetRail } from '@/components/discovery/CommerceFacetRail';
 import { buildDiscoveryIntents } from '@/lib/discovery-intents';
+import { buildShopPosterSections } from '@/lib/discovery-density';
 import { applyProductFacetRow } from '@/hooks/queries/useProductFacets';
 import {
   CommerceFacetState,
@@ -189,7 +191,7 @@ export function MarketplaceSection() {
 
   const scopedProducts = useMemo(() => {
     if (activeCategory) {
-      return allProducts.filter((p) => categoryMatchesBuyerChip(p.category, activeCategory));
+      return allProducts.filter((p) => listingMatchesCategoryChip(p, activeCategory));
     }
     return allProducts;
   }, [allProducts, activeCategory]);
@@ -236,33 +238,15 @@ export function MarketplaceSection() {
   }, [marketplaceSellers]);
 
   const shopSections = useMemo(() => {
-    if (festivalFocused) return [];
     const configByCategory = new Map(categoryConfigs.map((config) => [config.category, config]));
-    if (activeCategory) {
-      const config = configByCategory.get(activeCategory);
-      if (!config) return [];
-      return [{
-        key: activeCategory,
-        parentGroup: config.parentGroup,
-        title: config.displayName || activeCategory,
-        categories: new Set(categoriesForBuyerChip(activeCategory)),
-      }];
-    }
-    return [...cartCategories]
-      .sort((a, b) => {
-        const aOrder = configByCategory.get(a.category)?.displayOrder ?? 999;
-        const bOrder = configByCategory.get(b.category)?.displayOrder ?? 999;
-        if (aOrder !== bOrder) return aOrder - bOrder;
-        const aTitle = configByCategory.get(a.category)?.displayName || a.category;
-        const bTitle = configByCategory.get(b.category)?.displayName || b.category;
-        return aTitle.localeCompare(bTitle);
-      })
-      .map((group) => ({
-        key: group.category,
-        parentGroup: group.parentGroup,
-        title: configByCategory.get(group.category)?.displayName || group.category,
-        categories: new Set([group.category]),
-      }));
+    return buildShopPosterSections(cartCategories, {
+      festivalFocused,
+      activeCategory,
+      titleFor: (category) => configByCategory.get(category)?.displayName || category,
+      parentGroupFor: (category) => configByCategory.get(category)?.parentGroup,
+      displayOrderFor: (category) => configByCategory.get(category)?.displayOrder ?? 999,
+      categoriesForChip: categoriesForBuyerChip,
+    });
   }, [festivalFocused, activeCategory, categoryConfigs, cartCategories]);
 
   const exploreFestival = useCallback(() => {
@@ -495,7 +479,7 @@ export function MarketplaceSection() {
       )}
 
       {!activeCategory && !festivalFocused && !loadingLocal && !isFacetFilterActive && (
-        <BuyAgainRow />
+        <BuyAgainRow mode="shop" />
       )}
 
       {!activeCategory && !festivalFocused && intentRails.recentlyViewed && (

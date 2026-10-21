@@ -24,6 +24,7 @@ describe('festival marketplace experience', () => {
     const tabsSrc = read('src/components/home/ParentGroupTabs.tsx');
     expect(moduleSrc).toMatch(/ProductCarousel/);
     expect(moduleSrc).toMatch(/GroupedSellerRow/);
+    expect(moduleSrc).toMatch(/minSellers=\{1\}/);
     expect(moduleSrc).toMatch(/From sellers in your community/);
     expect(moduleSrc).toMatch(/FestivalStringLights/);
     expect(moduleSrc).toMatch(/festival-merch-card/);

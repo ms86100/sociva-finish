@@ -10,8 +10,8 @@ import {
 const root = resolve(__dirname, '../..');
 
 describe('iOS Time Sensitive seller alerts', () => {
-  it('interrupts only for seller placed, enquired, and requested order events', () => {
-    for (const status of ['placed', 'enquired', 'requested']) {
+  it('interrupts only for seller placed, enquired, requested, and confirmed order events', () => {
+    for (const status of ['placed', 'enquired', 'requested', 'confirmed']) {
       expect(isIosTimeSensitiveSellerAlert({
         targetRole: 'seller',
         status,
@@ -27,7 +27,7 @@ describe('iOS Time Sensitive seller alerts', () => {
   });
 
   it('lets an unacknowledged reminder interrupt only for those same statuses', () => {
-    for (const status of ['placed', 'enquired', 'requested']) {
+    for (const status of ['placed', 'enquired', 'requested', 'confirmed']) {
       expect(isIosTimeSensitiveSellerAlert({
         targetRole: 'seller',
         status,

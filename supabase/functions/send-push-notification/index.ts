@@ -29,14 +29,16 @@ function isClosedAppSellerAlert(data: Record<string, string> | undefined, highPr
   if (!highPriority || !data) return false;
   const status = data.status || "";
   const sellerStatuses = [
-    "placed", "enquired", "requested", "quoted", "preparing",
+    "placed", "enquired", "requested", "quoted", "preparing", "confirmed",
     "payment_verify_pending", "refund_requested",
   ];
   return (
     (data.target_role === "seller" && sellerStatuses.includes(status)) ||
     data.type === "seller_order_status_reminder" ||
     data.reminder_type === "unacked_order" ||
-    data.reminder_type === "status_nudge"
+    data.reminder_type === "status_nudge" ||
+    data.reminder_type === "scheduled_prep" ||
+    data.reminder_type === "scheduled_late"
   );
 }
 
@@ -416,7 +418,7 @@ Deno.serve(async (req) => {
     }
 
     // Priority detection: use explicit flag if provided, otherwise derive from data
-    const SELLER_HP = ['placed', 'enquired', 'requested', 'quoted'];
+    const SELLER_HP = ['placed', 'enquired', 'requested', 'quoted', 'preparing', 'confirmed', 'payment_verify_pending', 'refund_requested'];
     const BUYER_HP = ['payment_failed', 'refund_failed', 'otp'];
     const highPriority = reqHighPriority ??
       ((data?.target_role === 'seller' && SELLER_HP.includes(data?.status || '')) ||

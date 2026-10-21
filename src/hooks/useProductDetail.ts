@@ -64,6 +64,7 @@ export function useProductDetail(product: ProductDetail | null, open: boolean, o
     society_address: string | null;
     society_name: string | null;
   } | null>(null);
+  const [sellerProfileImageUrl, setSellerProfileImageUrl] = useState<string | null>(null);
   const [canonicalStockQty, setCanonicalStockQty] = useState<number | null>(null);
   const [canonicalIsAvailable, setCanonicalIsAvailable] = useState(true);
   const [gallerySecondaryImages, setGallerySecondaryImages] = useState<string[] | null>(null);
@@ -73,6 +74,7 @@ export function useProductDetail(product: ProductDetail | null, open: boolean, o
     if (!product || !open) return;
     setLoadedSpecs(null);
     setSellerLocationExtras(null);
+    setSellerProfileImageUrl((product as any).seller_profile_image_url || (product as any).seller?.profile_image_url || null);
     setCanonicalStockQty(null);
     setCanonicalIsAvailable(true);
     setGallerySecondaryImages(null);
@@ -91,7 +93,7 @@ export function useProductDetail(product: ProductDetail | null, open: boolean, o
 
     const fetchData = async () => {
       const [productRes, similarRes] = await Promise.all([
-        supabase.from('products').select('specifications, stock_quantity, is_available, secondary_images, seller:seller_profiles!products_seller_id_fkey(store_location_label, latitude, longitude, society:societies(name, address))').eq('id', product.product_id).maybeSingle(),
+        supabase.from('products').select('specifications, stock_quantity, is_available, secondary_images, seller:seller_profiles!products_seller_id_fkey(store_location_label, latitude, longitude, profile_image_url, society:societies(name, address))').eq('id', product.product_id).maybeSingle(),
         supabase.from('products')
           // action_type + category required so similar tap keeps Contact Seller (not default add_to_cart)
           .select('id, name, price, image_url, is_veg, seller_id, stock_quantity, category, description, action_type, seller:seller_profiles!products_seller_id_fkey(business_name, society_id)')
@@ -106,6 +108,9 @@ export function useProductDetail(product: ProductDetail | null, open: boolean, o
         society_address: sellerJoin?.society?.address ?? null,
         society_name: sellerJoin?.society?.name ?? null,
       });
+      if (sellerJoin?.profile_image_url) {
+        setSellerProfileImageUrl(sellerJoin.profile_image_url);
+      }
       setCanonicalStockQty(productRes.data?.stock_quantity ?? null);
       setCanonicalIsAvailable(productRes.data?.is_available ?? true);
       const secondary = (productRes.data as any)?.secondary_images;
@@ -194,7 +199,7 @@ export function useProductDetail(product: ProductDetail | null, open: boolean, o
   const viewAllLabel = isCartAction ? 'View Full Menu →' : 'View All Listings →';
 
   return {
-    trustSnapshot, productTrust, sellerLocationExtras, contactOpen, setContactOpen, enquiryOpen, setEnquiryOpen,
+    trustSnapshot, productTrust, sellerLocationExtras, sellerProfileImageUrl, contactOpen, setContactOpen, enquiryOpen, setEnquiryOpen,
     showDetails, setShowDetails, reportOpen, setReportOpen, descExpanded, setDescExpanded,
     similarProducts, loadedSpecs, formatPrice, gallerySecondaryImages,
     actionType, config, isCartAction, cartItem, quantity, stockLimit, canIncrement,

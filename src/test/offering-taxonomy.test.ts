@@ -230,6 +230,31 @@ describe('pickFallbackCategory', () => {
     expect(cat?.parentGroup).toBe('health');
     expect(cat?.slug).not.toMatch(/food/);
   });
+
+  it('uses Agarbatti for Puja, never Food', () => {
+    const pujaCategories: IntentCatalogCategory[] = [
+      ...categories,
+      {
+        slug: 'agarbatti',
+        id: 'cfg-agarbatti',
+        displayName: 'Agarbatti & Dhoop',
+        parentGroup: 'puja',
+        transactionType: 'contact_enquiry',
+        supportsCart: false,
+      },
+      {
+        slug: 'other-puja',
+        id: 'cfg-other-puja',
+        displayName: 'Other Puja & Devotional',
+        parentGroup: 'puja',
+        transactionType: 'contact_enquiry',
+        supportsCart: false,
+      },
+    ];
+    const cat = pickFallbackCategory('puja', pujaCategories);
+    expect(cat?.slug).toBe('agarbatti');
+    expect(cat?.parentGroup).toBe('puja');
+  });
 });
 
 describe('detectWorkflowConflict', () => {

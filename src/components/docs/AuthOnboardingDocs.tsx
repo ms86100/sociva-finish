@@ -206,10 +206,9 @@ export function AuthOnboardingDocs() {
           ]} />
         </DocSubSection>
 
-        <DocSubSection title="Accessibility">
+        <DocSubSection title="Appearance">
           <DocList items={[
-            'Larger Text toggle (Switch) - adds large-font class to html element',
-            'Persisted via app_large_font flag in local storage',
+            'Dark Mode toggle - switches light and dark appearance',
           ]} />
         </DocSubSection>
 

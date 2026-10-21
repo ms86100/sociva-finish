@@ -55,6 +55,25 @@ export function resolveCommerceMode(
   return modeForAction(resolveListingAction(listing.action_type, listing.category, categoryConfigs));
 }
 
+/**
+ * Repeat rails must not guess shop when action/category are missing.
+ * Unknown rows are dropped instead of defaulting to add_to_cart.
+ */
+export function listingBelongsToMode(
+  listing: { action_type?: string | null; category?: string | null },
+  mode: CommerceMode,
+  categoryConfigs?: readonly CategoryActionConfig[] | null,
+): boolean {
+  const action = String(listing.action_type || '').trim();
+  const category = String(listing.category || '').trim();
+  if (!action && !category) return false;
+  const cfg = category
+    ? categoryConfigs?.find((c) => c.category === category)
+    : undefined;
+  if (!action && !cfg) return false;
+  return resolveCommerceMode(listing, categoryConfigs) === mode;
+}
+
 export function filterByMode<T extends { action_type?: string | null; category?: string | null }>(
   listings: readonly T[],
   mode: CommerceMode,

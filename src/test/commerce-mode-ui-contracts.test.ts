@@ -18,7 +18,7 @@ describe('commerce-mode UI contracts', () => {
   });
 
   it('home and discovery surfaces classify by the shared resolver', () => {
-    expect(read('components/home/BuyAgainRow.tsx')).toMatch(/resolveCommerceMode\(/);
+    expect(read('components/home/BuyAgainRow.tsx')).toMatch(/listingBelongsToMode\(/);
     expect(read('components/location/DiscoveryMomentHero.tsx')).toMatch(/resolveCommerceMode\(/);
     expect(read('components/search/SearchAutocomplete.tsx')).toMatch(/suggestionIntent\(product, categoryConfigs\)/);
     for (const file of [

@@ -10,21 +10,21 @@
       min-height: 100vh;
       display: grid;
       place-items: center;
-      background: #0d0d0d;
-      color: #f0f0f0;
-      font-family: system-ui, sans-serif;
+      background: #0B1010;
+      color: #FDFCFA;
+      font-family: "Plus Jakarta Sans", system-ui, sans-serif;
     }
     .box {
-      width: min(420px, 92vw);
-      background: #1f1c1b;
-      border: 1px solid #292929;
+      width: min(440px, 92vw);
+      background: #141416;
+      border: 1px solid #2a2a2e;
       border-radius: 16px;
       padding: 28px;
     }
     h1 {
       margin: 0 0 6px;
       font-size: 22px;
-      background: linear-gradient(135deg, #f0f0f0, #27c17a);
+      background: linear-gradient(135deg, #FDFCFA, #22A06B);
       -webkit-background-clip: text;
       background-clip: text;
       color: transparent;
@@ -33,7 +33,7 @@
     a {
       display: block;
       text-decoration: none;
-      background: #27c17a;
+      background: #22A06B;
       color: #04140c;
       font-weight: 700;
       text-align: center;
@@ -51,9 +51,10 @@
 <body>
   <div class="box">
     <h1>SOCIVA pamphlets</h1>
-    <p>Print-ready A4 and A5 using Sociva dark charcoal + green brand tokens. QR points to https://www.sociva.in/</p>
-    <a href="/pamphlets/a4.html">Open A4 (210×297mm)</a>
-    <a class="secondary" href="/pamphlets/a5.html">Open A5 (148×210mm)</a>
+    <p>Open these via file link or local server. Images use relative paths so they work offline.</p>
+    <a href="./trifold.html">Open Trifold (A4 landscape)</a>
+    <a class="secondary" href="./a4.html">Open A4 portrait (210×297mm)</a>
+    <a class="secondary" href="./a5.html">Open A5 portrait (148×210mm)</a>
   </div>
 </body>
 </html>

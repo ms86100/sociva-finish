@@ -4,6 +4,8 @@ import {
   inferFoodFacets,
   parseFoodFacets,
   productMatchesFoodFacets,
+  listingMatchesCategoryChip,
+  mealOwnedByCategoryChip,
   serializeFoodFacets,
   emptyFoodFacets,
   TASTE_MOODS,
@@ -205,6 +207,26 @@ describe('food facets', () => {
     expect(productMatchesFoodFacets(southIdli, { cuisine: 'south_indian' })).toBe(true);
     expect(productMatchesFoodFacets(northRajma, { cuisine: 'south_indian' })).toBe(false);
     expect(productMatchesFoodFacets(northRajma, { course: 'main' })).toBe(true);
+  });
+
+  it('Snacks chip includes the snacks leaf and meal:snack listings from cafe or home food', () => {
+    const makhana = { category: 'snacks', name: 'madhubani makhana' };
+    const pakoda = { category: 'home_food', name: 'Aloo pyaz pakoda with theekhi chutney', tags: ['meal:snack'] };
+    const fries = { category: 'cafe', name: 'French Fries', tags: ['meal:snack'] };
+    const thali = { category: 'home_food', name: 'Dal thali', tags: ['meal:lunch'] };
+    expect(listingMatchesCategoryChip(makhana, 'snacks')).toBe(true);
+    expect(listingMatchesCategoryChip(pakoda, 'snacks')).toBe(true);
+    expect(listingMatchesCategoryChip(fries, 'snacks')).toBe(true);
+    expect(listingMatchesCategoryChip(thali, 'snacks')).toBe(false);
+    expect(listingMatchesCategoryChip(pakoda, 'cafe')).toBe(false);
+    expect(listingMatchesCategoryChip(fries, 'cafe')).toBe(true);
+  });
+
+  it('does not emit a Snacks mood when a live Snacks category already owns that meal', () => {
+    const snackMood = TASTE_MOODS.find((mood) => mood.id === 'snack');
+    expect(snackMood).toBeTruthy();
+    expect(mealOwnedByCategoryChip(snackMood!, ['snacks', 'cafe'])).toBe(true);
+    expect(mealOwnedByCategoryChip(snackMood!, ['cafe', 'home_food'])).toBe(false);
   });
 });
 

@@ -7,14 +7,14 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useBrowsingLocation } from '@/contexts/BrowsingLocationContext';
 import { filterDiscoverableProductIds } from '@/lib/sellerDiscoverability';
 import { useCart } from '@/hooks/useCart';
-import { RefreshCw, Plus, Check } from 'lucide-react';
+import { RefreshCw, Plus, Check, CalendarCheck, Phone } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
 import { notify } from '@/lib/notify';
 import { useCategoryConfigs } from '@/hooks/useCategoryBehavior';
-import { resolveCommerceMode } from '@/lib/commerce-mode';
+import { listingBelongsToMode, type CommerceMode } from '@/lib/commerce-mode';
 
-interface BuyAgainProduct {
+export interface BuyAgainProduct {
   id: string;
   name: string;
   price: number;
@@ -26,11 +26,32 @@ interface BuyAgainProduct {
   action_type: string | null;
 }
 
-export function BuyAgainRow() {
+const MODE_COPY: Record<CommerceMode, { title: string; times: (n: number) => string }> = {
+  shop: {
+    title: 'Order again',
+    times: (n) => `Ordered ${n} ${n === 1 ? 'time' : 'times'}`,
+  },
+  book: {
+    title: 'Book again',
+    times: (n) => `Booked ${n} ${n === 1 ? 'time' : 'times'}`,
+  },
+  services: {
+    title: 'Contact again',
+    times: (n) => `Contacted ${n} ${n === 1 ? 'time' : 'times'}`,
+  },
+};
+
+interface BuyAgainRowProps {
+  mode?: CommerceMode;
+  onOpenListing?: (product: BuyAgainProduct) => void;
+}
+
+export function BuyAgainRow({ mode = 'shop', onOpenListing }: BuyAgainRowProps) {
   const { user } = useAuth();
   const { browsingLocation } = useBrowsingLocation();
   const { items, addItem } = useCart();
   const { configs: categoryConfigs } = useCategoryConfigs();
+  const copy = MODE_COPY[mode];
 
   const { data: products = [] } = useQuery({
     queryKey: ['buy-again', user?.id, browsingLocation?.lat, browsingLocation?.lng],
@@ -117,20 +138,20 @@ export function BuyAgainRow() {
     staleTime: 5 * 60_000,
   });
 
-  // Filter out bookable/non-cart products - they don't belong in "Buy Again"
-  const cartableProducts = useMemo(() =>
-    products.filter(p => resolveCommerceMode(p, categoryConfigs) === 'shop'),
-    [products, categoryConfigs]
+  const modeProducts = useMemo(
+    () => products.filter((p) => listingBelongsToMode(p, mode, categoryConfigs)),
+    [products, categoryConfigs, mode],
   );
 
+  const minItems = mode === 'shop' ? 3 : 1;
   const ordered = useMemo(
-    () => [...cartableProducts].sort((a, b) => b.order_count - a.order_count).slice(0, 8),
-    [cartableProducts],
+    () => [...modeProducts].sort((a, b) => b.order_count - a.order_count).slice(0, 8),
+    [modeProducts],
   );
 
-  if (ordered.length < 3) return null;
+  if (ordered.length < minItems) return null;
 
-  const isInCart = (productId: string) => items.some(i => i.product_id === productId);
+  const isInCart = (productId: string) => items.some((i) => i.product_id === productId);
 
   const handleQuickAdd = async (product: BuyAgainProduct) => {
     if (isInCart(product.id)) return;
@@ -145,6 +166,7 @@ export function BuyAgainRow() {
       price: product.price,
       image_url: product.image_url,
       category: product.category as any,
+      action_type: product.action_type,
       is_veg: true,
       is_available: true,
       is_bestseller: false,
@@ -156,18 +178,26 @@ export function BuyAgainRow() {
     });
   };
 
+  const handleTap = (product: BuyAgainProduct) => {
+    if (mode === 'shop') {
+      void handleQuickAdd(product);
+      return;
+    }
+    onOpenListing?.(product);
+  };
+
   return (
-    <div className="mt-4 mb-2">
+    <div className="mt-4 mb-2" data-testid={`buy-again-${mode}`}>
       <div className="flex items-center gap-2 px-4 mb-3">
         <div className="w-7 h-7 rounded-xl bg-primary/10 flex items-center justify-center">
           <RefreshCw size={13} className="text-primary" />
         </div>
-        <h3 className="font-extrabold text-base text-foreground tracking-tight">Order again</h3>
+        <h3 className="font-extrabold text-base text-foreground tracking-tight">{copy.title}</h3>
       </div>
 
       <div className="flex gap-3 overflow-x-auto scrollbar-hide px-4 pb-2">
         {ordered.map((product, index) => {
-          const inCart = isInCart(product.id);
+          const inCart = mode === 'shop' && isInCart(product.id);
           const times = product.order_count > 0 ? product.order_count : 1;
           return (
             <motion.button
@@ -176,7 +206,7 @@ export function BuyAgainRow() {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.05 }}
-              onClick={() => void handleQuickAdd(product)}
+              onClick={() => handleTap(product)}
               className="shrink-0 w-[168px] text-left rounded-2xl bg-card border border-border overflow-hidden"
             >
               <div className="relative aspect-[4/3] bg-muted">
@@ -196,8 +226,12 @@ export function BuyAgainRow() {
                   'absolute bottom-2 right-2 w-7 h-7 rounded-full flex items-center justify-center shadow-sm',
                   inCart ? 'bg-primary' : 'bg-primary/90'
                 )}>
-                  {inCart ? (
+                  {mode === 'shop' && inCart ? (
                     <Check size={14} className="text-primary-foreground" />
+                  ) : mode === 'book' ? (
+                    <CalendarCheck size={14} className="text-primary-foreground" />
+                  ) : mode === 'services' ? (
+                    <Phone size={14} className="text-primary-foreground" />
                   ) : (
                     <Plus size={14} className="text-primary-foreground" />
                   )}
@@ -205,7 +239,7 @@ export function BuyAgainRow() {
               </div>
               <div className="px-2.5 py-2">
                 <p className="text-[13px] font-semibold text-foreground line-clamp-2 leading-tight">{product.name}</p>
-                <p className="text-[11px] text-muted-foreground mt-1">Ordered {times} {times === 1 ? 'time' : 'times'}</p>
+                <p className="text-[11px] text-muted-foreground mt-1">{copy.times(times)}</p>
               </div>
             </motion.button>
           );

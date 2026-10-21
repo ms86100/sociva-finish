@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { buildDiscoveryIntents, relevantBrowseIntents, type DiscoveryCategoryInput } from '@/lib/discovery-intents';
 
@@ -72,6 +73,102 @@ describe('buildDiscoveryIntents', () => {
       facets: { meal: 'breakfast' },
     });
     expect(intents.map((intent) => intent.id)).toEqual(expect.arrayContaining(['cat:home_food', 'mood:breakfast', 'mood:lunch']));
+  });
+
+  it('emits a tap chip for live Puja inventory', () => {
+    const agarbatti: DiscoveryCategoryInput = {
+      category: 'agarbatti',
+      parentGroup: 'puja',
+      displayName: 'Agarbatti & Dhoop',
+      icon: '🪔',
+      imageUrl: 'https://img/festival.jpg',
+      products: [{ id: 'a1', name: 'Divine Purity', image_url: 'https://img/festival.jpg' }],
+    };
+    const intents = buildDiscoveryIntents([homeFood, agarbatti]);
+    const chip = intents.find((i) => i.id === 'cat:agarbatti');
+    expect(chip?.label).toBe('Agarbatti & Dhoop');
+    expect(chip?.href).toBe('/category/puja?sub=agarbatti');
+    expect(chip?.count).toBe(1);
+  });
+
+  it('uses listing photos for chips and never puts makhana on Breakfast', () => {
+    const snacks: DiscoveryCategoryInput = {
+      category: 'snacks',
+      parentGroup: 'food_beverages',
+      displayName: 'Snacks',
+      icon: 'Cookie',
+      products: [{
+        id: 'm1',
+        category: 'snacks',
+        name: 'madhubani makhana',
+        image_url: 'https://img/makhana.jpg',
+        tags: ['meal:breakfast'],
+      }],
+    };
+    const breakfastHome: DiscoveryCategoryInput = {
+      category: 'home_food',
+      parentGroup: 'food_beverages',
+      displayName: 'Home Food',
+      icon: 'UtensilsCrossed',
+      products: [{
+        id: 'i1',
+        category: 'home_food',
+        name: 'Idli',
+        image_url: 'https://img/idli.jpg',
+        tags: ['meal:breakfast'],
+      }],
+    };
+    const intents = buildDiscoveryIntents([snacks, breakfastHome], { maxChips: 40 });
+    const snacksChip = intents.find((intent) => intent.id === 'cat:snacks');
+    const breakfastChip = intents.find((intent) => intent.id === 'mood:breakfast');
+    expect(snacksChip?.imageUrl).toBe('https://img/makhana.jpg');
+    expect(breakfastChip?.imageUrl).toBe('https://img/idli.jpg');
+    expect(breakfastChip?.imageUrl).not.toBe(snacksChip?.imageUrl);
+    expect(intents.filter((intent) => intent.label === 'Snacks')).toHaveLength(1);
+    expect(intents.find((intent) => intent.id === 'mood:snack')).toBeUndefined();
+  });
+
+  it('keeps one Snacks chip and counts cafe / home-food snack listings on it', () => {
+    const snacks: DiscoveryCategoryInput = {
+      category: 'snacks',
+      parentGroup: 'food_beverages',
+      displayName: 'Snacks',
+      icon: 'Cookie',
+      products: [{ id: 'm1', category: 'snacks', name: 'madhubani makhana' }],
+    };
+    const home: DiscoveryCategoryInput = {
+      category: 'home_food',
+      parentGroup: 'food_beverages',
+      displayName: 'Home Food',
+      icon: 'UtensilsCrossed',
+      products: [{
+        id: 'p1',
+        category: 'home_food',
+        name: 'Aloo pyaz pakoda with theekhi chutney',
+        tags: ['meal:snack'],
+      }],
+    };
+    const cafe: DiscoveryCategoryInput = {
+      category: 'cafe',
+      parentGroup: 'food_beverages',
+      displayName: 'Cafe',
+      icon: 'Coffee',
+      products: [
+        { id: 'f1', category: 'cafe', name: 'French Fries', tags: ['meal:snack'] },
+        { id: 'c1', category: 'cafe', name: 'Cappuccino', tags: ['meal:breakfast'] },
+      ],
+    };
+    const intents = relevantBrowseIntents([snacks, home, cafe], { category: 'snacks' });
+    expect(intents.filter((intent) => intent.label === 'Snacks')).toHaveLength(1);
+    expect(intents.find((intent) => intent.id === 'mood:snack')).toBeUndefined();
+    expect(intents.find((intent) => intent.id === 'cat:snacks')?.count).toBe(3);
+  });
+
+  it('category pages filter Snacks with the expanded meal matcher', () => {
+    const page = readFileSync('src/pages/CategoryGroupPage.tsx', 'utf8');
+    const home = readFileSync('src/components/home/MarketplaceSection.tsx', 'utf8');
+    expect(page).toMatch(/listingMatchesCategoryChip\(p, routeLeaf\)/);
+    expect(home).toMatch(/listingMatchesCategoryChip\(p, activeCategory\)/);
   });
 
   it('omits empty categories entirely', () => {

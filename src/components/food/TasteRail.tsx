@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { Sparkles, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { hapticSelection } from '@/lib/haptics';
@@ -18,7 +18,7 @@ import {
   type FoodFacets,
   type TasteMood,
 } from '@/lib/food-facets';
-import { CUISINE_IMAGES, MEAL_IMAGES, COURSE_IMAGES } from '@/lib/filter-images';
+import { listingPhotoForFacet } from '@/lib/chip-listing-photo';
 import type { TasteBrowseState } from '@/lib/food-taste';
 import { SORT_OPTIONS, type SortKey } from '@/lib/marketplace-constants';
 import {
@@ -40,7 +40,7 @@ interface TasteRailProps {
   sortBy?: SortKey;
   onSortChange?: (key: SortKey) => void;
   moods?: readonly TasteMood[];
-  inventory?: Array<{ tags?: string[] | null; cuisine_type?: string | null; name?: string }>;
+  inventory?: Array<{ tags?: string[] | null; cuisine_type?: string | null; name?: string; category?: string | null; image_url?: string | null }>;
   className?: string;
 }
 
@@ -66,6 +66,19 @@ export function TasteRail({
   const includeOpenNow = showOpenNow ?? showUtilities;
 
   const setFacets = (facets: FoodFacets) => onChange(patchFacets(value, facets));
+  const listingPhotos = useMemo(() => {
+    const used = new Set<string>();
+    const photos: Record<string, string | null> = {};
+    const remember = (id: string, mood: { facet: 'cuisine' | 'meal' | 'course'; value: string }) => {
+      if (id in photos) return;
+      photos[id] = listingPhotoForFacet(inventory || [], mood, used);
+    };
+    for (const mood of moods) remember(mood.id, mood);
+    for (const opt of FOOD_CUISINES) remember(opt.id, { facet: 'cuisine', value: opt.id });
+    for (const opt of FOOD_MEALS) remember(opt.id, { facet: 'meal', value: opt.id });
+    for (const opt of FOOD_COURSES) remember(opt.id, { facet: 'course', value: opt.id });
+    return photos;
+  }, [inventory, moods]);
 
   return (
     <div className={cn('px-4 py-2', className)}>
@@ -137,9 +150,9 @@ export function TasteRail({
                     : 'border-border/70 bg-background/80 text-muted-foreground backdrop-blur-sm hover:border-border',
                 )}
               >
-                {mood.imageUrl ? (
+                {listingPhotos[mood.id] ? (
                   <span className="w-4 h-4 rounded-full overflow-hidden shrink-0 flex items-center justify-center border border-white/40">
-                    <img src={mood.imageUrl} alt="" className="w-full h-full object-cover" />
+                    <img src={listingPhotos[mood.id]!} alt="" className="w-full h-full object-cover" />
                   </span>
                 ) : (
                   <span>{mood.emoji}</span>
@@ -193,7 +206,7 @@ export function TasteRail({
                 <SheetTile
                   key={opt.id}
                   emoji={CUISINE_EMOJI[opt.id]}
-                  imageUrl={CUISINE_IMAGES[opt.id]}
+                  imageUrl={listingPhotos[opt.id] || undefined}
                   label={opt.label}
                   active={value.cuisine === opt.id}
                   onClick={() => setFacets({
@@ -208,7 +221,7 @@ export function TasteRail({
                 <SheetTile
                   key={opt.id}
                   emoji={MEAL_EMOJI[opt.id]}
-                  imageUrl={MEAL_IMAGES[opt.id]}
+                  imageUrl={listingPhotos[opt.id] || undefined}
                   label={opt.label}
                   active={value.meal === opt.id}
                   onClick={() => setFacets({
@@ -223,7 +236,7 @@ export function TasteRail({
                 <SheetTile
                   key={opt.id}
                   emoji={COURSE_EMOJI[opt.id]}
-                  imageUrl={COURSE_IMAGES[opt.id]}
+                  imageUrl={listingPhotos[opt.id] || undefined}
                   label={opt.label}
                   active={value.course === opt.id}
                   onClick={() => setFacets({

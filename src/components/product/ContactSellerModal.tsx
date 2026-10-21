@@ -21,13 +21,14 @@ interface ContactSellerModalProps {
   buyerId: string;
   productId: string;
   productName: string;
+  sellerImageUrl?: string | null;
 }
 
 type ContactPhase = 'choose' | 'loading' | 'ready' | 'success';
 
 export function ContactSellerModal({
   open, onOpenChange, sellerName,
-  sellerId, buyerId, productId, productName,
+  sellerId, buyerId, productId, productName, sellerImageUrl,
 }: ContactSellerModalProps) {
   const navigate = useNavigate();
   const [chatOpen, setChatOpen] = useState(false);
@@ -165,8 +166,12 @@ export function ContactSellerModal({
           </DialogHeader>
           <div className="space-y-3 pt-2">
             <div className="flex items-center gap-3 p-3 bg-muted rounded-lg">
-              <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                <User size={18} className="text-primary" />
+              <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center overflow-hidden shrink-0">
+                {sellerImageUrl ? (
+                  <img src={sellerImageUrl} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  <User size={18} className="text-primary" />
+                )}
               </div>
               <div>
                 <p className="font-semibold text-sm">{sellerName}</p>

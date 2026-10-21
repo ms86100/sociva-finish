@@ -88,6 +88,12 @@ vi.mock('@/components/product/ProductDetailSheet', () => ({
     : null),
 }));
 
+vi.mock('@/components/home/BuyAgainRow', () => ({
+  BuyAgainRow: ({ mode, onOpenListing }: any) => (
+    <div data-testid={`buy-again-${mode}`} data-has-open={onOpenListing ? 'yes' : 'no'} />
+  ),
+}));
+
 import CommerceModePage from '@/pages/CommerceModePage';
 
 const configs: CategoryActionConfig[] = [
@@ -188,6 +194,26 @@ describe('CommerceModePage listing partitions', () => {
     renderAt('/services');
     await screen.findByTestId('commerce-mode-services');
     expect(renderedIds()).toEqual(['leak-fix', 'maths', 'stale-cart']);
+  });
+
+  it('mounts Book again and Contact again with a listing CTA, not a Home plus-add rail', async () => {
+    const { unmount: unmountBook } = renderAt('/book');
+    expect(await screen.findByTestId('buy-again-book')).toHaveAttribute('data-has-open', 'yes');
+    expect(screen.queryByTestId('buy-again-shop')).toBeNull();
+    expect(screen.queryByTestId('buy-again-services')).toBeNull();
+    unmountBook();
+
+    const { unmount: unmountServices } = renderAt('/services');
+    expect(await screen.findByTestId('buy-again-services')).toHaveAttribute('data-has-open', 'yes');
+    expect(screen.queryByTestId('buy-again-shop')).toBeNull();
+    expect(screen.queryByTestId('buy-again-book')).toBeNull();
+    unmountServices();
+
+    renderAt('/shop');
+    await screen.findByTestId('commerce-mode-shop');
+    expect(screen.queryByTestId('buy-again-shop')).toBeNull();
+    expect(screen.queryByTestId('buy-again-book')).toBeNull();
+    expect(screen.queryByTestId('buy-again-services')).toBeNull();
   });
 
   it('every rendered card resolves to the page mode', async () => {

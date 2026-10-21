@@ -1,6 +1,7 @@
-import { isFoodParentGroup, productMatchesFoodFacets, TASTE_MOODS, type TasteMood } from './food-facets';
+import { isFoodParentGroup, productMatchesFoodFacets, TASTE_MOODS } from './food-facets';
 import { computeStoreStatus } from './store-availability';
 import { ACTION_MODE_IMAGES, SERVICE_MODE_IMAGES, DURATION_IMAGES } from './filter-images';
+import { listingPhotoForFacet } from './chip-listing-photo';
 import { resolveListingAction, type CategoryActionConfig } from './commerce-mode';
 
 export interface CommerceFacetState {
@@ -458,6 +459,7 @@ export function extractAvailableCommerceFacets(
     delivery_time_text?: string | null;
     service_scope?: string | null;
     is_veg?: boolean | null;
+    image_url?: string | null;
   }>,
   options?: {
     parentGroup?: string | null;
@@ -473,6 +475,7 @@ export function extractAvailableCommerceFacets(
   const chips: DynamicFacetChip[] = [];
 
   const pushFoodMoods = () => {
+    const usedPhotos = new Set<string>();
     for (const mood of TASTE_MOODS) {
       const count = products.filter((p) =>
         productMatchesFoodFacets(p, {
@@ -486,7 +489,7 @@ export function extractAvailableCommerceFacets(
           id: `mood:${mood.id}`,
           label: mood.label,
           emoji: mood.emoji,
-          imageUrl: (mood as any).imageUrl,
+          imageUrl: listingPhotoForFacet(products, mood, usedPhotos) || undefined,
           count,
           type: 'food_mood',
           value: { facet: mood.facet, value: mood.value },

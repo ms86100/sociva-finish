@@ -38,7 +38,7 @@ export default function ProductDeepLinkPage() {
             home_service_available,
             lead_time_hours, accepts_preorders, price_stable_since,
             seller:seller_profiles!products_seller_id_fkey(
-              id, business_name, rating, total_reviews, society_id,
+              id, business_name, profile_image_url, rating, total_reviews, society_id,
               latitude, longitude, is_featured, is_available,
               availability_start, availability_end, operating_days,
               fulfillment_mode, delivery_note, avg_response_minutes, last_active_at,
@@ -129,6 +129,7 @@ export default function ProductDeepLinkPage() {
           delivery_note: seller?.delivery_note || null,
           seller_id: seller?.id || data.seller_id,
           seller_name: seller?.business_name || '',
+          seller_profile_image_url: seller?.profile_image_url || null,
           seller_rating: seller?.rating || 0,
           seller_reviews: seller?.total_reviews || 0,
           seller_verified: !!seller?.is_featured,

@@ -8,6 +8,7 @@ import { ProductWithSeller } from '@/components/product/ProductListingCard';
 import { RichSellerCard } from './RichSellerCard';
 import { useParentGroups } from '@/hooks/useParentGroups';
 import type { TopProduct } from '@/hooks/queries/useStoreDiscovery';
+import { MIN_RAIL_CARDS } from '@/lib/discovery-density';
 
 interface GroupedSellerRowProps {
   title: string;
@@ -24,6 +25,8 @@ interface GroupedSellerRowProps {
   maxProductsPerSeller?: number;
   tone?: 'default' | 'festival';
   accentColor?: string;
+  /** Festival can keep a single store. Home/Book/Contact need a pair. */
+  minSellers?: number;
 }
 
 interface SellerGroup {
@@ -52,6 +55,7 @@ export function GroupedSellerRow({
   maxProductsPerSeller = 2,
   tone = 'default',
   accentColor,
+  minSellers = MIN_RAIL_CARDS,
 }: GroupedSellerRowProps) {
   const { parentGroupInfos } = useParentGroups();
 
@@ -100,7 +104,7 @@ export function GroupedSellerRow({
     return Array.from(map.values()).slice(0, maxSellers);
   }, [products, categoryConfigs, parentGroupInfos, maxSellers, maxProductsPerSeller]);
 
-  if (groups.length === 0) return null;
+  if (groups.length < minSellers) return null;
 
   const resolvedGroups = groups
     .map(g => g.primaryGroup)

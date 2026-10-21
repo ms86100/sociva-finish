@@ -355,9 +355,9 @@ export function ProductDetailSheet({ product, open, onOpenChange, onSelectProduc
               <motion.div variants={slideFromLeft}>
                 <Link to={`/seller/${product.seller_id}`} onClick={() => onOpenChange(false)} className="flex items-center gap-3 bg-muted rounded-xl p-3">
                   <div className="w-10 h-10 rounded-xl bg-card overflow-hidden flex items-center justify-center border border-border/30">
-                    {(product as any).seller_profile_image_url || (product as any).seller?.profile_image_url ? (
+                    {(product as any).seller_profile_image_url || (product as any).seller?.profile_image_url || d.sellerProfileImageUrl ? (
                       <img
-                        src={(product as any).seller_profile_image_url || (product as any).seller?.profile_image_url}
+                        src={(product as any).seller_profile_image_url || (product as any).seller?.profile_image_url || d.sellerProfileImageUrl}
                         alt=""
                         className="w-full h-full object-cover"
                       />
@@ -597,7 +597,7 @@ export function ProductDetailSheet({ product, open, onOpenChange, onSelectProduc
           </motion.div>
         </DrawerContent>
       </Drawer>
-      {d.actionType === 'contact_seller' && <ContactSellerModal open={d.contactOpen} onOpenChange={d.setContactOpen} sellerName={product.seller_name} sellerId={product.seller_id} buyerId={user?.id ?? ''} productId={product.product_id} productName={product.product_name} />}
+      {d.actionType === 'contact_seller' && <ContactSellerModal open={d.contactOpen} onOpenChange={d.setContactOpen} sellerName={product.seller_name} sellerId={product.seller_id} buyerId={user?.id ?? ''} productId={product.product_id} productName={product.product_name} sellerImageUrl={(product as any).seller_profile_image_url || (product as any).seller?.profile_image_url || d.sellerProfileImageUrl || null} />}
       {!d.isCartAction && d.actionType !== 'contact_seller' && !isServiceBookingAction && <ProductEnquirySheet open={d.enquiryOpen} onOpenChange={d.setEnquiryOpen} productId={product.product_id} productName={product.product_name} sellerId={product.seller_id} sellerName={product.seller_name} actionType={d.actionType} price={product.price} specifications={d.loadedSpecs ?? product.specifications} />}
       {isServiceBookingAction && product && (
         <ServiceBookingFlow open={bookingOpen} onOpenChange={setBookingOpen} productId={product.product_id} productName={product.product_name} sellerId={product.seller_id} sellerName={product.seller_name} price={product.price} category={product.category || ''} imageUrl={product.image_url} durationMinutes={product.prep_time_minutes || undefined} locationType={(product as any).location_type || undefined} subcategoryId={(product as any).subcategory_id || undefined} initialDraft={bookingDraft} />

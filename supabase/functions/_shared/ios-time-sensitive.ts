@@ -9,7 +9,7 @@
 
 export const IOS_APNS_SOUND_FILE = "gate_bell.caf";
 
-const ELIGIBLE_ORDER_STATUSES = ["placed", "enquired", "requested"] as const;
+const ELIGIBLE_ORDER_STATUSES = ["placed", "enquired", "requested", "confirmed"] as const;
 
 const SELLER_ORDER_EVENT_TYPES = new Set(["order", "order_status", "order_update"]);
 
@@ -45,7 +45,7 @@ function presentTypes(input: IosTimeSensitiveInput): string[] {
 
 /**
  * True only for:
- * - a seller order event whose status is placed, enquired, or requested
+ * - a seller order event whose status is placed, enquired, requested, or confirmed
  * - an unacknowledged-order reminder for an order still in one of those statuses
  *
  * quoted, preparing, buyer alerts, lifecycle notices, refund notices, other

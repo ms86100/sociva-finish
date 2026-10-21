@@ -200,6 +200,7 @@ describe('guest location discovery wiring (source)', () => {
     expect(booking).toMatch(/type: 'book'/);
     expect(booking).toMatch(/bookingDraft/);
     expect(contact).toMatch(/type: 'contact'/);
+    expect(contact).toMatch(/sellerImageUrl/);
   });
 
   it('uses discovery-first When In Use location copy', () => {

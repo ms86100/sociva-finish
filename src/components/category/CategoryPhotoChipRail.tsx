@@ -43,6 +43,13 @@ type LeafChipSource = {
  * Inventory-backed leaf categories for Home, Book, Contact, and Search.
  * Coaching inventory uses the Tuition chip. Beauty inventory uses the Salon chip.
  */
+function chipLabelFromSlug(category: string): string {
+  return category
+    .replace(/^other-/, '')
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 export function buildLeafPhotoChipItems(
   configs: LeafChipSource[],
   inventoryCategories: Iterable<string>,
@@ -52,7 +59,7 @@ export function buildLeafPhotoChipItems(
     const chip = buyerChipCategory(category);
     if (chip) live.add(chip);
   }
-  return configs
+  const items = configs
     .filter((c) => live.has(c.category) && !isBuyerChipAlias(c.category))
     .map((c) => ({
       id: c.category,
@@ -60,6 +67,17 @@ export function buildLeafPhotoChipItems(
       imageUrl: c.imageUrl || c.image_url || null,
       icon: c.icon || 'Package',
     }));
+  const known = new Set(items.map((item) => item.id));
+  for (const category of live) {
+    if (known.has(category) || isBuyerChipAlias(category)) continue;
+    items.push({
+      id: category,
+      label: chipLabelFromSlug(category),
+      imageUrl: null,
+      icon: 'Package',
+    });
+  }
+  return items;
 }
 
 interface CategoryPhotoChipRailProps {

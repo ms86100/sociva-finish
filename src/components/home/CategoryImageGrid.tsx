@@ -10,6 +10,7 @@ import { DynamicIcon } from '@/components/ui/DynamicIcon';
 import { useMarketplaceLabels } from '@/hooks/useMarketplaceLabels';
 import { ChevronRight, Sparkles, ArrowRight } from 'lucide-react';
 import { getCategoryPastel } from '@/lib/category-pastels';
+import { hasPosterDensity } from '@/lib/discovery-density';
 import { motion } from 'framer-motion';
 
 interface CategoryImageGridProps {
@@ -69,7 +70,7 @@ function CategoryImageGridInner({ parentGroup, title, activeCategories }: Catego
       : allCategories;
     return filtered.filter(c => {
       const meta = metaMap[c.category];
-      return meta && meta.count > 0;
+      return meta && hasPosterDensity(meta.count);
     });
   }, [allCategories, activeCategories, metaMap]);
 

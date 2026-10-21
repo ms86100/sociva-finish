@@ -187,6 +187,7 @@ Deno.serve(async (req) => {
             type,
             orderId: o.id,
             order_id: o.id,
+            status: o.status,
             target_role: "seller",
             reminder_type: w.kind,
             scheduled_date: o.scheduled_date,

@@ -64,6 +64,21 @@ describe('category photo chip consistency', () => {
     expect(items[0].imageUrl).toBe('https://example.com/food.jpg');
   });
 
+  it('still shows a live inventory chip when bootstrap configs are stale', () => {
+    const items = buildLeafPhotoChipItems(
+      [
+        {
+          category: 'home_food',
+          displayName: 'Home Food',
+          icon: 'Utensils',
+        },
+      ],
+      ['home_food', 'agarbatti'],
+    );
+    expect(items.map((i) => i.id)).toEqual(['home_food', 'agarbatti']);
+    expect(items.map((i) => i.label)).toEqual(['Home Food', 'Agarbatti']);
+  });
+
   it('Home sticky rail uses leaf categories via shared chip rail (not parent-group All / Food & Beverages)', () => {
     const tabs = read('components/home/ParentGroupTabs.tsx');
     expect(tabs).toMatch(/CategoryPhotoChipRail/);

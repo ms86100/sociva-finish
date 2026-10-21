@@ -71,6 +71,12 @@ export function mapProduct(p: any, seller: RpcSellerRow): ProductWithSeller {
     cuisine_type: p.cuisine_type || null,
     subcategory_id: p.subcategory_id || null,
     seller_name: seller.business_name || '',
+    seller_profile_image_url: seller.profile_image_url || null,
+    seller: {
+      business_name: seller.business_name,
+      rating: seller.rating,
+      profile_image_url: seller.profile_image_url || undefined,
+    },
     seller_rating: seller.rating || 0,
     seller_reviews: seller.total_reviews || 0,
     // Featured = admin trust signal; same-society is the primary Sociva trust chip

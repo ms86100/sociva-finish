@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -22,7 +22,6 @@ import {
   Shield,
   HelpCircle,
   Bell,
-  Type,
   FileText,
   Camera,
   Repeat,
@@ -32,15 +31,14 @@ import { FeedbackSheet } from '@/components/feedback/FeedbackSheet';
 import { NotificationHealthCheck } from '@/components/notifications/NotificationHealthCheck';
 import { PermissionCenter } from '@/components/permissions/PermissionCenter';
 import { toast } from 'sonner';
-import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
+import { useFeedbackPopup } from '@/components/FeedbackPopupProvider';
 import { useSystemSettings } from '@/hooks/useSystemSettings';
 import { useSocietyEntryVisible } from '@/hooks/useSocietyEntryVisible';
-import { getFlag, setFlag, getString, removeKey } from '@/lib/persistent-kv';
+import { getString, removeKey } from '@/lib/persistent-kv';
 import { useTheme } from 'next-themes';
 import { Moon, Sun, RefreshCw } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { actionableSellerProfiles } from '@/lib/seller-journey';
-import { getReplayOptIn, setReplayOptIn, isAnalyticsEnabled } from '@/lib/analytics';
 
 export default function ProfilePage() {
   const navigate = useNavigate();
@@ -51,9 +49,7 @@ export default function ProfilePage() {
   const settings = useSystemSettings();
   const societyEntryVisible = useSocietyEntryVisible();
   const { theme, setTheme } = useTheme();
-  const [replayOptIn, setReplayOptInState] = useState(() => getReplayOptIn());
   const { showFeedback } = useFeedbackPopup();
-  const [largeFont, setLargeFont] = useState(() => getFlag('app_large_font'));
   const [isEditingAvatar, setIsEditingAvatar] = useState(false);
   const [showOnboardingFeedback, setShowOnboardingFeedback] = useState(false);
   const [isSigningOut, setIsSigningOutLocal] = useState(false);
@@ -97,12 +93,6 @@ export default function ProfilePage() {
     enabled: !!user,
     staleTime: 15 * 60 * 1000,
   });
-
-  useEffect(() => {
-    if (largeFont) document.documentElement.classList.add('large-font');
-    else document.documentElement.classList.remove('large-font');
-    setFlag('app_large_font', largeFont);
-  }, [largeFont]);
 
   const handleSignOut = async () => {
     if (isSigningOut) return;
@@ -311,18 +301,8 @@ export default function ProfilePage() {
           )}
         </div>
 
-        {/* Accessibility */}
+        {/* Appearance */}
         <div className="mx-4 mt-4 bg-card border border-border rounded-xl divide-y divide-border">
-          <div className="px-4 py-3 flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <Type size={16} className="text-muted-foreground" />
-              <div>
-                <p className="text-sm font-medium">Larger Text</p>
-                <p className="text-[11px] text-muted-foreground">Easier to read</p>
-              </div>
-            </div>
-            <Switch checked={largeFont} onCheckedChange={setLargeFont} />
-          </div>
           <div className="px-4 py-3 flex items-center justify-between">
             <div className="flex items-center gap-2.5">
               {theme === 'dark' ? <Moon size={16} className="text-muted-foreground" /> : <Sun size={16} className="text-muted-foreground" />}
@@ -333,30 +313,6 @@ export default function ProfilePage() {
             </div>
             <Switch checked={theme === 'dark'} onCheckedChange={(checked) => setTheme(checked ? 'dark' : 'light')} />
           </div>
-          {true ? (
-            <div className="px-4 py-3 flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <Shield size={16} className="text-muted-foreground" />
-                <div>
-                  <p className="text-sm font-medium">Session insights</p>
-                  <p className="text-[11px] text-muted-foreground">
-                    Help us improve UX (masks passwords, OTP, payments)
-                  </p>
-                </div>
-              </div>
-              <Switch
-                checked={replayOptIn}
-                onCheckedChange={(checked) => {
-                  setReplayOptIn(checked);
-                  setReplayOptInState(checked);
-                  showFeedback({
-                    title: checked ? 'Session insights on' : 'Session insights off',
-                    variant: 'info',
-                  });
-                }}
-              />
-            </div>
-          ) : null}
         </div>
 
         {/* Menu List */}

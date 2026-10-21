@@ -69,4 +69,4 @@ export function razorpayKeyCandidates(input: {
 }
 
 export const RAZORPAY_GATEWAY_AUTH_FAILED =
-  "We couldn't start the recharge. Your Sociva login is fine — the payment gateway rejected our request. Please try again shortly.";
+  "We couldn't start the recharge. Your Sociva login is fine - the payment gateway rejected our request. Please try again shortly.";

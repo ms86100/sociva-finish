@@ -1,4 +1,5 @@
 import { ProductListingCard, type ProductWithSeller } from '@/components/product/ProductListingCard';
+import { hasRailDensity } from '@/lib/discovery-density';
 
 export function IntentProductRail({
   title,
@@ -11,7 +12,7 @@ export function IntentProductRail({
   onProductTap: (product: ProductWithSeller) => void;
   categoryConfigs?: any[];
 }) {
-  if (!products.length) return null;
+  if (!hasRailDensity(products.length)) return null;
   return (
     <section className="mt-3">
       <h3 className="px-4 mb-2 font-extrabold text-[15px] tracking-tight text-foreground">{title}</h3>

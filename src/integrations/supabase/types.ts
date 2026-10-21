@@ -12448,6 +12448,8 @@ export type Database = {
       get_user_frequent_products: {
         Args: { _limit?: number; _user_id: string }
         Returns: {
+          action_type: string | null
+          category: string | null
           image_url: string
           order_count: number
           price: number
