@@ -379,6 +379,8 @@ workflows:
             /usr/libexec/PlistBuddy -c "Add :NSPhotoLibraryAddUsageDescription string 'Sociva needs permission to save images to your photo library.'" App/Info.plist
           /usr/libexec/PlistBuddy -c "Set :NSCameraUsageDescription 'Sociva needs camera access to let you photograph products for listing and upload profile pictures.'" App/Info.plist 2>/dev/null || \
             /usr/libexec/PlistBuddy -c "Add :NSCameraUsageDescription string 'Sociva needs camera access to let you photograph products for listing and upload profile pictures.'" App/Info.plist
+          /usr/libexec/PlistBuddy -c "Set :NSMicrophoneUsageDescription 'Sociva uses the microphone so you can talk to Sociva about your store in English, Hindi, or Kannada.'" App/Info.plist 2>/dev/null || \
+            /usr/libexec/PlistBuddy -c "Add :NSMicrophoneUsageDescription string 'Sociva uses the microphone so you can talk to Sociva about your store in English, Hindi, or Kannada.'" App/Info.plist
           /usr/libexec/PlistBuddy -c "Set :NSLocationWhenInUseUsageDescription 'Sociva uses your location to verify your residential society membership, show nearby sellers, and share live delivery progress while you keep the app open as a seller.'" App/Info.plist 2>/dev/null || \
             /usr/libexec/PlistBuddy -c "Add :NSLocationWhenInUseUsageDescription string 'Sociva uses your location to verify your residential society membership, show nearby sellers, and share live delivery progress while you keep the app open as a seller.'" App/Info.plist
           # ITMS-90683: Always purpose strings required because location APIs are linked.
@@ -1322,6 +1324,8 @@ workflows:
             /usr/libexec/PlistBuddy -c "Add :NSPhotoLibraryAddUsageDescription string 'Sociva needs permission to save images to your photo library.'" App/Info.plist
           /usr/libexec/PlistBuddy -c "Set :NSCameraUsageDescription 'Sociva needs camera access to let you photograph products for listing and upload profile pictures.'" App/Info.plist 2>/dev/null || \
             /usr/libexec/PlistBuddy -c "Add :NSCameraUsageDescription string 'Sociva needs camera access to let you photograph products for listing and upload profile pictures.'" App/Info.plist
+          /usr/libexec/PlistBuddy -c "Set :NSMicrophoneUsageDescription 'Sociva uses the microphone so you can talk to Sociva about your store in English, Hindi, or Kannada.'" App/Info.plist 2>/dev/null || \
+            /usr/libexec/PlistBuddy -c "Add :NSMicrophoneUsageDescription string 'Sociva uses the microphone so you can talk to Sociva about your store in English, Hindi, or Kannada.'" App/Info.plist
           /usr/libexec/PlistBuddy -c "Set :NSLocationWhenInUseUsageDescription 'Sociva uses your location to verify your residential society membership, show nearby sellers, and share live delivery progress while you keep the app open as a seller.'" App/Info.plist 2>/dev/null || \
             /usr/libexec/PlistBuddy -c "Add :NSLocationWhenInUseUsageDescription string 'Sociva uses your location to verify your residential society membership, show nearby sellers, and share live delivery progress while you keep the app open as a seller.'" App/Info.plist
           # ITMS-90683: Always purpose strings required because location APIs are linked.
@@ -2376,6 +2380,8 @@ workflows:
             /usr/libexec/PlistBuddy -c "Add :NSPhotoLibraryAddUsageDescription string 'Sociva needs permission to save images to your photo library.'" App/Info.plist
           /usr/libexec/PlistBuddy -c "Set :NSCameraUsageDescription 'Sociva needs camera access to let you photograph products for listing and upload profile pictures.'" App/Info.plist 2>/dev/null || \
             /usr/libexec/PlistBuddy -c "Add :NSCameraUsageDescription string 'Sociva needs camera access to let you photograph products for listing and upload profile pictures.'" App/Info.plist
+          /usr/libexec/PlistBuddy -c "Set :NSMicrophoneUsageDescription 'Sociva uses the microphone so you can talk to Sociva about your store in English, Hindi, or Kannada.'" App/Info.plist 2>/dev/null || \
+            /usr/libexec/PlistBuddy -c "Add :NSMicrophoneUsageDescription string 'Sociva uses the microphone so you can talk to Sociva about your store in English, Hindi, or Kannada.'" App/Info.plist
           /usr/libexec/PlistBuddy -c "Set :NSLocationWhenInUseUsageDescription 'Sociva uses your location to verify your residential society membership, show nearby sellers, and share live delivery progress while you keep the app open as a seller.'" App/Info.plist 2>/dev/null || \
             /usr/libexec/PlistBuddy -c "Add :NSLocationWhenInUseUsageDescription string 'Sociva uses your location to verify your residential society membership, show nearby sellers, and share live delivery progress while you keep the app open as a seller.'" App/Info.plist
           # ITMS-90683: Always purpose strings required because location APIs are linked.

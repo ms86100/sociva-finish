@@ -43,6 +43,8 @@ const config: CapacitorConfig = {
         'sociva.in',
         '*.razorpay.com',
         '*.razorpay.in',
+        'api.retellai.com',
+        '*.retellai.com',
       ],
     },
   }),
