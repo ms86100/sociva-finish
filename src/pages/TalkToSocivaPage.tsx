@@ -6,13 +6,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { SocivaVoiceCall } from '@/components/seller/SocivaVoiceCall';
 import { useSocivaVoiceCall } from '@/hooks/useSocivaVoiceCall';
-import { validateSocivaVoiceLead } from '@/lib/sociva-voice-lead';
+import { DEFAULT_SOCIVA_VOICE_SOCIETY, validateSocivaVoiceLead } from '@/lib/sociva-voice-lead';
 
 export default function TalkToSocivaPage() {
   const voice = useSocivaVoiceCall();
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
-  const [societyName, setSocietyName] = useState('');
+  const [societyName, setSocietyName] = useState(DEFAULT_SOCIVA_VOICE_SOCIETY);
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
   const inCall = voice.status === 'starting' || voice.status === 'connecting' || voice.status === 'live' || voice.status === 'agent_speaking';
@@ -123,7 +123,7 @@ export default function TalkToSocivaPage() {
                   value={societyName}
                   onChange={(e) => setSocietyName(e.target.value)}
                   className="h-12 rounded-xl"
-                  placeholder="Your housing society"
+                  placeholder="Shriram Greenfield"
                 />
                 {formErrors.society_name && <p className="text-xs text-destructive">{formErrors.society_name}</p>}
               </div>

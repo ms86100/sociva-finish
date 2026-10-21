@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import {
+  DEFAULT_SOCIVA_VOICE_SOCIETY,
   isValidIndianMobile,
   normalizeIndianPhone,
   validateSocivaVoiceLead,
@@ -46,6 +47,11 @@ describe('Talk to Sociva lead validation', () => {
 });
 
 describe('Talk to Sociva product wiring', () => {
+  it('pre-fills society as Shriram Greenfield', () => {
+    expect(DEFAULT_SOCIVA_VOICE_SOCIETY).toBe('Shriram Greenfield');
+    expect(readSrc('src/pages/TalkToSocivaPage.tsx')).toContain('useState(DEFAULT_SOCIVA_VOICE_SOCIETY)');
+  });
+
   it('registers the public and admin routes', () => {
     const app = readSrc('src/App.tsx');
     expect(app).toContain('path="/talk-to-sociva"');
