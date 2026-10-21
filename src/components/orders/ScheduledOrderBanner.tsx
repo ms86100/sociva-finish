@@ -5,16 +5,24 @@ import {
   formatPreparationByLine,
   formatScheduledDateTime,
   getCancellationCutoffAt,
+  hasSellerAccepted,
+  isClosedStoreScheduledOrder,
   isScheduledOrder,
   isUpcomingScheduled,
   type ScheduledOrderLike,
 } from '@/lib/scheduled-orders';
+import {
+  formatClosedStoreBuyerConfirmCopy,
+  formatClosedStoreSellerAcceptCopy,
+  formatIstDeadline,
+  formatOpenStoreScheduleAcceptCopy,
+} from '@/lib/store-schedule';
 import { ScheduledOrderCountdown } from '@/components/orders/ScheduledOrderCountdown';
 import { ScheduledOrderTimeline } from '@/components/orders/ScheduledOrderTimeline';
 import { format } from 'date-fns';
 
 interface ScheduledOrderBannerProps {
-  order: ScheduledOrderLike & { status?: string | null };
+  order: ScheduledOrderLike & { status?: string | null; auto_cancel_at?: string | null };
   view: 'buyer' | 'seller';
 }
 
@@ -24,6 +32,19 @@ export function ScheduledOrderBanner({ order, view }: ScheduledOrderBannerProps)
   const upcoming = isUpcomingScheduled(order);
   const cutoff = getCancellationCutoffAt(order);
   const canCancel = canBuyerCancelScheduled(order);
+  const accepted = hasSellerAccepted(order);
+  const deadlineAt = order.auto_cancel_at ? new Date(order.auto_cancel_at) : null;
+  const deadlineLabel = deadlineAt && !Number.isNaN(deadlineAt.getTime())
+    ? formatIstDeadline(deadlineAt)
+    : null;
+  const closedStore = isClosedStoreScheduledOrder(order);
+  const waitingCopy = accepted
+    ? null
+    : closedStore
+      ? (view === 'seller'
+        ? formatClosedStoreSellerAcceptCopy(deadlineLabel)
+        : formatClosedStoreBuyerConfirmCopy(deadlineLabel))
+      : formatOpenStoreScheduleAcceptCopy(deadlineLabel);
 
   return (
     <div className="space-y-3">
@@ -36,12 +57,16 @@ export function ScheduledOrderBanner({ order, view }: ScheduledOrderBannerProps)
               <p className="text-sm font-medium text-primary mt-0.5">{formatScheduledDateTime(order)}</p>
               {view === 'buyer' && upcoming && (
                 <p className="text-xs text-muted-foreground mt-1">
-                  Your order will be prepared and fulfilled on the scheduled date.
+                  {accepted
+                    ? 'Your order will be prepared and fulfilled on the scheduled date.'
+                    : waitingCopy}
                 </p>
               )}
               {view === 'seller' && upcoming && (
                 <p className="text-xs text-muted-foreground mt-1">
-                  Accept anytime. Preparation and delivery unlock when the scheduled window opens.
+                  {accepted
+                    ? 'Preparation and delivery unlock when the scheduled window opens.'
+                    : waitingCopy}
                 </p>
               )}
               {view === 'seller' && formatPreparationByLine(order) && (
@@ -54,7 +79,7 @@ export function ScheduledOrderBanner({ order, view }: ScheduledOrderBannerProps)
         {cutoff && view === 'buyer' && (
           <p className="text-[11px] text-muted-foreground pl-7">
             {canCancel
-              ? `Cancellation allowed until ${format(cutoff, 'MMM d · h:mm a')}`
+              ? `Cancellation allowed until ${format(cutoff, 'MMM d, h:mm a')}`
               : 'Cancellation cutoff has passed'}
           </p>
         )}

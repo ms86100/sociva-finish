@@ -11,6 +11,7 @@ import { useCurrency } from '@/hooks/useCurrency';
 import { useCategoryConfigs } from '@/hooks/useCategoryBehavior';
 import { ACTION_CONFIG, deriveActionType } from '@/lib/marketplace-constants';
 import { computeStoreStatus } from '@/lib/store-availability';
+import { canScheduleWhileClosed } from '@/lib/store-schedule';
 import { Eye, Plus, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
@@ -44,7 +45,7 @@ export function RecentlyViewedRow() {
       if (recentIds.length === 0) return [];
       const { data } = await supabase
         .from('products')
-        .select('id, name, price, image_url, seller_id, is_available, is_veg, category, is_bestseller, is_recommended, is_urgent, description, created_at, updated_at, action_type, seller_profiles!inner(is_available, availability_start, availability_end, operating_days)')
+        .select('id, name, price, image_url, seller_id, is_available, is_veg, category, is_bestseller, is_recommended, is_urgent, description, created_at, updated_at, action_type, seller_profiles!inner(is_available, vacation_mode, availability_start, availability_end, operating_days)')
         .in('id', recentIds)
         .eq('is_available', true)
         .eq('approval_status', 'approved');
@@ -66,16 +67,21 @@ export function RecentlyViewedRow() {
 
   const isInCart = (id: string) => items.some(i => i.product_id === id);
 
-  const isStoreClosed = (product: any) => {
+  const storeScheduleState = (product: any) => {
     const seller = product.seller_profiles;
-    if (!seller) return false;
+    if (!seller) return { closed: false, canSchedule: false };
     const status = computeStoreStatus(
       seller.availability_start,
       seller.availability_end,
       seller.operating_days,
       seller.is_available
     );
-    return status.status !== 'open';
+    const vacation = !!seller.vacation_mode;
+    const closed = status.status !== 'open' || vacation;
+    return {
+      closed,
+      canSchedule: canScheduleWhileClosed(status.status, vacation),
+    };
   };
 
   return (
@@ -103,7 +109,8 @@ export function RecentlyViewedRow() {
           const isActionResolved = hasCanonicalProductAction || Boolean(categoryConfig);
           const isCartAction = canQuickAddRecentlyViewed(actionType, isActionResolved);
           const inCart = isCartAction && isInCart(product.id);
-          const closed = isStoreClosed(product);
+          const { closed, canSchedule } = storeScheduleState(product);
+          const addBlocked = closed && !canSchedule;
           return (
             <motion.button
               key={product.id}
@@ -115,12 +122,12 @@ export function RecentlyViewedRow() {
                   navigate(`/product/${product.id}`);
                   return;
                 }
-                if (!inCart && !closed) addItem({ ...product, action_type: actionType } as any);
+                if (!inCart && !addBlocked) addItem({ ...product, action_type: actionType } as any);
               }}
-              disabled={isCartAction && closed}
+              disabled={isCartAction && addBlocked}
               className={cn(
                 'shrink-0 w-[100px] rounded-2xl border bg-card overflow-hidden text-left transition-all duration-200 shadow-sm',
-                isCartAction && closed ? 'border-border opacity-60 cursor-not-allowed' :
+                isCartAction && addBlocked ? 'border-border opacity-60 cursor-not-allowed' :
                 inCart ? 'border-primary/30 shadow-card' : 'border-border active:scale-[0.96] hover:shadow-card hover:border-primary/20'
               )}
             >
@@ -130,7 +137,7 @@ export function RecentlyViewedRow() {
                 ) : (
                   <div className="w-full h-full flex items-center justify-center text-xl">📦</div>
                 )}
-                {isCartAction && closed ? (
+                {isCartAction && addBlocked ? (
                   <div className="absolute inset-0 bg-background/60 flex items-center justify-center">
                     <span className="text-[9px] font-bold text-destructive bg-background/80 px-1.5 py-0.5 rounded-full">Closed</span>
                   </div>

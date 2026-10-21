@@ -4,8 +4,15 @@ import { CartAddPopup } from './ui/CartAddPopup';
 import { CartRemovePopup } from './ui/CartRemovePopup';
 import { hideFeedback } from '@/components/FeedbackPopupProvider';
 
+export type CartAddPopupCopy = {
+  title?: string;
+  message?: string;
+  primaryLabel?: string;
+  secondaryLabel?: string;
+};
+
 interface CartPopupContextType {
-  showAddPopup: (productName: string, productImage?: string, price?: number, onViewCart?: () => void) => void;
+  showAddPopup: (productName: string, productImage?: string, price?: number, onViewCart?: () => void, copy?: CartAddPopupCopy) => void;
   showRemovePopup: (productName: string, onContinueShopping?: () => void) => void;
   isCartPopupOpen: boolean;
 }
@@ -19,6 +26,10 @@ export function CartPopupProvider({ children }: { children: ReactNode }) {
     productImage?: string;
     price?: number;
     onViewCart?: () => void;
+    message?: string;
+    title?: string;
+    primaryLabel?: string;
+    secondaryLabel?: string;
   }>({ isOpen: false, productName: '' });
 
   const [removePopupState, setRemovePopupState] = useState<{
@@ -31,11 +42,22 @@ export function CartPopupProvider({ children }: { children: ReactNode }) {
     productName: string,
     productImage?: string,
     price?: number,
-    onViewCart?: () => void
+    onViewCart?: () => void,
+    copy?: CartAddPopupCopy,
   ) => {
     hideFeedback();
     setRemovePopupState({ isOpen: false, productName: '' });
-    setAddPopupState({ isOpen: true, productName, productImage, price, onViewCart });
+    setAddPopupState({
+      isOpen: true,
+      productName,
+      productImage,
+      price,
+      onViewCart,
+      message: copy?.message,
+      title: copy?.title,
+      primaryLabel: copy?.primaryLabel,
+      secondaryLabel: copy?.secondaryLabel,
+    });
   }, []);
 
   const showRemovePopup = useCallback((
@@ -69,6 +91,10 @@ export function CartPopupProvider({ children }: { children: ReactNode }) {
         productImage={addPopupState.productImage}
         price={addPopupState.price}
         onViewCart={addPopupState.onViewCart}
+        message={addPopupState.message}
+        title={addPopupState.title}
+        primaryLabel={addPopupState.primaryLabel}
+        secondaryLabel={addPopupState.secondaryLabel}
       />
       <CartRemovePopup
         isOpen={removePopupState.isOpen}

@@ -39,7 +39,7 @@ export default function ProductDeepLinkPage() {
             lead_time_hours, accepts_preorders, price_stable_since,
             seller:seller_profiles!products_seller_id_fkey(
               id, business_name, profile_image_url, rating, total_reviews, society_id,
-              latitude, longitude, is_featured, is_available,
+              latitude, longitude, is_featured, is_available, vacation_mode,
               availability_start, availability_end, operating_days,
               fulfillment_mode, delivery_note, avg_response_minutes, last_active_at,
               home_service_available, home_service_fee, service_radius_km,
@@ -137,6 +137,7 @@ export default function ProductDeepLinkPage() {
           seller_availability_end: seller?.availability_end || null,
           seller_operating_days: seller?.operating_days || null,
           seller_is_available: seller?.is_available ?? true,
+          seller_vacation_mode: seller?.vacation_mode ?? false,
           seller_latitude: seller?.latitude ?? null,
           seller_longitude: seller?.longitude ?? null,
           avg_response_minutes: seller?.avg_response_minutes ?? null,

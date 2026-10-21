@@ -45,4 +45,23 @@ describe('resolveNotificationDisplay', () => {
     expect(out.title).toBe('Hello');
     expect(out.body).toBe('World');
   });
+
+  it('drops the extra A before a The-named parcel sender', () => {
+    const out = resolveNotificationDisplay({
+      title: 'Parcel Received',
+      body: 'A The Daily Kitchen by Arushi has arrived for you.',
+      type: 'parcel',
+    });
+    expect(out.body).toBe('The Daily Kitchen by Arushi has arrived for you.');
+  });
+
+  it('drops stale accept copy on scheduled-order notifications', () => {
+    const out = resolveNotificationDisplay({
+      title: 'Scheduled order for 22 Oct, 9:45 AM',
+      body: 'Scheduled for 22 Oct, 9:45 AM - 1x Biryani. Tap to review and accept.',
+      type: 'order',
+    });
+    expect(out.body).toBe('Scheduled for 22 Oct, 9:45 AM - 1x Biryani.');
+    expect(out.body).not.toMatch(/Tap to review and accept/);
+  });
 });

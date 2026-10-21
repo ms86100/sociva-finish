@@ -52,5 +52,14 @@ export function resolveNotificationDisplay(notification: NotifLike): { title: st
     }
   }
 
-  return { title, body };
+  return { title, body: sanitizeNotificationBody(title, body) };
+}
+
+function sanitizeNotificationBody(title: string, body: string): string {
+  let next = body.trim();
+  next = next.replace(/^A\s+(The\s+)/i, '$1');
+  if (/scheduled order/i.test(title)) {
+    next = next.replace(/\s*Tap to review and accept\.?\s*$/i, '').trim();
+  }
+  return next;
 }

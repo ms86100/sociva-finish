@@ -48,8 +48,7 @@ export function formatSellerWhenGlance(order: (ScheduledOrderLike & { order_type
     return { kind: 'instant', label: 'Instant' };
   }
   const when = formatScheduledGlance(order);
-  const kindLabel = order?.order_type === 'booking' ? 'Scheduled' : 'Pre-order';
-  return { kind: 'preorder', label: when ? `${kindLabel} · ${when}` : kindLabel };
+  return { kind: 'preorder', label: when ? `Scheduled - ${when}` : 'Scheduled' };
 }
 
 export function formatSellerOrderLocation(input: {

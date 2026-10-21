@@ -177,6 +177,14 @@ export function resolveNotificationRoute(
     case 'seller_credit_exhausted':
       return '/seller/credits';
 
+    case 'promotion':
+    case 'food_discovery':
+    case 'campaign': {
+      const path = payload?.reference_path || payload?.action_url || payload?.route;
+      if (typeof path === 'string' && path.startsWith('/')) return path;
+      return '/category/food_beverages';
+    }
+
     // Support tickets - deep-link into the order with the ticket id so the
     // seller (or buyer) lands somewhere real instead of a dead /support route.
     case 'support_ticket': {

@@ -20,6 +20,8 @@ import { listingDiscountPercent, listingGlanceFacts, listingGlanceKind } from '@
 import { useCurrency } from '@/hooks/useCurrency';
 import { useMarketplaceLabels } from '@/hooks/useMarketplaceLabels';
 import { computeStoreStatus, formatStoreClosedMessage, type StoreAvailability } from '@/lib/store-availability';
+import { canScheduleWhileClosed, formatScheduleCta, scheduleHoursFromProduct, VACATION_BUYER_CTA } from '@/lib/store-schedule';
+import { ScheduleCtaLabel } from '@/components/product/ScheduleCtaLabel';
 import { ProductFavoriteButton } from '@/components/favorite/ProductFavoriteButton';
 import { useAuth } from '@/contexts/AuthContext';
 import { optimizedImageUrl, imageSrcSet, handleImageError } from '@/utils/imageHelpers';
@@ -152,6 +154,11 @@ function ProductListingCardInner({ product, layout = 'auto', onTap, onNavigate, 
   const priceLabel = getCommercePriceLabel(actionType, product.price, formatPrice);
   const showMoney = shouldShowMonetaryPrice(actionType, product.price);
   const effectiveStoreClosed = isContactAction ? false : isStoreClosed;
+  const storeHours = scheduleHoursFromProduct(product);
+  const onVacation = !!storeHours.vacationMode;
+  const canScheduleClosed = !isContactAction && !onVacation && canScheduleWhileClosed(storeAvailability.status, storeHours.vacationMode);
+  const scheduleCta = canScheduleClosed ? formatScheduleCta(storeHours) : '';
+  const showCartCta = !viewOnly && !isUnavailable && (onVacation || !effectiveStoreClosed || canScheduleClosed);
 
   const isLowStock = mc.enableScarcity && product.stock_quantity != null && product.stock_quantity > 0 && product.stock_quantity <= mc.lowStockThreshold;
 
@@ -390,10 +397,10 @@ function ProductListingCardInner({ product, layout = 'auto', onTap, onNavigate, 
         </div>
 
         {/* ADD lives under the photo - never covers the dish */}
-        {!viewOnly && !isUnavailable && !effectiveStoreClosed && (
+        {showCartCta && (
           <div className="flex justify-end px-1.5 -mt-3.5 relative z-20 pointer-events-none">
             <div className="pointer-events-auto">
-              {isCartAction && quantity > 0 ? (
+              {isCartAction && quantity > 0 && !onVacation ? (
                 <div className="flex items-center bg-primary/95 backdrop-blur-md rounded-xl overflow-hidden shadow-cta border border-primary/80 animate-stepper-pop">
                   <motion.button
                     whileTap={{ scale: 0.88 }}
@@ -432,11 +439,11 @@ function ProductListingCardInner({ product, layout = 'auto', onTap, onNavigate, 
                 <motion.button
                   whileTap={{ scale: 0.94 }}
                   onClick={handleAddWithFeedback}
-                  disabled={isAdding}
+                  disabled={isAdding || onVacation}
                   aria-busy={isAdding || undefined}
-                  aria-label={isCartAction ? 'Add to cart' : actionConfig.shortLabel}
+                  aria-label={onVacation ? VACATION_BUYER_CTA : isCartAction ? (canScheduleClosed ? scheduleCta : 'Add to cart') : actionConfig.shortLabel}
                   className={cn(
-                    'bg-card/95 backdrop-blur-md text-primary font-extrabold text-[10px] px-2.5 py-1.5 rounded-xl',
+                    'bg-card/95 backdrop-blur-md text-primary font-extrabold text-[11px] px-2.5 py-1.5 rounded-xl',
                     'disabled:opacity-70',
                     'border-[1.5px] border-primary shadow-sm',
                     'hover:bg-primary hover:text-primary-foreground',
@@ -448,7 +455,7 @@ function ProductListingCardInner({ product, layout = 'auto', onTap, onNavigate, 
                   {justAdded ? (
                     <><Check size={11} strokeWidth={3} /> ADDED</>
                   ) : (
-                    isCartAction ? 'ADD' : actionConfig.shortLabel
+                    onVacation ? VACATION_BUYER_CTA : isCartAction ? (canScheduleClosed ? <ScheduleCtaLabel /> : 'ADD') : actionConfig.shortLabel
                   )}
                 </motion.button>
               )}
@@ -460,7 +467,7 @@ function ProductListingCardInner({ product, layout = 'auto', onTap, onNavigate, 
       {compact ? (
         <div className={cn(
           'h-[112px] overflow-hidden px-2.5 pb-2.5',
-          !viewOnly && !isUnavailable && !isStoreClosed ? 'pt-6' : 'pt-3'
+          showCartCta ? 'pt-6' : 'pt-3'
         )}>
           <div className="flex h-full flex-col overflow-hidden">
             <div className="min-h-[20px] flex items-baseline gap-1.5 overflow-hidden flex-wrap">
@@ -505,7 +512,7 @@ function ProductListingCardInner({ product, layout = 'auto', onTap, onNavigate, 
       ) : (
         <div className={cn(
           'flex flex-1 flex-col min-h-0 overflow-hidden px-2 sm:px-2.5 pb-1.5',
-          !viewOnly && !isUnavailable && !isStoreClosed ? 'pt-3' : 'pt-1.5'
+          showCartCta ? 'pt-3' : 'pt-1.5'
         )}>
           {/* Natural flow: price -> optional glance (collapses when empty) -> title reserved for footer align */}
           <div className="flex flex-col gap-0.5 shrink-0" data-slot="listing-price-group">

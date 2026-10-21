@@ -28,6 +28,10 @@ export function checkoutErrorMessage(error?: string | null, fallbackMessage?: st
       return fallbackMessage || SELLER_LOCATION_REQUIRED_MSG;
     case 'buyer_location':
       return fallbackMessage || BUYER_DELIVERY_LOCATION_MSG;
+    case 'schedule_required':
+      return fallbackMessage || 'This store is closed. Choose a time after it opens.';
+    case 'invalid_schedule_slot':
+      return fallbackMessage || 'That time is outside this store\'s hours. Pick another slot.';
     default:
       return fallbackMessage || error || 'Checkout could not be completed.';
   }

@@ -34,6 +34,7 @@ import { track } from '@/lib/analytics';
 import { setPendingAuthAction } from '@/lib/pending-auth-action';
 import { useBrowsingLocation } from '@/contexts/BrowsingLocationContext';
 import { getCartSellerInsights } from '@/lib/cart-seller-insights';
+import { formatClosedStoreBuyerConfirmCopy } from '@/lib/store-schedule';
 
 export default function CartPage() {
   const c = useCartPage();
@@ -471,8 +472,35 @@ export default function CartPage() {
           {c.needsPreciseLocation && c.hasCheckoutDestination && <div className="mt-3"><PreciseLocationRequiredCard /></div>}
         </div>
 
-        {/* Pre-order scheduling (mandatory) */}
-        {c.hasPreorderItems && (
+        {c.mixedOpenAndClosedCart && (
+          <div className="mt-5 mx-4 rounded-xl border border-warning/30 bg-warning/10 px-3 py-3">
+            <p className="text-sm font-semibold text-warning-foreground">Checkout one store at a time</p>
+            <p className="text-[11px] text-muted-foreground mt-1">
+              This cart mixes an open store and a closed store. Use Checkout this store so each order can use the right time.
+            </p>
+          </div>
+        )}
+
+        {c.hasHardBlockedItems && (
+          <div className="mt-5 mx-4 rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-3">
+            <p className="text-sm font-semibold text-foreground">Store unavailable</p>
+            <p className="text-[11px] text-muted-foreground mt-1">
+              A store in this cart is paused or on a break. Remove it to continue.
+            </p>
+          </div>
+        )}
+
+        {c.scheduleSlotsEmpty && !c.mixedOpenAndClosedCart && !c.hasHardBlockedItems && (
+          <div className="mt-5 mx-4 rounded-xl border border-warning/30 bg-warning/10 px-3 py-3">
+            <p className="text-sm font-semibold text-warning-foreground">No shared time</p>
+            <p className="text-[11px] text-muted-foreground mt-1">
+              These stores do not share a time. Use Checkout this store.
+            </p>
+          </div>
+        )}
+
+        {/* Required scheduling: closed store or pre-order items */}
+        {c.schedulingRequired && !c.mixedOpenAndClosedCart && !c.scheduleSlotsEmpty && (
           <div className="mt-5 px-4">
             <PreorderDatePicker
               leadTimeHours={c.maxLeadTimeHours}
@@ -481,13 +509,15 @@ export default function CartPage() {
               onDateChange={c.setScheduledDate}
               onTimeChange={c.setScheduledTime}
               cutoffTime={c.preorderCutoffTime}
+              storeHours={c.scheduleStoreHours}
+              required
+              closedStore={c.hasClosedScheduleItems}
             />
-            <p className="text-[11px] text-destructive mt-1 font-medium">* Scheduling is required for pre-order items</p>
           </div>
         )}
 
-        {/* Optional scheduling for non-pre-order carts */}
-        {!c.hasPreorderItems && (
+        {/* Optional scheduling for open-store carts */}
+        {!c.schedulingRequired && !c.mixedOpenAndClosedCart && (
           <div className="mt-5 px-4">
             <div className="flex items-center justify-between">
               <div>
@@ -505,6 +535,7 @@ export default function CartPage() {
                   onDateChange={c.setScheduledDate}
                   onTimeChange={c.setScheduledTime}
                   cutoffTime={null}
+                  storeHours={c.scheduleStoreHours}
                 />
               </div>
             )}
@@ -620,8 +651,17 @@ export default function CartPage() {
               Add your map pin to continue
             </Button>
           )}
-          {c.user && c.preorderMissingSchedule && (
-              <p className="text-xs text-destructive font-medium text-center mb-2">Please select a delivery date & time for pre-order items</p>
+          {c.user && c.mixedOpenAndClosedCart && (
+              <p className="text-xs text-destructive font-medium text-center mb-2">Checkout one store at a time</p>
+            )}
+          {c.user && c.hasHardBlockedItems && (
+              <p className="text-xs text-destructive font-medium text-center mb-2">A store in this cart is paused or on a break</p>
+            )}
+          {c.user && c.scheduleSlotsEmpty && !c.mixedOpenAndClosedCart && !c.hasHardBlockedItems && (
+              <p className="text-xs text-destructive font-medium text-center mb-2">These stores do not share a time. Checkout one store at a time</p>
+            )}
+          {c.user && c.preorderMissingSchedule && !c.mixedOpenAndClosedCart && !c.hasHardBlockedItems && !c.scheduleSlotsEmpty && (
+              <p className="text-xs text-destructive font-medium text-center mb-2">Please select a delivery date & time</p>
             )}
             <div className="flex items-center gap-3">
               <div className="flex-1">
@@ -696,6 +736,20 @@ export default function CartPage() {
                   {c.fulfillmentType === 'delivery' ? <Truck size={18} className="text-primary" /> : <Package size={18} className="text-accent" />}
                   <span className="font-semibold text-foreground">{c.fulfillmentType === 'delivery' ? 'Delivery' : 'Pickup'}</span>
                 </div>
+                {c.sendScheduledSlot && c.scheduledSlotLabel && (
+                  <div className="flex items-center gap-2 p-2.5 rounded-xl border border-accent bg-accent/10">
+                    <Clock size={18} className="text-accent" />
+                    <div>
+                      <p className="font-semibold text-foreground">Scheduled</p>
+                      <p className="text-xs text-muted-foreground">{c.scheduledSlotLabel}</p>
+                      {c.hasClosedScheduleItems && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {formatClosedStoreBuyerConfirmCopy(c.closedStoreAcceptByLabel)}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
                 <div className="flex justify-between"><span className="text-muted-foreground">Items</span><span className="font-medium">{c.itemCount} item{c.itemCount !== 1 ? 's' : ''}</span></div>
                 {c.appliedCoupon && (
                   <div className="flex justify-between text-primary"><span>Coupon ({c.appliedCoupon.code})</span><span className="font-medium tabular-nums">-{c.formatPrice(Math.min(c.effectiveCouponDiscount, c.totalAmount))}</span></div>

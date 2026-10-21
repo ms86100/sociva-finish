@@ -14,7 +14,7 @@ import { notify } from '@/lib/notify';
 import { useBrowsingLocation } from '@/contexts/BrowsingLocationContext';
 import { buyerCanOrderFromSeller, filterDiscoverableProductIds } from '@/lib/sellerDiscoverability';
 import { PRECISE_LOCATION_TITLE } from '@/lib/buyerLocation';
-import { getClosedStoreReorderMessage, resolveReorderLines } from '@/lib/reorder';
+import { inspectReorderStores, resolveReorderLines } from '@/lib/reorder';
 import { parseStoreClosedBuyerError } from '@/lib/store-availability';
 import { useLoadVariantProductIds } from '@/hooks/useProductVariants';
 import { fetchVariantsByIds } from '@/lib/product-variants';
@@ -117,12 +117,12 @@ export function ReorderButton({
         return;
       }
 
-      const closedMessage = await getClosedStoreReorderMessage([
+      const reorderGate = await inspectReorderStores([
         sellerId,
         ...discoverableProducts.map((p) => p.seller_id).filter(Boolean),
       ]);
-      if (closedMessage) {
-        notify.block(closedMessage, { id: 'reorder-store-closed', title: 'Store closed' });
+      if (reorderGate.blocked) {
+        notify.block(reorderGate.blocked, { id: 'reorder-store-closed', title: 'Store closed' });
         setIsLoading(false);
         return;
       }
@@ -166,6 +166,9 @@ export function ReorderButton({
       const unavailableCount = lines.length - cartInserts.length;
       if (unavailableCount > 0) {
         toast.info(`${unavailableCount} item(s) were unavailable and skipped`);
+      }
+      if (reorderGate.schedule) {
+        toast('This store is closed right now. Pick a time in your cart to place the order.', { id: 'cart-store-schedule' });
       }
 
       navigate('/cart');

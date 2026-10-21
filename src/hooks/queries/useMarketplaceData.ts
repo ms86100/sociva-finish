@@ -36,6 +36,7 @@ export interface RpcSellerRow {
   home_service_available?: boolean | null;
   home_service_fee?: number | null;
   fulfillment_mode?: string | null;
+  vacation_mode?: boolean | null;
 }
 
 /**
@@ -69,12 +70,13 @@ export function useMarketplaceData() {
         home_service_available: boolean | null;
         home_service_fee: number | null;
         fulfillment_mode: string | null;
+        vacation_mode: boolean | null;
       }> = [];
       for (let i = 0; i < sellerIds.length; i += 80) {
         const chunk = sellerIds.slice(i, i + 80);
         const { data, error } = await supabase
           .from('seller_profiles')
-          .select('id, home_service_available, home_service_fee, fulfillment_mode')
+          .select('id, home_service_available, home_service_fee, fulfillment_mode, vacation_mode')
           .in('id', chunk);
         if (error) throw error;
         rows.push(...((data || []) as typeof rows));
@@ -83,12 +85,13 @@ export function useMarketplaceData() {
     },
   });
   const homeBySeller = useMemo(() => {
-    const map = new Map<string, { home: boolean; fee: number | null; mode: string | null }>();
+    const map = new Map<string, { home: boolean; fee: number | null; mode: string | null; vacation: boolean }>();
     for (const row of homeServiceQuery.data || []) {
       map.set(row.id, {
         home: row.home_service_available === true,
         fee: row.home_service_fee,
         mode: row.fulfillment_mode,
+        vacation: row.vacation_mode === true,
       });
     }
     return map;
@@ -153,6 +156,7 @@ export function useMarketplaceData() {
       home_service_available: homeBySeller.get(s.seller_id)?.home ?? false,
       home_service_fee: homeBySeller.get(s.seller_id)?.fee ?? null,
       fulfillment_mode: homeBySeller.get(s.seller_id)?.mode ?? null,
+      vacation_mode: homeBySeller.get(s.seller_id)?.vacation ?? false,
     }));
   }, [sellers, products, homeBySeller]);
 

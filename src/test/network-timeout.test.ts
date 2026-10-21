@@ -56,6 +56,7 @@ describe('shouldApplyReadTimeout', () => {
     }
     expect(shouldApplyReadTimeout(`${BASE}/rest/v1/rpc/create_multi_vendor_orders`, { method: 'POST' })).toBe(false);
     expect(shouldApplyReadTimeout(`${BASE}/rest/v1/rpc/verify_delivery_otp_and_complete`, { method: 'POST' })).toBe(false);
+    expect(shouldApplyReadTimeout(`${BASE}/rest/v1/rpc/seller_complete_order_without_otp`, { method: 'POST' })).toBe(false);
   });
 
   it('never bounds writes, auth, storage or edge functions', () => {

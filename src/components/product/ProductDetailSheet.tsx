@@ -31,6 +31,7 @@ import { hapticImpact, hapticSelection } from '@/lib/haptics';
 import { formatDistanceToNowStrict } from 'date-fns';
 import { useMarketplaceLabels } from '@/hooks/useMarketplaceLabels';
 import { computeStoreStatus, formatStoreClosedMessage, type StoreAvailability } from '@/lib/store-availability';
+import { canScheduleWhileClosed, formatClosedScheduleMessage, formatScheduleCta, scheduleHoursFromProduct } from '@/lib/store-schedule';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSellerCreditCanAccept } from '@/hooks/queries/useSellerCredits';
 import { sellerCreditCustomerMessage } from '@/lib/sellerCredits';
@@ -163,13 +164,14 @@ export function ProductDetailSheet({ product, open, onOpenChange, onSelectProduc
   const inlineAvailability = useMemo(() => {
     const p = product as any;
     const seller = p?.seller as any;
-    const hasInlineAvailability = !!p && ('seller_availability_start' in p || 'seller_availability_end' in p || 'seller_operating_days' in p || 'seller_is_available' in p || (seller && ('availability_start' in seller || 'availability_end' in seller || 'operating_days' in seller || 'is_available' in seller)));
+    const hasInlineAvailability = !!p && ('seller_availability_start' in p || 'seller_availability_end' in p || 'seller_operating_days' in p || 'seller_is_available' in p || 'seller_vacation_mode' in p || (seller && ('availability_start' in seller || 'availability_end' in seller || 'operating_days' in seller || 'is_available' in seller || 'vacation_mode' in seller)));
     return {
       hasInlineAvailability,
       availabilityStart: p?.seller_availability_start ?? seller?.availability_start ?? null,
       availabilityEnd: p?.seller_availability_end ?? seller?.availability_end ?? null,
       operatingDays: p?.seller_operating_days ?? seller?.operating_days ?? null,
       isAvailable: p?.seller_is_available ?? seller?.is_available ?? true,
+      vacationMode: p?.seller_vacation_mode ?? seller?.vacation_mode ?? false,
     };
   }, [product]);
 
@@ -177,7 +179,7 @@ export function ProductDetailSheet({ product, open, onOpenChange, onSelectProduc
     queryKey: ['product-detail-seller-availability', product?.seller_id],
     queryFn: async () => {
       if (!product?.seller_id) return null;
-      const { data } = await supabase.from('seller_profiles').select('availability_start, availability_end, operating_days, is_available, latitude, longitude').eq('id', product.seller_id).maybeSingle();
+      const { data } = await supabase.from('seller_profiles').select('availability_start, availability_end, operating_days, is_available, vacation_mode, latitude, longitude').eq('id', product.seller_id).maybeSingle();
       return data;
     },
     enabled: open && !!product?.seller_id && !inlineAvailability.hasInlineAvailability,
@@ -189,6 +191,7 @@ export function ProductDetailSheet({ product, open, onOpenChange, onSelectProduc
     availabilityEnd: fetchedSellerAvailability?.availability_end ?? null,
     operatingDays: fetchedSellerAvailability?.operating_days ?? null,
     isAvailable: fetchedSellerAvailability?.is_available ?? true,
+    vacationMode: fetchedSellerAvailability?.vacation_mode ?? false,
   };
 
   const hasAvailabilityData = inlineAvailability.hasInlineAvailability || !!fetchedSellerAvailability;
@@ -203,8 +206,28 @@ export function ProductDetailSheet({ product, open, onOpenChange, onSelectProduc
   const isContactAction = !isCartPricedAction(d.actionType);
   const showMoney = shouldShowMonetaryPrice(d.actionType, product?.price);
   const priceLabel = getCommercePriceLabel(d.actionType, product?.price, d.formatPrice);
-  const blocksForStoreClosed = isStoreClosed && !isContactAction;
-  const storeClosedMsg = isStoreCheckPending ? 'Checking store availability…' : isStoreUnknown ? 'Store unavailable right now' : isStoreClosed ? formatStoreClosedMessage(storeAvailability) : '';
+  const detailHours = scheduleHoursFromProduct({
+    ...product,
+    seller_availability_start: effectiveAvailability.availabilityStart,
+    seller_availability_end: effectiveAvailability.availabilityEnd,
+    seller_operating_days: effectiveAvailability.operatingDays,
+    seller_is_available: effectiveAvailability.isAvailable,
+    seller_vacation_mode: effectiveAvailability.vacationMode,
+  });
+  const onVacation = !!detailHours.vacationMode;
+  const canScheduleClosed = !isContactAction && !isStoreCheckPending && !isStoreUnknown && !onVacation
+    && canScheduleWhileClosed(storeAvailability.status, detailHours.vacationMode);
+  const blocksForStoreClosed = (isStoreClosed || onVacation) && !isContactAction && !canScheduleClosed;
+  const storeClosedMsg = isStoreCheckPending
+    ? 'Checking store availability…'
+    : isStoreUnknown
+      ? 'Store unavailable right now'
+      : onVacation || canScheduleClosed
+        ? formatClosedScheduleMessage(detailHours)
+        : isStoreClosed
+          ? formatStoreClosedMessage(storeAvailability)
+          : '';
+  const scheduleCta = canScheduleClosed ? formatScheduleCta(detailHours) : '';
 
   const distanceLabel = product?.distance_km != null
     ? (product.distance_km < 1 ? ml.label('label_distance_m_format').replace('{distance}', String(Math.round(product.distance_km * 1000))) : ml.label('label_distance_km_format').replace('{distance}', String(Math.round(product.distance_km * 10) / 10)))
@@ -549,14 +572,14 @@ export function ProductDetailSheet({ product, open, onOpenChange, onSelectProduc
               )
             ) : d.isCartAction ? (
               d.quantity === 0 ? (
-                <Button data-haptic="medium" className="w-full h-12 text-base font-bold bg-accent hover:bg-accent/90 text-accent-foreground rounded-xl" onClick={() => {
+                <Button data-haptic="medium" className="w-full h-12 text-base font-bold bg-accent hover:bg-accent/90 text-accent-foreground rounded-xl" aria-label={canScheduleClosed ? scheduleCta : undefined} onClick={() => {
                   const extras = sanitizeSelectedExtras(selectedExtras, extraGroups);
                   if (extrasHaveRequiredGaps(extraGroups, extras)) {
                     notify.block('Please choose the required extra details');
                     return;
                   }
                   d.handleAdd(extras);
-                }}>{d.actionType === 'buy_now' ? 'Buy Now' : 'Add to cart'} · {d.formatPrice(product.price)}</Button>
+                }}>{canScheduleClosed ? `Schedule · ${d.formatPrice(product.price)}` : `${d.actionType === 'buy_now' ? 'Buy Now' : 'Add to cart'} · ${d.formatPrice(product.price)}`}</Button>
               ) : (
                 <div className="flex items-center justify-between">
                   <div><span className="text-lg font-bold text-foreground">{d.formatPrice(product.price * d.quantity)}</span><span className="text-xs text-muted-foreground ml-1.5">{d.quantity} item{d.quantity > 1 ? 's' : ''}</span></div>

@@ -13,6 +13,8 @@ import { formatLeadTime } from '@/lib/lead-time';
 import { cn } from '@/lib/utils';
 import { useCurrency } from '@/hooks/useCurrency';
 import { computeStoreStatus, formatStoreClosedMessage } from '@/lib/store-availability';
+import { canScheduleWhileClosed, formatScheduleCta, scheduleHoursFromProduct, VACATION_BUYER_CTA } from '@/lib/store-schedule';
+import { ScheduleCtaLabel } from '@/components/product/ScheduleCtaLabel';
 import { useCategoryConfig } from '@/hooks/queries/useCategoryConfig';
 import { optimizedImageUrl, imageSrcSet, handleImageError } from '@/utils/imageHelpers';
 import { useVariantProductIds } from '@/hooks/useProductVariants';
@@ -76,6 +78,10 @@ export function ProductGridCard({ product, behavior, onTap, className, viewOnly 
 
   const isStoreClosed = storeAvailability.status !== 'open';
   const storeClosedMessage = isStoreClosed ? formatStoreClosedMessage(storeAvailability) : '';
+  const storeHours = scheduleHoursFromProduct(product);
+  const onVacation = !!storeHours.vacationMode;
+  const canScheduleClosed = !onVacation && canScheduleWhileClosed(storeAvailability.status, storeHours.vacationMode);
+  const scheduleCta = canScheduleClosed ? formatScheduleCta(storeHours) : '';
 
   const handleAdd = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -115,7 +121,7 @@ export function ProductGridCard({ product, behavior, onTap, className, viewOnly 
   const isOutOfStock = !product.is_available || ((product as any).stock_quantity != null && (product as any).stock_quantity <= 0);
   const hasDiscount = (product as any).mrp && (product as any).mrp > product.price;
   const discountPct = (product as any).discount_percentage || (hasDiscount ? Math.round((((product as any).mrp - product.price) / (product as any).mrp) * 100) : 0);
-  const showAdd = !viewOnly && !isOutOfStock && !isStoreClosed;
+  const showAdd = !viewOnly && !isOutOfStock && (onVacation || !isStoreClosed || canScheduleClosed);
 
   return (
     <div
@@ -214,7 +220,7 @@ export function ProductGridCard({ product, behavior, onTap, className, viewOnly 
 
         {showAdd && (
           <div className="absolute -bottom-3.5 right-3 z-10">
-            {isCartAction && quantity > 0 ? (
+            {isCartAction && quantity > 0 && !onVacation ? (
               <div className="flex items-center bg-primary rounded-xl overflow-hidden shadow-cta animate-stepper-pop">
                 <button
                   onClick={handleDecrement}
@@ -236,12 +242,12 @@ export function ProductGridCard({ product, behavior, onTap, className, viewOnly 
             ) : (
               <button
                 onClick={handleAdd}
-                disabled={isAdding}
+                disabled={isAdding || onVacation}
                 aria-busy={isAdding || undefined}
-                aria-label={isCartAction ? 'Add to cart' : actionConfig.shortLabel}
-                className="bg-card text-primary font-extrabold text-[11px] px-5 py-2 rounded-xl border-[1.5px] border-primary shadow-sm hover:bg-primary hover:text-primary-foreground transition-colors uppercase tracking-wide active:scale-95 min-h-[40px] touch-manipulation disabled:opacity-70"
+                aria-label={onVacation ? VACATION_BUYER_CTA : isCartAction ? (canScheduleClosed ? scheduleCta : 'Add to cart') : actionConfig.shortLabel}
+                className="bg-card text-primary font-extrabold text-[11px] px-5 py-2 rounded-xl border-[1.5px] border-primary shadow-sm hover:bg-primary hover:text-primary-foreground transition-colors active:scale-95 min-h-[40px] touch-manipulation disabled:opacity-70 uppercase tracking-wide"
               >
-                {justAdded ? 'ADDED' : (isCartAction ? 'ADD' : actionConfig.shortLabel)}
+                {justAdded ? 'ADDED' : onVacation ? VACATION_BUYER_CTA : (isCartAction ? (canScheduleClosed ? <ScheduleCtaLabel /> : 'ADD') : actionConfig.shortLabel)}
               </button>
             )}
           </div>

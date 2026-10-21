@@ -5222,6 +5222,7 @@ export type Database = {
           order_type: string | null
           otp_code: string | null
           otp_verified: boolean | null
+          completion_method: string | null
           packaging_fee: number | null
           payment_confirmed_at: string | null
           payment_confirmed_by_seller: boolean | null
@@ -5299,6 +5300,7 @@ export type Database = {
           order_type?: string | null
           otp_code?: string | null
           otp_verified?: boolean | null
+          completion_method?: string | null
           packaging_fee?: number | null
           payment_confirmed_at?: string | null
           payment_confirmed_by_seller?: boolean | null
@@ -5376,6 +5378,7 @@ export type Database = {
           order_type?: string | null
           otp_code?: string | null
           otp_verified?: boolean | null
+          completion_method?: string | null
           packaging_fee?: number | null
           payment_confirmed_at?: string | null
           payment_confirmed_by_seller?: boolean | null
@@ -11450,6 +11453,7 @@ export type Database = {
           order_type: string | null
           otp_code: string | null
           otp_verified: boolean | null
+          completion_method: string | null
           packaging_fee: number | null
           payment_confirmed_at: string | null
           payment_confirmed_by_seller: boolean | null
@@ -11544,6 +11548,7 @@ export type Database = {
           order_type: string | null
           otp_code: string | null
           otp_verified: boolean | null
+          completion_method: string | null
           packaging_fee: number | null
           payment_confirmed_at: string | null
           payment_confirmed_by_seller: boolean | null
@@ -13119,6 +13124,15 @@ export type Database = {
         }
         Returns: Database["public"]["Enums"]["order_status"]
       }
+      seller_complete_order_without_otp: {
+        Args: { _order_id: string }
+        Returns: {
+          already_complete: boolean
+          completion_method: string
+          new_status: Database["public"]["Enums"]["order_status"]
+          order_id: string
+        }[]
+      }
       seller_has_order_with_buyer: {
         Args: { _buyer_id: string }
         Returns: boolean
@@ -13233,6 +13247,7 @@ export type Database = {
           order_type: string | null
           otp_code: string | null
           otp_verified: boolean | null
+          completion_method: string | null
           packaging_fee: number | null
           payment_confirmed_at: string | null
           payment_confirmed_by_seller: boolean | null

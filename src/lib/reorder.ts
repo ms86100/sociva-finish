@@ -1,5 +1,6 @@
 import { supabase } from '@/integrations/supabase/client';
 import { computeStoreStatus, formatStoreClosedBuyerMessage } from '@/lib/store-availability';
+import { canScheduleWhileClosed, isHardBlockedStore } from '@/lib/store-schedule';
 import { remapMergedLines } from '@/lib/product-merges';
 
 export type ReorderLine = {
@@ -50,26 +51,48 @@ export async function resolveReorderLines(
   return remapMergedLines(fetched.length > 0 ? fetched : fromItems);
 }
 
-export async function getClosedStoreReorderMessage(sellerIds: string[]): Promise<string | null> {
+export type ReorderStoreGate = {
+  blocked: string | null;
+  schedule: boolean;
+};
+
+/** Paused/vacation still block. Closed stores can reorder into the schedule cart. */
+export async function inspectReorderStores(sellerIds: string[]): Promise<ReorderStoreGate> {
   const ids = [...new Set(sellerIds.filter(Boolean))];
-  if (ids.length === 0) return null;
+  if (ids.length === 0) return { blocked: null, schedule: false };
 
   const { data: sellers } = await supabase
     .from('seller_profiles')
-    .select('id, availability_start, availability_end, operating_days, is_available')
+    .select('id, availability_start, availability_end, operating_days, is_available, vacation_mode')
     .in('id', ids);
-  if (!sellers?.length) return null;
+  if (!sellers?.length) return { blocked: null, schedule: false };
 
+  let schedule = false;
   for (const seller of sellers) {
+    const vacation = !!(seller as { vacation_mode?: boolean | null }).vacation_mode;
     const status = computeStoreStatus(
       seller.availability_start,
       seller.availability_end,
       seller.operating_days,
       seller.is_available ?? true,
     );
-    if (status.status !== 'open') {
-      return formatStoreClosedBuyerMessage(status);
+    if (vacation) {
+      return {
+        blocked: 'This store is on a break. Scheduling is unavailable until it reopens.',
+        schedule: false,
+      };
     }
+    if (isHardBlockedStore(status.status, vacation)) {
+      return {
+        blocked: formatStoreClosedBuyerMessage(status) || 'This store is currently paused.',
+        schedule: false,
+      };
+    }
+    if (canScheduleWhileClosed(status.status, vacation)) schedule = true;
   }
-  return null;
+  return { blocked: null, schedule };
+}
+
+export async function getClosedStoreReorderMessage(sellerIds: string[]): Promise<string | null> {
+  return (await inspectReorderStores(sellerIds)).blocked;
 }

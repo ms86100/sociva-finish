@@ -9,7 +9,7 @@ import type { Product } from '@/types/Database';
 import type { GuestCartLine } from '@/lib/guest-cart';
 
 export const GUEST_SELLER_SELECT =
-  'id, business_name, user_id, is_available, availability_start, availability_end, operating_days, profile_image_url, cover_image_url, primary_group, accepts_cod, accepts_upi, upi_id, upi_verification_status, fulfillment_mode, minimum_order_amount, daily_order_limit, packaging_fee, pickup_payment_config, delivery_payment_config, store_location_label, latitude, longitude, society:societies(name, latitude, longitude)';
+  'id, business_name, user_id, is_available, vacation_mode, availability_start, availability_end, operating_days, profile_image_url, cover_image_url, primary_group, accepts_cod, accepts_upi, upi_id, upi_verification_status, fulfillment_mode, minimum_order_amount, daily_order_limit, packaging_fee, pickup_payment_config, delivery_payment_config, store_location_label, latitude, longitude, society:societies(name, latitude, longitude)';
 
 type SellerRow = Record<string, unknown>;
 

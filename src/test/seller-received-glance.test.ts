@@ -42,7 +42,7 @@ describe('seller received order glance', () => {
       scheduled_time_start: '14:00:00',
     });
     expect(scheduled.kind).toBe('preorder');
-    expect(scheduled.label).toMatch(/Pre-order/);
+    expect(scheduled.label).toMatch(/^Scheduled/);
     expect(scheduled.label).toMatch(/2:00/i);
 
     const booking = formatSellerWhenGlance({

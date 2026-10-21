@@ -5,6 +5,7 @@ import { useRegisterScreenRefresh } from '@/hooks/usePullToRefresh';
 import { motion } from 'framer-motion';
 import { staggerContainer, cardEntrance, fadeSlideUp } from '@/lib/motion-variants';
 import { computeStoreStatus, formatStoreClosedMessage } from '@/lib/store-availability';
+import { canScheduleWhileClosed, formatClosedScheduleMessage } from '@/lib/store-schedule';
 import { displaySellerStoreName } from '@/lib/seller-journey';
 import { supabase } from '@/integrations/supabase/client';
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -237,7 +238,8 @@ export default function SellerDetailPage() {
       setIsLoading(false);
 
       const gate = await buyerCanOrderFromSeller(id, browsingLoc?.lat, browsingLoc?.lng);
-      if (!gate.ok) {
+      const vacationVisible = !!sellerData.vacation_mode || gate.reason === 'vacation';
+      if (!gate.ok && !vacationVisible) {
         setProducts([]);
         if (gate.reason === 'buyer_location') {
           setNeedsLocation(true);
@@ -264,7 +266,21 @@ export default function SellerDetailPage() {
           console.error('Products fetch error (seller still visible):', productsRes.error.message);
           setProductsError(true);
         } else {
-          setProducts((productsRes.data || []) as Product[]);
+          setProducts(((productsRes.data || []) as Product[]).map((product) => ({
+            ...product,
+            seller_availability_start: sellerData.availability_start ?? null,
+            seller_availability_end: sellerData.availability_end ?? null,
+            seller_operating_days: sellerData.operating_days ?? null,
+            seller_is_available: sellerData.is_available ?? true,
+            seller_vacation_mode: sellerData.vacation_mode ?? false,
+            seller: {
+              availability_start: sellerData.availability_start ?? null,
+              availability_end: sellerData.availability_end ?? null,
+              operating_days: sellerData.operating_days ?? null,
+              is_available: sellerData.is_available ?? true,
+              vacation_mode: sellerData.vacation_mode ?? false,
+            },
+          })) as Product[]);
         }
       } catch (prodErr) {
         console.error('Products fetch exception (seller still visible):', prodErr);
@@ -657,15 +673,29 @@ export default function SellerDetailPage() {
           (seller as any).operating_days,
           seller.is_available !== false
         );
-        if (storeStatus.status === 'open') return null;
-        const closedMsg = formatStoreClosedMessage(storeStatus);
+        const vacation = !!(seller as any).vacation_mode;
+        if (vacation || storeStatus.status === 'open') return null;
+        const canSchedule = canScheduleWhileClosed(storeStatus.status, vacation);
+        const closedMsg = canSchedule
+          ? formatClosedScheduleMessage({
+              availabilityStart: seller.availability_start,
+              availabilityEnd: seller.availability_end,
+              operatingDays: (seller as any).operating_days,
+              isAvailable: seller.is_available !== false,
+              vacationMode: vacation,
+            })
+          : formatStoreClosedMessage(storeStatus);
         return (
-          <div className="mx-4 mt-3 flex items-start gap-3 bg-warning/10 border border-warning/30 rounded-xl p-3">
+          <div className="mx-4 mt-3 mb-10 flex items-start gap-3 bg-warning/10 border border-warning/30 rounded-xl p-3">
             <AlertCircle size={18} className="text-warning shrink-0 mt-0.5" />
-            <div>
+            <div className="min-w-0">
               <p className="text-sm font-semibold text-warning-foreground">This store is currently closed</p>
-              {closedMsg && <p className="text-xs text-muted-foreground mt-0.5">{closedMsg}</p>}
-              <p className="text-xs text-muted-foreground mt-0.5">Browse the menu and order when they reopen.</p>
+              {closedMsg && <p className="text-sm text-muted-foreground mt-0.5 leading-relaxed">{closedMsg}</p>}
+              {canSchedule ? (
+                <p className="text-sm text-muted-foreground mt-1 leading-relaxed">Tap Schedule on an item, then pick a time in your cart.</p>
+              ) : (
+                <p className="text-sm text-muted-foreground mt-0.5 leading-relaxed">Browse the menu and order when they reopen.</p>
+              )}
             </div>
           </div>
         );
@@ -673,14 +703,14 @@ export default function SellerDetailPage() {
 
       {/* Vacation mode banner */}
       {(seller as any).vacation_mode && (
-        <div className="mx-4 mt-3 flex items-start gap-3 bg-muted border border-border rounded-xl p-3">
+        <div className="mx-4 mt-3 mb-10 flex items-start gap-3 bg-muted border border-border rounded-xl p-3">
           <Calendar size={18} className="text-muted-foreground shrink-0 mt-0.5" />
           <div>
             <p className="text-sm font-semibold text-foreground">On a break</p>
             <p className="text-xs text-muted-foreground mt-0.5">
               {(seller as any).vacation_until
-                ? `Back on ${new Date((seller as any).vacation_until).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}`
-                : 'Will be back soon'}
+                ? `Back on ${new Date((seller as any).vacation_until).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short' })}. You can browse, but orders are paused.`
+                : 'You can browse, but orders are paused until they return.'}
             </p>
           </div>
         </div>

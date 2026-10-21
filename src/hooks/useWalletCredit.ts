@@ -87,7 +87,7 @@ export function useWalletCredit() {
   }, [quoteMutation, appliedAmount, spendEnabled]);
 
   const clearApplied = useCallback(() => {
-    setAppliedAmount(0);
+    setAppliedAmount((current) => (current === 0 ? current : 0));
   }, []);
 
   const toggleCredit = useCallback(async (payableAfterCouponLoyalty: number) => {

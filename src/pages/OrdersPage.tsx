@@ -202,7 +202,7 @@ function OrderCard({
                   <p className="text-xs text-foreground mt-1 line-clamp-2 leading-snug">{sellerItemGlance}</p>
                 ) : (
                   <p className="text-xs text-muted-foreground mt-1">
-                    {items.length} item{items.length !== 1 ? 's' : ''}
+                    {`${items.length} item${items.length !== 1 ? 's' : ''}`}
                   </p>
                 )}
                 {(!isContactEnquiry || sellerLocation) && (
@@ -217,7 +217,7 @@ function OrderCard({
               </>
             ) : (
               <p className="text-xs text-muted-foreground mt-1">
-                {items.length} item{items.length !== 1 ? 's' : ''}
+                {`${items.length} item${items.length !== 1 ? 's' : ''}`}
                 {!isContactEnquiry && (
                   <> · <span className="font-semibold text-foreground">{formatPrice(order.total_amount)}</span></>
                 )}

@@ -31,6 +31,9 @@ export async function buyerCanOrderFromSeller(
   if (row.reason === 'buyer_location') {
     return { ok: false, reason: 'buyer_location', message: 'Precise location required' };
   }
+  if (row.reason === 'vacation') {
+    return { ok: false, reason: 'vacation', message: 'This store is on a break. Scheduling is unavailable until it reopens.' };
+  }
   return { ok: false, reason: row.reason || 'unavailable', message: SELLER_UNAVAILABLE_NEARBY };
 }
 

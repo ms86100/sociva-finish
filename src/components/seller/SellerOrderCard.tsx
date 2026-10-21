@@ -11,7 +11,8 @@ import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { sellerDisplayStatusLabel } from '@/lib/seller-order-board';
 import { ScheduledOrderCountdown } from '@/components/orders/ScheduledOrderCountdown';
-import { isScheduledOrder, isUpcomingScheduled } from '@/lib/scheduled-orders';
+import { formatScheduledGlance, isScheduledOrder, isUpcomingScheduled } from '@/lib/scheduled-orders';
+import { formatIstDeadline } from '@/lib/store-schedule';
 import { formatSellerOrderLocation } from '@/lib/order-glance';
 
 interface OrderItemWithStatus {
@@ -165,7 +166,7 @@ export function SellerOrderCard({ order }: SellerOrderCardProps) {
                 {order.order_type !== 'booking' && (
                   isScheduledOrder(order) ? (
                     <Badge variant="outline" className="text-[10px] border-cyan-500/40 text-cyan-700 dark:text-cyan-300 gap-0.5">
-                      <CalendarDays size={10} /> Pre-order
+                      <CalendarDays size={10} /> Scheduled
                     </Badge>
                   ) : (
                     <Badge variant="outline" className="text-[10px] border-emerald-500/40 text-emerald-700 dark:text-emerald-300 gap-0.5">
@@ -197,12 +198,16 @@ export function SellerOrderCard({ order }: SellerOrderCardProps) {
               <div className="flex items-center gap-1.5 min-w-0">
                 <CalendarDays size={12} className="text-accent shrink-0" />
                 <span className="text-accent font-medium truncate">
-                  📅 {format(new Date(order.scheduled_date), 'MMM d')}
-                  {order.scheduled_time_start && ` at ${order.scheduled_time_start.slice(0, 5)}`}
+                  {formatScheduledGlance(order)}
                 </span>
               </div>
               {isUpcoming && <ScheduledOrderCountdown order={order} size="sm" />}
             </div>
+          )}
+          {isUpcoming && autoCancelAt && (order.status === 'placed' || order.status === 'pending') && (
+            <p className="text-[11px] text-muted-foreground mb-2">
+              Accept by {formatIstDeadline(new Date(autoCancelAt))} or this order is cancelled.
+            </p>
           )}
 
           {/* SLA Countdown for pending orders */}

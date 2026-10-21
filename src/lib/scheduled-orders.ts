@@ -30,6 +30,7 @@ export type ScheduledOrderLike = {
   accepted_at?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
+  auto_cancel_at?: string | null;
 };
 
 export const PRE_FULFILMENT_STATUSES = [
@@ -88,6 +89,20 @@ export const TERMINAL_STATUSES = [
 
 export function isScheduledOrder(order: ScheduledOrderLike | null | undefined): boolean {
   return !!order?.scheduled_date;
+}
+
+/**
+ * Closed-store checkout stamps auto_cancel at the slot / prep start (hours later).
+ * Open-store pre-orders stamp auto_cancel at now + 30 minutes.
+ */
+export function isClosedStoreScheduledOrder(order: ScheduledOrderLike | null | undefined): boolean {
+  if (!isScheduledOrder(order) || !order?.auto_cancel_at) return false;
+  const cancel = new Date(order.auto_cancel_at).getTime();
+  if (Number.isNaN(cancel)) return false;
+  if (!order.created_at) return true;
+  const created = new Date(order.created_at).getTime();
+  if (Number.isNaN(created)) return true;
+  return cancel - created > 45 * 60 * 1000;
 }
 
 export function istDateString(d = new Date()): string {

@@ -14,6 +14,8 @@ import { cn } from '@/lib/utils';
 import { useCurrency } from '@/hooks/useCurrency';
 import { resolveProductAvailability } from '@/lib/product-availability';
 import { computeStoreStatus, formatStoreClosedMessage } from '@/lib/store-availability';
+import { canScheduleWhileClosed, formatScheduleCta, scheduleHoursFromProduct, VACATION_BUYER_CTA } from '@/lib/store-schedule';
+import { ScheduleCtaLabel } from '@/components/product/ScheduleCtaLabel';
 import { optimizedImageUrl, imageSrcSet, handleImageError } from '@/utils/imageHelpers';
 import { useCategoryConfigs } from '@/hooks/useCategoryBehavior';
 import { resolveListingAction } from '@/lib/commerce-mode';
@@ -65,13 +67,17 @@ export function ProductCard({ product, variant = 'horizontal', onTap }: ProductC
   const isStoreClosed = storeAvailability.status !== 'open';
   const storeClosedMessage = isStoreClosed ? formatStoreClosedMessage(storeAvailability) : '';
   const effectiveStoreClosed = isContactAction ? false : isStoreClosed;
+  const storeHours = scheduleHoursFromProduct(product);
+  const onVacation = !!storeHours.vacationMode;
+  const canScheduleClosed = !isContactAction && !onVacation && canScheduleWhileClosed(storeAvailability.status, storeHours.vacationMode);
+  const scheduleCta = canScheduleClosed ? formatScheduleCta(storeHours) : '';
   const isStockEmpty = stockLimit <= 0 && (product as any).stock_quantity != null;
   const availability = resolveProductAvailability({
     is_available: product.is_available,
     stock_quantity: (product as any).stock_quantity,
   });
-  const isDisabled = !availability.canOrder || effectiveStoreClosed;
-  const canIncrement = quantity < stockLimit && !effectiveStoreClosed;
+  const isDisabled = !availability.canOrder || onVacation || (effectiveStoreClosed && !canScheduleClosed);
+  const canIncrement = quantity < stockLimit && !onVacation && (!effectiveStoreClosed || canScheduleClosed);
   const hasDiscount = (product as any).mrp && (product as any).mrp > product.price;
 
   const stopRowOpen = (e?: { stopPropagation?: () => void; preventDefault?: () => void }) => {
@@ -136,7 +142,7 @@ export function ProductCard({ product, variant = 'horizontal', onTap }: ProductC
     return (
       <Card className={cn(
         'overflow-hidden rounded-2xl border-border/60 shadow-card',
-        isStoreClosed && !product.is_available ? '' : isStoreClosed ? 'opacity-60 grayscale-[30%]' : ''
+        isStoreClosed && !product.is_available ? '' : (isStoreClosed && !canScheduleClosed) ? 'opacity-60 grayscale-[30%]' : ''
       )}>
         <div className="relative aspect-[4/3] product-image-bg">
           {imageEl(400)}
@@ -205,7 +211,7 @@ export function ProductCard({ product, variant = 'horizontal', onTap }: ProductC
             </div>
           </div>
           <div className="mt-3">
-            {isCartAction && quantity > 0 && !effectiveStoreClosed ? (
+            {isCartAction && quantity > 0 && !onVacation && (!effectiveStoreClosed || canScheduleClosed) ? (
               <div className="flex items-center justify-center gap-3 border-[1.5px] border-primary rounded-xl bg-primary/5" onClick={stopRowOpen}>
                 <Button size="sm" variant="ghost" className="h-11 w-11 p-0 text-primary touch-manipulation" onClick={handleDecrement} aria-label="Decrease quantity"><Minus size={16} /></Button>
                 <AnimatePresence mode="popLayout">
@@ -223,8 +229,8 @@ export function ProductCard({ product, variant = 'horizontal', onTap }: ProductC
                 <Button size="sm" variant="ghost" className="h-11 w-11 p-0 text-primary touch-manipulation" onClick={handleIncrement} disabled={!canIncrement} aria-label="Increase quantity"><Plus size={16} /></Button>
               </div>
             ) : (
-              <Button variant="outline" className="w-full h-11 border-primary text-primary hover:bg-primary hover:text-primary-foreground font-bold rounded-xl touch-manipulation" onClick={handleAdd} disabled={isDisabled}>
-                {effectiveStoreClosed ? (<><Clock size={14} className="mr-1" /> {storeClosedMessage || 'Closed'}</>) : (<>{isCartAction && <Plus size={14} className="mr-1" />}{justAdded ? 'ADDED' : actionConfig.shortLabel}</>)}
+              <Button variant="outline" className="w-full h-11 border-primary text-primary hover:bg-primary hover:text-primary-foreground font-bold rounded-xl touch-manipulation" onClick={handleAdd} disabled={isDisabled} aria-label={canScheduleClosed ? scheduleCta : undefined}>
+                {onVacation ? (<><Clock size={14} className="mr-1" /> {VACATION_BUYER_CTA}</>) : effectiveStoreClosed && !canScheduleClosed ? (<><Clock size={14} className="mr-1" /> {storeClosedMessage || 'Closed'}</>) : canScheduleClosed && quantity === 0 ? (justAdded ? 'ADDED' : <><Clock size={14} className="mr-1 shrink-0" /><ScheduleCtaLabel /></>) : (<>{isCartAction && <Plus size={14} className="mr-1" />}{justAdded ? 'ADDED' : actionConfig.shortLabel}</>)}
               </Button>
             )}
           </div>
@@ -234,7 +240,7 @@ export function ProductCard({ product, variant = 'horizontal', onTap }: ProductC
   }
 
   return (
-    <div className={cn('flex gap-3 py-3.5 border-b border-border/70 last:border-0', isStoreClosed && 'opacity-60')}>
+    <div className={cn('flex gap-3 py-3.5 border-b border-border/70 last:border-0', isStoreClosed && !canScheduleClosed && 'opacity-60')}>
       <div className="flex-1 min-w-0">
         <div className="flex items-start gap-2">
           {(product.is_veg === true || product.is_veg === false) ? (
@@ -288,7 +294,7 @@ export function ProductCard({ product, variant = 'horizontal', onTap }: ProductC
             )}
           </AnimatePresence>
         </div>
-        {isCartAction && quantity > 0 && !isStoreClosed ? (
+        {isCartAction && quantity > 0 && !onVacation && (!isStoreClosed || canScheduleClosed) ? (
           <div className="flex items-center gap-1 relative z-10 bg-primary/95 backdrop-blur-md rounded-xl px-1.5 shadow-cta animate-stepper-pop" onClick={stopRowOpen}>
             <Button size="sm" variant="ghost" className="h-9 w-9 p-0 text-primary-foreground hover:bg-primary-foreground/20 touch-manipulation" onClick={handleDecrement} aria-label="Decrease quantity"><Minus size={14} /></Button>
             <AnimatePresence mode="popLayout">
@@ -308,11 +314,12 @@ export function ProductCard({ product, variant = 'horizontal', onTap }: ProductC
         ) : (
           <Button
             variant="outline"
-            className="w-full h-9 border-[1.5px] border-primary text-primary hover:bg-primary hover:text-primary-foreground relative z-10 bg-card/90 backdrop-blur-md shadow-sm font-extrabold text-[11px] uppercase tracking-wide rounded-xl touch-manipulation"
+            aria-label={canScheduleClosed ? scheduleCta : undefined}
+            className="w-full h-9 border-[1.5px] border-primary text-primary hover:bg-primary hover:text-primary-foreground relative z-10 bg-card/90 backdrop-blur-md shadow-sm font-extrabold text-[11px] rounded-xl touch-manipulation uppercase tracking-wide"
             onClick={handleAdd}
             disabled={isDisabled}
           >
-            {effectiveStoreClosed ? 'Closed' : (justAdded ? 'ADDED' : (isCartAction ? 'ADD' : actionConfig.shortLabel))}
+            {onVacation ? VACATION_BUYER_CTA : effectiveStoreClosed && !canScheduleClosed ? 'Closed' : (justAdded ? 'ADDED' : (canScheduleClosed ? <ScheduleCtaLabel /> : (isCartAction ? 'ADD' : actionConfig.shortLabel)))}
           </Button>
         )}
       </div>

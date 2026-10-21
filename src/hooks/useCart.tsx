@@ -11,6 +11,7 @@ import { CartItem, Product } from '@/types/Database';
 import { toast } from 'sonner';
 import { handleApiError } from '@/lib/query-utils';
 import { computeStoreStatus, formatStoreClosedMessage, type StoreStatus } from '@/lib/store-availability';
+import { canScheduleWhileClosed, formatClosedStoreAddPopupCopy, isHardBlockedStore, scheduleHoursFromProduct } from '@/lib/store-schedule';
 import { feedbackAddItem, feedbackAddItemFailed, feedbackRemoveItem, feedbackRemoveItemFailed, feedbackQuantityChanged, feedbackQuantityFailed } from '@/lib/feedbackEngine';
 import { notify } from '@/lib/notify';
 import { CartPopupProvider, useCartPopup } from '@/components/CartPopupProvider';
@@ -126,6 +127,7 @@ function parseStoreAvailabilityError(error: unknown): string | null {
   const statusMatch = msg.match(/STORE_CLOSED:([a-z_]+)/i);
   if (statusMatch?.[1]) {
     const status = statusMatch[1].toLowerCase() as StoreStatus;
+    if (status === 'vacation') return 'This store is on a break. Scheduling is unavailable until it reopens.';
     return formatStoreClosedMessage({ status, nextOpenAt: null, minutesUntilOpen: null }) || 'This store is currently closed.';
   }
   if (msg.includes('PRODUCT_NOT_ORDERABLE')) return 'This item is no longer available.';
@@ -138,17 +140,46 @@ function getInlineSellerAvailability(product: Product) {
   const seller = p?.seller as any;
   const hasProductAvailabilityFields =
     hasOwn(p, 'seller_availability_start') || hasOwn(p, 'seller_availability_end') ||
-    hasOwn(p, 'seller_operating_days') || hasOwn(p, 'seller_is_available');
+    hasOwn(p, 'seller_operating_days') || hasOwn(p, 'seller_is_available') || hasOwn(p, 'seller_vacation_mode');
   const hasSellerAvailabilityFields = !!seller && (
     hasOwn(seller, 'availability_start') || hasOwn(seller, 'availability_end') ||
-    hasOwn(seller, 'operating_days') || hasOwn(seller, 'is_available'));
+    hasOwn(seller, 'operating_days') || hasOwn(seller, 'is_available') || hasOwn(seller, 'vacation_mode'));
   return {
     hasInlineAvailability: hasProductAvailabilityFields || hasSellerAvailabilityFields,
     availabilityStart: p.seller_availability_start ?? seller?.availability_start ?? null,
     availabilityEnd: p.seller_availability_end ?? seller?.availability_end ?? null,
     operatingDays: p.seller_operating_days ?? seller?.operating_days ?? null,
     isAvailable: p.seller_is_available ?? seller?.is_available ?? true,
+    vacationMode: p.seller_vacation_mode ?? seller?.vacation_mode ?? false,
   };
+}
+
+function stampProductSellerHours(
+  product: Product,
+  hours: {
+    availabilityStart: string | null;
+    availabilityEnd: string | null;
+    operatingDays: string[] | null;
+    isAvailable: boolean;
+    vacationMode: boolean;
+  },
+): Product {
+  return {
+    ...product,
+    seller_availability_start: hours.availabilityStart,
+    seller_availability_end: hours.availabilityEnd,
+    seller_operating_days: hours.operatingDays,
+    seller_is_available: hours.isAvailable,
+    seller_vacation_mode: hours.vacationMode,
+    seller: {
+      ...(product as any).seller,
+      availability_start: hours.availabilityStart,
+      availability_end: hours.availabilityEnd,
+      operating_days: hours.operatingDays,
+      is_available: hours.isAvailable,
+      vacation_mode: hours.vacationMode,
+    },
+  } as Product;
 }
 
 interface SellerGroup {
@@ -186,7 +217,7 @@ const CART_QUERY_KEY = ['cart-items'] as const;
 
 // ── Shared authoritative fetch ──
 const CART_ITEM_EMBED =
-  `*, product:products(*, seller:seller_profiles(id, business_name, user_id, is_available, availability_start, availability_end, operating_days, profile_image_url, cover_image_url, primary_group, accepts_cod, accepts_upi, upi_id, upi_verification_status, fulfillment_mode, minimum_order_amount, daily_order_limit, packaging_fee, pickup_payment_config, delivery_payment_config, store_location_label, latitude, longitude, society:societies(name, latitude, longitude)))`;
+  `*, product:products(*, seller:seller_profiles(id, business_name, user_id, is_available, vacation_mode, availability_start, availability_end, operating_days, profile_image_url, cover_image_url, primary_group, accepts_cod, accepts_upi, upi_id, upi_verification_status, fulfillment_mode, minimum_order_amount, daily_order_limit, packaging_fee, pickup_payment_config, delivery_payment_config, store_location_label, latitude, longitude, society:societies(name, latitude, longitude)))`;
 
 function withProducts<T extends { product?: Product | null }>(rows: T[] | null | undefined) {
   // Keep unavailable products visible so a refresh can warn instead of silently dropping them.
@@ -237,7 +268,7 @@ async function fetchCartItems(userId: string) {
 async function fetchCartItemCount(userId: string) {
   const { data, error } = await supabase
     .from('cart_items')
-    .select('quantity, product:products!inner(id)')
+    .select('quantity')
     .eq('user_id', userId);
   if (error) throw error;
   return (data || []).reduce((sum, row) => sum + (row.quantity || 0), 0);
@@ -513,19 +544,50 @@ export function CartProvider({ children }: { children: ReactNode }) {
         browsingLocation?.lng,
       );
       if (!eligibility.ok) {
+        if (eligibility.reason === 'vacation') {
+          toast.error('This store is on a break. Scheduling is unavailable until it reopens.', { id: 'cart-store-closed' });
+          return false;
+        }
         toast.error(eligibility.reason === 'buyer_location' ? PRECISE_LOCATION_TITLE : eligibility.message, { id: 'cart-not-discoverable' });
         return false;
       }
 
       const inlineAvailability = getInlineSellerAvailability(product);
-      let availability = computeStoreStatus(inlineAvailability.availabilityStart, inlineAvailability.availabilityEnd, inlineAvailability.operatingDays, inlineAvailability.isAvailable);
+      let hoursSnap = {
+        availabilityStart: inlineAvailability.availabilityStart,
+        availabilityEnd: inlineAvailability.availabilityEnd,
+        operatingDays: inlineAvailability.operatingDays,
+        isAvailable: inlineAvailability.isAvailable,
+        vacationMode: !!inlineAvailability.vacationMode,
+      };
+      let availability = computeStoreStatus(hoursSnap.availabilityStart, hoursSnap.availabilityEnd, hoursSnap.operatingDays, hoursSnap.isAvailable);
+      let vacationMode = hoursSnap.vacationMode;
       if (!inlineAvailability.hasInlineAvailability) {
         if (!product.seller_id) { toast.error('Unable to verify store availability right now. Please try again.', { id: 'cart-availability' }); return false; }
-        const { data: sellerSnapshot, error: sellerError } = await supabase.from('seller_profiles').select('availability_start, availability_end, operating_days, is_available').eq('id', product.seller_id).maybeSingle();
+        const { data: sellerSnapshot, error: sellerError } = await supabase.from('seller_profiles').select('availability_start, availability_end, operating_days, is_available, vacation_mode').eq('id', product.seller_id).maybeSingle();
         if (sellerError || !sellerSnapshot) { toast.error('Unable to verify store availability right now. Please try again.', { id: 'cart-availability' }); return false; }
-        availability = computeStoreStatus(sellerSnapshot.availability_start, sellerSnapshot.availability_end, sellerSnapshot.operating_days, sellerSnapshot.is_available ?? true);
+        hoursSnap = {
+          availabilityStart: sellerSnapshot.availability_start ?? null,
+          availabilityEnd: sellerSnapshot.availability_end ?? null,
+          operatingDays: sellerSnapshot.operating_days ?? null,
+          isAvailable: sellerSnapshot.is_available ?? true,
+          vacationMode: !!sellerSnapshot.vacation_mode,
+        };
+        availability = computeStoreStatus(hoursSnap.availabilityStart, hoursSnap.availabilityEnd, hoursSnap.operatingDays, hoursSnap.isAvailable);
+        vacationMode = hoursSnap.vacationMode;
       }
-      if (availability.status !== 'open') { const msg = formatStoreClosedMessage(availability); toast.error(msg || 'This store is currently closed. Please try again later.', { id: 'cart-store-closed' }); return false; }
+      if (isHardBlockedStore(availability.status, vacationMode)) {
+        const msg = vacationMode
+          ? 'This store is on a break. Scheduling is unavailable until it reopens.'
+          : (formatStoreClosedMessage(availability) || 'This store is currently paused.');
+        toast.error(msg, { id: 'cart-store-closed' });
+        return false;
+      }
+      if (availability.status !== 'open' && !canScheduleWhileClosed(availability.status, vacationMode)) {
+        const msg = formatStoreClosedMessage(availability);
+        toast.error(msg || 'This store is currently closed. Please try again later.', { id: 'cart-store-closed' });
+        return false;
+      }
 
       // Stock validation - enforce stock ceiling (the size's own stock for sized products)
       let maxQty = 99;
@@ -546,7 +608,12 @@ export function CartProvider({ children }: { children: ReactNode }) {
           if (stockCheck?.stock_quantity != null) maxQty = stockCheck.stock_quantity;
         }
       }
-      const lineProduct = applyVariantToProduct(product, freshVariant) as Product;
+      const stampedProduct = stampProductSellerHours(product, hoursSnap);
+      const lineProduct = applyVariantToProduct(stampedProduct, freshVariant) as Product;
+      const needsSchedule = availability.status !== 'open' && canScheduleWhileClosed(availability.status, vacationMode);
+      const addPopupCopy = needsSchedule
+        ? formatClosedStoreAddPopupCopy(scheduleHoursFromProduct(stampedProduct))
+        : undefined;
 
       // Guest local cart (Swiggy-style) - no OTP until Place Order
       if (!user) {
@@ -558,14 +625,17 @@ export function CartProvider({ children }: { children: ReactNode }) {
         }
         if (existingQty >= maxQty) return false;
         quantity = Math.min(quantity, maxQty - existingQty);
-        upsertGuestCartItem(product, quantity, extras, freshVariant);
+        upsertGuestCartItem(stampedProduct, quantity, extras, freshVariant);
         if (!silent) {
           showAddPopup(
             freshVariant ? `${product.name || 'Item'} (${freshVariant.label})` : (product.name || 'Item'),
             lineProduct.image_url || undefined,
             lineProduct.price,
             () => navigate('/cart', { replace: false }),
+            addPopupCopy,
           );
+        } else if (addPopupCopy) {
+          toast(addPopupCopy.message, { id: 'cart-store-schedule' });
         }
         return true;
       }
@@ -621,6 +691,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
           });
           if (error) throw error;
         }
+        await reconcile();
         if (!silent) {
           showAddPopup(
             freshVariant ? `${product.name || 'Item'} (${freshVariant.label})` : (product.name || 'Item'),
@@ -628,10 +699,12 @@ export function CartProvider({ children }: { children: ReactNode }) {
             lineProduct.price,
             () => {
               navigate('/cart', { replace: false });
-            }
+            },
+            addPopupCopy,
           );
+        } else if (addPopupCopy) {
+          toast(addPopupCopy.message, { id: 'cart-store-schedule' });
         }
-        await reconcile();
         try {
           const { track } = await import('@/lib/analytics');
           track('add_to_cart', {

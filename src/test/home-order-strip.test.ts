@@ -52,7 +52,7 @@ describe('orders list reorder', () => {
 
   it('checks operating hours before treating reorder as a failure', () => {
     const button = read('src/components/order/ReorderButton.tsx');
-    expect(button).toMatch(/getClosedStoreReorderMessage/);
+    expect(button).toMatch(/inspectReorderStores/);
     expect(button).toMatch(/parseStoreClosedBuyerError/);
     expect(button).toMatch(/orderId/);
   });

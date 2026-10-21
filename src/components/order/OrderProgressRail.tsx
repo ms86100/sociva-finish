@@ -3,6 +3,21 @@ import { Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { OrderProgressStageDef } from '@/lib/orderProgressStages';
 
+const CURRENT_NODE_SHADOW = {
+  boxShadow: [
+    '0 0 0px hsl(var(--primary) / 0.3)',
+    '0 0 10px hsl(var(--primary) / 0.4)',
+    '0 0 0px hsl(var(--primary) / 0.3)',
+  ],
+};
+const CURRENT_NODE_TRANSITION = { duration: 2, repeat: Infinity, ease: 'easeInOut' as const };
+const CURRENT_DOT_SCALE = { scale: [1, 1.2, 1] };
+const CURRENT_DOT_TRANSITION = { duration: 1.5, repeat: Infinity, ease: 'easeInOut' as const };
+const RAIL_FILL = { scaleX: 1 };
+const RAIL_FILL_TRANSITION = { duration: 0.5, ease: 'easeOut' as const };
+const RAIL_CURRENT = { width: '40%' };
+const RAIL_CURRENT_TRANSITION = { duration: 0.8, ease: 'easeOut' as const };
+
 interface OrderProgressRailProps {
   stages: OrderProgressStageDef[];
   /** 0-based index of the active stage */
@@ -54,30 +69,16 @@ export function OrderProgressRail({
                         ? 'w-6 h-6 bg-primary/20 ring-[2.5px] ring-primary/50'
                         : 'w-4 h-4 bg-muted',
                   )}
-                  animate={
-                    isCurrent
-                      ? {
-                          boxShadow: [
-                            '0 0 0px hsl(var(--primary) / 0.3)',
-                            '0 0 10px hsl(var(--primary) / 0.4)',
-                            '0 0 0px hsl(var(--primary) / 0.3)',
-                          ],
-                        }
-                      : {}
-                  }
-                  transition={
-                    isCurrent
-                      ? { duration: 2, repeat: Infinity, ease: 'easeInOut' }
-                      : {}
-                  }
+                  animate={isCurrent ? CURRENT_NODE_SHADOW : undefined}
+                  transition={isCurrent ? CURRENT_NODE_TRANSITION : undefined}
                 >
                   {isComplete ? (
                     <Check size={10} className="text-primary-foreground" />
                   ) : isCurrent ? (
                     <motion.div
                       className="w-2.5 h-2.5 rounded-full bg-primary"
-                      animate={{ scale: [1, 1.2, 1] }}
-                      transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
+                      animate={CURRENT_DOT_SCALE}
+                      transition={CURRENT_DOT_TRANSITION}
                     />
                   ) : (
                     <div className="w-1.5 h-1.5 rounded-full bg-muted-foreground/30" />
@@ -92,16 +93,16 @@ export function OrderProgressRail({
                     <motion.div
                       className="absolute inset-0 bg-primary rounded-full"
                       initial={{ scaleX: 0, originX: 0 }}
-                      animate={{ scaleX: 1 }}
-                      transition={{ duration: 0.5, ease: 'easeOut' }}
+                      animate={RAIL_FILL}
+                      transition={RAIL_FILL_TRANSITION}
                     />
                   )}
                   {isCurrent && (
                     <motion.div
                       className="absolute inset-y-0 left-0 bg-primary/40 rounded-full"
                       initial={{ width: '0%' }}
-                      animate={{ width: '40%' }}
-                      transition={{ duration: 0.8, ease: 'easeOut' }}
+                      animate={RAIL_CURRENT}
+                      transition={RAIL_CURRENT_TRANSITION}
                     />
                   )}
                 </div>

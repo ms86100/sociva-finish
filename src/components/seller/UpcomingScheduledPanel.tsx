@@ -77,7 +77,9 @@ export function UpcomingScheduledPanel({ sellerId, compact, onOpenCalendar }: Up
               {next.buyer?.name ? ` · ${next.buyer.name}` : ''}
             </p>
             <p className="text-xs text-muted-foreground">
-              You can accept now. Preparation unlocks at the scheduled window.
+              {['placed', 'pending', 'requested'].includes(next.status)
+                ? 'You can accept now. Preparation unlocks at the scheduled window.'
+                : 'Slot confirmed. Preparation unlocks at the scheduled window.'}
             </p>
             {formatPreparationByLine(next) && (
               <p className="text-xs text-amber-700 dark:text-amber-300">{formatPreparationByLine(next)}</p>

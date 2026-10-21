@@ -25,6 +25,8 @@ import { useDeliveryTracking } from '@/hooks/useDeliveryTracking';
 import { useSystemSettingsRaw } from '@/hooks/useSystemSettingsRaw';
 import { useTrackingConfig } from '@/hooks/useTrackingConfig';
 import { DeliveryCompletionOtpDialog } from '@/components/delivery/DeliveryCompletionOtpDialog';
+import { SellerManualCompleteDialog } from '@/components/order/SellerManualCompleteDialog';
+import { isSellerManualCompleteEligible, sellerManualCompleteButtonLabel } from '@/lib/seller-manual-complete';
 import { DeliveryFeedbackForm } from '@/components/delivery/DeliveryFeedbackForm';
 import { GenericOtpDialog } from '@/components/order/GenericOtpDialog';
 import { GenericOtpCard } from '@/components/order/GenericOtpCard';
@@ -349,6 +351,7 @@ export default function OrderDetailPage() {
   const [deliveryAssignmentId, setDeliveryAssignmentId] = useState<string | null>(null);
   const [isOtpDialogOpen, setIsOtpDialogOpen] = useState(false);
   const [isGenericOtpDialogOpen, setIsGenericOtpDialogOpen] = useState(false);
+  const [isManualCompleteOpen, setIsManualCompleteOpen] = useState(false);
   const [genericOtpTargetStatus, setGenericOtpTargetStatus] = useState<string | null>(null);
   const [hasDeliveryFeedback, setHasDeliveryFeedback] = useState(false);
   const [buyerOtp, setBuyerOtp] = useState<string | null>(null);
@@ -1112,11 +1115,11 @@ export default function OrderDetailPage() {
           )}
 
           {/* Urgent timers - skip for future scheduled orders still waiting */}
-          {o.isBuyerView && order.auto_cancel_at && order.status !== 'payment_pending' && !isTerminalStatus(o.flow, order.status) && !(order as any).scheduled_date && (
+          {o.isBuyerView && order.auto_cancel_at && order.status !== 'payment_pending' && !isTerminalStatus(o.flow, order.status) && !isUpcomingScheduled(order as any) && (
             <UrgentOrderTimer autoCancelAt={order.auto_cancel_at} onTimeout={o.handleTimeout} variant="buyer" />
           )}
 
-          {o.isBuyerView && isFirstFlowStep(o.flow, order.status) && order.status !== 'payment_pending' && !o.isUrgentOrder && (
+          {o.isBuyerView && isFirstFlowStep(o.flow, order.status) && order.status !== 'payment_pending' && !o.isUrgentOrder && !(order as any).scheduled_date && (
             <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-muted/50">
               <Loader2 size={14} className="animate-spin text-primary" />
               <p className="text-xs text-muted-foreground">
@@ -1779,20 +1782,35 @@ export default function OrderDetailPage() {
               // via verify_delivery_otp_and_complete - never GenericOtp (order_otp_codes).
               const needsDeliveryOtp = nextOtpType === 'delivery' && !!deliveryAssignmentId;
               const needsGenericOtp = nextOtpType === 'generic';
+              const showManualComplete = isSellerManualCompleteEligible(nextOtpType, !!deliveryAssignmentId);
               const ctaClass = `${WORKFLOW_BAR_BTN} bg-accent text-accent-foreground hover:bg-accent/90`;
 
-              return needsDeliveryOtp ? (
-                <Button className={ctaClass} onClick={() => setIsOtpDialogOpen(true)} disabled={o.isUpdating}>
-                  {o.isUpdating ? 'Updating...' : getActionLabel(o.nextStatus!, true)}
-                  <ChevronRight size={14} className="ml-1 shrink-0" />
-                </Button>
-              ) : needsGenericOtp ? (
-                <Button className={ctaClass} onClick={() => { setGenericOtpTargetStatus(o.nextStatus!); setIsGenericOtpDialogOpen(true); }} disabled={o.isUpdating}>
-                  {o.isUpdating ? 'Updating...' : getActionLabel(o.nextStatus!, true)}
-                  <ChevronRight size={14} className="ml-1 shrink-0" />
-                </Button>
-              ) : (
-                <Button className={ctaClass} onClick={() => o.updateOrderStatus(o.nextStatus!)} disabled={o.isUpdating}>{o.isUpdating ? 'Updating...' : getActionLabel(o.nextStatus!, false)}<ChevronRight size={14} className="ml-1 shrink-0" /></Button>
+              return (
+                <div className="w-full flex flex-col gap-2 min-w-0">
+                  {needsDeliveryOtp ? (
+                    <Button className={ctaClass} onClick={() => setIsOtpDialogOpen(true)} disabled={o.isUpdating}>
+                      {o.isUpdating ? 'Updating...' : getActionLabel(o.nextStatus!, true)}
+                      <ChevronRight size={14} className="ml-1 shrink-0" />
+                    </Button>
+                  ) : needsGenericOtp ? (
+                    <Button className={ctaClass} onClick={() => { setGenericOtpTargetStatus(o.nextStatus!); setIsGenericOtpDialogOpen(true); }} disabled={o.isUpdating}>
+                      {o.isUpdating ? 'Updating...' : getActionLabel(o.nextStatus!, true)}
+                      <ChevronRight size={14} className="ml-1 shrink-0" />
+                    </Button>
+                  ) : (
+                    <Button className={ctaClass} onClick={() => o.updateOrderStatus(o.nextStatus!)} disabled={o.isUpdating}>{o.isUpdating ? 'Updating...' : getActionLabel(o.nextStatus!, false)}<ChevronRight size={14} className="ml-1 shrink-0" /></Button>
+                  )}
+                  {showManualComplete && (
+                    <Button
+                      variant="ghost"
+                      className={`${WORKFLOW_BAR_BTN} text-muted-foreground`}
+                      onClick={() => setIsManualCompleteOpen(true)}
+                      disabled={o.isUpdating}
+                    >
+                      {sellerManualCompleteButtonLabel(nextOtpType)}
+                    </Button>
+                  )}
+                </div>
               );
             })()}
           </div>
@@ -1863,6 +1881,12 @@ export default function OrderDetailPage() {
         open={isOtpDialogOpen}
         onOpenChange={setIsOtpDialogOpen}
         onVerified={() => o.fetchOrder()}
+      />
+
+      <SellerManualCompleteDialog
+        open={isManualCompleteOpen}
+        onOpenChange={setIsManualCompleteOpen}
+        onConfirm={o.completeOrderWithoutOtp}
       />
 
       {genericOtpTargetStatus && (

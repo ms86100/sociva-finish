@@ -2,7 +2,7 @@
 import { useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
-import { X, ShoppingBag } from 'lucide-react';
+import { X, ShoppingBag, Clock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { easings } from '@/lib/motion-variants';
 
@@ -13,6 +13,10 @@ interface CartAddPopupProps {
   productImage?: string;
   price?: number;
   onViewCart?: () => void;
+  message?: string;
+  title?: string;
+  primaryLabel?: string;
+  secondaryLabel?: string;
 }
 
 export function CartAddPopup({
@@ -22,7 +26,16 @@ export function CartAddPopup({
   productImage,
   price,
   onViewCart,
+  message,
+  title,
+  primaryLabel,
+  secondaryLabel,
 }: CartAddPopupProps) {
+  const heading = title || 'Added to cart';
+  const body = message || 'Your item is ready whenever you are.';
+  const primary = primaryLabel || 'View cart';
+  const secondary = secondaryLabel || 'Continue';
+  const isSchedule = Boolean(title || primaryLabel);
   useEffect(() => {
     if (!isOpen) return;
     const onKey = (event: KeyboardEvent) => {
@@ -44,7 +57,7 @@ export function CartAddPopup({
       className="fixed inset-0 z-[300] flex items-center justify-center px-6 pointer-events-auto"
       role="dialog"
       aria-modal="true"
-      aria-label="Added to cart"
+      aria-label={heading}
     >
       <button
         type="button"
@@ -78,12 +91,16 @@ export function CartAddPopup({
 
         <div className="relative px-6 pb-5 pt-7 text-center">
           <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-success to-primary text-primary-foreground shadow-md">
-            <ShoppingBag className="h-7 w-7" strokeWidth={2.4} />
+            {isSchedule ? (
+              <Clock className="h-7 w-7" strokeWidth={2.4} />
+            ) : (
+              <ShoppingBag className="h-7 w-7" strokeWidth={2.4} />
+            )}
           </div>
 
-          <h3 className="text-lg font-semibold tracking-tight text-foreground">Added to cart</h3>
+          <h3 className="text-lg font-semibold tracking-tight text-foreground">{heading}</h3>
           <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
-            Your item is ready whenever you are.
+            {body}
           </p>
 
           <div className="mt-4 flex items-center gap-3 rounded-2xl bg-muted/60 p-3 text-left">
@@ -110,7 +127,7 @@ export function CartAddPopup({
               onClick={onClose}
               className="flex-1 rounded-2xl bg-muted px-3 py-2.5 text-sm font-semibold text-foreground active:scale-[0.98] transition-transform"
             >
-              Continue
+              {secondary}
             </button>
             <button
               type="button"
@@ -120,7 +137,7 @@ export function CartAddPopup({
               }}
               className="flex-1 rounded-2xl bg-primary px-3 py-2.5 text-sm font-semibold text-primary-foreground shadow-cta active:scale-[0.98] transition-transform"
             >
-              View cart
+              {primary}
             </button>
           </div>
         </div>

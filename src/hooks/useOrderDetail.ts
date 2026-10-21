@@ -9,6 +9,7 @@ import { useCurrency } from '@/hooks/useCurrency';
 import { useCategoryStatusFlow, getNextStatusForActor, getTimelineSteps, isTerminalStatus, isSuccessfulTerminal, isFirstFlowStep, canActorCancel, useStatusTransitions } from '@/hooks/useCategoryStatusFlow';
 import { isDeliveryMapEligible } from '@/lib/orderProgressStages';
 import { logAudit } from '@/lib/audit';
+import { mapSellerManualCompleteError } from '@/lib/seller-manual-complete';
 import { resolveTransactionType } from '@/lib/resolveTransactionType';
 import {
   canBuyerCancelScheduled,
@@ -471,6 +472,71 @@ export function useOrderDetail(id: string | undefined) {
     }
   };
 
+  const completeOrderWithoutOtp = async (): Promise<{ ok: boolean; alreadyComplete?: boolean; error?: string }> => {
+    if (!order || !user) {
+      const mapped = mapSellerManualCompleteError('Authentication required');
+      toast.error(mapped.text, { id: 'order-manual-complete-session' });
+      return { ok: false, error: mapped.text };
+    }
+    if (isUpdating) return { ok: false, error: 'Please wait' };
+    setIsUpdating(true);
+    try {
+      const { data, error } = await supabase.rpc('seller_complete_order_without_otp', {
+        _order_id: order.id,
+      });
+      if (error) throw error;
+      const row = Array.isArray(data) ? data[0] : data;
+      const alreadyComplete = !!row?.already_complete;
+      const confirmedStatus = row?.new_status;
+      queryClient.setQueryData(['order-detail', id], (old: any) =>
+        old && confirmedStatus
+          ? {
+              ...old,
+              order: {
+                ...old.order,
+                status: confirmedStatus,
+                completion_method: row?.completion_method || old.order?.completion_method,
+              },
+            }
+          : old
+      );
+      queryClient.invalidateQueries({ queryKey: ['order-detail', id] });
+      if (isSellerView) invalidateSellerDashboardCaches(order.seller_id);
+      supabase.functions.invoke('process-notification-queue').catch(() => {});
+      if (alreadyComplete) {
+        toast.info('This order is already completed', { id: `order-${order.id}-already` });
+        return { ok: true, alreadyComplete: true };
+      }
+      showFeedback({
+        title: 'Order completed',
+        description: 'Marked as delivered without OTP verification.',
+        variant: 'success',
+      });
+      const txn = (order as { transaction_type?: string | null }).transaction_type || 'order';
+      track('order_status_changed', {
+        order_id: order.id,
+        seller_id: order.seller_id,
+        from_status: order.status,
+        to_status: confirmedStatus,
+        transaction_type: txn,
+        completion_method: 'seller_manual',
+      });
+      return { ok: true, alreadyComplete: false };
+    } catch (error: any) {
+      const mapped = mapSellerManualCompleteError(error?.message || error?.details || '');
+      if (mapped.kind === 'already_complete') {
+        invalidateOrder();
+        toast.info(mapped.text, { id: `order-${order.id}-already` });
+        return { ok: true, alreadyComplete: true, error: mapped.text };
+      }
+      toast.error(mapped.text, { id: `order-${order.id}-manual-complete` });
+      invalidateOrder();
+      return { ok: false, error: mapped.text };
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
   const handleReject = async (reason: string) => {
     const stamped = reason?.startsWith('Rejected by seller:')
       ? reason
@@ -605,7 +671,7 @@ export function useOrderDetail(id: string | undefined) {
     getOrderStatus, getPaymentStatus, getItemStatus,
     getFlowStepLabel, getBuyerHint, getSellerHint,
     formatPrice, user,
-    updateOrderStatus, buyerAdvanceOrder, handleReject, handleTimeout, copyOrderId, fetchOrder,
+    updateOrderStatus, completeOrderWithoutOtp, buyerAdvanceOrder, handleReject, handleTimeout, copyOrderId, fetchOrder,
     transitions,
     isOrderError,
     isOrderFetching,

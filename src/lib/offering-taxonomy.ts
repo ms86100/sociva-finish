@@ -36,6 +36,7 @@ export const GROUP_FALLBACK_CATEGORY_SLUGS: Record<string, string[]> = {
   resale: ['clothing', 'furniture', 'other-resale'],
   property: ['flat_rent', 'other-property'],
   puja: ['agarbatti', 'other-puja'],
+  travel: ['airport_transfers', 'other-travel'],
 };
 
 export interface MappedOffering {

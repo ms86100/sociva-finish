@@ -31,17 +31,24 @@ export function SmartSuggestionBanner() {
       // Check store availability before reordering
       const { data: seller } = await supabase
         .from('seller_profiles')
-        .select('id, availability_start, availability_end, operating_days, is_available')
+        .select('id, availability_start, availability_end, operating_days, is_available, vacation_mode')
         .eq('id', suggestion.seller_id)
         .single();
 
       if (seller) {
         const { computeStoreStatus, formatStoreClosedMessage } = await import('@/lib/store-availability');
+        const { canScheduleWhileClosed, isHardBlockedStore } = await import('@/lib/store-schedule');
         const status = computeStoreStatus(seller.availability_start, seller.availability_end, seller.operating_days, seller.is_available ?? true);
-        if (status.status !== 'open') {
-          const msg = formatStoreClosedMessage(status);
-          toast.error(msg || 'Store is currently closed. Please try later.');
+        const vacation = !!seller.vacation_mode;
+        if (isHardBlockedStore(status.status, vacation)) {
+          const msg = vacation
+            ? 'This store is on a break. Scheduling is unavailable until it reopens.'
+            : (formatStoreClosedMessage(status) || 'This store is currently paused.');
+          toast.error(msg);
           return;
+        }
+        if (canScheduleWhileClosed(status.status, vacation)) {
+          toast('This store is closed right now. Pick a time in your cart to place the order.', { id: 'cart-store-schedule' });
         }
       }
 

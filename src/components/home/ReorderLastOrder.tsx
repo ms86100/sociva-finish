@@ -14,6 +14,7 @@ import { useBrowsingLocation } from '@/contexts/BrowsingLocationContext';
 import { buyerCanOrderFromSeller, filterDiscoverableProductIds } from '@/lib/sellerDiscoverability';
 import { PRECISE_LOCATION_TITLE } from '@/lib/buyerLocation';
 import { remapMergedLines } from '@/lib/product-merges';
+import { inspectReorderStores } from '@/lib/reorder';
 
 interface LastOrder {
   id: string;
@@ -129,21 +130,14 @@ export function ReorderLastOrder() {
       if (available && available.length > 0) {
         const sellerIds = [...new Set(available.map(p => p.seller_id).filter(Boolean))];
         if (sellerIds.length > 0) {
-          const { data: sellers } = await supabase
-            .from('seller_profiles')
-            .select('id, availability_start, availability_end, operating_days, is_available')
-            .in('id', sellerIds);
-          if (sellers) {
-            const { computeStoreStatus, formatStoreClosedBuyerMessage } = await import('@/lib/store-availability');
-            for (const seller of sellers) {
-              const status = computeStoreStatus(seller.availability_start, seller.availability_end, seller.operating_days, seller.is_available ?? true);
-              if (status.status !== 'open') {
-                const msg = formatStoreClosedBuyerMessage(status);
-                notify.block(msg || 'This store is currently closed. Your items may still be available when it reopens.', { id: 'reorder-store-closed', title: 'Store closed' });
-                setIsLoading(false);
-                return;
-              }
-            }
+          const reorderGate = await inspectReorderStores(sellerIds);
+          if (reorderGate.blocked) {
+            notify.block(reorderGate.blocked, { id: 'reorder-store-closed', title: 'Store closed' });
+            setIsLoading(false);
+            return;
+          }
+          if (reorderGate.schedule) {
+            toast('This store is closed right now. Pick a time in your cart to place the order.', { id: 'cart-store-schedule' });
           }
         }
       }

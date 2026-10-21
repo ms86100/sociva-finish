@@ -52,6 +52,19 @@ import { resolvePlatformDeliveryFee } from '@/lib/delivery-fee';
 import { resolveSellerPackagingFee } from '@/lib/packaging-fee';
 import { toScheduledDateParam } from '@/lib/scheduled-orders';
 import { cartLineKey } from '@/lib/product-variants';
+import { computeStoreStatus } from '@/lib/store-availability';
+import {
+  canScheduleWhileClosed,
+  closedStoreAcceptDeadlineAt,
+  formatIstDeadline,
+  formatScheduleSlotLabel,
+  hoursFromCartItems,
+  intersectScheduleSlots,
+  isHardBlockedStore,
+  isValidIntersectedSlot,
+  pickValidScheduleSlot,
+  type StoreHoursInput,
+} from '@/lib/store-schedule';
 // Store status validation now handled server-side in create_multi_vendor_orders RPC
 
 async function navigateAfterCheckout(
@@ -466,10 +479,10 @@ export function useCartPage() {
   }, [isMultiSeller, paymentMethod, acceptsCod, paymentMode.isRazorpay]);
 
   useEffect(() => {
-    if (paymentMethod === 'cod' || paymentMode.isOff) {
+    if ((paymentMethod === 'cod' || paymentMode.isOff) && wallet.appliedAmount > 0) {
       wallet.clearApplied();
     }
-  }, [paymentMethod, paymentMode.isOff, wallet.clearApplied]);
+  }, [paymentMethod, paymentMode.isOff, wallet.appliedAmount, wallet.clearApplied]);
 
   // Track which seller the default was computed for - reset when seller changes
   const defaultFulfillmentSellerId = useRef<string | null>(null);
@@ -561,7 +574,91 @@ export function useCartPage() {
     const lt = (item.product as any)?.lead_time_hours;
     return (item.product as any)?.accepts_preorders && lt && lt > max ? lt : max;
   }, 0);
-  const preorderMissingSchedule = hasPreorderItems && (!scheduledDate || !scheduledTime);
+
+  const sellerScheduleStates = useMemo(() => {
+    return sellerGroups.map((group) => {
+      const hours = hoursFromCartItems(group.items);
+      const status = computeStoreStatus(
+        hours.availabilityStart,
+        hours.availabilityEnd,
+        hours.operatingDays,
+        hours.isAvailable !== false,
+      ).status;
+      const vacation = !!hours.vacationMode;
+      return {
+        sellerId: group.sellerId,
+        sellerName: group.sellerName,
+        hours,
+        status,
+        vacation,
+        hardBlocked: isHardBlockedStore(status, vacation),
+        mustSchedule: canScheduleWhileClosed(status, vacation),
+        isOpen: status === 'open' && !vacation,
+      };
+    });
+  }, [sellerGroups]);
+
+  const closedScheduleSellers = sellerScheduleStates.filter((s) => s.mustSchedule);
+  const openScheduleSellers = sellerScheduleStates.filter((s) => s.isOpen);
+  const hardBlockedSellers = sellerScheduleStates.filter((s) => s.hardBlocked);
+  const mixedOpenAndClosedCart = closedScheduleSellers.length > 0 && openScheduleSellers.length > 0;
+  const hasClosedScheduleItems = closedScheduleSellers.length > 0;
+  const hasHardBlockedItems = hardBlockedSellers.length > 0;
+  const schedulingRequired = (hasPreorderItems || hasClosedScheduleItems) && !mixedOpenAndClosedCart && !hasHardBlockedItems;
+  const scheduleStoreHours: StoreHoursInput[] = useMemo(() => {
+    if (mixedOpenAndClosedCart || hasHardBlockedItems) return [];
+    if (closedScheduleSellers.length > 0) return closedScheduleSellers.map((s) => s.hours);
+    return sellerScheduleStates.map((s) => s.hours);
+  }, [mixedOpenAndClosedCart, hasHardBlockedItems, closedScheduleSellers, sellerScheduleStates]);
+  const sendScheduledSlot = schedulingRequired || wantsScheduledDelivery;
+  const scheduleSlotValid = useMemo(() => {
+    if (!scheduledDate || !scheduledTime) return false;
+    return isValidIntersectedSlot(
+      scheduleStoreHours,
+      toScheduledDateParam(scheduledDate),
+      scheduledTime,
+    );
+  }, [scheduledDate, scheduledTime, scheduleStoreHours]);
+  const scheduleSlotsEmpty = useMemo(() => {
+    if (!schedulingRequired) return false;
+    return intersectScheduleSlots(scheduleStoreHours).length === 0;
+  }, [schedulingRequired, scheduleStoreHours]);
+  const scheduledSlotLabel = useMemo(() => {
+    if (!scheduledDate || !scheduledTime) return null;
+    return formatScheduleSlotLabel(toScheduledDateParam(scheduledDate), scheduledTime) || null;
+  }, [scheduledDate, scheduledTime]);
+  const closedStoreAcceptByLabel = useMemo(() => {
+    if (!hasClosedScheduleItems || !scheduledDate || !scheduledTime) return null;
+    const dateStr = toScheduledDateParam(scheduledDate);
+    let earliest: Date | null = null;
+    for (const seller of closedScheduleSellers) {
+      const at = closedStoreAcceptDeadlineAt(
+        seller.hours.availabilityStart,
+        dateStr,
+        scheduledTime,
+        seller.hours.prepMinutes,
+      );
+      if (at && (!earliest || at.getTime() < earliest.getTime())) earliest = at;
+    }
+    return earliest ? formatIstDeadline(earliest) : null;
+  }, [hasClosedScheduleItems, scheduledDate, scheduledTime, closedScheduleSellers]);
+  const preorderMissingSchedule = mixedOpenAndClosedCart
+    || hasHardBlockedItems
+    || scheduleSlotsEmpty
+    || (schedulingRequired && !scheduleSlotValid);
+
+  useEffect(() => {
+    if (!schedulingRequired || scheduleSlotsEmpty) return;
+    const slots = intersectScheduleSlots(scheduleStoreHours);
+    const dateStr = scheduledDate ? toScheduledDateParam(scheduledDate) : null;
+    const next = pickValidScheduleSlot(slots, dateStr, scheduledTime);
+    if (!next) return;
+    if (dateStr !== next.date) {
+      const [y, m, d] = next.date.split('-').map(Number);
+      setScheduledDate(new Date(y, m - 1, d, 12, 0, 0, 0));
+    }
+    if (scheduledTime !== next.time) setScheduledTime(next.time);
+  }, [schedulingRequired, scheduleSlotsEmpty, scheduleStoreHours, scheduledDate, scheduledTime]);
 
   // Derive cutoff time from pre-order items (use the earliest cutoff across all pre-order products)
   const preorderCutoffTime = useMemo(() => {
@@ -604,8 +701,9 @@ export function useCartPage() {
       });
       const preorder = preorderSellerIds.has(group.sellerId)
         || group.items.some((item) => (item.product as any)?.accepts_preorders === true);
+      const mustSchedule = sellerScheduleStates.some((s) => s.sellerId === group.sellerId && s.mustSchedule);
       const distanceLabel = eta.distanceKm != null ? formatDistanceKmLabel(eta.distanceKm) : null;
-      const banner: CheckoutEtaBanner | null = preorder
+      const banner: CheckoutEtaBanner | null = (preorder || mustSchedule)
         ? null
         : checkoutEtaBanner(eta, fulfillmentType, distanceLabel);
       return {
@@ -615,7 +713,7 @@ export function useCartPage() {
         banner,
       };
     });
-  }, [sellerGroups, fulfillmentType, checkoutLat, checkoutLng, preorderSellerIds]);
+  }, [sellerGroups, fulfillmentType, checkoutLat, checkoutLng, preorderSellerIds, sellerScheduleStates]);
 
   const checkoutEta = sellerGroups.length === 1 ? (sellerCheckoutEtas[0]?.eta ?? null) : null;
   const maxPrepTime = checkoutEta?.prepMinutes ?? 0;
@@ -643,8 +741,8 @@ export function useCartPage() {
     const effectivePaymentMethod = paymentMode.isRazorpay && paymentMethod === 'upi' ? 'online' : paymentMethod;
     // Format scheduled date/time for pre-order items (IST wall-clock on server).
     // Local Y-M-D - not toISOString(), which rolls back a day in IST.
-    const scheduledDateStr = scheduledDate ? toScheduledDateParam(scheduledDate) : null;
-    const scheduledTimeStr = scheduledTime ? `${scheduledTime}:00` : null;
+    const scheduledDateStr = sendScheduledSlot && scheduledDate ? toScheduledDateParam(scheduledDate) : null;
+    const scheduledTimeStr = sendScheduledSlot && scheduledTime ? `${scheduledTime}:00` : null;
     const { data, error } = await supabase.rpc('create_multi_vendor_orders', {
       _buyer_id: user.id, _delivery_address: deliveryAddressText,
       _notes: checkoutNotes(items, notes), _payment_method: effectivePaymentMethod, _payment_status: paymentStatus,
@@ -855,9 +953,25 @@ export function useCartPage() {
       return;
     }
 
-    // GUARD: Pre-order items MUST have a scheduled date/time - cannot bypass via race condition
-    if (hasPreorderItems && (!scheduledDate || !scheduledTime)) {
-      notify.block('Please select a delivery date & time for pre-order items.');
+    // GUARD: Closed-store / pre-order carts MUST have a scheduled date/time
+    if (mixedOpenAndClosedCart) {
+      notify.block('This cart mixes an open store and a closed store. Checkout one store at a time.');
+      return;
+    }
+    if (hasHardBlockedItems) {
+      notify.block('A store in your cart is paused or on a break. Remove it to continue.');
+      return;
+    }
+    if (scheduleSlotsEmpty) {
+      notify.block('These stores do not share a time. Checkout one store at a time.');
+      return;
+    }
+    if (schedulingRequired && !scheduleSlotValid) {
+      notify.block('Please select a delivery date & time for this order.');
+      return;
+    }
+    if (sendScheduledSlot && scheduledDate && scheduledTime && !scheduleSlotValid) {
+      notify.block('That time is outside this store\'s hours. Pick another slot.');
       return;
     }
 
@@ -926,8 +1040,8 @@ export function useCartPage() {
           const cartHash = items.map(i => `${i.product_id}${i.variant_id ? `#${i.variant_id}` : ''}:${i.quantity}`).sort().join('|');
           idempotencyKeyRef.current = `${user.id}_${Date.now()}_${simpleHash(cartHash)}`;
         }
-        const scheduledDateStr = scheduledDate ? toScheduledDateParam(scheduledDate) : null;
-        const scheduledTimeStr = scheduledTime ? `${scheduledTime}:00` : null;
+        const scheduledDateStr = sendScheduledSlot && scheduledDate ? toScheduledDateParam(scheduledDate) : null;
+        const scheduledTimeStr = sendScheduledSlot && scheduledTime ? `${scheduledTime}:00` : null;
         const { data, error } = await supabase.rpc('create_multi_vendor_orders', {
           _buyer_id: user.id,
           _delivery_address: deliveryAddressText,
@@ -1563,10 +1677,13 @@ export function useCartPage() {
     paymentFailureInfo, dismissPaymentFailure: () => setPaymentFailureInfo(null),
     priceChangeInfo, dismissPriceChangeInfo, continueWithUpdatedPrices,
     cancelPlacingOrder: () => { setIsPlacingOrder(false); setOrderStep('validating'); },
-    // Pre-order
+    // Pre-order / closed-store schedule
     hasPreorderItems, maxLeadTimeHours, preorderMissingSchedule,
     scheduledDate, setScheduledDate, scheduledTime, setScheduledTime,
     preorderCutoffTime, preorderSellerIds,
     wantsScheduledDelivery, setWantsScheduledDelivery,
+    schedulingRequired, hasClosedScheduleItems, mixedOpenAndClosedCart, scheduleStoreHours,
+    sendScheduledSlot, scheduledSlotLabel, hasHardBlockedItems, scheduleSlotsEmpty, scheduleSlotValid,
+    closedStoreAcceptByLabel,
   };
 }

@@ -5,6 +5,7 @@ import {
   formatPreparationByLine,
   getScheduledCountdownLabel,
   getScheduledFulfilmentAt,
+  isClosedStoreScheduledOrder,
   isScheduledOrder,
   isUpcomingScheduled,
   resolveScheduledPhase,
@@ -102,5 +103,20 @@ describe('scheduled-orders', () => {
   it('keeps the prep prompt for upcoming scheduled orders', () => {
     const now = new Date('2026-08-24T12:00:00+05:30');
     expect(formatPreparationByLine(aug25Order, 60, now)).toMatch(/Start preparing by/i);
+  });
+
+  it('treats a hours-later auto_cancel as closed-store, not the 30-minute pre-order window', () => {
+    expect(isClosedStoreScheduledOrder({
+      scheduled_date: '2026-10-22',
+      scheduled_time_start: '11:45',
+      created_at: '2026-10-21T21:00:00+05:30',
+      auto_cancel_at: '2026-10-22T11:30:00+05:30',
+    })).toBe(true);
+    expect(isClosedStoreScheduledOrder({
+      scheduled_date: '2026-10-25',
+      scheduled_time_start: '10:00',
+      created_at: '2026-10-21T21:00:00+05:30',
+      auto_cancel_at: '2026-10-21T21:30:00+05:30',
+    })).toBe(false);
   });
 });

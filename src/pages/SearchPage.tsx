@@ -58,6 +58,18 @@ function toProductWithSeller(p: ProductSearchResult, row?: ProductFacetRow | nul
     action_type: p.action_type || null, contact_phone: p.contact_phone || null,
     tags: p.tags || null, cuisine_type: p.cuisine_type || null,
     prep_time_minutes: p.prep_time_minutes || null,
+    seller_availability_start: seller?.availability_start ?? (p as any).seller_availability_start ?? null,
+    seller_availability_end: seller?.availability_end ?? (p as any).seller_availability_end ?? null,
+    seller_operating_days: seller?.operating_days ?? (p as any).seller_operating_days ?? null,
+    seller_is_available: seller?.is_available ?? (p as any).seller_is_available ?? true,
+    seller_vacation_mode: seller?.vacation_mode ?? (p as any).seller_vacation_mode ?? false,
+    seller: seller ? {
+      availability_start: seller.availability_start ?? null,
+      availability_end: seller.availability_end ?? null,
+      operating_days: seller.operating_days ?? null,
+      is_available: seller.is_available ?? true,
+      vacation_mode: seller.vacation_mode ?? false,
+    } : (p as any).seller,
   } as ProductWithSeller, row);
 }
 

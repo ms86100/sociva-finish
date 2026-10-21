@@ -363,7 +363,7 @@ export default function SellerSettingsPage({
                         <Palmtree className={formData.vacation_mode ? 'text-accent' : 'text-muted-foreground'} size={22} />
                         <div>
                           <p className="font-semibold text-sm">Vacation Mode</p>
-                          <p className="text-xs text-muted-foreground">Show "On a break" banner instead of hiding store</p>
+                          <p className="text-xs text-muted-foreground">Store stays listed. Buyers see On a break and cannot order until you return.</p>
                         </div>
                       </div>
                       <Switch checked={formData.vacation_mode} onCheckedChange={(checked) => setFormData({ ...formData, vacation_mode: checked, vacation_until: checked ? formData.vacation_until : '' })} />

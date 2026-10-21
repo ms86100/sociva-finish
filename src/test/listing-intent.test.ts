@@ -289,6 +289,35 @@ describe('resolveListingIntent', () => {
     }
   });
 
+  it('maps airport taxi and cab phrases onto Travel, not Domestic Help', () => {
+    const travelCatalog: IntentCatalogCategory[] = [
+      ...categories,
+      {
+        slug: 'airport_transfers',
+        id: 'cfg-airport',
+        displayName: 'Airport Transfers',
+        parentGroup: 'travel',
+        transactionType: 'contact_enquiry',
+        supportsCart: false,
+      },
+      {
+        slug: 'driver',
+        id: 'cfg-driver',
+        displayName: 'Driver',
+        parentGroup: 'domestic_help',
+        transactionType: 'request_service',
+        supportsCart: false,
+      },
+    ];
+    for (const phrase of ['Airport taxi', 'Airport transfer', 'Bangalore airport cab']) {
+      const r = resolveListingIntent({ phrase, categories: travelCatalog, subcategories });
+      expect(r.suggestedCategorySlug).toBe('airport_transfers');
+      expect(r.suggestedParentGroup).toBe('travel');
+      expect(r.commerceModel).toBe('contact');
+      expect(shouldSurfaceListingSuggestion(r)).toBe(true);
+    }
+  });
+
   it('maps gujiya to a food category instead of Other Rentals', () => {
     const foodCatalog: IntentCatalogCategory[] = [
       ...categories,

@@ -255,6 +255,31 @@ describe('pickFallbackCategory', () => {
     expect(cat?.slug).toBe('agarbatti');
     expect(cat?.parentGroup).toBe('puja');
   });
+
+  it('uses Airport Transfers for Travel, never Food', () => {
+    const travelCategories: IntentCatalogCategory[] = [
+      ...categories,
+      {
+        slug: 'airport_transfers',
+        id: 'cfg-airport',
+        displayName: 'Airport Transfers',
+        parentGroup: 'travel',
+        transactionType: 'contact_enquiry',
+        supportsCart: false,
+      },
+      {
+        slug: 'other-travel',
+        id: 'cfg-other-travel',
+        displayName: 'Other Cabs & Travel',
+        parentGroup: 'travel',
+        transactionType: 'contact_enquiry',
+        supportsCart: false,
+      },
+    ];
+    const cat = pickFallbackCategory('travel', travelCategories);
+    expect(cat?.slug).toBe('airport_transfers');
+    expect(cat?.parentGroup).toBe('travel');
+  });
 });
 
 describe('detectWorkflowConflict', () => {

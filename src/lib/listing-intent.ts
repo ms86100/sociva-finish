@@ -90,6 +90,28 @@ export const CATEGORY_ALIAS_MAP: Record<string, string[]> = {
   maid: ['cleaning', 'house cleaning', 'home cleaning', 'maid', 'domestic help', 'housekeeping'],
   cook: ['cook', 'home cook', 'chef', 'cooking service'],
   driver: ['driver', 'personal driver', 'chauffeur'],
+  airport_transfers: [
+    'airport transfer', 'airport taxi', 'airport cab', 'airport pickup',
+    'airport drop', 'bengaluru airport', 'bangalore airport',
+  ],
+  local_trips: [
+    'local cab', 'local taxi', 'city trip', 'bangalore cab', 'bengaluru cab',
+    'local city trip',
+  ],
+  sightseeing: [
+    'sightseeing', 'nandi hills', 'mysore trip', 'mysore palace',
+    'bannerghatta', 'kotilingeshwara', 'coorg trip', 'weekend getaway',
+  ],
+  outstation: [
+    'outstation', 'outstation taxi', 'outstation cab', 'tempo traveller',
+    'force urbania', 'carpooling', 'shared cab',
+  ],
+  self_drive: [
+    'self drive', 'self-drive', 'kia sonet', 'self drive rental', 'self-drive car',
+  ],
+  driver_hire: [
+    'driver on hire', 'driver hire', 'chauffeur hire', 'outstation driver',
+  ],
   nanny: ['nanny', 'babysitter', 'child care'],
   beauty: ['parlour', 'parlor', 'makeup', 'facial', 'beauty service', 'bridal makeup', 'skin care', 'spa', 'massage', 'body massage', 'ayurvedic massage'],
   salon: ['salon', 'haircut', 'hair styling', 'grooming', 'beard trim', 'hair spa'],
