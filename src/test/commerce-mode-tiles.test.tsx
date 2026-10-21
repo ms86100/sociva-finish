@@ -96,7 +96,8 @@ describe('commerce mode tiles', () => {
     expect(home).not.toMatch(/CommerceModeTiles/);
     expect(home).toMatch(/filterByMode\(group\.products, 'shop', categoryConfigs\)/);
     expect(populated.indexOf('home-popular-rail')).toBeLessThan(populated.indexOf('<FeaturedBanners'));
-    expect(populated.indexOf('<FeaturedBanners')).toBeLessThan(populated.indexOf('<CategoryImageGrid'));
+    expect(home).not.toMatch(/CategoryImageGrid/);
+    expect(populated.indexOf('<FeaturedBanners')).toBeLessThan(populated.indexOf('<ShopByStoreDiscovery'));
     expect(home).toMatch(/label_empty_marketplace_title/);
     expect(home).toMatch(/Home-cooked meals/);
     expect(home).toMatch(/bg-mode-shop\/15/);

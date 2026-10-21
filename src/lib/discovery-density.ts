@@ -26,8 +26,9 @@ export interface ShopPosterSection {
 }
 
 /**
- * Home poster sections. Thin leaves (1-2 listings) stay on chips and the
- * product grid instead of a full-width Restaurant-style block.
+ * Legacy Home poster builder. Home no longer mounts these rows: chips and
+ * curated rails already cover browse. Keep returning [] so a stray call
+ * cannot bring back one-card rows with empty space.
  */
 export function buildShopPosterSections(
   groups: readonly ShopPosterGroup[],
@@ -40,42 +41,7 @@ export function buildShopPosterSections(
     categoriesForChip?: (chipId: string) => string[];
   },
 ): ShopPosterSection[] {
-  if (options.festivalFocused) return [];
-
-  if (options.activeCategory) {
-    const matching = new Set(
-      options.categoriesForChip
-        ? options.categoriesForChip(options.activeCategory)
-        : [options.activeCategory],
-    );
-    const count = groups
-      .filter((group) => matching.has(group.category))
-      .reduce((sum, group) => sum + group.products.length, 0);
-    if (!hasPosterDensity(count)) return [];
-    const group = groups.find((item) => item.category === options.activeCategory)
-      || groups.find((item) => matching.has(item.category));
-    const parentGroup = options.parentGroupFor?.(options.activeCategory) || group?.parentGroup;
-    if (!parentGroup) return [];
-    return [{
-      key: options.activeCategory,
-      parentGroup,
-      title: options.titleFor(options.activeCategory),
-      categories: matching,
-    }];
-  }
-
-  return [...groups]
-    .filter((group) => hasPosterDensity(group.products.length))
-    .sort((a, b) => {
-      const aOrder = options.displayOrderFor?.(a.category) ?? 999;
-      const bOrder = options.displayOrderFor?.(b.category) ?? 999;
-      if (aOrder !== bOrder) return aOrder - bOrder;
-      return options.titleFor(a.category).localeCompare(options.titleFor(b.category));
-    })
-    .map((group) => ({
-      key: group.category,
-      parentGroup: group.parentGroup,
-      title: options.titleFor(group.category),
-      categories: new Set([group.category]),
-    }));
+  void groups;
+  void options;
+  return [];
 }

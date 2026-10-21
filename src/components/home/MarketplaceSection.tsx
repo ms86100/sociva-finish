@@ -7,9 +7,7 @@ import { useProductsByCategory } from '@/hooks/queries/useProductsByCategory';
 import { useMarketplaceData } from '@/hooks/queries/useMarketplaceData';
 import { useProductFacets } from '@/hooks/queries/useProductFacets';
 import { useSocialProof } from '@/hooks/queries/useSocialProof';
-import { categoriesForBuyerChip } from '@/lib/buyer-chip-groups';
 import { listingMatchesCategoryChip } from '@/lib/food-facets';
-import { CategoryImageGrid } from '@/components/home/CategoryImageGrid';
 import { FeaturedBanners } from '@/components/home/FeaturedBanners';
 import { FestivalBannerModule } from '@/components/home/FestivalBannerModule';
 import { FestivalHomeHero } from '@/components/home/FestivalHomeHero';
@@ -23,7 +21,6 @@ import { ProductListingCard, ProductWithSeller } from '@/components/product/Prod
 import { GroupedSellerRow } from '@/components/home/GroupedSellerRow';
 import { IntentProductRail } from '@/components/discovery/IntentProductRail';
 import { useIntentRailModel } from '@/hooks/useIntentRailModel';
-import { ProductCardSkeleton } from '@/components/product/ProductCardSkeleton';
 import { ShoppingBag, Flame, UtensilsCrossed, Wrench, Heart, Users, MapPin } from 'lucide-react';
 import { LoadFailureState } from '@/components/network/LoadFailureState';
 import { useSlowLoading } from '@/hooks/useSlowLoading';
@@ -37,7 +34,6 @@ import { cn } from '@/lib/utils';
 import { DiscoveryChipRail } from '@/components/home/DiscoveryChipRail';
 import { CommerceFacetRail } from '@/components/discovery/CommerceFacetRail';
 import { buildDiscoveryIntents } from '@/lib/discovery-intents';
-import { buildShopPosterSections } from '@/lib/discovery-density';
 import { applyProductFacetRow } from '@/hooks/queries/useProductFacets';
 import {
   CommerceFacetState,
@@ -236,18 +232,6 @@ export function MarketplaceSection() {
     }
     return images;
   }, [marketplaceSellers]);
-
-  const shopSections = useMemo(() => {
-    const configByCategory = new Map(categoryConfigs.map((config) => [config.category, config]));
-    return buildShopPosterSections(cartCategories, {
-      festivalFocused,
-      activeCategory,
-      titleFor: (category) => configByCategory.get(category)?.displayName || category,
-      parentGroupFor: (category) => configByCategory.get(category)?.parentGroup,
-      displayOrderFor: (category) => configByCategory.get(category)?.displayOrder ?? 999,
-      categoriesForChip: categoriesForBuyerChip,
-    });
-  }, [festivalFocused, activeCategory, categoryConfigs, cartCategories]);
 
   const exploreFestival = useCallback(() => {
     setFestivalFocused(true);
@@ -525,31 +509,17 @@ export function MarketplaceSection() {
         </div>
       )}
 
-      {!festivalFocused && (showMarketplaceSkeleton ? (
+      {!festivalFocused && showMarketplaceSkeleton && marketplaceSlow && (
         <div className="px-4 mt-2">
-          {marketplaceSlow && (
-            <LoadFailureState
-              variant="slow"
-              compact
-              className="mb-3"
-              description="Your connection seems slow. We're still trying."
-              onRetry={() => { void refetchMarketplace(); }}
-            />
-          )}
-          <ProductCardSkeleton count={6} />
+          <LoadFailureState
+            variant="slow"
+            compact
+            className="mb-3"
+            description="Your connection seems slow. We're still trying."
+            onRetry={() => { void refetchMarketplace(); }}
+          />
         </div>
-      ) : (
-        <div>
-          {shopSections.map((section) => (
-            <CategoryImageGrid
-              key={section.key}
-              parentGroup={section.parentGroup}
-              title={section.title}
-              activeCategories={section.categories}
-            />
-          ))}
-        </div>
-      ))}
+      )}
 
       {!festivalFocused && (
         <LazySection>
