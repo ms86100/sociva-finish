@@ -93,8 +93,16 @@ describe('Talk to Sociva product wiring', () => {
     expect(start).toContain('createRetellWebCall');
     expect(start).toContain('seller_interest_leads');
     expect(start).toContain('MAX_PER_PHONE_PER_HOUR');
+    expect(start).toContain('ice_servers');
+    expect(start).toContain('transport');
     expect(start).not.toContain('seller_profiles');
     expect(start).not.toContain('from("products")');
+
+    const hook = readSrc('src/hooks/useSocivaVoiceCall.ts');
+    expect(hook).toContain('functionInvokeErrorMessage');
+    expect(hook).toContain('askForMicrophone');
+    expect(hook).toContain('callId: data.call_id');
+    expect(hook).toContain('iceServers');
 
     const getCall = readSrc('supabase/functions/get-sociva-voice-call/index.ts');
     expect(getCall).toContain('withAdmin');

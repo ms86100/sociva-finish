@@ -7,7 +7,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const MAX_PER_PHONE_PER_HOUR = 3;
+const MAX_PER_PHONE_PER_HOUR = 8;
 const MAX_PER_IP_PER_HOUR = 8;
 
 function json(status: number, body: Record<string, unknown>) {
@@ -159,6 +159,8 @@ serve(async (req) => {
         lead_id: lead.id,
         call_id: call.call_id,
         access_token: call.access_token,
+        transport: call.transport || "gateway",
+        ice_servers: call.ice_servers || [],
       });
     } catch (err) {
       console.error("[start-sociva-voice-call] Retell create failed", (err as Error)?.message || err);

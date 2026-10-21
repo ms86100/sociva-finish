@@ -27,6 +27,13 @@ export async function getRetellAgentId(supabase: any): Promise<string | undefine
   return readRetellCredential(supabase, "retell_agent_id", "RETELL_AGENT_ID");
 }
 
+export type RetellWebCallJoin = {
+  call_id: string;
+  access_token: string;
+  transport?: string;
+  ice_servers?: unknown[];
+};
+
 export async function createRetellWebCall(opts: {
   apiKey: string;
   agentId: string;
@@ -34,7 +41,7 @@ export async function createRetellWebCall(opts: {
   sellerName: string;
   sellerPhone: string;
   societyName: string;
-}): Promise<{ call_id: string; access_token: string }> {
+}): Promise<RetellWebCallJoin> {
   const response = await fetch(RETELL_CREATE_WEB_CALL_URL, {
     method: "POST",
     headers: {
@@ -75,7 +82,12 @@ export async function createRetellWebCall(opts: {
     throw new Error("Retell did not return a call token");
   }
 
-  return { call_id: String(callId), access_token: String(accessToken) };
+  return {
+    call_id: String(callId),
+    access_token: String(accessToken),
+    transport: payload?.transport ? String(payload.transport) : undefined,
+    ice_servers: Array.isArray(payload?.ice_servers) ? payload.ice_servers : undefined,
+  };
 }
 
 export async function getRetellCall(opts: {

@@ -7,7 +7,7 @@ export const SOCIVA_VOICE_LEAD_STATUSES = [
 
 export type SocivaVoiceLeadStatus = (typeof SOCIVA_VOICE_LEAD_STATUSES)[number];
 
-export const MAX_VOICE_LEADS_PER_PHONE_PER_HOUR = 3;
+export const MAX_VOICE_LEADS_PER_PHONE_PER_HOUR = 8;
 export const MAX_VOICE_LEADS_PER_IP_PER_HOUR = 8;
 export const DEFAULT_SOCIVA_VOICE_SOCIETY = 'Shriram Greenfield';
 

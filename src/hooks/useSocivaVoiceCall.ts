@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { functionInvokeErrorMessage } from '@/lib/function-invoke-error';
 import { validateSocivaVoiceLead, type SocivaVoiceLeadInput } from '@/lib/sociva-voice-lead';
 
 export type SocivaVoiceCallStatus =
@@ -20,12 +21,31 @@ export interface SocivaVoiceCallState {
 }
 
 type RetellSession = {
-  startCall: (opts: { accessToken: string }) => Promise<void> | void;
+  startCall: (opts: Record<string, unknown>) => Promise<void> | void;
+  startAudioPlayback?: () => Promise<void> | void;
   stopCall: () => Promise<void> | void;
   mute: () => void;
   unmute: () => void;
   on: (event: string, handler: (...args: any[]) => void) => void;
 };
+
+function retellErrorMessage(err: unknown, fallback: string) {
+  if (typeof err === 'string' && err.trim()) return err.trim();
+  if (err instanceof Error && err.message.trim()) return err.message.trim();
+  if (err && typeof err === 'object' && 'message' in err) {
+    const message = String((err as { message?: unknown }).message || '').trim();
+    if (message) return message;
+  }
+  return fallback;
+}
+
+async function askForMicrophone() {
+  if (!navigator.mediaDevices?.getUserMedia) {
+    throw new Error('This browser cannot use the microphone');
+  }
+  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  stream.getTracks().forEach((track) => track.stop());
+}
 
 export function useSocivaVoiceCall() {
   const clientRef = useRef<RetellSession | null>(null);
@@ -90,6 +110,14 @@ export function useSocivaVoiceCall() {
       return { ok: false as const, errors: parsed.errors };
     }
 
+    try {
+      await askForMicrophone();
+    } catch {
+      const message = 'Please allow the microphone so Sociva can hear you';
+      setState((prev) => ({ ...prev, status: 'error', error: message }));
+      return { ok: false as const, errors: { form: message } };
+    }
+
     setState({
       status: 'starting',
       muted: false,
@@ -98,12 +126,14 @@ export function useSocivaVoiceCall() {
       callId: null,
     });
 
-    const { data, error } = await supabase.functions.invoke('start-sociva-voice-call', {
+    const result = await supabase.functions.invoke('start-sociva-voice-call', {
       body: parsed.value,
     });
+    const data = result.data;
+    const invokeError = await functionInvokeErrorMessage(result, 'Could not start the call');
 
-    if (error || data?.error || !data?.access_token) {
-      const message = data?.error || error?.message || 'Could not start the call';
+    if (result.error || data?.error || !data?.access_token || !data?.call_id) {
+      const message = data?.error || invokeError;
       setState((prev) => ({ ...prev, status: 'error', error: message, leadId: data?.lead_id || null }));
       return { ok: false as const, errors: { form: message } };
     }
@@ -130,8 +160,8 @@ export function useSocivaVoiceCall() {
         clientRef.current = null;
         setState((prev) => ({ ...prev, status: 'ended', muted: false }));
       });
-      client.on('error', (err: Error) => {
-        const message = err?.message || 'The call could not continue';
+      client.on('error', (err: unknown) => {
+        const message = retellErrorMessage(err, 'The call could not continue');
         setState((prev) => ({ ...prev, status: 'error', error: message }));
       });
 
@@ -142,10 +172,17 @@ export function useSocivaVoiceCall() {
         callId: data.call_id,
       }));
 
-      await client.startCall({ accessToken: data.access_token });
+      await client.startCall({
+        accessToken: data.access_token,
+        callId: data.call_id,
+        transport: data.transport || 'gateway',
+        iceServers: Array.isArray(data.ice_servers) ? data.ice_servers : undefined,
+        sampleRate: 24000,
+      });
+      await client.startAudioPlayback?.();
       return { ok: true as const, errors: {} };
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Microphone or voice connection failed';
+      const message = retellErrorMessage(err, 'Microphone or voice connection failed');
       setState((prev) => ({
         ...prev,
         status: 'error',
