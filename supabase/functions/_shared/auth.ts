@@ -37,3 +37,36 @@ export async function withAuth(
 
   return { userId: user.id, userClient };
 }
+
+export async function withAdmin(
+  req: Request,
+  corsHeaders: Record<string, string>
+): Promise<{
+  userId: string;
+  userClient: ReturnType<typeof createClient>;
+  adminClient: ReturnType<typeof createClient>;
+} | Response> {
+  const authResult = await withAuth(req, corsHeaders);
+  if (authResult instanceof Response) return authResult;
+
+  const adminClient = createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+  );
+
+  const { data: roleRow } = await adminClient
+    .from("user_roles")
+    .select("role")
+    .eq("user_id", authResult.userId)
+    .eq("role", "admin")
+    .maybeSingle();
+
+  if (!roleRow) {
+    return new Response(JSON.stringify({ error: "Forbidden" }), {
+      status: 403,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
+  return { ...authResult, adminClient };
+}

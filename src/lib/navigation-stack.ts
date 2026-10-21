@@ -256,6 +256,7 @@ export function resolveBackFallback(pathname: string): string {
   if (path.startsWith('/discovery') || path.startsWith('/product/') || path.startsWith('/festival')) return '/';
   if (path.startsWith('/favorites') || path === '/notifications') return '/profile';
   if (path.startsWith('/notifications/inbox')) return '/';
+  if (path.startsWith('/talk-to-sociva')) return '/become-seller';
   if (path.startsWith('/become-seller')) return '/profile';
   if (path.startsWith('/messages')) return '/orders';
   if (path === '/community-rules') return '/help';

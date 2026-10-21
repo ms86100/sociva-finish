@@ -41,6 +41,7 @@ export function LandingFooter() {
               <Link to="/terms" className="block text-sm text-muted-foreground hover:text-foreground">Terms & Conditions</Link>
               <Link to="/refund-policy" className="block text-sm text-muted-foreground hover:text-foreground">Refund Policy</Link>
               <Link to="/pricing" className="block text-sm text-muted-foreground hover:text-foreground">Pricing</Link>
+              <Link to="/talk-to-sociva" className="block text-sm text-muted-foreground hover:text-foreground">Talk to Sociva</Link>
               {/* HashRouter: #download is a route (/download), not a page anchor - scroll instead */}
               <button
                 type="button"

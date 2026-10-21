@@ -26,7 +26,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { DAYS_OF_WEEK } from '@/types/Database';
-import { ArrowLeft, Store, Loader2, ChevronRight, Settings, Shield, Save, Send, LayoutGrid, Tags, FileText, Package, CheckCircle2, ArrowRight, Truck, Smartphone, Banknote, Clock, ImageIcon, MapPin, Navigation, CheckCircle, Star, X, Search, ShoppingCart, Calendar, MessageCircle, Phone, Coins, Home } from 'lucide-react';
+import { ArrowLeft, Store, Loader2, ChevronRight, Settings, Shield, Save, Send, LayoutGrid, Tags, FileText, Package, CheckCircle2, ArrowRight, Truck, Smartphone, Banknote, Clock, ImageIcon, MapPin, Navigation, CheckCircle, Star, X, Search, ShoppingCart, Calendar, MessageCircle, Phone, Coins, Home, Mic } from 'lucide-react';
 import { useActionTypeMap, useCategoryAllowedActions } from '@/hooks/useActionTypeMap';
 import { OnboardingLocationSheet } from '@/components/seller/OnboardingLocationSheet';
 import { cn } from '@/lib/utils';
@@ -1382,6 +1382,20 @@ export default function BecomeSellerPage() {
               onDeleteDraft={deleteDraftStore}
             />
             <PendingCategoryRequestsBanner variant="inline" />
+            <Link
+              to="/talk-to-sociva"
+              className="mb-4 flex items-start gap-3 rounded-2xl border border-primary/20 bg-primary/5 p-3"
+            >
+              <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                <Mic size={16} className="text-primary" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold">Prefer to talk instead?</p>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  Talk to Sociva. Share what you sell and our team will set up your store.
+                </p>
+              </div>
+            </Link>
             <IntentCategoryStep
               configs={configs}
               phrase={intentPhrase}

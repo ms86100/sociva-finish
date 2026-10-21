@@ -131,6 +131,7 @@ const CheckoutDetailPage = lazyWithRetry(() => import("./pages/CheckoutDetailPag
 const ProfileEditPage = lazyWithRetry(() => import("./pages/ProfileEditPage"));
 const FavoritesPage = lazyWithRetry(() => import("./pages/FavoritesPage"));
 const BecomeSellerPage = lazyWithRetry(() => import("./pages/BecomeSellerPage"));
+const TalkToSocivaPage = lazyWithRetry(() => import("./pages/TalkToSocivaPage"));
 const SellerDashboardPage = lazyWithRetry(() => import("./pages/SellerDashboardPage"));
 const SellerProductsPage = lazyWithRetry(() => import("./pages/SellerProductsPage"));
 const SellerCategoryRequestsPage = lazyWithRetry(() => import("./pages/SellerCategoryRequestsPage"));
@@ -149,6 +150,7 @@ const AdminSellerPayoutsPage = lazyWithRetry(() => import("./pages/AdminSellerPa
 const AdminSellerCreditsPage = lazyWithRetry(() => import("./pages/AdminSellerCreditsPage"));
 const AdminCommandCenterPage = lazyWithRetry(() => import("./pages/AdminCommandCenterPage"));
 const AdminStoreManagerPage = lazyWithRetry(() => import("./pages/AdminStoreManagerPage"));
+const AdminSellerInterestPage = lazyWithRetry(() => import("./pages/AdminSellerInterestPage"));
 const AdminManagedSellerProductsPage = lazyWithRetry(() =>
   import("./pages/AdminManagedSellerPages").then((m) => ({ default: m.AdminManagedSellerProductsPage })),
 );
@@ -648,6 +650,7 @@ function AppRoutes() {
         <Route path="/pricing" element={<PricingPage />} />
         <Route path="/refund-policy" element={<RefundPolicyPage />} />
         <Route path="/help" element={<HelpPage />} />
+        <Route path="/talk-to-sociva" element={<RouteErrorBoundary sectionName="Talk to Sociva"><TalkToSocivaPage /></RouteErrorBoundary>} />
         <Route path="/community-rules" element={<CommunityRulesPage />} />
 
         {/* Persistent chrome shell - Header/BottomNav stay mounted across these routes */}
@@ -739,6 +742,7 @@ function AppRoutes() {
           <Route path="/admin/seller-payouts" element={<AdminRoute><RouteErrorBoundary sectionName="Seller Payouts"><AdminSellerPayoutsPage /></RouteErrorBoundary></AdminRoute>} />
           <Route path="/admin/seller-credits" element={<AdminRoute><RouteErrorBoundary sectionName="Monetization"><AdminSellerCreditsPage /></RouteErrorBoundary></AdminRoute>} />
           <Route path="/admin/command-center" element={<AdminRoute><RouteErrorBoundary sectionName="Command Center"><AdminCommandCenterPage /></RouteErrorBoundary></AdminRoute>} />
+          <Route path="/admin/seller-interest" element={<AdminRoute><RouteErrorBoundary sectionName="Seller Interest"><AdminSellerInterestPage /></RouteErrorBoundary></AdminRoute>} />
           <Route path="/admin/stores" element={<AdminRoute><RouteErrorBoundary sectionName="Store Manager"><AdminStoreManagerPage /></RouteErrorBoundary></AdminRoute>} />
           <Route path="/admin/stores/:sellerId" element={<AdminRoute><RouteErrorBoundary sectionName="Store Manager"><AdminStoreManagerPage /></RouteErrorBoundary></AdminRoute>} />
           <Route path="/admin/stores/:sellerId/products" element={<AdminRoute><RouteErrorBoundary sectionName="Managed Products"><AdminManagedSellerProductsPage /></RouteErrorBoundary></AdminRoute>} />

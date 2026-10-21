@@ -45,3 +45,11 @@ verify_jwt = false
 
 [functions.recover-financial-operations]
 verify_jwt = false
+
+# Public Talk to Sociva page has no user session. Rate-limit and validate in code.
+[functions.start-sociva-voice-call]
+verify_jwt = false
+
+# Admin-only. JWT and admin role are checked in code.
+[functions.get-sociva-voice-call]
+verify_jwt = true

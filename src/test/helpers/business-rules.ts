@@ -23,6 +23,7 @@ export function isFeatureAccessible(state: ReturnType<typeof getFeatureState>): 
 export const PUBLIC_ROUTES = [
   '/welcome', '/auth', '/privacy-policy', '/terms',
   '/community-rules', '/help', '/pricing', '/reset-password',
+  '/talk-to-sociva',
 ];
 
 export function isPublicRoute(route: string): boolean {

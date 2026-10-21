@@ -40,6 +40,7 @@ const DISABLED_EXACT = new Set([
 ]);
 
 const DISABLED_PREFIXES = [
+  '/talk-to-sociva',
   '/become-seller',
   '/profile/edit',
   '/seller/products/new',

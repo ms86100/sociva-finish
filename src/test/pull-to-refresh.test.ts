@@ -27,6 +27,7 @@ describe('pull-to-refresh policy', () => {
 
   it('disables pull-to-refresh on auth, onboarding, profile edit, and product forms', () => {
     expect(isPullToRefreshDisabledPath('/auth')).toBe(true);
+    expect(isPullToRefreshDisabledPath('/talk-to-sociva')).toBe(true);
     expect(isPullToRefreshDisabledPath('/become-seller')).toBe(true);
     expect(isPullToRefreshDisabledPath('/become-seller/resume')).toBe(true);
     expect(isPullToRefreshDisabledPath('/profile/edit')).toBe(true);

@@ -37,6 +37,9 @@ describe('Core Pages - Route Classification', () => {
   it('TC-C007: /pricing is a public route', () => {
     expect(isPublicRoute('/pricing')).toBe(true);
   });
+  it('TC-C007b: /talk-to-sociva is a public route', () => {
+    expect(isPublicRoute('/talk-to-sociva')).toBe(true);
+  });
   it('TC-C008: /reset-password is a public route', () => {
     expect(isPublicRoute('/reset-password')).toBe(true);
   });
@@ -49,8 +52,9 @@ describe('Core Pages - Route Classification', () => {
   it('TC-C011: /orders is NOT a public route', () => {
     expect(isPublicRoute('/orders')).toBe(false);
   });
-  it('TC-C012: All 8 public routes accounted for', () => {
-    expect(PUBLIC_ROUTES.length).toBe(8);
+  it('TC-C012: All public routes accounted for', () => {
+    expect(PUBLIC_ROUTES).toContain('/talk-to-sociva');
+    expect(PUBLIC_ROUTES.length).toBe(9);
   });
 });
 

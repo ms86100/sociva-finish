@@ -6,7 +6,7 @@ import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Store, Users, Building2, AlertCircle,   LayoutGrid, Flag,
-  CreditCard, Star, Megaphone, Layers, Settings2, Bot,
+  CreditCard, Star, Megaphone, Layers, Settings2, Bot, Mic,
   Menu, ChevronRight, FileCode, Send, Package, Wrench, MessageSquare, KeyRound, Smartphone,
   BarChart3, GitBranch,   FlaskConical, MessageCircle, Shield, Radar,
 } from 'lucide-react';
@@ -19,6 +19,7 @@ const NAV_GROUPS = [
     label: 'Commerce',
     items: [
       { value: 'sellers', label: 'Moderation', icon: Store },
+      { value: 'seller-interest', label: 'Talk to Sociva', icon: Mic },
       { value: 'store-manager', label: 'Store manager', icon: Package },
       { value: 'payments', label: 'Payments', icon: CreditCard },
       { value: 'refunds', label: 'Refunds', icon: CreditCard },
@@ -83,6 +84,7 @@ export function AdminSidebarNav({ activeTab, onTabChange }: AdminSidebarNavProps
   const ROUTE_ITEMS: Record<string, string> = {
     'api-docs': '/api-docs',
     'command-center': '/admin/command-center',
+    'seller-interest': '/admin/seller-interest',
     'store-manager': '/admin/stores',
     refunds: '/admin/refunds',
     'seller-payouts': '/admin/seller-payouts',

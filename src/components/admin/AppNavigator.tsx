@@ -59,6 +59,8 @@ const sections: NavSection[] = [
     color: 'bg-warning/10 text-warning',
     items: [
       { label: 'Become Seller', route: '/become-seller', icon: Store, description: 'Seller onboarding flow' },
+      { label: 'Talk to Sociva', route: '/talk-to-sociva', icon: Store, description: 'Public voice seller interest' },
+      { label: 'Seller interest', route: '/admin/seller-interest', icon: Store, description: 'Admin queue for voice leads' },
       { label: 'Seller Dashboard', route: '/seller', icon: BarChart3, description: 'Seller overview & stats' },
       { label: 'Seller Products', route: '/seller/products', icon: Boxes, description: 'Manage products, bulk upload' },
       { label: 'Seller Settings', route: '/seller/settings', icon: Settings, description: 'Store settings, coupons, license' },
