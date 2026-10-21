@@ -59,7 +59,7 @@ export function SocivaVoiceCall({
         <p className="mt-2 text-sm text-destructive max-w-xs">{error}</p>
       ) : (
         <p className="mt-2 text-sm text-muted-foreground max-w-xs">
-          Speak in Hindi, English, or Hinglish. Tell Sociva what you sell, your prices, and when you can take orders.
+          Speak in English, Hindi, or Kannada - whichever feels natural. Share freely. Tell Sociva what you sell, your prices, and when you can take orders.
         </p>
       )}
 

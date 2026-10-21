@@ -47,6 +47,15 @@ describe('Talk to Sociva lead validation', () => {
 });
 
 describe('Talk to Sociva product wiring', () => {
+  it('invites English, Hindi, or Kannada and does not say Hinglish', () => {
+    const page = readSrc('src/pages/TalkToSocivaPage.tsx');
+    const call = readSrc('src/components/seller/SocivaVoiceCall.tsx');
+    expect(page).toMatch(/English, Hindi, or Kannada/);
+    expect(call).toMatch(/English, Hindi, or Kannada/);
+    expect(page).not.toMatch(/Hinglish/);
+    expect(call).not.toMatch(/Hinglish/);
+  });
+
   it('pre-fills society as Shriram Greenfield', () => {
     expect(DEFAULT_SOCIVA_VOICE_SOCIETY).toBe('Shriram Greenfield');
     expect(readSrc('src/pages/TalkToSocivaPage.tsx')).toContain('useState(DEFAULT_SOCIVA_VOICE_SOCIETY)');

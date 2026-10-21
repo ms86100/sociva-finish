@@ -84,7 +84,7 @@ export default function TalkToSocivaPage() {
               <img src="/logo.png" alt="Sociva" className="h-9 w-auto mb-4" />
               <h1 className="text-2xl font-extrabold tracking-tight">Talk to Sociva</h1>
               <p className="text-sm text-muted-foreground mt-2 leading-relaxed">
-                Tell us what you sell. Sociva's AI assistant will ask about your products, prices, and availability. Our team then sets up your store for you. You do not need an account.
+                Speak in English, Hindi, or Kannada - whichever feels natural. Share freely about what you sell. Sociva will listen, then our team sets up your store. You do not need an account.
               </p>
             </div>
 
