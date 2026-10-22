@@ -24,7 +24,8 @@ import { canScheduleWhileClosed, formatScheduleCta, scheduleHoursFromProduct, VA
 import { ScheduleCtaLabel } from '@/components/product/ScheduleCtaLabel';
 import { ProductFavoriteButton } from '@/components/favorite/ProductFavoriteButton';
 import { useAuth } from '@/contexts/AuthContext';
-import { optimizedImageUrl, imageSrcSet, handleImageError } from '@/utils/imageHelpers';
+import { listingPlaceholderGlyph } from '@/lib/category-chip-visual';
+import { optimizedImageUrl, imageSrcSet } from '@/utils/imageHelpers';
 import { displaySellerStoreName } from '@/lib/seller-journey';
 import { SellerLocationLine } from '@/components/location/SellerLocationLine';
 import { listingPlaceChip } from '@/lib/location-label-resolver';
@@ -90,7 +91,10 @@ function ProductListingCardInner({ product, layout = 'auto', onTap, onNavigate, 
   const catConfig = useMemo(() => categoryConfigs.find(c => c.category === product.category) || null, [categoryConfigs, product.category]);
   const resolvedLayout = useMemo((): 'ecommerce' | 'food' | 'service' => { if (layout !== 'auto') return layout as any; return catConfig?.layoutType || 'ecommerce'; }, [layout, catConfig]);
   const showVegBadge = (catConfig?.formHints?.showVegToggle ?? false) && (product.is_veg === true || product.is_veg === false);
-  const placeholderEmoji = catConfig?.formHints?.placeholderEmoji || mc.labels.defaultPlaceholderEmoji;
+  const placeholderEmoji = listingPlaceholderGlyph(
+    product.category,
+    catConfig?.formHints?.placeholderEmoji || mc.labels.defaultPlaceholderEmoji,
+  );
 
   const { ref: cardRef, onCardClick: trackClick, onAddClick: trackAdd } = useCardAnalytics(
     { productId: product.id, category: product.category, price: product.price, sellerId: product.seller_id, layout: resolvedLayout },
@@ -220,6 +224,7 @@ function ProductListingCardInner({ product, layout = 'auto', onTap, onNavigate, 
   const showRating = product.seller_rating != null && product.seller_rating > 0;
 
   const [imgLoaded, setImgLoaded] = useState(false);
+  const [imgFailed, setImgFailed] = useState(false);
   const [justAdded, setJustAdded] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
 
@@ -264,11 +269,11 @@ function ProductListingCardInner({ product, layout = 'auto', onTap, onNavigate, 
           'relative w-full overflow-hidden product-image-bg rounded-t-2xl',
           compact ? 'h-[120px]' : 'aspect-square'
         )}>
-          {(product.image_url || fallbackCatImage) && !imgLoaded && (
+          {(product.image_url || fallbackCatImage) && !imgLoaded && !imgFailed && (
             <div className="absolute inset-0 product-image-shimmer" aria-hidden />
           )}
 
-          {(product.image_url || fallbackCatImage) ? (
+          {(product.image_url || fallbackCatImage) && !imgFailed ? (
             <img
               src={imgSrc}
               srcSet={imgSrcSet || undefined}
@@ -282,7 +287,7 @@ function ProductListingCardInner({ product, layout = 'auto', onTap, onNavigate, 
               loading="lazy"
               decoding="async"
               onLoad={() => setImgLoaded(true)}
-              onError={handleImageError}
+              onError={() => setImgFailed(true)}
             />
           ) : (
             <div

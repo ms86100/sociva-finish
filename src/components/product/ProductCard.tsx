@@ -16,7 +16,8 @@ import { resolveProductAvailability } from '@/lib/product-availability';
 import { computeStoreStatus, formatStoreClosedMessage } from '@/lib/store-availability';
 import { canScheduleWhileClosed, formatScheduleCta, scheduleHoursFromProduct, VACATION_BUYER_CTA } from '@/lib/store-schedule';
 import { ScheduleCtaLabel } from '@/components/product/ScheduleCtaLabel';
-import { optimizedImageUrl, imageSrcSet, handleImageError } from '@/utils/imageHelpers';
+import { listingPlaceholderGlyph } from '@/lib/category-chip-visual';
+import { optimizedImageUrl, imageSrcSet } from '@/utils/imageHelpers';
 import { useCategoryConfigs } from '@/hooks/useCategoryBehavior';
 import { resolveListingAction } from '@/lib/commerce-mode';
 import { useVariantProductIds } from '@/hooks/useProductVariants';
@@ -33,6 +34,7 @@ export function ProductCard({ product, variant = 'horizontal', onTap }: ProductC
   const { formatPrice } = useCurrency();
   const [justAdded, setJustAdded] = useState(false);
   const [imgLoaded, setImgLoaded] = useState(false);
+  const [imgFailed, setImgFailed] = useState(false);
 
   const { configs: categoryConfigs } = useCategoryConfigs();
   const actionType: ProductActionType = useMemo(
@@ -113,10 +115,10 @@ export function ProductCard({ product, variant = 'horizontal', onTap }: ProductC
 
   const imageEl = (width: number, className?: string) => (
     <>
-      {product.image_url && !imgLoaded && (
+      {product.image_url && !imgLoaded && !imgFailed && (
         <div className="absolute inset-0 product-image-shimmer" aria-hidden />
       )}
-      {product.image_url ? (
+      {product.image_url && !imgFailed ? (
         <img
           src={optimizedImageUrl(product.image_url, { width, quality: 85 })}
           srcSet={imageSrcSet(product.image_url, 85) || undefined}
@@ -130,10 +132,10 @@ export function ProductCard({ product, variant = 'horizontal', onTap }: ProductC
           loading="lazy"
           decoding="async"
           onLoad={() => setImgLoaded(true)}
-          onError={handleImageError}
+          onError={() => setImgFailed(true)}
         />
       ) : (
-        <div className="w-full h-full bg-muted flex items-center justify-center"><span className="text-3xl" aria-hidden>🛍️</span></div>
+        <div className="w-full h-full bg-muted flex items-center justify-center"><span className="text-3xl" aria-hidden>{listingPlaceholderGlyph(product.category, '🛍️')}</span></div>
       )}
     </>
   );

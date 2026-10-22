@@ -1,5 +1,7 @@
 // @ts-nocheck
+import { useState } from 'react';
 import { buyerChipCategory, isBuyerChipAlias } from '@/lib/buyer-chip-groups';
+import { categoryLucideName } from '@/lib/category-chip-visual';
 import { cn } from '@/lib/utils';
 import { DynamicIcon } from '@/components/ui/DynamicIcon';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -65,7 +67,7 @@ export function buildLeafPhotoChipItems(
       id: c.category,
       label: c.displayName,
       imageUrl: c.imageUrl || c.image_url || null,
-      icon: c.icon || 'Package',
+      icon: categoryLucideName(c.category, c.icon),
     }));
   const known = new Set(items.map((item) => item.id));
   for (const category of live) {
@@ -74,7 +76,7 @@ export function buildLeafPhotoChipItems(
       id: category,
       label: chipLabelFromSlug(category),
       imageUrl: null,
-      icon: 'Package',
+      icon: categoryLucideName(category, 'Package'),
     });
   }
   return items;
@@ -145,13 +147,7 @@ export function CategoryPhotoChipRail({
                     : CATEGORY_PHOTO_CHIP_TOKENS.photoInactive,
                 )}
               >
-                {item.imageUrl ? (
-                  <img src={item.imageUrl} alt="" className="w-full h-full object-cover" />
-                ) : (
-                  <span className="text-xl leading-none">
-                    <DynamicIcon name={item.icon || 'Package'} size={20} />
-                  </span>
-                )}
+                <ChipPhoto imageUrl={item.imageUrl} icon={item.icon} />
               </div>
               <span
                 className={cn(
@@ -168,5 +164,25 @@ export function CategoryPhotoChipRail({
         })}
       </div>
     </div>
+  );
+}
+
+function ChipPhoto({ imageUrl, icon }: { imageUrl?: string | null; icon?: string | null }) {
+  const [failed, setFailed] = useState(false);
+  const showPhoto = !!imageUrl && !failed;
+  if (showPhoto) {
+    return (
+      <img
+        src={imageUrl}
+        alt=""
+        className="w-full h-full object-cover"
+        onError={() => setFailed(true)}
+      />
+    );
+  }
+  return (
+    <span className="text-xl leading-none">
+      <DynamicIcon name={icon || 'Package'} size={20} />
+    </span>
   );
 }

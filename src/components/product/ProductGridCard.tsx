@@ -16,7 +16,8 @@ import { computeStoreStatus, formatStoreClosedMessage } from '@/lib/store-availa
 import { canScheduleWhileClosed, formatScheduleCta, scheduleHoursFromProduct, VACATION_BUYER_CTA } from '@/lib/store-schedule';
 import { ScheduleCtaLabel } from '@/components/product/ScheduleCtaLabel';
 import { useCategoryConfig } from '@/hooks/queries/useCategoryConfig';
-import { optimizedImageUrl, imageSrcSet, handleImageError } from '@/utils/imageHelpers';
+import { listingPlaceholderGlyph } from '@/lib/category-chip-visual';
+import { optimizedImageUrl, imageSrcSet } from '@/utils/imageHelpers';
 import { useVariantProductIds } from '@/hooks/useProductVariants';
 import { openVariantPicker } from '@/lib/variant-picker-store';
 
@@ -45,6 +46,7 @@ export function ProductGridCard({ product, behavior, onTap, className, viewOnly 
   const { items, addItem, updateQuantity } = useCart();
   const { formatPrice } = useCurrency();
   const [imgLoaded, setImgLoaded] = useState(false);
+  const [imgFailed, setImgFailed] = useState(false);
   const [justAdded, setJustAdded] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
 
@@ -56,7 +58,7 @@ export function ProductGridCard({ product, behavior, onTap, className, viewOnly 
   const priceLabel = getCommercePriceLabel(actionType, product.price, formatPrice);
   const showMoney = shouldShowMonetaryPrice(actionType, product.price);
   const showVegBadge = (catCfg?.formHints?.showVegToggle ?? false) && (product.is_veg === true || product.is_veg === false);
-  const placeholderEmoji = catCfg?.formHints?.placeholderEmoji || '📦';
+  const placeholderEmoji = listingPlaceholderGlyph(product.category, catCfg?.formHints?.placeholderEmoji);
 
   const sizedProductIds = useVariantProductIds();
   const hasSizes = isCartAction && sizedProductIds.has(product.id);
@@ -141,10 +143,10 @@ export function ProductGridCard({ product, behavior, onTap, className, viewOnly 
     >
       <div className="relative p-2 pb-0">
         <div className="relative aspect-[4/3] rounded-xl overflow-hidden product-image-bg">
-          {product.image_url && !imgLoaded && (
+          {product.image_url && !imgLoaded && !imgFailed && (
             <div className="absolute inset-0 product-image-shimmer" aria-hidden />
           )}
-          {product.image_url ? (
+          {product.image_url && !imgFailed ? (
             <img
               src={optimizedImageUrl(product.image_url, { width: 400, quality: 78 })}
               srcSet={imageSrcSet(product.image_url, 78) || undefined}
@@ -158,7 +160,7 @@ export function ProductGridCard({ product, behavior, onTap, className, viewOnly 
               loading="lazy"
               decoding="async"
               onLoad={() => setImgLoaded(true)}
-              onError={handleImageError}
+              onError={() => setImgFailed(true)}
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center bg-muted">
