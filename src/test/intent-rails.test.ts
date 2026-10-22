@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { buildIntentRails, type IntentListing } from '@/lib/intent-rails';
+import {
+  buildIntentRails,
+  listingIdsFromCardRails,
+  listingsForCatalogGrid,
+  type IntentListing,
+} from '@/lib/intent-rails';
 
 function item(partial: Partial<IntentListing> & { id: string }): IntentListing {
   return {
@@ -107,8 +112,8 @@ describe('intent rails', () => {
     });
     expect(first.sinceLastVisit).toBeNull();
     expect(first.recentlyViewed?.products.map((product) => product.id)).toEqual(['old-dish']);
-    expect(first.moreInCategory?.title).toBe('More in Home Food');
-    expect(first.moreInCategory?.products.map((product) => product.id)).toEqual(['new-dish']);
+    expect(first.newlyListed?.products.map((product) => product.id)).toEqual(['new-dish']);
+    expect(first.moreInCategory).toBeNull();
 
     const returning = buildIntentRails({
       mode: 'book',
@@ -118,8 +123,9 @@ describe('intent rails', () => {
       lastOpenedAt: Date.parse('2026-10-08T12:00:00.000Z'),
       now,
     });
-    expect(returning.sinceLastVisit?.products.map((product) => product.id)).toEqual(['new-dish']);
     expect(returning.newlyListed?.title).toBe('New services');
+    expect(returning.newlyListed?.products.map((product) => product.id)).toEqual(['new-dish']);
+    expect(returning.sinceLastVisit).toBeNull();
     expect(returning.primary?.title).toBe('Nearby to book');
     expect(returning.primary?.products.map((product) => product.id)).toEqual(['new-dish', 'old-dish']);
   });
@@ -143,5 +149,46 @@ describe('intent rails', () => {
     expect(contact.primary?.title).toBe('Businesses nearby');
     const contactSellers = contact.primary?.products.map((product) => product.seller_id).filter((id, index, all) => all.indexOf(id) === index);
     expect(contactSellers).toEqual(['studio', 'salon']);
+  });
+
+  it('never repeats a listing across stacked product-card rails', () => {
+    const products = [
+      item({ id: 'viewed', seller_id: 'logo', created_at: '2026-10-09T12:00:00.000Z', category: 'sightseeing' }),
+      item({ id: 'fav', seller_id: 'logo', created_at: '2026-10-09T11:00:00.000Z', category: 'sightseeing' }),
+      item({ id: 'new-a', seller_id: 'logo', created_at: '2026-10-09T10:00:00.000Z', category: 'sightseeing' }),
+      item({ id: 'new-b', seller_id: 'logo', created_at: '2026-10-09T09:00:00.000Z', category: 'sightseeing' }),
+      item({ id: 'new-c', seller_id: 'logo', created_at: '2026-10-09T08:00:00.000Z', category: 'sightseeing' }),
+      item({ id: 'older', seller_id: 'logo', created_at: '2026-01-01T00:00:00.000Z', category: 'sightseeing' }),
+    ];
+    const rails = buildIntentRails({
+      mode: 'services',
+      products,
+      recentIds: ['viewed'],
+      favoriteIds: ['fav', 'viewed'],
+      lastOpenedAt: Date.parse('2026-10-08T12:00:00.000Z'),
+      now,
+      categoryLabel: () => 'Sightseeing Packages',
+    });
+    expect(rails.recentlyViewed?.products.map((product) => product.id)).toEqual(['viewed']);
+    expect(rails.favourites?.products.map((product) => product.id)).toEqual(['fav']);
+    expect(rails.newlyListed?.products.map((product) => product.id)).toEqual(['new-a', 'new-b']);
+    expect(rails.sinceLastVisit?.products.map((product) => product.id)).toEqual(['new-c']);
+    expect(rails.moreInCategory?.title).toBe('More in Sightseeing Packages');
+    expect(rails.moreInCategory?.products.map((product) => product.id)).toEqual(['older']);
+    const modeled = [
+      ...(rails.recentlyViewed?.products || []),
+      ...(rails.favourites?.products || []),
+      ...(rails.newlyListed?.products || []),
+      ...(rails.sinceLastVisit?.products || []),
+      ...(rails.moreInCategory?.products || []),
+    ].map((product) => product.id);
+    expect(new Set(modeled).size).toBe(modeled.length);
+    expect([...listingIdsFromCardRails(rails)].sort()).toEqual(['new-a', 'new-b']);
+  });
+
+  it('keeps the All catalog unique until a category chip is selected', () => {
+    const listings = [{ id: 'a' }, { id: 'b' }, { id: 'c' }];
+    expect(listingsForCatalogGrid(listings, new Set(['a', 'b']), false).map((row) => row.id)).toEqual(['c']);
+    expect(listingsForCatalogGrid(listings, new Set(['a', 'b']), true).map((row) => row.id)).toEqual(['a', 'b', 'c']);
   });
 });

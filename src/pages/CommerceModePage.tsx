@@ -30,6 +30,7 @@ import { UpcomingAppointmentBanner } from '@/components/home/UpcomingAppointment
 import { GroupedSellerRow } from '@/components/home/GroupedSellerRow';
 import { BuyAgainRow, type BuyAgainProduct } from '@/components/home/BuyAgainRow';
 import { useIntentRailModel } from '@/hooks/useIntentRailModel';
+import { listingIdsFromCardRails, listingsForCatalogGrid } from '@/lib/intent-rails';
 
 const ProductDetailSheet = lazy(() =>
   import('@/components/product/ProductDetailSheet').then((m) => ({ default: m.ProductDetailSheet })),
@@ -133,6 +134,10 @@ function CommerceModeView({ mode }: { mode: CommerceMode }) {
     [scoped, facets, categoryConfigs],
   );
   const intentRails = useIntentRailModel(mode, enriched, categoryConfigs);
+  const catalogGrid = useMemo(
+    () => listingsForCatalogGrid(visible, listingIdsFromCardRails(intentRails), Boolean(activeCategory)),
+    [visible, intentRails, activeCategory],
+  );
 
   const handleProductTap = useCallback((product: ProductWithSeller) => {
     setSelectedProduct(buildProductDetailPayload(product, categoryConfigs));
@@ -263,7 +268,7 @@ function CommerceModeView({ mode }: { mode: CommerceMode }) {
             )}
 
             <div className="px-3 sm:px-4 pt-2">
-              {!isLoading && visible.length > 0 && mode !== 'shop' && (
+              {!isLoading && catalogGrid.length > 0 && mode !== 'shop' && (
                 <h2 className="px-1 pb-2 font-extrabold text-[15px] tracking-tight text-foreground">
                   {mode === 'book' ? 'Available to book' : 'Listings you can enquire about'}
                 </h2>
@@ -272,12 +277,12 @@ function CommerceModeView({ mode }: { mode: CommerceMode }) {
                 <div data-testid="commerce-mode-loading">
                   <ProductCardSkeleton count={9} />
                 </div>
-              ) : visible.length > 0 ? (
+              ) : catalogGrid.length > 0 ? (
                 <div className={cn(
                   'grid gap-2 sm:gap-3',
                   mode === 'services' ? 'grid-cols-2' : 'grid-cols-3 sm:grid-cols-3 md:grid-cols-4',
                 )} data-testid="commerce-mode-grid">
-                  {visible.map((product) => (
+                  {catalogGrid.map((product) => (
                     <ProductListingCard
                       key={product.id}
                       product={product}
@@ -287,14 +292,14 @@ function CommerceModeView({ mode }: { mode: CommerceMode }) {
                     />
                   ))}
                 </div>
-              ) : hasListings ? (
+              ) : hasListings && visible.length === 0 ? (
                 <div className="p-6 rounded-2xl bg-muted/40 text-center border border-dashed border-border">
                   <p className="text-sm font-medium text-foreground">No listings match these filters</p>
                   <button onClick={resetFilters} className="mt-2 text-xs text-primary font-semibold hover:underline">
                     Reset filters
                   </button>
                 </div>
-              ) : !topUpError ? (
+              ) : hasListings ? null : !topUpError ? (
                 <div className="py-14 px-4 text-center flex flex-col items-center" data-testid="commerce-mode-empty">
                   <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center mb-4">
                     <PackageSearch size={28} className="text-muted-foreground" aria-hidden />

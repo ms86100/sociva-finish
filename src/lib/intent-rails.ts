@@ -1,3 +1,5 @@
+import { MIN_RAIL_CARDS } from '@/lib/discovery-density';
+
 export interface IntentListing {
   id: string;
   category: string;
@@ -22,6 +24,17 @@ export interface IntentRailSet<T> {
   favourites: IntentRail<T> | null;
 }
 
+/** Product-card rails that can stack above the All catalog. Seller rows are not included. */
+export const INTENT_CARD_RAIL_KEYS = [
+  'recentlyViewed',
+  'newlyListed',
+  'sinceLastVisit',
+  'moreInCategory',
+  'favourites',
+] as const;
+
+const DISCOVERY_PER_SELLER = 2;
+
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
 function createdMs(listing: IntentListing): number {
@@ -39,14 +52,6 @@ function byDistance(a: IntentListing, b: IntentListing): number {
 
 function byNewest(a: IntentListing, b: IntentListing): number {
   return createdMs(b) - createdMs(a);
-}
-
-function pick<T extends IntentListing>(listings: readonly T[], limit: number): T[] {
-  return listings.slice(0, limit);
-}
-
-function rail<T extends IntentListing>(title: string, products: T[]): IntentRail<T> | null {
-  return products.length > 0 ? { title, products } : null;
 }
 
 function sellerKey(listing: IntentListing): string {
@@ -84,6 +89,58 @@ function inIdOrder<T extends IntentListing>(listings: readonly T[], ids: readonl
   return found;
 }
 
+function selectUnused<T extends IntentListing>(
+  listings: readonly T[],
+  used: Set<string>,
+  limit: number,
+  perSeller = 0,
+): T[] {
+  const sellerCounts = new Map<string, number>();
+  const out: T[] = [];
+  for (const listing of listings) {
+    if (used.has(listing.id)) continue;
+    if (perSeller > 0) {
+      const key = sellerKey(listing);
+      const count = sellerCounts.get(key) || 0;
+      if (count >= perSeller) continue;
+      sellerCounts.set(key, count + 1);
+    }
+    out.push(listing);
+    if (out.length >= limit) break;
+  }
+  return out;
+}
+
+function shownRail<T extends IntentListing>(
+  title: string,
+  selected: T[],
+  used: Set<string>,
+): IntentRail<T> | null {
+  if (selected.length === 0) return null;
+  for (const listing of selected) used.add(listing.id);
+  return { title, products: selected };
+}
+
+export function listingIdsFromCardRails<T extends IntentListing>(rails: IntentRailSet<T>): Set<string> {
+  const ids = new Set<string>();
+  for (const key of INTENT_CARD_RAIL_KEYS) {
+    const products = rails[key]?.products || [];
+    if (products.length < MIN_RAIL_CARDS) continue;
+    for (const listing of products) ids.add(listing.id);
+  }
+  return ids;
+}
+
+/** All-catalog grid must not repeat cards already shown in stacked product rails. */
+export function listingsForCatalogGrid<T extends { id: string }>(
+  listings: readonly T[],
+  railIds: ReadonlySet<string>,
+  categorySelected: boolean,
+): T[] {
+  if (categorySelected) return [...listings];
+  return listings.filter((listing) => !railIds.has(listing.id));
+}
+
 /**
  * Sections for one destination. A rail is omitted when its data is empty.
  * Popularity uses completed_order_count only. Seller "bestseller" flags are not used.
@@ -102,13 +159,19 @@ export function buildIntentRails<T extends IntentListing>(input: {
   const limit = input.limit ?? 12;
   const products = input.products;
   const hasCompleted = products.some((listing) => (listing.completed_order_count || 0) > 0);
+  const used = new Set<string>();
 
-  const recentlyViewed = rail(
+  const recentlyViewed = shownRail(
     input.mode === 'book' ? 'Recently viewed services' : 'Recently viewed',
-    inIdOrder(products, input.recentIds, limit),
+    selectUnused(inIdOrder(products, input.recentIds, limit), used, limit),
+    used,
   );
 
-  const favourites = rail('Your favourites', inIdOrder(products, input.favoriteIds, limit));
+  const favourites = shownRail(
+    'Your favourites',
+    selectUnused(inIdOrder(products, input.favoriteIds, limit), used, limit),
+    used,
+  );
 
   let primary: IntentRail<T> | null = null;
   if (products.length > 0 && input.mode === 'shop') {
@@ -132,27 +195,49 @@ export function buildIntentRails<T extends IntentListing>(input: {
       .filter((listing) => !primarySellers.has(sellerKey(listing)))
       .sort(byCompleted)
     : [];
-  const foodPopular = rail('Popular food nearby', pick(foodOnly, limit));
+  const foodPopular = shownRail(
+    'Popular food nearby',
+    selectUnused(foodOnly, used, limit, DISCOVERY_PER_SELLER),
+    used,
+  );
 
   const weekAgo = input.now - WEEK_MS;
   const newTitle = input.mode === 'book' ? 'New services' : input.mode === 'services' ? 'New businesses' : 'New nearby';
-  const newlyListed = rail(
+  const newlyListed = shownRail(
     newTitle,
-    pick(products.filter((listing) => createdMs(listing) >= weekAgo).sort(byNewest), limit),
+    selectUnused(
+      products.filter((listing) => createdMs(listing) >= weekAgo).sort(byNewest),
+      used,
+      limit,
+      DISCOVERY_PER_SELLER,
+    ),
+    used,
   );
 
   const sinceLastVisit = input.lastOpenedAt == null
     ? null
-    : rail(
+    : shownRail(
       'New since your last visit',
-      pick(products.filter((listing) => createdMs(listing) > input.lastOpenedAt!).sort(byNewest), limit),
+      selectUnused(
+        products.filter((listing) => createdMs(listing) > input.lastOpenedAt!).sort(byNewest),
+        used,
+        limit,
+        DISCOVERY_PER_SELLER,
+      ),
+      used,
     );
 
   const anchor = inIdOrder(products, input.recentIds, 1)[0];
   const moreInCategory = anchor
-    ? rail(
+    ? shownRail(
       `More in ${input.categoryLabel?.(anchor.category) || anchor.category}`,
-      pick(products.filter((listing) => listing.category === anchor.category && listing.id !== anchor.id), limit),
+      selectUnused(
+        products.filter((listing) => listing.category === anchor.category),
+        used,
+        limit,
+        DISCOVERY_PER_SELLER,
+      ),
+      used,
     )
     : null;
 
