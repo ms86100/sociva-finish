@@ -420,9 +420,14 @@ Deno.serve(async (req) => {
     // Priority detection: use explicit flag if provided, otherwise derive from data
     const SELLER_HP = ['placed', 'enquired', 'requested', 'quoted', 'preparing', 'confirmed', 'payment_verify_pending', 'refund_requested'];
     const BUYER_HP = ['payment_failed', 'refund_failed', 'otp'];
-    const highPriority = reqHighPriority ??
-      ((data?.target_role === 'seller' && SELLER_HP.includes(data?.status || '')) ||
-       (data?.target_role === 'buyer' && BUYER_HP.includes(data?.status || '')));
+    const reminderType = data?.reminder_type || '';
+    const derivedHighPriority =
+      (data?.target_role === 'seller' && SELLER_HP.includes(data?.status || '')) ||
+      (data?.target_role === 'seller' && (reminderType === 'scheduled_prep' || reminderType === 'scheduled_late')) ||
+      (data?.target_role === 'buyer' && BUYER_HP.includes(data?.status || ''));
+    const highPriority = data?.target_role === 'buyer'
+      ? BUYER_HP.includes(data?.status || '')
+      : Boolean(reqHighPriority ?? derivedHighPriority);
     const timeSensitive = isIosTimeSensitiveSellerAlert({
       targetRole: data?.target_role,
       status: data?.status,
@@ -462,24 +467,26 @@ Deno.serve(async (req) => {
 
     if (!tokens || tokens.length === 0) {
       return new Response(
-        JSON.stringify({ message: "No device tokens found for user", sent: 0 }),
+        JSON.stringify({ message: "No device tokens found for user", sent: 0, skip_reason: "no_tokens" }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Deduplicate tokens: keep only the most recently updated entry per platform per user
+    const MAX_PUSH_TOKENS = 8;
     const sorted = [...tokens].sort((a: any, b: any) =>
       new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
     );
-    const seenPlatform = new Set<string>();
+    const seenToken = new Set<string>();
     const deduped = sorted.filter((t: any) => {
-      if (seenPlatform.has(t.platform)) return false;
-      seenPlatform.add(t.platform);
+      const key = String(t.token || "");
+      if (!key || seenToken.has(key)) return false;
+      if (seenToken.size >= MAX_PUSH_TOKENS) return false;
+      seenToken.add(key);
       return true;
     });
 
     if (deduped.length < tokens.length) {
-      console.log(`[Push] Deduplicated ${tokens.length} tokens → ${deduped.length}`);
+      console.log(`[Push] Deduplicated ${tokens.length} tokens to ${deduped.length} unique tokens`);
     }
 
     // Generate FCM access token

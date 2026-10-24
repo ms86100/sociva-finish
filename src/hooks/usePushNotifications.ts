@@ -24,7 +24,7 @@ import { orderBellAlreadyPlayed } from '@/lib/local-order-notifications';
 /**
  * BUILD FINGERPRINT - bump on every push-related update.
  */
-export const PUSH_BUILD_ID = '2026-10-10-ORDER-ALERT-VERSION-GATE';
+export const PUSH_BUILD_ID = '2026-10-24-SELLER-ALERT-STAMP-RETRY';
 
 async function stampClientBuild(token: string) {
   if (!Capacitor.isNativePlatform() || !token) return;
@@ -41,13 +41,33 @@ async function stampClientBuild(token: string) {
   } catch (err) {
     pushLog('warn', 'CLIENT_BUILD_READ_FAILED', { error: String(err) });
   }
-  const { error } = await supabase.rpc('stamp_device_token_client_build', {
+
+  const runStamp = async () => supabase.rpc('stamp_device_token_client_build', {
     p_token: token,
     p_app_version_code: versionCode,
     p_app_version_name: versionName,
     p_alert_capability: capability,
   });
-  if (error) pushLog('warn', 'CLIENT_BUILD_STAMP_FAILED', { error: error.message });
+
+  let { data, error } = await runStamp();
+  if (error) {
+    pushLog('warn', 'CLIENT_BUILD_STAMP_FAILED', { error: error.message });
+    return;
+  }
+  const updated = Number((data as { updated?: number } | null)?.updated ?? 0);
+  if (updated < 1) {
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    ({ data, error } = await runStamp());
+    if (error) {
+      pushLog('warn', 'CLIENT_BUILD_STAMP_RETRY_FAILED', { error: error.message });
+      return;
+    }
+  }
+  pushLog('info', 'CLIENT_BUILD_STAMP_OK', {
+    updated: Number((data as { updated?: number } | null)?.updated ?? 0),
+    versionCode,
+    capability,
+  });
 }
 
 function pushAnalyticsProps(data: Record<string, string> | undefined, route?: string | null) {

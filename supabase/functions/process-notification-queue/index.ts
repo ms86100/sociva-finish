@@ -19,7 +19,7 @@ import {
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-cron-secret",
 };
 
 const MAX_TOTAL_ATTEMPTS = 9; // 3 retry cycles of 3 attempts each
@@ -992,16 +992,19 @@ Deno.serve(async (req) => {
           'seller_credit_failed',
         ];
 
+        const reminderType = String(rawPayload.reminder_type || '');
+        const flaggedHighPriority = rawPayload.high_priority === true || rawPayload.high_priority === 'true';
         const isHighPriority =
           (targetRole === 'seller' && SELLER_HIGH_PRIORITY_STATUSES.includes(notifStatus)) ||
           (targetRole === 'buyer' && BUYER_HIGH_PRIORITY_STATUSES.includes(notifStatus)) ||
           (targetRole === 'seller' && item.type === 'refund_request') ||
           item.type === 'seller_order_status_reminder' ||
-          rawPayload.reminder_type === 'payment_verify' ||
-          rawPayload.reminder_type === 'status_nudge' ||
-          rawPayload.reminder_type === 'unacked_order' ||
-          rawPayload.high_priority === true ||
-          rawPayload.high_priority === 'true' ||
+          reminderType === 'payment_verify' ||
+          reminderType === 'status_nudge' ||
+          reminderType === 'unacked_order' ||
+          (targetRole === 'seller' && reminderType === 'scheduled_prep') ||
+          (targetRole === 'seller' && reminderType === 'scheduled_late') ||
+          (flaggedHighPriority && targetRole !== 'buyer') ||
           SELLER_LIFECYCLE_TYPES.includes(item.type);
 
         const timeSensitive = isIosTimeSensitiveSellerAlert({

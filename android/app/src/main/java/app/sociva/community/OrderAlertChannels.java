@@ -13,6 +13,7 @@ import android.os.Build;
  */
 public final class OrderAlertChannels {
     public static final String CHANNEL_ID = "orders_incoming_v3";
+    public static final String LEGACY_CHANNEL_ID = "orders_incoming_v2";
 
     private OrderAlertChannels() {}
 
@@ -24,13 +25,26 @@ public final class OrderAlertChannels {
         if (manager == null) {
             return;
         }
+        ensureChannel(manager, context, CHANNEL_ID, "Incoming Orders");
+        // Live FCM still targets v2 for unstamped tokens. Creating it natively
+        // means a killed process can still resolve the channel before JS boots.
+        // Existing installs keep their current v2 sound; Android will not reset it.
+        ensureChannel(manager, context, LEGACY_CHANNEL_ID, "Incoming Orders (previous)");
+    }
+
+    private static void ensureChannel(
+        NotificationManager manager,
+        Context context,
+        String id,
+        String name
+    ) {
         AudioAttributes attrs = new AudioAttributes.Builder()
             .setUsage(AudioAttributes.USAGE_NOTIFICATION)
             .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
             .build();
         NotificationChannel channel = new NotificationChannel(
-            CHANNEL_ID,
-            "Incoming Orders",
+            id,
+            name,
             NotificationManager.IMPORTANCE_HIGH
         );
         channel.setDescription("High-priority ringing alerts for new seller orders");
