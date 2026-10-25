@@ -408,10 +408,10 @@ export function formatClosedStoreAddPopupCopy(input: StoreHoursInput, now = new 
 } {
   const when = formatClosedStoreAddWhen(input, now);
   return {
-    title: 'This store is closed',
-    message: `Your item is in the cart. You can still schedule this order for ${when}. Pick a time in your cart to place it.`,
-    primaryLabel: 'Pick a time',
-    secondaryLabel: 'Keep browsing',
+    title: 'Added - schedule when they open',
+    message: `This store is closed. Keep adding sizes if you want, then pick a time in your cart (from ${when}) to place the order.`,
+    primaryLabel: 'Pick a time in cart',
+    secondaryLabel: 'Keep adding',
   };
 }
 

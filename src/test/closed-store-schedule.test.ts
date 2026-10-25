@@ -76,6 +76,12 @@ describe('closed-store scheduled ordering contracts', () => {
     expect(cart).toMatch(/isHardBlockedStore/);
     expect(cart).toMatch(/formatClosedStoreAddPopupCopy/);
     expect(cart).toMatch(/vacation_mode/);
+    // Size sheet owns closed-store guidance - no floating toast that leaves buyers lost
+    expect(cart).not.toMatch(/else if \(addPopupCopy\) \{\s*toast\(addPopupCopy\.message/);
+    const sheet = read('src/components/product/VariantPickerSheet.tsx');
+    expect(sheet).toMatch(/Schedule in cart/);
+    expect(sheet).toMatch(/variant-schedule-hint/);
+    expect(sheet).toMatch(/needsSchedule/);
   });
 
   it('Place Order stays disabled until a slot is chosen for closed-store carts', () => {

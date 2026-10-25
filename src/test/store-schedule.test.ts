@@ -104,10 +104,10 @@ describe('store schedule slots', () => {
     expect(scheduleCtaParts(hours, now)).toEqual({ timeLabel: '9:45 AM', day: 'tomorrow' });
     expect(formatClosedStoreAddWhen(hours, now)).toBe('tomorrow at 9:45 AM');
     expect(formatClosedStoreAddPopupCopy(hours, now)).toEqual({
-      title: 'This store is closed',
-      message: 'Your item is in the cart. You can still schedule this order for tomorrow at 9:45 AM. Pick a time in your cart to place it.',
-      primaryLabel: 'Pick a time',
-      secondaryLabel: 'Keep browsing',
+      title: 'Added - schedule when they open',
+      message: 'This store is closed. Keep adding sizes if you want, then pick a time in your cart (from tomorrow at 9:45 AM) to place the order.',
+      primaryLabel: 'Pick a time in cart',
+      secondaryLabel: 'Keep adding',
     });
     const morning = new Date('2026-10-22T02:30:00.000Z');
     expect(formatScheduleCta(hours, morning)).toBe('Schedule for 9:45 AM');

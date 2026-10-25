@@ -1,5 +1,6 @@
-import { useState } from 'react';
-import { Minus, Plus } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Clock, Minus, Plus } from 'lucide-react';
 import { Drawer, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle } from '@/components/ui/drawer';
 import { Button } from '@/components/ui/button';
 import { useCart } from '@/hooks/useCart';
@@ -10,6 +11,12 @@ import { isVariantLive, type ProductVariant } from '@/lib/product-variants';
 import { formatSelectedExtras, type SelectedExtra } from '@/lib/productExtras';
 import { hapticImpact } from '@/lib/haptics';
 import { cn } from '@/lib/utils';
+import {
+  canScheduleWhileClosed,
+  formatClosedStoreAddPopupCopy,
+  scheduleHoursFromProduct,
+} from '@/lib/store-schedule';
+import { computeStoreStatus } from '@/lib/store-availability';
 import type { Product } from '@/types/Database';
 
 interface VariantPickerSheetProps {
@@ -26,37 +33,140 @@ function availabilityNote(v: ProductVariant): string | null {
   return null;
 }
 
+function storeNeedsSchedule(product: Product): boolean {
+  const hours = scheduleHoursFromProduct(product);
+  const status = computeStoreStatus(
+    hours.availabilityStart,
+    hours.availabilityEnd,
+    hours.operatingDays,
+    hours.isAvailable !== false,
+  );
+  return status.status !== 'open' && canScheduleWhileClosed(status.status, hours.vacationMode);
+}
+
 export default function VariantPickerSheet({ product, extras = [] }: VariantPickerSheetProps) {
   const extrasSummary = formatSelectedExtras(extras).replace(/\n/g, ' · ');
+  const navigate = useNavigate();
   const { items, addItem, updateQuantity } = useCart();
   const { formatPrice } = useCurrency();
   const { variants, isLoading } = useProductVariants(product.id);
   const [busyId, setBusyId] = useState<string | null>(null);
+  /** Optimistic qty per size - survives until cart catches up or an add fails. */
+  const [localQty, setLocalQty] = useState<Record<string, number>>({});
+  const [scheduleHint, setScheduleHint] = useState<ReturnType<typeof formatClosedStoreAddPopupCopy> | null>(null);
+  const inflightRef = useRef<Set<string>>(new Set());
 
+  const needsSchedule = useMemo(() => storeNeedsSchedule(product), [product]);
   const lines = items.filter((item) => item.product_id === product.id && item.variant_id);
-  const qtyFor = (variantId: string) => lines.find((l) => l.variant_id === variantId)?.quantity || 0;
-  const totalQty = lines.reduce((sum, l) => sum + l.quantity, 0);
-  const totalAmount = lines.reduce((sum, l) => sum + l.quantity * (l.product?.price || 0), 0);
+
+  // Pull cart truth in when nothing is mid-flight for that size.
+  useEffect(() => {
+    setLocalQty((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      for (const line of lines) {
+        if (!line.variant_id) continue;
+        if (inflightRef.current.has(line.variant_id)) continue;
+        if (next[line.variant_id] !== line.quantity) {
+          next[line.variant_id] = line.quantity;
+          changed = true;
+        }
+      }
+      // Drop optimistic zeros that are not in cart (keeps ADD visible).
+      for (const id of Object.keys(next)) {
+        if (next[id] === 0 && !lines.some((l) => l.variant_id === id) && !inflightRef.current.has(id)) {
+          delete next[id];
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [lines]);
+
+  const qtyFor = (variantId: string) => {
+    const local = localQty[variantId];
+    if (local != null && local > 0) return local;
+    return lines.find((l) => l.variant_id === variantId)?.quantity || 0;
+  };
+
+  const totalQty = variants.reduce((sum, v) => sum + qtyFor(v.id), 0);
+  const totalAmount = variants.reduce((sum, v) => sum + qtyFor(v.id) * v.price, 0);
   const showImages = variants.some((v) => v.image_url && v.image_url !== product.image_url);
 
-  const run = async (variantId: string, action: () => Promise<unknown>) => {
-    if (busyId) return;
-    setBusyId(variantId);
+  const setQtyOptimistic = (variantId: string, nextQty: number) => {
+    setLocalQty((prev) => {
+      const next = { ...prev };
+      if (nextQty <= 0) delete next[variantId];
+      else next[variantId] = nextQty;
+      return next;
+    });
+  };
+
+  const goScheduleInCart = () => {
+    closeVariantPicker();
+    navigate('/cart');
+  };
+
+  const addSize = async (v: ProductVariant) => {
+    if (inflightRef.current.has(v.id)) return;
+    hapticImpact('medium');
+    const prev = qtyFor(v.id);
+    setQtyOptimistic(v.id, prev + 1);
+    inflightRef.current.add(v.id);
+    setBusyId(v.id);
     try {
-      await action();
+      const ok = await addItem(product, 1, true, extras, v);
+      if (!ok) {
+        setQtyOptimistic(v.id, prev);
+        return;
+      }
+      if (needsSchedule) {
+        setScheduleHint(formatClosedStoreAddPopupCopy(scheduleHoursFromProduct(product)));
+      }
+    } catch {
+      setQtyOptimistic(v.id, prev);
     } finally {
-      setBusyId(null);
+      inflightRef.current.delete(v.id);
+      setBusyId((cur) => (cur === v.id ? null : cur));
+    }
+  };
+
+  const changeQty = async (v: ProductVariant, next: number) => {
+    if (inflightRef.current.has(v.id)) return;
+    hapticImpact('light');
+    const prev = qtyFor(v.id);
+    setQtyOptimistic(v.id, next);
+    inflightRef.current.add(v.id);
+    setBusyId(v.id);
+    try {
+      await updateQuantity(product.id, next, v.id);
+    } catch {
+      setQtyOptimistic(v.id, prev);
+    } finally {
+      inflightRef.current.delete(v.id);
+      setBusyId((cur) => (cur === v.id ? null : cur));
     }
   };
 
   return (
     <Drawer open onOpenChange={(open) => { if (!open) closeVariantPicker(); }}>
-      <DrawerContent className="max-h-[85vh] outline-none">
+      <DrawerContent className="max-h-[85vh] outline-none" data-testid="variant-picker-sheet">
         <DrawerHeader className="text-left">
           <DrawerTitle className="text-base">{product.name}</DrawerTitle>
-          <DrawerDescription>Choose a size</DrawerDescription>
+          <DrawerDescription>
+            {needsSchedule ? 'Choose a size - then schedule a time in cart' : 'Choose a size'}
+          </DrawerDescription>
           {extrasSummary && <p className="text-xs text-muted-foreground line-clamp-2">With {extrasSummary}</p>}
         </DrawerHeader>
+
+        {needsSchedule && (
+          <div className="mx-4 mb-2 flex gap-2 rounded-xl border border-accent/30 bg-accent/10 px-3 py-2.5 text-left">
+            <Clock size={16} className="mt-0.5 shrink-0 text-accent" />
+            <p className="text-[12px] leading-snug text-foreground">
+              Store is closed. Add as many sizes as you want here. Checkout will ask you to pick a delivery time.
+            </p>
+          </div>
+        )}
 
         <div className="px-4 pb-2 overflow-y-auto space-y-2">
           {isLoading && <p className="text-sm text-muted-foreground py-6 text-center">Loading sizes...</p>}
@@ -74,6 +184,7 @@ export default function VariantPickerSheet({ product, extras = [] }: VariantPick
                 key={v.id}
                 className={cn(
                   'flex items-center gap-3 rounded-xl border border-border p-3',
+                  qty > 0 && 'border-primary/40 bg-primary/5',
                   !selectable && qty === 0 && 'opacity-50',
                 )}
               >
@@ -105,17 +216,19 @@ export default function VariantPickerSheet({ product, extras = [] }: VariantPick
                       aria-label={`Decrease ${v.label}`}
                       disabled={busy}
                       className="h-9 w-9 flex items-center justify-center disabled:opacity-50"
-                      onClick={() => { hapticImpact('light'); void run(v.id, () => updateQuantity(product.id, qty - 1, v.id)); }}
+                      onClick={() => void changeQty(v, qty - 1)}
                     >
                       <Minus size={14} strokeWidth={3} />
                     </button>
-                    <span className="min-w-[24px] text-center text-sm font-bold tabular-nums">{qty}</span>
+                    <span className="min-w-[24px] text-center text-sm font-bold tabular-nums" data-testid={`variant-qty-${v.id}`}>
+                      {qty}
+                    </span>
                     <button
                       type="button"
                       aria-label={canIncrement ? `Increase ${v.label}` : `Only ${v.stock_quantity} available`}
                       disabled={busy || !canIncrement || !selectable}
                       className="h-9 w-9 flex items-center justify-center disabled:opacity-40"
-                      onClick={() => { hapticImpact('light'); void run(v.id, () => updateQuantity(product.id, qty + 1, v.id)); }}
+                      onClick={() => void changeQty(v, qty + 1)}
                     >
                       <Plus size={14} strokeWidth={3} />
                     </button>
@@ -127,7 +240,7 @@ export default function VariantPickerSheet({ product, extras = [] }: VariantPick
                     variant="outline"
                     disabled={!selectable || busy}
                     className="h-9 min-w-[64px] border-primary text-primary font-bold"
-                    onClick={() => { hapticImpact('medium'); void run(v.id, () => addItem(product, 1, true, extras, v)); }}
+                    onClick={() => void addSize(v)}
                   >
                     ADD
                   </Button>
@@ -137,10 +250,41 @@ export default function VariantPickerSheet({ product, extras = [] }: VariantPick
           })}
         </div>
 
-        <DrawerFooter>
-          <Button type="button" className="h-11 font-bold" onClick={closeVariantPicker}>
-            {totalQty > 0 ? `Done - ${totalQty} item${totalQty > 1 ? 's' : ''} - ${formatPrice(totalAmount)}` : 'Done'}
-          </Button>
+        {scheduleHint && totalQty > 0 && (
+          <div className="mx-4 mt-1 rounded-xl border border-primary/25 bg-primary/5 px-3 py-3 text-left" data-testid="variant-schedule-hint">
+            <p className="text-sm font-semibold text-foreground">{scheduleHint.title}</p>
+            <p className="mt-1 text-[12px] leading-snug text-muted-foreground">{scheduleHint.message}</p>
+          </div>
+        )}
+
+        <DrawerFooter className="gap-2">
+          {totalQty > 0 && needsSchedule ? (
+            <>
+              <Button type="button" className="h-11 font-bold" onClick={goScheduleInCart} data-testid="variant-schedule-in-cart">
+                Schedule in cart - {totalQty} item{totalQty > 1 ? 's' : ''} - {formatPrice(totalAmount)}
+              </Button>
+              <Button type="button" variant="outline" className="h-10" onClick={closeVariantPicker}>
+                Keep browsing this store
+              </Button>
+            </>
+          ) : (
+            <Button
+              type="button"
+              className="h-11 font-bold"
+              onClick={() => {
+                if (totalQty > 0) {
+                  closeVariantPicker();
+                  navigate('/cart');
+                  return;
+                }
+                closeVariantPicker();
+              }}
+            >
+              {totalQty > 0
+                ? `View cart - ${totalQty} item${totalQty > 1 ? 's' : ''} - ${formatPrice(totalAmount)}`
+                : 'Done'}
+            </Button>
+          )}
         </DrawerFooter>
       </DrawerContent>
     </Drawer>

@@ -498,14 +498,19 @@ export function CartProvider({ children }: { children: ReactNode }) {
       }, {})
     ), [resolvedItems]);
 
-  // Per-line (product + size) mutex to prevent race conditions on rapid taps
-  const addItemLocksRef = useRef<Set<string>>(new Set());
+  // Per-line (product + size) mutex to prevent race conditions on rapid taps.
+  // Track acquire time so a hung request cannot block ADD forever (HMR / flaky network).
+  const addItemLocksRef = useRef<Map<string, number>>(new Map());
+  const ADD_ITEM_LOCK_TTL_MS = 12_000;
 
   const addItem = useCallback(async (product: Product, quantity = 1, silent = false, extras: any[] = [], variant: ProductVariant | null = null): Promise<boolean> => {
     const variantId = variant?.id ?? null;
     const lockKey = cartLineKey(product.id, variantId);
-    if (addItemLocksRef.current.has(lockKey)) return false;
-    addItemLocksRef.current.add(lockKey);
+    const lockHeldAt = addItemLocksRef.current.get(lockKey);
+    if (lockHeldAt != null && Date.now() - lockHeldAt < ADD_ITEM_LOCK_TTL_MS) {
+      return false;
+    }
+    addItemLocksRef.current.set(lockKey, Date.now());
     let mutationStarted = false;
 
     try {
@@ -647,9 +652,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
             () => navigate('/cart', { replace: false }),
             addPopupCopy,
           );
-        } else if (addPopupCopy) {
-          toast(addPopupCopy.message, { id: 'cart-store-schedule' });
         }
+        // silent + closed-store: size sheet shows schedule guidance in-context (no floating toast)
         return true;
       }
 
@@ -715,9 +719,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
             },
             addPopupCopy,
           );
-        } else if (addPopupCopy) {
-          toast(addPopupCopy.message, { id: 'cart-store-schedule' });
         }
+        // silent + closed-store: VariantPickerSheet owns schedule + qty UX (no toast that leaves buyers lost)
         try {
           const { track } = await import('@/lib/analytics');
           track('add_to_cart', {
@@ -764,6 +767,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
       if (mutationStarted) setPendingMutations(c => Math.max(0, c - 1));
     }
   }, [user, browsingLocation?.lat, browsingLocation?.lng, setOptimistic, cancelCartQueries, snapshot, rollback, reconcile, queryClient, countKey, showAddPopup, navigate, cartKey]);
+
+  // Note: lock map is cleared in finally; TTL above recovers from abandoned holds.
 
   // After OTP: merge local guest cart into server cart (checkout resume handled by auth returnTo).
   // addItem changes identity while the merge runs (location, popup); reading it through a ref
