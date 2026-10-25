@@ -4,6 +4,8 @@ import { resolve } from 'path';
 import {
   buildProductShareText,
   buildStoreShareText,
+  buildWhatsAppHttpsUrl,
+  buildWhatsAppSchemeUrl,
   productShareUrl,
   storeShareUrl,
 } from '@/lib/sociva-share';
@@ -51,19 +53,51 @@ describe('sociva-share', () => {
     expect(src).not.toMatch(/onOpenChange\(false\);\s*d\.setReportOpen/);
   });
 
-  it('share helper prefers Capacitor Share/Clipboard on native', () => {
+  it('encodes product name, price, punctuation, emoji and the share URL into the WhatsApp scheme', () => {
+    const text = buildProductShareText({
+      name: 'Mom\'s "Fish & Chips" 🔥',
+      priceLabel: '₹199',
+      sellerName: 'KHATMITTHI',
+      url: 'https://www.sociva.in/api/share/product/abc?og=1',
+    });
+    const scheme = buildWhatsAppSchemeUrl(text);
+    const https = buildWhatsAppHttpsUrl(text);
+    expect(scheme.startsWith('whatsapp://send?text=')).toBe(true);
+    expect(https.startsWith('https://wa.me/?text=')).toBe(true);
+    expect(scheme).not.toContain('api.whatsapp.com');
+    expect(https).not.toContain('api.whatsapp.com/send');
+    const decoded = decodeURIComponent(scheme.slice('whatsapp://send?text='.length));
+    expect(decoded).toBe(text);
+    expect(decoded).toContain('Mom\'s "Fish & Chips" 🔥');
+    expect(decoded).toContain('₹199');
+    expect(decoded).toContain('https://www.sociva.in/api/share/product/abc?og=1');
+    expect(scheme).toContain('%0A');
+    expect(scheme).toContain('%26');
+  });
+
+  it('share helper opens WhatsApp via the native scheme and keeps Share as fallback', () => {
     const src = require('fs').readFileSync(
       require('path').resolve(__dirname, '../lib/sociva-share.ts'),
       'utf8',
     );
+    expect(src).toMatch(/whatsapp:\/\/send\?text=/);
     expect(src).toMatch(/@capacitor\/share/);
     expect(src).toMatch(/@capacitor\/clipboard/);
-    expect(src).toMatch(/@capacitor\/browser/);
-    expect(src).toMatch(/Browser\.open/);
+    expect(src).not.toMatch(/@capacitor\/browser/);
+    expect(src).not.toMatch(/Browser\.open/);
+    expect(src).not.toMatch(/api\.whatsapp\.com/);
     expect(src).toMatch(/console\.error\('\[sociva-share\] Capacitor Share failed'/);
     expect(src).toMatch(/name: 'AbortError'/);
-    expect(src).toMatch(/if \(opened\) return 'whatsapp'/);
     expect(src).toMatch(/return 'failed'/);
+  });
+
+  it('declares WhatsApp URL scheme visibility on Android and iOS', () => {
+    const cap = read('capacitor.config.ts');
+    const manifest = read('android/app/src/main/AndroidManifest.xml');
+    expect(cap).toMatch(/'whatsapp'/);
+    expect(manifest).toContain('com.whatsapp');
+    expect(manifest).toContain('com.whatsapp.w4b');
+    expect(manifest).toMatch(/android:scheme="whatsapp"/);
   });
 
   it('registers Share and Clipboard in the Android project', () => {

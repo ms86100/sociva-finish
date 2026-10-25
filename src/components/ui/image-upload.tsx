@@ -59,11 +59,23 @@ export function ImageUpload({
   const uploadBlob = useCallback(async (blob: Blob) => {
     setIsUploading(true);
     try {
-      const ext = blob.type === 'image/png' ? 'png' : blob.type === 'image/webp' ? 'webp' : 'jpg';
-      const fileName = `${userId}/${folder}/${Date.now()}.${ext}`;
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (!sessionData.session) {
+        toast.error('Please log in again to change your photo');
+        return;
+      }
+      const rawType = (blob.type || '').toLowerCase();
+      const contentType =
+        rawType === 'image/png' ? 'image/png'
+          : rawType === 'image/webp' ? 'image/webp'
+            : rawType === 'image/gif' ? 'image/gif'
+              : 'image/jpeg';
+      const ext = contentType === 'image/png' ? 'png' : contentType === 'image/webp' ? 'webp' : 'jpg';
+      const ownerId = sessionData.session.user.id || userId;
+      const fileName = `${ownerId}/${folder}/${Date.now()}.${ext}`;
       const { data, error } = await supabase.storage
         .from('app-images')
-        .upload(fileName, blob, { cacheControl: '3600', upsert: false, contentType: blob.type || 'image/jpeg' });
+        .upload(fileName, blob, { cacheControl: '3600', upsert: false, contentType });
       if (error) throw error;
       const { data: urlData } = supabase.storage.from('app-images').getPublicUrl(data.path);
       onChange(urlData.publicUrl);
@@ -81,19 +93,17 @@ export function ImageUpload({
 
   const handleNativePick = useCallback(async () => {
     try {
-      const { pickOrCaptureImage } = await import('@/lib/native-media');
-      const blob = await pickOrCaptureImage();
+      const { pickImageFromGallery, pickOrCaptureImage } = await import('@/lib/native-media');
+      const blob = folder === 'profiles'
+        ? await pickImageFromGallery()
+        : await pickOrCaptureImage();
       if (blob) await uploadBlob(blob);
     } catch (err: any) {
       if (err?.message?.includes('cancelled') || err?.message?.includes('canceled') || err?.message?.includes('User cancelled')) return;
       console.error('Native pick error:', err);
-      if (err?.message?.includes('permission') || err?.message?.includes('Permission')) {
-        toast.error(friendlyError(err) || 'Image access permission is required');
-      } else {
-        toast.error(friendlyError(err) || 'Failed to select image');
-      }
+      toast.error(friendlyError(err) || 'Failed to select image');
     }
-  }, [uploadBlob]);
+  }, [uploadBlob, folder]);
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];

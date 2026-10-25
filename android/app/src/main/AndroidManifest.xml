@@ -18,6 +18,7 @@
         <package android:name="net.one97.paytm" />
         <package android:name="in.org.npci.upiapp" />
         <package android:name="com.whatsapp" />
+        <package android:name="com.whatsapp.w4b" />
         <package android:name="com.dreamplug.androidapp" />
         <package android:name="in.amazon.mShop.android.shopping" />
         <package android:name="com.mobikwik_new" />
@@ -48,6 +49,10 @@
         <intent>
             <action android:name="android.intent.action.VIEW" />
             <data android:scheme="https" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="whatsapp" />
         </intent>
     </queries>
 
@@ -154,6 +159,8 @@
       Explicit app-level permissions (Capacitor Geolocation / FCM merge theirs too).
       Declared here so Play review / auditors see them in the source manifest.
     -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />

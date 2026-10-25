@@ -487,7 +487,13 @@ export function ProductDetailSheet({ product, open, onOpenChange, onSelectProduc
                     url: shareUrl,
                     imageUrl: product.image_url,
                   });
-                  if (result === 'shared' || result === 'whatsapp') {
+                  if (result === 'whatsapp') {
+                    showFeedback({
+                      title: 'WhatsApp is ready',
+                      description: 'Pick a chat and send the product',
+                      variant: 'success',
+                    });
+                  } else if (result === 'shared') {
                     showFeedback({
                       title: 'Ready to share',
                       description: 'Pick an app to send this product',

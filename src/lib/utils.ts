@@ -39,6 +39,18 @@ export function friendlyError(error: unknown): string {
   if (lower.includes('jwt') || lower.includes('token') || lower.includes('refresh_token')) {
     return 'Your session has expired. Please log in again.';
   }
+  const mentionsMedia =
+    lower.includes('camera') ||
+    lower.includes('photo') ||
+    lower.includes('photos') ||
+    lower.includes('gallery') ||
+    lower.includes('library');
+  if (
+    mentionsMedia &&
+    (lower.includes('permission') || lower.includes('denied') || lower.includes('access'))
+  ) {
+    return 'Allow camera and photos in your device Settings to change your photo.';
+  }
   if (lower.includes('row-level security') || lower.includes('rls') || lower.includes('policy')) {
     return "You don't have permission for this action.";
   }

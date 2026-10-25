@@ -117,6 +117,15 @@ describe('friendlyError - Error Mapping', () => {
   it('maps RLS errors', () => {
     expect(friendlyError(new Error('row-level security violation'))).toContain('permission');
   });
+  it('does not treat camera/photos access as an account permission error', () => {
+    expect(friendlyError(new Error('Photo library permission denied. Please enable it in your device Settings.')))
+      .toMatch(/Settings to change your photo/);
+    expect(friendlyError(new Error('Camera permission denied. Please enable it in your device Settings.')))
+      .toMatch(/Settings to change your photo/);
+    expect(friendlyError(new Error('User denied access to photos')))
+      .toMatch(/Settings to change your photo/);
+    expect(friendlyError(new Error('row-level security violation'))).toBe("You don't have permission for this action.");
+  });
   it('maps network errors', () => {
     expect(friendlyError(new Error('Failed to fetch'))).toContain('internet connection');
   });

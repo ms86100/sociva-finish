@@ -1,11 +1,17 @@
 /**
- * Cross-platform Sociva share helpers (Web Share / clipboard / WhatsApp).
+ * Cross-platform Sociva share helpers (WhatsApp / Web Share / clipboard).
  * Share links use /api/share/* so WhatsApp can read Open Graph tags (hash URLs cannot).
+ *
+ * WhatsApp must be opened with the native `whatsapp://send?text=` scheme so the OS
+ * hands the prefilled message to the contact picker. Loading the WhatsApp https
+ * landing page inside an in-app browser / Custom Tabs / SFSafariViewController
+ * shows an "Open WhatsApp" interstitial that launches the app without the text.
  */
 
 import { Capacitor } from '@capacitor/core';
 
 const PUBLIC_ORIGIN = 'https://www.sociva.in';
+const WHATSAPP_HANDOFF_MS = 1200;
 
 function isStagingAppEnv(): boolean {
   const appEnv = String(import.meta.env.VITE_APP_ENV || '')
@@ -92,7 +98,77 @@ export function buildStoreShareText(opts: {
   ].join('\n');
 }
 
+/** Native WhatsApp contact-picker URL. The text query is a single encodeURIComponent of the full message. */
+export function buildWhatsAppSchemeUrl(text: string): string {
+  return `whatsapp://send?text=${encodeURIComponent(text)}`;
+}
+
+/** https fallback for browsers only. Never load this inside Capacitor Browser. */
+export function buildWhatsAppHttpsUrl(text: string): string {
+  return `https://wa.me/?text=${encodeURIComponent(text)}`;
+}
+
 export type ShareResult = 'shared' | 'copied' | 'whatsapp' | 'cancelled' | 'failed';
+
+/** Test seam so unit tests can intercept OS handoff without touching window.location. */
+export const shareBridge = {
+  assignLocation(url: string) {
+    window.location.assign(url);
+  },
+  openBlank(url: string): Window | null {
+    return window.open(url, '_blank', 'noopener,noreferrer');
+  },
+  isDocumentHidden() {
+    return typeof document !== 'undefined' && document.visibilityState === 'hidden';
+  },
+};
+
+function waitForAppHandoff(timeoutMs: number): Promise<boolean> {
+  if (shareBridge.isDocumentHidden()) return Promise.resolve(true);
+
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (ok: boolean) => {
+      if (settled) return;
+      settled = true;
+      document.removeEventListener('visibilitychange', onVis);
+      window.removeEventListener('pagehide', onHide);
+      window.clearTimeout(timer);
+      resolve(ok);
+    };
+    const onVis = () => {
+      if (document.visibilityState === 'hidden') finish(true);
+    };
+    const onHide = () => finish(true);
+    document.addEventListener('visibilitychange', onVis);
+    window.addEventListener('pagehide', onHide);
+    const timer = window.setTimeout(() => finish(false), timeoutMs);
+  });
+}
+
+async function tryOpenWhatsApp(text: string): Promise<boolean> {
+  const schemeUrl = buildWhatsAppSchemeUrl(text);
+  const httpsUrl = buildWhatsAppHttpsUrl(text);
+
+  if (Capacitor.isNativePlatform()) {
+    try {
+      const handoff = waitForAppHandoff(WHATSAPP_HANDOFF_MS);
+      shareBridge.assignLocation(schemeUrl);
+      return await handoff;
+    } catch (err) {
+      console.error('[sociva-share] WhatsApp scheme open failed', err);
+      return false;
+    }
+  }
+
+  try {
+    const opened = shareBridge.openBlank(httpsUrl);
+    return !!opened;
+  } catch (err) {
+    console.error('[sociva-share] WhatsApp window.open failed', err);
+    return false;
+  }
+}
 
 async function tryCapacitorShare(opts: {
   title: string;
@@ -183,18 +259,43 @@ async function tryNativeShare(opts: { title: string; text: string; url: string }
   return false;
 }
 
+async function tryShareSheet(opts: {
+  title: string;
+  text: string;
+  url: string;
+  imageUrl?: string | null;
+}): Promise<boolean> {
+  if (await tryCapacitorShare(opts)) return true;
+  if (await tryShareWithImage(opts)) return true;
+  if (await tryNativeShare(opts)) return true;
+  return false;
+}
+
 export async function shareSocivaContent(opts: {
   title: string;
   text: string;
   url: string;
   imageUrl?: string | null;
 }): Promise<ShareResult> {
+  const native = Capacitor.isNativePlatform();
+
+  // Native apps: open WhatsApp with the prefilled composer, then the OS share sheet.
+  // Web: prefer the browser share sheet, then wa.me in a new tab (never an in-app browser).
+  const first = native ? () => tryOpenWhatsApp(opts.text) : () => tryShareSheet(opts);
+  const second = native ? () => tryShareSheet(opts) : () => tryOpenWhatsApp(opts.text);
+
   try {
-    if (await tryCapacitorShare(opts)) return 'shared';
-    if (await tryShareWithImage(opts)) return 'shared';
-    if (await tryNativeShare(opts)) return 'shared';
+    if (await first()) return native ? 'whatsapp' : 'shared';
   } catch (err) {
     if ((err as Error)?.name === 'AbortError') return 'cancelled';
+    console.error('[sociva-share] primary share path failed', err);
+  }
+
+  try {
+    if (await second()) return native ? 'shared' : 'whatsapp';
+  } catch (err) {
+    if ((err as Error)?.name === 'AbortError') return 'cancelled';
+    console.error('[sociva-share] fallback share path failed', err);
   }
 
   try {
@@ -207,20 +308,5 @@ export async function shareSocivaContent(opts: {
     console.error('[sociva-share] Clipboard write failed', err);
   }
 
-  try {
-    const wa = `https://wa.me/?text=${encodeURIComponent(opts.text)}`;
-    if (Capacitor.isNativePlatform()) {
-      const { Browser } = await import('@capacitor/browser');
-      await Browser.open({ url: wa });
-      return 'whatsapp';
-    }
-    const opened = window.open(wa, '_blank', 'noopener,noreferrer');
-    if (opened) return 'whatsapp';
-    // Popup blocked (common in a desktop browser)
-    console.error('[sociva-share] WhatsApp window.open returned null');
-    return 'failed';
-  } catch (err) {
-    console.error('[sociva-share] WhatsApp fallback failed', err);
-    return 'failed';
-  }
+  return 'failed';
 }

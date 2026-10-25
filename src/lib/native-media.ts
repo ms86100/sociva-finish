@@ -23,12 +23,14 @@ async function ensureCameraPermissions(source: 'camera' | 'photos' | 'prompt'): 
       ],
     });
 
-    if (needsCamera && requested.camera === 'denied') {
-      throw new Error('Camera permission denied. Please enable it in your device Settings.');
+    if (needsCamera && requested.camera === 'denied' && needsPhotos && requested.photos === 'denied') {
+      throw new Error('Allow camera and photos in your device Settings to change your photo.');
     }
-    // On iOS 14+, 'limited' is a valid granted state for photos
-    if (needsPhotos && requested.photos === 'denied') {
-      throw new Error('Photo library permission denied. Please enable it in your device Settings.');
+    if (needsPhotos && requested.photos === 'denied' && source === 'photos') {
+      throw new Error('Allow camera and photos in your device Settings to change your photo.');
+    }
+    if (needsCamera && requested.camera === 'denied' && source === 'camera') {
+      throw new Error('Allow camera and photos in your device Settings to change your photo.');
     }
   }
 }
@@ -76,7 +78,7 @@ export async function pickImageFromGallery(): Promise<Blob | null> {
   if (permStatus.photos !== 'granted' && permStatus.photos !== 'limited') {
     const requested = await Camera.requestPermissions({ permissions: ['photos'] });
     if (requested.photos === 'denied') {
-      throw new Error('Photo library permission denied. Please enable it in your device Settings.');
+      throw new Error('Allow camera and photos in your device Settings to change your photo.');
     }
     await new Promise(resolve => setTimeout(resolve, 500));
   }
@@ -104,7 +106,7 @@ export async function capturePhotoFromCamera(): Promise<Blob | null> {
   if (permStatus.camera !== 'granted') {
     const requested = await Camera.requestPermissions({ permissions: ['camera'] });
     if (requested.camera === 'denied') {
-      throw new Error('Camera permission denied. Please enable it in your device Settings.');
+      throw new Error('Allow camera and photos in your device Settings to change your photo.');
     }
     await new Promise(resolve => setTimeout(resolve, 500));
   }
@@ -140,16 +142,29 @@ export async function pickOrCaptureImage(): Promise<Blob | null> {
       ],
     });
 
-    if (requested.camera === 'denied') {
-      throw new Error('Camera permission denied. Please enable it in your device Settings.');
-    }
-    if (requested.photos === 'denied') {
-      throw new Error('Photo library permission denied. Please enable it in your device Settings.');
+    const photosGranted =
+      requested.photos === 'granted' ||
+      requested.photos === 'limited' ||
+      permStatus.photos === 'granted' ||
+      permStatus.photos === 'limited';
+    const cameraGranted = requested.camera === 'granted' || permStatus.camera === 'granted';
+
+    // Changing a profile photo only needs the library. Do not fail the whole
+    // flow if the user declines camera but allows photos.
+    if (!photosGranted && !cameraGranted) {
+      throw new Error('Allow camera and photos in your device Settings to change your photo.');
     }
 
     // Wait a moment for iOS to finish dismissing the permission dialog
     // before invoking the image picker - this prevents "Failed to select image"
     await new Promise(resolve => setTimeout(resolve, 500));
+
+    const photo = await Camera.getPhoto({
+      source: cameraGranted ? CameraSource.Prompt : CameraSource.Photos,
+      ...cameraPhotoOptions({ resultType: CameraResultType.Uri }),
+    });
+
+    return photoToBlob(photo);
   }
 
   const photo = await Camera.getPhoto({

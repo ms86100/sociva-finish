@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const native = vi.hoisted(() => ({ on: false }));
 const shareMock = vi.hoisted(() => ({ share: vi.fn() }));
@@ -8,6 +8,7 @@ const browserMock = vi.hoisted(() => ({ open: vi.fn() }));
 vi.mock('@capacitor/core', () => ({
   Capacitor: {
     isNativePlatform: () => native.on,
+    getPlatform: () => (native.on ? 'android' : 'web'),
   },
 }));
 
@@ -29,13 +30,18 @@ vi.mock('@capacitor/browser', () => ({
   },
 }));
 
-import { shareSocivaContent } from '@/lib/sociva-share';
+import { shareBridge, shareSocivaContent } from '@/lib/sociva-share';
 
 const payload = {
   title: 'Chicken Biryani',
-  text: 'Found this on Sociva\nhttps://www.sociva.in/api/share/product/abc',
-  url: 'https://www.sociva.in/api/share/product/abc',
+  text: 'Found this on Sociva!\nChicken Biryani - ₹199\nhttps://www.sociva.in/api/share/product/abc?og=1',
+  url: 'https://www.sociva.in/api/share/product/abc?og=1',
 };
+
+function decodeSchemeText(url: string): string {
+  expect(url.startsWith('whatsapp://send?text=')).toBe(true);
+  return decodeURIComponent(url.slice('whatsapp://send?text='.length));
+}
 
 describe('shareSocivaContent native', () => {
   beforeEach(() => {
@@ -46,6 +52,7 @@ describe('shareSocivaContent native', () => {
     shareMock.share.mockResolvedValue(undefined);
     clipboardMock.write.mockRejectedValue(new Error('clipboard unavailable'));
     browserMock.open.mockResolvedValue(undefined);
+    Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
     Object.defineProperty(navigator, 'share', { value: undefined, configurable: true });
     Object.defineProperty(navigator, 'clipboard', {
       value: { writeText: vi.fn().mockRejectedValue(new Error('clipboard denied')) },
@@ -53,8 +60,33 @@ describe('shareSocivaContent native', () => {
     });
   });
 
-  it('opens the native share sheet and returns shared', async () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it('opens WhatsApp with the prefilled message via the native scheme, not the in-app browser', async () => {
+    const assign = vi.spyOn(shareBridge, 'assignLocation').mockImplementation(() => {
+      Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+
     const result = await shareSocivaContent(payload);
+
+    expect(result).toBe('whatsapp');
+    expect(decodeSchemeText(String(assign.mock.calls[0]?.[0]))).toBe(payload.text);
+    expect(shareMock.share).not.toHaveBeenCalled();
+    expect(browserMock.open).not.toHaveBeenCalled();
+  });
+
+  it('falls back to the native share sheet when WhatsApp is not installed', async () => {
+    vi.useFakeTimers();
+    vi.spyOn(shareBridge, 'assignLocation').mockImplementation(() => {});
+
+    const pending = shareSocivaContent(payload);
+    await vi.advanceTimersByTimeAsync(1300);
+    const result = await pending;
+
     expect(result).toBe('shared');
     expect(shareMock.share).toHaveBeenCalledWith({
       title: payload.title,
@@ -65,25 +97,56 @@ describe('shareSocivaContent native', () => {
   });
 
   it('treats a dismissed share sheet as cancelled', async () => {
+    vi.useFakeTimers();
+    vi.spyOn(shareBridge, 'assignLocation').mockImplementation(() => {});
     shareMock.share.mockRejectedValue(new Error('Share canceled'));
-    const result = await shareSocivaContent(payload);
+
+    const pending = shareSocivaContent(payload);
+    await vi.advanceTimersByTimeAsync(1300);
+    const result = await pending;
+
     expect(result).toBe('cancelled');
     expect(browserMock.open).not.toHaveBeenCalled();
   });
 
-  it('does not report failure when the share plugin is missing and Browser can open WhatsApp', async () => {
+  it('returns failed only when WhatsApp, share, and clipboard all fail', async () => {
+    vi.useFakeTimers();
+    vi.spyOn(shareBridge, 'assignLocation').mockImplementation(() => {});
     shareMock.share.mockRejectedValue(new Error('Share plugin is not implemented on android'));
-    const result = await shareSocivaContent(payload);
-    expect(result).toBe('whatsapp');
-    expect(browserMock.open).toHaveBeenCalledWith({
-      url: expect.stringContaining('https://wa.me/?text='),
+
+    const pending = shareSocivaContent(payload);
+    await vi.advanceTimersByTimeAsync(1300);
+    const result = await pending;
+
+    expect(result).toBe('failed');
+    expect(browserMock.open).not.toHaveBeenCalled();
+  });
+});
+
+describe('shareSocivaContent web', () => {
+  beforeEach(() => {
+    native.on = false;
+    browserMock.open.mockReset();
+    Object.defineProperty(navigator, 'share', { value: undefined, configurable: true });
+    Object.defineProperty(navigator, 'clipboard', {
+      value: { writeText: vi.fn().mockRejectedValue(new Error('clipboard denied')) },
+      configurable: true,
     });
   });
 
-  it('returns failed only when share, clipboard, and the WhatsApp fallback all fail', async () => {
-    shareMock.share.mockRejectedValue(new Error('Share plugin is not implemented on android'));
-    browserMock.open.mockRejectedValue(new Error('browser unavailable'));
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('uses wa.me in a new tab, never Capacitor Browser', async () => {
+    const opened = { closed: false } as Window;
+    const openBlank = vi.spyOn(shareBridge, 'openBlank').mockReturnValue(opened);
+
     const result = await shareSocivaContent(payload);
-    expect(result).toBe('failed');
+
+    expect(result).toBe('whatsapp');
+    expect(String(openBlank.mock.calls[0]?.[0])).toContain('https://wa.me/?text=');
+    expect(decodeURIComponent(String(openBlank.mock.calls[0]?.[0]).split('text=')[1])).toBe(payload.text);
+    expect(browserMock.open).not.toHaveBeenCalled();
   });
 });

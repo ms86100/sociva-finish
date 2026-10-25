@@ -65,3 +65,17 @@ describe('product image minimum dimensions (BUG-07)', () => {
     expect(src).toMatch(/Min \$\{PRODUCT_IMAGE_MIN_PX\}/);
   });
 });
+
+describe('account profile photo picker', () => {
+  it('uses the gallery for profile photos and does not require camera to change a photo', () => {
+    const upload = read('src/components/ui/image-upload.tsx');
+    const media = read('src/lib/native-media.ts');
+    const manifest = read('android/app/src/main/AndroidManifest.xml');
+    expect(upload).toMatch(/folder === 'profiles'/);
+    expect(upload).toMatch(/pickImageFromGallery/);
+    expect(upload).toMatch(/getSession/);
+    expect(media).toMatch(/CameraSource\.Photos/);
+    expect(media).toMatch(/cameraGranted \? CameraSource\.Prompt : CameraSource\.Photos/);
+    expect(manifest).toContain('android.permission.CAMERA');
+  });
+});

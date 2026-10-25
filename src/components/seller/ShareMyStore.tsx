@@ -34,7 +34,13 @@ export function ShareMyStore() {
         url: shareUrl,
         imageUrl: activeProfile.cover_image_url || null,
       });
-      if (result === 'shared' || result === 'whatsapp') {
+      if (result === 'whatsapp') {
+        showFeedback({
+          title: 'WhatsApp is ready',
+          description: 'Pick a chat and send your store',
+          variant: 'success',
+        });
+      } else if (result === 'shared') {
         showFeedback({
           title: 'Ready to share',
           description: 'Pick an app to send your store',
