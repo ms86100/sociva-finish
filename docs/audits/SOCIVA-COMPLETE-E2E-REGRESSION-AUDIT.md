@@ -44,7 +44,7 @@ Companion detail: `docs/audits/SOCIVA-E2E-REGRESSION-AUDIT.md` (earlier matrix).
 | `seller-manual-complete.test.ts` | **13 passed** (live RPC cases skipped: integration users not seeded) |
 | `npx tsc --noEmit` | **PASS** (0 errors) |
 | `npm run build` | **PASS** |
-| Full `npx vitest run` | Prior audit: 2590 passed, 326 skipped. Not fully re-run this wave after `d635741` |
+| Full `npx vitest run` (post `d635741`) | **2605 passed**, 326 skipped, 7 files skipped, 0 failed |
 | Playwright `test:e2e` | **NOT TESTED** this wave |
 
 ---
@@ -204,8 +204,8 @@ Earlier failed build was due to missing `GuidedDiscoveryOverlayTile` on remote o
 1. **Paid sandbox E2E** for instant + scheduled (and optionally pre-order) with DB + seller board + PNQ asserts.
 2. **Device notification matrix** (Android + iOS, killed app, sound, navigate-to-order).
 3. **Integration user seed** for live `seller_complete_order_without_otp` RPC tests.
-4. **Full Vitest re-run** after `d635741` (focused suites green; full suite not re-executed this wave).
-5. **Playwright smoke** on production authenticated session.
+4. **Playwright smoke** on production authenticated session.
+5. **Integration seed repair** so skipped DB e2e files (326 tests) can run instead of skip.
 
 Until (1) and (2) are evidence-backed, do **not** treat the product as App Store / Play regression-free.
 
@@ -214,7 +214,7 @@ Until (1) and (2) are evidence-backed, do **not** treat the product as App Store
 ## 10. Final summary
 
 - **Code:** Closed-store size steppers + schedule-in-cart; guided discovery sync; prior cart/search/schedule remediations. SHA `d635741`.
-- **Regression:** Focused suites 71 PASS; OTP contracts 13 PASS; tsc PASS; vite build PASS.
+- **Regression:** Full Vitest 2605 PASS / 326 skipped; focused 71 PASS; OTP contracts 13 PASS; tsc PASS; vite build PASS.
 - **Closed-store cart:** Multi-size qty + schedule CTA PASS locally; live JS PASS.
 - **Ordering:** Instant/scheduled/pre-order paid E2E BLOCKED / NOT TESTED.
 - **Notifications:** Device matrix NOT TESTED.
