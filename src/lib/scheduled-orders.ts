@@ -201,6 +201,35 @@ export function isDueForPreparation(order: ScheduledOrderLike, now = new Date())
   return now.getTime() >= prepStart.getTime();
 }
 
+/** Grace after the slot before a scheduled order is treated as stale (matches scheduled_late reminders). */
+export const SCHEDULED_OVERDUE_GRACE_MS = 15 * 60_000;
+
+/**
+ * Pre-fulfilment scheduled order whose slot has passed by more than the grace window.
+ * Still open for the seller to resolve manually - must not keep inflating Action needed.
+ */
+export function isOverdueScheduledPreFulfilment(
+  order: ScheduledOrderLike,
+  now = new Date(),
+  graceMs = SCHEDULED_OVERDUE_GRACE_MS,
+): boolean {
+  if (!isScheduledOrder(order)) return false;
+  const status = order.status || '';
+  if (TERMINAL_STATUSES.includes(status as typeof TERMINAL_STATUSES[number])) return false;
+  if (FULFILMENT_STATUSES.includes(status as typeof FULFILMENT_STATUSES[number])) return false;
+  if (
+    !(PRE_FULFILMENT_STATUSES as readonly string[]).includes(status)
+    && status !== 'scheduled'
+  ) {
+    return false;
+  }
+  const fulfilment = getScheduledFulfilmentAt(order);
+  if (!fulfilment) {
+    return daysUntilScheduledDate(order.scheduled_date!, now) < 0;
+  }
+  return now.getTime() > fulfilment.getTime() + graceMs;
+}
+
 /** Statuses blocked until preparation_start_at (mirrors DB guard). */
 export const SCHEDULED_FULFILMENT_LOCKED_STATUSES = [
   'preparing',

@@ -80,9 +80,6 @@ const CouponManager = lazy(() =>
 const SellerAnalyticsTab = lazy(() =>
   import('@/components/seller/SellerAnalyticsTab').then((m) => ({ default: m.SellerAnalyticsTab })),
 );
-const DemandInsights = lazy(() =>
-  import('@/components/seller/DemandInsights').then((m) => ({ default: m.DemandInsights })),
-);
 const StoreInsightsPanel = lazy(() =>
   import('@/components/seller/StoreInsightsPanel').then((m) => ({ default: m.StoreInsightsPanel })),
 );
@@ -422,8 +419,9 @@ export default function SellerDashboardPage() {
     );
   }
 
-  const pendingOrders = stats?.pendingOrders || 0;
   const pendingRefunds = stats?.pendingRefunds || 0;
+  // Prefer schedule-aware filter counts so overdue scheduled do not inflate Action needed.
+  const pendingOrders = filterCounts?.pending ?? stats?.pendingOrders ?? 0;
 
   const pickStoreBanner = (
     <div className="rounded-xl border border-border bg-muted/40 px-3 py-3 flex items-start gap-2.5">
@@ -866,7 +864,7 @@ export default function SellerDashboardPage() {
           </TabsContent>
 
           {/* ── Stats Tab - Deduplicated ── */}
-          <TabsContent value="stats" className="space-y-4 mt-3">
+          <TabsContent value="stats" className="space-y-5 mt-3">
             {isPortfolio || !sellerProfile ? (
               pickStoreBanner
             ) : (
@@ -876,7 +874,6 @@ export default function SellerDashboardPage() {
                 <LowStockAlerts sellerId={sellerProfile.id} />
                 <SellerAnalyticsTab sellerId={sellerProfile.id} />
                 <SellerCustomerDirectory sellerId={sellerProfile.id} />
-                <DemandInsights societyId={sellerProfile.society_id} sellerId={sellerProfile.id} />
               </Suspense>
             )}
           </TabsContent>

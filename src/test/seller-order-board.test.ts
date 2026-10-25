@@ -15,6 +15,7 @@ import {
   isPortfolioSellerId,
   ALL_STORES_ID,
   resolveOperationalSellerId,
+  shouldExcludeFromActionNeeded,
 } from '@/lib/seller-order-board';
 
 const ENUM_STATUSES = [
@@ -105,6 +106,48 @@ describe('seller-order-board taxonomy', () => {
     expect(counts.ready).toBe(1);
     expect(kpis.totalEarnings).toBe(400);
     expect(counts.all).toBe(5); // hidden phantom excluded
+  });
+
+  it('excludes future and stale overdue scheduled from Action needed pending', () => {
+    const now = new Date('2026-10-25T12:00:00+05:30');
+    const overdue = {
+      status: 'scheduled',
+      payment_status: 'pending',
+      total_amount: 99,
+      created_at: '2026-10-21T21:57:00+05:30',
+      scheduled_date: '2026-10-22',
+      scheduled_time_start: '09:45:00',
+      scheduled_fulfillment_at: '2026-10-22T09:45:00+05:30',
+    };
+    const future = {
+      status: 'scheduled',
+      payment_status: 'pending',
+      total_amount: 99,
+      created_at: '2026-10-25T08:00:00+05:30',
+      scheduled_date: '2026-10-28',
+      scheduled_time_start: '10:00:00',
+      scheduled_fulfillment_at: '2026-10-28T10:00:00+05:30',
+      preparation_start_at: '2026-10-28T09:00:00+05:30',
+    };
+    const instant = {
+      status: 'placed',
+      payment_status: 'paid',
+      total_amount: 99,
+      created_at: '2026-10-25T11:00:00+05:30',
+    };
+
+    expect(shouldExcludeFromActionNeeded(overdue, now)).toBe(true);
+    expect(shouldExcludeFromActionNeeded(future, now)).toBe(true);
+    expect(shouldExcludeFromActionNeeded(instant, now)).toBe(false);
+
+    const { kpis, counts } = aggregateSellerBoardFromOrders(
+      [overdue, future, instant],
+      { now },
+    );
+    expect(kpis.pendingOrders).toBe(1);
+    expect(counts.pending).toBe(1);
+    expect(counts.upcoming).toBe(1);
+    expect(counts.all).toBe(3);
   });
 
   it('filter status lists match board buckets', () => {

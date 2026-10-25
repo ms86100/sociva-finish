@@ -79,6 +79,19 @@ describe('seller OTP-free completion helpers', () => {
 });
 
 describe('seller OTP-free completion source contract', () => {
+  it('covers instant, scheduled, and pre-order on one RPC (no type gate; scheduled uses prep window)', () => {
+    // Instant / pre-order / scheduled share the same path. Only scheduled rows
+    // with a future preparation_start_at are blocked until the window opens.
+    expect(migration).toMatch(/IF _order\.scheduled_date IS NOT NULL THEN/);
+    expect(migration).toMatch(/preparation_start_at/);
+    expect(migration).toMatch(/Scheduled fulfillment is not open yet/);
+    expect(migration).not.toMatch(/IF _order\.order_type/);
+    expect(migration).not.toMatch(/IF _order\.fulfillment_type/);
+    expect(migration).not.toMatch(/accepts_preorders/);
+    expect(page).toMatch(/isSellerManualCompleteEligible\(nextOtpType/);
+    expect(page).toMatch(/seller_complete_order_without_otp|completeOrderWithoutOtp/);
+  });
+
   it('adds a dedicated seller RPC without changing OTP verify functions', () => {
     expect(migration).toMatch(/CREATE OR REPLACE FUNCTION public\.seller_complete_order_without_otp/);
     expect(migration).toMatch(/FOR UPDATE OF o/);

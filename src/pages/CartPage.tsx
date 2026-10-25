@@ -21,9 +21,10 @@ import { PreorderDatePicker } from '@/components/checkout/PreorderDatePicker';
 import { BackButton } from '@/components/navigation/BackButton';
 import { BuyAgainRow } from '@/components/home/BuyAgainRow';
 import { motion, AnimatePresence } from 'framer-motion';
-import { LottieEmptyState } from '@/components/ui/LottieEmptyState';
 import { AlertCircle } from 'lucide-react';
 import { CartClearedAnimation } from '@/components/cart/CartClearedAnimation';
+import { CartEmptyExperience } from '@/components/cart/CartEmptyExperience';
+import { readClearedCartSnapshot, saveClearedCartSnapshot } from '@/lib/cleared-cart';
 import { AddressPicker } from '@/components/profile/AddressPicker';
 import { PreciseLocationRequiredCard } from '@/components/location/PreciseLocationRequiredCard';
 import { Switch } from '@/components/ui/switch';
@@ -112,15 +113,9 @@ export default function CartPage() {
                 initial={{ opacity: 0, y: 16 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ type: 'spring', stiffness: 300, damping: 28 }}
-                className="text-center py-10"
+                className="pt-2"
               >
-                <LottieEmptyState
-                  emoji="🛒"
-                  title="Your cart is empty"
-                  description="Discover products from sellers in your community"
-                >
-                  <Link to="/search"><Button size="sm">Explore Marketplace</Button></Link>
-                </LottieEmptyState>
+                <CartEmptyExperience justCleared={!!readClearedCartSnapshot()} />
               </motion.div>
             )}
           </AnimatePresence>
@@ -144,8 +139,8 @@ export default function CartPage() {
           <AlertDialog>
             <AlertDialogTrigger asChild><Button variant="ghost" size="sm" className="text-destructive text-xs h-8 min-w-[44px] px-2">Clear</Button></AlertDialogTrigger>
             <AlertDialogContent>
-              <AlertDialogHeader><AlertDialogTitle>Clear cart?</AlertDialogTitle><AlertDialogDescription>This will remove all items from your cart. This action cannot be undone.</AlertDialogDescription></AlertDialogHeader>
-              <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={async () => { c.setAppliedCoupon(null); if (c.hasActivePaymentSession && c.pendingOrderIds.length > 0) { try { const { rpc } = await import('@/integrations/supabase/client').then(m => ({ rpc: m.supabase.rpc })); await rpc('buyer_cancel_pending_orders', { _order_ids: c.pendingOrderIds }); } catch { /* Cancellation cleanup is best-effort here. */ } } setJustCleared(true); c.clearCart(); c.clearPendingPayment(); }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Clear All</AlertDialogAction></AlertDialogFooter>
+              <AlertDialogHeader><AlertDialogTitle>Clear cart?</AlertDialogTitle><AlertDialogDescription>Removes everything from your bag. You can undo for a few minutes after clearing.</AlertDialogDescription></AlertDialogHeader>
+              <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={async () => { c.setAppliedCoupon(null); if (c.hasActivePaymentSession && c.pendingOrderIds.length > 0) { try { const { rpc } = await import('@/integrations/supabase/client').then(m => ({ rpc: m.supabase.rpc })); await rpc('buyer_cancel_pending_orders', { _order_ids: c.pendingOrderIds }); } catch { /* Cancellation cleanup is best-effort here. */ } } saveClearedCartSnapshot({ at: Date.now(), sellerName: c.sellerGroups?.[0]?.sellerName || null, sellerId: c.sellerGroups?.[0]?.sellerId || null, itemCount: c.itemCount || c.items.length, lines: c.items.map((item) => ({ productId: item.product?.id, name: item.product?.name, imageUrl: item.product?.image_url || null, quantity: item.quantity, price: item.product?.price, product: item.product })) }); setJustCleared(true); c.clearCart(); c.clearPendingPayment(); }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Clear All</AlertDialogAction></AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
         </div>

@@ -1,4 +1,8 @@
-import { isUpcomingScheduled, type ScheduledOrderLike } from '@/lib/scheduled-orders';
+import {
+  isOverdueScheduledPreFulfilment,
+  isUpcomingScheduled,
+  type ScheduledOrderLike,
+} from '@/lib/scheduled-orders';
 
 /**
  * Seller ops board taxonomy - single source of truth for KPI cards,
@@ -331,6 +335,22 @@ export function isFutureScheduledAwaitingPrep(
   return isUpcomingScheduled(row, now);
 }
 
+/** Stale overdue scheduled - keep in All, not Action needed (no auto-cancel). */
+export function isStaleScheduledForBoard(
+  row: ScheduledOrderLike & { status?: string | null },
+  now = new Date(),
+): boolean {
+  return isOverdueScheduledPreFulfilment(row, now);
+}
+
+/** Exclude from Action needed pending: future awaiting prep OR stale overdue. */
+export function shouldExcludeFromActionNeeded(
+  row: ScheduledOrderLike & { status?: string | null },
+  now = new Date(),
+): boolean {
+  return isFutureScheduledAwaitingPrep(row, now) || isStaleScheduledForBoard(row, now);
+}
+
 /**
  * Client-side aggregate mirroring RPC semantics (fallback when RPC unavailable).
  */
@@ -375,7 +395,7 @@ export function aggregateSellerBoardFromOrders(
 
     switch (bucket) {
       case 'action_needed':
-        if (!isFutureScheduledAwaitingPrep(row, opts?.now)) {
+        if (!shouldExcludeFromActionNeeded(row, opts?.now)) {
           counts.pending++;
           kpis.pendingOrders++;
         }

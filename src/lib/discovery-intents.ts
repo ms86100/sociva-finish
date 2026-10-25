@@ -64,6 +64,16 @@ function chipCountForGroup(
   return allListings.filter((product) => listingMatchesCategoryChip(product, group.category)).length;
 }
 
+function photoPoolForGroup(
+  group: DiscoveryCategoryInput,
+  allListings: ReturnType<typeof listingsInGroup>,
+) {
+  const own = listingsInGroup(group);
+  if (!CATEGORY_PRIMARY_MEAL[group.category]) return own;
+  const matched = allListings.filter((product) => listingMatchesCategoryChip(product, group.category));
+  return matched.length > 0 ? matched : own;
+}
+
 function takeUniqueIntents(intents: DiscoveryIntent[], maxChips?: number): DiscoveryIntent[] {
   const seenIds = new Set<string>();
   const seenLabels = new Set<string>();
@@ -105,7 +115,7 @@ export function buildDiscoveryIntents(
       id: `cat:${g.category}`,
       label: g.displayName,
       icon: g.icon,
-      imageUrl: pickListingChipPhoto(listingsInGroup(g), usedPhotos) || g.imageUrl || null,
+      imageUrl: pickListingChipPhoto(photoPoolForGroup(g, scopedListings), usedPhotos) || g.imageUrl || null,
       count: chipCountForGroup(g, scopedListings),
       href: `/category/${g.parentGroup}?sub=${encodeURIComponent(g.category)}`,
       kind: 'category' as const,
@@ -183,7 +193,7 @@ export function relevantBrowseIntents(
         id: `cat:${group.category}`,
         label: group.displayName,
         icon: group.icon,
-        imageUrl: pickListingChipPhoto(own.length ? own : products, usedPhotos) || group.imageUrl || null,
+        imageUrl: pickListingChipPhoto(products, usedPhotos) || group.imageUrl || null,
         count: products.length,
         href: `/category/${group.parentGroup}?sub=${encodeURIComponent(group.category)}`,
         kind: 'category' as const,

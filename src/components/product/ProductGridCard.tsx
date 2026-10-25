@@ -134,7 +134,7 @@ export function ProductGridCard({ product, behavior, onTap, className, viewOnly 
         'hover:shadow-elevated hover:border-border',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
         isOutOfStock && 'opacity-50 grayscale-[40%]',
-        isStoreClosed && !isOutOfStock && 'opacity-60 grayscale-[30%]',
+        isStoreClosed && !isOutOfStock && !canScheduleClosed && 'opacity-60 grayscale-[30%]',
         className
       )}
       role="button"
@@ -191,10 +191,17 @@ export function ProductGridCard({ product, behavior, onTap, className, viewOnly 
               <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider bg-card/90 px-2 py-1 rounded-full border border-border/50">Out of stock</span>
             </div>
           )}
-          {isStoreClosed && !isOutOfStock && (
+          {isStoreClosed && !isOutOfStock && !canScheduleClosed && (
             <div className="absolute inset-0 bg-background/40 flex items-center justify-center rounded-xl z-[5]">
               <span className="text-[8px] font-bold text-muted-foreground bg-card/90 px-1.5 py-0.5 rounded-full uppercase tracking-wider flex items-center gap-1 max-w-[90%] truncate border border-border/50">
                 <Clock size={8} className="shrink-0" />{storeClosedMessage || 'Closed'}
+              </span>
+            </div>
+          )}
+          {isStoreClosed && !isOutOfStock && canScheduleClosed && storeClosedMessage && (
+            <div className="absolute bottom-1 left-1 right-1 z-[5] flex justify-center pointer-events-none">
+              <span className="text-[8px] font-bold text-foreground bg-card/95 px-1.5 py-0.5 rounded-full tracking-wide flex items-center gap-1 max-w-full truncate border border-border/50">
+                <Clock size={8} className="shrink-0" />{storeClosedMessage}
               </span>
             </div>
           )}

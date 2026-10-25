@@ -7,12 +7,12 @@ import { useProductsByCategory } from '@/hooks/queries/useProductsByCategory';
 import { useMarketplaceData } from '@/hooks/queries/useMarketplaceData';
 import { useProductFacets } from '@/hooks/queries/useProductFacets';
 import { useSocialProof } from '@/hooks/queries/useSocialProof';
-import { listingMatchesCategoryChip } from '@/lib/food-facets';
+import { isFoodListingCategory, listingMatchesCategoryChip } from '@/lib/food-facets';
 import { FeaturedBanners } from '@/components/home/FeaturedBanners';
+import { NeighborMakesBanner } from '@/components/home/NeighborMakesBanner';
 import { FestivalBannerModule } from '@/components/home/FestivalBannerModule';
 import { FestivalHomeHero } from '@/components/home/FestivalHomeHero';
 import { useActiveFestivals, useFestivalTakeover } from '@/hooks/queries/useActiveFestivals';
-import { BuyAgainRow } from '@/components/home/BuyAgainRow';
 import { ShopByStoreDiscovery } from '@/components/home/ShopByStoreDiscovery';
 import { NearbySellersSection } from '@/components/marketplace/NearbySellersSection';
 import { showFeedback } from '@/components/FeedbackPopupProvider';
@@ -32,8 +32,12 @@ import { useBadgeConfig } from '@/hooks/useBadgeConfig';
 import { useMarketplaceLabels } from '@/hooks/useMarketplaceLabels';
 import { cn } from '@/lib/utils';
 import { DiscoveryChipRail } from '@/components/home/DiscoveryChipRail';
+import { GuidedDiscoveryRail } from '@/components/home/GuidedDiscoveryRail';
 import { CommerceFacetRail } from '@/components/discovery/CommerceFacetRail';
 import { buildDiscoveryIntents } from '@/lib/discovery-intents';
+import { buildGuidedDiscoveryHubs } from '@/lib/guided-discovery';
+import { listingsSellingWell } from '@/lib/selling-well';
+import { pickDishListingPhoto } from '@/lib/chip-listing-photo';
 import { applyProductFacetRow } from '@/hooks/queries/useProductFacets';
 import {
   CommerceFacetState,
@@ -47,6 +51,9 @@ import { filterByMode } from '@/lib/commerce-mode';
 import { useSellerContext } from '@/contexts/auth/contexts';
 import { pickSellerJourneyStore } from '@/lib/seller-journey';
 import { buildProductDetailPayload, buildRelatedProductDetailPayload } from '@/lib/product-detail-payload';
+import { useHomeSearch } from '@/contexts/HomeSearchContext';
+import { useNearbyProductSearch } from '@/hooks/queries/useNearbyProductSearch';
+import { listingMatchesSearchText, stampSellerHoursFromInventory } from '@/lib/listing-search';
 
 function getPublicOrigin() {
   const origin = window.location.origin || '';
@@ -101,6 +108,7 @@ function SectionDivider() {
 export function MarketplaceSection() {
   const navigate = useNavigate();
   const ml = useMarketplaceLabels();
+  const { query: homeQuery } = useHomeSearch();
   const { browsingLocation } = useBrowsingLocation();
   const { sellerProfiles } = useSellerContext();
   const sellerAttention = pickSellerJourneyStore(sellerProfiles);
@@ -192,9 +200,27 @@ export function MarketplaceSection() {
     return allProducts;
   }, [allProducts, activeCategory]);
 
+  const queryNorm = homeQuery.trim().toLowerCase();
+  const searchActive = queryNorm.length >= 2;
+  const { data: ftsListings = [], isFetching: searchFetching } = useNearbyProductSearch(homeQuery);
+
+  const searchedProducts = useMemo(() => {
+    if (!searchActive) return [];
+    const localHits = allProducts.filter((product) => listingMatchesSearchText(product, queryNorm));
+    const byId = new Map(localHits.map((product) => [product.id, product]));
+    for (const row of filterByMode(ftsListings, 'shop', categoryConfigs)) {
+      if (byId.has(row.id)) continue;
+      const local = allProducts.find((product) => product.id === row.id);
+      byId.set(row.id, stampSellerHoursFromInventory(local || applyProductFacetRow(row, facetRows[row.id]), allProducts));
+    }
+    return [...byId.values()];
+  }, [searchActive, queryNorm, allProducts, ftsListings, categoryConfigs, facetRows]);
+
+  const facetInventory = searchActive ? searchedProducts : scopedProducts;
+
   const dynamicFacetChips = useMemo(
-    () => omitSoleActionChips(extractAvailableCommerceFacets(scopedProducts, { parentGroup: activeGroup, currentState: commerceFacets, categoryConfigs })),
-    [scopedProducts, activeGroup, commerceFacets, categoryConfigs]
+    () => omitSoleActionChips(extractAvailableCommerceFacets(facetInventory, { parentGroup: activeGroup, currentState: commerceFacets, categoryConfigs })),
+    [facetInventory, activeGroup, commerceFacets, categoryConfigs]
   );
 
   const isFacetFilterActive = hasActiveCommerceFacets(commerceFacets);
@@ -204,9 +230,30 @@ export function MarketplaceSection() {
     return scopedProducts.filter((p) => productMatchesCommerceFacets(p, commerceFacets, categoryConfigs));
   }, [isFacetFilterActive, scopedProducts, commerceFacets, categoryConfigs]);
 
+  const visibleSearchProducts = useMemo(() => {
+    if (!searchActive) return [];
+    if (!isFacetFilterActive) return searchedProducts;
+    return searchedProducts.filter((product) => productMatchesCommerceFacets(product, commerceFacets, categoryConfigs));
+  }, [searchActive, isFacetFilterActive, searchedProducts, commerceFacets, categoryConfigs]);
+
   const discoveryIntents = useMemo(
     () => buildDiscoveryIntents(localCategoriesWithFacets, { maxChips: 40 }),
     [localCategoriesWithFacets],
+  );
+
+  const guidedHubs = useMemo(
+    () => buildGuidedDiscoveryHubs(
+      localCategories.flatMap((group) => group.products),
+      {
+        categoryConfigs,
+        categoryMeta: localCategories.map((group) => ({
+          category: group.category,
+          displayName: group.displayName,
+          imageUrl: group.imageUrl || null,
+        })),
+      },
+    ),
+    [localCategories, categoryConfigs],
   );
 
   // Social proof only after scroll / idle - never blocks first paint
@@ -221,6 +268,19 @@ export function MarketplaceSection() {
   const discoveryMaxItems = ml.threshold('discovery_max_items');
 
   const intentRails = useIntentRailModel('shop', allProducts, categoryConfigs, discoveryMaxItems || 10);
+
+  const foodListings = useMemo(
+    () => allProducts.filter((product) => {
+      const config = categoryConfigs.find((item) => item.category === product.category);
+      return isFoodListingCategory(config?.parentGroup || product.parentGroup, product.category);
+    }),
+    [allProducts, categoryConfigs],
+  );
+  const neighborHeroUrl = useMemo(() => pickDishListingPhoto(foodListings), [foodListings]);
+  const sellingWellProducts = useMemo(
+    () => listingsSellingWell(allProducts),
+    [allProducts],
+  );
 
   const sellerImages = useMemo(() => {
     const images = new Map<string, { profileImage: string | null; coverImage: string | null }>();
@@ -294,7 +354,9 @@ export function MarketplaceSection() {
           />
         ))}
         <LazySection>
-          <FeaturedBanners />
+          <div id="home-featured-banners" className="scroll-mt-28">
+            <FeaturedBanners />
+          </div>
         </LazySection>
         <div className="px-4 py-10 space-y-8">
           <div className="flex flex-col items-center text-center">
@@ -362,7 +424,7 @@ export function MarketplaceSection() {
       )}
       {discoveryIntents.length > 0 && (
         <div
-          className="sticky top-[var(--app-header-offset,0px)] z-[35] isolate w-full border-b border-border bg-background"
+          className="sticky top-[var(--app-header-offset,0px)] z-[34] isolate w-full border-b border-border bg-background pt-1"
         >
           <DiscoveryChipRail
             intents={discoveryIntents}
@@ -379,12 +441,65 @@ export function MarketplaceSection() {
           chips={dynamicFacetChips}
           parentGroup={activeGroup}
           className="py-1"
-          inventory={scopedProducts}
+          inventory={facetInventory}
           showCounts={false}
         />
       )}
 
-      {isFacetFilterActive && !festivalFocused && (
+      {searchActive && (
+        <div className="px-4 py-2" data-testid="home-search-results">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <p className="text-sm font-bold text-foreground">
+                {visibleSearchProducts.length} matching {visibleSearchProducts.length === 1 ? 'product' : 'products'}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Results for {homeQuery.trim()} - use the chips above to filter
+              </p>
+            </div>
+          </div>
+          {visibleSearchProducts.length > 0 ? (
+            <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 gap-2 sm:gap-3">
+              {visibleSearchProducts.map((product) => (
+                <ProductListingCard
+                  key={product.id}
+                  product={product}
+                  onTap={handleProductTap}
+                  onNavigate={navigate}
+                  categoryConfigs={categoryConfigs as any}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="p-6 rounded-2xl bg-muted/40 text-center border border-dashed border-border">
+              <p className="text-sm font-medium text-foreground">
+                {searchFetching ? 'Searching nearby products...' : 'No products match this search'}
+              </p>
+              {isFacetFilterActive && !searchFetching && (
+                <button
+                  onClick={() => setCommerceFacets(emptyCommerceFacetState())}
+                  className="mt-2 text-xs text-primary font-semibold hover:underline"
+                >
+                  Reset filters
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {!festivalFocused && !searchActive && foodListings.length > 0 && (
+        <NeighborMakesBanner
+          imageUrl={neighborHeroUrl}
+          onOrderNow={() => navigate('/explore/home_food')}
+        />
+      )}
+
+      {!festivalFocused && !searchActive && guidedHubs.length > 0 && (
+        <GuidedDiscoveryRail hubs={guidedHubs} />
+      )}
+
+      {isFacetFilterActive && !festivalFocused && !searchActive && (
         <div className="px-4 py-2">
           <div className="flex items-center justify-between mb-3">
             <div>
@@ -435,8 +550,26 @@ export function MarketplaceSection() {
         </div>
       )}
 
-      {!activeCategory && !festivalFocused && !loadingLocal && intentRails.primary && (
-        <div data-testid="home-popular-rail">
+      {!activeCategory && !festivalFocused && !searchActive && sellingWellProducts.length > 0 && (
+        <div id="home-selling-well" data-testid="home-selling-well">
+          <IntentProductRail
+            title="Selling well nearby"
+            products={sellingWellProducts}
+            onProductTap={handleProductTap}
+            categoryConfigs={categoryConfigs}
+          />
+        </div>
+      )}
+
+      {!festivalFocused && !searchActive && (
+        <>
+          <SectionDivider />
+          <ShopByStoreDiscovery sectionTitle={ml.label('label_section_store_discovery')} />
+        </>
+      )}
+
+      {!activeCategory && !festivalFocused && !searchActive && !loadingLocal && intentRails.primary && (
+        <div id="home-popular-rail" data-testid="home-popular-rail" className="scroll-mt-28">
           <SectionDivider />
           <GroupedSellerRow
             title={intentRails.primary.title}
@@ -451,7 +584,7 @@ export function MarketplaceSection() {
         </div>
       )}
 
-      {!activeCategory && !festivalFocused && intentRails.foodPopular && (
+      {!activeCategory && !festivalFocused && !searchActive && intentRails.foodPopular && (
         <GroupedSellerRow
           title={intentRails.foodPopular.title}
           subtitle={browsingLocation?.label || undefined}
@@ -462,11 +595,7 @@ export function MarketplaceSection() {
         />
       )}
 
-      {!activeCategory && !festivalFocused && !loadingLocal && !isFacetFilterActive && (
-        <BuyAgainRow mode="shop" />
-      )}
-
-      {!activeCategory && !festivalFocused && intentRails.recentlyViewed && (
+      {!activeCategory && !festivalFocused && !searchActive && intentRails.recentlyViewed && (
         <IntentProductRail
           title={intentRails.recentlyViewed.title}
           products={intentRails.recentlyViewed.products}
@@ -475,7 +604,7 @@ export function MarketplaceSection() {
         />
       )}
 
-      {!activeCategory && !festivalFocused && ['newlyListed', 'sinceLastVisit', 'moreInCategory', 'favourites'].map((key) => {
+      {!activeCategory && !festivalFocused && !searchActive && ['newlyListed', 'sinceLastVisit', 'moreInCategory', 'favourites'].map((key) => {
         const rail = intentRails[key];
         if (!rail) return null;
         return (
@@ -489,13 +618,15 @@ export function MarketplaceSection() {
         );
       })}
 
-      {!festivalFocused && (
+      {!festivalFocused && !searchActive && (
         <LazySection>
-          <FeaturedBanners />
+          <div id="home-featured-banners" className="scroll-mt-28">
+            <FeaturedBanners />
+          </div>
         </LazySection>
       )}
 
-      {(!activeCategory || festivalFocused) && festivals.length > 0 && (
+      {!searchActive && (!activeCategory || festivalFocused) && festivals.length > 0 && (
         <div id="festival-home-destination" className="scroll-mt-28">
           {festivals.map((f) => (
             <FestivalBannerModule
@@ -521,16 +652,11 @@ export function MarketplaceSection() {
         </div>
       )}
 
-      {!festivalFocused && (
+      {!festivalFocused && !searchActive && (
         <LazySection>
-          <SectionDivider />
-          <ShopByStoreDiscovery sectionTitle={ml.label('label_section_store_discovery')} />
-        </LazySection>
-      )}
-
-      {!festivalFocused && (
-        <LazySection>
-          <NearbySellersSection />
+          <div id="home-nearby-sellers" className="scroll-mt-28">
+            <NearbySellersSection />
+          </div>
         </LazySection>
       )}
 

@@ -61,14 +61,24 @@ const CART_ACTIVE_PATH_PATTERNS: RegExp[] = [
   /^\/$/,                    // Home
   /^\/cart/,
   /^\/search/,
-  /^\/seller\/[^/]+$/,       // Seller detail (NOT /seller dashboard)
+  /^\/book/,
+  /^\/services/,
+  /^\/orders/,
+  /^\/profile/,
+  // Entire seller hub + storefront - buyer cart must survive role switch and nested seller ops
+  /^\/seller(\/|$)/,
   /^\/product\//,
   /^\/category(\/|$)/,
   /^\/categories$/,
+  /^\/explore(\/|$)/,
   /^\/discovery\//,
   /^\/festival-collection\//,
   /^\/favorites/,
 ];
+
+export function isCartItemsQueryRoute(pathname: string): boolean {
+  return CART_ACTIVE_PATH_PATTERNS.some((re) => re.test(pathname));
+}
 
 function useIsCartActiveRoute(): boolean {
   const location = useLocation();
@@ -77,7 +87,7 @@ function useIsCartActiveRoute(): boolean {
   const isHome = pathname === '/' || pathname === '';
 
   const matches = useMemo(
-    () => CART_ACTIVE_PATH_PATTERNS.some((re) => re.test(pathname)),
+    () => isCartItemsQueryRoute(pathname),
     [pathname]
   );
 
@@ -307,6 +317,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
     gcTime: 60 * 60 * 1000,
     refetchOnMount: 'always',
     refetchOnWindowFocus: false,
+    // Keep the last JOIN result when navigating off a cart-active route so the
+    // badge and a quick return to /cart do not flash an empty bag.
+    placeholderData: (previous) => previous,
   });
 
   const { data: fallbackItemCount = 0 } = useQuery({

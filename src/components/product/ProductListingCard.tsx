@@ -245,6 +245,7 @@ function ProductListingCardInner({ product, layout = 'auto', onTap, onNavigate, 
       ref={cardRef}
       onClick={handleCardClick}
       whileTap={{ scale: 0.985 }}
+      initial={false}
       variants={{ hidden: { opacity: 0, y: 12, scale: 0.98 }, show: { opacity: 1, y: 0, scale: 1 } }}
       transition={{ type: 'spring', stiffness: 420, damping: 28 }}
       className={cn(
@@ -255,7 +256,7 @@ function ProductListingCardInner({ product, layout = 'auto', onTap, onNavigate, 
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
         compact ? 'h-[260px]' : 'h-full',
         isUnavailable && 'opacity-45 grayscale-[40%]',
-        isStoreClosed && !isUnavailable && 'opacity-55 grayscale-[25%]',
+        isStoreClosed && !isUnavailable && !canScheduleClosed && 'opacity-55 grayscale-[25%]',
         className
       )}
       style={{ contentVisibility: 'auto', containIntrinsicSize: compact ? '110px 240px' : '110px 260px' }}
@@ -336,10 +337,18 @@ function ProductListingCardInner({ product, layout = 'auto', onTap, onNavigate, 
             </div>
           )}
 
-          {isStoreClosed && !isUnavailable && (
+          {isStoreClosed && !isUnavailable && !canScheduleClosed && (
             <div className="absolute inset-0 bg-background/55 flex items-center justify-center backdrop-blur-[1.5px] z-[5]">
               <span className="text-[11px] font-bold text-warning-foreground bg-warning/90 px-3 py-1.5 rounded-full tracking-wide shadow-sm border border-warning/40 flex items-center gap-1 max-w-[90%] truncate">
                 <Clock size={11} className="shrink-0" />
+                <span className="truncate">{storeClosedMessage}</span>
+              </span>
+            </div>
+          )}
+          {isStoreClosed && !isUnavailable && canScheduleClosed && storeClosedMessage && (
+            <div className="absolute bottom-1.5 left-1.5 right-1.5 z-[5] flex justify-center pointer-events-none">
+              <span className="text-[10px] font-bold text-foreground bg-card/95 px-2 py-0.5 rounded-full tracking-wide shadow-sm border border-border/50 flex items-center gap-1 max-w-full truncate">
+                <Clock size={10} className="shrink-0" />
                 <span className="truncate">{storeClosedMessage}</span>
               </span>
             </div>

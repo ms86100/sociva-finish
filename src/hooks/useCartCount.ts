@@ -36,7 +36,10 @@ export function useCartCount() {
       return (data || []).reduce((sum, row) => sum + (row.quantity || 0), 0);
     },
     enabled: isSessionRestored && !!user,
-    staleTime: 2 * 60 * 1000,
+    // Match CartProvider count policy so the header badge does not lag a cleared
+    // or restored bag after seller/buyer route switches.
+    staleTime: 30 * 1000,
+    refetchOnMount: 'always',
   });
 
   if (!user) {

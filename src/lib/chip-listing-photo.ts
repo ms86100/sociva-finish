@@ -33,17 +33,52 @@ export function listingPrimaryMeal(product: ChipListing): FoodMealId | null {
   return inferFoodFacets(product.name || '').meal;
 }
 
+const DISH_NAME_HINT =
+  /\b(thali|biryani|rice|curry|paratha|dosa|idli|roti|chapati|paneer|chicken|mutton|dal|sabzi|bharta|bhurji|poha|pulao|khichdi|momos?|noodle|pasta|salad|pickle|rasgulla|samosa|pakoda|cutlet|meal|fry|masala|raita|kadhi|rajma|chole|chola|puri|poori|aloo|gobhi|gobi|potato|mushroom)\b/i;
+
+const CHIP_PHOTO_DEPRIORITIZE = /\b(madhubani|makhana)\b/i;
+const CHIP_PHOTO_PREFER =
+  /\b(samosa|pakoda|pakora|fries|chips|namkeen|cookie|biscuit|mixture|sev|mathri|chaat|kachori|cutlet|momos?|chops|bhujia)\b/i;
+
+function chipPhotoRank(name: string): number {
+  if (CHIP_PHOTO_DEPRIORITIZE.test(name)) return 2;
+  if (CHIP_PHOTO_PREFER.test(name) || DISH_NAME_HINT.test(name)) return 0;
+  return 1;
+}
+
 /** Prefer a photo that is not already on another chip. Never invent a stock URL. */
-export function pickListingChipPhoto<T extends { image_url?: string | null }>(
+export function pickListingChipPhoto<T extends { image_url?: string | null; name?: string }>(
   products: readonly T[],
   used: Set<string>,
 ): string | null {
-  const photos = products
-    .map((product) => product.image_url)
-    .filter((url): url is string => !!url && url.trim().length > 0);
-  const fresh = photos.find((url) => !used.has(url));
-  const url = fresh || photos[0] || null;
+  const withPhotos = products.filter((product) => !!product.image_url && product.image_url.trim().length > 0);
+  const ranked = [...withPhotos].sort(
+    (a, b) => chipPhotoRank(a.name || '') - chipPhotoRank(b.name || ''),
+  );
+  const unusedAppealing = ranked.find(
+    (product) => chipPhotoRank(product.name || '') < 2 && !used.has(product.image_url as string),
+  );
+  const anyAppealing = ranked.find((product) => chipPhotoRank(product.name || '') < 2);
+  const unusedAny = ranked.find((product) => !used.has(product.image_url as string));
+  const picked = unusedAppealing || anyAppealing || unusedAny || ranked[0];
+  const url = picked?.image_url || null;
   if (url) used.add(url);
+  return url;
+}
+
+/** Prefer a plated dish photo over logos, pamphlets, and storefront shots. */
+export function pickDishListingPhoto<T extends { name?: string; image_url?: string | null }>(
+  products: readonly T[],
+  used?: Set<string>,
+): string | null {
+  const candidates = products.filter((product) => !!product.image_url && product.image_url.trim().length > 0);
+  const ranked = [
+    ...candidates.filter((product) => DISH_NAME_HINT.test(product.name || '')),
+    ...candidates.filter((product) => !DISH_NAME_HINT.test(product.name || '')),
+  ];
+  const picked = ranked.find((product) => !used || !used.has(product.image_url as string)) || ranked[0];
+  const url = picked?.image_url || null;
+  if (url && used) used.add(url);
   return url;
 }
 

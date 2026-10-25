@@ -116,6 +116,9 @@ describe('closed-store scheduled ordering contracts', () => {
     expect(mig).toMatch(/enqueue_seller_new_order_notification/);
     const reminders = read('supabase/functions/send-scheduled-order-reminders/index.ts');
     expect(reminders).toMatch(/scheduled_prep|scheduled_late/);
+    const acceptReminders = read('supabase/functions/send-seller-status-reminders/index.ts');
+    expect(acceptReminders).toContain('scheduled_accept');
+    expect(acceptReminders).toContain('Accept this scheduled order');
   });
 
   it('maps closed-store checkout errors for the cart', () => {
@@ -208,6 +211,19 @@ describe('closed-store scheduled ordering contracts', () => {
     expect(card).toMatch(/VACATION_BUYER_CTA/);
     expect(read('src/lib/sellerDiscoverability.ts')).toMatch(/reason === 'vacation'/);
     expect(read('src/hooks/useCart.tsx')).toMatch(/eligibility.reason === 'vacation'/);
+  });
+
+  it('does not blur listing photos when a closed store can be scheduled', () => {
+    const listing = read('src/components/product/ProductListingCard.tsx');
+    const grid = read('src/components/product/ProductGridCard.tsx');
+    const card = read('src/components/product/ProductCard.tsx');
+    expect(listing).toMatch(/isStoreClosed && !isUnavailable && !canScheduleClosed && 'opacity-55 grayscale-\[25%\]'/);
+    expect(listing).toMatch(/isStoreClosed && !isUnavailable && canScheduleClosed && storeClosedMessage/);
+    expect(listing).toContain('backdrop-blur-[1.5px]');
+    expect(listing).toMatch(/isStoreClosed && !isUnavailable && !canScheduleClosed && \(/);
+    expect(grid).toMatch(/isStoreClosed && !isOutOfStock && !canScheduleClosed && 'opacity-60 grayscale-\[30%\]'/);
+    expect(grid).toMatch(/isStoreClosed && !isOutOfStock && canScheduleClosed && storeClosedMessage/);
+    expect(card).toMatch(/isStoreClosed && product\.is_available && canScheduleClosed && storeClosedMessage/);
   });
 
   it('lets reorder and recently viewed add from a closed store that can be scheduled', () => {

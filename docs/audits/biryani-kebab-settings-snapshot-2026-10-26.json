@@ -1,0 +1,16 @@
+﻿{
+  ""seller_id"": ""95d88378-b998-4f9b-b3f6-ff788aa2b81f"",
+  ""snapshot_at"": ""2026-10-26T00:44:00+05:30"",
+  ""seller_profiles"": {
+    ""vacation_mode"": false,
+    ""is_available"": true,
+    ""availability_start"": ""09:00:00"",
+    ""availability_end"": ""06:00:00"",
+    ""operating_days"": [""Mon"",""Tue"",""Wed"",""Thu"",""Fri"",""Sat"",""Sun""]
+  },
+  ""products"": [
+    {""id"": ""463aceda-5264-4e67-b028-cd052ad9d750"", ""name"": ""Biryani"", ""price"": 99, ""accepts_preorders"": false, ""is_available"": true},
+    {""id"": ""0a542d6a-cb4b-4258-a3f8-650cc89283ff"", ""name"": ""Kebab"", ""price"": 99, ""accepts_preorders"": false, ""is_available"": true}
+  ],
+  ""note"": ""Already open for immediate COD. No temporary config change applied this run; restore N/A.""
+}

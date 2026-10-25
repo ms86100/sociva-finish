@@ -74,12 +74,47 @@ export function listingBelongsToMode(
   return resolveCommerceMode(listing, categoryConfigs) === mode;
 }
 
-export function filterByMode<T extends { action_type?: string | null; category?: string | null }>(
+/**
+ * Sellers sometimes leave a dummy ₹1 price on Book listings.
+ * Free (₹0) consults stay visible; hide positive stub prices at or below ₹1.
+ */
+export function isPlaceholderListingPrice(price: number | null | undefined): boolean {
+  const n = Number(price);
+  return Number.isFinite(n) && n > 0 && n <= 1;
+}
+
+const PLACEHOLDER_COPY_RE = /price\s*placeholder|placeholder\s+listing(\s+at)?\s*₹?\s*1\b|seller will update/i;
+
+/**
+ * Book browse should not show stub catalogue rows (₹1 stubs or explicit
+ * "placeholder" copy), while real free consults (₹0, no stub copy) stay.
+ */
+export function isPlaceholderBookListing(listing: {
+  price?: number | null;
+  name?: string | null;
+  description?: string | null;
+}): boolean {
+  if (isPlaceholderListingPrice(listing.price)) return true;
+  const blob = `${listing.name || ''} ${listing.description || ''}`;
+  return PLACEHOLDER_COPY_RE.test(blob);
+}
+
+export function filterByMode<T extends {
+  action_type?: string | null;
+  category?: string | null;
+  price?: number | null;
+  name?: string | null;
+  description?: string | null;
+}>(
   listings: readonly T[],
   mode: CommerceMode,
   categoryConfigs?: readonly CategoryActionConfig[] | null,
 ): T[] {
-  return listings.filter((l) => resolveCommerceMode(l, categoryConfigs) === mode);
+  return listings.filter((l) => {
+    if (resolveCommerceMode(l, categoryConfigs) !== mode) return false;
+    if (mode === 'book' && isPlaceholderBookListing(l)) return false;
+    return true;
+  });
 }
 
 /**

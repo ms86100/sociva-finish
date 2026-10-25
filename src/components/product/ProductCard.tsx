@@ -155,10 +155,17 @@ export function ProductCard({ product, variant = 'horizontal', onTap }: ProductC
               </span>
             </div>
           )}
-          {isStoreClosed && product.is_available && (
+          {isStoreClosed && product.is_available && !canScheduleClosed && (
             <div className="absolute inset-0 bg-background/40 flex items-center justify-center">
               <span className="text-[9px] font-bold text-muted-foreground bg-card/90 px-2 py-1 rounded-full uppercase tracking-wider flex items-center gap-1 border border-border/50">
                 <Clock size={9} />{storeClosedMessage || 'Closed'}
+              </span>
+            </div>
+          )}
+          {isStoreClosed && product.is_available && canScheduleClosed && storeClosedMessage && (
+            <div className="absolute bottom-1.5 left-1.5 right-1.5 flex justify-center pointer-events-none">
+              <span className="text-[9px] font-bold text-foreground bg-card/95 px-2 py-0.5 rounded-full tracking-wide flex items-center gap-1 max-w-full truncate border border-border/50">
+                <Clock size={9} />{storeClosedMessage}
               </span>
             </div>
           )}

@@ -110,6 +110,7 @@ export function useMarketplaceData() {
           id: p.product_id,
           name: p.product_name,
           price: p.price,
+          description: p.description ?? null,
           image_url: p.image_url,
           category: p.category,
           is_veg: p.is_veg,

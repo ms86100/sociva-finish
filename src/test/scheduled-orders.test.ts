@@ -6,6 +6,7 @@ import {
   getScheduledCountdownLabel,
   getScheduledFulfilmentAt,
   isClosedStoreScheduledOrder,
+  isOverdueScheduledPreFulfilment,
   isScheduledOrder,
   isUpcomingScheduled,
   resolveScheduledPhase,
@@ -118,5 +119,19 @@ describe('scheduled-orders', () => {
       created_at: '2026-10-21T21:00:00+05:30',
       auto_cancel_at: '2026-10-21T21:30:00+05:30',
     })).toBe(false);
+  });
+
+  it('marks scheduled orders overdue only after the 15-minute grace past the slot', () => {
+    const order = {
+      status: 'scheduled',
+      scheduled_date: '2026-10-22',
+      scheduled_time_start: '09:45:00',
+      scheduled_fulfillment_at: '2026-10-22T09:45:00+05:30',
+    };
+    expect(isOverdueScheduledPreFulfilment(order, new Date('2026-10-22T09:50:00+05:30'))).toBe(false);
+    expect(isOverdueScheduledPreFulfilment(order, new Date('2026-10-22T10:01:00+05:30'))).toBe(true);
+    expect(isOverdueScheduledPreFulfilment(order, new Date('2026-10-25T12:00:00+05:30'))).toBe(true);
+    expect(isOverdueScheduledPreFulfilment({ ...order, status: 'preparing' }, new Date('2026-10-25T12:00:00+05:30'))).toBe(false);
+    expect(isUpcomingScheduled(order, new Date('2026-10-25T12:00:00+05:30'))).toBe(false);
   });
 });

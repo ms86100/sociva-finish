@@ -6,6 +6,7 @@ import { useCategoryConfigs } from '@/hooks/useCategoryBehavior';
 import {
   type CategoryActionConfig,
   type CommerceMode,
+  isPlaceholderBookListing,
   modeForAction,
   resolveListingAction,
 } from '@/lib/commerce-mode';
@@ -19,7 +20,7 @@ const TOP_UP_PAGE_SIZE = 1000;
 
 /** Same row shape get_products_for_sellers feeds into matching_products. */
 const TOP_UP_COLUMNS =
-  'id, seller_id, name, price, image_url, category, is_veg, is_available, is_bestseller, is_recommended, is_urgent, action_type, contact_phone, mrp, discount_percentage';
+  'id, seller_id, name, price, description, image_url, category, is_veg, is_available, is_bestseller, is_recommended, is_urgent, action_type, contact_phone, mrp, discount_percentage';
 
 export type CommerceModeBuckets = Record<CommerceMode, ProductWithSeller[]>;
 
@@ -102,9 +103,11 @@ export function bucketListingsByMode(
       if (!raw?.id || seen.has(raw.id)) continue;
       seen.add(raw.id);
       const action = resolveListingAction(raw.action_type, raw.category, categoryConfigs);
+      const mode = modeForAction(action);
+      if (mode === 'book' && isPlaceholderBookListing(raw)) continue;
       const listing = mapProduct(raw, seller);
       if (!raw.action_type) listing.action_type = action;
-      buckets[modeForAction(action)].push(listing);
+      buckets[mode].push(listing);
     }
   }
   return buckets;

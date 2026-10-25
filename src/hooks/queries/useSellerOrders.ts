@@ -7,6 +7,7 @@ import {
   emptyDashboardKpis,
   getIstPeriodBounds,
   isFutureScheduledAwaitingPrep,
+  shouldExcludeFromActionNeeded,
   isPortfolioSellerId,
   statusesForFilter,
   sumBoardCounts,
@@ -116,14 +117,21 @@ async function fetchPortfolioKpis(sellerIds: string[]): Promise<SellerDashboardK
 }
 
 async function fetchOneSellerCounts(sellerId: string): Promise<SellerBoardCounts> {
-  const { data, error } = await supabase.rpc('get_seller_order_board_counts', {
-    p_seller_id: sellerId,
-  });
-  if (!error && data) return mapCountsRpc(data as Record<string, unknown>);
-  // A heavier fallback query cannot succeed where the network just failed.
-  if (isTransientNetworkError(error)) throw error;
-  console.warn('[useSellerOrderFilterCounts] RPC fallback:', error?.message);
-  return fetchCountsClientFallback(sellerId);
+  // Prefer the schedule-aware client aggregate so Action needed / Upcoming chips
+  // match useSellerOrders list filters (future awaiting prep + stale overdue).
+  try {
+    return await fetchCountsClientFallback(sellerId);
+  } catch (error) {
+    if (isTransientNetworkError(error)) throw error;
+    const { data, error: rpcError } = await supabase.rpc('get_seller_order_board_counts', {
+      p_seller_id: sellerId,
+    });
+    if (!rpcError && data) {
+      console.warn('[useSellerOrderFilterCounts] client aggregate failed, using RPC:', (error as Error)?.message);
+      return mapCountsRpc(data as Record<string, unknown>);
+    }
+    throw error;
+  }
 }
 
 async function fetchPortfolioCounts(sellerIds: string[]): Promise<SellerBoardCounts> {
@@ -276,7 +284,7 @@ export function useSellerOrdersInfinite(
       let rows = (data as any[]) || [];
 
       if (typedFilter === 'pending') {
-        rows = rows.filter((r) => !isFutureScheduledAwaitingPrep(r));
+        rows = rows.filter((r) => !shouldExcludeFromActionNeeded(r));
       } else if (typedFilter === 'upcoming') {
         rows = rows.filter((r) => isFutureScheduledAwaitingPrep(r));
       }

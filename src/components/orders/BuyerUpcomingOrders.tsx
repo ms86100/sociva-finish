@@ -27,9 +27,13 @@ export function BuyerUpcomingOrders({ buyerId }: BuyerUpcomingOrdersProps) {
   const grouped = data?.grouped ?? [];
   if (grouped.length === 0) {
     return (
-      <div className="text-center py-10 text-sm text-muted-foreground">
-        <CalendarClock className="mx-auto mb-2 opacity-50" size={28} />
-        No upcoming scheduled orders
+      <div
+        className="text-center py-10 text-sm text-muted-foreground"
+        role="status"
+        data-testid="buyer-upcoming-empty"
+      >
+        <CalendarClock className="mx-auto mb-2 opacity-50" size={28} aria-hidden />
+        <p>No upcoming scheduled orders</p>
       </div>
     );
   }

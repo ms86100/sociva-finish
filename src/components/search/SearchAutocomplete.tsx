@@ -22,6 +22,10 @@ interface Props {
   query: string;
   onSelect: (product: any) => void;
   maxHeight?: number;
+  /** When passed, suggestions show only while the search field is focused. */
+  open?: boolean;
+  onDismiss?: () => void;
+  inputRef?: { current: HTMLInputElement | HTMLTextAreaElement | null };
 }
 
 interface CategoryMatch {
@@ -44,15 +48,21 @@ const INTENT_GROUPS = [
  * Replaces former ILIKE pattern matching for dramatically better
  * performance at scale (GIN index vs sequential scan).
  */
-export function SearchAutocomplete({ query, onSelect, maxHeight }: Props) {
+export function SearchAutocomplete({ query, onSelect, maxHeight, open, onDismiss, inputRef }: Props) {
   const { profile } = useAuth();
   const { formatPrice } = useCurrency();
   const { browsingLocation } = useBrowsingLocation();
   const navigate = useNavigate();
   const listboxId = useId();
   const rootRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
   const [activeIndex, setActiveIndex] = useState(-1);
   const [dismissedQuery, setDismissedQuery] = useState('');
+  const [inputFocused, setInputFocused] = useState(false);
+  const inputFocusedRef = useRef(false);
+  const onDismissRef = useRef(onDismiss);
+  onDismissRef.current = onDismiss;
+  inputFocusedRef.current = inputFocused || open === true;
   const { configs: categoryConfigs } = useCategoryConfigs();
   const { index: aliasIndex } = useResolvedCategoryAliases();
   const { data: marketplaceSellers, isLoading: marketplaceLoading } = useMarketplaceData();
@@ -176,7 +186,8 @@ export function SearchAutocomplete({ query, onSelect, maxHeight }: Props) {
 
   const hasResults = productSuggestions.length > 0 || sellerSuggestions.length > 0 || visibleCategories.length > 0;
   const optionCount = productSuggestions.length + sellerSuggestions.length + visibleCategories.length;
-  const isVisible = trimmed.length >= 2 && hasResults && dismissedQuery !== trimmed;
+  const focused = inputFocused || open === true;
+  const isVisible = trimmed.length >= 2 && hasResults && dismissedQuery !== trimmed && focused;
   const activeIndexRef = useRef(activeIndex);
   activeIndexRef.current = activeIndex;
   const optionCountRef = useRef(optionCount);
@@ -194,6 +205,59 @@ export function SearchAutocomplete({ query, onSelect, maxHeight }: Props) {
     if (!dismissedQuery) return;
     if (dismissedQuery !== trimmed) setDismissedQuery('');
   }, [trimmed, dismissedQuery]);
+
+  useEffect(() => {
+    const input = inputRef?.current || rootRef.current?.parentElement?.querySelector<HTMLInputElement>('input, textarea');
+    if (input && document.activeElement === input) setInputFocused(true);
+  }, [query, inputRef]);
+
+  useEffect(() => {
+    const host = rootRef.current?.parentElement;
+    const input = inputRef?.current || host?.querySelector<HTMLInputElement>('input, textarea');
+    if (!host || !input) return;
+
+    const onFocus = () => setInputFocused(true);
+    const onBlur = () => {
+      window.setTimeout(() => {
+        if (host.contains(document.activeElement) || listRef.current?.contains(document.activeElement)) return;
+        setInputFocused(false);
+      }, 80);
+    };
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target as Node | null;
+      if (target && (host.contains(target) || listRef.current?.contains(target))) return;
+      // Delay so a listing tap under the overlay still receives click.
+      window.setTimeout(() => {
+        setInputFocused(false);
+        setDismissedQuery(trimmedRef.current);
+        onDismissRef.current?.();
+      }, 0);
+    };
+    const onUserPageScroll = (event: Event) => {
+      if (!inputFocusedRef.current) return;
+      const target = event.target as Node | null;
+      if (target && (host.contains(target) || listRef.current?.contains(target))) return;
+      if (event instanceof WheelEvent && Math.abs(event.deltaX) > Math.abs(event.deltaY)) return;
+      setInputFocused(false);
+      onDismissRef.current?.();
+      if (document.activeElement === input) input.blur();
+    };
+
+    input.addEventListener('focus', onFocus);
+    input.addEventListener('blur', onBlur);
+    document.addEventListener('pointerdown', onPointerDown);
+    window.addEventListener('wheel', onUserPageScroll, { capture: true, passive: true });
+    window.addEventListener('touchmove', onUserPageScroll, { capture: true, passive: true });
+    if (document.activeElement === input) setInputFocused(true);
+
+    return () => {
+      input.removeEventListener('focus', onFocus);
+      input.removeEventListener('blur', onBlur);
+      document.removeEventListener('pointerdown', onPointerDown);
+      window.removeEventListener('wheel', onUserPageScroll, true);
+      window.removeEventListener('touchmove', onUserPageScroll, true);
+    };
+  }, [inputRef]);
 
   useEffect(() => {
     if (!isVisible || !rootRef.current) return;
@@ -216,7 +280,7 @@ export function SearchAutocomplete({ query, onSelect, maxHeight }: Props) {
         setActiveIndex((current) => (current <= 0 ? count - 1 : current - 1));
       } else if (event.key === 'Enter' && activeIndexRef.current >= 0) {
         event.preventDefault();
-        rootRef.current?.querySelector<HTMLButtonElement>(`[data-option-index="${activeIndexRef.current}"]`)?.click();
+        listRef.current?.querySelector<HTMLButtonElement>(`[data-option-index="${activeIndexRef.current}"]`)?.click();
       } else if (event.key === 'Escape') {
         setDismissedQuery(trimmedRef.current);
         setActiveIndex(-1);
@@ -238,8 +302,6 @@ export function SearchAutocomplete({ query, onSelect, maxHeight }: Props) {
     else input.removeAttribute('aria-activedescendant');
   }, [activeIndex, listboxId]);
 
-  if (!isVisible) return null;
-
   let optionIndex = 0;
   const optionProps = () => {
     const index = optionIndex++;
@@ -249,23 +311,26 @@ export function SearchAutocomplete({ query, onSelect, maxHeight }: Props) {
       'aria-selected': activeIndex === index,
       'data-option-index': index,
       onMouseEnter: () => setActiveIndex(index),
-      className: `w-full flex items-center gap-3 px-3 py-2.5 active:bg-muted transition-colors text-left border-b border-border last:border-0 ${
+      className: `pointer-events-auto w-full flex items-center gap-3 px-3 py-2.5 active:bg-muted transition-colors text-left border-b border-border last:border-0 ${
         activeIndex === index ? 'bg-muted' : 'hover:bg-muted/50'
       }`,
     };
   };
 
   return (
+    <div ref={rootRef} className="contents">
     <AnimatePresence>
+      {isVisible && (
       <motion.div
-        ref={rootRef}
+        ref={listRef}
         id={listboxId}
         role="listbox"
         aria-label="Search suggestions"
         initial={{ opacity: 0, y: -4 }}
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: -4 }}
-        className="absolute left-0 right-0 top-full mt-1 z-50 bg-card border border-border rounded-xl shadow-lg overflow-hidden overflow-y-auto overscroll-contain"
+        onMouseDown={(event) => event.preventDefault()}
+        className="pointer-events-none absolute left-0 right-0 top-full mt-1 z-50 bg-card border border-border rounded-xl shadow-lg overflow-hidden overflow-y-auto overscroll-contain"
         style={{ maxHeight: maxHeight ? `${maxHeight}px` : '42dvh' }}
       >
         {INTENT_GROUPS.map(({ key, label, icon: GroupIcon }) => groupedProducts[key].length > 0 && (
@@ -364,6 +429,8 @@ export function SearchAutocomplete({ query, onSelect, maxHeight }: Props) {
           </div>
         )}
       </motion.div>
+      )}
     </AnimatePresence>
+    </div>
   );
 }

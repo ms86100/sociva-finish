@@ -1,9 +1,14 @@
-import { lazy, Suspense, useCallback, useMemo, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
-import { AlertCircle, CalendarCheck, PackageSearch, ShoppingBag, Wrench } from 'lucide-react';
+import { AlertCircle, CalendarCheck, PackageSearch, Search, ShoppingBag, Sparkles, Users, Wrench, X } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
+import { SafeHeader } from '@/components/layout/SafeHeader';
+import { BackButton } from '@/components/navigation/BackButton';
 import { ParentGroupTabs } from '@/components/home/ParentGroupTabs';
 import { CommerceFacetRail } from '@/components/discovery/CommerceFacetRail';
+import { GuidedDiscoveryOverlayTile } from '@/components/discovery/GuidedDiscoveryOverlayTile';
+import { GuidedDiscoveryProductRow } from '@/components/discovery/GuidedDiscoveryProductRow';
+import { GuidedDiscoverySellerCard } from '@/components/discovery/GuidedDiscoverySellerCard';
 import { ProductListingCard, type ProductWithSeller } from '@/components/product/ProductListingCard';
 import { ProductCardSkeleton } from '@/components/product/ProductCardSkeleton';
 import { PreciseLocationRequiredCard } from '@/components/location/PreciseLocationRequiredCard';
@@ -13,7 +18,7 @@ import { useCommerceModeListings } from '@/hooks/queries/useCommerceModeListings
 import { applyProductFacetRow, useProductFacets } from '@/hooks/queries/useProductFacets';
 import { hasPreciseCoordinates } from '@/lib/buyerLocation';
 import type { CommerceMode } from '@/lib/commerce-mode';
-import { categoriesListedInMode } from '@/lib/commerce-mode';
+import { categoriesListedInMode, filterByMode } from '@/lib/commerce-mode';
 import { listingMatchesCategoryChip } from '@/lib/food-facets';
 import {
   type CommerceFacetState,
@@ -25,12 +30,19 @@ import {
 } from '@/lib/commerce-facets';
 import { buildProductDetailPayload, buildRelatedProductDetailPayload } from '@/lib/product-detail-payload';
 import { cn } from '@/lib/utils';
+import { hapticSelection } from '@/lib/haptics';
+import {
+  buildGuidedDiscoveryTiles,
+  type GuidedDiscoveryCategoryMeta,
+} from '@/lib/guided-discovery';
 import { IntentProductRail } from '@/components/discovery/IntentProductRail';
 import { UpcomingAppointmentBanner } from '@/components/home/UpcomingAppointmentBanner';
 import { GroupedSellerRow } from '@/components/home/GroupedSellerRow';
-import { BuyAgainRow, type BuyAgainProduct } from '@/components/home/BuyAgainRow';
+import { SearchAutocomplete } from '@/components/search/SearchAutocomplete';
 import { useIntentRailModel } from '@/hooks/useIntentRailModel';
 import { listingIdsFromCardRails, listingsForCatalogGrid } from '@/lib/intent-rails';
+import { useNearbyProductSearch } from '@/hooks/queries/useNearbyProductSearch';
+import { listingMatchesSearchText, stampSellerHoursFromInventory } from '@/lib/listing-search';
 
 const ProductDetailSheet = lazy(() =>
   import('@/components/product/ProductDetailSheet').then((m) => ({ default: m.ProductDetailSheet })),
@@ -49,14 +61,14 @@ export const COMMERCE_MODE_COPY: Record<CommerceMode, {
     emptyHint: 'Sellers near you have not listed items for delivery or pickup yet.',
   },
   book: {
-    title: 'Book a service',
-    subtitle: 'Reserve a time with someone nearby',
+    title: 'Book and Enquire',
+    subtitle: 'Tuition, salon, fitness and more',
     empty: 'Nothing to book nearby yet',
     emptyHint: 'No classes, sessions or appointments are open for booking near you yet.',
   },
   services: {
-    title: 'Contact a seller',
-    subtitle: 'Ask a question or request a quote',
+    title: 'Contact Seller',
+    subtitle: 'Browse neighbors and message them directly.',
     empty: 'No one nearby is taking enquiries yet',
     emptyHint: 'Sellers near you have not listed anything to enquire about yet.',
   },
@@ -93,6 +105,9 @@ function CommerceModeView({ mode }: { mode: CommerceMode }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const [activeCategory, setActiveCategory] = useState<string | null>(searchParams.get('sub'));
   const [facets, setFacets] = useState<CommerceFacetState>(emptyCommerceFacetState());
+  const [query, setQuery] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [detailOpen, setDetailOpen] = useState(false);
 
@@ -119,13 +134,31 @@ function CommerceModeView({ mode }: { mode: CommerceMode }) {
     [enriched, activeCategory],
   );
 
+  const queryNorm = query.trim().toLowerCase();
+  const searchActive = queryNorm.length >= 2;
+  const { data: ftsListings = [], isFetching: searchFetching } = useNearbyProductSearch(query);
+
+  const textMatched = useMemo(() => {
+    if (!searchActive) return scoped;
+    const localHits = enriched.filter((product) => listingMatchesSearchText(product, queryNorm));
+    const byId = new Map(localHits.map((product) => [product.id, product]));
+    for (const row of filterByMode(ftsListings, mode, categoryConfigs)) {
+      if (byId.has(row.id)) continue;
+      const local = enriched.find((product) => product.id === row.id);
+      byId.set(row.id, stampSellerHoursFromInventory(local || applyProductFacetRow(row, facetRows[row.id]), enriched));
+    }
+    return [...byId.values()];
+  }, [searchActive, queryNorm, scoped, enriched, ftsListings, mode, categoryConfigs, facetRows]);
+
+  const facetInventory = searchActive ? textMatched : scoped;
+
   const facetChips = useMemo(() => {
-    const chips = extractAvailableCommerceFacets(scoped, { parentGroup: activeGroup, currentState: facets, categoryConfigs });
-    return purposeChipsForMode(mode, chips, scoped, {
+    const chips = extractAvailableCommerceFacets(facetInventory, { parentGroup: activeGroup, currentState: facets, categoryConfigs });
+    return purposeChipsForMode(mode, chips, facetInventory, {
       categoryConfigs,
       actionType: facets.actionType,
     });
-  }, [scoped, activeGroup, facets, categoryConfigs, mode]);
+  }, [facetInventory, activeGroup, facets, categoryConfigs, mode]);
 
   const visible = useMemo(
     () => (hasActiveCommerceFacets(facets)
@@ -133,46 +166,62 @@ function CommerceModeView({ mode }: { mode: CommerceMode }) {
       : scoped),
     [scoped, facets, categoryConfigs],
   );
+  const searched = useMemo(() => {
+    if (!searchActive) return visible;
+    if (!hasActiveCommerceFacets(facets)) return textMatched;
+    return textMatched.filter((product) => productMatchesCommerceFacets(product, facets, categoryConfigs));
+  }, [searchActive, visible, textMatched, facets, categoryConfigs]);
   const intentRails = useIntentRailModel(mode, enriched, categoryConfigs);
   const catalogGrid = useMemo(
     () => listingsForCatalogGrid(visible, listingIdsFromCardRails(intentRails), Boolean(activeCategory)),
     [visible, intentRails, activeCategory],
   );
+  const mockupChrome = mode === 'book' || mode === 'services';
+  const categoryMeta = useMemo<GuidedDiscoveryCategoryMeta[]>(
+    () => categoryConfigs.map((config) => ({
+      category: config.category,
+      displayName: (config as { displayName?: string }).displayName,
+      imageUrl: (config as { imageUrl?: string | null }).imageUrl || null,
+    })),
+    [categoryConfigs],
+  );
+  const bookTiles = useMemo(
+    () => (mode === 'book'
+      ? buildGuidedDiscoveryTiles('book_enquire', listings, { categoryConfigs, categoryMeta }).slice(0, 4)
+      : []),
+    [mode, listings, categoryConfigs, categoryMeta],
+  );
+  const sellerGroups = useMemo(() => {
+    const map = new Map<string, ProductWithSeller[]>();
+    for (const product of searched) {
+      const key = product.seller_id || product.id;
+      const list = map.get(key) || [];
+      list.push(product);
+      map.set(key, list);
+    }
+    return [...map.values()];
+  }, [searched]);
 
   const handleProductTap = useCallback((product: ProductWithSeller) => {
     setSelectedProduct(buildProductDetailPayload(product, categoryConfigs));
     setDetailOpen(true);
   }, [categoryConfigs]);
 
-  const handleRepeatTap = useCallback((item: BuyAgainProduct) => {
-    handleProductTap({
-      id: item.id,
-      seller_id: item.seller_id,
-      name: item.name,
-      price: item.price,
-      image_url: item.image_url,
-      category: item.category,
-      action_type: item.action_type,
-      seller_name: item.seller_name,
-      is_veg: null,
-      is_available: true,
-      is_bestseller: false,
-      is_recommended: false,
-      is_urgent: false,
-      description: null,
-      created_at: '',
-      updated_at: '',
-    });
-  }, [handleProductTap]);
-
   const selectCategory = useCallback((cat: string | null) => {
     setActiveCategory(cat);
     setFacets(emptyCommerceFacetState());
+    setQuery('');
     const next = new URLSearchParams(searchParams);
     if (cat) next.set('sub', cat);
     else next.delete('sub');
     setSearchParams(next, { replace: true });
   }, [searchParams, setSearchParams]);
+
+  const selectBookTile = useCallback((id: string) => {
+    hapticSelection();
+    const slug = id.startsWith('category:') ? id.slice('category:'.length) : id;
+    selectCategory(activeCategory === slug ? null : slug);
+  }, [activeCategory, selectCategory]);
 
   const resetFilters = useCallback(() => {
     selectCategory(null);
@@ -181,62 +230,155 @@ function CommerceModeView({ mode }: { mode: CommerceMode }) {
   const hasListings = enriched.length > 0;
 
   return (
-    <AppLayout>
+    <AppLayout showHeader={!mockupChrome} safeTop={mockupChrome ? false : undefined}>
       <div data-testid={`commerce-mode-${mode}`} data-mode={mode} className="pb-4">
-        <div className="px-4 pt-3 pb-2 flex items-center gap-3">
-          <span className={cn('w-10 h-10 rounded-2xl flex items-center justify-center shrink-0', accent.chip)}>
-            <ModeIcon size={20} aria-hidden />
-          </span>
-          <div className="min-w-0 flex-1">
-            <h1 className="font-display text-display-sm text-foreground truncate">{copy.title}</h1>
-            <p className="text-xs text-muted-foreground truncate">{copy.subtitle}</p>
-          </div>
-          {!isLoading && hasListings && (
-            <span className="text-xs font-semibold text-muted-foreground tabular-nums" data-testid="commerce-mode-count">
-              {enriched.length} listing{enriched.length !== 1 ? 's' : ''}
+        {mockupChrome ? (
+          <SafeHeader bordered={false} blur>
+            <div className="px-4 pt-1 pb-2">
+              {mode === 'book' ? (
+                <div className="flex items-center gap-1 min-h-11">
+                  <BackButton fallback="/" className="bg-transparent text-primary w-9 h-9" />
+                  <div className="min-w-0">
+                    <h1 className="text-[18px] font-extrabold truncate leading-tight">{copy.title}</h1>
+                    <p className="text-[11px] text-muted-foreground truncate">{copy.subtitle}</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="relative flex items-center min-h-11">
+                  <BackButton fallback="/" className="absolute left-0 bg-transparent text-primary w-9 h-9" />
+                  <div className="mx-12 min-w-0 flex-1 text-center">
+                    <h1 className="text-[17px] font-extrabold truncate text-primary">{copy.title}</h1>
+                    <p className="text-[11px] text-muted-foreground truncate">{copy.subtitle}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </SafeHeader>
+        ) : (
+          <div className="px-4 pt-3 pb-2 flex items-center gap-3">
+            <span className={cn('w-10 h-10 rounded-2xl flex items-center justify-center shrink-0', accent.chip)}>
+              <ModeIcon size={20} aria-hidden />
             </span>
-          )}
-        </div>
+            <div className="min-w-0 flex-1">
+              <h1 className="font-display text-display-sm text-foreground truncate">{copy.title}</h1>
+              <p className="text-xs text-muted-foreground truncate">{copy.subtitle}</p>
+            </div>
+          </div>
+        )}
+        {!isLoading && hasListings && (
+          <span className="sr-only" data-testid="commerce-mode-count">
+            {enriched.length} listing{enriched.length !== 1 ? 's' : ''}
+          </span>
+        )}
 
         {needsPreciseLocation ? (
           <PreciseLocationRequiredCard />
         ) : (
           <>
+            {hasListings && mode === 'shop' && (
+              <ParentGroupTabs
+                activeCategory={activeCategory}
+                onCategoryChange={selectCategory}
+                activeCategories={modeCategories}
+              />
+            )}
+            {hasListings && mockupChrome && (
+              <div className="relative z-20 px-4 mt-2">
+                <label className="relative block">
+                  <Search size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                  <input
+                    ref={searchInputRef}
+                    type="text"
+                    value={query}
+                    onChange={(event) => setQuery(event.target.value)}
+                    onFocus={() => setSearchOpen(true)}
+                    onBlur={(event) => {
+                      const host = event.currentTarget.closest('label') || event.currentTarget.parentElement;
+                      window.setTimeout(() => {
+                        if (host?.contains(document.activeElement)) return;
+                        setSearchOpen(false);
+                      }, 80);
+                    }}
+                    placeholder={mode === 'book' ? 'Haircut, yoga, tuition' : 'Saree, cab, repair'}
+                    data-testid="commerce-mode-search"
+                    autoCorrect="off"
+                    autoCapitalize="off"
+                    spellCheck={false}
+                    enterKeyHint="search"
+                    inputMode="search"
+                    className="h-11 w-full rounded-2xl border border-border bg-muted/50 pl-10 pr-9 text-[14px] text-foreground placeholder:text-muted-foreground outline-none focus:border-primary/40"
+                  />
+                  {query && (
+                    <button
+                      type="button"
+                      aria-label="Clear search"
+                      onMouseDown={(event) => event.preventDefault()}
+                      onClick={() => setQuery('')}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
+                  <SearchAutocomplete
+                    query={query}
+                    inputRef={searchInputRef}
+                    open={searchOpen}
+                    maxHeight={220}
+                    onDismiss={() => {
+                      setSearchOpen(false);
+                      searchInputRef.current?.blur();
+                    }}
+                    onSelect={(product) => {
+                      setSearchOpen(false);
+                      searchInputRef.current?.blur();
+                      setSelectedProduct(product);
+                      setDetailOpen(true);
+                    }}
+                  />
+                </label>
+              </div>
+            )}
+            {mode === 'book' && !searchActive && <div className="px-4 mt-2"><UpcomingAppointmentBanner /></div>}
+            {hasListings && mode === 'book' && !searchActive && bookTiles.length > 0 && (
+              <div className="px-4 mt-2">
+                <p className="mb-2.5 flex items-center gap-1.5 text-[13px] font-extrabold tracking-[0.12em] text-primary">
+                  <Sparkles size={14} />
+                  POPULAR SERVICES
+                </p>
+                <div className="grid grid-cols-2 gap-3" data-testid="guided-discovery-tiles">
+                  {bookTiles.map((tile) => (
+                    <GuidedDiscoveryOverlayTile
+                      key={tile.id}
+                      tile={tile}
+                      selected={activeCategory === tile.id.slice('category:'.length)}
+                      service
+                      onSelect={selectBookTile}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
             {hasListings && (
-              <>
-                <ParentGroupTabs
-                  activeCategory={activeCategory}
-                  onCategoryChange={selectCategory}
-                  activeCategories={modeCategories}
-                />
-                <CommerceFacetRail
-                  value={facets}
-                  onChange={setFacets}
-                  chips={facetChips}
-                  parentGroup={activeGroup}
-                  className="py-1"
-                  inventory={scoped}
-                />
-              </>
+              <CommerceFacetRail
+                value={facets}
+                onChange={setFacets}
+                chips={facetChips}
+                parentGroup={activeGroup}
+                className="py-1"
+                inventory={facetInventory}
+              />
             )}
-
-            {mode === 'book' && <div className="px-4"><UpcomingAppointmentBanner /></div>}
-            {!activeCategory && (mode === 'book' || mode === 'services') && (
-              <BuyAgainRow mode={mode} onOpenListing={handleRepeatTap} />
-            )}
-            {!activeCategory && (mode === 'book' || mode === 'services') && intentRails.primary && (
+            {!activeCategory && mode === 'shop' && intentRails.primary && (
               <GroupedSellerRow
                 title={intentRails.primary.title}
                 subtitle={browsingLocation?.label || undefined}
-                icon={mode === 'book'
-                  ? <CalendarCheck size={15} className="text-primary" />
-                  : <Wrench size={15} className="text-primary" />}
+                icon={<ShoppingBag size={15} className="text-primary" />}
                 products={intentRails.primary.products}
                 onProductTap={handleProductTap}
                 categoryConfigs={categoryConfigs}
               />
             )}
-            {!activeCategory && ['recentlyViewed', 'newlyListed', 'sinceLastVisit', 'moreInCategory', 'favourites'].map((key) => {
+            {!activeCategory && mode === 'shop' && ['recentlyViewed', 'newlyListed', 'sinceLastVisit', 'moreInCategory', 'favourites'].map((key) => {
               const rail = intentRails[key];
               if (!rail) return null;
               return (
@@ -267,20 +409,62 @@ function CommerceModeView({ mode }: { mode: CommerceMode }) {
               </div>
             )}
 
-            <div className="px-3 sm:px-4 pt-2">
-              {!isLoading && catalogGrid.length > 0 && mode !== 'shop' && (
-                <h2 className="px-1 pb-2 font-extrabold text-[15px] tracking-tight text-foreground">
-                  {mode === 'book' ? 'Available to book' : 'Listings you can enquire about'}
-                </h2>
+            <div className={cn(mockupChrome ? 'px-4 mt-4' : 'px-3 sm:px-4 pt-2')} data-testid={searchActive ? 'commerce-mode-search-results' : undefined}>
+              {searchActive && !isLoading && (
+                <div className="mb-3">
+                  <p className="text-sm font-bold text-foreground">
+                    {searched.length} matching {searched.length === 1 ? 'listing' : 'listings'}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {searchFetching && searched.length === 0
+                      ? 'Searching nearby listings...'
+                      : `Results for ${query.trim()} - use the chips above to filter`}
+                  </p>
+                </div>
+              )}
+              {!isLoading && searched.length > 0 && mockupChrome && !searchActive && (
+                <div className="mb-3 flex items-center justify-between gap-2">
+                  <p className={cn(
+                    mode === 'services'
+                      ? 'flex items-center gap-1.5 text-[13px] font-extrabold tracking-[0.12em] text-primary'
+                      : 'text-[15px] font-extrabold tracking-tight text-foreground',
+                  )}>
+                    {mode === 'services' && <Users size={14} />}
+                    {mode === 'services' ? 'Browse listings' : 'Popular services'}
+                  </p>
+                </div>
               )}
               {isLoading ? (
                 <div data-testid="commerce-mode-loading">
                   <ProductCardSkeleton count={9} />
                 </div>
-              ) : catalogGrid.length > 0 ? (
+              ) : mode === 'book' && searched.length > 0 ? (
+                <div className="space-y-2.5">
+                  {searched.map((product) => (
+                    <GuidedDiscoveryProductRow
+                      key={product.id}
+                      product={product}
+                      onTap={handleProductTap}
+                      categoryConfigs={categoryConfigs}
+                    />
+                  ))}
+                </div>
+              ) : mode === 'services' && sellerGroups.length > 0 ? (
+                <div className="space-y-3">
+                  {sellerGroups.map((group) => (
+                    <GuidedDiscoverySellerCard
+                      key={group[0].seller_id || group[0].id}
+                      products={group}
+                      categoryLabel={categoryMeta.find((meta) => meta.category === group[0].category)?.displayName || group[0].category}
+                      categoryConfigs={categoryConfigs}
+                      onOpenListing={handleProductTap}
+                    />
+                  ))}
+                </div>
+              ) : mode === 'shop' && catalogGrid.length > 0 ? (
                 <div className={cn(
                   'grid gap-2 sm:gap-3',
-                  mode === 'services' ? 'grid-cols-2' : 'grid-cols-3 sm:grid-cols-3 md:grid-cols-4',
+                  'grid-cols-3 sm:grid-cols-3 md:grid-cols-4',
                 )} data-testid="commerce-mode-grid">
                   {catalogGrid.map((product) => (
                     <ProductListingCard
@@ -297,6 +481,13 @@ function CommerceModeView({ mode }: { mode: CommerceMode }) {
                   <p className="text-sm font-medium text-foreground">No listings match these filters</p>
                   <button onClick={resetFilters} className="mt-2 text-xs text-primary font-semibold hover:underline">
                     Reset filters
+                  </button>
+                </div>
+              ) : hasListings && searched.length === 0 ? (
+                <div className="p-6 rounded-2xl bg-muted/40 text-center border border-dashed border-border">
+                  <p className="text-sm font-medium text-foreground">No listings match this search</p>
+                  <button onClick={() => setQuery('')} className="mt-2 text-xs text-primary font-semibold hover:underline">
+                    Show all listings
                   </button>
                 </div>
               ) : hasListings ? null : !topUpError ? (

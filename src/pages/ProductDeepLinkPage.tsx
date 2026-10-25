@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { useEffect, useState, useCallback } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useSmartBack } from '@/hooks/useSmartBack';
 import { supabase } from '@/integrations/supabase/client';
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -16,6 +16,7 @@ import { resolveMergedProductId } from '@/lib/product-merges';
 export default function ProductDeepLinkPage() {
   const { productId } = useParams<{ productId: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const goBack = useSmartBack('/');
   const { browsingLocation } = useBrowsingLocation();
   const [product, setProduct] = useState<any>(null);
@@ -165,12 +166,11 @@ export default function ProductDeepLinkPage() {
       // Dismissing the sheet leaves this product route. A link inside the
       // sheet (store, cart) navigates first; only go back if we are still here.
       window.setTimeout(() => {
-        const hash = window.location.hash.replace(/^#/, '') || '/';
-        const path = hash.split('?')[0] || '/';
-        if (path.startsWith('/product/')) goBack({ fallback: '/' });
+        const currentPath = location.pathname;
+        if (currentPath.startsWith('/product/')) goBack({ fallback: '/' });
       }, 0);
     }
-  }, [goBack]);
+  }, [goBack, location.pathname]);
 
   if (isLoading) {
     return (
