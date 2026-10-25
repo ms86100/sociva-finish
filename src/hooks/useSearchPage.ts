@@ -307,7 +307,8 @@ export function useSearchPage() {
         setResults(filtered);
 
         // A committed search is a completed retrieval, never an input keystroke.
-        if (normalizedTerm.length >= 2) {
+        // Skip 1-2 letter stubs so bir / bi do not land in seller stats.
+        if (normalizedTerm.length >= 3) {
           const telemetryFilters = {
             categories: effectiveCategories,
             minRating: filters.minRating,

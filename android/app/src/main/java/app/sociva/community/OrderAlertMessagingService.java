@@ -44,7 +44,8 @@ public class OrderAlertMessagingService extends MessagingService {
         if ("unacked_order".equals(reminder)
             || "status_nudge".equals(reminder)
             || "scheduled_prep".equals(reminder)
-            || "scheduled_late".equals(reminder)) {
+            || "scheduled_late".equals(reminder)
+            || "scheduled_accept".equals(reminder)) {
             return true;
         }
         if (!"seller".equals(role) || status == null) return false;

@@ -7,6 +7,11 @@ import {
   emptyCommerceFacetState,
   normalizeServiceMode,
   purposeChipsForMode,
+  packLooksLikeSize,
+  packSizeBuyerLabel,
+  remainingAttributeCount,
+  shouldShowTasteChip,
+  tasteSheetCounts,
 } from '@/lib/commerce-facets';
 
 describe('commerce facets extraction and filtering', () => {
@@ -153,8 +158,12 @@ describe('commerce facets extraction and filtering', () => {
     expect(rail).toContain('FOOD_CUISINES');
     expect(rail).toContain('FOOD_MEALS');
     expect(rail).toContain('FOOD_COURSES');
-    expect(rail).toContain('vegCount');
-    expect(rail).toContain('nonVegCount');
+    expect(rail).toContain('tasteSheetCounts');
+    expect(rail).toContain('shouldShowTasteChip');
+    expect(rail).toContain('Pack size');
+    expect(rail).toContain('Refine what is nearby');
+    expect(rail).not.toContain('From this catalogue');
+    expect(rail).not.toContain('foodMoodCount');
     expect(rail).not.toMatch(/label="Veg Only"\s*\n\s*count=\{0\}/);
   });
 
@@ -226,5 +235,67 @@ describe('commerce facets extraction and filtering', () => {
 
     const festive = { ...emptyCommerceFacetState(), catalogueTag: 'festive' };
     expect(clothing.filter((product) => productMatchesCommerceFacets(product, festive)).map((product) => product.id)).toEqual(['c1']);
+  });
+});
+
+describe('taste sheet remaining counts and pack labels', () => {
+  const food = [
+    { id: 'b1', name: 'Poha', category: 'home_food', parentGroup: 'food_beverages', price: 60, tags: ['Breakfast'], cuisine_type: 'north_indian', is_veg: true, spice_level: 'mild', serving_size: '1' },
+    { id: 'b2', name: 'Masala Dosa', category: 'home_food', parentGroup: 'food_beverages', price: 120, tags: ['Breakfast'], cuisine_type: 'south_indian', is_veg: true, spice_level: 'medium', serving_size: '1' },
+    { id: 'l1', name: 'Butter Chicken', category: 'home_food', parentGroup: 'food_beverages', price: 220, tags: ['Lunch'], cuisine_type: 'north_indian', is_veg: false, spice_level: 'hot', serving_size: '200 g' },
+    { id: 'l2', name: 'Veg Fried Rice', category: 'home_food', parentGroup: 'food_beverages', price: 140, tags: ['Lunch'], cuisine_type: 'chinese', is_veg: true, spice_level: 'medium', serving_size: '200 g' },
+  ];
+
+  it('keeps breakfast and cuisine counts when food_mood chips were stripped', () => {
+    const chips = extractAvailableCommerceFacets(food, {
+      parentGroup: 'food_beverages',
+      currentState: emptyCommerceFacetState(),
+    }).filter((chip) => chip.type !== 'food_mood');
+    expect(chips.some((chip) => chip.type === 'food_mood')).toBe(false);
+
+    const breakfast = { ...emptyCommerceFacetState(), meal: 'breakfast' };
+    const counts = tasteSheetCounts(food, breakfast);
+    expect(counts.meals.breakfast).toBe(2);
+    expect(counts.cuisines.north_indian).toBe(1);
+    expect(counts.cuisines.south_indian).toBe(1);
+    expect(shouldShowTasteChip(counts.meals.breakfast, true)).toBe(true);
+  });
+
+  it('scopes veg and cuisine to breakfast while meal switchers use the full list', () => {
+    const breakfast = { ...emptyCommerceFacetState(), meal: 'breakfast' };
+    const counts = tasteSheetCounts(food, breakfast);
+    expect(counts.veg).toBe(2);
+    expect(counts.nonVeg).toBe(0);
+    expect(counts.cuisines.chinese).toBe(0);
+    expect(counts.meals.lunch).toBe(2);
+    expect(shouldShowTasteChip(counts.cuisines.chinese, false)).toBe(false);
+    expect(shouldShowTasteChip(counts.meals.lunch, false)).toBe(true);
+    expect(shouldShowTasteChip(0, true)).toBe(true);
+  });
+
+  it('labels pack 1 as Serves 1 and keeps 200 g, skipping SKU noise', () => {
+    expect(packSizeBuyerLabel('1')).toBe('Serves 1');
+    expect(packSizeBuyerLabel('200 g')).toBe('200 g');
+    expect(packLooksLikeSize('1')).toBe(true);
+    expect(packLooksLikeSize('200 g')).toBe(true);
+    expect(packLooksLikeSize('SKU-99')).toBe(false);
+
+    const mixed = [
+      ...food,
+      { id: 'x1', name: 'Mystery jar', category: 'pickles', parentGroup: 'food_beverages', price: 90, is_veg: true, serving_size: 'SKU-99' },
+    ];
+    const chips = extractAvailableCommerceFacets(mixed, {
+      parentGroup: 'food_beverages',
+      currentState: emptyCommerceFacetState(),
+    });
+    const packs = chips.filter((chip) => chip.type === 'pack');
+    expect(packs.map((chip) => chip.label).sort()).toEqual(['200 g', 'Serves 1']);
+    expect(packs.some((chip) => chip.value === 'SKU-99')).toBe(false);
+
+    const breakfast = { ...emptyCommerceFacetState(), meal: 'breakfast' };
+    expect(remainingAttributeCount(food, breakfast, 'pack', '1')).toBe(2);
+    expect(remainingAttributeCount(food, breakfast, 'pack', '200 g')).toBe(0);
+    expect(remainingAttributeCount(food, breakfast, 'spice', 'hot')).toBe(0);
+    expect(remainingAttributeCount(food, breakfast, 'spice', 'mild')).toBe(1);
   });
 });

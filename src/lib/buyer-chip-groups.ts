@@ -29,5 +29,6 @@ export function categoryMatchesBuyerChip(
   chipId: string | null | undefined,
 ): boolean {
   if (!chipId) return true;
+  if (productCategory === chipId) return true;
   return buyerChipCategory(productCategory) === chipId;
 }

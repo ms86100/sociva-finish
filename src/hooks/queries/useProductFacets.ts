@@ -13,6 +13,7 @@ export interface ProductFacetRow {
   unit_type: string | null;
   price_per_unit: string | null;
   prep_time_minutes: number | null;
+  lead_time_hours: number | null;
   service_duration_minutes: number | null;
   delivery_time_text: string | null;
   service_scope: string | null;
@@ -35,6 +36,7 @@ export function applyProductFacetRow<T extends Record<string, any>>(product: T, 
     unit_type: row.unit_type ?? product.unit_type,
     price_per_unit: row.price_per_unit ?? product.price_per_unit,
     prep_time_minutes: row.prep_time_minutes ?? product.prep_time_minutes,
+    lead_time_hours: row.lead_time_hours ?? product.lead_time_hours,
     service_duration_minutes: row.service_duration_minutes ?? product.service_duration_minutes,
     delivery_time_text: row.delivery_time_text ?? product.delivery_time_text,
     service_scope: row.service_scope ?? product.service_scope,
@@ -54,7 +56,7 @@ export function useProductFacets(productIds: string[], enabled = true) {
       if (unique.length === 0) return {};
       const { data, error } = await supabase
         .from('products')
-        .select('id, tags, cuisine_type, subcategory_id, stock_quantity, serving_size, spice_level, unit_type, price_per_unit, prep_time_minutes, service_duration_minutes, delivery_time_text, service_scope, description, minimum_charge, visit_charge')
+        .select('id, tags, cuisine_type, subcategory_id, stock_quantity, serving_size, spice_level, unit_type, price_per_unit, prep_time_minutes, lead_time_hours, service_duration_minutes, delivery_time_text, service_scope, description, minimum_charge, visit_charge')
         .in('id', unique);
       if (error) {
         console.error('Product facets load failed:', error);

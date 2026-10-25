@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
   classifyOrderBucket,
+  clusterSearchDemand,
   conversionPercent,
   identifyTraitsForAmplitude,
   isOutForDelivery,
+  levenshtein,
+  normalizeSearchTerm,
   onboardingStageFromStep,
   productViewDayKey,
   stageFromSellerStore,
@@ -93,5 +96,35 @@ describe('seller payload privacy', () => {
     expect(safe.products[0].viewer_id).toBeUndefined();
     expect(safe.products[0].views).toBe(2);
     expect(safe.demand[0].search_term).toBe('biryani');
+  });
+});
+
+describe('search demand clustering', () => {
+  it('groups keystroke prefixes and one-letter typos onto the longest query', () => {
+    const clustered = clusterSearchDemand([
+      { search_term: 'biry', unique_users: 1, searches: 1, no_results: true },
+      { search_term: 'birya', unique_users: 1, searches: 1, no_results: true },
+      { search_term: 'biryan', unique_users: 1, searches: 1, no_results: true },
+      { search_term: 'biryani', unique_users: 1, searches: 2, no_results: true, matched_your_listings: true },
+      { search_term: 'biryanu', unique_users: 1, searches: 1, no_results: true },
+      { search_term: 'cake.', unique_users: 1, searches: 1, no_results: true },
+      { search_term: 'cake', unique_users: 1, searches: 1, no_results: true },
+      { search_term: 'berd', unique_users: 1, searches: 1, no_results: true },
+    ]);
+
+    expect(normalizeSearchTerm('cake.')).toBe('cake');
+    expect(levenshtein('biryani', 'biryanu')).toBe(1);
+
+    const biryani = clustered.find((row) => row.search_term === 'biryani');
+    expect(biryani).toBeTruthy();
+    expect(biryani?.unique_users).toBe(5);
+    expect(biryani?.searches).toBe(6);
+    expect(biryani?.matched_your_listings).toBe(true);
+    expect(biryani?.aliases.sort()).toEqual(['biry', 'birya', 'biryan', 'biryanu']);
+
+    const cake = clustered.find((row) => row.search_term === 'cake');
+    expect(cake?.unique_users).toBe(2);
+    expect(clustered.some((row) => row.search_term === 'berd')).toBe(true);
+    expect(clustered.some((row) => row.search_term === 'biry')).toBe(false);
   });
 });

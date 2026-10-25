@@ -34,10 +34,21 @@ describe('seller priority notify matrix (closed app + gate_bell)', () => {
     const android = read('android/app/src/main/java/app/sociva/community/OrderAlertMessagingService.java');
     expect(android).toContain('"scheduled_prep".equals(reminder)');
     expect(android).toContain('"scheduled_late".equals(reminder)');
+    expect(android).toContain('"scheduled_accept".equals(reminder)');
 
     const pnq = read('supabase/functions/process-notification-queue/index.ts');
     expect(pnq).toContain('payload.reminder_type === "scheduled_prep"');
     expect(pnq).toContain('payload.reminder_type === "scheduled_late"');
+    expect(pnq).toContain('payload.reminder_type === "scheduled_accept"');
+  });
+
+  it('rings sellers to accept a closed-store scheduled order every 15 minutes in the accept window', () => {
+    const statusReminders = read('supabase/functions/send-seller-status-reminders/index.ts');
+    expect(statusReminders).toContain('const REMINDER_INTERVAL_MIN = 15');
+    expect(statusReminders).toContain('reminder_type: "scheduled_accept"');
+    expect(statusReminders).toContain('SCHEDULED_ACCEPT_LEAD_MIN');
+    expect(statusReminders).toContain('Accept this scheduled order');
+    expect(read('src/hooks/useSellerStatusNudge.ts')).toContain('const NUDGE_INTERVAL_MS = 15 * 60 * 1000');
   });
 
   it('keeps placed / enquired creation paths on the high-priority allowlist', () => {

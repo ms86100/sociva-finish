@@ -36,6 +36,7 @@ describe('OTP session mint (no wasted MSG91 OTP)', () => {
   it('seller messages loads contact leads for all stores', () => {
     const src = read('src/pages/SellerMessagesPage.tsx');
     expect(src).toMatch(/sellerProfiles\.map\(\(s\) => s\.id\)/);
+    expect(src).toMatch(/const activeSellerId = resolveOperationalSellerId/);
     expect(src).not.toMatch(/if \(activeSellerId\) return \[activeSellerId\]/);
   });
 });

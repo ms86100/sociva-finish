@@ -620,7 +620,8 @@ export function usePushNotificationsInternal() {
         const isHighPriority = data?.high_priority === 'true';
         const isStatusNudge = data?.type === 'seller_order_status_reminder'
           || data?.reminder_type === 'status_nudge'
-          || data?.reminder_type === 'unacked_order';
+          || data?.reminder_type === 'unacked_order'
+          || data?.reminder_type === 'scheduled_accept';
         if (isStatusNudge && orderId) {
           window.dispatchEvent(new CustomEvent('seller-status-nudge', { detail: { orderId } }));
         }
@@ -693,7 +694,8 @@ export function usePushNotificationsInternal() {
           const isSellerRefund = String(data?.status || '').toLowerCase() === 'refund_requested'
             && String(data?.target_role || '').toLowerCase() === 'seller';
           const isSellerOrder = !isSellerRefund && (data?.type === 'order' || data?.type === 'order_created');
-          const isUnacked = data?.reminder_type === 'unacked_order';
+          const isUnacked = data?.reminder_type === 'unacked_order'
+            || data?.reminder_type === 'scheduled_accept';
           toastOptions.action = {
             label: isUnacked ? 'Accept' : isStatusNudge ? 'Update Status' : 'View',
             onClick: () => {

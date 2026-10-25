@@ -38,7 +38,8 @@ function isClosedAppSellerAlert(data: Record<string, string> | undefined, highPr
     data.reminder_type === "unacked_order" ||
     data.reminder_type === "status_nudge" ||
     data.reminder_type === "scheduled_prep" ||
-    data.reminder_type === "scheduled_late"
+    data.reminder_type === "scheduled_late" ||
+    data.reminder_type === "scheduled_accept"
   );
 }
 
@@ -423,7 +424,7 @@ Deno.serve(async (req) => {
     const reminderType = data?.reminder_type || '';
     const derivedHighPriority =
       (data?.target_role === 'seller' && SELLER_HP.includes(data?.status || '')) ||
-      (data?.target_role === 'seller' && (reminderType === 'scheduled_prep' || reminderType === 'scheduled_late')) ||
+      (data?.target_role === 'seller' && (reminderType === 'scheduled_prep' || reminderType === 'scheduled_late' || reminderType === 'scheduled_accept')) ||
       (data?.target_role === 'buyer' && BUYER_HP.includes(data?.status || ''));
     const highPriority = data?.target_role === 'buyer'
       ? BUYER_HP.includes(data?.status || '')

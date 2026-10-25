@@ -28,6 +28,7 @@ const EXCLUDED_EVENT_TYPES = new Set([
 
 const UNACKED_REMINDER_TYPE = "seller_order_status_reminder";
 const UNACKED_REMINDER_KIND = "unacked_order";
+const SCHEDULED_ACCEPT_REMINDER_KIND = "scheduled_accept";
 
 export interface IosTimeSensitiveInput {
   targetRole?: string | null;
@@ -63,7 +64,10 @@ export function isIosTimeSensitiveSellerAlert(input: IosTimeSensitiveInput): boo
   if (types.some((type) => EXCLUDED_EVENT_TYPES.has(type))) return false;
 
   const reminderType = input.reminderType || "";
-  if (reminderType === UNACKED_REMINDER_KIND && types.includes(UNACKED_REMINDER_TYPE)) {
+  if (
+    (reminderType === UNACKED_REMINDER_KIND || reminderType === SCHEDULED_ACCEPT_REMINDER_KIND)
+    && types.includes(UNACKED_REMINDER_TYPE)
+  ) {
     return true;
   }
 

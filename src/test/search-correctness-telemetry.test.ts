@@ -79,6 +79,7 @@ describe('search correctness and committed telemetry', () => {
     expect(v2Call).toBeGreaterThan(-1);
     expect(fallbackCall).toBeGreaterThan(v2Call);
     expect(telemetryCall).toBeGreaterThan(fallbackCall);
+    expect(searchHook).toMatch(/normalizedTerm\.length >= 3/);
     expect(searchHook).not.toMatch(
       /from\('search_demand_log'\)\.insert/,
     );

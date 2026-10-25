@@ -103,7 +103,7 @@ export function ShopByStoreDiscovery({ sectionTitle }: { sectionTitle?: string }
   const renderSellerRow = (sellers: LocalSeller[], serviceMode = false) => (
     <motion.div
       variants={staggerContainer}
-      initial="hidden"
+      initial={false}
       animate="show"
       className="flex gap-3 overflow-x-auto scrollbar-hide px-4 pb-2 items-stretch"
     >
@@ -169,7 +169,7 @@ export function ShopByStoreDiscovery({ sectionTitle }: { sectionTitle?: string }
           ) : (
             <motion.div
               variants={staggerContainer}
-              initial="hidden"
+              initial={false}
               animate="show"
               className="space-y-3"
             >

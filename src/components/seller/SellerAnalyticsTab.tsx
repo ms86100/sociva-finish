@@ -94,7 +94,7 @@ export function SellerAnalyticsTab({ sellerId }: SellerAnalyticsTabProps) {
           <motion.div
             key={s.label}
             variants={cardEntrance}
-            className="bg-card border border-border rounded-xl p-3"
+            className="bg-card border border-border border-r-2 rounded-xl p-3"
           >
             <div className="flex items-center gap-1.5 mb-1">
               <s.icon size={14} className={s.color} />

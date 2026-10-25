@@ -119,6 +119,18 @@ describe('search keyboard back', () => {
     stop();
   });
 
+  it('lets the on-screen back arrow fire even while the field is focused', () => {
+    expect(searchPageSource).toContain('isTypingTarget(event.target) || isSearchExitTarget(event.target)');
+    expect(searchPageSource).toContain('releaseSearchKeyboard(inputRef.current)');
+    expect(searchPageSource).toContain('leaveSearch({ fallback: \'/\' })');
+  });
+
+  it('does not dump home listings until the user types or picks a filter', () => {
+    expect(searchPageSource).toContain('s.isSearchActive && visibleProducts.length > 0');
+    expect(searchPageSource).toContain('SearchIdleHint');
+    expect(searchPageSource).toContain('Type a dish, service, or seller name');
+  });
+
   it('search registers its keyboard interceptor as system-only', () => {
     expect(searchPageSource).toMatch(/useBackInterceptor\(inputFocused && keyboard\.isKeyboardOpen[\s\S]*?'page', \{ systemOnly: true \}\)/);
   });

@@ -105,7 +105,7 @@ describe('payment verify reminder migration', () => {
     const fs = await import('node:fs/promises');
     const content = await fs.readFile('supabase/functions/process-notification-queue/index.ts', 'utf8');
     expect(content).toContain('payment_verify_pending');
-    expect(content).toContain("rawPayload.reminder_type === 'payment_verify'");
+    expect(content).toContain("reminderType === 'payment_verify'");
     expect(content).toContain("item.type === 'refund_request'");
     expect(content).toContain('refund_requested');
   });

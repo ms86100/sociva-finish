@@ -14,10 +14,12 @@ describe('seller enquiry workflow action layout', () => {
   });
 
   it('keeps contact-enquiry labels and the full seller/buyer action bars', () => {
-    expect(page).toMatch(/Accept Enquiry/);
-    expect(page).toMatch(/Mark Delivered/);
+    const labels = readFileSync(resolve(__dirname, '../lib/order-workflow-action-label.ts'), 'utf8');
+    expect(labels).toMatch(/Accept Enquiry/);
+    expect(labels).toMatch(/Mark Delivered/);
     expect(page).toMatch(/hasSellerActionBar/);
     expect(page).toMatch(/hasBuyerActionBar/);
     expect(page).toMatch(/getActionLabel/);
+    expect(page).toMatch(/orderWorkflowActionLabel/);
   });
 });

@@ -64,9 +64,11 @@ import { syncStatusBarForTheme } from "@/lib/capacitor";
 /** Keeps native status-bar icon contrast aligned with app theme. */
 function ThemeStatusBarSync() {
   const { resolvedTheme, theme } = useTheme();
+  const { pathname } = useLocation();
   useEffect(() => {
-    syncStatusBarForTheme(resolvedTheme || theme || 'dark');
-  }, [resolvedTheme, theme]);
+    const homeGreen = pathname === '/' || pathname === '';
+    syncStatusBarForTheme(homeGreen ? 'dark' : (resolvedTheme || theme || 'light'));
+  }, [resolvedTheme, theme, pathname]);
   return null;
 }
 import { AuthProvider, useAuth, useOptionalAuth } from "@/contexts/AuthContext";
@@ -166,6 +168,7 @@ const PrivacyPolicyPage = lazyWithRetry(() => import("./pages/PrivacyPolicyPage"
 const DeleteAccountPage = lazyWithRetry(() => import("./pages/DeleteAccountPage"));
 const TermsPage = lazyWithRetry(() => import("./pages/TermsPage"));
 const CategoryGroupPage = lazyWithRetry(() => import("./pages/CategoryGroupPage"));
+const GuidedDiscoveryHubPage = lazyWithRetry(() => import("./pages/GuidedDiscoveryHubPage"));
 const CategoriesPage = lazyWithRetry(() => import("./pages/CategoriesPage"));
 const DiscoveryListingsPage = lazyWithRetry(() => import("./pages/DiscoveryListingsPage"));
 const CommerceModePage = lazyWithRetry(() => import("./pages/CommerceModePage"));
@@ -661,6 +664,7 @@ function AppRoutes() {
           <Route path="/community" element={<RouteErrorBoundary sectionName="Community"><BulletinPage /></RouteErrorBoundary>} />
           <Route path="/categories" element={<RouteErrorBoundary sectionName="Categories"><CategoriesPage /></RouteErrorBoundary>} />
           <Route path="/category/:category" element={<RouteErrorBoundary sectionName="Category"><CategoryGroupPage /></RouteErrorBoundary>} />
+          <Route path="/explore/:hubId" element={<RouteErrorBoundary sectionName="Explore"><GuidedDiscoveryHubPage /></RouteErrorBoundary>} />
           <Route path="/discovery/:type" element={<RouteErrorBoundary sectionName="Discovery"><DiscoveryListingsPage /></RouteErrorBoundary>} />
           <Route path="/shop" element={<Navigate to="/" replace />} />
           <Route path="/contact" element={<Navigate to="/services" replace />} />
@@ -858,15 +862,15 @@ function App() {
 
   return (
     <ErrorBoundary>
-      <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false} themes={['light', 'dark']}>
+      <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} storageKey="sociva-theme" themes={['light', 'dark']}>
        <MotionConfig reducedMotion="user">
-        <ThemeStatusBarSync />
         <QueryClientProvider client={queryClient}>
           <TooltipProvider>
             <StagingBanner />
             <OfflineBanner />
             <Sonner />
             <HashRouter>
+              <ThemeStatusBarSync />
               <NavigationStackTracker />
               <ScrollRestoration />
               <PullToRefreshHost />

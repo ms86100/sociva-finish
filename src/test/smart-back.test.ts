@@ -11,6 +11,7 @@ import {
   consumeUntrustedPop,
   getNavigationStackForTests,
   toNavPath,
+  resolveTransientExitPath,
 } from '@/lib/navigation-stack';
 import { isJourneyBack, readSearchJourney, writeSearchJourney, searchJourneyKey } from '@/lib/search-journey';
 import { defaultFilters } from '@/components/search/SearchFilters';
@@ -89,6 +90,15 @@ describe('navigation stack', () => {
 
   it('keeps search query text in the journey path', () => {
     expect(toNavPath('/search', '?q=biryani&sort=rating')).toBe('/search?q=biryani&sort=rating');
+  });
+
+  it('leaves search in one step even when query text piled up', () => {
+    recordNavigationPath('/', 'PUSH');
+    recordNavigationPath('/search', 'PUSH');
+    recordNavigationPath('/search', 'PUSH', '?q=s');
+    recordNavigationPath('/search', 'PUSH', '?q=si');
+    expect(resolveTransientExitPath('/search?q=si', '/search', '/')).toBe('/');
+    expect(planBackNavigation('/search?q=si')).toEqual({ type: 'replace', to: '/' });
   });
 });
 

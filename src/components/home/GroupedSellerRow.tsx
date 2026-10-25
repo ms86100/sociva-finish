@@ -1,7 +1,6 @@
 // @ts-nocheck
 import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
 import { ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ProductWithSeller } from '@/components/product/ProductListingCard';
@@ -149,18 +148,11 @@ export function GroupedSellerRow({
           </Link>
         )}
       </div>
-      <motion.div
-        className={rowClass}
-        initial="hidden"
-        animate="show"
-        variants={{ hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.05 } } }}
-      >
+      <div className={rowClass}>
         {groups.map(g => (
-          <motion.div
+          <div
             key={g.sellerId}
             className="min-w-0 h-full"
-            variants={{ hidden: { opacity: 0, y: 12, scale: 0.97 }, show: { opacity: 1, y: 0, scale: 1 } }}
-            transition={{ type: 'spring', stiffness: 260, damping: 24 }}
           >
             <RichSellerCard
               id={g.sellerId}
@@ -183,9 +175,9 @@ export function GroupedSellerRow({
                   : undefined
               }
             />
-          </motion.div>
+          </div>
         ))}
-      </motion.div>
+      </div>
     </div>
   );
 }

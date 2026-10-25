@@ -64,6 +64,120 @@ export function conversionPercent(part: number, whole: number): number | null {
   return Math.round((part / whole) * 1000) / 10;
 }
 
+export function normalizeSearchTerm(term: string | null | undefined): string {
+  return String(term || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+export function levenshtein(a: string, b: string): number {
+  if (a === b) return 0;
+  if (!a.length) return b.length;
+  if (!b.length) return a.length;
+  const row = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i += 1) {
+    let prev = i - 1;
+    row[0] = i;
+    for (let j = 1; j <= b.length; j += 1) {
+      const cur = row[j];
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      row[j] = Math.min(row[j] + 1, row[j - 1] + 1, prev + cost);
+      prev = cur;
+    }
+  }
+  return row[b.length];
+}
+
+function shouldMergeSearchTerms(a: string, b: string): boolean {
+  if (!a || !b || a === b) return a === b;
+  const [short, long] = a.length <= b.length ? [a, b] : [b, a];
+  if (short.length < 3) return false;
+  if (long.startsWith(short)) return true;
+  if (a.length >= 4 && b.length >= 4 && Math.abs(a.length - b.length) <= 1 && levenshtein(a, b) <= 1) {
+    return true;
+  }
+  return false;
+}
+
+export type SearchDemandInput = {
+  search_term: string;
+  unique_users: number;
+  searches?: number;
+  matched_your_listings?: boolean;
+  no_results?: boolean;
+  last_searched?: string | null;
+  aliases?: string[] | null;
+};
+
+export type ClusteredSearch = {
+  search_term: string;
+  unique_users: number;
+  searches: number;
+  matched_your_listings: boolean;
+  no_results: boolean;
+  last_searched: string | null;
+  aliases: string[];
+};
+
+/** Group keystroke prefixes and 1-letter typos: biry / biryan / biryanu -> biryani. */
+export function clusterSearchDemand(rows: SearchDemandInput[] | null | undefined): ClusteredSearch[] {
+  const normalized = (Array.isArray(rows) ? rows : [])
+    .map((row) => ({
+      search_term: normalizeSearchTerm(row.search_term),
+      unique_users: Number(row.unique_users) || 0,
+      searches: Number(row.searches) || Number(row.unique_users) || 0,
+      matched_your_listings: Boolean(row.matched_your_listings),
+      no_results: Boolean(row.no_results),
+      last_searched: row.last_searched || null,
+      aliases: (Array.isArray(row.aliases) ? row.aliases : [])
+        .map((alias) => normalizeSearchTerm(String(alias)))
+        .filter(Boolean),
+    }))
+    .filter((row) => row.search_term.length >= 3);
+
+  const sorted = [...normalized].sort(
+    (a, b) => b.search_term.length - a.search_term.length || b.unique_users - a.unique_users,
+  );
+  const clusters: ClusteredSearch[] = [];
+
+  for (const row of sorted) {
+    const host = clusters.find((cluster) => shouldMergeSearchTerms(cluster.search_term, row.search_term));
+    if (!host) {
+      clusters.push({
+        search_term: row.search_term,
+        unique_users: row.unique_users,
+        searches: row.searches,
+        matched_your_listings: row.matched_your_listings,
+        no_results: row.no_results,
+        last_searched: row.last_searched,
+        aliases: row.aliases.filter((alias) => alias !== row.search_term),
+      });
+      continue;
+    }
+
+    host.unique_users += row.unique_users;
+    host.searches += row.searches;
+    host.matched_your_listings = host.matched_your_listings || row.matched_your_listings;
+    host.no_results = host.no_results && row.no_results;
+    if (row.last_searched && (!host.last_searched || row.last_searched > host.last_searched)) {
+      host.last_searched = row.last_searched;
+    }
+    const extras = [row.search_term, ...row.aliases].filter((alias) => alias && alias !== host.search_term);
+    for (const alias of extras) {
+      if (!host.aliases.includes(alias)) host.aliases.push(alias);
+    }
+    if (row.search_term.length > host.search_term.length) {
+      if (!host.aliases.includes(host.search_term)) host.aliases.push(host.search_term);
+      host.aliases = host.aliases.filter((alias) => alias !== row.search_term);
+      host.search_term = row.search_term;
+    }
+  }
+
+  return clusters.sort((a, b) => b.unique_users - a.unique_users || b.searches - a.searches);
+}
+
 export type OnboardingStage =
   | 'started'
   | 'category_selected'

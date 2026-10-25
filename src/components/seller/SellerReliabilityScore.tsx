@@ -39,7 +39,7 @@ export function SellerReliabilityScore({ sellerId }: Props) {
   const label = getScoreLabel(data.overall_score);
 
   return (
-    <Card className="mb-2">
+    <Card className="mb-2 border border-border border-r-2">
       <CardContent className="p-4 space-y-3">
         {/* Overall Score */}
         <div className="flex items-center justify-between">
@@ -58,9 +58,12 @@ export function SellerReliabilityScore({ sellerId }: Props) {
         <Progress value={data.overall_score} className="h-2" />
 
         {/* Dimension breakdown */}
-        <div className="grid grid-cols-3 gap-2 pt-1">
-          {DIMENSIONS.map(({ key, label, icon: Icon, color }) => (
-            <div key={key} className="text-center">
+        <div className="grid grid-cols-3 pt-1">
+          {DIMENSIONS.map(({ key, label, icon: Icon, color }, index) => (
+            <div
+              key={key}
+              className={`text-center py-2 ${index % 3 !== 2 ? 'border-r-2 border-border' : ''} ${index < 3 ? 'border-b border-border' : ''}`}
+            >
               <Icon size={12} className={`mx-auto mb-0.5 ${color}`} />
               <p className="text-xs font-bold">{Math.round(data[key])}</p>
               <p className="text-[9px] text-muted-foreground">{label}</p>

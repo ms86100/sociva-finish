@@ -164,6 +164,38 @@ describe('buildDiscoveryIntents', () => {
     expect(intents.find((intent) => intent.id === 'cat:snacks')?.count).toBe(3);
   });
 
+  it('uses a snack food photo on the Snacks chip instead of makhana when one exists', () => {
+    const snacks: DiscoveryCategoryInput = {
+      category: 'snacks',
+      parentGroup: 'food_beverages',
+      displayName: 'Snacks',
+      icon: 'Cookie',
+      products: [{
+        id: 'm1',
+        category: 'snacks',
+        name: 'madhubani makhana',
+        image_url: 'https://img/makhana.jpg',
+      }],
+    };
+    const cafe: DiscoveryCategoryInput = {
+      category: 'cafe',
+      parentGroup: 'food_beverages',
+      displayName: 'Cafe',
+      icon: 'Coffee',
+      products: [{
+        id: 'f1',
+        category: 'cafe',
+        name: 'Fresh French Fries',
+        image_url: 'https://img/fries.jpg',
+        tags: ['meal:snack'],
+      }],
+    };
+    const homeIntents = buildDiscoveryIntents([snacks, cafe], { maxChips: 40 });
+    const browseIntents = relevantBrowseIntents([snacks, cafe], { category: 'snacks' });
+    expect(homeIntents.find((intent) => intent.id === 'cat:snacks')?.imageUrl).toBe('https://img/fries.jpg');
+    expect(browseIntents.find((intent) => intent.id === 'cat:snacks')?.imageUrl).toBe('https://img/fries.jpg');
+  });
+
   it('category pages filter Snacks with the expanded meal matcher', () => {
     const page = readFileSync('src/pages/CategoryGroupPage.tsx', 'utf8');
     const home = readFileSync('src/components/home/MarketplaceSection.tsx', 'utf8');

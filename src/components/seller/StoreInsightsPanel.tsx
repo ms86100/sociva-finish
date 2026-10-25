@@ -3,7 +3,13 @@ import { formatDistanceToNowStrict } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { conversionPercent, stripBuyerIdentity } from '@/lib/marketplace-intelligence';
+import { useCurrency } from '@/hooks/useCurrency';
+import {
+  clusterSearchDemand,
+  conversionPercent,
+  stripBuyerIdentity,
+  type SearchDemandInput,
+} from '@/lib/marketplace-intelligence';
 
 type ProductRow = {
   product_id: string;
@@ -14,11 +20,6 @@ type ProductRow = {
   cart_adds: number;
   orders: number;
   last_viewed_at: string | null;
-};
-
-type DemandRow = {
-  search_term: string;
-  unique_users: number;
 };
 
 type RecentOrder = {
@@ -33,8 +34,11 @@ type StoreInsights = {
   cart_adds_30d: number;
   orders_30d: number;
   completed: number;
+  completed_30d?: number;
   rejected: number;
+  rejected_30d?: number;
   cancelled: number;
+  cancelled_30d?: number;
   open_orders: number;
   out_for_delivery: number;
   ready: number;
@@ -43,10 +47,12 @@ type StoreInsights = {
   credit_available: number;
   credit_reserved: number;
   products: ProductRow[];
-  demand: DemandRow[];
+  demand: SearchDemandInput[];
+  searches?: SearchDemandInput[];
   enquiries_30d?: number;
   catalog_searches_30d?: number;
   settled_revenue?: number;
+  settled_revenue_30d?: number;
   is_available?: boolean;
   vacation_mode?: boolean;
   recent_orders?: RecentOrder[];
@@ -57,16 +63,32 @@ function num(value: unknown): number {
   return Number.isFinite(n) ? n : 0;
 }
 
-function Stat({ label, value }: { label: string; value: number }) {
+function Stat({
+  label,
+  value,
+  hint,
+}: {
+  label: string;
+  value: string | number;
+  hint?: string;
+}) {
   return (
-    <div className="rounded-lg border border-border bg-background px-3 py-2">
+    <div className="rounded-lg border border-border border-r-2 bg-background px-3 py-2">
       <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</p>
       <p className="text-lg font-semibold tabular-nums">{value}</p>
+      {hint ? <p className="text-[10px] text-muted-foreground">{hint}</p> : null}
     </div>
   );
 }
 
+function searchHint(row: { matched_your_listings: boolean; no_results: boolean }): string {
+  if (row.matched_your_listings) return 'Matched your listings';
+  if (row.no_results) return 'No listing matched';
+  return 'Found other listings';
+}
+
 export function StoreInsightsPanel({ sellerId }: { sellerId: string }) {
+  const { formatPrice } = useCurrency();
   const { data, isLoading, isError } = useQuery({
     queryKey: ['seller-store-insights', sellerId],
     enabled: Boolean(sellerId),
@@ -94,17 +116,30 @@ export function StoreInsightsPanel({ sellerId }: { sellerId: string }) {
   }
 
   const products = Array.isArray(data.products) ? data.products : [];
-  const demand = Array.isArray(data.demand) ? data.demand : [];
+  const clusteredSearches = clusterSearchDemand(
+    Array.isArray(data.searches) && data.searches.length > 0 ? data.searches : data.demand,
+  );
+  const completed30d = num(data.completed_30d ?? data.completed);
+  const cancelled30d = num(data.cancelled_30d ?? data.cancelled);
+  const rejected30d = num(data.rejected_30d ?? data.rejected);
+  const settled30d = num(data.settled_revenue_30d ?? data.settled_revenue);
+  const recentOrders = Array.isArray(data.recent_orders) ? data.recent_orders : [];
+
+  const storeState = data.vacation_mode
+    ? 'Store is on vacation'
+    : data.is_available === false
+      ? 'Store is unavailable'
+      : 'Store is available';
 
   return (
-    <div className="space-y-3">
-      <Card>
+    <div className="space-y-4">
+      <Card className="border border-border border-r-2">
         <CardContent className="p-3 space-y-3">
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
             Store activity - last 30 days
           </p>
           <p className="text-[11px] text-muted-foreground">
-            {data.vacation_mode ? 'Store is on vacation' : data.is_available === false ? 'Store is unavailable' : 'Store is available'}
+            {storeState}
             {num(data.views_30d) > 0
               ? ` - ${conversionPercent(num(data.cart_adds_30d), num(data.views_30d))}% of views added to cart`
               : ''}
@@ -118,49 +153,70 @@ export function StoreInsightsPanel({ sellerId }: { sellerId: string }) {
             <Stat label="Cart adds" value={num(data.cart_adds_30d)} />
             <Stat label="Orders" value={num(data.orders_30d)} />
             <Stat label="Enquiries" value={num(data.enquiries_30d)} />
-            <Stat label="Catalog searches" value={num(data.catalog_searches_30d)} />
+            <Stat label="People who searched your listings" value={num(data.catalog_searches_30d)} />
           </div>
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="border border-border border-r-2">
         <CardContent className="p-3 space-y-3">
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Orders</p>
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+            Orders right now
+          </p>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            <Stat label="Completed" value={num(data.completed)} />
-            <Stat label="Rejected" value={num(data.rejected)} />
-            <Stat label="Cancelled" value={num(data.cancelled)} />
             <Stat label="Open" value={num(data.open_orders)} />
             <Stat label="Preparing" value={num(data.preparing)} />
             <Stat label="Ready" value={num(data.ready)} />
             <Stat label="Out for delivery" value={num(data.out_for_delivery)} />
             <Stat label="Unanswered" value={num(data.unanswered)} />
           </div>
-          <p className="text-[11px] text-muted-foreground">
-            Settled revenue {num(data.settled_revenue)} - Sociva credit available {num(data.credit_available)} - reserved {num(data.credit_reserved)}
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider pt-1">
+            Orders - last 30 days
           </p>
-          {Array.isArray(data.recent_orders) && data.recent_orders.length > 0 && (
-            <div className="space-y-1">
-              {data.recent_orders.map((order, index) => (
-                <div key={`${order.created_at}-${index}`} className="flex items-center justify-between text-sm">
-                  <span className="capitalize">{order.status}</span>
-                  <span className="text-xs text-muted-foreground">{num(order.total_amount)}</span>
-                </div>
-              ))}
-            </div>
-          )}
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <Stat label="Completed" value={completed30d} />
+            <Stat label="Cancelled" value={cancelled30d} />
+            <Stat label="Rejected" value={rejected30d} />
+            <Stat label="Settled revenue" value={formatPrice(settled30d)} />
+          </div>
+          <p className="text-[11px] text-muted-foreground">
+            Sociva credit available {num(data.credit_available)} - reserved {num(data.credit_reserved)}
+          </p>
         </CardContent>
       </Card>
 
-      <Card>
+      {recentOrders.length > 0 && (
+        <Card className="border border-border border-r-2">
+          <CardContent className="p-3 space-y-2">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+              Recent orders
+            </p>
+            {recentOrders.map((order, index) => (
+              <div key={`${order.created_at}-${index}`} className="flex items-center justify-between gap-3 border-b border-border py-1.5 last:border-b-0 last:pb-0 text-sm">
+                <span className="capitalize">{String(order.status || '').replace(/_/g, ' ')}</span>
+                <span className="text-xs text-muted-foreground shrink-0 tabular-nums">
+                  {formatPrice(num(order.total_amount))}
+                  {order.created_at
+                    ? ` - ${formatDistanceToNowStrict(new Date(order.created_at), { addSuffix: true })}`
+                    : ''}
+                </span>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
+      <Card className="border border-border border-r-2">
         <CardContent className="p-3 space-y-2">
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Products</p>
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+            Your listings - last 30 days
+          </p>
           {products.length === 0 ? (
             <p className="text-sm text-muted-foreground">No products yet.</p>
           ) : (
             <div className="space-y-2">
               {products.map((product) => (
-                <div key={product.product_id} className="flex items-start justify-between gap-3 text-sm">
+                <div key={product.product_id} className="flex items-start justify-between gap-3 border-b border-border py-1.5 last:border-b-0 last:pb-0 text-sm">
                   <div className="min-w-0">
                     <p className="font-medium truncate">{product.name}</p>
                     <p className="text-[11px] text-muted-foreground">
@@ -182,16 +238,28 @@ export function StoreInsightsPanel({ sellerId }: { sellerId: string }) {
         </CardContent>
       </Card>
 
-      {demand.length > 0 && (
-        <Card>
+      {clusteredSearches.length > 0 && (
+        <Card className="border border-border border-r-2">
           <CardContent className="p-3 space-y-2">
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-              Searches with no results
+              Who searched nearby - last 30 days
             </p>
-            {demand.map((row) => (
-              <div key={row.search_term} className="flex items-center justify-between text-sm">
-                <span className="truncate">{row.search_term}</span>
-                <span className="text-xs text-muted-foreground shrink-0">{num(row.unique_users)} people</span>
+            <p className="text-[11px] text-muted-foreground">
+              Queries related to your listings. Partial typing like biry and biryan is grouped into one search.
+            </p>
+            {clusteredSearches.map((row) => (
+              <div key={row.search_term} className="flex items-start justify-between gap-3 border-b border-border py-1.5 last:border-b-0 last:pb-0 text-sm">
+                <div className="min-w-0">
+                  <p className="truncate">{row.search_term}</p>
+                  <p className="text-[11px] text-muted-foreground">
+                    {searchHint(row)}
+                    {row.aliases.length > 0 ? ` - also typed ${row.aliases.slice(0, 3).join(', ')}` : ''}
+                  </p>
+                </div>
+                <span className="text-xs text-muted-foreground shrink-0 tabular-nums">
+                  {num(row.unique_users)} {num(row.unique_users) === 1 ? 'person' : 'people'}
+                  {num(row.searches) > num(row.unique_users) ? ` - ${num(row.searches)} searches` : ''}
+                </span>
               </div>
             ))}
           </CardContent>

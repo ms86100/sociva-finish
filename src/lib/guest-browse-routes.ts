@@ -17,6 +17,7 @@ const GUEST_BROWSE_EXACT = new Set([
 
 const GUEST_BROWSE_PREFIXES = [
   '/category/',
+  '/explore/',
   '/discovery/',
   '/product/',
   '/festival-collection/',

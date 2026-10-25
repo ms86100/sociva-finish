@@ -1,0 +1,16 @@
+---
+description: Broadcast pushes go to every user with a valid device token, not the small discovery audience
+alwaysApply: true
+---
+
+# Push audience: all token users
+
+When sending a home, motivational, marketing, or "tell people" push, the audience is **every user with a valid device token**.
+
+Do not default to `food_discovery_audience` or the 6-person discovery societies (Phase-2 Tower H / Greenfield allowlist). That audience is only for the scheduled food-discovery cron slots.
+
+Default dest for these blasts is `/` (home) unless the user names a different landing page.
+
+Queue via `notification_queue` with `type=promotion` (respects promo prefs). Do not use `send-campaign` unless the user explicitly asks to bypass prefs.
+
+Retry failed queue rows until processed. Do not treat a first-wave 6-device send as done.

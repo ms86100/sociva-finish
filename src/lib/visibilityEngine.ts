@@ -19,6 +19,7 @@ const CART_BAR_ALLOWED_ROUTES: RegExp[] = [
   /^\/search/,
   /^\/categories$/,
   /^\/category(\/|$)/,
+  /^\/explore(\/|$)/,
   /^\/discovery\//,
   /^\/seller\/[0-9a-f-]{36}$/i,
   /^\/product\//,

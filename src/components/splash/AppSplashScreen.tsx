@@ -64,7 +64,7 @@ export function AppSplashScreen({ ready, onComplete }: AppSplashScreenProps) {
       aria-live="polite"
       className="fixed z-[9999] flex flex-col items-center justify-center overflow-hidden"
       style={{
-        backgroundColor: '#0a0a0f',
+        backgroundColor: '#FFFFFF',
         top: -1,
         left: -1,
         right: -1,
@@ -87,7 +87,7 @@ export function AppSplashScreen({ ready, onComplete }: AppSplashScreenProps) {
           className="text-[3.5rem] font-black tracking-[0.2em] leading-none"
           style={{
             fontFamily: "system-ui, -apple-system, 'Segoe UI', sans-serif",
-            background: 'linear-gradient(135deg, #ffffff 0%, hsl(151 65% 50%) 100%)',
+            background: 'linear-gradient(135deg, #14532d 0%, hsl(151 65% 42%) 100%)',
             WebkitBackgroundClip: 'text',
             WebkitTextFillColor: 'transparent',
             filter: 'drop-shadow(0 2px 24px hsl(151 65% 35% / 0.25))',

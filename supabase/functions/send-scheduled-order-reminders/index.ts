@@ -76,7 +76,7 @@ const WINDOWS: WindowSpec[] = [
     kind: "scheduled_prep",
     title: "⏰ Start preparing now",
     bodySeller: (ref, when) =>
-      `Order #${ref} (${when}) is unlocked - fulfill it like an instant order. Open Sociva to prepare.`,
+      `Order #${ref} (${when}) is unlocked - accept it if you have not, then fulfill it like an instant order.`,
     bodyBuyer: (store, when) => `${store} can start preparing your scheduled order (${when}).`,
     match: (o, now) => {
       if (!o.preparation_start_at) return false;

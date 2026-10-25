@@ -28,6 +28,9 @@ export function BackButton({
   return (
     <button
       type="button"
+      onMouseDown={(event) => {
+        event.stopPropagation();
+      }}
       onClick={onClick || (() => {
         if (handleInAppBackLayers()) return;
         goBack({ fallback });

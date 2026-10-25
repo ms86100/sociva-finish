@@ -82,6 +82,51 @@ vi.mock('@/components/product/ProductListingCard', () => ({
   ),
 }));
 
+vi.mock('@/components/discovery/GuidedDiscoveryProductRow', () => ({
+  GuidedDiscoveryProductRow: ({ product, onTap, categoryConfigs }: any) => (
+    <button
+      data-testid={`card-${product.id}`}
+      data-action={resolveListingAction(product.action_type, product.category, categoryConfigs)}
+      onClick={() => onTap(product)}
+    >
+      {product.name}
+    </button>
+  ),
+}));
+
+vi.mock('@/components/discovery/GuidedDiscoverySellerCard', () => ({
+  GuidedDiscoverySellerCard: ({ products, onOpenListing, categoryConfigs }: any) => (
+    <div>
+      {products.map((product: any) => (
+        <button
+          key={product.id}
+          data-testid={`card-${product.id}`}
+          data-action={resolveListingAction(product.action_type, product.category, categoryConfigs)}
+          onClick={() => onOpenListing(product)}
+        >
+          {product.name}
+        </button>
+      ))}
+    </div>
+  ),
+}));
+
+vi.mock('@/components/discovery/GuidedDiscoveryOverlayTile', () => ({
+  GuidedDiscoveryOverlayTile: ({ tile, onSelect }: any) => (
+    <button data-testid={`guided-discovery-tile-${tile.id}`} onClick={() => onSelect(tile.id)}>
+      {tile.label}
+    </button>
+  ),
+}));
+
+vi.mock('@/components/layout/SafeHeader', () => ({
+  SafeHeader: ({ children }: any) => <div>{children}</div>,
+}));
+
+vi.mock('@/components/navigation/BackButton', () => ({
+  BackButton: () => <button type="button" aria-label="Go back" />,
+}));
+
 vi.mock('@/components/product/ProductDetailSheet', () => ({
   ProductDetailSheet: ({ product, open }: any) => (open
     ? <pre data-testid="detail-sheet">{JSON.stringify(product)}</pre>
@@ -92,6 +137,20 @@ vi.mock('@/components/home/BuyAgainRow', () => ({
   BuyAgainRow: ({ mode, onOpenListing }: any) => (
     <div data-testid={`buy-again-${mode}`} data-has-open={onOpenListing ? 'yes' : 'no'} />
   ),
+}));
+
+vi.mock('@/components/search/SearchAutocomplete', () => ({
+  SearchAutocomplete: ({ query }: { query: string }) => (
+    query.trim().length >= 2 ? <div data-testid="search-autocomplete" /> : null
+  ),
+}));
+
+vi.mock('@/hooks/queries/useNearbyProductSearch', () => ({
+  useNearbyProductSearch: () => ({ data: [], isFetching: false }),
+}));
+
+vi.mock('@/components/home/UpcomingAppointmentBanner', () => ({
+  UpcomingAppointmentBanner: () => <div data-testid="upcoming-appointment-banner" />,
 }));
 
 import CommerceModePage from '@/pages/CommerceModePage';
@@ -190,21 +249,48 @@ describe('CommerceModePage listing partitions', () => {
     expect(renderedIds()).toEqual(['haircut', 'visit', 'yoga-class']);
   });
 
+  it('filters Book and Contact listings from the in-tab search', async () => {
+    const book = renderAt('/book');
+    await screen.findByTestId('commerce-mode-search');
+    expect(screen.getByTestId('upcoming-appointment-banner')).toBeInTheDocument();
+    fireEvent.change(screen.getByTestId('commerce-mode-search'), { target: { value: 'yoga' } });
+    expect(renderedIds()).toEqual(['yoga-class']);
+    expect(screen.getByTestId('search-autocomplete')).toBeInTheDocument();
+    expect(screen.getByTestId('commerce-mode-search-results')).toBeInTheDocument();
+    expect(screen.queryByTestId('upcoming-appointment-banner')).toBeNull();
+    expect(screen.queryByTestId('guided-discovery-tiles')).toBeNull();
+    book.unmount();
+
+    const services = renderAt('/services');
+    await screen.findByTestId('commerce-mode-search');
+    fireEvent.change(screen.getByTestId('commerce-mode-search'), { target: { value: 'maths' } });
+    expect(renderedIds()).toEqual(['maths']);
+    expect(screen.getByTestId('search-autocomplete')).toBeInTheDocument();
+    expect(screen.getByTestId('commerce-mode-search-results')).toBeInTheDocument();
+    services.unmount();
+
+    renderAt('/shop');
+    await screen.findByTestId('commerce-mode-shop');
+    expect(screen.queryByTestId('commerce-mode-search')).toBeNull();
+  });
+
   it('Services shows only enquiry and contact offerings, including a stale cart action in an enquiry-only category', async () => {
     renderAt('/services');
     await screen.findByTestId('commerce-mode-services');
     expect(renderedIds()).toEqual(['leak-fix', 'maths', 'stale-cart']);
   });
 
-  it('mounts Book again and Contact again with a listing CTA, not a Home plus-add rail', async () => {
+  it('does not mount Book again or Contact again; reorder stays on Orders', async () => {
     const { unmount: unmountBook } = renderAt('/book');
-    expect(await screen.findByTestId('buy-again-book')).toHaveAttribute('data-has-open', 'yes');
+    await screen.findByTestId('commerce-mode-book');
+    expect(screen.queryByTestId('buy-again-book')).toBeNull();
     expect(screen.queryByTestId('buy-again-shop')).toBeNull();
     expect(screen.queryByTestId('buy-again-services')).toBeNull();
     unmountBook();
 
     const { unmount: unmountServices } = renderAt('/services');
-    expect(await screen.findByTestId('buy-again-services')).toHaveAttribute('data-has-open', 'yes');
+    await screen.findByTestId('commerce-mode-services');
+    expect(screen.queryByTestId('buy-again-services')).toBeNull();
     expect(screen.queryByTestId('buy-again-shop')).toBeNull();
     expect(screen.queryByTestId('buy-again-book')).toBeNull();
     unmountServices();
@@ -238,8 +324,9 @@ describe('CommerceModePage listing partitions', () => {
   it('scopes the category rail to categories that have listings in the mode and filters by chip', async () => {
     renderAt('/book');
     await screen.findByTestId('commerce-mode-book');
-    expect(screen.getAllByTestId(/^chip-/).map((el) => el.textContent)).toEqual(['salon', 'yoga']);
-    fireEvent.click(screen.getByTestId('chip-yoga'));
+    expect(screen.getByTestId('guided-discovery-tile-category:salon')).toBeInTheDocument();
+    expect(screen.getByTestId('guided-discovery-tile-category:yoga')).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('guided-discovery-tile-category:yoga'));
     expect(renderedIds()).toEqual(['yoga-class']);
   });
 

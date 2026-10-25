@@ -27,6 +27,8 @@ export const CATEGORY_ALIAS_MAP: Record<string, string[]> = {
     'sabzi', 'curry', 'dal', 'roti', 'paratha', 'khichdi', 'pulao', 'fried rice', 'home meal',
     'rajma chawal', 'chole bhature', 'paneer', 'dal makhani',
     'gujiya', 'gujia',
+    'idli batter', 'idly batter', 'dosa batter', 'millet batter', 'homemade batter',
+    'ready to cook batter',
   ],
   daily_tiffin: ['home food', 'dabba', 'meal service', 'lunch delivery', 'tiffin', 'food delivery', 'home cooked'],
   one_time_meals: [
@@ -175,6 +177,11 @@ export const SUBCATEGORY_NOUN_ALIASES: Record<string, string[]> = {
   agarbatti: ['agarbatti', 'incense', 'dhoop'],
   dhoop: ['dhoop', 'dhoopbatti'],
   incense: ['incense', 'agarbatti', 'dhoop'],
+  batter: ['ready to cook batter', 'idli batter', 'dosa batter', 'millet batter'],
+  'idli batter': ['ready to cook batter', 'idli batter'],
+  'idly batter': ['ready to cook batter', 'idli batter'],
+  'dosa batter': ['ready to cook batter', 'dosa batter'],
+  'millet batter': ['ready to cook batter', 'millet batter'],
 };
 
 export const INTENT_EXAMPLE_CHIPS = [
@@ -262,8 +269,15 @@ function scoreName(name: string, q: string): number {
   const n = name.toLowerCase();
   if (n === q) return 3;
   if (n.startsWith(q)) return 2;
-  if (n.includes(q)) return 1;
-  return 0;
+  if (!n.includes(q)) return 0;
+  // "batter" must not match inverter "battery"
+  if (q === 'batter' || q === 'batters') {
+    const foodBatter = /\bbatters?\b/.test(n);
+    const electricBattery = /batter(?:y|ies)/.test(n);
+    if (electricBattery && !foodBatter) return 0;
+    if (foodBatter) return 2.6;
+  }
+  return 1;
 }
 
 /** Best subcategory for a free-text phrase within an optional category. */

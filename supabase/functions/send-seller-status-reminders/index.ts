@@ -6,9 +6,12 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-cron-secret",
 };
 
-const REMINDER_INTERVAL_MIN = 5;
+const REMINDER_INTERVAL_MIN = 15;
+const SCHEDULED_ACCEPT_LEAD_MIN = 120;
+const CLOSED_STORE_CANCEL_GAP_MS = 45 * 60_000;
 const TYPE = "seller_order_status_reminder";
 const UNACKED_STATUSES = ["placed", "enquired", "requested", "quoted", "preparing"];
+const SCHEDULED_ACCEPT_STATUSES = ["placed", "pending", "requested"];
 
 function unackedBucket(ageMs: number): number {
   if (ageMs >= 20 * 60_000) return 3;
@@ -17,7 +20,52 @@ function unackedBucket(ageMs: number): number {
   return 0;
 }
 
-async function enqueueUnacknowledgedOrderReminders(supabase: any): Promise<{ scanned: number; enqueued: number; skipped: number }> {
+function isFarFutureScheduled(row: {
+  scheduled_date?: string | null;
+  auto_cancel_at?: string | null;
+  created_at?: string | null;
+  status_changed_at?: string | null;
+  preparation_start_at?: string | null;
+}): boolean {
+  if (!row.scheduled_date) return false;
+  const cancel = row.auto_cancel_at ? new Date(row.auto_cancel_at).getTime() : NaN;
+  const created = new Date(row.created_at || row.status_changed_at || 0).getTime();
+  if (Number.isFinite(cancel) && Number.isFinite(created) && cancel - created > CLOSED_STORE_CANCEL_GAP_MS) {
+    return true;
+  }
+  const prep = row.preparation_start_at ? new Date(row.preparation_start_at).getTime() : NaN;
+  return Number.isFinite(prep) && prep - Date.now() > 20 * 60_000;
+}
+
+function scheduledAcceptDeadlineMs(row: {
+  auto_cancel_at?: string | null;
+  preparation_start_at?: string | null;
+  scheduled_fulfillment_at?: string | null;
+}): number | null {
+  for (const raw of [row.auto_cancel_at, row.preparation_start_at, row.scheduled_fulfillment_at]) {
+    if (!raw) continue;
+    const t = new Date(raw).getTime();
+    if (Number.isFinite(t)) return t;
+  }
+  return null;
+}
+
+function scheduledAcceptWindowOpen(row: {
+  scheduled_date?: string | null;
+  auto_cancel_at?: string | null;
+  preparation_start_at?: string | null;
+  scheduled_fulfillment_at?: string | null;
+}): boolean {
+  const deadline = scheduledAcceptDeadlineMs(row);
+  if (deadline == null) {
+    if (!row.scheduled_date) return false;
+    const todayIst = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+    return row.scheduled_date <= todayIst;
+  }
+  return Date.now() >= deadline - SCHEDULED_ACCEPT_LEAD_MIN * 60_000;
+}
+
+async function enqueueUnacknowledgedOrderReminders(supabase: any) {
   const { data: rows, error } = await supabase
     .from("orders")
     .select(`
@@ -26,6 +74,10 @@ async function enqueueUnacknowledgedOrderReminders(supabase: any): Promise<{ sca
       created_at,
       status_changed_at,
       updated_at,
+      scheduled_date,
+      scheduled_fulfillment_at,
+      preparation_start_at,
+      auto_cancel_at,
       seller_profiles!inner(user_id, business_name)
     `)
     .in("status", UNACKED_STATUSES)
@@ -46,6 +98,13 @@ async function enqueueUnacknowledgedOrderReminders(supabase: any): Promise<{ sca
     const ageMs = startedAt ? Date.now() - new Date(startedAt).getTime() : 0;
     const bucket = unackedBucket(ageMs);
     if (!sellerUserId || !bucket) {
+      skipped++;
+      continue;
+    }
+
+    // Closed-store / far-future scheduled: do not ring overnight. Accept
+    // bells start 2 hours before the auto-cancel / prep deadline.
+    if (isFarFutureScheduled(row as any)) {
       skipped++;
       continue;
     }
@@ -79,6 +138,75 @@ async function enqueueUnacknowledgedOrderReminders(supabase: any): Promise<{ sca
         continue;
       }
       console.warn("[StatusReminder] unacked enqueue failed:", orderId, insErr.message);
+      skipped++;
+      continue;
+    }
+    enqueued++;
+  }
+
+  return { scanned: rows?.length ?? 0, enqueued, skipped };
+}
+
+async function enqueueScheduledAcceptReminders(supabase: any, bucket: number) {
+  const { data: rows, error } = await supabase
+    .from("orders")
+    .select(`
+      id,
+      status,
+      created_at,
+      status_changed_at,
+      scheduled_date,
+      scheduled_fulfillment_at,
+      preparation_start_at,
+      auto_cancel_at,
+      seller_profiles!inner(user_id, business_name)
+    `)
+    .in("status", SCHEDULED_ACCEPT_STATUSES)
+    .not("scheduled_date", "is", null)
+    .limit(100);
+
+  if (error) {
+    console.error("[StatusReminder] scheduled-accept query failed:", error);
+    return { scanned: 0, enqueued: 0, skipped: 0 };
+  }
+
+  let enqueued = 0;
+  let skipped = 0;
+  for (const row of rows || []) {
+    const sellerUserId = (row as any).seller_profiles?.user_id as string | undefined;
+    if (!sellerUserId || !isFarFutureScheduled(row as any) || !scheduledAcceptWindowOpen(row as any)) {
+      skipped++;
+      continue;
+    }
+
+    const orderId = row.id as string;
+    const orderRef = orderId.slice(-6).toUpperCase();
+    const { error: insErr } = await supabase.from("notification_queue").insert({
+      user_id: sellerUserId,
+      title: "Accept this scheduled order",
+      body: `Order #${orderRef} is waiting for you to accept - tap now so it is not auto-cancelled.`,
+      type: TYPE,
+      reference_path: `/orders/${orderId}`,
+      idempotency_key: `${orderId}-scheduled_accept-${bucket}`,
+      payload: {
+        type: TYPE,
+        orderId,
+        order_id: orderId,
+        status: row.status,
+        target_role: "seller",
+        high_priority: true,
+        reminder_type: "scheduled_accept",
+        action: "view_order",
+        reference_path: `/orders/${orderId}`,
+      },
+    });
+
+    if (insErr) {
+      if (insErr.code === "23505") {
+        skipped++;
+        continue;
+      }
+      console.warn("[StatusReminder] scheduled-accept enqueue failed:", orderId, insErr.message);
       skipped++;
       continue;
     }
@@ -226,13 +354,18 @@ Deno.serve(async (req) => {
     enqueued += unacked.enqueued;
     skipped += unacked.skipped;
 
-    console.log(`[StatusReminder] done enqueued=${enqueued} skipped=${skipped} scanned=${stuckOrders?.length ?? 0} unacked_scanned=${unacked.scanned}`);
+    const scheduledAccept = await enqueueScheduledAcceptReminders(supabase, bucket);
+    enqueued += scheduledAccept.enqueued;
+    skipped += scheduledAccept.skipped;
+
+    console.log(`[StatusReminder] done enqueued=${enqueued} skipped=${skipped} scanned=${stuckOrders?.length ?? 0} unacked_scanned=${unacked.scanned} scheduled_accept_scanned=${scheduledAccept.scanned}`);
 
     return new Response(
       JSON.stringify({
         ok: true,
         scanned: stuckOrders?.length ?? 0,
         unacked_scanned: unacked.scanned,
+        scheduled_accept_scanned: scheduledAccept.scanned,
         enqueued,
         skipped,
       }),

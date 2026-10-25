@@ -55,15 +55,15 @@ const config: CapacitorConfig = {
       // Always auto-hide - slow emulators / large bundles can delay JS boot;
       // without this, launchAutoHide:false leaves the native splash forever.
       launchAutoHide: true,
-      backgroundColor: '#1a1a2e',
+      backgroundColor: '#FFFFFF',
       androidSplashResourceName: 'splash',
       iosSplashResourceName: 'LaunchScreen',
       showSpinner: false,
     },
     StatusBar: {
-      // LIGHT = light icons for dark chrome (app default theme is dark).
+      // DARK = dark icons for light chrome (app default theme is light).
       // Overlay + CSS --app-safe-top padding.
-      style: 'LIGHT',
+      style: 'DARK',
       overlaysWebView: true,
     },
     PushNotifications: {

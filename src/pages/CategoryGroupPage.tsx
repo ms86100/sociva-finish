@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useRef } from 'react';
 import { useParams, useSearchParams, Link, useNavigate } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { SafeHeader } from '@/components/layout/SafeHeader';
@@ -52,6 +52,8 @@ export default function CategoryGroupPage() {
   const { groupedConfigs, configs: categoryConfigs, isLoading: configsLoading } = useCategoryConfigs();
   const { getGroupBySlug, isLoading: groupsLoading } = useParentGroups();
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
   const [sortBy, setSortBy] = useState<SortKey>('relevance');
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [detailOpen, setDetailOpen] = useState(false);
@@ -356,9 +358,18 @@ export default function CategoryGroupPage() {
           <div className="relative mb-2">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <Input
+              ref={searchInputRef}
               placeholder={`Search in ${pageTitle}`}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
+              onFocus={() => setSearchOpen(true)}
+              onBlur={(event) => {
+                const host = event.currentTarget.closest('.relative') || event.currentTarget.parentElement;
+                window.setTimeout(() => {
+                  if (host?.contains(document.activeElement)) return;
+                  setSearchOpen(false);
+                }, 80);
+              }}
               className="pl-9 pr-8 h-9 bg-card/55 backdrop-blur-md border border-border/40 rounded-xl text-sm focus-visible:ring-1"
             />
             {searchQuery && (
@@ -368,10 +379,18 @@ export default function CategoryGroupPage() {
             )}
             <SearchAutocomplete
               query={searchQuery}
+              inputRef={searchInputRef}
+              open={searchOpen}
+              maxHeight={220}
+              onDismiss={() => {
+                setSearchOpen(false);
+                searchInputRef.current?.blur();
+              }}
               onSelect={(product) => {
                 setSelectedProduct(product);
                 setDetailOpen(true);
-                setSearchQuery('');
+                setSearchOpen(false);
+                searchInputRef.current?.blur();
               }}
             />
           </div>

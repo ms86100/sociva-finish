@@ -15,6 +15,7 @@ import {
 } from '@/lib/marketplace-constants';
 import { useCategoryConfigs } from '@/hooks/useCategoryBehavior';
 import { resolveListingAction } from '@/lib/commerce-mode';
+import { pickDishListingPhoto } from '@/lib/chip-listing-photo';
 
 export function sanitizeSellerName(name: string): string {
   const stripped = (name || '').replace(/^\[(ARCHIVED|HOLD)\]\s*/i, '').trim();
@@ -73,8 +74,8 @@ export function RichSellerCard({
       ? `From ${formatPrice(minPrice)}`
       : '\u00A0';
   const productSlots = [topProducts[0] ?? null, topProducts[1] ?? null] as const;
-  const productFallbackImage = productSlots.find((product) => product?.image_url)?.image_url || null;
-  const heroSources = [coverImage, profileImage, productFallbackImage].filter((src): src is string => !!src);
+  const productFallbackImage = pickDishListingPhoto(topProducts);
+  const heroSources = [productFallbackImage, coverImage, profileImage].filter((src): src is string => !!src);
   const [heroAttempt, setHeroAttempt] = useState(0);
   useEffect(() => { setHeroAttempt(0); }, [coverImage, profileImage, productFallbackImage]);
   const heroImage = heroSources[heroAttempt] || null;

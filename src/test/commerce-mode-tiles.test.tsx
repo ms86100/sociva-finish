@@ -92,12 +92,17 @@ describe('commerce mode tiles', () => {
 
   it('keeps mode tiles off Home and limits Home to add-to-cart listings', () => {
     const home = read('components/home/MarketplaceSection.tsx');
-    const populated = home.slice(home.lastIndexOf('return ('));
     expect(home).not.toMatch(/CommerceModeTiles/);
     expect(home).toMatch(/filterByMode\(group\.products, 'shop', categoryConfigs\)/);
-    expect(populated.indexOf('home-popular-rail')).toBeLessThan(populated.indexOf('<FeaturedBanners'));
+    expect(home).toMatch(/GuidedDiscoveryRail/);
+    expect(home).toMatch(/NeighborMakesBanner/);
+    expect(home.indexOf('<NeighborMakesBanner')).toBeLessThan(home.indexOf('<GuidedDiscoveryRail'));
+    expect(home.indexOf('<GuidedDiscoveryRail')).toBeLessThan(home.indexOf('home-selling-well'));
+    expect(home.indexOf('home-selling-well')).toBeLessThan(home.indexOf('<ShopByStoreDiscovery'));
+    expect(home).not.toMatch(/<BuyAgainRow/);
+    expect(home.indexOf('<ShopByStoreDiscovery')).toBeLessThan(home.indexOf('home-popular-rail'));
+    expect(home.indexOf('home-popular-rail')).toBeLessThan(home.lastIndexOf('<FeaturedBanners'));
     expect(home).not.toMatch(/CategoryImageGrid/);
-    expect(populated.indexOf('<FeaturedBanners')).toBeLessThan(populated.indexOf('<ShopByStoreDiscovery'));
     expect(home).toMatch(/label_empty_marketplace_title/);
     expect(home).toMatch(/Home-cooked meals/);
     expect(home).toMatch(/bg-mode-shop\/15/);

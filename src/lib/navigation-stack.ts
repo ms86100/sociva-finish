@@ -180,6 +180,27 @@ export type BackDecision =
   | { type: 'history' }
   | { type: 'replace'; to: string };
 
+/**
+ * Skip /search query steps so one Back leaves search instead of walking
+ * /search?q=si -> /search?q=s -> /search -> home.
+ */
+export function resolveTransientExitPath(
+  currentFullPath: string,
+  prefix: string,
+  fallback = '/',
+): string {
+  const current = toNavPath(currentFullPath);
+  let start = stack.length - 1;
+  if (stack[start]?.path === current) start -= 1;
+  for (let i = start; i >= 0; i -= 1) {
+    const candidate = stack[i]?.path;
+    if (!candidate) continue;
+    if (pathOnly(candidate) === prefix) continue;
+    return candidate;
+  }
+  return fallback;
+}
+
 export function planBackNavigation(
   currentFullPath: string,
   options?: { fallback?: string; preferFallback?: boolean },
@@ -187,6 +208,10 @@ export function planBackNavigation(
   const current = toNavPath(currentFullPath);
   const fallback = options?.fallback || resolveBackFallback(pathOnly(current));
   if (options?.preferFallback) return { type: 'replace', to: fallback };
+
+  if (pathOnly(current) === '/search') {
+    return { type: 'replace', to: resolveTransientExitPath(current, '/search', fallback) };
+  }
 
   const previous = peekPreviousPath(current);
   const top = stack[stack.length - 1];
@@ -253,7 +278,7 @@ export function resolveBackFallback(pathname: string): string {
   if (path === '/cart' || path.startsWith('/search') || path.startsWith('/categories') || path.startsWith('/category')) {
     return '/';
   }
-  if (path.startsWith('/discovery') || path.startsWith('/product/') || path.startsWith('/festival')) return '/';
+  if (path.startsWith('/explore') || path.startsWith('/discovery') || path.startsWith('/product/') || path.startsWith('/festival')) return '/';
   if (path.startsWith('/favorites') || path === '/notifications') return '/profile';
   if (path.startsWith('/notifications/inbox')) return '/';
   if (path.startsWith('/talk-to-sociva')) return '/become-seller';

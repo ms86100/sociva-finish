@@ -102,11 +102,11 @@ export async function initializeCapacitorPlugins() {
   );
 
   try {
-    // Default app theme is dark → light status-bar icons. Keep overlay true so
+    // Default app theme is light → dark status-bar icons. Keep overlay true so
     // one padding model works everywhere (Android 15+ forces overlay anyway).
     // CSS reads --app-safe-top. Theme changes re-sync via syncStatusBarForTheme().
-    const storedTheme = localStorage.getItem('theme');
-    const isDark = storedTheme !== 'light';
+    const storedTheme = localStorage.getItem('sociva-theme') || localStorage.getItem('theme');
+    const isDark = storedTheme === 'dark';
     await StatusBar.setStyle({ style: isDark ? Style.Light : Style.Dark });
     await StatusBar.setOverlaysWebView({ overlay: true });
     await syncSafeAreaCssVars();
@@ -132,7 +132,7 @@ export async function initializeCapacitorPlugins() {
 export async function syncStatusBarForTheme(theme: string | undefined) {
   if (!Capacitor.isNativePlatform()) return;
   try {
-    const isDark = theme !== 'light';
+    const isDark = theme === 'dark';
     await StatusBar.setStyle({ style: isDark ? Style.Light : Style.Dark });
   } catch (e) {
     console.warn('[Capacitor] syncStatusBarForTheme failed:', e);

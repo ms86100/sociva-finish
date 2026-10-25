@@ -44,15 +44,17 @@ describe('Order again split by tab', () => {
     expect(src).not.toMatch(/deriveActionType\(/);
   });
 
-  it('Home, Cart, Book and Contact mount the matching rail', () => {
+  it('keeps Order again on Cart only; Home, Book and Contact send reorder to Orders', () => {
     const home = read('src/components/home/MarketplaceSection.tsx');
     const cart = read('src/pages/CartPage.tsx');
     const modePage = read('src/pages/CommerceModePage.tsx');
-    expect(home).toMatch(/<BuyAgainRow mode="shop" \/>/);
+    const homePage = read('src/pages/HomePage.tsx');
+    expect(home).not.toMatch(/<BuyAgainRow/);
+    expect(homePage).not.toMatch(/WelcomeBackStrip/);
     expect(cart).toMatch(/<BuyAgainRow mode="shop" \/>/);
-    expect(modePage).toMatch(/<BuyAgainRow mode=\{mode\} onOpenListing=\{handleRepeatTap\} \/>/);
+    expect(modePage).not.toMatch(/<BuyAgainRow/);
     expect(modePage).toMatch(/mode === 'book' \|\| mode === 'services'/);
-    expect(modePage).not.toMatch(/<BuyAgainRow mode="shop"/);
+    expect(read('src/pages/OrdersPage.tsx')).toMatch(/<ReorderButton/);
   });
 
   it('Home nearby chips stay shop-only', () => {

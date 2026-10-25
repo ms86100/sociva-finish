@@ -8,7 +8,7 @@ import {
   cancelIncomingOrderLocalNotification,
 } from '@/lib/local-order-notifications';
 
-const NUDGE_INTERVAL_MS = 5 * 60 * 1000;
+const NUDGE_INTERVAL_MS = 15 * 60 * 1000;
 const BELL_SOUND_CANDIDATES = ['/sounds/gate_bell.mp3', '/sounds/order_ring.mp3'];
 const BELL_LOOP_GAP_MS = 1500;
 
@@ -182,13 +182,18 @@ export function useSellerStatusNudge(sellerIds: string[], paused: boolean) {
     try {
       const { data } = await supabase
         .from('orders')
-        .select('id, status, total_amount, created_at, seller_id, fulfillment_type, delivery_handled_by, delivery_address, delivery_lat, delivery_lng, society_id, status_changed_at')
+        .select('id, status, total_amount, created_at, seller_id, fulfillment_type, delivery_handled_by, delivery_address, delivery_lat, delivery_lng, society_id, status_changed_at, scheduled_date, preparation_start_at')
         .in('seller_id', sellerIds)
         .eq('status', 'accepted')
         .lte('status_changed_at', cutoff)
         .limit(20);
+      const todayIst = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
       for (const row of data || []) {
         if (!sellerIdsRef.current.has(row.seller_id)) continue;
+        if (row.scheduled_date) {
+          if (row.scheduled_date > todayIst) continue;
+          if (row.preparation_start_at && new Date(row.preparation_start_at).getTime() > Date.now()) continue;
+        }
         enqueueNudge(row as NewOrder);
       }
     } catch {

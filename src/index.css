@@ -40,13 +40,15 @@
     --app-safe-left: var(--safe-area-inset-left);
     --keyboard-inset: 0px;
 
-    /* ═══ LIGHT - Warm white, punchy green ═══ */
-    --background: 40 20% 99%;
+    color-scheme: light;
+
+    /* ═══ LIGHT - White page, punchy green, bordered white cards ═══ */
+    --background: 0 0% 100%;
     --foreground: 240 10% 8%;
 
     --card: 0 0% 100%;
     --card-foreground: 240 10% 8%;
-    --card-elevated: 0 0% 98%;
+    --card-elevated: 0 0% 100%;
 
     --popover: 0 0% 100%;
     --popover-foreground: 240 10% 8%;
@@ -54,11 +56,11 @@
     --primary: 151 65% 38%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 40 15% 95%;
+    --secondary: 0 0% 96%;
     --secondary-foreground: 240 8% 30%;
 
-    --muted: 40 12% 93%;
-    --muted-foreground: 240 6% 44%;
+    --muted: 0 0% 96%;
+    --muted-foreground: 240 8% 38%;
 
     --accent: 151 65% 38%;
     --accent-foreground: 0 0% 100%;
@@ -66,8 +68,8 @@
     --destructive: 4 76% 56%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 40 10% 90%;
-    --input: 40 10% 90%;
+    --border: 240 8% 84%;
+    --input: 240 8% 84%;
     --ring: 151 65% 38%;
 
     --radius: 0.75rem;
@@ -96,7 +98,7 @@
     --nav-active-foreground: 0 0% 100%;
 
     /* Product image bg */
-    --product-image-bg: 40 15% 96%;
+    --product-image-bg: 0 0% 96%;
 
     /* Category tints */
     --tint-food: 40 20% 98%;
@@ -110,15 +112,15 @@
     --gradient-primary: linear-gradient(135deg, hsl(151 65% 38%) 0%, hsl(168 55% 34%) 100%);
     --gradient-success: linear-gradient(135deg, hsl(151 65% 38%) 0%, hsl(162 50% 34%) 100%);
     --gradient-warm: linear-gradient(135deg, hsl(38 92% 50%) 0%, hsl(20 85% 50%) 100%);
-    --gradient-hero: linear-gradient(180deg, hsl(151 65% 38% / 0.04) 0%, hsl(40 20% 99%) 60%);
-    --gradient-glass: linear-gradient(135deg, hsl(0 0% 100% / 0.98) 0%, hsl(40 10% 98% / 0.92) 100%);
+    --gradient-hero: linear-gradient(180deg, hsl(151 65% 38% / 0.04) 0%, hsl(0 0% 100%) 60%);
+    --gradient-glass: linear-gradient(135deg, hsl(0 0% 100% / 0.98) 0%, hsl(0 0% 100% / 0.94) 100%);
 
     /* Shadows */
-    --shadow-sm: 0 1px 2px hsl(240 10% 8% / 0.04);
-    --shadow-md: 0 4px 12px hsl(240 10% 8% / 0.06);
-    --shadow-lg: 0 8px 30px hsl(240 10% 8% / 0.1);
-    --shadow-card: 0 1px 3px hsl(240 10% 8% / 0.04), 0 4px 12px hsl(240 10% 8% / 0.04), 0 0 0 1px hsl(40 10% 88% / 0.55);
-    --shadow-elevated: 0 6px 22px hsl(240 10% 8% / 0.09);
+    --shadow-sm: 0 1px 2px hsl(240 10% 8% / 0.05);
+    --shadow-md: 0 4px 14px hsl(240 10% 8% / 0.08);
+    --shadow-lg: 0 10px 32px hsl(240 10% 8% / 0.12);
+    --shadow-card: 0 1px 3px hsl(240 10% 8% / 0.05), 0 8px 24px hsl(240 10% 8% / 0.06), 0 0 0 1px hsl(240 8% 82% / 0.95);
+    --shadow-elevated: 0 8px 26px hsl(240 10% 8% / 0.1);
     --shadow-glow: 0 0 0 transparent;
     --shadow-cta: 0 4px 14px hsl(151 65% 38% / 0.25);
     --shadow-glow-green: 0 0 0 transparent;
@@ -129,17 +131,17 @@
     --sidebar-foreground: 240 10% 8%;
     --sidebar-primary: 151 65% 38%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 40 15% 95%;
+    --sidebar-accent: 0 0% 96%;
     --sidebar-accent-foreground: 240 8% 30%;
-    --sidebar-border: 40 10% 90%;
+    --sidebar-border: 240 8% 86%;
     --sidebar-ring: 151 65% 38%;
 
     /* ═══ Component surface tokens - Light ═══ */
-    --header-bg: 40 20% 99%;
-    --nav-bg: 40 20% 99% / 0.98;
-    --nav-border: 40 10% 90% / 0.6;
-    --search-bg: 40 15% 95% / 0.6;
-    --search-border: 40 10% 90% / 0.4;
+    --header-bg: 0 0% 100%;
+    --nav-bg: 0 0% 100% / 0.98;
+    --nav-border: 240 8% 84% / 0.8;
+    --search-bg: 0 0% 96% / 0.9;
+    --search-border: 240 8% 84% / 0.7;
     --buyagain-card-bg: 151 65% 38% / 0.08;
     --buyagain-card-border: 151 65% 38% / 0.15;
     --buyagain-badge-bg: 151 65% 38% / 0.1;
@@ -170,6 +172,7 @@
      DARK MODE - Neutral near-black, vivid green
      ═══════════════════════════════════════════════ */
   .dark {
+    color-scheme: dark;
     --background: 0 0% 5%;
     --foreground: 0 0% 94%;
 
@@ -374,7 +377,7 @@
     left: 0;
     right: 0;
     height: var(--app-safe-top);
-    background: hsl(var(--header-bg));
+    background: var(--app-status-chrome, hsl(var(--header-bg)));
     /* Below Radix portal overlays/sheets (z-50) so status chrome never covers Close/X */
     z-index: 40;
     pointer-events: none;
@@ -511,14 +514,9 @@
   }
 
   .glass-card {
-    @apply backdrop-blur-xl backdrop-saturate-150;
     border-radius: var(--radius-card);
-    border: 1px solid hsl(var(--border) / 0.45);
-    background: linear-gradient(
-      165deg,
-      hsl(var(--card) / 0.88) 0%,
-      hsl(var(--card) / 0.72) 100%
-    );
+    border: 1px solid hsl(var(--border));
+    background: hsl(var(--card));
     box-shadow: var(--shadow-card);
   }
 
@@ -2321,4 +2319,83 @@ body.razorpay-active.razorpay-ios iframe[src*="checkout.razorpay"] {
 
 @keyframes ptr-android-spin {
   to { transform: rotate(270deg); }
+}
+
+/* Neighbor banner - word reveal + gold punch shine */
+.neighbor-banner-sheen {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(115deg, transparent 30%, rgba(255, 214, 120, 0.16) 48%, transparent 64%);
+  background-size: 220% 100%;
+  animation: neighbor-banner-sheen 5.6s ease-in-out infinite;
+}
+.neighbor-banner-headline {
+  letter-spacing: -0.02em;
+}
+.neighbor-banner-line {
+  display: block;
+  min-height: 1.15em;
+}
+.neighbor-banner-punch {
+  display: block;
+  margin-top: 0.12em;
+  min-height: 1.15em;
+  color: #fff;
+}
+.neighbor-banner-punch-ready {
+  background-image: linear-gradient(
+    105deg,
+    #ffffff 0%,
+    #ffffff 36%,
+    #ffe7a3 47%,
+    #fff7d6 50%,
+    #ffe7a3 53%,
+    #ffffff 64%,
+    #ffffff 100%
+  );
+  background-size: 240% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 0 8px rgba(251, 191, 36, 0.28));
+  animation: neighbor-punch-shine 4.2s ease-in-out infinite;
+}
+.neighbor-type-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 0.92em;
+  margin-left: 2px;
+  background: #fff;
+  vertical-align: -2px;
+  animation: neighbor-cursor-blink 0.85s step-end infinite;
+}
+@keyframes neighbor-cursor-blink {
+  0%, 45% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+@keyframes neighbor-punch-shine {
+  0%, 18% { background-position: 100% 50%; }
+  58%, 100% { background-position: 0% 50%; }
+}
+@keyframes neighbor-banner-sheen {
+  0%, 35% { background-position: 120% 0; opacity: 0; }
+  50% { opacity: 1; }
+  70%, 100% { background-position: -20% 0; opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .neighbor-banner-sheen,
+  .neighbor-banner-punch-ready,
+  .neighbor-type-cursor {
+    animation: none !important;
+  }
+  .neighbor-banner-punch-ready {
+    color: #fff;
+    background: none;
+    -webkit-text-fill-color: #fff;
+    filter: none;
+  }
+  .neighbor-type-cursor {
+    display: none;
+  }
 }

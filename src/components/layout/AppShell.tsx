@@ -18,6 +18,7 @@ import { cn } from '@/lib/utils';
 import { isGuestBrowsePath, authReturnPath } from '@/lib/guest-browse-routes';
 import { hasPreciseCoordinates } from '@/lib/buyerLocation';
 import { needsLocationOnboarding, isLocationOnboardingExemptPath, setPendingBrowseReturn } from '@/lib/location-onboarding';
+import { HomeSearchProvider } from '@/contexts/HomeSearchContext';
 
 /**
  * Persistent chrome shell. Header / BottomNav stay mounted across route changes.
@@ -32,7 +33,7 @@ function AppShellChrome() {
 
   return (
     <div className="min-h-[100dvh] bg-background">
-      <div className={cn('sticky top-0 z-40', !showHeader && 'hidden')}>
+      <div className={cn('sticky top-0 z-40 bg-background overflow-visible', !showHeader && 'hidden')}>
         <Header
           showCart={showCart}
           showLocation={options.showLocation !== false}
@@ -68,7 +69,9 @@ function AppShellChrome() {
 export function AppShell() {
   return (
     <AppLayoutShellProvider>
-      <AppShellChrome />
+      <HomeSearchProvider>
+        <AppShellChrome />
+      </HomeSearchProvider>
     </AppLayoutShellProvider>
   );
 }

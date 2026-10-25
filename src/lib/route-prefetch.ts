@@ -65,7 +65,10 @@ function prefetch(key: string, importer: Importer) {
 export function prefetchBuyerRoutes() {
   if (!shouldPrefetchRoutes()) return;
   // Bottom-nav tabs first - highest chance of next tap
+  whenIdle(() => prefetch('book-contact', () => import('@/pages/CommerceModePage')), 200);
+  whenIdle(() => prefetch('categories', () => import('@/pages/CategoriesPage')), 300);
   whenIdle(() => prefetch('search', () => import('@/pages/SearchPage')), 400);
+  whenIdle(() => prefetch('explore', () => import('@/pages/GuidedDiscoveryHubPage')), 500);
   whenIdle(() => prefetch('orders', () => import('@/pages/OrdersPage')), 600);
   whenIdle(() => prefetch('cart', () => import('@/pages/CartPage')), 800);
   whenIdle(() => prefetch('society', () => import('@/pages/SocietyDashboardPage')), 1000);
@@ -76,7 +79,6 @@ export function prefetchBuyerRoutes() {
   whenIdle(() => prefetch('product', () => import('@/pages/ProductDeepLinkPage')), 1800);
   whenIdle(() => prefetch('notifications', () => import('@/pages/NotificationsPage')), 2000);
   whenIdle(() => prefetch('notification-inbox', () => import('@/pages/NotificationInboxPage')), 2200);
-  whenIdle(() => prefetch('categories', () => import('@/pages/CategoriesPage')), 2400);
   whenIdle(() => prefetch('favorites', () => import('@/pages/FavoritesPage')), 2600);
   whenIdle(() => prefetch('become-seller', () => import('@/pages/BecomeSellerPage')), 3000);
 }

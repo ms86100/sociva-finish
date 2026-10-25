@@ -16,6 +16,9 @@ describe('buyer chip groups', () => {
     expect(categoryMatchesBuyerChip('tuition', 'tuition')).toBe(true);
     expect(categoryMatchesBuyerChip('beauty', 'salon')).toBe(true);
     expect(categoryMatchesBuyerChip('salon', 'salon')).toBe(true);
+    expect(categoryMatchesBuyerChip('beauty', 'beauty')).toBe(true);
+    expect(categoryMatchesBuyerChip('coaching', 'coaching')).toBe(true);
+    expect(categoryMatchesBuyerChip('salon', 'beauty')).toBe(false);
     expect(categoryMatchesBuyerChip('coaching', 'salon')).toBe(false);
     expect(categoryMatchesBuyerChip('medical_specialist', 'medical_specialist')).toBe(true);
   });

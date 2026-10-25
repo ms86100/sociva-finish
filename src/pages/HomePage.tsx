@@ -17,8 +17,6 @@ import { useBrowsingLocation } from '@/contexts/BrowsingLocationContext';
 import { hasPreciseCoordinates } from '@/lib/buyerLocation';
 import { ActiveOrderStrip } from '@/components/home/ActiveOrderStrip';
 import { ForYouSection } from '@/components/home/ForYouSection';
-import { SocietyLeaderboard } from '@/components/home/SocietyLeaderboard';
-import { WelcomeBackStrip } from '@/components/home/WelcomeBackStrip';
 import { WhatsNewSection } from '@/components/home/WhatsNewSection';
 
 import { useAuth } from '@/contexts/AuthContext';
@@ -137,16 +135,10 @@ export default function HomePage() {
             Do not use reveal-on-scroll: nothing adds .revealed, so sections
             stayed opacity:0 and left a huge blank band above BottomNav. */}
         <LazySection>
-          <WelcomeBackStrip />
-        </LazySection>
-        <LazySection>
           <ForYouSection />
         </LazySection>
         <LazySection>
           <WhatsNewSection />
-        </LazySection>
-        <LazySection className="mt-2">
-          <SocietyLeaderboard />
         </LazySection>
         <LazySection>
           <CommunityTeaser />

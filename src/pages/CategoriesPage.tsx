@@ -16,7 +16,6 @@ import { DynamicIcon } from '@/components/ui/DynamicIcon';
 import { cn } from '@/lib/utils';
 import { useSearchPlaceholder } from '@/hooks/useSearchPlaceholder';
 import { useMarketplaceLabels } from '@/hooks/useMarketplaceLabels';
-import { getCategoryPastel } from '@/lib/category-pastels';
 
 /* ── Helpers ─────────────────────────────────────────────── */
 
@@ -193,66 +192,66 @@ export default function CategoriesPage() {
   return (
     <AppLayout showHeader={false} safeTop={false}>
       {/* Header */}
-      <SafeHeader zIndex="z-40" blur bordered={false}>
-        <div className="px-4 pt-3 pb-1">
+      <SafeHeader zIndex="z-40" blur bordered={false} className="overflow-visible">
+        <div className="px-4 pt-3">
           <h1 className="text-lg font-bold text-foreground">{ml.label('label_categories_page_title')}</h1>
-          <p className="text-xs text-muted-foreground mb-1">{ml.label('label_categories_page_subtitle')}</p>
+          <p className="text-xs text-muted-foreground mb-2">{ml.label('label_categories_page_subtitle')}</p>
           <div className="h-[2px] rounded-full bg-gradient-to-r from-primary via-primary/50 to-transparent" />
         </div>
 
-        <div className="px-3 pb-2">
+        <div className="px-4 pt-3">
           <Link to="/search" className="block">
-            <div className="flex items-center gap-2.5 bg-secondary rounded-2xl px-4 py-3">
+            <div className="flex items-center gap-2.5 rounded-2xl border border-border bg-muted/50 px-4 py-3">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-muted-foreground shrink-0">
                 <circle cx="11" cy="11" r="8"/>
                 <path d="m21 21-4.3-4.3"/>
               </svg>
-              <span className="text-sm text-muted-foreground flex-1 transition-opacity duration-300">{searchPlaceholder}</span>
+              <span className="text-sm text-muted-foreground flex-1 transition-opacity duration-300 truncate">{searchPlaceholder}</span>
             </div>
           </Link>
         </div>
-      </SafeHeader>
 
-      {/* Parent Group Pills */}
-      {!isLoading && activeParentGroups.length > 0 && (
-        <div className="flex gap-1.5 px-4 pb-2 overflow-x-auto scrollbar-hide snap-x snap-mandatory">
-          <button
-            onClick={() => handlePillClick('all')}
-            className={cn(
-              'px-3 py-1.5 rounded-full text-[11px] font-semibold whitespace-nowrap transition-all border snap-start min-w-[auto]',
-              activeGroup === 'all'
-                ? 'bg-primary text-primary-foreground border-primary scale-105'
-                : 'bg-card text-muted-foreground border-border active:scale-[0.97]'
-            )}
+        {!isLoading && activeParentGroups.length > 0 && (
+          <div
+            data-testid="categories-group-filters"
+            className="flex gap-2 px-4 pt-3 pb-3 overflow-x-auto scrollbar-hide"
           >
-            All
-          </button>
-          {activeParentGroups.map(g => (
             <button
-              key={g.slug}
-              onClick={() => handlePillClick(g.slug)}
+              type="button"
+              onClick={() => handlePillClick('all')}
               className={cn(
-                'px-3 py-1.5 rounded-full text-[11px] font-semibold whitespace-nowrap transition-all border snap-start min-w-[auto] flex items-center gap-1.5',
-                activeGroup === g.slug
-                  ? 'bg-primary text-primary-foreground border-primary scale-105'
-                  : 'bg-card text-muted-foreground border-border active:scale-[0.97]'
+                'surface-chip shrink-0 whitespace-nowrap px-4',
+                activeGroup === 'all' && 'surface-chip-active',
               )}
             >
-              {g.imageUrl || (g as any).image_url ? (
-                <span className="w-3.5 h-3.5 rounded-full overflow-hidden shrink-0 inline-flex items-center justify-center">
-                  <img src={g.imageUrl || (g as any).image_url} alt="" className="w-full h-full object-cover" />
-                </span>
-              ) : (
-                <DynamicIcon name={g.icon || 'Package'} size={12} />
-              )}
-              {g.name}
+              All
             </button>
-          ))}
-        </div>
-      )}
+            {activeParentGroups.map(g => (
+              <button
+                type="button"
+                key={g.slug}
+                onClick={() => handlePillClick(g.slug)}
+                className={cn(
+                  'surface-chip shrink-0 whitespace-nowrap',
+                  activeGroup === g.slug && 'surface-chip-active',
+                )}
+              >
+                {g.imageUrl || (g as any).image_url ? (
+                  <span className="w-4 h-4 rounded-full overflow-hidden shrink-0 inline-flex items-center justify-center">
+                    <img src={g.imageUrl || (g as any).image_url} alt="" className="w-full h-full object-cover" />
+                  </span>
+                ) : (
+                  <DynamicIcon name={g.icon || 'Package'} size={13} />
+                )}
+                {g.name}
+              </button>
+            ))}
+          </div>
+        )}
+      </SafeHeader>
 
       {/* Content */}
-      <div className="px-3 pb-24">
+      <div className="px-4 pt-4 pb-24">
         {isLoading ? (
           <div className="space-y-5">
             {[1, 2].map(i => (
@@ -318,33 +317,26 @@ export default function CategoriesPage() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: groupIdx * 0.08, duration: 0.35 }}
               >
-                {/* Section Header */}
-                <div className="flex items-center gap-2 mb-3 px-1">
-                  <span
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold"
-                    style={{
-                      backgroundColor: group.color ? `${group.color}15` : 'hsl(var(--primary) / 0.1)',
-                      color: group.color || 'hsl(var(--primary))',
-                    }}
-                  >
-                    {group.imageUrl || (group as any).image_url ? (
-                      <span className="w-4 h-4 rounded-full overflow-hidden shrink-0 inline-flex items-center justify-center">
-                        <img src={group.imageUrl || (group as any).image_url} alt="" className="w-full h-full object-cover" />
-                      </span>
-                    ) : (
-                      <DynamicIcon name={group.icon || 'Package'} size={13} />
-                    )}
-                    {group.name}
-                  </span>
-                  <span className="text-[10px] text-muted-foreground">({group.categories.length})</span>
-                  <div className="flex-1 h-px bg-border" />
+                <div className="mb-3" data-testid="categories-group-header">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary overflow-hidden">
+                      {group.imageUrl || (group as any).image_url ? (
+                        <img src={group.imageUrl || (group as any).image_url} alt="" className="h-full w-full object-cover" />
+                      ) : (
+                        <DynamicIcon name={group.icon || 'Package'} size={14} />
+                      )}
+                    </span>
+                    <h2 className="min-w-0 flex-1 truncate text-[13px] font-extrabold tracking-wide text-foreground">
+                      {group.name}
+                    </h2>
+                  </div>
+                  <div className="mt-2 h-px bg-border" />
                 </div>
 
                 {/* Category Cards Grid */}
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                   {group.categories.map((cat, catIdx) => {
                     const meta = metaMap[cat.category] || { count: 0, sellerCount: 0, minPrice: null, collageImages: [], hasBestseller: false };
-                    const pastelColor = getCategoryPastel(cat.category, cat.color);
                     const images = meta.collageImages.length > 0
                       ? meta.collageImages
                       : (cat.imageUrl || (cat as any).image_url) ? [cat.imageUrl || (cat as any).image_url] : [];
@@ -357,52 +349,51 @@ export default function CategoriesPage() {
                       >
                         <Link
                           to={`/category/${cat.parentGroup}?sub=${cat.category}`}
-                          className="block rounded-2xl overflow-hidden shadow-sm active:scale-[0.97] transition-all duration-200 group"
-                          style={{ backgroundColor: pastelColor }}
+                          className="block rounded-2xl overflow-hidden border border-border bg-card shadow-sm active:scale-[0.97] transition-all duration-200"
                         >
                           {/* Image area */}
                           <div className="relative p-3">
                             <div className="flex gap-1.5 h-24">
                               {images.length >= 2 ? (
                                 images.slice(0, 2).map((src, i) => (
-                                  <div key={i} className="flex-1 h-full rounded-xl overflow-hidden bg-white/40">
+                                  <div key={i} className="flex-1 h-full rounded-xl overflow-hidden bg-muted">
                                     <img src={src} alt="" className="w-full h-full object-cover" loading="lazy" />
                                   </div>
                                 ))
                               ) : images.length === 1 ? (
-                                <div className="flex-1 h-full rounded-xl overflow-hidden bg-white/40">
+                                <div className="flex-1 h-full rounded-xl overflow-hidden bg-muted">
                                   <img src={images[0]} alt={cat.displayName} className="w-full h-full object-cover" loading="lazy" />
                                 </div>
                               ) : (
-                                <div className="flex-1 h-full flex items-center justify-center rounded-xl bg-white/40 overflow-hidden">
+                                <div className="flex-1 h-full flex items-center justify-center rounded-xl bg-muted overflow-hidden">
                                   {cat.imageUrl || (cat as any).image_url ? (
                                     <img src={cat.imageUrl || (cat as any).image_url} alt={cat.displayName} className="w-full h-full object-cover" loading="lazy" />
                                   ) : (
-                                    <DynamicIcon name={cat.icon} size={36} className="text-gray-400" />
+                                    <DynamicIcon name={cat.icon} size={36} className="text-muted-foreground" />
                                   )}
                                 </div>
                               )}
                             </div>
 
                             {meta.count > 0 && (
-                              <div className="absolute bottom-4 right-4 bg-black/60 text-white text-[10px] font-semibold px-2 py-0.5 rounded-full">
+                              <div className="absolute bottom-4 right-4 bg-foreground/75 text-background text-[10px] font-semibold px-2 py-0.5 rounded-full">
                                 +{meta.count} items
                               </div>
                             )}
 
                             {meta.hasBestseller && (
-                              <div className="absolute top-4 left-4 w-6 h-6 rounded-full bg-amber-400 flex items-center justify-center shadow-sm">
-                                <Star size={12} className="text-white fill-white" />
+                              <div className="absolute top-4 left-4 w-6 h-6 rounded-full bg-primary flex items-center justify-center shadow-sm">
+                                <Star size={12} className="text-primary-foreground fill-primary-foreground" />
                               </div>
                             )}
                           </div>
 
                           {/* Info section */}
                           <div className="px-3 pb-3">
-                            <span className="text-[13px] font-semibold text-gray-900 leading-tight line-clamp-2">
+                            <span className="text-[13px] font-semibold text-foreground leading-tight line-clamp-2">
                               {cat.displayName}
                             </span>
-                            <div className="flex items-center gap-2 mt-1 text-[10px] text-gray-600">
+                            <div className="flex items-center gap-2 mt-1 text-[10px] text-muted-foreground">
                               {meta.sellerCount > 0 && (
                                 <span className="inline-flex items-center gap-0.5">
                                   <Users size={10} className="shrink-0" />

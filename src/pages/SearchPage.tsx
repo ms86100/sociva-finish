@@ -14,6 +14,8 @@ import { MarketplaceConfig } from '@/hooks/useMarketplaceConfig';
 import { BadgeConfigRow } from '@/hooks/useBadgeConfig';
 import { Search as SearchIcon, X, Globe, ShoppingBag } from 'lucide-react';
 import { BackButton } from '@/components/navigation/BackButton';
+import { useSmartBack } from '@/hooks/useSmartBack';
+import { handleInAppBackLayers } from '@/lib/navigation-stack';
 import { LottieEmptyState } from '@/components/ui/LottieEmptyState';
 import { DynamicIcon } from '@/components/ui/DynamicIcon';
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -90,6 +92,10 @@ function isKeepKeyboardTarget(target: EventTarget | null) {
   return target instanceof Element && !!target.closest('[data-keep-keyboard]');
 }
 
+function isSearchExitTarget(target: EventTarget | null) {
+  return target instanceof Element && !!target.closest('[aria-label="Go back"]');
+}
+
 export default function SearchPage() {
   const s = useSearchPage();
   const location = useLocation();
@@ -103,6 +109,7 @@ export default function SearchPage() {
     return map;
   }, [marketplaceSellers]);
   const keyboard = useSearchKeyboardInset(true);
+  const leaveSearch = useSmartBack('/');
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [showAllResults, setShowAllResults] = useState(false);
@@ -204,7 +211,7 @@ export default function SearchPage() {
         className={keyboard.isKeyboardOpen ? undefined : 'pb-24'}
         style={keyboard.resultsPaddingBottom ? { paddingBottom: keyboard.resultsPaddingBottom } : undefined}
         onMouseDown={(event) => {
-          if (isTypingTarget(event.target)) return;
+          if (isTypingTarget(event.target) || isSearchExitTarget(event.target)) return;
           // Keep this tap. Otherwise the first touch only blurs the field and the click is dropped.
           event.preventDefault();
         }}
@@ -217,7 +224,14 @@ export default function SearchPage() {
         <SafeHeader zIndex="z-40" bordered={false} className="overflow-visible">
           <div className="px-4 pt-3 pb-2">
             <div className="flex items-center gap-2">
-              <BackButton fallback="/" />
+              <BackButton
+                fallback="/"
+                onClick={() => {
+                  releaseSearchKeyboard(inputRef.current);
+                  if (handleInAppBackLayers()) return;
+                  leaveSearch({ fallback: '/' });
+                }}
+              />
               <div className="flex-1 relative">
                 <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={15} />
                 {!s.query && <div className="absolute left-9 top-1/2 -translate-y-1/2 pointer-events-none pr-16 overflow-hidden whitespace-nowrap max-w-[calc(100%-4rem)]"><TypewriterPlaceholder context="search" /></div>}
@@ -227,7 +241,13 @@ export default function SearchPage() {
                   value={s.query}
                   onChange={(e) => s.setQuery(e.target.value)}
                   onFocus={() => setInputFocused(true)}
-                  onBlur={() => setInputFocused(false)}
+                  onBlur={(event) => {
+                    const host = event.currentTarget.closest('.relative') || event.currentTarget.parentElement;
+                    window.setTimeout(() => {
+                      if (host?.contains(document.activeElement)) return;
+                      setInputFocused(false);
+                    }, 80);
+                  }}
                   onKeyDown={(event) => {
                     if (event.key === 'Enter' && !event.defaultPrevented) {
                       event.currentTarget.blur();
@@ -257,7 +277,13 @@ export default function SearchPage() {
                 )}
                 <SearchAutocomplete
                   query={s.query}
+                  inputRef={inputRef}
+                  open={inputFocused}
                   maxHeight={keyboard.autocompleteMaxHeight}
+                  onDismiss={() => {
+                    setInputFocused(false);
+                    releaseSearchKeyboard(inputRef.current);
+                  }}
                   onSelect={(p) => {
                     releaseSearchKeyboard(inputRef.current);
                     s.setQuery('');
@@ -336,12 +362,12 @@ export default function SearchPage() {
             )}
           </div>
 
-          {/* Results */}
+          {/* Results: idle search is for typing, not dumping the home catalog. */}
           {s.showLoading ? (
             <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 gap-2.5 mt-2">
               {[1, 2, 3, 4, 5, 6].map((i) => <Skeleton key={i} className="h-52 w-full rounded-xl" />)}
             </div>
-          ) : visibleProducts.length > 0 ? (
+          ) : s.isSearchActive && visibleProducts.length > 0 ? (
             <>
               <ProductGridByCategory products={visibleProducts} facetRows={facetRows} sellersById={sellersById} categoryMap={s.categoryMap} categoryConfigs={s.categoryConfigs} marketplaceConfig={s.mc} badgeConfigs={s.badgeConfigs} showCount={s.isSearchActive} totalCount={rankedSearch.items.length} onNavigate={s.navigate} onProductTap={handleProductTap} />
               {rankedSearch.hiddenCount > 0 && !showAllResults && (
@@ -356,8 +382,10 @@ export default function SearchPage() {
             </>
           ) : s.isSearchActive ? (
             <EmptyState browseBeyond={s.browseBeyond} onEnableBrowseBeyond={() => s.setBrowseBeyond(true)} />
-          ) : (
+          ) : s.popularProducts.length === 0 ? (
             <EmptyMarketplace />
+          ) : (
+            <SearchIdleHint />
           )}
         </div>
       </div>
@@ -482,6 +510,14 @@ function EmptyState({ browseBeyond, onEnableBrowseBeyond }: { browseBeyond?: boo
         </div>
       </LottieEmptyState>
     </motion.div>
+  );
+}
+
+function SearchIdleHint() {
+  return (
+    <p className="px-2 pt-6 pb-10 text-center text-[13px] leading-relaxed text-muted-foreground">
+      Type a dish, service, or seller name to see matching listings nearby.
+    </p>
   );
 }
 

@@ -14,6 +14,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { motion } from 'framer-motion';
 import { staggerContainer, cardEntrance } from '@/lib/motion-variants';
 import { SellerContactChatSheet } from '@/components/seller/SellerContactChatSheet';
+import { resolveOperationalSellerId } from '@/lib/seller-order-board';
 
 interface ConversationRow {
   order_id: string;
@@ -26,6 +27,7 @@ interface ConversationRow {
 
 interface ContactLeadRow {
   id: string;
+  seller_id: string | null;
   buyer_id: string;
   buyer_name: string | null;
   product_id: string | null;
@@ -38,7 +40,8 @@ interface ContactLeadRow {
 }
 
 export default function SellerMessagesPage() {
-  const { user, sellerProfiles = [] } = useAuth();
+  const { user, sellerProfiles = [], currentSellerId } = useAuth();
+  const activeSellerId = resolveOperationalSellerId(currentSellerId, sellerProfiles);
   const [searchParams, setSearchParams] = useSearchParams();
   const tabParam = searchParams.get('tab');
   const tab = tabParam === 'orders' ? 'orders' : 'contacts';
@@ -118,7 +121,7 @@ export default function SellerMessagesPage() {
 
     const { data, error } = await supabase
       .from('seller_contact_interactions')
-      .select('id, buyer_id, product_id, interaction_type, order_id, conversation_id, status, created_at')
+      .select('id, seller_id, buyer_id, product_id, interaction_type, order_id, conversation_id, status, created_at')
       .in('seller_id', sellerIds)
       .order('created_at', { ascending: false })
       .limit(100);
@@ -145,6 +148,7 @@ export default function SellerMessagesPage() {
 
     const rows: ContactLeadRow[] = data.map((r: any) => ({
       id: r.id,
+      seller_id: r.seller_id || null,
       buyer_id: r.buyer_id,
       buyer_name: nameById.get(r.buyer_id) || 'Customer',
       product_id: r.product_id,
@@ -338,12 +342,12 @@ export default function SellerMessagesPage() {
         )}
       </div>
 
-      {activeLead && activeLead.product_id && activeSellerId && user && (
+      {activeLead && activeLead.product_id && (activeLead.seller_id || activeSellerId) && user && (
         <SellerContactChatSheet
           open={chatOpen}
           onOpenChange={setChatOpen}
           buyerId={activeLead.buyer_id}
-          sellerProfileId={activeSellerId}
+          sellerProfileId={activeLead.seller_id || activeSellerId || ''}
           sellerUserId={user.id}
           productId={activeLead.product_id}
           productName={activeLead.product_name || 'Listing'}

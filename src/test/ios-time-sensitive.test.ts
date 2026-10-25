@@ -46,6 +46,18 @@ describe('iOS Time Sensitive seller alerts', () => {
     }
   });
 
+  it('lets a scheduled-accept reminder interrupt for placed and requested orders', () => {
+    for (const status of ['placed', 'requested']) {
+      expect(isIosTimeSensitiveSellerAlert({
+        targetRole: 'seller',
+        status,
+        type: 'seller_order_status_reminder',
+        queueType: 'seller_order_status_reminder',
+        reminderType: 'scheduled_accept',
+      })).toBe(true);
+    }
+  });
+
   it('does not treat high priority, quoted, preparing, buyer, refund, or lifecycle as Time Sensitive', () => {
     expect(isIosTimeSensitiveSellerAlert({
       targetRole: 'seller',

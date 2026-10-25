@@ -222,6 +222,12 @@ describe('food facets', () => {
     expect(listingMatchesCategoryChip(fries, 'cafe')).toBe(true);
   });
 
+  it('keeps Beauty listings on the Beauty category page, not only on Salon', () => {
+    expect(listingMatchesCategoryChip({ category: 'beauty', name: 'Bridal makeup' }, 'beauty')).toBe(true);
+    expect(listingMatchesCategoryChip({ category: 'beauty', name: 'Bridal makeup' }, 'salon')).toBe(true);
+    expect(listingMatchesCategoryChip({ category: 'salon', name: 'Haircut' }, 'beauty')).toBe(false);
+  });
+
   it('does not emit a Snacks mood when a live Snacks category already owns that meal', () => {
     const snackMood = TASTE_MOODS.find((mood) => mood.id === 'snack');
     expect(snackMood).toBeTruthy();

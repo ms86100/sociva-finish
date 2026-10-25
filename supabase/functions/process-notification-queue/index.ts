@@ -50,7 +50,8 @@ function isSellerOrderAlert(item: { type?: string; payload?: Record<string, unkn
     payload.reminder_type === "unacked_order" ||
     payload.reminder_type === "status_nudge" ||
     payload.reminder_type === "scheduled_prep" ||
-    payload.reminder_type === "scheduled_late"
+    payload.reminder_type === "scheduled_late" ||
+    payload.reminder_type === "scheduled_accept"
   );
 }
 
@@ -1004,6 +1005,7 @@ Deno.serve(async (req) => {
           reminderType === 'unacked_order' ||
           (targetRole === 'seller' && reminderType === 'scheduled_prep') ||
           (targetRole === 'seller' && reminderType === 'scheduled_late') ||
+          (targetRole === 'seller' && reminderType === 'scheduled_accept') ||
           (flaggedHighPriority && targetRole !== 'buyer') ||
           SELLER_LIFECYCLE_TYPES.includes(item.type);
 

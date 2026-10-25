@@ -21,6 +21,16 @@ describe('commerce-mode UI contracts', () => {
     expect(read('components/home/BuyAgainRow.tsx')).toMatch(/listingBelongsToMode\(/);
     expect(read('components/location/DiscoveryMomentHero.tsx')).toMatch(/resolveCommerceMode\(/);
     expect(read('components/search/SearchAutocomplete.tsx')).toMatch(/suggestionIntent\(product, categoryConfigs\)/);
+    expect(read('components/search/SearchAutocomplete.tsx')).toMatch(/open\?: boolean/);
+    expect(read('components/search/SearchAutocomplete.tsx')).toMatch(/addEventListener\('wheel', onUserPageScroll/);
+    expect(read('components/search/SearchAutocomplete.tsx')).toMatch(/addEventListener\('touchmove', onUserPageScroll/);
+    expect(read('components/search/SearchAutocomplete.tsx')).toMatch(/addEventListener\('pointerdown', onPointerDown\)/);
+    expect(read('components/layout/Header.tsx')).toMatch(/inputRef=\{homeSearchRef\}/);
+    expect(read('pages/CommerceModePage.tsx')).toMatch(/<SearchAutocomplete/);
+    expect(read('components/layout/Header.tsx')).toMatch(/<SearchAutocomplete/);
+    expect(read('components/layout/Header.tsx')).toMatch(/data-testid="home-header-search"/);
+    expect(read('components/layout/Header.tsx')).toMatch(/useHomeSearch/);
+    expect(read('components/home/MarketplaceSection.tsx')).toMatch(/data-testid="home-search-results"/);
     for (const file of [
       'components/home/MarketplaceSection.tsx',
       'pages/CategoryGroupPage.tsx',

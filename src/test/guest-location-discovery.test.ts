@@ -46,6 +46,7 @@ describe('guest browse allow-list', () => {
     expect(isGuestBrowsePath('/discover-location')).toBe(true);
     expect(isGuestBrowsePath('/cart')).toBe(true);
     expect(isGuestBrowsePath('/category/food')).toBe(true);
+    expect(isGuestBrowsePath('/explore/home_food')).toBe(true);
     expect(isGuestBrowsePath('/discovery/nearby')).toBe(true);
     expect(isGuestBrowsePath('/product/abc')).toBe(true);
     expect(isGuestBrowsePath('/festival-collection/diwali')).toBe(true);
@@ -182,6 +183,11 @@ describe('guest location discovery wiring (source)', () => {
     expect(bottomNav).not.toMatch(/GUEST_AUTH_ROUTES = new Set\(\[[^\]]*'\/cart'/);
     expect(header).toMatch(/handleRouteNav\('\/cart'\)/);
     expect(header).toMatch(/Available near you/);
+    expect(header).toMatch(/home-marketplace-header/);
+    expect(header).toMatch(/HOME_HEADER_GREEN/);
+    expect(header).toMatch(/rounded-b-\[2\.5rem\]/);
+    expect(header).toMatch(/bg-background/);
+    expect(header).not.toMatch(/home-header-shortcuts/);
     expect(header).toMatch(/Sign in/);
   });
 

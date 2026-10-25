@@ -318,6 +318,66 @@ describe('resolveListingIntent', () => {
     }
   });
 
+  it('maps batter phrases onto Home Food ready-to-cook batters, not battery or puja', () => {
+    const batterCatalog: IntentCatalogCategory[] = [
+      ...categories,
+      {
+        slug: 'home_food',
+        id: 'cfg-home-food',
+        displayName: 'Home Food',
+        parentGroup: 'food_beverages',
+        transactionType: 'cart_purchase',
+        supportsCart: true,
+      },
+      {
+        slug: 'electrician',
+        id: 'cfg-electrician',
+        displayName: 'Electrician',
+        parentGroup: 'home_services',
+        transactionType: 'request_service',
+        supportsCart: false,
+      },
+      {
+        slug: 'other-puja',
+        id: 'cfg-other-puja',
+        displayName: 'Other Puja & Devotional',
+        parentGroup: 'puja',
+        transactionType: 'contact_enquiry',
+        supportsCart: false,
+      },
+    ];
+    const batterSubs: IntentCatalogSubcategory[] = [
+      ...subcategories,
+      {
+        id: 'sub-batters',
+        slug: 'ready_to_cook_batters',
+        displayName: 'Ready to Cook Batters',
+        categoryConfigId: 'cfg-home-food',
+        categorySlug: 'home_food',
+      },
+      {
+        id: 'sub-inverter',
+        slug: 'inverter_battery_setup',
+        displayName: 'Inverter & Battery Setup',
+        categoryConfigId: 'cfg-electrician',
+        categorySlug: 'electrician',
+      },
+    ];
+    for (const phrase of ['Batter', 'Millet batter', 'Idli batter', 'Dosa batter']) {
+      const r = resolveListingIntent({
+        phrase,
+        categories: batterCatalog,
+        subcategories: batterSubs,
+      });
+      expect(r.suggestedCategorySlug).toBe('home_food');
+      expect(r.suggestedSubcategoryId).toBe('sub-batters');
+      expect(r.suggestedParentGroup).toBe('food_beverages');
+      expect(r.commerceModel).toBe('cart');
+      expect(r.suggestedCategorySlug).not.toBe('electrician');
+      expect(r.suggestedCategorySlug).not.toBe('other-puja');
+    }
+  });
+
   it('maps gujiya to a food category instead of Other Rentals', () => {
     const foodCatalog: IntentCatalogCategory[] = [
       ...categories,

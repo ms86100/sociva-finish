@@ -1,12 +1,17 @@
-import { useMemo, useState } from 'react';
+import { Children, useMemo, useState, type ReactNode } from 'react';
 import { Sparkles, SlidersHorizontal, RotateCcw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { hapticSelection } from '@/lib/haptics';
 import {
+  CommerceFacetProduct,
   CommerceFacetState,
   DynamicFacetChip,
   countActiveCommerceFacets,
   emptyCommerceFacetState,
+  packSizeBuyerLabel,
+  remainingAttributeCount,
+  shouldShowTasteChip,
+  tasteSheetCounts,
 } from '@/lib/commerce-facets';
 import {
   COURSE_EMOJI,
@@ -31,6 +36,8 @@ import {
 import { Button } from '@/components/ui/button';
 import { SORT_OPTIONS, type SortKey } from '@/lib/marketplace-constants';
 
+const EMPTY_TASTE_INVENTORY: CommerceFacetProduct[] = [];
+
 interface CommerceFacetRailProps {
   value: CommerceFacetState;
   onChange: (next: CommerceFacetState) => void;
@@ -40,8 +47,8 @@ interface CommerceFacetRailProps {
   showFilterButton?: boolean;
   sortBy?: SortKey;
   onSortChange?: (key: SortKey) => void;
-  /** Scoped listings - used for Veg / Non-Veg counts in the Taste sheet */
-  inventory?: Array<{ is_veg?: boolean | null }>;
+  /** Scoped listings - used for Veg / Non-Veg and remaining taste counts */
+  inventory?: CommerceFacetProduct[];
   /** Home meal chips stay unlabeled with a count, for example Breakfast rather than Breakfast (3). */
   showCounts?: boolean;
 }
@@ -63,21 +70,45 @@ export function CommerceFacetRail({
   const isFood = isFoodParentGroup(parentGroup);
   const activeCount = countActiveCommerceFacets(value);
 
-  const { vegCount, nonVegCount } = useMemo(() => {
-    const list = inventory || [];
-    let veg = 0;
-    let nonVeg = 0;
-    for (const p of list) {
-      if (p.is_veg === true) veg += 1;
-      else if (p.is_veg === false) nonVeg += 1;
-    }
-    return { vegCount: veg, nonVegCount: nonVeg };
-  }, [inventory]);
+  const sheetInventory = inventory ?? EMPTY_TASTE_INVENTORY;
+  const sheetCounts = useMemo(
+    () => tasteSheetCounts(sheetInventory, value),
+    [sheetInventory, value],
+  );
+  const vegCount = sheetCounts.veg;
+  const nonVegCount = sheetCounts.nonVeg;
 
-  const foodMoodCount = (
-    facet: 'cuisine' | 'meal' | 'course',
-    moodVal: string,
-  ) => chips.find((c) => c.type === 'food_mood' && c.value?.facet === facet && c.value?.value === moodVal)?.count ?? 0;
+  const spiceChips = useMemo(
+    () => chips
+      .filter((chip) => chip.type === 'spice')
+      .map((chip) => ({
+        ...chip,
+        count: remainingAttributeCount(sheetInventory, value, 'spice', String(chip.value)),
+      }))
+      .filter((chip) => shouldShowTasteChip(chip.count, value.spiceLevel === chip.value)),
+    [chips, sheetInventory, value],
+  );
+  const packChips = useMemo(
+    () => chips
+      .filter((chip) => chip.type === 'pack')
+      .map((chip) => ({
+        ...chip,
+        label: packSizeBuyerLabel(String(chip.value)),
+        count: remainingAttributeCount(sheetInventory, value, 'pack', String(chip.value)),
+      }))
+      .filter((chip) => shouldShowTasteChip(chip.count, value.packSize === chip.value)),
+    [chips, sheetInventory, value],
+  );
+  const catalogueChips = useMemo(
+    () => chips
+      .filter((chip) => chip.type === 'catalogue')
+      .map((chip) => ({
+        ...chip,
+        count: remainingAttributeCount(sheetInventory, value, 'catalogue', String(chip.value)),
+      }))
+      .filter((chip) => shouldShowTasteChip(chip.count, value.catalogueTag === chip.value)),
+    [chips, sheetInventory, value],
+  );
 
   const toggleFoodFacet = (facet: 'cuisine' | 'meal' | 'course', moodVal: string) => {
     hapticSelection();
@@ -293,7 +324,7 @@ export function CommerceFacetRail({
               )}
             </div>
             <DrawerDescription className="text-xs text-muted-foreground">
-              Filter listings based on real availability in your society
+              Refine what is nearby
             </DrawerDescription>
           </DrawerHeader>
 
@@ -301,6 +332,7 @@ export function CommerceFacetRail({
             {isFood && (
               <>
                 <TasteSheetSection label="Dietary">
+                  {shouldShowTasteChip(vegCount, !!value.veg) ? (
                   <TasteSheetChip
                     emoji="🥬"
                     label="Veg Only"
@@ -309,6 +341,8 @@ export function CommerceFacetRail({
                     active={!!value.veg}
                     onClick={() => onChange({ ...value, veg: !value.veg, nonVeg: false })}
                   />
+                  ) : null}
+                  {shouldShowTasteChip(nonVegCount, !!value.nonVeg) ? (
                   <TasteSheetChip
                     emoji="🍖"
                     label="Non-Veg"
@@ -317,11 +351,13 @@ export function CommerceFacetRail({
                     active={!!value.nonVeg}
                     onClick={() => onChange({ ...value, nonVeg: !value.nonVeg, veg: false })}
                   />
+                  ) : null}
                 </TasteSheetSection>
                 <TasteSheetSection label="Cuisine">
                   {FOOD_CUISINES.filter((opt) => opt.id !== 'other').map((opt) => {
-                    const count = foodMoodCount('cuisine', opt.id);
+                    const count = sheetCounts.cuisines[opt.id] || 0;
                     const active = value.cuisine === opt.id;
+                    if (!shouldShowTasteChip(count, active)) return null;
                     return (
                       <TasteSheetChip
                         key={opt.id}
@@ -338,8 +374,9 @@ export function CommerceFacetRail({
                 </TasteSheetSection>
                 <TasteSheetSection label="Meal">
                   {FOOD_MEALS.map((opt) => {
-                    const count = foodMoodCount('meal', opt.id);
+                    const count = sheetCounts.meals[opt.id] || 0;
                     const active = value.meal === opt.id;
+                    if (!shouldShowTasteChip(count, active)) return null;
                     return (
                       <TasteSheetChip
                         key={opt.id}
@@ -356,8 +393,9 @@ export function CommerceFacetRail({
                 </TasteSheetSection>
                 <TasteSheetSection label="Course">
                   {FOOD_COURSES.map((opt) => {
-                    const count = foodMoodCount('course', opt.id);
+                    const count = sheetCounts.courses[opt.id] || 0;
                     const active = value.course === opt.id;
+                    if (!shouldShowTasteChip(count, active)) return null;
                     return (
                       <TasteSheetChip
                         key={opt.id}
@@ -375,30 +413,49 @@ export function CommerceFacetRail({
               </>
             )}
 
-            {chips.some((c) => c.type === 'spice' || c.type === 'pack' || c.type === 'catalogue') && (
-              <div>
-                <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2">From this catalogue</p>
-                <div className="flex flex-wrap gap-2">
-                  {chips
-                    .filter((c) => c.type === 'spice' || c.type === 'pack' || c.type === 'catalogue')
-                    .map((chip) => (
-                      <button
-                        key={chip.id}
-                        type="button"
-                        onClick={() => toggleChip(chip)}
-                        className={cn(
-                          'flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border transition-all',
-                          chip.isActive
-                            ? 'bg-primary text-primary-foreground border-primary'
-                            : 'bg-card border-border text-foreground hover:border-primary/40'
-                        )}
-                      >
-                        <span>{chip.label}</span>
-                        {showCounts && <span className="text-[10px] opacity-75">({chip.count})</span>}
-                      </button>
-                    ))}
-                </div>
-              </div>
+            {spiceChips.length > 0 && (
+              <TasteSheetSection label="Spice">
+                {spiceChips.map((chip) => (
+                  <TasteSheetChip
+                    key={chip.id}
+                    label={chip.label}
+                    count={chip.count}
+                    showCount={showCounts}
+                    active={value.spiceLevel === chip.value}
+                    onClick={() => toggleChip(chip)}
+                  />
+                ))}
+              </TasteSheetSection>
+            )}
+
+            {packChips.length > 0 && (
+              <TasteSheetSection label="Pack size">
+                {packChips.map((chip) => (
+                  <TasteSheetChip
+                    key={chip.id}
+                    label={chip.label}
+                    count={chip.count}
+                    showCount={showCounts}
+                    active={value.packSize === chip.value}
+                    onClick={() => toggleChip(chip)}
+                  />
+                ))}
+              </TasteSheetSection>
+            )}
+
+            {catalogueChips.length > 0 && (
+              <TasteSheetSection label="Tags">
+                {catalogueChips.map((chip) => (
+                  <TasteSheetChip
+                    key={chip.id}
+                    label={chip.label}
+                    count={chip.count}
+                    showCount={showCounts}
+                    active={value.catalogueTag === chip.value}
+                    onClick={() => toggleChip(chip)}
+                  />
+                ))}
+              </TasteSheetSection>
             )}
 
             {!isFood && chips.some((c) => c.type === 'food_mood') && (
@@ -578,11 +635,13 @@ export function CommerceFacetRail({
   );
 }
 
-function TasteSheetSection({ label, children }: { label: string; children: React.ReactNode }) {
+function TasteSheetSection({ label, children }: { label: string; children: ReactNode }) {
+  const items = Children.toArray(children).filter(Boolean);
+  if (items.length === 0) return null;
   return (
     <div>
       <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2">{label}</p>
-      <div className="flex flex-wrap gap-2">{children}</div>
+      <div className="flex flex-wrap gap-2">{items}</div>
     </div>
   );
 }
@@ -596,7 +655,7 @@ function TasteSheetChip({
   active,
   onClick,
 }: {
-  emoji: string;
+  emoji?: string;
   imageUrl?: string;
   label: string;
   count: number;
@@ -620,9 +679,9 @@ function TasteSheetChip({
         <span className="w-4 h-4 rounded-full overflow-hidden shrink-0 inline-flex items-center justify-center border border-white/40">
           <img src={imageUrl} alt="" className="w-full h-full object-cover" />
         </span>
-      ) : (
+      ) : emoji ? (
         <span>{emoji}</span>
-      )}
+      ) : null}
       <span>{label}</span>
       {showCount && <span className="text-[10px] opacity-75">({count})</span>}
     </button>

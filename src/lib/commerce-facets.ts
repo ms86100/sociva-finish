@@ -1,4 +1,11 @@
-import { isFoodParentGroup, productMatchesFoodFacets, TASTE_MOODS } from './food-facets';
+import {
+  FOOD_COURSES,
+  FOOD_CUISINES,
+  FOOD_MEALS,
+  isFoodParentGroup,
+  productMatchesFoodFacets,
+  TASTE_MOODS,
+} from './food-facets';
 import { computeStoreStatus } from './store-availability';
 import { ACTION_MODE_IMAGES, SERVICE_MODE_IMAGES, DURATION_IMAGES } from './filter-images';
 import { listingPhotoForFacet } from './chip-listing-photo';
@@ -165,6 +172,139 @@ export interface DynamicFacetChip {
   isActive: boolean;
 }
 
+export type CommerceFacetProduct = {
+  id?: string;
+  category?: string | null;
+  tags?: string[] | null;
+  cuisine_type?: string | null;
+  name?: string;
+  price?: number | string | null;
+  is_veg?: boolean | null;
+  spice_level?: string | null;
+  serving_size?: string | null;
+  action_type?: string | null;
+  service_duration_minutes?: number | null;
+  delivery_time_text?: string | null;
+  service_scope?: string | null;
+  seller_availability_start?: string | null;
+  seller_availability_end?: string | null;
+  seller_operating_days?: string[] | null;
+  seller_is_available?: boolean | null;
+};
+
+const PACK_UNIT =
+  /\b(g|kg|ml|l|gm|gms|grams?|oz|lb|plate|plates|bowl|bowls|pack|packs|pouch|jar|loaf|piece|pieces|pc|pcs|serving|servings|serves)\b/i;
+
+/** Bare serving counts ("1") or sizes with a unit ("200 g", "1 plate"). Not SKU noise. */
+export function packLooksLikeSize(raw: string | null | undefined): boolean {
+  const t = String(raw || '').trim();
+  if (!t || t.length > 32) return false;
+  if (!/\d/.test(t)) return false;
+  if (/^\d{1,2}$/.test(t)) return true;
+  if (/^\d+([.,]\d+)?\s*(g|kg|ml|l|gm|gms)$/i.test(t)) return true;
+  if (PACK_UNIT.test(t)) return true;
+  return false;
+}
+
+/** Buyer label for a stored serving_size. "1" becomes Serves 1. "200 g" stays 200 g. */
+export function packSizeBuyerLabel(raw: string): string {
+  const t = raw.trim();
+  if (/^\d{1,2}$/.test(t)) return `Serves ${t}`;
+  return t;
+}
+
+export function shouldShowTasteChip(count: number, active: boolean): boolean {
+  return active || count > 0;
+}
+
+export interface TasteSheetCounts {
+  veg: number;
+  nonVeg: number;
+  meals: Record<string, number>;
+  cuisines: Record<string, number>;
+  courses: Record<string, number>;
+}
+
+function remainingPool(
+  inventory: readonly CommerceFacetProduct[],
+  state: CommerceFacetState,
+  omit: Partial<CommerceFacetState>,
+  categoryConfigs?: readonly CategoryActionConfig[] | null,
+): CommerceFacetProduct[] {
+  const next: CommerceFacetState = { ...state, ...omit };
+  return inventory.filter((product) => productMatchesCommerceFacets(product, next, categoryConfigs));
+}
+
+/**
+ * Meal chips are switchers counted on the full list.
+ * Cuisine, course, and diet count what is left after the other active filters.
+ */
+export function tasteSheetCounts(
+  inventory: readonly CommerceFacetProduct[],
+  state: CommerceFacetState,
+  categoryConfigs?: readonly CategoryActionConfig[] | null,
+): TasteSheetCounts {
+  const meals: Record<string, number> = {};
+  for (const meal of FOOD_MEALS) {
+    meals[meal.id] = inventory.filter((product) =>
+      productMatchesFoodFacets(product, { meal: meal.id }),
+    ).length;
+  }
+
+  const cuisinePool = remainingPool(inventory, state, { cuisine: null }, categoryConfigs);
+  const cuisines: Record<string, number> = {};
+  for (const cuisine of FOOD_CUISINES) {
+    if (cuisine.id === 'other') continue;
+    cuisines[cuisine.id] = cuisinePool.filter((product) =>
+      productMatchesFoodFacets(product, { cuisine: cuisine.id }),
+    ).length;
+  }
+
+  const coursePool = remainingPool(inventory, state, { course: null }, categoryConfigs);
+  const courses: Record<string, number> = {};
+  for (const course of FOOD_COURSES) {
+    courses[course.id] = coursePool.filter((product) =>
+      productMatchesFoodFacets(product, { course: course.id }),
+    ).length;
+  }
+
+  const dietPool = remainingPool(inventory, state, { veg: false, nonVeg: false }, categoryConfigs);
+  let veg = 0;
+  let nonVeg = 0;
+  for (const product of dietPool) {
+    if (product.is_veg === true) veg += 1;
+    else if (product.is_veg === false) nonVeg += 1;
+  }
+
+  return { veg, nonVeg, meals, cuisines, courses };
+}
+
+export function remainingAttributeCount(
+  inventory: readonly CommerceFacetProduct[],
+  state: CommerceFacetState,
+  type: 'spice' | 'pack' | 'catalogue',
+  value: string,
+  categoryConfigs?: readonly CategoryActionConfig[] | null,
+): number {
+  if (type === 'spice') {
+    const needle = value.trim().toLowerCase();
+    return remainingPool(inventory, state, { spiceLevel: null }, categoryConfigs)
+      .filter((product) => (product.spice_level || '').trim().toLowerCase() === needle)
+      .length;
+  }
+  if (type === 'pack') {
+    return remainingPool(inventory, state, { packSize: null }, categoryConfigs)
+      .filter((product) => (product.serving_size || '').trim() === value)
+      .length;
+  }
+  const needle = value.trim().toLowerCase();
+  return remainingPool(inventory, state, { catalogueTag: null }, categoryConfigs)
+    .filter((product) =>
+      (product.tags || []).some((tag) => String(tag).trim().toLowerCase() === needle),
+    )
+    .length;
+}
+
 /**
  * Normalizes service mode string from product attributes.
  */
@@ -201,25 +341,7 @@ export function normalizeServiceMode(
  * Matches a product against the active commerce facet state.
  */
 export function productMatchesCommerceFacets(
-  product: {
-    id?: string;
-    category?: string | null;
-    tags?: string[] | null;
-    cuisine_type?: string | null;
-    name?: string;
-    price?: number | string | null;
-    is_veg?: boolean | null;
-    spice_level?: string | null;
-    serving_size?: string | null;
-    action_type?: string | null;
-    service_duration_minutes?: number | null;
-    delivery_time_text?: string | null;
-    service_scope?: string | null;
-    seller_availability_start?: string | null;
-    seller_availability_end?: string | null;
-    seller_operating_days?: string[] | null;
-    seller_is_available?: boolean | null;
-  },
+  product: CommerceFacetProduct,
   state: CommerceFacetState,
   categoryConfigs?: readonly CategoryActionConfig[] | null,
 ): boolean {
@@ -348,7 +470,7 @@ function appendAttributeChips(
     const spice = (product.spice_level || '').trim().toLowerCase();
     if (spice) spiceCounts.set(spice, (spiceCounts.get(spice) || 0) + 1);
     const pack = (product.serving_size || '').trim();
-    if (pack) packCounts.set(pack, (packCounts.get(pack) || 0) + 1);
+    if (pack && packLooksLikeSize(pack)) packCounts.set(pack, (packCounts.get(pack) || 0) + 1);
     const seen = new Set<string>();
     for (const raw of product.tags || []) {
       const tag = String(raw).trim().toLowerCase();
@@ -372,7 +494,7 @@ function appendAttributeChips(
   pushWhenItNarrows(packCounts, total, (pack, count) => {
     chips.push({
       id: `pack:${pack}`,
-      label: pack,
+      label: packSizeBuyerLabel(pack),
       count,
       type: 'pack',
       value: pack,

@@ -51,21 +51,24 @@ describe('route prefetch on slow connections', () => {
   it('still prefetches when the connection type is missing or fast', async () => {
     setConnection(undefined);
     const missing = await scheduledTimeouts();
+    expect(missing).toContain(200);
     expect(missing).toContain(400);
     expect(missing).toContain(3000);
 
     vi.resetModules();
     setConnection({ saveData: false, effectiveType: '4g' });
     const fast = await scheduledTimeouts();
+    expect(fast).toContain(200);
     expect(fast).toContain(400);
-    expect(fast.length).toBe(13);
+    expect(fast.length).toBe(15);
   });
 
   it('still prefetches on the native app even on 3g', async () => {
     platform.native = true;
     setConnection({ saveData: true, effectiveType: '3g' });
     const timeouts = await scheduledTimeouts();
+    expect(timeouts).toContain(200);
     expect(timeouts).toContain(400);
-    expect(timeouts.length).toBe(13);
+    expect(timeouts.length).toBe(15);
   });
 });

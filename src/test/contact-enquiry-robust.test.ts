@@ -42,7 +42,8 @@ describe('contact enquiry robust fix', () => {
     expect(hook).toMatch(/category/);
     expect(deriveActionType('contact_seller', null, null)).toBe('contact_seller');
     expect(deriveActionType(undefined, null, null)).toBe('add_to_cart'); // lossy path we must not hit
-    expect(sheet).toMatch(/Contact for price/);
-    expect(sheet).toMatch(/sp\.action_type === 'contact_seller'/);
+    expect(sheet).toMatch(/getCommercePriceLabel\(sp\.action_type/);
+    const constants = readFileSync(resolve(__dirname, '../lib/marketplace-constants.ts'), 'utf8');
+    expect(constants).toMatch(/if \(key === 'contact_seller'\) return 'Contact Seller'/);
   });
 });

@@ -27,6 +27,7 @@ import { useTrackingConfig } from '@/hooks/useTrackingConfig';
 import { DeliveryCompletionOtpDialog } from '@/components/delivery/DeliveryCompletionOtpDialog';
 import { SellerManualCompleteDialog } from '@/components/order/SellerManualCompleteDialog';
 import { isSellerManualCompleteEligible, sellerManualCompleteButtonLabel } from '@/lib/seller-manual-complete';
+import { orderWorkflowActionLabel } from '@/lib/order-workflow-action-label';
 import { DeliveryFeedbackForm } from '@/components/delivery/DeliveryFeedbackForm';
 import { GenericOtpDialog } from '@/components/order/GenericOtpDialog';
 import { GenericOtpCard } from '@/components/order/GenericOtpCard';
@@ -721,16 +722,16 @@ export default function OrderDetailPage() {
         ? step.buyer_display_label
         : step?.display_label;
     const label = roleLabel || status.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-    const isEnd = step?.is_terminal === true;
-    if (otpRequired) return isEnd ? 'Verify & Complete' : `Verify & ${label}`;
-    if (isContactEnquiry && (status === 'quoted' || status === 'accepted') && viewRole === 'seller' && order.status === 'enquired') {
-      return 'Accept Enquiry';
-    }
-    if (isContactEnquiry && status === 'completed' && viewRole === 'seller') return 'Mark Delivered';
-    if (status === 'quoted' && viewRole === 'seller') return 'Send Quote';
-    if (status === 'accepted' && (o.isEnquiryOrder || order.status === 'quoted') && viewRole === 'buyer') return 'Accept Quote';
-    if (isContactEnquiry && isEnd) return 'Mark Delivered';
-    return isEnd ? 'Complete Order' : `Mark ${label}`;
+    return orderWorkflowActionLabel({
+      status,
+      otpRequired,
+      viewRole,
+      displayLabel: label,
+      isTerminal: step?.is_terminal === true,
+      isContactEnquiry,
+      isEnquiryOrder: o.isEnquiryOrder,
+      currentStatus: order.status,
+    });
   };
 
   // Seller context message (Condition #5: no ambiguity)

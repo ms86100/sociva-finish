@@ -66,7 +66,7 @@ export function AppLayout({
   return (
     <div className="min-h-[100dvh] bg-background">
       {showHeader && (
-        <div className="sticky top-0 z-40">
+        <div className="sticky top-0 z-40 bg-background overflow-visible">
           <Header
             showCart={showCart}
             showLocation={showLocation}
