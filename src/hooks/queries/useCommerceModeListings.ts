@@ -36,27 +36,30 @@ export function cappedSellerIds(sellers: readonly RpcSellerRow[]): string[] {
  * seller storefront query (available + approved) so nothing valid is omitted.
  */
 export async function fetchSellerListingsTopUp(sellerIds: readonly string[]): Promise<any[]> {
-  const rows: any[] = [];
-  for (const sellerId of sellerIds) {
-    for (let from = 0; ; from += TOP_UP_PAGE_SIZE) {
-      const { data, error } = await supabase
-        .from('products')
-        .select(TOP_UP_COLUMNS)
-        .eq('seller_id', sellerId)
-        .eq('is_available', true)
-        .eq('approval_status', 'approved')
-        .order('is_bestseller', { ascending: false, nullsFirst: false })
-        .order('is_recommended', { ascending: false, nullsFirst: false })
-        .order('name')
-        .order('id')
-        .range(from, from + TOP_UP_PAGE_SIZE - 1);
-      if (error) throw error;
-      const page = data || [];
-      rows.push(...page);
-      if (page.length < TOP_UP_PAGE_SIZE) break;
-    }
-  }
-  return rows;
+  const perSeller = await Promise.all(
+    sellerIds.map(async (sellerId) => {
+      const rows: any[] = [];
+      for (let from = 0; ; from += TOP_UP_PAGE_SIZE) {
+        const { data, error } = await supabase
+          .from('products')
+          .select(TOP_UP_COLUMNS)
+          .eq('seller_id', sellerId)
+          .eq('is_available', true)
+          .eq('approval_status', 'approved')
+          .order('is_bestseller', { ascending: false, nullsFirst: false })
+          .order('is_recommended', { ascending: false, nullsFirst: false })
+          .order('name')
+          .order('id')
+          .range(from, from + TOP_UP_PAGE_SIZE - 1);
+        if (error) throw error;
+        const page = data || [];
+        rows.push(...page);
+        if (page.length < TOP_UP_PAGE_SIZE) break;
+      }
+      return rows;
+    }),
+  );
+  return perSeller.flat();
 }
 
 /** Base RPC rows first, then any top-up rows the RPC cap left out. */
@@ -144,11 +147,10 @@ export function useCommerceModeListings(mode: CommerceMode) {
     [sellers, categoryConfigs],
   );
 
+  // Paint first seller page immediately; keep paging + top-up in the background.
   const isLoading =
     configsLoading
-    || market.isLoading
-    || !!hasMoreSellers
-    || (capped.length > 0 && topUp.isLoading);
+    || market.isLoading;
 
   return {
     listings: buckets[mode],

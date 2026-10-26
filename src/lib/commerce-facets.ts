@@ -9,6 +9,8 @@ import {
 import { computeStoreStatus } from './store-availability';
 import { ACTION_MODE_IMAGES, SERVICE_MODE_IMAGES, DURATION_IMAGES } from './filter-images';
 import { listingPhotoForFacet } from './chip-listing-photo';
+import { curatedMealArt, resolveFoodChipArt } from './food-chip-art';
+import type { FoodMealId } from './food-facets';
 import { resolveListingAction, type CategoryActionConfig } from './commerce-mode';
 
 export interface CommerceFacetState {
@@ -607,11 +609,26 @@ export function extractAvailableCommerceFacets(
         } as any)
       ).length;
       if (count > 0) {
+        const meal = mood.facet === 'meal' ? (mood.value as FoodMealId) : null;
+        const cuisine = mood.facet === 'cuisine' ? mood.value : null;
+        let imageUrl: string | undefined;
+        if (meal) {
+          const art = curatedMealArt(meal);
+          if (art) {
+            usedPhotos.add(art);
+            imageUrl = art;
+          }
+        } else {
+          const live = listingPhotoForFacet(products, mood, usedPhotos);
+          imageUrl = live
+            || resolveFoodChipArt(null, { meal, cuisine }, usedPhotos)
+            || undefined;
+        }
         chips.push({
           id: `mood:${mood.id}`,
           label: mood.label,
           emoji: mood.emoji,
-          imageUrl: listingPhotoForFacet(products, mood, usedPhotos) || undefined,
+          imageUrl,
           count,
           type: 'food_mood',
           value: { facet: mood.facet, value: mood.value },

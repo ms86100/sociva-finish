@@ -1,7 +1,5 @@
 // @ts-nocheck
 import { useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
 import { useMarketplaceSellers, MarketplaceSeller } from './useMarketplaceSellers';
 import { useMarketplaceProducts, MarketplaceProduct } from './useMarketplaceProducts';
 
@@ -37,6 +35,7 @@ export interface RpcSellerRow {
   home_service_fee?: number | null;
   fulfillment_mode?: string | null;
   vacation_mode?: boolean | null;
+  avg_preparation_time?: number | null;
 }
 
 /**
@@ -44,8 +43,8 @@ export interface RpcSellerRow {
  * Composes useMarketplaceSellers + useMarketplaceProducts into the
  * same RpcSellerRow[] shape that all consumer hooks expect.
  *
- * Phase 1 (sellers) loads instantly (~1KB total).
- * Phase 2 (products) loads in parallel once seller IDs are known.
+ * Home-service / vacation / prep come from search_sellers_paginated
+ * (no third seller_profiles round-trip).
  *
  * Consumer hooks see no change - they still get RpcSellerRow[].
  */
@@ -60,42 +59,6 @@ export function useMarketplaceData() {
 
   const productsQuery = useMarketplaceProducts(sellerIds);
   const products = productsQuery.data;
-  const homeServiceQuery = useQuery({
-    queryKey: ['seller-home-service', sellerIds.join(',')],
-    enabled: sellerIds.length > 0,
-    staleTime: 10 * 60 * 1000,
-    queryFn: async () => {
-      const rows: Array<{
-        id: string;
-        home_service_available: boolean | null;
-        home_service_fee: number | null;
-        fulfillment_mode: string | null;
-        vacation_mode: boolean | null;
-      }> = [];
-      for (let i = 0; i < sellerIds.length; i += 80) {
-        const chunk = sellerIds.slice(i, i + 80);
-        const { data, error } = await supabase
-          .from('seller_profiles')
-          .select('id, home_service_available, home_service_fee, fulfillment_mode, vacation_mode')
-          .in('id', chunk);
-        if (error) throw error;
-        rows.push(...((data || []) as typeof rows));
-      }
-      return rows;
-    },
-  });
-  const homeBySeller = useMemo(() => {
-    const map = new Map<string, { home: boolean; fee: number | null; mode: string | null; vacation: boolean }>();
-    for (const row of homeServiceQuery.data || []) {
-      map.set(row.id, {
-        home: row.home_service_available === true,
-        fee: row.home_service_fee,
-        mode: row.fulfillment_mode,
-        vacation: row.vacation_mode === true,
-      });
-    }
-    return map;
-  }, [homeServiceQuery.data]);
 
   // Combine sellers + products into backward-compatible shape
   const data = useMemo((): RpcSellerRow[] => {
@@ -130,7 +93,7 @@ export function useMarketplaceData() {
       }
     }
 
-    return sellers.map((s): RpcSellerRow => ({
+    return sellers.map((s: MarketplaceSeller): RpcSellerRow => ({
       seller_id: s.seller_id,
       user_id: s.user_id,
       business_name: s.business_name,
@@ -154,16 +117,20 @@ export function useMarketplaceData() {
       avg_response_minutes: s.avg_response_minutes ?? null,
       last_active_at: s.last_active_at ?? null,
       completed_order_count: s.completed_order_count ?? null,
-      home_service_available: homeBySeller.get(s.seller_id)?.home ?? false,
-      home_service_fee: homeBySeller.get(s.seller_id)?.fee ?? null,
-      fulfillment_mode: homeBySeller.get(s.seller_id)?.mode ?? null,
-      vacation_mode: homeBySeller.get(s.seller_id)?.vacation ?? false,
+      home_service_available: s.home_service_available === true,
+      home_service_fee: s.home_service_fee ?? null,
+      fulfillment_mode: s.fulfillment_mode ?? null,
+      vacation_mode: s.vacation_mode === true,
+      avg_preparation_time: s.avg_preparation_time ?? null,
     }));
-  }, [sellers, products, homeBySeller]);
+  }, [sellers, products]);
 
   const refetch = async () => {
+    if (sellerIds.length > 0) {
+      await Promise.all([sellersQuery.refetch(), productsQuery.refetch()]);
+      return;
+    }
     await sellersQuery.refetch();
-    if (sellerIds.length > 0) await productsQuery.refetch();
   };
 
   return {

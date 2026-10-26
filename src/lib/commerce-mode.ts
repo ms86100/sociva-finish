@@ -86,8 +86,10 @@ export function isPlaceholderListingPrice(price: number | null | undefined): boo
 const PLACEHOLDER_COPY_RE = /price\s*placeholder|placeholder\s+listing(\s+at)?\s*₹?\s*1\b|seller will update/i;
 
 /**
- * Book browse should not show stub catalogue rows (₹1 stubs or explicit
- * "placeholder" copy), while real free consults (₹0, no stub copy) stay.
+ * Book browse should not show stub catalogue rows.
+ * Hide positive stub prices (₹0 < price ≤ ₹1). Keep ₹0 free / price-on-request
+ * services even if seed copy still says "placeholder" - that leftover text must
+ * not wipe a real Shrivara-style menu down to one visible row.
  */
 export function isPlaceholderBookListing(listing: {
   price?: number | null;
@@ -95,6 +97,8 @@ export function isPlaceholderBookListing(listing: {
   description?: string | null;
 }): boolean {
   if (isPlaceholderListingPrice(listing.price)) return true;
+  const price = Number(listing.price);
+  if (Number.isFinite(price) && price === 0) return false;
   const blob = `${listing.name || ''} ${listing.description || ''}`;
   return PLACEHOLDER_COPY_RE.test(blob);
 }

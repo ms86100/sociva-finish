@@ -42,6 +42,7 @@ import {
 import { setPendingAuthAction, type PendingBookingDraft } from '@/lib/pending-auth-action';
 import { CouponInput } from '@/components/cart/CouponInput';
 import { amountAfterCoupon, calculateCouponDiscount } from '@/lib/coupon';
+import { getCommercePriceLabel, shouldShowMonetaryPrice } from '@/lib/marketplace-constants';
 
 interface ServiceBookingFlowProps {
   open: boolean;
@@ -241,6 +242,11 @@ export function ServiceBookingFlow({
       })
     : 0;
   const totalAmount = amountAfterCoupon(merchandiseTotal, effectiveCouponDiscount);
+  const showMoney = shouldShowMonetaryPrice('book', merchandiseTotal);
+  const servicePriceLabel = getCommercePriceLabel('book', price, formatPrice);
+  const totalPriceLabel = showMoney
+    ? formatPrice(totalAmount)
+    : getCommercePriceLabel('book', totalAmount, formatPrice);
 
   // Drop coupon if merchandise falls below min order (e.g. add-ons removed).
   useEffect(() => {
@@ -346,8 +352,9 @@ export function ServiceBookingFlow({
         return;
       }
 
-      if (merchandiseTotal <= 0) {
-        toast.error('Invalid service price');
+      // Zero merchandise is allowed (price on request). Reject only negative totals.
+      if (merchandiseTotal < 0) {
+        notify.block('This booking total looks wrong. Please refresh and try again.');
         setIsLoading(false);
         isSubmittingRef.current = false;
         return;
@@ -512,7 +519,7 @@ export function ServiceBookingFlow({
                 <div className="flex-1">
                   <h4 className="font-medium">{productName}</h4>
                   <p className="text-xs text-muted-foreground">{sellerName}</p>
-                  <p className="text-lg font-bold text-primary tabular-nums">{formatPrice(price)}</p>
+                  <p className="text-lg font-bold text-primary tabular-nums">{servicePriceLabel}</p>
                   {resolvedDuration && (
                     <p className="text-xs text-muted-foreground flex items-center gap-1">
                       <Clock size={10} />{resolvedDuration} min session
@@ -722,7 +729,7 @@ export function ServiceBookingFlow({
               <div className="p-3 rounded-lg bg-muted space-y-1.5" data-testid="booking-price-breakdown">
                 <div className="flex justify-between text-sm">
                   <span>Service</span>
-                  <span className="tabular-nums">{formatPrice(price)}</span>
+                  <span className="tabular-nums">{servicePriceLabel}</span>
                 </div>
                 {addonTotal > 0 && (
                   <div className="flex justify-between text-sm">
@@ -738,8 +745,13 @@ export function ServiceBookingFlow({
                 )}
                 <div className="flex justify-between text-sm font-bold pt-1.5 border-t border-border">
                   <span>Total</span>
-                  <span className="text-primary tabular-nums">{formatPrice(totalAmount)}</span>
+                  <span className="text-primary tabular-nums">{totalPriceLabel}</span>
                 </div>
+                {!showMoney && (
+                  <p className="text-[11px] text-muted-foreground pt-0.5">
+                    Seller will confirm the final price after you book.
+                  </p>
+                )}
               </div>
             </motion.div>
           )}
@@ -750,12 +762,12 @@ export function ServiceBookingFlow({
         <div className={`shrink-0 border-t bg-background px-4 pt-4 ${isKeyboardOpen ? 'pb-3' : 'pb-[calc(1rem+env(safe-area-inset-bottom))]'}`}>
           {step === 'select' ? (
             <Button className="w-full" size="lg" disabled={!isSelectValid} onClick={handleContinueToReview} whileTap={{ scale: 0.97 }} as={motion.button}>
-              Continue · {formatPrice(totalAmount)}
+              Continue · {totalPriceLabel}
             </Button>
           ) : (
             <Button className="w-full" size="lg" disabled={isLoading} onClick={handleConfirm}>
               {isLoading && <Loader2 className="animate-spin mr-2" size={18} />}
-              Confirm Booking · {formatPrice(totalAmount)}
+              Confirm Booking · {totalPriceLabel}
             </Button>
           )}
         </div>

@@ -92,6 +92,16 @@ describe('seller OTP-free completion source contract', () => {
     expect(page).toMatch(/seller_complete_order_without_otp|completeOrderWithoutOtp/);
   });
 
+  it('looks ahead to delivered so intermediate arrived does not block manual complete', () => {
+    const lookAhead = readFileSync(
+      resolve(__dirname, '../../supabase/migrations/20261026240000_seller_manual_complete_look_ahead.sql'),
+      'utf8',
+    );
+    expect(lookAhead).toMatch(/status_key IN \('delivered', 'buyer_received', 'completed'\)/);
+    expect(lookAhead).toMatch(/Looks ahead to delivered/);
+    expect(lookAhead).toMatch(/This order is not eligible for completion without OTP/);
+  });
+
   it('adds a dedicated seller RPC without changing OTP verify functions', () => {
     expect(migration).toMatch(/CREATE OR REPLACE FUNCTION public\.seller_complete_order_without_otp/);
     expect(migration).toMatch(/FOR UPDATE OF o/);

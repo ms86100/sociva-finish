@@ -6,6 +6,7 @@ import { SafeHeader } from '@/components/layout/SafeHeader';
 import { BackButton } from '@/components/navigation/BackButton';
 import { ParentGroupTabs } from '@/components/home/ParentGroupTabs';
 import { CommerceFacetRail } from '@/components/discovery/CommerceFacetRail';
+import { ContactNeighborsRail, type ContactNeighbor } from '@/components/discovery/ContactNeighborsRail';
 import { GuidedDiscoveryOverlayTile } from '@/components/discovery/GuidedDiscoveryOverlayTile';
 import { GuidedDiscoveryProductRow } from '@/components/discovery/GuidedDiscoveryProductRow';
 import { GuidedDiscoverySellerCard } from '@/components/discovery/GuidedDiscoverySellerCard';
@@ -43,6 +44,8 @@ import { useIntentRailModel } from '@/hooks/useIntentRailModel';
 import { listingIdsFromCardRails, listingsForCatalogGrid } from '@/lib/intent-rails';
 import { useNearbyProductSearch } from '@/hooks/queries/useNearbyProductSearch';
 import { listingMatchesSearchText, stampSellerHoursFromInventory } from '@/lib/listing-search';
+import { displaySellerStoreName } from '@/lib/seller-journey';
+import { listingPlaceChip } from '@/lib/location-label-resolver';
 
 const ProductDetailSheet = lazy(() =>
   import('@/components/product/ProductDetailSheet').then((m) => ({ default: m.ProductDetailSheet })),
@@ -187,7 +190,13 @@ function CommerceModeView({ mode }: { mode: CommerceMode }) {
   );
   const bookTiles = useMemo(
     () => (mode === 'book'
-      ? buildGuidedDiscoveryTiles('book_enquire', listings, { categoryConfigs, categoryMeta }).slice(0, 4)
+      ? buildGuidedDiscoveryTiles('book_enquire', listings, { categoryConfigs, categoryMeta }).slice(0, 6)
+      : []),
+    [mode, listings, categoryConfigs, categoryMeta],
+  );
+  const contactTiles = useMemo(
+    () => (mode === 'services'
+      ? buildGuidedDiscoveryTiles('contact_seller', listings, { categoryConfigs, categoryMeta }).slice(0, 8)
       : []),
     [mode, listings, categoryConfigs, categoryMeta],
   );
@@ -199,8 +208,70 @@ function CommerceModeView({ mode }: { mode: CommerceMode }) {
       list.push(product);
       map.set(key, list);
     }
-    return [...map.values()];
+    return [...map.values()].sort((a, b) => {
+      const aLead = a[0];
+      const bLead = b[0];
+      const aOpen = aLead.seller_is_available !== false && aLead.seller_vacation_mode !== true ? 1 : 0;
+      const bOpen = bLead.seller_is_available !== false && bLead.seller_vacation_mode !== true ? 1 : 0;
+      if (bOpen !== aOpen) return bOpen - aOpen;
+      const aVerified = aLead.seller_verified ? 1 : 0;
+      const bVerified = bLead.seller_verified ? 1 : 0;
+      if (bVerified !== aVerified) return bVerified - aVerified;
+      return b.length - a.length;
+    });
   }, [searched]);
+
+  const bookListings = useMemo(() => {
+    if (mode !== 'book') return searched;
+    return [...searched].sort((a, b) => {
+      const aOpen = a.seller_is_available !== false && a.seller_vacation_mode !== true ? 1 : 0;
+      const bOpen = b.seller_is_available !== false && b.seller_vacation_mode !== true ? 1 : 0;
+      if (bOpen !== aOpen) return bOpen - aOpen;
+      const aVerified = a.seller_verified ? 1 : 0;
+      const bVerified = b.seller_verified ? 1 : 0;
+      if (bVerified !== aVerified) return bVerified - aVerified;
+      const aDur = Number(a.service_duration_minutes) || Number.POSITIVE_INFINITY;
+      const bDur = Number(b.service_duration_minutes) || Number.POSITIVE_INFINITY;
+      return aDur - bDur;
+    });
+  }, [mode, searched]);
+
+  const faceRailNeighbors = useMemo<ContactNeighbor[]>(() => {
+    if ((mode !== 'services' && mode !== 'book') || searchActive || activeCategory) return [];
+    return sellerGroups.slice(0, 12).map((group) => {
+      const lead = group[0];
+      const photo = String(
+        lead.seller_profile_image_url
+        || (lead as any).seller_cover_image_url
+        || (lead as any).seller?.cover_image_url
+        || group.find((item) => item.image_url)?.image_url
+        || '',
+      ).trim() || null;
+      return {
+        sellerId: lead.seller_id || lead.id,
+        name: displaySellerStoreName(lead.seller_name) || 'Neighbor',
+        imageUrl: photo,
+        open: lead.seller_is_available !== false && lead.seller_vacation_mode !== true,
+        listingCount: group.length,
+      };
+    });
+  }, [mode, searchActive, activeCategory, sellerGroups]);
+
+  const discoveryTiles = mode === 'book' ? bookTiles : contactTiles;
+  const searchHints = useMemo(() => {
+    if (mode !== 'services' && mode !== 'book') return [];
+    return discoveryTiles
+      .map((tile) => ({
+        id: tile.id,
+        label: tile.label.split(/[·|/]/)[0]?.trim() || tile.label,
+        kind: 'category' as const,
+        value: tile.id.startsWith('category:') ? tile.id.slice('category:'.length) : null,
+      }))
+      .filter((hint) => hint.value)
+      .slice(0, 6);
+  }, [mode, discoveryTiles]);
+
+  const placeLabel = listingPlaceChip(browsingLocation?.label) || browsingLocation?.label || null;
 
   const handleProductTap = useCallback((product: ProductWithSeller) => {
     setSelectedProduct(buildProductDetailPayload(product, categoryConfigs));
@@ -223,6 +294,34 @@ function CommerceModeView({ mode }: { mode: CommerceMode }) {
     selectCategory(activeCategory === slug ? null : slug);
   }, [activeCategory, selectCategory]);
 
+  const selectContactTile = useCallback((id: string) => {
+    hapticSelection();
+    const slug = id.startsWith('category:') ? id.slice('category:'.length) : id;
+    selectCategory(activeCategory === slug ? null : slug);
+  }, [activeCategory, selectCategory]);
+
+  const jumpToNeighbor = useCallback((sellerId: string) => {
+    if (mode === 'book') {
+      const first = bookListings.find((product) => (product.seller_id || product.id) === sellerId);
+      const node = first
+        ? document.getElementById(`book-listing-${first.id}`)
+        : null;
+      node?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+    document.getElementById(`contact-seller-${sellerId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [mode, bookListings]);
+
+  const applySearchHint = useCallback((hint: { label: string; value: string | null }) => {
+    hapticSelection();
+    if (hint.value) {
+      selectCategory(activeCategory === hint.value ? null : hint.value);
+      return;
+    }
+    setQuery(hint.label);
+    setSearchOpen(false);
+  }, [activeCategory, selectCategory]);
+
   const resetFilters = useCallback(() => {
     selectCategory(null);
   }, [selectCategory]);
@@ -231,7 +330,15 @@ function CommerceModeView({ mode }: { mode: CommerceMode }) {
 
   return (
     <AppLayout showHeader={!mockupChrome} safeTop={mockupChrome ? false : undefined}>
-      <div data-testid={`commerce-mode-${mode}`} data-mode={mode} className="pb-4">
+      <div
+        data-testid={`commerce-mode-${mode}`}
+        data-mode={mode}
+        className={cn(
+          'pb-4',
+          mode === 'services' && 'contact-seller-page',
+          mode === 'book' && 'book-enquire-page',
+        )}
+      >
         {mockupChrome ? (
           <SafeHeader bordered={false} blur>
             <div className="px-4 pt-1 pb-2">
@@ -282,6 +389,56 @@ function CommerceModeView({ mode }: { mode: CommerceMode }) {
                 activeCategories={modeCategories}
               />
             )}
+            {mode === 'services' && hasListings && !searchActive && (
+              <div className="contact-seller-hero mx-4 mt-2 overflow-hidden rounded-[26px] border border-white/10 bg-gradient-to-br from-emerald-950 via-zinc-900 to-zinc-800 px-4 py-4 text-white shadow-[0_22px_48px_-24px_rgba(6,78,59,0.95)]">
+                <div className="relative z-10">
+                  <p className="text-[10px] font-extrabold tracking-[0.2em] text-emerald-200/90">NEIGHBORS NEARBY</p>
+                  <p className="mt-1.5 max-w-[18rem] text-[19px] font-extrabold leading-[1.15] tracking-tight">
+                    Message local makers, cabs, and repair pros directly.
+                  </p>
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <span className="inline-flex items-center rounded-full bg-white/10 px-2.5 py-1 text-[11px] font-bold text-white/90 ring-1 ring-white/15 backdrop-blur-sm">
+                      {sellerGroups.length > 0
+                        ? `${sellerGroups.length} neighbor${sellerGroups.length === 1 ? '' : 's'}`
+                        : 'Neighbors nearby'}
+                    </span>
+                    {placeLabel && (
+                      <span className="inline-flex max-w-[10rem] items-center truncate rounded-full bg-emerald-400/15 px-2.5 py-1 text-[11px] font-bold text-emerald-100 ring-1 ring-emerald-300/20">
+                        {placeLabel}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+            {mode === 'book' && hasListings && !searchActive && (
+              <div className="book-enquire-hero mx-4 mt-2 overflow-hidden rounded-[26px] border border-white/10 bg-gradient-to-br from-teal-950 via-zinc-900 to-zinc-800 px-4 py-4 text-white shadow-[0_22px_48px_-24px_rgba(19,78,74,0.95)]">
+                <div className="relative z-10">
+                  <p className="text-[10px] font-extrabold tracking-[0.2em] text-[#7dd3c7]">BOOK NEARBY</p>
+                  <p className="mt-1.5 max-w-[18rem] text-[19px] font-extrabold leading-[1.15] tracking-tight">
+                    <span className="block">Salon, tuition, fitness,</span>
+                    <span className="book-hero-punch">reserve a slot with neighbors.</span>
+                  </p>
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <span className="inline-flex items-center rounded-full bg-white/10 px-2.5 py-1 text-[11px] font-bold text-white/90 ring-1 ring-white/15 backdrop-blur-sm">
+                      {bookListings.length > 0
+                        ? `${bookListings.length} service${bookListings.length === 1 ? '' : 's'}`
+                        : 'Services nearby'}
+                    </span>
+                    <span className="inline-flex items-center rounded-full bg-white/10 px-2.5 py-1 text-[11px] font-bold text-white/90 ring-1 ring-white/15 backdrop-blur-sm">
+                      {sellerGroups.length > 0
+                        ? `${sellerGroups.length} pro${sellerGroups.length === 1 ? '' : 's'}`
+                        : 'Pros nearby'}
+                    </span>
+                    {placeLabel && (
+                      <span className="inline-flex max-w-[10rem] items-center truncate rounded-full bg-emerald-400/15 px-2.5 py-1 text-[11px] font-bold text-emerald-100 ring-1 ring-emerald-300/20">
+                        {placeLabel}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
             {hasListings && mockupChrome && (
               <div className="relative z-20 px-4 mt-2">
                 <label className="relative block">
@@ -299,14 +456,18 @@ function CommerceModeView({ mode }: { mode: CommerceMode }) {
                         setSearchOpen(false);
                       }, 80);
                     }}
-                    placeholder={mode === 'book' ? 'Haircut, yoga, tuition' : 'Saree, cab, repair'}
+                    placeholder={mode === 'book' ? 'Try haircut, yoga, tuition...' : 'Try saree, cab, repair...'}
                     data-testid="commerce-mode-search"
                     autoCorrect="off"
                     autoCapitalize="off"
                     spellCheck={false}
                     enterKeyHint="search"
                     inputMode="search"
-                    className="h-11 w-full rounded-2xl border border-border bg-muted/50 pl-10 pr-9 text-[14px] text-foreground placeholder:text-muted-foreground outline-none focus:border-primary/40"
+                    className={cn(
+                      'h-11 w-full rounded-2xl border border-border bg-muted/50 pl-10 pr-9 text-[14px] text-foreground placeholder:text-muted-foreground outline-none focus:border-primary/40',
+                      (mode === 'services' || mode === 'book')
+                        && 'h-12 rounded-[18px] border-primary/20 bg-card shadow-[0_14px_34px_-18px_rgba(15,23,42,0.4)] focus:shadow-[0_16px_36px_-16px_hsl(var(--primary)/0.35)]',
+                    )}
                   />
                   {query && (
                     <button
@@ -336,27 +497,122 @@ function CommerceModeView({ mode }: { mode: CommerceMode }) {
                     }}
                   />
                 </label>
+                {(mode === 'services' || mode === 'book') && !searchActive && searchHints.length > 0 && (
+                  <div
+                    className="mt-2.5 flex gap-2 overflow-x-auto scrollbar-hide pb-0.5"
+                    data-testid={mode === 'book' ? 'book-search-hints' : 'contact-search-hints'}
+                  >
+                    {searchHints.map((hint) => {
+                      const selected = hint.value != null && activeCategory === hint.value;
+                      return (
+                        <button
+                          key={hint.id}
+                          type="button"
+                          onClick={() => applySearchHint(hint)}
+                          className={cn(
+                            'shrink-0 rounded-full border px-3.5 py-1.5 text-[12px] font-bold transition-all active:scale-[0.98]',
+                            selected
+                              ? 'border-primary bg-primary text-primary-foreground shadow-[0_8px_18px_-8px_hsl(var(--primary)/0.8)]'
+                              : 'border-border/80 bg-card/90 text-foreground shadow-[0_8px_20px_-14px_rgba(15,23,42,0.35)] backdrop-blur-sm',
+                          )}
+                        >
+                          {hint.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             )}
-            {mode === 'book' && !searchActive && <div className="px-4 mt-2"><UpcomingAppointmentBanner /></div>}
+            {mode === 'book' && !searchActive && <div className="px-4 mt-2.5"><UpcomingAppointmentBanner /></div>}
             {hasListings && mode === 'book' && !searchActive && bookTiles.length > 0 && (
-              <div className="px-4 mt-2">
-                <p className="mb-2.5 flex items-center gap-1.5 text-[13px] font-extrabold tracking-[0.12em] text-primary">
-                  <Sparkles size={14} />
-                  POPULAR SERVICES
-                </p>
+              <div className="px-4 mt-3.5" data-testid="book-browse-service">
+                <div className="mb-3 flex items-end justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="flex items-center gap-1.5 text-[13px] font-extrabold tracking-[0.12em] text-primary">
+                      <Sparkles size={14} />
+                      POPULAR SERVICES
+                    </p>
+                    <p className="mt-0.5 text-[11px] font-medium text-zinc-500 dark:text-zinc-400">
+                      Tap a world to narrow what you can book
+                    </p>
+                  </div>
+                  {activeCategory && (
+                    <button
+                      type="button"
+                      onClick={() => selectCategory(null)}
+                      className="shrink-0 rounded-full border border-border bg-card px-3 py-1.5 text-[11px] font-bold text-primary shadow-sm"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
                 <div className="grid grid-cols-2 gap-3" data-testid="guided-discovery-tiles">
                   {bookTiles.map((tile) => (
                     <GuidedDiscoveryOverlayTile
                       key={tile.id}
-                      tile={tile}
+                      tile={{
+                        ...tile,
+                        subtitle: tile.count > 0
+                          ? `${tile.count} nearby · ${tile.subtitle || 'Book a time'}`
+                          : tile.subtitle,
+                      }}
                       selected={activeCategory === tile.id.slice('category:'.length)}
                       service
+                      cinematic
                       onSelect={selectBookTile}
                     />
                   ))}
                 </div>
               </div>
+            )}
+            {hasListings && mode === 'services' && !searchActive && contactTiles.length > 0 && (
+              <div className="mt-3" data-testid="contact-browse-need">
+                <div className="mb-2.5 px-4">
+                  <p className="text-[17px] font-extrabold tracking-tight text-zinc-900 dark:text-zinc-50">
+                    Browse by need
+                  </p>
+                  <p className="mt-0.5 text-[11px] font-medium text-zinc-500 dark:text-zinc-400">
+                    Pick a category to narrow who you message
+                  </p>
+                </div>
+                <div className="discovery-chip-scroll scrollbar-hide">
+                  <div className="flex w-max items-stretch gap-3 px-4 pr-6 pb-1">
+                    {contactTiles.map((tile) => (
+                      <GuidedDiscoveryOverlayTile
+                        key={tile.id}
+                        tile={{
+                          ...tile,
+                          eta: tile.count > 0
+                            ? `${tile.count} listing${tile.count === 1 ? '' : 's'}`
+                            : tile.eta,
+                        }}
+                        selected={activeCategory === tile.id.slice('category:'.length)}
+                        compact
+                        showEta
+                        onSelect={selectContactTile}
+                      />
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+            {mode === 'services' && !searchActive && faceRailNeighbors.length > 0 && (
+              <ContactNeighborsRail
+                neighbors={faceRailNeighbors}
+                onSelect={jumpToNeighbor}
+                className="mt-2"
+              />
+            )}
+            {mode === 'book' && !searchActive && faceRailNeighbors.length > 0 && (
+              <ContactNeighborsRail
+                neighbors={faceRailNeighbors}
+                onSelect={jumpToNeighbor}
+                className="mt-2"
+                title="Pros to book"
+                subtitle="Tap a face to jump to their services"
+                testId="book-providers-rail"
+              />
             )}
             {hasListings && (
               <CommerceFacetRail
@@ -413,7 +669,11 @@ function CommerceModeView({ mode }: { mode: CommerceMode }) {
               {searchActive && !isLoading && (
                 <div className="mb-3">
                   <p className="text-sm font-bold text-foreground">
-                    {searched.length} matching {searched.length === 1 ? 'listing' : 'listings'}
+                    {mode === 'services'
+                      ? `${sellerGroups.length} neighbor${sellerGroups.length === 1 ? '' : 's'} · ${searched.length} listing${searched.length === 1 ? '' : 's'}`
+                      : mode === 'book'
+                        ? `${bookListings.length} service${bookListings.length === 1 ? '' : 's'} · ${sellerGroups.length} pro${sellerGroups.length === 1 ? '' : 's'}`
+                        : `${searched.length} matching ${searched.length === 1 ? 'listing' : 'listings'}`}
                   </p>
                   <p className="text-xs text-muted-foreground">
                     {searchFetching && searched.length === 0
@@ -424,47 +684,79 @@ function CommerceModeView({ mode }: { mode: CommerceMode }) {
               )}
               {!isLoading && searched.length > 0 && mockupChrome && !searchActive && (
                 <div className="mb-3 flex items-center justify-between gap-2">
-                  <p className={cn(
-                    mode === 'services'
-                      ? 'flex items-center gap-1.5 text-[13px] font-extrabold tracking-[0.12em] text-primary'
-                      : 'text-[15px] font-extrabold tracking-tight text-foreground',
-                  )}>
-                    {mode === 'services' && <Users size={14} />}
-                    {mode === 'services' ? 'Browse listings' : 'Popular services'}
-                  </p>
+                  <div className="min-w-0">
+                    <p className={cn(
+                      (mode === 'services' || mode === 'book')
+                        ? 'flex items-center gap-1.5 text-[13px] font-extrabold tracking-[0.12em] text-primary'
+                        : 'text-[15px] font-extrabold tracking-tight text-foreground',
+                    )}>
+                      {mode === 'services' && <Users size={14} />}
+                      {mode === 'book' && <CalendarCheck size={14} />}
+                      {mode === 'services' ? 'Browse neighbors' : mode === 'book' ? 'Book a slot' : 'Popular services'}
+                    </p>
+                    {(mode === 'services' || mode === 'book') && (
+                      <p className="mt-0.5 text-[11px] text-muted-foreground truncate">
+                        {mode === 'services'
+                          ? `${sellerGroups.length} neighbor${sellerGroups.length === 1 ? '' : 's'}`
+                          : `${bookListings.length} service${bookListings.length === 1 ? '' : 's'}`}
+                        {activeCategory
+                          ? ` in ${categoryMeta.find((meta) => meta.category === activeCategory)?.displayName || activeCategory}`
+                          : ''}
+                      </p>
+                    )}
+                  </div>
+                  {(mode === 'services' || mode === 'book') && activeCategory && (
+                    <button
+                      type="button"
+                      onClick={() => selectCategory(null)}
+                      className="shrink-0 rounded-full border border-border bg-card px-3 py-1.5 text-[11px] font-bold text-primary"
+                    >
+                      Clear filter
+                    </button>
+                  )}
                 </div>
               )}
               {isLoading ? (
                 <div data-testid="commerce-mode-loading">
                   <ProductCardSkeleton count={9} />
                 </div>
-              ) : mode === 'book' && searched.length > 0 ? (
-                <div className="space-y-2.5">
-                  {searched.map((product) => (
-                    <GuidedDiscoveryProductRow
+              ) : mode === 'book' && bookListings.length > 0 ? (
+                <div className="space-y-3">
+                  {bookListings.map((product, index) => (
+                    <div
                       key={product.id}
-                      product={product}
-                      onTap={handleProductTap}
-                      categoryConfigs={categoryConfigs}
-                    />
+                      className="book-listing-card-enter"
+                      style={{ animationDelay: `${Math.min(index, 6) * 45}ms` }}
+                    >
+                      <GuidedDiscoveryProductRow
+                        product={product}
+                        onTap={handleProductTap}
+                        categoryConfigs={categoryConfigs}
+                      />
+                    </div>
                   ))}
                 </div>
               ) : mode === 'services' && sellerGroups.length > 0 ? (
-                <div className="space-y-3">
-                  {sellerGroups.map((group) => (
-                    <GuidedDiscoverySellerCard
+                <div className="space-y-3.5">
+                  {sellerGroups.map((group, index) => (
+                    <div
                       key={group[0].seller_id || group[0].id}
-                      products={group}
-                      categoryLabel={categoryMeta.find((meta) => meta.category === group[0].category)?.displayName || group[0].category}
-                      categoryConfigs={categoryConfigs}
-                      onOpenListing={handleProductTap}
-                    />
+                      className="contact-seller-card-enter"
+                      style={{ animationDelay: `${Math.min(index, 6) * 45}ms` }}
+                    >
+                      <GuidedDiscoverySellerCard
+                        products={group}
+                        categoryLabel={categoryMeta.find((meta) => meta.category === group[0].category)?.displayName || group[0].category}
+                        categoryConfigs={categoryConfigs}
+                        onOpenListing={handleProductTap}
+                      />
+                    </div>
                   ))}
                 </div>
               ) : mode === 'shop' && catalogGrid.length > 0 ? (
                 <div className={cn(
                   'grid gap-2 sm:gap-3',
-                  'grid-cols-3 sm:grid-cols-3 md:grid-cols-4',
+                  'grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4',
                 )} data-testid="commerce-mode-grid">
                   {catalogGrid.map((product) => (
                     <ProductListingCard

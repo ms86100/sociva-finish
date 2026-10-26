@@ -97,7 +97,9 @@ export function useMarketplaceProducts(
     },
     initialPageParam: 0,
     enabled: sellerIds.length > 0,
-    staleTime: jitteredStaleTime(10 * 60 * 1000),
+    // Keep prior product pages while seller IDs grow (Book/Home pagination).
+    placeholderData: (previous) => previous,
+    staleTime: jitteredStaleTime(30 * 60 * 1000),
   });
 
   // Flatten all pages into a single array for backward compatibility

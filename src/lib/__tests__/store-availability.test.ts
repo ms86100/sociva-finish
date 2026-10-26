@@ -52,10 +52,22 @@ describe('computeStoreStatus', () => {
   });
 
   it('returns closed_today when current day is not in operating days', () => {
-    mockTime('2026-03-08T14:00:00');
+    mockTime('2026-03-08T14:00:00'); // Sunday IST-ish depending on local; use UTC carefully
     const result = computeStoreStatus('09:00', '21:00', ['Mon', 'Tue'], true);
     expect(result.status).toBe('closed_today');
-    expect(result.minutesUntilOpen).toBeNull();
+  });
+
+  it('closed_today includes next open day and time', () => {
+    // Monday 26 Oct 2026 12:00 IST = 06:30 UTC
+    mockTime('2026-10-26T06:30:00.000Z');
+    const result = computeStoreStatus('10:00', '22:30', ['Sun', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'], true);
+    expect(result.status).toBe('closed_today');
+    expect(result.nextOpenAt).not.toBeNull();
+    expect(result.minutesUntilOpen).toBeGreaterThan(0);
+    const msg = formatStoreClosedMessage(result);
+    expect(msg).toMatch(/Closed today/);
+    expect(msg).toMatch(/Opens Tue/i);
+    expect(msg).toMatch(/10:00/i);
   });
 
   it('treats lowercase operating days as open (seed/form mixed case)', () => {
@@ -130,8 +142,19 @@ describe('formatStoreClosedMessage', () => {
     expect(formatStoreClosedMessage({ status: 'paused', nextOpenAt: null, minutesUntilOpen: null })).toBe('Store paused');
   });
 
-  it('returns "Closed today" for closed_today status', () => {
+  it('returns "Closed today" for closed_today status without next open', () => {
     expect(formatStoreClosedMessage({ status: 'closed_today', nextOpenAt: null, minutesUntilOpen: null })).toBe('Closed today');
+  });
+
+  it('appends next open label for closed_today when nextOpenAt is set', () => {
+    // Tue 27 Oct 2026 10:00 IST = 04:30 UTC
+    const msg = formatStoreClosedMessage({
+      status: 'closed_today',
+      nextOpenAt: '2026-10-27T04:30:00.000Z',
+      minutesUntilOpen: 1320,
+    });
+    expect(msg).toMatch(/Closed today · Opens Tue/i);
+    expect(msg).toMatch(/10:00/i);
   });
 
   it('returns "Opens in X min" when under 60 minutes', () => {
@@ -142,10 +165,11 @@ describe('formatStoreClosedMessage', () => {
     expect(formatStoreClosedMessage({ status: 'closed', nextOpenAt: null, minutesUntilOpen: 90 })).toBe('Opens in 1 hr');
   });
 
-  it('returns "Opens at HH:MM" when >2 hrs and nextOpenAt provided', () => {
+  it('returns day + time when >2 hrs and nextOpenAt provided', () => {
     const nextOpen = new Date('2026-03-07T09:00:00');
     const msg = formatStoreClosedMessage({ status: 'closed', nextOpenAt: nextOpen.toISOString(), minutesUntilOpen: 300 });
-    expect(msg).toMatch(/Opens at/);
+    expect(msg).toMatch(/^Opens /);
+    expect(msg).toMatch(/9:00/i);
   });
 
   it('returns empty string for open status', () => {

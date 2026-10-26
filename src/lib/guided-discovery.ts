@@ -12,6 +12,14 @@ import {
   type FoodCuisineId,
   type FoodMealId,
 } from '@/lib/food-facets';
+import {
+  curatedCategoryArt,
+  curatedCuisineArt,
+  curatedMealArt,
+  guidedKitchenCountLabel,
+  guidedSpotCountLabel,
+  resolveFoodChipArt,
+} from '@/lib/food-chip-art';
 import type { ProductActionType } from '@/types/Database';
 
 export type GuidedDiscoveryHubId =
@@ -28,6 +36,8 @@ export type GuidedDiscoveryHubKind = 'shop_categories' | 'book' | 'contact' | 'e
 export type GuidedDiscoveryTileKind = 'meal' | 'cuisine' | 'category' | 'tiffin';
 
 export const GUIDED_DISCOVERY_HEADING = 'What are you looking for today?';
+export const GUIDED_DISCOVERY_SHELF_HEADING = 'On the shelf today';
+export const GUIDED_DISCOVERY_AISLE_HEADING = 'Browse by meal time';
 
 export const TIFFIN_SUBCATEGORY_SLUGS = ['daily_tiffin', 'tiffin'] as const;
 
@@ -151,6 +161,132 @@ export function guidedCollectionEta(
   return /deliver/i.test(text) ? text : `Delivers in ${text}`;
 }
 
+export type GuidedListingSnapshotInput = {
+  id?: string | null;
+  name?: string | null;
+  price?: number | null;
+  image_url?: string | null;
+  seller_id?: string | null;
+  seller_name?: string | null;
+  seller_is_available?: boolean | null;
+  seller_vacation_mode?: boolean | null;
+  society_name?: string | null;
+  prep_time_minutes?: number | null;
+  lead_time_hours?: number | null;
+  delivery_time_text?: string | null;
+  completed_order_count?: number | null;
+};
+
+export type GuidedListingSnapshot = {
+  dishCount: number;
+  kitchenCount: number;
+  openKitchenCount: number;
+  fastestPrepMinutes: number | null;
+  prepLabel: string | null;
+  priceFrom: number | null;
+  priceTo: number | null;
+  heroImageUrl: string | null;
+  secondaryImageUrl: string | null;
+  topKitchenName: string | null;
+  totalOrders: number;
+};
+
+function formatFastestPrep(minutes: number): string {
+  if (minutes >= 60 && minutes % 60 === 0) return `from ${minutes / 60} hr`;
+  if (minutes >= 60) {
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    return mins > 0 ? `from ${hours}h ${mins}m` : `from ${hours} hr`;
+  }
+  return `from ${minutes} min`;
+}
+
+/**
+ * Live shelf snapshot for meal/cuisine listing chrome.
+ * Only returns facts present on real listings - never invents prep, price, or orders.
+ */
+export function buildGuidedListingSnapshot(
+  listings: readonly GuidedListingSnapshotInput[],
+): GuidedListingSnapshot {
+  const sellers = new Map<string, GuidedListingSnapshotInput>();
+  let openKitchenCount = 0;
+  let priceFrom: number | null = null;
+  let priceTo: number | null = null;
+  let fastestPrepMinutes: number | null = null;
+  let totalOrders = 0;
+  const withPhotos: GuidedListingSnapshotInput[] = [];
+
+  for (const listing of listings) {
+    const sellerKey = String(listing.seller_id || listing.seller_name || '').trim();
+    if (sellerKey && !sellers.has(sellerKey)) {
+      sellers.set(sellerKey, listing);
+      const open = listing.seller_is_available === true && listing.seller_vacation_mode !== true;
+      if (open) openKitchenCount += 1;
+    }
+    const price = Number(listing.price);
+    if (Number.isFinite(price) && price > 0) {
+      priceFrom = priceFrom == null ? price : Math.min(priceFrom, price);
+      priceTo = priceTo == null ? price : Math.max(priceTo, price);
+    }
+    const prep = listingPrepMinutes(listing);
+    if (prep != null && prep > 0 && prep <= 360) {
+      fastestPrepMinutes = fastestPrepMinutes == null ? prep : Math.min(fastestPrepMinutes, prep);
+    }
+    const orders = Number(listing.completed_order_count);
+    if (Number.isFinite(orders) && orders > 0) totalOrders += Math.round(orders);
+    if (listing.image_url?.trim()) withPhotos.push(listing);
+  }
+
+  const heroImageUrl = pickDishListingPhoto(withPhotos as any) || withPhotos[0]?.image_url || null;
+  const secondaryImageUrl = withPhotos.find((item) => item.image_url !== heroImageUrl)?.image_url || null;
+  const topKitchen = [...sellers.values()]
+    .sort((a, b) => (Number(b.completed_order_count) || 0) - (Number(a.completed_order_count) || 0))[0];
+
+  return {
+    dishCount: listings.length,
+    kitchenCount: sellers.size,
+    openKitchenCount,
+    fastestPrepMinutes,
+    prepLabel: fastestPrepMinutes != null ? formatFastestPrep(fastestPrepMinutes) : null,
+    priceFrom,
+    priceTo,
+    heroImageUrl,
+    secondaryImageUrl,
+    topKitchenName: topKitchen?.seller_name?.trim() || null,
+    totalOrders,
+  };
+}
+
+/** Dynamic listing headline from live counts. */
+export function guidedListingHeadline(snapshot: GuidedListingSnapshot): string {
+  if (snapshot.dishCount <= 0) return 'No matches nearby';
+  const dishWord = snapshot.dishCount === 1 ? 'dish' : 'dishes';
+  if (snapshot.kitchenCount > 0) {
+    const kitchenWord = snapshot.kitchenCount === 1 ? 'kitchen' : 'kitchens';
+    return `${snapshot.dishCount} ${dishWord} · ${snapshot.kitchenCount} ${kitchenWord}`;
+  }
+  return `${snapshot.dishCount} ${dishWord} nearby`;
+}
+
+/** Dynamic subline from live prep / open / cuisine filter. Never pads with fake copy. */
+export function guidedListingSubline(
+  snapshot: GuidedListingSnapshot,
+  options?: { cuisineLabel?: string | null },
+): string | null {
+  const parts: string[] = [];
+  if (options?.cuisineLabel) parts.push(options.cuisineLabel);
+  if (snapshot.openKitchenCount > 0 && snapshot.openKitchenCount === snapshot.kitchenCount) {
+    parts.push(snapshot.openKitchenCount === 1 ? '1 kitchen open' : `${snapshot.openKitchenCount} kitchens open`);
+  } else if (snapshot.openKitchenCount > 0) {
+    parts.push(`${snapshot.openKitchenCount} open now`);
+  }
+  if (snapshot.prepLabel) parts.push(snapshot.prepLabel);
+  if (snapshot.totalOrders > 0) {
+    parts.push(`${snapshot.totalOrders} order${snapshot.totalOrders === 1 ? '' : 's'} fulfilled`);
+  }
+  return parts.length > 0 ? parts.join(' · ') : null;
+}
+
 export function buildGuidedCuisineChips(
   listings: readonly GuidedDiscoveryListing[],
 ): Array<{ id: FoodCuisineId; label: string; count: number }> {
@@ -255,9 +391,23 @@ export function guidedDiscoveryPageTitle(
 export function guidedDiscoveryPageSubtitle(
   hubId: GuidedDiscoveryHubId,
   tile?: GuidedDiscoveryTile | null,
+  snapshot?: GuidedListingSnapshot | null,
 ): string {
-  if (tile?.kind === 'meal') return `Fresh homemade ${tile.label.toLowerCase()} options`;
-  if (tile?.kind === 'tiffin') return 'Daily or weekly meal plans';
+  if (snapshot && tile) {
+    const live = guidedListingSubline(snapshot) || guidedListingHeadline(snapshot);
+    if (live && snapshot.dishCount > 0) return live;
+  }
+  if (tile?.kind === 'meal') {
+    if (tile.eta) return tile.eta;
+    if (tile.count > 0) {
+      return tile.count === 1 ? '1 dish nearby' : `${tile.count} dishes nearby`;
+    }
+    return tile.subtitle;
+  }
+  if (tile?.kind === 'tiffin') {
+    if (tile.eta) return tile.eta;
+    return tile.subtitle || 'Daily or weekly meal plans';
+  }
   if (tile) return tile.subtitle;
   return guidedDiscoveryHubDef(hubId)?.subtitle || 'Browse what is available in your society';
 }
@@ -353,15 +503,25 @@ export function buildGuidedDiscoveryHubs(
     const categoryPhoto = (def.categories || [])
       .map((slug) => categoryImage(slug, options?.categoryMeta))
       .find((url): url is string => !!url);
+    const hubCategory = def.categories?.[0] || null;
+    const live = pickDishListingPhoto(matched, usedPhotos)
+      || pickListingChipPhoto(matched, usedPhotos)
+      || null;
+    let imageUrl = live;
+    if (!imageUrl && categoryPhoto && !usedPhotos.has(categoryPhoto)) {
+      usedPhotos.add(categoryPhoto);
+      imageUrl = categoryPhoto;
+    }
+    if (!imageUrl) {
+      imageUrl = resolveFoodChipArt(null, { category: hubCategory }, usedPhotos)
+        || curatedCategoryArt(hubCategory);
+    }
     hubs.push({
       id: def.id,
       title: def.title,
       subtitle: def.subtitle,
       href: guidedDiscoveryHubHref(def.id),
-      imageUrl: pickDishListingPhoto(matched, usedPhotos)
-        || pickListingChipPhoto(matched, usedPhotos)
-        || categoryPhoto
-        || null,
+      imageUrl,
       count: matched.length,
       kind: def.kind,
     });
@@ -436,28 +596,32 @@ export function buildGuidedDiscoveryTiles(
       const matched = hubListings.filter((listing) => productMatchesFoodFacets(listing, { meal: meal.id }));
       if (matched.length === 0) continue;
       const copy = MEAL_TILE_COPY[meal.id];
+      // Meal tiles are destinations (morning / lunch / dinner worlds), not product thumbs.
+      const mealArt = curatedMealArt(meal.id);
+      if (mealArt) usedPhotos.add(mealArt);
       tiles.push({
         id: `meal:${meal.id}`,
         kind: 'meal',
         label: copy.label,
         subtitle: copy.subtitle,
         href: homeFoodMealHref(meal.id),
-        imageUrl: pickDishListingPhoto(matched, usedPhotos) || pickListingChipPhoto(matched, usedPhotos),
+        imageUrl: mealArt,
         count: matched.length,
-        eta: guidedCollectionEta(matched),
+        eta: guidedKitchenCountLabel(matched) || null,
       });
     }
     const tiffin = hubListings.filter(isTiffinListing);
     if (tiffin.length > 0) {
+      const live = pickDishListingPhoto(tiffin, usedPhotos) || pickListingChipPhoto(tiffin, usedPhotos);
       tiles.push({
         id: 'tiffin',
         kind: 'tiffin',
         label: 'Tiffin Service',
         subtitle: 'Daily or weekly meal plans',
         href: '/explore/home_food?tile=tiffin',
-        imageUrl: pickDishListingPhoto(tiffin, usedPhotos) || pickListingChipPhoto(tiffin, usedPhotos),
+        imageUrl: live || resolveFoodChipArt(null, { category: 'home_food' }, usedPhotos),
         count: tiffin.length,
-        eta: guidedCollectionEta(tiffin),
+        eta: guidedKitchenCountLabel(tiffin) || null,
       });
     }
     return tiles;
@@ -474,9 +638,11 @@ export function buildGuidedDiscoveryTiles(
         label: cuisine.label,
         subtitle: 'From restaurants and cafes nearby',
         href: foodFacetsBrowsePath('food_beverages', { cuisine: cuisine.id }),
-        imageUrl: pickListingChipPhoto(matched, usedPhotos),
+        imageUrl: curatedCuisineArt(cuisine.id)
+          || pickListingChipPhoto(matched, usedPhotos)
+          || resolveFoodChipArt(null, { cuisine: cuisine.id, category: 'restaurant' }, usedPhotos),
         count: matched.length,
-        eta: guidedCollectionEta(matched),
+        eta: guidedSpotCountLabel(matched) || null,
       });
     }
     return tiles;

@@ -33,11 +33,12 @@ import { useMarketplaceLabels } from '@/hooks/useMarketplaceLabels';
 import { cn } from '@/lib/utils';
 import { DiscoveryChipRail } from '@/components/home/DiscoveryChipRail';
 import { GuidedDiscoveryRail } from '@/components/home/GuidedDiscoveryRail';
+import { CookingNearbyRail } from '@/components/home/CookingNearbyRail';
 import { CommerceFacetRail } from '@/components/discovery/CommerceFacetRail';
 import { buildDiscoveryIntents } from '@/lib/discovery-intents';
 import { buildGuidedDiscoveryHubs } from '@/lib/guided-discovery';
+import { buildCookingNearbyKitchens } from '@/lib/cooking-nearby';
 import { listingsSellingWell } from '@/lib/selling-well';
-import { pickDishListingPhoto } from '@/lib/chip-listing-photo';
 import { applyProductFacetRow } from '@/hooks/queries/useProductFacets';
 import {
   CommerceFacetState,
@@ -218,17 +219,43 @@ export function MarketplaceSection() {
 
   const facetInventory = searchActive ? searchedProducts : scopedProducts;
 
-  const dynamicFacetChips = useMemo(
-    () => omitSoleActionChips(extractAvailableCommerceFacets(facetInventory, { parentGroup: activeGroup, currentState: commerceFacets, categoryConfigs })),
-    [facetInventory, activeGroup, commerceFacets, categoryConfigs]
-  );
-
   const isFacetFilterActive = hasActiveCommerceFacets(commerceFacets);
+
+  /** Home all-tab: when food listings dominate, treat the rail as food so Taste / Veg work. */
+  const facetParentGroup = useMemo(() => {
+    if (activeGroup) return activeGroup;
+    const foodCount = facetInventory.filter((product) =>
+      isFoodListingCategory(
+        (product as any).parentGroup,
+        product.category,
+      ),
+    ).length;
+    if (foodCount > 0 && foodCount >= Math.ceil(facetInventory.length * 0.35)) {
+      return 'food_beverages';
+    }
+    return null;
+  }, [activeGroup, facetInventory]);
+
+  const dynamicFacetChips = useMemo(
+    () => omitSoleActionChips(extractAvailableCommerceFacets(facetInventory, {
+      parentGroup: facetParentGroup,
+      currentState: commerceFacets,
+      categoryConfigs,
+    })),
+    [facetInventory, facetParentGroup, commerceFacets, categoryConfigs],
+  );
 
   const facetFilteredProducts = useMemo(() => {
     if (!isFacetFilterActive) return [];
     return scopedProducts.filter((p) => productMatchesCommerceFacets(p, commerceFacets, categoryConfigs));
   }, [isFacetFilterActive, scopedProducts, commerceFacets, categoryConfigs]);
+
+  useEffect(() => {
+    if (!isFacetFilterActive || searchActive || festivalFocused) return;
+    const node = document.getElementById('home-filtered-results');
+    if (!node) return;
+    node.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [isFacetFilterActive, commerceFacets.meal, commerceFacets.cuisine, commerceFacets.openNow, searchActive, festivalFocused]);
 
   const visibleSearchProducts = useMemo(() => {
     if (!searchActive) return [];
@@ -276,7 +303,6 @@ export function MarketplaceSection() {
     }),
     [allProducts, categoryConfigs],
   );
-  const neighborHeroUrl = useMemo(() => pickDishListingPhoto(foodListings), [foodListings]);
   const sellingWellProducts = useMemo(
     () => listingsSellingWell(allProducts),
     [allProducts],
@@ -292,6 +318,15 @@ export function MarketplaceSection() {
     }
     return images;
   }, [marketplaceSellers]);
+
+  const cookingNearbyKitchens = useMemo(
+    () => buildCookingNearbyKitchens(foodListings, {
+      limit: 8,
+      categoryConfigs,
+      sellerImages,
+    }),
+    [foodListings, categoryConfigs, sellerImages],
+  );
 
   const exploreFestival = useCallback(() => {
     setFestivalFocused(true);
@@ -416,20 +451,21 @@ export function MarketplaceSection() {
 
   return (
     <div className="pb-2">
-      {/* Festival hero scrolls away. The category rail stays under the header. */}
+      {/* Classic home order: chips -> filters -> neighbor banner -> rooms. */}
       {takeover.active && (
         <div className="pt-1" style={{ backgroundColor: takeover.bg }}>
           <FestivalHomeHero onExplore={exploreFestival} />
         </div>
       )}
+
       {discoveryIntents.length > 0 && (
         <div
-          className="sticky top-[var(--app-header-offset,0px)] z-[34] isolate w-full border-b border-border bg-background pt-1"
+          className="sticky top-[var(--app-header-offset,0px)] z-[34] isolate w-full bg-background pt-2.5 pb-0.5 shadow-[0_1px_0_0_hsl(var(--border))] dark:shadow-[0_1px_0_0_hsl(0_0%_100%/0.12)]"
         >
           <DiscoveryChipRail
             intents={discoveryIntents}
             showTitle={false}
-            className="py-2.5"
+            className="!pt-0"
           />
         </div>
       )}
@@ -439,7 +475,7 @@ export function MarketplaceSection() {
           value={commerceFacets}
           onChange={setCommerceFacets}
           chips={dynamicFacetChips}
-          parentGroup={activeGroup}
+          parentGroup={facetParentGroup}
           className="py-1"
           inventory={facetInventory}
           showCounts={false}
@@ -459,7 +495,7 @@ export function MarketplaceSection() {
             </div>
           </div>
           {visibleSearchProducts.length > 0 ? (
-            <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 gap-2 sm:gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-3">
               {visibleSearchProducts.map((product) => (
                 <ProductListingCard
                   key={product.id}
@@ -488,35 +524,31 @@ export function MarketplaceSection() {
         </div>
       )}
 
-      {!festivalFocused && !searchActive && foodListings.length > 0 && (
-        <NeighborMakesBanner
-          imageUrl={neighborHeroUrl}
-          onOrderNow={() => navigate('/explore/home_food')}
-        />
-      )}
-
-      {!festivalFocused && !searchActive && guidedHubs.length > 0 && (
-        <GuidedDiscoveryRail hubs={guidedHubs} />
-      )}
-
+      {/* When filters are on, show only matching products - not the unfiltered home feed. */}
       {isFacetFilterActive && !festivalFocused && !searchActive && (
-        <div className="px-4 py-2">
+        <div className="px-4 py-2" id="home-filtered-results" data-testid="home-filtered-results">
           <div className="flex items-center justify-between mb-3">
             <div>
               <p className="text-sm font-bold text-foreground">
-                Filtered Results ({facetFilteredProducts.length})
+                {facetFilteredProducts.length} matching {facetFilteredProducts.length === 1 ? 'listing' : 'listings'}
               </p>
               <p className="text-xs text-muted-foreground">
-                {commerceFacets.veg ? 'Veg · ' : ''}
-                {commerceFacets.openNow ? 'Open Now · ' : ''}
-                {commerceFacets.actionType ? `${commerceFacets.actionType} · ` : ''}
-                {commerceFacets.serviceMode ? `${commerceFacets.serviceMode} · ` : ''}
-                {commerceFacets.durationMax ? `≤ ${commerceFacets.durationMax} min · ` : ''}
-                {commerceFacets.priceMax ? `≤ ₹${commerceFacets.priceMax} · ` : ''}
-                {[commerceFacets.meal, commerceFacets.cuisine, commerceFacets.course].filter(Boolean).join(' · ')}
+                {[
+                  commerceFacets.veg ? 'Veg' : null,
+                  commerceFacets.nonVeg ? 'Non-Veg' : null,
+                  commerceFacets.openNow ? 'Open Now' : null,
+                  commerceFacets.meal,
+                  commerceFacets.cuisine,
+                  commerceFacets.course,
+                  commerceFacets.actionType,
+                  commerceFacets.serviceMode,
+                  commerceFacets.durationMax ? `≤ ${commerceFacets.durationMax} min` : null,
+                  commerceFacets.priceMax ? `≤ ₹${commerceFacets.priceMax}` : null,
+                ].filter(Boolean).join(' · ') || 'Active filters'}
               </p>
             </div>
             <button
+              type="button"
               onClick={() => setCommerceFacets(emptyCommerceFacetState())}
               className="text-xs text-primary font-semibold hover:underline"
             >
@@ -524,7 +556,7 @@ export function MarketplaceSection() {
             </button>
           </div>
           {facetFilteredProducts.length > 0 ? (
-            <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 gap-2 sm:gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-3">
               {facetFilteredProducts.map((product) => (
                 <ProductListingCard
                   key={product.id}
@@ -537,8 +569,10 @@ export function MarketplaceSection() {
             </div>
           ) : (
             <div className="p-6 rounded-2xl bg-muted/40 text-center border border-dashed border-border">
-              <p className="text-sm font-medium text-foreground">No listings matching active filters</p>
+              <p className="text-sm font-medium text-foreground">No listings match these filters</p>
+              <p className="mt-1 text-xs text-muted-foreground">Try fewer chips, or clear filters to browse home again.</p>
               <button
+                type="button"
                 onClick={() => setCommerceFacets(emptyCommerceFacetState())}
                 className="mt-2 text-xs text-primary font-semibold hover:underline"
               >
@@ -546,14 +580,24 @@ export function MarketplaceSection() {
               </button>
             </div>
           )}
-          <SectionDivider />
         </div>
       )}
 
-      {!activeCategory && !festivalFocused && !searchActive && sellingWellProducts.length > 0 && (
+      {!festivalFocused && !searchActive && !isFacetFilterActive && (
+        <NeighborMakesBanner
+          onOrderNow={() => navigate('/explore/home_food')}
+        />
+      )}
+
+      {!festivalFocused && !searchActive && !isFacetFilterActive && guidedHubs.length > 0 && (
+        <GuidedDiscoveryRail hubs={guidedHubs} />
+      )}
+
+      {!activeCategory && !festivalFocused && !searchActive && !isFacetFilterActive && sellingWellProducts.length > 0 && (
         <div id="home-selling-well" data-testid="home-selling-well">
           <IntentProductRail
             title="Selling well nearby"
+            variant="selling-well"
             products={sellingWellProducts}
             onProductTap={handleProductTap}
             categoryConfigs={categoryConfigs}
@@ -561,14 +605,18 @@ export function MarketplaceSection() {
         </div>
       )}
 
-      {!festivalFocused && !searchActive && (
+      {!festivalFocused && !searchActive && !isFacetFilterActive && cookingNearbyKitchens.length > 0 && (
+        <CookingNearbyRail kitchens={cookingNearbyKitchens} />
+      )}
+
+      {!festivalFocused && !searchActive && !isFacetFilterActive && (
         <>
           <SectionDivider />
           <ShopByStoreDiscovery sectionTitle={ml.label('label_section_store_discovery')} />
         </>
       )}
 
-      {!activeCategory && !festivalFocused && !searchActive && !loadingLocal && intentRails.primary && (
+      {!activeCategory && !festivalFocused && !searchActive && !isFacetFilterActive && !loadingLocal && intentRails.primary && (
         <div id="home-popular-rail" data-testid="home-popular-rail" className="scroll-mt-28">
           <SectionDivider />
           <GroupedSellerRow
@@ -584,7 +632,7 @@ export function MarketplaceSection() {
         </div>
       )}
 
-      {!activeCategory && !festivalFocused && !searchActive && intentRails.foodPopular && (
+      {!activeCategory && !festivalFocused && !searchActive && !isFacetFilterActive && intentRails.foodPopular && (
         <GroupedSellerRow
           title={intentRails.foodPopular.title}
           subtitle={browsingLocation?.label || undefined}
@@ -595,7 +643,7 @@ export function MarketplaceSection() {
         />
       )}
 
-      {!activeCategory && !festivalFocused && !searchActive && intentRails.recentlyViewed && (
+      {!activeCategory && !festivalFocused && !searchActive && !isFacetFilterActive && intentRails.recentlyViewed && (
         <IntentProductRail
           title={intentRails.recentlyViewed.title}
           products={intentRails.recentlyViewed.products}
@@ -604,7 +652,7 @@ export function MarketplaceSection() {
         />
       )}
 
-      {!activeCategory && !festivalFocused && !searchActive && ['newlyListed', 'sinceLastVisit', 'moreInCategory', 'favourites'].map((key) => {
+      {!activeCategory && !festivalFocused && !searchActive && !isFacetFilterActive && ['newlyListed', 'sinceLastVisit', 'moreInCategory', 'favourites'].map((key) => {
         const rail = intentRails[key];
         if (!rail) return null;
         return (
@@ -618,7 +666,7 @@ export function MarketplaceSection() {
         );
       })}
 
-      {!festivalFocused && !searchActive && (
+      {!festivalFocused && !searchActive && !isFacetFilterActive && (
         <LazySection>
           <div id="home-featured-banners" className="scroll-mt-28">
             <FeaturedBanners />
@@ -626,7 +674,7 @@ export function MarketplaceSection() {
         </LazySection>
       )}
 
-      {!searchActive && (!activeCategory || festivalFocused) && festivals.length > 0 && (
+      {!searchActive && !isFacetFilterActive && (!activeCategory || festivalFocused) && festivals.length > 0 && (
         <div id="festival-home-destination" className="scroll-mt-28">
           {festivals.map((f) => (
             <FestivalBannerModule
@@ -652,7 +700,7 @@ export function MarketplaceSection() {
         </div>
       )}
 
-      {!festivalFocused && !searchActive && (
+      {!festivalFocused && !searchActive && !isFacetFilterActive && (
         <LazySection>
           <div id="home-nearby-sellers" className="scroll-mt-28">
             <NearbySellersSection />

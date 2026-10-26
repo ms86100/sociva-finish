@@ -24,8 +24,13 @@ import { orderBellAlreadyPlayed } from '@/lib/local-order-notifications';
 /**
  * BUILD FINGERPRINT - bump on every push-related update.
  */
-export const PUSH_BUILD_ID = '2026-10-24-SELLER-ALERT-STAMP-RETRY';
+export const PUSH_BUILD_ID = '2026-10-26-SELLER-ALERT-STAMP-V2-SAFE';
 
+/**
+ * Stamp Android tokens so the server may eventually use orders_incoming_v3.
+ * Until stamp succeeds, production stays on v2 notification+data (safe fallback).
+ * Retries after claim/upsert races; never blocks push registration on stamp failure.
+ */
 async function stampClientBuild(token: string) {
   if (!Capacitor.isNativePlatform() || !token) return;
   let versionCode: number | null = null;
@@ -42,6 +47,7 @@ async function stampClientBuild(token: string) {
     pushLog('warn', 'CLIENT_BUILD_READ_FAILED', { error: String(err) });
   }
 
+  // iOS has no v3 gate; still stamp version for ops when available.
   const runStamp = async () => supabase.rpc('stamp_device_token_client_build', {
     p_token: token,
     p_app_version_code: versionCode,
@@ -49,24 +55,34 @@ async function stampClientBuild(token: string) {
     p_alert_capability: capability,
   });
 
-  let { data, error } = await runStamp();
-  if (error) {
-    pushLog('warn', 'CLIENT_BUILD_STAMP_FAILED', { error: error.message });
-    return;
-  }
-  const updated = Number((data as { updated?: number } | null)?.updated ?? 0);
-  if (updated < 1) {
-    await new Promise((resolve) => setTimeout(resolve, 400));
-    ({ data, error } = await runStamp());
+  const delaysMs = [0, 500, 1500, 4000];
+  let lastUpdated = 0;
+  for (let i = 0; i < delaysMs.length; i++) {
+    if (delaysMs[i] > 0) {
+      await new Promise((resolve) => setTimeout(resolve, delaysMs[i]));
+    }
+    const { data, error } = await runStamp();
     if (error) {
-      pushLog('warn', 'CLIENT_BUILD_STAMP_RETRY_FAILED', { error: error.message });
+      pushLog('warn', 'CLIENT_BUILD_STAMP_FAILED', { error: error.message, attempt: i + 1 });
+      continue;
+    }
+    lastUpdated = Number((data as { updated?: number } | null)?.updated ?? 0);
+    if (lastUpdated >= 1) {
+      pushLog('info', 'CLIENT_BUILD_STAMP_OK', {
+        updated: lastUpdated,
+        versionCode,
+        capability,
+        attempt: i + 1,
+        channel_strategy: capability ? 'android_v3_eligible_when_gated' : 'ios_or_unstamped_v2',
+      });
       return;
     }
   }
-  pushLog('info', 'CLIENT_BUILD_STAMP_OK', {
-    updated: Number((data as { updated?: number } | null)?.updated ?? 0),
+  pushLog('warn', 'CLIENT_BUILD_STAMP_ZERO_ROWS', {
+    updated: lastUpdated,
     versionCode,
     capability,
+    note: 'Server keeps orders_incoming_v2 until stamp succeeds',
   });
 }
 

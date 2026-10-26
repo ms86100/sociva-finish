@@ -19,12 +19,12 @@ export interface CampaignDeepLinkValue {
 }
 
 const SCREEN_OPTIONS = [
-  { value: 'marketplace', path: '/marketplace', label: 'Marketplace' },
-  { value: 'offers', path: '/offers', label: 'Offers' },
+  { value: 'home', path: '/', label: 'Home' },
+  { value: 'book', path: '/book', label: 'Book' },
+  { value: 'services', path: '/services', label: 'Contact' },
   { value: 'orders', path: '/orders', label: 'Orders' },
-  { value: 'bulletin', path: '/bulletin', label: 'Bulletin' },
+  { value: 'community', path: '/community', label: 'Community' },
   { value: 'profile', path: '/profile', label: 'Profile' },
-  { value: 'home', path: '/home', label: 'Home' },
 ];
 
 interface Props {

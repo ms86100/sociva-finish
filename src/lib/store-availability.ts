@@ -66,14 +66,23 @@ export function computeStoreStatus(
   const ist = new Date(nowUtc.getTime() + IST_OFFSET_MS);
   const currentDay = DAY_ABBREVS[ist.getUTCDay()];
 
-  if (operatingDays && operatingDays.length > 0 && !operatingDayMatches(operatingDays, currentDay)) {
-    return { status: 'closed_today', nextOpenAt: null, minutesUntilOpen: null };
-  }
-
   const [startH, startM] = availabilityStart.split(':').map(Number);
   const [endH, endM] = availabilityEnd.split(':').map(Number);
   const currentMinutes = ist.getUTCHours() * 60 + ist.getUTCMinutes();
   const startMinutes = startH * 60 + startM;
+
+  if (operatingDays && operatingDays.length > 0 && !operatingDayMatches(operatingDays, currentDay)) {
+    for (let offset = 1; offset <= 7; offset += 1) {
+      const futureIst = new Date(ist.getTime() + offset * 24 * 60 * 60 * 1000);
+      const futureDay = DAY_ABBREVS[futureIst.getUTCDay()];
+      if (!operatingDayMatches(operatingDays, futureDay)) continue;
+      const minutesUntilOpen = offset * 24 * 60 - currentMinutes + startMinutes;
+      const nextOpen = new Date(nowUtc.getTime() + minutesUntilOpen * 60 * 1000);
+      nextOpen.setSeconds(0, 0);
+      return { status: 'closed_today', nextOpenAt: nextOpen.toISOString(), minutesUntilOpen };
+    }
+    return { status: 'closed_today', nextOpenAt: null, minutesUntilOpen: null };
+  }
   const rawEndMinutes = endH * 60 + endM;
   // Treat 00:00 as end-of-day (1440) so "09:00-00:00" means open until midnight
   const endMinutes = rawEndMinutes === 0 ? 1440 : rawEndMinutes;
@@ -102,9 +111,26 @@ export function computeStoreStatus(
 
 }
 
+/** Short reopen label in IST, e.g. "Opens Tue 10:00 AM". */
+export function formatNextOpenLabel(availability: StoreAvailability): string {
+  if (!availability.nextOpenAt) return '';
+  const d = new Date(availability.nextOpenAt);
+  const day = d.toLocaleDateString('en-IN', { weekday: 'short', timeZone: 'Asia/Kolkata' });
+  const time = d.toLocaleTimeString('en-IN', {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+    timeZone: 'Asia/Kolkata',
+  });
+  return `Opens ${day} ${time}`.replace(/\s+/g, ' ').trim();
+}
+
 export function formatStoreClosedMessage(availability: StoreAvailability): string {
   if (availability.status === 'paused') return 'Store paused';
-  if (availability.status === 'closed_today') return 'Closed today';
+  if (availability.status === 'closed_today') {
+    const when = formatNextOpenLabel(availability);
+    return when ? `Closed today · ${when}` : 'Closed today';
+  }
   if (availability.status !== 'closed') return '';
 
   const mins = availability.minutesUntilOpen;
@@ -112,10 +138,8 @@ export function formatStoreClosedMessage(availability: StoreAvailability): strin
   if (mins < 60) return `Opens in ${mins} min`;
   if (mins < 120) return `Opens in 1 hr`;
 
-  if (availability.nextOpenAt) {
-    const d = new Date(availability.nextOpenAt);
-    return `Opens at ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
-  }
+  const when = formatNextOpenLabel(availability);
+  if (when) return when;
 
   const hours = Math.round(mins / 60);
   return `Opens in ${hours} hrs`;

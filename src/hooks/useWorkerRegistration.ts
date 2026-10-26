@@ -129,7 +129,7 @@ export function useWorkerRegistration(
       let publicUrl: string | null = null;
       if (photoBlob) {
         const sanitizedName = name.trim().replace(/[^a-zA-Z0-9_-]/g, '_');
-        const fileName = `workers/${effectiveSocietyId}/${Date.now()}_${sanitizedName}.jpg`;
+        const fileName = `${user.id}/workers/${effectiveSocietyId}/${Date.now()}_${sanitizedName}.jpg`;
         const { error: uploadError } = await supabase.storage.from('app-images').upload(fileName, photoBlob, { contentType: 'image/jpeg' });
         if (uploadError) throw uploadError;
         const { data } = supabase.storage.from('app-images').getPublicUrl(fileName);

@@ -14,6 +14,7 @@ import { hideSplashScreen } from '@/lib/capacitor';
 import { Capacitor } from '@capacitor/core';
 import { pickDefaultSellerStoreId } from '@/lib/seller-journey';
 import { ALL_STORES_ID } from '@/lib/seller-order-board';
+import { setAuthReturnTo } from '@/hooks/useDeepLinks';
 
 export function useAuthState() {
   const [state, setState] = useState<AuthState>(initialAuthState);
@@ -327,6 +328,10 @@ export function useAuthState() {
             profileFetchedFor.current = null;
             prevUserIdRef.current = undefined;
             if (!isExplicitSignOut.current) {
+              try {
+                const current = (window.location.hash || '').replace(/^#/, '') || '/';
+                setAuthReturnTo(current);
+              } catch { /* ignore */ }
               window.location.hash = '#/auth';
             }
             isExplicitSignOut.current = false;

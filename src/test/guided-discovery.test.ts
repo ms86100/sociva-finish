@@ -5,6 +5,7 @@ import {
   BOOK_TILE_COPY,
   buildGuidedDiscoveryHubs,
   buildGuidedDiscoveryTiles,
+  buildGuidedListingSnapshot,
   filterGuidedDiscoveryListings,
   GUIDED_DISCOVERY_HEADING,
   GUIDED_DISCOVERY_HUB_PANEL,
@@ -12,6 +13,8 @@ import {
   guidedCollectionEta,
   guidedDiscoveryPageSubtitle,
   guidedDiscoverySeeAllHref,
+  guidedListingHeadline,
+  guidedListingSubline,
   homeFoodMealHref,
   isTiffinListing,
   type GuidedDiscoveryListing,
@@ -113,26 +116,81 @@ describe('guided discovery tiles', () => {
     expect(breakfast?.href).toContain('sub=home_food');
     expect(breakfast?.href).not.toContain('breakfast_items');
     expect(tiles.some((tile) => tile.id === 'tiffin')).toBe(false);
-    expect(guidedDiscoveryPageSubtitle('home_food', breakfast)).toBe('Fresh homemade breakfast options');
+    expect(guidedDiscoveryPageSubtitle('home_food', breakfast)).toBe(
+      breakfast?.eta || (breakfast && breakfast.count > 0
+        ? (breakfast.count === 1 ? '1 dish nearby' : `${breakfast.count} dishes nearby`)
+        : breakfast?.subtitle),
+    );
   });
 
-  it('uses real prep times for meal ETAs and stays empty when none exist', () => {
-    const withTimes = buildGuidedDiscoveryTiles('home_food', [
-      listing({ id: '1', name: 'Idli', category: 'home_food', tags: ['meal:breakfast'], prep_time_minutes: 15 }),
-      listing({ id: '2', name: 'Dosa', category: 'home_food', tags: ['meal:breakfast'], prep_time_minutes: 30 }),
-    ], { categoryConfigs: configs });
-    expect(withTimes[0].eta).toBe('Delivers in 15-30 min');
+  it('builds listing snapshot from live dishes only', () => {
+    const snapshot = buildGuidedListingSnapshot([
+      {
+        id: '1',
+        name: 'Dal',
+        price: 120,
+        seller_id: 's1',
+        seller_name: 'A Kitchen',
+        seller_is_available: true,
+        prep_time_minutes: 30,
+        completed_order_count: 4,
+        image_url: 'https://img/dal.jpg',
+      },
+      {
+        id: '2',
+        name: 'Rice',
+        price: 80,
+        seller_id: 's2',
+        seller_name: 'B Kitchen',
+        seller_is_available: false,
+        prep_time_minutes: 20,
+        completed_order_count: 1,
+        image_url: 'https://img/rice.jpg',
+      },
+    ]);
+    expect(snapshot.dishCount).toBe(2);
+    expect(snapshot.kitchenCount).toBe(2);
+    expect(snapshot.openKitchenCount).toBe(1);
+    expect(snapshot.priceFrom).toBe(80);
+    expect(snapshot.priceTo).toBe(120);
+    expect(snapshot.fastestPrepMinutes).toBe(20);
+    expect(snapshot.prepLabel).toBe('from 20 min');
+    expect(snapshot.totalOrders).toBe(5);
+    expect(guidedListingHeadline(snapshot)).toBe('2 dishes · 2 kitchens');
+    expect(guidedListingSubline(snapshot, { cuisineLabel: 'North Indian' })).toContain('North Indian');
+    expect(guidedListingSubline(snapshot)).toContain('1 open now');
+    expect(buildGuidedListingSnapshot([]).dishCount).toBe(0);
+    expect(buildGuidedListingSnapshot([{ id: 'x', seller_is_available: null }]).openKitchenCount).toBe(0);
+  });
 
-    const fromLead = buildGuidedDiscoveryTiles('home_food', [
-      listing({ id: '1', name: 'Cheese Paratha', category: 'home_food', tags: ['meal:breakfast'], lead_time_hours: 0.33 }),
-      listing({ id: '2', name: 'Aloo Paratha', category: 'home_food', tags: ['meal:breakfast'], lead_time_hours: 0.67 }),
+  it('shows kitchen counts on meal tiles instead of wild prep ranges', () => {
+    const withKitchens = buildGuidedDiscoveryTiles('home_food', [
+      listing({
+        id: '1',
+        name: 'Idli',
+        category: 'home_food',
+        tags: ['meal:breakfast'],
+        seller_id: 's1',
+        prep_time_minutes: 15,
+      }),
+      listing({
+        id: '2',
+        name: 'Dosa',
+        category: 'home_food',
+        tags: ['meal:breakfast'],
+        seller_id: 's2',
+        prep_time_minutes: 360,
+      }),
     ], { categoryConfigs: configs });
-    expect(fromLead[0].eta).toBe('Delivers in 20-40 min');
+    expect(withKitchens[0].eta).toBe('2 kitchens');
+    expect(withKitchens[0].eta).not.toMatch(/360/);
+    expect(withKitchens[0].imageUrl).toContain('unsplash.com');
 
-    const withoutTimes = buildGuidedDiscoveryTiles('home_food', [
-      listing({ id: '1', name: 'Idli', category: 'home_food', tags: ['meal:breakfast'] }),
+    const oneKitchen = buildGuidedDiscoveryTiles('home_food', [
+      listing({ id: '1', name: 'Idli', category: 'home_food', tags: ['meal:breakfast'], seller_id: 's1' }),
+      listing({ id: '2', name: 'Dosa', category: 'home_food', tags: ['meal:breakfast'], seller_id: 's1' }),
     ], { categoryConfigs: configs });
-    expect(withoutTimes[0].eta).toBeNull();
+    expect(oneKitchen[0].eta).toBe('1 kitchen');
     expect(guidedCollectionEta([])).toBeNull();
   });
 
@@ -203,27 +261,41 @@ describe('guided discovery wiring', () => {
     expect(home).toMatch(/buildGuidedDiscoveryHubs/);
     expect(home).toMatch(/<DiscoveryChipRail/);
     expect(home).toMatch(/<NeighborMakesBanner/);
-    expect(home.indexOf('<NeighborMakesBanner')).toBeGreaterThan(home.indexOf('<DiscoveryChipRail'));
+    expect(home).toMatch(/<CookingNearbyRail/);
+    expect(home).toMatch(/buildCookingNearbyKitchens/);
+    expect(home.indexOf('<DiscoveryChipRail')).toBeLessThan(home.indexOf('<CommerceFacetRail'));
+    expect(home.indexOf('<CommerceFacetRail')).toBeLessThan(home.indexOf('<NeighborMakesBanner'));
     expect(home.indexOf('<NeighborMakesBanner')).toBeLessThan(home.indexOf('<GuidedDiscoveryRail'));
     expect(home.indexOf('<GuidedDiscoveryRail')).toBeLessThan(home.indexOf('home-selling-well'));
+    expect(home.indexOf('home-selling-well')).toBeLessThan(home.indexOf('<CookingNearbyRail'));
     expect(home.indexOf('home-selling-well')).toBeLessThan(home.indexOf('<ShopByStoreDiscovery'));
+    expect(home).toMatch(/variant="selling-well"/);
+    expect(home).toMatch(/SellingWellProductCard|variant="selling-well"/);
     expect(home).not.toMatch(/<BuyAgainRow/);
     expect(home.indexOf('<ShopByStoreDiscovery')).toBeLessThan(home.indexOf('home-popular-rail'));
     expect(home.indexOf('home-popular-rail')).toBeLessThan(home.lastIndexOf('<FeaturedBanners'));
   });
 
-  it('keeps the spec heading, NEW badge and tinted overlay cards on the rail', () => {
+  it('keeps the NEW What are you looking for today heading and mockup white-on-photo cards', () => {
     expect(GUIDED_DISCOVERY_HEADING).toBe('What are you looking for today?');
     const rail = read('src/components/home/GuidedDiscoveryRail.tsx');
     expect(rail).toContain('GUIDED_DISCOVERY_HEADING');
     expect(rail).toContain('NEW');
     expect(rail).toContain('See all');
     expect(rail).toContain('bg-primary text-primary-foreground');
-    expect(rail).toContain('GUIDED_DISCOVERY_HUB_PANEL');
+    expect(rail).not.toContain('GUIDED_DISCOVERY_HUB_PANEL');
+    expect(rail).toContain('grid grid-cols-2');
     expect(rail).toContain('aspect-[4/5]');
+    expect(rail).toContain('text-white');
+    expect(rail).toContain('from-black/85');
+    expect(rail).toContain('home_food');
+    expect(rail).toContain('restaurant_food');
     expect(GUIDED_DISCOVERY_HUBS.find((hub) => hub.id === 'book_enquire')?.title).toBe('Discover services near you');
     expect(GUIDED_DISCOVERY_HUBS.find((hub) => hub.id === 'contact_seller')?.title).toBe('Discover listings');
     expect(GUIDED_DISCOVERY_HUB_PANEL.home_food).toContain('bg-amber');
+    expect(read('src/components/home/SellingWellProductCard.tsx')).toContain('Serves');
+    expect(read('src/components/home/SellingWellProductCard.tsx')).toContain('Pickup + drop');
+    expect(read('src/components/home/SellingWellProductCard.tsx')).not.toContain('% OFF');
   });
 
   it('defaults the app to light theme and keeps a dark-mode toggle', () => {
@@ -233,31 +305,69 @@ describe('guided discovery wiring', () => {
     expect(read('index.html')).not.toMatch(/class="dark"/);
     expect(read('src/pages/ProfilePage.tsx')).toMatch(/setTheme\(checked \? 'dark' : 'light'\)/);
     expect(read('src/lib/capacitor.ts')).toMatch(/storedTheme === 'dark'/);
+    const css = read('src/index.css');
+    const darkBlock = css.slice(css.indexOf('.dark {'), css.indexOf('--mode-shop:', css.indexOf('.dark {')));
+    expect(darkBlock).toMatch(/--border:\s*220 10% 28%/);
+    expect(darkBlock).toMatch(/--muted-foreground:\s*220 8% 72%/);
+    expect(darkBlock).toMatch(/--card:\s*220 10% 13%/);
+    expect(read('src/components/discovery/CommerceFacetRail.tsx')).toMatch(/dark:border-white\/18/);
+    expect(read('src/components/layout/BottomNav.tsx')).toMatch(/dark:border-white\/15/);
   });
 
   it('uses list rows, meal tiles, Book now and Contact seller cards on hub pages', () => {
     const page = read('src/pages/GuidedDiscoveryHubPage.tsx');
     expect(page).toContain('GuidedDiscoveryProductRow');
     expect(page).toContain('GuidedDiscoverySellerCard');
-    expect(page).toContain('Browse by meal time');
-    expect(page).toContain('Popular Today');
+    expect(page).toContain('GUIDED_DISCOVERY_AISLE_HEADING');
+    expect(page).toContain('GUIDED_DISCOVERY_SHELF_HEADING');
+    expect(page).toContain('Browse by cuisine');
+    expect(page).toContain('RESTAURANT_FOOD_HERO_ART');
     expect(read('src/components/discovery/GuidedDiscoveryProductRow.tsx')).toContain('Book now');
     expect(read('src/components/discovery/GuidedDiscoveryProductRow.tsx')).toContain('rounded-[20px]');
+    expect(read('src/components/discovery/GuidedDiscoveryProductRow.tsx')).toContain('listingTrustLabel');
+    expect(read('src/components/discovery/GuidedDiscoveryProductRow.tsx')).toContain('food-listing-card');
+    expect(page).toContain('guided-listing-result-meta');
+    expect(page).toContain('guided-listing-page');
+    expect(page).toContain('buildGuidedListingSnapshot');
+    expect(page).toContain('guided-listing-hero');
+    expect(page).not.toContain('Fresh homemade');
+    expect(page).not.toContain('Tap a dish to see');
     expect(read('src/components/discovery/GuidedDiscoverySellerCard.tsx')).toContain('Contact');
     expect(read('src/components/discovery/GuidedDiscoverySellerCard.tsx')).toContain('TOP RATED');
     expect(read('src/components/discovery/GuidedDiscoverySellerCard.tsx')).toContain('rounded-[20px]');
+    expect(read('src/components/discovery/GuidedDiscoverySellerCard.tsx')).toContain('sellerAvatarCandidates');
+    expect(read('src/components/discovery/GuidedDiscoverySellerCard.tsx')).toContain('seller_cover_image_url');
     expect(page).toContain('GuidedDiscoveryOverlayTile');
     expect(page).toContain('POPULAR SERVICES');
     expect(page).toContain('Popular services');
     expect(page).toContain('Browse listings');
+    expect(page).toContain('guided-aisle-heading');
+    expect(page).toContain('text-zinc-900');
     const bookContact = read('src/pages/CommerceModePage.tsx');
     expect(bookContact).toContain('Book and Enquire');
     expect(bookContact).toContain('Contact Seller');
     expect(bookContact).toContain('POPULAR SERVICES');
-    expect(bookContact).toContain('Popular services');
-    expect(bookContact).toContain('Browse listings');
+    expect(bookContact).toContain('Book a slot');
+    expect(bookContact).toContain('Browse neighbors');
+    expect(bookContact).toContain('contact-seller-page');
+    expect(bookContact).toContain('book-enquire-page');
+    expect(bookContact).toContain('NEIGHBORS NEARBY');
+    expect(bookContact).toContain('BOOK NEARBY');
+    expect(bookContact).toContain('book-hero-punch');
+    expect(bookContact).toContain('cinematic');
+    expect(bookContact).toContain('Browse by need');
+    expect(bookContact).toContain('Pros to book');
+    expect(bookContact).toContain('ContactNeighborsRail');
+    expect(bookContact).toContain('contact-search-hints');
+    expect(bookContact).toContain('book-search-hints');
+    expect(bookContact).toContain('buildGuidedDiscoveryTiles');
+    expect(bookContact).toContain('contact_seller');
     expect(bookContact).toContain('GuidedDiscoveryProductRow');
     expect(bookContact).toContain('GuidedDiscoverySellerCard');
+    expect(read('src/components/discovery/ContactNeighborsRail.tsx')).toContain('Neighbors to message');
+    expect(read('src/components/discovery/GuidedDiscoverySellerCard.tsx')).toContain('contact-seller-');
+    expect(read('src/components/discovery/GuidedDiscoveryProductRow.tsx')).toContain('book-listing-');
+    expect(read('src/components/discovery/GuidedDiscoveryOverlayTile.tsx')).toContain('book-tile-sheen');
     const header = read('src/components/layout/Header.tsx');
     expect(header).toMatch(/rounded-b-\[2\.5rem\]/);
     expect(header).toMatch(/bg-background/);
@@ -265,15 +375,43 @@ describe('guided discovery wiring', () => {
     expect(header).toMatch(/data-testid="home-header-search"/);
     expect(header).not.toMatch(/home-header-shortcuts/);
     expect(header).not.toMatch(/New Sellers/);
-    expect(page).toContain('NeighborMakesBanner');
+    expect(page).toContain('GuidedRoomHero');
+    expect(page).toContain('HOME_FOOD_HERO_ART');
+    expect(page).toContain('CookingNearbyRail');
+    expect(page).toContain('GuidedRoomSwipeRail');
+    expect(page).toContain('Keep exploring');
+    expect(read('src/components/discovery/GuidedRoomHero.tsx')).toContain('Order Now');
+    expect(read('src/components/home/MarketplaceSection.tsx')).toContain('NeighborMakesBanner');
+    const aisleTile = read('src/components/discovery/GuidedDiscoveryOverlayTile.tsx');
+    expect(aisleTile).toContain('aspect-[4/5]');
+    expect(aisleTile).toContain('w-[7.25rem]');
+    expect(aisleTile).toContain('curatedMealArt');
+    expect(aisleTile).toContain('curatedCuisineArt');
+    expect(aisleTile).toContain('rounded-[20px]');
+
     const banner = read('src/components/home/NeighborMakesBanner.tsx');
     expect(banner).toContain('Order Now');
-    expect(banner).toContain('What Your Neighbor Makes, No App Can Deliver.');
-    expect(banner).toContain('neighbor-banner-punch');
+    expect(banner).toContain('What Your Neighbor Makes,');
+    expect(banner).toContain('No App Can Deliver.');
+    expect(banner).toContain('sociva-neighbor-hero');
+    expect(banner).toContain('aspect-[2/1]');
     expect(banner).toContain('useNeighborTypewriter');
     expect(banner).toContain('neighbor-type-cursor');
+    expect(banner).toContain('neighbor-banner-punch');
     expect(read('src/index.css')).toContain('neighbor-punch-shine');
     expect(read('src/components/home/MarketplaceSection.tsx')).toContain('NeighborMakesBanner');
+    expect(read('src/components/search/TypewriterPlaceholder.tsx')).toContain(
+      'Search neighbors, kitchens, dishes',
+    );
+    expect(read('src/components/home/SellingWellProductCard.tsx')).toContain('h-full');
+    expect(read('src/components/home/SellingWellProductCard.tsx')).toContain('min-h-[2.5rem]');
+    expect(read('src/components/home/CookingNearbyRail.tsx')).toContain('bg-emerald-500');
+    expect(read('src/components/home/CookingNearbyRail.tsx')).toContain('pt-1.5');
+    expect(read('src/components/home/CookingNearbyRail.tsx')).toContain('cooking-nearby-open-pulse');
+    expect(read('src/index.css')).toContain('guided-room-ken-burns');
+    expect(read('src/pages/GuidedDiscoveryHubPage.tsx')).toContain('variant="room"');
+    expect(read('src/pages/GuidedDiscoveryHubPage.tsx')).toContain('tone="warm"');
+
     expect(read('src/pages/HomePage.tsx')).not.toMatch(/SocietyLeaderboard/);
     expect(read('src/components/home/RichSellerCard.tsx')).toMatch(/pickDishListingPhoto\(topProducts\)/);
     expect(read('src/components/home/RichSellerCard.tsx')).toMatch(/heroSources = \[productFallbackImage, coverImage, profileImage\]/);

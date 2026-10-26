@@ -645,7 +645,8 @@ export function useCartPage() {
   const preorderMissingSchedule = mixedOpenAndClosedCart
     || hasHardBlockedItems
     || scheduleSlotsEmpty
-    || (schedulingRequired && !scheduleSlotValid);
+    || (schedulingRequired && !scheduleSlotValid)
+    || (wantsScheduledDelivery && !scheduleSlotValid);
 
   useEffect(() => {
     if (!schedulingRequired || scheduleSlotsEmpty) return;
@@ -967,6 +968,10 @@ export function useCartPage() {
       return;
     }
     if (schedulingRequired && !scheduleSlotValid) {
+      notify.block('Please select a delivery date & time for this order.');
+      return;
+    }
+    if (wantsScheduledDelivery && !scheduleSlotValid) {
       notify.block('Please select a delivery date & time for this order.');
       return;
     }

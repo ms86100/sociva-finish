@@ -72,10 +72,12 @@ export function mapProduct(p: any, seller: RpcSellerRow): ProductWithSeller {
     subcategory_id: p.subcategory_id || null,
     seller_name: seller.business_name || '',
     seller_profile_image_url: seller.profile_image_url || null,
+    seller_cover_image_url: seller.cover_image_url || null,
     seller: {
       business_name: seller.business_name,
       rating: seller.rating,
       profile_image_url: seller.profile_image_url || undefined,
+      cover_image_url: seller.cover_image_url || undefined,
       vacation_mode: seller.vacation_mode ?? false,
     },
     seller_rating: seller.rating || 0,
@@ -83,8 +85,9 @@ export function mapProduct(p: any, seller: RpcSellerRow): ProductWithSeller {
     // Featured = admin trust signal; same-society is the primary Sociva trust chip
     seller_verified: !!seller.is_featured,
     is_same_society: isSameSocietySeller(seller.distance_km),
-    fulfillment_mode: null,
+    fulfillment_mode: (seller as any).fulfillment_mode || null,
     seller_fulfillment_mode: (seller as any).fulfillment_mode || null,
+    avg_preparation_time: (seller as any).avg_preparation_time ?? null,
     home_service_available: p.home_service_available ?? null,
     seller_home_service_available: (seller as any).home_service_available === true,
     home_service_fee: (seller as any).home_service_fee ?? null,

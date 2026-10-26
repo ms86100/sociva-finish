@@ -51,4 +51,12 @@ describe('listingGlanceFacts', () => {
       description: 'A long seller bio that should not crowd the card',
     }, 'enquiry')).toEqual(['Replies in ~10m', 'Home visit']);
   });
+
+  it('prefers prep + pickup/drop over a lonely star for food cards', () => {
+    expect(listingGlanceFacts({
+      avg_preparation_time: 20,
+      fulfillment_mode: 'pickup_and_seller_delivery',
+      place_chip: 'Greenfield',
+    }, 'product')).toEqual(['~20 min prep', 'Pickup + drop']);
+  });
 });

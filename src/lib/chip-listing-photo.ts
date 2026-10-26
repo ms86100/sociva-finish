@@ -46,7 +46,11 @@ function chipPhotoRank(name: string): number {
   return 1;
 }
 
-/** Prefer a photo that is not already on another chip. Never invent a stock URL. */
+/**
+ * Prefer a photo that is not already on another chip.
+ * Returns null when every candidate is already used so curated art can fill
+ * the gap instead of recycling the same biryani or leaving a blank chip.
+ */
 export function pickListingChipPhoto<T extends { image_url?: string | null; name?: string }>(
   products: readonly T[],
   used: Set<string>,
@@ -58,9 +62,8 @@ export function pickListingChipPhoto<T extends { image_url?: string | null; name
   const unusedAppealing = ranked.find(
     (product) => chipPhotoRank(product.name || '') < 2 && !used.has(product.image_url as string),
   );
-  const anyAppealing = ranked.find((product) => chipPhotoRank(product.name || '') < 2);
   const unusedAny = ranked.find((product) => !used.has(product.image_url as string));
-  const picked = unusedAppealing || anyAppealing || unusedAny || ranked[0];
+  const picked = unusedAppealing || unusedAny || null;
   const url = picked?.image_url || null;
   if (url) used.add(url);
   return url;
@@ -76,7 +79,9 @@ export function pickDishListingPhoto<T extends { name?: string; image_url?: stri
     ...candidates.filter((product) => DISH_NAME_HINT.test(product.name || '')),
     ...candidates.filter((product) => !DISH_NAME_HINT.test(product.name || '')),
   ];
-  const picked = ranked.find((product) => !used || !used.has(product.image_url as string)) || ranked[0];
+  const unused = ranked.find((product) => !used || !used.has(product.image_url as string));
+  // With a used-set, never recycle; without one, keep the best dish photo.
+  const picked = used ? unused : (unused || ranked[0]);
   const url = picked?.image_url || null;
   if (url && used) used.add(url);
   return url;

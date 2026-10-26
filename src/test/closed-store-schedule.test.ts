@@ -138,6 +138,12 @@ describe('closed-store scheduled ordering contracts', () => {
     expect(hook).toMatch(/create_multi_vendor_orders/);
   });
 
+  it('blocks place order when Schedule for later is on without a valid slot', () => {
+    const hook = read('src/hooks/useCartPage.ts');
+    expect(hook).toMatch(/wantsScheduledDelivery && !scheduleSlotValid/);
+    expect(hook).toMatch(/\(wantsScheduledDelivery && !scheduleSlotValid\)/);
+  });
+
   it('hides the ready-in ETA and shows the slot on the confirm dialog', () => {
     const hook = read('src/hooks/useCartPage.ts');
     const page = read('src/pages/CartPage.tsx');
@@ -224,11 +230,12 @@ describe('closed-store scheduled ordering contracts', () => {
     const grid = read('src/components/product/ProductGridCard.tsx');
     const card = read('src/components/product/ProductCard.tsx');
     expect(listing).toMatch(/isStoreClosed && !isUnavailable && !canScheduleClosed && 'opacity-55 grayscale-\[25%\]'/);
-    expect(listing).toMatch(/isStoreClosed && !isUnavailable && canScheduleClosed && storeClosedMessage/);
+    // Scheduleable closed: no truncated on-photo chip - page strip + Schedule CTA carry status
+    expect(listing).not.toMatch(/isStoreClosed && !isUnavailable && canScheduleClosed && storeClosedMessage &&/);
     expect(listing).toContain('backdrop-blur-[1.5px]');
     expect(listing).toMatch(/isStoreClosed && !isUnavailable && !canScheduleClosed && \(/);
     expect(grid).toMatch(/isStoreClosed && !isOutOfStock && !canScheduleClosed && 'opacity-60 grayscale-\[30%\]'/);
-    expect(grid).toMatch(/isStoreClosed && !isOutOfStock && canScheduleClosed && storeClosedMessage/);
+    expect(grid).not.toMatch(/isStoreClosed && !isOutOfStock && canScheduleClosed && storeClosedMessage &&/);
     expect(card).toMatch(/isStoreClosed && product\.is_available && canScheduleClosed && storeClosedMessage/);
   });
 

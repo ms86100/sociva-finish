@@ -30,7 +30,16 @@ function TypewriterPlaceholderInner({ context = 'home' }: { context?: SearchCont
     [configs],
   );
 
-  const words = ['home', 'marketplace', 'search'].includes(context)
+  // Home Lobby mockup uses a locked static placeholder - no rotating category names.
+  if (context === 'home') {
+    return (
+      <span className="text-sm text-muted-foreground flex-1 truncate">
+        Search neighbors, kitchens, dishes
+      </span>
+    );
+  }
+
+  const words = ['marketplace', 'search'].includes(context)
     ? (categoryNames.length > 0 ? categoryNames : ['products'])
     : (CONTEXT_WORDS[context] || ['items']);
 

@@ -4,6 +4,7 @@ import { useParams, useSearchParams, Link, useNavigate } from 'react-router-dom'
 import { AppLayout } from '@/components/layout/AppLayout';
 import { SafeHeader } from '@/components/layout/SafeHeader';
 import { ProductListingCard, ProductWithSeller } from '@/components/product/ProductListingCard';
+import { ListingClosedStrip } from '@/components/product/ListingClosedStrip';
 import { ProductDetailSheet } from '@/components/product/ProductDetailSheet';
 import { SellerCard } from '@/components/seller/SellerCard';
 import { SearchAutocomplete } from '@/components/search/SearchAutocomplete';
@@ -19,6 +20,7 @@ import { SortKey } from '@/lib/marketplace-constants';
 import { BackButton } from '@/components/navigation/BackButton';
 import { Search, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { buildListingClosedStrip } from '@/lib/listing-closed-strip';
 import { useQueryClient } from '@tanstack/react-query';
 import { useMarketplaceData } from '@/hooks/queries/useMarketplaceData';
 import { applyProductFacetRow, useProductFacets } from '@/hooks/queries/useProductFacets';
@@ -244,6 +246,11 @@ export default function CategoryGroupPage() {
     });
   }, [scopedProducts, searchQuery, sortBy, facets, categoryConfigs]);
 
+  const closedStrip = useMemo(
+    () => (facets.openNow ? null : buildListingClosedStrip(displayProducts)),
+    [displayProducts, facets.openNow],
+  );
+
   const handleFacetChange = (nextFacets: CommerceFacetState) => {
     setFacetExtras(nextFacets);
     const next = writeFoodFacetsToSearchParams(new URLSearchParams(searchParams), {
@@ -302,7 +309,7 @@ export default function CategoryGroupPage() {
               <Skeleton key={i} className="h-8 w-20 rounded-full" />
             ))}
           </div>
-          <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 gap-2 sm:gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-3">
             {[1, 2, 3, 4, 5, 6].map((i) => (
               <Skeleton key={i} className="h-56 w-full rounded-xl" />
             ))}
@@ -401,7 +408,7 @@ export default function CategoryGroupPage() {
               showTitle={false}
               selectedIds={selectedBrowseIds}
               onSelect={selectBrowseIntent}
-              className="px-0 pb-1"
+              className="px-0 !pt-0.5 pb-1.5"
             />
           )}
         </div>
@@ -420,7 +427,7 @@ export default function CategoryGroupPage() {
       {/* Product Grid */}
       <div className="p-4 pb-6">
         {productsLoading ? (
-          <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 gap-2 sm:gap-3.5">
+          <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-3.5">
             {[1, 2, 3, 4, 5, 6].map((i) => (
               <Skeleton key={i} className="h-56 w-full rounded-2xl" />
             ))}
@@ -430,7 +437,8 @@ export default function CategoryGroupPage() {
             <p className="text-[11px] text-muted-foreground mb-3 px-0.5">
               {`${displayProducts.length} ${displayProducts.length === 1 ? 'item' : 'items'}`}
             </p>
-            <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 gap-2 sm:gap-3.5">
+            {closedStrip && <ListingClosedStrip model={closedStrip} />}
+            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-3.5">
               {displayProducts.map((product) => (
                 <ProductListingCard
                   key={product.id}

@@ -85,7 +85,14 @@ import { RouteErrorBoundary } from "@/components/RouteErrorBoundary";
 import { GlobalHapticListener } from "@/components/haptics/GlobalHapticListener";
 import { KeyboardAwareInputs } from "@/components/haptics/KeyboardAwareInputs";
 import { initializeMedianBridge } from "@/lib/median";
-import { useDeepLinks, consumePendingDeepLink } from "@/hooks/useDeepLinks";
+import {
+  useDeepLinks,
+  consumePendingDeepLink,
+  peekPendingDeepLink,
+  setAuthReturnTo,
+  sanitizeDeepLinkPath,
+} from "@/hooks/useDeepLinks";
+import { isGuestBrowsePath } from "@/lib/guest-browse-routes";
 import { useAndroidBackButton } from "@/hooks/useAndroidBackButton";
 import { runSmartBack } from "@/hooks/useSmartBack";
 import { beginExternalEntry, subscribeSmartBack } from "@/lib/navigation-stack";
@@ -255,6 +262,10 @@ async function handleAuthError() {
     console.warn('[Auth] refreshSession after 401 failed:', e);
   }
   toast.error('Your session has expired. Please log in again.');
+  try {
+    const current = (window.location.hash || '').replace(/^#/, '') || '/';
+    setAuthReturnTo(current);
+  } catch { /* ignore */ }
   supabase.auth.signOut().finally(() => {
     window.location.hash = '#/auth';
     setTimeout(() => { authRedirectScheduled = false; }, 3000);
@@ -568,25 +579,32 @@ function AppRoutes() {
   const deferredNavigate = useNavigate();
   useReorderInterceptor();
 
-  // Consume pending deep link after auth hydration completes
+  // Consume pending deep link: guest-browse paths after session restore;
+  // protected paths after user + profile hydration.
   useEffect(() => {
-    if (!user || !profile) return; // Wait for full auth + profile hydration
+    if (!isSessionRestored) return;
+    const peeked = peekPendingDeepLink();
+    if (!peeked) return;
+    const pendingPath = sanitizeDeepLinkPath(peeked);
+    const pathOnly = pendingPath.split('?')[0] || '/';
+    const guestOk = isGuestBrowsePath(pathOnly);
+    if (!guestOk && (!user || !profile)) return;
+
     const timer = setTimeout(() => {
-      const pendingPath = consumePendingDeepLink();
-      if (pendingPath) {
-        // Deduplicate: skip if we're already on the target path
-        const currentHash = window.location.hash.replace(/^#/, '') || '/';
-        if (currentHash === pendingPath) {
-          console.log('[AppRoutes] Already on deep link path, skipping:', pendingPath);
-          return;
-        }
-        console.log('[AppRoutes] Navigating to deferred deep link:', pendingPath);
-        beginExternalEntry(pendingPath);
-        deferredNavigate(pendingPath, { state: { from: 'deeplink' } });
+      const consumed = consumePendingDeepLink();
+      if (!consumed) return;
+      const target = sanitizeDeepLinkPath(consumed);
+      const currentHash = window.location.hash.replace(/^#/, '') || '/';
+      if (currentHash === target) {
+        console.log('[AppRoutes] Already on deep link path, skipping:', target);
+        return;
       }
-    }, 300); // Allow more time for context providers to initialize
+      console.log('[AppRoutes] Navigating to deferred deep link:', target);
+      beginExternalEntry(target);
+      deferredNavigate(target, { state: { from: 'deeplink' } });
+    }, 300);
     return () => clearTimeout(timer);
-  }, [user, profile, deferredNavigate]);
+  }, [isSessionRestored, user, profile, deferredNavigate]);
 
   // Session restore only for splash - do not wait on profile for the shell.
   // Incomplete users (profile loaded, no society_id) complete delivery-address onboarding.
@@ -677,7 +695,7 @@ function AppRoutes() {
           <Route path="/checkouts/:groupId" element={<ProtectedRoute><RouteErrorBoundary sectionName="Checkout Details"><CheckoutDetailPage /></RouteErrorBoundary></ProtectedRoute>} />
           <Route path="/orders/:id" element={<ProtectedRoute><RouteErrorBoundary sectionName="Order Details"><OrderDetailPage /></RouteErrorBoundary></ProtectedRoute>} />
           <Route path="/seller/orders" element={<Navigate to="/orders" replace />} />
-          <Route path="/seller/orders/:id" element={<RouteErrorBoundary sectionName="Order Details"><OrderDetailPage /></RouteErrorBoundary>} />
+          <Route path="/seller/orders/:id" element={<ProtectedRoute><RouteErrorBoundary sectionName="Order Details"><OrderDetailPage /></RouteErrorBoundary></ProtectedRoute>} />
           <Route path="/seller/messages" element={<RouteErrorBoundary sectionName="Seller Messages"><SellerMessagesPage /></RouteErrorBoundary>} />
           <Route path="/profile" element={<ProtectedRoute><RouteErrorBoundary sectionName="Profile"><ProfilePage /></RouteErrorBoundary></ProtectedRoute>} />
           <Route path="/account" element={<Navigate to="/profile" replace />} />

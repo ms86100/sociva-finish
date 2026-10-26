@@ -768,7 +768,7 @@ export default function OrderDetailPage() {
           orderCount={checkoutOrderCount}
         />
       )}
-      <div className={`${(hasSellerActionBar || hasBuyerActionBar) ? 'pb-[calc(12rem+env(safe-area-inset-bottom))]' : 'pb-56'}`}>
+      <div className={`${(hasSellerActionBar || hasBuyerActionBar) ? 'pb-[calc(14rem+env(safe-area-inset-bottom))]' : 'pb-56'}`}>
         {/* ═══ Experience Header (replaces old header) ═══ */}
         <ExperienceHeader
           sellerName={o.isSellerView ? (buyer?.name || 'Customer') : storeDisplayName}
@@ -1671,6 +1671,58 @@ export default function OrderDetailPage() {
 
           {/* Audit timeline - skip when ScheduledOrderBanner already shows the lifecycle Timeline */}
           {!(order as any).scheduled_date && <OrderTimeline orderId={order.id} />}
+
+          {/* Overdue transit outcome - in scroll flow so sticky CTAs never clip the copy/buttons */}
+          {o.isSellerView
+            && isInTransitStatus(order.status)
+            && isTransitOverdue(order as any)
+            && !isTerminalStatus(o.flow, order.status) && (
+            <motion.div
+              variants={cardEntrance}
+              className="rounded-xl border border-warning/40 bg-warning/10 p-3"
+              data-testid="seller-transit-overdue-card"
+            >
+              <p className="text-xs font-semibold text-warning mb-1">
+                {formatTransitAgeChip(order as any)?.label || 'Delivery overdue'}
+              </p>
+              <p className="text-[11px] text-muted-foreground mb-2 leading-snug">
+                Confirm the outcome so the buyer is not stuck on &quot;on the way&quot;.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  size="sm"
+                  className="flex-1 min-h-10"
+                  onClick={() => setIsOtpDialogOpen(true)}
+                  disabled={o.isUpdating}
+                >
+                  Delivered (OTP)
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="flex-1 min-h-10 border-destructive text-destructive"
+                  disabled={o.isUpdating}
+                  onClick={async () => {
+                    try {
+                      await o.updateOrderStatus('no_show' as OrderStatus);
+                    } catch {
+                      toast.error('Could not mark as could not deliver. Try again.');
+                    }
+                  }}
+                >
+                  Could not deliver
+                </Button>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="flex-1 min-h-10"
+                  onClick={() => toast.info('Open Help on this order or chat with the buyer for support.')}
+                >
+                  Need help
+                </Button>
+              </div>
+            </motion.div>
+          )}
         </motion.div>
       </div>
 
@@ -1696,56 +1748,6 @@ export default function OrderDetailPage() {
               <RefreshCw size={14} className="mr-1.5" />
               Retry
             </Button>
-          </div>
-        </div>
-      )}
-
-      {/* Seller overdue transit - only while actually in transit (not prep/scheduled due) */}
-      {o.isSellerView
-        && isInTransitStatus(order.status)
-        && isTransitOverdue(order as any)
-        && !isTerminalStatus(o.flow, order.status) && (
-        <div className="fixed left-0 right-0 z-40 px-4 pb-2" style={{ bottom: hasSellerActionBar ? 'calc(5.5rem + env(safe-area-inset-bottom))' : 'env(safe-area-inset-bottom)' }}>
-          <div className="mx-auto max-w-lg rounded-xl border border-warning/40 bg-warning/10 p-3 shadow-lg backdrop-blur-md">
-            <p className="text-xs font-semibold text-warning mb-1">
-              {formatTransitAgeChip(order as any)?.label || 'Delivery overdue'}
-            </p>
-            <p className="text-[11px] text-muted-foreground mb-2">
-              Confirm the outcome so the buyer isn’t stuck on “on the way”.
-            </p>
-            <div className="flex flex-wrap gap-2">
-              <Button
-                size="sm"
-                className="flex-1"
-                onClick={() => setIsOtpDialogOpen(true)}
-                disabled={o.isUpdating}
-              >
-                Delivered (OTP)
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                className="flex-1 border-destructive text-destructive"
-                disabled={o.isUpdating}
-                onClick={async () => {
-                  try {
-                    await o.updateOrderStatus('no_show' as OrderStatus);
-                  } catch {
-                    toast.error('Could not mark as could not deliver. Try again.');
-                  }
-                }}
-              >
-                Couldn’t deliver
-              </Button>
-              <Button
-                size="sm"
-                variant="secondary"
-                className="flex-1"
-                onClick={() => toast.info('Open Help on this order or chat with the buyer for support.')}
-              >
-                Need help
-              </Button>
-            </div>
           </div>
         </div>
       )}

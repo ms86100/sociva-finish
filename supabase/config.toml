@@ -43,6 +43,10 @@ verify_jwt = false
 [functions.send-scheduled-order-reminders]
 verify_jwt = false
 
+# Daily food-discovery worker. Auth is service-role, x-cron-secret, or admin JWT.
+[functions.send-food-discovery]
+verify_jwt = false
+
 [functions.recover-financial-operations]
 verify_jwt = false
 

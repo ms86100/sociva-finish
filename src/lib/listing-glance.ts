@@ -10,6 +10,9 @@ const FULFILLMENT_LABEL: Record<string, string> = {
   at_store: 'At store',
   online: 'Online',
   seller_delivery: 'Delivery',
+  platform_delivery: 'Delivery',
+  pickup_and_seller_delivery: 'Pickup + drop',
+  pickup_and_platform_delivery: 'Pickup + drop',
 };
 
 export function listingGlanceKind(action: ProductActionType | string | null | undefined): ListingGlanceKind {
@@ -50,6 +53,7 @@ export function listingGlanceFacts(product: {
   price_per_unit?: string | null;
   stock_quantity?: number | null;
   prep_time_minutes?: number | null;
+  avg_preparation_time?: number | null;
   delivery_time_text?: string | null;
   service_duration_minutes?: number | null;
   fulfillment_mode?: string | null;
@@ -58,6 +62,7 @@ export function listingGlanceFacts(product: {
   avg_response_minutes?: number | null;
   visit_charge?: number | null;
   seller_is_available?: boolean | null;
+  place_chip?: string | null;
 }, kind: ListingGlanceKind): string[] {
   const facts: string[] = [];
 
@@ -67,10 +72,15 @@ export function listingGlanceFacts(product: {
     else if (product.price_per_unit) facts.push(product.price_per_unit);
     else if (product.unit_type) facts.push(product.unit_type);
     if (shouldShowStockLeft(product.stock_quantity)) facts.push(`${product.stock_quantity} left`);
-    const eta = product.delivery_time_text || (product.prep_time_minutes ? `${product.prep_time_minutes} min` : null);
+    const prepMins = product.prep_time_minutes || product.avg_preparation_time;
+    const eta = prepMins
+      ? `~${prepMins} min prep`
+      : (product.delivery_time_text || null);
     if (eta && facts.length < 2) facts.push(eta);
     const fulfill = fulfillmentGlanceLabel(product.fulfillment_mode);
     if (fulfill && facts.length < 2) facts.push(fulfill);
+    const place = product.place_chip?.trim();
+    if (place && facts.length < 2) facts.push(place);
   }
 
   if (kind === 'booking') {

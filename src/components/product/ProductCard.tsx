@@ -324,7 +324,12 @@ export function ProductCard({ product, variant = 'horizontal', onTap }: ProductC
           <Button
             variant="outline"
             aria-label={canScheduleClosed ? scheduleCta : undefined}
-            className="w-full h-9 border-[1.5px] border-primary text-primary hover:bg-primary hover:text-primary-foreground relative z-10 bg-card/90 backdrop-blur-md shadow-sm font-extrabold text-[11px] rounded-xl touch-manipulation uppercase tracking-wide"
+            className={cn(
+              'w-full h-9 text-primary hover:bg-primary hover:text-primary-foreground relative z-10 bg-card/90 backdrop-blur-md rounded-xl touch-manipulation',
+              canScheduleClosed && !onVacation
+                ? 'border border-primary/45 font-semibold text-[10px] tracking-normal normal-case shadow-none'
+                : 'border-[1.5px] border-primary shadow-sm font-extrabold text-[11px] uppercase tracking-wide',
+            )}
             onClick={handleAdd}
             disabled={isDisabled}
           >

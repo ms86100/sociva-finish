@@ -17,8 +17,8 @@ function formatInr(n: number) {
 export function WalletCard() {
   const { data: wallet, isLoading: walletLoading } = useBuyerWallet();
   const { onlinePaymentEnabled, isLoading: capsLoading } = useFinancialCapabilities();
-  const { data: history = [] } = useWalletHistory(10);
   const [showHistory, setShowHistory] = useState(false);
+  const { data: history = [] } = useWalletHistory(10, { enabled: showHistory });
 
   if (walletLoading || capsLoading) return <Skeleton className="h-24 w-full rounded-xl" />;
   if (!wallet) return null;

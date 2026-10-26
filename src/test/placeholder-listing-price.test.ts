@@ -12,17 +12,25 @@ describe('placeholder Book listing prices', () => {
     expect(isPlaceholderListingPrice(null)).toBe(false);
   });
 
-  it('also hides free rows that advertise a ₹1 placeholder in copy', () => {
+  it('keeps ₹0 bookable services even when seed copy still says placeholder', () => {
     expect(isPlaceholderBookListing({
       price: 0,
       name: 'Acne Treatment',
       description: 'Price placeholder ₹1; seller will update.',
-    })).toBe(true);
+    })).toBe(false);
     expect(isPlaceholderBookListing({
       price: 0,
       name: 'FREE Dental Consultation',
       description: 'Complimentary consult with the dentist.',
     })).toBe(false);
+  });
+
+  it('still hides non-zero rows that only exist as ₹1 stub copy', () => {
+    expect(isPlaceholderBookListing({
+      price: 50,
+      name: 'Temp',
+      description: 'Price placeholder ₹1; seller will update.',
+    })).toBe(true);
   });
 
   it('drops stubs from Book mode filters while keeping Contact/shop rows', () => {
@@ -34,7 +42,7 @@ describe('placeholder Book listing prices', () => {
       { id: 'e', action_type: 'add_to_cart', category: 'home_food', price: 1, name: 'Snack' },
     ];
     const book = filterByMode(rows, 'book');
-    expect(book.map((r) => r.id)).toEqual(['b', 'd']);
+    expect(book.map((r) => r.id)).toEqual(['b', 'c', 'd']);
     expect(filterByMode(rows, 'shop').map((r) => r.id)).toEqual(['e']);
   });
 

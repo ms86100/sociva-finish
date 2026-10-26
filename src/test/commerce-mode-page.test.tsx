@@ -345,11 +345,17 @@ describe('CommerceModePage states', () => {
     expect(screen.queryByTestId('commerce-mode-empty')).toBeNull();
   });
 
-  it('keeps loading and pages sellers until every seller page is in', async () => {
+  it('paints the first page while more seller pages load in the background', async () => {
     const fetchNextSellers = vi.fn();
-    setMarket({ hasMoreSellers: true, fetchNextSellers });
+    setMarket({
+      hasMoreSellers: true,
+      fetchNextSellers,
+      isLoading: false,
+      data: [seller('s1', [item('yoga-class', 'yoga', 'book')])],
+    });
     renderAt('/book');
-    expect(await screen.findByTestId('commerce-mode-loading')).toBeInTheDocument();
+    expect(await screen.findByTestId('card-yoga-class')).toBeInTheDocument();
+    expect(screen.queryByTestId('commerce-mode-loading')).toBeNull();
     expect(fetchNextSellers).toHaveBeenCalled();
   });
 
@@ -377,7 +383,10 @@ describe('CommerceModePage states', () => {
       error: null,
     }];
     renderAt('/book');
-    expect(await screen.findByTestId('commerce-mode-count')).toHaveTextContent('62 listings');
+    expect(await screen.findByTestId('commerce-mode-count')).toHaveTextContent('60 listings');
+    await waitFor(() => {
+      expect(screen.getByTestId('commerce-mode-count')).toHaveTextContent('62 listings');
+    });
     expect(screen.getByTestId('card-slot-61')).toBeInTheDocument();
   });
 

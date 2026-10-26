@@ -37,6 +37,29 @@ export function sellerRefundDisputeRoute(
   return null;
 }
 
+/**
+ * Admin push/inbox taps should open the right moderation surface.
+ * Legacy rows often store a bare `/admin` reference_path.
+ */
+export function resolveAdminModerationRoute(
+  payload?: Record<string, any> | null,
+): string {
+  const kind = String(payload?.type || '').toLowerCase();
+  if (kind === 'new_store_application') {
+    return '/admin?tab=sellers';
+  }
+  if (kind === 'product_review') {
+    return '/admin?tab=sellers';
+  }
+  if (kind === 'category_request') {
+    return '/admin?tab=catalog';
+  }
+  if (kind === 'user_feedback') {
+    return '/admin?tab=feedback';
+  }
+  return '/admin?tab=sellers';
+}
+
 export function resolveNotificationRoute(
   type: string | undefined | null,
   payload?: Record<string, any>,
@@ -137,10 +160,10 @@ export function resolveNotificationRoute(
     case 'license_rejected':
       return '/seller';
 
-    // Admin / moderation
+    // Admin / moderation - land on the review surface, not the bare dashboard
     case 'moderation':
     case 'new_store_application':
-      return '/admin';
+      return resolveAdminModerationRoute(payload);
 
     // Delivery lifecycle
     case 'delivery':
@@ -177,12 +200,16 @@ export function resolveNotificationRoute(
     case 'seller_credit_exhausted':
       return '/seller/credits';
 
+    case 'food_discovery': {
+      const path = payload?.reference_path || payload?.action_url || payload?.route;
+      if (typeof path === 'string' && path.startsWith('/') && !isVagueLandingPath(path)) return path;
+      return '/category/food_beverages';
+    }
     case 'promotion':
-    case 'food_discovery':
     case 'campaign': {
       const path = payload?.reference_path || payload?.action_url || payload?.route;
-      if (typeof path === 'string' && path.startsWith('/')) return path;
-      return '/category/food_beverages';
+      if (typeof path === 'string' && path.startsWith('/') && !isVagueLandingPath(path)) return path;
+      return '/';
     }
 
     // Support tickets - deep-link into the order with the ticket id so the
@@ -210,7 +237,22 @@ const DEAD_ROUTE_PATTERNS: RegExp[] = [
   /^\/seller\/dashboard$/,
   /^\/seller\/reviews$/,
   /^\/seller\/settlements$/,
+  /^\/marketplace\/?$/,
+  /^\/offers\/?$/,
+  /^\/bulletin\/?$/,
+  /^\/home\/?$/,
 ];
+
+/** Bare `/admin` is too vague for store/product/category moderation taps. */
+function isVagueAdminRoute(path: string): boolean {
+  return path === '/admin' || path === '/admin/';
+}
+
+/** Paths that must not override type-based order/chat routing. */
+function isVagueLandingPath(path: string): boolean {
+  const p = String(path || '').trim();
+  return p === '/' || p === '/home' || p === '/home/' || DEAD_ROUTE_PATTERNS.some((re) => re.test(p));
+}
 
 /**
  * Pick the best route for a notification: prefer a valid `reference_path`,
@@ -231,7 +273,28 @@ export function pickNotificationRoute(n: {
   if (sellerRefundPath) return sellerRefundPath;
 
   const ref = (n.reference_path || n.action_url)?.trim();
-  if (ref && ref.startsWith('/') && !DEAD_ROUTE_PATTERNS.some(re => re.test(ref))) {
+  if (ref && isVagueAdminRoute(ref)) {
+    const adminKind = String(payload?.type || n.type || '').toLowerCase();
+    if (
+      adminKind === 'moderation'
+      || adminKind === 'new_store_application'
+      || adminKind === 'product_review'
+      || adminKind === 'category_request'
+      || adminKind === 'user_feedback'
+      || !adminKind
+    ) {
+      return resolveAdminModerationRoute({
+        ...(payload || {}),
+        type: payload?.type || n.type,
+      });
+    }
+  }
+  if (
+    ref
+    && ref.startsWith('/')
+    && !DEAD_ROUTE_PATTERNS.some((re) => re.test(ref))
+    && !isVagueLandingPath(ref)
+  ) {
     return ref;
   }
   return resolveNotificationRoute(n.type, payload || undefined);

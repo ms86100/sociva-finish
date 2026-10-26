@@ -19,7 +19,8 @@ describe('seller notification reliability remediations (2026-10-24)', () => {
 
     const hook = read('src/hooks/usePushNotifications.ts');
     expect(hook).toContain('CLIENT_BUILD_STAMP_OK');
-    expect(hook).toContain('CLIENT_BUILD_STAMP_RETRY_FAILED');
+    expect(hook).toContain('CLIENT_BUILD_STAMP_ZERO_ROWS');
+    expect(hook).toContain('CLIENT_BUILD_STAMP_FAILED');
   });
 
   it('skips product-order enqueue for booking item inserts and keeps New Booking Confirmed', () => {

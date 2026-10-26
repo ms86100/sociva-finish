@@ -12,8 +12,8 @@ import { useState } from 'react';
 export function LoyaltyCard() {
   const { buyerLoyaltyRedeemEnabled, isLoading: capsLoading } = useFinancialCapabilities();
   const { data: balance, isLoading: balanceLoading } = useLoyaltyBalance();
-  const { data: history = [] } = useLoyaltyHistory(10);
   const [showHistory, setShowHistory] = useState(false);
+  const { data: history = [] } = useLoyaltyHistory(10, { enabled: showHistory });
 
   if (capsLoading || balanceLoading) return <Skeleton className="h-24 w-full rounded-xl" />;
   if (!buyerLoyaltyRedeemEnabled) return null;

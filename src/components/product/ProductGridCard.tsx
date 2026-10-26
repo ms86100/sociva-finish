@@ -198,13 +198,6 @@ export function ProductGridCard({ product, behavior, onTap, className, viewOnly 
               </span>
             </div>
           )}
-          {isStoreClosed && !isOutOfStock && canScheduleClosed && storeClosedMessage && (
-            <div className="absolute bottom-1 left-1 right-1 z-[5] flex justify-center pointer-events-none">
-              <span className="text-[8px] font-bold text-foreground bg-card/95 px-1.5 py-0.5 rounded-full tracking-wide flex items-center gap-1 max-w-full truncate border border-border/50">
-                <Clock size={8} className="shrink-0" />{storeClosedMessage}
-              </span>
-            </div>
-          )}
           {product.is_bestseller && (
             <Badge className="absolute top-1.5 left-1.5 bg-badge-new text-primary-foreground text-[8px] px-1.5 py-0.5 font-bold shadow-sm rounded-md border-0 z-10">
               Bestseller
@@ -254,7 +247,12 @@ export function ProductGridCard({ product, behavior, onTap, className, viewOnly 
                 disabled={isAdding || onVacation}
                 aria-busy={isAdding || undefined}
                 aria-label={onVacation ? VACATION_BUYER_CTA : isCartAction ? (canScheduleClosed ? scheduleCta : 'Add to cart') : actionConfig.shortLabel}
-                className="bg-card text-primary font-extrabold text-[11px] px-5 py-2 rounded-xl border-[1.5px] border-primary shadow-sm hover:bg-primary hover:text-primary-foreground transition-colors active:scale-95 min-h-[40px] touch-manipulation disabled:opacity-70 uppercase tracking-wide"
+                className={cn(
+                  'bg-card text-primary px-5 py-2 rounded-xl hover:bg-primary hover:text-primary-foreground transition-colors active:scale-95 min-h-[40px] touch-manipulation disabled:opacity-70',
+                  canScheduleClosed && !onVacation
+                    ? 'border border-primary/45 font-semibold text-[10px] tracking-normal normal-case shadow-none'
+                    : 'border-[1.5px] border-primary font-extrabold text-[11px] uppercase tracking-wide shadow-sm',
+                )}
               >
                 {justAdded ? 'ADDED' : onVacation ? VACATION_BUYER_CTA : (isCartAction ? (canScheduleClosed ? <ScheduleCtaLabel /> : 'ADD') : actionConfig.shortLabel)}
               </button>

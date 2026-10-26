@@ -22,7 +22,7 @@ interface CreatePostSheetProps {
 }
 
 export function CreatePostSheet({ open, onOpenChange, onCreated }: CreatePostSheetProps) {
-  const { profile, viewAsSocietyId } = useAuth();
+  const { user, profile, viewAsSocietyId } = useAuth();
   const [category, setCategory] = useState<BulletinCategory>('alert');
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
@@ -63,10 +63,11 @@ export function CreatePostSheet({ open, onOpenChange, onCreated }: CreatePostShe
   };
 
   const uploadAttachments = async (): Promise<string[]> => {
+    if (!user?.id) throw new Error('Not authenticated');
     const urls: string[] = [];
     for (const file of attachments) {
       const ext = file.name.split('.').pop();
-      const path = `bulletin/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+      const path = `${user.id}/bulletin/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
       const { error } = await supabase.storage.from('app-images').upload(path, file);
       if (error) throw error;
       const { data: urlData } = supabase.storage.from('app-images').getPublicUrl(path);

@@ -4,7 +4,11 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
-import { resolveDeepLinkPath } from '@/hooks/useDeepLinks';
+import {
+  resolveDeepLinkPath,
+  sanitizeDeepLinkPath,
+  KNOWN_DEEP_LINK_ROUTES,
+} from '@/hooks/useDeepLinks';
 import { isAppUpdatePath, storeUpdateButtons, storeUrlForPlatform } from '@/lib/app-update-link';
 import { ANDROID_PLAY_STORE_URL, IOS_APP_STORE_URL } from '@/components/landing/LandingDownload';
 
@@ -75,5 +79,38 @@ describe('resolveDeepLinkPath', () => {
     expect(src).toMatch(/useLocation/);
     expect(src).toMatch(/const currentPath = location\.pathname/);
     expect(src).not.toMatch(/window\.location\.pathname/);
+  });
+
+  it('keeps explore, book, and services (never rewrites to /orders)', () => {
+    expect(KNOWN_DEEP_LINK_ROUTES.has('explore')).toBe(true);
+    expect(KNOWN_DEEP_LINK_ROUTES.has('book')).toBe(true);
+    expect(KNOWN_DEEP_LINK_ROUTES.has('services')).toBe(true);
+    expect(resolveDeepLinkPath('https://www.sociva.in/#/explore/home_food?tile=meal:dinner')).toBe(
+      '/explore/home_food?tile=meal:dinner',
+    );
+    expect(resolveDeepLinkPath('https://www.sociva.in/book')).toBe('/book');
+    expect(resolveDeepLinkPath('https://sociva.in/#/services')).toBe('/services');
+    expect(resolveDeepLinkPath('sociva://explore/home_food')).toBe('/explore/home_food');
+  });
+
+  it('remaps dead campaign aliases and unknown segments to /', () => {
+    expect(sanitizeDeepLinkPath('/marketplace')).toBe('/');
+    expect(sanitizeDeepLinkPath('/offers')).toBe('/');
+    expect(sanitizeDeepLinkPath('/bulletin')).toBe('/community');
+    expect(sanitizeDeepLinkPath('/home')).toBe('/');
+    expect(sanitizeDeepLinkPath('/not-a-real-route/xyz')).toBe('/');
+    expect(sanitizeDeepLinkPath('/not-a-real-route/xyz')).not.toBe('/orders');
+  });
+
+  it('campaign picker only offers live HashRouter screens', () => {
+    const src = read('src/components/admin/campaign/CampaignDeepLinkPicker.tsx');
+    expect(src).toContain("path: '/'");
+    expect(src).toContain("path: '/book'");
+    expect(src).toContain("path: '/services'");
+    expect(src).toContain("path: '/community'");
+    expect(src).not.toContain("path: '/marketplace'");
+    expect(src).not.toContain("path: '/offers'");
+    expect(src).not.toContain("path: '/bulletin'");
+    expect(src).not.toContain("path: '/home'");
   });
 });

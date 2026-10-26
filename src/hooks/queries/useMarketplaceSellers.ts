@@ -36,6 +36,11 @@ export interface MarketplaceSeller {
   avg_response_minutes: number | null;
   last_active_at: string | null;
   completed_order_count: number | null;
+  home_service_available?: boolean | null;
+  home_service_fee?: number | null;
+  fulfillment_mode?: string | null;
+  vacation_mode?: boolean | null;
+  avg_preparation_time?: number | null;
 }
 
 const PAGE_SIZE = 50;
@@ -95,7 +100,7 @@ export function useMarketplaceSellers() {
     },
     initialPageParam: 0,
     enabled: !!(lat && lng),
-    staleTime: jitteredStaleTime(10 * 60 * 1000),
+    staleTime: jitteredStaleTime(30 * 60 * 1000),
   });
 
   // Flatten all pages for backward compatibility

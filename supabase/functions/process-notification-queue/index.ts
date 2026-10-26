@@ -16,6 +16,24 @@ import {
   loadSellerAlertAndroidGate,
   NATIVE_ANDROID_ORDER_CHANNEL,
 } from "../_shared/seller-alert-gate.ts";
+import { classifyPushDeliveryEvidence } from "../_shared/seller-status-reminders-policy.ts";
+
+/** Honest evidence blob. Never claims device delivery or audible bell from FCM/APNs accept. */
+function buildDeliveryEvidence(input: {
+  pushAttempted?: boolean | null;
+  pushSuccessCount?: number | null;
+  pushFailCount?: number | null;
+  pushSkipReason?: string | null;
+}) {
+  const c = classifyPushDeliveryEvidence(input);
+  return {
+    level: c.level,
+    device_delivery: c.deviceDelivery,
+    audible: c.audible,
+    label: c.label,
+    recorded_at: new Date().toISOString(),
+  };
+}
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -1132,6 +1150,12 @@ Deno.serve(async (req) => {
               push_fail_count: 0,
               push_skip_reason: "no_tokens",
               last_error: lastError,
+              delivery_evidence: buildDeliveryEvidence({
+                pushAttempted: true,
+                pushSuccessCount: 0,
+                pushFailCount: 0,
+                pushSkipReason: "no_tokens",
+              }),
             }).eq("id", item.id);
             await moveToDeadLetter(supabase, {
               id: item.id,
@@ -1154,6 +1178,12 @@ Deno.serve(async (req) => {
               push_fail_count: 0,
               push_skip_reason: "no_tokens",
               last_error: lastError,
+              delivery_evidence: buildDeliveryEvidence({
+                pushAttempted: true,
+                pushSuccessCount: 0,
+                pushFailCount: 0,
+                pushSkipReason: "no_tokens",
+              }),
             }).eq("id", item.id);
             retriedCount++;
           }
@@ -1168,8 +1198,14 @@ Deno.serve(async (req) => {
               push_success_count: successCount,
               push_fail_count: failCount,
               push_skip_reason: skipReason,
+              delivery_evidence: buildDeliveryEvidence({
+                pushAttempted: true,
+                pushSuccessCount: successCount,
+                pushFailCount: failCount,
+                pushSkipReason: skipReason,
+              }),
             }).eq("id", item.id);
-          // Audit: mark delivered when at least one token succeeded
+          // Audit: provider-accepted only. Does not prove device display or audible bell.
           if (successCount > 0) {
             try {
               const { error: deliveredError } = await supabase.rpc(
@@ -1177,12 +1213,10 @@ Deno.serve(async (req) => {
                 { _queue_id: item.id },
               );
               if (deliveredError) {
-                console.warn(`[Queue][${item.id}] delivery audit failed: ${deliveredError.message}`);
+                console.warn(`[Queue][${item.id}] provider-accept audit failed: ${deliveredError.message}`);
               }
             } catch (deliveredError) {
-              // Delivery audit is best-effort and must never dead-letter a push
-              // that was already accepted by FCM/APNs.
-              console.warn(`[Queue][${item.id}] delivery audit exception: ${String(deliveredError)}`);
+              console.warn(`[Queue][${item.id}] provider-accept audit exception: ${String(deliveredError)}`);
             }
           }
           processed++;
@@ -1197,6 +1231,11 @@ Deno.serve(async (req) => {
               push_attempted: true,
               push_success_count: successCount,
               push_fail_count: failCount,
+              delivery_evidence: buildDeliveryEvidence({
+                pushAttempted: true,
+                pushSuccessCount: successCount,
+                pushFailCount: failCount,
+              }),
             }).eq("id", item.id);
             await moveToDeadLetter(supabase, {
               id: item.id,
@@ -1220,6 +1259,11 @@ Deno.serve(async (req) => {
               push_attempted: true,
               push_success_count: successCount,
               push_fail_count: failCount,
+              delivery_evidence: buildDeliveryEvidence({
+                pushAttempted: true,
+                pushSuccessCount: successCount,
+                pushFailCount: failCount,
+              }),
             }).eq("id", item.id);
             retriedCount++;
             console.warn(`[Queue][${item.id}] Re-queued (attempt ${retryCount}) at ${nextRetryAt}`);

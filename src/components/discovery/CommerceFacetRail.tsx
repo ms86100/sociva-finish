@@ -25,6 +25,7 @@ import {
   type FoodCuisineId,
   type FoodMealId,
 } from '@/lib/food-facets';
+import { curatedCuisineArt, curatedMealArt } from '@/lib/food-chip-art';
 import {
   Drawer,
   DrawerContent,
@@ -174,7 +175,7 @@ export function CommerceFacetRail({
                   ? isFood
                     ? 'border-amber-500/50 bg-amber-500/15 text-foreground'
                     : 'border-primary/50 bg-primary/15 text-primary'
-                  : 'border-border/50 bg-card/55 text-muted-foreground backdrop-blur-md'
+                  : 'border-border bg-card text-foreground/85 shadow-sm dark:border-white/18 dark:bg-card dark:text-zinc-100'
               )}
               aria-label="Open filter drawer"
             >
@@ -208,10 +209,10 @@ export function CommerceFacetRail({
               'flex shrink-0 items-center gap-1 rounded-full border px-2.5 py-1.5 text-[11px] font-semibold transition-colors',
               value.openNow
                 ? 'border-emerald-500/60 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-bold'
-                : 'border-border/70 bg-background/80 text-muted-foreground'
+                : 'border-border bg-card text-foreground/85 shadow-sm dark:border-white/18 dark:text-zinc-100'
             )}
           >
-            <span className={cn('h-1.5 w-1.5 rounded-full', value.openNow ? 'bg-emerald-500' : 'bg-muted-foreground/40')} />
+            <span className={cn('h-1.5 w-1.5 rounded-full', value.openNow ? 'bg-emerald-500' : 'bg-muted-foreground/55')} />
             Open Now
           </button>
 
@@ -227,7 +228,7 @@ export function CommerceFacetRail({
                   'flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-[11px] font-semibold transition-colors',
                   value.veg
                     ? 'border-emerald-500/60 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-bold'
-                    : 'border-border/70 bg-background/80 text-muted-foreground'
+                    : 'border-border bg-card text-foreground/85 shadow-sm dark:border-white/18 dark:text-zinc-100'
                 )}
               >
                 <span className="w-3.5 h-3.5 rounded-full overflow-hidden shrink-0 flex items-center justify-center border border-emerald-500/40">
@@ -247,7 +248,7 @@ export function CommerceFacetRail({
                   'flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-[11px] font-semibold transition-colors',
                   value.nonVeg
                     ? 'border-rose-500/60 bg-rose-500/15 text-rose-600 dark:text-rose-400 font-bold'
-                    : 'border-border/70 bg-background/80 text-muted-foreground'
+                    : 'border-border bg-card text-foreground/85 shadow-sm dark:border-white/18 dark:text-zinc-100'
                 )}
               >
                 Non-Veg
@@ -264,7 +265,7 @@ export function CommerceFacetRail({
                 'flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-semibold transition-all active:scale-95',
                 chip.isActive
                   ? 'border-primary bg-primary text-primary-foreground shadow-sm'
-                  : 'border-border/80 bg-background/90 text-foreground hover:border-primary/40'
+                  : 'border-border bg-card text-foreground shadow-sm hover:border-primary/50 dark:border-white/18 dark:text-zinc-100'
               )}
             >
               {chip.imageUrl ? (
@@ -299,7 +300,7 @@ export function CommerceFacetRail({
                 'shrink-0 rounded-full border px-2.5 py-1.5 text-[11px] font-semibold',
                 sortBy !== 'relevance'
                   ? 'border-primary/40 bg-primary/10 text-primary'
-                  : 'border-border/70 bg-background/80 text-muted-foreground',
+                  : 'border-border bg-card text-foreground/85 shadow-sm dark:border-white/18 dark:text-zinc-100',
               )}
             >
               {SORT_OPTIONS.find((o) => o.key === sortBy)?.label || 'Sort'}
@@ -362,7 +363,11 @@ export function CommerceFacetRail({
                       <TasteSheetChip
                         key={opt.id}
                         emoji={CUISINE_EMOJI[opt.id as FoodCuisineId]}
-                        imageUrl={chips.find((c) => c.id === `mood:${opt.id}`)?.imageUrl}
+                        imageUrl={
+                          chips.find((c) => c.id === `mood:${opt.id}`)?.imageUrl
+                          || curatedCuisineArt(opt.id)
+                          || undefined
+                        }
                         label={opt.label}
                         count={count}
                         showCount={showCounts}
@@ -381,7 +386,11 @@ export function CommerceFacetRail({
                       <TasteSheetChip
                         key={opt.id}
                         emoji={MEAL_EMOJI[opt.id as FoodMealId]}
-                        imageUrl={chips.find((c) => c.id === `mood:${opt.id}`)?.imageUrl}
+                        imageUrl={
+                          chips.find((c) => c.id === `mood:${opt.id}`)?.imageUrl
+                          || curatedMealArt(opt.id)
+                          || undefined
+                        }
                         label={opt.label}
                         count={count}
                         showCount={showCounts}

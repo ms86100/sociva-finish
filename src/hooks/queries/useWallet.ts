@@ -51,7 +51,7 @@ export function useBuyerWallet() {
   });
 }
 
-export function useWalletHistory(limit = 20) {
+export function useWalletHistory(limit = 20, opts?: { enabled?: boolean }) {
   const { user } = useAuth();
   return useQuery({
     queryKey: ['wallet-history', user?.id, limit],
@@ -61,7 +61,7 @@ export function useWalletHistory(limit = 20) {
       const rows = Array.isArray(data) ? data : [];
       return rows as WalletHistoryItem[];
     },
-    enabled: !!user?.id,
+    enabled: !!user?.id && (opts?.enabled ?? true),
     staleTime: 2 * 60_000,
   });
 }

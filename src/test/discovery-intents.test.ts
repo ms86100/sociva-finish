@@ -1,6 +1,12 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { buildDiscoveryIntents, relevantBrowseIntents, type DiscoveryCategoryInput } from '@/lib/discovery-intents';
+import {
+  buildDiscoveryIntents,
+  orderLobbySnippetChips,
+  relevantBrowseIntents,
+  type DiscoveryCategoryInput,
+  type DiscoveryIntent,
+} from '@/lib/discovery-intents';
 
 const homeFood: DiscoveryCategoryInput = {
   category: 'home_food',
@@ -120,12 +126,36 @@ describe('buildDiscoveryIntents', () => {
     };
     const intents = buildDiscoveryIntents([snacks, breakfastHome], { maxChips: 40 });
     const snacksChip = intents.find((intent) => intent.id === 'cat:snacks');
+    const homeChip = intents.find((intent) => intent.id === 'cat:home_food');
     const breakfastChip = intents.find((intent) => intent.id === 'mood:breakfast');
     expect(snacksChip?.imageUrl).toBe('https://img/makhana.jpg');
-    expect(breakfastChip?.imageUrl).toBe('https://img/idli.jpg');
+    // Home Food may claim idli first; Breakfast then gets curated art - never blank, never makhana
+    expect(homeChip?.imageUrl).toBe('https://img/idli.jpg');
+    expect(breakfastChip?.imageUrl).toBeTruthy();
     expect(breakfastChip?.imageUrl).not.toBe(snacksChip?.imageUrl);
+    expect(breakfastChip?.imageUrl).not.toBe('https://img/makhana.jpg');
     expect(intents.filter((intent) => intent.label === 'Snacks')).toHaveLength(1);
     expect(intents.find((intent) => intent.id === 'mood:snack')).toBeUndefined();
+  });
+
+  it('always puts curated art on Breakfast so the home chip never goes blank', () => {
+    const breakfastHome: DiscoveryCategoryInput = {
+      category: 'home_food',
+      parentGroup: 'food_beverages',
+      displayName: 'Home Food',
+      icon: 'UtensilsCrossed',
+      products: [{
+        id: 'i1',
+        category: 'home_food',
+        name: 'Idli',
+        image_url: 'https://img/broken-or-missing.jpg',
+        tags: ['meal:breakfast'],
+      }],
+    };
+    const intents = buildDiscoveryIntents([breakfastHome], { maxChips: 40 });
+    const breakfastChip = intents.find((intent) => intent.id === 'mood:breakfast');
+    expect(breakfastChip?.imageUrl).toContain('unsplash.com');
+    expect(breakfastChip?.imageUrl).toContain('photo-1589301760014');
   });
 
   it('keeps one Snacks chip and counts cafe / home-food snack listings on it', () => {
@@ -213,5 +243,54 @@ describe('buildDiscoveryIntents', () => {
     };
     const intents = buildDiscoveryIntents([homeFood, emptyDoctors]);
     expect(intents.some((i) => i.label === 'Doctors')).toBe(false);
+  });
+
+  it('orders Lobby snippet chips like the mockup row', () => {
+    const intents: DiscoveryIntent[] = [
+      {
+        id: 'cat:pickles',
+        label: 'Pickles',
+        icon: 'Jar',
+        imageUrl: 'https://img/p.jpg',
+        count: 2,
+        href: '/category/food_beverages?sub=pickles',
+        kind: 'category',
+      },
+      {
+        id: 'cat:home_food',
+        label: 'Home Food',
+        icon: 'Utensils',
+        imageUrl: 'https://img/h.jpg',
+        count: 4,
+        href: '/category/food_beverages?sub=home_food',
+        kind: 'category',
+      },
+      {
+        id: 'cat:cafe',
+        label: 'Cafe',
+        icon: 'Coffee',
+        imageUrl: 'https://img/c.jpg',
+        count: 3,
+        href: '/category/food_beverages?sub=cafe',
+        kind: 'category',
+      },
+      {
+        id: 'cat:snacks',
+        label: 'Snacks',
+        icon: 'Cookie',
+        imageUrl: 'https://img/s.jpg',
+        count: 3,
+        href: '/category/food_beverages?sub=snacks',
+        kind: 'category',
+      },
+    ];
+    const lobby = orderLobbySnippetChips(intents, 5);
+    expect(lobby.map((chip) => chip.label)).toEqual([
+      'Home Food',
+      'Cafe',
+      'Snacks',
+      'Pickles',
+      'Breakfast',
+    ]);
   });
 });

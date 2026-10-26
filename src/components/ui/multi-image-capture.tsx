@@ -37,7 +37,7 @@ export function MultiImageCapture({
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Not authenticated');
     const ext = (filename.split('.').pop() || 'jpg').toLowerCase();
-    const path = `${pathPrefix}/${user.id}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+    const path = `${user.id}/${pathPrefix}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
     const { error } = await supabase.storage.from(bucket).upload(path, blob, {
       contentType: blob.type || 'image/jpeg',
       upsert: false,

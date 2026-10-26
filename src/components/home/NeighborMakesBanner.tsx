@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { ArrowRight } from 'lucide-react';
 import { hapticSelection } from '@/lib/haptics';
 import { cn } from '@/lib/utils';
-import { optimizedImageUrl, handleImageError } from '@/utils/imageHelpers';
+import neighborHero from '@/assets/sociva-neighbor-hero.jpg';
 
 const LINE_1 = 'What Your Neighbor Makes,';
 const LINE_2 = 'No App Can Deliver.';
@@ -87,40 +87,42 @@ function TypeCursor() {
   return <span className="neighbor-type-cursor" aria-hidden />;
 }
 
+/**
+ * Home Lobby hero - local neighbor photo + typewriter headline + Order Now.
+ */
 export function NeighborMakesBanner({
-  imageUrl,
   onOrderNow,
   className,
 }: {
-  imageUrl: string | null;
+  imageUrl?: string | null;
   onOrderNow: () => void;
   className?: string;
 }) {
   const { line1, line2, cursor } = useNeighborTypewriter();
 
   return (
-    <div className={cn('px-4 mt-2', className)}>
+    <div className={cn('px-4 pt-2', className)}>
       <button
         type="button"
         onClick={() => {
           hapticSelection();
           onOrderNow();
         }}
-        className="relative w-full overflow-hidden rounded-[22px] aspect-[2.15/1] bg-zinc-900 text-left active:scale-[0.99] transition-transform"
+        className="relative w-full overflow-hidden rounded-[20px] aspect-[2/1] bg-zinc-900 text-left active:scale-[0.99] transition-transform"
         data-testid="guided-discovery-home-food-hero"
       >
-        {imageUrl && (
-          <img
-            src={optimizedImageUrl(imageUrl, { width: 640, quality: 70 })}
-            alt=""
-            className="absolute inset-0 h-full w-full object-cover object-[70%_center]"
-            onError={handleImageError}
-          />
-        )}
-        <div className="absolute inset-0 bg-gradient-to-r from-black via-black/75 to-black/20" />
+        <img
+          src={neighborHero}
+          alt=""
+          className="absolute inset-0 h-full w-full object-cover object-[center_30%]"
+        />
+        <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/45 to-transparent" />
         <div className="neighbor-banner-sheen" aria-hidden />
-        <div className="relative z-10 flex h-full max-w-[62%] flex-col justify-center px-4 py-3">
-          <p className="neighbor-banner-headline text-[18px] font-extrabold leading-tight text-white" aria-label={NEIGHBOR_HEADLINE}>
+        <div className="relative z-10 flex h-full max-w-[70%] flex-col justify-center pl-4 pr-2 py-3">
+          <p
+            className="neighbor-banner-headline text-[17px] sm:text-[18px] font-extrabold leading-[1.2] text-white"
+            aria-label={NEIGHBOR_HEADLINE}
+          >
             <span className="neighbor-banner-line">
               {line1}
               {cursor === 'line1' ? <TypeCursor /> : null}
@@ -130,9 +132,9 @@ export function NeighborMakesBanner({
               {cursor === 'line2' ? <TypeCursor /> : null}
             </span>
           </p>
-          <span className="mt-3 inline-flex w-fit items-center gap-1 rounded-full bg-amber-400 px-3.5 py-1.5 text-[12px] font-extrabold text-zinc-900">
+          <span className="mt-3 inline-flex w-fit items-center gap-1 rounded-full bg-[#F5C542] px-3.5 py-1.5 text-[12px] font-extrabold text-zinc-900">
             Order Now
-            <ArrowRight size={13} />
+            <ArrowRight size={13} strokeWidth={2.5} />
           </span>
         </div>
       </button>

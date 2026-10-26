@@ -12,6 +12,7 @@ import { notify } from '@/lib/notify';
 import { showFeedback } from '@/components/FeedbackPopupProvider';
 import { QA_OTP_REQ_ID } from '@/lib/qa-otp-bypass';
 import { pendingAuthReturnPath, peekPendingAuthAction, resolvePendingReturnTo, profileEditOnboardingState, clearPendingAuthAction } from '@/lib/pending-auth-action';
+import { consumeAuthReturnTo } from '@/hooks/useDeepLinks';
 
 export type AuthStep = 'phone' | 'otp' | 'society';
 export type SocietySubStep = 'search' | 'map-confirm' | 'request-form';
@@ -19,9 +20,15 @@ export type SocietySubStep = 'search' | 'map-confirm' | 'request-form';
 export function useAuthPage() {
   const navigate = useNavigate();
   const location = useLocation();
+  const sessionExpiryReturnRef = useRef<string | null>(null);
+  if (sessionExpiryReturnRef.current === null) {
+    sessionExpiryReturnRef.current = consumeAuthReturnTo() ?? '';
+  }
+  const sessionExpiryReturn = sessionExpiryReturnRef.current || null;
   const authReturnTo =
     (location.state as { returnTo?: string; from?: string } | null)?.returnTo ||
     (location.state as { returnTo?: string; from?: string } | null)?.from ||
+    sessionExpiryReturn ||
     pendingAuthReturnPath('/');
   const isCheckoutResume =
     peekPendingAuthAction()?.type === 'checkout' ||

@@ -134,4 +134,34 @@ describe('seller overdue outcome bar gating', () => {
     expect(isTransitOverdue(scheduledPastDue)).toBe(true);
     expect(isInTransitStatus(scheduledPastDue.status)).toBe(false);
   });
+
+  it('keeps overdue transit copy in scroll flow (not fixed under sticky Verify CTA)', async () => {
+    const fs = await import('node:fs');
+    const path = await import('node:path');
+    const page = fs.readFileSync(
+      path.resolve(__dirname, '../pages/OrderDetailPage.tsx'),
+      'utf8',
+    );
+    expect(page).toContain('seller-transit-overdue-card');
+    expect(page).toContain('Confirm the outcome so the buyer is not stuck');
+    expect(page).not.toMatch(/fixed left-0 right-0 z-40[\s\S]*formatTransitAgeChip/);
+    expect(page).toMatch(/pb-\[calc\(14rem\+env\(safe-area-inset-bottom\)\)\]/);
+  });
+
+  it('treats Could not deliver as terminal no_show with idempotent double-tap handling', async () => {
+    const fs = await import('node:fs');
+    const path = await import('node:path');
+    const page = fs.readFileSync(
+      path.resolve(__dirname, '../pages/OrderDetailPage.tsx'),
+      'utf8',
+    );
+    const hook = fs.readFileSync(
+      path.resolve(__dirname, '../hooks/useOrderDetail.ts'),
+      'utf8',
+    );
+    expect(page).toMatch(/updateOrderStatus\('no_show'/);
+    expect(hook).toMatch(/Already marked as could not deliver/);
+    expect(hook).toMatch(/Marked as could not deliver\. The buyer will be updated\./);
+    expect(hook).toMatch(/Invalid seller transition from no_show to no_show/);
+  });
 });

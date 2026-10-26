@@ -69,7 +69,7 @@ function BottomNavInner() {
 
   return (
     <nav
-      className="fixed inset-x-0 bottom-0 z-50 border-t border-border/25"
+      className="fixed inset-x-0 bottom-0 z-50 border-t border-border/70 dark:border-white/15"
       style={{ paddingBottom: 'max(var(--app-safe-bottom, 0px), env(safe-area-inset-bottom, 0px))' }}
     >
       {/* Solid fill on native - backdrop-blur tanks Android WebView scroll/nav FPS */}
@@ -94,7 +94,7 @@ function BottomNavInner() {
                 'flex flex-1 min-w-0 flex-col items-center justify-center gap-1 px-1 py-1.5 rounded-2xl min-h-[44px] relative active:scale-95 transition-colors duration-150',
                 isActive
                   ? 'text-primary'
-                  : 'text-muted-foreground hover:text-foreground'
+                  : 'text-muted-foreground hover:text-foreground dark:text-zinc-300'
               )}
             >
               <div className="relative flex items-center justify-center w-11 h-8 rounded-full">
@@ -103,7 +103,7 @@ function BottomNavInner() {
                 )}
                 <Icon
                   size={20}
-                  strokeWidth={isActive ? 2.4 : 1.7}
+                  strokeWidth={isActive ? 2.4 : 1.85}
                   className="relative z-10"
                 />
               </div>

@@ -108,7 +108,7 @@ export function ShopByStoreDiscovery({ sectionTitle }: { sectionTitle?: string }
       className="flex gap-3 overflow-x-auto scrollbar-hide px-4 pb-2 items-stretch"
     >
       {sellers.map(seller => (
-        <motion.div key={seller.id} variants={cardEntrance} className="shrink-0">
+        <motion.div key={seller.id} variants={cardEntrance} className="shrink-0 h-[280px] flex">
           <RichSellerCard
             id={seller.id}
             name={seller.business_name}

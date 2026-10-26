@@ -26,12 +26,12 @@ import { ProductFavoriteButton } from '@/components/favorite/ProductFavoriteButt
 import { useAuth } from '@/contexts/AuthContext';
 import { listingPlaceholderGlyph } from '@/lib/category-chip-visual';
 import { optimizedImageUrl, imageSrcSet } from '@/utils/imageHelpers';
-import { displaySellerStoreName } from '@/lib/seller-journey';
 import { SellerLocationLine } from '@/components/location/SellerLocationLine';
 import { listingPlaceChip } from '@/lib/location-label-resolver';
 import { homeServiceBuyerLabel } from '@/lib/home-service-label';
 import { useVariantProductIds } from '@/hooks/useProductVariants';
 import { openVariantPicker } from '@/lib/variant-picker-store';
+import { listingStoreChip, listingTrustLabel, listingTrustShowsStar } from '@/lib/listing-trust';
 
 export interface ProductWithSeller {
   id: string; seller_id: string; name: string; price: number; image_url: string | null; category: string;
@@ -41,7 +41,8 @@ export interface ProductWithSeller {
   stock_quantity?: number | null; serving_size?: string | null; spice_level?: string | null; cuisine_type?: string | null;
   service_scope?: string | null; visit_charge?: number | null; minimum_charge?: number | null;
   delivery_time_text?: string | null; tags?: string[] | null; discount_percentage?: number | null;
-  service_duration_minutes?: number | null; prep_time_minutes?: number | null; warranty_period?: string | null;
+  service_duration_minutes?: number | null; prep_time_minutes?: number | null; avg_preparation_time?: number | null;
+  warranty_period?: string | null;
   lead_time_hours?: number | null; accepts_preorders?: boolean;
   seller_name?: string; seller_rating?: number; seller_reviews?: number; seller_verified?: boolean;
   completed_order_count?: number; fulfillment_mode?: string | null; delivery_note?: string | null;
@@ -181,20 +182,23 @@ function ProductListingCardInner({ product, layout = 'auto', onTap, onNavigate, 
   const hasDiscount = product.mrp && product.mrp > product.price;
   const discountPct = listingDiscountPercent(product.price, product.mrp, product.discount_percentage);
   const glanceKind = listingGlanceKind(actionType);
+  const placeChip = listingPlaceChip(product.society_name ?? (product as any).society_name);
   const glanceFacts = listingGlanceFacts({
     serving_size: product.serving_size,
     unit_type: product.unit_type,
     price_per_unit: product.price_per_unit,
     stock_quantity: product.stock_quantity,
     prep_time_minutes: product.prep_time_minutes,
+    avg_preparation_time: product.avg_preparation_time ?? (product as any).avg_preparation_time,
     delivery_time_text: product.delivery_time_text,
     service_duration_minutes: product.service_duration_minutes,
-    fulfillment_mode: product.fulfillment_mode,
+    fulfillment_mode: product.fulfillment_mode || (product as any).seller_fulfillment_mode,
     service_scope: product.service_scope,
     description: product.description,
     avg_response_minutes: (product as any).avg_response_minutes,
     visit_charge: product.visit_charge,
     seller_is_available: product.seller_is_available ?? !isStoreClosed,
+    place_chip: placeChip || null,
   }, glanceKind);
   const homeServiceLabel = homeServiceBuyerLabel({
     sellerHome: (product as any).seller_home_service_available,
@@ -212,16 +216,21 @@ function ProductListingCardInner({ product, layout = 'auto', onTap, onNavigate, 
   }, [product.distance_km, (product as any).distance_km, ml]);
 
   const locationLabel = useMemo(() => {
-    const rawPlace = product.society_name ?? (product as any).society_name;
-    const shortPlace = listingPlaceChip(rawPlace);
-    if (shortPlace && distanceLabel) return `${shortPlace} · ${distanceLabel}`;
-    if (shortPlace) return shortPlace;
+    if (placeChip && distanceLabel) return `${placeChip} · ${distanceLabel}`;
+    if (placeChip) return placeChip;
     if (distanceLabel) return distanceLabel;
     return null;
-  }, [product.society_name, (product as any).society_name, distanceLabel]);
+  }, [placeChip, distanceLabel]);
 
   const placeholderBg = catConfig?.color ? `${catConfig.color}10` : undefined;
-  const showRating = product.seller_rating != null && product.seller_rating > 0;
+  const trustInput = {
+    rating: product.seller_rating,
+    reviews: product.seller_reviews,
+    completedOrders: product.completed_order_count,
+  };
+  const trustLabel = listingTrustLabel(trustInput);
+  const trustShowsStar = listingTrustShowsStar(trustInput);
+  const storeChip = listingStoreChip(product.seller_name);
 
   const [imgLoaded, setImgLoaded] = useState(false);
   const [imgFailed, setImgFailed] = useState(false);
@@ -264,11 +273,11 @@ function ProductListingCardInner({ product, layout = 'auto', onTap, onNavigate, 
       tabIndex={0}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleCardClick(); } }}
     >
-      {/* Image - square frame + CSS cover (matches seller 1:1 crop, never stretches) */}
+      {/* Image - 4:3 frame so plates read clearly (less portrait crop than square) */}
       <div className="relative shrink-0">
         <div className={cn(
           'relative w-full overflow-hidden product-image-bg rounded-t-2xl',
-          compact ? 'h-[120px]' : 'aspect-square'
+          compact ? 'h-[120px]' : 'aspect-[4/3]'
         )}>
           {(product.image_url || fallbackCatImage) && !imgLoaded && !imgFailed && (
             <div className="absolute inset-0 product-image-shimmer" aria-hidden />
@@ -339,17 +348,9 @@ function ProductListingCardInner({ product, layout = 'auto', onTap, onNavigate, 
 
           {isStoreClosed && !isUnavailable && !canScheduleClosed && (
             <div className="absolute inset-0 bg-background/55 flex items-center justify-center backdrop-blur-[1.5px] z-[5]">
-              <span className="text-[11px] font-bold text-warning-foreground bg-warning/90 px-3 py-1.5 rounded-full tracking-wide shadow-sm border border-warning/40 flex items-center gap-1 max-w-[90%] truncate">
+              <span className="text-[11px] font-bold text-warning-foreground bg-warning/90 px-3 py-1.5 rounded-full tracking-wide shadow-sm border border-warning/40 flex items-center gap-1 max-w-[90%]">
                 <Clock size={11} className="shrink-0" />
-                <span className="truncate">{storeClosedMessage}</span>
-              </span>
-            </div>
-          )}
-          {isStoreClosed && !isUnavailable && canScheduleClosed && storeClosedMessage && (
-            <div className="absolute bottom-1.5 left-1.5 right-1.5 z-[5] flex justify-center pointer-events-none">
-              <span className="text-[10px] font-bold text-foreground bg-card/95 px-2 py-0.5 rounded-full tracking-wide shadow-sm border border-border/50 flex items-center gap-1 max-w-full truncate">
-                <Clock size={10} className="shrink-0" />
-                <span className="truncate">{storeClosedMessage}</span>
+                <span className="text-left leading-tight">{storeClosedMessage}</span>
               </span>
             </div>
           )}
@@ -457,13 +458,15 @@ function ProductListingCardInner({ product, layout = 'auto', onTap, onNavigate, 
                   aria-busy={isAdding || undefined}
                   aria-label={onVacation ? VACATION_BUYER_CTA : isCartAction ? (canScheduleClosed ? scheduleCta : 'Add to cart') : actionConfig.shortLabel}
                   className={cn(
-                    'bg-card/95 backdrop-blur-md text-primary font-extrabold text-[11px] px-2.5 py-1.5 rounded-xl',
+                    'bg-card/95 backdrop-blur-md text-primary px-2.5 py-1.5 rounded-xl',
                     'disabled:opacity-70',
-                    'border-[1.5px] border-primary shadow-sm',
                     'hover:bg-primary hover:text-primary-foreground',
-                    'transition-colors uppercase tracking-wide',
+                    'transition-colors',
                     'min-h-[32px] min-w-[48px] flex items-center justify-center gap-0.5',
-                    'touch-manipulation'
+                    'touch-manipulation',
+                    canScheduleClosed && !onVacation
+                      ? 'border border-primary/45 font-semibold text-[10px] tracking-normal normal-case shadow-none'
+                      : 'border-[1.5px] border-primary font-extrabold text-[11px] uppercase tracking-wide shadow-sm',
                   )}
                 >
                   {justAdded ? (
@@ -575,15 +578,17 @@ function ProductListingCardInner({ product, layout = 'auto', onTap, onNavigate, 
               data-slot="listing-store"
               className="h-[14px] flex items-center gap-1 min-w-0 overflow-hidden"
             >
-              {product.seller_name ? (
+              {storeChip ? (
                 <>
                   <span className="text-[10px] font-medium text-foreground truncate min-w-0 flex-1 leading-none">
-                    {displaySellerStoreName(product.seller_name)}
+                    {storeChip}
                   </span>
-                  {showRating && (
-                    <span className="inline-flex items-center gap-0.5 shrink-0 text-[9px] font-bold text-foreground tabular-nums leading-none">
-                      <Star size={9} className="text-rating-star fill-rating-star" />
-                      {Number(product.seller_rating).toFixed(1)}
+                  {trustLabel && (
+                    <span className="inline-flex items-center gap-0.5 shrink-0 text-[9px] font-bold text-muted-foreground tabular-nums leading-none">
+                      {trustShowsStar && (
+                        <Star size={9} className="text-rating-star fill-rating-star" />
+                      )}
+                      {trustLabel}
                     </span>
                   )}
                 </>
@@ -591,7 +596,7 @@ function ProductListingCardInner({ product, layout = 'auto', onTap, onNavigate, 
             </div>
 
             <div data-slot="listing-location" className="h-[13px] overflow-hidden">
-              {locationLabel ? (
+              {locationLabel && !glanceFacts.includes(placeChip || '') ? (
                 <SellerLocationLine
                   text={locationLabel}
                   clamp={1}

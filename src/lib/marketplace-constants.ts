@@ -55,7 +55,8 @@ export function getCommercePriceLabel(
   if (key === 'contact_seller') return 'Contact Seller';
   if (key === 'request_service') return 'Request Service';
   if (key === 'request_quote') return 'Get Quote';
-  if (key === 'book') return 'Book Now';
+  // Zero / missing book prices mean the seller confirms cost later.
+  if (key === 'book') return 'Price on request';
   if (key === 'schedule_visit') return 'Schedule Visit';
   if (key === 'make_offer') return 'Make Offer';
   return cfg.shortLabel;

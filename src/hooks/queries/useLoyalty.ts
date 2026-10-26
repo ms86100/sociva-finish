@@ -28,7 +28,7 @@ export function useLoyaltyBalance() {
   });
 }
 
-export function useLoyaltyHistory(limit = 20) {
+export function useLoyaltyHistory(limit = 20, opts?: { enabled?: boolean }) {
   const { user } = useAuth();
   const { buyerLoyaltyRedeemEnabled } = useFinancialCapabilities();
   return useQuery({
@@ -38,7 +38,7 @@ export function useLoyaltyHistory(limit = 20) {
       if (error) throw error;
       return (data || []) as LoyaltyTransaction[];
     },
-    enabled: !!user?.id && buyerLoyaltyRedeemEnabled === true,
+    enabled: !!user?.id && buyerLoyaltyRedeemEnabled === true && (opts?.enabled ?? true),
     staleTime: 2 * 60_000,
   });
 }

@@ -881,13 +881,13 @@ export default function SellerDetailPage() {
             {isFoodStore && foodMenuSections.length > 1 && (
               <div
                 ref={foodSectionChipRailRef}
-                className="flex gap-2 overflow-x-auto scrollbar-hide mb-3 -mx-4 px-4 sticky top-0 z-10 glass-panel py-2 border-b border-border/30 bg-background/90 backdrop-blur-md"
+                className="flex items-center gap-2 overflow-x-auto scrollbar-hide mb-3 -mx-4 px-4 sticky top-0 z-10 glass-panel pt-2.5 pb-2 border-b border-border/30 bg-background/90 backdrop-blur-md"
               >
                 <button
                   type="button"
                   data-food-section-chip="all"
                   onClick={clearFoodSectionFilter}
-                  className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-colors flex items-center gap-1.5 border ${
+                  className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-colors flex items-center gap-1.5 border ${
                     activeFoodSectionId === null
                       ? 'bg-primary text-primary-foreground border-primary/80'
                       : 'bg-card/60 backdrop-blur-md text-muted-foreground border-border/40'
@@ -901,7 +901,7 @@ export default function SellerDetailPage() {
                     type="button"
                     data-food-section-chip={section.id}
                     onClick={() => selectFoodSectionFilter(section.id)}
-                    className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-colors flex items-center gap-1.5 border ${
+                    className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-colors flex items-center gap-1.5 border ${
                       activeFoodSectionId === section.id
                         ? 'bg-primary text-primary-foreground border-primary/80'
                         : 'bg-card/60 backdrop-blur-md text-muted-foreground border-border/40'

@@ -312,6 +312,10 @@ describe('promotion routes and pipeline isolation', () => {
     expect(pickNotificationRoute({
       type: 'promotion',
       payload: {},
+    })).toBe('/');
+    expect(pickNotificationRoute({
+      type: 'food_discovery',
+      payload: {},
     })).toBe('/category/food_beverages');
   });
 

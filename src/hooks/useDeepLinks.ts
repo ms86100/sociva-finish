@@ -6,26 +6,57 @@ import { Browser } from '@capacitor/browser';
 import { isAppUpdatePath, storeUrlForPlatform } from '@/lib/app-update-link';
 
 const PENDING_DEEP_LINK_KEY = 'sociva_pending_deep_link';
+export const AUTH_RETURN_TO_KEY = 'sociva_auth_return_to';
 
 /**
- * Known top-level route segments used for deep-link fallback validation.
+ * Top-level HashRouter segments that may arrive via App Links / sociva://.
+ * Keep aligned with src/App.tsx routes. Legacy aliases remapped in sanitizeDeepLinkPath.
  */
-const KNOWN_ROUTES = new Set([
+export const KNOWN_DEEP_LINK_ROUTES = new Set([
   'orders', 'order', 'home', 'profile', 'cart', 'shop',
-  'seller', 'settings', 'notifications', 'tracking', 'la-debug',
+  'seller', 'sellers', 'settings', 'notifications', 'tracking', 'la-debug',
   'become-seller', 'talk-to-sociva', 'admin', 'product', 'products', 'categories',
   'category', 'search', 'community', 'favorites', 'wishlist',
-  'address', 'addresses', 'checkout', 'auth', 'privacy-policy',
-  'terms', 'help', 'bulletin', 'marketplace',
+  'address', 'addresses', 'checkout', 'checkouts', 'auth', 'privacy-policy',
+  'terms', 'help', 'bulletin', 'marketplace', 'offers',
+  'explore', 'book', 'services', 'contact', 'discovery', 'discover-location',
+  'subscriptions', 'directory', 'disputes', 'workforce', 'group-buys',
+  'parcels', 'parking', 'visitors', 'maintenance', 'inspection',
+  'payment-milestones', 'authorized-persons', 'worker-hire', 'worker',
+  'guard-kiosk', 'gate-entry', 'security', 'builder', 'builder-inspections',
+  'delivery-partners', 'my-deliveries', 'my-workers', 'worker-attendance',
+  'worker-leave', 'worker-salary', 'society', 'festival-collection',
+  'docs', 'api-docs', 'push-debug', 'account', 'reset-password',
+  'pricing', 'refund-policy', 'delete-account', 'community-rules',
+  'welcome', 'landing', 'update',
 ]);
+
+/** Historic / campaign paths → live HashRouter destinations. */
+const LEGACY_DEEP_LINK_REMAP: Record<string, string> = {
+  '/home': '/',
+  '/marketplace': '/',
+  '/offers': '/',
+  '/bulletin': '/community',
+  '/shop': '/',
+  '/contact': '/services',
+  '/account': '/profile',
+};
 
 /**
  * Store a pending deep link path for deferred navigation after auth hydration.
  */
 export function setPendingDeepLink(path: string) {
   try {
-    sessionStorage.setItem(PENDING_DEEP_LINK_KEY, path);
+    sessionStorage.setItem(PENDING_DEEP_LINK_KEY, sanitizeDeepLinkPath(path));
   } catch { /* storage unavailable */ }
+}
+
+export function peekPendingDeepLink(): string | null {
+  try {
+    return sessionStorage.getItem(PENDING_DEEP_LINK_KEY);
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -35,10 +66,53 @@ export function consumePendingDeepLink(): string | null {
   try {
     const path = sessionStorage.getItem(PENDING_DEEP_LINK_KEY);
     if (path) sessionStorage.removeItem(PENDING_DEEP_LINK_KEY);
+    return path ? sanitizeDeepLinkPath(path) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function setAuthReturnTo(path: string) {
+  const clean = String(path || '').trim();
+  if (!clean || clean === '/auth' || clean.startsWith('/auth?')) return;
+  try {
+    sessionStorage.setItem(AUTH_RETURN_TO_KEY, clean.startsWith('/') ? clean : `/${clean}`);
+  } catch { /* storage unavailable */ }
+}
+
+export function consumeAuthReturnTo(): string | null {
+  try {
+    const path = sessionStorage.getItem(AUTH_RETURN_TO_KEY);
+    if (path) sessionStorage.removeItem(AUTH_RETURN_TO_KEY);
     return path;
   } catch {
     return null;
   }
+}
+
+/**
+ * Remap legacy aliases and reject unknown top segments to `/` (never `/orders`).
+ */
+export function sanitizeDeepLinkPath(rawPath: string): string {
+  let path = String(rawPath || '/').trim() || '/';
+  if (!path.startsWith('/')) path = `/${path}`;
+  path = path.replace(/\/{2,}/g, '/');
+
+  const qIndex = path.indexOf('?');
+  const pathname = qIndex >= 0 ? path.slice(0, qIndex) : path;
+  const search = qIndex >= 0 ? path.slice(qIndex) : '';
+
+  const remappedBase = LEGACY_DEEP_LINK_REMAP[pathname] || LEGACY_DEEP_LINK_REMAP[pathname.replace(/\/$/, '') || '/'];
+  if (remappedBase != null) {
+    return `${remappedBase}${search}`;
+  }
+
+  const topSegment = pathname.split('/').filter(Boolean)[0];
+  if (topSegment && !KNOWN_DEEP_LINK_ROUTES.has(topSegment)) {
+    console.warn('Deep link: unknown route segment', topSegment, '→ fallback to /');
+    return '/';
+  }
+  return `${pathname}${search}`;
 }
 
 /**
@@ -89,7 +163,7 @@ export function resolveDeepLinkPath(rawUrl: string): string {
   path = path.replace(/\/{2,}/g, '/');
 
   // OG share bounce URLs open the native app before HTML redirect runs.
-  // Map them to real HashRouter routes (otherwise "api" falls through to /orders).
+  // Map them to real HashRouter routes (otherwise "api" falls through to home).
   const shareProduct = path.match(/^\/api\/share\/product\/([^/?#]+)/i);
   if (shareProduct?.[1]) {
     return `/product/${decodeURIComponent(shareProduct[1])}`;
@@ -104,7 +178,7 @@ export function resolveDeepLinkPath(rawUrl: string): string {
     return `/seller/${decodeURIComponent(storeAlias[1])}`;
   }
 
-  return path;
+  return sanitizeDeepLinkPath(path);
 }
 
 /**
@@ -140,19 +214,12 @@ export function useDeepLinks() {
         }
 
         if (path && path !== '/') {
-          // Validate the top-level route segment exists
-          const topSegment = path.split('/').filter(Boolean)[0];
-          if (topSegment && !KNOWN_ROUTES.has(topSegment)) {
-            console.warn('Deep link: unknown route segment', topSegment, '→ fallback to /orders');
-            path = '/orders';
-          }
-
           console.log('Deep link path resolved:', path);
           setPendingDeepLink(path);
         }
       } catch (error) {
         console.error('Error parsing deep link:', error);
-        setPendingDeepLink('/orders');
+        setPendingDeepLink('/');
       }
     };
 

@@ -624,6 +624,46 @@ function OrderList({
   );
 }
 
+/** Wallet / loyalty / review / bookings - defer so OrderList starts first. */
+function DeferredBuyerOrdersExtras() {
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    const mark = () => {
+      if (!cancelled) setReady(true);
+    };
+    const ric = typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function'
+      ? window.requestIdleCallback(mark, { timeout: 800 })
+      : null;
+    const t = ric == null ? window.setTimeout(mark, 280) : null;
+    return () => {
+      cancelled = true;
+      if (ric != null && typeof window.cancelIdleCallback === 'function') {
+        window.cancelIdleCallback(ric);
+      }
+      if (t != null) window.clearTimeout(t);
+    };
+  }, []);
+
+  if (!ready) {
+    return (
+      <div className="mb-3 space-y-2" data-testid="orders-extras-deferred">
+        <Skeleton className="h-20 w-full rounded-xl" />
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <SafeSectionWrapper name="WalletCard"><WalletCard /></SafeSectionWrapper>
+      <SafeSectionWrapper name="LoyaltyCard"><LoyaltyCard /></SafeSectionWrapper>
+      <SafeSectionWrapper name="ReviewPromptBanner"><ReviewPromptBanner /></SafeSectionWrapper>
+      <SafeSectionWrapper name="BuyerBookingsCalendar"><BuyerBookingsCalendar /></SafeSectionWrapper>
+      <SafeSectionWrapper name="RecurringBookingsList"><RecurringBookingsList /></SafeSectionWrapper>
+    </>
+  );
+}
+
 export default function OrdersPage() {
   useBuyerRealtimeShell();
   const { user, isSeller, currentSellerId, sellerProfiles } = useAuth();
@@ -657,7 +697,17 @@ export default function OrdersPage() {
     );
   };
 
-  if (!user) return null;
+  if (!user) {
+    return (
+      <AppLayout headerTitle="Orders">
+        <div className="px-4 pt-3 space-y-3" data-testid="orders-auth-skeleton">
+          <Skeleton className="h-20 w-full rounded-xl" />
+          <Skeleton className="h-28 w-full rounded-xl" />
+          <Skeleton className="h-28 w-full rounded-xl" />
+        </div>
+      </AppLayout>
+    );
+  }
 
   return (
     <AppLayout headerTitle="Orders">
@@ -670,11 +720,7 @@ export default function OrdersPage() {
                 <TabsTrigger value="selling" className="flex-1 text-xs">Received</TabsTrigger>
               </TabsList>
               <TabsContent value="buying">
-                <SafeSectionWrapper name="WalletCard"><WalletCard /></SafeSectionWrapper>
-                <SafeSectionWrapper name="LoyaltyCard"><LoyaltyCard /></SafeSectionWrapper>
-                <SafeSectionWrapper name="ReviewPromptBanner"><ReviewPromptBanner /></SafeSectionWrapper>
-                <SafeSectionWrapper name="BuyerBookingsCalendar"><BuyerBookingsCalendar /></SafeSectionWrapper>
-                <SafeSectionWrapper name="RecurringBookingsList"><RecurringBookingsList /></SafeSectionWrapper>
+                <DeferredBuyerOrdersExtras />
                 <OrderList type="buyer" userId={user.id} ordersTab="buying" />
               </TabsContent>
               <TabsContent value="selling">
@@ -702,11 +748,7 @@ export default function OrdersPage() {
             </Tabs>
           ) : (
             <>
-              <SafeSectionWrapper name="WalletCard"><WalletCard /></SafeSectionWrapper>
-              <SafeSectionWrapper name="LoyaltyCard"><LoyaltyCard /></SafeSectionWrapper>
-              <SafeSectionWrapper name="ReviewPromptBanner"><ReviewPromptBanner /></SafeSectionWrapper>
-              <SafeSectionWrapper name="BuyerBookingsCalendar"><BuyerBookingsCalendar /></SafeSectionWrapper>
-              <SafeSectionWrapper name="RecurringBookingsList"><RecurringBookingsList /></SafeSectionWrapper>
+              <DeferredBuyerOrdersExtras />
               <OrderList type="buyer" userId={user.id} ordersTab="buying" />
             </>
           )}

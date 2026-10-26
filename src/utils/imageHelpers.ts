@@ -52,10 +52,22 @@ export function imageSrcSet(
     .join(', ');
 }
 
+/** Neutral SVG tile when a listing photo fails (avoids blank/hidden thumbs). */
+export const IMAGE_ERROR_PLACEHOLDER =
+  "data:image/svg+xml," +
+  encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160" viewBox="0 0 160 160">' +
+      '<rect width="160" height="160" fill="#e8ece9"/>' +
+      '<rect x="48" y="52" width="64" height="48" rx="6" fill="none" stroke="#9aa89e" stroke-width="3"/>' +
+      '<circle cx="68" cy="70" r="6" fill="#9aa89e"/>' +
+      '<path d="M52 92l18-16 14 12 12-8 12 12H52z" fill="#9aa89e"/>' +
+    '</svg>',
+  );
+
 /**
  * onError handler for optimized images.
  * First fallback: try the original (non-transformed) URL.
- * Second fallback: hide the image and show its sibling fallback.
+ * Second fallback: stable SVG placeholder (never blank/hidden).
  */
 export function handleImageError(e: React.SyntheticEvent<HTMLImageElement>) {
   const img = e.currentTarget;
@@ -72,5 +84,10 @@ export function handleImageError(e: React.SyntheticEvent<HTMLImageElement>) {
     return;
   }
 
-  img.style.display = 'none';
+  if (src !== IMAGE_ERROR_PLACEHOLDER) {
+    img.onerror = null;
+    img.src = IMAGE_ERROR_PLACEHOLDER;
+    img.style.display = '';
+    img.style.objectFit = 'cover';
+  }
 }

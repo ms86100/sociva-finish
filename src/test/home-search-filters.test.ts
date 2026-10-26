@@ -14,6 +14,9 @@ describe('home Blinkit-style search', () => {
     expect(read('components/home/MarketplaceSection.tsx')).toMatch(/data-testid="home-search-results"/);
     expect(read('components/home/MarketplaceSection.tsx')).toMatch(/visibleSearchProducts/);
     expect(read('components/home/MarketplaceSection.tsx')).toMatch(/CommerceFacetRail/);
+    expect(read('components/home/MarketplaceSection.tsx')).toMatch(/home-filtered-results/);
+    expect(read('components/home/MarketplaceSection.tsx')).toMatch(/!isFacetFilterActive/);
+    expect(read('components/home/MarketplaceSection.tsx')).toMatch(/facetParentGroup/);
     expect(read('components/home/MarketplaceSection.tsx')).not.toMatch(/\/search\?q=/);
     const bookContact = read('pages/CommerceModePage.tsx');
     expect(bookContact).toMatch(/searchActive/);

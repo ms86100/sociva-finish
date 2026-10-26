@@ -169,38 +169,39 @@
   }
 
   /* ═══════════════════════════════════════════════
-     DARK MODE - Neutral near-black, vivid green
+     DARK MODE - Lifted charcoal surfaces, readable borders
+     Cards and chips must separate clearly from the page.
      ═══════════════════════════════════════════════ */
   .dark {
     color-scheme: dark;
-    --background: 0 0% 5%;
-    --foreground: 0 0% 94%;
+    --background: 220 12% 7%;
+    --foreground: 0 0% 96%;
 
-    --card: 20 4% 12%;
-    --card-foreground: 0 0% 94%;
-    --card-elevated: 20 3% 15%;
+    --card: 220 10% 13%;
+    --card-foreground: 0 0% 96%;
+    --card-elevated: 220 10% 16%;
 
-    --popover: 0 0% 7%;
-    --popover-foreground: 0 0% 94%;
+    --popover: 220 12% 10%;
+    --popover-foreground: 0 0% 96%;
 
-    --primary: 151 65% 44%;
+    --primary: 151 62% 46%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 0 0% 14%;
-    --secondary-foreground: 0 0% 72%;
+    --secondary: 220 10% 16%;
+    --secondary-foreground: 0 0% 84%;
 
-    --muted: 0 0% 13%;
-    --muted-foreground: 0 0% 60%;
+    --muted: 220 10% 15%;
+    --muted-foreground: 220 8% 72%;
 
-    --accent: 151 65% 44%;
+    --accent: 151 62% 46%;
     --accent-foreground: 0 0% 100%;
 
-    --destructive: 4 66% 52%;
+    --destructive: 4 66% 56%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 0 0% 17%;
-    --input: 0 0% 14%;
-    --ring: 151 65% 44%;
+    --border: 220 10% 28%;
+    --input: 220 10% 18%;
+    --ring: 151 62% 46%;
 
     --radius: 0.75rem;
     --radius-card: 1rem;
@@ -228,52 +229,52 @@
     --nav-active-foreground: 0 0% 100%;
 
     /* Product image */
-    --product-image-bg: 0 0% 13%;
+    --product-image-bg: 220 10% 16%;
 
     /* Dark tints */
-    --tint-food: 0 0% 9%;
-    --tint-services: 0 0% 9%;
-    --tint-personal: 0 0% 9%;
-    --tint-resale: 0 0% 9%;
-    --tint-events: 0 0% 9%;
-    --tint-default: 0 0% 9%;
+    --tint-food: 220 10% 10%;
+    --tint-services: 220 10% 10%;
+    --tint-personal: 220 10% 10%;
+    --tint-resale: 220 10% 10%;
+    --tint-events: 220 10% 10%;
+    --tint-default: 220 10% 10%;
 
     /* Gradients */
-    --gradient-primary: linear-gradient(135deg, hsl(151 65% 44%) 0%, hsl(168 55% 38%) 100%);
-    --gradient-success: linear-gradient(135deg, hsl(151 65% 44%) 0%, hsl(162 50% 36%) 100%);
+    --gradient-primary: linear-gradient(135deg, hsl(151 62% 46%) 0%, hsl(168 55% 40%) 100%);
+    --gradient-success: linear-gradient(135deg, hsl(151 62% 46%) 0%, hsl(162 50% 38%) 100%);
     --gradient-warm: linear-gradient(135deg, hsl(38 92% 50%) 0%, hsl(20 85% 50%) 100%);
-    --gradient-hero: linear-gradient(180deg, hsl(151 65% 44% / 0.05) 0%, hsl(0 0% 5%) 60%);
-    --gradient-glass: linear-gradient(135deg, hsl(0 0% 11% / 0.98) 0%, hsl(0 0% 7% / 0.9) 100%);
+    --gradient-hero: linear-gradient(180deg, hsl(151 62% 46% / 0.08) 0%, hsl(220 12% 7%) 60%);
+    --gradient-glass: linear-gradient(135deg, hsl(220 10% 14% / 0.98) 0%, hsl(220 12% 10% / 0.92) 100%);
 
-    /* Shadows */
-    --shadow-sm: 0 1px 2px hsl(0 0% 0% / 0.35);
-    --shadow-md: 0 4px 12px hsl(0 0% 0% / 0.45);
-    --shadow-lg: 0 8px 30px hsl(0 0% 0% / 0.55);
-    --shadow-card: 0 1px 3px hsl(0 0% 0% / 0.35), 0 4px 14px hsl(0 0% 0% / 0.28), 0 0 0 1px hsl(0 0% 100% / 0.04);
-    --shadow-elevated: 0 8px 24px hsl(0 0% 0% / 0.5);
-    --shadow-glow: 0 0 20px hsl(151 65% 44% / 0.15);
-    --shadow-cta: 0 4px 14px hsl(151 65% 44% / 0.3);
-    --shadow-glow-green: 0 0 14px hsl(151 65% 44% / 0.2);
-    --shadow-glow-accent: 0 0 14px hsl(38 92% 50% / 0.2);
+    /* Shadows - use a light edge ring so cards stay findable on near-black */
+    --shadow-sm: 0 1px 2px hsl(0 0% 0% / 0.4), 0 0 0 1px hsl(0 0% 100% / 0.06);
+    --shadow-md: 0 4px 14px hsl(0 0% 0% / 0.45), 0 0 0 1px hsl(0 0% 100% / 0.08);
+    --shadow-lg: 0 10px 32px hsl(0 0% 0% / 0.55), 0 0 0 1px hsl(0 0% 100% / 0.08);
+    --shadow-card: 0 2px 8px hsl(0 0% 0% / 0.35), 0 0 0 1px hsl(0 0% 100% / 0.12);
+    --shadow-elevated: 0 10px 28px hsl(0 0% 0% / 0.5), 0 0 0 1px hsl(0 0% 100% / 0.14);
+    --shadow-glow: 0 0 20px hsl(151 62% 46% / 0.18);
+    --shadow-cta: 0 4px 14px hsl(151 62% 46% / 0.35);
+    --shadow-glow-green: 0 0 14px hsl(151 62% 46% / 0.22);
+    --shadow-glow-accent: 0 0 14px hsl(38 92% 50% / 0.22);
 
-    --sidebar-background: 0 0% 6%;
-    --sidebar-foreground: 0 0% 94%;
-    --sidebar-primary: 151 65% 44%;
+    --sidebar-background: 220 12% 8%;
+    --sidebar-foreground: 0 0% 96%;
+    --sidebar-primary: 151 62% 46%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 0 0% 13%;
-    --sidebar-accent-foreground: 0 0% 72%;
-    --sidebar-border: 0 0% 16%;
-    --sidebar-ring: 151 65% 44%;
+    --sidebar-accent: 220 10% 15%;
+    --sidebar-accent-foreground: 0 0% 84%;
+    --sidebar-border: 220 10% 28%;
+    --sidebar-ring: 151 62% 46%;
 
     /* ═══ Component surface tokens - Dark ═══ */
-    --header-bg: 0 0% 5%;
-    --nav-bg: 20 10% 5% / 0.98;
-    --nav-border: 20 8% 16% / 0.6;
-    --search-bg: 0 0% 12% / 0.8;
-    --search-border: 30 15% 22% / 0.5;
-    --buyagain-card-bg: 170 35% 14% / 0.55;
-    --buyagain-card-border: 170 35% 25% / 0.3;
-    --buyagain-badge-bg: 170 35% 18% / 0.8;
+    --header-bg: 220 12% 7%;
+    --nav-bg: 220 12% 8% / 0.96;
+    --nav-border: 220 10% 30% / 0.85;
+    --search-bg: 220 10% 14% / 0.95;
+    --search-border: 220 10% 34% / 0.8;
+    --buyagain-card-bg: 151 30% 16% / 0.65;
+    --buyagain-card-border: 151 40% 36% / 0.45;
+    --buyagain-badge-bg: 151 35% 20% / 0.9;
     --buyagain-badge-text: 0 0% 100%;
 
     /* ═══ Commerce modes - Dark. fill/foreground and ink/background >= 4.5:1 ═══ */
@@ -1009,6 +1010,29 @@ body.razorpay-active.razorpay-ios iframe[src*="checkout.razorpay"] {
   -webkit-overflow-scrolling: touch;
   -ms-overflow-style: none !important;
   scrollbar-width: none !important;
+}
+
+/* Discovery filter chips: keep overflow-x scroll but reserve vertical room for
+   the selected green ring so the top arc is never sliced off. */
+.discovery-chip-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  -ms-overflow-style: none !important;
+  scrollbar-width: none !important;
+  padding-top: 10px;
+  padding-bottom: 6px;
+  margin-top: -2px;
+}
+.discovery-chip-scroll::-webkit-scrollbar,
+.discovery-chip-scroll::-webkit-scrollbar-thumb,
+.discovery-chip-scroll::-webkit-scrollbar-track,
+.discovery-chip-scroll::-webkit-scrollbar-corner {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  background: transparent !important;
 }
 .taste-rail-scroll::-webkit-scrollbar,
 .taste-rail-scroll::-webkit-scrollbar-thumb,
@@ -2397,5 +2421,189 @@ body.razorpay-active.razorpay-ios iframe[src*="checkout.razorpay"] {
   }
   .neighbor-type-cursor {
     display: none;
+  }
+}
+
+/* Food Room - cinematic hero + rail atmosphere */
+.guided-room-page {
+  background:
+    radial-gradient(120% 60% at 50% -8%, rgba(245, 197, 66, 0.12), transparent 55%),
+    hsl(var(--background));
+}
+.contact-seller-page {
+  background:
+    radial-gradient(110% 48% at 50% -6%, rgba(16, 185, 129, 0.14), transparent 52%),
+    hsl(var(--background));
+}
+.book-enquire-page {
+  background:
+    radial-gradient(120% 55% at 12% -8%, rgba(45, 212, 191, 0.16), transparent 48%),
+    radial-gradient(90% 40% at 88% 0%, rgba(16, 185, 129, 0.08), transparent 42%),
+    hsl(var(--background));
+}
+.contact-seller-hero,
+.book-enquire-hero {
+  position: relative;
+}
+.contact-seller-hero::after,
+.book-enquire-hero::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(115deg, transparent 30%, rgba(167, 243, 208, 0.14) 48%, transparent 66%);
+  background-size: 220% 100%;
+  animation: neighbor-banner-sheen 6.2s ease-in-out infinite;
+}
+.book-enquire-hero::before {
+  content: '';
+  position: absolute;
+  right: -18%;
+  top: -40%;
+  width: 58%;
+  height: 140%;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(45, 212, 191, 0.28), transparent 68%);
+  pointer-events: none;
+}
+.book-enquire-hero::after {
+  background: linear-gradient(115deg, transparent 30%, rgba(153, 246, 228, 0.18) 48%, transparent 66%);
+  background-size: 220% 100%;
+}
+.book-hero-punch {
+  color: #9ff0e2;
+}
+.book-tile-sheen {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(115deg, transparent 28%, rgba(255, 255, 255, 0.16) 48%, transparent 66%);
+  background-size: 220% 100%;
+  animation: neighbor-banner-sheen 7s ease-in-out infinite;
+}
+.book-cta-arrow {
+  animation: guided-room-arrow-nudge 1.6s ease-in-out infinite;
+}
+.contact-neighbor-open-pulse {
+  box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.45);
+  animation: cooking-nearby-open-pulse 2.2s ease-out infinite;
+}
+.contact-seller-card-enter,
+.book-listing-card-enter,
+.food-listing-card-enter {
+  animation: contact-seller-fade-up 0.55s ease-out both;
+}
+@keyframes contact-seller-fade-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.guided-listing-page {
+  background:
+    radial-gradient(120% 48% at 50% -8%, hsl(var(--primary) / 0.10), transparent 58%),
+    linear-gradient(180deg, hsl(var(--background)) 0%, hsl(var(--muted) / 0.35) 100%);
+}
+.dark .guided-listing-page {
+  background:
+    radial-gradient(120% 48% at 50% -8%, hsl(var(--primary) / 0.16), transparent 60%),
+    linear-gradient(180deg, hsl(var(--background)) 0%, hsl(220 12% 9%) 100%);
+}
+.food-listing-sheen {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(115deg, transparent 30%, rgba(255, 255, 255, 0.14) 48%, transparent 66%);
+  background-size: 220% 100%;
+  animation: neighbor-banner-sheen 7.4s ease-in-out infinite;
+  opacity: 0.55;
+}
+.dark .food-listing-sheen {
+  background: linear-gradient(115deg, transparent 30%, rgba(255, 255, 255, 0.06) 48%, transparent 66%);
+  background-size: 220% 100%;
+  opacity: 0.7;
+}
+.food-open-dot {
+  box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.45);
+  animation: cooking-nearby-open-pulse 2.2s ease-out infinite;
+}
+.guided-room-hero-sheen {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(115deg, transparent 28%, rgba(255, 214, 120, 0.16) 48%, transparent 66%);
+  background-size: 220% 100%;
+  animation: neighbor-banner-sheen 6.2s ease-in-out infinite;
+}
+.guided-room-hero-grain {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.18;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.45'/%3E%3C/svg%3E");
+  mix-blend-mode: soft-light;
+}
+.guided-room-hero-punch {
+  color: #ffe7a3;
+}
+.guided-room-ken-burns {
+  animation: guided-room-ken-burns 18s ease-in-out infinite alternate;
+  transform-origin: center 35%;
+}
+.guided-room-fade-1,
+.guided-room-fade-2,
+.guided-room-fade-3 {
+  animation: guided-room-fade-up 0.7s ease-out both;
+}
+.guided-room-fade-2 { animation-delay: 0.12s; }
+.guided-room-fade-3 { animation-delay: 0.24s; }
+.guided-room-cta-arrow {
+  animation: guided-room-arrow-nudge 1.6s ease-in-out infinite;
+}
+.guided-room-rail-nudge {
+  animation: guided-room-arrow-nudge 1.5s ease-in-out infinite;
+}
+.cooking-nearby-open-pulse {
+  box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.45);
+  animation: cooking-nearby-open-pulse 2.2s ease-out infinite;
+}
+@keyframes guided-room-ken-burns {
+  0% { transform: scale(1.02) translate3d(0, 0, 0); }
+  100% { transform: scale(1.08) translate3d(-1.5%, -1%, 0); }
+}
+@keyframes guided-room-fade-up {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes guided-room-arrow-nudge {
+  0%, 70%, 100% { transform: translateX(0); }
+  85% { transform: translateX(3px); }
+}
+@keyframes cooking-nearby-open-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
+  70% { box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .guided-room-hero-sheen,
+  .guided-room-ken-burns,
+  .guided-room-fade-1,
+  .guided-room-fade-2,
+  .guided-room-fade-3,
+  .guided-room-cta-arrow,
+  .guided-room-rail-nudge,
+  .cooking-nearby-open-pulse,
+  .contact-seller-hero::after,
+  .book-enquire-hero::after,
+  .book-tile-sheen,
+  .book-cta-arrow,
+  .contact-neighbor-open-pulse,
+  .contact-seller-card-enter,
+  .book-listing-card-enter,
+  .food-listing-card-enter,
+  .food-listing-sheen,
+  .food-open-dot {
+    animation: none !important;
+  }
+  .guided-room-ken-burns {
+    transform: none;
   }
 }

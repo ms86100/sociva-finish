@@ -96,6 +96,17 @@ describe('service booking coupon wiring (contract)', () => {
     expect(flow).toContain('calculateCouponDiscount');
   });
 
+  it('allows zero-price bookings as price on request', () => {
+    const flow = read('src/components/booking/ServiceBookingFlow.tsx');
+    expect(flow).not.toContain("toast.error('Invalid service price')");
+    expect(flow).toContain('merchandiseTotal < 0');
+    expect(flow).toContain('getCommercePriceLabel');
+    expect(flow).toContain('Seller will confirm the final price after you book.');
+    const mig = read('supabase/migrations/20261026120000_zero_price_booking_and_admin_deeplinks.sql');
+    expect(mig).toContain('IF _merchandise < 0 THEN');
+    expect(mig).not.toMatch(/IF _merchandise <= 0 THEN/);
+  });
+
   it('migration extends create_service_booking_atomic with server coupon validation', () => {
     const mig = read('supabase/migrations/20260923210000_service_booking_coupons.sql');
     expect(mig).toContain('_coupon_id text DEFAULT NULL');

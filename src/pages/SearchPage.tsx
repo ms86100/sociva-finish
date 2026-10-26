@@ -364,7 +364,7 @@ export default function SearchPage() {
 
           {/* Results: idle search is for typing, not dumping the home catalog. */}
           {s.showLoading ? (
-            <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 gap-2.5 mt-2">
+            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5 mt-2">
               {[1, 2, 3, 4, 5, 6].map((i) => <Skeleton key={i} className="h-52 w-full rounded-xl" />)}
             </div>
           ) : s.isSearchActive && visibleProducts.length > 0 ? (
@@ -469,7 +469,7 @@ function ProductGridByCategory({ products, facetRows, sellersById, categoryMap, 
               <span className="text-[11px] font-semibold text-accent ml-auto">From {formatPrice(Math.min(...items.map(p => p.price)))}</span>
             </div>
             <motion.div
-              className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 gap-2 sm:gap-3.5"
+              className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-3.5"
               variants={staggerGrid}
               initial="hidden"
               animate="show"

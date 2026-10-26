@@ -40,14 +40,16 @@ describe('marketplace listing UI contracts', () => {
     expect(css).toMatch(/\.marketplace-stack\s*\{[^}]*flex flex-col gap-4/);
   });
 
-  it('primary listing grids share elevated gap tokens', () => {
+  it('primary listing grids use readable 2-col mobile density', () => {
     const discovery = readSrc('src/pages/DiscoveryListingsPage.tsx');
     const category = readSrc('src/pages/CategoryGroupPage.tsx');
     const search = readSrc('src/pages/SearchPage.tsx');
     for (const src of [discovery, category, search]) {
-      expect(src).toContain('grid-cols-3');
+      expect(src).toContain('grid-cols-2');
       expect(src).toMatch(/gap-2(?:\.5)? sm:gap-3(?:\.5)?/);
     }
+    expect(category).toContain('ListingClosedStrip');
+    expect(category).toContain('buildListingClosedStrip');
   });
 
   it('ProductListingCard keeps ADD clear of image with glass density', () => {
@@ -99,6 +101,13 @@ describe('marketplace listing UI contracts', () => {
     expect(src).toContain('Width-only keeps the native aspect ratio');
     expect(src).not.toMatch(/height=\$\{/);
     expect(src).not.toContain('resize=');
+  });
+
+  it('broken images fall back to a placeholder instead of hiding', () => {
+    const src = readSrc('src/utils/imageHelpers.ts');
+    expect(src).toContain('IMAGE_ERROR_PLACEHOLDER');
+    expect(src).toContain('img.src = IMAGE_ERROR_PLACEHOLDER');
+    expect(src).not.toMatch(/img\.style\.display = 'none'/);
   });
 
   it('listingPlaceChip drops tower/phase tails for dense cards', async () => {

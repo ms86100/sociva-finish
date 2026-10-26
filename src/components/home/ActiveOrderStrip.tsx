@@ -16,7 +16,7 @@ import {
   getExpiredOrderAcks,
   isOrderAcceptanceExpired,
 } from '@/lib/expired-order-acks';
-import { handleImageError, optimizedImageUrl } from '@/utils/imageHelpers';
+import { optimizedImageUrl } from '@/utils/imageHelpers';
 
 function CompactCountdown({ autoCancelAt, onExpire }: { autoCancelAt: string; onExpire?: () => void }) {
   const calc = useCallback(() => {
@@ -57,11 +57,53 @@ interface ActiveOrder {
   estimated_delivery_at: string | null;
   auto_cancel_at: string | null;
   seller_name: string;
+  seller_image: string | null;
   item_count: number;
   display_label: string | null;
   color: string | null;
   icon: string | null;
   first_product_image: string | null;
+}
+
+function OrderStripThumb({
+  productImage,
+  sellerImage,
+  sellerName,
+}: {
+  productImage: string | null;
+  sellerImage: string | null;
+  sellerName: string;
+}) {
+  const candidates = [productImage, sellerImage]
+    .map((url) => String(url || '').trim())
+    .filter(Boolean);
+  const [index, setIndex] = useState(0);
+  const src = candidates[index] || null;
+
+  if (!src) {
+    return (
+      <span className="flex h-full w-full items-center justify-center text-[12px] font-extrabold text-primary">
+        {(sellerName || 'O').slice(0, 1).toUpperCase()}
+      </span>
+    );
+  }
+
+  return (
+    <img
+      src={optimizedImageUrl(src, { width: 96, quality: 70 })}
+      alt=""
+      className="h-full w-full object-cover"
+      loading="lazy"
+      decoding="async"
+      onError={() => {
+        if (index + 1 < candidates.length) {
+          setIndex((value) => value + 1);
+          return;
+        }
+        setIndex(candidates.length);
+      }}
+    />
+  );
 }
 
 export function ActiveOrderStrip() {
@@ -87,7 +129,7 @@ export function ActiveOrderStrip() {
         .from('orders')
         .select(`
           id, status, created_at, estimated_delivery_at, auto_cancel_at,
-          seller:seller_profiles!orders_seller_id_fkey(business_name),
+          seller:seller_profiles!orders_seller_id_fkey(business_name, profile_image_url, cover_image_url),
           order_items(id, product:products(image_url))
         `)
         .eq('buyer_id', user.id)
@@ -125,14 +167,17 @@ export function ActiveOrderStrip() {
       return data
         .map((o: any) => {
           const flow = flowMap.get(o.status);
+          const seller = Array.isArray(o.seller) ? o.seller[0] : o.seller;
           const firstImage = o.order_items?.find((oi: any) => oi.product?.image_url)?.product?.image_url || null;
+          const sellerImage = seller?.profile_image_url || seller?.cover_image_url || null;
           return {
             id: o.id,
             status: o.status,
             created_at: o.created_at,
             estimated_delivery_at: o.estimated_delivery_at,
             auto_cancel_at: o.auto_cancel_at || null,
-            seller_name: (Array.isArray(o.seller) ? o.seller[0] : o.seller)?.business_name || '',
+            seller_name: seller?.business_name || '',
+            seller_image: sellerImage,
             item_count: o.order_items?.length || 0,
             display_label: flow?.display_label || String(o.status || 'Updating').replace(/_/g, ' '),
             color: flow?.color || null,
@@ -214,20 +259,13 @@ export function ActiveOrderStrip() {
                 className="flex items-center gap-2 rounded-xl bg-primary/[0.06] backdrop-blur-lg backdrop-saturate-150 border border-primary/[0.1] pl-2.5 pr-1 py-2 cursor-pointer active:scale-[0.97] transition-transform shrink-0 min-w-0"
                 style={{ maxWidth: visibleOrders.length === 1 ? '100%' : '55vw' }}
               >
-                {/* Thumbnail */}
-                <div className="w-9 h-9 rounded-xl bg-primary/10 shrink-0 overflow-hidden flex items-center justify-center">
-                  {order.first_product_image ? (
-                    <img
-                      src={optimizedImageUrl(order.first_product_image, { width: 96, quality: 70 })}
-                      alt=""
-                      className="w-full h-full object-cover"
-                      loading="lazy"
-                      decoding="async"
-                      onError={handleImageError}
-                    />
-                  ) : (
-                    <span className="text-sm">📦</span>
-                  )}
+                {/* Thumbnail - fall back to seller photo / initial when product image is broken */}
+                <div className="w-9 h-9 rounded-xl bg-primary/10 shrink-0 overflow-hidden flex items-center justify-center ring-1 ring-primary/15">
+                  <OrderStripThumb
+                    productImage={order.first_product_image}
+                    sellerImage={order.seller_image}
+                    sellerName={order.seller_name}
+                  />
                 </div>
 
                 {/* Status + seller */}

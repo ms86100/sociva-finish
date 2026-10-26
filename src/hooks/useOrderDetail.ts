@@ -376,6 +376,14 @@ export function useOrderDetail(id: string | undefined) {
       invalidateOrder();
       return;
     }
+    // Already at target (e.g. double-tap Could not deliver after no_show succeeded).
+    if (order.status === newStatus) {
+      if (newStatus === 'no_show') {
+        toast.success('Already marked as could not deliver', { id: `order-${order.id}-no-show` });
+      }
+      invalidateOrder();
+      return;
+    }
     // Any seller action on this order stops the incoming ring immediately (don't wait for realtime).
     if (isSellerView) {
       void import('@/lib/order-alert-ack').then(({ acknowledgeOrderAlert }) => {
@@ -421,6 +429,11 @@ export function useOrderDetail(id: string | undefined) {
         to_status: confirmedStatus,
         transaction_type: txn,
       });
+      if (confirmedStatus === 'no_show') {
+        toast.success('Marked as could not deliver. The buyer will be updated.', {
+          id: `order-${order.id}-no-show`,
+        });
+      }
       if (confirmedStatus === 'cancelled' && txn !== 'contact_enquiry') {
         track('order_cancelled', {
           order_id: order.id,
@@ -452,6 +465,9 @@ export function useOrderDetail(id: string | undefined) {
         toast.info('OTP verification required - please enter the delivery code', { id: `order-${order.id}-otp` });
       } else if (/response time expired|can no longer be accepted/i.test(errMsg)) {
         toast.error('Response time expired - this order can no longer be accepted', { id: `order-${order.id}-expired` });
+        invalidateOrder();
+      } else if (/Invalid seller transition from no_show to no_show/i.test(errMsg)) {
+        toast.success('Already marked as could not deliver', { id: `order-${order.id}-no-show` });
         invalidateOrder();
       } else {
         toast.error(
