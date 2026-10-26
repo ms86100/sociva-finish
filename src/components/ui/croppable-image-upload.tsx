@@ -109,7 +109,17 @@ export function CroppableImageUpload({
   const handleUploadBlob = useCallback(async (blob: Blob) => {
     setIsUploading(true);
     try {
-      const fileName = `${userId}/${folder}/${Date.now()}.jpg`;
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (!sessionData.session) {
+        toast.error('Please log in again to upload a photo');
+        return;
+      }
+      const ownerId = sessionData.session.user.id || userId;
+      if (!ownerId) {
+        toast.error('Please log in again to upload a photo');
+        return;
+      }
+      const fileName = `${ownerId}/${folder}/${Date.now()}.jpg`;
       const { data, error } = await supabase.storage
         .from('app-images')
         .upload(fileName, blob, { cacheControl: '3600', upsert: false, contentType: 'image/jpeg' });
@@ -137,11 +147,7 @@ export function CroppableImageUpload({
     } catch (err: any) {
       if (err?.message?.includes('cancelled') || err?.message?.includes('canceled') || err?.message?.includes('User cancelled')) return;
       console.error('Native pick error:', err);
-      if (err?.message?.includes('permission') || err?.message?.includes('Permission')) {
-        toast.error(friendlyError(err) || 'Image access permission is required');
-      } else {
-        toast.error(friendlyError(err) || 'Failed to select image');
-      }
+      toast.error(friendlyError(err) || 'Failed to select image');
     }
   }, [queueCrop]);
 

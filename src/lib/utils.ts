@@ -44,12 +44,34 @@ export function friendlyError(error: unknown): string {
     lower.includes('photo') ||
     lower.includes('photos') ||
     lower.includes('gallery') ||
-    lower.includes('library');
+    lower.includes('library') ||
+    lower.includes('media') ||
+    lower.includes('securityexception') ||
+    lower.includes('notallowederror') ||
+    lower.includes('getusermedia');
+  const mediaAccessDenied =
+    lower.includes('permission') ||
+    lower.includes('denied') ||
+    lower.includes('access') ||
+    lower.includes('not allowed') ||
+    lower.includes('blocked');
+  // Prefer device Settings guidance over the generic account-permission toast.
   if (
-    mentionsMedia &&
-    (lower.includes('permission') || lower.includes('denied') || lower.includes('access'))
+    (mentionsMedia && mediaAccessDenied) ||
+    lower.includes('securityexception') ||
+    lower === 'permission denied' ||
+    lower === 'permission denied.' ||
+    lower.includes('user denied access') ||
+    lower.includes('allow camera and photos in your device settings')
   ) {
     return 'Allow camera and photos in your device Settings to change your photo.';
+  }
+  // Storage object RLS after a successful pick is almost always a stale session.
+  if (
+    (lower.includes('row-level security') || lower.includes('rls') || lower.includes('policy')) &&
+    (lower.includes('storage') || lower.includes('bucket') || lower.includes('object') || lower.includes('upload'))
+  ) {
+    return 'Could not upload your photo. Please log in again and try.';
   }
   if (lower.includes('row-level security') || lower.includes('rls') || lower.includes('policy')) {
     return "You don't have permission for this action.";

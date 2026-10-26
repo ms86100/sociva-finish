@@ -124,7 +124,18 @@ describe('friendlyError - Error Mapping', () => {
       .toMatch(/Settings to change your photo/);
     expect(friendlyError(new Error('User denied access to photos')))
       .toMatch(/Settings to change your photo/);
-    expect(friendlyError(new Error('row-level security violation'))).toBe("You don't have permission for this action.");
+    expect(friendlyError(new Error('Permission denied')))
+      .toMatch(/Settings to change your photo/);
+    expect(friendlyError(new Error('NotAllowedError: Permission denied')))
+      .toMatch(/Settings to change your photo/);
+    expect(friendlyError(new Error('SecurityException')))
+      .toMatch(/Settings to change your photo/);
+    expect(friendlyError(new Error('new row violates row-level security policy')))
+      .toBe("You don't have permission for this action.");
+    expect(friendlyError(new Error('row-level security violation')))
+      .toBe("You don't have permission for this action.");
+    expect(friendlyError(new Error('storage upload: new row violates row-level security policy for bucket')))
+      .toMatch(/upload your photo/i);
   });
   it('maps network errors', () => {
     expect(friendlyError(new Error('Failed to fetch'))).toContain('internet connection');

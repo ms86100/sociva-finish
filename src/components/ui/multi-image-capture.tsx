@@ -85,6 +85,7 @@ export function MultiImageCapture({
       const url = await uploadBlob(blob, 'photo.jpg');
       onChange([...value, url]);
     } catch (err: any) {
+      if (String(err?.message ?? '').toLowerCase().includes('cancel')) return;
       toast.error(friendlyError(err) || 'Capture failed');
     } finally {
       setUploading(false);

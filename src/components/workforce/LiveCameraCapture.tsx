@@ -27,9 +27,9 @@ export function LiveCameraCapture({ onCapture, capturedPreview, onClear }: LiveC
     } catch (err: any) {
       console.error('Native camera error:', err);
       const msg = err?.message || '';
-      if (!msg.includes('cancel') && !msg.includes('Cancel')) {
-        toast.error(msg.includes('permission') || msg.includes('Permission') ? msg : 'Failed to capture photo. Please try again.');
-      }
+      if (msg.toLowerCase().includes('cancel')) return;
+      const { friendlyError } = await import('@/lib/utils');
+      toast.error(friendlyError(err) || 'Failed to capture photo. Please try again.');
     } finally {
       setIsCapturing(false);
     }
@@ -41,7 +41,7 @@ export function LiveCameraCapture({ onCapture, capturedPreview, onClear }: LiveC
       handleNativeCapture();
       return;
     }
-    // Web fallback
+    // Web fallback - browser will show the Allow camera prompt
     try {
       const mediaStream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: 'user', width: 640, height: 480 },
@@ -54,6 +54,8 @@ export function LiveCameraCapture({ onCapture, capturedPreview, onClear }: LiveC
       setIsStreaming(true);
     } catch (err) {
       console.error('Camera access denied:', err);
+      const { friendlyError } = await import('@/lib/utils');
+      toast.error(friendlyError(err) || 'Allow camera access to take a photo.');
     }
   }, [handleNativeCapture]);
 

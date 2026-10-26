@@ -1,37 +1,89 @@
 // @ts-nocheck
 import { Capacitor } from '@capacitor/core';
 
+export const MEDIA_PERMISSION_MESSAGE =
+  'Allow camera and photos in your device Settings to change your photo.';
+
+const SETTINGS_HINT = MEDIA_PERMISSION_MESSAGE;
+
+function delay(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isCancelledError(err: unknown): boolean {
+  const msg = String((err as any)?.message ?? err ?? '').toLowerCase();
+  return msg.includes('cancel') || msg.includes('cancelled') || msg.includes('canceled');
+}
+
+function isMediaPermissionFailure(err: unknown): boolean {
+  const msg = String((err as any)?.message ?? err ?? '').toLowerCase();
+  if (isCancelledError(err)) return false;
+  return (
+    msg.includes('permission') ||
+    msg.includes('denied') ||
+    msg.includes('not allowed') ||
+    msg.includes('securityexception') ||
+    msg.includes('notallowederror') ||
+    msg.includes('access to camera') ||
+    msg.includes('access to photo') ||
+    msg.includes('access to photos') ||
+    msg.includes('photo library')
+  );
+}
+
+function rethrowMediaError(err: unknown): never {
+  if (isCancelledError(err)) throw err;
+  if (isMediaPermissionFailure(err)) {
+    throw new Error(SETTINGS_HINT);
+  }
+  throw err instanceof Error ? err : new Error(String(err ?? 'Failed to select image'));
+}
+
+function isGranted(status: string | undefined): boolean {
+  return status === 'granted' || status === 'limited';
+}
+
 /**
- * Ensure camera and photo library permissions are granted.
- * Must be called before any Camera.getPhoto() call.
+ * Ask the OS for camera and/or photo-library access before opening the picker.
+ * Returns which capabilities are available after the prompt.
  */
-async function ensureCameraPermissions(source: 'camera' | 'photos' | 'prompt'): Promise<void> {
+async function ensureMediaPermissions(opts: {
+  camera?: boolean;
+  photos?: boolean;
+}): Promise<{ cameraOk: boolean; photosOk: boolean }> {
+  const wantCamera = !!opts.camera;
+  const wantPhotos = !!opts.photos;
   const { Camera } = await import('@capacitor/camera');
-  const status = await Camera.checkPermissions();
 
-  const needsCamera = source === 'camera' || source === 'prompt';
-  const needsPhotos = source === 'photos' || source === 'prompt';
+  let status = await Camera.checkPermissions();
 
-  const cameraGranted = status.camera === 'granted';
-  const photosGranted = status.photos === 'granted' || status.photos === 'limited';
+  const toRequest: Array<'camera' | 'photos'> = [];
+  if (wantCamera && !isGranted(status.camera)) toRequest.push('camera');
+  if (wantPhotos && !isGranted(status.photos)) toRequest.push('photos');
 
-  if ((needsCamera && !cameraGranted) || (needsPhotos && !photosGranted)) {
-    const requested = await Camera.requestPermissions({
-      permissions: [
-        ...(needsCamera && !cameraGranted ? ['camera' as const] : []),
-        ...(needsPhotos && !photosGranted ? ['photos' as const] : []),
-      ],
+  if (toRequest.length > 0) {
+    status = await Camera.requestPermissions({ permissions: toRequest });
+    // Let iOS finish dismissing the system sheet before Camera.getPhoto.
+    await delay(450);
+  }
+
+  return {
+    cameraOk: !wantCamera || isGranted(status.camera),
+    photosOk: !wantPhotos || isGranted(status.photos),
+  };
+}
+
+/** Open the app's system Settings page so the user can enable camera/photos. */
+export async function openMediaSettings(): Promise<void> {
+  if (!Capacitor.isNativePlatform()) return;
+  try {
+    const { NativeSettings, AndroidSettings, IOSSettings } = await import('capacitor-native-settings');
+    await NativeSettings.open({
+      optionIOS: IOSSettings.App,
+      optionAndroid: AndroidSettings.ApplicationDetails,
     });
-
-    if (needsCamera && requested.camera === 'denied' && needsPhotos && requested.photos === 'denied') {
-      throw new Error('Allow camera and photos in your device Settings to change your photo.');
-    }
-    if (needsPhotos && requested.photos === 'denied' && source === 'photos') {
-      throw new Error('Allow camera and photos in your device Settings to change your photo.');
-    }
-    if (needsCamera && requested.camera === 'denied' && source === 'camera') {
-      throw new Error('Allow camera and photos in your device Settings to change your photo.');
-    }
+  } catch {
+    // Best-effort; callers already showed the Settings hint toast.
   }
 }
 
@@ -47,7 +99,11 @@ function cameraPhotoOptions(overrides: Record<string, unknown> = {}) {
   };
 }
 
-async function photoToBlob(photo: { webPath?: string; dataUrl?: string; base64String?: string }): Promise<Blob> {
+async function photoToBlob(photo: {
+  webPath?: string;
+  dataUrl?: string;
+  base64String?: string;
+}): Promise<Blob> {
   if (photo.webPath) {
     const response = await fetch(photo.webPath);
     return response.blob();
@@ -71,24 +127,22 @@ async function photoToBlob(photo: { webPath?: string; dataUrl?: string; base64St
 export async function pickImageFromGallery(): Promise<Blob | null> {
   if (!Capacitor.isNativePlatform()) return null;
 
-  const { Camera, CameraResultType, CameraSource } = await import('@capacitor/camera');
-
-  // Ensure permissions with delay for iOS
-  const permStatus = await Camera.checkPermissions();
-  if (permStatus.photos !== 'granted' && permStatus.photos !== 'limited') {
-    const requested = await Camera.requestPermissions({ permissions: ['photos'] });
-    if (requested.photos === 'denied') {
-      throw new Error('Allow camera and photos in your device Settings to change your photo.');
+  try {
+    const { photosOk } = await ensureMediaPermissions({ photos: true });
+    if (!photosOk) {
+      throw new Error(SETTINGS_HINT);
     }
-    await new Promise(resolve => setTimeout(resolve, 500));
+
+    const { Camera, CameraResultType, CameraSource } = await import('@capacitor/camera');
+    const photo = await Camera.getPhoto({
+      source: CameraSource.Photos,
+      ...cameraPhotoOptions({ resultType: CameraResultType.Uri }),
+    });
+
+    return photoToBlob(photo);
+  } catch (err) {
+    rethrowMediaError(err);
   }
-
-  const photo = await Camera.getPhoto({
-    source: CameraSource.Photos,
-    ...cameraPhotoOptions({ resultType: CameraResultType.Uri }),
-  });
-
-  return photoToBlob(photo);
 }
 
 /**
@@ -99,78 +153,57 @@ export async function pickImageFromGallery(): Promise<Blob | null> {
 export async function capturePhotoFromCamera(): Promise<Blob | null> {
   if (!Capacitor.isNativePlatform()) return null;
 
-  const { Camera, CameraResultType, CameraSource } = await import('@capacitor/camera');
-
-  // Ensure permissions with delay for iOS
-  const permStatus = await Camera.checkPermissions();
-  if (permStatus.camera !== 'granted') {
-    const requested = await Camera.requestPermissions({ permissions: ['camera'] });
-    if (requested.camera === 'denied') {
-      throw new Error('Allow camera and photos in your device Settings to change your photo.');
+  try {
+    const { cameraOk } = await ensureMediaPermissions({ camera: true });
+    if (!cameraOk) {
+      throw new Error(SETTINGS_HINT);
     }
-    await new Promise(resolve => setTimeout(resolve, 500));
+
+    const { Camera, CameraResultType, CameraSource } = await import('@capacitor/camera');
+    const photo = await Camera.getPhoto({
+      source: CameraSource.Camera,
+      ...cameraPhotoOptions({ resultType: CameraResultType.Uri, width: 1600 }),
+    });
+
+    return photoToBlob(photo);
+  } catch (err) {
+    rethrowMediaError(err);
   }
-
-  const photo = await Camera.getPhoto({
-    source: CameraSource.Camera,
-    ...cameraPhotoOptions({ resultType: CameraResultType.Uri, width: 1600 }),
-  });
-
-  return photoToBlob(photo);
 }
 
 /**
  * Prompt user to choose camera or gallery (native only).
+ * Requests OS permissions first so the system Allow dialog appears,
+ * then opens the picker with a source that matches what was granted.
  * Returns a Blob or null (web fallback).
  */
 export async function pickOrCaptureImage(): Promise<Blob | null> {
   if (!Capacitor.isNativePlatform()) return null;
 
-  const { Camera, CameraResultType, CameraSource } = await import('@capacitor/camera');
-
-  // Request permissions first, separately from the getPhoto call
-  // This prevents the permission dialog from breaking the gesture context
-  const permStatus = await Camera.checkPermissions();
-  const needsCamera = permStatus.camera !== 'granted';
-  const needsPhotos = permStatus.photos !== 'granted' && permStatus.photos !== 'limited';
-
-  if (needsCamera || needsPhotos) {
-    const requested = await Camera.requestPermissions({
-      permissions: [
-        ...(needsCamera ? ['camera' as const] : []),
-        ...(needsPhotos ? ['photos' as const] : []),
-      ],
+  try {
+    const { cameraOk, photosOk } = await ensureMediaPermissions({
+      camera: true,
+      photos: true,
     });
 
-    const photosGranted =
-      requested.photos === 'granted' ||
-      requested.photos === 'limited' ||
-      permStatus.photos === 'granted' ||
-      permStatus.photos === 'limited';
-    const cameraGranted = requested.camera === 'granted' || permStatus.camera === 'granted';
-
-    // Changing a profile photo only needs the library. Do not fail the whole
-    // flow if the user declines camera but allows photos.
-    if (!photosGranted && !cameraGranted) {
-      throw new Error('Allow camera and photos in your device Settings to change your photo.');
+    if (!cameraOk && !photosOk) {
+      throw new Error(SETTINGS_HINT);
     }
 
-    // Wait a moment for iOS to finish dismissing the permission dialog
-    // before invoking the image picker - this prevents "Failed to select image"
-    await new Promise(resolve => setTimeout(resolve, 500));
+    const { Camera, CameraResultType, CameraSource } = await import('@capacitor/camera');
+
+    // Match source to granted access so iOS does not open Photos without library permission.
+    let source = CameraSource.Prompt;
+    if (cameraOk && !photosOk) source = CameraSource.Camera;
+    else if (photosOk && !cameraOk) source = CameraSource.Photos;
 
     const photo = await Camera.getPhoto({
-      source: cameraGranted ? CameraSource.Prompt : CameraSource.Photos,
+      source,
       ...cameraPhotoOptions({ resultType: CameraResultType.Uri }),
     });
 
     return photoToBlob(photo);
+  } catch (err) {
+    rethrowMediaError(err);
   }
-
-  const photo = await Camera.getPhoto({
-    source: CameraSource.Prompt,
-    ...cameraPhotoOptions({ resultType: CameraResultType.Uri }),
-  });
-
-  return photoToBlob(photo);
 }

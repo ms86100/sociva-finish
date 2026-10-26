@@ -75,7 +75,11 @@ describe('account profile photo picker', () => {
     expect(upload).toMatch(/pickImageFromGallery/);
     expect(upload).toMatch(/getSession/);
     expect(media).toMatch(/CameraSource\.Photos/);
-    expect(media).toMatch(/cameraGranted \? CameraSource\.Prompt : CameraSource\.Photos/);
+    expect(media).toMatch(/ensureMediaPermissions/);
+    expect(media).toMatch(/photosOk && !cameraOk/);
+    expect(media).toMatch(/CameraSource\.Camera/);
     expect(manifest).toContain('android.permission.CAMERA');
+    expect(manifest).toContain('android.permission.READ_MEDIA_IMAGES');
+    expect(manifest).toContain('android.permission.READ_EXTERNAL_STORAGE');
   });
 });
