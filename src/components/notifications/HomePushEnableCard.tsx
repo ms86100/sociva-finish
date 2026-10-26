@@ -1,23 +1,31 @@
 import { useState } from 'react';
+import { Capacitor } from '@capacitor/core';
 import { Bell, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
-import { usePermissionLifecycle } from '@/hooks/usePermissionLifecycle';
+import {
+  consumePostLoginPermissionSheet,
+  peekPostLoginPermissionSheet,
+  usePermissionLifecycle,
+} from '@/hooks/usePermissionLifecycle';
 import { openAppNotificationSettings } from '@/lib/notification-channel-settings';
-import { notificationAskCopy } from '@/lib/permission-prompt-rules';
+import {
+  notificationAskCopy,
+  shouldShowHomePushEnableCard,
+} from '@/lib/permission-prompt-rules';
 import { peekPendingAuthAction } from '@/lib/pending-auth-action';
 
 /**
- * Motivational notification ask. Allow opens the system dialog.
- * Not now hides it for a few days. Hidden once notifications are allowed.
- * Stays off cart, address, and checkout unless force is set after an order.
+ * Motivational notification ask on Home after login (any entry path).
+ * Allow opens the system dialog. Not now hides it for a few days.
+ * Hidden once notifications are allowed. Stays off cart/checkout unless force.
  */
 export function HomePushEnableCard({ force = false }: { force?: boolean }) {
-  const { isSeller, hasSellerProfile } = useAuth();
+  const { user, isSeller, hasSellerProfile } = useAuth();
   const {
-    showNotifSoftPrompt,
     notificationPermission,
+    notifCooldown,
     enableNotifications,
     dismissNotifPrompt,
   } = usePermissionLifecycle();
@@ -26,8 +34,18 @@ export function HomePushEnableCard({ force = false }: { force?: boolean }) {
   const pending = peekPendingAuthAction();
   const checkoutInProgress =
     !force && (pending?.type === 'checkout' || pending?.type === 'add_to_cart');
+  const postLoginAsk = force || peekPostLoginPermissionSheet();
 
-  if (!showNotifSoftPrompt || checkoutInProgress) return null;
+  const show = shouldShowHomePushEnableCard({
+    hasUser: !!user,
+    isNative: Capacitor.isNativePlatform(),
+    notificationPermission,
+    notifCooldown,
+    checkoutInProgress,
+    postLoginAsk,
+  });
+
+  if (!show) return null;
 
   const copy = notificationAskCopy(!!(isSeller || hasSellerProfile));
   const alreadyDenied = notificationPermission === 'denied';
@@ -47,14 +65,21 @@ export function HomePushEnableCard({ force = false }: { force?: boolean }) {
         new Promise<'settings'>((resolve) => setTimeout(() => resolve('settings'), 15000)),
       ]);
       if (result === 'granted') {
+        consumePostLoginPermissionSheet();
         toast.success('Notifications are on');
         return;
       }
       // They just declined the system dialog. Ask again in a few days, not Settings now.
+      consumePostLoginPermissionSheet();
       dismissNotifPrompt();
     } finally {
       setBusy(false);
     }
+  };
+
+  const handleNotNow = () => {
+    consumePostLoginPermissionSheet();
+    dismissNotifPrompt();
   };
 
   return (
@@ -79,7 +104,7 @@ export function HomePushEnableCard({ force = false }: { force?: boolean }) {
               variant="ghost"
               className="h-8"
               disabled={busy}
-              onClick={() => dismissNotifPrompt()}
+              onClick={handleNotNow}
             >
               Not now
             </Button>

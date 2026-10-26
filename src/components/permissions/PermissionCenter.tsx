@@ -4,7 +4,10 @@ import { Bell, MapPin, X, ExternalLink, Loader2, Sparkles } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
-import { usePermissionLifecycle } from '@/hooks/usePermissionLifecycle';
+import {
+  reopenNotificationAsk,
+  usePermissionLifecycle,
+} from '@/hooks/usePermissionLifecycle';
 import { openAppNotificationSettings } from '@/lib/notification-channel-settings';
 import { openLocationSettings } from '@/lib/location-settings';
 import { cn } from '@/lib/utils';
@@ -43,7 +46,6 @@ export function PermissionCenter({
     notifNeedsAttention,
     locNeedsAttention,
     dismissLocPrompt,
-    dismissAll,
     enableNotifications,
     enableLocation,
   } = usePermissionLifecycle();
@@ -65,7 +67,10 @@ export function PermissionCenter({
   const closeSheet = () => {
     // Close UI first - never wait on Preferences / RPC.
     onDismissed?.();
-    void dismissAll();
+    // Location can wait. Do NOT cool down notifications - reopen the home
+    // "Stay in the loop" ask so it appears after login from any entry path.
+    void dismissLocPrompt();
+    reopenNotificationAsk();
   };
 
   const handleEnableNotif = async () => {

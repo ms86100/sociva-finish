@@ -5,6 +5,7 @@ import {
   shouldDeferNotificationAsk,
   shouldDeferPostLoginPermissionSheet,
   shouldShowHomeLocationBanner,
+  shouldShowHomePushEnableCard,
   shouldShowLocSoftPrompt,
   shouldShowNotifSoftPrompt,
 } from '@/lib/permission-prompt-rules';
@@ -118,6 +119,52 @@ describe('permission soft-prompt rules', () => {
         notificationPermission: 'not_requested',
         notifCooldown: false,
         checkoutInProgress: true,
+      }),
+    ).toBe(false);
+    expect(
+      shouldShowNotifSoftPrompt({
+        isNative: true,
+        notificationPermission: 'not_requested',
+        notifCooldown: true,
+        bypassNotifCooldown: true,
+      }),
+    ).toBe(true);
+  });
+
+  it('shows home Stay in the loop after login even with cooldown', () => {
+    expect(
+      shouldShowHomePushEnableCard({
+        hasUser: false,
+        isNative: true,
+        notificationPermission: 'not_requested',
+        notifCooldown: false,
+      }),
+    ).toBe(false);
+    expect(
+      shouldShowHomePushEnableCard({
+        hasUser: true,
+        isNative: true,
+        notificationPermission: 'not_requested',
+        notifCooldown: true,
+        postLoginAsk: true,
+      }),
+    ).toBe(true);
+    expect(
+      shouldShowHomePushEnableCard({
+        hasUser: true,
+        isNative: true,
+        notificationPermission: 'not_requested',
+        notifCooldown: true,
+        postLoginAsk: false,
+      }),
+    ).toBe(false);
+    expect(
+      shouldShowHomePushEnableCard({
+        hasUser: true,
+        isNative: true,
+        notificationPermission: 'enabled',
+        notifCooldown: false,
+        postLoginAsk: true,
       }),
     ).toBe(false);
   });

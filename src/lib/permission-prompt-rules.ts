@@ -84,8 +84,34 @@ export function shouldShowNotifSoftPrompt(opts: {
   hasToken?: boolean;
   notifCooldown: boolean;
   checkoutInProgress?: boolean;
+  /** After login, show even if "Not now" / sheet cooldown is active. */
+  bypassNotifCooldown?: boolean;
 }): boolean {
-  if (opts.notifCooldown) return false;
+  if (opts.notifCooldown && !opts.bypassNotifCooldown) return false;
   if (opts.checkoutInProgress) return false;
   return notifNeedsAttention(opts);
+}
+
+/**
+ * Home "Stay in the loop" card - only for signed-in users on native,
+ * after any login path, until they Allow or tap Not now on this card.
+ */
+export function shouldShowHomePushEnableCard(opts: {
+  hasUser: boolean;
+  isNative: boolean;
+  notificationPermission: NotificationPermissionState;
+  hasToken?: boolean;
+  notifCooldown: boolean;
+  checkoutInProgress?: boolean;
+  postLoginAsk?: boolean;
+}): boolean {
+  if (!opts.hasUser) return false;
+  return shouldShowNotifSoftPrompt({
+    isNative: opts.isNative,
+    notificationPermission: opts.notificationPermission,
+    hasToken: opts.hasToken,
+    notifCooldown: opts.notifCooldown,
+    checkoutInProgress: opts.checkoutInProgress,
+    bypassNotifCooldown: !!opts.postLoginAsk,
+  });
 }

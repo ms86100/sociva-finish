@@ -28,21 +28,27 @@ describe('permission lifecycle phases 2-4 (source)', () => {
     expect(banner).toMatch(/PermissionCenter/);
     expect(profile).toMatch(/PermissionCenter/);
     expect(shell).toMatch(/PostLoginPermissionSheet/);
-    expect(sheet).toMatch(/consumePostLoginPermissionSheet/);
     expect(sheet).toMatch(/shouldDeferPostLoginPermissionSheet/);
     expect(sheet).toMatch(/peekPostLoginPermissionSheet/);
     expect(sheet).toMatch(/pathname !== '\/'/);
+    expect(sheet).not.toMatch(/consumePostLoginPermissionSheet/);
+    const homeCard = read('src/components/notifications/HomePushEnableCard.tsx');
+    expect(homeCard).toMatch(/shouldShowHomePushEnableCard/);
+    expect(homeCard).toMatch(/Stay in the loop|notificationAskCopy/);
   });
 
-  it('defers post-login sheet on checkout and dismisses without awaiting Preferences', () => {
+  it('defers post-login sheet on checkout and keeps home notif ask after Maybe later', () => {
     const hook = read('src/hooks/usePermissionLifecycle.ts');
     const rules = read('src/lib/permission-prompt-rules.ts');
     const center = read('src/components/permissions/PermissionCenter.tsx');
     expect(hook).toMatch(/shouldDeferPostLoginPermissionSheet/);
     expect(rules).toMatch(/path === '\/cart'/);
-    // Close UI first, then fire-and-forget dismiss
+    expect(rules).toMatch(/shouldShowHomePushEnableCard/);
+    // Close UI first; do not cool down notifications - reopen home ask
     expect(center).toMatch(/onDismissed\?\.\(\)/);
-    expect(center).toMatch(/void dismissAll/);
+    expect(center).toMatch(/reopenNotificationAsk/);
+    expect(center).toMatch(/void dismissLocPrompt/);
+    expect(center).not.toMatch(/void dismissAll/);
     // Sheet stays interactive - toast, not notify.block for enable failure
     expect(center).toMatch(/toast\.(success|error)/);
     expect(center).not.toMatch(/notify\.block/);

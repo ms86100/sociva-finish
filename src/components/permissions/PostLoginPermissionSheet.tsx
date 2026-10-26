@@ -3,7 +3,6 @@ import { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { PermissionCenter } from '@/components/permissions/PermissionCenter';
 import {
-  consumePostLoginPermissionSheet,
   peekPostLoginPermissionSheet,
   shouldDeferPostLoginPermissionSheet,
 } from '@/hooks/usePermissionLifecycle';
@@ -13,6 +12,8 @@ import { peekPendingAuthAction } from '@/lib/pending-auth-action';
  * Post-login soft sheet - shown once after OTP when marked by useAuthPage.
  * Never auto-fires the native OS notification dialog.
  * Deferred on /cart so checkout is never blocked by the permission sheet.
+ * Keeps the post-login mark until Home has rendered so HomePushEnableCard
+ * can still bypass cooldown if the sheet is dismissed with Maybe later.
  */
 export function PostLoginPermissionSheet() {
   const [open, setOpen] = useState(false);
@@ -22,17 +23,18 @@ export function PostLoginPermissionSheet() {
     if (open) return;
     if (!peekPostLoginPermissionSheet()) return;
 
-    // Keep the mark; open later when user leaves checkout.
+    // Keep the mark; open later when user leaves checkout / profile onboarding.
     if (shouldDeferPostLoginPermissionSheet(location.pathname)) return;
     const pending = peekPendingAuthAction();
-    if (pending?.type === 'checkout') return;
+    if (pending?.type === 'checkout' || pending?.type === 'add_to_cart') return;
 
-    // Login navigates away before this timer used to fire, and consuming
-    // the mark first meant the sheet never opened. Wait until Home is showing.
+    // Wait until Home is showing (after account, header, or any login path).
     if (location.pathname !== '/') return;
 
     const t = setTimeout(() => {
-      if (!consumePostLoginPermissionSheet()) return;
+      // Do not consume the mark here - HomePushEnableCard still needs it
+      // so "Stay in the loop" shows even if this sheet is closed early.
+      if (!peekPostLoginPermissionSheet()) return;
       setOpen(true);
     }, 800);
     return () => clearTimeout(t);
@@ -44,7 +46,10 @@ export function PostLoginPermissionSheet() {
     <PermissionCenter
       variant="sheet"
       attentionOnly
-      onDismissed={() => setOpen(false)}
+      onDismissed={() => {
+        // Sheet closed; leave mark for home card until Allow / Not now there.
+        setOpen(false);
+      }}
     />
   );
 }
