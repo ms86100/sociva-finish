@@ -2502,6 +2502,49 @@ body.razorpay-active.razorpay-ios iframe[src*="checkout.razorpay"] {
     radial-gradient(120% 48% at 50% -8%, hsl(var(--primary) / 0.10), transparent 58%),
     linear-gradient(180deg, hsl(var(--background)) 0%, hsl(var(--muted) / 0.35) 100%);
 }
+.helphub-find-page {
+  background:
+    radial-gradient(110% 42% at 78% -6%, hsl(var(--primary) / 0.14), transparent 55%),
+    radial-gradient(90% 36% at 8% 12%, hsl(152 45% 42% / 0.08), transparent 50%),
+    linear-gradient(180deg, hsl(var(--background)) 0%, hsl(var(--muted) / 0.28) 100%);
+}
+.dark .helphub-find-page {
+  background:
+    radial-gradient(110% 42% at 78% -6%, hsl(var(--primary) / 0.18), transparent 55%),
+    radial-gradient(90% 36% at 8% 12%, hsl(152 40% 35% / 0.12), transparent 50%),
+    linear-gradient(180deg, hsl(var(--background)) 0%, hsl(220 12% 9%) 100%);
+}
+
+/* Home HelpHub entry - rotating soft border */
+.helphub-entry-shell {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+.helphub-entry-shell::before {
+  content: '';
+  position: absolute;
+  inset: -55%;
+  z-index: 0;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0%,
+    transparent 58%,
+    hsl(var(--primary) / 0.2) 70%,
+    hsl(var(--primary) / 0.95) 78%,
+    hsl(152 70% 55% / 0.9) 85%,
+    hsl(var(--primary) / 0.25) 93%,
+    transparent 100%
+  );
+  animation: helphub-border-spin 5.5s linear infinite;
+}
+.helphub-entry-shell > * {
+  position: relative;
+  z-index: 1;
+}
+@keyframes helphub-border-spin {
+  to { transform: rotate(360deg); }
+}
 .dark .guided-listing-page {
   background:
     radial-gradient(120% 48% at 50% -8%, hsl(var(--primary) / 0.16), transparent 60%),
@@ -2600,7 +2643,8 @@ body.razorpay-active.razorpay-ios iframe[src*="checkout.razorpay"] {
   .book-listing-card-enter,
   .food-listing-card-enter,
   .food-listing-sheen,
-  .food-open-dot {
+  .food-open-dot,
+  .helphub-entry-shell::before {
     animation: none !important;
   }
   .guided-room-ken-burns {

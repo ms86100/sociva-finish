@@ -2,26 +2,29 @@
 import { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { PermissionCenter } from '@/components/permissions/PermissionCenter';
+import { useAuth } from '@/contexts/AuthContext';
 import {
   peekPostLoginPermissionSheet,
   shouldDeferPostLoginPermissionSheet,
 } from '@/hooks/usePermissionLifecycle';
+import { hasSeenOnboarding } from '@/lib/onboarding-seen';
 import { peekPendingAuthAction } from '@/lib/pending-auth-action';
 
 /**
- * Post-login soft sheet - shown once after OTP when marked by useAuthPage.
+ * Post-login soft sheet - shown once after successful auth when marked.
  * Never auto-fires the native OS notification dialog.
+ * Gated behind onboarding completion so it never overlaps the walkthrough.
  * Deferred on /cart so checkout is never blocked by the permission sheet.
- * Keeps the post-login mark until Home has rendered so HomePushEnableCard
- * can still bypass cooldown if the sheet is dismissed with Maybe later.
  */
 export function PostLoginPermissionSheet() {
   const [open, setOpen] = useState(false);
   const location = useLocation();
+  const { user } = useAuth();
 
   useEffect(() => {
     if (open) return;
     if (!peekPostLoginPermissionSheet()) return;
+    if (user?.id && !hasSeenOnboarding(user.id)) return;
 
     // Keep the mark; open later when user leaves checkout / profile onboarding.
     if (shouldDeferPostLoginPermissionSheet(location.pathname)) return;
@@ -33,12 +36,13 @@ export function PostLoginPermissionSheet() {
 
     const t = setTimeout(() => {
       // Do not consume the mark here - HomePushEnableCard still needs it
-      // so "Stay in the loop" shows even if this sheet is closed early.
+      // so "Stay in the Loop" shows even if this sheet is closed early.
       if (!peekPostLoginPermissionSheet()) return;
+      if (user?.id && !hasSeenOnboarding(user.id)) return;
       setOpen(true);
     }, 800);
     return () => clearTimeout(t);
-  }, [location.pathname, open]);
+  }, [location.pathname, open, user?.id]);
 
   if (!open) return null;
 

@@ -16,7 +16,7 @@ import {
   MessageCircle, Radio, ChevronRight, CreditCard, Clock, BarChart3, Shield,
   Users, ClipboardCheck, Landmark, Package, UserCheck, ShieldCheck, Car,
   Wrench, Briefcase, Megaphone, Truck, UserPlus, CalendarDays, Wallet, ClipboardList,
-  Search, X
+  Search, X, HandHelping
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useSearchPlaceholder } from '@/hooks/useSearchPlaceholder';
@@ -130,6 +130,7 @@ export default function SocietyDashboardPage() {
         title: 'Workforce',
         emoji: '👷',
         items: [
+          { icon: HandHelping, label: 'HelpHub', to: '/help-hub', stat: 'Find & recommend help', iconBg: 'bg-primary/10', iconColor: 'text-primary', featureKey: 'helphub', keywords: ['maid', 'cook', 'driver', 'nanny', 'domestic', 'help', 'recommend', 'helphub', 'jobs'] },
           { icon: UserCheck, label: 'My Workers', to: '/my-workers', stat: 'Registered help', iconBg: 'bg-success/10', iconColor: 'text-success', featureKey: 'workforce_management', keywords: ['maid', 'cook', 'driver', 'nanny', 'domestic', 'help', 'staff'] },
           { icon: Wrench, label: 'Workforce Mgmt', to: '/workforce', stat: 'Manage workers', iconBg: 'bg-warning/10', iconColor: 'text-warning', featureKey: 'workforce_management', keywords: ['manage', 'register', 'worker', 'employee', 'staff'] },
           { icon: Briefcase, label: 'Hire Workers', to: '/worker-hire', stat: 'Find local help', iconBg: 'bg-primary/10', iconColor: 'text-primary', featureKey: 'worker_marketplace', keywords: ['plumber', 'electrician', 'carpenter', 'cleaner', 'job', 'hire'] },

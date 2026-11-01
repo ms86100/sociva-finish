@@ -1,5 +1,13 @@
 /**
  * Pure rules for permission soft-prompts - unit-tested, no Capacitor.
+ *
+ * OS notification states (do not confuse with app consent):
+ * not_requested | enabled (granted) | denied | unknown
+ *
+ * App consent (localStorage via notification-app-consent):
+ * none | deferred | card_dismissed
+ *
+ * UI path settings_required = OS denied (open system settings, never re-prompt OS).
  */
 export type NotificationPermissionState = 'enabled' | 'denied' | 'not_requested' | 'unknown';
 export type LocationPermissionState =
@@ -11,6 +19,14 @@ export type LocationPermissionState =
 
 /** A few days. Saying no hides the home ask, then it comes back. */
 export const NOTIF_ASK_AGAIN_MS = 3 * 24 * 60 * 60 * 1000;
+
+/** Buyer Stay in the Loop home card copy (exact). */
+export const STAY_IN_THE_LOOP_COPY = {
+  title: 'Stay in the Loop!',
+  body: 'Never miss order updates, fresh food alerts and important community news.',
+  cta: 'Turn On Notifications',
+  secondary: 'Not Now',
+} as const;
 
 export function shouldDeferPostLoginPermissionSheet(pathname: string): boolean {
   const path = (pathname || '/').split('?')[0];
@@ -73,8 +89,8 @@ export function notificationAskCopy(isSeller: boolean): { title: string; body: s
     };
   }
   return {
-    title: 'Stay in the loop',
-    body: 'Turn on notifications and you will know the moment an order is accepted, prepared, or on the way.',
+    title: STAY_IN_THE_LOOP_COPY.title,
+    body: STAY_IN_THE_LOOP_COPY.body,
   };
 }
 
@@ -93,8 +109,8 @@ export function shouldShowNotifSoftPrompt(opts: {
 }
 
 /**
- * Home "Stay in the loop" card - only for signed-in users on native,
- * after any login path, until they Allow or tap Not now on this card.
+ * Home "Stay in the Loop" card - only for signed-in users on native,
+ * after onboarding, until they grant OS permission or dismiss the card.
  */
 export function shouldShowHomePushEnableCard(opts: {
   hasUser: boolean;
@@ -104,8 +120,15 @@ export function shouldShowHomePushEnableCard(opts: {
   notifCooldown: boolean;
   checkoutInProgress?: boolean;
   postLoginAsk?: boolean;
+  /** When true, permanently hide (Not Now / close on card). */
+  cardDismissed?: boolean;
+  /** Onboarding incomplete - never show notification UI. */
+  onboardingIncomplete?: boolean;
 }): boolean {
   if (!opts.hasUser) return false;
+  if (opts.onboardingIncomplete) return false;
+  if (opts.cardDismissed) return false;
+  if (opts.notificationPermission === 'enabled') return false;
   return shouldShowNotifSoftPrompt({
     isNative: opts.isNative,
     notificationPermission: opts.notificationPermission,

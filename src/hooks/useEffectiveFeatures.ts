@@ -23,6 +23,8 @@ export type FeatureKey =
   | 'resident_identity_verification'
   | 'worker_marketplace'
   | 'workforce_management'
+  | 'helphub'
+  | 'cleaner_city'
   | 'society_notices'
   | 'delivery_management'
   | 'worker_attendance'

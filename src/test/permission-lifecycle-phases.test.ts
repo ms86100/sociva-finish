@@ -8,8 +8,11 @@ const read = (rel: string) => readFileSync(resolve(root, rel), 'utf8');
 describe('permission lifecycle phases 2-4 (source)', () => {
   it('stops surprise OS notification prompts after login and checkout', () => {
     const auth = read('src/hooks/useAuthPage.ts');
+    const authState = read('src/contexts/auth/useAuthState.ts');
     const cart = read('src/hooks/useCartPage.ts');
     expect(auth).toMatch(/markPostLoginPermissionSheet/);
+    expect(authState).toMatch(/event === 'SIGNED_IN'/);
+    expect(authState).toMatch(/markPostLoginPermissionSheet/);
     expect(auth).not.toMatch(/requestFullPermission\(\)/);
     expect(cart).not.toMatch(/requestFullPermission/);
   });
@@ -34,7 +37,9 @@ describe('permission lifecycle phases 2-4 (source)', () => {
     expect(sheet).not.toMatch(/consumePostLoginPermissionSheet/);
     const homeCard = read('src/components/notifications/HomePushEnableCard.tsx');
     expect(homeCard).toMatch(/shouldShowHomePushEnableCard/);
-    expect(homeCard).toMatch(/Stay in the loop|notificationAskCopy/);
+    expect(homeCard).toMatch(/Stay in the Loop|STAY_IN_THE_LOOP_COPY|notificationAskCopy/);
+    expect(homeCard).toMatch(/hasSeenOnboarding/);
+    expect(sheet).toMatch(/hasSeenOnboarding/);
   });
 
   it('defers post-login sheet on checkout and keeps home notif ask after Maybe later', () => {
@@ -87,6 +92,40 @@ describe('permission lifecycle phases 2-4 (source)', () => {
     const admin = read('src/components/admin/NotificationDiagnostics.tsx');
     expect(admin).toMatch(/admin_permission_health_summary/);
     expect(admin).toMatch(/Permission Health/);
+  });
+
+  it('onboarding never requests notification permission', () => {
+    const walkthrough = read('src/components/onboarding/OnboardingWalkthrough.tsx');
+    const home = read('src/pages/HomePage.tsx');
+    expect(walkthrough).not.toMatch(/requestPermissions|requestFullPermission|PushNotifications/);
+    expect(home).not.toMatch(/completeOnboarding[\s\S]{0,200}request(FullPermission|Permissions)/);
+  });
+
+  it('soft update banner uses version gate and dismiss memory', () => {
+    const banner = read('src/components/home/AppUpdateBanner.tsx');
+    const gate = read('src/components/system/MinVersionGate.tsx');
+    const policy = read('src/lib/app-update-policy.ts');
+    expect(banner).toMatch(/shouldShowSoftUpdate|latest_version/);
+    expect(banner).toMatch(/dismissUpdateVersion/);
+    expect(gate).toMatch(/openAppStoreUrl/);
+    expect(policy).toMatch(/isVersionBelow|shouldShowSoftUpdate/);
+    expect(policy).toMatch(/Wait for App\.getInfo|if \(!installed\) return false/);
+  });
+
+  it('OS deny keeps Stay in the Loop card for Settings (does not card_dismiss)', () => {
+    const homeCard = read('src/components/notifications/HomePushEnableCard.tsx');
+    expect(homeCard).toMatch(/Declined OS dialog/);
+    expect(homeCard).toMatch(/void refreshFromOs\(\)/);
+    const denyBlock = homeCard.split('Declined OS dialog')[1]?.slice(0, 280) || '';
+    expect(denyBlock).not.toMatch(/dismissNotifCard\(\)/);
+  });
+
+  it('Playwright defaults to local preview and refuses lovable.app without override', () => {
+    const config = read('e2e/playwright.config.ts');
+    expect(config).toMatch(/127\.0\.0\.1:4173/);
+    expect(config).toMatch(/E2E_ALLOW_REMOTE/);
+    expect(config).toMatch(/Refusing E2E against/);
+    expect(config).not.toMatch(/BASE_URL \|\| 'https:\/\/sociva\.lovable\.app'/);
   });
 
   it('share helpers use OG /api/share paths for WhatsApp', () => {

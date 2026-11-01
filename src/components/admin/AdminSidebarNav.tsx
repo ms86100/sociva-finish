@@ -8,7 +8,7 @@ import {
   Store, Users, Building2, AlertCircle,   LayoutGrid, Flag,
   CreditCard, Star, Megaphone, Layers, Settings2, Bot, Mic,
   Menu, ChevronRight, FileCode, Send, Package, Wrench, MessageSquare, KeyRound, Smartphone,
-  BarChart3, GitBranch,   FlaskConical, MessageCircle, Shield, Radar,
+  BarChart3, GitBranch,   FlaskConical, MessageCircle, Shield, Radar, Leaf,
 } from 'lucide-react';
 import { useState } from 'react';
 import { Badge } from '@/components/ui/badge';
@@ -43,6 +43,8 @@ const NAV_GROUPS = [
       { value: 'users', label: 'Users', icon: Users },
       { value: 'societies', label: 'Societies', icon: Building2 },
       { value: 'disputes', label: 'Disputes', icon: AlertCircle },
+      { value: 'helphub', label: 'HelpHub', icon: Users },
+      { value: 'cleaner-city', label: 'A Cleaner City', icon: Leaf },
       { value: 'reports', label: 'Reports', icon: Flag },
       { value: 'reviews', label: 'Reviews', icon: Star },
     ],

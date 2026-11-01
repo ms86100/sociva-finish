@@ -9,7 +9,7 @@ import {
   Wrench, FileText, BarChart, Car, Users, CreditCard, Clipboard,
   HelpCircle, Bell, BookOpen, Award, Briefcase, ListChecks, Plus,
   Map, LogIn, Lock, Megaphone, Layers, Cog, Tags, CheckSquare,
-  Truck, Globe, PenTool, Boxes, Calendar
+  Truck, Globe, PenTool, Boxes, Calendar, Leaf
 } from 'lucide-react';
 
 interface NavItem {
@@ -115,9 +115,10 @@ const sections: NavSection[] = [
     items: [
       { label: 'Worker Jobs', route: '/worker/jobs', icon: Briefcase, description: 'Available jobs for workers' },
       { label: 'Worker My Jobs', route: '/worker/my-jobs', icon: ListChecks, description: 'Accepted jobs' },
+      { label: 'HelpHub', route: '/help-hub', icon: HelpCircle, description: 'Find and recommend society help' },
       { label: 'Hire Help', route: '/worker-hire', icon: Users, description: 'Post job requests' },
       { label: 'Create Job Request', route: '/worker-hire/create', icon: Plus, description: 'New job request form' },
-      { label: 'Domestic Help', route: '/domestic-help', icon: HelpCircle, description: 'Help entries & attendance' },
+      { label: 'Domestic Help', route: '/domestic-help', icon: HelpCircle, description: 'Redirects to HelpHub directory' },
       { label: 'Workforce Management', route: '/workforce', icon: Clipboard, description: 'Worker registration & gate validation' },
       { label: 'My Workers', route: '/my-workers', icon: Users, description: 'Manage your assigned workers' },
       { label: 'Worker Attendance', route: '/worker-attendance', icon: ClipboardList, description: 'Track worker attendance' },
@@ -130,6 +131,7 @@ const sections: NavSection[] = [
     color: 'bg-muted text-muted-foreground',
     items: [
       { label: 'Vehicle Parking', route: '/parking', icon: Car, description: 'Parking management' },
+      { label: 'A Cleaner City', route: '/cleaner-city', icon: Leaf, description: 'Society commute sharing hub' },
     ],
   },
   {

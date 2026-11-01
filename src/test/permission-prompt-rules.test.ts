@@ -178,8 +178,32 @@ describe('permission soft-prompt rules', () => {
     expect(shouldDeferPostLoginPermissionSheet('/profile')).toBe(false);
   });
 
-  it('uses seller copy for incoming orders and buyer copy otherwise', () => {
+  it('uses seller copy for incoming orders and Stay in the Loop for buyers', () => {
     expect(notificationAskCopy(true).title).toMatch(/new orders/i);
-    expect(notificationAskCopy(false).body).toMatch(/accepted, prepared, or on the way/);
+    expect(notificationAskCopy(false).title).toBe('Stay in the Loop!');
+    expect(notificationAskCopy(false).body).toMatch(/fresh food alerts/i);
+  });
+
+  it('hides home card when onboarding incomplete or card dismissed', () => {
+    expect(
+      shouldShowHomePushEnableCard({
+        hasUser: true,
+        isNative: true,
+        notificationPermission: 'not_requested',
+        notifCooldown: false,
+        postLoginAsk: true,
+        onboardingIncomplete: true,
+      }),
+    ).toBe(false);
+    expect(
+      shouldShowHomePushEnableCard({
+        hasUser: true,
+        isNative: true,
+        notificationPermission: 'not_requested',
+        notifCooldown: false,
+        postLoginAsk: true,
+        cardDismissed: true,
+      }),
+    ).toBe(false);
   });
 });

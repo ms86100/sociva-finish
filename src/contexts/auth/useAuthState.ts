@@ -15,6 +15,7 @@ import { Capacitor } from '@capacitor/core';
 import { pickDefaultSellerStoreId } from '@/lib/seller-journey';
 import { ALL_STORES_ID } from '@/lib/seller-order-board';
 import { setAuthReturnTo } from '@/hooks/useDeepLinks';
+import { markPostLoginPermissionSheet } from '@/hooks/usePermissionLifecycle';
 
 export function useAuthState() {
   const [state, setState] = useState<AuthState>(initialAuthState);
@@ -314,6 +315,10 @@ export function useAuthState() {
           prevUserIdRef.current = newUserId;
 
           if (session?.user) {
+            // Fresh login only (OTP / Google / Apple / future paths) - not session restore.
+            if (event === 'SIGNED_IN') {
+              markPostLoginPermissionSheet();
+            }
             markBootComplete({
               session,
               user: session.user,

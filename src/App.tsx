@@ -213,6 +213,12 @@ const SecurityAuditPage = lazyWithRetry(() => import("./pages/SecurityAuditPage"
 const WorkerJobsPage = lazyWithRetry(() => import("./pages/WorkerJobsPage"));
 const WorkerMyJobsPage = lazyWithRetry(() => import("./pages/WorkerMyJobsPage"));
 const WorkerHirePage = lazyWithRetry(() => import("./pages/WorkerHirePage"));
+const HelpHubPage = lazyWithRetry(() => import("./pages/helphub/HelpHubPage"));
+const HelpHubRecommendPage = lazyWithRetry(() => import("./pages/helphub/HelpHubRecommendPage"));
+const HelpHubFindPage = lazyWithRetry(() => import("./pages/helphub/HelpHubFindPage"));
+const HelpHubLookingForWorkPage = lazyWithRetry(() => import("./pages/helphub/HelpHubLookingForWorkPage"));
+const HelpHubListingPage = lazyWithRetry(() => import("./pages/helphub/HelpHubListingPage"));
+const CleanerCityPage = lazyWithRetry(() => import("./pages/cleaner-city/CleanerCityPage"));
 const CreateJobRequestPage = lazyWithRetry(() => import("./pages/CreateJobRequestPage"));
 const SocietyNoticesPage = lazyWithRetry(() => import("./pages/SocietyNoticesPage"));
 const SocietyDeliveriesPage = lazyWithRetry(() => import("./pages/SocietyDeliveriesPage"));
@@ -719,7 +725,13 @@ function AppRoutes() {
           <Route path="/visitors" element={<VisitorManagementPage />} />
           <Route path="/payment-milestones" element={<PaymentMilestonesPage />} />
           <Route path="/inspection" element={<InspectionChecklistPage />} />
-          <Route path="/domestic-help" element={<Navigate to="/workforce" replace />} />
+          <Route path="/domestic-help" element={<Navigate to="/help-hub" replace />} />
+          <Route path="/help-hub" element={<ProtectedRoute><RouteErrorBoundary sectionName="HelpHub"><HelpHubPage /></RouteErrorBoundary></ProtectedRoute>} />
+          <Route path="/help-hub/recommend" element={<ProtectedRoute><RouteErrorBoundary sectionName="HelpHub Recommend"><HelpHubRecommendPage /></RouteErrorBoundary></ProtectedRoute>} />
+          <Route path="/help-hub/find" element={<ProtectedRoute><RouteErrorBoundary sectionName="HelpHub Find"><HelpHubFindPage /></RouteErrorBoundary></ProtectedRoute>} />
+          <Route path="/help-hub/work" element={<ProtectedRoute><RouteErrorBoundary sectionName="HelpHub Work"><HelpHubLookingForWorkPage /></RouteErrorBoundary></ProtectedRoute>} />
+          <Route path="/help-hub/listing/:id" element={<ProtectedRoute><RouteErrorBoundary sectionName="HelpHub Listing"><HelpHubListingPage /></RouteErrorBoundary></ProtectedRoute>} />
+          <Route path="/cleaner-city" element={<ProtectedRoute><RouteErrorBoundary sectionName="A Cleaner City"><CleanerCityPage /></RouteErrorBoundary></ProtectedRoute>} />
           <Route path="/workforce" element={<WorkforceManagementPage />} />
           <Route path="/parcels" element={<ParcelManagementPage />} />
           <Route path="/guard-kiosk" element={<SecurityRoute><GuardKioskPage /></SecurityRoute>} />

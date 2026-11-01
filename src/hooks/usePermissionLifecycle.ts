@@ -16,6 +16,12 @@ import {
 } from '@/lib/installation';
 import { setPushStage } from '@/lib/pushPermissionStage';
 import {
+  clearAppNotificationConsent,
+  readAppNotificationConsent,
+  writeAppNotificationConsent,
+  type AppNotificationConsent,
+} from '@/lib/notification-app-consent';
+import {
   NOTIF_ASK_AGAIN_MS,
   notifNeedsAttention as computeNotifNeedsAttention,
   shouldDeferPostLoginPermissionSheet,
@@ -27,6 +33,7 @@ const NOTIF_COOLDOWN_KEY = 'sociva_notif_prompt_dismissed_until';
 const LOC_COOLDOWN_KEY = 'sociva_loc_prompt_dismissed_until';
 const POST_LOGIN_SHEET_KEY = 'sociva_post_login_permission_sheet';
 const NOTIF_REOPEN_EVENT = 'sociva:notif-ask-reopen';
+const APP_CONSENT_EVENT = 'sociva:notif-app-consent';
 const COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
 
 function readCooldown(key: string): boolean {
@@ -77,6 +84,9 @@ export function usePermissionLifecycle() {
     useState<LocationPermissionState>('unknown');
   const [notifCooldown, setNotifCooldown] = useState(() => readCooldown(NOTIF_COOLDOWN_KEY));
   const [locCooldown, setLocCooldown] = useState(() => readCooldown(LOC_COOLDOWN_KEY));
+  const [appConsent, setAppConsent] = useState<AppNotificationConsent>(() =>
+    readAppNotificationConsent(),
+  );
   const [refreshing, setRefreshing] = useState(false);
 
   const refreshFromOs = useCallback(async () => {
@@ -134,6 +144,11 @@ export function usePermissionLifecycle() {
       setLocationPermission(loc);
       setNotifCooldown(readCooldown(NOTIF_COOLDOWN_KEY));
       setLocCooldown(readCooldown(LOC_COOLDOWN_KEY));
+      setAppConsent(readAppNotificationConsent());
+      if (notif === 'enabled') {
+        clearAppNotificationConsent();
+        setAppConsent('none');
+      }
       // Never block UI refresh on network/RPC
       void syncInstallationPermissions({
         notificationPermission: notif,
@@ -148,12 +163,20 @@ export function usePermissionLifecycle() {
     void refreshFromOs();
   }, [refreshFromOs]);
 
+  useEffect(() => {
+    const onConsent = () => setAppConsent(readAppNotificationConsent());
+    window.addEventListener(APP_CONSENT_EVENT, onConsent);
+    return () => window.removeEventListener(APP_CONSENT_EVENT, onConsent);
+  }, []);
+
   // Keep in sync when push hook updates
   useEffect(() => {
     if (permissionStatus === 'granted' || !!token) {
       setNotificationPermission('enabled');
       clearCooldown(NOTIF_COOLDOWN_KEY);
       setNotifCooldown(false);
+      clearAppNotificationConsent();
+      setAppConsent('none');
     } else if (permissionStatus === 'denied') {
       setNotificationPermission('denied');
     } else if (permissionStatus === 'prompt') {
@@ -180,6 +203,32 @@ export function usePermissionLifecycle() {
   const dismissNotifPrompt = useCallback(() => {
     writeCooldown(NOTIF_COOLDOWN_KEY, NOTIF_ASK_AGAIN_MS);
     setNotifCooldown(true);
+    writeAppNotificationConsent('deferred');
+    setAppConsent('deferred');
+    try {
+      window.dispatchEvent(new CustomEvent(APP_CONSENT_EVENT));
+    } catch {
+      // ignore
+    }
+    void setPushStage('deferred');
+  }, []);
+
+  /** Maybe Later - close explanatory UI without requesting OS permission. */
+  const deferNotifications = useCallback(() => {
+    dismissNotifPrompt();
+  }, [dismissNotifPrompt]);
+
+  /** Explicit card dismiss (Not Now / close) - hide Stay in the Loop until reopen. */
+  const dismissNotifCard = useCallback(() => {
+    writeCooldown(NOTIF_COOLDOWN_KEY, NOTIF_ASK_AGAIN_MS);
+    setNotifCooldown(true);
+    writeAppNotificationConsent('card_dismissed');
+    setAppConsent('card_dismissed');
+    try {
+      window.dispatchEvent(new CustomEvent(APP_CONSENT_EVENT));
+    } catch {
+      // ignore
+    }
     void setPushStage('deferred');
   }, []);
 
@@ -187,6 +236,19 @@ export function usePermissionLifecycle() {
     const onReopen = () => {
       clearCooldown(NOTIF_COOLDOWN_KEY);
       setNotifCooldown(false);
+      // Reopening after Maybe Later / sheet close - clear permanent card dismiss
+      if (readAppNotificationConsent() === 'card_dismissed') {
+        writeAppNotificationConsent('deferred');
+        setAppConsent('deferred');
+      } else if (readAppNotificationConsent() === 'none') {
+        writeAppNotificationConsent('deferred');
+        setAppConsent('deferred');
+      }
+      try {
+        window.dispatchEvent(new CustomEvent(APP_CONSENT_EVENT));
+      } catch {
+        // ignore
+      }
     };
     window.addEventListener(NOTIF_REOPEN_EVENT, onReopen);
     return () => window.removeEventListener(NOTIF_REOPEN_EVENT, onReopen);
@@ -229,6 +291,8 @@ export function usePermissionLifecycle() {
       if (mapped === 'enabled') {
         clearCooldown(NOTIF_COOLDOWN_KEY);
         setNotifCooldown(false);
+        clearAppNotificationConsent();
+        setAppConsent('none');
         return 'granted';
       }
       // Denied or still prompt/not_requested after request → Settings path
@@ -237,6 +301,16 @@ export function usePermissionLifecycle() {
       return 'settings';
     }
   }, [notificationPermission, requestFullPermission]);
+
+  /** Open OS notification settings when permission was denied. Never re-request OS dialog. */
+  const openSettingsIfDenied = useCallback(async (): Promise<boolean> => {
+    const { openAppNotificationSettings } = await import('@/lib/notification-channel-settings');
+    return openAppNotificationSettings();
+  }, []);
+
+  const settingsRequired = notificationPermission === 'denied';
+  const isDeferred = appConsent === 'deferred';
+  const cardDismissed = appConsent === 'card_dismissed';
 
   const enableLocation = useCallback(async (): Promise<'granted' | 'denied' | 'settings'> => {
     if (locationPermission === 'denied' || locationPermission === 'restricted') {
@@ -331,10 +405,17 @@ export function usePermissionLifecycle() {
     refreshing,
     refreshFromOs,
     dismissNotifPrompt,
+    dismissNotifCard,
+    deferNotifications,
     dismissLocPrompt,
     dismissAll,
     enableNotifications,
     enableLocation,
+    openSettingsIfDenied,
+    appConsent,
+    settingsRequired,
+    isDeferred,
+    cardDismissed,
     syncOsPermissionsFromDevice,
   };
 }

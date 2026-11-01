@@ -67,9 +67,12 @@ describe('search overlay does not steal listing taps', () => {
     expect(search).toMatch(/setDismissedQuery\(trimmedRef\.current\)/);
   });
 
-  it('lets feed taps pass through empty suggestion chrome while keeping suggestion rows clickable', () => {
+  it('keeps the suggestion list independently scrollable (no pointer-events-none on scroller)', () => {
     const search = read('components/search/SearchAutocomplete.tsx');
-    expect(search).toMatch(/pointer-events-none absolute left-0 right-0 top-full/);
+    expect(search).not.toMatch(/pointer-events-none absolute left-0 right-0 top-full/);
+    expect(search).toMatch(/pointer-events-auto absolute left-0 right-0 top-full/);
+    expect(search).toMatch(/overflow-y-auto/);
+    expect(search).toMatch(/getBoundingClientRect/);
     expect(search).toMatch(/pointer-events-auto w-full flex items-center gap-3/);
   });
 });

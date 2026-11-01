@@ -1,32 +1,52 @@
+import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Capacitor } from '@capacitor/core';
-import { Download } from 'lucide-react';
+import { Download, X } from 'lucide-react';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
-import { storeUpdateButtons } from '@/lib/app-update-link';
+import {
+  dismissUpdateVersion,
+  isUpdateDismissed,
+  openAppStoreUrl,
+  shouldShowSoftUpdate,
+  softUpdateButtons,
+} from '@/lib/app-update-policy';
 
 type AppUpdateNotice = {
   enabled: boolean;
   title: string;
   message: string;
+  latest_version: string | null;
 };
 
-async function openStore(url: string) {
-  if (Capacitor.isNativePlatform()) {
-    const { Browser } = await import('@capacitor/browser');
-    await Browser.open({ url });
-    return;
-  }
-  window.location.assign(url);
-}
-
 export function AppUpdateBanner() {
+  const [installedVersion, setInstalledVersion] = useState<string | null>(null);
+  const [dismissed, setDismissed] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        if (!Capacitor.isNativePlatform()) return;
+        const { App } = await import('@capacitor/app');
+        const info = await App.getInfo();
+        if (!cancelled && info?.version) setInstalledVersion(info.version);
+      } catch {
+        // web / tests
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const { data } = useQuery({
     queryKey: ['app-update-notice'],
     queryFn: async (): Promise<AppUpdateNotice | null> => {
       const { data: row, error } = await (supabase as any)
         .from('app_update_notices')
-        .select('enabled, title, message')
+        .select('enabled, title, message, latest_version')
         .eq('id', 1)
         .maybeSingle();
       if (error || !row?.enabled) return null;
@@ -35,13 +55,52 @@ export function AppUpdateBanner() {
     staleTime: 60_000,
   });
 
+  useEffect(() => {
+    if (!data) return;
+    setDismissed(isUpdateDismissed(data.latest_version));
+  }, [data]);
+
   if (!data) return null;
 
-  const buttons = storeUpdateButtons(Capacitor.getPlatform());
+  const show = shouldShowSoftUpdate({
+    enabled: data.enabled,
+    latestVersion: data.latest_version,
+    installedVersion,
+    dismissed,
+    isNative: Capacitor.isNativePlatform(),
+  });
+  if (!show) return null;
+
+  // Prefer CapacitorCustomPlatform (E2E / custom shells) then getPlatform().
+  const customPlatform =
+    typeof window !== 'undefined'
+      ? (window as unknown as { CapacitorCustomPlatform?: { name?: string } }).CapacitorCustomPlatform?.name
+      : undefined;
+  const buttons = softUpdateButtons(customPlatform || Capacitor.getPlatform());
+
+  const handleDismiss = () => {
+    dismissUpdateVersion(data.latest_version);
+    setDismissed(true);
+  };
+
+  const handleOpen = async (url: string) => {
+    const opened = await openAppStoreUrl(url);
+    if (!opened) {
+      toast.error('Could not open the store. Search for Sociva in the App Store or Google Play.');
+    }
+  };
 
   return (
-    <div className="rounded-2xl border border-border/60 bg-card p-3.5 shadow-sm">
-      <div className="flex items-start gap-3">
+    <div className="rounded-2xl border border-border/60 bg-card p-3.5 shadow-sm relative">
+      <button
+        type="button"
+        onClick={handleDismiss}
+        className="absolute top-2.5 right-2.5 text-muted-foreground hover:text-foreground"
+        aria-label="Dismiss update"
+      >
+        <X className="h-4 w-4" />
+      </button>
+      <div className="flex items-start gap-3 pr-6">
         <div className="rounded-full bg-primary/10 p-2 shrink-0">
           <Download className="h-4 w-4 text-primary" />
         </div>
@@ -54,7 +113,7 @@ export function AppUpdateBanner() {
                 key={button.id}
                 size="sm"
                 className="h-8"
-                onClick={() => void openStore(button.url)}
+                onClick={() => void handleOpen(button.url)}
               >
                 {button.label}
               </Button>

@@ -1,7 +1,8 @@
 import { useEffect, useState, type ReactNode } from 'react';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
-import { ANDROID_PLAY_STORE_URL, IOS_APP_STORE_URL } from '@/components/landing/LandingDownload';
 import { useSystemSettings } from '@/hooks/useSystemSettings';
+import { softUpdateStoreUrl, openAppStoreUrl } from '@/lib/app-update-policy';
 import { isVersionBelow, minimumVersionFor } from '@/lib/min-app-version';
 
 type NativeInstall = { platform: 'android' | 'ios'; version: string };
@@ -9,6 +10,7 @@ type NativeInstall = { platform: 'android' | 'ios'; version: string };
 export function MinVersionGate({ children }: { children: ReactNode }) {
   const { minSupportedAppVersion, minSupportedAndroidVersion, minSupportedIosVersion } = useSystemSettings();
   const [install, setInstall] = useState<NativeInstall | null>(null);
+  const [opening, setOpening] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -38,7 +40,19 @@ export function MinVersionGate({ children }: { children: ReactNode }) {
   });
   if (!isVersionBelow(install.version, minimum)) return <>{children}</>;
 
-  const storeUrl = install.platform === 'android' ? ANDROID_PLAY_STORE_URL : IOS_APP_STORE_URL;
+  const storeUrl = softUpdateStoreUrl(install.platform);
+
+  const handleUpdate = async () => {
+    setOpening(true);
+    try {
+      const opened = await openAppStoreUrl(storeUrl);
+      if (!opened) {
+        toast.error('Could not open the store. Search for Sociva in the App Store or Google Play.');
+      }
+    } finally {
+      setOpening(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background text-foreground flex items-center justify-center px-6">
@@ -47,8 +61,8 @@ export function MinVersionGate({ children }: { children: ReactNode }) {
         <p className="text-sm text-muted-foreground">
           This version ({install.version}) is no longer supported. Update to {minimum} or newer to keep ordering.
         </p>
-        <Button asChild className="w-full">
-          <a href={storeUrl}>Update now</a>
+        <Button className="w-full" disabled={opening} onClick={() => void handleUpdate()}>
+          Update now
         </Button>
       </div>
     </div>

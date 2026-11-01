@@ -165,6 +165,7 @@ export function useOnboarding(userId?: string | null) {
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [hasChecked, setHasChecked] = useState(false);
 
+  // Shared key helper in onboarding-seen.ts (used by notification gating).
   const storageKey = userId ? `app_has_seen_onboarding_${userId}` : null;
 
   useEffect(() => {

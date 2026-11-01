@@ -28,6 +28,8 @@ import { AdminWorkflowManager } from '@/components/admin/AdminWorkflowManager';
 import { WorkflowSimulator } from '@/components/admin/workflow/WorkflowSimulator';
 
 import { AdminDisputesTab } from '@/components/admin/AdminDisputesTab';
+import { AdminHelpHubTab } from '@/components/admin/AdminHelpHubTab';
+import { AdminCleanerCityTab } from '@/components/admin/AdminCleanerCityTab';
 import { AdminAnalyticsTab } from '@/components/admin/AdminAnalyticsTab';
 import { EmergencyBroadcastSheet } from '@/components/admin/EmergencyBroadcastSheet';
 import { SocietySwitcher } from '@/components/admin/SocietySwitcher';
@@ -222,6 +224,8 @@ export default function AdminPage() {
           )}
 
           {admin.activeTab === 'disputes' && <AdminDisputesTab />}
+          {admin.activeTab === 'helphub' && <AdminHelpHubTab />}
+          {admin.activeTab === 'cleaner-city' && <AdminCleanerCityTab />}
 
           {admin.activeTab === 'payments' && (
             <div className="space-y-3">

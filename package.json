@@ -17,8 +17,9 @@
     "test:financial": "vitest run src/test/wallet-mvp-money.test.ts src/test/wallet-financial-hardening.test.ts src/test/wallet-financial-operations.test.ts src/test/wallet-certification-controls.test.ts",
     "test:financial:db": "supabase test db --linked --file supabase/tests/wallet_financial_certification.sql",
     "test:watch": "vitest",
-    "test:e2e": "playwright test --config e2e/playwright.config.ts",
-    "test:e2e:smoke": "playwright test --config e2e/playwright.config.ts --grep @smoke",
+    "test:e2e": "npm run build && playwright test --config e2e/playwright.config.ts",
+    "test:e2e:today": "npm run build && playwright test --config e2e/playwright.config.ts --project=today-prompts",
+    "test:e2e:smoke": "npm run build && playwright test --config e2e/playwright.config.ts --grep @smoke",
     "test:e2e:debug": "playwright test --config e2e/playwright.config.ts --ui"
   },
   "dependencies": {

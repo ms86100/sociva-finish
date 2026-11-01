@@ -23,6 +23,7 @@ export const KNOWN_DEEP_LINK_ROUTES = new Set([
   'subscriptions', 'directory', 'disputes', 'workforce', 'group-buys',
   'parcels', 'parking', 'visitors', 'maintenance', 'inspection',
   'payment-milestones', 'authorized-persons', 'worker-hire', 'worker',
+  'help-hub', 'domestic-help',
   'guard-kiosk', 'gate-entry', 'security', 'builder', 'builder-inspections',
   'delivery-partners', 'my-deliveries', 'my-workers', 'worker-attendance',
   'worker-leave', 'worker-salary', 'society', 'festival-collection',
@@ -40,6 +41,7 @@ const LEGACY_DEEP_LINK_REMAP: Record<string, string> = {
   '/shop': '/',
   '/contact': '/services',
   '/account': '/profile',
+  '/domestic-help': '/help-hub',
 };
 
 /**

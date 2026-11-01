@@ -233,10 +233,29 @@ export function SearchAutocomplete({ query, onSelect, maxHeight, open, onDismiss
         onDismissRef.current?.();
       }, 0);
     };
+    const pointInList = (x: number, y: number) => {
+      const list = listRef.current;
+      if (!list) return false;
+      const rect = list.getBoundingClientRect();
+      return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
+    };
+
+    const isInsideSuggestionPanel = (event: Event) => {
+      const list = listRef.current;
+      if (!list) return false;
+      const target = event.target as Node | null;
+      if (target && (host.contains(target) || list.contains(target))) return true;
+      // WebView can report the page under the panel; use geometry as fallback.
+      if (event instanceof WheelEvent) return pointInList(event.clientX, event.clientY);
+      if (typeof TouchEvent !== 'undefined' && event instanceof TouchEvent && event.touches[0]) {
+        return pointInList(event.touches[0].clientX, event.touches[0].clientY);
+      }
+      return false;
+    };
+
     const onUserPageScroll = (event: Event) => {
       if (!inputFocusedRef.current) return;
-      const target = event.target as Node | null;
-      if (target && (host.contains(target) || listRef.current?.contains(target))) return;
+      if (isInsideSuggestionPanel(event)) return;
       if (event instanceof WheelEvent && Math.abs(event.deltaX) > Math.abs(event.deltaY)) return;
       setInputFocused(false);
       onDismissRef.current?.();
@@ -330,8 +349,8 @@ export function SearchAutocomplete({ query, onSelect, maxHeight, open, onDismiss
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: -4 }}
         onMouseDown={(event) => event.preventDefault()}
-        className="pointer-events-none absolute left-0 right-0 top-full mt-1 z-50 bg-card border border-border rounded-xl shadow-lg overflow-hidden overflow-y-auto overscroll-contain"
-        style={{ maxHeight: maxHeight ? `${maxHeight}px` : '42dvh' }}
+        className="pointer-events-auto absolute left-0 right-0 top-full mt-1 z-50 bg-card border border-border rounded-xl shadow-lg overflow-x-hidden overflow-y-auto overscroll-contain touch-pan-y"
+        style={{ maxHeight: maxHeight ? `${maxHeight}px` : '42dvh', WebkitOverflowScrolling: 'touch' }}
       >
         {INTENT_GROUPS.map(({ key, label, icon: GroupIcon }) => groupedProducts[key].length > 0 && (
           <div key={key} role="group" aria-label={label}>

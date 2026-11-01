@@ -180,6 +180,18 @@ export function resolveNotificationRoute(
     case 'parcel':
       return '/parcels';
 
+    // HelpHub
+    case 'helphub_enquiry':
+    case 'helphub_enquiry_accepted':
+    case 'helphub_enquiry_declined':
+    case 'helphub_contact_shared':
+    case 'helphub_expiry':
+    case 'helphub_expired':
+    case 'helphub_report': {
+      const listingId = payload?.listing_id || payload?.listingId;
+      return listingId ? `/help-hub/listing/${listingId}` : '/help-hub';
+    }
+
     // Booking reminders
     case 'booking_reminder_1_hour':
     case 'booking_reminder_30_min':

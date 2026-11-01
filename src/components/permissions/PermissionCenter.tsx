@@ -46,6 +46,7 @@ export function PermissionCenter({
     notifNeedsAttention,
     locNeedsAttention,
     dismissLocPrompt,
+    deferNotifications,
     enableNotifications,
     enableLocation,
   } = usePermissionLifecycle();
@@ -66,10 +67,11 @@ export function PermissionCenter({
 
   const closeSheet = () => {
     // Close UI first - never wait on Preferences / RPC.
+    // Maybe Later: defer app consent without requesting OS permission.
+    deferNotifications();
     onDismissed?.();
-    // Location can wait. Do NOT cool down notifications - reopen the home
-    // "Stay in the loop" ask so it appears after login from any entry path.
     void dismissLocPrompt();
+    // Reopen home Stay in the Loop card after sheet dismissal.
     reopenNotificationAsk();
   };
 
@@ -235,7 +237,7 @@ export function PermissionCenter({
                   Open Settings
                 </>
               ) : (
-                'Enable'
+                'Enable Notifications'
               )}
             </Button>
           )}

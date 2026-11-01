@@ -153,6 +153,10 @@ vi.mock('@/components/home/UpcomingAppointmentBanner', () => ({
   UpcomingAppointmentBanner: () => <div data-testid="upcoming-appointment-banner" />,
 }));
 
+vi.mock('@/components/cleaner-city/CleanerCityEntryCard', () => ({
+  CleanerCityEntryCard: () => null,
+}));
+
 import CommerceModePage from '@/pages/CommerceModePage';
 
 const configs: CategoryActionConfig[] = [

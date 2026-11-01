@@ -33,6 +33,7 @@ import { useMarketplaceLabels } from '@/hooks/useMarketplaceLabels';
 import { cn } from '@/lib/utils';
 import { DiscoveryChipRail } from '@/components/home/DiscoveryChipRail';
 import { GuidedDiscoveryRail } from '@/components/home/GuidedDiscoveryRail';
+import { HelpHubTeaser } from '@/components/home/HelpHubTeaser';
 import { CookingNearbyRail } from '@/components/home/CookingNearbyRail';
 import { CommerceFacetRail } from '@/components/discovery/CommerceFacetRail';
 import { buildDiscoveryIntents } from '@/lib/discovery-intents';
@@ -592,6 +593,8 @@ export function MarketplaceSection() {
       {!festivalFocused && !searchActive && !isFacetFilterActive && guidedHubs.length > 0 && (
         <GuidedDiscoveryRail hubs={guidedHubs} />
       )}
+
+      {!festivalFocused && !searchActive && !isFacetFilterActive && <HelpHubTeaser />}
 
       {!activeCategory && !festivalFocused && !searchActive && !isFacetFilterActive && sellingWellProducts.length > 0 && (
         <div id="home-selling-well" data-testid="home-selling-well">
