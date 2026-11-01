@@ -11,10 +11,12 @@ import { Label } from '@/components/ui/label';
 import {
   useAppealDispute,
   useBlockUser,
+  useCancelRide,
   useCleanerCityRide,
   useCompleteRide,
   useConfirmCostShare,
   useCreateShareToken,
+  useDispatchSafetyAlerts,
   useDisputeRide,
   useGenerateRideOtp,
   useMarkNoShow,
@@ -22,14 +24,16 @@ import {
   useOfficeLocations,
   useProposeCostShare,
   usePublicationRides,
-  usePublicationStops,
+  useSetPublicationDropOrder,
   useQuickMessages,
   useRankedMeetupPoints,
   useReportIncident,
   useReputation,
   useRequestMaskedCall,
+  useRespondRideRequest,
   useRideChat,
   useRideCostShares,
+  useRideDisputeCase,
   useRideLocations,
   useSendQuickMessage,
   useSendRideChat,
@@ -38,7 +42,25 @@ import {
   useSubmitRating,
   useUpsertRideLocation,
 } from '@/hooks/queries/useCleanerCity';
+import { RideMissionHero } from '@/components/cleaner-city/ride/RideMissionHero';
+import { RideStatusStepper } from '@/components/cleaner-city/ride/RideStatusStepper';
+import { RidePrimaryActions } from '@/components/cleaner-city/ride/RidePrimaryActions';
+import { RideChatStrip } from '@/components/cleaner-city/ride/RideChatStrip';
+import { DropRunPanel } from '@/components/cleaner-city/ride/DropRunPanel';
 import { QUICK_MESSAGE_PHRASES } from '@/lib/cleaner-city/constants';
+import {
+  canOpenDispute,
+  canShowRideSos,
+  canShowTripShare,
+  formatStraightLineDistance,
+} from '@/lib/cleaner-city/rideMissionCopy';
+import {
+  buildDropOrderPayload,
+  parseDropOrderJson,
+  withUpdatedStopProgress,
+  type DropOrderPersisted,
+  type DropProgressStatus,
+} from '@/lib/cleaner-city/dropRun';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   getCurrentPosition,
@@ -47,9 +69,9 @@ import {
 import { enqueueLocation, flushLocationOutbox } from '@/lib/cleaner-city/locationOutbox';
 import { startAndroidCommuteTracking, stopAndroidCommuteTracking } from '@/lib/cleaner-city/commuteTracking';
 import {
+  haversineMeters,
   openGoogleMapsDirections,
   planDropSequence,
-  type DropSequenceResult,
   type LatLng,
 } from '@/lib/cleaner-city/routing';
 import { openNativeRazorpayCheckout } from '@/lib/razorpay-native-checkout';
@@ -62,7 +84,10 @@ export default function CleanerCityRidePage() {
   const location = useLocation();
   const arrivalNotice = (location.state as { notice?: string } | null)?.notice || '';
   const { user } = useAuth();
-  const { data: ride, isLoading } = useCleanerCityRide(id);
+  const { data: rideData, isLoading } = useCleanerCityRide(id);
+  const seededRide = (location.state as { seededRide?: NonNullable<typeof rideData> } | null)
+    ?.seededRide;
+  const ride = rideData || (seededRide?.id === id ? seededRide : null);
   const { data: locations = [] } = useRideLocations(
     ride && ['pickup_pending', 'started'].includes(ride.status) ? id : null,
   );
@@ -71,6 +96,7 @@ export default function CleanerCityRidePage() {
   const { data: quickMessages = [] } = useQuickMessages(id);
   const upsertLoc = useUpsertRideLocation();
   const report = useReportIncident();
+  const dispatchSafety = useDispatchSafetyAlerts();
   const shareToken = useCreateShareToken();
   const generateOtp = useGenerateRideOtp();
   const startRide = useStartRide();
@@ -84,13 +110,18 @@ export default function CleanerCityRidePage() {
   const markNoShow = useMarkNoShow();
   const disputeRide = useDisputeRide();
   const appealDispute = useAppealDispute();
+  const { data: disputeCase } = useRideDisputeCase(
+    ride && ['disputed', 'completed', 'no_show', 'cancelled'].includes(ride.status) ? id : null,
+  );
   const maskedCall = useRequestMaskedCall();
+  const respond = useRespondRideRequest();
+  const cancelRide = useCancelRide();
   const { data: rankedMeetups = [] } = useRankedMeetupPoints(id);
   const { data: rideChat = [] } = useRideChat(id);
   const sendRideChat = useSendRideChat();
   const { data: offices = [] } = useOfficeLocations();
-  const { data: publicationStops = [] } = usePublicationStops(ride?.publication_id || null);
   const { data: publicationRides = [] } = usePublicationRides(ride?.publication_id || null);
+  const setDropOrder = useSetPublicationDropOrder();
   const { isLoaded } = useGoogleMaps();
 
   const otherUserId =
@@ -113,15 +144,27 @@ export default function CleanerCityRidePage() {
   const [backgroundSupported, setBackgroundSupported] = useState<boolean | null>(null);
   const [chatBody, setChatBody] = useState('');
   const [appealNote, setAppealNote] = useState('');
+  const [disputeNote, setDisputeNote] = useState('');
+  const [mapDistanceLabel, setMapDistanceLabel] = useState<string | null>(null);
+  const [sosResult, setSosResult] = useState<{
+    contacts: number;
+    admins: number;
+    counterpart: number;
+    skipped: number;
+  } | null>(null);
   const [routeAccount, setRouteAccount] = useState('');
   const [fuelNotice, setFuelNotice] = useState('');
   const [fuelPaymentId, setFuelPaymentId] = useState('');
-  const [dropPlan, setDropPlan] = useState<DropSequenceResult | null>(null);
+  const [dropOrderState, setDropOrderState] = useState<DropOrderPersisted | null>(null);
   const [dropNav, setDropNav] = useState<{
     origin: LatLng;
     destination: LatLng;
     waypoints: LatLng[];
   } | null>(null);
+  const [dropGps, setDropGps] = useState<LatLng | null>(null);
+  const [markingStopId, setMarkingStopId] = useState<string | null>(null);
+  const [celebrate, setCelebrate] = useState(false);
+  const [, setClockTick] = useState(0);
 
   const isHost = ride?.host_user_id === user?.id;
   const active = ride && ['pickup_pending', 'started'].includes(ride.status);
@@ -285,22 +328,59 @@ export default function CleanerCityRidePage() {
     };
   }, [active, id]);
 
-  // Map render - recreate only when container/maps ready; update markers on location changes
+  // Map render - markers + dotted path with straight-line distance
   useEffect(() => {
     if (!isLoaded || !mapEl || !window.google?.maps) return;
     const map = new google.maps.Map(mapEl, {
       center: locations[0]
         ? { lat: Number(locations[0].latitude), lng: Number(locations[0].longitude) }
-        : { lat: 12.9716, lng: 77.5946 },
+        : ride?.meeting_point_latitude != null
+          ? {
+              lat: Number(ride.meeting_point_latitude),
+              lng: Number(ride.meeting_point_longitude),
+            }
+          : { lat: 12.9716, lng: 77.5946 },
       zoom: 14,
       disableDefaultUI: true,
       zoomControl: true,
     });
     const markers: google.maps.Marker[] = [];
+    let line: google.maps.Polyline | null = null;
+    let distLabel: google.maps.Marker | null = null;
+
     const paint = () => {
       markers.splice(0).forEach((m) => m.setMap(null));
-      if (!locations.length) return;
+      if (line) {
+        line.setMap(null);
+        line = null;
+      }
+      if (distLabel) {
+        distLabel.setMap(null);
+        distLabel = null;
+      }
       const bounds = new google.maps.LatLngBounds();
+      let any = false;
+      const meet =
+        ride?.meeting_point_latitude != null && ride?.meeting_point_longitude != null
+          ? {
+              lat: Number(ride.meeting_point_latitude),
+              lng: Number(ride.meeting_point_longitude),
+            }
+          : null;
+      if (meet) {
+        markers.push(
+          new google.maps.Marker({
+            map,
+            position: meet,
+            label: 'M',
+            title: ride.meeting_point_label || 'Meeting point',
+          }),
+        );
+        bounds.extend(meet);
+        any = true;
+      }
+      const hostLoc = locations.find((l) => l.role === 'host') || locations[0];
+      const guestLoc = locations.find((l) => l.role === 'guest');
       locations.forEach((loc) => {
         const pos = { lat: Number(loc.latitude), lng: Number(loc.longitude) };
         markers.push(
@@ -311,15 +391,97 @@ export default function CleanerCityRidePage() {
           }),
         );
         bounds.extend(pos);
+        any = true;
       });
-      if (locations.length > 1) map.fitBounds(bounds);
-      else map.setCenter(bounds.getCenter());
+
+      const a = hostLoc
+        ? { lat: Number(hostLoc.latitude), lng: Number(hostLoc.longitude) }
+        : meet;
+      const b = guestLoc
+        ? { lat: Number(guestLoc.latitude), lng: Number(guestLoc.longitude) }
+        : meet && hostLoc
+          ? meet
+          : null;
+      if (a && b && (a.lat !== b.lat || a.lng !== b.lng)) {
+        const meters = haversineMeters(a, b);
+        const label = formatStraightLineDistance(meters);
+        setMapDistanceLabel(label ? `About ${label} apart` : null);
+        line = new google.maps.Polyline({
+          map,
+          path: [a, b],
+          geodesic: true,
+          strokeOpacity: 0,
+          icons: [
+            {
+              icon: {
+                path: 'M 0,-1 0,1',
+                strokeOpacity: 1,
+                strokeColor: '#A3C9A8',
+                scale: 3,
+              },
+              offset: '0',
+              repeat: '14px',
+            },
+          ],
+        });
+        if (label) {
+          const mid = {
+            lat: (a.lat + b.lat) / 2,
+            lng: (a.lng + b.lng) / 2,
+          };
+          distLabel = new google.maps.Marker({
+            map,
+            position: mid,
+            clickable: false,
+            icon: {
+              path: google.maps.SymbolPath.CIRCLE,
+              scale: 0,
+            },
+            label: {
+              text: label,
+              color: '#A3C9A8',
+              fontSize: '11px',
+              fontWeight: '700',
+            },
+          });
+        }
+      } else {
+        setMapDistanceLabel(null);
+      }
+
+      if (!any) return;
+      if (markers.length > 1) {
+        map.fitBounds(bounds, 48);
+      } else {
+        map.setCenter(bounds.getCenter());
+      }
     };
     paint();
     return () => {
       markers.forEach((m) => m.setMap(null));
+      line?.setMap(null);
+      distLabel?.setMap(null);
     };
-  }, [isLoaded, mapEl, locations]);
+  }, [
+    isLoaded,
+    mapEl,
+    locations,
+    ride?.meeting_point_latitude,
+    ride?.meeting_point_longitude,
+    ride?.meeting_point_label,
+  ]);
+
+  const pulseCelebrate = () => {
+    setCelebrate(true);
+    window.setTimeout(() => setCelebrate(false), 900);
+  };
+
+  useEffect(() => {
+    if (!ride?.status) return;
+    if (!['requested', 'confirmed', 'pickup_pending'].includes(ride.status)) return;
+    const t = window.setInterval(() => setClockTick((n) => n + 1), 30_000);
+    return () => window.clearInterval(t);
+  }, [ride?.status]);
 
   const pendingShare = useMemo(
     () => shares.find((s: any) => s.status === 'proposed' && s.proposer_user_id !== user?.id),
@@ -328,10 +490,11 @@ export default function CleanerCityRidePage() {
 
   useEffect(() => {
     if (!ride || !isLoaded) {
-      setDropPlan(null);
+      setDropOrderState(null);
       setDropNav(null);
       return;
     }
+
     const guestStops = siblingGuests.map((g) => {
       const flat = (g as { guest_flat?: string | null }).guest_flat;
       const name = (g as { guest_name?: string | null }).guest_name;
@@ -343,29 +506,20 @@ export default function CleanerCityRidePage() {
             : name || (g.id === ride.id ? 'You' : 'Guest');
       return {
         id: `guest-${g.id}`,
-        rideId: g.id,
         label: g.id === ride.id && !isHost ? `You (${who})` : who,
         lat: Number(g.guest_dest_latitude),
         lng: Number(g.guest_dest_longitude),
       };
     });
-    const officeStops = publicationStops.map((s) => ({
-      id: `stop-${s.id}`,
-      rideId: null as string | null,
-      label: s.label || `Office stop ${s.seq}`,
-      lat: Number(s.latitude),
-      lng: Number(s.longitude),
-    }));
-    const stops =
-      guestStops.length >= 2
-        ? guestStops
-        : guestStops.length === 1 && officeStops.length >= 1
-          ? [...guestStops, ...officeStops]
-          : officeStops;
 
-    if (stops.length < 2) {
-      setDropPlan(null);
-      setDropNav(null);
+    // Guest drops only - Extra matching pins are not passenger drop stops.
+    if (guestStops.length < 1) {
+      const cached = parseDropOrderJson((ride as { drop_order_json?: unknown }).drop_order_json);
+      if (cached) setDropOrderState(cached);
+      else {
+        setDropOrderState(null);
+        setDropNav(null);
+      }
       return;
     }
 
@@ -377,7 +531,7 @@ export default function CleanerCityRidePage() {
           : null,
       )
       .filter(Boolean) as LatLng[];
-    const origin =
+    const meetingOrPickup =
       (ride.meeting_point_latitude != null && ride.meeting_point_longitude != null
         ? {
             lat: Number(ride.meeting_point_latitude),
@@ -391,18 +545,28 @@ export default function CleanerCityRidePage() {
             lng: Number(ride.guest_pickup_longitude),
           }
         : null);
-    const destination =
+    const officePin =
       office != null
         ? { lat: Number(office.latitude), lng: Number(office.longitude) }
-        : ride.guest_dest_latitude != null && ride.guest_dest_longitude != null
-          ? {
-              lat: Number(ride.guest_dest_latitude),
-              lng: Number(ride.guest_dest_longitude),
-            }
-          : null;
+        : null;
+    const direction = (ride as { direction?: string | null }).direction || 'to_office';
+    const origin =
+      direction === 'to_home'
+        ? officePin || meetingOrPickup
+        : meetingOrPickup || officePin;
+    const destination =
+      direction === 'to_home'
+        ? meetingOrPickup || officePin
+        : officePin ||
+          (ride.guest_dest_latitude != null && ride.guest_dest_longitude != null
+            ? {
+                lat: Number(ride.guest_dest_latitude),
+                lng: Number(ride.guest_dest_longitude),
+              }
+            : null);
 
     if (!origin || !destination) {
-      setDropPlan(null);
+      setDropOrderState(null);
       setDropNav(null);
       return;
     }
@@ -411,15 +575,29 @@ export default function CleanerCityRidePage() {
     void planDropSequence({
       origin,
       destination,
-      stops: stops.map(({ id, label, lat, lng }) => ({ id, label, lat, lng })),
-    }).then((plan) => {
+      stops: guestStops,
+    }).then(async (plan) => {
       if (cancelled) return;
-      setDropPlan(plan);
+      const previous = parseDropOrderJson(
+        (ride as { drop_order_json?: unknown }).drop_order_json,
+      );
+      const payload = buildDropOrderPayload(plan, previous?.progress);
+      setDropOrderState(payload);
       setDropNav({
         origin,
         destination,
         waypoints: plan.ordered.map((s) => ({ lat: s.lat, lng: s.lng })),
       });
+      if (isHost && ride.publication_id && plan.ordered.length >= 1) {
+        try {
+          await setDropOrder.mutateAsync({
+            publication_id: ride.publication_id,
+            drop_order: payload,
+          });
+        } catch {
+          // Best-effort persist
+        }
+      }
     });
     return () => {
       cancelled = true;
@@ -430,13 +608,41 @@ export default function CleanerCityRidePage() {
     ride?.publication_id,
     ride?.meeting_point_latitude,
     ride?.meeting_point_longitude,
+    (ride as { direction?: string | null } | null)?.direction,
+    (ride as { drop_order_json?: unknown } | null)?.drop_order_json,
     siblingGuests,
-    publicationStops,
     offices,
     isLoaded,
+    setDropOrder,
   ]);
 
-  if (isLoading) {
+  const markDropStop = async (stopId: string, status: DropProgressStatus) => {
+    if (!ride?.publication_id || !dropOrderState || !isHost) return;
+    const next = withUpdatedStopProgress(dropOrderState, stopId, status);
+    setDropOrderState(next);
+    setMarkingStopId(stopId);
+    try {
+      await setDropOrder.mutateAsync({
+        publication_id: ride.publication_id,
+        drop_order: next,
+      });
+      if (status === 'arrived') {
+        try {
+          const pos = await getCurrentPosition();
+          if (pos) setDropGps({ lat: pos.latitude, lng: pos.longitude });
+        } catch {
+          // optional GPS for next Maps open
+        }
+      }
+    } catch {
+      toast.error('Could not save drop progress');
+      setDropOrderState(dropOrderState);
+    } finally {
+      setMarkingStopId(null);
+    }
+  };
+
+  if (isLoading && !ride) {
     return (
       <AppLayout headerTitle="Ride">
         <CleanerCityGate>
@@ -450,8 +656,12 @@ export default function CleanerCityRidePage() {
     return (
       <AppLayout headerTitle="Ride">
         <CleanerCityGate>
-          <div className="p-4 space-y-2">
-            <p className="text-sm">Ride not found</p>
+          <div className="p-4 space-y-3">
+            <p className="text-sm font-semibold">Could not open this ride</p>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              Your request may still be on Find under Your rides. Open that card, or try again in a
+              moment.
+            </p>
             <Link to="/cleaner-city/find" className="text-primary text-sm font-semibold">
               Back to find
             </Link>
@@ -470,73 +680,123 @@ export default function CleanerCityRidePage() {
               {arrivalNotice}
             </div>
           )}
-          <div className="rounded-2xl border border-border bg-card p-4">
-            <p className="text-sm font-semibold">
-              {ride.travel_date} · {ride.status.replace(/_/g, ' ')}
-            </p>
-            <p className="text-xs text-muted-foreground mt-1">
-              {isHost ? 'You are host' : 'You are guest'}
-              {rep?.avg_stars != null
-                ? ` · partner ${rep.avg_stars}★ (${rep.rating_count})`
-                : ''}
-            </p>
-            {ride.meeting_point_label && (
-              <p
-                className="text-xs text-primary font-semibold mt-2"
-                data-testid="cleaner-city-meeting-point-label"
-              >
-                Meeting point: {ride.meeting_point_label}
-              </p>
-            )}
-          </div>
 
-          {dropPlan && dropPlan.ordered.length >= 2 && (
-            <div
-              className="rounded-2xl border border-primary/30 bg-primary/5 p-4 space-y-3"
-              data-testid="cleaner-city-drop-order"
+          <RideMissionHero
+            ride={ride}
+            isHost={!!isHost}
+            avgStars={rep?.avg_stars}
+            ratingCount={rep?.rating_count}
+            completedRides={rep?.completed_rides}
+            celebrate={celebrate}
+          />
+
+          <RideStatusStepper status={ride.status} isHost={!!isHost} />
+
+          <RidePrimaryActions
+            ride={ride}
+            isHost={!!isHost}
+            needsMeetingPoint={!!needsMeetingPoint}
+            otp={otp}
+            shownOtp={shownOtp}
+            onOtpChange={setOtp}
+            accepting={respond.isPending}
+            declining={respond.isPending}
+            cancelling={cancelRide.isPending}
+            generatingOtp={generateOtp.isPending}
+            starting={startRide.isPending}
+            completing={completeRide.isPending}
+            onAccept={async () => {
+              try {
+                await respond.mutateAsync({ ride_id: ride.id, accept: true });
+                pulseCelebrate();
+                toast.success('Accepted - guest is in');
+              } catch (e: any) {
+                toast.error(e?.message || 'Could not accept');
+              }
+            }}
+            onDecline={async () => {
+              try {
+                await respond.mutateAsync({ ride_id: ride.id, accept: false });
+                toast.success('Declined');
+              } catch (e: any) {
+                toast.error(e?.message || 'Could not decline');
+              }
+            }}
+            onCancel={async () => {
+              try {
+                await cancelRide.mutateAsync({ ride_id: ride.id });
+                toast.success('Seat cancelled');
+              } catch (e: any) {
+                toast.error(e?.message || 'Could not cancel');
+              }
+            }}
+            onGenerateOtp={async () => {
+              try {
+                const res = await generateOtp.mutateAsync(ride.id);
+                setShownOtp(res.otp);
+                pulseCelebrate();
+                toast.success(`OTP ${res.otp}`);
+              } catch (e: any) {
+                toast.error(e?.message || 'OTP failed');
+              }
+            }}
+            onStart={async () => {
+              if (needsMeetingPoint) {
+                toast.error('Set a meeting point before starting');
+                return;
+              }
+              try {
+                await startRide.mutateAsync({ ride_id: ride.id, otp });
+                pulseCelebrate();
+                toast.success('Ride started');
+              } catch (e: any) {
+                toast.error(e?.message || 'Invalid OTP');
+              }
+            }}
+            onComplete={async () => {
+              try {
+                await completeRide.mutateAsync(ride.id);
+                pulseCelebrate();
+                toast.success('Completed');
+              } catch (e: any) {
+                toast.error(e?.message || 'Failed');
+              }
+            }}
+            onScrollToMeeting={() =>
+              document
+                .getElementById('cleaner-city-meeting-point-section')
+                ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+            }
+            onScrollToChat={() =>
+              document
+                .getElementById('cleaner-city-ride-chat')
+                ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+            }
+            onOpenMaps={isHost && dropNav ? () => openGoogleMapsDirections(dropNav) : null}
+          />
+
+          {ride.meeting_point_label && (
+            <p
+              className="text-xs text-primary font-semibold px-1"
+              data-testid="cleaner-city-meeting-point-label"
             >
-              <div>
-                <p className="text-sm font-semibold">Drop order</p>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Google Maps order - follow this sequence
-                  {dropPlan.durationSeconds
-                    ? ` · ~${Math.round(dropPlan.durationSeconds / 60)} min`
-                    : ''}
-                  {dropPlan.provider === 'haversine_fallback' ? ' · approximate' : ''}
-                </p>
-                {!isHost && (() => {
-                  const mine = dropPlan.ordered.find((s) => s.id === `guest-${ride.id}`);
-                  return mine ? (
-                    <p
-                      className="text-sm font-semibold text-primary mt-2"
-                      data-testid="cleaner-city-guest-drop-slot"
-                    >
-                      You are Drop {mine.dropIndex} of {dropPlan.ordered.length}
-                    </p>
-                  ) : null;
-                })()}
-              </div>
-              {dropPlan.ordered.map((stop) => (
-                <div
-                  key={stop.id}
-                  className="rounded-xl border border-border bg-card px-3.5 py-3"
-                >
-                  <p className="text-sm font-semibold">
-                    Drop {stop.dropIndex} · {stop.label}
-                  </p>
-                </div>
-              ))}
-              {isHost && dropNav && (
-                <Button
-                  className="w-full h-11 font-semibold"
-                  data-testid="cleaner-city-open-maps-drops"
-                  onClick={() => openGoogleMapsDirections(dropNav)}
-                >
-                  Open in Google Maps
-                </Button>
-              )}
-            </div>
+              Meeting point: {ride.meeting_point_label}
+            </p>
           )}
+
+          {dropOrderState && dropOrderState.ordered.length >= 1 && dropNav ? (
+            <DropRunPanel
+              dropOrder={dropOrderState}
+              isHost={isHost}
+              myRideId={ride.id}
+              rideStatus={ride.status}
+              missionOrigin={dropNav.origin}
+              hostFinalDest={dropNav.destination}
+              currentGps={dropGps}
+              onMarkStop={markDropStop}
+              markingStopId={markingStopId}
+            />
+          ) : null}
 
           {needsMeetingPoint && (
             <div
@@ -554,6 +814,7 @@ export default function CleanerCityRidePage() {
 
           {canCoordinate && (
             <div
+              id="cleaner-city-meeting-point-section"
               className="rounded-2xl border border-border bg-card p-4 space-y-3"
               data-testid="cleaner-city-meeting-point-section"
             >
@@ -721,268 +982,320 @@ export default function CleanerCityRidePage() {
           )}
 
           {active && (
-            <div className="space-y-2">
-              <p className="text-sm font-semibold">Live tracking</p>
+            <div className="space-y-2" data-testid="cleaner-city-live-tracking">
+              <div className="flex items-end justify-between gap-2">
+                <p className="text-sm font-semibold">Live tracking</p>
+                {mapDistanceLabel ? (
+                  <p
+                    className="text-[11px] font-semibold text-primary"
+                    data-testid="cleaner-city-map-distance"
+                  >
+                    {mapDistanceLabel}
+                  </p>
+                ) : null}
+              </div>
               <div
                 ref={setMapEl}
-                className="h-52 w-full rounded-2xl border border-border bg-muted"
+                className="h-56 w-full rounded-2xl border border-border bg-muted overflow-hidden"
                 data-testid="cleaner-city-ride-map"
               />
               <p className="text-[11px] text-muted-foreground">
-                Location shared only with ride participants while the trip is active.
+                Dotted line is straight-line distance. Shared only with this ride.
               </p>
-              <p
-                className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-xl p-2"
-                data-testid="cleaner-city-background-location-note"
-              >
-                {backgroundSupported && Capacitor.getPlatform() === 'android'
-                  ? 'Android keeps a location notification for this ride, including while the screen is locked or Maps is in front. Points that fail to send stay on the phone and retry. iOS cannot keep a background location mode, so sharing there continues while Sociva stays open.'
-                  : backgroundSupported
-                  ? 'Background location is allowed on this phone. Sociva watches this ride while the system keeps the app running. Samples that fail to send are kept on this phone.'
-                  : 'Keep Sociva open, or allow background location in phone settings, so live location can keep sharing. Samples that fail to send are kept on this phone and retry when the connection returns. iOS does not use a persistent background location mode.'}
-              </p>
-            </div>
-          )}
-
-          {isHost && ['confirmed', 'pickup_pending'].includes(ride.status) && (
-            <Button
-              onClick={async () => {
-                try {
-                  const res = await generateOtp.mutateAsync(ride.id);
-                  setShownOtp(res.otp);
-                  toast.success(`OTP ${res.otp}`);
-                } catch (e: any) {
-                  toast.error(e?.message || 'OTP failed');
-                }
-              }}
-            >
-              Generate pickup OTP
-            </Button>
-          )}
-          {shownOtp && <p className="text-sm font-semibold text-primary">OTP {shownOtp}</p>}
-
-          {ride.status === 'pickup_pending' && (
-            <div className="space-y-2">
-              {needsMeetingPoint ? (
-                <p className="text-xs text-amber-700 dark:text-amber-300">
-                  Start is locked until a meeting point is set.
+              {!backgroundSupported ? (
+                <p
+                  className="text-[11px] text-amber-800 dark:text-amber-200 bg-amber-500/10 border border-amber-500/30 rounded-xl px-3 py-2"
+                  data-testid="cleaner-city-background-location-note"
+                >
+                  Keep Sociva open for the steadiest live map.
                 </p>
               ) : null}
-              <div className="flex gap-2">
-                <Input placeholder="Enter OTP" value={otp} onChange={(e) => setOtp(e.target.value)} />
-                <Button
-                  disabled={needsMeetingPoint}
-                  onClick={async () => {
-                    if (needsMeetingPoint) {
-                      toast.error('Set a meeting point before starting');
-                      return;
-                    }
-                    try {
-                      await startRide.mutateAsync({ ride_id: ride.id, otp });
-                      toast.success('Ride started');
-                    } catch (e: any) {
-                      toast.error(e?.message || 'Invalid OTP');
-                    }
-                  }}
-                >
-                  Start
-                </Button>
-              </div>
             </div>
           )}
 
-          {isHost && ride.status === 'started' && (
-            <Button
-              onClick={async () => {
+          {['requested', 'confirmed', 'pickup_pending', 'started', 'completed'].includes(
+            ride.status,
+          ) && (
+            <RideChatStrip
+              rideId={ride.id}
+              messages={rideChat}
+              myUserId={user?.id}
+              partnerName={ride.partner_name}
+              partnerAvatarUrl={ride.partner_avatar_url}
+              body={chatBody}
+              onBodyChange={setChatBody}
+              sending={sendRideChat.isPending}
+              disabled={!ride.society_id}
+              onSend={async () => {
                 try {
-                  await completeRide.mutateAsync(ride.id);
-                  toast.success('Completed');
+                  await sendRideChat.mutateAsync({
+                    ride_id: ride.id,
+                    society_id: ride.society_id,
+                    body: chatBody,
+                  });
+                  setChatBody('');
                 } catch (e: any) {
-                  toast.error(e?.message || 'Failed');
+                  toast.error(e?.message || 'Could not send');
                 }
               }}
+            />
+          )}
+
+          {(canShowRideSos(ride.status) || canShowTripShare(ride.status)) && (
+            <div
+              className="rounded-2xl border border-border bg-card p-4 space-y-3"
+              data-testid="cleaner-city-safety-tools"
             >
-              Complete ride
+              <div>
+                <p className="text-sm font-semibold">Safety</p>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  {ride.status === 'pickup_pending'
+                    ? 'Available at pickup - for real emergencies at the gate.'
+                    : 'Available while you are on the road.'}
+                </p>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                {canShowRideSos(ride.status) ? (
+                  <Button
+                    variant="destructive"
+                    className="h-12 font-semibold"
+                    onClick={async () => {
+                      try {
+                        let lat = null;
+                        let lng = null;
+                        try {
+                          const pos = await getCurrentPosition();
+                          lat = pos.latitude;
+                          lng = pos.longitude;
+                        } catch {
+                          /* optional */
+                        }
+                        const result: any = await report.mutateAsync({
+                          ride_id: ride.id,
+                          incident_type: 'sos',
+                          note: 'SOS from app',
+                          latitude: lat,
+                          longitude: lng,
+                          severity: 'critical',
+                        });
+                        void dispatchSafety.mutateAsync(null).catch(() => {});
+                        const contacts = Number(result?.notified_contacts || 0);
+                        const admins = Number(result?.notified_admins || 0);
+                        const skipped = Number(result?.phone_only_contacts_skipped || 0);
+                        const counterpart = result?.notified_counterpart ? 1 : 0;
+                        setSosResult({ contacts, admins, counterpart, skipped });
+                        try {
+                          const row = await shareToken.mutateAsync(ride.id);
+                          const url = `${window.location.origin}/cleaner-city/share/${row.token}`;
+                          setShareUrl(url);
+                        } catch {
+                          /* share optional after SOS */
+                        }
+                        if (contacts + admins + counterpart === 0) {
+                          toast.message('SOS saved', {
+                            description: 'Nobody reachable in-app yet. Call 112 if in danger.',
+                          });
+                        } else {
+                          toast.success(
+                            `Alerted partner ${counterpart}, contacts ${contacts}, admins ${admins}` +
+                              (skipped > 0 ? ` · ${skipped} phone-only need SMS setup` : ''),
+                          );
+                        }
+                      } catch (e: any) {
+                        toast.error(e?.message || 'SOS failed');
+                      }
+                    }}
+                    data-testid="cleaner-city-sos"
+                  >
+                    SOS
+                  </Button>
+                ) : (
+                  <div />
+                )}
+                {canShowTripShare(ride.status) ? (
+                  <Button
+                    variant="outline"
+                    className="h-12 font-semibold"
+                    onClick={async () => {
+                      try {
+                        const row = await shareToken.mutateAsync(ride.id);
+                        const url = `${window.location.origin}/cleaner-city/share/${row.token}`;
+                        setShareUrl(url);
+                        await navigator.clipboard?.writeText(url);
+                        toast.success('Trip link copied - send to family');
+                      } catch (e: any) {
+                        toast.error(e?.message || 'Share failed');
+                      }
+                    }}
+                    data-testid="cleaner-city-trip-share"
+                  >
+                    Trip share
+                  </Button>
+                ) : null}
+              </div>
+              {sosResult ? (
+                <div
+                  className="rounded-xl border border-destructive/30 bg-destructive/10 p-3 space-y-2"
+                  data-testid="cleaner-city-sos-result"
+                >
+                  <p className="text-sm font-semibold">SOS sent</p>
+                  <ul className="text-[11px] text-muted-foreground space-y-1 list-disc pl-4">
+                    <li>Ride partner: {sosResult.counterpart ? 'notified in app' : 'none'}</li>
+                    <li>Linked Sociva contacts: {sosResult.contacts}</li>
+                    <li>Society admins: {sosResult.admins}</li>
+                    {sosResult.skipped > 0 ? (
+                      <li>
+                        {sosResult.skipped} phone-only contact(s) need SMS setup in Safety
+                      </li>
+                    ) : null}
+                  </ul>
+                  <div className="grid grid-cols-2 gap-2 pt-1">
+                    <Button asChild variant="destructive" className="h-10 font-semibold">
+                      <a href="tel:112">Call 112</a>
+                    </Button>
+                    <Button asChild variant="outline" className="h-10 font-semibold">
+                      <Link to="/cleaner-city/safety">Safety contacts</Link>
+                    </Button>
+                  </div>
+                  {shareUrl ? (
+                    <p className="text-[11px] break-all text-muted-foreground">{shareUrl}</p>
+                  ) : null}
+                </div>
+              ) : (
+                <p className="text-[11px] text-muted-foreground" data-testid="cleaner-city-sos-explainer">
+                  SOS alerts your ride partner, linked Sociva contacts, and society admins in the app.
+                  This is not a 112 dialer - call 112 for immediate danger.{' '}
+                  <Link to="/cleaner-city/safety" className="font-semibold text-primary">
+                    Manage contacts
+                  </Link>
+                </p>
+              )}
+              {shareUrl && !sosResult ? (
+                <p className="text-[11px] break-all text-muted-foreground">{shareUrl}</p>
+              ) : null}
+            </div>
+          )}
+
+          {['confirmed', 'pickup_pending', 'started'].includes(ride.status) && (
+            <Button
+              variant="outline"
+              className="w-full h-11 font-semibold"
+              disabled={maskedCall.isPending}
+              onClick={async () => {
+                try {
+                  const res = await maskedCall.mutateAsync(ride.id);
+                  if (res?.dispatch_error || res?.dispatch?.failed) {
+                    toast.error('Relay call was queued, but calling is not configured yet');
+                  } else {
+                    toast.success('Relay call requested. Your number stays hidden.');
+                  }
+                } catch (e: any) {
+                  toast.error(e?.message || 'Could not start a relay call');
+                }
+              }}
+              data-testid="cleaner-city-masked-call"
+            >
+              Relay call (number hidden)
             </Button>
           )}
 
-          <div className="grid grid-cols-2 gap-2">
-            <Button
-              variant="destructive"
-              onClick={async () => {
-                try {
-                  let lat = null;
-                  let lng = null;
-                  try {
-                    const pos = await getCurrentPosition();
-                    lat = pos.latitude;
-                    lng = pos.longitude;
-                  } catch {
-                    /* optional */
-                  }
-                  const result: any = await report.mutateAsync({
-                    ride_id: ride.id,
-                    incident_type: 'sos',
-                    note: 'SOS from app',
-                    latitude: lat,
-                    longitude: lng,
-                    severity: 'critical',
-                  });
-                  const contacts = Number(result?.notified_contacts || 0);
-                  const admins = Number(result?.notified_admins || 0);
-                  const skipped = Number(result?.phone_only_contacts_skipped || 0);
-                  const counterpart = result?.notified_counterpart ? 1 : 0;
-                  if (contacts + admins + counterpart === 0) {
-                    toast.message('SOS recorded', {
-                      description:
-                        'Incident saved. No in-app recipients were notified. Call 112 for immediate danger.',
-                    });
-                  } else {
-                    toast.success(
-                      `SOS alerted ${counterpart} ride partner, ${contacts} linked contact(s), ${admins} admin(s)` +
-                        (skipped > 0
-                          ? `. ${skipped} phone-only contact(s) were not messaged (no SMS).`
-                          : ''),
-                    );
-                  }
-                } catch (e: any) {
-                  toast.error(e?.message || 'SOS failed');
-                }
-              }}
-              data-testid="cleaner-city-sos"
+          {canOpenDispute(ride.status) && !disputeCase && (
+            <div
+              className="rounded-2xl border border-border bg-card p-4 space-y-3"
+              data-testid="cleaner-city-dispute"
             >
-              SOS
-            </Button>
-            <Button
-              variant="outline"
-              onClick={async () => {
-                try {
-                  const row = await shareToken.mutateAsync(ride.id);
-                  const url = `${window.location.origin}/cleaner-city/share/${row.token}`;
-                  setShareUrl(url);
-                  await navigator.clipboard?.writeText(url);
-                  toast.success('Share link copied');
-                } catch (e: any) {
-                  toast.error(e?.message || 'Share failed');
-                }
-              }}
-            >
-              Trip share
-            </Button>
-            {['confirmed', 'pickup_pending', 'started'].includes(ride.status) && (
-              <Button
-                variant="outline"
-                disabled={maskedCall.isPending}
-                onClick={async () => {
-                  try {
-                    const res = await maskedCall.mutateAsync(ride.id);
-                    if (res?.dispatch_error || res?.dispatch?.failed) {
-                      toast.error('Relay call was queued, but calling is not configured yet');
-                    } else {
-                      toast.success('Relay call requested. Your number stays hidden.');
-                    }
-                  } catch (e: any) {
-                    toast.error(e?.message || 'Could not start a relay call');
-                  }
-                }}
-                data-testid="cleaner-city-masked-call"
-              >
-                Relay call
-              </Button>
-            )}
-            {['no_show', 'completed', 'cancelled'].includes(ride.status) && (
-              <Button
-                variant="outline"
-                disabled={disputeRide.isPending}
-                onClick={async () => {
-                  try {
-                    await disputeRide.mutateAsync({ ride_id: ride.id });
-                    toast.success('Dispute opened');
-                  } catch (e: any) {
-                    toast.error(e?.message || 'Could not open a dispute');
-                  }
-                }}
-                data-testid="cleaner-city-dispute"
-              >
-                Dispute
-              </Button>
-            )}
-            {ride.status === 'disputed' && (
-              <div className="space-y-2" data-testid="cleaner-city-dispute-appeal">
-                <Input
-                  value={appealNote}
-                  onChange={(e) => setAppealNote(e.target.value)}
-                  placeholder="Why this dispute should be reviewed"
-                />
-                <Button
-                  variant="outline"
-                  disabled={appealDispute.isPending}
-                  onClick={async () => {
-                    try {
-                      await appealDispute.mutateAsync({ ride_id: ride.id, note: appealNote });
-                      toast.success('Appeal sent to admin');
-                      setAppealNote('');
-                    } catch (e: any) {
-                      toast.error(e?.message || 'Could not appeal');
-                    }
-                  }}
-                >
-                  Appeal dispute
-                </Button>
+              <div>
+                <p className="text-sm font-semibold">Something went wrong?</p>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  After the ride ends, report a problem. Your partner and society admins are notified.
+                </p>
               </div>
-            )}
-            {['requested', 'confirmed', 'pickup_pending', 'started', 'completed'].includes(ride.status) && (
-              <div className="space-y-2" data-testid="cleaner-city-ride-chat">
-                <p className="text-sm font-semibold">Ride chat</p>
-                <Link to={`/cleaner-city/chat?thread=ride:${ride.id}`} className="text-xs font-semibold text-primary">
-                  Open the full chat
-                </Link>
-                {rideChat.slice(-8).map((row) => (
-                  <p key={row.id} className="text-[11px] text-muted-foreground">
-                    {row.sender_id === user?.id ? 'You' : 'Partner'}: {row.body}
+              <Input
+                value={disputeNote}
+                onChange={(e) => setDisputeNote(e.target.value)}
+                placeholder="What happened? (short note)"
+                data-testid="cleaner-city-dispute-note"
+              />
+              <Button
+                variant="outline"
+                className="w-full h-11 font-semibold"
+                disabled={disputeRide.isPending || disputeNote.trim().length < 4}
+                onClick={async () => {
+                  try {
+                    await disputeRide.mutateAsync({
+                      ride_id: ride.id,
+                      note: disputeNote.trim(),
+                    });
+                    toast.success('Problem reported - partner and admins notified');
+                    setDisputeNote('');
+                  } catch (e: any) {
+                    toast.error(e?.message || 'Could not report');
+                  }
+                }}
+              >
+                Report a problem
+              </Button>
+            </div>
+          )}
+
+          {ride.status === 'disputed' && (
+            <div
+              className="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4 space-y-3"
+              data-testid="cleaner-city-dispute-appeal"
+            >
+              <div>
+                <p className="text-sm font-semibold">Under review</p>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  {disputeCase?.opened_by === user?.id
+                    ? 'You reported this. A society admin will decide. Your partner can tell their side.'
+                    : 'Your partner reported a problem. Tell your side below - admins will review both notes.'}
+                </p>
+                {disputeCase?.note ? (
+                  <p className="mt-2 text-xs rounded-xl border border-border bg-card px-3 py-2">
+                    Report: {disputeCase.note}
                   </p>
-                ))}
-                <div className="flex gap-2">
+                ) : null}
+              </div>
+              {disputeCase?.status === 'appealed' || disputeCase?.appeal_note ? (
+                <p className="text-xs text-muted-foreground">
+                  Both sides are in. Waiting on society admin.
+                  {disputeCase.appeal_note ? ` Reply: ${disputeCase.appeal_note}` : ''}
+                </p>
+              ) : disputeCase?.opened_by && disputeCase.opened_by !== user?.id ? (
+                <>
                   <Input
-                    value={chatBody}
-                    onChange={(e) => setChatBody(e.target.value)}
-                    placeholder="Message about this ride"
+                    value={appealNote}
+                    onChange={(e) => setAppealNote(e.target.value)}
+                    placeholder="Your side of the story"
+                    data-testid="cleaner-city-appeal-note"
                   />
                   <Button
                     variant="outline"
-                    disabled={!chatBody.trim() || !ride.society_id || sendRideChat.isPending}
+                    className="w-full h-11 font-semibold"
+                    disabled={appealDispute.isPending || appealNote.trim().length < 4}
                     onClick={async () => {
                       try {
-                        await sendRideChat.mutateAsync({
+                        await appealDispute.mutateAsync({
                           ride_id: ride.id,
-                          society_id: ride.society_id,
-                          body: chatBody,
+                          note: appealNote.trim(),
                         });
-                        setChatBody('');
+                        toast.success('Your side sent - admins notified');
+                        setAppealNote('');
                       } catch (e: any) {
                         toast.error(e?.message || 'Could not send');
                       }
                     }}
                   >
-                    Send
+                    Tell my side
                   </Button>
-                </div>
-              </div>
-            )}
-          </div>
-          <p
-            className="text-[11px] text-muted-foreground"
-            data-testid="cleaner-city-sos-explainer"
-          >
-            SOS records an incident and notifies the other person on this ride, linked emergency contacts,
-            and society admins in the app. Phone contacts are queued for SMS, which sends only
-            when Sociva's SMS template is configured. Failed alerts can be retried from Safety.
-            Live location keeps a watch while this ride is active and the phone allows it.
-            If the connection drops, samples stay on this phone and send when it returns.
-            If the system stops the app, sharing resumes when you open Sociva. This is not a 112 dialer.
-            For immediate danger, call 112 first.
-          </p>
-          {shareUrl && <p className="text-[11px] break-all text-muted-foreground">{shareUrl}</p>}
+                </>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  Hang tight - society admin will review.
+                </p>
+              )}
+            </div>
+          )}
 
           {ride.status === 'completed' && (
             <div className="rounded-2xl border border-border bg-card p-4 space-y-3">

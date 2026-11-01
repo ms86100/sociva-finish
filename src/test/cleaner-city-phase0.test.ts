@@ -22,10 +22,8 @@ const hookFile = fs.readFileSync(
 
 describe('A Cleaner City Phase 0 formatMatchReasons helper', () => {
   it('maps known reason codes to human copy', () => {
-    expect(formatMatchReason('pickup_within_corridor')).toBe('Pickup near your usual spot');
-    expect(formatMatchReason('overlap_proxy_ok')).toBe(
-      'Approximate corridor fit (straight-line estimate)',
-    );
+    expect(formatMatchReason('pickup_within_corridor')).toBe('Pickup nearby');
+    expect(formatMatchReason('overlap_proxy_ok')).toBe('Good corridor fit');
   });
 
   it('humanizes unknown reason codes instead of throwing', () => {
@@ -34,9 +32,7 @@ describe('A Cleaner City Phase 0 formatMatchReasons helper', () => {
 
   it('joins multiple reasons into one readable string', () => {
     const result = formatMatchReasons(['pickup_within_corridor', 'overlap_proxy_ok']);
-    expect(result).toBe(
-      'Pickup near your usual spot - Approximate corridor fit (straight-line estimate)',
-    );
+    expect(result).toBe('Pickup nearby - Good corridor fit');
   });
 
   it('falls back to placeholder copy for empty reasons', () => {
@@ -72,8 +68,17 @@ describe('A Cleaner City Phase 0 Find/Offer page fixes', () => {
     expect(findPage).toContain('No seats yet - try another time or Offer a ride');
   });
 
-  it('Find page shows human reasons via formatMatchReasons', () => {
-    expect(findPage).toContain('formatMatchReasons');
+  it('Find match cards show vehicle, plate, stars, and chip reasons', () => {
+    const card = fs.readFileSync(
+      path.resolve(process.cwd(), 'src/components/cleaner-city/CleanerCityMatchCard.tsx'),
+      'utf8',
+    );
+    expect(card).toContain('cleaner-city-match-plate');
+    expect(card).toContain('cleaner-city-match-stars');
+    expect(card).toContain('matchReasonChips');
+    expect(card).toContain('vehicleKindLabel');
+    expect(card).toContain('Match power');
+    expect(findPage).toContain('CleanerCityMatchCard');
   });
 
   it('Offer page never falls back to hardcoded Bangalore coordinates', () => {
@@ -87,7 +92,8 @@ describe('A Cleaner City Phase 0 Find/Offer page fixes', () => {
   });
 
   it('Offer page disables publish until pins exist', () => {
-    expect(offerPage).toContain('disabled={publish.isPending || !ready || !pinsReady}');
+    expect(offerPage).toContain('!pinsReady');
+    expect(offerPage).toContain('cleaner-city-offer-publish');
   });
 });
 

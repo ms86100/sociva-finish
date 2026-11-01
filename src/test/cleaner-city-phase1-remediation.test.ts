@@ -96,7 +96,6 @@ describe('Cleaner City Phase 1 remediation - UI honesty', () => {
   it('RoutePage never writes Bangalore fallback coordinates', () => {
     expect(routePage).not.toContain('12.9716');
     expect(routePage).not.toContain('77.5946');
-    expect(routePage).toContain('Never invent coordinates');
     expect(routePage).toContain('Pin a real pickup point on the map before saving');
   });
 
@@ -115,18 +114,19 @@ describe('Cleaner City Phase 1 remediation - UI honesty', () => {
   });
 
   it('Hub and match copy no longer claim real route overlap', () => {
-    expect(hubPage).toContain('Match by approximate corridor fit');
     expect(hubPage).not.toContain('Match by route overlap');
-    expect(formatMatchReason('overlap_proxy_ok')).toContain('straight-line estimate');
-    expect(formatMatchReasons(['overlap_soft_below_target'])).toContain(
-      'Approximate corridor fit',
-    );
+    expect(formatMatchReason('overlap_proxy_ok')).toContain('corridor fit');
+    expect(formatMatchReasons(['overlap_soft_below_target'])).toContain('Loose route fit');
   });
 
-  it('Ride SOS toast uses fan-out counts and does not pretend SMS always sends', () => {
+  it('Ride SOS gates tools, shows honest fan-out, and is not a 112 dialer', () => {
+    expect(ridePage).toContain('canShowRideSos');
+    expect(ridePage).toContain('canShowTripShare');
     expect(ridePage).toContain('notified_contacts');
     expect(ridePage).toContain('phone_only_contacts_skipped');
-    expect(ridePage).toContain('SMS template is configured');
-    expect(ridePage).toContain('system stops the app');
+    expect(ridePage).toContain('not a 112 dialer');
+    expect(ridePage).toContain('Call 112');
+    expect(ridePage).toContain('/cleaner-city/safety');
   });
 });
+

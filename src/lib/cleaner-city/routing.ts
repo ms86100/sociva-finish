@@ -298,9 +298,12 @@ export async function planDropSequence(input: {
   const route = await fetchDrivingRoute(origin, destination, waypoints, {
     optimizeWaypoints: true,
   });
-  const order = route.waypointOrder?.length
-    ? route.waypointOrder
-    : nearestNeighborOrder(origin, stops);
+  // Google waypoint_order when available; otherwise nearest-neighbor (haversine
+  // identity order is not an optimized drop sequence).
+  const order =
+    route.provider === 'google' && route.waypointOrder?.length === stops.length
+      ? route.waypointOrder
+      : nearestNeighborOrder(origin, stops);
 
   const ordered = order.map((stopIdx, i) => ({
     ...stops[stopIdx],
@@ -378,14 +381,21 @@ export type PreferredRouteStore = {
   savedAt: string;
 };
 
-export function preferredRouteStorageKey(userId: string) {
-  return `cleaner_city_preferred_route_${userId}`;
+export function preferredRouteStorageKey(
+  userId: string,
+  direction: 'to_office' | 'to_home' = 'to_office',
+) {
+  const suffix = direction === 'to_home' ? '_home' : '';
+  return `cleaner_city_preferred_route_${userId}${suffix}`;
 }
 
-export function loadPreferredRoute(userId: string | null | undefined): PreferredRouteStore | null {
+export function loadPreferredRoute(
+  userId: string | null | undefined,
+  direction: 'to_office' | 'to_home' = 'to_office',
+): PreferredRouteStore | null {
   if (!userId || typeof window === 'undefined') return null;
   try {
-    const raw = localStorage.getItem(preferredRouteStorageKey(userId));
+    const raw = localStorage.getItem(preferredRouteStorageKey(userId, direction));
     if (!raw) return null;
     return JSON.parse(raw) as PreferredRouteStore;
   } catch {
@@ -393,10 +403,14 @@ export function loadPreferredRoute(userId: string | null | undefined): Preferred
   }
 }
 
-export function savePreferredRoute(userId: string, route: PreferredRouteStore) {
+export function savePreferredRoute(
+  userId: string,
+  route: PreferredRouteStore,
+  direction: 'to_office' | 'to_home' = 'to_office',
+) {
   if (typeof window === 'undefined') return;
   try {
-    localStorage.setItem(preferredRouteStorageKey(userId), JSON.stringify(route));
+    localStorage.setItem(preferredRouteStorageKey(userId, direction), JSON.stringify(route));
   } catch {
     // ignore quota
   }

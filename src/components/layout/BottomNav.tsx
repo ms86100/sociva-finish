@@ -81,8 +81,11 @@ function BottomNavInner() {
       <div className="relative flex items-center justify-around px-1.5 h-16">
         {visibleItems.map(({ to, icon: Icon, label }) => {
           const displayLabel = !user && to === '/profile' ? 'Sign in' : label;
-          const isActive = location.pathname === to ||
-            (to !== '/' && location.pathname.startsWith(to));
+          // Cleaner City lives under Book - keep Book lit on /cleaner-city/*
+          const isActive =
+            location.pathname === to ||
+            (to !== '/' && location.pathname.startsWith(to)) ||
+            (to === '/book' && location.pathname.startsWith('/cleaner-city'));
 
           return (
             <button

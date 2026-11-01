@@ -330,6 +330,33 @@ export default function CleanerCitySchedulePage() {
             </div>
           ) : null}
 
+          {host && (weekSaved || weekAlreadyConfigured) ? (
+            <div
+              className="rounded-2xl border border-primary/40 bg-primary/10 p-4 space-y-3"
+              data-testid="cleaner-city-schedule-republish"
+            >
+              <div>
+                <p className="text-sm font-semibold">Offer seats with this schedule</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Your leave times are saved. Publish seats for neighbours in one step.
+                </p>
+              </div>
+              <Button
+                className="w-full h-11 font-semibold"
+                onClick={() =>
+                  navigate('/cleaner-city/offer', {
+                    state: {
+                      notice:
+                        'Schedule is ready. Pick today or tomorrow, seats, and publish - we will open hosting after.',
+                    },
+                  })
+                }
+              >
+                Publish seats now
+              </Button>
+            </div>
+          ) : null}
+
           <div className="flex items-center justify-between gap-3 rounded-2xl border border-border bg-card px-4 py-3">
             {[
               { label: 'Times', done: weekSaved || weekAlreadyConfigured },
@@ -505,22 +532,40 @@ export default function CleanerCitySchedulePage() {
               </section>
 
               {weekSaved ? (
-                <button
-                  type="button"
-                  className="py-1 text-center text-sm font-semibold text-primary"
-                  data-testid="cleaner-city-schedule-next"
-                  onClick={() =>
-                    navigate(host ? '/cleaner-city/vehicle' : '/cleaner-city/find', {
-                      state: {
-                        notice: host
-                          ? 'Add the car or bike you will use, then offer seats.'
-                          : 'Search for a seat on your corridor.',
-                      },
-                    })
-                  }
-                >
-                  {host ? 'Next - my vehicle' : 'Next - find a ride'}
-                </button>
+                <div className="flex flex-col gap-2">
+                  {host ? (
+                    <Button
+                      className="h-11 font-semibold"
+                      data-testid="cleaner-city-schedule-republish-after-save"
+                      onClick={() =>
+                        navigate('/cleaner-city/offer', {
+                          state: {
+                            notice:
+                              'Week times saved. Publish seats for today or tomorrow when you are ready.',
+                          },
+                        })
+                      }
+                    >
+                      Publish seats now
+                    </Button>
+                  ) : null}
+                  <button
+                    type="button"
+                    className="py-1 text-center text-sm font-semibold text-primary"
+                    data-testid="cleaner-city-schedule-next"
+                    onClick={() =>
+                      navigate(host ? '/cleaner-city/vehicle' : '/cleaner-city/find', {
+                        state: {
+                          notice: host
+                            ? 'Add the car or bike you will use, then offer seats.'
+                            : 'Search for a seat near your leave time.',
+                        },
+                      })
+                    }
+                  >
+                    {host ? 'Or add vehicle first' : 'Next - find a ride'}
+                  </button>
+                </div>
               ) : null}
               </div>
             </TabsContent>

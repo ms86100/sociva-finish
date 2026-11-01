@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { CleanerCityGate } from '@/components/cleaner-city/CleanerCityGate';
 import { CleanerCityPinPicker } from '@/components/cleaner-city/CleanerCityPinPicker';
+import { CleanerCityRoutePreview } from '@/components/cleaner-city/CleanerCityRoutePreview';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
@@ -473,6 +474,13 @@ export default function CleanerCityRoutePage() {
                       );
                     })}
                   </div>
+                  {selectedRoute ? (
+                    <CleanerCityRoutePreview
+                      path={selectedRoute.path}
+                      polyline={selectedRoute.polyline}
+                      testId="cleaner-city-route-choice-preview"
+                    />
+                  ) : null}
                 </div>
               ) : null}
 

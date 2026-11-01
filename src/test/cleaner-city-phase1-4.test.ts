@@ -179,8 +179,9 @@ describe('A Cleaner City Phase 1-4 find page', () => {
   });
 
   it('shows a shared_circle badge on match cards', () => {
-    expect(findPage).toContain('m.shared_circle');
-    expect(findPage).toContain('cleaner-city-shared-circle-badge');
+    const card = readSrc('src/components/cleaner-city/CleanerCityMatchCard.tsx');
+    expect(card).toContain('match.shared_circle');
+    expect(card).toContain('cleaner-city-shared-circle-badge');
   });
 
   it('suggests replacements on ride cancel', () => {
@@ -233,8 +234,9 @@ describe('A Cleaner City Phase 1-4 ride page', () => {
 
   it('explains SOS is not a 112 dialer and covers emergency contact + counterpart notification', () => {
     expect(ridePage).toContain('not a 112');
-    expect(ridePage).toContain('emergency contacts');
-    expect(ridePage).toContain('other person on this ride');
+    expect(ridePage).toContain('Call 112');
+    expect(ridePage).toContain('notified_counterpart');
+    expect(ridePage).toContain('/cleaner-city/safety');
   });
 
   it('prefills the fuel proposal from ride.estimated_fuel_paise', () => {

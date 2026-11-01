@@ -18,6 +18,14 @@ vi.mock('@/hooks/useEffectiveFeatures', () => ({
   }),
 }));
 
+vi.mock('@/hooks/queries/useCleanerCity', () => ({
+  useMyRides: () => ({ data: [] }),
+}));
+
+vi.mock('@/contexts/AuthContext', () => ({
+  useAuth: () => ({ user: { id: 'u1' } }),
+}));
+
 import { CleanerCityEntryCard } from '@/components/cleaner-city/CleanerCityEntryCard';
 
 describe('CleanerCityEntryCard', () => {
@@ -45,8 +53,18 @@ describe('CleanerCityEntryCard', () => {
     const card = screen.getByTestId('cleaner-city-entry-card');
     expect(card).toHaveAttribute('href', '/cleaner-city');
     expect(card).toHaveTextContent('A Cleaner City');
-    expect(card).toHaveTextContent('Verified commuters');
-    expect(card).toHaveTextContent('Smart route matching');
+    expect(card).toHaveTextContent('Find a ride');
+    expect(card).toHaveTextContent('Offer a seat');
+  });
+
+  it('entry card can deep-link into a live mission when rides are active', () => {
+    const src = readFileSync(
+      resolve(process.cwd(), 'src/components/cleaner-city/CleanerCityEntryCard.tsx'),
+      'utf8',
+    );
+    expect(src).toContain('useMyRides');
+    expect(src).toContain('Live mission');
+    expect(src).toContain('/cleaner-city/ride/');
   });
 });
 

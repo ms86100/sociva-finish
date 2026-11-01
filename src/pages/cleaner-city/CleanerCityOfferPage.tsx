@@ -6,7 +6,9 @@ import { toast } from 'sonner';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { CleanerCityGate } from '@/components/cleaner-city/CleanerCityGate';
 import { CleanerCityPinPicker } from '@/components/cleaner-city/CleanerCityPinPicker';
+import { CleanerCityRoutePreview } from '@/components/cleaner-city/CleanerCityRoutePreview';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -23,6 +25,7 @@ import {
   usePublishCommute,
   preferredRouteFromProfile,
   useSetPreferredRoute,
+  useSetPublicationDropOrder,
   useSetPublicationStop,
   useStoreRouteGeometry,
 } from '@/hooks/queries/useCleanerCity';
@@ -92,6 +95,7 @@ export default function CleanerCityOfferPage() {
   const cancelPub = useCancelPublication();
   const storeRoute = useStoreRouteGeometry();
   const setPreferredRoute = useSetPreferredRoute();
+  const setDropOrder = useSetPublicationDropOrder();
   const { isLoaded } = useGoogleMaps();
 
   const tz = profile?.timezone || DEFAULT_COMMUTE_TIMEZONE;
@@ -114,6 +118,7 @@ export default function CleanerCityOfferPage() {
   const [publishRouteId, setPublishRouteId] = useState<string | null>(null);
   const [needRoutePick, setNeedRoutePick] = useState(false);
   const [dropPlan, setDropPlan] = useState<DropSequenceResult | null>(null);
+  const [offlineConfirm, setOfflineConfirm] = useState(false);
 
   const { data: savedStops = [] } = usePublicationStops(stopPubId || null);
   const { data: daySchedule } = useEffectiveSchedule(travelDate);
@@ -184,7 +189,7 @@ export default function CleanerCityOfferPage() {
   const selectedPub = publications.find((p) => p.id === stopPubId) || null;
 
   useEffect(() => {
-    if (savedStops.length < 2 || !selectedPub || !isLoaded) {
+    if (savedStops.length < 1 || !selectedPub || !isLoaded) {
       setDropPlan(null);
       return;
     }
@@ -221,7 +226,25 @@ export default function CleanerCityOfferPage() {
             lng: s.longitude,
           })),
         });
-        if (!cancelled) setDropPlan(plan);
+        if (cancelled) return;
+        setDropPlan(plan);
+        if (selectedPub?.id && plan.ordered.length >= 1) {
+          try {
+            await setDropOrder.mutateAsync({
+              publication_id: selectedPub.id,
+              drop_order: {
+                provider: plan.provider,
+                distanceMeters: plan.distanceMeters,
+                durationSeconds: plan.durationSeconds,
+                polyline: plan.polyline,
+                ordered: plan.ordered,
+                savedAt: new Date().toISOString(),
+              },
+            });
+          } catch {
+            // Best-effort persist
+          }
+        }
       } catch {
         if (!cancelled) setDropPlan(null);
       }
@@ -241,19 +264,24 @@ export default function CleanerCityOfferPage() {
     pickupLng,
   ]);
 
-  const persistPreferred = async (alt: RouteAlternative, homeOrigin: { lat: number; lng: number }, homeDest: { lat: number; lng: number }) => {
+  const persistPreferred = async (
+    alt: RouteAlternative,
+    routeOrigin: { lat: number; lng: number },
+    routeDest: { lat: number; lng: number },
+    routeDirection: 'to_office' | 'to_home',
+  ) => {
     const payload = {
       polyline: alt.polyline,
       distanceMeters: alt.distanceMeters,
       durationSeconds: alt.durationSeconds,
       summary: alt.summary,
-      originLat: homeOrigin.lat,
-      originLng: homeOrigin.lng,
-      destLat: homeDest.lat,
-      destLng: homeDest.lng,
+      originLat: routeOrigin.lat,
+      originLng: routeOrigin.lng,
+      destLat: routeDest.lat,
+      destLng: routeDest.lng,
       savedAt: new Date().toISOString(),
     };
-    if (user?.id) savePreferredRoute(user.id, payload);
+    if (user?.id) savePreferredRoute(user.id, payload, routeDirection);
     try {
       await setPreferredRoute.mutateAsync({
         polyline: payload.polyline,
@@ -264,6 +292,7 @@ export default function CleanerCityOfferPage() {
         originLng: payload.originLng,
         destLat: payload.destLat,
         destLng: payload.destLng,
+        direction: routeDirection,
       });
     } catch {
       // localStorage already written - DB sync best-effort
@@ -274,17 +303,15 @@ export default function CleanerCityOfferPage() {
     origin: { lat: number; lng: number },
     destination: { lat: number; lng: number },
   ): Promise<RouteAlternative | null> => {
-    const homeOrigin = { lat: pickupLat!, lng: pickupLng! };
-    const homeDest = { lat: office!.latitude, lng: office!.longitude };
+    const routeDirection = (direction === 'to_home' ? 'to_home' : 'to_office') as
+      | 'to_office'
+      | 'to_home';
 
-    const fromProfile = preferredRouteFromProfile(profile);
-    const fromLocal = loadPreferredRoute(user?.id);
+    const fromProfile = preferredRouteFromProfile(profile, routeDirection);
+    const fromLocal = loadPreferredRoute(user?.id, routeDirection);
     const preferred = fromProfile || fromLocal;
 
-    if (
-      direction === 'to_office' &&
-      preferredRouteMatchesPins(preferred, homeOrigin, homeDest)
-    ) {
+    if (preferredRouteMatchesPins(preferred, origin, destination)) {
       return {
         id: 'preferred',
         polyline: preferred!.polyline,
@@ -302,7 +329,20 @@ export default function CleanerCityOfferPage() {
     }
 
     if (!isLoaded) {
-      toast.error('Maps is still loading - wait a moment, then tap Publish again');
+      if (offlineConfirm) {
+        const fallback = await fetchDrivingRoute(origin, destination);
+        toast.message('Publishing with approximate path - Maps was offline');
+        return {
+          id: 'offline-approx',
+          polyline: fallback.polyline,
+          distanceMeters: fallback.distanceMeters,
+          durationSeconds: fallback.durationSeconds,
+          summary: fallback.summary || 'Approximate path',
+          provider: fallback.provider,
+          path: fallback.path,
+        };
+      }
+      toast.error('Maps is still loading - wait, or confirm approximate path below');
       return null;
     }
 
@@ -385,19 +425,22 @@ export default function CleanerCityOfferPage() {
           destination_longitude: destination.lng,
           origin_label:
             direction === 'to_office'
-              ? selected?.preferred_pickup_label || weekdayTemplate?.pickup_label || 'Pickup corridor'
+              ? selected?.preferred_pickup_label || weekdayTemplate?.pickup_label || 'Pickup area'
               : office.label || 'Office',
           destination_label:
             direction === 'to_office'
               ? office.label || 'Office'
-              : selected?.preferred_drop_label || weekdayTemplate?.pickup_label || 'Home corridor',
+              : selected?.preferred_drop_label || weekdayTemplate?.pickup_label || 'Home area',
           route_distance_meters: chosen.distanceMeters,
           route_duration_seconds: chosen.durationSeconds,
           route_provider: chosen.provider,
         });
-        if (direction === 'to_office') {
-          await persistPreferred(chosen, origin, destination);
-        }
+        await persistPreferred(
+          chosen,
+          origin,
+          destination,
+          direction === 'to_home' ? 'to_home' : 'to_office',
+        );
       } catch {
         // Route cache optional after publish
       }
@@ -406,8 +449,14 @@ export default function CleanerCityOfferPage() {
       setPublishAlts([]);
       setPublishRouteId(null);
       setJustPublishedId(pub.id);
-      toast.success('Seats published');
-      setTab('rides');
+      toast.success('Seats are live');
+      navigate('/cleaner-city/find', {
+        state: {
+          openHosting: true,
+          notice: 'Seats published. Accept requests from the Hosting card at the top.',
+          justPublishedId: pub.id,
+        },
+      });
     } catch (e: any) {
       toast.error(e?.message || 'Could not publish');
     }
@@ -424,7 +473,7 @@ export default function CleanerCityOfferPage() {
 
   const saveExtraStop = async () => {
     if (!stopPubId) {
-      toast.error('Publish a ride first, then add office stops');
+      toast.error('Publish a ride first, then add a matching pin if needed');
       setTab('publish');
       return;
     }
@@ -470,7 +519,7 @@ export default function CleanerCityOfferPage() {
             {[
               { label: 'Publish', done: publications.length > 0 },
               { label: 'Live seats', done: publications.some((p) => p.status === 'published') },
-              { label: 'Extra stops', done: filledStopSlots.size > 0 },
+              { label: 'Match pins', done: filledStopSlots.size > 0 },
             ].map((step, i, arr) => (
               <div key={step.label} className="flex min-w-0 flex-1 items-center gap-2">
                 <span
@@ -527,7 +576,7 @@ export default function CleanerCityOfferPage() {
             <TabsList className="grid h-12 w-full grid-cols-3 p-1">
               <TabsTrigger value="publish">Publish</TabsTrigger>
               <TabsTrigger value="rides">My rides</TabsTrigger>
-              <TabsTrigger value="stops">Extra stops</TabsTrigger>
+              <TabsTrigger value="stops">Match pins</TabsTrigger>
             </TabsList>
 
             <TabsContent value="publish" className="mt-6 focus-visible:outline-none">
@@ -538,7 +587,7 @@ export default function CleanerCityOfferPage() {
                     Publish empty seats
                   </p>
                   <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
-                    Neighbours on your corridor can request a seat. Your exact office stays private
+                    Neighbours going your way can request a seat. Your exact office stays private
                     until a booking is confirmed.
                   </p>
                 </div>
@@ -669,7 +718,31 @@ export default function CleanerCityOfferPage() {
                         </button>
                       );
                     })}
+                    {publishRouteId ? (
+                      <CleanerCityRoutePreview
+                        path={publishAlts.find((a) => a.id === publishRouteId)?.path}
+                        polyline={publishAlts.find((a) => a.id === publishRouteId)?.polyline}
+                        testId="cleaner-city-offer-route-preview"
+                      />
+                    ) : null}
                   </div>
+                ) : null}
+
+                {!isLoaded ? (
+                  <label
+                    className="flex items-start gap-3 rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-3"
+                    data-testid="cleaner-city-offer-offline-confirm"
+                  >
+                    <Checkbox
+                      checked={offlineConfirm}
+                      onCheckedChange={(v) => setOfflineConfirm(v === true)}
+                      className="mt-0.5"
+                    />
+                    <span className="text-xs leading-relaxed">
+                      Maps is still loading. I confirm publishing with an approximate path if Google
+                      is unavailable.
+                    </span>
+                  </label>
                 ) : null}
 
                 <Button
@@ -680,11 +753,12 @@ export default function CleanerCityOfferPage() {
                     !ready ||
                     !pinsReady ||
                     !canPublishDay ||
-                    (needRoutePick && !publishRouteId)
+                    (needRoutePick && !publishRouteId) ||
+                    (!isLoaded && !offlineConfirm)
                   }
                   data-testid="cleaner-city-offer-publish"
                 >
-                  Publish ride
+                  {!isLoaded && !offlineConfirm ? 'Waiting for Maps…' : 'Publish ride'}
                 </Button>
               </section>
             </TabsContent>
@@ -693,8 +767,8 @@ export default function CleanerCityOfferPage() {
               <div className="flex flex-col gap-6">
                 {justPublishedId ? (
                   <div className="rounded-2xl border border-primary/30 bg-primary/5 px-4 py-3 text-sm leading-relaxed">
-                    Ride is live. Optional next: add another office drop on Extra stops if you cover
-                    more than one workplace.
+                    Ride is live. Accepted guests get an auto drop order from their pins - you do not
+                    add those here. Optional: pin another office corridor for matching only.
                   </div>
                 ) : null}
 
@@ -746,7 +820,7 @@ export default function CleanerCityOfferPage() {
                     className="py-1 text-center text-sm font-semibold text-primary"
                     onClick={() => setTab('stops')}
                   >
-                    Add extra office stops (optional)
+                    Optional match pin (not guest drops)
                   </button>
                 ) : null}
               </div>
@@ -758,11 +832,12 @@ export default function CleanerCityOfferPage() {
                   <div className="flex items-start gap-2">
                     <MapPinned size={18} className="mt-0.5 shrink-0 text-primary" />
                     <div>
-                      <h2 className="text-base font-semibold">Extra office drops</h2>
+                      <h2 className="text-base font-semibold">Optional matching pins</h2>
                       <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
-                        Optional. If your car also drops someone at a second office nearby, pin that
-                        gate. Guests matching near that stop see &quot;Drops near an extra stop&quot;.
-                        You do not type coordinates - search or move the blue pin.
+                        Not for accepted guest drops. Guests pin their own destination when they
+                        request, and Active Ride builds the drop order automatically. Use this only
+                        if you also pass a second office corridor so Find can match guests near that
+                        pin. Search or move the blue pin - no typed coordinates.
                       </p>
                     </div>
                   </div>
@@ -862,15 +937,15 @@ export default function CleanerCityOfferPage() {
                   </section>
                 ) : null}
 
-                {dropPlan && dropPlan.ordered.length >= 2 ? (
+                {dropPlan && dropPlan.ordered.length >= 1 ? (
                   <section
                     className="flex flex-col gap-3 rounded-2xl border border-primary/30 bg-primary/5 p-5"
                     data-testid="cleaner-city-drop-order-preview"
                   >
                     <div>
-                      <h2 className="text-sm font-semibold">Suggested visit order</h2>
+                      <h2 className="text-sm font-semibold">Match-pin visit order</h2>
                       <p className="text-xs text-muted-foreground mt-0.5">
-                        Google Maps order - follow this sequence
+                        Optional corridor pins only - accepted guest drops are ordered on Active Ride
                         {dropPlan.durationSeconds
                           ? ` · ~${Math.round(dropPlan.durationSeconds / 60)} min total`
                           : ''}
