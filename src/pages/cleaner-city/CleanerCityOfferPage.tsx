@@ -12,6 +12,7 @@ import {
   useCleanerCityProfile,
   useCleanerCityVehicles,
   useCleanerCityWorkVerification,
+  useCommuteTemplates,
   useEffectiveSchedule,
   useMyPublications,
   useOfficeLocations,
@@ -35,11 +36,17 @@ function todayIso(tz = DEFAULT_COMMUTE_TIMEZONE) {
   }).format(new Date());
 }
 
+function weekdayOf(dateIso: string): number {
+  // Matches Postgres EXTRACT(DOW): 0 Sunday ... 6 Saturday
+  return new Date(`${dateIso}T12:00:00`).getDay();
+}
+
 export default function CleanerCityOfferPage() {
   const { data: profile } = useCleanerCityProfile();
   const { data: verification } = useCleanerCityWorkVerification();
   const { data: vehicles = [] } = useCleanerCityVehicles();
   const { data: offices = [] } = useOfficeLocations();
+  const { data: templates = [] } = useCommuteTemplates();
   const publish = usePublishCommute();
   const cancelPub = useCancelPublication();
   const storeRoute = useStoreRouteGeometry();
@@ -63,6 +70,15 @@ export default function CleanerCityOfferPage() {
     verification?.status === 'verified' &&
     !profile.is_paused &&
     (profile.role === 'host' || profile.role === 'both');
+
+  const office = offices.find((o) => o.is_primary) || offices[0] || null;
+  const weekday = weekdayOf(travelDate);
+  const weekdayTemplate = templates.find((t) => t.weekday === weekday) || null;
+  const pickupLat = daySchedule?.pickup_latitude ?? weekdayTemplate?.pickup_latitude ?? null;
+  const pickupLng = daySchedule?.pickup_longitude ?? weekdayTemplate?.pickup_longitude ?? null;
+  const hasOffice = office?.latitude != null && office?.longitude != null;
+  const hasPickup = pickupLat != null && pickupLng != null;
+  const pinsReady = hasOffice && hasPickup;
 
   useEffect(() => {
     if (!vehicleId && activeVehicles[0]?.id) setVehicleId(activeVehicles[0].id);
@@ -92,7 +108,22 @@ export default function CleanerCityOfferPage() {
       toast.error('Add an active vehicle first');
       return;
     }
+    if (!pinsReady) {
+      toast.error(
+        'Set your office and pickup pins first - open Office & pickup to add them',
+      );
+      return;
+    }
     try {
+      const origin =
+        direction === 'to_office'
+          ? { lat: pickupLat, lng: pickupLng }
+          : { lat: office.latitude, lng: office.longitude };
+      const destination =
+        direction === 'to_office'
+          ? { lat: office.latitude, lng: office.longitude }
+          : { lat: pickupLat, lng: pickupLng };
+
       const pub = await publish.mutateAsync({
         vehicle_id: vehicleId,
         travel_date: travelDate,
@@ -101,18 +132,8 @@ export default function CleanerCityOfferPage() {
         seats_available: seats,
       });
 
-      const office = offices.find((o) => o.is_primary) || offices[0];
-      if (office && isLoaded) {
+      if (isLoaded) {
         try {
-          const origin =
-            direction === 'to_office'
-              ? { lat: 12.9716, lng: 77.5946 }
-              : { lat: office.latitude, lng: office.longitude };
-          const destination =
-            direction === 'to_office'
-              ? { lat: office.latitude, lng: office.longitude }
-              : { lat: 12.9716, lng: 77.5946 };
-          // Prefer vehicle preferred labels as corridor only; coords from office + approximate home
           const route = await fetchDrivingRoute(origin, destination);
           await storeRoute.mutateAsync({
             publication_id: pub.id,
@@ -123,18 +144,18 @@ export default function CleanerCityOfferPage() {
             destination_longitude: destination.lng,
             origin_label:
               direction === 'to_office'
-                ? selected?.preferred_pickup_label || 'Pickup corridor'
+                ? selected?.preferred_pickup_label || weekdayTemplate?.pickup_label || 'Pickup corridor'
                 : office.label || 'Office',
             destination_label:
               direction === 'to_office'
                 ? office.label || 'Office'
-                : selected?.preferred_drop_label || 'Home corridor',
+                : selected?.preferred_drop_label || weekdayTemplate?.pickup_label || 'Home corridor',
             route_distance_meters: route.distanceMeters,
             route_duration_seconds: route.durationSeconds,
             route_provider: route.provider,
           });
         } catch {
-          // Route cache is optional for publish success
+          // Route cache is optional for publish success - pins already exist and are real
         }
       }
 
@@ -166,6 +187,24 @@ export default function CleanerCityOfferPage() {
               , set role to Host/Both, and add a{' '}
               <Link to="/cleaner-city/vehicle" className="font-semibold underline">
                 vehicle
+              </Link>{' '}
+              before publishing.
+            </div>
+          )}
+
+          {ready && !pinsReady && (
+            <div
+              className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-950 text-sm"
+              data-testid="cleaner-city-offer-missing-pins"
+            >
+              {!hasOffice && !hasPickup
+                ? 'Office and pickup pins are missing. '
+                : !hasOffice
+                  ? 'Office pin is missing. '
+                  : 'Pickup pin for this day is missing. '}
+              Add{' '}
+              <Link to="/cleaner-city/route" className="font-semibold underline">
+                them on Office &amp; pickup
               </Link>{' '}
               before publishing.
             </div>
@@ -262,7 +301,7 @@ export default function CleanerCityOfferPage() {
 
             <Button
               onClick={publishRide}
-              disabled={publish.isPending || !ready}
+              disabled={publish.isPending || !ready || !pinsReady}
               data-testid="cleaner-city-offer-publish"
             >
               Publish ride

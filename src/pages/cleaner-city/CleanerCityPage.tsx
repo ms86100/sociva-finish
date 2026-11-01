@@ -1,13 +1,26 @@
 // @ts-nocheck
 import { Link } from 'react-router-dom';
+import { toast } from 'sonner';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { CleanerCityGate } from '@/components/cleaner-city/CleanerCityGate';
-import { CalendarClock, Car, Leaf, ShieldCheck, Users } from 'lucide-react';
+import {
+  CalendarClock,
+  Car,
+  Leaf,
+  Shield,
+  ShieldCheck,
+  Users,
+  Zap,
+} from 'lucide-react';
 import {
   useCleanerCityProfile,
   useCleanerCityWorkVerification,
+  useConfirmPublication,
   useEffectiveSchedule,
+  useMyPublications,
+  useMyRides,
 } from '@/hooks/queries/useCleanerCity';
+import { useAuth } from '@/contexts/AuthContext';
 import { DEFAULT_COMMUTE_TIMEZONE, WORK_EMAIL_BADGE } from '@/lib/cleaner-city/constants';
 import { cn } from '@/lib/utils';
 
@@ -20,12 +33,34 @@ function todayIso(tz = DEFAULT_COMMUTE_TIMEZONE) {
   }).format(new Date());
 }
 
+const ACTIVE_RIDE_STATUSES = ['requested', 'confirmed', 'pickup_pending', 'started'];
+
 export default function CleanerCityPage() {
+  const { user } = useAuth();
   const { data: profile } = useCleanerCityProfile();
   const { data: verification } = useCleanerCityWorkVerification();
+  const { data: rides = [] } = useMyRides();
+  const { data: publications = [] } = useMyPublications();
+  const confirmPublication = useConfirmPublication();
   const today = todayIso(profile?.timezone || DEFAULT_COMMUTE_TIMEZONE);
   const { data: todaySchedule } = useEffectiveSchedule(profile ? today : null);
   const ready = !!profile && verification?.status === 'verified' && !profile.is_paused;
+
+  const activeRide =
+    rides.find((r) => r.travel_date === today && ACTIVE_RIDE_STATUSES.includes(r.status)) ||
+    rides.find((r) => ACTIVE_RIDE_STATUSES.includes(r.status)) ||
+    null;
+
+  const draftPublications = publications.filter((p) => p.status === 'draft');
+
+  const confirmDraft = async (publicationId: string, confirm: boolean) => {
+    try {
+      await confirmPublication.mutateAsync({ publication_id: publicationId, confirm });
+      toast.success(confirm ? 'Seats confirmed and published' : 'Draft skipped');
+    } catch (e: any) {
+      toast.error(e?.message || 'Could not update draft');
+    }
+  };
 
   return (
     <AppLayout headerTitle="A Cleaner City">
@@ -46,7 +81,93 @@ export default function CleanerCityPage() {
                 <Leaf size={18} className="text-[#A3C9A8]" aria-hidden />
               </span>
             </div>
+            {profile && (
+              <div
+                className={cn(
+                  'mt-4 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-semibold',
+                  profile.autopilot_enabled
+                    ? 'bg-[#A3C9A8]/20 text-[#A3C9A8]'
+                    : 'bg-white/10 text-white/70',
+                )}
+                data-testid="cleaner-city-autopilot-chip"
+              >
+                <Zap size={12} aria-hidden />
+                {profile.autopilot_enabled
+                  ? `Autopilot on - ${profile.autopilot_confirm_mode === 'auto' ? 'auto publish' : 'confirm each day'}`
+                  : 'Autopilot off'}
+              </div>
+            )}
           </div>
+
+          {draftPublications.length > 0 && (
+            <div
+              className="rounded-2xl border border-amber-200 bg-amber-50 p-4 space-y-3"
+              data-testid="cleaner-city-draft-publications"
+            >
+              <p className="text-sm font-semibold text-amber-950">
+                Autopilot drafted {draftPublications.length} commute
+                {draftPublications.length === 1 ? '' : 's'}
+              </p>
+              <p className="text-xs text-amber-900">
+                Confirm to publish seats for neighbours, or skip for that day.
+              </p>
+              {draftPublications.map((p) => (
+                <div
+                  key={p.id}
+                  className="rounded-xl border border-amber-200 bg-white/60 p-3 flex items-center justify-between gap-2"
+                >
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold text-amber-950">
+                      {p.travel_date} · {String(p.depart_time || '').slice(0, 5)} ·{' '}
+                      {p.direction?.replace('_', ' ')}
+                    </p>
+                    <p className="text-[11px] text-amber-800 mt-0.5">
+                      {p.seats_total} seat{p.seats_total === 1 ? '' : 's'}
+                    </p>
+                  </div>
+                  <div className="flex gap-2 shrink-0">
+                    <button
+                      type="button"
+                      className="rounded-lg border border-amber-300 px-2.5 py-1 text-[11px] font-semibold text-amber-900"
+                      onClick={() => confirmDraft(p.id, false)}
+                      disabled={confirmPublication.isPending}
+                    >
+                      Skip
+                    </button>
+                    <button
+                      type="button"
+                      className="rounded-lg bg-primary px-2.5 py-1 text-[11px] font-semibold text-primary-foreground"
+                      onClick={() => confirmDraft(p.id, true)}
+                      disabled={confirmPublication.isPending}
+                    >
+                      Confirm
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {activeRide && (
+            <Link
+              to={`/cleaner-city/ride/${activeRide.id}`}
+              className="flex items-center gap-3 rounded-2xl border border-primary/30 bg-primary/5 p-4 shadow-card"
+              data-testid="cleaner-city-active-ride-link"
+            >
+              <div className="h-11 w-11 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                <Car className="text-primary" size={20} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="font-semibold text-sm text-foreground">
+                  {activeRide.travel_date === today ? 'Today' : activeRide.travel_date} - active ride
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Status: {activeRide.status.replace(/_/g, ' ')} ·{' '}
+                  {activeRide.host_user_id === user?.id ? 'you are host' : 'you are guest'}
+                </p>
+              </div>
+            </Link>
+          )}
 
           <Link
             to="/cleaner-city/setup"
@@ -109,6 +230,29 @@ export default function CleanerCityPage() {
                 <Users size={18} className="text-primary mb-2" aria-hidden />
                 <p className="text-sm font-semibold text-foreground">Office & pickup</p>
                 <p className="text-xs text-muted-foreground mt-1">Map pins for matching</p>
+              </Link>
+            </div>
+          )}
+
+          {profile && (
+            <div className="grid grid-cols-2 gap-3">
+              <Link
+                to="/cleaner-city/circles"
+                className="rounded-2xl border border-border bg-card p-4"
+                data-testid="cleaner-city-circles-link"
+              >
+                <Users size={18} className="text-primary mb-2" aria-hidden />
+                <p className="text-sm font-semibold text-foreground">Trusted circles</p>
+                <p className="text-xs text-muted-foreground mt-1">Ride with people you know</p>
+              </Link>
+              <Link
+                to="/cleaner-city/safety"
+                className="rounded-2xl border border-border bg-card p-4"
+                data-testid="cleaner-city-safety-link"
+              >
+                <Shield size={18} className="text-primary mb-2" aria-hidden />
+                <p className="text-sm font-semibold text-foreground">Safety</p>
+                <p className="text-xs text-muted-foreground mt-1">Emergency contacts, blocks</p>
               </Link>
             </div>
           )}

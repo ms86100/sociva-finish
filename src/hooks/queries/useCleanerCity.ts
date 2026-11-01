@@ -13,6 +13,8 @@ export type CommuteProfile = {
   is_paused: boolean;
   deleted_at: string | null;
   timezone?: string | null;
+  autopilot_enabled?: boolean;
+  autopilot_confirm_mode?: 'confirm' | 'auto';
 };
 
 export type WorkVerification = {
@@ -30,6 +32,8 @@ export type CommuteTemplate = {
   depart_time: string | null;
   return_time: string | null;
   pickup_label: string | null;
+  pickup_latitude?: number | null;
+  pickup_longitude?: number | null;
 };
 
 export type CommuteOverride = {
@@ -56,6 +60,10 @@ export type EffectiveSchedule = {
   note?: string | null;
   weekday?: number;
   role?: string;
+  pickup_latitude?: number | null;
+  pickup_longitude?: number | null;
+  autopilot_enabled?: boolean;
+  autopilot_confirm_mode?: 'confirm' | 'auto';
 };
 
 function invalidateSchedule(queryClient: ReturnType<typeof useQueryClient>, userId?: string) {
@@ -165,7 +173,9 @@ export function useCommuteTemplates() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('commute_templates')
-        .select('id, weekday, is_working, depart_time, return_time, pickup_label')
+        .select(
+          'id, weekday, is_working, depart_time, return_time, pickup_label, pickup_latitude, pickup_longitude',
+        )
         .eq('user_id', user!.id)
         .order('weekday');
       if (error) throw error;
@@ -638,6 +648,11 @@ export type MatchResult = {
   estimated_detour_minutes: number | null;
   score: number;
   reasons: string[];
+  host_avg_stars?: number | null;
+  host_rating_count?: number | null;
+  estimated_fuel_paise?: number | null;
+  shared_circle?: boolean;
+  reason_labels?: string[];
 };
 
 export type MatchResponse = {
@@ -654,6 +669,76 @@ export type CleanerCityRide = {
   guest_user_id: string;
   travel_date: string;
   status: string;
+  guest_pickup_latitude?: number | null;
+  guest_pickup_longitude?: number | null;
+  guest_dest_latitude?: number | null;
+  guest_dest_longitude?: number | null;
+  meeting_point_label?: string | null;
+  meeting_point_latitude?: number | null;
+  meeting_point_longitude?: number | null;
+  estimated_fuel_paise?: number | null;
+  request_expires_at?: string | null;
+  pickup_deadline_at?: string | null;
+};
+
+export type CommuteWaitlistEntry = {
+  id: string;
+  user_id: string;
+  society_id: string;
+  travel_date: string;
+  direction: string;
+  depart_time: string | null;
+  pickup_latitude: number | null;
+  pickup_longitude: number | null;
+  dest_latitude: number | null;
+  dest_longitude: number | null;
+  status: string;
+  matched_publication_id: string | null;
+};
+
+export type SocietyMeetupPoint = {
+  id: string;
+  society_id: string;
+  label: string;
+  latitude: number;
+  longitude: number;
+  kind: string;
+  is_active: boolean;
+  sort_order: number;
+};
+
+export type CommuteEmergencyContact = {
+  id: string;
+  user_id: string;
+  society_id: string;
+  contact_name: string;
+  phone: string | null;
+  notify_user_id: string | null;
+  is_primary: boolean;
+};
+
+export type RideQuickMessage = {
+  id: string;
+  ride_id: string;
+  society_id: string;
+  sender_user_id: string;
+  phrase_key: string;
+  created_at: string;
+};
+
+export type CommuteCircle = {
+  id: string;
+  name: string;
+  description: string | null;
+  invite_code: string;
+  role: string;
+  member_count: number;
+};
+
+export type CommuteBlockRow = {
+  blocked_user_id: string;
+  reason: string | null;
+  created_at: string;
 };
 
 export function useFindMatches() {
@@ -690,7 +775,9 @@ export function useMyRides() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('rides')
-        .select('id, publication_id, host_user_id, guest_user_id, travel_date, status')
+        .select(
+          'id, publication_id, host_user_id, guest_user_id, travel_date, status, guest_pickup_latitude, guest_pickup_longitude, guest_dest_latitude, guest_dest_longitude, meeting_point_label, meeting_point_latitude, meeting_point_longitude, estimated_fuel_paise, request_expires_at, pickup_deadline_at',
+        )
         .or(`host_user_id.eq.${user!.id},guest_user_id.eq.${user!.id}`)
         .order('travel_date', { ascending: false })
         .limit(40);
@@ -704,10 +791,21 @@ export function useRequestRide() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
   return useMutation({
-    mutationFn: async (input: { publication_id: string; note?: string | null }) => {
+    mutationFn: async (input: {
+      publication_id: string;
+      note?: string | null;
+      guest_pickup_lat?: number | null;
+      guest_pickup_lng?: number | null;
+      guest_dest_lat?: number | null;
+      guest_dest_lng?: number | null;
+    }) => {
       const { data, error } = await supabase.rpc('cleaner_city_request_ride', {
         p_publication_id: input.publication_id,
         p_note: input.note ?? null,
+        p_guest_pickup_lat: input.guest_pickup_lat ?? null,
+        p_guest_pickup_lng: input.guest_pickup_lng ?? null,
+        p_guest_dest_lat: input.guest_dest_lat ?? null,
+        p_guest_dest_lng: input.guest_dest_lng ?? null,
       });
       if (error) throw error;
       return data as CleanerCityRide;
@@ -822,7 +920,9 @@ export function useCleanerCityRide(rideId?: string | null) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('rides')
-        .select('id, publication_id, host_user_id, guest_user_id, travel_date, status')
+        .select(
+          'id, publication_id, host_user_id, guest_user_id, travel_date, status, guest_pickup_latitude, guest_pickup_longitude, guest_dest_latitude, guest_dest_longitude, meeting_point_label, meeting_point_latitude, meeting_point_longitude, estimated_fuel_paise, request_expires_at, pickup_deadline_at',
+        )
         .eq('id', rideId!)
         .maybeSingle();
       if (error) throw error;
@@ -1014,6 +1114,360 @@ export function useReputation(userId?: string | null) {
         completed_rides: number;
         incident_mentions: number;
       };
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Phase 1-4: autopilot, waitlist, no-show, meeting points, emergency contacts,
+// quick messages, circles, blocks management.
+// ---------------------------------------------------------------------------
+
+export function useSetAutopilot() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+  return useMutation({
+    mutationFn: async (input: { enabled: boolean; confirm_mode?: 'confirm' | 'auto' }) => {
+      const { data, error } = await supabase.rpc('cleaner_city_set_autopilot', {
+        p_enabled: input.enabled,
+        p_confirm_mode: input.confirm_mode ?? 'confirm',
+      });
+      if (error) throw error;
+      return data as CommuteProfile;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['cleaner-city-profile', user?.id] });
+    },
+  });
+}
+
+export function useConfirmPublication() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+  return useMutation({
+    mutationFn: async (input: { publication_id: string; confirm?: boolean }) => {
+      const { data, error } = await supabase.rpc('cleaner_city_confirm_publication', {
+        p_publication_id: input.publication_id,
+        p_confirm: input.confirm ?? true,
+      });
+      if (error) throw error;
+      return data as CommutePublication;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['cleaner-city-publications', user?.id] });
+    },
+  });
+}
+
+export function useJoinWaitlist() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+  return useMutation({
+    mutationFn: async (input: {
+      date: string;
+      direction?: string;
+      depart_time?: string | null;
+      pickup_lat?: number | null;
+      pickup_lng?: number | null;
+      dest_lat?: number | null;
+      dest_lng?: number | null;
+    }) => {
+      const { data, error } = await supabase.rpc('cleaner_city_join_waitlist', {
+        p_date: input.date,
+        p_direction: input.direction ?? 'to_office',
+        p_depart_time: input.depart_time ?? null,
+        p_pickup_lat: input.pickup_lat ?? null,
+        p_pickup_lng: input.pickup_lng ?? null,
+        p_dest_lat: input.dest_lat ?? null,
+        p_dest_lng: input.dest_lng ?? null,
+      });
+      if (error) throw error;
+      return data as CommuteWaitlistEntry;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['cleaner-city-waitlist', user?.id] });
+    },
+  });
+}
+
+export function useLeaveWaitlist() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+  return useMutation({
+    mutationFn: async (input: { date: string; direction?: string }) => {
+      const { data, error } = await supabase.rpc('cleaner_city_leave_waitlist', {
+        p_date: input.date,
+        p_direction: input.direction ?? 'to_office',
+      });
+      if (error) throw error;
+      return data as boolean;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['cleaner-city-waitlist', user?.id] });
+    },
+  });
+}
+
+export function useMyWaitlist() {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ['cleaner-city-waitlist', user?.id],
+    enabled: !!user?.id,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('commute_waitlist')
+        .select(
+          'id, user_id, society_id, travel_date, direction, depart_time, pickup_latitude, pickup_longitude, dest_latitude, dest_longitude, status, matched_publication_id',
+        )
+        .eq('user_id', user!.id)
+        .order('travel_date', { ascending: true });
+      if (error) throw error;
+      return (data || []) as CommuteWaitlistEntry[];
+    },
+  });
+}
+
+export function useMarkNoShow() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+  return useMutation({
+    mutationFn: async (input: { ride_id: string; note?: string | null }) => {
+      const { data, error } = await supabase.rpc('cleaner_city_mark_no_show', {
+        p_ride_id: input.ride_id,
+        p_note: input.note ?? null,
+      });
+      if (error) throw error;
+      return data as CleanerCityRide;
+    },
+    onSuccess: (_d, vars) => {
+      queryClient.invalidateQueries({ queryKey: ['cleaner-city-rides', user?.id] });
+      queryClient.invalidateQueries({ queryKey: ['cleaner-city-ride', vars.ride_id] });
+      queryClient.invalidateQueries({ queryKey: ['cleaner-city-publications'] });
+    },
+  });
+}
+
+export function useSuggestReplacements() {
+  return useMutation({
+    mutationFn: async (rideId: string) => {
+      const { data, error } = await supabase.rpc('cleaner_city_suggest_replacements', {
+        p_ride_id: rideId,
+      });
+      if (error) throw error;
+      return data as { ride_id: string; alternatives: MatchResult[] };
+    },
+  });
+}
+
+export function useMeetupPoints() {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ['cleaner-city-meetup-points', user?.id],
+    enabled: !!user?.id,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('cleaner_city_list_meetup_points');
+      if (error) throw error;
+      return (data || []) as SocietyMeetupPoint[];
+    },
+  });
+}
+
+export function useSetMeetingPoint() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+  return useMutation({
+    mutationFn: async (input: {
+      ride_id: string;
+      label: string;
+      latitude: number;
+      longitude: number;
+    }) => {
+      const { data, error } = await supabase.rpc('cleaner_city_set_meeting_point', {
+        p_ride_id: input.ride_id,
+        p_label: input.label,
+        p_latitude: input.latitude,
+        p_longitude: input.longitude,
+      });
+      if (error) throw error;
+      return data as CleanerCityRide;
+    },
+    onSuccess: (_d, vars) => {
+      queryClient.invalidateQueries({ queryKey: ['cleaner-city-rides', user?.id] });
+      queryClient.invalidateQueries({ queryKey: ['cleaner-city-ride', vars.ride_id] });
+    },
+  });
+}
+
+export function useEmergencyContacts() {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ['cleaner-city-emergency-contacts', user?.id],
+    enabled: !!user?.id,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('commute_emergency_contacts')
+        .select('id, user_id, society_id, contact_name, phone, notify_user_id, is_primary')
+        .eq('user_id', user!.id)
+        .order('is_primary', { ascending: false });
+      if (error) throw error;
+      return (data || []) as CommuteEmergencyContact[];
+    },
+  });
+}
+
+export function useUpsertEmergencyContact() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+  return useMutation({
+    mutationFn: async (input: {
+      contact_name: string;
+      phone?: string | null;
+      notify_user_id?: string | null;
+      is_primary?: boolean;
+      contact_id?: string | null;
+    }) => {
+      const { data, error } = await supabase.rpc('cleaner_city_upsert_emergency_contact', {
+        p_contact_name: input.contact_name,
+        p_phone: input.phone ?? null,
+        p_notify_user_id: input.notify_user_id ?? null,
+        p_is_primary: input.is_primary ?? false,
+        p_contact_id: input.contact_id ?? null,
+      });
+      if (error) throw error;
+      return data as CommuteEmergencyContact;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['cleaner-city-emergency-contacts', user?.id] });
+    },
+  });
+}
+
+export function useDeleteEmergencyContact() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+  return useMutation({
+    mutationFn: async (contactId: string) => {
+      const { data, error } = await supabase.rpc('cleaner_city_delete_emergency_contact', {
+        p_contact_id: contactId,
+      });
+      if (error) throw error;
+      return data as boolean;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['cleaner-city-emergency-contacts', user?.id] });
+    },
+  });
+}
+
+export function useSendQuickMessage() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { ride_id: string; phrase_key: string }) => {
+      const { data, error } = await supabase.rpc('cleaner_city_send_quick_message', {
+        p_ride_id: input.ride_id,
+        p_phrase_key: input.phrase_key,
+      });
+      if (error) throw error;
+      return data as RideQuickMessage;
+    },
+    onSuccess: (_d, vars) => {
+      queryClient.invalidateQueries({ queryKey: ['cleaner-city-quick-messages', vars.ride_id] });
+    },
+  });
+}
+
+export function useQuickMessages(rideId?: string | null) {
+  return useQuery({
+    queryKey: ['cleaner-city-quick-messages', rideId],
+    enabled: !!rideId,
+    refetchInterval: 8000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('ride_quick_messages')
+        .select('id, ride_id, society_id, sender_user_id, phrase_key, created_at')
+        .eq('ride_id', rideId!)
+        .order('created_at', { ascending: false })
+        .limit(20);
+      if (error) throw error;
+      return (data || []) as RideQuickMessage[];
+    },
+  });
+}
+
+export function useMyCircles() {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ['cleaner-city-circles', user?.id],
+    enabled: !!user?.id,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('cleaner_city_my_circles');
+      if (error) throw error;
+      return (data || []) as CommuteCircle[];
+    },
+  });
+}
+
+export function useCreateCircle() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+  return useMutation({
+    mutationFn: async (input: { name: string; description?: string | null }) => {
+      const { data, error } = await supabase.rpc('cleaner_city_create_circle', {
+        p_name: input.name,
+        p_description: input.description ?? null,
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['cleaner-city-circles', user?.id] });
+    },
+  });
+}
+
+export function useJoinCircle() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+  return useMutation({
+    mutationFn: async (inviteCode: string) => {
+      const { data, error } = await supabase.rpc('cleaner_city_join_circle', {
+        p_invite_code: inviteCode,
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['cleaner-city-circles', user?.id] });
+    },
+  });
+}
+
+export function useListBlocks() {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ['cleaner-city-blocks', user?.id],
+    enabled: !!user?.id,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('cleaner_city_list_blocks');
+      if (error) throw error;
+      return (data || []) as CommuteBlockRow[];
+    },
+  });
+}
+
+export function useUnblockUser() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+  return useMutation({
+    mutationFn: async (blockedUserId: string) => {
+      const { data, error } = await supabase.rpc('cleaner_city_unblock_user', {
+        p_blocked_user_id: blockedUserId,
+      });
+      if (error) throw error;
+      return data as boolean;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['cleaner-city-blocks', user?.id] });
     },
   });
 }

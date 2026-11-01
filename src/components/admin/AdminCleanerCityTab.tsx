@@ -115,6 +115,19 @@ export function AdminCleanerCityTab() {
         Domains, safety incidents, match scope, and pilot metrics. Fuel settlement stays legal-gated.
       </p>
 
+      <Card data-testid="admin-cleaner-city-meetup-points-note">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm">Society meetup points</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-xs text-muted-foreground">
+            Meetup points (gate, clubhouse, main road, parking) are managed directly in the
+            society_meetup_points table by admins - residents only pick from the active list
+            on the ride page. Add rows there to make them appear in the app.
+          </p>
+        </CardContent>
+      </Card>
+
       {statsLoading ? (
         <Skeleton className="h-24 w-full" />
       ) : stats ? (

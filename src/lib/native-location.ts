@@ -54,6 +54,46 @@ export async function requestLocationPermission(): Promise<LocationPermissionRes
   }
 }
 
+/**
+ * Ask for background location on native, when the installed Geolocation
+ * plugin supports it. Most Capacitor Geolocation setups only cover
+ * foreground tracking, so this is best-effort: it falls back to the
+ * foreground permission and reports whether true background tracking is
+ * actually available on this build.
+ *
+ * A Cleaner City relies on this only as a nice-to-have - live location
+ * sharing on the ride page keeps working via the foreground interval while
+ * the app stays open, and that is clearly called out in the ride UI.
+ */
+export async function requestBackgroundLocationPermission(): Promise<{
+  result: LocationPermissionResult;
+  backgroundSupported: boolean;
+}> {
+  if (!Capacitor.isNativePlatform()) {
+    return { result: 'prompt', backgroundSupported: false };
+  }
+
+  try {
+    const { Geolocation } = await import('@capacitor/geolocation');
+    const anyGeo = Geolocation as unknown as {
+      requestPermissions: (opts: { permissions: string[] }) => Promise<Record<string, string>>;
+    };
+    try {
+      const status = await anyGeo.requestPermissions({
+        permissions: ['location', 'coarseLocation', 'backgroundLocation'],
+      });
+      const bgGranted = isGranted(status.backgroundLocation);
+      if (bgGranted) return { result: 'granted', backgroundSupported: true };
+    } catch {
+      // Plugin build does not know about backgroundLocation - fall through.
+    }
+    const fg = await requestLocationPermission();
+    return { result: fg, backgroundSupported: false };
+  } catch {
+    return { result: 'unavailable', backgroundSupported: false };
+  }
+}
+
 export function locationFailureCopy(err: unknown): {
   title: string;
   description: string;

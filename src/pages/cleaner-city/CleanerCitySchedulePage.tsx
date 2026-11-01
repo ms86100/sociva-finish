@@ -7,6 +7,7 @@ import { CleanerCityGate } from '@/components/cleaner-city/CleanerCityGate';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import {
   useClearCommuteOverride,
   useCommuteOverrides,
@@ -14,10 +15,12 @@ import {
   useCleanerCityProfile,
   useEffectiveSchedule,
   usePauseCommute,
+  useSetAutopilot,
   useSetCommuteOverride,
   useSetCommuteTemplate,
 } from '@/hooks/queries/useCleanerCity';
 import {
+  CLEANER_CITY_AUTOPILOT_MODES,
   CLEANER_CITY_OVERRIDE_KINDS,
   CLEANER_CITY_WEEKDAYS,
   DEFAULT_COMMUTE_TIMEZONE,
@@ -70,6 +73,7 @@ export default function CleanerCitySchedulePage() {
   const setOverride = useSetCommuteOverride();
   const clearOverride = useClearCommuteOverride();
   const pauseCommute = usePauseCommute();
+  const setAutopilot = useSetAutopilot();
 
   const [days, setDays] = useState<Record<number, DayDraft>>({});
   const [overrideDate, setOverrideDate] = useState(addDays(today, 1));
@@ -177,6 +181,30 @@ export default function CleanerCitySchedulePage() {
     }
   };
 
+  const toggleAutopilot = async (enabled: boolean) => {
+    try {
+      await setAutopilot.mutateAsync({
+        enabled,
+        confirm_mode: profile.autopilot_confirm_mode || 'confirm',
+      });
+      toast.success(enabled ? 'Autopilot enabled' : 'Autopilot disabled');
+    } catch (e: any) {
+      toast.error(e?.message || 'Could not update autopilot');
+    }
+  };
+
+  const setAutopilotMode = async (mode: 'confirm' | 'auto') => {
+    try {
+      await setAutopilot.mutateAsync({
+        enabled: profile.autopilot_enabled ?? false,
+        confirm_mode: mode,
+      });
+      toast.success('Autopilot mode saved');
+    } catch (e: any) {
+      toast.error(e?.message || 'Could not update autopilot mode');
+    }
+  };
+
   return (
     <AppLayout headerTitle="My commute schedule">
       <CleanerCityGate>
@@ -201,6 +229,58 @@ export default function CleanerCitySchedulePage() {
                 ? 'You are paused - no new matches until you resume.'
                 : 'Active - matching can use your schedule once rides ship.'}
             </p>
+          </section>
+
+          <section
+            className="rounded-2xl border border-border bg-card p-4 space-y-3"
+            data-testid="cleaner-city-autopilot-section"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <h2 className="text-sm font-semibold">Autopilot</h2>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Evening job drafts tomorrow seats from your schedule, vehicle, and pins.
+                </p>
+              </div>
+              <Switch
+                checked={!!profile.autopilot_enabled}
+                onCheckedChange={toggleAutopilot}
+                disabled={setAutopilot.isPending}
+                data-testid="cleaner-city-autopilot-toggle"
+              />
+            </div>
+            {profile.autopilot_enabled && (
+              <div className="grid grid-cols-2 gap-2">
+                {CLEANER_CITY_AUTOPILOT_MODES.map((mode) => (
+                  <button
+                    key={mode.value}
+                    type="button"
+                    onClick={() => setAutopilotMode(mode.value)}
+                    disabled={setAutopilot.isPending}
+                    className={cn(
+                      'rounded-xl border px-3 py-2 text-left',
+                      profile.autopilot_confirm_mode === mode.value
+                        ? 'border-primary bg-primary/10'
+                        : 'border-border',
+                    )}
+                    data-testid={`cleaner-city-autopilot-mode-${mode.value}`}
+                  >
+                    <p className="text-xs font-semibold text-foreground">{mode.label}</p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">{mode.hint}</p>
+                  </button>
+                ))}
+              </div>
+            )}
+            {profile.autopilot_enabled && profile.autopilot_confirm_mode === 'confirm' && (
+              <p className="text-[11px] text-muted-foreground">
+                Drafts show up on the A Cleaner City home page every evening - confirm or skip there.
+              </p>
+            )}
+            {!profile.autopilot_enabled && (
+              <p className="text-[11px] text-muted-foreground">
+                Needs an active vehicle and office + pickup pins to work once enabled.
+              </p>
+            )}
           </section>
 
           <section className="rounded-2xl border border-border bg-card p-4 space-y-3">

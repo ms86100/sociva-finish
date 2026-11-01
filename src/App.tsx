@@ -227,6 +227,8 @@ const CleanerCityRoutePage = lazyWithRetry(() => import("./pages/cleaner-city/Cl
 const CleanerCityFindPage = lazyWithRetry(() => import("./pages/cleaner-city/CleanerCityFindPage"));
 const CleanerCityRidePage = lazyWithRetry(() => import("./pages/cleaner-city/CleanerCityRidePage"));
 const CleanerCitySharePage = lazyWithRetry(() => import("./pages/cleaner-city/CleanerCitySharePage"));
+const CleanerCityCirclesPage = lazyWithRetry(() => import("./pages/cleaner-city/CleanerCityCirclesPage"));
+const CleanerCitySafetyPage = lazyWithRetry(() => import("./pages/cleaner-city/CleanerCitySafetyPage"));
 const CreateJobRequestPage = lazyWithRetry(() => import("./pages/CreateJobRequestPage"));
 const SocietyNoticesPage = lazyWithRetry(() => import("./pages/SocietyNoticesPage"));
 const SocietyDeliveriesPage = lazyWithRetry(() => import("./pages/SocietyDeliveriesPage"));
@@ -748,6 +750,8 @@ function AppRoutes() {
           <Route path="/cleaner-city/find" element={<ProtectedRoute><RouteErrorBoundary sectionName="A Cleaner City Find"><CleanerCityFindPage /></RouteErrorBoundary></ProtectedRoute>} />
           <Route path="/cleaner-city/ride/:id" element={<ProtectedRoute><RouteErrorBoundary sectionName="A Cleaner City Ride"><CleanerCityRidePage /></RouteErrorBoundary></ProtectedRoute>} />
           <Route path="/cleaner-city/share/:token" element={<RouteErrorBoundary sectionName="A Cleaner City Share"><CleanerCitySharePage /></RouteErrorBoundary>} />
+          <Route path="/cleaner-city/circles" element={<ProtectedRoute><RouteErrorBoundary sectionName="A Cleaner City Circles"><CleanerCityCirclesPage /></RouteErrorBoundary></ProtectedRoute>} />
+          <Route path="/cleaner-city/safety" element={<ProtectedRoute><RouteErrorBoundary sectionName="A Cleaner City Safety"><CleanerCitySafetyPage /></RouteErrorBoundary></ProtectedRoute>} />
           <Route path="/workforce" element={<WorkforceManagementPage />} />
           <Route path="/parcels" element={<ParcelManagementPage />} />
           <Route path="/guard-kiosk" element={<SecurityRoute><GuardKioskPage /></SecurityRoute>} />
