@@ -16,6 +16,20 @@ export type CommuteProfile = {
   timezone?: string | null;
   autopilot_enabled?: boolean;
   autopilot_confirm_mode?: 'confirm' | 'auto';
+  circle_only_matching?: boolean;
+  circle_visibility?: 'members' | 'private';
+  show_on_circle_board?: boolean;
+  require_circle_history?: boolean;
+  open_city_matching?: boolean;
+  preferred_route_polyline?: string | null;
+  preferred_route_distance_meters?: number | null;
+  preferred_route_duration_seconds?: number | null;
+  preferred_route_summary?: string | null;
+  preferred_route_origin_lat?: number | null;
+  preferred_route_origin_lng?: number | null;
+  preferred_route_dest_lat?: number | null;
+  preferred_route_dest_lng?: number | null;
+  preferred_route_saved_at?: string | null;
 };
 
 export type WorkVerification = {
@@ -106,6 +120,74 @@ export function useCleanerCityWorkVerification() {
         .maybeSingle();
       if (error) throw error;
       return data as WorkVerification | null;
+    },
+  });
+}
+
+export function preferredRouteFromProfile(
+  profile: CommuteProfile | null | undefined,
+): {
+  polyline: string;
+  distanceMeters: number;
+  durationSeconds: number;
+  summary: string;
+  originLat: number;
+  originLng: number;
+  destLat: number;
+  destLng: number;
+  savedAt: string;
+} | null {
+  if (
+    !profile?.preferred_route_polyline ||
+    profile.preferred_route_origin_lat == null ||
+    profile.preferred_route_origin_lng == null ||
+    profile.preferred_route_dest_lat == null ||
+    profile.preferred_route_dest_lng == null
+  ) {
+    return null;
+  }
+  return {
+    polyline: profile.preferred_route_polyline,
+    distanceMeters: profile.preferred_route_distance_meters || 0,
+    durationSeconds: profile.preferred_route_duration_seconds || 0,
+    summary: profile.preferred_route_summary || 'Saved road',
+    originLat: profile.preferred_route_origin_lat,
+    originLng: profile.preferred_route_origin_lng,
+    destLat: profile.preferred_route_dest_lat,
+    destLng: profile.preferred_route_dest_lng,
+    savedAt: profile.preferred_route_saved_at || new Date().toISOString(),
+  };
+}
+
+export function useSetPreferredRoute() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+  return useMutation({
+    mutationFn: async (input: {
+      polyline: string;
+      distanceMeters: number;
+      durationSeconds: number;
+      summary: string;
+      originLat: number;
+      originLng: number;
+      destLat: number;
+      destLng: number;
+    }) => {
+      const { data, error } = await supabase.rpc('cleaner_city_set_preferred_route', {
+        p_polyline: input.polyline,
+        p_distance_meters: input.distanceMeters,
+        p_duration_seconds: input.durationSeconds,
+        p_summary: input.summary,
+        p_origin_lat: input.originLat,
+        p_origin_lng: input.originLng,
+        p_dest_lat: input.destLat,
+        p_dest_lng: input.destLng,
+      });
+      if (error) throw error;
+      return data as CommuteProfile;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['cleaner-city-profile', user?.id] });
     },
   });
 }
@@ -307,9 +389,16 @@ export function useSetCommuteTemplate() {
         p_pickup_longitude: input.pickup_longitude ?? null,
       });
       if (error) throw error;
+      const refreshed = await supabase.rpc('cleaner_city_refresh_open_drafts');
+      if (refreshed.error && !/could not find the function|schema cache/i.test(refreshed.error.message || '')) {
+        throw refreshed.error;
+      }
       return data as CommuteTemplate;
     },
-    onSuccess: () => invalidateSchedule(queryClient, user?.id),
+    onSuccess: () => {
+      invalidateSchedule(queryClient, user?.id);
+      queryClient.invalidateQueries({ queryKey: ['cleaner-city-publications'] });
+    },
   });
 }
 
@@ -336,9 +425,16 @@ export function useSetCommuteOverride() {
         p_pickup_label: input.pickup_label ?? null,
       });
       if (error) throw error;
+      const refreshed = await supabase.rpc('cleaner_city_refresh_open_drafts');
+      if (refreshed.error && !/could not find the function|schema cache/i.test(refreshed.error.message || '')) {
+        throw refreshed.error;
+      }
       return data as CommuteOverride;
     },
-    onSuccess: () => invalidateSchedule(queryClient, user?.id),
+    onSuccess: () => {
+      invalidateSchedule(queryClient, user?.id);
+      queryClient.invalidateQueries({ queryKey: ['cleaner-city-publications'] });
+    },
   });
 }
 
@@ -522,13 +618,14 @@ export function useUpsertVehicleDocument() {
       document_type: string;
       label?: string | null;
       notes?: string | null;
+      storage_path?: string | null;
       document_id?: string | null;
     }) => {
       const { data, error } = await supabase.rpc('cleaner_city_upsert_vehicle_document', {
         p_vehicle_id: input.vehicle_id,
         p_document_type: input.document_type,
         p_label: input.label ?? null,
-        p_storage_path: null,
+        p_storage_path: input.storage_path ?? null,
         p_notes: input.notes ?? null,
         p_document_id: input.document_id ?? null,
       });
@@ -717,6 +814,13 @@ export type MatchResult = {
   estimated_fuel_paise?: number | null;
   shared_circle?: boolean;
   reason_labels?: string[];
+  pickup_deviation_meters?: number | null;
+  pickup_walk_meters?: number | null;
+  host_no_show_count?: number | null;
+  host_completed_rides?: number | null;
+  host_vehicle_verified?: boolean;
+  extra_stop_meters?: number | null;
+  road_overlap_pct?: number | null;
 };
 
 export type MatchResponse = {
@@ -743,6 +847,7 @@ export type CleanerCityRide = {
   estimated_fuel_paise?: number | null;
   request_expires_at?: string | null;
   pickup_deadline_at?: string | null;
+  society_id?: string;
 };
 
 export type CommuteWaitlistEntry = {
@@ -779,6 +884,8 @@ export type CommuteEmergencyContact = {
   phone: string | null;
   notify_user_id: string | null;
   is_primary: boolean;
+  verified_at?: string | null;
+  verification_method?: string | null;
 };
 
 export type RideQuickMessage = {
@@ -794,7 +901,9 @@ export type CommuteCircle = {
   id: string;
   name: string;
   description: string | null;
-  invite_code: string;
+  invite_code: string | null;
+  invite_expires_at?: string | null;
+  invite_expired?: boolean | null;
   role: string;
   member_count: number;
 };
@@ -840,13 +949,55 @@ export function useMyRides() {
       const { data, error } = await supabase
         .from('rides')
         .select(
-          'id, publication_id, host_user_id, guest_user_id, travel_date, status, guest_pickup_latitude, guest_pickup_longitude, guest_dest_latitude, guest_dest_longitude, meeting_point_label, meeting_point_latitude, meeting_point_longitude, estimated_fuel_paise, request_expires_at, pickup_deadline_at',
+          'id, publication_id, society_id, host_user_id, guest_user_id, travel_date, status, guest_pickup_latitude, guest_pickup_longitude, guest_dest_latitude, guest_dest_longitude, meeting_point_label, meeting_point_latitude, meeting_point_longitude, estimated_fuel_paise, request_expires_at, pickup_deadline_at',
         )
         .or(`host_user_id.eq.${user!.id},guest_user_id.eq.${user!.id}`)
         .order('travel_date', { ascending: false })
         .limit(40);
       if (error) throw error;
       return (data || []) as CleanerCityRide[];
+    },
+  });
+}
+
+/** Active rides on one publication - for multi-guest drop order (not capped by host ride list). */
+export type PublicationRideGuest = CleanerCityRide & {
+  guest_name?: string | null;
+  guest_flat?: string | null;
+};
+
+export function usePublicationRides(publicationId: string | null | undefined) {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ['cleaner-city-publication-rides', publicationId, user?.id],
+    enabled: !!user?.id && !!publicationId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('rides')
+        .select(
+          'id, publication_id, society_id, host_user_id, guest_user_id, travel_date, status, guest_pickup_latitude, guest_pickup_longitude, guest_dest_latitude, guest_dest_longitude, meeting_point_label, meeting_point_latitude, meeting_point_longitude, estimated_fuel_paise, request_expires_at, pickup_deadline_at',
+        )
+        .eq('publication_id', publicationId!)
+        .in('status', ['confirmed', 'pickup_pending', 'started'])
+        .order('created_at', { ascending: true });
+      if (error) throw error;
+      const rides = (data || []) as CleanerCityRide[];
+      const guestIds = [...new Set(rides.map((r) => r.guest_user_id).filter(Boolean))];
+      let nameById: Record<string, { name?: string | null; flat_number?: string | null }> = {};
+      if (guestIds.length) {
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('id, name, flat_number')
+          .in('id', guestIds);
+        for (const p of profiles || []) {
+          nameById[p.id] = { name: p.name, flat_number: p.flat_number };
+        }
+      }
+      return rides.map((r) => ({
+        ...r,
+        guest_name: nameById[r.guest_user_id]?.name || null,
+        guest_flat: nameById[r.guest_user_id]?.flat_number || null,
+      })) as PublicationRideGuest[];
     },
   });
 }
@@ -985,7 +1136,7 @@ export function useCleanerCityRide(rideId?: string | null) {
       const { data, error } = await supabase
         .from('rides')
         .select(
-          'id, publication_id, host_user_id, guest_user_id, travel_date, status, guest_pickup_latitude, guest_pickup_longitude, guest_dest_latitude, guest_dest_longitude, meeting_point_label, meeting_point_latitude, meeting_point_longitude, estimated_fuel_paise, request_expires_at, pickup_deadline_at',
+          'id, publication_id, society_id, host_user_id, guest_user_id, travel_date, status, guest_pickup_latitude, guest_pickup_longitude, guest_dest_latitude, guest_dest_longitude, meeting_point_label, meeting_point_latitude, meeting_point_longitude, estimated_fuel_paise, request_expires_at, pickup_deadline_at',
         )
         .eq('id', rideId!)
         .maybeSingle();
@@ -1370,7 +1521,7 @@ export function useEmergencyContacts() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('commute_emergency_contacts')
-        .select('id, user_id, society_id, contact_name, phone, notify_user_id, is_primary')
+        .select('id, user_id, society_id, contact_name, phone, notify_user_id, is_primary, verified_at, verification_method')
         .eq('user_id', user!.id)
         .order('is_primary', { ascending: false });
       if (error) throw error;
@@ -1506,6 +1657,58 @@ export function useJoinCircle() {
   });
 }
 
+export function useLeaveCircle() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+  return useMutation({
+    mutationFn: async (circleId: string) => {
+      const { data, error } = await supabase.rpc('cleaner_city_leave_circle', {
+        p_circle_id: circleId,
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['cleaner-city-circles', user?.id] });
+    },
+  });
+}
+
+export function useRemoveCircleMember() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+  return useMutation({
+    mutationFn: async (input: { circle_id: string; member_user_id: string }) => {
+      const { data, error } = await supabase.rpc('cleaner_city_remove_circle_member', {
+        p_circle_id: input.circle_id,
+        p_member_user_id: input.member_user_id,
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['cleaner-city-circles', user?.id] });
+    },
+  });
+}
+
+export function useRotateCircleInvite() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+  return useMutation({
+    mutationFn: async (circleId: string) => {
+      const { data, error } = await supabase.rpc('cleaner_city_rotate_circle_invite', {
+        p_circle_id: circleId,
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['cleaner-city-circles', user?.id] });
+    },
+  });
+}
+
 export function useListBlocks() {
   const { user } = useAuth();
   return useQuery({
@@ -1532,6 +1735,489 @@ export function useUnblockUser() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['cleaner-city-blocks', user?.id] });
+    },
+  });
+}
+
+export function useRepeatLastCommute() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const call = () => supabase.rpc('cleaner_city_repeat_last_commute');
+      let { data, error } = await call();
+      if (error?.message?.includes('schema cache')) {
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+        ({ data, error } = await call());
+      }
+      if (error) throw error;
+      return data as {
+        action: string;
+        publication_id?: string;
+        ride_id?: string;
+        travel_date?: string;
+        direction?: string;
+      };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['cleaner-city-publications'] });
+    },
+  });
+}
+
+export function useMarkWfh() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+  return useMutation({
+    mutationFn: async (date: string) => {
+      const { data, error } = await supabase.rpc('cleaner_city_mark_wfh', { p_date: date });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['cleaner-city-publications'] });
+      queryClient.invalidateQueries({ queryKey: ['cleaner-city-overrides', user?.id] });
+      queryClient.invalidateQueries({ queryKey: ['cleaner-city-effective'] });
+    },
+  });
+}
+
+export function useDisputeRide() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+  return useMutation({
+    mutationFn: async (input: { ride_id: string; note?: string | null }) => {
+      const { data, error } = await supabase.rpc('cleaner_city_dispute_ride', {
+        p_ride_id: input.ride_id,
+        p_note: input.note ?? null,
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (_d, vars) => {
+      queryClient.invalidateQueries({ queryKey: ['cleaner-city-rides', user?.id] });
+      queryClient.invalidateQueries({ queryKey: ['cleaner-city-ride', vars.ride_id] });
+    },
+  });
+}
+
+export function useRequestMaskedCall() {
+  return useMutation({
+    mutationFn: async (rideId: string) => {
+      const { data, error } = await supabase.rpc('cleaner_city_request_masked_call', {
+        p_ride_id: rideId,
+      });
+      if (error) throw error;
+      const alertId = data?.alert_id;
+      if (alertId) {
+        const dispatched = await supabase.functions.invoke('cleaner-city-dispatch-alerts', {
+          body: { alert_id: alertId },
+        });
+        if (dispatched.error) {
+          return { ...data, dispatch_error: dispatched.error.message || 'Dispatch failed' };
+        }
+        return { ...data, dispatch: dispatched.data };
+      }
+      return data;
+    },
+  });
+}
+
+export function useDispatchSafetyAlerts() {
+  return useMutation({
+    mutationFn: async (alertId?: string | null) => {
+      const { data, error } = await supabase.functions.invoke('cleaner-city-dispatch-alerts', {
+        body: alertId ? { alert_id: alertId } : { retry: true },
+      });
+      if (error) throw error;
+      return data;
+    },
+  });
+}
+
+export function useStartContactVerification() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+  return useMutation({
+    mutationFn: async (contactId: string) => {
+      const { data, error } = await supabase.rpc('cleaner_city_start_contact_verification', {
+        p_contact_id: contactId,
+      });
+      if (error) throw error;
+      if (data?.alert_id) {
+        await supabase.functions.invoke('cleaner-city-dispatch-alerts', {
+          body: { alert_id: data.alert_id },
+        });
+      }
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['cleaner-city-emergency-contacts', user?.id] });
+    },
+  });
+}
+
+export function useConfirmContactVerification() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+  return useMutation({
+    mutationFn: async (input: { contact_id: string; code: string }) => {
+      const { data, error } = await supabase.rpc('cleaner_city_confirm_contact_verification', {
+        p_contact_id: input.contact_id,
+        p_code: input.code,
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['cleaner-city-emergency-contacts', user?.id] });
+    },
+  });
+}
+
+export function useSetCirclePrefs() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+  return useMutation({
+    mutationFn: async (input: {
+      circle_only: boolean;
+      visibility: string;
+      show_on_board: boolean;
+      require_circle_history?: boolean;
+      open_city?: boolean;
+    }) => {
+      const { data, error } = await supabase.rpc('cleaner_city_set_discovery_prefs', {
+        p_circle_only: input.circle_only,
+        p_visibility: input.visibility,
+        p_show_on_board: input.show_on_board,
+        p_require_circle_history: !!input.require_circle_history,
+        p_open_city: !!input.open_city,
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['cleaner-city-profile', user?.id] });
+    },
+  });
+}
+
+export function useCircleInvites() {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ['cleaner-city-circle-invites', user?.id],
+    enabled: !!user?.id,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('cleaner_city_my_circle_invites');
+      if (error) throw error;
+      return (data || []) as Array<{ id: string; circle_id: string; circle_name: string; status: string; expires_at: string }>;
+    },
+  });
+}
+
+export function useInviteToCircle() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { circle_id: string; invitee: string }) => {
+      const { data, error } = await supabase.rpc('cleaner_city_invite_to_circle', {
+        p_circle_id: input.circle_id,
+        p_invitee: input.invitee,
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['cleaner-city-circle-invites'] });
+    },
+  });
+}
+
+export function useRespondCircleInvite() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+  return useMutation({
+    mutationFn: async (input: { invite_id: string; accept: boolean }) => {
+      const { data, error } = await supabase.rpc('cleaner_city_respond_circle_invite', {
+        p_invite_id: input.invite_id,
+        p_accept: input.accept,
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['cleaner-city-circle-invites', user?.id] });
+      queryClient.invalidateQueries({ queryKey: ['cleaner-city-circles', user?.id] });
+    },
+  });
+}
+
+export function useCircleMembers(circleId: string | null) {
+  return useQuery({
+    queryKey: ['cleaner-city-circle-members', circleId],
+    enabled: !!circleId,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('cleaner_city_list_circle_members', {
+        p_circle_id: circleId,
+      });
+      if (error) throw error;
+      return (data || []) as Array<{ user_id: string; role: string; display_name: string }>;
+    },
+  });
+}
+
+export function useCircleTomorrow(circleId: string | null) {
+  return useQuery({
+    queryKey: ['cleaner-city-circle-tomorrow', circleId],
+    enabled: !!circleId,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('cleaner_city_circle_tomorrow_board', {
+        p_circle_id: circleId,
+      });
+      if (error) throw error;
+      return (data || []) as Array<{
+        display_name: string;
+        travel_date: string;
+        direction: string;
+        depart_time: string;
+        seats_available: number;
+        origin_label: string;
+        destination_label: string;
+      }>;
+    },
+  });
+}
+
+export function useCleanerCityBadges() {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ['cleaner-city-badges', user?.id],
+    enabled: !!user?.id,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('cleaner_city_badges')
+        .select('badge_key, earned_at')
+        .eq('user_id', user.id);
+      if (error) throw error;
+      return data || [];
+    },
+  });
+}
+
+export function useRideChat(rideId?: string) {
+  return useQuery({
+    queryKey: ['cleaner-city-ride-chat', rideId],
+    enabled: !!rideId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('ride_chat_messages')
+        .select('id, sender_id, body, created_at')
+        .eq('ride_id', rideId)
+        .order('created_at', { ascending: true })
+        .limit(50);
+      if (error) throw error;
+      return data || [];
+    },
+  });
+}
+
+export function useSendRideChat() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+  return useMutation({
+    mutationFn: async (input: { ride_id: string; society_id: string; body: string }) => {
+      const { error } = await supabase.from('ride_chat_messages').insert({
+        ride_id: input.ride_id,
+        society_id: input.society_id,
+        sender_id: user.id,
+        body: input.body.trim(),
+      });
+      if (error) throw error;
+    },
+    onSuccess: (_data, vars) => {
+      queryClient.invalidateQueries({ queryKey: ['cleaner-city-ride-chat', vars.ride_id] });
+    },
+  });
+}
+
+export function useCircleChat(circleId?: string) {
+  return useQuery({
+    queryKey: ['cleaner-city-circle-chat', circleId],
+    enabled: !!circleId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('commute_circle_messages')
+        .select('id, sender_id, body, created_at')
+        .eq('circle_id', circleId)
+        .order('created_at', { ascending: true })
+        .limit(40);
+      if (error) throw error;
+      return data || [];
+    },
+  });
+}
+
+export function useSendCircleChat() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+  return useMutation({
+    mutationFn: async (input: { circle_id: string; society_id: string; body: string }) => {
+      const { error } = await supabase.from('commute_circle_messages').insert({
+        circle_id: input.circle_id,
+        society_id: input.society_id,
+        sender_id: user.id,
+        body: input.body.trim(),
+      });
+      if (error) throw error;
+    },
+    onSuccess: (_data, vars) => {
+      queryClient.invalidateQueries({ queryKey: ['cleaner-city-circle-chat', vars.circle_id] });
+    },
+  });
+}
+
+export function useRankedMeetupPoints(rideId?: string) {
+  return useQuery({
+    queryKey: ['cleaner-city-ranked-meetup', rideId],
+    enabled: !!rideId,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('cleaner_city_rank_meetup_points', {
+        p_ride_id: rideId,
+      });
+      if (error) throw error;
+      return (data || []) as Array<{
+        id: string;
+        label: string;
+        kind: string;
+        latitude: number;
+        longitude: number;
+        walk_meters: number;
+        detour_minutes: number;
+      }>;
+    },
+  });
+}
+
+export function useAppealDispute() {
+  return useMutation({
+    mutationFn: async (input: { ride_id: string; note: string }) => {
+      const { data, error } = await supabase.rpc('cleaner_city_appeal_dispute', {
+        p_ride_id: input.ride_id,
+        p_note: input.note,
+      });
+      if (error) throw error;
+      return data;
+    },
+  });
+}
+
+export type PublicationStop = {
+  id: string;
+  publication_id: string;
+  seq: number;
+  label: string;
+  latitude: number;
+  longitude: number;
+};
+
+export function usePublicationStops(publicationId: string | null | undefined) {
+  return useQuery({
+    queryKey: ['cleaner-city-publication-stops', publicationId],
+    enabled: !!publicationId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('commute_publication_stops')
+        .select('id, publication_id, seq, label, latitude, longitude')
+        .eq('publication_id', publicationId!)
+        .order('seq', { ascending: true });
+      if (error) throw error;
+      return (data || []) as PublicationStop[];
+    },
+  });
+}
+
+export function useSetPublicationStop() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      publication_id: string;
+      seq: number;
+      label: string;
+      latitude: number;
+      longitude: number;
+    }) => {
+      const { data, error } = await supabase.rpc('cleaner_city_set_publication_stop', {
+        p_publication_id: input.publication_id,
+        p_seq: input.seq,
+        p_label: input.label,
+        p_latitude: input.latitude,
+        p_longitude: input.longitude,
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (_data, vars) => {
+      queryClient.invalidateQueries({
+        queryKey: ['cleaner-city-publication-stops', vars.publication_id],
+      });
+    },
+  });
+}
+
+export function useCleanerCityChatInbox() {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ['cleaner-city-chat-inbox', user?.id],
+    enabled: !!user?.id,
+    retry: false,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('cleaner_city_chat_inbox');
+      if (error) throw error;
+      return (data || []) as Array<{
+        kind: string;
+        thread_id: string;
+        ride_id?: string | null;
+        circle_id?: string | null;
+        other_user_id?: string | null;
+        society_id?: string | null;
+        title?: string | null;
+        last_body?: string | null;
+      }>;
+    },
+  });
+}
+
+export function useDirectChat(otherUserId?: string | null) {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ['cleaner-city-direct-chat', user?.id, otherUserId],
+    enabled: !!user?.id && !!otherUserId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('commute_direct_messages')
+        .select('id, sender_id, recipient_id, body, created_at')
+        .or(`and(sender_id.eq.${user.id},recipient_id.eq.${otherUserId}),and(sender_id.eq.${otherUserId},recipient_id.eq.${user.id})`)
+        .order('created_at', { ascending: true })
+        .limit(50);
+      if (error) throw error;
+      return data || [];
+    },
+  });
+}
+
+export function useSendDirectChat() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+  return useMutation({
+    mutationFn: async (input: { recipient_id: string; body: string }) => {
+      const { data, error } = await supabase.rpc('cleaner_city_send_direct_message', {
+        p_recipient: input.recipient_id,
+        p_body: input.body,
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['cleaner-city-direct-chat', user?.id] });
+      queryClient.invalidateQueries({ queryKey: ['cleaner-city-chat-inbox', user?.id] });
     },
   });
 }

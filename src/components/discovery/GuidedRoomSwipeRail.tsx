@@ -62,7 +62,9 @@ export function GuidedRoomSwipeRail({
           <ChevronRight size={13} className="guided-room-rail-nudge" />
         </span>
       </div>
-      <div className="taste-rail-scroll scrollbar-hide snap-x snap-mandatory">
+      {/* scroll-padding keeps snap-start cards inset - without it mandatory snap
+          aligns the first card to the viewport edge and eats the row's px-4. */}
+      <div className="taste-rail-scroll scrollbar-hide snap-x snap-mandatory scroll-pl-4 scroll-pr-8">
         <div className="flex w-max items-stretch gap-3.5 px-4 pr-8 pb-1">
           {products.map((product) => (
             <SwipeCard

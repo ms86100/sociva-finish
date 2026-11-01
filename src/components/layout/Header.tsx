@@ -314,7 +314,13 @@ function HeaderInner({
                     strokeWidth={2.25}
                   />
                   {!homeQuery && (
-                    <div className="pointer-events-none absolute left-10 top-1/2 -translate-y-1/2 pr-10 overflow-hidden whitespace-nowrap max-w-[calc(100%-4rem)]">
+                    <div
+                      className={cn(
+                        'pointer-events-none absolute left-10 top-1/2 -translate-y-1/2 pr-10 overflow-hidden whitespace-nowrap max-w-[calc(100%-4rem)]',
+                        // White pill stays light in dark mode - force readable placeholder gray.
+                        marketplaceChrome && '[&_span]:!text-zinc-500',
+                      )}
+                    >
                       <TypewriterPlaceholder context="home" />
                     </div>
                   )}
@@ -340,10 +346,11 @@ function HeaderInner({
                     className={cn(
                       'w-full border pl-10 pr-9 shadow-sm outline-none text-[14px]',
                       festivalChrome
-                        ? 'festival-takeover-search rounded-full py-3 border-white/30 bg-transparent text-white'
+                        ? 'festival-takeover-search rounded-full py-3 border-white/30 bg-transparent text-white caret-white'
                         : marketplaceChrome
-                          ? 'bg-white border-white rounded-full py-3 text-foreground'
-                          : 'bg-[hsl(var(--search-bg))] border-[hsl(var(--search-border))] rounded-xl py-2.5 text-foreground hover:border-border/70',
+                          // Always-white pill: pin ink + caret so dark theme foreground does not vanish.
+                          ? 'bg-white border-white rounded-full py-3 text-zinc-900 caret-zinc-900'
+                          : 'bg-[hsl(var(--search-bg))] border-[hsl(var(--search-border))] rounded-xl py-2.5 text-foreground caret-foreground hover:border-border/70',
                     )}
                   />
                   {homeQuery && (
@@ -354,7 +361,11 @@ function HeaderInner({
                       onClick={() => setHomeQuery('')}
                       className={cn(
                         'absolute right-3 top-1/2 -translate-y-1/2',
-                        festivalChrome ? 'text-white/80 hover:text-white' : 'text-muted-foreground hover:text-foreground',
+                        festivalChrome
+                          ? 'text-white/80 hover:text-white'
+                          : marketplaceChrome
+                            ? 'text-zinc-500 hover:text-zinc-800'
+                            : 'text-muted-foreground hover:text-foreground',
                       )}
                     >
                       <X size={14} />

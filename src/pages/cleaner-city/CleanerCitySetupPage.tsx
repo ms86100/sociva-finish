@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { toast } from 'sonner';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { CleanerCityGate } from '@/components/cleaner-city/CleanerCityGate';
@@ -47,6 +47,8 @@ export default function CleanerCitySetupPage() {
   const [paused, setPaused] = useState(false);
 
   const domainCheck = useCheckWorkEmailDomain(email);
+  const location = useLocation();
+  const arrivalNotice = (location.state as { notice?: string } | null)?.notice || '';
   const verified = verification?.status === 'verified';
 
   useEffect(() => {
@@ -162,6 +164,11 @@ export default function CleanerCitySetupPage() {
     <AppLayout headerTitle="Set up commute">
       <CleanerCityGate>
         <div className="p-4 pb-24 space-y-5" data-testid="cleaner-city-setup">
+          {arrivalNotice && (
+            <div className="rounded-2xl border border-primary/30 bg-primary/5 p-4 text-sm">
+              {arrivalNotice}
+            </div>
+          )}
           <div>
             <h1 className="text-xl font-bold text-foreground">Get ready to commute</h1>
             <p className="text-sm text-muted-foreground mt-1">

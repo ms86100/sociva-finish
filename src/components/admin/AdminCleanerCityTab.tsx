@@ -15,6 +15,11 @@ export function AdminCleanerCityTab() {
   const [companyName, setCompanyName] = useState('');
   const [societyId, setSocietyId] = useState('');
   const [matchScope, setMatchScope] = useState('neighbours');
+  const [meetupSociety, setMeetupSociety] = useState('');
+  const [meetupLabel, setMeetupLabel] = useState('');
+  const [meetupLat, setMeetupLat] = useState('');
+  const [meetupLng, setMeetupLng] = useState('');
+  const [meetupKind, setMeetupKind] = useState('gate');
 
   const { data: stats, isLoading: statsLoading } = useQuery({
     queryKey: ['cleaner-city-admin-stats'],
@@ -55,6 +60,68 @@ export function AdminCleanerCityTab() {
     retry: 1,
   });
 
+  const { data: pendingDocs = [] } = useQuery({
+    queryKey: ['cleaner-city-admin-vehicle-docs'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('vehicle_documents')
+        .select('id, document_type, label, status, storage_path, created_at')
+        .eq('status', 'uploaded')
+        .order('created_at', { ascending: false })
+        .limit(30);
+      if (error) throw error;
+      return data || [];
+    },
+    retry: 1,
+  });
+
+  const { data: openDisputes = [] } = useQuery({
+    queryKey: ['cleaner-city-admin-disputes'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('ride_dispute_cases')
+        .select('id, ride_id, status, note, appeal_note, prior_status, created_at')
+        .in('status', ['open', 'appealed'])
+        .order('created_at', { ascending: false })
+        .limit(30);
+      if (error) throw error;
+      return data || [];
+    },
+    retry: 1,
+  });
+
+  const reviewDoc = useMutation({
+    mutationFn: async (input: { id: string; status: 'verified' | 'rejected' }) => {
+      const { error } = await supabase.rpc('cleaner_city_admin_review_vehicle_document', {
+        p_document_id: input.id,
+        p_status: input.status,
+        p_note: input.status === 'verified' ? 'Approved' : 'Rejected',
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success('Document reviewed');
+      queryClient.invalidateQueries({ queryKey: ['cleaner-city-admin-vehicle-docs'] });
+    },
+    onError: (e: any) => toast.error(e?.message || 'Could not review document'),
+  });
+
+  const resolveDispute = useMutation({
+    mutationFn: async (input: { ride_id: string; outcome: 'upheld' | 'dismissed' }) => {
+      const { error } = await supabase.rpc('cleaner_city_admin_resolve_dispute', {
+        p_ride_id: input.ride_id,
+        p_outcome: input.outcome,
+        p_note: input.outcome === 'upheld' ? 'Dispute upheld' : 'Dispute dismissed',
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success('Dispute resolved');
+      queryClient.invalidateQueries({ queryKey: ['cleaner-city-admin-disputes'] });
+    },
+    onError: (e: any) => toast.error(e?.message || 'Could not resolve dispute'),
+  });
+
   const upsertDomain = useMutation({
     mutationFn: async () => {
       const { error } = await supabase.rpc('cleaner_city_admin_upsert_company_domain', {
@@ -92,6 +159,29 @@ export function AdminCleanerCityTab() {
     onError: (e: any) => toast.error(e?.message || 'Resolve failed'),
   });
 
+  const saveMeetup = useMutation({
+    mutationFn: async () => {
+      const lat = Number(meetupLat);
+      const lng = Number(meetupLng);
+      const { error } = await supabase.rpc('cleaner_city_admin_upsert_meetup_point', {
+        p_society_id: meetupSociety.trim(),
+        p_label: meetupLabel.trim(),
+        p_latitude: lat,
+        p_longitude: lng,
+        p_kind: meetupKind,
+        p_point_id: null,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success('Meetup point saved');
+      setMeetupLabel('');
+      setMeetupLat('');
+      setMeetupLng('');
+    },
+    onError: (e: any) => toast.error(e?.message || 'Could not save meetup point'),
+  });
+
   const setScope = useMutation({
     mutationFn: async () => {
       const { error } = await supabase.rpc('cleaner_city_admin_set_match_scope', {
@@ -112,7 +202,7 @@ export function AdminCleanerCityTab() {
         <Badge variant="secondary">Ops</Badge>
       </div>
       <p className="text-sm text-muted-foreground max-w-2xl">
-        Domains, safety incidents, match scope, and pilot metrics. Fuel settlement stays legal-gated.
+        Domains, safety incidents, match scope, and pilot metrics. Fuel paid by a guest is recorded as payable to the host.
       </p>
 
       <Card data-testid="admin-cleaner-city-meetup-points-note">
@@ -121,10 +211,34 @@ export function AdminCleanerCityTab() {
         </CardHeader>
         <CardContent>
           <p className="text-xs text-muted-foreground">
-            Meetup points (gate, clubhouse, main road, parking) are managed directly in the
-            society_meetup_points table by admins - residents only pick from the active list
-            on the ride page. Add rows there to make them appear in the app.
+            Meetup points (gate, clubhouse, main road, parking) appear on the ride page after an
+            admin saves the real latitude and longitude here. Sociva does not invent society coordinates.
           </p>
+          <Input placeholder="Society UUID" value={meetupSociety} onChange={(e) => setMeetupSociety(e.target.value)} />
+          <Input placeholder="Label, for example Clubhouse gate" value={meetupLabel} onChange={(e) => setMeetupLabel(e.target.value)} />
+          <div className="grid grid-cols-2 gap-2">
+            <Input placeholder="Latitude" value={meetupLat} onChange={(e) => setMeetupLat(e.target.value)} />
+            <Input placeholder="Longitude" value={meetupLng} onChange={(e) => setMeetupLng(e.target.value)} />
+          </div>
+          <select
+            className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm"
+            value={meetupKind}
+            onChange={(e) => setMeetupKind(e.target.value)}
+          >
+            <option value="gate">Gate</option>
+            <option value="clubhouse">Clubhouse</option>
+            <option value="main_road">Main road</option>
+            <option value="parking">Parking</option>
+            <option value="other">Other</option>
+          </select>
+          <Button
+            variant="outline"
+            disabled={saveMeetup.isPending || !meetupSociety.trim() || !meetupLabel.trim()}
+            onClick={() => saveMeetup.mutate()}
+            data-testid="admin-cleaner-city-save-meetup"
+          >
+            Save meetup point
+          </Button>
         </CardContent>
       </Card>
 
@@ -269,6 +383,56 @@ export function AdminCleanerCityTab() {
           >
             Save match scope
           </Button>
+        </CardContent>
+      </Card>
+
+      <Card data-testid="admin-cleaner-city-vehicle-docs">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm">Vehicle documents</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          {pendingDocs.length === 0 && (
+            <p className="text-xs text-muted-foreground">No documents waiting for review.</p>
+          )}
+          {pendingDocs.map((doc) => (
+            <div key={doc.id} className="flex items-center justify-between gap-2 text-xs">
+              <span className="capitalize">{doc.document_type}{doc.label ? ` · ${doc.label}` : ''}</span>
+              <div className="flex gap-2">
+                <Button size="sm" onClick={() => reviewDoc.mutate({ id: doc.id, status: 'verified' })}>
+                  Verify
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => reviewDoc.mutate({ id: doc.id, status: 'rejected' })}>
+                  Reject
+                </Button>
+              </div>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+
+      <Card data-testid="admin-cleaner-city-disputes">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm">Commute disputes</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          {openDisputes.length === 0 && (
+            <p className="text-xs text-muted-foreground">No open disputes.</p>
+          )}
+          {openDisputes.map((row) => (
+            <div key={row.id} className="space-y-1 rounded-xl border border-border p-2 text-xs">
+              <p>{row.status} · was {row.prior_status}</p>
+              {row.note && <p className="text-muted-foreground">{row.note}</p>}
+              {row.appeal_note && <p className="text-muted-foreground">Appeal: {row.appeal_note}</p>}
+              <div className="flex gap-2">
+                <Button size="sm" onClick={() => resolveDispute.mutate({ ride_id: row.ride_id, outcome: 'upheld' })}>
+                  Uphold
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => resolveDispute.mutate({ ride_id: row.ride_id, outcome: 'dismissed' })}>
+                  Dismiss
+                </Button>
+              </div>
+            </div>
+          ))}
         </CardContent>
       </Card>
     </div>

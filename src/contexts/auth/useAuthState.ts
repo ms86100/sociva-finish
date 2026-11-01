@@ -465,8 +465,10 @@ export function useAuthState() {
       debounceTimer = setTimeout(() => fetchProfile(userId), 500);
     };
 
-    const roleChannel = supabase
-      .channel(`role-changes-${userId}`)
+    // Unique topic per mount so Strict Mode / HMR never reuses a subscribed channel
+    // (supabase.channel(name) returns the existing instance; .on() after subscribe() throws).
+    const roleChannel = supabase.channel(`role-changes-${userId}-${Date.now().toString(36)}`);
+    roleChannel
       .on('postgres_changes', { event: '*', schema: 'public', table: 'user_roles', filter: `user_id=eq.${userId}` }, debouncedFetch)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'security_staff', filter: `user_id=eq.${userId}` }, debouncedFetch)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'society_admins', filter: `user_id=eq.${userId}` }, debouncedFetch)
@@ -476,7 +478,7 @@ export function useAuthState() {
 
     return () => {
       if (debounceTimer) clearTimeout(debounceTimer);
-      supabase.removeChannel(roleChannel);
+      void supabase.removeChannel(roleChannel);
     };
   }, [state.user?.id, fetchProfile]);
 

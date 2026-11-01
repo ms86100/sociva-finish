@@ -40,7 +40,7 @@ export default function HelpHubFindPage() {
     () => ({ category, workType, availability, query }),
     [category, workType, availability, query],
   );
-  const { data: listings = [], isLoading, isError, usingDemo, refetch } = useHelpHubListings(filters);
+  const { data: listings = [], isLoading, isError, refetch } = useHelpHubListings(filters);
   const contact = useHelpHubContact();
   const submitFeedback = useSubmitHelpHubCallFeedback();
 
@@ -114,11 +114,6 @@ export default function HelpHubFindPage() {
                 Neighbour-recommended cooks, maids, nannies, and more - search once, call when ready.
                 Keep numbers private; do not share outside your society.
               </p>
-              {usingDemo && (
-                <p className="text-[11px] text-muted-foreground mt-2">
-                  Sample listings for review - real posts replace these when published.
-                </p>
-              )}
             </div>
           </div>
 
@@ -264,14 +259,16 @@ export default function HelpHubFindPage() {
 
             {!isLoading && !isError && listings.length === 0 && (
               <div className="rounded-2xl border border-dashed border-border bg-card/80 p-8 text-center">
-                <p className="text-sm font-medium">No matches yet</p>
+                <p className="text-sm font-medium">No one listed yet in your society</p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Try another role, or recommend someone your neighbours may need.
+                  Be the first - recommend a cook, maid, nanny, or driver your neighbours can call.
                 </p>
                 <div className="mt-4 flex flex-col sm:flex-row gap-2 justify-center">
-                  <Button variant="outline" size="sm" className="rounded-xl" onClick={clearFilters}>
-                    Clear filters
-                  </Button>
+                  {(activeFilterCount > 0 || query) && (
+                    <Button variant="outline" size="sm" className="rounded-xl" onClick={clearFilters}>
+                      Clear filters
+                    </Button>
+                  )}
                   <Button asChild className="rounded-xl" size="sm">
                     <Link to="/help-hub/recommend">Recommend Someone</Link>
                   </Button>

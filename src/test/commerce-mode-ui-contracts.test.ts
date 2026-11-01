@@ -29,6 +29,8 @@ describe('commerce-mode UI contracts', () => {
     expect(read('pages/CommerceModePage.tsx')).toMatch(/<SearchAutocomplete/);
     expect(read('components/layout/Header.tsx')).toMatch(/<SearchAutocomplete/);
     expect(read('components/layout/Header.tsx')).toMatch(/data-testid="home-header-search"/);
+    // White home search pill must pin dark ink/caret so dark theme does not hide typed text.
+    expect(read('components/layout/Header.tsx')).toMatch(/text-zinc-900 caret-zinc-900/);
     expect(read('components/layout/Header.tsx')).toMatch(/useHomeSearch/);
     expect(read('components/home/MarketplaceSection.tsx')).toMatch(/data-testid="home-search-results"/);
     for (const file of [

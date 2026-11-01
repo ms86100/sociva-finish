@@ -229,6 +229,7 @@ const CleanerCityRidePage = lazyWithRetry(() => import("./pages/cleaner-city/Cle
 const CleanerCitySharePage = lazyWithRetry(() => import("./pages/cleaner-city/CleanerCitySharePage"));
 const CleanerCityCirclesPage = lazyWithRetry(() => import("./pages/cleaner-city/CleanerCityCirclesPage"));
 const CleanerCitySafetyPage = lazyWithRetry(() => import("./pages/cleaner-city/CleanerCitySafetyPage"));
+const CleanerCityChatPage = lazyWithRetry(() => import("./pages/cleaner-city/CleanerCityChatPage"));
 const CreateJobRequestPage = lazyWithRetry(() => import("./pages/CreateJobRequestPage"));
 const SocietyNoticesPage = lazyWithRetry(() => import("./pages/SocietyNoticesPage"));
 const SocietyDeliveriesPage = lazyWithRetry(() => import("./pages/SocietyDeliveriesPage"));
@@ -752,6 +753,7 @@ function AppRoutes() {
           <Route path="/cleaner-city/share/:token" element={<RouteErrorBoundary sectionName="A Cleaner City Share"><CleanerCitySharePage /></RouteErrorBoundary>} />
           <Route path="/cleaner-city/circles" element={<ProtectedRoute><RouteErrorBoundary sectionName="A Cleaner City Circles"><CleanerCityCirclesPage /></RouteErrorBoundary></ProtectedRoute>} />
           <Route path="/cleaner-city/safety" element={<ProtectedRoute><RouteErrorBoundary sectionName="A Cleaner City Safety"><CleanerCitySafetyPage /></RouteErrorBoundary></ProtectedRoute>} />
+          <Route path="/cleaner-city/chat" element={<ProtectedRoute><RouteErrorBoundary sectionName="A Cleaner City Chat"><CleanerCityChatPage /></RouteErrorBoundary></ProtectedRoute>} />
           <Route path="/workforce" element={<WorkforceManagementPage />} />
           <Route path="/parcels" element={<ParcelManagementPage />} />
           <Route path="/guard-kiosk" element={<SecurityRoute><GuardKioskPage /></SecurityRoute>} />

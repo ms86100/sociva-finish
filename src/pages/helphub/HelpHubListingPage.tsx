@@ -205,9 +205,11 @@ export default function HelpHubListingPage() {
                 <Button variant="outline" className="rounded-xl" onClick={onShare}>
                   <Share2 size={16} className="mr-2" /> Share
                 </Button>
-                <Button variant="ghost" className="rounded-xl" onClick={() => setReportOpen(true)}>
-                  <Flag size={14} className="mr-2" /> Report
-                </Button>
+                {!isOwner && (
+                  <Button variant="ghost" className="rounded-xl" onClick={() => setReportOpen(true)}>
+                    <Flag size={14} className="mr-2" /> Report
+                  </Button>
+                )}
               </div>
 
               {isOwner && (

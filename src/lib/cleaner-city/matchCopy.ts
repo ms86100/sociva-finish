@@ -12,10 +12,15 @@ const REASON_LABELS: Record<string, string> = {
   destination_near_host_end: 'Drops near your destination',
   destination_along_route_candidate: 'Destination roughly along the route',
   destination_coords_missing: 'Destination corridor unverified',
-  detour_within_limit: 'Short detour for host',
-  overlap_soft_below_target: 'Partial route overlap',
-  overlap_proxy_ok: 'Good route overlap',
+  detour_within_limit: 'Short estimated detour for host',
+  overlap_soft_below_target: 'Approximate corridor fit (straight-line estimate)',
+  overlap_proxy_ok: 'Approximate corridor fit (straight-line estimate)',
+  road_polyline_overlap: 'Fits the saved driving route',
+  road_overlap_below_target: 'Saved driving route is a weak fit',
   shared_circle: 'In your trusted circle',
+  drop_near_extra_stop: 'Drops near an extra stop on this commute',
+  circle_with_two_completed_rides: 'In your circle, with at least two completed rides',
+  vehicle_documents_verified: 'Vehicle documents verified',
 };
 
 function humanizeReasonCode(code: string): string {

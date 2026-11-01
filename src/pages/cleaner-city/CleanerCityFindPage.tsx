@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { ChevronDown } from 'lucide-react';
 import { toast } from 'sonner';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { CleanerCityGate } from '@/components/cleaner-city/CleanerCityGate';
@@ -44,18 +45,32 @@ function todayIso(tz = DEFAULT_COMMUTE_TIMEZONE) {
   }).format(new Date());
 }
 
-function weekdayOf(dateIso: string): number {
-  // Matches Postgres EXTRACT(DOW): 0 Sunday ... 6 Saturday
-  return new Date(`${dateIso}T12:00:00`).getDay();
+function addDaysIso(isoDate: string, days: number) {
+  const d = new Date(`${isoDate}T12:00:00`);
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
 }
 
-function formatFuel(paise: number | null | undefined): string | null {
-  if (paise == null) return null;
-  return `~₹${Math.round(paise / 100)}`;
+/** Next Mon-Fri date including today when today is a weekday. */
+function nextWorkdayIso(tz = DEFAULT_COMMUTE_TIMEZONE) {
+  let d = todayIso(tz);
+  for (let i = 0; i < 8; i++) {
+    const dow = new Date(`${d}T12:00:00`).getDay();
+    if (dow >= 1 && dow <= 5) return d;
+    d = addDaysIso(d, 1);
+  }
+  return todayIso(tz);
+}
+
+function weekdayOf(dateIso: string): number {
+  return new Date(`${dateIso}T12:00:00`).getDay();
 }
 
 export default function CleanerCityFindPage() {
   const { user } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const arrivalNotice = (location.state as { notice?: string } | null)?.notice || '';
   const { data: profile } = useCleanerCityProfile();
   const { data: verification } = useCleanerCityWorkVerification();
   const { data: offices = [] } = useOfficeLocations();
@@ -75,7 +90,8 @@ export default function CleanerCityFindPage() {
 
   const tz = profile?.timezone || DEFAULT_COMMUTE_TIMEZONE;
   const today = todayIso(tz);
-  const [date, setDate] = useState(today);
+  const defaultDate = nextWorkdayIso(tz);
+  const [date, setDate] = useState(defaultDate);
   const [direction, setDirection] = useState('to_office');
   const [departTime, setDepartTime] = useState('08:30');
   const [matches, setMatches] = useState<MatchResult[]>([]);
@@ -84,6 +100,7 @@ export default function CleanerCityFindPage() {
   const [otpInput, setOtpInput] = useState<Record<string, string>>({});
   const [alternatives, setAlternatives] = useState<MatchResult[]>([]);
   const [alternativesForRide, setAlternativesForRide] = useState<string | null>(null);
+  const [hostingOpen, setHostingOpen] = useState(false);
 
   const { data: schedule } = useEffectiveSchedule(date);
 
@@ -97,8 +114,6 @@ export default function CleanerCityFindPage() {
   const pickupLng = schedule?.pickup_longitude ?? weekdayTemplate?.pickup_longitude ?? null;
   const hasPickup = pickupLat != null && pickupLng != null;
 
-  // Guest pickup/destination swap based on direction: to_office goes pickup -> office,
-  // to_home goes office -> pickup.
   const guestCoords = useMemo(() => {
     const officeLat = office?.latitude ?? null;
     const officeLng = office?.longitude ?? null;
@@ -118,18 +133,17 @@ export default function CleanerCityFindPage() {
     };
   }, [direction, office?.latitude, office?.longitude, pickupLat, pickupLng]);
 
-  useEffect(() => {
-    if (ready && hasPickup) search();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, hasPickup]);
-
   const search = async () => {
     if (!ready) {
-      toast.error('Verify work email first');
+      navigate('/cleaner-city/setup', {
+        state: { notice: 'Verify your work email before searching for a ride.' },
+      });
       return;
     }
     if (!hasPickup) {
-      toast.error('Set a pickup pin for this day first - open Office & pickup to add it');
+      navigate('/cleaner-city/route', {
+        state: { notice: 'Pin a pickup near home before searching.' },
+      });
       return;
     }
     try {
@@ -149,15 +163,26 @@ export default function CleanerCityFindPage() {
     }
   };
 
+  useEffect(() => {
+    if (ready && hasPickup) void search();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, hasPickup, date, direction, departTime]);
+
   const request = async (publicationId: string) => {
     try {
-      await requestRide.mutateAsync({
+      const ride = await requestRide.mutateAsync({
         publication_id: publicationId,
         guest_pickup_lat: guestCoords.pickup_lat,
         guest_pickup_lng: guestCoords.pickup_lng,
         guest_dest_lat: guestCoords.dest_lat,
         guest_dest_lng: guestCoords.dest_lng,
       });
+      if (ride?.id) {
+        navigate(`/cleaner-city/ride/${ride.id}`, {
+          state: { notice: 'Request sent. This seat is held until the host responds.' },
+        });
+        return;
+      }
       toast.success('Request sent - seat held pending host response');
       search();
     } catch (e: any) {
@@ -171,7 +196,9 @@ export default function CleanerCityFindPage() {
 
   const joinTheWaitlist = async () => {
     if (!hasPickup) {
-      toast.error('Set a pickup pin for this day first - open Office & pickup to add it');
+      navigate('/cleaner-city/route', {
+        state: { notice: 'Pin a pickup near home before joining the waitlist.' },
+      });
       return;
     }
     try {
@@ -202,11 +229,21 @@ export default function CleanerCityFindPage() {
   const incoming = rides.filter(
     (r) => r.host_user_id === user?.id && r.status === 'requested',
   );
-  const mine = rides.filter(
+  const guestRides = rides.filter(
     (r) =>
-      (r.host_user_id === user?.id || r.guest_user_id === user?.id) &&
+      r.guest_user_id === user?.id &&
       ['requested', 'confirmed', 'pickup_pending', 'started'].includes(r.status),
   );
+  const hostRides = rides.filter(
+    (r) =>
+      r.host_user_id === user?.id &&
+      ['requested', 'confirmed', 'pickup_pending', 'started'].includes(r.status),
+  );
+  const hasHosting = incoming.length > 0 || hostRides.length > 0;
+
+  useEffect(() => {
+    if (hasHosting) setHostingOpen(true);
+  }, [hasHosting]);
 
   const showOtp = async (rideId: string) => {
     try {
@@ -221,7 +258,12 @@ export default function CleanerCityFindPage() {
   return (
     <AppLayout headerTitle="Find a ride">
       <CleanerCityGate>
-        <div className="p-4 pb-24 space-y-4" data-testid="cleaner-city-find-page">
+        <div className="mx-auto flex w-full max-w-lg flex-col gap-5 px-4 pb-24 pt-4" data-testid="cleaner-city-find-page">
+          {arrivalNotice && (
+            <div className="rounded-2xl border border-primary/30 bg-primary/5 px-4 py-3 text-sm leading-relaxed">
+              {arrivalNotice}
+            </div>
+          )}
           {!ready && (
             <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-950 text-sm">
               Complete{' '}
@@ -246,17 +288,19 @@ export default function CleanerCityFindPage() {
           )}
 
           <div className="rounded-2xl border border-border bg-card p-4 space-y-3">
-            <p className="text-sm font-semibold">Match search</p>
-            <p className="text-xs text-muted-foreground">
-              Same society + neighbours. Corridor labels only until a ride is confirmed.
-            </p>
+            <div>
+              <p className="text-sm font-semibold">People going your way</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Compact filters - we refresh the list when you change them.
+              </p>
+            </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label>Date</Label>
                 <Input type="date" value={date} min={today} onChange={(e) => setDate(e.target.value)} />
               </div>
               <div>
-                <Label>Depart around</Label>
+                <Label>Leave around</Label>
                 <Input type="time" value={departTime} onChange={(e) => setDepartTime(e.target.value)} />
               </div>
             </div>
@@ -277,79 +321,66 @@ export default function CleanerCityFindPage() {
                 </button>
               ))}
             </div>
-            <Button
-              onClick={search}
-              disabled={findMatches.isPending || !ready}
-              data-testid="cleaner-city-find-search"
-            >
-              Search matches
-            </Button>
           </div>
 
-          <div className="space-y-2">
-            {matches.map((m) => {
-              const fuel = formatFuel(m.estimated_fuel_paise);
-              return (
-                <div key={m.publication_id} className="rounded-2xl border border-border bg-card p-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <p className="text-sm font-semibold">
-                      {String(m.depart_time).slice(0, 5)} · {m.vehicle_type}
-                      {m.vehicle_color ? ` · ${m.vehicle_color}` : ''}
-                    </p>
-                    {m.shared_circle && (
-                      <span
-                        className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary"
-                        data-testid="cleaner-city-shared-circle-badge"
-                      >
-                        In your circle
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {m.origin_label} → {m.destination_label}
-                  </p>
-                  <p className="text-[11px] text-muted-foreground mt-1">
-                    {m.seats_available} seat{m.seats_available === 1 ? '' : 's'}
-                    {m.estimated_detour_minutes != null
-                      ? ` · ~${m.estimated_detour_minutes} min detour`
+          <div className="space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-sm font-semibold">Riders on your route</p>
+              {findMatches.isPending ? (
+                <span className="text-[11px] text-muted-foreground">Updating…</span>
+              ) : null}
+            </div>
+
+            {matches.map((m) => (
+              <div
+                key={m.publication_id}
+                className="rounded-2xl border border-border bg-card p-4 space-y-2"
+                data-testid="cleaner-city-match-card"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <p className="text-sm font-semibold">
+                    Leaves {String(m.depart_time).slice(0, 5)}
+                    {m.seats_available != null
+                      ? ` · ${m.seats_available} seat${m.seats_available === 1 ? '' : 's'}`
                       : ''}
-                    {m.host_company ? ` · ${m.host_company}` : ''}
-                    {fuel ? ` · ${fuel} fuel` : ''}
                   </p>
-                  {(m.host_avg_stars != null || m.host_rating_count != null) && (
-                    <p className="text-[11px] text-muted-foreground mt-0.5">
-                      {m.host_avg_stars != null ? `${m.host_avg_stars.toFixed(1)} stars` : 'No ratings yet'}
-                      {m.host_rating_count != null ? ` (${m.host_rating_count} rides)` : ''}
-                    </p>
-                  )}
-                  <p className="text-[11px] text-muted-foreground mt-1">
-                    {formatMatchReasons(m.reason_labels || m.reasons)}
-                  </p>
-                  <Button
-                    className="mt-2"
-                    size="sm"
-                    onClick={() => request(m.publication_id)}
-                    disabled={requestRide.isPending}
-                  >
-                    Request seat
-                  </Button>
+                  {m.shared_circle ? (
+                    <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                      In your circle
+                    </span>
+                  ) : null}
                 </div>
-              );
-            })}
+                <p className="text-xs text-muted-foreground">
+                  {m.origin_label} → {m.destination_label}
+                </p>
+                <p className="text-[11px] text-muted-foreground leading-relaxed">
+                  {formatMatchReasons(m.reason_labels || m.reasons)}
+                </p>
+                <Button
+                  className="w-full h-11 font-semibold"
+                  onClick={() => request(m.publication_id)}
+                  disabled={requestRide.isPending}
+                  data-testid="cleaner-city-request-seat"
+                >
+                  Request seat
+                </Button>
+              </div>
+            ))}
+
             {!findMatches.isPending && hasSearched && matches.length === 0 && (
               <div
-                className="rounded-2xl border border-border bg-card p-4 text-center space-y-2"
+                className="rounded-2xl border border-border bg-card p-5 text-center space-y-3"
                 data-testid="cleaner-city-find-empty"
               >
                 <p className="text-sm font-semibold">No seats yet - try another time or Offer a ride</p>
                 <Link to="/cleaner-city/offer">
-                  <Button size="sm" variant="outline" className="mt-1">
+                  <Button size="sm" className="font-semibold">
                     Offer a ride
                   </Button>
                 </Link>
-                {hasPickup && (
-                  myWaitlistEntry ? (
-                    <div className="pt-2">
+                {hasPickup &&
+                  (myWaitlistEntry ? (
+                    <div className="pt-1">
                       <p className="text-xs text-muted-foreground mb-2">
                         You are on the waitlist for this date and direction.
                       </p>
@@ -364,12 +395,13 @@ export default function CleanerCityFindPage() {
                       </Button>
                     </div>
                   ) : (
-                    <div className="pt-2">
+                    <div className="pt-1">
                       <p className="text-xs text-muted-foreground mb-2">
-                        We will notify you the moment a neighbour publishes seats.
+                        We will notify you when a neighbour publishes seats.
                       </p>
                       <Button
                         size="sm"
+                        variant="outline"
                         onClick={joinTheWaitlist}
                         disabled={joinWaitlist.isPending}
                         data-testid="cleaner-city-join-waitlist"
@@ -377,8 +409,7 @@ export default function CleanerCityFindPage() {
                         Join waitlist
                       </Button>
                     </div>
-                  )
-                )}
+                  ))}
               </div>
             )}
           </div>
@@ -389,7 +420,7 @@ export default function CleanerCityFindPage() {
               data-testid="cleaner-city-cancel-alternatives"
             >
               <div className="flex items-center justify-between gap-2">
-                <p className="text-sm font-semibold">Alternatives for your cancelled ride</p>
+                <p className="text-sm font-semibold">Alternatives after cancel</p>
                 <Button
                   size="sm"
                   variant="ghost"
@@ -407,14 +438,10 @@ export default function CleanerCityFindPage() {
                   className="rounded-xl border border-border bg-card p-3"
                 >
                   <p className="text-sm font-semibold">
-                    {String(m.depart_time).slice(0, 5)} · {m.vehicle_type}
-                    {m.vehicle_color ? ` · ${m.vehicle_color}` : ''}
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {m.origin_label} → {m.destination_label}
+                    {String(m.depart_time).slice(0, 5)} · {m.origin_label} → {m.destination_label}
                   </p>
                   <Button
-                    className="mt-2"
+                    className="mt-2 w-full"
                     size="sm"
                     onClick={() => {
                       request(m.publication_id);
@@ -430,52 +457,19 @@ export default function CleanerCityFindPage() {
             </div>
           )}
 
-          {incoming.length > 0 && (
-            <div className="space-y-2">
-              <p className="text-sm font-semibold">Incoming requests</p>
-              {incoming.map((r) => (
-                <div key={r.id} className="rounded-2xl border border-border bg-card p-3 flex gap-2">
-                  <div className="flex-1">
-                    <p className="text-sm font-semibold">{r.travel_date}</p>
-                    <p className="text-xs text-muted-foreground">Status: {r.status}</p>
-                  </div>
-                  <Button
-                    size="sm"
-                    onClick={async () => {
-                      try {
-                        await respond.mutateAsync({ ride_id: r.id, accept: true });
-                        toast.success('Accepted');
-                      } catch (e: any) {
-                        toast.error(e?.message || 'Failed');
-                      }
-                    }}
-                  >
-                    Accept
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={async () => {
-                      try {
-                        await respond.mutateAsync({ ride_id: r.id, accept: false });
-                        toast.success('Rejected');
-                      } catch (e: any) {
-                        toast.error(e?.message || 'Failed');
-                      }
-                    }}
-                  >
-                    Decline
-                  </Button>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {mine.length > 0 && (
-            <div className="space-y-2">
-              <p className="text-sm font-semibold">My open rides</p>
-              {mine.map((r) => (
-                <div key={r.id} className="rounded-2xl border border-border bg-card p-3 space-y-2">
+          {guestRides.length > 0 && (
+            <div
+              className="rounded-2xl border border-border bg-card p-4 space-y-3"
+              data-testid="cleaner-city-your-rides"
+            >
+              <div>
+                <p className="text-sm font-semibold">Your rides</p>
+                <p className="text-[11px] text-muted-foreground">
+                  Seats you requested - open the ride for meeting point and drop order
+                </p>
+              </div>
+              {guestRides.map((r) => (
+                <div key={r.id} className="rounded-xl border border-border p-3 space-y-2">
                   <div className="flex items-center justify-between gap-2">
                     <div>
                       <Link
@@ -484,12 +478,7 @@ export default function CleanerCityFindPage() {
                       >
                         {r.travel_date} · {r.status}
                       </Link>
-                      <p className="text-[11px] text-muted-foreground">
-                        {r.host_user_id === user?.id ? 'You are host' : 'You are guest'} · open ride
-                      </p>
-                      {otpByRide[r.id] && (
-                        <p className="text-xs font-semibold text-primary mt-1">OTP {otpByRide[r.id]}</p>
-                      )}
+                      <p className="text-[11px] text-muted-foreground">You are guest</p>
                     </div>
                     {['requested', 'confirmed', 'pickup_pending'].includes(r.status) && (
                       <Button
@@ -504,7 +493,7 @@ export default function CleanerCityFindPage() {
                               setAlternatives(res.alternatives || []);
                               setAlternativesForRide(r.id);
                             } catch {
-                              // Alternatives are a courtesy - cancel already succeeded
+                              // Alternatives are a courtesy
                             }
                           } catch (e: any) {
                             toast.error(e?.message || 'Failed');
@@ -515,56 +504,221 @@ export default function CleanerCityFindPage() {
                       </Button>
                     )}
                   </div>
-                  {r.host_user_id === user?.id && ['confirmed', 'pickup_pending'].includes(r.status) && (
-                    <Button size="sm" variant="outline" onClick={() => showOtp(r.id)}>
-                      Generate pickup OTP
-                    </Button>
-                  )}
                   {r.status === 'pickup_pending' && (
-                    <div className="flex gap-2 items-center">
-                      <Input
-                        className="h-9"
-                        placeholder="Enter OTP"
-                        value={otpInput[r.id] || ''}
-                        onChange={(e) =>
-                          setOtpInput((prev) => ({ ...prev, [r.id]: e.target.value }))
-                        }
-                      />
-                      <Button
-                        size="sm"
-                        onClick={async () => {
-                          try {
-                            await startRide.mutateAsync({
-                              ride_id: r.id,
-                              otp: otpInput[r.id] || '',
-                            });
-                            toast.success('Ride started');
-                          } catch (e: any) {
-                            toast.error(e?.message || 'Invalid OTP');
+                    <div className="space-y-1">
+                      {!r.meeting_point_label ? (
+                        <p className="text-[11px] text-amber-700 dark:text-amber-300">
+                          Start locked until a meeting point is set on the ride page.
+                        </p>
+                      ) : null}
+                      <div className="flex gap-2 items-center">
+                        <Input
+                          className="h-9"
+                          placeholder="Enter OTP"
+                          value={otpInput[r.id] || ''}
+                          onChange={(e) =>
+                            setOtpInput((prev) => ({ ...prev, [r.id]: e.target.value }))
                           }
-                        }}
-                      >
-                        Start
-                      </Button>
+                        />
+                        <Button
+                          size="sm"
+                          disabled={!r.meeting_point_label}
+                          onClick={async () => {
+                            if (!r.meeting_point_label) {
+                              toast.error('Set a meeting point on the ride page first');
+                              return;
+                            }
+                            try {
+                              await startRide.mutateAsync({
+                                ride_id: r.id,
+                                otp: otpInput[r.id] || '',
+                              });
+                              toast.success('Ride started');
+                            } catch (e: any) {
+                              toast.error(e?.message || 'Invalid OTP');
+                            }
+                          }}
+                        >
+                          Start
+                        </Button>
+                      </div>
                     </div>
-                  )}
-                  {r.host_user_id === user?.id && r.status === 'started' && (
-                    <Button
-                      size="sm"
-                      onClick={async () => {
-                        try {
-                          await completeRide.mutateAsync(r.id);
-                          toast.success('Ride completed');
-                        } catch (e: any) {
-                          toast.error(e?.message || 'Could not complete');
-                        }
-                      }}
-                    >
-                      Complete ride
-                    </Button>
                   )}
                 </div>
               ))}
+            </div>
+          )}
+
+          {hasHosting && (
+            <div className="rounded-2xl border border-border bg-card overflow-hidden">
+              <button
+                type="button"
+                className="flex w-full items-center justify-between px-4 py-3 text-left"
+                onClick={() => setHostingOpen((v) => !v)}
+                data-testid="cleaner-city-hosting-toggle"
+              >
+                <div>
+                  <p className="text-sm font-semibold">Hosting</p>
+                  <p className="text-[11px] text-muted-foreground">
+                    Accept requests, OTP, and complete - host tools only
+                  </p>
+                </div>
+                <ChevronDown
+                  size={16}
+                  className={cn('text-muted-foreground transition-transform', hostingOpen && 'rotate-180')}
+                />
+              </button>
+
+              {hostingOpen && (
+                <div className="border-t border-border px-4 py-4 space-y-4">
+                  {incoming.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                        Incoming requests
+                      </p>
+                      {incoming.map((r) => (
+                        <div key={r.id} className="rounded-xl border border-border p-3 flex gap-2">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold">{r.travel_date}</p>
+                            <p className="text-xs text-muted-foreground">Status: {r.status}</p>
+                          </div>
+                          <Button
+                            size="sm"
+                            onClick={async () => {
+                              try {
+                                await respond.mutateAsync({ ride_id: r.id, accept: true });
+                                toast.success('Accepted');
+                              } catch (e: any) {
+                                toast.error(e?.message || 'Failed');
+                              }
+                            }}
+                          >
+                            Accept
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={async () => {
+                              try {
+                                await respond.mutateAsync({ ride_id: r.id, accept: false });
+                                toast.success('Declined');
+                              } catch (e: any) {
+                                toast.error(e?.message || 'Failed');
+                              }
+                            }}
+                          >
+                            Decline
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {hostRides.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                        Your hosted rides
+                      </p>
+                      {hostRides.map((r) => (
+                        <div key={r.id} className="rounded-xl border border-border p-3 space-y-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <div>
+                              <Link
+                                to={`/cleaner-city/ride/${r.id}`}
+                                className="text-sm font-semibold text-foreground hover:text-primary"
+                              >
+                                {r.travel_date} · {r.status}
+                              </Link>
+                              <p className="text-[11px] text-muted-foreground">You are host</p>
+                              {otpByRide[r.id] && (
+                                <p className="text-xs font-semibold text-primary mt-1">
+                                  OTP {otpByRide[r.id]}
+                                </p>
+                              )}
+                            </div>
+                            {['requested', 'confirmed', 'pickup_pending'].includes(r.status) && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={async () => {
+                                  try {
+                                    await cancelRide.mutateAsync({ ride_id: r.id });
+                                    toast.success('Cancelled');
+                                  } catch (e: any) {
+                                    toast.error(e?.message || 'Failed');
+                                  }
+                                }}
+                              >
+                                Cancel
+                              </Button>
+                            )}
+                          </div>
+                          {['confirmed', 'pickup_pending'].includes(r.status) && (
+                            <Button size="sm" variant="outline" onClick={() => showOtp(r.id)}>
+                              Generate pickup OTP
+                            </Button>
+                          )}
+                          {r.status === 'pickup_pending' && (
+                            <div className="space-y-1">
+                              {!r.meeting_point_label ? (
+                                <p className="text-[11px] text-amber-700 dark:text-amber-300">
+                                  Start locked until a meeting point is set on the ride page.
+                                </p>
+                              ) : null}
+                              <div className="flex gap-2 items-center">
+                                <Input
+                                  className="h-9"
+                                  placeholder="Enter OTP"
+                                  value={otpInput[r.id] || ''}
+                                  onChange={(e) =>
+                                    setOtpInput((prev) => ({ ...prev, [r.id]: e.target.value }))
+                                  }
+                                />
+                                <Button
+                                  size="sm"
+                                  disabled={!r.meeting_point_label}
+                                  onClick={async () => {
+                                    if (!r.meeting_point_label) {
+                                      toast.error('Set a meeting point on the ride page first');
+                                      return;
+                                    }
+                                    try {
+                                      await startRide.mutateAsync({
+                                        ride_id: r.id,
+                                        otp: otpInput[r.id] || '',
+                                      });
+                                      toast.success('Ride started');
+                                    } catch (e: any) {
+                                      toast.error(e?.message || 'Invalid OTP');
+                                    }
+                                  }}
+                                >
+                                  Start
+                                </Button>
+                              </div>
+                            </div>
+                          )}
+                          {r.status === 'started' && (
+                            <Button
+                              size="sm"
+                              onClick={async () => {
+                                try {
+                                  await completeRide.mutateAsync(r.id);
+                                  toast.success('Ride completed');
+                                } catch (e: any) {
+                                  toast.error(e?.message || 'Could not complete');
+                                }
+                              }}
+                            >
+                              Complete ride
+                            </Button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>

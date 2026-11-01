@@ -8,10 +8,14 @@ import { CleanerCityGate } from '@/components/cleaner-city/CleanerCityGate';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { supabase } from '@/integrations/supabase/client';
 import {
+  useConfirmContactVerification,
   useDeleteEmergencyContact,
+  useDispatchSafetyAlerts,
   useEmergencyContacts,
   useListBlocks,
+  useStartContactVerification,
   useUnblockUser,
   useUpsertEmergencyContact,
 } from '@/hooks/queries/useCleanerCity';
@@ -22,6 +26,10 @@ export default function CleanerCitySafetyPage() {
   const upsertContact = useUpsertEmergencyContact();
   const deleteContact = useDeleteEmergencyContact();
   const unblockUser = useUnblockUser();
+  const startVerify = useStartContactVerification();
+  const confirmVerify = useConfirmContactVerification();
+  const dispatchAlerts = useDispatchSafetyAlerts();
+  const [verifyCode, setVerifyCode] = useState<Record<string, string>>({});
 
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
@@ -35,12 +43,30 @@ export default function CleanerCitySafetyPage() {
       return;
     }
     try {
+      let notifyUserId: string | null = null;
+      if (phone.trim()) {
+        const { data: resolved, error: resolveError } = await supabase.rpc(
+          'cleaner_city_resolve_emergency_notify_user',
+          { p_phone: phone.trim() },
+        );
+        if (resolveError) throw resolveError;
+        notifyUserId = resolved || null;
+      }
       await upsertContact.mutateAsync({
         contact_name: name.trim(),
         phone: phone.trim() || null,
+        notify_user_id: notifyUserId,
         is_primary: isPrimary,
       });
-      toast.success('Emergency contact saved');
+      if (notifyUserId) {
+        toast.success('Contact linked to a Sociva account - they can get in-app SOS alerts');
+      } else if (phone.trim()) {
+        toast.success(
+          'Contact saved. Phone-only contacts can be verified with a code. SMS sends when the SMS template is configured.',
+        );
+      } else {
+        toast.success('Emergency contact saved');
+      }
       setName('');
       setPhone('');
       setIsPrimary(false);
@@ -87,11 +113,37 @@ export default function CleanerCitySafetyPage() {
               How SOS works
             </p>
             <p className="text-xs text-muted-foreground">
-              SOS on an active ride notifies emergency contacts who have a Sociva account and
-              the other person on the ride, with a trip share link they can open in the app.
-              It is not a 112 dialer - for immediate danger, call 112 directly.
+            SOS records an incident and sends in-app alerts to linked Sociva contacts, the
+            other rider, and society admins when available. Phone contacts are also queued
+            for SMS. SMS is delivered only when Sociva's SMS template is configured, and a
+            failed send can be retried. It is not a 112 dialer. Add a phone that already
+            belongs to a Sociva neighbour to link them, or verify a phone with a code.
+            For immediate danger, call 112.
             </p>
           </div>
+
+          <Button
+            variant="outline"
+            onClick={async () => {
+              try {
+                const res = await dispatchAlerts.mutateAsync(null);
+                const failed = res?.failed || 0;
+                const sent = res?.sent || 0;
+                toast.success(
+                  sent
+                    ? `Sent ${sent} safety alert${sent === 1 ? '' : 's'}`
+                    : failed
+                      ? 'Alerts are still queued. SMS or calling is not configured yet.'
+                      : 'No pending safety alerts',
+                );
+              } catch (e: any) {
+                toast.error(e?.message || 'Could not retry safety alerts');
+              }
+            }}
+            data-testid="cleaner-city-retry-safety-alerts"
+          >
+            Retry undelivered safety alerts
+          </Button>
 
           <div className="rounded-2xl border border-border bg-card p-4 space-y-3">
             <div className="flex items-center justify-between gap-2">
@@ -107,6 +159,11 @@ export default function CleanerCitySafetyPage() {
                 No emergency contacts yet. Add up to 3 people who should be notified during an
                 SOS.
               </p>
+            )}
+            {contacts.some((c) => c.phone && !c.verified_at) && (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-950">
+                A phone that is not a Sociva account needs an SMS code. That SMS needs an MSG91 SOS template in admin settings. If SMS fails, WhatsApp is tried next when WhatsApp is configured. This is not a 112 call.
+              </div>
             )}
             {contacts.map((c) => (
               <div
@@ -126,9 +183,52 @@ export default function CleanerCitySafetyPage() {
                   <p className="text-xs text-muted-foreground mt-0.5">
                     {c.phone || 'No phone on file'}
                     {c.notify_user_id
-                      ? ' - will be notified in-app'
-                      : ' - display only, not a Sociva account yet'}
+                      ? ' - linked Sociva account'
+                      : c.verified_at
+                        ? ' - phone verified'
+                        : ' - not verified yet'}
                   </p>
+                  {!c.verified_at && c.phone && (
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={async () => {
+                          try {
+                            const res = await startVerify.mutateAsync(c.id);
+                            toast.success(
+                              res?.verified
+                                ? 'Contact verified through their Sociva account'
+                                : 'Verification SMS queued. It sends when the SMS template is configured.',
+                            );
+                          } catch (e: any) {
+                            toast.error(e?.message || 'Could not start verification');
+                          }
+                        }}
+                      >
+                        Send code
+                      </Button>
+                      <Input
+                        className="h-8 w-24"
+                        placeholder="Code"
+                        value={verifyCode[c.id] || ''}
+                        onChange={(e) => setVerifyCode((prev) => ({ ...prev, [c.id]: e.target.value }))}
+                      />
+                      <Button
+                        size="sm"
+                        onClick={async () => {
+                          try {
+                            await confirmVerify.mutateAsync({ contact_id: c.id, code: verifyCode[c.id] || '' });
+                            toast.success('Contact verified');
+                          } catch (e: any) {
+                            toast.error(e?.message || 'Code did not match');
+                          }
+                        }}
+                      >
+                        Confirm
+                      </Button>
+                    </div>
+                  )}
                 </div>
                 <Button
                   size="sm"

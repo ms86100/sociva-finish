@@ -8,6 +8,33 @@ export type RouteResult = {
   durationSeconds: number;
   provider: 'google' | 'haversine_fallback';
   path: LatLng[];
+  summary?: string;
+  waypointOrder?: number[];
+};
+
+export type RouteAlternative = {
+  id: string;
+  polyline: string;
+  distanceMeters: number;
+  durationSeconds: number;
+  summary: string;
+  provider: 'google' | 'haversine_fallback';
+  path: LatLng[];
+};
+
+export type DropStop = {
+  id: string;
+  label: string;
+  lat: number;
+  lng: number;
+};
+
+export type DropSequenceResult = {
+  ordered: Array<DropStop & { dropIndex: number }>;
+  distanceMeters: number;
+  durationSeconds: number;
+  provider: 'google' | 'haversine_fallback';
+  polyline: string;
 };
 
 export type DetourResult = {
@@ -57,14 +84,13 @@ export function estimateDetourMinutesFallback(
   };
 }
 
-function pathFromDirections(result: google.maps.DirectionsResult): LatLng[] {
-  const route = result.routes?.[0];
+function pathFromRoute(route: google.maps.DirectionsRoute): LatLng[] {
   if (!route?.overview_path?.length) return [];
   return route.overview_path.map((p) => ({ lat: p.lat(), lng: p.lng() }));
 }
 
-function totalsFromDirections(result: google.maps.DirectionsResult) {
-  const legs = result.routes?.[0]?.legs || [];
+function totalsFromRoute(route: google.maps.DirectionsRoute) {
+  const legs = route?.legs || [];
   let distanceMeters = 0;
   let durationSeconds = 0;
   for (const leg of legs) {
@@ -72,6 +98,25 @@ function totalsFromDirections(result: google.maps.DirectionsResult) {
     durationSeconds += leg.duration?.value || 0;
   }
   return { distanceMeters, durationSeconds };
+}
+
+function haversineRoute(
+  origin: LatLng,
+  destination: LatLng,
+  waypoints: LatLng[] = [],
+): RouteResult {
+  const path = [origin, ...waypoints, destination];
+  let meters = 0;
+  for (let i = 1; i < path.length; i++) meters += haversineMeters(path[i - 1], path[i]);
+  return {
+    polyline: encodePolyline(path),
+    distanceMeters: Math.round(meters),
+    durationSeconds: Math.round(meters / ((25 * 1000) / 3600)),
+    provider: 'haversine_fallback',
+    path,
+    summary: 'Approximate straight path',
+    waypointOrder: waypoints.map((_, i) => i),
+  };
 }
 
 /**
@@ -82,18 +127,12 @@ export async function fetchDrivingRoute(
   origin: LatLng,
   destination: LatLng,
   waypoints: LatLng[] = [],
+  options?: { optimizeWaypoints?: boolean },
 ): Promise<RouteResult> {
+  const optimize = !!options?.optimizeWaypoints && waypoints.length > 1;
+
   if (typeof window === 'undefined' || !window.google?.maps?.DirectionsService) {
-    const path = [origin, ...waypoints, destination];
-    let meters = 0;
-    for (let i = 1; i < path.length; i++) meters += haversineMeters(path[i - 1], path[i]);
-    return {
-      polyline: encodePolyline(path),
-      distanceMeters: Math.round(meters),
-      durationSeconds: Math.round(meters / ((25 * 1000) / 3600)),
-      provider: 'haversine_fallback',
-      path,
-    };
+    return haversineRoute(origin, destination, waypoints);
   }
 
   const svc = new google.maps.DirectionsService();
@@ -105,7 +144,7 @@ export async function fetchDrivingRoute(
           destination,
           waypoints: waypoints.map((w) => ({ location: w, stopover: true })),
           travelMode: google.maps.TravelMode.DRIVING,
-          optimizeWaypoints: false,
+          optimizeWaypoints: optimize,
         },
         (res, status) => {
           if (status === google.maps.DirectionsStatus.OK && res) resolve(res);
@@ -114,10 +153,16 @@ export async function fetchDrivingRoute(
       );
     });
 
-    const path = pathFromDirections(result);
-    const { distanceMeters, durationSeconds } = totalsFromDirections(result);
-    const polyline =
-      result.routes?.[0]?.overview_polyline || encodePolyline(path);
+    const route = result.routes?.[0];
+    if (!route) return haversineRoute(origin, destination, waypoints);
+
+    const path = pathFromRoute(route);
+    const { distanceMeters, durationSeconds } = totalsFromRoute(route);
+    const polyline = route.overview_polyline || encodePolyline(path);
+    const waypointOrder =
+      optimize && Array.isArray(route.waypoint_order)
+        ? [...route.waypoint_order]
+        : waypoints.map((_, i) => i);
 
     return {
       polyline,
@@ -125,19 +170,172 @@ export async function fetchDrivingRoute(
       durationSeconds,
       provider: 'google',
       path,
+      summary: route.summary || 'Driving route',
+      waypointOrder,
     };
   } catch {
-    const path = [origin, ...waypoints, destination];
-    let meters = 0;
-    for (let i = 1; i < path.length; i++) meters += haversineMeters(path[i - 1], path[i]);
+    return haversineRoute(origin, destination, waypoints);
+  }
+}
+
+/** Up to 3 Google driving alternatives between the same pins. */
+export async function fetchDrivingRouteAlternatives(
+  origin: LatLng,
+  destination: LatLng,
+): Promise<RouteAlternative[]> {
+  if (typeof window === 'undefined' || !window.google?.maps?.DirectionsService) {
+    const fallback = haversineRoute(origin, destination);
+    return [
+      {
+        id: 'approx-0',
+        polyline: fallback.polyline,
+        distanceMeters: fallback.distanceMeters,
+        durationSeconds: fallback.durationSeconds,
+        summary: fallback.summary || 'Approximate path',
+        provider: 'haversine_fallback',
+        path: fallback.path,
+      },
+    ];
+  }
+
+  const svc = new google.maps.DirectionsService();
+  try {
+    const result = await new Promise<google.maps.DirectionsResult>((resolve, reject) => {
+      svc.route(
+        {
+          origin,
+          destination,
+          travelMode: google.maps.TravelMode.DRIVING,
+          provideRouteAlternatives: true,
+        },
+        (res, status) => {
+          if (status === google.maps.DirectionsStatus.OK && res) resolve(res);
+          else reject(new Error(String(status)));
+        },
+      );
+    });
+
+    const routes = (result.routes || []).slice(0, 3);
+    if (routes.length === 0) {
+      const fallback = haversineRoute(origin, destination);
+      return [
+        {
+          id: 'approx-0',
+          polyline: fallback.polyline,
+          distanceMeters: fallback.distanceMeters,
+          durationSeconds: fallback.durationSeconds,
+          summary: fallback.summary || 'Approximate path',
+          provider: 'haversine_fallback',
+          path: fallback.path,
+        },
+      ];
+    }
+
+    return routes.map((route, index) => {
+      const path = pathFromRoute(route);
+      const { distanceMeters, durationSeconds } = totalsFromRoute(route);
+      return {
+        id: `alt-${index}-${route.summary || index}`,
+        polyline: route.overview_polyline || encodePolyline(path),
+        distanceMeters,
+        durationSeconds,
+        summary: route.summary ? `via ${route.summary}` : `Route ${index + 1}`,
+        provider: 'google' as const,
+        path,
+      };
+    });
+  } catch {
+    const fallback = haversineRoute(origin, destination);
+    return [
+      {
+        id: 'approx-0',
+        polyline: fallback.polyline,
+        distanceMeters: fallback.distanceMeters,
+        durationSeconds: fallback.durationSeconds,
+        summary: fallback.summary || 'Approximate path',
+        provider: 'haversine_fallback',
+        path: fallback.path,
+      },
+    ];
+  }
+}
+
+/**
+ * Google-optimized drop/visit order for multi-stop rides.
+ * Origin = start, destination = final end, stops = guests or extra offices in between.
+ */
+export async function planDropSequence(input: {
+  origin: LatLng;
+  destination: LatLng;
+  stops: DropStop[];
+}): Promise<DropSequenceResult> {
+  const { origin, destination, stops } = input;
+  if (stops.length === 0) {
+    const direct = await fetchDrivingRoute(origin, destination);
     return {
-      polyline: encodePolyline(path),
-      distanceMeters: Math.round(meters),
-      durationSeconds: Math.round(meters / ((25 * 1000) / 3600)),
-      provider: 'haversine_fallback',
-      path,
+      ordered: [],
+      distanceMeters: direct.distanceMeters,
+      durationSeconds: direct.durationSeconds,
+      provider: direct.provider,
+      polyline: direct.polyline,
     };
   }
+
+  if (stops.length === 1) {
+    const route = await fetchDrivingRoute(origin, destination, [
+      { lat: stops[0].lat, lng: stops[0].lng },
+    ]);
+    return {
+      ordered: [{ ...stops[0], dropIndex: 1 }],
+      distanceMeters: route.distanceMeters,
+      durationSeconds: route.durationSeconds,
+      provider: route.provider,
+      polyline: route.polyline,
+    };
+  }
+
+  const waypoints = stops.map((s) => ({ lat: s.lat, lng: s.lng }));
+  const route = await fetchDrivingRoute(origin, destination, waypoints, {
+    optimizeWaypoints: true,
+  });
+  const order = route.waypointOrder?.length
+    ? route.waypointOrder
+    : nearestNeighborOrder(origin, stops);
+
+  const ordered = order.map((stopIdx, i) => ({
+    ...stops[stopIdx],
+    dropIndex: i + 1,
+  }));
+
+  return {
+    ordered,
+    distanceMeters: route.distanceMeters,
+    durationSeconds: route.durationSeconds,
+    provider: route.provider,
+    polyline: route.polyline,
+  };
+}
+
+function nearestNeighborOrder(origin: LatLng, stops: DropStop[]): number[] {
+  const remaining = stops.map((_, i) => i);
+  const order: number[] = [];
+  let cursor = origin;
+  while (remaining.length) {
+    let best = 0;
+    let bestDist = Infinity;
+    for (let i = 0; i < remaining.length; i++) {
+      const s = stops[remaining[i]];
+      const d = haversineMeters(cursor, { lat: s.lat, lng: s.lng });
+      if (d < bestDist) {
+        bestDist = d;
+        best = i;
+      }
+    }
+    const picked = remaining.splice(best, 1)[0];
+    order.push(picked);
+    cursor = { lat: stops[picked].lat, lng: stops[picked].lng };
+  }
+  return order;
 }
 
 export async function estimateDetourMinutes(
@@ -166,6 +364,95 @@ export async function estimateDetourMinutes(
   } catch {
     return estimateDetourMinutesFallback(hostOrigin, hostDest, guestPickup, guestDest);
   }
+}
+
+export type PreferredRouteStore = {
+  polyline: string;
+  distanceMeters: number;
+  durationSeconds: number;
+  summary: string;
+  originLat: number;
+  originLng: number;
+  destLat: number;
+  destLng: number;
+  savedAt: string;
+};
+
+export function preferredRouteStorageKey(userId: string) {
+  return `cleaner_city_preferred_route_${userId}`;
+}
+
+export function loadPreferredRoute(userId: string | null | undefined): PreferredRouteStore | null {
+  if (!userId || typeof window === 'undefined') return null;
+  try {
+    const raw = localStorage.getItem(preferredRouteStorageKey(userId));
+    if (!raw) return null;
+    return JSON.parse(raw) as PreferredRouteStore;
+  } catch {
+    return null;
+  }
+}
+
+export function savePreferredRoute(userId: string, route: PreferredRouteStore) {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(preferredRouteStorageKey(userId), JSON.stringify(route));
+  } catch {
+    // ignore quota
+  }
+}
+
+export function preferredRouteMatchesPins(
+  stored: PreferredRouteStore | null,
+  origin: LatLng,
+  destination: LatLng,
+  tolerance = 0.0008,
+): boolean {
+  if (!stored) return false;
+  return (
+    Math.abs(stored.originLat - origin.lat) < tolerance &&
+    Math.abs(stored.originLng - origin.lng) < tolerance &&
+    Math.abs(stored.destLat - destination.lat) < tolerance &&
+    Math.abs(stored.destLng - destination.lng) < tolerance &&
+    !!stored.polyline
+  );
+}
+
+/**
+ * Google Maps directions deep link for multi-stop driving.
+ * Origin -> waypoints (optimized order already applied by caller) -> destination.
+ */
+export function buildGoogleMapsDirectionsUrl(input: {
+  origin: LatLng;
+  destination: LatLng;
+  waypoints?: LatLng[];
+}): string {
+  const { origin, destination, waypoints = [] } = input;
+  const params = new URLSearchParams({
+    api: '1',
+    travelmode: 'driving',
+    origin: `${origin.lat},${origin.lng}`,
+    destination: `${destination.lat},${destination.lng}`,
+  });
+  if (waypoints.length) {
+    params.set(
+      'waypoints',
+      waypoints.map((w) => `${w.lat},${w.lng}`).join('|'),
+    );
+  }
+  return `https://www.google.com/maps/dir/?${params.toString()}`;
+}
+
+export function openGoogleMapsDirections(input: {
+  origin: LatLng;
+  destination: LatLng;
+  waypoints?: LatLng[];
+}) {
+  const url = buildGoogleMapsDirectionsUrl(input);
+  if (typeof window !== 'undefined') {
+    window.open(url, '_blank', 'noopener,noreferrer');
+  }
+  return url;
 }
 
 /** Google Encoded Polyline Algorithm Format (encode). */

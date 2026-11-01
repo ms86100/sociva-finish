@@ -23,7 +23,9 @@ const hookFile = fs.readFileSync(
 describe('A Cleaner City Phase 0 formatMatchReasons helper', () => {
   it('maps known reason codes to human copy', () => {
     expect(formatMatchReason('pickup_within_corridor')).toBe('Pickup near your usual spot');
-    expect(formatMatchReason('overlap_proxy_ok')).toBe('Good route overlap');
+    expect(formatMatchReason('overlap_proxy_ok')).toBe(
+      'Approximate corridor fit (straight-line estimate)',
+    );
   });
 
   it('humanizes unknown reason codes instead of throwing', () => {
@@ -32,7 +34,9 @@ describe('A Cleaner City Phase 0 formatMatchReasons helper', () => {
 
   it('joins multiple reasons into one readable string', () => {
     const result = formatMatchReasons(['pickup_within_corridor', 'overlap_proxy_ok']);
-    expect(result).toBe('Pickup near your usual spot - Good route overlap');
+    expect(result).toBe(
+      'Pickup near your usual spot - Approximate corridor fit (straight-line estimate)',
+    );
   });
 
   it('falls back to placeholder copy for empty reasons', () => {

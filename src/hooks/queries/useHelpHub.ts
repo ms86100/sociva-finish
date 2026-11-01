@@ -76,55 +76,47 @@ export function useHelpHubListings(filters: HelpHubFilters = {}) {
   const query = useQuery({
     queryKey: ['helphub-listings', effectiveSocietyId, filters, forcedDemo],
     queryFn: async () => {
-      if (forcedDemo || !effectiveSocietyId) {
+      // Demo samples only when explicitly requested (?demo=1). Live/default never invents workers.
+      if (forcedDemo) {
         setUsingDemo(true);
         return filterHelpHubListings(getDemoListings(), filters);
       }
-      try {
-        let q = supabase
-          .from('helphub_listings')
-          .select(
-            'id, society_id, created_by, display_name, category, work_type, availability, available_from, available_to, preferred_area, languages, description, expected_salary, experience_years, source, status, recommender_name, recommender_flat, tower_or_block, expires_at, created_at, updated_at',
-          )
-          .eq('society_id', effectiveSocietyId)
-          .eq('status', 'active')
-          .gt('expires_at', new Date().toISOString())
-          .order('created_at', { ascending: false });
+      setUsingDemo(false);
+      if (!effectiveSocietyId) return [];
 
-        if (filters.category && filters.category !== 'all') {
-          q = q.eq('category', filters.category);
-        }
-        if (filters.workType && filters.workType !== 'all') {
-          q = q.eq('work_type', filters.workType);
-        }
-        if (filters.availability && filters.availability !== 'all') {
-          q = q.eq('availability', filters.availability);
-        }
-        if (filters.salaryMin != null) {
-          q = q.gte('expected_salary', filters.salaryMin);
-        }
-        if (filters.salaryMax != null) {
-          q = q.lte('expected_salary', filters.salaryMax);
-        }
+      let q = supabase
+        .from('helphub_listings')
+        .select(
+          'id, society_id, created_by, display_name, category, work_type, availability, available_from, available_to, preferred_area, languages, description, expected_salary, experience_years, source, status, recommender_name, recommender_flat, tower_or_block, expires_at, created_at, updated_at',
+        )
+        .eq('society_id', effectiveSocietyId)
+        .eq('status', 'active')
+        .gt('expires_at', new Date().toISOString())
+        .order('created_at', { ascending: false });
 
-        const { data, error } = await q;
-        if (error) throw error;
-        let listings = (data || []).map(mapListingRow);
-        if (filters.query) {
-          listings = filterHelpHubListings(listings, { query: filters.query });
-        }
-        // Until societies have real listings, show sample workers so Find Help is reviewable
-        if (listings.length === 0) {
-          setUsingDemo(true);
-          return filterHelpHubListings(getDemoListings(), filters);
-        }
-        setUsingDemo(false);
-        return listings;
-      } catch (err) {
-        console.warn('[HelpHub] Falling back to demo listings', err);
-        setUsingDemo(true);
-        return filterHelpHubListings(getDemoListings(), filters);
+      if (filters.category && filters.category !== 'all') {
+        q = q.eq('category', filters.category);
       }
+      if (filters.workType && filters.workType !== 'all') {
+        q = q.eq('work_type', filters.workType);
+      }
+      if (filters.availability && filters.availability !== 'all') {
+        q = q.eq('availability', filters.availability);
+      }
+      if (filters.salaryMin != null) {
+        q = q.gte('expected_salary', filters.salaryMin);
+      }
+      if (filters.salaryMax != null) {
+        q = q.lte('expected_salary', filters.salaryMax);
+      }
+
+      const { data, error } = await q;
+      if (error) throw error;
+      let listings = (data || []).map(mapListingRow);
+      if (filters.query) {
+        listings = filterHelpHubListings(listings, { query: filters.query });
+      }
+      return listings;
     },
     enabled: true,
     staleTime: 30_000,
@@ -133,7 +125,7 @@ export function useHelpHubListings(filters: HelpHubFilters = {}) {
   return {
     ...query,
     usingDemo: forcedDemo || usingDemo,
-    societyName: profile?.society_id ? 'your society' : 'demo society',
+    societyName: profile?.society_id ? 'your society' : 'your society',
   };
 }
 
@@ -148,22 +140,33 @@ export function useHelpHubListing(listingId: string | undefined) {
       if (forcedDemo) {
         return getDemoListings().find((l) => l.id === listingId) || null;
       }
-      try {
-        const { data, error } = await supabase
-          .from('helphub_listings')
-          .select(
-            'id, society_id, created_by, display_name, category, work_type, availability, available_from, available_to, preferred_area, languages, description, expected_salary, experience_years, source, status, recommender_name, recommender_flat, tower_or_block, expires_at, created_at, updated_at',
-          )
-          .eq('id', listingId)
-          .maybeSingle();
-        if (error) throw error;
-        return data ? mapListingRow(data) : null;
-      } catch {
+      // Demo ids never hit Postgres (uuid column) - read session store only.
+      if (String(listingId).startsWith('hh-')) {
         return getDemoListings().find((l) => l.id === listingId) || null;
       }
+      const { data, error } = await supabase
+        .from('helphub_listings')
+        .select(
+          'id, society_id, created_by, display_name, category, work_type, availability, available_from, available_to, preferred_area, languages, description, expected_salary, experience_years, source, status, recommender_name, recommender_flat, tower_or_block, expires_at, created_at, updated_at',
+        )
+        .eq('id', listingId)
+        .maybeSingle();
+      if (error) throw error;
+      return data ? mapListingRow(data) : null;
     },
     enabled: !!listingId,
   });
+}
+
+function isMissingRpcError(message: string | undefined) {
+  if (!message) return false;
+  // Only treat true missing-RPC / schema-cache misses as prototype fallback.
+  // Do NOT match business errors like "HelpHub is not enabled for this society".
+  return (
+    /could not find the function/i.test(message) ||
+    /schema cache/i.test(message) ||
+    (/does not exist/i.test(message) && /function/i.test(message))
+  );
 }
 
 export function useCreateHelpHubListing() {
@@ -176,8 +179,11 @@ export function useCreateHelpHubListing() {
       if (!input.consent_confirmed) {
         throw new Error('Consent is required before publishing');
       }
-      if (forcedDemo || !effectiveSocietyId) {
+      if (forcedDemo) {
         return createDemoListing(input, user?.id || 'demo-user', profile?.name || 'A resident');
+      }
+      if (!effectiveSocietyId) {
+        throw new Error('Join a society before publishing a HelpHub recommendation');
       }
       const { data, error } = await supabase.rpc('helphub_create_listing', {
         p_display_name: input.display_name,
@@ -198,8 +204,7 @@ export function useCreateHelpHubListing() {
         p_available_to: input.available_to || null,
       });
       if (error) {
-        // Prototype-friendly fallback when migration not applied yet
-        if (/helphub|does not exist|schema cache/i.test(error.message || '')) {
+        if (isMissingRpcError(error.message)) {
           return createDemoListing(input, user?.id || 'demo-user', profile?.name || 'A resident');
         }
         throw error;
@@ -208,6 +213,8 @@ export function useCreateHelpHubListing() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['helphub-listings'] });
+      queryClient.invalidateQueries({ queryKey: ['helphub-admin-listings'] });
+      queryClient.invalidateQueries({ queryKey: ['helphub-admin-stats'] });
     },
   });
 }
@@ -436,7 +443,7 @@ export function useSubmitHelpHubCallFeedback() {
         p_note: note || null,
       });
       if (error) {
-        if (/helphub|does not exist|schema cache/i.test(error.message || '')) {
+        if (isMissingRpcError(error.message)) {
           return createDemoCallFeedback(
             listingId,
             user?.id || 'demo-user',

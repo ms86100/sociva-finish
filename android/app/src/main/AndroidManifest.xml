@@ -110,6 +110,11 @@
 
         <!-- Live order status notification (buyer lock-screen card) -->
         <service
+            android:name=".CommuteTrackingService"
+            android:exported="false"
+            android:foregroundServiceType="location" />
+
+        <service
             android:name=".LiveDeliveryService"
             android:exported="false"
             android:foregroundServiceType="specialUse">
