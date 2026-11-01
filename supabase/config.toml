@@ -57,3 +57,6 @@ verify_jwt = false
 # Admin-only. JWT and admin role are checked in code.
 [functions.get-sociva-voice-call]
 verify_jwt = true
+
+[functions.cleaner-city-work-email-otp]
+verify_jwt = true

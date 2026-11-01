@@ -137,7 +137,7 @@ CREATE TABLE IF NOT EXISTS public.office_locations (
   address_text text,
   latitude double precision NOT NULL,
   longitude double precision NOT NULL,
-  location geography(Point, 4326),
+  location extensions.geography(Point, 4326),
   is_primary boolean NOT NULL DEFAULT true,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
@@ -159,7 +159,7 @@ CREATE TABLE IF NOT EXISTS public.commute_templates (
   pickup_label text,
   pickup_latitude double precision,
   pickup_longitude double precision,
-  pickup_location geography(Point, 4326),
+  pickup_location extensions.geography(Point, 4326),
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT commute_templates_user_weekday UNIQUE (user_id, weekday)
@@ -176,7 +176,7 @@ CREATE TABLE IF NOT EXISTS public.commute_overrides (
   pickup_label text,
   pickup_latitude double precision,
   pickup_longitude double precision,
-  pickup_location geography(Point, 4326),
+  pickup_location extensions.geography(Point, 4326),
   note text,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
@@ -314,7 +314,7 @@ SET search_path = public, extensions
 AS $$
 BEGIN
   IF NEW.latitude IS NOT NULL AND NEW.longitude IS NOT NULL THEN
-    NEW.location := ST_SetSRID(ST_MakePoint(NEW.longitude, NEW.latitude), 4326)::geography;
+    NEW.location := ST_SetSRID(ST_MakePoint(NEW.longitude, NEW.latitude), 4326)::extensions.geography;
   END IF;
   RETURN NEW;
 END;
@@ -335,7 +335,7 @@ BEGIN
     NEW.pickup_location := ST_SetSRID(
       ST_MakePoint(NEW.pickup_longitude, NEW.pickup_latitude),
       4326
-    )::geography;
+    )::extensions.geography;
   END IF;
   RETURN NEW;
 END;

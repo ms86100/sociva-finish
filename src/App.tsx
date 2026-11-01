@@ -219,6 +219,14 @@ const HelpHubFindPage = lazyWithRetry(() => import("./pages/helphub/HelpHubFindP
 const HelpHubLookingForWorkPage = lazyWithRetry(() => import("./pages/helphub/HelpHubLookingForWorkPage"));
 const HelpHubListingPage = lazyWithRetry(() => import("./pages/helphub/HelpHubListingPage"));
 const CleanerCityPage = lazyWithRetry(() => import("./pages/cleaner-city/CleanerCityPage"));
+const CleanerCitySetupPage = lazyWithRetry(() => import("./pages/cleaner-city/CleanerCitySetupPage"));
+const CleanerCitySchedulePage = lazyWithRetry(() => import("./pages/cleaner-city/CleanerCitySchedulePage"));
+const CleanerCityVehiclePage = lazyWithRetry(() => import("./pages/cleaner-city/CleanerCityVehiclePage"));
+const CleanerCityOfferPage = lazyWithRetry(() => import("./pages/cleaner-city/CleanerCityOfferPage"));
+const CleanerCityRoutePage = lazyWithRetry(() => import("./pages/cleaner-city/CleanerCityRoutePage"));
+const CleanerCityFindPage = lazyWithRetry(() => import("./pages/cleaner-city/CleanerCityFindPage"));
+const CleanerCityRidePage = lazyWithRetry(() => import("./pages/cleaner-city/CleanerCityRidePage"));
+const CleanerCitySharePage = lazyWithRetry(() => import("./pages/cleaner-city/CleanerCitySharePage"));
 const CreateJobRequestPage = lazyWithRetry(() => import("./pages/CreateJobRequestPage"));
 const SocietyNoticesPage = lazyWithRetry(() => import("./pages/SocietyNoticesPage"));
 const SocietyDeliveriesPage = lazyWithRetry(() => import("./pages/SocietyDeliveriesPage"));
@@ -732,6 +740,14 @@ function AppRoutes() {
           <Route path="/help-hub/work" element={<ProtectedRoute><RouteErrorBoundary sectionName="HelpHub Work"><HelpHubLookingForWorkPage /></RouteErrorBoundary></ProtectedRoute>} />
           <Route path="/help-hub/listing/:id" element={<ProtectedRoute><RouteErrorBoundary sectionName="HelpHub Listing"><HelpHubListingPage /></RouteErrorBoundary></ProtectedRoute>} />
           <Route path="/cleaner-city" element={<ProtectedRoute><RouteErrorBoundary sectionName="A Cleaner City"><CleanerCityPage /></RouteErrorBoundary></ProtectedRoute>} />
+          <Route path="/cleaner-city/setup" element={<ProtectedRoute><RouteErrorBoundary sectionName="A Cleaner City Setup"><CleanerCitySetupPage /></RouteErrorBoundary></ProtectedRoute>} />
+          <Route path="/cleaner-city/schedule" element={<ProtectedRoute><RouteErrorBoundary sectionName="A Cleaner City Schedule"><CleanerCitySchedulePage /></RouteErrorBoundary></ProtectedRoute>} />
+          <Route path="/cleaner-city/vehicle" element={<ProtectedRoute><RouteErrorBoundary sectionName="A Cleaner City Vehicle"><CleanerCityVehiclePage /></RouteErrorBoundary></ProtectedRoute>} />
+          <Route path="/cleaner-city/offer" element={<ProtectedRoute><RouteErrorBoundary sectionName="A Cleaner City Offer"><CleanerCityOfferPage /></RouteErrorBoundary></ProtectedRoute>} />
+          <Route path="/cleaner-city/route" element={<ProtectedRoute><RouteErrorBoundary sectionName="A Cleaner City Route"><CleanerCityRoutePage /></RouteErrorBoundary></ProtectedRoute>} />
+          <Route path="/cleaner-city/find" element={<ProtectedRoute><RouteErrorBoundary sectionName="A Cleaner City Find"><CleanerCityFindPage /></RouteErrorBoundary></ProtectedRoute>} />
+          <Route path="/cleaner-city/ride/:id" element={<ProtectedRoute><RouteErrorBoundary sectionName="A Cleaner City Ride"><CleanerCityRidePage /></RouteErrorBoundary></ProtectedRoute>} />
+          <Route path="/cleaner-city/share/:token" element={<RouteErrorBoundary sectionName="A Cleaner City Share"><CleanerCitySharePage /></RouteErrorBoundary>} />
           <Route path="/workforce" element={<WorkforceManagementPage />} />
           <Route path="/parcels" element={<ParcelManagementPage />} />
           <Route path="/guard-kiosk" element={<SecurityRoute><GuardKioskPage /></SecurityRoute>} />

@@ -22,7 +22,7 @@ describe('A Cleaner City foundation migration contracts', () => {
 
   it('enables PostGIS and stores geography points', () => {
     expect(migration).toContain('CREATE EXTENSION IF NOT EXISTS postgis');
-    expect(migration).toContain('geography(Point, 4326)');
+    expect(migration).toContain('extensions.geography(Point, 4326)');
   });
 
   it('creates neighbour graph and C-ready match scope helper', () => {
@@ -71,6 +71,6 @@ describe('A Cleaner City Unit 1 privacy copy', () => {
     );
     expect(hub).not.toMatch(/employment independently verified/i);
     expect(hub).not.toMatch(/live match/i);
-    expect(hub).toMatch(/Coming in a later unit|Foundation ready/);
+    expect(hub).toMatch(/Set up my commute|Verify work email first|Participation gate/);
   });
 });
