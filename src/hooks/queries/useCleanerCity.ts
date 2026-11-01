@@ -2,6 +2,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { functionInvokeErrorMessage } from '@/lib/function-invoke-error';
 
 export type CommuteProfile = {
   id: string;
@@ -139,23 +140,29 @@ export function useWorkEmailOtp() {
 
   const send = useMutation({
     mutationFn: async (email: string) => {
-      const { data, error } = await supabase.functions.invoke('cleaner-city-work-email-otp', {
+      const result = await supabase.functions.invoke('cleaner-city-work-email-otp', {
         body: { action: 'send', email },
       });
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
-      return data;
+      const message = await functionInvokeErrorMessage(
+        result,
+        'Could not send verification code. Check your work email domain and try again.',
+      );
+      if (result.error || result.data?.error) throw new Error(message);
+      return result.data;
     },
   });
 
   const verify = useMutation({
     mutationFn: async (input: { email: string; code: string }) => {
-      const { data, error } = await supabase.functions.invoke('cleaner-city-work-email-otp', {
+      const result = await supabase.functions.invoke('cleaner-city-work-email-otp', {
         body: { action: 'verify', email: input.email, code: input.code },
       });
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
-      return data;
+      const message = await functionInvokeErrorMessage(
+        result,
+        'Invalid or expired code. Request a new one if needed.',
+      );
+      if (result.error || result.data?.error) throw new Error(message);
+      return result.data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['cleaner-city-work-verification'] });
@@ -163,6 +170,63 @@ export function useWorkEmailOtp() {
   });
 
   return { send, verify };
+}
+
+export type ApprovedCompanyDomain = { domain: string; company_name: string };
+
+export function useApprovedCompanyDomains() {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ['cleaner-city-approved-domains', user?.id],
+    enabled: !!user?.id,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('cleaner_city_list_approved_domains');
+      if (error) throw error;
+      return (data || []) as ApprovedCompanyDomain[];
+    },
+  });
+}
+
+export function useCheckWorkEmailDomain(email: string) {
+  const { user } = useAuth();
+  const trimmed = email.trim().toLowerCase();
+  return useQuery({
+    queryKey: ['cleaner-city-check-domain', user?.id, trimmed],
+    enabled: !!user?.id && trimmed.includes('@') && trimmed.length > 5,
+    staleTime: 15_000,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('cleaner_city_check_work_email_domain', {
+        p_email: trimmed,
+      });
+      if (error) throw error;
+      return data as {
+        ok: boolean;
+        code: string;
+        message: string;
+        domain?: string;
+        company_name?: string;
+      };
+    },
+  });
+}
+
+export function useRequestCompanyDomain() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { domain: string; company_name: string }) => {
+      const { data, error } = await supabase.rpc('cleaner_city_request_company_domain', {
+        p_domain: input.domain,
+        p_company_name: input.company_name,
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['cleaner-city-approved-domains'] });
+      queryClient.invalidateQueries({ queryKey: ['cleaner-city-check-domain'] });
+      queryClient.invalidateQueries({ queryKey: ['cleaner-city-admin-domains'] });
+    },
+  });
 }
 
 export function useCommuteTemplates() {

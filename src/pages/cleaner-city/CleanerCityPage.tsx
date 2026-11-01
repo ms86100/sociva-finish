@@ -291,11 +291,22 @@ export default function CleanerCityPage() {
           </div>
 
           {!ready && (
-            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-950">
-              <p className="text-sm font-semibold">Participation gate</p>
-              <p className="text-xs mt-1">
-                Unverified accounts cannot publish or book rides. Complete set up and work email OTP
-                first.
+            <div
+              className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-950 space-y-2"
+              data-testid="cleaner-city-setup-checklist"
+            >
+              <p className="text-sm font-semibold">Finish setup to ride</p>
+              <ol className="text-xs space-y-1.5 list-decimal pl-4">
+                <li className={profile ? 'line-through opacity-60' : ''}>
+                  Save commute profile (role + transport)
+                </li>
+                <li className={verification?.status === 'verified' ? 'line-through opacity-60' : ''}>
+                  Verify official work email on an approved company domain
+                </li>
+                <li>Add office and pickup pins, then schedule</li>
+              </ol>
+              <p className="text-[11px] text-amber-900">
+                Unverified accounts cannot publish or book rides. Open Set up my commute above to finish.
               </p>
             </div>
           )}

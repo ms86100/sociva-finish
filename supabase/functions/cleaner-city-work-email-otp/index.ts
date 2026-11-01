@@ -6,13 +6,71 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+function json(body: Record<string, unknown>, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
+function mapStoreError(message: string): { error: string; code: string } {
+  const m = (message || "").toLowerCase();
+  if (m.includes("not an approved")) {
+    return {
+      code: "domain_not_approved",
+      error:
+        "Your company email domain is not approved yet. Open Set up commute, check Approved companies, and request your domain if it is missing.",
+    };
+  }
+  if (m.includes("personal or disposable")) {
+    return {
+      code: "personal_email",
+      error: "Personal inboxes like Gmail or Yahoo are not allowed. Use your official company email.",
+    };
+  }
+  if (m.includes("not enabled")) {
+    return {
+      code: "feature_disabled",
+      error: "A Cleaner City is not enabled for your society yet. Ask your society admin.",
+    };
+  }
+  if (m.includes("society membership")) {
+    return {
+      code: "no_society",
+      error: "Join a society in Sociva before verifying a work email.",
+    };
+  }
+  if (m.includes("invalid email")) {
+    return { code: "invalid_email", error: "Enter a valid work email address." };
+  }
+  return { code: "store_failed", error: message || "Could not start verification" };
+}
+
+function mapResendError(status: number, body: string): { error: string; code: string } {
+  const lower = (body || "").toLowerCase();
+  if (status === 403 || lower.includes("only send testing emails") || lower.includes("verify a domain")) {
+    return {
+      code: "email_domain_unverified",
+      error:
+        "Email sending is limited until Sociva finishes Resend domain setup. Ask an admin to set a verified From address (resend_from_email).",
+    };
+  }
+  if (status === 422 && lower.includes("from")) {
+    return {
+      code: "email_from_invalid",
+      error: "Outgoing From address is invalid. Ask an admin to configure resend_from_email.",
+    };
+  }
+  return {
+    code: "email_send_failed",
+    error: `Could not send verification email (${status}). Try again in a minute.`,
+  };
+}
+
 async function withAuth(req: Request) {
   const authHeader = req.headers.get("Authorization");
   if (!authHeader?.startsWith("Bearer ")) {
-    return new Response(JSON.stringify({ error: "Unauthorized" }), {
-      status: 401,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return json({ error: "Please sign in again", code: "unauthorized" }, 401);
   }
 
   const userClient = createClient(
@@ -23,10 +81,7 @@ async function withAuth(req: Request) {
 
   const { data: { user }, error } = await userClient.auth.getUser();
   if (error || !user) {
-    return new Response(JSON.stringify({ error: "Unauthorized" }), {
-      status: 401,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return json({ error: "Please sign in again", code: "unauthorized" }, 401);
   }
 
   return { userId: user.id, userClient };
@@ -95,7 +150,7 @@ async function sendResendEmail(opts: {
   to: string;
   code: string;
   from: string;
-}): Promise<{ ok: boolean; error?: string }> {
+}): Promise<{ ok: boolean; status?: number; body?: string; error?: string }> {
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: {
@@ -112,9 +167,9 @@ async function sendResendEmail(opts: {
         `Badge after verification: Work email verified (not employment independently verified).`,
     }),
   });
+  const body = await res.text();
   if (!res.ok) {
-    const body = await res.text();
-    return { ok: false, error: `Resend failed (${res.status}): ${body.slice(0, 200)}` };
+    return { ok: false, status: res.status, body, error: body.slice(0, 240) };
   }
   return { ok: true };
 }
@@ -135,10 +190,7 @@ Deno.serve(async (req) => {
     const code = String(body?.code || "").trim();
 
     if (!email || !email.includes("@")) {
-      return new Response(JSON.stringify({ error: "Valid work email required" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return json({ error: "Enter a valid work email address", code: "invalid_email" }, 400);
     }
 
     const adminClient = createClient(
@@ -149,17 +201,11 @@ Deno.serve(async (req) => {
     if (action === "verify") {
       const rl = await checkRateLimit(`cc-work-email-verify:${userId}`, 20, 600);
       if (!rl.allowed) {
-        return new Response(JSON.stringify({ error: "Too many requests. Please try again later." }), {
-          status: 429,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return json({ error: "Too many attempts. Wait a few minutes and try again.", code: "rate_limited" }, 429);
       }
 
       if (!/^\d{6}$/.test(code)) {
-        return new Response(JSON.stringify({ error: "Enter the 6-digit code" }), {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return json({ error: "Enter the 6-digit code from your email", code: "invalid_code" }, 400);
       }
 
       const otpHash = await sha256Hex(`${userId}:${email}:${code}`);
@@ -170,24 +216,44 @@ Deno.serve(async (req) => {
       });
 
       if (error) {
-        return new Response(JSON.stringify({ error: error.message || "Verification failed" }), {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        const msg = error.message || "Verification failed";
+        const lower = msg.toLowerCase();
+        if (lower.includes("expired")) {
+          return json({ error: "Code expired. Send a new code.", code: "otp_expired" }, 400);
+        }
+        if (lower.includes("attempt") || lower.includes("invalid")) {
+          return json({ error: "Incorrect code. Check your email and try again.", code: "otp_invalid" }, 400);
+        }
+        return json({ error: msg, code: "verify_failed" }, 400);
       }
 
-      return new Response(
-        JSON.stringify({ success: true, verification: data, badge: "Work email verified" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
+      return json({ success: true, verification: data, badge: "Work email verified" });
     }
 
     const rl = await checkRateLimit(`cc-work-email-send:${userId}`, 5, 600);
     if (!rl.allowed) {
-      return new Response(JSON.stringify({ error: "Too many requests. Please try again later." }), {
-        status: 429,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return json({ error: "Too many codes sent. Wait a few minutes before trying again.", code: "rate_limited" }, 429);
+    }
+
+    let precheck: Record<string, unknown> | null = null;
+    {
+      const { data: checkData, error: checkErr } = await adminClient.rpc(
+        "cleaner_city_check_work_email_domain",
+        { p_email: email },
+      );
+      if (!checkErr && checkData && typeof checkData === "object") {
+        precheck = checkData as Record<string, unknown>;
+        if (precheck.ok === false) {
+          return json(
+            {
+              error: String(precheck.message || "Email domain not allowed"),
+              code: String(precheck.code || "domain_not_approved"),
+              domain: precheck.domain ?? null,
+            },
+            400,
+          );
+        }
+      }
     }
 
     const otp = sixDigitOtp();
@@ -202,10 +268,8 @@ Deno.serve(async (req) => {
     });
 
     if (storeError) {
-      return new Response(JSON.stringify({ error: storeError.message || "Could not start verification" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      const mapped = mapStoreError(storeError.message || "");
+      return json(mapped, 400);
     }
 
     const apiKey = await getCredential(adminClient, "resend_api_key", "RESEND_API_KEY");
@@ -214,37 +278,31 @@ Deno.serve(async (req) => {
       "Sociva <onboarding@resend.dev>";
 
     if (!apiKey) {
-      return new Response(
-        JSON.stringify({
+      return json(
+        {
           error:
-            "Email provider not configured. Set RESEND_API_KEY (or vault key resend_api_key) before sending work-email OTPs.",
+            "Email provider is not configured yet. Ask an admin to set the Resend API key before sending work-email codes.",
           code: "email_provider_missing",
-        }),
-        { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        },
+        503,
       );
     }
 
     const sent = await sendResendEmail({ apiKey, to: email, code: otp, from });
     if (!sent.ok) {
-      return new Response(JSON.stringify({ error: sent.error || "Failed to send email" }), {
-        status: 502,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      const mapped = mapResendError(sent.status || 502, sent.body || "");
+      console.error("[cleaner-city-work-email-otp] resend", sent.status, sent.body);
+      return json(mapped, 502);
     }
 
-    return new Response(
-      JSON.stringify({
-        success: true,
-        message: "Verification code sent to your work email",
-        expires_at: expiresAt,
-      }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } },
-    );
+    return json({
+      success: true,
+      message: "Verification code sent to your work email",
+      expires_at: expiresAt,
+      domain: precheck?.domain ?? email.split("@")[1],
+    });
   } catch (e) {
     console.error("[cleaner-city-work-email-otp]", e);
-    return new Response(JSON.stringify({ error: "Unexpected error" }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return json({ error: "Something went wrong sending the code. Please try again.", code: "unexpected" }, 500);
   }
 });
