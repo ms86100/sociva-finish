@@ -63,6 +63,17 @@ function dayLabel(date: string, today: string) {
   return date;
 }
 
+function directionLabel(direction?: string | null) {
+  if (direction === 'to_home') return 'Homebound';
+  if (direction === 'to_office') return 'To office';
+  return String(direction || 'Commute').replace('_', ' ');
+}
+
+function formatLeaveTime(depart?: string | null) {
+  const t = String(depart || '').slice(0, 5);
+  return t || 'Leave time TBD';
+}
+
 const ACTIVE_RIDE_STATUSES = [
   'requested',
   'confirmed',
@@ -193,14 +204,21 @@ export default function CleanerCityPage() {
 
   const draftPublications = publications.filter((p) => p.status === 'draft');
   const tomorrowPublications = publications.filter(
-    (p) => p.travel_date === tomorrow && ['draft', 'published', 'full'].includes(p.status),
+    (p) =>
+      p.travel_date === tomorrow &&
+      ['published', 'full'].includes(p.status),
   );
   const openWaitlist = waitlist.filter((w) => w.status === 'open');
+  const vehicleById = Object.fromEntries((vehicles || []).map((v) => [v.id, v]));
 
   const confirmDraft = async (publicationId: string, confirm: boolean) => {
     try {
       await confirmPublication.mutateAsync({ publication_id: publicationId, confirm });
-      toast.success(confirm ? 'Seats confirmed and published' : 'Draft skipped');
+      toast.success(
+        confirm
+          ? 'Seats are live - neighbours can request a ride'
+          : 'Draft discarded for that day',
+      );
     } catch (e: any) {
       toast.error(e?.message || 'Could not update draft');
     }
@@ -411,42 +429,62 @@ export default function CleanerCityPage() {
                 );
               })}
 
-              {upcomingHosting.map((p) => (
-                <Link
-                  key={p.id}
-                  to="/cleaner-city/find"
-                  state={{
-                    openHosting: true,
-                    notice: 'Your seats are live. Accept requests here when neighbours ask.',
-                  }}
-                  className="relative block overflow-hidden rounded-2xl border border-primary/30 bg-primary/10 p-4"
-                  data-testid="cleaner-city-upcoming-hosting"
-                >
-                  <div className="flex items-start gap-3">
-                    <span className="relative mt-1.5 flex h-2.5 w-2.5 shrink-0">
-                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary/60" />
-                      <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-primary" />
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-[11px] font-extrabold uppercase tracking-[0.12em] text-primary">
-                        Seats live · {dayLabel(p.travel_date, today)}
-                      </p>
-                      <p className="mt-1 text-sm font-extrabold text-foreground">
-                        Leave {String(p.depart_time || '').slice(0, 5) || '-'}
-                        {p.direction ? ` · ${String(p.direction).replace('_', ' ')}` : ''}
-                      </p>
-                      <p className="mt-0.5 text-xs text-muted-foreground truncate">
-                        {p.origin_label || 'Pickup'} → {p.destination_label || 'Office'}
-                      </p>
-                      <p className="mt-1 text-[11px] text-muted-foreground">
-                        {p.seats_available != null
-                          ? `${p.seats_available} seat${p.seats_available === 1 ? '' : 's'} open`
-                          : 'Open hosting to catch requests'}
-                      </p>
+              {upcomingHosting.map((p) => {
+                const hasRequests = incomingHostRequests.some(
+                  (r) => r.publication_id === p.id || r.travel_date === p.travel_date,
+                );
+                return (
+                  <Link
+                    key={p.id}
+                    to={hasRequests ? '/cleaner-city/find' : '/cleaner-city/offer'}
+                    state={
+                      hasRequests
+                        ? {
+                            openHosting: true,
+                            notice:
+                              'A neighbour asked for a seat on your live offer. Accept or decline here.',
+                          }
+                        : {
+                            tab: 'rides',
+                            focusPublicationId: p.id,
+                            notice:
+                              'This is your live seat offer. Manage it here. Seat requests appear on Find when neighbours ask.',
+                          }
+                    }
+                    className="relative block overflow-hidden rounded-2xl border border-primary/30 bg-primary/10 p-4"
+                    data-testid="cleaner-city-upcoming-hosting"
+                  >
+                    <div className="flex items-start gap-3">
+                      <span className="relative mt-1.5 flex h-2.5 w-2.5 shrink-0">
+                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary/60" />
+                        <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-primary" />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[11px] font-extrabold uppercase tracking-[0.12em] text-primary">
+                          Your offer · {dayLabel(p.travel_date, today)}
+                        </p>
+                        <p className="mt-1 text-sm font-extrabold text-foreground">
+                          Leave {String(p.depart_time || '').slice(0, 5) || '-'}
+                          {p.direction ? ` · ${String(p.direction).replace('_', ' ')}` : ''}
+                        </p>
+                        <p className="mt-0.5 text-xs text-muted-foreground truncate">
+                          {p.origin_label || 'Pickup'} → {p.destination_label || 'Office'}
+                        </p>
+                        <p className="mt-1 text-[11px] text-muted-foreground">
+                          {hasRequests
+                            ? 'Seat request waiting - tap to Accept'
+                            : p.seats_available != null
+                              ? `${p.seats_available} seat${p.seats_available === 1 ? '' : 's'} open · tap to manage`
+                              : 'Live offer · tap to manage'}
+                        </p>
+                      </div>
+                      <span className="shrink-0 rounded-full bg-primary/15 px-2.5 py-1 text-[10px] font-extrabold text-primary">
+                        {hasRequests ? 'Accept' : 'Manage'}
+                      </span>
                     </div>
-                  </div>
-                </Link>
-              ))}
+                  </Link>
+                );
+              })}
             </section>
           ) : null}
 
@@ -485,59 +523,105 @@ export default function CleanerCityPage() {
 
           {draftPublications.length > 0 && (
             <div
-              className="rounded-2xl border border-amber-200 bg-amber-50 p-4 space-y-3"
+              className="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4 space-y-3"
               data-testid="cleaner-city-draft-publications"
             >
-              <p className="text-sm font-semibold text-amber-950">
-                Autopilot drafted {draftPublications.length} commute
-                {draftPublications.length === 1 ? '' : 's'}
-              </p>
-              <p className="text-xs text-amber-900">
-                Confirm to publish seats for neighbours, or skip for that day.
-              </p>
-              {draftPublications.map((p) => (
-                <div
-                  key={p.id}
-                  className="rounded-xl border border-amber-200 bg-white/60 p-3 flex items-center justify-between gap-2"
-                >
-                  <div className="min-w-0">
-                    <p className="text-xs font-semibold text-amber-950">
-                      {dayLabel(p.travel_date, today)} · {String(p.depart_time || '').slice(0, 5)} ·{' '}
-                      {p.direction?.replace('_', ' ')}
-                    </p>
-                    <p className="text-[11px] text-amber-800 mt-0.5">
-                      {p.seats_total} seat{p.seats_total === 1 ? '' : 's'}
+              <div>
+                <p className="text-[11px] font-extrabold uppercase tracking-[0.14em] text-amber-800 dark:text-amber-200">
+                  Needs your OK
+                </p>
+                <p className="mt-1 text-sm font-extrabold text-amber-950 dark:text-amber-50">
+                  Review seat offer
+                  {draftPublications.length > 1 ? `s (${draftPublications.length})` : ''} before
+                  neighbours see {draftPublications.length === 1 ? 'it' : 'them'}
+                </p>
+                <p className="mt-1.5 text-xs leading-relaxed text-amber-900/90 dark:text-amber-100/80">
+                  Autopilot prepared this from your usual host schedule. It is a private draft -
+                  not live yet. Publish to offer empty seats, mark WFH if you are not commuting,
+                  or discard if you will drive alone.
+                </p>
+              </div>
+              {draftPublications.map((p) => {
+                const vehicle = p.vehicle_id ? vehicleById[p.vehicle_id] : null;
+                const vehicleLabel = vehicle
+                  ? [vehicle.make, vehicle.model, vehicle.color].filter(Boolean).join(' ') ||
+                    vehicle.vehicle_type
+                  : null;
+                const when = `${dayLabel(p.travel_date, today)} · leave ${formatLeaveTime(p.depart_time)}`;
+                const where = `${p.origin_label || 'Your pickup'} → ${p.destination_label || 'Your office'}`;
+                return (
+                  <div
+                    key={p.id}
+                    className="rounded-xl border border-amber-500/30 bg-card p-3.5 space-y-3"
+                    data-testid="cleaner-city-draft-card"
+                  >
+                    <div className="space-y-1.5">
+                      <p className="text-[11px] font-extrabold uppercase tracking-[0.12em] text-primary">
+                        Who · you as host
+                      </p>
+                      <p className="text-sm font-extrabold text-foreground">
+                        Offering {p.seats_total} empty seat
+                        {p.seats_total === 1 ? '' : 's'} to neighbours
+                      </p>
+                      <dl className="grid gap-1.5 text-xs text-muted-foreground">
+                        <div className="flex gap-2">
+                          <dt className="shrink-0 font-semibold text-foreground/80">When</dt>
+                          <dd>
+                            {when} · {directionLabel(p.direction)}
+                          </dd>
+                        </div>
+                        <div className="flex gap-2">
+                          <dt className="shrink-0 font-semibold text-foreground/80">Route</dt>
+                          <dd className="min-w-0 break-words">{where}</dd>
+                        </div>
+                        {vehicleLabel ? (
+                          <div className="flex gap-2">
+                            <dt className="shrink-0 font-semibold text-foreground/80">Vehicle</dt>
+                            <dd>{vehicleLabel}</dd>
+                          </div>
+                        ) : null}
+                        <div className="flex gap-2">
+                          <dt className="shrink-0 font-semibold text-foreground/80">Status</dt>
+                          <dd>Draft only - hidden from Find until you publish</dd>
+                        </div>
+                      </dl>
+                    </div>
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                      <button
+                        type="button"
+                        className="h-10 rounded-xl border border-border px-3 text-xs font-semibold text-foreground"
+                        onClick={() => confirmDraft(p.id, false)}
+                        disabled={confirmPublication.isPending}
+                        data-testid="cleaner-city-draft-skip"
+                      >
+                        Discard draft
+                      </button>
+                      <button
+                        type="button"
+                        className="h-10 rounded-xl border border-border px-3 text-xs font-semibold text-foreground"
+                        onClick={() => markDayWfh(p.travel_date)}
+                        disabled={markWfh.isPending}
+                        data-testid="cleaner-city-wfh"
+                      >
+                        I am WFH
+                      </button>
+                      <button
+                        type="button"
+                        className="h-10 rounded-xl bg-primary px-3 text-xs font-semibold text-primary-foreground"
+                        onClick={() => confirmDraft(p.id, true)}
+                        disabled={confirmPublication.isPending}
+                        data-testid="cleaner-city-draft-publish"
+                      >
+                        Publish seats
+                      </button>
+                    </div>
+                    <p className="text-[11px] leading-relaxed text-muted-foreground">
+                      Publish seats = neighbours can request. Discard = remove this draft. WFH =
+                      cancel commuting that day and stop Autopilot for it.
                     </p>
                   </div>
-                  <div className="flex gap-2 shrink-0">
-                    <button
-                      type="button"
-                      className="rounded-lg border border-amber-300 px-2.5 py-1 text-[11px] font-semibold text-amber-900"
-                      onClick={() => confirmDraft(p.id, false)}
-                      disabled={confirmPublication.isPending}
-                    >
-                      Skip
-                    </button>
-                    <button
-                      type="button"
-                      className="rounded-lg border border-amber-300 px-2.5 py-1 text-[11px] font-semibold text-amber-900"
-                      onClick={() => markDayWfh(p.travel_date)}
-                      disabled={markWfh.isPending}
-                      data-testid="cleaner-city-wfh"
-                    >
-                      WFH
-                    </button>
-                    <button
-                      type="button"
-                      className="rounded-lg bg-primary px-2.5 py-1 text-[11px] font-semibold text-primary-foreground"
-                      onClick={() => confirmDraft(p.id, true)}
-                      disabled={confirmPublication.isPending}
-                    >
-                      Confirm
-                    </button>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
 
@@ -557,17 +641,24 @@ export default function CleanerCityPage() {
               </div>
               {tomorrowPublications.length === 0 && (
                 <p className="text-xs text-muted-foreground">
-                  {profile?.autopilot_enabled
-                    ? profile.autopilot_confirm_mode === 'auto'
-                      ? 'Autopilot has not published tomorrow yet.'
-                      : 'No tomorrow draft yet. Autopilot creates it in the evening, or repeat your last commute.'
-                    : 'Turn on Autopilot or repeat your last commute to put tomorrow on the board.'}
+                  {draftPublications.some((p) => p.travel_date === tomorrow)
+                    ? 'Tomorrow is waiting above - publish the draft to make seats live.'
+                    : profile?.autopilot_enabled
+                      ? profile.autopilot_confirm_mode === 'auto'
+                        ? 'Autopilot has not published tomorrow yet.'
+                        : 'No live seats for tomorrow yet. Autopilot drafts in the evening for your OK, or repeat your last commute.'
+                      : 'Turn on Autopilot or repeat your last commute to put tomorrow on the board.'}
                 </p>
               )}
               {tomorrowPublications.map((p) => (
                 <p key={p.id} className="text-xs text-muted-foreground" data-testid="cleaner-city-tomorrow-row">
-                  Tomorrow · {String(p.depart_time || '').slice(0, 5)} · {p.direction?.replace('_', ' ')} · {p.status}
-                  {p.seats_available != null ? ` · ${p.seats_available} seats` : ''}
+                  Live · leave {formatLeaveTime(p.depart_time)} · {directionLabel(p.direction)}
+                  {p.seats_available != null
+                    ? ` · ${p.seats_available} seat${p.seats_available === 1 ? '' : 's'} open`
+                    : ''}
+                  {p.origin_label || p.destination_label
+                    ? ` · ${p.origin_label || 'Pickup'} → ${p.destination_label || 'Office'}`
+                    : ''}
                 </p>
               ))}
               {openWaitlist.length > 0 && (

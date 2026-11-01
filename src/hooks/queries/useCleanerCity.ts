@@ -885,6 +885,7 @@ export type MatchResult = {
   host_vehicle_verified?: boolean;
   extra_stop_meters?: number | null;
   road_overlap_pct?: number | null;
+  route_distance_meters?: number | null;
 };
 
 export type MatchResponse = {
@@ -1036,6 +1037,12 @@ export function useFindMatches() {
             vehicle_make: (extra.vehicle_make as string | null) ?? null,
             vehicle_model: (extra.vehicle_model as string | null) ?? null,
             vehicle_registration: (extra.vehicle_registration as string | null) ?? null,
+            route_distance_meters:
+              (extra.route_distance_meters as number | null | undefined) ??
+              m.route_distance_meters ??
+              null,
+            origin_label: (extra.origin_label as string) || m.origin_label,
+            destination_label: (extra.destination_label as string) || m.destination_label,
           };
         }),
       };
@@ -1203,10 +1210,101 @@ export function usePublicationRides(publicationId: string | null | undefined) {
   });
 }
 
+export async function fetchMyActiveGuestRide(input?: {
+  travel_date?: string | null;
+  direction?: string | null;
+}): Promise<CleanerCityRideCard | null> {
+  const { data, error } = await supabase.rpc('cleaner_city_my_active_guest_ride', {
+    p_travel_date: input?.travel_date ?? null,
+    p_direction: input?.direction ?? null,
+  });
+  if (error) throw error;
+  const ride = normalizeRideRow(data);
+  if (!ride?.id) return null;
+
+  let host_name: string | null = null;
+  let host_flat: string | null = null;
+  let host_avatar_url: string | null = null;
+  let host_company: string | null = null;
+  let direction: string | null = null;
+  let depart_time: string | null = null;
+  let origin_label: string | null = null;
+  let destination_label: string | null = null;
+  let drop_order_json: unknown = null;
+
+  const tasks: Promise<void>[] = [];
+  if (ride.host_user_id) {
+    tasks.push(
+      (async () => {
+        const [{ data: profile }, { data: commute }] = await Promise.all([
+          supabase
+            .from('profiles')
+            .select('name, flat_number, avatar_url')
+            .eq('id', ride.host_user_id)
+            .maybeSingle(),
+          supabase
+            .from('commute_profiles')
+            .select('company_name')
+            .eq('user_id', ride.host_user_id)
+            .is('deleted_at', null)
+            .maybeSingle(),
+        ]);
+        host_name = profile?.name || null;
+        host_flat = profile?.flat_number || null;
+        host_avatar_url = profile?.avatar_url || null;
+        host_company = commute?.company_name || null;
+      })(),
+    );
+  }
+  if (ride.publication_id) {
+    tasks.push(
+      (async () => {
+        const { data: pub } = await supabase
+          .from('commute_publications')
+          .select(
+            'direction, depart_time, origin_label, destination_label, drop_order_json',
+          )
+          .eq('id', ride.publication_id!)
+          .maybeSingle();
+        direction = pub?.direction || null;
+        depart_time = pub?.depart_time || null;
+        origin_label = pub?.origin_label || null;
+        destination_label = pub?.destination_label || null;
+        drop_order_json = pub?.drop_order_json ?? null;
+      })(),
+    );
+  }
+  await Promise.all(tasks);
+
+  return {
+    ...ride,
+    host_name,
+    host_flat,
+    host_avatar_url,
+    host_company,
+    direction,
+    depart_time,
+    origin_label,
+    destination_label,
+    drop_order_json,
+  };
+}
+
+export function useMyActiveGuestRide() {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ['cleaner-city-active-guest-ride', user?.id],
+    enabled: !!user?.id,
+    refetchInterval: 12_000,
+    queryFn: () => fetchMyActiveGuestRide(),
+  });
+}
+
 export function useRequestRide() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
   return useMutation({
+    meta: { suppressGlobalErrorToast: true },
     mutationFn: async (input: {
       publication_id: string;
       note?: string | null;
@@ -1223,7 +1321,12 @@ export function useRequestRide() {
         p_guest_dest_lat: input.guest_dest_lat ?? null,
         p_guest_dest_lng: input.guest_dest_lng ?? null,
       });
-      if (error) throw error;
+      if (error) {
+        const err = new Error(error.message || 'Could not request ride');
+        (err as Error & { code?: string; details?: string }).code = error.code;
+        (err as Error & { details?: string }).details = error.details || undefined;
+        throw err;
+      }
       const ride = normalizeRideRow(data);
       if (!ride?.id) throw new Error('Request created but ride id was missing - pull to refresh');
       return ride;

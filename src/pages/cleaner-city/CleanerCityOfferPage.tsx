@@ -12,6 +12,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { HostOfferRideCard } from '@/components/cleaner-city/HostOfferRideCard';
 import {
   useCancelPublication,
   useCleanerCityProfile,
@@ -20,6 +21,7 @@ import {
   useCommuteTemplates,
   useEffectiveSchedule,
   useMyPublications,
+  useMyRides,
   useOfficeLocations,
   usePublicationStops,
   usePublishCommute,
@@ -87,10 +89,17 @@ export default function CleanerCityOfferPage() {
   const { data: vehicles = [] } = useCleanerCityVehicles();
   const { data: offices = [] } = useOfficeLocations();
   const { data: templates = [] } = useCommuteTemplates();
+  const { data: myRides = [] } = useMyRides();
   const publish = usePublishCommute();
   const navigate = useNavigate();
   const location = useLocation();
-  const arrivalNotice = (location.state as { notice?: string } | null)?.notice || '';
+  const arrivalState = (location.state as {
+    notice?: string;
+    tab?: 'publish' | 'rides' | 'stops';
+    focusPublicationId?: string;
+    justPublishedId?: string;
+  } | null) || {};
+  const arrivalNotice = arrivalState.notice || '';
   const setStop = useSetPublicationStop();
   const cancelPub = useCancelPublication();
   const storeRoute = useStoreRouteGeometry();
@@ -104,7 +113,33 @@ export default function CleanerCityOfferPage() {
   const { data: publications = [] } = useMyPublications(today);
 
   const activeVehicles = useMemo(() => vehicles.filter((v) => v.is_active), [vehicles]);
-  const [tab, setTab] = useState<'publish' | 'rides' | 'stops'>('publish');
+  const vehicleById = useMemo(
+    () => Object.fromEntries(vehicles.map((v) => [v.id, v])),
+    [vehicles],
+  );
+  const hostGuestsByPublication = useMemo(() => {
+    const map: Record<string, typeof myRides> = {};
+    for (const ride of myRides) {
+      if (!ride.publication_id || ride.host_user_id !== user?.id) continue;
+      if (!['requested', 'confirmed', 'pickup_pending', 'started'].includes(ride.status)) {
+        continue;
+      }
+      (map[ride.publication_id] ||= []).push(ride);
+    }
+    for (const list of Object.values(map)) {
+      list.sort((a, b) => {
+        const order = ['started', 'pickup_pending', 'confirmed', 'requested'];
+        return order.indexOf(a.status) - order.indexOf(b.status);
+      });
+    }
+    return map;
+  }, [myRides, user?.id]);
+
+  const [tab, setTab] = useState<'publish' | 'rides' | 'stops'>(
+    arrivalState.tab === 'rides' || arrivalState.tab === 'stops' || arrivalState.tab === 'publish'
+      ? arrivalState.tab
+      : 'publish',
+  );
   const [vehicleId, setVehicleId] = useState('');
   const [travelDate, setTravelDate] = useState(defaultDate);
   const [direction, setDirection] = useState('to_office');
@@ -113,7 +148,12 @@ export default function CleanerCityOfferPage() {
   const [stopPubId, setStopPubId] = useState('');
   const [stopSeq, setStopSeq] = useState(1);
   const [stopPin, setStopPin] = useState<StopPin | null>(null);
-  const [justPublishedId, setJustPublishedId] = useState<string | null>(null);
+  const [justPublishedId, setJustPublishedId] = useState<string | null>(
+    arrivalState.justPublishedId || arrivalState.focusPublicationId || null,
+  );
+  const [focusPublicationId, setFocusPublicationId] = useState<string | null>(
+    arrivalState.focusPublicationId || null,
+  );
   const [publishAlts, setPublishAlts] = useState<RouteAlternative[]>([]);
   const [publishRouteId, setPublishRouteId] = useState<string | null>(null);
   const [needRoutePick, setNeedRoutePick] = useState(false);
@@ -765,12 +805,13 @@ export default function CleanerCityOfferPage() {
 
             <TabsContent value="rides" className="mt-6 focus-visible:outline-none">
               <div className="flex flex-col gap-6">
-                {justPublishedId ? (
-                  <div className="rounded-2xl border border-primary/30 bg-primary/5 px-4 py-3 text-sm leading-relaxed">
-                    Ride is live. Accepted guests get an auto drop order from their pins - you do not
-                    add those here. Optional: pin another office corridor for matching only.
-                  </div>
-                ) : null}
+                <div className="rounded-2xl border border-primary/30 bg-primary/5 px-4 py-3 text-sm leading-relaxed">
+                  <p className="font-semibold text-foreground">My rides = your seat offers</p>
+                  <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
+                    Each card is one leave-time you published. Riders appear with name, flat,
+                    status, meeting point, and pickup/drop pins after they request or you accept.
+                  </p>
+                </div>
 
                 {publications.length === 0 ? (
                   <div className="rounded-2xl border border-dashed border-border bg-card px-5 py-10 text-center">
@@ -783,33 +824,18 @@ export default function CleanerCityOfferPage() {
                     </Button>
                   </div>
                 ) : (
-                  <div className="flex flex-col gap-3">
+                  <div className="flex flex-col gap-3" data-testid="cleaner-city-offer-rides-board">
                     {publications.map((p) => (
-                      <div
+                      <HostOfferRideCard
                         key={p.id}
-                        className="flex items-start justify-between gap-3 rounded-2xl border border-border bg-card px-4 py-3.5"
-                      >
-                        <div className="min-w-0">
-                          <p className="text-sm font-semibold">
-                            {p.travel_date} · {String(p.depart_time).slice(0, 5)} ·{' '}
-                            {p.direction.replace('_', ' ')}
-                          </p>
-                          <p className="mt-1 text-xs text-muted-foreground">
-                            {p.seats_available}/{p.seats_total} seats · {p.status}
-                            {p.origin_label ? ` · ${p.origin_label}` : ''}
-                          </p>
-                        </div>
-                        {['draft', 'published', 'full'].includes(p.status) ? (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => cancel(p.id)}
-                          >
-                            Cancel
-                          </Button>
-                        ) : null}
-                      </div>
+                        publication={p}
+                        vehicle={p.vehicle_id ? vehicleById[p.vehicle_id] : null}
+                        guests={hostGuestsByPublication[p.id] || []}
+                        todayIso={today}
+                        focused={focusPublicationId === p.id || justPublishedId === p.id}
+                        onCancel={() => cancel(p.id)}
+                        cancelPending={cancelPub.isPending}
+                      />
                     ))}
                   </div>
                 )}

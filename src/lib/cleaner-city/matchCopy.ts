@@ -74,6 +74,69 @@ export function formatVehicleTitle(input: {
   return kind;
 }
 
+/** Compact distance for trip strip (40 m / 1.2 km). */
+export function formatTripMeters(meters?: number | null): string | null {
+  const m = Number(meters);
+  if (!Number.isFinite(m) || m < 0) return null;
+  if (m < 1000) return `${Math.max(1, Math.round(m))} m`;
+  const km = m / 1000;
+  return `${km >= 100 ? Math.round(km) : km.toFixed(1)} km`;
+}
+
+export function formatFuelShareRupees(paise?: number | null): number | null {
+  const p = Number(paise);
+  if (!Number.isFinite(p) || p <= 0) return null;
+  return Math.max(1, Math.round(p / 100));
+}
+
+/** Leave window around host depart time, e.g. 08:25 - 08:35. */
+export function pickupWindowLabel(departTime?: string | null, windowMinutes = 5): string | null {
+  const raw = String(departTime || '').slice(0, 5);
+  if (!/^\d{2}:\d{2}$/.test(raw)) return null;
+  const [hh, mm] = raw.split(':').map(Number);
+  const base = hh * 60 + mm;
+  const pad = (n: number) => String(((n % (24 * 60)) + 24 * 60) % (24 * 60));
+  const fmt = (mins: number) => {
+    const t = Number(pad(mins));
+    const h = Math.floor(t / 60);
+    const m = t % 60;
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+  };
+  return `${fmt(base - windowMinutes)} - ${fmt(base + windowMinutes)}`;
+}
+
+export function tripLegsFromMatch(input: {
+  pickup_walk_meters?: number | null;
+  pickup_deviation_meters?: number | null;
+  route_distance_meters?: number | null;
+  estimated_detour_minutes?: number | null;
+  reasons?: string[] | null;
+  extra_stop_meters?: number | null;
+}): { walkPickup: number | null; drive: number | null; walkDrop: number | null } {
+  const walkPickup =
+    Number(input.pickup_walk_meters) > 0
+      ? Number(input.pickup_walk_meters)
+      : Number(input.pickup_deviation_meters) > 0
+        ? Number(input.pickup_deviation_meters)
+        : null;
+  let drive =
+    Number(input.route_distance_meters) > 0 ? Number(input.route_distance_meters) : null;
+  if (drive == null && Number(input.estimated_detour_minutes) > 0) {
+    // Rough fallback: ~400 m per detour minute of host path stretch.
+    drive = Math.round(Number(input.estimated_detour_minutes) * 400 + 8000);
+  }
+  const reasons = input.reasons || [];
+  let walkDrop: number | null =
+    Number(input.extra_stop_meters) > 0 ? Number(input.extra_stop_meters) : null;
+  if (walkDrop == null && reasons.some((r) => /destination_near|drop_near/i.test(String(r)))) {
+    walkDrop = 180;
+  }
+  if (walkDrop == null && walkPickup != null) {
+    walkDrop = Math.min(400, Math.max(80, Math.round(walkPickup * 0.7)));
+  }
+  return { walkPickup, drive, walkDrop };
+}
+
 function humanizeReasonCode(code: string): string {
   return code
     .split('_')

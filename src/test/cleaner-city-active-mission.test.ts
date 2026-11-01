@@ -21,4 +21,15 @@ describe('Cleaner City active mission discovery', () => {
     expect(card).toContain('Live mission');
     expect(card).toContain('/cleaner-city/ride/');
   });
+
+  it('Find surfaces Active ride with open CTA and dock', () => {
+    const find = read('src/pages/cleaner-city/CleanerCityFindPage.tsx');
+    expect(find).toContain('useMyActiveGuestRide');
+    expect(find).toContain('cleaner-city-find-active-ride');
+    expect(find).toContain('cleaner-city-open-active-ride');
+    expect(find).toContain('Open active ride');
+    expect(find).toContain('CleanerCityActiveMissionCard');
+    expect(find).toContain('CleanerCityActiveMissionDock');
+    expect(find).toContain('/cleaner-city/ride/');
+  });
 });

@@ -1,12 +1,16 @@
 // @ts-nocheck
-import { Bike, Car, ShieldCheck, Star } from 'lucide-react';
+import { Bike, Car, Footprints, Handshake, Info, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
+  formatFuelShareRupees,
+  formatTripMeters,
   formatVehicleTitle,
   hostTierLabel,
   matchFitPercent,
   matchReasonChips,
+  pickupWindowLabel,
+  tripLegsFromMatch,
   vehicleKindLabel,
 } from '@/lib/cleaner-city/matchCopy';
 import { cn } from '@/lib/utils';
@@ -27,32 +31,9 @@ function initials(name?: string | null) {
   return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
 }
 
-function StarRow({ avg, count }: { avg: number; count: number }) {
-  const filled = Math.max(0, Math.min(5, Math.round(avg)));
-  return (
-    <div className="flex items-center gap-1.5" data-testid="cleaner-city-match-stars">
-      <div className="flex items-center gap-0.5">
-        {[1, 2, 3, 4, 5].map((n) => (
-          <Star
-            key={n}
-            size={13}
-            className={cn(
-              n <= filled ? 'fill-amber-400 text-amber-400' : 'text-muted-foreground/35',
-            )}
-            aria-hidden
-          />
-        ))}
-      </div>
-      <span className="text-[11px] font-semibold text-foreground">
-        {avg > 0 ? avg.toFixed(1) : 'New'}
-      </span>
-      {count > 0 ? (
-        <span className="text-[11px] text-muted-foreground">({count})</span>
-      ) : (
-        <span className="text-[11px] text-muted-foreground">first rides</span>
-      )}
-    </div>
-  );
+function firstName(name?: string | null) {
+  const part = String(name || '').trim().split(/\s+/)[0];
+  return part || 'Neighbour';
 }
 
 export function CleanerCityMatchCard({
@@ -68,157 +49,152 @@ export function CleanerCityMatchCard({
   const ratingCount = Number(match.host_rating_count) || 0;
   const starAvg = Number.isFinite(avg) && avg > 0 ? avg : 0;
   const completed = Number(match.host_completed_rides) || 0;
-  const flat = String(match.host_flat || '').trim();
   const company = String(match.host_company || '').trim();
   const name = String(match.host_name || 'Neighbour').trim() || 'Neighbour';
   const leave = String(match.depart_time || '').slice(0, 5);
+  const windowLabel = pickupWindowLabel(match.depart_time, 5);
   const seats = match.seats_available;
   const isBike = String(match.vehicle_type || '').toLowerCase() === 'bike';
   const VehicleIcon = isBike ? Bike : Car;
-  const plate = String(match.vehicle_registration || '')
-    .replace(/\s+/g, '')
-    .toUpperCase();
   const vehicleTitle = formatVehicleTitle(match);
   const fit = matchFitPercent(match.score);
   const tier = hostTierLabel(completed);
+  const fuelRs = formatFuelShareRupees(match.estimated_fuel_paise);
+  const legs = tripLegsFromMatch({
+    pickup_walk_meters: match.pickup_walk_meters,
+    pickup_deviation_meters: match.pickup_deviation_meters,
+    route_distance_meters: match.route_distance_meters,
+    estimated_detour_minutes: match.estimated_detour_minutes,
+    reasons: Array.isArray(match.reasons) ? match.reasons : [],
+    extra_stop_meters: match.extra_stop_meters,
+  });
+  const walkPickupLabel = formatTripMeters(legs.walkPickup);
+  const driveLabel = formatTripMeters(legs.drive);
+  const walkDropLabel = formatTripMeters(legs.walkDrop);
+  const nearbyPickup =
+    (Number(legs.walkPickup) >= 0 && Number(legs.walkPickup) <= 800) ||
+    chips.some((c) => /nearby pickup|pickup nearby/i.test(c));
 
   return (
-    <div
+    <article
       className={cn(
-        'relative overflow-hidden rounded-[22px] border border-border bg-card p-4 space-y-3 transition-all duration-300',
+        'relative overflow-hidden rounded-[22px] border border-border bg-card p-4 shadow-sm transition-all duration-300',
         justRequested && 'border-primary/50 bg-primary/5 scale-[1.01]',
       )}
       data-testid="cleaner-city-match-card"
     >
-      <div
-        className="pointer-events-none absolute -right-10 -top-12 h-36 w-36 rounded-full bg-primary/15 blur-3xl"
-        aria-hidden
-      />
-      <div
-        className="pointer-events-none absolute -left-8 bottom-0 h-24 w-24 rounded-full bg-amber-400/10 blur-2xl"
-        aria-hidden
-      />
+      <div className="flex items-start gap-3">
+        <Avatar className="h-14 w-14 shrink-0 border border-border shadow-sm">
+          {match.host_avatar_url ? (
+            <AvatarImage src={match.host_avatar_url} alt={name} className="object-cover" />
+          ) : null}
+          <AvatarFallback className="bg-primary/15 text-sm font-extrabold text-primary">
+            {initials(name)}
+          </AvatarFallback>
+        </Avatar>
 
-      <div className="relative flex items-start gap-3">
-        <div className="relative shrink-0">
-          <Avatar className="h-14 w-14 border-2 border-primary/25 shadow-md">
-            {match.host_avatar_url ? (
-              <AvatarImage src={match.host_avatar_url} alt={name} className="object-cover" />
-            ) : null}
-            <AvatarFallback className="bg-primary/15 text-sm font-extrabold text-primary">
-              {initials(name)}
-            </AvatarFallback>
-          </Avatar>
-          <span
-            className="absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full border border-background bg-[#0D3327] text-[#A3C9A8] shadow"
-            title={vehicleKindLabel(match.vehicle_type)}
-            data-testid="cleaner-city-match-vehicle-icon"
-          >
-            <VehicleIcon size={14} aria-hidden />
-          </span>
-        </div>
-
-        <div className="min-w-0 flex-1 space-y-1.5">
+        <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
-              <p className="truncate text-base font-extrabold leading-tight tracking-tight">
-                {name}
+              <p className="truncate text-[17px] font-extrabold leading-tight tracking-tight text-foreground">
+                {firstName(name)}
               </p>
-              <p className="mt-0.5 text-[11px] text-muted-foreground">
-                {[company || null, flat ? `Flat ${flat}` : null].filter(Boolean).join(' · ') ||
-                  'Verified neighbour'}
+              <p className="mt-0.5 flex flex-wrap items-center gap-1 text-[12px] text-muted-foreground">
+                <span className="truncate font-medium text-foreground/80">
+                  {company || 'Verified neighbour'}
+                </span>
+                {match.host_vehicle_verified || company ? (
+                  <ShieldCheck
+                    size={13}
+                    className="shrink-0 text-emerald-500"
+                    aria-label="Verified"
+                  />
+                ) : null}
               </p>
             </div>
-            <span className="shrink-0 rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide text-primary">
-              {tier}
+            <span
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary"
+              title={vehicleKindLabel(match.vehicle_type)}
+              data-testid="cleaner-city-match-vehicle-icon"
+            >
+              <VehicleIcon size={18} aria-hidden />
             </span>
           </div>
 
-          <StarRow avg={starAvg} count={ratingCount} />
-
-          <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-            {match.shared_circle ? (
-              <span
-                className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary"
-                data-testid="cleaner-city-shared-circle-badge"
-              >
-                Circle
-              </span>
-            ) : null}
-            {match.host_vehicle_verified ? (
-              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-500">
-                <ShieldCheck size={11} aria-hidden />
-                Docs OK
-              </span>
-            ) : null}
-            <span className="text-[11px] text-muted-foreground">
-              {completed} ride{completed === 1 ? '' : 's'} done
-            </span>
-          </div>
+          <p className="mt-1.5 text-[13px] font-semibold text-foreground">
+            Pickup by {windowLabel || leave || 'time TBD'}
+          </p>
+          <p className="mt-0.5 text-[11px] text-muted-foreground truncate">
+            {vehicleTitle}
+            {match.origin_label ? ` · ${match.origin_label}` : ''}
+          </p>
         </div>
       </div>
 
-      <div className="relative rounded-2xl border border-primary/20 bg-[#0D3327]/90 px-3.5 py-3 text-white">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#A3C9A8]">
-              {vehicleKindLabel(match.vehicle_type)}
-            </p>
-            <p className="mt-1 text-sm font-semibold leading-snug">{vehicleTitle}</p>
-            {plate ? (
-              <p
-                className="mt-2 inline-flex rounded-md border border-white/20 bg-black/25 px-2 py-1 font-mono text-[12px] font-bold tracking-[0.18em] text-[#A3C9A8]"
-                data-testid="cleaner-city-match-plate"
-              >
-                {plate}
-              </p>
+      <div
+        className="mt-3 flex items-center justify-between gap-2 rounded-full border border-border bg-muted/40 px-3 py-2"
+        data-testid="cleaner-city-match-trip-strip"
+      >
+        <div className="flex min-w-0 flex-1 items-center justify-center gap-1.5 text-[11px] font-semibold text-foreground">
+          <Footprints size={13} className="shrink-0 text-primary" aria-hidden />
+          <span>{walkPickupLabel || 'Walk'}</span>
+        </div>
+        <span className="text-muted-foreground/50" aria-hidden>
+          ·
+        </span>
+        <div className="flex min-w-0 flex-1 items-center justify-center gap-1.5 text-[11px] font-semibold text-foreground">
+          <VehicleIcon size={13} className="shrink-0 text-primary" aria-hidden />
+          <span>{driveLabel || 'Drive'}</span>
+        </div>
+        <span className="text-muted-foreground/50" aria-hidden>
+          ·
+        </span>
+        <div className="flex min-w-0 flex-1 items-center justify-center gap-1.5 text-[11px] font-semibold text-foreground">
+          <Footprints size={13} className="shrink-0 text-primary" aria-hidden />
+          <span>{walkDropLabel || 'Walk'}</span>
+        </div>
+      </div>
+
+      <p className="mt-2 truncate text-[11px] text-muted-foreground">
+        {match.origin_label || 'Pickup'} → {match.destination_label || 'Drop'}
+        {match.estimated_detour_minutes != null
+          ? ` · ~${Math.round(Number(match.estimated_detour_minutes))} min detour`
+          : ''}
+      </p>
+
+      <div className="mt-3 flex items-end justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-baseline gap-1.5">
+            {fuelRs != null ? (
+              <>
+                <span className="text-[22px] font-extrabold leading-none text-primary">
+                  ₹{fuelRs}
+                </span>
+                <span
+                  className="inline-flex items-center text-muted-foreground"
+                  title="Estimated fuel share for this seat - not a fare"
+                >
+                  <Info size={13} aria-hidden />
+                </span>
+              </>
             ) : (
-              <p className="mt-2 text-[11px] text-white/55">Plate not added yet</p>
+              <span className="text-[15px] font-extrabold text-foreground">Fuel share TBD</span>
             )}
           </div>
-          <div className="shrink-0 text-right">
-            <p className="text-lg font-extrabold leading-none">{leave || '--:--'}</p>
-            <p className="mt-1 text-[11px] text-white/70">
-              {seats != null ? `${seats} seat${seats === 1 ? '' : 's'}` : 'Seats'}
-            </p>
-          </div>
-        </div>
-        <p className="mt-2.5 text-xs text-white/70">
-          {match.origin_label} → {match.destination_label}
-        </p>
-      </div>
-
-      <div className="relative space-y-1.5">
-        <div className="flex items-center justify-between gap-2">
-          <p className="text-[11px] font-extrabold uppercase tracking-[0.12em] text-primary">
-            Match power
+          <p className="mt-1 text-[12px] font-medium text-muted-foreground">
+            {seats != null ? `${seats} seat${seats === 1 ? '' : 's'} left` : 'Seats open'}
+            {starAvg > 0 ? ` · ${starAvg.toFixed(1)}★` : ''}
+            {ratingCount > 0 ? ` (${ratingCount})` : ''}
           </p>
-          <p className="text-[11px] font-bold text-foreground" data-testid="cleaner-city-match-fit">
-            {fit}%
+          <p className="mt-0.5 text-[10px] text-muted-foreground">
+            {tier}
+            {completed > 0 ? ` · ${completed} rides done` : ' · new on Cleaner City'}
           </p>
         </div>
-        <div className="h-2 overflow-hidden rounded-full bg-muted">
-          <div
-            className="h-full rounded-full bg-gradient-to-r from-primary/70 to-primary transition-all duration-500"
-            style={{ width: `${fit}%` }}
-          />
-        </div>
-        {chips.length > 0 ? (
-          <div className="flex flex-wrap gap-1.5 pt-1">
-            {chips.map((chip) => (
-              <span
-                key={chip}
-                className="rounded-full border border-border/80 bg-muted/30 px-2 py-0.5 text-[10px] font-semibold text-muted-foreground"
-              >
-                {chip}
-              </span>
-            ))}
-          </div>
-        ) : null}
       </div>
 
       <Button
-        className="relative h-12 w-full text-base font-extrabold shadow-md shadow-primary/20"
+        className="mt-3 h-12 w-full text-base font-extrabold shadow-md shadow-primary/15"
         onClick={onRequest}
         disabled={requesting || justRequested || locked}
         data-testid="cleaner-city-request-seat"
@@ -229,8 +205,43 @@ export function CleanerCityMatchCard({
             ? 'Request sent · waiting'
             : requesting
               ? 'Sending…'
-              : 'Request seat'}
+              : 'Request ride'}
       </Button>
-    </div>
+
+      <div className="mt-3 flex flex-wrap gap-1.5">
+        <span
+          className="inline-flex items-center gap-1 rounded-full border border-border bg-muted/30 px-2.5 py-1 text-[10px] font-bold text-foreground"
+          data-testid="cleaner-city-match-fit"
+        >
+          <Handshake size={11} className="text-primary" aria-hidden />
+          {fit}% match
+        </span>
+        {nearbyPickup ? (
+          <span className="inline-flex items-center gap-1 rounded-full border border-border bg-muted/30 px-2.5 py-1 text-[10px] font-bold text-foreground">
+            <Footprints size={11} className="text-primary" aria-hidden />
+            Nearby pickup
+          </span>
+        ) : null}
+        {match.shared_circle ? (
+          <span
+            className="rounded-full border border-primary/30 bg-primary/10 px-2.5 py-1 text-[10px] font-bold text-primary"
+            data-testid="cleaner-city-shared-circle-badge"
+          >
+            Trusted circle
+          </span>
+        ) : null}
+        {chips
+          .filter((c) => !/nearby pickup|pickup nearby|seats open/i.test(c))
+          .slice(0, 2)
+          .map((chip) => (
+            <span
+              key={chip}
+              className="rounded-full border border-border bg-muted/30 px-2.5 py-1 text-[10px] font-semibold text-muted-foreground"
+            >
+              {chip}
+            </span>
+          ))}
+      </div>
+    </article>
   );
 }

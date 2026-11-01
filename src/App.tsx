@@ -299,14 +299,25 @@ const queryClient = new QueryClient({
     },
   }),
   mutationCache: new MutationCache({
-    onError: (error) => {
+    onError: (error, _variables, _context, mutation) => {
       console.error('[Mutation Error]', error);
       if (isAuthSessionError(error)) {
         handleAuthError();
         return;
       }
-      const message = error instanceof Error ? error.message : 'Something went wrong';
-      toast.error(message);
+      // Local catch blocks already toast for these mutations.
+      if ((mutation?.options?.meta as { suppressGlobalErrorToast?: boolean } | undefined)
+        ?.suppressGlobalErrorToast) {
+        return;
+      }
+      const anyErr = error as { message?: string; error_description?: string; details?: string } | null;
+      const message =
+        (error instanceof Error && error.message) ||
+        anyErr?.message ||
+        anyErr?.error_description ||
+        anyErr?.details ||
+        'Something went wrong';
+      toast.error(String(message));
     },
   }),
   defaultOptions: {

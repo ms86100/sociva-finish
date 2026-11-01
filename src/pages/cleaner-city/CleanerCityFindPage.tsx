@@ -27,7 +27,9 @@ import {
   useLeaveWaitlist,
   useMyRides,
   useMyWaitlist,
+  useMyActiveGuestRide,
   useOfficeLocations,
+  fetchMyActiveGuestRide,
   useRequestRide,
   useRespondRideRequest,
   useStartRide,
@@ -98,6 +100,7 @@ export default function CleanerCityFindPage() {
   const { data: templates = [] } = useCommuteTemplates();
   const { data: rides = [], refetch: refetchRides } = useMyRides();
   const { data: waitlist = [] } = useMyWaitlist();
+  const { data: rpcActiveGuest, refetch: refetchActiveGuest } = useMyActiveGuestRide();
   const findMatches = useFindMatches();
   const requestRide = useRequestRide();
   const respond = useRespondRideRequest();
@@ -247,19 +250,31 @@ export default function CleanerCityFindPage() {
       existing = pick(refreshed.data || []);
     }
 
-    // Last resort: ask the DB directly (list can lag after a just-created request).
+    // Authoritative lookup - list queries can lag right after a request.
     if (!existing?.id && user?.id) {
-      const { data: row } = await supabase
+      try {
+        const row =
+          (await fetchMyActiveGuestRide({ travel_date: travelDate, direction: dir })) ||
+          (await fetchMyActiveGuestRide({ travel_date: travelDate })) ||
+          (await fetchMyActiveGuestRide());
+        if (row?.id) existing = row as (typeof rides)[number];
+      } catch {
+        // Fall through to table select.
+      }
+    }
+
+    if (!existing?.id && user?.id) {
+      const { data: row, error } = await supabase
         .from('rides')
         .select(
-          'id, publication_id, society_id, host_user_id, guest_user_id, travel_date, status, request_expires_at, pickup_deadline_at, meeting_point_label',
+          'id, publication_id, society_id, host_user_id, guest_user_id, travel_date, status, request_expires_at, pickup_deadline_at, meeting_point_label, guest_pickup_latitude, guest_pickup_longitude, guest_dest_latitude, guest_dest_longitude',
         )
         .eq('guest_user_id', user.id)
         .in('status', ACTIVE_GUEST)
-        .order('updated_at', { ascending: false })
+        .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle();
-      if (row?.id) existing = row as (typeof rides)[number];
+      if (!error && row?.id) existing = row as (typeof rides)[number];
     }
 
     if (existing?.id) {
@@ -372,13 +387,24 @@ export default function CleanerCityFindPage() {
   const guestRides = rides.filter(
     (r) => r.guest_user_id === user?.id && ACTIVE_GUEST.includes(r.status),
   );
-  // Always surface any open guest ride (not only the Find date filter) so the
-  // "already have an active ride" rule is visible and openable.
-  const activeGuestRide =
-    guestRides.find((r) => r.travel_date === date && (!r.direction || r.direction === direction)) ||
-    guestRides.find((r) => r.travel_date === date) ||
-    guestRides[0] ||
-    null;
+  // Prefer list enrichment; fall back to authoritative RPC so Find always shows
+  // Active ride even when the rides list lags.
+  const activeGuestRide = useMemo(() => {
+    const fromList =
+      guestRides.find(
+        (r) =>
+          r.travel_date === date && (!r.direction || r.direction === direction),
+      ) ||
+      guestRides.find((r) => r.travel_date === date) ||
+      guestRides[0] ||
+      null;
+    if (fromList?.id) return fromList;
+    if (rpcActiveGuest?.id) {
+      const enriched = rides.find((r) => r.id === rpcActiveGuest.id);
+      return enriched || rpcActiveGuest;
+    }
+    return null;
+  }, [guestRides, date, direction, rpcActiveGuest, rides]);
   const hostRides = rides.filter(
     (r) =>
       r.host_user_id === user?.id &&
@@ -434,6 +460,67 @@ export default function CleanerCityFindPage() {
               {arrivalNotice}
             </div>
           )}
+
+          {activeGuestRide ? (
+            <div
+              id="cleaner-city-active-ride-banner"
+              className="space-y-2"
+              data-testid="cleaner-city-find-active-ride"
+            >
+              <p className="px-0.5 text-[11px] font-extrabold uppercase tracking-[0.14em] text-primary">
+                Your active ride
+              </p>
+              <CleanerCityActiveMissionCard
+                ride={activeGuestRide}
+                myUserId={user?.id}
+                todayIso={today}
+              />
+              <Button
+                className="h-12 w-full font-extrabold"
+                data-testid="cleaner-city-open-active-ride"
+                onClick={() =>
+                  navigate(`/cleaner-city/ride/${activeGuestRide.id}`, {
+                    state: {
+                      notice: 'Continue your mission from Find.',
+                      seededRide: activeGuestRide,
+                    },
+                  })
+                }
+              >
+                Open active ride
+              </Button>
+              {['requested', 'confirmed', 'pickup_pending'].includes(activeGuestRide.status) ? (
+                <Button
+                  className="h-11 w-full font-semibold"
+                  variant="outline"
+                  data-testid="cleaner-city-cancel-active-ride"
+                  onClick={async () => {
+                    try {
+                      await cancelRide.mutateAsync({ ride_id: activeGuestRide.id });
+                      toast.success('Cancelled - you can request another seat');
+                      void refetchRides();
+                      void refetchActiveGuest();
+                      void search();
+                    } catch (e: any) {
+                      toast.error(e?.message || 'Could not cancel');
+                    }
+                  }}
+                >
+                  Cancel this seat to request another
+                </Button>
+              ) : null}
+              {activeGuestRide.travel_date !== date ||
+              (activeGuestRide.direction && activeGuestRide.direction !== direction) ? (
+                <p className="text-[11px] text-muted-foreground px-1">
+                  You already hold a seat for {activeGuestRide.travel_date}
+                  {activeGuestRide.direction
+                    ? ` · ${activeGuestRide.direction === 'to_home' ? 'to home' : 'to office'}`
+                    : ''}
+                  . Cancel it above before requesting another for this filter.
+                </p>
+              ) : null}
+            </div>
+          ) : null}
 
           {(incoming.length > 0 || hostingFocus) && (
             <div
@@ -545,50 +632,16 @@ export default function CleanerCityFindPage() {
             </div>
           )}
 
-          {activeGuestRide ? (
-            <div id="cleaner-city-active-ride-banner" className="space-y-2">
-              <CleanerCityActiveMissionCard
-                ride={activeGuestRide}
-                myUserId={user?.id}
-                todayIso={today}
-              />
-              {['requested', 'confirmed', 'pickup_pending'].includes(activeGuestRide.status) ? (
-                <Button
-                  className="h-11 w-full font-semibold"
-                  variant="outline"
-                  data-testid="cleaner-city-open-active-ride"
-                  onClick={async () => {
-                    try {
-                      await cancelRide.mutateAsync({ ride_id: activeGuestRide.id });
-                      toast.success('Cancelled - you can request another seat');
-                      void refetchRides();
-                      void search();
-                    } catch (e: any) {
-                      toast.error(e?.message || 'Could not cancel');
-                    }
-                  }}
-                >
-                  Cancel this seat to request another
-                </Button>
-              ) : null}
-              {activeGuestRide.travel_date !== date ||
-              (activeGuestRide.direction && activeGuestRide.direction !== direction) ? (
-                <p className="text-[11px] text-muted-foreground px-1">
-                  You already hold a seat for {activeGuestRide.travel_date}
-                  {activeGuestRide.direction
-                    ? ` · ${activeGuestRide.direction === 'to_home' ? 'to home' : 'to office'}`
-                    : ''}
-                  . Cancel it above before requesting another for this filter.
-                </p>
-              ) : null}
-            </div>
-          ) : null}
-
-          <div className="rounded-2xl border border-border bg-card p-4 space-y-3">
+          <div
+            className="rounded-2xl border border-border bg-card p-4 space-y-3"
+            data-testid="cleaner-city-find-filters"
+          >
             <div>
               <p className="text-sm font-semibold">People going your way</p>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Pick a date and leave time - we refresh the list for you.
+              <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                {direction === 'to_home' ? 'Office → home' : 'Home → office'} · leave around{' '}
+                {String(departTime || '').slice(0, 5) || 'your time'} · we refresh as you change
+                filters
               </p>
             </div>
             <div className="grid grid-cols-2 gap-3">
