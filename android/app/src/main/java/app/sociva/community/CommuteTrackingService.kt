@@ -35,7 +35,13 @@ class CommuteTrackingService : Service() {
         const val CHANNEL_ID = "sociva_commute_tracking"
         const val NOTIFICATION_ID = 9002
         const val ACTION_START = "START_COMMUTE"
+        const val ACTION_UPDATE = "UPDATE_COMMUTE"
         const val ACTION_STOP = "STOP_COMMUTE"
+        private const val PREFS = "sociva_commute_tracking"
+        private const val KEY_RIDE = "ride_id"
+        private const val KEY_TOKEN = "access_token"
+        private const val KEY_URL = "supabase_url"
+        private const val KEY_ANON = "anon_key"
     }
 
     private var worker: HandlerThread? = null
@@ -60,12 +66,73 @@ class CommuteTrackingService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_STOP -> {
+                clearPersisted()
                 stopTracking()
                 return START_NOT_STICKY
             }
+            ACTION_UPDATE -> {
+                // Refresh auth token / ride id without tearing down the GPS listener.
+                applyExtras(intent)
+                persistSession()
+                if (listener == null && !rideId.isNullOrBlank() && !accessToken.isNullOrBlank()) {
+                    startTracking(intent)
+                }
+            }
             ACTION_START -> startTracking(intent)
+            else -> {
+                // OEM sticky restart with a null/empty intent - restore last active ride.
+                if (listener == null) {
+                    restorePersisted()?.let { startTracking(it) }
+                }
+            }
         }
-        return START_NOT_STICKY
+        // Sticky so OEMs can restart after brief kills while a ride is active.
+        return START_STICKY
+    }
+
+    private fun applyExtras(intent: Intent?) {
+        if (intent == null) return
+        val token = intent.getStringExtra("access_token").orEmpty()
+        val nextRide = intent.getStringExtra("ride_id").orEmpty()
+        val url = intent.getStringExtra("supabase_url").orEmpty().trimEnd('/')
+        val key = intent.getStringExtra("anon_key").orEmpty()
+        if (token.isNotBlank()) accessToken = token
+        if (nextRide.isNotBlank()) rideId = nextRide
+        if (url.isNotBlank()) supabaseUrl = url
+        if (key.isNotBlank()) anonKey = key
+    }
+
+    private fun persistSession() {
+        val ride = rideId ?: return
+        val token = accessToken ?: return
+        val url = supabaseUrl ?: return
+        val key = anonKey ?: return
+        getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .putString(KEY_RIDE, ride)
+            .putString(KEY_TOKEN, token)
+            .putString(KEY_URL, url)
+            .putString(KEY_ANON, key)
+            .apply()
+    }
+
+    private fun clearPersisted() {
+        getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().clear().apply()
+    }
+
+    private fun restorePersisted(): Intent? {
+        val prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val ride = prefs.getString(KEY_RIDE, null).orEmpty()
+        val token = prefs.getString(KEY_TOKEN, null).orEmpty()
+        val url = prefs.getString(KEY_URL, null).orEmpty()
+        val key = prefs.getString(KEY_ANON, null).orEmpty()
+        if (ride.isBlank() || token.isBlank() || url.isBlank() || key.isBlank()) return null
+        return Intent(this, CommuteTrackingService::class.java).apply {
+            action = ACTION_START
+            putExtra("ride_id", ride)
+            putExtra("access_token", token)
+            putExtra("supabase_url", url)
+            putExtra("anon_key", key)
+        }
     }
 
     override fun onDestroy() {
@@ -95,6 +162,7 @@ class CommuteTrackingService : Service() {
         accessToken = token
         supabaseUrl = url
         anonKey = key
+        persistSession()
         synchronized(pendingBodies) { pendingBodies.clear() }
         val notification = buildNotification()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {

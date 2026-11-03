@@ -38,6 +38,7 @@ import {
   useRepeatLastCommute,
   useRequestRide,
 } from '@/hooks/queries/useCleanerCity';
+import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { DEFAULT_COMMUTE_TIMEZONE, WORK_EMAIL_BADGE } from '@/lib/cleaner-city/constants';
 import { cn } from '@/lib/utils';
@@ -163,6 +164,15 @@ export default function CleanerCityPage() {
       detail: 'Save at least one weekday pickup',
       href: '/cleaner-city/route',
       done: templates.some((t) => t.pickup_latitude != null),
+    },
+    {
+      id: 'roads',
+      title: 'Choose your Google roads',
+      detail: 'Save morning and evening driving paths',
+      href: '/cleaner-city/route',
+      done: !!(
+        profile?.preferred_route_polyline && profile?.preferred_return_route_polyline
+      ),
     },
     {
       id: 'times',
@@ -368,6 +378,30 @@ export default function CleanerCityPage() {
               </p>
             </Link>
           </div>
+
+          {ready && !showUpcomingSection ? (
+            <div
+              className="rounded-2xl border border-dashed border-border bg-card/60 p-4 space-y-2"
+              data-testid="cleaner-city-hub-discovery-empty"
+            >
+              <p className="text-sm font-semibold">No live commute yet today</p>
+              <p className="text-xs text-muted-foreground">
+                Find a neighbour seat for your usual leave time, or publish an empty seat so others can find you.
+              </p>
+              <div className="flex flex-wrap gap-2 pt-1">
+                <Link to="/cleaner-city/find">
+                  <Button size="sm" className="font-semibold">
+                    Find seats
+                  </Button>
+                </Link>
+                <Link to="/cleaner-city/offer">
+                  <Button size="sm" variant="outline" className="font-semibold">
+                    Offer seats
+                  </Button>
+                </Link>
+              </div>
+            </div>
+          ) : null}
 
           {showUpcomingSection ? (
             <section

@@ -16,6 +16,7 @@ import {
   useUpsertCommuteProfile,
   useWorkEmailOtp,
 } from '@/hooks/queries/useCleanerCity';
+import { CleanerCityRouteSetupPanel } from '@/components/cleaner-city/CleanerCityRouteSetupPanel';
 import {
   CLEANER_CITY_ROLES,
   CLEANER_CITY_TRANSPORT,
@@ -23,7 +24,7 @@ import {
 } from '@/lib/cleaner-city/constants';
 import { cn } from '@/lib/utils';
 
-type Step = 1 | 2 | 3;
+type Step = 1 | 2 | 3 | 4;
 
 export default function CleanerCitySetupPage() {
   const { data: profile } = useCleanerCityProfile();
@@ -136,6 +137,8 @@ export default function CleanerCitySetupPage() {
     }
   };
 
+  const goFinish = () => setStep(4);
+
   const submitDomainRequest = async () => {
     const domain =
       requestDomainName.trim().toLowerCase() ||
@@ -172,7 +175,7 @@ export default function CleanerCitySetupPage() {
           <div>
             <h1 className="text-xl font-bold text-foreground">Get ready to commute</h1>
             <p className="text-sm text-muted-foreground mt-1">
-              Three short steps. Work email must be on an approved company domain.
+              Four short steps. Work email must be on an approved company domain. Then pin your road on Google Maps.
             </p>
           </div>
 
@@ -180,7 +183,8 @@ export default function CleanerCitySetupPage() {
             {[
               { n: 1, label: 'Profile' },
               { n: 2, label: 'Work email' },
-              { n: 3, label: 'Next' },
+              { n: 3, label: 'Route' },
+              { n: 4, label: 'Done' },
             ].map((s) => (
               <button
                 key={s.n}
@@ -416,15 +420,44 @@ export default function CleanerCitySetupPage() {
 
               {verified && (
                 <Button variant="link" className="px-0 h-auto text-xs" onClick={() => setStep(3)}>
-                  Continue to next steps
+                  Continue to office and route
                 </Button>
               )}
             </section>
           )}
 
           {step === 3 && (
+            <section className="space-y-3" data-testid="cleaner-city-setup-route-step">
+              <div className="rounded-2xl border border-border bg-card p-4">
+                <h2 className="text-sm font-semibold">3. Office and Google road</h2>
+                {!verified ? (
+                  <p className="text-sm text-muted-foreground mt-2">
+                    Verify your work email in Step 2 before pinning your commute.
+                  </p>
+                ) : (
+                  <p className="text-sm text-muted-foreground mt-2">
+                    Pin office and home gate, then tap your morning and evening Google roads.
+                  </p>
+                )}
+              </div>
+              {verified ? (
+                <>
+                  <CleanerCityRouteSetupPanel compact />
+                  <Button
+                    className="w-full h-12 font-extrabold"
+                    onClick={goFinish}
+                    data-testid="cleaner-city-setup-route-continue"
+                  >
+                    Continue to finish
+                  </Button>
+                </>
+              ) : null}
+            </section>
+          )}
+
+          {step === 4 && (
             <section className="rounded-2xl border border-border bg-card p-4 space-y-3">
-              <h2 className="text-sm font-semibold">3. Finish setup</h2>
+              <h2 className="text-sm font-semibold">4. Finish setup</h2>
               {!verified ? (
                 <p className="text-sm text-muted-foreground">
                   Verify your work email in Step 2 before offering or finding rides.
@@ -432,15 +465,9 @@ export default function CleanerCitySetupPage() {
               ) : (
                 <>
                   <p className="text-sm text-muted-foreground">
-                    You are verified. Add your office pin and schedule so matching works.
+                    Set leave times and, if you host, add a vehicle. Then open Find or Offer.
                   </p>
                   <div className="grid gap-2">
-                    <Link
-                      to="/cleaner-city/route"
-                      className="rounded-xl border border-border px-3 py-3 text-sm font-semibold"
-                    >
-                      Set office and pickup pins
-                    </Link>
                     <Link
                       to="/cleaner-city/schedule"
                       className="rounded-xl border border-border px-3 py-3 text-sm font-semibold"
@@ -455,6 +482,12 @@ export default function CleanerCitySetupPage() {
                         Add vehicle
                       </Link>
                     )}
+                    <Link
+                      to="/cleaner-city/find"
+                      className="rounded-xl border border-border px-3 py-3 text-sm font-semibold"
+                    >
+                      Find a ride
+                    </Link>
                     <Link
                       to="/cleaner-city"
                       className="rounded-xl bg-primary px-3 py-3 text-sm font-semibold text-primary-foreground text-center"

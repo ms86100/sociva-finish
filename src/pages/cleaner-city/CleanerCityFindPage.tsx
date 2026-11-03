@@ -30,6 +30,7 @@ import {
   useMyActiveGuestRide,
   useOfficeLocations,
   fetchMyActiveGuestRide,
+  preferredRouteFromProfile,
   useRequestRide,
   useRespondRideRequest,
   useStartRide,
@@ -643,6 +644,31 @@ export default function CleanerCityFindPage() {
                 {String(departTime || '').slice(0, 5) || 'your time'} · we refresh as you change
                 filters
               </p>
+              {(() => {
+                const usual = preferredRouteFromProfile(
+                  profile,
+                  direction === 'to_home' ? 'to_home' : 'to_office',
+                );
+                return usual ? (
+                  <p
+                    className="mt-2 inline-flex max-w-full items-center rounded-full border border-primary/30 bg-primary/10 px-2.5 py-1 text-[11px] font-semibold text-primary"
+                    data-testid="cleaner-city-find-usual-route"
+                  >
+                    Usual road · {usual.summary}
+                    {usual.distanceMeters
+                      ? ` · ${(usual.distanceMeters / 1000).toFixed(1)} km`
+                      : ''}
+                  </p>
+                ) : (
+                  <Link
+                    to="/cleaner-city/route"
+                    className="mt-2 inline-flex text-[11px] font-semibold text-primary"
+                    data-testid="cleaner-city-find-set-route"
+                  >
+                    Set your usual Google road for better matches
+                  </Link>
+                );
+              })()}
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -757,44 +783,20 @@ export default function CleanerCityFindPage() {
                       Cancel seat
                     </Button>
                   )}
-                  {r.status === 'pickup_pending' && (
+                  {['confirmed', 'pickup_pending'].includes(r.status) && (
                     <div className="space-y-1">
-                      {!r.meeting_point_label ? (
-                        <p className="text-[11px] text-amber-700 dark:text-amber-300">
-                          Start locked until a meeting point is set on the ride page.
+                      <Button size="sm" variant="outline" onClick={() => showOtp(r.id)}>
+                        {otpByRide[r.id] ? 'New pickup code' : 'Create pickup code'}
+                      </Button>
+                      {otpByRide[r.id] ? (
+                        <p className="text-xs font-semibold text-primary">
+                          Show to rider: {otpByRide[r.id]}
                         </p>
-                      ) : null}
-                      <div className="flex gap-2 items-center">
-                        <Input
-                          className="h-9"
-                          placeholder="Enter OTP"
-                          value={otpInput[r.id] || ''}
-                          onChange={(e) =>
-                            setOtpInput((prev) => ({ ...prev, [r.id]: e.target.value }))
-                          }
-                        />
-                        <Button
-                          size="sm"
-                          disabled={!r.meeting_point_label}
-                          onClick={async () => {
-                            if (!r.meeting_point_label) {
-                              toast.error('Set a meeting point on the ride page first');
-                              return;
-                            }
-                            try {
-                              await startRide.mutateAsync({
-                                ride_id: r.id,
-                                otp: otpInput[r.id] || '',
-                              });
-                              toast.success('Ride started');
-                            } catch (e: any) {
-                              toast.error(e?.message || 'Invalid OTP');
-                            }
-                          }}
-                        >
-                          Start
-                        </Button>
-                      </div>
+                      ) : (
+                        <p className="text-[11px] text-muted-foreground">
+                          You create the code. Your rider types it to start.
+                        </p>
+                      )}
                     </div>
                   )}
                 </div>
@@ -850,12 +852,27 @@ export default function CleanerCityFindPage() {
                 className="rounded-2xl border border-border bg-card p-5 text-center space-y-3"
                 data-testid="cleaner-city-find-empty"
               >
-                <p className="text-sm font-semibold">No seats yet - try another time or Offer a ride</p>
-                <Link to="/cleaner-city/offer">
-                  <Button size="sm" className="font-semibold">
-                    Offer a ride
-                  </Button>
-                </Link>
+                <p className="text-sm font-semibold">No neighbour seats for this slot yet</p>
+                <p className="text-xs text-muted-foreground">
+                  Try tomorrow, flip direction, or publish your own empty seat so the next person finds you.
+                </p>
+                <div className="flex flex-wrap items-center justify-center gap-2">
+                  <Link to="/cleaner-city/offer">
+                    <Button size="sm" className="font-semibold">
+                      Offer a ride
+                    </Button>
+                  </Link>
+                  <Link to="/cleaner-city/schedule">
+                    <Button size="sm" variant="outline" className="font-semibold">
+                      Fix my schedule
+                    </Button>
+                  </Link>
+                  <Link to="/cleaner-city/route">
+                    <Button size="sm" variant="ghost" className="font-semibold">
+                      Check usual roads
+                    </Button>
+                  </Link>
+                </div>
                 {hasPickup &&
                   (myWaitlistEntry ? (
                     <div className="pt-1">
@@ -946,7 +963,7 @@ export default function CleanerCityFindPage() {
                 <div>
                   <p className="text-sm font-semibold">Hosting</p>
                   <p className="text-[11px] text-muted-foreground">
-                    Pickup code and finish for rides you host
+                    Enter the passenger code and finish rides you host
                   </p>
                 </div>
                 <ChevronDown
@@ -979,11 +996,9 @@ export default function CleanerCityFindPage() {
                                 {r.travel_date} · {r.status}
                               </Link>
                               <p className="text-[11px] text-muted-foreground">You are host</p>
-                              {otpByRide[r.id] && (
-                                <p className="text-xs font-semibold text-primary mt-1">
-                                  OTP {otpByRide[r.id]}
-                                </p>
-                              )}
+                              <p className="text-[11px] text-muted-foreground mt-1">
+                                Passenger holds the pickup code - you enter it to start.
+                              </p>
                             </div>
                             {['requested', 'confirmed', 'pickup_pending'].includes(r.status) && (
                               <Button
@@ -1002,11 +1017,6 @@ export default function CleanerCityFindPage() {
                               </Button>
                             )}
                           </div>
-                          {['confirmed', 'pickup_pending'].includes(r.status) && (
-                            <Button size="sm" variant="outline" onClick={() => showOtp(r.id)}>
-                              Generate pickup OTP
-                            </Button>
-                          )}
                           {r.status === 'pickup_pending' && (
                             <div className="space-y-1">
                               {!r.meeting_point_label ? (
@@ -1017,15 +1027,18 @@ export default function CleanerCityFindPage() {
                               <div className="flex gap-2 items-center">
                                 <Input
                                   className="h-9"
-                                  placeholder="Enter OTP"
+                                  placeholder="Passenger code"
                                   value={otpInput[r.id] || ''}
                                   onChange={(e) =>
-                                    setOtpInput((prev) => ({ ...prev, [r.id]: e.target.value }))
+                                    setOtpInput((prev) => ({
+                                      ...prev,
+                                      [r.id]: e.target.value.replace(/\D/g, '').slice(0, 6),
+                                    }))
                                   }
                                 />
                                 <Button
                                   size="sm"
-                                  disabled={!r.meeting_point_label}
+                                  disabled={!r.meeting_point_label || (otpInput[r.id] || '').length < 6}
                                   onClick={async () => {
                                     if (!r.meeting_point_label) {
                                       toast.error('Set a meeting point on the ride page first');

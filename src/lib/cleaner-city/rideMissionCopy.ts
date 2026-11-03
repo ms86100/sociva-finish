@@ -66,13 +66,13 @@ export function rideNextHint(status: string, isHost: boolean) {
   }
   if (status === 'confirmed') {
     return isHost
-      ? 'Set a meeting point, then generate the pickup OTP.'
-      : 'Confirm the meeting point so you both know where to wait.';
+      ? 'Set a meeting point, then wait for your passenger pickup code.'
+      : 'Confirm the meeting point, then create your pickup code at the gate.';
   }
   if (status === 'pickup_pending') {
     return isHost
-      ? 'Show the code to your guest. They type it to start.'
-      : 'Ask the host for the 6-digit code, then start.';
+      ? 'Ask your passenger for the 6-digit code, then start.'
+      : 'Show your code to the rider. They type it to start.';
   }
   if (status === 'started') {
     return isHost
@@ -124,4 +124,49 @@ export function stepIndex(status?: string | null) {
   }
   const i = RIDE_MISSION_STEPS.indexOf(status as RideMissionStep);
   return i >= 0 ? i : 0;
+}
+
+/** Age of a location ping for live map honesty. */
+export function locationFreshnessLabel(recordedAt?: string | null) {
+  if (!recordedAt) return 'No live ping yet';
+  const ageMs = Date.now() - Date.parse(recordedAt);
+  if (!Number.isFinite(ageMs) || ageMs < 0) return 'Location time unknown';
+  const sec = Math.round(ageMs / 1000);
+  if (sec < 20) return 'Live · just now';
+  if (sec < 60) return `Live · ${sec}s ago`;
+  const mins = Math.round(sec / 60);
+  if (mins < 5) return `Stale · ${mins} min ago`;
+  if (mins < 60) return `Offline · last seen ${mins} min ago`;
+  return 'Offline · last ping over an hour ago';
+}
+
+export function locationFreshnessTone(recordedAt?: string | null): 'live' | 'stale' | 'offline' {
+  if (!recordedAt) return 'offline';
+  const ageMs = Date.now() - Date.parse(recordedAt);
+  if (!Number.isFinite(ageMs) || ageMs < 0) return 'offline';
+  if (ageMs < 60_000) return 'live';
+  if (ageMs < 5 * 60_000) return 'stale';
+  return 'offline';
+}
+
+const LIFECYCLE_LABEL: Record<string, string> = {
+  ride_created: 'Ride created',
+  status_requested: 'Seat requested',
+  status_confirmed: 'Seat confirmed',
+  status_pickup_pending: 'Pickup started',
+  status_started: 'Trip started',
+  status_completed: 'Ride completed',
+  status_cancelled: 'Cancelled',
+  status_rejected: 'Declined',
+  status_no_show: 'Marked no-show',
+  status_disputed: 'Dispute opened',
+  status_safety_incident: 'SOS recorded',
+  meeting_pin_set: 'Meeting pin set',
+  share_token_created: 'Trip share link created',
+  share_token_revoked: 'Trip share link revoked',
+};
+
+export function rideLifecycleEventLabel(event?: string | null) {
+  if (!event) return 'Update';
+  return LIFECYCLE_LABEL[event] || String(event).replace(/^status_/, '').replace(/_/g, ' ');
 }

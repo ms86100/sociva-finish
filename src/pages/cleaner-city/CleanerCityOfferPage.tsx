@@ -445,6 +445,14 @@ export default function CleanerCityOfferPage() {
       if (!chosen) {
         return;
       }
+      if (!chosen.polyline || chosen.polyline.trim().length < 10) {
+        toast.error('A real driving route is required before publishing');
+        return;
+      }
+      if (chosen.provider !== 'google') {
+        toast.error('Maps must return a Google driving route before publishing - try again online');
+        return;
+      }
 
       const pub = await publish.mutateAsync({
         vehicle_id: vehicleId,
@@ -689,6 +697,32 @@ export default function CleanerCityOfferPage() {
                     </button>
                   ))}
                 </div>
+
+                {(() => {
+                  const usual = preferredRouteFromProfile(
+                    profile,
+                    direction === 'to_home' ? 'to_home' : 'to_office',
+                  );
+                  return usual ? (
+                    <p
+                      className="inline-flex max-w-full items-center rounded-full border border-primary/30 bg-primary/10 px-2.5 py-1 text-[11px] font-semibold text-primary"
+                      data-testid="cleaner-city-offer-usual-route"
+                    >
+                      Publishing on usual road · {usual.summary}
+                      {usual.distanceMeters
+                        ? ` · ${(usual.distanceMeters / 1000).toFixed(1)} km`
+                        : ''}
+                    </p>
+                  ) : (
+                    <Link
+                      to="/cleaner-city/route"
+                      className="text-[11px] font-semibold text-primary"
+                      data-testid="cleaner-city-offer-set-route"
+                    >
+                      Save your usual Google road so publish reuses it
+                    </Link>
+                  );
+                })()}
 
                 <div className="flex flex-col gap-2">
                   <Label>Empty seats</Label>

@@ -250,14 +250,15 @@ describe('A Cleaner City Phase 1-4 ride page', () => {
   });
 
   it('documents that live tracking continues while the app stays open and attempts background permission', () => {
-    expect(ridePage).toContain('requestBackgroundLocationPermission');
+    expect(ridePage).toContain('useCleanerCityRideTracking');
     expect(ridePage).toContain('cleaner-city-background-location-note');
-    expect(ridePage).toContain('Keep Sociva open');
+    expect(ridePage).toContain('honestyCopy');
   });
 
   it('re-ticks location on resume via visibility/app state listeners', () => {
-    expect(ridePage).toContain('visibilitychange');
-    expect(ridePage).toContain('appStateChange');
+    const trackingHook = readSrc('src/hooks/useCleanerCityRideTracking.ts');
+    expect(trackingHook).toContain('visibilitychange');
+    expect(trackingHook).toContain('appStateChange');
   });
 
   it('never hardcodes Bangalore coordinates outside of the map default center', () => {

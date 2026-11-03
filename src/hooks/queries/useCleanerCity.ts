@@ -1659,6 +1659,7 @@ export function useReportIncident() {
 }
 
 export function useCreateShareToken() {
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (rideId: string) => {
       const { data, error } = await supabase.rpc('cleaner_city_create_share_token', {
@@ -1666,6 +1667,68 @@ export function useCreateShareToken() {
       });
       if (error) throw error;
       return data as { token: string; expires_at: string };
+    },
+    onSuccess: (_d, rideId) => {
+      queryClient.invalidateQueries({ queryKey: ['cleaner-city-ride-events', rideId] });
+    },
+  });
+}
+
+export function useRevokeShareToken() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (rideId: string) => {
+      const { data, error } = await supabase.rpc('cleaner_city_revoke_share_token', {
+        p_ride_id: rideId,
+      });
+      if (error) throw error;
+      return Boolean(data);
+    },
+    onSuccess: (_d, rideId) => {
+      queryClient.invalidateQueries({ queryKey: ['cleaner-city-ride-events', rideId] });
+    },
+  });
+}
+
+export type RideLifecycleEvent = {
+  id: string;
+  event: string;
+  actor_user_id: string | null;
+  payload: Record<string, unknown>;
+  created_at: string;
+};
+
+export function useRideLifecycleEvents(rideId?: string | null) {
+  return useQuery({
+    queryKey: ['cleaner-city-ride-events', rideId],
+    enabled: !!rideId,
+    refetchInterval: 15000,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('cleaner_city_list_ride_events', {
+        p_ride_id: rideId,
+      });
+      if (error) throw error;
+      return (Array.isArray(data) ? data : []) as RideLifecycleEvent[];
+    },
+  });
+}
+
+export type CleanerCityCapabilities = {
+  relay_call: boolean;
+  sos_sms: boolean;
+  fuel_checkout: boolean;
+  ios_background_location: boolean;
+  share_link_ttl_hours: number;
+};
+
+export function useCleanerCityCapabilities() {
+  return useQuery({
+    queryKey: ['cleaner-city-runtime-capabilities'],
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('cleaner_city_runtime_capabilities');
+      if (error) throw error;
+      return data as CleanerCityCapabilities;
     },
   });
 }

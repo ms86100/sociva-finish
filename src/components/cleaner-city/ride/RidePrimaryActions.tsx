@@ -109,9 +109,14 @@ export function RidePrimaryActions({
             Set meeting point
           </Button>
         ) : isHost ? (
+          <p className="text-xs text-muted-foreground">
+            Meet at the point below. Your passenger creates a 6-digit code when they arrive -
+            you type it to start.
+          </p>
+        ) : (
           <div className="space-y-2">
             <p className="text-xs text-muted-foreground">
-              At the gate, tap once to create a pickup code for your guest.
+              At the gate, tap once to create your pickup code. Show it only to your rider.
             </p>
             <Button
               className="h-12 w-full font-semibold"
@@ -122,10 +127,6 @@ export function RidePrimaryActions({
               Create pickup code
             </Button>
           </div>
-        ) : (
-          <p className="text-xs text-muted-foreground">
-            Meet at the point below. Your host will share a 6-digit code when you arrive.
-          </p>
         )}
         <Button
           className="h-10 w-full font-semibold"
@@ -149,42 +150,7 @@ export function RidePrimaryActions({
         {isHost ? (
           <div className="space-y-3">
             <p className="text-xs text-muted-foreground">
-              Show this code to your guest. They type it to start the trip - you do not enter it.
-            </p>
-            <Button
-              className="h-12 w-full font-semibold"
-              disabled={generatingOtp}
-              onClick={onGenerateOtp}
-              data-testid="cleaner-city-generate-otp"
-            >
-              {shownOtp ? 'New code' : 'Create pickup code'}
-            </Button>
-            {shownOtp ? (
-              <div
-                className="rounded-2xl border border-primary/30 bg-background/60 px-4 py-5 text-center"
-                data-testid="cleaner-city-host-otp-display"
-              >
-                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                  Show to guest
-                </p>
-                <p className="mt-2 text-3xl font-extrabold tracking-[0.35em] text-primary">
-                  {shownOtp}
-                </p>
-              </div>
-            ) : null}
-            <p className="text-center text-xs text-muted-foreground">
-              Waiting for guest to enter the code…
-            </p>
-            {onOpenMaps ? (
-              <Button className="h-11 w-full font-semibold" variant="outline" onClick={onOpenMaps}>
-                Open in Google Maps
-              </Button>
-            ) : null}
-          </div>
-        ) : (
-          <div className="space-y-3">
-            <p className="text-xs text-muted-foreground">
-              Ask your host for the 6-digit code at the meeting point, then start.
+              Ask your passenger for their 6-digit code at the meeting point, then start.
             </p>
             {needsMeetingPoint ? (
               <p className="text-xs text-amber-700 dark:text-amber-300">
@@ -199,7 +165,7 @@ export function RidePrimaryActions({
                 placeholder="6-digit code"
                 value={otp}
                 onChange={(e) => onOtpChange(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                data-testid="cleaner-city-guest-otp-input"
+                data-testid="cleaner-city-host-otp-input"
               />
               <Button
                 className="h-12 px-5 font-semibold"
@@ -210,6 +176,41 @@ export function RidePrimaryActions({
                 Start
               </Button>
             </div>
+            {onOpenMaps ? (
+              <Button className="h-11 w-full font-semibold" variant="outline" onClick={onOpenMaps}>
+                Open in Google Maps
+              </Button>
+            ) : null}
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <p className="text-xs text-muted-foreground">
+              Show this code to your rider. They type it to start - you do not enter it.
+            </p>
+            <Button
+              className="h-12 w-full font-semibold"
+              disabled={generatingOtp}
+              onClick={onGenerateOtp}
+              data-testid="cleaner-city-generate-otp"
+            >
+              {shownOtp ? 'New code' : 'Create pickup code'}
+            </Button>
+            {shownOtp ? (
+              <div
+                className="rounded-2xl border border-primary/30 bg-background/60 px-4 py-5 text-center"
+                data-testid="cleaner-city-passenger-otp-display"
+              >
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                  Show to rider
+                </p>
+                <p className="mt-2 text-3xl font-extrabold tracking-[0.35em] text-primary">
+                  {shownOtp}
+                </p>
+              </div>
+            ) : null}
+            <p className="text-center text-xs text-muted-foreground">
+              Waiting for your rider to enter the code…
+            </p>
           </div>
         )}
       </section>
