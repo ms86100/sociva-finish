@@ -91,11 +91,11 @@ const config: CapacitorConfig = {
     preferredContentMode: 'mobile',
     plistOverrides: {
       ITSAppUsesNonExemptEncryption: false,
-      NSLocationWhenInUseUsageDescription: 'Sociva uses your location while you use the app to show products, services and local businesses available near you, and to verify society membership when you sign in.',
+      NSLocationWhenInUseUsageDescription: 'Sociva uses your location while you use the app to show nearby sellers, verify society membership, share live delivery progress, and share an active Cleaner City commute map with your ride partner.',
       // ITMS-90683: Capacitor Geolocation links Always APIs, so these keys are required
       // even though we do not declare UIBackgroundModes location (App Store 2.5.4).
-      NSLocationAlwaysAndWhenInUseUsageDescription: 'Sociva uses your location while the app is open to show nearby sellers and, as a seller during an active delivery, to share live delivery progress.',
-      NSLocationAlwaysUsageDescription: 'Sociva uses your location while the app is open to show nearby sellers and, as a seller during an active delivery, to share live delivery progress.',
+      NSLocationAlwaysAndWhenInUseUsageDescription: 'Sociva uses your location while the app is open to show nearby sellers, share live delivery progress during an active delivery, and share an active Cleaner City commute map with your ride partner.',
+      NSLocationAlwaysUsageDescription: 'Sociva uses your location while the app is open to show nearby sellers, share live delivery progress during an active delivery, and share an active Cleaner City commute map with your ride partner.',
       NSCameraUsageDescription: 'Sociva needs camera access to let you photograph products for listing and upload profile pictures.',
       NSPhotoLibraryUsageDescription: 'Sociva needs photo library access to let you select images for product listings and your profile.',
       NSPhotoLibraryAddUsageDescription: 'Sociva needs permission to save images to your photo library.',

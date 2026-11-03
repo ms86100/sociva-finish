@@ -10,6 +10,8 @@ import {
   releaseInstallationUser,
   syncOsPermissionsFromDevice,
 } from '@/lib/installation';
+import { useVoipRegistration } from '@/hooks/useVoipRegistration';
+import { ActiveCallOverlay } from '@/components/calling/ActiveCallOverlay';
 
 interface PushNotificationProviderProps {
   children: React.ReactNode;
@@ -31,6 +33,9 @@ export function PushNotificationProvider({ children }: PushNotificationProviderP
   const pushState = usePushNotificationsInternal();
   const { removeTokenFromDatabase } = pushState;
   const prevUserRef = useRef(user);
+
+  // PushKit / FCM VoIP token claim + CallKit accept bridge
+  useVoipRegistration(user?.id);
 
   // Boot: ensure installation row + sync OS permission enums (guest-safe)
   useEffect(() => {
@@ -116,6 +121,7 @@ export function PushNotificationProvider({ children }: PushNotificationProviderP
   return (
     <PushNotificationContext.Provider value={pushState}>
       {children}
+      <ActiveCallOverlay userId={user?.id} />
     </PushNotificationContext.Provider>
   );
 }

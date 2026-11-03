@@ -14,6 +14,7 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         OrderAlertChannels.ensure(this);
         registerPlugin(LiveActivityPlugin.class);
+        registerPlugin(SocivaVoipPlugin.class);
         super.onCreate(savedInstanceState);
     }
 

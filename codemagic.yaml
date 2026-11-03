@@ -257,7 +257,8 @@ workflows:
           class SocivaBridgeViewController: CAPBridgeViewController {
               override open func capacitorDidLoad() {
                   bridge?.registerPluginInstance(LiveActivityPlugin())
-                  print("✅ SocivaBridgeViewController: LiveActivityPlugin registered with bridge")
+                  bridge?.registerPluginInstance(SocivaVoipPlugin())
+                  print("✅ SocivaBridgeViewController: LiveActivityPlugin + SocivaVoipPlugin registered with bridge")
               }
           }
           SWIFT
@@ -333,14 +334,26 @@ workflows:
           /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes array" App/Info.plist 2>/dev/null || true
           /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes:0 string remote-notification" App/Info.plist 2>/dev/null || true
           /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes:1 string fetch" App/Info.plist 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes:2 string voip" App/Info.plist 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes:3 string audio" App/Info.plist 2>/dev/null || true
           # Strip legacy location background mode if a prior build left it behind
-          /usr/libexec/PlistBuddy -c "Delete :UIBackgroundModes:2" App/Info.plist 2>/dev/null || true
-          for i in 0 1 2 3 4 5; do
+          for i in 0 1 2 3 4 5 6 7; do
             MODE=$(/usr/libexec/PlistBuddy -c "Print :UIBackgroundModes:$i" App/Info.plist 2>/dev/null || true)
             if [ "$MODE" = "location" ]; then
               /usr/libexec/PlistBuddy -c "Delete :UIBackgroundModes:$i" App/Info.plist 2>/dev/null || true
             fi
           done
+          # Ensure voip + audio modes exist (idempotent)
+          HAS_VOIP=0
+          HAS_AUDIO=0
+          for i in 0 1 2 3 4 5 6 7; do
+            MODE=$(/usr/libexec/PlistBuddy -c "Print :UIBackgroundModes:$i" App/Info.plist 2>/dev/null || true)
+            [ "$MODE" = "voip" ] && HAS_VOIP=1
+            [ "$MODE" = "audio" ] && HAS_AUDIO=1
+          done
+          [ "$HAS_VOIP" = "0" ] && /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes: string voip" App/Info.plist 2>/dev/null || true
+          [ "$HAS_AUDIO" = "0" ] && /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes: string audio" App/Info.plist 2>/dev/null || true
+          echo "=== UIBackgroundModes include voip + audio for CallKit ==="
           # CRITICAL: Disable Firebase method swizzling so our manual APNs token
           # forwarding in AppDelegate.swift doesn't conflict with Firebase's auto-swizzling.
           # Without this, the permission prompt can silently fail to appear.
@@ -379,16 +392,16 @@ workflows:
             /usr/libexec/PlistBuddy -c "Add :NSPhotoLibraryAddUsageDescription string 'Sociva needs permission to save images to your photo library.'" App/Info.plist
           /usr/libexec/PlistBuddy -c "Set :NSCameraUsageDescription 'Sociva needs camera access to let you photograph products for listing and upload profile pictures.'" App/Info.plist 2>/dev/null || \
             /usr/libexec/PlistBuddy -c "Add :NSCameraUsageDescription string 'Sociva needs camera access to let you photograph products for listing and upload profile pictures.'" App/Info.plist
-          /usr/libexec/PlistBuddy -c "Set :NSMicrophoneUsageDescription 'Sociva uses the microphone so you can talk to Sociva about your store in English, Hindi, or Kannada.'" App/Info.plist 2>/dev/null || \
-            /usr/libexec/PlistBuddy -c "Add :NSMicrophoneUsageDescription string 'Sociva uses the microphone so you can talk to Sociva about your store in English, Hindi, or Kannada.'" App/Info.plist
-          /usr/libexec/PlistBuddy -c "Set :NSLocationWhenInUseUsageDescription 'Sociva uses your location to verify your residential society membership, show nearby sellers, and share live delivery progress while you keep the app open as a seller.'" App/Info.plist 2>/dev/null || \
-            /usr/libexec/PlistBuddy -c "Add :NSLocationWhenInUseUsageDescription string 'Sociva uses your location to verify your residential society membership, show nearby sellers, and share live delivery progress while you keep the app open as a seller.'" App/Info.plist
+          /usr/libexec/PlistBuddy -c "Set :NSMicrophoneUsageDescription 'Sociva uses the microphone for in-app calls with people in your society and so you can talk to Sociva about your store in English, Hindi, or Kannada.'" App/Info.plist 2>/dev/null || \
+            /usr/libexec/PlistBuddy -c "Add :NSMicrophoneUsageDescription string 'Sociva uses the microphone for in-app calls with people in your society and so you can talk to Sociva about your store in English, Hindi, or Kannada.'" App/Info.plist
+          /usr/libexec/PlistBuddy -c "Set :NSLocationWhenInUseUsageDescription 'Sociva uses your location to verify your residential society membership, show nearby sellers, share live delivery progress while you keep the app open as a seller, and share an active Cleaner City commute map with your ride partner.'" App/Info.plist 2>/dev/null || \
+            /usr/libexec/PlistBuddy -c "Add :NSLocationWhenInUseUsageDescription string 'Sociva uses your location to verify your residential society membership, show nearby sellers, share live delivery progress while you keep the app open as a seller, and share an active Cleaner City commute map with your ride partner.'" App/Info.plist
           # ITMS-90683: Always purpose strings required because location APIs are linked.
           # Do not add UIBackgroundModes location (App Store 2.5.4).
-          /usr/libexec/PlistBuddy -c "Set :NSLocationAlwaysAndWhenInUseUsageDescription 'Sociva uses your location to verify your residential society membership, show nearby sellers, and share live delivery progress while you keep the app open as a seller.'" App/Info.plist 2>/dev/null || \
-            /usr/libexec/PlistBuddy -c "Add :NSLocationAlwaysAndWhenInUseUsageDescription string 'Sociva uses your location to verify your residential society membership, show nearby sellers, and share live delivery progress while you keep the app open as a seller.'" App/Info.plist
-          /usr/libexec/PlistBuddy -c "Set :NSLocationAlwaysUsageDescription 'Sociva uses your location to verify your residential society membership, show nearby sellers, and share live delivery progress while you keep the app open as a seller.'" App/Info.plist 2>/dev/null || \
-            /usr/libexec/PlistBuddy -c "Add :NSLocationAlwaysUsageDescription string 'Sociva uses your location to verify your residential society membership, show nearby sellers, and share live delivery progress while you keep the app open as a seller.'" App/Info.plist
+          /usr/libexec/PlistBuddy -c "Set :NSLocationAlwaysAndWhenInUseUsageDescription 'Sociva uses your location to verify your residential society membership, show nearby sellers, share live delivery progress while you keep the app open as a seller, and share an active Cleaner City commute map with your ride partner.'" App/Info.plist 2>/dev/null || \
+            /usr/libexec/PlistBuddy -c "Add :NSLocationAlwaysAndWhenInUseUsageDescription string 'Sociva uses your location to verify your residential society membership, show nearby sellers, share live delivery progress while you keep the app open as a seller, and share an active Cleaner City commute map with your ride partner.'" App/Info.plist
+          /usr/libexec/PlistBuddy -c "Set :NSLocationAlwaysUsageDescription 'Sociva uses your location to verify your residential society membership, show nearby sellers, share live delivery progress while you keep the app open as a seller, and share an active Cleaner City commute map with your ride partner.'" App/Info.plist 2>/dev/null || \
+            /usr/libexec/PlistBuddy -c "Add :NSLocationAlwaysUsageDescription string 'Sociva uses your location to verify your residential society membership, show nearby sellers, share live delivery progress while you keep the app open as a seller, and share an active Cleaner City commute map with your ride partner.'" App/Info.plist
           /usr/libexec/PlistBuddy -c "Set :NSMotionUsageDescription 'Sociva may use motion activity while the app is open to keep live delivery progress accurate and save battery during an active seller delivery.'" App/Info.plist 2>/dev/null || \
             /usr/libexec/PlistBuddy -c "Add :NSMotionUsageDescription string 'Sociva may use motion activity while the app is open to keep live delivery progress accurate and save battery during an active seller delivery.'" App/Info.plist
           /usr/libexec/PlistBuddy -c "Set :NSCalendarsUsageDescription 'Sociva needs calendar access so you can save service bookings to your calendar.'" App/Info.plist 2>/dev/null || \
@@ -436,6 +449,7 @@ workflows:
           echo "=== Copying Live Activity Swift files ==="
           cp native/ios/LiveActivityPlugin.swift ios/App/App/
           cp native/ios/LiveDeliveryActivity.swift ios/App/App/
+          cp native/ios/SocivaVoipPlugin.swift ios/App/App/
           # Copy Privacy Manifest (required since May 2024)
           cp native/ios/PrivacyInfo.xcprivacy ios/App/App/PrivacyInfo.xcprivacy
           echo "=== Adding Swift files + PrivacyInfo to App target ==="
@@ -447,7 +461,7 @@ workflows:
           abort('App target not found') unless target
           group = project.main_group.find_subpath('App', true)
 
-          %w[LiveActivityPlugin.swift LiveDeliveryActivity.swift].each do |filename|
+          %w[LiveActivityPlugin.swift LiveDeliveryActivity.swift SocivaVoipPlugin.swift].each do |filename|
             ref = group.files.find { |f| f.path == filename } || group.new_file(filename)
             unless target.source_build_phase.files_references.any? { |f| f.path == filename }
               target.source_build_phase.add_file_reference(ref, true)
@@ -1202,7 +1216,8 @@ workflows:
           class SocivaBridgeViewController: CAPBridgeViewController {
               override open func capacitorDidLoad() {
                   bridge?.registerPluginInstance(LiveActivityPlugin())
-                  print("✅ SocivaBridgeViewController: LiveActivityPlugin registered with bridge")
+                  bridge?.registerPluginInstance(SocivaVoipPlugin())
+                  print("✅ SocivaBridgeViewController: LiveActivityPlugin + SocivaVoipPlugin registered with bridge")
               }
           }
           SWIFT
@@ -1278,14 +1293,26 @@ workflows:
           /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes array" App/Info.plist 2>/dev/null || true
           /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes:0 string remote-notification" App/Info.plist 2>/dev/null || true
           /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes:1 string fetch" App/Info.plist 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes:2 string voip" App/Info.plist 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes:3 string audio" App/Info.plist 2>/dev/null || true
           # Strip legacy location background mode if a prior build left it behind
-          /usr/libexec/PlistBuddy -c "Delete :UIBackgroundModes:2" App/Info.plist 2>/dev/null || true
-          for i in 0 1 2 3 4 5; do
+          for i in 0 1 2 3 4 5 6 7; do
             MODE=$(/usr/libexec/PlistBuddy -c "Print :UIBackgroundModes:$i" App/Info.plist 2>/dev/null || true)
             if [ "$MODE" = "location" ]; then
               /usr/libexec/PlistBuddy -c "Delete :UIBackgroundModes:$i" App/Info.plist 2>/dev/null || true
             fi
           done
+          # Ensure voip + audio modes exist (idempotent)
+          HAS_VOIP=0
+          HAS_AUDIO=0
+          for i in 0 1 2 3 4 5 6 7; do
+            MODE=$(/usr/libexec/PlistBuddy -c "Print :UIBackgroundModes:$i" App/Info.plist 2>/dev/null || true)
+            [ "$MODE" = "voip" ] && HAS_VOIP=1
+            [ "$MODE" = "audio" ] && HAS_AUDIO=1
+          done
+          [ "$HAS_VOIP" = "0" ] && /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes: string voip" App/Info.plist 2>/dev/null || true
+          [ "$HAS_AUDIO" = "0" ] && /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes: string audio" App/Info.plist 2>/dev/null || true
+          echo "=== UIBackgroundModes include voip + audio for CallKit ==="
           # CRITICAL: Disable Firebase method swizzling so our manual APNs token
           # forwarding in AppDelegate.swift doesn't conflict with Firebase's auto-swizzling.
           # Without this, the permission prompt can silently fail to appear.
@@ -1324,16 +1351,16 @@ workflows:
             /usr/libexec/PlistBuddy -c "Add :NSPhotoLibraryAddUsageDescription string 'Sociva needs permission to save images to your photo library.'" App/Info.plist
           /usr/libexec/PlistBuddy -c "Set :NSCameraUsageDescription 'Sociva needs camera access to let you photograph products for listing and upload profile pictures.'" App/Info.plist 2>/dev/null || \
             /usr/libexec/PlistBuddy -c "Add :NSCameraUsageDescription string 'Sociva needs camera access to let you photograph products for listing and upload profile pictures.'" App/Info.plist
-          /usr/libexec/PlistBuddy -c "Set :NSMicrophoneUsageDescription 'Sociva uses the microphone so you can talk to Sociva about your store in English, Hindi, or Kannada.'" App/Info.plist 2>/dev/null || \
-            /usr/libexec/PlistBuddy -c "Add :NSMicrophoneUsageDescription string 'Sociva uses the microphone so you can talk to Sociva about your store in English, Hindi, or Kannada.'" App/Info.plist
-          /usr/libexec/PlistBuddy -c "Set :NSLocationWhenInUseUsageDescription 'Sociva uses your location to verify your residential society membership, show nearby sellers, and share live delivery progress while you keep the app open as a seller.'" App/Info.plist 2>/dev/null || \
-            /usr/libexec/PlistBuddy -c "Add :NSLocationWhenInUseUsageDescription string 'Sociva uses your location to verify your residential society membership, show nearby sellers, and share live delivery progress while you keep the app open as a seller.'" App/Info.plist
+          /usr/libexec/PlistBuddy -c "Set :NSMicrophoneUsageDescription 'Sociva uses the microphone for in-app calls with people in your society and so you can talk to Sociva about your store in English, Hindi, or Kannada.'" App/Info.plist 2>/dev/null || \
+            /usr/libexec/PlistBuddy -c "Add :NSMicrophoneUsageDescription string 'Sociva uses the microphone for in-app calls with people in your society and so you can talk to Sociva about your store in English, Hindi, or Kannada.'" App/Info.plist
+          /usr/libexec/PlistBuddy -c "Set :NSLocationWhenInUseUsageDescription 'Sociva uses your location to verify your residential society membership, show nearby sellers, share live delivery progress while you keep the app open as a seller, and share an active Cleaner City commute map with your ride partner.'" App/Info.plist 2>/dev/null || \
+            /usr/libexec/PlistBuddy -c "Add :NSLocationWhenInUseUsageDescription string 'Sociva uses your location to verify your residential society membership, show nearby sellers, share live delivery progress while you keep the app open as a seller, and share an active Cleaner City commute map with your ride partner.'" App/Info.plist
           # ITMS-90683: Always purpose strings required because location APIs are linked.
           # Do not add UIBackgroundModes location (App Store 2.5.4).
-          /usr/libexec/PlistBuddy -c "Set :NSLocationAlwaysAndWhenInUseUsageDescription 'Sociva uses your location to verify your residential society membership, show nearby sellers, and share live delivery progress while you keep the app open as a seller.'" App/Info.plist 2>/dev/null || \
-            /usr/libexec/PlistBuddy -c "Add :NSLocationAlwaysAndWhenInUseUsageDescription string 'Sociva uses your location to verify your residential society membership, show nearby sellers, and share live delivery progress while you keep the app open as a seller.'" App/Info.plist
-          /usr/libexec/PlistBuddy -c "Set :NSLocationAlwaysUsageDescription 'Sociva uses your location to verify your residential society membership, show nearby sellers, and share live delivery progress while you keep the app open as a seller.'" App/Info.plist 2>/dev/null || \
-            /usr/libexec/PlistBuddy -c "Add :NSLocationAlwaysUsageDescription string 'Sociva uses your location to verify your residential society membership, show nearby sellers, and share live delivery progress while you keep the app open as a seller.'" App/Info.plist
+          /usr/libexec/PlistBuddy -c "Set :NSLocationAlwaysAndWhenInUseUsageDescription 'Sociva uses your location to verify your residential society membership, show nearby sellers, share live delivery progress while you keep the app open as a seller, and share an active Cleaner City commute map with your ride partner.'" App/Info.plist 2>/dev/null || \
+            /usr/libexec/PlistBuddy -c "Add :NSLocationAlwaysAndWhenInUseUsageDescription string 'Sociva uses your location to verify your residential society membership, show nearby sellers, share live delivery progress while you keep the app open as a seller, and share an active Cleaner City commute map with your ride partner.'" App/Info.plist
+          /usr/libexec/PlistBuddy -c "Set :NSLocationAlwaysUsageDescription 'Sociva uses your location to verify your residential society membership, show nearby sellers, share live delivery progress while you keep the app open as a seller, and share an active Cleaner City commute map with your ride partner.'" App/Info.plist 2>/dev/null || \
+            /usr/libexec/PlistBuddy -c "Add :NSLocationAlwaysUsageDescription string 'Sociva uses your location to verify your residential society membership, show nearby sellers, share live delivery progress while you keep the app open as a seller, and share an active Cleaner City commute map with your ride partner.'" App/Info.plist
           /usr/libexec/PlistBuddy -c "Set :NSMotionUsageDescription 'Sociva may use motion activity while the app is open to keep live delivery progress accurate and save battery during an active seller delivery.'" App/Info.plist 2>/dev/null || \
             /usr/libexec/PlistBuddy -c "Add :NSMotionUsageDescription string 'Sociva may use motion activity while the app is open to keep live delivery progress accurate and save battery during an active seller delivery.'" App/Info.plist
           /usr/libexec/PlistBuddy -c "Set :NSCalendarsUsageDescription 'Sociva needs calendar access so you can save service bookings to your calendar.'" App/Info.plist 2>/dev/null || \
@@ -1381,6 +1408,7 @@ workflows:
           echo "=== Copying Live Activity Swift files ==="
           cp native/ios/LiveActivityPlugin.swift ios/App/App/
           cp native/ios/LiveDeliveryActivity.swift ios/App/App/
+          cp native/ios/SocivaVoipPlugin.swift ios/App/App/
           # Copy Privacy Manifest (required since May 2024)
           cp native/ios/PrivacyInfo.xcprivacy ios/App/App/PrivacyInfo.xcprivacy
           echo "=== Adding Swift files + PrivacyInfo to App target ==="
@@ -1392,7 +1420,7 @@ workflows:
           abort('App target not found') unless target
           group = project.main_group.find_subpath('App', true)
 
-          %w[LiveActivityPlugin.swift LiveDeliveryActivity.swift].each do |filename|
+          %w[LiveActivityPlugin.swift LiveDeliveryActivity.swift SocivaVoipPlugin.swift].each do |filename|
             ref = group.files.find { |f| f.path == filename } || group.new_file(filename)
             unless target.source_build_phase.files_references.any? { |f| f.path == filename }
               target.source_build_phase.add_file_reference(ref, true)
@@ -2273,7 +2301,8 @@ workflows:
           class SocivaBridgeViewController: CAPBridgeViewController {
               override open func capacitorDidLoad() {
                   bridge?.registerPluginInstance(LiveActivityPlugin())
-                  print("✅ SocivaBridgeViewController: LiveActivityPlugin registered with bridge")
+                  bridge?.registerPluginInstance(SocivaVoipPlugin())
+                  print("✅ SocivaBridgeViewController: LiveActivityPlugin + SocivaVoipPlugin registered with bridge")
               }
           }
           SWIFT
@@ -2343,13 +2372,24 @@ workflows:
           /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes array" App/Info.plist 2>/dev/null || true
           /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes:0 string remote-notification" App/Info.plist 2>/dev/null || true
           /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes:1 string fetch" App/Info.plist 2>/dev/null || true
-          /usr/libexec/PlistBuddy -c "Delete :UIBackgroundModes:2" App/Info.plist 2>/dev/null || true
-          for i in 0 1 2 3 4 5; do
+          /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes:2 string voip" App/Info.plist 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes:3 string audio" App/Info.plist 2>/dev/null || true
+          for i in 0 1 2 3 4 5 6 7; do
             MODE=$(/usr/libexec/PlistBuddy -c "Print :UIBackgroundModes:$i" App/Info.plist 2>/dev/null || true)
             if [ "$MODE" = "location" ]; then
               /usr/libexec/PlistBuddy -c "Delete :UIBackgroundModes:$i" App/Info.plist 2>/dev/null || true
             fi
           done
+          HAS_VOIP=0
+          HAS_AUDIO=0
+          for i in 0 1 2 3 4 5 6 7; do
+            MODE=$(/usr/libexec/PlistBuddy -c "Print :UIBackgroundModes:$i" App/Info.plist 2>/dev/null || true)
+            [ "$MODE" = "voip" ] && HAS_VOIP=1
+            [ "$MODE" = "audio" ] && HAS_AUDIO=1
+          done
+          [ "$HAS_VOIP" = "0" ] && /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes: string voip" App/Info.plist 2>/dev/null || true
+          [ "$HAS_AUDIO" = "0" ] && /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes: string audio" App/Info.plist 2>/dev/null || true
+          echo "=== UIBackgroundModes include voip + audio for CallKit ==="
           # CRITICAL: Disable Firebase method swizzling (same as ios-release workflow)
           /usr/libexec/PlistBuddy -c "Add :FirebaseAppDelegateProxyEnabled bool false" App/Info.plist 2>/dev/null || \
             /usr/libexec/PlistBuddy -c "Set :FirebaseAppDelegateProxyEnabled false" App/Info.plist
@@ -2380,16 +2420,16 @@ workflows:
             /usr/libexec/PlistBuddy -c "Add :NSPhotoLibraryAddUsageDescription string 'Sociva needs permission to save images to your photo library.'" App/Info.plist
           /usr/libexec/PlistBuddy -c "Set :NSCameraUsageDescription 'Sociva needs camera access to let you photograph products for listing and upload profile pictures.'" App/Info.plist 2>/dev/null || \
             /usr/libexec/PlistBuddy -c "Add :NSCameraUsageDescription string 'Sociva needs camera access to let you photograph products for listing and upload profile pictures.'" App/Info.plist
-          /usr/libexec/PlistBuddy -c "Set :NSMicrophoneUsageDescription 'Sociva uses the microphone so you can talk to Sociva about your store in English, Hindi, or Kannada.'" App/Info.plist 2>/dev/null || \
-            /usr/libexec/PlistBuddy -c "Add :NSMicrophoneUsageDescription string 'Sociva uses the microphone so you can talk to Sociva about your store in English, Hindi, or Kannada.'" App/Info.plist
-          /usr/libexec/PlistBuddy -c "Set :NSLocationWhenInUseUsageDescription 'Sociva uses your location to verify your residential society membership, show nearby sellers, and share live delivery progress while you keep the app open as a seller.'" App/Info.plist 2>/dev/null || \
-            /usr/libexec/PlistBuddy -c "Add :NSLocationWhenInUseUsageDescription string 'Sociva uses your location to verify your residential society membership, show nearby sellers, and share live delivery progress while you keep the app open as a seller.'" App/Info.plist
+          /usr/libexec/PlistBuddy -c "Set :NSMicrophoneUsageDescription 'Sociva uses the microphone for in-app calls with people in your society and so you can talk to Sociva about your store in English, Hindi, or Kannada.'" App/Info.plist 2>/dev/null || \
+            /usr/libexec/PlistBuddy -c "Add :NSMicrophoneUsageDescription string 'Sociva uses the microphone for in-app calls with people in your society and so you can talk to Sociva about your store in English, Hindi, or Kannada.'" App/Info.plist
+          /usr/libexec/PlistBuddy -c "Set :NSLocationWhenInUseUsageDescription 'Sociva uses your location to verify your residential society membership, show nearby sellers, share live delivery progress while you keep the app open as a seller, and share an active Cleaner City commute map with your ride partner.'" App/Info.plist 2>/dev/null || \
+            /usr/libexec/PlistBuddy -c "Add :NSLocationWhenInUseUsageDescription string 'Sociva uses your location to verify your residential society membership, show nearby sellers, share live delivery progress while you keep the app open as a seller, and share an active Cleaner City commute map with your ride partner.'" App/Info.plist
           # ITMS-90683: Always purpose strings required because location APIs are linked.
           # Do not add UIBackgroundModes location (App Store 2.5.4).
-          /usr/libexec/PlistBuddy -c "Set :NSLocationAlwaysAndWhenInUseUsageDescription 'Sociva uses your location to verify your residential society membership, show nearby sellers, and share live delivery progress while you keep the app open as a seller.'" App/Info.plist 2>/dev/null || \
-            /usr/libexec/PlistBuddy -c "Add :NSLocationAlwaysAndWhenInUseUsageDescription string 'Sociva uses your location to verify your residential society membership, show nearby sellers, and share live delivery progress while you keep the app open as a seller.'" App/Info.plist
-          /usr/libexec/PlistBuddy -c "Set :NSLocationAlwaysUsageDescription 'Sociva uses your location to verify your residential society membership, show nearby sellers, and share live delivery progress while you keep the app open as a seller.'" App/Info.plist 2>/dev/null || \
-            /usr/libexec/PlistBuddy -c "Add :NSLocationAlwaysUsageDescription string 'Sociva uses your location to verify your residential society membership, show nearby sellers, and share live delivery progress while you keep the app open as a seller.'" App/Info.plist
+          /usr/libexec/PlistBuddy -c "Set :NSLocationAlwaysAndWhenInUseUsageDescription 'Sociva uses your location to verify your residential society membership, show nearby sellers, share live delivery progress while you keep the app open as a seller, and share an active Cleaner City commute map with your ride partner.'" App/Info.plist 2>/dev/null || \
+            /usr/libexec/PlistBuddy -c "Add :NSLocationAlwaysAndWhenInUseUsageDescription string 'Sociva uses your location to verify your residential society membership, show nearby sellers, share live delivery progress while you keep the app open as a seller, and share an active Cleaner City commute map with your ride partner.'" App/Info.plist
+          /usr/libexec/PlistBuddy -c "Set :NSLocationAlwaysUsageDescription 'Sociva uses your location to verify your residential society membership, show nearby sellers, share live delivery progress while you keep the app open as a seller, and share an active Cleaner City commute map with your ride partner.'" App/Info.plist 2>/dev/null || \
+            /usr/libexec/PlistBuddy -c "Add :NSLocationAlwaysUsageDescription string 'Sociva uses your location to verify your residential society membership, show nearby sellers, share live delivery progress while you keep the app open as a seller, and share an active Cleaner City commute map with your ride partner.'" App/Info.plist
           /usr/libexec/PlistBuddy -c "Set :NSMotionUsageDescription 'Sociva may use motion activity while the app is open to keep live delivery progress accurate and save battery during an active seller delivery.'" App/Info.plist 2>/dev/null || \
             /usr/libexec/PlistBuddy -c "Add :NSMotionUsageDescription string 'Sociva may use motion activity while the app is open to keep live delivery progress accurate and save battery during an active seller delivery.'" App/Info.plist
           /usr/libexec/PlistBuddy -c "Set :NSCalendarsUsageDescription 'Sociva needs calendar access so you can save service bookings to your calendar.'" App/Info.plist 2>/dev/null || \
@@ -2432,9 +2472,10 @@ workflows:
 
       - name: Copy Live Activity native plugin files
         script: |
-          echo "=== Copying Live Activity Swift files ==="
+          echo "=== Copying Live Activity + VoIP Swift files ==="
           cp native/ios/LiveActivityPlugin.swift ios/App/App/
           cp native/ios/LiveDeliveryActivity.swift ios/App/App/
+          cp native/ios/SocivaVoipPlugin.swift ios/App/App/
           echo "=== Adding Swift files to App target ==="
           cd ios/App
           ruby - << 'RUBY'
@@ -2444,7 +2485,7 @@ workflows:
           abort('App target not found') unless target
           group = project.main_group.find_subpath('App', true)
 
-          %w[LiveActivityPlugin.swift LiveDeliveryActivity.swift].each do |filename|
+          %w[LiveActivityPlugin.swift LiveDeliveryActivity.swift SocivaVoipPlugin.swift].each do |filename|
             ref = group.files.find { |f| f.path == filename } || group.new_file(filename)
             unless target.source_build_phase.files_references.any? { |f| f.path == filename }
               target.source_build_phase.add_file_reference(ref, true)
@@ -2452,7 +2493,7 @@ workflows:
           end
 
           project.save
-          puts "=== Live Activity plugin files added to App target ==="
+          puts "=== Live Activity + VoIP plugin files added to App target ==="
           RUBY
 
       - name: Create Live Activity Widget Extension
