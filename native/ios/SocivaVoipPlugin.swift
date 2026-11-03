@@ -38,7 +38,8 @@ public class SocivaVoipPlugin: CAPPlugin, CAPBridgedPlugin, PKPushRegistryDelega
     }
 
     private func setupCallKit() {
-        let config = CXProviderConfiguration(localizedName: "Sociva")
+        // iOS 14+: localizedName init is deprecated; display name comes from the app bundle.
+        let config = CXProviderConfiguration()
         config.supportsVideo = false
         config.maximumCallsPerCallGroup = 1
         config.supportedHandleTypes = [.generic]
@@ -48,6 +49,16 @@ public class SocivaVoipPlugin: CAPPlugin, CAPBridgedPlugin, PKPushRegistryDelega
         let provider = CXProvider(configuration: config)
         provider.setDelegate(self, queue: nil)
         self.provider = provider
+    }
+
+    /// PushKit payloads are [AnyHashable: Any]; CallKit helpers and JS events need [String: Any].
+    private func stringKeyedPayload(_ raw: [AnyHashable: Any]) -> [String: Any] {
+        var out: [String: Any] = [:]
+        out.reserveCapacity(raw.count)
+        for (key, value) in raw {
+            out[String(describing: key)] = value
+        }
+        return out
     }
 
     private func setupPushKit() {
@@ -150,7 +161,7 @@ public class SocivaVoipPlugin: CAPPlugin, CAPBridgedPlugin, PKPushRegistryDelega
             completion()
             return
         }
-        let dict = payload.dictionaryPayload
+        let dict = stringKeyedPayload(payload.dictionaryPayload)
         let callId = (dict["call_id"] as? String) ?? UUID().uuidString
         let callerName = (dict["caller_name"] as? String) ?? "Sociva"
         reportCallKitIncoming(callId: callId, callerName: callerName, payload: dict) { _, _ in
@@ -197,7 +208,7 @@ public class SocivaVoipPlugin: CAPPlugin, CAPBridgedPlugin, PKPushRegistryDelega
     private func configureAudioSession() {
         let session = AVAudioSession.sharedInstance()
         do {
-            try session.setCategory(.playAndRecord, mode: .voiceChat, options: [.allowBluetooth])
+            try session.setCategory(.playAndRecord, mode: .voiceChat, options: [.allowBluetoothHFP])
             try session.setActive(true)
         } catch {
             print("SocivaVoip audio session error: \(error)")
