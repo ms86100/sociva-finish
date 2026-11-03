@@ -2,7 +2,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
-import { Capacitor } from '@capacitor/core';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { CleanerCityGate } from '@/components/cleaner-city/CleanerCityGate';
 import { Button } from '@/components/ui/button';
@@ -14,6 +13,7 @@ import {
   useCancelRide,
   useCleanerCityRide,
   useCompleteRide,
+  useCleanerCityCapabilities,
   useConfirmCostShare,
   useCreateShareToken,
   useDispatchSafetyAlerts,
@@ -31,9 +31,11 @@ import {
   useReputation,
   useRequestMaskedCall,
   useRespondRideRequest,
+  useRevokeShareToken,
   useRideChat,
   useRideCostShares,
   useRideDisputeCase,
+  useRideLifecycleEvents,
   useRideLocations,
   useSendQuickMessage,
   useSendRideChat,
@@ -47,12 +49,19 @@ import { RideStatusStepper } from '@/components/cleaner-city/ride/RideStatusStep
 import { RidePrimaryActions } from '@/components/cleaner-city/ride/RidePrimaryActions';
 import { RideChatStrip } from '@/components/cleaner-city/ride/RideChatStrip';
 import { DropRunPanel } from '@/components/cleaner-city/ride/DropRunPanel';
+import { CleanerCityMeetingPointPicker } from '@/components/cleaner-city/CleanerCityMeetingPointPicker';
+import { CallButton } from '@/components/calling/CallButton';
 import { QUICK_MESSAGE_PHRASES } from '@/lib/cleaner-city/constants';
+import { resolveCleanerCityRideCall } from '@/lib/calling/resolveCallContext';
 import {
   canOpenDispute,
   canShowRideSos,
   canShowTripShare,
+  formatCountdown,
   formatStraightLineDistance,
+  locationFreshnessLabel,
+  locationFreshnessTone,
+  rideLifecycleEventLabel,
 } from '@/lib/cleaner-city/rideMissionCopy';
 import {
   buildDropOrderPayload,
@@ -62,13 +71,10 @@ import {
   type DropProgressStatus,
 } from '@/lib/cleaner-city/dropRun';
 import { useAuth } from '@/contexts/AuthContext';
+import { getCurrentPosition } from '@/lib/native-location';
+import { useCleanerCityRideTracking } from '@/hooks/useCleanerCityRideTracking';
 import {
-  getCurrentPosition,
-  requestBackgroundLocationPermission,
-} from '@/lib/native-location';
-import { enqueueLocation, flushLocationOutbox } from '@/lib/cleaner-city/locationOutbox';
-import { startAndroidCommuteTracking, stopAndroidCommuteTracking } from '@/lib/cleaner-city/commuteTracking';
-import {
+  decodePolyline,
   haversineMeters,
   openGoogleMapsDirections,
   planDropSequence,
@@ -94,10 +100,13 @@ export default function CleanerCityRidePage() {
   const { data: shares = [] } = useRideCostShares(id);
   const { data: meetupPoints = [] } = useMeetupPoints();
   const { data: quickMessages = [] } = useQuickMessages(id);
+  const { data: lifecycleEvents = [] } = useRideLifecycleEvents(id);
+  const { data: capabilities } = useCleanerCityCapabilities();
   const upsertLoc = useUpsertRideLocation();
   const report = useReportIncident();
   const dispatchSafety = useDispatchSafetyAlerts();
   const shareToken = useCreateShareToken();
+  const revokeShare = useRevokeShareToken();
   const generateOtp = useGenerateRideOtp();
   const startRide = useStartRide();
   const completeRide = useCompleteRide();
@@ -139,9 +148,9 @@ export default function CleanerCityRidePage() {
   const [rupees, setRupees] = useState('50');
   const [fuelPrefilled, setFuelPrefilled] = useState(false);
   const [shareUrl, setShareUrl] = useState('');
+  const [shareExpiresAt, setShareExpiresAt] = useState('');
   const [mapEl, setMapEl] = useState<HTMLDivElement | null>(null);
   const [meetingLabel, setMeetingLabel] = useState('');
-  const [backgroundSupported, setBackgroundSupported] = useState<boolean | null>(null);
   const [chatBody, setChatBody] = useState('');
   const [appealNote, setAppealNote] = useState('');
   const [disputeNote, setDisputeNote] = useState('');
@@ -164,11 +173,24 @@ export default function CleanerCityRidePage() {
   const [dropGps, setDropGps] = useState<LatLng | null>(null);
   const [markingStopId, setMarkingStopId] = useState<string | null>(null);
   const [celebrate, setCelebrate] = useState(false);
-  const [, setClockTick] = useState(0);
+  const [clockTick, setClockTick] = useState(0);
+  const [callingUnavailable, setCallingUnavailable] = useState(false);
 
   const isHost = ride?.host_user_id === user?.id;
-  const active = ride && ['pickup_pending', 'started'].includes(ride.status);
+  const active = !!ride && ['pickup_pending', 'started'].includes(ride.status);
   const canCoordinate = ride && ['confirmed', 'pickup_pending', 'started'].includes(ride.status);
+  const trackingStatus = useCleanerCityRideTracking(
+    active ? id : null,
+    active,
+    async (sample) => {
+      await upsertLoc.mutateAsync({
+        ride_id: sample.ride_id,
+        latitude: sample.latitude,
+        longitude: sample.longitude,
+        accuracy_meters: sample.accuracy_meters ?? null,
+      });
+    },
+  );
   const needsMeetingPoint =
     !!ride &&
     ['confirmed', 'pickup_pending'].includes(ride.status) &&
@@ -211,124 +233,7 @@ export default function CleanerCityRidePage() {
     }
   }, [ride, ride?.estimated_fuel_paise, fuelPrefilled]);
 
-  // Live location publisher - keeps publishing on an interval while this page
-  // is mounted and the ride is active. True background tracking depends on
-  // the native build; we ask for it as a courtesy but never rely on it.
-  useEffect(() => {
-    if (!active || !id) return;
-    let cancelled = false;
-
-    if (Capacitor.isNativePlatform()) {
-      requestBackgroundLocationPermission()
-        .then((res) => {
-          if (!cancelled) setBackgroundSupported(res.backgroundSupported);
-        })
-        .catch(() => {
-          if (!cancelled) setBackgroundSupported(false);
-        });
-    } else {
-      setBackgroundSupported(false);
-    }
-
-    const sendSample = async (sample: { ride_id: string; latitude: number; longitude: number }) => {
-      await upsertLoc.mutateAsync({
-        ride_id: sample.ride_id,
-        latitude: sample.latitude,
-        longitude: sample.longitude,
-      });
-    };
-
-    const tick = async () => {
-      try {
-        await flushLocationOutbox(sendSample);
-        const pos = await getCurrentPosition({ requestPermission: true });
-        if (cancelled) return;
-        await sendSample({ ride_id: id, latitude: pos.latitude, longitude: pos.longitude });
-      } catch {
-        try {
-          const pos = await getCurrentPosition({ requestPermission: false });
-          enqueueLocation({
-            ride_id: id,
-            latitude: pos.latitude,
-            longitude: pos.longitude,
-            recorded_at: new Date().toISOString(),
-          });
-        } catch {
-          // GPS optional; queued samples flush on the next successful tick
-        }
-      }
-    };
-    tick();
-    const t = setInterval(tick, 10000);
-    let watchId: string | null = null;
-    if (Capacitor.isNativePlatform() && backgroundSupported) {
-      import('@capacitor/geolocation')
-        .then(({ Geolocation }) =>
-          Geolocation.watchPosition({ enableHighAccuracy: true, timeout: 15000 }, (pos, err) => {
-            if (cancelled || err || !pos) return;
-            void sendSample({
-              ride_id: id,
-              latitude: pos.coords.latitude,
-              longitude: pos.coords.longitude,
-            }).catch(() => {
-              enqueueLocation({
-                ride_id: id,
-                latitude: pos.coords.latitude,
-                longitude: pos.coords.longitude,
-                recorded_at: new Date().toISOString(),
-              });
-            });
-          }),
-        )
-        .then((idWatch) => {
-          watchId = idWatch || null;
-        })
-        .catch(() => {});
-    }
-
-    // Re-tick immediately on resume (foreground regain) so the map catches up
-    // right away instead of waiting up to 10s - covers both native app
-    // lifecycle and the web Visibility API.
-    const onVisible = () => {
-      if (document.visibilityState === 'visible') void tick();
-    };
-    document.addEventListener('visibilitychange', onVisible);
-    let removeAppListener: (() => void) | undefined;
-    if (Capacitor.isNativePlatform()) {
-      import('@capacitor/app')
-        .then(({ App }) =>
-          App.addListener('appStateChange', ({ isActive }) => {
-            if (isActive) void tick();
-          }),
-        )
-        .then((sub) => {
-          removeAppListener = () => sub.remove();
-        })
-        .catch(() => {});
-    }
-
-    return () => {
-      cancelled = true;
-      clearInterval(t);
-      document.removeEventListener('visibilitychange', onVisible);
-      removeAppListener?.();
-      if (watchId) {
-        import('@capacitor/geolocation')
-          .then(({ Geolocation }) => Geolocation.clearWatch({ id: watchId }))
-          .catch(() => {});
-      }
-    };
-  }, [active, id, backgroundSupported]);
-
-  useEffect(() => {
-    if (!active || !id || Capacitor.getPlatform() !== 'android') return;
-    void startAndroidCommuteTracking(id).catch(() => {});
-    return () => {
-      void stopAndroidCommuteTracking();
-    };
-  }, [active, id]);
-
-  // Map render - markers + dotted path with straight-line distance
+  // Map: published route polyline + live H/G + meeting pin (Uber/Hopr style live layer)
   useEffect(() => {
     if (!isLoaded || !mapEl || !window.google?.maps) return;
     const map = new google.maps.Map(mapEl, {
@@ -345,21 +250,40 @@ export default function CleanerCityRidePage() {
       zoomControl: true,
     });
     const markers: google.maps.Marker[] = [];
-    let line: google.maps.Polyline | null = null;
+    let routeLine: google.maps.Polyline | null = null;
+    let gapLine: google.maps.Polyline | null = null;
     let distLabel: google.maps.Marker | null = null;
 
     const paint = () => {
       markers.splice(0).forEach((m) => m.setMap(null));
-      if (line) {
-        line.setMap(null);
-        line = null;
-      }
-      if (distLabel) {
-        distLabel.setMap(null);
-        distLabel = null;
-      }
+      routeLine?.setMap(null);
+      gapLine?.setMap(null);
+      distLabel?.setMap(null);
+      routeLine = null;
+      gapLine = null;
+      distLabel = null;
+
       const bounds = new google.maps.LatLngBounds();
       let any = false;
+
+      const routePath =
+        typeof ride?.route_polyline === 'string' && ride.route_polyline.length > 4
+          ? decodePolyline(ride.route_polyline)
+          : [];
+      if (routePath.length >= 2) {
+        routeLine = new google.maps.Polyline({
+          map,
+          path: routePath,
+          geodesic: true,
+          strokeColor: '#7BA88A',
+          strokeOpacity: 0.9,
+          strokeWeight: 5,
+        });
+        routePath.forEach((p) => bounds.extend(p));
+        any = true;
+        setMapDistanceLabel('Published road · live pins update as you move');
+      }
+
       const meet =
         ride?.meeting_point_latitude != null && ride?.meeting_point_longitude != null
           ? {
@@ -373,12 +297,13 @@ export default function CleanerCityRidePage() {
             map,
             position: meet,
             label: 'M',
-            title: ride.meeting_point_label || 'Meeting point',
+            title: ride.meeting_point_label || 'Meeting pin',
           }),
         );
         bounds.extend(meet);
         any = true;
       }
+
       const hostLoc = locations.find((l) => l.role === 'host') || locations[0];
       const guestLoc = locations.find((l) => l.role === 'guest');
       locations.forEach((loc) => {
@@ -402,11 +327,11 @@ export default function CleanerCityRidePage() {
         : meet && hostLoc
           ? meet
           : null;
-      if (a && b && (a.lat !== b.lat || a.lng !== b.lng)) {
+      if (a && b && (a.lat !== b.lat || a.lng !== b.lng) && routePath.length < 2) {
         const meters = haversineMeters(a, b);
         const label = formatStraightLineDistance(meters);
-        setMapDistanceLabel(label ? `About ${label} apart` : null);
-        line = new google.maps.Polyline({
+        setMapDistanceLabel(label ? `About ${label} apart (straight line)` : null);
+        gapLine = new google.maps.Polyline({
           map,
           path: [a, b],
           geodesic: true,
@@ -425,18 +350,11 @@ export default function CleanerCityRidePage() {
           ],
         });
         if (label) {
-          const mid = {
-            lat: (a.lat + b.lat) / 2,
-            lng: (a.lng + b.lng) / 2,
-          };
           distLabel = new google.maps.Marker({
             map,
-            position: mid,
+            position: { lat: (a.lat + b.lat) / 2, lng: (a.lng + b.lng) / 2 },
             clickable: false,
-            icon: {
-              path: google.maps.SymbolPath.CIRCLE,
-              scale: 0,
-            },
+            icon: { path: google.maps.SymbolPath.CIRCLE, scale: 0 },
             label: {
               text: label,
               color: '#A3C9A8',
@@ -445,12 +363,12 @@ export default function CleanerCityRidePage() {
             },
           });
         }
-      } else {
+      } else if (routePath.length < 2) {
         setMapDistanceLabel(null);
       }
 
       if (!any) return;
-      if (markers.length > 1) {
+      if (markers.length > 1 || routePath.length > 1) {
         map.fitBounds(bounds, 48);
       } else {
         map.setCenter(bounds.getCenter());
@@ -459,7 +377,8 @@ export default function CleanerCityRidePage() {
     paint();
     return () => {
       markers.forEach((m) => m.setMap(null));
-      line?.setMap(null);
+      routeLine?.setMap(null);
+      gapLine?.setMap(null);
       distLabel?.setMap(null);
     };
   }, [
@@ -469,6 +388,7 @@ export default function CleanerCityRidePage() {
     ride?.meeting_point_latitude,
     ride?.meeting_point_longitude,
     ride?.meeting_point_label,
+    ride?.route_polyline,
   ]);
 
   const pulseCelebrate = () => {
@@ -478,8 +398,14 @@ export default function CleanerCityRidePage() {
 
   useEffect(() => {
     if (!ride?.status) return;
-    if (!['requested', 'confirmed', 'pickup_pending'].includes(ride.status)) return;
-    const t = window.setInterval(() => setClockTick((n) => n + 1), 30_000);
+    if (
+      !['requested', 'confirmed', 'pickup_pending', 'started', 'safety_incident'].includes(
+        ride.status,
+      )
+    ) {
+      return;
+    }
+    const t = window.setInterval(() => setClockTick((n) => n + 1), 15_000);
     return () => window.clearInterval(t);
   }, [ride?.status]);
 
@@ -487,6 +413,21 @@ export default function CleanerCityRidePage() {
     () => shares.find((s: any) => s.status === 'proposed' && s.proposer_user_id !== user?.id),
     [shares, user?.id],
   );
+
+  const partnerLocation = useMemo(() => {
+    if (!locations.length) return null;
+    if (!user?.id) return locations[0];
+    return locations.find((l) => l.user_id !== user.id) || locations[0];
+  }, [locations, user?.id]);
+
+  // clockTick keeps freshness labels honest while the ride is live
+  void clockTick;
+  const partnerFreshness = locationFreshnessLabel(partnerLocation?.recorded_at);
+  const partnerTone = locationFreshnessTone(partnerLocation?.recorded_at);
+  const shareTtlHours = Number(capabilities?.share_link_ttl_hours || 2);
+  const sosSmsReady = capabilities?.sos_sms !== false;
+  const relayCallReady = capabilities?.relay_call === true;
+  const fuelCheckoutReady = capabilities?.fuel_checkout !== false;
 
   useEffect(() => {
     if (!ride || !isLoaded) {
@@ -813,110 +754,47 @@ export default function CleanerCityRidePage() {
           )}
 
           {canCoordinate && (
-            <div
-              id="cleaner-city-meeting-point-section"
-              className="rounded-2xl border border-border bg-card p-4 space-y-3"
-              data-testid="cleaner-city-meeting-point-section"
-            >
-              <div>
-                <p className="text-sm font-semibold">Meeting point</p>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Pick a clear spot so you do not miss each other.
-                </p>
-              </div>
-              {rankedMeetups.length > 0 && (
-                <div className="space-y-1" data-testid="cleaner-city-ranked-meetups">
-                  <p className="text-[11px] font-semibold">Suggested from saved points</p>
-                  {rankedMeetups.map((pt) => (
-                    <button
-                      key={pt.id}
-                      type="button"
-                      className="block w-full rounded-xl border border-border px-3 py-2 text-left text-xs"
-                      onClick={async () => {
-                        try {
-                          await setMeetingPoint.mutateAsync({
-                            ride_id: ride.id,
-                            label: pt.label,
-                            latitude: pt.latitude,
-                            longitude: pt.longitude,
-                          });
-                          toast.success(`Meeting point set: ${pt.label}`);
-                        } catch (e: any) {
-                          toast.error(e?.message || 'Could not set meeting point');
-                        }
-                      }}
-                    >
-                      {pt.label} · walk {Math.round(Number(pt.walk_meters) || 0)} m · about {pt.detour_minutes} min extra
-                    </button>
-                  ))}
-                </div>
-              )}
-              {meetupPoints.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {meetupPoints.map((pt) => (
-                    <button
-                      key={pt.id}
-                      type="button"
-                      onClick={async () => {
-                        try {
-                          await setMeetingPoint.mutateAsync({
-                            ride_id: ride.id,
-                            label: pt.label,
-                            latitude: pt.latitude,
-                            longitude: pt.longitude,
-                          });
-                          toast.success(`Meeting point set: ${pt.label}`);
-                        } catch (e: any) {
-                          toast.error(e?.message || 'Could not set meeting point');
-                        }
-                      }}
-                      disabled={setMeetingPoint.isPending}
-                      className="rounded-full border border-border px-3 py-1.5 text-xs font-semibold data-[active=true]:border-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary"
-                      data-active={ride.meeting_point_label === pt.label}
-                      data-testid={`cleaner-city-meetup-point-${pt.id}`}
-                    >
-                      {pt.label}
-                    </button>
-                  ))}
-                </div>
-              )}
-              {meetupPoints.length === 0 && (
-                <p className="text-[11px] text-muted-foreground">
-                  No society meetup points yet - use your current location instead.
-                </p>
-              )}
-              <div className="flex gap-2">
-                <Input
-                  placeholder="Custom label (e.g. Gate 2)"
-                  value={meetingLabel}
-                  onChange={(e) => setMeetingLabel(e.target.value)}
-                  className="h-9"
-                />
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={async () => {
-                    try {
-                      const pos = await getCurrentPosition({ requestPermission: true });
-                      await setMeetingPoint.mutateAsync({
-                        ride_id: ride.id,
-                        label: meetingLabel || 'My current location',
-                        latitude: pos.latitude,
-                        longitude: pos.longitude,
-                      });
-                      toast.success('Meeting point set from your location');
-                      setMeetingLabel('');
-                    } catch (e: any) {
-                      toast.error(e?.message || 'Could not get location');
-                    }
-                  }}
-                  disabled={setMeetingPoint.isPending}
-                  data-testid="cleaner-city-meeting-point-gps"
-                >
-                  Use GPS
-                </Button>
-              </div>
-            </div>
+            <CleanerCityMeetingPointPicker
+              rideId={ride.id}
+              currentLabel={ride.meeting_point_label}
+              currentLat={ride.meeting_point_latitude}
+              currentLng={ride.meeting_point_longitude}
+              guestPickupLat={ride.guest_pickup_latitude}
+              guestPickupLng={ride.guest_pickup_longitude}
+              guestPickupLabel="Guest pickup from request"
+              hostOriginLat={
+                offices.find((o) => o.is_primary)?.latitude ??
+                offices[0]?.latitude ??
+                null
+              }
+              hostOriginLng={
+                offices.find((o) => o.is_primary)?.longitude ??
+                offices[0]?.longitude ??
+                null
+              }
+              hostOriginLabel={
+                ride.origin_label ||
+                offices.find((o) => o.is_primary)?.label ||
+                'Host office / start'
+              }
+              savedSuggestions={[
+                ...rankedMeetups.map((pt) => ({
+                  id: String(pt.id),
+                  label: pt.label,
+                  latitude: Number(pt.latitude),
+                  longitude: Number(pt.longitude),
+                  hint: `~${Math.round(Number(pt.walk_meters) || 0)} m walk`,
+                })),
+                ...meetupPoints.map((pt) => ({
+                  id: String(pt.id),
+                  label: pt.label,
+                  latitude: Number(pt.latitude),
+                  longitude: Number(pt.longitude),
+                })),
+              ]}
+              saving={setMeetingPoint.isPending}
+              onSave={(input) => setMeetingPoint.mutateAsync(input)}
+            />
           )}
 
           {canCoordinate && (
@@ -994,6 +872,18 @@ export default function CleanerCityRidePage() {
                   </p>
                 ) : null}
               </div>
+              <p
+                className={
+                  partnerTone === 'live'
+                    ? 'text-[11px] font-semibold text-emerald-700 dark:text-emerald-300'
+                    : partnerTone === 'stale'
+                      ? 'text-[11px] font-semibold text-amber-800 dark:text-amber-200'
+                      : 'text-[11px] font-semibold text-muted-foreground'
+                }
+                data-testid="cleaner-city-location-freshness"
+              >
+                Partner: {partnerFreshness}
+              </p>
               <div
                 ref={setMapEl}
                 className="h-56 w-full rounded-2xl border border-border bg-muted overflow-hidden"
@@ -1002,14 +892,52 @@ export default function CleanerCityRidePage() {
               <p className="text-[11px] text-muted-foreground">
                 Dotted line is straight-line distance. Shared only with this ride.
               </p>
-              {!backgroundSupported ? (
+              <p
+                className="text-[11px] text-amber-800 dark:text-amber-200 bg-amber-500/10 border border-amber-500/30 rounded-xl px-3 py-2"
+                data-testid="cleaner-city-background-location-note"
+              >
+                {trackingStatus.honestyCopy}
+                {trackingStatus.trackingPaused ? ' Updates paused - reopen Sociva to resume.' : ''}
+                {trackingStatus.permissionDenied
+                  ? ' Location permission is required for the live map.'
+                  : ''}
+              </p>
+              {trackingStatus.lastSentAt ? (
                 <p
-                  className="text-[11px] text-amber-800 dark:text-amber-200 bg-amber-500/10 border border-amber-500/30 rounded-xl px-3 py-2"
-                  data-testid="cleaner-city-background-location-note"
+                  className="text-[11px] text-muted-foreground"
+                  data-testid="cleaner-city-tracking-last-sent"
                 >
-                  Keep Sociva open for the steadiest live map.
+                  Your ping:{' '}
+                  {locationFreshnessLabel(new Date(trackingStatus.lastSentAt).toISOString())}
                 </p>
               ) : null}
+            </div>
+          )}
+
+          {lifecycleEvents.length > 0 && (
+            <div
+              className="rounded-2xl border border-border bg-card p-4 space-y-2"
+              data-testid="cleaner-city-ride-timeline"
+            >
+              <p className="text-sm font-semibold">Ride evidence</p>
+              <p className="text-[11px] text-muted-foreground">
+                Status and safety milestones for this ride. Chat stays private - not listed here.
+              </p>
+              <ul className="space-y-1.5">
+                {lifecycleEvents.slice(-8).map((ev) => (
+                  <li
+                    key={ev.id}
+                    className="flex items-start justify-between gap-2 text-[11px]"
+                  >
+                    <span className="font-medium text-foreground">
+                      {rideLifecycleEventLabel(ev.event)}
+                    </span>
+                    <span className="text-muted-foreground shrink-0">
+                      {String(ev.created_at || '').slice(11, 16)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
 
@@ -1078,7 +1006,29 @@ export default function CleanerCityRidePage() {
                           longitude: lng,
                           severity: 'critical',
                         });
-                        void dispatchSafety.mutateAsync(null).catch(() => {});
+                        let smsOk = true;
+                        let smsDetail = '';
+                        try {
+                          const dispatched: any = await dispatchSafety.mutateAsync(
+                            result?.alert_id || null,
+                          );
+                          if (
+                            dispatched?.failed ||
+                            dispatched?.error ||
+                            dispatched?.sms_failed ||
+                            (Array.isArray(dispatched?.errors) && dispatched.errors.length)
+                          ) {
+                            smsOk = false;
+                            smsDetail =
+                              dispatched?.error ||
+                              dispatched?.message ||
+                              'SMS / call relay not configured';
+                          }
+                        } catch (dispatchErr: any) {
+                          smsOk = false;
+                          smsDetail =
+                            dispatchErr?.message || 'SMS dispatcher unavailable';
+                        }
                         const contacts = Number(result?.notified_contacts || 0);
                         const admins = Number(result?.notified_admins || 0);
                         const skipped = Number(result?.phone_only_contacts_skipped || 0);
@@ -1088,17 +1038,26 @@ export default function CleanerCityRidePage() {
                           const row = await shareToken.mutateAsync(ride.id);
                           const url = `${window.location.origin}/cleaner-city/share/${row.token}`;
                           setShareUrl(url);
+                          setShareExpiresAt(row.expires_at || '');
                         } catch {
                           /* share optional after SOS */
                         }
                         if (contacts + admins + counterpart === 0) {
-                          toast.message('SOS saved', {
-                            description: 'Nobody reachable in-app yet. Call 112 if in danger.',
+                          toast.message('SOS saved in app', {
+                            description:
+                              'Nobody reachable in-app yet. Call 112 if in danger.' +
+                              (!smsOk ? ` SMS: ${smsDetail}` : ''),
                           });
                         } else {
                           toast.success(
                             `Alerted partner ${counterpart}, contacts ${contacts}, admins ${admins}` +
-                              (skipped > 0 ? ` · ${skipped} phone-only need SMS setup` : ''),
+                              (skipped > 0 ? ` · ${skipped} phone-only need SMS setup` : '') +
+                              (!smsOk ? ` · SMS not sent (${smsDetail})` : ''),
+                          );
+                        }
+                        if (!smsOk) {
+                          toast.error(
+                            `Phone SMS/call relay failed: ${smsDetail}. In-app alerts still ran. Call 112 if needed.`,
                           );
                         }
                       } catch (e: any) {
@@ -1121,8 +1080,11 @@ export default function CleanerCityRidePage() {
                         const row = await shareToken.mutateAsync(ride.id);
                         const url = `${window.location.origin}/cleaner-city/share/${row.token}`;
                         setShareUrl(url);
+                        setShareExpiresAt(row.expires_at || '');
                         await navigator.clipboard?.writeText(url);
-                        toast.success('Trip link copied - send to family');
+                        toast.success(
+                          `Trip link copied - expires in about ${shareTtlHours}h. Send to family only.`,
+                        );
                       } catch (e: any) {
                         toast.error(e?.message || 'Share failed');
                       }
@@ -1133,6 +1095,38 @@ export default function CleanerCityRidePage() {
                   </Button>
                 ) : null}
               </div>
+              {shareUrl ? (
+                <div
+                  className="rounded-xl border border-border bg-muted/40 p-3 space-y-2"
+                  data-testid="cleaner-city-share-active"
+                >
+                  <p className="text-[11px] break-all text-muted-foreground">{shareUrl}</p>
+                  <p className="text-[11px] text-muted-foreground">
+                    {shareExpiresAt
+                      ? `Expires ${formatCountdown(shareExpiresAt) || String(shareExpiresAt).slice(0, 19)}. Anyone with the link can see live pins until then.`
+                      : `Link expires in about ${shareTtlHours} hours. Revoke anytime.`}
+                  </p>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-9 font-semibold"
+                    disabled={revokeShare.isPending}
+                    onClick={async () => {
+                      try {
+                        await revokeShare.mutateAsync(ride.id);
+                        setShareUrl('');
+                        setShareExpiresAt('');
+                        toast.success('Trip share link revoked');
+                      } catch (e: any) {
+                        toast.error(e?.message || 'Could not revoke share link');
+                      }
+                    }}
+                    data-testid="cleaner-city-trip-share-revoke"
+                  >
+                    Revoke link
+                  </Button>
+                </div>
+              ) : null}
               {sosResult ? (
                 <div
                   className="rounded-xl border border-destructive/30 bg-destructive/10 p-3 space-y-2"
@@ -1157,46 +1151,80 @@ export default function CleanerCityRidePage() {
                       <Link to="/cleaner-city/safety">Safety contacts</Link>
                     </Button>
                   </div>
-                  {shareUrl ? (
-                    <p className="text-[11px] break-all text-muted-foreground">{shareUrl}</p>
-                  ) : null}
                 </div>
               ) : (
                 <p className="text-[11px] text-muted-foreground" data-testid="cleaner-city-sos-explainer">
                   SOS alerts your ride partner, linked Sociva contacts, and society admins in the app.
+                  {sosSmsReady
+                    ? ' Phone SMS for contacts without Sociva runs when MSG91 SOS is configured.'
+                    : ' Phone SMS for contacts without Sociva is not configured yet - in-app alerts still run.'}{' '}
                   This is not a 112 dialer - call 112 for immediate danger.{' '}
                   <Link to="/cleaner-city/safety" className="font-semibold text-primary">
                     Manage contacts
                   </Link>
                 </p>
               )}
-              {shareUrl && !sosResult ? (
-                <p className="text-[11px] break-all text-muted-foreground">{shareUrl}</p>
-              ) : null}
             </div>
           )}
 
           {['confirmed', 'pickup_pending', 'started'].includes(ride.status) && (
-            <Button
-              variant="outline"
-              className="w-full h-11 font-semibold"
-              disabled={maskedCall.isPending}
-              onClick={async () => {
-                try {
-                  const res = await maskedCall.mutateAsync(ride.id);
-                  if (res?.dispatch_error || res?.dispatch?.failed) {
-                    toast.error('Relay call was queued, but calling is not configured yet');
-                  } else {
-                    toast.success('Relay call requested. Your number stays hidden.');
-                  }
-                } catch (e: any) {
-                  toast.error(e?.message || 'Could not start a relay call');
+            <div className="space-y-2" data-testid="cleaner-city-call-panel">
+              <CallButton
+                contextType={resolveCleanerCityRideCall(ride.id).contextType}
+                contextId={ride.id}
+                onFallback={() => {
+                  setCallingUnavailable(true);
+                  toast.message('Use ride chat for now - voice calling is not live yet');
+                }}
+              />
+              <Button
+                variant="ghost"
+                className="w-full h-10 font-semibold"
+                disabled={
+                  maskedCall.isPending || callingUnavailable || capabilities?.relay_call === false
                 }
-              }}
-              data-testid="cleaner-city-masked-call"
-            >
-              Relay call (number hidden)
-            </Button>
+                onClick={async () => {
+                  if (callingUnavailable || capabilities?.relay_call === false) {
+                    toast.message('Use ride chat for now - PSTN relay is not live yet');
+                    return;
+                  }
+                  try {
+                    const res = await maskedCall.mutateAsync(ride.id);
+                    if (
+                      res?.dispatch_error ||
+                      res?.dispatch?.failed ||
+                      (res?.status === 'pending' && !res?.sid && !res?.call_sid)
+                    ) {
+                      setCallingUnavailable(true);
+                      toast.error(
+                        'PSTN relay is not available yet. Message your partner in chat below.',
+                      );
+                      return;
+                    }
+                    toast.success('Relay call requested. Your number stays hidden.');
+                  } catch (e: any) {
+                    setCallingUnavailable(true);
+                    toast.error(
+                      e?.message ||
+                        'PSTN relay is not available yet. Use ride chat instead.',
+                    );
+                  }
+                }}
+                data-testid="cleaner-city-masked-call"
+              >
+                {callingUnavailable || capabilities?.relay_call === false
+                  ? 'PSTN relay not available'
+                  : 'Fallback: relay call (number hidden)'}
+              </Button>
+              <p
+                className="text-[11px] text-muted-foreground px-1"
+                data-testid="cleaner-city-call-honesty"
+              >
+                {relayCallReady
+                  ? 'Prefer in-app Call when LiveKit is enabled. PSTN relay stays as fallback.'
+                  : 'In-app VoIP needs LiveKit. PSTN relay needs Twilio. Use ride chat until either is live.'}
+              </p>
+            </div>
           )}
 
           {canOpenDispute(ride.status) && !disputeCase && (
@@ -1338,6 +1366,14 @@ export default function CleanerCityRidePage() {
 
               <div className="pt-2 border-t border-border space-y-2">
                 <Label>Propose fuel share (INR)</Label>
+                {shares.length === 0 ? (
+                  <p className="text-[11px] text-muted-foreground" data-testid="cleaner-city-fuel-empty">
+                    No fuel share yet. Propose an amount below - this is voluntary, not a metered fare.
+                    {capabilities && !fuelCheckoutReady
+                      ? ' Online fuel checkout is not configured yet - you can still propose and settle offline.'
+                      : ''}
+                  </p>
+                ) : null}
                 <Input
                   type="number"
                   min={0}
@@ -1352,6 +1388,10 @@ export default function CleanerCityRidePage() {
                   onClick={async () => {
                     try {
                       const paise = Math.round(Number(rupees) * 100);
+                      if (!Number.isFinite(paise) || paise <= 0) {
+                        toast.error('Enter a fuel share amount greater than zero');
+                        return;
+                      }
                       await proposeShare.mutateAsync({
                         ride_id: ride.id,
                         amount_paise: paise,
