@@ -104,7 +104,12 @@ export function AppShellGate() {
 
   // Only signed-out website visitors. Checking this before the session is known
   // treats a restoring login as a guest and starts the / to /landing loop.
-  if (!Capacitor.isNativePlatform() && !user && isGuestBrowsePath(path)) {
+  // Localhost keeps guest browse so motion/QA and Playwright can exercise the marketplace
+  // without a marketing redirect (production web still lands on /landing).
+  const isLocalHost =
+    typeof window !== 'undefined' &&
+    (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+  if (!Capacitor.isNativePlatform() && !user && isGuestBrowsePath(path) && !isLocalHost) {
     return <Navigate to="/landing" replace />;
   }
 

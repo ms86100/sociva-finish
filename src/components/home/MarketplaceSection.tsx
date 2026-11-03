@@ -18,6 +18,9 @@ import { NearbySellersSection } from '@/components/marketplace/NearbySellersSect
 import { showFeedback } from '@/components/FeedbackPopupProvider';
 import { LazySection } from '@/components/home/LazySection';
 import { ProductListingCard, ProductWithSeller } from '@/components/product/ProductListingCard';
+import { motion } from 'framer-motion';
+import { staggerContainer } from '@/lib/motion-variants';
+import { ProductGridSkeleton } from '@/components/placeholders/ProductGridSkeleton';
 import { GroupedSellerRow } from '@/components/home/GroupedSellerRow';
 import { IntentProductRail } from '@/components/discovery/IntentProductRail';
 import { useIntentRailModel } from '@/hooks/useIntentRailModel';
@@ -377,6 +380,21 @@ export function MarketplaceSection() {
     );
   }
 
+  if (marketplaceStatus === 'loading') {
+    return (
+      <div className="pb-2" data-testid="marketplace-status-loading">
+        {discoveryIntents.length > 0 && (
+          <div className="sticky top-[var(--app-header-offset,0px)] z-[34] isolate w-full bg-background pt-2.5 pb-0.5">
+            <DiscoveryChipRail intents={discoveryIntents} showTitle={false} className="!pt-0" />
+          </div>
+        )}
+        <div className="px-4 py-4">
+          <ProductGridSkeleton count={8} variant="food" />
+        </div>
+      </div>
+    );
+  }
+
   if (marketplaceStatus === 'empty') {
     return (
       <div className="pb-2">
@@ -495,8 +513,15 @@ export function MarketplaceSection() {
               </p>
             </div>
           </div>
-          {visibleSearchProducts.length > 0 ? (
-            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-3">
+          {searchFetching && visibleSearchProducts.length === 0 ? (
+            <ProductGridSkeleton count={6} variant="food" />
+          ) : visibleSearchProducts.length > 0 ? (
+            <motion.div
+              className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-3"
+              variants={staggerContainer}
+              initial="hidden"
+              animate="show"
+            >
               {visibleSearchProducts.map((product) => (
                 <ProductListingCard
                   key={product.id}
@@ -506,7 +531,7 @@ export function MarketplaceSection() {
                   categoryConfigs={categoryConfigs as any}
                 />
               ))}
-            </div>
+            </motion.div>
           ) : (
             <div className="p-6 rounded-2xl bg-muted/40 text-center border border-dashed border-border">
               <p className="text-sm font-medium text-foreground">
@@ -557,7 +582,12 @@ export function MarketplaceSection() {
             </button>
           </div>
           {facetFilteredProducts.length > 0 ? (
-            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-3">
+            <motion.div
+              className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-3"
+              variants={staggerContainer}
+              initial="hidden"
+              animate="show"
+            >
               {facetFilteredProducts.map((product) => (
                 <ProductListingCard
                   key={product.id}
@@ -567,7 +597,7 @@ export function MarketplaceSection() {
                   categoryConfigs={categoryConfigs as any}
                 />
               ))}
-            </div>
+            </motion.div>
           ) : (
             <div className="p-6 rounded-2xl bg-muted/40 text-center border border-dashed border-border">
               <p className="text-sm font-medium text-foreground">No listings match these filters</p>

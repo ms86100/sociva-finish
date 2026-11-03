@@ -25,7 +25,8 @@ import { ScheduleCtaLabel } from '@/components/product/ScheduleCtaLabel';
 import { ProductFavoriteButton } from '@/components/favorite/ProductFavoriteButton';
 import { useAuth } from '@/contexts/AuthContext';
 import { listingPlaceholderGlyph } from '@/lib/category-chip-visual';
-import { optimizedImageUrl, imageSrcSet } from '@/utils/imageHelpers';
+import { optimizedImageUrl, imageSrcSet, blurUpImageUrl } from '@/utils/imageHelpers';
+import { cardEntrance } from '@/lib/motion-variants';
 import { SellerLocationLine } from '@/components/location/SellerLocationLine';
 import { listingPlaceChip } from '@/lib/location-label-resolver';
 import { homeServiceBuyerLabel } from '@/lib/home-service-label';
@@ -242,20 +243,21 @@ function ProductListingCardInner({ product, layout = 'auto', onTap, onNavigate, 
   }, [handleAdd]);
 
   const fallbackCatImage = catConfig?.imageUrl || (catConfig as any)?.image_url || null;
-  const imgSrc = (product.image_url || fallbackCatImage)
-    ? optimizedImageUrl(product.image_url || fallbackCatImage, { width: 480, quality: 85 })
+  const rawImage = product.image_url || fallbackCatImage;
+  const imgSrc = rawImage
+    ? optimizedImageUrl(rawImage, { width: 480, quality: 85 })
     : '';
-  const imgSrcSet = (product.image_url || fallbackCatImage)
-    ? imageSrcSet(product.image_url || fallbackCatImage, 85)
+  const imgSrcSet = rawImage
+    ? imageSrcSet(rawImage, 85)
     : '';
+  const imgBlur = rawImage ? blurUpImageUrl(rawImage) : '';
 
   return (
     <motion.div
       ref={cardRef}
       onClick={handleCardClick}
       whileTap={{ scale: 0.985 }}
-      initial={false}
-      variants={{ hidden: { opacity: 0, y: 12, scale: 0.98 }, show: { opacity: 1, y: 0, scale: 1 } }}
+      variants={cardEntrance}
       transition={{ type: 'spring', stiffness: 420, damping: 28 }}
       className={cn(
         'group/card w-full min-w-0 rounded-2xl cursor-pointer flex flex-col relative',
@@ -279,11 +281,22 @@ function ProductListingCardInner({ product, layout = 'auto', onTap, onNavigate, 
           'relative w-full overflow-hidden product-image-bg rounded-t-2xl',
           compact ? 'h-[120px]' : 'aspect-[4/3]'
         )}>
-          {(product.image_url || fallbackCatImage) && !imgLoaded && !imgFailed && (
-            <div className="absolute inset-0 product-image-shimmer" aria-hidden />
+          {rawImage && !imgLoaded && !imgFailed && (
+            <>
+              <div className="absolute inset-0 product-image-shimmer z-[1]" aria-hidden />
+              {imgBlur ? (
+                <img
+                  src={imgBlur}
+                  alt=""
+                  aria-hidden
+                  className="absolute inset-0 w-full h-full object-cover object-center scale-105 blur-md opacity-70"
+                  decoding="async"
+                />
+              ) : null}
+            </>
           )}
 
-          {(product.image_url || fallbackCatImage) && !imgFailed ? (
+          {rawImage && !imgFailed ? (
             <img
               src={imgSrc}
               srcSet={imgSrcSet || undefined}
@@ -296,6 +309,12 @@ function ProductListingCardInner({ product, layout = 'auto', onTap, onNavigate, 
               )}
               loading="lazy"
               decoding="async"
+              ref={(el) => {
+                // Cached images often skip a meaningful onLoad; avoid shimmer flash.
+                if (el && el.complete && el.naturalWidth > 0 && !imgLoaded) {
+                  setImgLoaded(true);
+                }
+              }}
               onLoad={() => setImgLoaded(true)}
               onError={() => setImgFailed(true)}
             />

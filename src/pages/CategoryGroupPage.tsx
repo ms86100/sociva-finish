@@ -8,7 +8,10 @@ import { ListingClosedStrip } from '@/components/product/ListingClosedStrip';
 import { ProductDetailSheet } from '@/components/product/ProductDetailSheet';
 import { SellerCard } from '@/components/seller/SellerCard';
 import { SearchAutocomplete } from '@/components/search/SearchAutocomplete';
-import { Skeleton } from '@/components/ui/skeleton';
+import { CategoryPageSkeleton } from '@/components/placeholders/MarketplaceShellSkeletons';
+import { ProductGridSkeleton } from '@/components/placeholders/ProductGridSkeleton';
+import { motion } from 'framer-motion';
+import { staggerContainer } from '@/lib/motion-variants';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useCategoryConfigs } from '@/hooks/useCategoryBehavior';
@@ -303,17 +306,7 @@ export default function CategoryGroupPage() {
     return (
       <AppLayout showHeader={false}>
         <div className="p-4">
-          <Skeleton className="h-10 w-full rounded-xl mb-4" />
-          <div className="flex gap-2 mb-4">
-            {[1, 2, 3, 4].map((i) => (
-              <Skeleton key={i} className="h-8 w-20 rounded-full" />
-            ))}
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-3">
-            {[1, 2, 3, 4, 5, 6].map((i) => (
-              <Skeleton key={i} className="h-56 w-full rounded-xl" />
-            ))}
-          </div>
+          <CategoryPageSkeleton />
         </div>
       </AppLayout>
     );
@@ -427,18 +420,19 @@ export default function CategoryGroupPage() {
       {/* Product Grid */}
       <div className="p-4 pb-6">
         {productsLoading ? (
-          <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-3.5">
-            {[1, 2, 3, 4, 5, 6].map((i) => (
-              <Skeleton key={i} className="h-56 w-full rounded-2xl" />
-            ))}
-          </div>
+          <ProductGridSkeleton count={6} variant="food" />
         ) : displayProducts.length > 0 ? (
           <>
             <p className="text-[11px] text-muted-foreground mb-3 px-0.5">
               {`${displayProducts.length} ${displayProducts.length === 1 ? 'item' : 'items'}`}
             </p>
             {closedStrip && <ListingClosedStrip model={closedStrip} />}
-            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-3.5">
+            <motion.div
+              className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-3.5"
+              variants={staggerContainer}
+              initial="hidden"
+              animate="show"
+            >
               {displayProducts.map((product) => (
                 <ProductListingCard
                   key={product.id}
@@ -448,7 +442,7 @@ export default function CategoryGroupPage() {
                   categoryConfigs={categoryConfigs as any}
                 />
               ))}
-            </div>
+            </motion.div>
           </>
         ) : (
           <div className="text-center py-16">

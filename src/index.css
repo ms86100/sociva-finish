@@ -631,6 +631,11 @@
     .group-hover\/grid\:scale-\[1\.03\] {
       transform: none !important;
     }
+    /* Base Skeleton shimmer sweep (Tailwind animate-[shimmer_*]) */
+    [data-skeleton] > div {
+      animation: none !important;
+      transform: none !important;
+    }
   }
 
   /* Section header style */

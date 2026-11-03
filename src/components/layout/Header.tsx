@@ -1,11 +1,12 @@
 // @ts-nocheck
 import { useState, useCallback, useMemo, memo, useRef, useLayoutEffect, useEffect, lazy, Suspense } from 'react';
 import { Bell, MapPin, ChevronDown, Search, ShoppingCart, X } from 'lucide-react';
-
+import { AnimatePresence, motion } from 'framer-motion';
 import { useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
+import { badgePop, qtyPop } from '@/lib/motion-variants';
 import { TypewriterPlaceholder } from '@/components/search/TypewriterPlaceholder';
 import { SearchAutocomplete } from '@/components/search/SearchAutocomplete';
 import { useImmediateNavigate } from '@/hooks/useImmediateNavigate';
@@ -234,17 +235,26 @@ function HeaderInner({
                       data-testid="header-cart"
                     >
                       <ShoppingCart size={18} />
-                      {cartCount > 0 && (
-                        <span
-                          className={cn(
-                            'absolute top-0.5 right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-bold text-primary-foreground ring-2',
-                            marketplaceChrome ? 'ring-[#1A5C3A]' : 'ring-background',
-                          )}
-                          data-testid="header-cart-badge"
-                        >
-                          {cartCount > 9 ? '9+' : cartCount}
-                        </span>
-                      )}
+                      <AnimatePresence>
+                        {cartCount > 0 && (
+                          <motion.span
+                            key={cartCount}
+                            variants={badgePop}
+                            initial="hidden"
+                            animate="show"
+                            exit="hidden"
+                            className={cn(
+                              'absolute top-0.5 right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-bold text-primary-foreground ring-2',
+                              marketplaceChrome ? 'ring-[#1A5C3A]' : 'ring-background',
+                            )}
+                            data-testid="header-cart-badge"
+                          >
+                            <motion.span key={`n-${cartCount}`} variants={qtyPop} initial="initial" animate="animate">
+                              {cartCount > 9 ? '9+' : cartCount}
+                            </motion.span>
+                          </motion.span>
+                        )}
+                      </AnimatePresence>
                     </Button>
                   )}
                   {!user ? (

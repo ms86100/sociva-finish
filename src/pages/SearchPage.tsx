@@ -1,14 +1,14 @@
 // @ts-nocheck
 import { useEffect, useMemo, useRef, useState, lazy, Suspense } from 'react';
 import { motion } from 'framer-motion';
-import { staggerGrid, cardEntrance } from '@/lib/motion-variants';
+import { staggerGrid } from '@/lib/motion-variants';
 import { Link, useLocation, useNavigationType } from 'react-router-dom';
 import { Capacitor } from '@capacitor/core';
 import { useBackInterceptor } from '@/hooks/useBackInterceptor';
 import { Input } from '@/components/ui/input';
 import { SearchFilters } from '@/components/search/SearchFilters';
 import { FilterPresets } from '@/components/search/FilterPresets';
-import { Skeleton } from '@/components/ui/skeleton';
+import { SearchResultsSkeleton } from '@/components/placeholders/SearchResultsSkeleton';
 import { ProductListingCard, ProductWithSeller } from '@/components/product/ProductListingCard';
 import { MarketplaceConfig } from '@/hooks/useMarketplaceConfig';
 import { BadgeConfigRow } from '@/hooks/useBadgeConfig';
@@ -364,8 +364,8 @@ export default function SearchPage() {
 
           {/* Results: idle search is for typing, not dumping the home catalog. */}
           {s.showLoading ? (
-            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5 mt-2">
-              {[1, 2, 3, 4, 5, 6].map((i) => <Skeleton key={i} className="h-52 w-full rounded-xl" />)}
+            <div className="mt-2">
+              <SearchResultsSkeleton count={6} />
             </div>
           ) : s.isSearchActive && visibleProducts.length > 0 ? (
             <>
@@ -476,9 +476,15 @@ function ProductGridByCategory({ products, facetRows, sellersById, categoryMap, 
               key={cat}
             >
               {items.map((p) => (
-                <motion.div key={p.product_id} variants={cardEntrance}>
-                  <ProductListingCard product={toProductWithSeller(p, facetRows?.[p.product_id], sellersById.get(p.seller_id))} categoryConfigs={categoryConfigs as any} marketplaceConfig={marketplaceConfig} badgeConfigs={badgeConfigs} onNavigate={onNavigate} onTap={onProductTap} />
-                </motion.div>
+                <ProductListingCard
+                  key={p.product_id}
+                  product={toProductWithSeller(p, facetRows?.[p.product_id], sellersById.get(p.seller_id))}
+                  categoryConfigs={categoryConfigs as any}
+                  marketplaceConfig={marketplaceConfig}
+                  badgeConfigs={badgeConfigs}
+                  onNavigate={onNavigate}
+                  onTap={onProductTap}
+                />
               ))}
             </motion.div>
           </div>

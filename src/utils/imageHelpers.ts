@@ -52,6 +52,14 @@ export function imageSrcSet(
     .join(', ');
 }
 
+/**
+ * Tiny preview for blur-up loading. Empty string when URL cannot be transformed.
+ */
+export function blurUpImageUrl(url: string | null | undefined): string {
+  if (!url) return '';
+  return optimizedImageUrl(url, { width: 24, quality: 30 });
+}
+
 /** Neutral SVG tile when a listing photo fails (avoids blank/hidden thumbs). */
 export const IMAGE_ERROR_PLACEHOLDER =
   "data:image/svg+xml," +

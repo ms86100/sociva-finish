@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { hapticSelection } from '@/lib/haptics';
+import { easings } from '@/lib/motion-variants';
 import { DynamicIcon } from '@/components/ui/DynamicIcon';
 import { optimizedImageUrl } from '@/utils/imageHelpers';
 import {
@@ -141,12 +143,14 @@ function ChipButton({
   const src = overrideSrc || preferred;
 
   return (
-    <button
+    <motion.button
       type="button"
       aria-pressed={selected}
       onClick={onActivate}
+      whileTap={{ scale: 0.96 }}
+      transition={easings.snappy}
       className={cn(
-        'flex flex-col items-center active:scale-95',
+        'flex flex-col items-center',
         lobby ? 'min-w-0 w-full gap-1.5' : 'w-[4.5rem] shrink-0 gap-1.5',
       )}
     >
@@ -199,6 +203,6 @@ function ChipButton({
       )}>
         {intent.label}
       </span>
-    </button>
+    </motion.button>
   );
 }

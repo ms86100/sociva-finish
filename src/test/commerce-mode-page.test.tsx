@@ -66,8 +66,8 @@ vi.mock('@/components/discovery/CommerceFacetRail', () => ({
   CommerceFacetRail: () => <div data-testid="facet-rail" />,
 }));
 
-vi.mock('@/components/product/ProductCardSkeleton', () => ({
-  ProductCardSkeleton: () => <div data-testid="skeleton" />,
+vi.mock('@/components/placeholders/ProductGridSkeleton', () => ({
+  ProductGridSkeleton: () => <div data-testid="skeleton" />,
 }));
 
 vi.mock('@/components/product/ProductListingCard', () => ({

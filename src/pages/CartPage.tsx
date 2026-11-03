@@ -24,6 +24,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { AlertCircle } from 'lucide-react';
 import { CartClearedAnimation } from '@/components/cart/CartClearedAnimation';
 import { CartEmptyExperience } from '@/components/cart/CartEmptyExperience';
+import { CartSkeleton } from '@/components/placeholders/CartCheckoutSkeleton';
 import { readClearedCartSnapshot, saveClearedCartSnapshot } from '@/lib/cleared-cart';
 import { AddressPicker } from '@/components/profile/AddressPicker';
 import { PreciseLocationRequiredCard } from '@/components/location/PreciseLocationRequiredCard';
@@ -86,14 +87,14 @@ export default function CartPage() {
       <AppLayout showHeader={false} showCart={false} safeTop={false}>
         <div className="p-4 safe-top">
           <BackButton fallback="/" className="mb-6" />
-          <div className="text-center py-16">
-            <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-muted flex items-center justify-center animate-pulse"><span className="text-4xl">🛒</span></div>
-            <p className="text-sm text-muted-foreground">
-              {c.isResolvingPaymentSession
-                ? 'Clearing a previous unpaid checkout…'
-                : 'Loading your cart…'}
-            </p>
-          </div>
+          {c.isResolvingPaymentSession ? (
+            <div className="text-center py-16">
+              <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-muted flex items-center justify-center animate-pulse"><span className="text-4xl">🛒</span></div>
+              <p className="text-sm text-muted-foreground">Clearing a previous unpaid checkout…</p>
+            </div>
+          ) : (
+            <CartSkeleton lines={3} />
+          )}
         </div>
       </AppLayout>
     );

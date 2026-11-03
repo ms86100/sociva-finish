@@ -17,7 +17,7 @@ import { canScheduleWhileClosed, formatScheduleCta, scheduleHoursFromProduct, VA
 import { ScheduleCtaLabel } from '@/components/product/ScheduleCtaLabel';
 import { useCategoryConfig } from '@/hooks/queries/useCategoryConfig';
 import { listingPlaceholderGlyph } from '@/lib/category-chip-visual';
-import { optimizedImageUrl, imageSrcSet } from '@/utils/imageHelpers';
+import { optimizedImageUrl, imageSrcSet, blurUpImageUrl } from '@/utils/imageHelpers';
 import { useVariantProductIds } from '@/hooks/useProductVariants';
 import { openVariantPicker } from '@/lib/variant-picker-store';
 
@@ -144,7 +144,18 @@ export function ProductGridCard({ product, behavior, onTap, className, viewOnly 
       <div className="relative p-2 pb-0">
         <div className="relative aspect-[4/3] rounded-xl overflow-hidden product-image-bg">
           {product.image_url && !imgLoaded && !imgFailed && (
-            <div className="absolute inset-0 product-image-shimmer" aria-hidden />
+            <>
+              <div className="absolute inset-0 product-image-shimmer z-[1]" aria-hidden />
+              {blurUpImageUrl(product.image_url) ? (
+                <img
+                  src={blurUpImageUrl(product.image_url)}
+                  alt=""
+                  aria-hidden
+                  className="absolute inset-0 w-full h-full object-cover scale-105 blur-md opacity-70"
+                  decoding="async"
+                />
+              ) : null}
+            </>
           )}
           {product.image_url && !imgFailed ? (
             <img

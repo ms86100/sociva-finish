@@ -17,7 +17,7 @@ import { computeStoreStatus, formatStoreClosedMessage } from '@/lib/store-availa
 import { canScheduleWhileClosed, formatScheduleCta, scheduleHoursFromProduct, VACATION_BUYER_CTA } from '@/lib/store-schedule';
 import { ScheduleCtaLabel } from '@/components/product/ScheduleCtaLabel';
 import { listingPlaceholderGlyph } from '@/lib/category-chip-visual';
-import { optimizedImageUrl, imageSrcSet } from '@/utils/imageHelpers';
+import { optimizedImageUrl, imageSrcSet, blurUpImageUrl } from '@/utils/imageHelpers';
 import { useCategoryConfigs } from '@/hooks/useCategoryBehavior';
 import { resolveListingAction } from '@/lib/commerce-mode';
 import { useVariantProductIds } from '@/hooks/useProductVariants';
@@ -116,7 +116,21 @@ export function ProductCard({ product, variant = 'horizontal', onTap }: ProductC
   const imageEl = (width: number, className?: string) => (
     <>
       {product.image_url && !imgLoaded && !imgFailed && (
-        <div className="absolute inset-0 product-image-shimmer" aria-hidden />
+        <>
+          <div className="absolute inset-0 product-image-shimmer z-[1]" aria-hidden />
+          {(() => {
+            const blur = blurUpImageUrl(product.image_url);
+            return blur ? (
+              <img
+                src={blur}
+                alt=""
+                aria-hidden
+                className="absolute inset-0 w-full h-full object-cover scale-105 blur-md opacity-70"
+                decoding="async"
+              />
+            ) : null;
+          })()}
+        </>
       )}
       {product.image_url && !imgFailed ? (
         <img
@@ -131,6 +145,9 @@ export function ProductCard({ product, variant = 'horizontal', onTap }: ProductC
           )}
           loading="lazy"
           decoding="async"
+          ref={(el) => {
+            if (el && el.complete && el.naturalWidth > 0 && !imgLoaded) setImgLoaded(true);
+          }}
           onLoad={() => setImgLoaded(true)}
           onError={() => setImgFailed(true)}
         />

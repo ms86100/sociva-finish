@@ -2,7 +2,7 @@
 import { Link, useParams } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { SafeHeader } from '@/components/layout/SafeHeader';
-import { Skeleton } from '@/components/ui/skeleton';
+import { CheckoutSkeleton } from '@/components/placeholders/CartCheckoutSkeleton';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCheckoutGroup } from '@/hooks/useCheckoutGroup';
@@ -39,11 +39,7 @@ export default function CheckoutDetailPage() {
 
       <div className="px-4 pb-8 space-y-4">
         {isLoading ? (
-          <div className="space-y-3 pt-2">
-            <Skeleton className="h-24 w-full rounded-2xl" />
-            <Skeleton className="h-32 w-full rounded-2xl" />
-            <Skeleton className="h-32 w-full rounded-2xl" />
-          </div>
+          <CheckoutSkeleton />
         ) : error || orders.length === 0 ? (
           <div className="text-center py-16 space-y-3">
             <Store className="mx-auto text-muted-foreground" size={28} />

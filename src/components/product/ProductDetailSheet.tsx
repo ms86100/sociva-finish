@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState, lazy, Suspense } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
-import { fadeSlideUp, slideFromLeft, cardEntrance, staggerContainerSlow } from '@/lib/motion-variants';
+import { fadeSlideUp, slideFromLeft, cardEntrance, staggerContainerSlow, qtyPop, imageReveal } from '@/lib/motion-variants';
 import { supabase } from '@/integrations/supabase/client';
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '@/components/ui/drawer';
 import { Button } from '@/components/ui/button';
@@ -260,9 +260,9 @@ export function ProductDetailSheet({ product, open, onOpenChange, onSelectProduc
             {/* Image with scale entrance */}
             <motion.div
               className="relative w-full aspect-[4/3] max-h-[45vh] bg-muted overflow-hidden"
-              initial={{ opacity: 0, scale: 1.03 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+              variants={imageReveal}
+              initial="hidden"
+              animate="show"
             >
               <OfferingImageCarousel
                 source={{
@@ -594,10 +594,10 @@ export function ProductDetailSheet({ product, open, onOpenChange, onSelectProduc
                     <AnimatePresence mode="popLayout">
                       <motion.span
                         key={d.quantity}
-                        initial={{ scale: 0.6, opacity: 0 }}
-                        animate={{ scale: 1, opacity: 1 }}
-                        exit={{ scale: 0.6, opacity: 0 }}
-                        transition={{ duration: 0.15 }}
+                        variants={qtyPop}
+                        initial="initial"
+                        animate="animate"
+                        exit={{ scale: 0.85, opacity: 0 }}
                         className="font-bold text-base text-accent-foreground min-w-[28px] text-center tabular-nums"
                       >
                         {d.quantity}

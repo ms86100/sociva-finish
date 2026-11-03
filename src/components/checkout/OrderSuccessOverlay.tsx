@@ -54,6 +54,10 @@ function ConfettiParticle({ index }: { index: number }) {
   );
 }
 
+/**
+ * Celebration overlay. Callers must pass show=true only after a real checkout
+ * success (e.g. navigation state fromCheckout). Never animate a false success.
+ */
 export function OrderSuccessOverlay({ show, onDismiss, orderCount = 1 }: OrderSuccessOverlayProps) {
   const [visible, setVisible] = useState(show);
 

@@ -5,7 +5,7 @@ import { useSmartBack } from '@/hooks/useSmartBack';
 import { supabase } from '@/integrations/supabase/client';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { ProductDetailSheet } from '@/components/product/ProductDetailSheet';
-import { Skeleton } from '@/components/ui/skeleton';
+import { ProductDetailSkeleton } from '@/components/placeholders/ProductDetailSkeleton';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
 import { PreciseLocationRequiredCard } from '@/components/location/PreciseLocationRequiredCard';
@@ -175,11 +175,7 @@ export default function ProductDeepLinkPage() {
   if (isLoading) {
     return (
       <AppLayout showHeader={false}>
-        <div className="p-4 space-y-4">
-          <Skeleton className="h-64 w-full rounded-xl" />
-          <Skeleton className="h-8 w-3/4 rounded-lg" />
-          <Skeleton className="h-6 w-1/2 rounded-lg" />
-        </div>
+        <ProductDetailSkeleton className="p-0" />
       </AppLayout>
     );
   }
