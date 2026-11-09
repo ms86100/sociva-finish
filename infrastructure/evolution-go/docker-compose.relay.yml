@@ -1,0 +1,40 @@
+# Optional private webhook relay on the same Docker network as Evolution Go.
+# Does NOT publish ports to the public internet.
+#
+# Usage (from infrastructure/evolution-go):
+#   export EVOLUTION_GO_WEBHOOK_SECRET=...
+#   export SUPABASE_FUNCTIONS_HOST=kkzkuyhgdvyecmxtmkpy.supabase.co
+#   docker compose -f docker-compose.yml -f docker-compose.relay.yml up -d
+#
+# Then set Evolution webhookUrl (via Sociva Admin Connect) to:
+#   http://webhook-relay:8787/
+# Override in Sociva by temporarily pointing connect webhook to the relay,
+# OR set WEBHOOK_URL in Evolution after patching the admin connect URL for staging.
+#
+# NOTE: Current Sociva evolution-go-admin builds webhookUrl as Supabase Edge URL.
+# For staging with this relay, either:
+#   A) Put a public HTTPS hostname that terminates TLS and forwards ONLY from
+#      Evolution's egress IP to the Edge Function with the header, OR
+#   B) Temporarily change EVOLUTION webhook via Manager / curl connect to
+#      http://webhook-relay:8787/ while both share evolution_internal.
+#
+# Preferred production-like staging: public TLS edge (Caddyfile.public-api style)
+# that is NOT the secret injector; secret injector stays on private network only.
+# Pattern: Evolution --private--> webhook-relay --HTTPS--> Supabase
+
+services:
+  webhook-relay:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      EVOLUTION_GO_WEBHOOK_SECRET: ${EVOLUTION_GO_WEBHOOK_SECRET:?set EVOLUTION_GO_WEBHOOK_SECRET}
+      SUPABASE_FUNCTIONS_HOST: ${SUPABASE_FUNCTIONS_HOST:?set SUPABASE_FUNCTIONS_HOST}
+    volumes:
+      - ./Caddyfile.webhook-relay:/etc/caddy/Caddyfile:ro
+    networks:
+      - evolution_internal
+    # No ports: section - not reachable from public internet
+    deploy:
+      resources:
+        limits:
+          memory: 128M

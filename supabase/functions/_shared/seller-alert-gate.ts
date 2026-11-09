@@ -6,6 +6,9 @@
 export const ORDER_ALERT_NATIVE_CAPABILITY = "order_alert_native_v1";
 export const LEGACY_ANDROID_ORDER_CHANNEL = "orders_incoming_v2";
 export const NATIVE_ANDROID_ORDER_CHANNEL = "orders_incoming_v3";
+// v2 is already created on phones and Android will not attach a sound later.
+// v4 is a new channel so the next order push can ring gate_bell.
+export const RINGING_ANDROID_ORDER_CHANNEL = "orders_incoming_v4";
 
 export type SellerAlertAndroidGate = {
   mode: "legacy" | "version_gated";

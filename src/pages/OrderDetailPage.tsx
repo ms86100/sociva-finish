@@ -34,6 +34,7 @@ import { GenericOtpCard } from '@/components/order/GenericOtpCard';
 import { isTransitOverdue, isInTransitStatus, formatTransitAgeChip } from '@/lib/order-due-windows';
 import { toast } from 'sonner';
 import { HomePushEnableCard } from '@/components/notifications/HomePushEnableCard';
+import { playGateBell } from '@/lib/play-gate-bell';
 
 import { OrderItemCard } from '@/components/order/OrderItemCard';
 import { AppointmentDetailsCard } from '@/components/order/AppointmentDetailsCard';
@@ -421,7 +422,15 @@ export default function OrderDetailPage() {
   const deliveryTracking = useDeliveryTracking(deliveryAssignmentId, o.isInTransit);
   const trackingConfig = useTrackingConfig();
 
-  // Dismiss bell sound when this order is opened
+  // A waiting seller order plays the Sociva bell once, then the looping alert stops.
+  useEffect(() => {
+    if (!id || !o.isSellerView) return;
+    const status = o.order?.status;
+    if (status !== 'placed' && status !== 'enquired' && status !== 'quoted' && status !== 'requested') return;
+    playGateBell(id);
+  }, [id, o.isSellerView, o.order?.status]);
+
+  // Dismiss the looping alert once this order is open. The one-shot bell above still plays.
   useEffect(() => {
     if (!id) return;
     dismissById(id);

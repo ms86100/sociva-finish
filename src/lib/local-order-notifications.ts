@@ -1,6 +1,6 @@
 /**
  * Capacitor LocalNotifications for reliable foreground / app-open order ringing.
- * Uses channel orders_incoming_v3. iOS plays gate_bell.caf. Android plays gate_bell. Cancel on terminal.
+ * Uses channel orders_incoming_v4. iOS plays gate_bell.caf. Android plays gate_bell. Cancel on terminal.
  */
 import { Capacitor } from '@capacitor/core';
 import {

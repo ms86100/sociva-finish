@@ -49,7 +49,8 @@ describe('seller notification reliability remediations (2026-10-24)', () => {
     expect(gate).toContain('NATIVE_ANDROID_ORDER_CHANNEL = "orders_incoming_v3"');
 
     const channels = read('android/app/src/main/java/app/sociva/community/OrderAlertChannels.java');
-    expect(channels).toContain('CHANNEL_ID = "orders_incoming_v3"');
+    expect(channels).toContain('CHANNEL_ID = "orders_incoming_v4"');
+    expect(channels).toContain('PREVIOUS_CHANNEL_ID = "orders_incoming_v3"');
     expect(channels).toContain('LEGACY_CHANNEL_ID = "orders_incoming_v2"');
     expect(channels).toContain('/raw/gate_bell');
     expect(channels).not.toContain('gate_bell.caf');

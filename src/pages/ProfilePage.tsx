@@ -39,6 +39,7 @@ import { useTheme } from 'next-themes';
 import { Moon, Sun, RefreshCw } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { actionableSellerProfiles } from '@/lib/seller-journey';
+import { CleanerCityEntryCard } from '@/components/cleaner-city/CleanerCityEntryCard';
 
 export default function ProfilePage() {
   const navigate = useNavigate();
@@ -267,6 +268,11 @@ export default function ProfilePage() {
               </div>
             </Link>
           ))}
+        </div>
+
+        {/* sociva cleaner city - easy to find on Account */}
+        <div className="mt-4" data-testid="account-cleaner-city-entry">
+          <CleanerCityEntryCard />
         </div>
 
         {/* Quick Access Cards */}

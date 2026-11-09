@@ -8,7 +8,7 @@ import { useAuth } from '@/contexts/AuthContext';
 const ACTIVE = ['requested', 'confirmed', 'pickup_pending', 'started', 'safety_incident'];
 
 /**
- * Home + Book entry for A Cleaner City. Hidden unless society feature is enabled.
+ * Account entry for sociva cleaner city. Hidden unless society feature is enabled.
  * When a ride mission is live, deep-links straight into it.
  */
 export function CleanerCityEntryCard() {
@@ -64,7 +64,7 @@ export function CleanerCityEntryCard() {
     >
       <p className="text-[11px] font-extrabold tracking-tight text-white">sociva</p>
       <p className="mt-1 text-[22px] font-extrabold leading-tight tracking-tight text-[#A3C9A8]">
-        A Cleaner City
+        sociva cleaner city
       </p>
       <p className="mt-1.5 max-w-[18rem] text-[13px] font-medium text-white/90">
         Find a seat or offer one for your daily office run.

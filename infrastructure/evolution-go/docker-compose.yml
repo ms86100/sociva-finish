@@ -1,0 +1,84 @@
+# Evolution Go for Sociva - persistent VPS / Docker host only.
+# Do not run this on Vercel or Supabase Edge.
+#
+# Pin the image tag after verifying Swagger paths on that release.
+# Official docs: https://docs.evolutionfoundation.com.br/en/evolution-go
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    volumes:
+      - evolution_go_pg_data:/var/lib/postgresql/data
+      - ./init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks:
+      - evolution_internal
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  evolution-go:
+    # Production Hostinger uses a local rebuild (sociva/evolution-go:whatsmeow-latest)
+    # against current go.mau.fi/whatsmeow - stock 0.7.2 / 0.7.2-beta hit WhatsApp
+    # "Client outdated (405)" and never emit QR. Fall back image is for docs only.
+    image: ${EVOLUTION_GO_IMAGE:-sociva/evolution-go:whatsmeow-latest}
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SERVER_PORT: ${SERVER_PORT:-8080}
+      CLIENT_NAME: ${CLIENT_NAME:-sociva-evolution}
+      GLOBAL_API_KEY: ${GLOBAL_API_KEY:?set GLOBAL_API_KEY in .env}
+      POSTGRES_AUTH_DB: ${POSTGRES_AUTH_DB}
+      POSTGRES_USERS_DB: ${POSTGRES_USERS_DB}
+      DATABASE_SAVE_MESSAGES: ${DATABASE_SAVE_MESSAGES:-false}
+      WADEBUG: ${WADEBUG:-INFO}
+      LOGTYPE: ${LOGTYPE:-json}
+      CONNECT_ON_STARTUP: ${CONNECT_ON_STARTUP:-true}
+      WEBHOOKFILES: ${WEBHOOKFILES:-true}
+      WEBHOOK_FILES: ${WEBHOOKFILES:-true}
+    volumes:
+      # Session / runtime persistence beyond DB (if the image uses local state)
+      - evolution_go_data:/evolution/data
+    ports:
+      # Prefer reverse proxy TLS in front; bind to localhost if proxy is on the same host.
+      - "${EVOLUTION_HOST_BIND:-127.0.0.1}:${SERVER_PORT:-8080}:8080"
+    healthcheck:
+      # Root path 404s on Evolution Go; probe a real authenticated-free surface via swagger HTML.
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/swagger/index.html >/dev/null 2>&1 || curl -fsS http://127.0.0.1:8080/swagger/index.html >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+    stop_grace_period: 30s
+    networks:
+      - evolution_internal
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "1.0"
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
+
+networks:
+  evolution_internal:
+    driver: bridge
+
+volumes:
+  evolution_go_pg_data:
+  evolution_go_data:

@@ -6,6 +6,7 @@
 - Admin UI: **Admin → Developer Tools → Send WhatsApp Test**
 - Credentials UI: **Admin → Credentials → WhatsApp**
 - Client abstraction: `src/services/notificationService.ts`
+- **Provider selection:** Meta remains the default production WhatsApp provider. Optional Evolution Go is documented in [whatsapp-evolution-go.md](./whatsapp-evolution-go.md). Admin → Communication Centre can switch providers; only one is active. Do not enable Evolution Go in production until real-device tests pass.
 
 ## Secrets required (provide these to finish phone delivery)
 

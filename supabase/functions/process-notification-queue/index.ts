@@ -13,9 +13,9 @@ import { resolveQueueDisplayCopy } from "../_shared/notification-display-copy.ts
 import { iosApnsSound, isIosTimeSensitiveSellerAlert } from "../_shared/ios-time-sensitive.ts";
 import {
   androidTokenUsesNativeAlert,
-  LEGACY_ANDROID_ORDER_CHANNEL,
   loadSellerAlertAndroidGate,
   NATIVE_ANDROID_ORDER_CHANNEL,
+  RINGING_ANDROID_ORDER_CHANNEL,
 } from "../_shared/seller-alert-gate.ts";
 import { classifyPushDeliveryEvidence } from "../_shared/seller-status-reminders-policy.ts";
 
@@ -132,14 +132,39 @@ async function importP8Key(pem: string): Promise<CryptoKey> {
 async function createApnsJwt(key: CryptoKey, keyId: string, teamId: string): Promise<string> {
   const header = b64urlStr(JSON.stringify({ alg: "ES256", kid: keyId }));
   const now = Math.floor(Date.now() / 1000);
-  const claims = b64urlStr(JSON.stringify({ iss: teamId, iat: now, exp: now + 3600 }));
+  // Apple accepts iss + iat only. An exp claim makes APNs return InvalidProviderToken.
+  const claims = b64urlStr(JSON.stringify({ iss: teamId, iat: now }));
   const signingInput = `${header}.${claims}`;
-  const signature = await crypto.subtle.sign(
+  const signature = new Uint8Array(await crypto.subtle.sign(
     { name: "ECDSA", hash: "SHA-256" },
     key,
     new TextEncoder().encode(signingInput)
-  );
-  return `${signingInput}.${b64url(new Uint8Array(signature))}`;
+  ));
+  return `${signingInput}.${b64url(joseEcdsaSignature(signature))}`;
+}
+
+/** APNs wants raw R||S (64 bytes). Some runtimes return DER instead. */
+function joseEcdsaSignature(sig: Uint8Array): Uint8Array {
+  if (sig.length === 64) return sig;
+  if (sig[0] !== 0x30) return sig;
+  let offset = 2;
+  if (sig[1] & 0x80) offset = 2 + (sig[1] & 0x7f);
+  const readInt = () => {
+    if (sig[offset] !== 0x02) return new Uint8Array(32);
+    const len = sig[offset + 1];
+    let start = offset + 2;
+    const end = start + len;
+    offset = end;
+    while (start < end && sig[start] === 0) start++;
+    const out = new Uint8Array(32);
+    const slice = sig.subarray(start, end);
+    out.set(slice.subarray(Math.max(0, slice.length - 32)), 32 - Math.min(32, slice.length));
+    return out;
+  };
+  const raw = new Uint8Array(64);
+  raw.set(readInt(), 0);
+  raw.set(readInt(), 32);
+  return raw;
 }
 
 async function sendApnsDirect(
@@ -223,13 +248,14 @@ async function sendFcmDirect(
   threadId?: string, imageUrl?: string, highPriority = true,
   nativeClosedApp = false,
   timeSensitive = false,
+  iosSoundOnly = false,
 ): Promise<{ success: boolean; error?: string }> {
-  // Legacy installs keep notification + data on orders_incoming_v2.
+  // Unstamped phones use a new channel. v2 is already created and cannot gain a sound.
   // Data-only on orders_incoming_v3 runs only when this token is verified.
   const androidSound = highPriority ? "gate_bell" : "default";
   const androidChannel = nativeClosedApp
     ? NATIVE_ANDROID_ORDER_CHANNEL
-    : (highPriority ? LEGACY_ANDROID_ORDER_CHANNEL : "general");
+    : (highPriority ? RINGING_ANDROID_ORDER_CHANNEL : "general");
   const closedAppSellerAlert = nativeClosedApp;
   const dataPayload: Record<string, string> = { ...(data || {}) };
   if (closedAppSellerAlert) {
@@ -261,9 +287,18 @@ async function sendFcmDirect(
   if (threadId) apnsHeaders["apns-collapse-id"] = threadId.substring(0, 64);
 
   // Verified Android installs get a data message so OrderAlertMessagingService
-  // can post the alert when the app is closed. Every other install gets a
-  // normal notification. iOS stays an alert push on both paths.
-  const message = closedAppSellerAlert
+  // can post the alert when the app is closed. Every other Android install gets
+  // a normal notification on the ringing channel. iOS omits the top-level
+  // notification so FCM cannot replace gate_bell.caf with the default tone.
+  const message = iosSoundOnly
+    ? {
+      message: {
+        token: deviceToken,
+        data: data || {},
+        apns: { headers: apnsHeaders, payload: { aps: apnsAps, ...(imageUrl ? { image_url: imageUrl } : {}) } },
+      },
+    }
+    : closedAppSellerAlert
     ? {
       message: {
         token: deviceToken,
@@ -444,7 +479,7 @@ async function deliverPushToUser(
         if (!result.success && result.error !== "INVALID_TOKEN" && !isApnsOnlyToken && creds.fcmConfigured) {
           console.log(`[Push] APNs failed for ${notificationId} (${result.error}), falling back to FCM`);
           result = await withTimeout(
-            sendFcmDirect(creds.fcmAccessToken!, creds.serviceAccount!.project_id, tokenRecord.token, title, body, pushData, threadId, imageUrl, highPriority, nativeClosedApp, timeSensitive),
+            sendFcmDirect(creds.fcmAccessToken!, creds.serviceAccount!.project_id, tokenRecord.token, title, body, pushData, threadId, imageUrl, highPriority, nativeClosedApp, timeSensitive, tokenRecord.platform === "ios"),
             PUSH_TIMEOUT_MS,
           );
         }
@@ -454,7 +489,7 @@ async function deliverPushToUser(
       } else if (creds.fcmConfigured) {
         // Android or iOS without APNs → FCM
         result = await withTimeout(
-          sendFcmDirect(creds.fcmAccessToken!, creds.serviceAccount!.project_id, tokenRecord.token, title, body, pushData, threadId, imageUrl, highPriority, nativeClosedApp, timeSensitive),
+          sendFcmDirect(creds.fcmAccessToken!, creds.serviceAccount!.project_id, tokenRecord.token, title, body, pushData, threadId, imageUrl, highPriority, nativeClosedApp, timeSensitive, tokenRecord.platform === "ios"),
           PUSH_TIMEOUT_MS,
         );
       } else {

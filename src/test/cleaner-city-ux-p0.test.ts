@@ -12,11 +12,14 @@ describe('Cleaner City UX P0 wiring', () => {
     expect(nav).toContain("to === '/book'");
   });
 
-  it('surfaces Cleaner City from Home and Book', () => {
-    expect(read('src/pages/HomePage.tsx')).toContain('CleanerCityEntryCard');
-    expect(read('src/pages/CommerceModePage.tsx')).toContain('CleanerCityEntryCard');
+  it('surfaces sociva cleaner city from Account, not Home/Book', () => {
+    expect(read('src/pages/HomePage.tsx')).not.toContain('CleanerCityEntryCard');
+    expect(read('src/pages/CommerceModePage.tsx')).not.toContain('CleanerCityEntryCard');
+    expect(read('src/pages/ProfilePage.tsx')).toContain('CleanerCityEntryCard');
+    expect(read('src/pages/ProfilePage.tsx')).toContain('account-cleaner-city-entry');
     const card = read('src/components/cleaner-city/CleanerCityEntryCard.tsx');
     expect(card).toContain('to="/cleaner-city"');
+    expect(card).toContain('sociva cleaner city');
     expect(card).toContain('Find a ride');
   });
 

@@ -39,7 +39,6 @@ import {
 } from '@/lib/guided-discovery';
 import { IntentProductRail } from '@/components/discovery/IntentProductRail';
 import { UpcomingAppointmentBanner } from '@/components/home/UpcomingAppointmentBanner';
-import { CleanerCityEntryCard } from '@/components/cleaner-city/CleanerCityEntryCard';
 import { GroupedSellerRow } from '@/components/home/GroupedSellerRow';
 import { SearchAutocomplete } from '@/components/search/SearchAutocomplete';
 import { useIntentRailModel } from '@/hooks/useIntentRailModel';
@@ -527,7 +526,6 @@ function CommerceModeView({ mode }: { mode: CommerceMode }) {
               </div>
             )}
             {mode === 'book' && !searchActive && <div className="px-4 mt-2.5"><UpcomingAppointmentBanner /></div>}
-            {mode === 'book' && !searchActive && <CleanerCityEntryCard />}
             {hasListings && mode === 'book' && !searchActive && bookTiles.length > 0 && (
               <div className="px-4 mt-3.5" data-testid="book-browse-service">
                 <div className="mb-3 flex items-end justify-between gap-2">

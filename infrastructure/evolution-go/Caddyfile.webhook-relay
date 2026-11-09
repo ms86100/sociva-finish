@@ -1,0 +1,51 @@
+# PRIVATE webhook relay: Evolution Go -> inject header -> Supabase Edge Function.
+#
+# CRITICAL SECURITY:
+# - Listen ONLY on the Docker bridge / localhost (not 0.0.0.0 public).
+# - Only accept traffic from the Evolution Go container IP / private CIDR.
+# - Never expose this listener on the public internet.
+# - Never log x-sociva-webhook-secret.
+#
+# On the same VPS as docker-compose:
+#   1. Put Evolution and this relay on evolution_internal network, OR bind 127.0.0.1
+#      and set Evolution webhookUrl to http://172.x.x.x:8787/  (container gateway)
+#   2. Prefer: attach a tiny relay container to evolution_internal (see docker-compose.relay.yml)
+#
+# Env required:
+#   EVOLUTION_GO_WEBHOOK_SECRET
+#   SUPABASE_FUNCTIONS_HOST=kkzkuyhgdvyecmxtmkpy.supabase.co
+#
+# This file alone is NOT enough if you bind :8787 publicly. Use docker-compose.relay.yml.
+
+{
+  auto_https off
+}
+
+:8787 {
+  # Restrict source. Adjust to your Docker bridge / evolution-go container IP.
+  # Example private ranges commonly used by Docker:
+  @allowed remote_ip 127.0.0.1 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16
+
+  handle @allowed {
+    # Rewrite before reverse_proxy (rewrite inside reverse_proxy is invalid in Caddy 2).
+    rewrite * /functions/v1/receive-evolution-go-webhook
+    reverse_proxy https://{$SUPABASE_FUNCTIONS_HOST} {
+      header_up Host {$SUPABASE_FUNCTIONS_HOST}
+      header_up x-sociva-webhook-secret {$EVOLUTION_GO_WEBHOOK_SECRET}
+      # Forward instance identity if Evolution sends it
+      header_up instanceId {http.request.header.instanceId}
+      transport http {
+        tls
+      }
+    }
+  }
+
+  handle {
+    respond "forbidden" 403
+  }
+
+  log {
+    output stdout
+    format console
+  }
+}

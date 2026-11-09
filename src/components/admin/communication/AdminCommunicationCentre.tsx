@@ -70,17 +70,35 @@ type MsgRow = {
 async function invokeAdmin(body: Record<string, unknown>) {
   const { data, error } = await supabase.functions.invoke('evolution-go-admin', { body });
   if (error) {
+    let detail = '';
+    const ctx = (error as { context?: Response }).context;
+    if (ctx && typeof ctx.json === 'function') {
+      try {
+        const payload = (await ctx.json()) as { error?: string; code?: string };
+        detail = payload.error || payload.code || '';
+      } catch {
+        // ignore body parse errors
+      }
+    }
     const payload = (data || {}) as { error?: string; code?: string };
-    throw new Error(payload.error || error.message);
+    throw new Error(payload.error || detail || error.message);
+  }
+  if (data && data.success === false && data.error) {
+    throw new Error(String(data.error));
   }
   return data as Record<string, unknown>;
 }
 
 function Gate({ ok, label }: { ok?: boolean; label: string }) {
   return (
-    <div className="flex items-center justify-between text-sm py-1.5 border-b border-border/40 last:border-0">
-      <span className="text-muted-foreground">{label}</span>
-      <Badge variant={ok ? 'default' : 'secondary'}>{ok ? 'Pass' : 'Pending'}</Badge>
+    <div className="flex items-center justify-between gap-3 text-sm py-2.5 border-b border-border/30 last:border-0">
+      <span className="text-foreground/80">{label}</span>
+      <Badge
+        variant={ok ? 'default' : 'secondary'}
+        className={ok ? 'bg-emerald-600 hover:bg-emerald-600' : 'bg-muted text-muted-foreground'}
+      >
+        {ok ? 'Pass' : 'Pending'}
+      </Badge>
     </div>
   );
 }
@@ -106,20 +124,28 @@ export function AdminCommunicationCentre() {
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const [cfgRes, statsRes, msgRes, auditRes] = await Promise.all([
-        invokeAdmin({ action: 'get_config' }),
+      // Load config first so a failing stats/history call cannot blank the whole page.
+      const cfgRes = await invokeAdmin({ action: 'get_config' });
+      setConfig((cfgRes.config as ProviderConfig) || null);
+      setInstance((cfgRes.instance as InstanceRow) || null);
+      setEvolutionConfigured(!!cfgRes.evolutionConfigured);
+
+      const settled = await Promise.allSettled([
         invokeAdmin({ action: 'stats' }),
         invokeAdmin({ action: 'messages' }),
         invokeAdmin({ action: 'audit' }),
       ]);
-      setConfig((cfgRes.config as ProviderConfig) || null);
-      setInstance((cfgRes.instance as InstanceRow) || null);
-      setEvolutionConfigured(!!cfgRes.evolutionConfigured);
-      setStats((statsRes.stats as typeof stats) || []);
-      setMessages((msgRes.messages as MsgRow[]) || []);
-      setAudit((auditRes.audit as Array<Record<string, unknown>>) || []);
+      if (settled[0].status === 'fulfilled') {
+        setStats((settled[0].value.stats as typeof stats) || []);
+      }
+      if (settled[1].status === 'fulfilled') {
+        setMessages((settled[1].value.messages as MsgRow[]) || []);
+      }
+      if (settled[2].status === 'fulfilled') {
+        setAudit((settled[2].value.audit as Array<Record<string, unknown>>) || []);
+      }
     } catch (e) {
-      adminNotify.error(String(e));
+      adminNotify.error(e);
     } finally {
       setLoading(false);
     }
@@ -147,7 +173,7 @@ export function AdminCommunicationCentre() {
       await fn();
       await refresh();
     } catch (e) {
-      adminNotify.error(String(e));
+      adminNotify.error(e);
     } finally {
       setBusy(null);
     }
@@ -161,44 +187,69 @@ export function AdminCommunicationCentre() {
 
   if (loading && !config) {
     return (
-      <div className="flex items-center gap-2 text-sm text-muted-foreground py-8">
-        <Loader2 className="h-4 w-4 animate-spin" /> Loading Communication Centre…
+      <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground py-16">
+        <Loader2 className="h-4 w-4 animate-spin" /> Loading Communication Centre
       </div>
     );
   }
 
+  const activeProvider = config?.active_provider || 'meta';
+  const readinessPassed = [
+    config?.readiness_connected,
+    config?.readiness_health_ok,
+    config?.readiness_session_valid,
+    config?.readiness_test_message_ok,
+    config?.readiness_webhook_ok,
+    config?.readiness_admin_approved,
+  ].filter(Boolean).length;
+
   return (
-    <div className="space-y-5 max-w-4xl">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-bold">Communication Centre</h2>
-          <p className="text-sm text-muted-foreground mt-1">
-            WhatsApp providers for seller notifications. Meta Cloud API is the production default.
-            Only one provider is active. Push notifications are unaffected.
+    <div className="relative max-w-4xl space-y-6 pb-8">
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 -top-6 h-40 rounded-[1.75rem] bg-gradient-to-br from-emerald-500/12 via-teal-400/6 to-transparent"
+      />
+
+      <div className="relative flex flex-wrap items-start justify-between gap-4 rounded-[1.5rem] border border-border/50 bg-background/80 px-5 py-5 shadow-sm backdrop-blur-sm sm:px-6">
+        <div className="min-w-0 space-y-1.5">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-700/80">Sociva ops</p>
+          <h2 className="text-2xl font-semibold tracking-tight text-foreground">Communication Centre</h2>
+          <p className="max-w-xl text-sm leading-relaxed text-muted-foreground">
+            One WhatsApp provider at a time for seller alerts. Meta is the safe default. Push stays untouched.
           </p>
         </div>
-        <Button variant="outline" size="sm" className="rounded-xl gap-2" onClick={() => void refresh()} disabled={!!busy}>
-          <RefreshCw className="h-3.5 w-3.5" /> Refresh
+        <Button
+          variant="outline"
+          size="sm"
+          className="rounded-xl gap-2 border-border/70 shrink-0"
+          onClick={() => void refresh()}
+          disabled={!!busy}
+        >
+          <RefreshCw className={`h-3.5 w-3.5 ${busy === 'refresh' || loading ? 'animate-spin' : ''}`} />
+          Refresh
         </Button>
       </div>
 
-      <Card className="rounded-2xl border-border/60">
-        <CardHeader className="pb-3">
+      <Card className="relative overflow-hidden rounded-[1.5rem] border-border/50 shadow-sm">
+        <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-400" />
+        <CardHeader className="space-y-1 px-5 pt-6 pb-4 sm:px-6">
           <CardTitle className="text-base flex items-center gap-2">
-            <MessageCircle className="h-4 w-4" /> Active provider
+            <MessageCircle className="h-4 w-4 text-emerald-600" /> Active provider
           </CardTitle>
-          <CardDescription>
-            Current: <strong>{config?.active_provider || 'meta'}</strong>
-            {config?.active_provider === 'evolution_go' && (
-              <> · mode <strong>{config.evolution_mode}</strong></>
+          <CardDescription className="text-sm">
+            Live route: <span className="font-semibold text-foreground">{activeProvider}</span>
+            {activeProvider === 'evolution_go' && (
+              <> · mode <span className="font-semibold text-foreground">{config?.evolution_mode}</span></>
             )}
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="flex flex-wrap gap-2">
+        <CardContent className="space-y-4 px-5 pb-6 sm:px-6">
+          <div className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
             <Button
-              className="rounded-xl"
-              variant={config?.active_provider === 'meta' ? 'default' : 'outline'}
+              className={`h-11 rounded-xl justify-center ${
+                activeProvider === 'meta' ? 'shadow-sm' : 'border-border/70'
+              }`}
+              variant={activeProvider === 'meta' ? 'default' : 'outline'}
               disabled={!!busy}
               onClick={() => {
                 setPendingProvider('meta');
@@ -208,8 +259,10 @@ export function AdminCommunicationCentre() {
               Meta Cloud API
             </Button>
             <Button
-              className="rounded-xl"
-              variant={config?.active_provider === 'evolution_go' ? 'default' : 'outline'}
+              className={`h-11 rounded-xl justify-center ${
+                activeProvider === 'evolution_go' ? 'shadow-sm' : 'border-border/70'
+              }`}
+              variant={activeProvider === 'evolution_go' ? 'default' : 'outline'}
               disabled={!!busy || !evolutionConfigured}
               onClick={() => {
                 setPendingProvider('evolution_go');
@@ -220,19 +273,19 @@ export function AdminCommunicationCentre() {
               Evolution Go
             </Button>
             <Button
-              className="rounded-xl gap-2"
+              className="h-11 rounded-xl gap-2 sm:min-w-[11rem]"
               variant="destructive"
-              disabled={!!busy || config?.active_provider === 'meta'}
+              disabled={!!busy || activeProvider === 'meta'}
               onClick={() => setKillOpen(true)}
             >
-              <ShieldAlert className="h-4 w-4" /> Kill switch to Meta
+              <ShieldAlert className="h-4 w-4" /> Kill switch
             </Button>
           </div>
           {!evolutionConfigured && (
-            <p className="text-xs text-amber-700 dark:text-amber-400">
+            <div className="rounded-xl border border-amber-500/30 bg-amber-500/8 px-3.5 py-3 text-xs leading-relaxed text-amber-800 dark:text-amber-300">
               Evolution Go Edge secrets are not configured yet (`EVOLUTION_GO_BASE_URL`, `EVOLUTION_GO_API_KEY`, webhook secret).
               Meta remains available.
-            </p>
+            </div>
           )}
           {config?.last_kill_switch_at && (
             <p className="text-xs text-muted-foreground">
@@ -242,142 +295,215 @@ export function AdminCommunicationCentre() {
         </CardContent>
       </Card>
 
-      <Tabs defaultValue="evolution" className="w-full">
-        <TabsList className="rounded-xl">
-          <TabsTrigger value="evolution" className="rounded-lg">Evolution Go</TabsTrigger>
-          <TabsTrigger value="ops" className="rounded-lg">Ops dashboard</TabsTrigger>
-          <TabsTrigger value="history" className="rounded-lg">Message history</TabsTrigger>
-          <TabsTrigger value="audit" className="rounded-lg">Audit</TabsTrigger>
+      <Tabs defaultValue="evolution" className="w-full space-y-4">
+        <TabsList className="h-auto w-full flex flex-wrap justify-start gap-1 rounded-2xl border border-border/50 bg-muted/40 p-1.5">
+          <TabsTrigger value="evolution" className="rounded-xl px-3.5 py-2 data-[state=active]:shadow-sm">
+            Evolution Go
+          </TabsTrigger>
+          <TabsTrigger value="ops" className="rounded-xl px-3.5 py-2 data-[state=active]:shadow-sm">
+            Ops dashboard
+          </TabsTrigger>
+          <TabsTrigger value="history" className="rounded-xl px-3.5 py-2 data-[state=active]:shadow-sm">
+            Message history
+          </TabsTrigger>
+          <TabsTrigger value="audit" className="rounded-xl px-3.5 py-2 data-[state=active]:shadow-sm">
+            Audit
+          </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="evolution" className="space-y-4 pt-3">
-          <Card className="rounded-2xl border-border/60">
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between gap-2">
-                <CardTitle className="text-base">Connection</CardTitle>
+        <TabsContent value="evolution" className="mt-0 space-y-5 focus-visible:outline-none">
+          <Card className="rounded-[1.5rem] border-border/50 shadow-sm">
+            <CardHeader className="space-y-3 px-5 pt-6 pb-4 sm:px-6">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="space-y-1">
+                  <CardTitle className="text-base">Connection</CardTitle>
+                  <CardDescription className="text-sm leading-relaxed">
+                    Pair once, then verify. Scan QR in WhatsApp Linked devices.
+                  </CardDescription>
+                </div>
                 {statusBadge()}
               </div>
-              <CardDescription>
-                Last connected: {instance?.last_connected_at ? new Date(instance.last_connected_at).toLocaleString() : 'Never'}
-                {' · '}
-                Last health: {instance?.last_health_at ? new Date(instance.last_health_at).toLocaleString() : 'Never'}
-                {instance?.last_health_ok === false ? ' (failed)' : ''}
-              </CardDescription>
+              <div className="grid gap-2 rounded-xl border border-border/40 bg-muted/25 px-3.5 py-3 text-xs text-muted-foreground sm:grid-cols-2">
+                <p>
+                  Last connected:{' '}
+                  <span className="font-medium text-foreground/80">
+                    {instance?.last_connected_at ? new Date(instance.last_connected_at).toLocaleString() : 'Never'}
+                  </span>
+                </p>
+                <p>
+                  Last health:{' '}
+                  <span className="font-medium text-foreground/80">
+                    {instance?.last_health_at ? new Date(instance.last_health_at).toLocaleString() : 'Never'}
+                    {instance?.last_health_ok === false ? ' (failed)' : instance?.last_health_ok ? ' (ok)' : ''}
+                  </span>
+                </p>
+                {instance?.connected_phone_masked && (
+                  <p className="sm:col-span-2">
+                    Linked phone: <span className="font-medium text-foreground/80">{instance.connected_phone_masked}</span>
+                  </p>
+                )}
+              </div>
             </CardHeader>
-            <CardContent className="space-y-3">
+            <CardContent className="space-y-5 px-5 pb-6 sm:px-6">
               {instance?.last_error && (
-                <p className="text-xs text-destructive">{instance.last_error}</p>
+                <div className="rounded-xl border border-destructive/25 bg-destructive/5 px-3.5 py-3 text-xs text-destructive">
+                  {instance.last_error}
+                </div>
               )}
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  className="rounded-xl gap-2"
-                  disabled={!!busy}
-                  onClick={() =>
-                    void run('connect', async () => {
-                      const res = await invokeAdmin({ action: 'connect', reason });
-                      setQrBase64((res.qrBase64 as string) || null);
-                      adminNotify.success('Connect started - scan QR if shown');
-                    })
-                  }
-                >
-                  {busy === 'connect' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plug className="h-4 w-4" />}
-                  Connect WhatsApp
-                </Button>
-                <Button
-                  variant="outline"
-                  className="rounded-xl gap-2"
-                  disabled={!!busy}
-                  onClick={() =>
-                    void run('qr', async () => {
-                      const res = await invokeAdmin({ action: 'qr' });
-                      setQrBase64((res.qrBase64 as string) || null);
-                      if (!res.qrBase64) adminNotify.error('No QR returned - connect first or session already linked');
-                    })
-                  }
-                >
-                  <QrCode className="h-4 w-4" /> Refresh QR
-                </Button>
-                <Button
-                  variant="outline"
-                  className="rounded-xl gap-2"
-                  disabled={!!busy}
-                  onClick={() =>
-                    void run('status', async () => {
-                      const res = await invokeAdmin({ action: 'status' });
-                      adminNotify.success(res.connected ? 'Connected verified' : 'Not connected');
-                    })
-                  }
-                >
-                  <Activity className="h-4 w-4" /> Verify status
-                </Button>
-                <Button
-                  variant="outline"
-                  className="rounded-xl gap-2"
-                  disabled={!!busy}
-                  onClick={() =>
-                    void run('health', async () => {
-                      await invokeAdmin({ action: 'health' });
-                      adminNotify.success('Health checked');
-                    })
-                  }
-                >
-                  Health check
-                </Button>
-                <Button
-                  variant="destructive"
-                  className="rounded-xl gap-2"
-                  disabled={!!busy}
-                  onClick={() =>
-                    void run('disconnect', async () => {
-                      await invokeAdmin({ action: 'disconnect', reason: reason || 'admin_disconnect' });
-                      setQrBase64(null);
-                      adminNotify.success('Disconnected');
-                    })
-                  }
-                >
-                  <Unplug className="h-4 w-4" /> Disconnect
-                </Button>
+
+              <div className="space-y-2">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Primary</p>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <Button
+                    className="h-11 rounded-xl gap-2"
+                    disabled={!!busy || !evolutionConfigured}
+                    onClick={() =>
+                      void run('connect', async () => {
+                        const res = await invokeAdmin({ action: 'connect', reason: reason || 'admin_connect' });
+                        const qr = (res.qrBase64 as string) || null;
+                        setQrBase64(qr);
+                        if (qr) {
+                          adminNotify.success('Scan this QR in WhatsApp - Linked devices');
+                        } else {
+                          throw new Error(
+                            String(
+                              res.error ||
+                                res.note ||
+                                'Connect ran but Evolution did not return a QR yet. Tap Refresh QR in a few seconds.',
+                            ),
+                          );
+                        }
+                      })
+                    }
+                  >
+                    {busy === 'connect' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plug className="h-4 w-4" />}
+                    Connect WhatsApp
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="h-11 rounded-xl gap-2 border-border/70"
+                    disabled={!!busy || !evolutionConfigured}
+                    onClick={() =>
+                      void run('qr', async () => {
+                        const res = await invokeAdmin({ action: 'qr', reason: reason || 'admin_refresh_qr' });
+                        const qr = (res.qrBase64 as string) || null;
+                        setQrBase64(qr);
+                        if (!qr) {
+                          throw new Error(
+                            String(
+                              res.error ||
+                                'No QR yet. Tap Connect WhatsApp to reset the session, then Refresh QR again.',
+                            ),
+                          );
+                        }
+                        adminNotify.success('QR refreshed - scan with WhatsApp Linked devices');
+                      })
+                    }
+                  >
+                    <QrCode className="h-4 w-4" /> Refresh QR
+                  </Button>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Checks</p>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    variant="outline"
+                    className="rounded-xl gap-2 border-border/70"
+                    disabled={!!busy}
+                    onClick={() =>
+                      void run('status', async () => {
+                        const res = await invokeAdmin({ action: 'status' });
+                        adminNotify.success(res.connected ? 'Connected verified' : 'Not connected');
+                      })
+                    }
+                  >
+                    <Activity className="h-4 w-4" /> Verify status
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="rounded-xl gap-2 border-border/70"
+                    disabled={!!busy}
+                    onClick={() =>
+                      void run('health', async () => {
+                        await invokeAdmin({ action: 'health' });
+                        adminNotify.success('Health checked');
+                      })
+                    }
+                  >
+                    Health check
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    className="rounded-xl gap-2 ml-auto"
+                    disabled={!!busy}
+                    onClick={() =>
+                      void run('disconnect', async () => {
+                        await invokeAdmin({ action: 'disconnect', reason: reason || 'admin_disconnect' });
+                        setQrBase64(null);
+                        adminNotify.success('Disconnected');
+                      })
+                    }
+                  >
+                    <Unplug className="h-4 w-4" /> Disconnect
+                  </Button>
+                </div>
               </div>
 
               {qrBase64 && (
-                <div className="rounded-xl border border-border/50 bg-muted/30 p-4 flex flex-col items-center gap-2">
-                  <p className="text-xs text-muted-foreground text-center">
-                    Scan with WhatsApp → Linked Devices. Connection is not confirmed until Verify status succeeds.
-                  </p>
-                  <img
-                    src={qrBase64.startsWith('data:') ? qrBase64 : `data:image/png;base64,${qrBase64}`}
-                    alt="WhatsApp QR code for Sociva Evolution Go pairing"
-                    className="w-56 h-56 bg-white rounded-lg"
-                  />
+                <div className="rounded-[1.25rem] border border-emerald-500/25 bg-gradient-to-b from-emerald-500/8 to-muted/20 px-4 py-5 sm:px-6">
+                  <div className="mx-auto flex max-w-sm flex-col items-center gap-3">
+                    <p className="text-center text-sm font-medium text-foreground">Scan to link WhatsApp</p>
+                    <p className="text-center text-xs leading-relaxed text-muted-foreground">
+                      WhatsApp → Linked devices → Link a device. Then tap Verify status.
+                    </p>
+                    <div className="rounded-2xl border border-border/40 bg-white p-3 shadow-sm">
+                      <img
+                        src={qrBase64.startsWith('data:') ? qrBase64 : `data:image/png;base64,${qrBase64}`}
+                        alt="WhatsApp QR code for Sociva Evolution Go pairing"
+                        className="h-56 w-56 rounded-lg"
+                      />
+                    </div>
+                  </div>
                 </div>
               )}
             </CardContent>
           </Card>
 
-          <Card className="rounded-2xl border-border/60">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">Readiness for live Evolution Go</CardTitle>
-              <CardDescription>
-                Live activation requires connection, health, session, real test message, webhook proof, and admin approval.
-                A DB-only dry-run log is not enough.
+          <Card className="rounded-[1.5rem] border-border/50 shadow-sm">
+            <CardHeader className="space-y-2 px-5 pt-6 pb-4 sm:px-6">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <CardTitle className="text-base">Readiness for live Evolution Go</CardTitle>
+                <Badge variant="outline" className="rounded-lg border-border/60 tabular-nums">
+                  {readinessPassed}/6
+                </Badge>
+              </div>
+              <CardDescription className="text-sm leading-relaxed">
+                Live needs connection, health, session, a real test message, webhook proof, and admin approval.
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-2">
-              <Gate ok={config?.readiness_connected} label="Connected session" />
-              <Gate ok={config?.readiness_health_ok} label="API health check" />
-              <Gate ok={config?.readiness_session_valid} label="Valid QR session" />
-              <Gate ok={config?.readiness_test_message_ok} label="Test message capability" />
-              <Gate ok={config?.readiness_webhook_ok} label="Webhook receipt verified" />
-              <Gate ok={config?.readiness_admin_approved} label="Admin approval for live" />
+            <CardContent className="space-y-4 px-5 pb-6 sm:px-6">
+              <div className="rounded-xl border border-border/40 px-3.5">
+                <Gate ok={config?.readiness_connected} label="Connected session" />
+                <Gate ok={config?.readiness_health_ok} label="API health check" />
+                <Gate ok={config?.readiness_session_valid} label="Valid QR session" />
+                <Gate ok={config?.readiness_test_message_ok} label="Test message capability" />
+                <Gate ok={config?.readiness_webhook_ok} label="Webhook receipt verified" />
+                <Gate ok={config?.readiness_admin_approved} label="Admin approval for live" />
+              </div>
               <Button
-                className="rounded-xl mt-2"
-                disabled={!!busy || !(
-                  config?.readiness_connected &&
-                  config?.readiness_health_ok &&
-                  config?.readiness_session_valid &&
-                  config?.readiness_test_message_ok &&
-                  config?.readiness_webhook_ok
-                )}
+                className="h-11 w-full rounded-xl sm:w-auto"
+                disabled={
+                  !!busy ||
+                  !(
+                    config?.readiness_connected &&
+                    config?.readiness_health_ok &&
+                    config?.readiness_session_valid &&
+                    config?.readiness_test_message_ok &&
+                    config?.readiness_webhook_ok
+                  )
+                }
                 onClick={() =>
                   void run('approve', async () => {
                     await invokeAdmin({ action: 'approve_live', reason: reason || 'approve_live' });
@@ -390,63 +516,71 @@ export function AdminCommunicationCentre() {
             </CardContent>
           </Card>
 
-          <Card className="rounded-2xl border-border/60">
-            <CardHeader className="pb-3">
+          <Card className="rounded-[1.5rem] border-border/50 shadow-sm">
+            <CardHeader className="space-y-1 px-5 pt-6 pb-4 sm:px-6">
               <CardTitle className="text-base">Test WhatsApp message</CardTitle>
-              <CardDescription>
-                Sends through Evolution Go for operational proof. Confirm delivery on the handset before claiming a real-device pass.
+              <CardDescription className="text-sm leading-relaxed">
+                Sends through Evolution Go. Confirm delivery on the handset before calling it a pass.
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-3">
+            <CardContent className="space-y-4 px-5 pb-6 sm:px-6">
               <div className="space-y-2">
                 <Label htmlFor="evo-phone">Phone (country code, digits only)</Label>
-                <Input id="evo-phone" value={testPhone} onChange={(e) => setTestPhone(e.target.value)} className="rounded-xl" />
+                <Input
+                  id="evo-phone"
+                  value={testPhone}
+                  onChange={(e) => setTestPhone(e.target.value)}
+                  className="h-11 rounded-xl border-border/70"
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="evo-msg">Message</Label>
-                <Textarea id="evo-msg" value={testMessage} onChange={(e) => setTestMessage(e.target.value)} className="rounded-xl" />
+                <Textarea
+                  id="evo-msg"
+                  value={testMessage}
+                  onChange={(e) => setTestMessage(e.target.value)}
+                  className="min-h-[96px] rounded-xl border-border/70"
+                />
               </div>
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  className="rounded-xl gap-2"
-                  disabled={!!busy || !testPhone.trim()}
-                  onClick={() =>
-                    void run('test', async () => {
-                      const res = await invokeAdmin({
-                        action: 'test_message',
-                        phoneNumber: testPhone,
-                        message: testMessage,
-                      });
-                      if (res.success) {
-                        adminNotify.success(
-                          res.note
-                            ? String(res.note)
-                            : `Accepted (${res.elapsedMs ?? '?'}ms) - confirm on device`,
-                        );
-                      } else {
-                        adminNotify.error(String(res.error || res.code || 'Test failed'));
-                      }
-                    })
-                  }
-                >
-                  {busy === 'test' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                  Send real test
-                </Button>
-              </div>
+              <Button
+                className="h-11 rounded-xl gap-2"
+                disabled={!!busy || !testPhone.trim()}
+                onClick={() =>
+                  void run('test', async () => {
+                    const res = await invokeAdmin({
+                      action: 'test_message',
+                      phoneNumber: testPhone,
+                      message: testMessage,
+                    });
+                    if (res.success) {
+                      adminNotify.success(
+                        res.note
+                          ? String(res.note)
+                          : `Accepted (${res.elapsedMs ?? '?'}ms) - confirm on device`,
+                      );
+                    } else {
+                      adminNotify.error(String(res.error || res.code || 'Test failed'));
+                    }
+                  })
+                }
+              >
+                {busy === 'test' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                Send real test
+              </Button>
             </CardContent>
           </Card>
         </TabsContent>
 
-        <TabsContent value="ops" className="pt-3 space-y-3">
-          <Card className="rounded-2xl border-border/60">
-            <CardHeader className="pb-3">
+        <TabsContent value="ops" className="mt-0 space-y-3 focus-visible:outline-none">
+          <Card className="rounded-[1.5rem] border-border/50 shadow-sm">
+            <CardHeader className="space-y-1 px-5 pt-6 pb-4 sm:px-6">
               <CardTitle className="text-base">Last 24h message statuses</CardTitle>
-              <CardDescription>
+              <CardDescription className="text-sm leading-relaxed">
                 `provider_accepted` means HTTP accept only - not WhatsApp delivery.
                 Delivered/read appear only when webhooks confirm them.
               </CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="px-5 pb-6 sm:px-6">
               {stats.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No WhatsApp message rows in the last 24 hours.</p>
               ) : (
@@ -467,12 +601,12 @@ export function AdminCommunicationCentre() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="history" className="pt-3">
-          <Card className="rounded-2xl border-border/60">
-            <CardHeader className="pb-3">
+        <TabsContent value="history" className="mt-0 focus-visible:outline-none">
+          <Card className="rounded-[1.5rem] border-border/50 shadow-sm">
+            <CardHeader className="px-5 pt-6 pb-4 sm:px-6">
               <CardTitle className="text-base">Recent messages</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-2 max-h-[420px] overflow-y-auto">
+            <CardContent className="space-y-2 max-h-[420px] overflow-y-auto px-5 pb-6 sm:px-6">
               {messages.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No messages logged yet.</p>
               ) : (
@@ -497,13 +631,15 @@ export function AdminCommunicationCentre() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="audit" className="pt-3">
-          <Card className="rounded-2xl border-border/60">
-            <CardHeader className="pb-3">
+        <TabsContent value="audit" className="mt-0 focus-visible:outline-none">
+          <Card className="rounded-[1.5rem] border-border/50 shadow-sm">
+            <CardHeader className="space-y-1 px-5 pt-6 pb-4 sm:px-6">
               <CardTitle className="text-base">Provider audit</CardTitle>
-              <CardDescription>Includes kill switch, provider changes, and explicit cross-provider retries.</CardDescription>
+              <CardDescription className="text-sm">
+                Includes kill switch, provider changes, and explicit cross-provider retries.
+              </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-2 max-h-[420px] overflow-y-auto">
+            <CardContent className="space-y-2 max-h-[420px] overflow-y-auto px-5 pb-6 sm:px-6">
               {audit.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No audit rows yet.</p>
               ) : (

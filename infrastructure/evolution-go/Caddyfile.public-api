@@ -1,0 +1,19 @@
+# Public HTTPS front for Evolution Go API (VPS).
+# Bind DNS A record for {$EVOLUTION_PUBLIC_HOST} to this VPS.
+# Evolution container stays on 127.0.0.1:8080 (see docker-compose.yml).
+#
+# Usage on VPS:
+#   export EVOLUTION_PUBLIC_HOST=wa.example.com
+#   caddy run --config /opt/sociva/evolution-go/Caddyfile.public-api
+
+{$EVOLUTION_PUBLIC_HOST} {
+  encode gzip
+  reverse_proxy 127.0.0.1:8080
+
+  # Log to stdout (systemd journal). Avoid /var/log/caddy file writes that
+  # fail under the unprivileged caddy user after apt install.
+  log {
+    output stdout
+    format console
+  }
+}

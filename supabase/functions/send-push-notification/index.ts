@@ -3,9 +3,9 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 import { getCredential } from "../_shared/credentials.ts";
 import {
   androidTokenUsesNativeAlert,
-  LEGACY_ANDROID_ORDER_CHANNEL,
   loadSellerAlertAndroidGate,
   NATIVE_ANDROID_ORDER_CHANNEL,
+  RINGING_ANDROID_ORDER_CHANNEL,
 } from "../_shared/seller-alert-gate.ts";
 import { iosApnsSound, isIosTimeSensitiveSellerAlert } from "../_shared/ios-time-sensitive.ts";
 
@@ -94,16 +94,38 @@ async function createApnsJwt(
 ): Promise<string> {
   const header = b64urlStr(JSON.stringify({ alg: "ES256", kid: keyId }));
   const now = Math.floor(Date.now() / 1000);
-  const claims = b64urlStr(
-    JSON.stringify({ iss: teamId, iat: now, exp: now + 3600 })
-  );
+  // Apple accepts iss + iat only. An exp claim makes APNs return InvalidProviderToken.
+  const claims = b64urlStr(JSON.stringify({ iss: teamId, iat: now }));
   const signingInput = `${header}.${claims}`;
-  const signature = await crypto.subtle.sign(
+  const signature = new Uint8Array(await crypto.subtle.sign(
     { name: "ECDSA", hash: "SHA-256" },
     key,
     new TextEncoder().encode(signingInput)
-  );
-  return `${signingInput}.${b64url(new Uint8Array(signature))}`;
+  ));
+  return `${signingInput}.${b64url(joseEcdsaSignature(signature))}`;
+}
+
+function joseEcdsaSignature(sig: Uint8Array): Uint8Array {
+  if (sig.length === 64) return sig;
+  if (sig[0] !== 0x30) return sig;
+  let offset = 2;
+  if (sig[1] & 0x80) offset = 2 + (sig[1] & 0x7f);
+  const readInt = () => {
+    if (sig[offset] !== 0x02) return new Uint8Array(32);
+    const len = sig[offset + 1];
+    let start = offset + 2;
+    const end = start + len;
+    offset = end;
+    while (start < end && sig[start] === 0) start++;
+    const out = new Uint8Array(32);
+    const slice = sig.subarray(start, end);
+    out.set(slice.subarray(Math.max(0, slice.length - 32)), 32 - Math.min(32, slice.length));
+    return out;
+  };
+  const raw = new Uint8Array(64);
+  raw.set(readInt(), 0);
+  raw.set(readInt(), 32);
+  return raw;
 }
 
 async function sendApnsDirectNotification(
@@ -259,13 +281,14 @@ async function sendFCMNotification(
   highPriority = true,
   nativeClosedApp = false,
   timeSensitive = false,
+  iosSoundOnly = false,
 ): Promise<{ success: boolean; error?: string }> {
   const fcmUrl = `https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`;
 
   const androidSound = highPriority ? "gate_bell" : "default";
   const androidChannel = nativeClosedApp
     ? NATIVE_ANDROID_ORDER_CHANNEL
-    : (highPriority ? LEGACY_ANDROID_ORDER_CHANNEL : "general");
+    : (highPriority ? RINGING_ANDROID_ORDER_CHANNEL : "general");
   const closedAppSellerAlert = nativeClosedApp;
   const dataPayload: Record<string, string> = { ...(data || {}) };
   if (closedAppSellerAlert) {
@@ -302,7 +325,18 @@ async function sendFCMNotification(
   };
   if (threadId) apnsHeaders["apns-collapse-id"] = threadId.substring(0, 64);
 
-  const message: Record<string, unknown> = closedAppSellerAlert
+  const message: Record<string, unknown> = iosSoundOnly
+    ? {
+      message: {
+        token: deviceToken,
+        data: data || {},
+        apns: {
+          headers: apnsHeaders,
+          payload: { aps: apnsAps, ...(imageUrl ? { image_url: imageUrl } : {}) },
+        },
+      },
+    }
+    : closedAppSellerAlert
     ? {
       message: {
         token: deviceToken,
@@ -533,6 +567,7 @@ Deno.serve(async (req) => {
               highPriority,
               nativeClosedApp,
               timeSensitive,
+              true,
             );
           }
         } else if (isApnsOnlyToken) {
@@ -554,6 +589,7 @@ Deno.serve(async (req) => {
             highPriority,
             nativeClosedApp,
             timeSensitive,
+            tokenRecord.platform === "ios",
           );
         }
 

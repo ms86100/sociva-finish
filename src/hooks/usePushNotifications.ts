@@ -20,6 +20,7 @@ import {
 } from '@/lib/installation';
 import { ORDER_ALERT_NATIVE_CAPABILITY, ORDERS_INCOMING_CHANNEL_ID, ORDERS_INCOMING_SOUND } from '@/lib/notification-channel-settings';
 import { orderBellAlreadyPlayed } from '@/lib/local-order-notifications';
+import { playGateBell } from '@/lib/play-gate-bell';
 
 /**
  * BUILD FINGERPRINT - bump on every push-related update.
@@ -413,7 +414,8 @@ export function usePushNotificationsInternal() {
         // Keep legacy channels so older queued pushes still resolve.
         // v2 is immutable and may already be silent on devices that created it without the bell.
         for (const legacy of [
-          { id: 'orders_incoming_v2', name: 'Incoming Orders (previous)', sound: 'gate_bell' },
+          { id: 'orders_incoming_v3', name: 'Incoming Orders (previous)', sound: 'gate_bell' },
+          { id: 'orders_incoming_v2', name: 'Incoming Orders (older)', sound: 'gate_bell' },
           { id: 'orders_incoming_v1', name: 'Incoming Orders (legacy)', sound: 'order_ring' },
           { id: 'orders_alert', name: 'Order Alerts (legacy)', sound: 'gate_bell' },
         ] as const) {
@@ -642,8 +644,8 @@ export function usePushNotificationsInternal() {
           window.dispatchEvent(new CustomEvent('seller-status-nudge', { detail: { orderId } }));
         }
         const bellAlreadyPlaying = !!(orderId && orderBellAlreadyPlayed(orderId));
-        if (soundsEnabledRef.current && isHighPriority && !isPushStale && !bellAlreadyPlaying) {
-          if (orderId) {
+        if (soundsEnabledRef.current && isHighPriority && !isPushStale) {
+          if (orderId && !bellAlreadyPlaying) {
             void import('@/lib/local-order-notifications').then(({ scheduleIncomingOrderLocalNotification }) =>
               scheduleIncomingOrderLocalNotification({
                 orderId,
@@ -652,47 +654,7 @@ export function usePushNotificationsInternal() {
               }),
             );
           }
-          if (!Capacitor.isNativePlatform()) void (async () => {
-            try {
-              const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
-              const tryUrls = ['/sounds/gate_bell.mp3', '/sounds/order_ring.mp3'];
-              let played = false;
-              for (const url of tryUrls) {
-                try {
-                  const resp = await fetch(url);
-                  if (!resp.ok) continue;
-                  const buf = await ctx.decodeAudioData(await resp.arrayBuffer());
-                  if (ctx.state === 'suspended') await ctx.resume();
-                  const source = ctx.createBufferSource();
-                  source.buffer = buf;
-                  source.connect(ctx.destination);
-                  source.start(0);
-                  played = true;
-                  setTimeout(() => ctx.close().catch(() => {}), Math.ceil((buf.duration + 0.5) * 1000));
-                  break;
-                } catch { /* try next */ }
-              }
-              if (!played) {
-                const audioNow = ctx.currentTime;
-                for (let i = 0; i < 3; i++) {
-                  const osc = ctx.createOscillator();
-                  const gain = ctx.createGain();
-                  osc.connect(gain);
-                  gain.connect(ctx.destination);
-                  osc.frequency.value = i % 2 === 0 ? 880 : 660;
-                  osc.type = 'sine';
-                  const t = audioNow + i * 0.15;
-                  gain.gain.setValueAtTime(0.18, t);
-                  gain.gain.exponentialRampToValueAtTime(0.01, t + 0.12);
-                  osc.start(t);
-                  osc.stop(t + 0.15);
-                }
-                setTimeout(() => ctx.close().catch(() => {}), 600);
-              }
-            } catch {
-              // Foreground sound is optional; notification delivery continues.
-            }
-          })();
+          playGateBell(orderId);
         }
 
         const route = pickNotificationRoute({
@@ -740,6 +702,9 @@ export function usePushNotificationsInternal() {
 
         const orderId = data?.orderId ?? data?.order_id ?? data?.entity_id;
         const pushStatus = data?.status;
+        if (data?.high_priority === 'true' && data?.target_role !== 'buyer') {
+          playGateBell(orderId);
+        }
         const isTerminalPush = data?.is_terminal === 'true' || (data as any)?.is_terminal === true;
         if (orderId) {
           // Tapping the notification means the seller is on it - stop looping bell immediately.

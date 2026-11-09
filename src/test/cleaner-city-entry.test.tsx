@@ -52,7 +52,7 @@ describe('CleanerCityEntryCard', () => {
     );
     const card = screen.getByTestId('cleaner-city-entry-card');
     expect(card).toHaveAttribute('href', '/cleaner-city');
-    expect(card).toHaveTextContent('A Cleaner City');
+    expect(card).toHaveTextContent('sociva cleaner city');
     expect(card).toHaveTextContent('Find a ride');
     expect(card).toHaveTextContent('Offer a seat');
   });
@@ -73,9 +73,9 @@ describe('A Cleaner City does not hijack Book commerce mode', () => {
     expect(modeForAction('contact_seller')).toBe('services');
   });
 
-  it('CommerceModePage still wires Book tiles separately from cleaner-city route', () => {
+  it('CommerceModePage keeps Book tiles and does not mount cleaner-city entry', () => {
     const page = readFileSync(resolve(process.cwd(), 'src/pages/CommerceModePage.tsx'), 'utf8');
-    expect(page).toContain('CleanerCityEntryCard');
+    expect(page).not.toContain('CleanerCityEntryCard');
     expect(page).toContain('buildGuidedDiscoveryTiles');
     expect(page).not.toContain("category: 'cleaner_city'");
   });

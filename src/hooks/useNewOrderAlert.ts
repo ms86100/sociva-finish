@@ -14,6 +14,7 @@ import {
   isInsertAlertStatus,
   shouldKeepIncomingOrderAlert,
 } from '@/lib/order-alert-ack';
+import { playGateBell } from '@/lib/play-gate-bell';
 
 /** Poll / reconcile: include one-shot insert statuses so we can clear stale overlays. */
 const ACTIONABLE_STATUSES = ['placed', 'enquired', 'quoted', 'requested', 'scheduled', 'preparing', 'confirmed'] as const;
@@ -264,6 +265,7 @@ export function useNewOrderAlert(sellerIds: string[]) {
     if (isBuzzingRef.current) return;
     isBuzzingRef.current = true;
     hapticNotification('warning');
+    playGateBell(pendingAlertsRef.current[0]?.id);
     const loopBell = () => {
       if (!isBuzzingRef.current) return;
       // Audio / haptics while backgrounded drains battery and is blocked on many OEMs.

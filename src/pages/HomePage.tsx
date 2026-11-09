@@ -18,7 +18,6 @@ import { hasPreciseCoordinates } from '@/lib/buyerLocation';
 import { ActiveOrderStrip } from '@/components/home/ActiveOrderStrip';
 import { ForYouSection } from '@/components/home/ForYouSection';
 import { WhatsNewSection } from '@/components/home/WhatsNewSection';
-import { CleanerCityEntryCard } from '@/components/cleaner-city/CleanerCityEntryCard';
 
 import { useAuth } from '@/contexts/AuthContext';
 import { useCart } from '@/hooks/useCart';
@@ -102,7 +101,6 @@ export default function HomePage() {
           <AppUpdateBanner />
           {needsPreciseLocation && <PreciseLocationRequiredCard />}
         </div>
-        <CleanerCityEntryCard />
         <MarketplaceSection />
 
         {profile && (() => {
