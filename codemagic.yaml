@@ -100,8 +100,18 @@ workflows:
             exit 1
           fi
           echo "=== CapacitorCalendar pod present ==="
-          # deterministic resolver on clean CI nodes
-          pod install --repo-update
+          # deterministic resolver on clean CI nodes (retry GitHub CDN flakes / 504s)
+          for attempt in 1 2 3 4 5; do
+            if pod install --repo-update; then
+              break
+            fi
+            if [ "$attempt" -eq 5 ]; then
+              echo "ERROR: pod install failed after $attempt attempts"
+              exit 1
+            fi
+            echo "WARNING: pod install attempt $attempt failed - retrying in $((attempt * 15))s"
+            sleep $((attempt * 15))
+          done
 
       - name: Generate App Icon from source
         script: |
@@ -1059,8 +1069,18 @@ workflows:
             exit 1
           fi
           echo "=== CapacitorCalendar pod present ==="
-          # deterministic resolver on clean CI nodes
-          pod install --repo-update
+          # deterministic resolver on clean CI nodes (retry GitHub CDN flakes / 504s)
+          for attempt in 1 2 3 4 5; do
+            if pod install --repo-update; then
+              break
+            fi
+            if [ "$attempt" -eq 5 ]; then
+              echo "ERROR: pod install failed after $attempt attempts"
+              exit 1
+            fi
+            echo "WARNING: pod install attempt $attempt failed - retrying in $((attempt * 15))s"
+            sleep $((attempt * 15))
+          done
 
       - name: Generate App Icon from source
         script: |
@@ -2200,7 +2220,18 @@ workflows:
             exit 1
           fi
           echo "=== CapacitorCalendar pod present ==="
-          pod install --repo-update
+          # deterministic resolver on clean CI nodes (retry GitHub CDN flakes / 504s)
+          for attempt in 1 2 3 4 5; do
+            if pod install --repo-update; then
+              break
+            fi
+            if [ "$attempt" -eq 5 ]; then
+              echo "ERROR: pod install failed after $attempt attempts"
+              exit 1
+            fi
+            echo "WARNING: pod install attempt $attempt failed - retrying in $((attempt * 15))s"
+            sleep $((attempt * 15))
+          done
 
       - name: Generate App Icon from source
         script: |
