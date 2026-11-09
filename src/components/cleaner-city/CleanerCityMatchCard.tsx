@@ -1,5 +1,6 @@
 // @ts-nocheck
-import { Bike, Car, Footprints, Handshake, Info, ShieldCheck } from 'lucide-react';
+import { useState } from 'react';
+import { Bike, Car, ChevronDown, Footprints, Handshake, Info, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
@@ -43,8 +44,16 @@ export function CleanerCityMatchCard({
   locked,
   onRequest,
 }: Props) {
+  const [whyOpen, setWhyOpen] = useState(false);
   const reasons = match.reason_labels || match.reasons || [];
-  const chips = matchReasonChips(Array.isArray(reasons) ? reasons : [], 3);
+  const chips = matchReasonChips(
+    Array.isArray(match.reasons) ? match.reasons : [],
+    4,
+  );
+  const whyLines =
+    Array.isArray(match.reason_labels) && match.reason_labels.length
+      ? match.reason_labels
+      : chips;
   const avg = Number(match.host_avg_stars);
   const ratingCount = Number(match.host_rating_count) || 0;
   const starAvg = Number.isFinite(avg) && avg > 0 ? avg : 0;
@@ -73,7 +82,8 @@ export function CleanerCityMatchCard({
   const walkDropLabel = formatTripMeters(legs.walkDrop);
   const nearbyPickup =
     (Number(legs.walkPickup) >= 0 && Number(legs.walkPickup) <= 800) ||
-    chips.some((c) => /nearby pickup|pickup nearby/i.test(c));
+    chips.some((c) => /nearby pickup|pickup nearby|pickup on route/i.test(c));
+  const midRoute = !!match.on_route_drop || chips.some((c) => /mid-route/i.test(c));
 
   return (
     <article
@@ -160,6 +170,9 @@ export function CleanerCityMatchCard({
         {match.estimated_detour_minutes != null
           ? ` · ~${Math.round(Number(match.estimated_detour_minutes))} min detour`
           : ''}
+        {match.road_overlap_pct != null
+          ? ` · ${Math.round(Number(match.road_overlap_pct))}% overlap`
+          : ''}
       </p>
 
       <div className="mt-3 flex items-end justify-between gap-3">
@@ -219,7 +232,15 @@ export function CleanerCityMatchCard({
         {nearbyPickup ? (
           <span className="inline-flex items-center gap-1 rounded-full border border-border bg-muted/30 px-2.5 py-1 text-[10px] font-bold text-foreground">
             <Footprints size={11} className="text-primary" aria-hidden />
-            Nearby pickup
+            Pickup on route
+          </span>
+        ) : null}
+        {midRoute ? (
+          <span
+            className="rounded-full border border-primary/30 bg-primary/10 px-2.5 py-1 text-[10px] font-bold text-primary"
+            data-testid="cleaner-city-on-route-drop"
+          >
+            Drop mid-route
           </span>
         ) : null}
         {match.shared_circle ? (
@@ -231,7 +252,7 @@ export function CleanerCityMatchCard({
           </span>
         ) : null}
         {chips
-          .filter((c) => !/nearby pickup|pickup nearby|seats open/i.test(c))
+          .filter((c) => !/nearby pickup|pickup nearby|pickup on route|mid-route|seats open/i.test(c))
           .slice(0, 2)
           .map((chip) => (
             <span
@@ -242,6 +263,47 @@ export function CleanerCityMatchCard({
             </span>
           ))}
       </div>
+
+      {whyLines.length > 0 ? (
+        <div className="mt-3 border-t border-border pt-2" data-testid="cleaner-city-match-why">
+          <button
+            type="button"
+            className="flex w-full items-center justify-between gap-2 py-1 text-left"
+            onClick={() => setWhyOpen((v) => !v)}
+            data-testid="cleaner-city-match-why-toggle"
+          >
+            <span className="text-[11px] font-extrabold uppercase tracking-[0.12em] text-primary">
+              Why this ride
+            </span>
+            <ChevronDown
+              size={14}
+              className={cn(
+                'text-muted-foreground transition-transform',
+                whyOpen && 'rotate-180',
+              )}
+            />
+          </button>
+          {whyOpen ? (
+            <ul className="mt-1 space-y-1 pb-1">
+              {whyLines.slice(0, 8).map((line) => (
+                <li key={line} className="text-[12px] text-muted-foreground">
+                  · {line}
+                </li>
+              ))}
+              {match.pickup_deviation_meters != null ? (
+                <li className="text-[11px] text-muted-foreground">
+                  Pickup ~{formatTripMeters(match.pickup_deviation_meters)} from their road
+                </li>
+              ) : null}
+              {match.destination_deviation_meters != null ? (
+                <li className="text-[11px] text-muted-foreground">
+                  Drop ~{formatTripMeters(match.destination_deviation_meters)} from their road
+                </li>
+              ) : null}
+            </ul>
+          ) : null}
+        </div>
+      ) : null}
     </article>
   );
 }

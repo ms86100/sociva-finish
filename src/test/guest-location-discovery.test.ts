@@ -1,7 +1,7 @@
 import { describe, expect, it, beforeEach, afterEach } from 'vitest';
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
-import { isGuestBrowsePath, authReturnPath } from '@/lib/guest-browse-routes';
+import { isGuestBrowsePath, isLocalGuestBrowseHost, authReturnPath } from '@/lib/guest-browse-routes';
 import {
   isLocationOnboardingDone,
   markLocationOnboardingDone,
@@ -63,6 +63,19 @@ describe('guest browse allow-list', () => {
 
   it('preserves return path for auth redirect', () => {
     expect(authReturnPath('/product/x', '?q=1')).toBe('/product/x?q=1');
+  });
+
+  it('local guest browse host is loopback-only (never production domains)', () => {
+    expect(isLocalGuestBrowseHost('localhost')).toBe(true);
+    expect(isLocalGuestBrowseHost('127.0.0.1')).toBe(true);
+    expect(isLocalGuestBrowseHost('[::1]')).toBe(true);
+    expect(isLocalGuestBrowseHost('::1')).toBe(true);
+    expect(isLocalGuestBrowseHost('sociva.in')).toBe(false);
+    expect(isLocalGuestBrowseHost('www.sociva.in')).toBe(false);
+    expect(isLocalGuestBrowseHost('preview.sociva.in')).toBe(false);
+    expect(isLocalGuestBrowseHost('192.168.1.10')).toBe(false);
+    expect(isLocalGuestBrowseHost('10.0.0.5')).toBe(false);
+    expect(isLocalGuestBrowseHost('')).toBe(false);
   });
 });
 
@@ -169,6 +182,8 @@ describe('guest location discovery wiring (source)', () => {
     expect(sessionCheck).toBeGreaterThan(-1);
     expect(landing).toBeGreaterThan(sessionCheck);
     expect(gate).toMatch(/!Capacitor\.isNativePlatform\(\) && !user && isGuestBrowsePath\(path\)/);
+    expect(gate).toMatch(/isLocalGuestBrowseHost/);
+    expect(gate).not.toMatch(/VITE_.*GUEST.*BYPASS|FORCE_GUEST_AUTH|SKIP_AUTH/);
     expect(gate).toMatch(/needsLocationOnboarding/);
   });
 

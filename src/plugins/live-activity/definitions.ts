@@ -54,5 +54,19 @@ export interface LiveActivityPlugin {
   requestBackgroundLocation?(): Promise<{ status: string; detail?: string }>;
   /** Android: open application details / location settings. */
   openAppLocationSettings?(): Promise<{ status: string; detail?: string }>;
+  /** Android Cleaner City: start location foreground service for an active ride. */
+  startCommuteTracking?(opts: {
+    ride_id: string;
+    access_token: string;
+    supabase_url: string;
+    anon_key: string;
+  }): Promise<void>;
+  stopCommuteTracking?(): Promise<void>;
+  updateCommuteTracking?(opts: {
+    ride_id: string;
+    access_token: string;
+    supabase_url: string;
+    anon_key: string;
+  }): Promise<void>;
   addListener?(eventName: string, callback: (data: any) => void): any;
 }

@@ -14,6 +14,9 @@ const noopImplementation: LiveActivityPlugin = {
   getNativeBuildFlags: async () => ({ backgroundGeoVendor: 'none' as const, platform: 'web' }),
   requestBackgroundLocation: async () => ({ status: 'unsupported', detail: 'web' }),
   openAppLocationSettings: async () => ({ status: 'unsupported', detail: 'web' }),
+  startCommuteTracking: async () => {},
+  stopCommuteTracking: async () => {},
+  updateCommuteTracking: async () => {},
 };
 
 /**

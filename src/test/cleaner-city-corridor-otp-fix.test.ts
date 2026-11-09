@@ -10,6 +10,9 @@ function read(rel: string) {
 const migration = read(
   'supabase/migrations/20261103170000_cleaner_city_corridor_match_otp_fixture.sql',
 );
+const hoprMig = read(
+  'supabase/migrations/20261104120000_cleaner_city_hopr_parity_match_stops.sql',
+);
 const rideActions = read('src/components/cleaner-city/ride/RidePrimaryActions.tsx');
 const findPage = read('src/pages/cleaner-city/CleanerCityFindPage.tsx');
 const missionCopy = read('src/lib/cleaner-city/rideMissionCopy.ts');
@@ -29,13 +32,13 @@ describe('GC-01/02 corridor matching + passenger OTP', () => {
     );
   });
 
-  it('flips OTP to passenger-held generate and host start', () => {
+  it('flips OTP to passenger-held generate and host start on Ride only', () => {
     expect(migration).toContain('Only the passenger can generate the pickup OTP');
     expect(migration).toContain('Only the rider can start the trip with the passenger OTP');
     expect(rideActions).toContain('cleaner-city-passenger-otp-display');
     expect(rideActions).toContain('cleaner-city-host-otp-input');
-    expect(findPage).toContain('Show to rider');
-    expect(findPage).toContain('Passenger code');
+    expect(findPage).toContain('Open ride for pickup code');
+    expect(findPage).not.toContain('Passenger code');
     expect(missionCopy).toContain('Ask your passenger for the 6-digit code');
   });
 
@@ -48,9 +51,11 @@ describe('GC-01/02 corridor matching + passenger OTP', () => {
     );
   });
 
-  it('exposes corridor reason labels', () => {
-    expect(formatMatchReason('pickup_on_route_corridor')).toBe('Pickup on their route');
-    expect(formatMatchReason('drop_on_route_corridor')).toBe('Drop on their route');
+  it('exposes corridor reason labels including mid-route', () => {
+    expect(formatMatchReason('pickup_on_route_corridor')).toBe('Pickup on route');
+    expect(formatMatchReason('drop_on_route_corridor')).toBe('Drop on route');
+    expect(formatMatchReason('drop_mid_route')).toBe('Drop mid-route');
     expect(formatMatchReason('pickup_before_drop')).toBe('Stops in order');
+    expect(hoprMig).toContain('on_route_drop');
   });
 });

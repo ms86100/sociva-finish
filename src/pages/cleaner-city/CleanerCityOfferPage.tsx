@@ -20,6 +20,7 @@ import {
   useCleanerCityWorkVerification,
   useCommuteTemplates,
   useEffectiveSchedule,
+  useEmergencyContacts,
   useMyPublications,
   useMyRides,
   useOfficeLocations,
@@ -90,6 +91,8 @@ export default function CleanerCityOfferPage() {
   const { data: offices = [] } = useOfficeLocations();
   const { data: templates = [] } = useCommuteTemplates();
   const { data: myRides = [] } = useMyRides();
+  const { data: emergencyContacts = [] } = useEmergencyContacts();
+  const hasVerifiedEmergency = emergencyContacts.some((c) => c.verified_at);
   const publish = usePublishCommute();
   const navigate = useNavigate();
   const location = useLocation();
@@ -406,7 +409,7 @@ export default function CleanerCityOfferPage() {
       setPublishAlts(alts);
       setNeedRoutePick(true);
       setPublishRouteId(null);
-      toast.message('Pick which road you will take, then tap Publish again');
+      toast.message('Tap a route card to publish on that road');
       return null;
     } catch (e: any) {
       toast.error(e?.message || 'Could not load driving routes - try again');
@@ -414,9 +417,18 @@ export default function CleanerCityOfferPage() {
     }
   };
 
-  const publishRide = async () => {
+  const publishRide = async (forcedRoute?: RouteAlternative | null) => {
     if (!ready) {
       toast.error('Verify work email and host role first');
+      return;
+    }
+    if (!hasVerifiedEmergency) {
+      toast.error('Add a verified emergency contact before publishing', {
+        action: {
+          label: 'Safety',
+          onClick: () => navigate('/cleaner-city/safety'),
+        },
+      });
       return;
     }
     if (!vehicleId) {
@@ -441,7 +453,7 @@ export default function CleanerCityOfferPage() {
           ? { lat: office.latitude, lng: office.longitude }
           : { lat: pickupLat, lng: pickupLng };
 
-      const chosen = await resolvePublishRoute(origin, destination);
+      const chosen = forcedRoute || (await resolvePublishRoute(origin, destination));
       if (!chosen) {
         return;
       }
@@ -449,8 +461,8 @@ export default function CleanerCityOfferPage() {
         toast.error('A real driving route is required before publishing');
         return;
       }
-      if (chosen.provider !== 'google') {
-        toast.error('Maps must return a Google driving route before publishing - try again online');
+      if (chosen.provider === 'haversine_fallback') {
+        toast.error('A real driving road is required before publishing - retry route pick online');
         return;
       }
 
@@ -604,6 +616,19 @@ export default function CleanerCityOfferPage() {
                 vehicle
               </Link>{' '}
               before publishing.
+            </div>
+          ) : null}
+
+          {ready && !hasVerifiedEmergency ? (
+            <div
+              className="rounded-2xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm leading-relaxed"
+              data-testid="cleaner-city-offer-emergency-gate"
+            >
+              Add a verified{' '}
+              <Link to="/cleaner-city/safety" className="font-semibold text-primary underline">
+                emergency contact
+              </Link>{' '}
+              before publishing seats.
             </div>
           ) : null}
 
@@ -764,7 +789,7 @@ export default function CleanerCityOfferPage() {
                   >
                     <p className="text-sm font-semibold">Which road will you take?</p>
                     <p className="text-xs text-muted-foreground">
-                      Google found more than one path - pick one, then publish.
+                      Google found more than one path - tap a card to publish on that road.
                     </p>
                     {publishAlts.map((alt) => {
                       const mins = Math.round(alt.durationSeconds / 60);
@@ -774,20 +799,25 @@ export default function CleanerCityOfferPage() {
                         <button
                           key={alt.id}
                           type="button"
-                          onClick={() => setPublishRouteId(alt.id)}
+                          disabled={publish.isPending}
+                          onClick={() => {
+                            setPublishRouteId(alt.id);
+                            void publishRide(alt);
+                          }}
                           className={cn(
                             'w-full rounded-xl border px-3 py-2.5 text-left',
                             selectedAlt
                               ? 'border-primary bg-primary/10'
                               : 'border-border bg-card',
                           )}
+                          data-testid="cleaner-city-offer-route-alt"
                         >
                           <p className="text-sm font-semibold flex items-center gap-1.5">
                             {selectedAlt ? <Check size={14} className="text-primary" /> : null}
                             {alt.summary}
                           </p>
                           <p className="text-xs text-muted-foreground mt-0.5">
-                            ~{mins} min · {km} km
+                            ~{mins} min · {km} km · tap to publish
                           </p>
                         </button>
                       );
@@ -819,21 +849,23 @@ export default function CleanerCityOfferPage() {
                   </label>
                 ) : null}
 
-                <Button
-                  className="h-12 w-full text-base font-semibold"
-                  onClick={publishRide}
-                  disabled={
-                    publish.isPending ||
-                    !ready ||
-                    !pinsReady ||
-                    !canPublishDay ||
-                    (needRoutePick && !publishRouteId) ||
-                    (!isLoaded && !offlineConfirm)
-                  }
-                  data-testid="cleaner-city-offer-publish"
-                >
-                  {!isLoaded && !offlineConfirm ? 'Waiting for Maps…' : 'Publish ride'}
-                </Button>
+                {needRoutePick && publishAlts.length > 1 ? null : (
+                  <Button
+                    className="h-12 w-full text-base font-semibold"
+                    onClick={() => void publishRide()}
+                    disabled={
+                      publish.isPending ||
+                      !ready ||
+                      !hasVerifiedEmergency ||
+                      !pinsReady ||
+                      !canPublishDay ||
+                      (!isLoaded && !offlineConfirm)
+                    }
+                    data-testid="cleaner-city-offer-publish"
+                  >
+                    {!isLoaded && !offlineConfirm ? 'Waiting for Maps…' : 'Publish ride'}
+                  </Button>
+                )}
               </section>
             </TabsContent>
 

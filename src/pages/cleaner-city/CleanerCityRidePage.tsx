@@ -29,7 +29,6 @@ import {
   useRankedMeetupPoints,
   useReportIncident,
   useReputation,
-  useRequestMaskedCall,
   useRespondRideRequest,
   useRevokeShareToken,
   useRideChat,
@@ -122,7 +121,6 @@ export default function CleanerCityRidePage() {
   const { data: disputeCase } = useRideDisputeCase(
     ride && ['disputed', 'completed', 'no_show', 'cancelled'].includes(ride.status) ? id : null,
   );
-  const maskedCall = useRequestMaskedCall();
   const respond = useRespondRideRequest();
   const cancelRide = useCancelRide();
   const { data: rankedMeetups = [] } = useRankedMeetupPoints(id);
@@ -174,7 +172,7 @@ export default function CleanerCityRidePage() {
   const [markingStopId, setMarkingStopId] = useState<string | null>(null);
   const [celebrate, setCelebrate] = useState(false);
   const [clockTick, setClockTick] = useState(0);
-  const [callingUnavailable, setCallingUnavailable] = useState(false);
+  const [sosConfirmOpen, setSosConfirmOpen] = useState(false);
 
   const isHost = ride?.host_user_id === user?.id;
   const active = !!ride && ['pickup_pending', 'started'].includes(ride.status);
@@ -426,7 +424,6 @@ export default function CleanerCityRidePage() {
   const partnerTone = locationFreshnessTone(partnerLocation?.recorded_at);
   const shareTtlHours = Number(capabilities?.share_link_ttl_hours || 2);
   const sosSmsReady = capabilities?.sos_sms !== false;
-  const relayCallReady = capabilities?.relay_call === true;
   const fuelCheckoutReady = capabilities?.fuel_checkout !== false;
 
   useEffect(() => {
@@ -676,7 +673,7 @@ export default function CleanerCityRidePage() {
                 const res = await generateOtp.mutateAsync(ride.id);
                 setShownOtp(res.otp);
                 pulseCelebrate();
-                toast.success(`OTP ${res.otp}`);
+                toast.success('Pickup code ready - show the card below');
               } catch (e: any) {
                 toast.error(e?.message || 'OTP failed');
               }
@@ -698,7 +695,12 @@ export default function CleanerCityRidePage() {
               try {
                 await completeRide.mutateAsync(ride.id);
                 pulseCelebrate();
-                toast.success('Completed');
+                toast.success('Ride complete - rate your partner when ready');
+                window.setTimeout(() => {
+                  document
+                    .getElementById('cleaner-city-rate-section')
+                    ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }, 200);
               } catch (e: any) {
                 toast.error(e?.message || 'Failed');
               }
@@ -714,6 +716,51 @@ export default function CleanerCityRidePage() {
                 ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
             }
             onOpenMaps={isHost && dropNav ? () => openGoogleMapsDirections(dropNav) : null}
+            meetingPickerSlot={
+              needsMeetingPoint && canCoordinate ? (
+                <CleanerCityMeetingPointPicker
+                  rideId={ride.id}
+                  currentLabel={ride.meeting_point_label}
+                  currentLat={ride.meeting_point_latitude}
+                  currentLng={ride.meeting_point_longitude}
+                  guestPickupLat={ride.guest_pickup_latitude}
+                  guestPickupLng={ride.guest_pickup_longitude}
+                  guestPickupLabel="Guest pickup from request"
+                  hostOriginLat={
+                    offices.find((o) => o.is_primary)?.latitude ??
+                    offices[0]?.latitude ??
+                    null
+                  }
+                  hostOriginLng={
+                    offices.find((o) => o.is_primary)?.longitude ??
+                    offices[0]?.longitude ??
+                    null
+                  }
+                  hostOriginLabel={
+                    ride.origin_label ||
+                    offices.find((o) => o.is_primary)?.label ||
+                    'Host office / start'
+                  }
+                  savedSuggestions={[
+                    ...rankedMeetups.map((pt) => ({
+                      id: String(pt.id),
+                      label: pt.label,
+                      latitude: Number(pt.latitude),
+                      longitude: Number(pt.longitude),
+                      hint: `~${Math.round(Number(pt.walk_meters) || 0)} m walk`,
+                    })),
+                    ...meetupPoints.map((pt) => ({
+                      id: String(pt.id),
+                      label: pt.label,
+                      latitude: Number(pt.latitude),
+                      longitude: Number(pt.longitude),
+                    })),
+                  ]}
+                  saving={setMeetingPoint.isPending}
+                  onSave={(input) => setMeetingPoint.mutateAsync(input)}
+                />
+              ) : null
+            }
           />
 
           {ride.meeting_point_label && (
@@ -753,48 +800,50 @@ export default function CleanerCityRidePage() {
             </div>
           )}
 
-          {canCoordinate && (
-            <CleanerCityMeetingPointPicker
-              rideId={ride.id}
-              currentLabel={ride.meeting_point_label}
-              currentLat={ride.meeting_point_latitude}
-              currentLng={ride.meeting_point_longitude}
-              guestPickupLat={ride.guest_pickup_latitude}
-              guestPickupLng={ride.guest_pickup_longitude}
-              guestPickupLabel="Guest pickup from request"
-              hostOriginLat={
-                offices.find((o) => o.is_primary)?.latitude ??
-                offices[0]?.latitude ??
-                null
-              }
-              hostOriginLng={
-                offices.find((o) => o.is_primary)?.longitude ??
-                offices[0]?.longitude ??
-                null
-              }
-              hostOriginLabel={
-                ride.origin_label ||
-                offices.find((o) => o.is_primary)?.label ||
-                'Host office / start'
-              }
-              savedSuggestions={[
-                ...rankedMeetups.map((pt) => ({
-                  id: String(pt.id),
-                  label: pt.label,
-                  latitude: Number(pt.latitude),
-                  longitude: Number(pt.longitude),
-                  hint: `~${Math.round(Number(pt.walk_meters) || 0)} m walk`,
-                })),
-                ...meetupPoints.map((pt) => ({
-                  id: String(pt.id),
-                  label: pt.label,
-                  latitude: Number(pt.latitude),
-                  longitude: Number(pt.longitude),
-                })),
-              ]}
-              saving={setMeetingPoint.isPending}
-              onSave={(input) => setMeetingPoint.mutateAsync(input)}
-            />
+          {canCoordinate && !needsMeetingPoint && (
+            <div id="cleaner-city-meeting-point-section">
+              <CleanerCityMeetingPointPicker
+                rideId={ride.id}
+                currentLabel={ride.meeting_point_label}
+                currentLat={ride.meeting_point_latitude}
+                currentLng={ride.meeting_point_longitude}
+                guestPickupLat={ride.guest_pickup_latitude}
+                guestPickupLng={ride.guest_pickup_longitude}
+                guestPickupLabel="Guest pickup from request"
+                hostOriginLat={
+                  offices.find((o) => o.is_primary)?.latitude ??
+                  offices[0]?.latitude ??
+                  null
+                }
+                hostOriginLng={
+                  offices.find((o) => o.is_primary)?.longitude ??
+                  offices[0]?.longitude ??
+                  null
+                }
+                hostOriginLabel={
+                  ride.origin_label ||
+                  offices.find((o) => o.is_primary)?.label ||
+                  'Host office / start'
+                }
+                savedSuggestions={[
+                  ...rankedMeetups.map((pt) => ({
+                    id: String(pt.id),
+                    label: pt.label,
+                    latitude: Number(pt.latitude),
+                    longitude: Number(pt.longitude),
+                    hint: `~${Math.round(Number(pt.walk_meters) || 0)} m walk`,
+                  })),
+                  ...meetupPoints.map((pt) => ({
+                    id: String(pt.id),
+                    label: pt.label,
+                    latitude: Number(pt.latitude),
+                    longitude: Number(pt.longitude),
+                  })),
+                ]}
+                saving={setMeetingPoint.isPending}
+                onSave={(input) => setMeetingPoint.mutateAsync(input)}
+              />
+            </div>
           )}
 
           {canCoordinate && (
@@ -977,124 +1026,147 @@ export default function CleanerCityRidePage() {
               <div>
                 <p className="text-sm font-semibold">Safety</p>
                 <p className="text-[11px] text-muted-foreground mt-0.5">
-                  {ride.status === 'pickup_pending'
-                    ? 'Available at pickup - for real emergencies at the gate.'
-                    : 'Available while you are on the road.'}
+                  Available from seat confirmed through the live trip.
                 </p>
               </div>
-              <div className="grid grid-cols-2 gap-2">
-                {canShowRideSos(ride.status) ? (
-                  <Button
-                    variant="destructive"
-                    className="h-12 font-semibold"
-                    onClick={async () => {
-                      try {
-                        let lat = null;
-                        let lng = null;
+              {sosConfirmOpen ? (
+                <div
+                  className="rounded-xl border border-destructive/40 bg-destructive/10 p-3 space-y-2"
+                  data-testid="cleaner-city-sos-confirm"
+                >
+                  <p className="text-sm font-semibold">Alert contacts + share live link?</p>
+                  <p className="text-[11px] text-muted-foreground">
+                    This notifies your partner, linked contacts, and society admins. It is not a 112 dialer.
+                  </p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      variant="destructive"
+                      className="h-11 font-semibold"
+                      data-testid="cleaner-city-sos-confirm-yes"
+                      onClick={async () => {
+                        setSosConfirmOpen(false);
                         try {
-                          const pos = await getCurrentPosition();
-                          lat = pos.latitude;
-                          lng = pos.longitude;
-                        } catch {
-                          /* optional */
-                        }
-                        const result: any = await report.mutateAsync({
-                          ride_id: ride.id,
-                          incident_type: 'sos',
-                          note: 'SOS from app',
-                          latitude: lat,
-                          longitude: lng,
-                          severity: 'critical',
-                        });
-                        let smsOk = true;
-                        let smsDetail = '';
-                        try {
-                          const dispatched: any = await dispatchSafety.mutateAsync(
-                            result?.alert_id || null,
-                          );
-                          if (
-                            dispatched?.failed ||
-                            dispatched?.error ||
-                            dispatched?.sms_failed ||
-                            (Array.isArray(dispatched?.errors) && dispatched.errors.length)
-                          ) {
+                          let lat = null;
+                          let lng = null;
+                          try {
+                            const pos = await getCurrentPosition();
+                            lat = pos.latitude;
+                            lng = pos.longitude;
+                          } catch {
+                            /* optional */
+                          }
+                          const result: any = await report.mutateAsync({
+                            ride_id: ride.id,
+                            incident_type: 'sos',
+                            note: 'SOS from app',
+                            latitude: lat,
+                            longitude: lng,
+                            severity: 'critical',
+                          });
+                          let smsOk = true;
+                          let smsDetail = '';
+                          try {
+                            const dispatched: any = await dispatchSafety.mutateAsync(
+                              result?.alert_id || null,
+                            );
+                            if (
+                              dispatched?.failed ||
+                              dispatched?.error ||
+                              dispatched?.sms_failed ||
+                              (Array.isArray(dispatched?.errors) && dispatched.errors.length)
+                            ) {
+                              smsOk = false;
+                              smsDetail =
+                                dispatched?.error ||
+                                dispatched?.message ||
+                                'SMS / call relay not configured';
+                            }
+                          } catch (dispatchErr: any) {
                             smsOk = false;
                             smsDetail =
-                              dispatched?.error ||
-                              dispatched?.message ||
-                              'SMS / call relay not configured';
+                              dispatchErr?.message || 'SMS dispatcher unavailable';
                           }
-                        } catch (dispatchErr: any) {
-                          smsOk = false;
-                          smsDetail =
-                            dispatchErr?.message || 'SMS dispatcher unavailable';
+                          const contacts = Number(result?.notified_contacts || 0);
+                          const admins = Number(result?.notified_admins || 0);
+                          const skipped = Number(result?.phone_only_contacts_skipped || 0);
+                          const counterpart = result?.notified_counterpart ? 1 : 0;
+                          setSosResult({ contacts, admins, counterpart, skipped });
+                          try {
+                            const row = await shareToken.mutateAsync(ride.id);
+                            const url = `${window.location.origin}/cleaner-city/share/${row.token}`;
+                            setShareUrl(url);
+                            setShareExpiresAt(row.expires_at || '');
+                          } catch {
+                            /* share optional after SOS */
+                          }
+                          if (contacts + admins + counterpart === 0) {
+                            toast.message('SOS saved in app', {
+                              description:
+                                'Nobody reachable in-app yet. Call 112 if in danger.' +
+                                (!smsOk ? ` SMS: ${smsDetail}` : ''),
+                            });
+                          } else {
+                            toast.success(
+                              `Alerted partner ${counterpart}, contacts ${contacts}, admins ${admins}` +
+                                (skipped > 0 ? ` · ${skipped} phone-only need SMS setup` : '') +
+                                (!smsOk ? ` · SMS not sent (${smsDetail})` : ''),
+                            );
+                          }
+                        } catch (e: any) {
+                          toast.error(e?.message || 'SOS failed');
                         }
-                        const contacts = Number(result?.notified_contacts || 0);
-                        const admins = Number(result?.notified_admins || 0);
-                        const skipped = Number(result?.phone_only_contacts_skipped || 0);
-                        const counterpart = result?.notified_counterpart ? 1 : 0;
-                        setSosResult({ contacts, admins, counterpart, skipped });
+                      }}
+                    >
+                      Send SOS
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="h-11 font-semibold"
+                      onClick={() => setSosConfirmOpen(false)}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-2">
+                  {canShowRideSos(ride.status) ? (
+                    <Button
+                      variant="destructive"
+                      className="h-12 font-semibold"
+                      onClick={() => setSosConfirmOpen(true)}
+                      data-testid="cleaner-city-sos"
+                    >
+                      SOS
+                    </Button>
+                  ) : (
+                    <div />
+                  )}
+                  {canShowTripShare(ride.status) ? (
+                    <Button
+                      variant="outline"
+                      className="h-12 font-semibold"
+                      onClick={async () => {
                         try {
                           const row = await shareToken.mutateAsync(ride.id);
                           const url = `${window.location.origin}/cleaner-city/share/${row.token}`;
                           setShareUrl(url);
                           setShareExpiresAt(row.expires_at || '');
-                        } catch {
-                          /* share optional after SOS */
-                        }
-                        if (contacts + admins + counterpart === 0) {
-                          toast.message('SOS saved in app', {
-                            description:
-                              'Nobody reachable in-app yet. Call 112 if in danger.' +
-                              (!smsOk ? ` SMS: ${smsDetail}` : ''),
-                          });
-                        } else {
+                          await navigator.clipboard?.writeText(url);
                           toast.success(
-                            `Alerted partner ${counterpart}, contacts ${contacts}, admins ${admins}` +
-                              (skipped > 0 ? ` · ${skipped} phone-only need SMS setup` : '') +
-                              (!smsOk ? ` · SMS not sent (${smsDetail})` : ''),
+                            `Trip link copied - expires in about ${shareTtlHours}h. Send to family only.`,
                           );
+                        } catch (e: any) {
+                          toast.error(e?.message || 'Share failed');
                         }
-                        if (!smsOk) {
-                          toast.error(
-                            `Phone SMS/call relay failed: ${smsDetail}. In-app alerts still ran. Call 112 if needed.`,
-                          );
-                        }
-                      } catch (e: any) {
-                        toast.error(e?.message || 'SOS failed');
-                      }
-                    }}
-                    data-testid="cleaner-city-sos"
-                  >
-                    SOS
-                  </Button>
-                ) : (
-                  <div />
-                )}
-                {canShowTripShare(ride.status) ? (
-                  <Button
-                    variant="outline"
-                    className="h-12 font-semibold"
-                    onClick={async () => {
-                      try {
-                        const row = await shareToken.mutateAsync(ride.id);
-                        const url = `${window.location.origin}/cleaner-city/share/${row.token}`;
-                        setShareUrl(url);
-                        setShareExpiresAt(row.expires_at || '');
-                        await navigator.clipboard?.writeText(url);
-                        toast.success(
-                          `Trip link copied - expires in about ${shareTtlHours}h. Send to family only.`,
-                        );
-                      } catch (e: any) {
-                        toast.error(e?.message || 'Share failed');
-                      }
-                    }}
-                    data-testid="cleaner-city-trip-share"
-                  >
-                    Trip share
-                  </Button>
-                ) : null}
-              </div>
+                      }}
+                      data-testid="cleaner-city-trip-share"
+                    >
+                      Trip share
+                    </Button>
+                  ) : null}
+                </div>
+              )}
               {shareUrl ? (
                 <div
                   className="rounded-xl border border-border bg-muted/40 p-3 space-y-2"
@@ -1169,60 +1241,35 @@ export default function CleanerCityRidePage() {
 
           {['confirmed', 'pickup_pending', 'started'].includes(ride.status) && (
             <div className="space-y-2" data-testid="cleaner-city-call-panel">
-              <CallButton
-                contextType={resolveCleanerCityRideCall(ride.id).contextType}
-                contextId={ride.id}
-                onFallback={() => {
-                  setCallingUnavailable(true);
-                  toast.message('Use ride chat for now - voice calling is not live yet');
-                }}
-              />
-              <Button
-                variant="ghost"
-                className="w-full h-10 font-semibold"
-                disabled={
-                  maskedCall.isPending || callingUnavailable || capabilities?.relay_call === false
-                }
-                onClick={async () => {
-                  if (callingUnavailable || capabilities?.relay_call === false) {
-                    toast.message('Use ride chat for now - PSTN relay is not live yet');
-                    return;
+              {capabilities?.voip_call === true || capabilities?.livekit === true ? (
+                <CallButton
+                  contextType={resolveCleanerCityRideCall(ride.id).contextType}
+                  contextId={ride.id}
+                  onFallback={() => {
+                    toast.message('Voice call not ready - use Message instead');
+                  }}
+                />
+              ) : (
+                <Button
+                  className="w-full h-12 font-semibold"
+                  variant="outline"
+                  onClick={() =>
+                    document
+                      .getElementById('cleaner-city-ride-chat')
+                      ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
                   }
-                  try {
-                    const res = await maskedCall.mutateAsync(ride.id);
-                    if (
-                      res?.dispatch_error ||
-                      res?.dispatch?.failed ||
-                      (res?.status === 'pending' && !res?.sid && !res?.call_sid)
-                    ) {
-                      setCallingUnavailable(true);
-                      toast.error(
-                        'PSTN relay is not available yet. Message your partner in chat below.',
-                      );
-                      return;
-                    }
-                    toast.success('Relay call requested. Your number stays hidden.');
-                  } catch (e: any) {
-                    setCallingUnavailable(true);
-                    toast.error(
-                      e?.message ||
-                        'PSTN relay is not available yet. Use ride chat instead.',
-                    );
-                  }
-                }}
-                data-testid="cleaner-city-masked-call"
-              >
-                {callingUnavailable || capabilities?.relay_call === false
-                  ? 'PSTN relay not available'
-                  : 'Fallback: relay call (number hidden)'}
-              </Button>
+                  data-testid="cleaner-city-message-instead-of-call"
+                >
+                  Message
+                </Button>
+              )}
               <p
                 className="text-[11px] text-muted-foreground px-1"
                 data-testid="cleaner-city-call-honesty"
               >
-                {relayCallReady
-                  ? 'Prefer in-app Call when LiveKit is enabled. PSTN relay stays as fallback.'
-                  : 'In-app VoIP needs LiveKit. PSTN relay needs Twilio. Use ride chat until either is live.'}
+                {capabilities?.voip_call === true || capabilities?.livekit === true
+                  ? 'In-app Call uses LiveKit when configured.'
+                  : 'Voice call is not configured - message your partner in ride chat.'}
               </p>
             </div>
           )}
@@ -1326,7 +1373,11 @@ export default function CleanerCityRidePage() {
           )}
 
           {ride.status === 'completed' && (
-            <div className="rounded-2xl border border-border bg-card p-4 space-y-3">
+            <div
+              id="cleaner-city-rate-section"
+              className="rounded-2xl border border-border bg-card p-4 space-y-3"
+              data-testid="cleaner-city-rate-section"
+            >
               <p className="text-sm font-semibold">Rate & fuel share</p>
               <div className="flex gap-2">
                 {[1, 2, 3, 4, 5].map((n) => (

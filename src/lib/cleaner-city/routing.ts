@@ -2,11 +2,13 @@
 
 export type LatLng = { lat: number; lng: number };
 
+export type RouteProvider = 'google' | 'osrm' | 'haversine_fallback';
+
 export type RouteResult = {
   polyline: string;
   distanceMeters: number;
   durationSeconds: number;
-  provider: 'google' | 'haversine_fallback';
+  provider: RouteProvider;
   path: LatLng[];
   summary?: string;
   waypointOrder?: number[];
@@ -18,7 +20,7 @@ export type RouteAlternative = {
   distanceMeters: number;
   durationSeconds: number;
   summary: string;
-  provider: 'google' | 'haversine_fallback';
+  provider: RouteProvider;
   path: LatLng[];
 };
 
@@ -33,7 +35,7 @@ export type DropSequenceResult = {
   ordered: Array<DropStop & { dropIndex: number }>;
   distanceMeters: number;
   durationSeconds: number;
-  provider: 'google' | 'haversine_fallback';
+  provider: RouteProvider;
   polyline: string;
 };
 
@@ -119,9 +121,129 @@ function haversineRoute(
   };
 }
 
+type GoogleRoutesLib = {
+  Route: {
+    computeRoutes: (request: Record<string, unknown>) => Promise<{
+      routes?: Array<{
+        path?: Array<{ lat: number; lng: number } | google.maps.LatLng>;
+        distanceMeters?: number;
+        durationMillis?: number;
+        description?: string;
+        optimizedIntermediateWaypointIndices?: number[];
+      }>;
+    }>;
+  };
+};
+
+async function loadGoogleRoutesLib(): Promise<GoogleRoutesLib | null> {
+  if (typeof window === 'undefined' || !window.google?.maps) return null;
+  try {
+    const lib = (await google.maps.importLibrary('routes')) as GoogleRoutesLib;
+    if (lib?.Route?.computeRoutes) return lib;
+  } catch {
+    // Routes library unavailable - caller may fall back to legacy Directions.
+  }
+  return null;
+}
+
+function pathFromGoogleRoutePath(
+  path: Array<{ lat: number; lng: number } | google.maps.LatLng> | undefined,
+): LatLng[] {
+  if (!path?.length) return [];
+  return path
+    .map((p) => {
+      if (!p) return null;
+      if (typeof (p as google.maps.LatLng).lat === 'function') {
+        const ll = p as google.maps.LatLng;
+        return { lat: ll.lat(), lng: ll.lng() };
+      }
+      const lit = p as {
+        lat?: number;
+        lng?: number;
+        latitude?: number;
+        longitude?: number;
+      };
+      const lat = Number(lit.lat ?? lit.latitude);
+      const lng = Number(lit.lng ?? lit.longitude);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+      return { lat, lng };
+    })
+    .filter((p): p is LatLng => !!p);
+}
+
+async function requestRoutesApi(
+  origin: LatLng,
+  destination: LatLng,
+  options?: {
+    alternatives?: boolean;
+    waypoints?: LatLng[];
+    optimizeWaypoints?: boolean;
+  },
+): Promise<{ alternatives: RouteAlternative[]; status: string; waypointOrder?: number[] }> {
+  const lib = await loadGoogleRoutesLib();
+  if (!lib) return { alternatives: [], status: 'NO_ROUTES_LIBRARY' };
+
+  try {
+    const waypoints = options?.waypoints || [];
+    const { routes } = await lib.Route.computeRoutes({
+      origin: { lat: origin.lat, lng: origin.lng },
+      destination: { lat: destination.lat, lng: destination.lng },
+      travelMode: 'DRIVING',
+      computeAlternativeRoutes: !!options?.alternatives && waypoints.length === 0,
+      optimizeWaypointOrder: !!options?.optimizeWaypoints && waypoints.length > 1,
+      intermediates: waypoints.map((w) => ({ lat: w.lat, lng: w.lng })),
+      fields: [
+        'path',
+        'distanceMeters',
+        'durationMillis',
+        'description',
+        'optimizedIntermediateWaypointIndices',
+      ],
+    });
+
+    if (!routes?.length) return { alternatives: [], status: 'ZERO_RESULTS' };
+
+    // Google returns up to ~3 alternatives when computeAlternativeRoutes is on.
+    const alternatives = routes.slice(0, 4).map((route, index) => {
+      const path = pathFromGoogleRoutePath(route.path);
+      const distanceMeters = Math.round(route.distanceMeters || 0);
+      const durationSeconds = Math.max(
+        1,
+        Math.round((route.durationMillis || distanceMeters / ((25 * 1000) / 3600) * 1000) / 1000),
+      );
+      const summary = route.description
+        ? `via ${route.description}`
+        : index === 0
+          ? 'Usual Google road'
+          : `Google road ${index + 1}`;
+      return {
+        id: `groute-${index}-${summary}`,
+        polyline: encodePolyline(path),
+        distanceMeters,
+        durationSeconds,
+        summary,
+        provider: 'google' as const,
+        path,
+      };
+    });
+
+    return {
+      alternatives,
+      status: 'OK',
+      waypointOrder: routes[0]?.optimizedIntermediateWaypointIndices,
+    };
+  } catch (e: any) {
+    const msg = String(e?.message || e || 'ROUTES_FAILED');
+    if (/REQUEST_DENIED|PERMISSION|API[_ ]?key|not enabled|PERMISSION_DENIED/i.test(msg)) {
+      return { alternatives: [], status: 'REQUEST_DENIED' };
+    }
+    return { alternatives: [], status: msg.slice(0, 80) || 'ROUTES_FAILED' };
+  }
+}
+
 /**
- * Google Directions abstraction for A Cleaner City.
- * Falls back to a straight-line polyline when Directions is unavailable.
+ * Google Routes abstraction for A Cleaner City.
+ * Prefers Routes API, then legacy DirectionsService, then straight-line fallback.
  */
 export async function fetchDrivingRoute(
   origin: LatLng,
@@ -130,6 +252,26 @@ export async function fetchDrivingRoute(
   options?: { optimizeWaypoints?: boolean },
 ): Promise<RouteResult> {
   const optimize = !!options?.optimizeWaypoints && waypoints.length > 1;
+
+  const routesApi = await requestRoutesApi(origin, destination, {
+    waypoints,
+    optimizeWaypoints: optimize,
+  });
+  if (routesApi.alternatives[0]) {
+    const first = routesApi.alternatives[0];
+    return {
+      polyline: first.polyline,
+      distanceMeters: first.distanceMeters,
+      durationSeconds: first.durationSeconds,
+      provider: 'google',
+      path: first.path,
+      summary: first.summary,
+      waypointOrder:
+        routesApi.waypointOrder?.length === waypoints.length
+          ? routesApi.waypointOrder
+          : waypoints.map((_, i) => i),
+    };
+  }
 
   if (typeof window === 'undefined' || !window.google?.maps?.DirectionsService) {
     return haversineRoute(origin, destination, waypoints);
@@ -178,75 +320,212 @@ export async function fetchDrivingRoute(
   }
 }
 
+export type RouteAlternativesResult = {
+  alternatives: RouteAlternative[];
+  status: string;
+  googleOk: boolean;
+  message?: string;
+};
+
+function directionsStatusMessage(status: string): string {
+  const s = String(status || '');
+  if (s === 'REQUEST_DENIED') {
+    return 'Google Routes is blocked for this API key - enable Routes API, allow this site origin on the key, then tap Retry.';
+  }
+  if (s === 'OVER_QUERY_LIMIT') {
+    return 'Google Routes quota hit - wait a minute, then tap Retry.';
+  }
+  if (s === 'ZERO_RESULTS') {
+    return 'Google found no driving path between these pins - nudge a pin closer to a road, then retry.';
+  }
+  if (s === 'NOT_FOUND') {
+    return 'Google could not resolve one of the pins - re-save home or office, then retry.';
+  }
+  if (s === 'NO_DIRECTIONS_SERVICE' || s === 'NO_ROUTES_LIBRARY') {
+    return 'Google Maps Routes is not loaded yet - wait for Maps, then tap Retry.';
+  }
+  if (s === 'UNKNOWN_ERROR' || s === 'MAX_WAYPOINTS_EXCEEDED') {
+    return `Google Routes failed (${s}) - tap Retry in a moment.`;
+  }
+  return `Google Routes unavailable (${s || 'no status'}). Tap Retry.`;
+}
+
+async function requestDirections(
+  origin: LatLng,
+  destination: LatLng,
+  provideAlternatives: boolean,
+): Promise<{ result?: google.maps.DirectionsResult; status: string }> {
+  const svc = new google.maps.DirectionsService();
+  return new Promise((resolve) => {
+    svc.route(
+      {
+        origin: { lat: origin.lat, lng: origin.lng },
+        destination: { lat: destination.lat, lng: destination.lng },
+        travelMode: google.maps.TravelMode.DRIVING,
+        provideRouteAlternatives: provideAlternatives,
+        unitSystem: google.maps.UnitSystem.METRIC,
+      },
+      (res, status) => {
+        resolve({
+          result: status === google.maps.DirectionsStatus.OK && res ? res : undefined,
+          status: String(status),
+        });
+      },
+    );
+  });
+}
+
+function alternativesFromRoutes(routes: google.maps.DirectionsRoute[]): RouteAlternative[] {
+  return routes.slice(0, 4).map((route, index) => {
+    const path = pathFromRoute(route);
+    const { distanceMeters, durationSeconds } = totalsFromRoute(route);
+    return {
+      id: `alt-${index}-${route.summary || index}`,
+      polyline: route.overview_polyline || encodePolyline(path),
+      distanceMeters,
+      durationSeconds,
+      summary: route.summary ? `via ${route.summary}` : `Route ${index + 1}`,
+      provider: 'google' as const,
+      path,
+    };
+  });
+}
+
+/** Keep distinct corridors - skip near-duplicate polylines from dual Google APIs. */
+function mergeUniqueRouteAlternatives(
+  primary: RouteAlternative[],
+  extra: RouteAlternative[],
+): RouteAlternative[] {
+  const out = [...primary];
+  for (const cand of extra) {
+    const mid = cand.path[Math.floor(cand.path.length / 2)];
+    const quarter = cand.path[Math.floor(cand.path.length / 4)];
+    const duplicate = out.some((existing) => {
+      const sameLabel =
+        !!existing.summary &&
+        !!cand.summary &&
+        existing.summary.toLowerCase() === cand.summary.toLowerCase() &&
+        Math.abs(existing.distanceMeters - cand.distanceMeters) < 250;
+      if (sameLabel) return true;
+      if (!mid || existing.path.length < 2) return false;
+      const em = existing.path[Math.floor(existing.path.length / 2)];
+      const eq = existing.path[Math.floor(existing.path.length / 4)];
+      const midClose = haversineMeters(mid, em) < 500;
+      const quarterClose = !quarter || !eq || haversineMeters(quarter, eq) < 600;
+      const distClose =
+        Math.abs(existing.distanceMeters - cand.distanceMeters) <
+        Math.max(500, existing.distanceMeters * 0.08);
+      const timeClose =
+        Math.abs(existing.durationSeconds - cand.durationSeconds) <
+        Math.max(90, existing.durationSeconds * 0.08);
+      return midClose && quarterClose && distClose && timeClose;
+    });
+    if (!duplicate) out.push(cand);
+  }
+  return out;
+}
+
 /** Up to 3 Google driving alternatives between the same pins. */
 export async function fetchDrivingRouteAlternatives(
   origin: LatLng,
   destination: LatLng,
 ): Promise<RouteAlternative[]> {
-  if (typeof window === 'undefined' || !window.google?.maps?.DirectionsService) {
-    const fallback = haversineRoute(origin, destination);
-    return [
-      {
-        id: 'approx-0',
-        polyline: fallback.polyline,
-        distanceMeters: fallback.distanceMeters,
-        durationSeconds: fallback.durationSeconds,
-        summary: fallback.summary || 'Approximate path',
-        provider: 'haversine_fallback',
-        path: fallback.path,
-      },
-    ];
-  }
+  const packed = await fetchDrivingRouteAlternativesDetailed(origin, destination);
+  return packed.alternatives;
+}
 
-  const svc = new google.maps.DirectionsService();
-  try {
-    const result = await new Promise<google.maps.DirectionsResult>((resolve, reject) => {
-      svc.route(
-        {
-          origin,
-          destination,
-          travelMode: google.maps.TravelMode.DRIVING,
-          provideRouteAlternatives: true,
-        },
-        (res, status) => {
-          if (status === google.maps.DirectionsStatus.OK && res) resolve(res);
-          else reject(new Error(String(status)));
-        },
-      );
-    });
+async function fetchOsrmRouteAlternatives(
+  origin: LatLng,
+  destination: LatLng,
+): Promise<RouteAlternative[]> {
+  if (typeof fetch !== 'function') return [];
+  const coords = `${origin.lng},${origin.lat};${destination.lng},${destination.lat}`;
+  const url =
+    `https://router.project-osrm.org/route/v1/driving/${coords}` +
+    '?overview=full&geometries=polyline&alternatives=true&steps=false';
+  const res = await fetch(url);
+  if (!res.ok) return [];
+  const data = (await res.json()) as {
+    code?: string;
+    routes?: Array<{
+      distance?: number;
+      duration?: number;
+      geometry?: string;
+    }>;
+  };
+  if (data.code !== 'Ok' || !data.routes?.length) return [];
+  return data.routes.slice(0, 3).map((route, index) => {
+    const polyline = route.geometry || '';
+    const path = polyline ? decodePolyline(polyline) : [origin, destination];
+    return {
+      id: `osrm-${index}`,
+      polyline: polyline || encodePolyline(path),
+      distanceMeters: Math.round(route.distance || 0),
+      durationSeconds: Math.round(route.duration || 0),
+      summary: index === 0 ? 'Usual road' : `Alt road ${index + 1}`,
+      provider: 'osrm' as const,
+      path,
+    };
+  });
+}
 
-    const routes = (result.routes || []).slice(0, 3);
-    if (routes.length === 0) {
-      const fallback = haversineRoute(origin, destination);
-      return [
-        {
-          id: 'approx-0',
-          polyline: fallback.polyline,
-          distanceMeters: fallback.distanceMeters,
-          durationSeconds: fallback.durationSeconds,
-          summary: fallback.summary || 'Approximate path',
-          provider: 'haversine_fallback',
-          path: fallback.path,
-        },
-      ];
+/** Same as fetchDrivingRouteAlternatives, with status for honest UI + retry. */
+export async function fetchDrivingRouteAlternativesDetailed(
+  origin: LatLng,
+  destination: LatLng,
+): Promise<RouteAlternativesResult> {
+  let status = 'NO_ROUTES_LIBRARY';
+
+  // 1) Routes API (current Google product)
+  const routesApi = await requestRoutesApi(origin, destination, { alternatives: true });
+  status = routesApi.status;
+  let googleAlts = routesApi.alternatives;
+
+  // 2) Also pull legacy Directions alternatives and merge unique paths (max coverage).
+  if (typeof window !== 'undefined' && window.google?.maps?.DirectionsService) {
+    let { result, status: dirStatus } = await requestDirections(origin, destination, true);
+    if (!result && dirStatus !== 'OK') {
+      const retry = await requestDirections(origin, destination, false);
+      result = retry.result;
+      dirStatus = retry.status;
     }
+    if (!googleAlts.length) status = dirStatus;
+    if (result?.routes?.length) {
+      const legacy = alternativesFromRoutes(result.routes);
+      googleAlts = mergeUniqueRouteAlternatives(googleAlts, legacy);
+      if (googleAlts.length) status = 'OK';
+    }
+  }
 
-    return routes.map((route, index) => {
-      const path = pathFromRoute(route);
-      const { distanceMeters, durationSeconds } = totalsFromRoute(route);
+  if (googleAlts.length) {
+    return {
+      alternatives: googleAlts.slice(0, 4),
+      status: 'OK',
+      googleOk: true,
+    };
+  }
+
+  // 3) OpenStreetMap roads while Google is blocked / unavailable
+  try {
+    const osrmAlts = await fetchOsrmRouteAlternatives(origin, destination);
+    if (osrmAlts.length) {
       return {
-        id: `alt-${index}-${route.summary || index}`,
-        polyline: route.overview_polyline || encodePolyline(path),
-        distanceMeters,
-        durationSeconds,
-        summary: route.summary ? `via ${route.summary}` : `Route ${index + 1}`,
-        provider: 'google' as const,
-        path,
+        alternatives: osrmAlts,
+        status: status === 'OK' ? 'OSRM_OK' : status,
+        googleOk: false,
+        message:
+          status === 'REQUEST_DENIED'
+            ? 'Google Routes is blocked on this API key - showing OpenStreetMap roads instead. Enable Routes API on the key, then tap Retry.'
+            : 'Showing OpenStreetMap roads while Google Routes is unavailable.',
       };
-    });
+    }
   } catch {
-    const fallback = haversineRoute(origin, destination);
-    return [
+    // fall through to straight-line approx
+  }
+
+  const fallback = haversineRoute(origin, destination);
+  return {
+    alternatives: [
       {
         id: 'approx-0',
         polyline: fallback.polyline,
@@ -256,8 +535,11 @@ export async function fetchDrivingRouteAlternatives(
         provider: 'haversine_fallback',
         path: fallback.path,
       },
-    ];
-  }
+    ],
+    status,
+    googleOk: false,
+    message: directionsStatusMessage(status),
+  };
 }
 
 /**

@@ -41,6 +41,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { DEFAULT_COMMUTE_TIMEZONE, WORK_EMAIL_BADGE } from '@/lib/cleaner-city/constants';
+import { setCleanerCityIntent } from '@/lib/cleaner-city/intent';
 import { cn } from '@/lib/utils';
 
 function todayIso(tz = DEFAULT_COMMUTE_TIMEZONE) {
@@ -107,7 +108,10 @@ export default function CleanerCityPage() {
   const { data: todaySchedule } = useEffectiveSchedule(profile ? today : null);
   const ready = !!profile && verification?.status === 'verified' && !profile.is_paused;
   const completedRides = rides.filter((r) => r.status === 'completed').length;
-  const hostRole = profile?.role !== 'guest';
+  const role = profile?.role || null;
+  const wantsSeat = !role || role === 'guest' || role === 'both';
+  const wantsToOffer = role === 'host' || role === 'both';
+  const hostRole = wantsToOffer;
   const LIVE_MISSION_STATUSES = ['pickup_pending', 'started', 'safety_incident'];
   const UPCOMING_RIDE_STATUSES = ['requested', 'confirmed', 'pickup_pending', 'started', 'safety_incident'];
   const activeRide =
@@ -147,68 +151,80 @@ export default function CleanerCityPage() {
     {
       id: 'email',
       title: 'Verify work email',
-      detail: 'Open setup and confirm the code',
+      detail: 'So neighbours know you share a real office',
       href: '/cleaner-city/setup',
       done: verification?.status === 'verified',
+      path: 'shared',
     },
     {
       id: 'office',
       title: 'Pin your office',
-      detail: 'Save the office pin on the map',
+      detail: 'Where you work - used for both finding and offering',
       href: '/cleaner-city/route',
       done: offices.length > 0,
+      path: 'shared',
     },
     {
       id: 'pickup',
       title: 'Pin pickup near home',
-      detail: 'Save at least one weekday pickup',
+      detail: 'Where you usually leave from',
       href: '/cleaner-city/route',
       done: templates.some((t) => t.pickup_latitude != null),
-    },
-    {
-      id: 'roads',
-      title: 'Choose your Google roads',
-      detail: 'Save morning and evening driving paths',
-      href: '/cleaner-city/route',
-      done: !!(
-        profile?.preferred_route_polyline && profile?.preferred_return_route_polyline
-      ),
+      path: 'shared',
     },
     {
       id: 'times',
       title: 'Set leave and return',
-      detail: 'Save the weekly schedule',
+      detail: 'Your weekday leave window',
       href: '/cleaner-city/schedule',
       done: templates.some((t) => t.is_working && t.depart_time),
+      path: 'shared',
     },
-    hostRole
-      ? {
-          id: 'vehicle',
-          title: 'Add your vehicle',
-          detail: 'Car or bike, then offer seats',
-          href: '/cleaner-city/vehicle',
-          done: vehicles.length > 0,
-        }
-      : {
-          id: 'find',
-          title: 'Find a ride',
-          detail: 'Search the society or city marketplace',
-          href: '/cleaner-city/find',
-          done: rides.length > 0,
-        },
     {
       id: 'safety',
       title: 'Verify an emergency contact',
-      detail: 'A phone code, or a linked Sociva account',
+      detail: 'Someone to alert if you ever need SOS',
       href: '/cleaner-city/safety',
       done: contacts.some((c) => c.verified_at),
+      path: 'shared',
     },
+    {
+      id: 'find',
+      title: 'Find a seat',
+      detail: 'Request a neighbour ride on your path',
+      href: '/cleaner-city/find',
+      done: rides.some((r) => r.guest_user_id === user?.id),
+      path: 'passenger',
+    },
+    ...(wantsToOffer
+      ? [
+          {
+            id: 'roads',
+            title: 'Save your driving roads',
+            detail: 'Only needed when you offer seats',
+            href: '/cleaner-city/route',
+            done: !!(
+              profile?.preferred_route_polyline && profile?.preferred_return_route_polyline
+            ),
+            path: 'host',
+          },
+          {
+            id: 'vehicle',
+            title: 'Add your vehicle',
+            detail: 'Only needed when you offer empty seats',
+            href: '/cleaner-city/vehicle',
+            done: vehicles.length > 0,
+            path: 'host',
+          },
+        ]
+      : []),
     {
       id: 'ride',
       title: 'Finish a ride',
       detail: 'Complete one commute together',
       href: activeRide ? `/cleaner-city/ride/${activeRide.id}` : '/cleaner-city/find',
       done: completedRides > 0,
+      path: 'shared',
     },
   ];
 
@@ -282,10 +298,99 @@ export default function CleanerCityPage() {
     }
   };
 
-  const [settingsOpen, setSettingsOpen] = useState(!ready);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [setupPathOpen, setSetupPathOpen] = useState(false);
   const incomingHostRequests = rides.filter(
     (r) => r.host_user_id === user?.id && r.status === 'requested',
   );
+  // Passenger essentials unlock Find. Host extras only block Offer.
+  const passengerSetupQuests = quests.filter((q) =>
+    ['email', 'office', 'pickup', 'times', 'safety'].includes(q.id),
+  );
+  const hostSetupQuests = quests.filter((q) => ['roads', 'vehicle'].includes(q.id));
+  const setupQuests = [
+    ...passengerSetupQuests,
+    ...(wantsToOffer ? hostSetupQuests : []),
+  ];
+  const passengerReady = passengerSetupQuests.every((q) => q.done) && ready;
+  const hostReady = passengerReady && hostSetupQuests.every((q) => q.done);
+  const setupDoneCount = setupQuests.filter((q) => q.done).length;
+  const setupComplete = wantsToOffer ? hostReady : passengerReady;
+  const firstIncompleteSetup = setupQuests.find((q) => !q.done);
+  const needsOnboarding = !ready || !setupComplete;
+  const setupPct = setupQuests.length
+    ? Math.round((setupDoneCount / setupQuests.length) * 100)
+    : 0;
+  const nextStepCopy = (() => {
+    const id = firstIncompleteSetup?.id;
+    if (id === 'email') {
+      return {
+        title: 'Confirm your work email',
+        detail: 'One quick code - then you can find a seat or offer one.',
+        cta: 'Verify email',
+      };
+    }
+    if (id === 'office' || id === 'pickup') {
+      return {
+        title: 'Pin office and pickup',
+        detail: wantsSeat
+          ? 'So Find can match you with neighbours leaving near you.'
+          : 'So people needing a seat can meet you on the way.',
+        cta: 'Set pins',
+      };
+    }
+    if (id === 'times') {
+      return {
+        title: 'Pick when you leave',
+        detail: 'Mornings and evenings - used for both finding and offering.',
+        cta: 'Set times',
+      };
+    }
+    if (id === 'roads') {
+      return {
+        title: 'Save the roads you drive',
+        detail: 'Only if you offer seats - passengers can skip this.',
+        cta: 'Save roads',
+      };
+    }
+    if (id === 'vehicle') {
+      return {
+        title: 'Add the car or bike you drive',
+        detail: 'Only needed to publish empty seats - not to request one.',
+        cta: 'Add vehicle',
+      };
+    }
+    if (id === 'safety') {
+      return {
+        title: 'Add someone who has your back',
+        detail: 'For SOS whether you ride as guest or host.',
+        cta: 'Add contact',
+      };
+    }
+    return {
+      title: firstIncompleteSetup?.title || 'Continue',
+      detail: firstIncompleteSetup?.detail || 'One more step and you are ready.',
+      cta: 'Continue',
+    };
+  })();
+  const missionHero =
+    activeRide ||
+    (incomingHostRequests[0]
+      ? rides.find((r) => r.id === incomingHostRequests[0].id) || incomingHostRequests[0]
+      : null);
+  const missionIsHost = missionHero?.host_user_id === user?.id;
+  const hubMissionLabel = (() => {
+    if (!missionHero) return null;
+    if (missionHero.status === 'requested' && missionIsHost) return 'Accept seat request';
+    if (missionHero.status === 'requested') return 'Waiting for host';
+    if (missionHero.status === 'confirmed' || missionHero.status === 'pickup_pending') {
+      return missionIsHost ? 'Enter pickup code' : 'Show pickup code';
+    }
+    if (missionHero.status === 'started') {
+      return missionIsHost ? 'Complete ride' : 'On the road';
+    }
+    return 'Open ride';
+  })();
 
   return (
     <AppLayout headerTitle="A Cleaner City">
@@ -296,43 +401,268 @@ export default function CleanerCityPage() {
               {arrivalNotice}
             </div>
           )}
-          <div className="overflow-hidden rounded-[26px] border border-white/10 bg-[#0D3327] px-4 py-5 text-white">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
+
+          {needsOnboarding && !missionHero ? (
+            <section
+              className="relative overflow-hidden rounded-[28px] border border-white/10 bg-[#0D3327] px-5 py-6 text-white"
+              data-testid="cleaner-city-hub-welcome"
+            >
+              <div
+                className="pointer-events-none absolute -right-10 -top-12 h-40 w-40 rounded-full bg-[#A3C9A8]/25 blur-3xl"
+                aria-hidden
+              />
+              <div
+                className="pointer-events-none absolute -bottom-16 -left-8 h-36 w-36 rounded-full bg-[#7BA88A]/20 blur-3xl"
+                aria-hidden
+              />
+              <div className="relative">
                 <p className="text-[11px] font-extrabold tracking-tight">sociva</p>
-                <h1 className="mt-1 text-[24px] font-extrabold leading-tight text-[#A3C9A8]">
+                <h1 className="mt-2 text-[28px] font-extrabold leading-[1.05] text-[#A3C9A8]">
                   A Cleaner City
                 </h1>
-                <p className="mt-2 text-sm font-medium text-white/85">
-                  Find a seat or offer one for your office run.
+                <p className="mt-3 max-w-[20rem] text-[15px] font-medium leading-relaxed text-white/88">
+                  Need a seat, or have an empty one? Neighbours from your society share the office run.
                 </p>
-              </div>
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/10">
-                <Leaf size={18} className="text-[#A3C9A8]" aria-hidden />
-              </span>
-            </div>
-            {profile && (
-              <div
-                className={cn(
-                  'mt-4 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-semibold',
-                  profile.autopilot_enabled
-                    ? 'bg-[#A3C9A8]/20 text-[#A3C9A8]'
-                    : 'bg-white/10 text-white/70',
-                )}
-                data-testid="cleaner-city-autopilot-chip"
-              >
-                <Zap size={12} aria-hidden />
-                {profile.autopilot_enabled
-                  ? `Autopilot on - ${profile.autopilot_confirm_mode === 'auto' ? 'auto publish' : 'confirm each day'}`
-                  : 'Autopilot off'}
-              </div>
-            )}
-          </div>
 
-          {incomingHostRequests.length > 0 && (
+                <div
+                  className="mt-4 grid grid-cols-2 gap-2"
+                  data-testid="cleaner-city-hub-intent-pair"
+                >
+                  <Link
+                    to={passengerReady ? '/cleaner-city/find' : '/cleaner-city/setup'}
+                    state={
+                      passengerReady
+                        ? { notice: 'Guest Find - request a seat on your path.' }
+                        : {
+                            intent: 'guest',
+                            notice: 'Guest path - verify email, pin commute, then Find. No car needed.',
+                          }
+                    }
+                    onClick={() => setCleanerCityIntent('guest')}
+                    className="rounded-2xl border border-white/15 bg-white/10 px-3 py-3"
+                    data-testid="cleaner-city-hub-intent-find"
+                  >
+                    <Users size={16} className="text-[#A3C9A8]" aria-hidden />
+                    <p className="mt-1.5 text-[13px] font-extrabold text-white">I need a seat</p>
+                    <p className="mt-0.5 text-[11px] leading-snug text-white/65">
+                      {passengerReady
+                        ? 'Find is open - request a neighbour ride'
+                        : 'Guest setup - no car or host roads'}
+                    </p>
+                  </Link>
+                  <Link
+                    to={hostReady ? '/cleaner-city/offer' : '/cleaner-city/setup'}
+                    state={
+                      hostReady
+                        ? { notice: 'Host Offer - publish empty seats.' }
+                        : {
+                            intent: 'host',
+                            notice: 'Host path - email, pins, roads, vehicle, then Offer.',
+                          }
+                    }
+                    onClick={() => setCleanerCityIntent('host')}
+                    className="rounded-2xl border border-white/15 bg-white/10 px-3 py-3"
+                    data-testid="cleaner-city-hub-intent-offer"
+                  >
+                    <Car size={16} className="text-[#A3C9A8]" aria-hidden />
+                    <p className="mt-1.5 text-[13px] font-extrabold text-white">I have empty seats</p>
+                    <p className="mt-0.5 text-[11px] leading-snug text-white/65">
+                      {hostReady
+                        ? 'Offer is open - publish seats'
+                        : 'Host setup - vehicle + roads included'}
+                    </p>
+                  </Link>
+                </div>
+
+                <div className="mt-5 flex items-center gap-3">
+                  <div
+                    className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/10"
+                    data-testid="cleaner-city-hub-setup-progress"
+                  >
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-[#7BA88A] to-[#A3C9A8] transition-all duration-500"
+                      style={{ width: `${Math.max(setupPct, setupDoneCount > 0 ? 8 : 4)}%` }}
+                    />
+                  </div>
+                  <p className="shrink-0 text-[11px] font-semibold text-white/60">
+                    {setupDoneCount === 0
+                      ? 'Just starting'
+                      : setupDoneCount === 1
+                        ? '1 step done'
+                        : `${setupDoneCount} steps done`}
+                  </p>
+                </div>
+
+                {firstIncompleteSetup ? (
+                  <Link
+                    to={
+                      firstIncompleteSetup.href === '/cleaner-city/setup'
+                        ? '/cleaner-city/setup'
+                        : firstIncompleteSetup.href
+                    }
+                    state={
+                      firstIncompleteSetup.href === '/cleaner-city/setup'
+                        ? {
+                            intent: wantsToOffer && !wantsSeat ? 'host' : 'guest',
+                            notice: wantsSeat
+                              ? 'Continue guest setup - Find a seat path.'
+                              : 'Continue host setup - Offer seats path.',
+                          }
+                        : undefined
+                    }
+                    onClick={() => {
+                      if (firstIncompleteSetup.href === '/cleaner-city/setup') {
+                        setCleanerCityIntent(wantsToOffer && !wantsSeat ? 'host' : 'guest');
+                      }
+                    }}
+                    className="relative mt-5 flex items-center justify-between gap-3 rounded-2xl bg-[#A3C9A8] px-4 py-3.5 text-[#0D3327] shadow-lg shadow-black/20"
+                    data-testid="cleaner-city-hub-next-step"
+                  >
+                    <span className="min-w-0">
+                      <span className="block text-[11px] font-extrabold uppercase tracking-[0.12em] text-[#0D3327]/70">
+                        Next for you
+                      </span>
+                      <span className="mt-0.5 block text-[15px] font-extrabold leading-tight">
+                        {nextStepCopy.title}
+                      </span>
+                      <span className="mt-1 block text-[12px] font-medium text-[#0D3327]/75">
+                        {nextStepCopy.detail}
+                      </span>
+                    </span>
+                    <span className="shrink-0 rounded-full bg-[#0D3327] px-3 py-1.5 text-[12px] font-extrabold text-[#A3C9A8]">
+                      {nextStepCopy.cta}
+                    </span>
+                  </Link>
+                ) : null}
+
+                {passengerReady && !hostReady && wantsToOffer ? (
+                  <p
+                    className="mt-3 text-[11px] font-medium text-[#A3C9A8]/90"
+                    data-testid="cleaner-city-hub-passenger-unlocked"
+                  >
+                    You can already Find a seat. Vehicle and roads unlock Offer only.
+                  </p>
+                ) : null}
+
+                <button
+                  type="button"
+                  className="mt-3 flex w-full items-center justify-between gap-2 rounded-xl px-1 py-1.5 text-left"
+                  onClick={() => setSetupPathOpen((v) => !v)}
+                  data-testid="cleaner-city-hub-path-toggle"
+                >
+                  <span className="text-[11px] font-semibold text-white/55">
+                    {setupPathOpen ? 'Hide the path' : 'See passenger vs host steps'}
+                  </span>
+                  <ChevronDown
+                    size={14}
+                    className={cn(
+                      'text-white/40 transition-transform',
+                      setupPathOpen && 'rotate-180',
+                    )}
+                    aria-hidden
+                  />
+                </button>
+
+                {setupPathOpen ? (
+                  <ul
+                    className="mt-1 space-y-1.5 rounded-2xl bg-white/5 p-3"
+                    data-testid="cleaner-city-hub-setup-path"
+                  >
+                    {setupQuests.map((q) => (
+                      <li key={q.id}>
+                        <Link
+                          to={q.href}
+                          className={cn(
+                            'flex items-center gap-2.5 rounded-xl px-2 py-1.5 text-sm',
+                            q.done ? 'text-white/45' : 'text-white/90',
+                          )}
+                        >
+                          <span
+                            className={cn(
+                              'flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-extrabold',
+                              q.done
+                                ? 'bg-[#A3C9A8] text-[#0D3327]'
+                                : firstIncompleteSetup?.id === q.id
+                                  ? 'bg-white/25 text-[#A3C9A8]'
+                                  : 'bg-white/10 text-white/50',
+                            )}
+                            aria-hidden
+                          >
+                            {q.done ? '✓' : ''}
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate font-semibold">{q.title}</span>
+                            {['roads', 'vehicle'].includes(q.id) ? (
+                              <span className="block text-[10px] text-white/45">
+                                Host only - skip if you only need a seat
+                              </span>
+                            ) : null}
+                          </span>
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+              </div>
+            </section>
+          ) : (
+            <div className="overflow-hidden rounded-[26px] border border-white/10 bg-[#0D3327] px-4 py-5 text-white">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-[11px] font-extrabold tracking-tight">sociva</p>
+                  <h1 className="mt-1 text-[24px] font-extrabold leading-tight text-[#A3C9A8]">
+                    A Cleaner City
+                  </h1>
+                  <p className="mt-2 text-sm font-medium text-white/85">
+                    {missionHero
+                      ? hubMissionLabel || 'Your commute is live'
+                      : 'Find a seat or offer one for your office run.'}
+                  </p>
+                </div>
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/10">
+                  <Leaf size={18} className="text-[#A3C9A8]" aria-hidden />
+                </span>
+              </div>
+              {profile && (
+                <div
+                  className={cn(
+                    'mt-4 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-semibold',
+                    profile.autopilot_enabled
+                      ? 'bg-[#A3C9A8]/20 text-[#A3C9A8]'
+                      : 'bg-white/10 text-white/70',
+                  )}
+                  data-testid="cleaner-city-autopilot-chip"
+                >
+                  <Zap size={12} aria-hidden />
+                  {profile.autopilot_enabled
+                    ? `Autopilot on - ${profile.autopilot_confirm_mode === 'auto' ? 'auto publish' : 'confirm each day'}`
+                    : 'Autopilot off'}
+                </div>
+              )}
+            </div>
+          )}
+
+          {missionHero ? (
             <Link
-              to="/cleaner-city/find"
-              state={{ openHosting: true, notice: 'Seat requests waiting - accept or decline.' }}
+              to={`/cleaner-city/ride/${missionHero.id}`}
+              className="block rounded-2xl border-2 border-primary/50 bg-primary/15 p-4"
+              data-testid="cleaner-city-hub-mission-cta"
+            >
+              <p className="text-[11px] font-extrabold uppercase tracking-[0.12em] text-primary">
+                Your commute
+              </p>
+              <p className="mt-1 text-base font-extrabold text-foreground">
+                {hubMissionLabel}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {missionIsHost ? 'Hosting' : 'Riding'} · open ride for Accept, OTP, start, and complete
+              </p>
+            </Link>
+          ) : null}
+
+          {incomingHostRequests.length > 0 && !missionHero ? (
+            <Link
+              to={`/cleaner-city/ride/${incomingHostRequests[0].id}`}
               className="block rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4"
               data-testid="cleaner-city-hub-incoming"
             >
@@ -341,43 +671,54 @@ export default function CleanerCityPage() {
                 {incomingHostRequests.length === 1 ? '' : 's'} waiting
               </p>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Tap to accept or decline
+                Open the ride to accept or decline
               </p>
             </Link>
-          )}
+          ) : null}
 
-          <div className="grid grid-cols-2 gap-3">
-            <Link
-              to={ready ? '/cleaner-city/find' : '/cleaner-city/setup'}
-              className={cn(
-                'rounded-2xl border-2 border-primary/40 bg-primary/10 p-4 min-h-[120px]',
-                !ready && 'opacity-90',
-              )}
-              data-testid="cleaner-city-find-link"
-            >
-              <Users size={20} className="text-primary mb-2" aria-hidden />
-              <p className="text-base font-extrabold text-foreground">Find a ride</p>
-              <p className="text-xs text-muted-foreground mt-1">I need a seat</p>
-              <p className="text-[10px] text-muted-foreground mt-3">
-                {ready ? 'See neighbours leaving near your time' : 'Verify work email first'}
-              </p>
-            </Link>
-            <Link
-              to={ready ? '/cleaner-city/offer' : '/cleaner-city/setup'}
-              className={cn(
-                'rounded-2xl border-2 border-primary/40 bg-primary/10 p-4 min-h-[120px]',
-                !ready && 'opacity-90',
-              )}
-              data-testid="cleaner-city-offer-link"
-            >
-              <Car size={20} className="text-primary mb-2" aria-hidden />
-              <p className="text-base font-extrabold text-foreground">Offer a ride</p>
-              <p className="text-xs text-muted-foreground mt-1">I have an empty seat</p>
-              <p className="text-[10px] text-muted-foreground mt-3">
-                {ready ? 'Publish seats for today or tomorrow' : 'Verify work email first'}
-              </p>
-            </Link>
-          </div>
+          {!needsOnboarding && !missionHero ? (
+            <div className="grid grid-cols-2 gap-3">
+              <Link
+                to="/cleaner-city/find"
+                className="rounded-2xl border-2 border-primary/40 bg-primary/10 p-4 min-h-[120px]"
+                data-testid="cleaner-city-find-link"
+              >
+                <Users size={20} className="text-primary mb-2" aria-hidden />
+                <p className="text-base font-extrabold text-foreground">Find a ride</p>
+                <p className="text-xs text-muted-foreground mt-1">I need a seat</p>
+                <p className="text-[10px] text-muted-foreground mt-3">
+                  See neighbours leaving near your time
+                </p>
+              </Link>
+              <Link
+                to="/cleaner-city/offer"
+                className="rounded-2xl border-2 border-primary/40 bg-primary/10 p-4 min-h-[120px]"
+                data-testid="cleaner-city-offer-link"
+              >
+                <Car size={20} className="text-primary mb-2" aria-hidden />
+                <p className="text-base font-extrabold text-foreground">Offer a ride</p>
+                <p className="text-xs text-muted-foreground mt-1">I have an empty seat</p>
+                <p className="text-[10px] text-muted-foreground mt-3">
+                  Publish seats for today or tomorrow
+                </p>
+              </Link>
+            </div>
+          ) : null}
+
+          {!needsOnboarding && missionHero ? (
+            <div className="flex flex-wrap gap-2">
+              <Link to="/cleaner-city/find">
+                <Button size="sm" variant="outline" className="font-semibold" data-testid="cleaner-city-find-link">
+                  Find
+                </Button>
+              </Link>
+              <Link to="/cleaner-city/offer">
+                <Button size="sm" variant="outline" className="font-semibold" data-testid="cleaner-city-offer-link">
+                  Offer
+                </Button>
+              </Link>
+            </div>
+          ) : null}
 
           {ready && !showUpcomingSection ? (
             <div
@@ -521,39 +862,6 @@ export default function CleanerCityPage() {
               })}
             </section>
           ) : null}
-
-          {!ready && (
-            <div
-              className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-950 space-y-2"
-              data-testid="cleaner-city-setup-checklist"
-            >
-              <p className="text-sm font-semibold">Finish setup to ride</p>
-              <ol className="text-xs space-y-1.5 list-decimal pl-4">
-                <li className={profile ? 'line-through opacity-60' : ''}>
-                  Save commute profile (role + transport)
-                </li>
-                <li className={verification?.status === 'verified' ? 'line-through opacity-60' : ''}>
-                  Verify official work email on an approved company domain
-                </li>
-                <li>Add office and pickup pins, then schedule</li>
-              </ol>
-              <Link
-                to="/cleaner-city/setup"
-                className="inline-flex mt-1 text-sm font-semibold text-primary underline"
-              >
-                Continue setup
-              </Link>
-            </div>
-          )}
-
-          {!ready && (
-            <CommuteJourney
-              quests={quests}
-              completedRides={completedRides}
-              cityOn={!!profile?.open_city_matching}
-              badges={badges}
-            />
-          )}
 
           {draftPublications.length > 0 && (
             <div

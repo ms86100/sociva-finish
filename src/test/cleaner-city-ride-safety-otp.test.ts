@@ -13,12 +13,13 @@ const root = process.cwd();
 const read = (rel: string) => readFileSync(resolve(root, rel), 'utf8');
 
 describe('Cleaner City ride safety + OTP product rules', () => {
-  it('shows SOS at pickup/started, Trip share only after start', () => {
+  it('shows SOS from confirmed onward; trip share from confirmed', () => {
     expect(canShowRideSos('requested')).toBe(false);
-    expect(canShowRideSos('confirmed')).toBe(false);
+    expect(canShowRideSos('confirmed')).toBe(true);
     expect(canShowRideSos('pickup_pending')).toBe(true);
     expect(canShowRideSos('started')).toBe(true);
-    expect(canShowTripShare('pickup_pending')).toBe(false);
+    expect(canShowTripShare('confirmed')).toBe(true);
+    expect(canShowTripShare('pickup_pending')).toBe(true);
     expect(canShowTripShare('started')).toBe(true);
     expect(canOpenDispute('started')).toBe(false);
     expect(canOpenDispute('completed')).toBe(true);
@@ -29,14 +30,14 @@ describe('Cleaner City ride safety + OTP product rules', () => {
     expect(formatStraightLineDistance(2400)).toBe('2.4 km');
   });
 
-  it('host OTP UX shows code; guest enters - no host confirm field', () => {
+  it('passenger holds OTP display; host enters code to start', () => {
     const actions = read('src/components/cleaner-city/ride/RidePrimaryActions.tsx');
-    expect(actions).toContain('Show this code to your guest');
-    expect(actions).toContain('cleaner-city-host-otp-display');
-    expect(actions).toContain('cleaner-city-guest-otp-input');
-    expect(actions).not.toContain('Confirm OTP to start');
-    expect(rideNextHint('pickup_pending', true)).toContain('Show the code');
-    expect(rideNextHint('pickup_pending', false)).toContain('6-digit');
+    expect(actions).toContain('Show this code to your rider');
+    expect(actions).toContain('cleaner-city-passenger-otp-display');
+    expect(actions).toContain('cleaner-city-host-otp-input');
+    expect(actions).not.toContain('cleaner-city-guest-otp-input');
+    expect(rideNextHint('pickup_pending', true)).toContain('Ask your passenger');
+    expect(rideNextHint('pickup_pending', false)).toContain('Show your code');
   });
 
   it('dispute copy is consumer-friendly and appeal notifies via migration', () => {

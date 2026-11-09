@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.93.3";
 import { getCredential } from "../_shared/credentials.ts";
 import { deliverWhatsAppForQueueItem } from "../_shared/whatsapp-notify.ts";
+import { mergeDeliveryEvidence } from "../_shared/whatsapp-channel.ts";
 import { checkRateLimit } from "../_shared/rate-limiter.ts";
 import {
   isWithinQuietHours,
@@ -18,8 +19,8 @@ import {
 } from "../_shared/seller-alert-gate.ts";
 import { classifyPushDeliveryEvidence } from "../_shared/seller-status-reminders-policy.ts";
 
-/** Honest evidence blob. Never claims device delivery or audible bell from FCM/APNs accept. */
-function buildDeliveryEvidence(input: {
+/** Honest push evidence blob. Never claims device delivery or audible bell from FCM/APNs accept. */
+function buildPushDeliveryEvidence(input: {
   pushAttempted?: boolean | null;
   pushSuccessCount?: number | null;
   pushFailCount?: number | null;
@@ -27,12 +28,38 @@ function buildDeliveryEvidence(input: {
 }) {
   const c = classifyPushDeliveryEvidence(input);
   return {
+    push: {
+      level: c.level,
+      device_delivery: c.deviceDelivery,
+      audible: c.audible,
+      label: c.label,
+      recorded_at: new Date().toISOString(),
+      push_attempted: input.pushAttempted ?? null,
+      push_success_count: input.pushSuccessCount ?? null,
+      push_fail_count: input.pushFailCount ?? null,
+      push_skip_reason: input.pushSkipReason ?? null,
+    },
+    // Keep top-level fields for older readers, but prefer nested push/whatsapp
     level: c.level,
     device_delivery: c.deviceDelivery,
     audible: c.audible,
     label: c.label,
     recorded_at: new Date().toISOString(),
   };
+}
+
+/** F4: never let push evidence wipe whatsapp evidence. */
+function buildDeliveryEvidence(
+  input: {
+    pushAttempted?: boolean | null;
+    pushSuccessCount?: number | null;
+    pushFailCount?: number | null;
+    pushSkipReason?: string | null;
+  },
+  existing?: Record<string, unknown> | null,
+  whatsappEvidence?: Record<string, unknown> | null,
+) {
+  return mergeDeliveryEvidence(existing, buildPushDeliveryEvidence(input), whatsappEvidence);
 }
 
 const corsHeaders = {
@@ -779,6 +806,11 @@ Deno.serve(async (req) => {
           type: item.type,
           payload: item.payload || null,
         });
+        // Accumulates independent push + WhatsApp evidence for this claim (F4).
+        let channelEvidence: Record<string, unknown> =
+          item.delivery_evidence && typeof item.delivery_evidence === "object"
+            ? { ...item.delivery_evidence }
+            : {};
 
         // TTL-expired: push is suppressed but the EVENT must still exist in history.
         // Write an is_read=true in-app record so the event appears in the order timeline,
@@ -920,9 +952,12 @@ Deno.serve(async (req) => {
           throw new Error(`DB insert failed: ${insertError.message}`);
         }
 
-        // ── WhatsApp channel (best-effort; never blocks push/in-app) ──
+        // ── WhatsApp channel (independent of push; never blocks push/in-app) ──
+        // F1: successful WA is claimed in DB and skipped on push retries.
+        // Single active provider only (Meta default). Never silently reroute on failure.
         try {
           const profile = profileMap.get(item.user_id);
+          const forceWa = item.payload?.force_whatsapp_retry === true;
           const wa = await deliverWhatsAppForQueueItem({
             userId: item.user_id,
             phone: profile?.phone,
@@ -933,17 +968,35 @@ Deno.serve(async (req) => {
             payload: item.payload || {},
             whatsappPref: userPrefs?.whatsapp !== false,
             notificationId: item.id,
+            forceWhatsAppRetry: !!forceWa,
           });
           if (wa.attempted) {
             pnqLog("whatsapp_delivery", {
               notification_id: item.id,
+              provider: wa.result?.provider || null,
               success: !!wa.result?.success,
               code: wa.result?.code || null,
+              dry_run: wa.result?.dryRun ?? null,
               used_template: wa.result?.usedTemplate ?? null,
               error: wa.result?.error || null,
             });
           } else if (wa.skipReason) {
             pnqLog("whatsapp_skip", { notification_id: item.id, reason: wa.skipReason });
+          }
+          if (wa.deliveryEvidence) {
+            channelEvidence = mergeDeliveryEvidence(channelEvidence, {}, wa.deliveryEvidence);
+            const payloadClear = forceWa
+              ? {
+                  ...(item.payload || {}),
+                  force_whatsapp_retry: false,
+                  whatsapp_retry_cleared_at: new Date().toISOString(),
+                }
+              : undefined;
+            await supabase.from("notification_queue").update({
+              delivery_evidence: channelEvidence,
+              ...(payloadClear ? { payload: payloadClear } : {}),
+            }).eq("id", item.id);
+            if (payloadClear) item.payload = payloadClear;
           }
         } catch (waErr) {
           console.warn(`[Queue][${item.id}] WhatsApp channel error:`, waErr);
@@ -1155,7 +1208,7 @@ Deno.serve(async (req) => {
                 pushSuccessCount: 0,
                 pushFailCount: 0,
                 pushSkipReason: "no_tokens",
-              }),
+              }, channelEvidence),
             }).eq("id", item.id);
             await moveToDeadLetter(supabase, {
               id: item.id,
@@ -1183,7 +1236,7 @@ Deno.serve(async (req) => {
                 pushSuccessCount: 0,
                 pushFailCount: 0,
                 pushSkipReason: "no_tokens",
-              }),
+              }, channelEvidence),
             }).eq("id", item.id);
             retriedCount++;
           }
@@ -1203,7 +1256,7 @@ Deno.serve(async (req) => {
                 pushSuccessCount: successCount,
                 pushFailCount: failCount,
                 pushSkipReason: skipReason,
-              }),
+              }, channelEvidence),
             }).eq("id", item.id);
           // Audit: provider-accepted only. Does not prove device display or audible bell.
           if (successCount > 0) {
@@ -1235,7 +1288,7 @@ Deno.serve(async (req) => {
                 pushAttempted: true,
                 pushSuccessCount: successCount,
                 pushFailCount: failCount,
-              }),
+              }, channelEvidence),
             }).eq("id", item.id);
             await moveToDeadLetter(supabase, {
               id: item.id,
@@ -1263,7 +1316,7 @@ Deno.serve(async (req) => {
                 pushAttempted: true,
                 pushSuccessCount: successCount,
                 pushFailCount: failCount,
-              }),
+              }, channelEvidence),
             }).eq("id", item.id);
             retriedCount++;
             console.warn(`[Queue][${item.id}] Re-queued (attempt ${retryCount}) at ${nextRetryAt}`);

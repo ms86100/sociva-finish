@@ -48,7 +48,9 @@ describe('A Cleaner City setup + work email OTP contracts', () => {
     expect(edge).toContain('cleaner_city_check_work_email_domain');
   });
 
-  it('Hub page has cleaner-city-setup-checklist', () => {
-    expect(hubPage).toContain('cleaner-city-setup-checklist');
+  it('Hub page has one-step welcome setup', () => {
+    expect(hubPage).toContain('cleaner-city-hub-welcome');
+    expect(hubPage).toContain('cleaner-city-hub-next-step');
   });
 });
+

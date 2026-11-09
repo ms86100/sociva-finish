@@ -27,7 +27,8 @@ describe('Cleaner City UX P0 wiring', () => {
     expect(hub).toContain('cleaner-city-find-link');
     expect(hub).toContain('cleaner-city-offer-link');
     expect(hub).toContain('cleaner-city-settings-toggle');
-    expect(hub).toContain('useState(!ready)');
+    expect(hub).toContain('useState(false)');
+    expect(hub).toContain('cleaner-city-hub-welcome');
     expect(hub).toContain('openHosting: true');
   });
 

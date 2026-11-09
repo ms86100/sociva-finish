@@ -21,13 +21,17 @@ const STATUS_LABEL: Record<string, string> = {
   safety_incident: 'SOS active',
 };
 
-/** SOS while meeting or riding. Trip share only once the trip has started. */
+/** SOS from seat confirmed onward. Trip share from confirmed (pre-trip + live). */
 export function canShowRideSos(status?: string | null) {
-  return ['pickup_pending', 'started', 'safety_incident'].includes(String(status || ''));
+  return ['confirmed', 'pickup_pending', 'started', 'safety_incident'].includes(
+    String(status || ''),
+  );
 }
 
 export function canShowTripShare(status?: string | null) {
-  return ['started', 'safety_incident'].includes(String(status || ''));
+  return ['confirmed', 'pickup_pending', 'started', 'safety_incident'].includes(
+    String(status || ''),
+  );
 }
 
 export function canOpenDispute(status?: string | null) {

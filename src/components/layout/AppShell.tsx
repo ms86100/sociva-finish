@@ -15,7 +15,7 @@ import { Capacitor } from '@capacitor/core';
 import { useAuth } from '@/contexts/AuthContext';
 import { useBrowsingLocation } from '@/contexts/BrowsingLocationContext';
 import { cn } from '@/lib/utils';
-import { isGuestBrowsePath, authReturnPath } from '@/lib/guest-browse-routes';
+import { isGuestBrowsePath, isLocalGuestBrowseHost, authReturnPath } from '@/lib/guest-browse-routes';
 import { hasPreciseCoordinates } from '@/lib/buyerLocation';
 import { needsLocationOnboarding, isLocationOnboardingExemptPath, setPendingBrowseReturn } from '@/lib/location-onboarding';
 import { HomeSearchProvider } from '@/contexts/HomeSearchContext';
@@ -104,12 +104,11 @@ export function AppShellGate() {
 
   // Only signed-out website visitors. Checking this before the session is known
   // treats a restoring login as a guest and starts the / to /landing loop.
-  // Localhost keeps guest browse so motion/QA and Playwright can exercise the marketplace
-  // without a marketing redirect (production web still lands on /landing).
-  const isLocalHost =
-    typeof window !== 'undefined' &&
-    (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-  if (!Capacitor.isNativePlatform() && !user && isGuestBrowsePath(path) && !isLocalHost) {
+  // Loopback hosts only skip marketing /landing so local QA can browse guest paths.
+  // This is not an auth bypass: protected routes still require sign-in, and
+  // isLocalGuestBrowseHost is false for sociva.in / any non-loopback host.
+  const allowLocalGuestBrowse = isLocalGuestBrowseHost();
+  if (!Capacitor.isNativePlatform() && !user && isGuestBrowsePath(path) && !allowLocalGuestBrowse) {
     return <Navigate to="/landing" replace />;
   }
 

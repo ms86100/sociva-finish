@@ -5,12 +5,19 @@
 import {
   resolveQueueDisplayCopy,
 } from "./notification-display-copy.ts";
+import { normalizeWhatsAppPhone } from "./whatsapp.ts";
 import {
-  logWhatsAppMessage,
-  normalizeWhatsAppPhone,
-  sendWhatsAppTemplateOrText,
-  type WhatsAppSendResult,
-} from "./whatsapp.ts";
+  claimWhatsAppChannel,
+  completeWhatsAppChannel,
+  mapUnifiedToChannelStatus,
+} from "./whatsapp-channel.ts";
+import {
+  loadWhatsAppProviderConfig,
+  sendViaActiveWhatsAppProvider,
+  whatsappDeliveryEvidence,
+  type UnifiedWhatsAppResult,
+  type WhatsAppProviderId,
+} from "./whatsapp-provider.ts";
 
 const WA_ELIGIBLE_TYPES = new Set([
   "order",
@@ -63,6 +70,25 @@ function shortOrderRef(payload: Record<string, unknown>, title: string): string 
   return title.slice(0, 24) || "order";
 }
 
+/** Buyer WhatsApp is milestone-only. In-app and push still cover the in-between steps. */
+const BUYER_WA_ORDER_STATUSES = new Set([
+  "accepted",
+  "auto_accepted",
+  "confirmed",
+  "scheduled",
+  "cancelled",
+  "rejected",
+  "no_show",
+  "delivered",
+  "completed",
+  "refund_requested",
+  "refund_approved",
+  "refund_completed",
+  "refund_failed",
+  "refund_rejected",
+  "payment_failed",
+]);
+
 export function shouldSendWhatsApp(opts: {
   type: string;
   whatsappPref?: boolean | null;
@@ -70,6 +96,10 @@ export function shouldSendWhatsApp(opts: {
 }): boolean {
   if (opts.whatsappPref === false) return false;
   if (opts.payload?.skip_whatsapp === true) return false;
+  const role = String(opts.payload?.target_role || "");
+  const status = String(opts.payload?.status || opts.payload?.new_status || "").toLowerCase();
+  const isOrderType = opts.type === "order" || opts.type === "order_status" || opts.type === "order_update";
+  if (role === "buyer" && isOrderType && !BUYER_WA_ORDER_STATUSES.has(status)) return false;
   if (SKIP_TYPES.has(opts.type)) return false;
   if (opts.payload?.wa_template) return true;
   if (WA_ELIGIBLE_TYPES.has(opts.type)) return true;
@@ -261,18 +291,71 @@ export async function deliverWhatsAppForQueueItem(opts: {
   payload?: Record<string, unknown> | null;
   whatsappPref?: boolean | null;
   notificationId?: string;
-}): Promise<{ attempted: boolean; result?: WhatsAppSendResult & { usedTemplate?: boolean }; skipReason?: string }> {
+  /** Stamp at attempt start so admin provider switch cannot silently reroute mid-flight */
+  stampedProvider?: WhatsAppProviderId;
+  stampedEvolutionMode?: "disabled" | "dry_run" | "live";
+  /** Admin WhatsApp-only retry; bypasses success skip once */
+  forceWhatsAppRetry?: boolean;
+}): Promise<{
+  attempted: boolean;
+  result?: UnifiedWhatsAppResult;
+  skipReason?: string;
+  deliveryEvidence?: Record<string, unknown>;
+}> {
   if (!shouldSendWhatsApp({
     type: opts.type,
     whatsappPref: opts.whatsappPref,
     payload: opts.payload,
   })) {
+    if (opts.notificationId) {
+      await completeWhatsAppChannel(opts.notificationId, {
+        status: "skipped",
+        error: "not_eligible_or_opted_out",
+      });
+    }
     return { attempted: false, skipReason: "not_eligible_or_opted_out" };
   }
 
   const phone = toWaPhone(opts.phone);
   if (!phone) {
+    if (opts.notificationId) {
+      await completeWhatsAppChannel(opts.notificationId, {
+        status: "skipped",
+        error: "no_phone",
+      });
+    }
     return { attempted: false, skipReason: "no_phone" };
+  }
+
+  const forceFromPayload = opts.payload?.force_whatsapp_retry === true;
+  const force = !!(opts.forceWhatsAppRetry || forceFromPayload);
+
+  // F1: DB-backed claim prevents duplicate WA when push retries re-enter PNQ
+  if (opts.notificationId) {
+    const claim = await claimWhatsAppChannel(opts.notificationId, force);
+    if (!claim.ok) {
+      if (claim.reason === "already_succeeded" || claim.reason === "already_dry_run") {
+        return {
+          attempted: false,
+          skipReason: `whatsapp_${claim.reason}`,
+          deliveryEvidence: {
+            whatsapp: {
+              skipped: true,
+              reason: claim.reason,
+              provider: claim.provider || null,
+              provider_message_id: claim.messageId || null,
+              status: claim.whatsappStatus || null,
+              delivery_confirmed: false,
+            },
+          },
+        };
+      }
+      if (claim.reason === "in_progress") {
+        return { attempted: false, skipReason: "whatsapp_in_progress" };
+      }
+      // claim_error: fail closed (do not send) to avoid duplicates under races
+      return { attempted: false, skipReason: claim.reason };
+    }
   }
 
   const mapped = resolveTemplate({
@@ -283,29 +366,40 @@ export async function deliverWhatsAppForQueueItem(opts: {
     userName: opts.userName || "there",
   });
 
-  const result = await sendWhatsAppTemplateOrText({
+  // Resolve + stamp provider once per attempt (no silent cross-provider fallback)
+  const cfg = await loadWhatsAppProviderConfig();
+  const stampedFromPayload = opts.payload?.whatsapp_retry_to_provider;
+  const stampedProvider =
+    opts.stampedProvider ||
+    (typeof stampedFromPayload === "string" &&
+    (stampedFromPayload === "meta" || stampedFromPayload === "evolution_go")
+      ? stampedFromPayload
+      : cfg.active_provider);
+  const stampedEvolutionMode = opts.stampedEvolutionMode || cfg.evolution_mode;
+
+  const result = await sendViaActiveWhatsAppProvider({
     phoneNumber: phone,
+    text: mapped.fallbackText,
     templateName: mapped.templateName,
     bodyParams: mapped.bodyParams,
     fallbackText: mapped.fallbackText,
+    stampedProvider,
+    stampedEvolutionMode,
+    notificationQueueId: opts.notificationId || null,
   });
 
-  await logWhatsAppMessage({
-    direction: "outbound",
-    phone,
-    message: mapped.fallbackText.slice(0, 500),
-    meta_message_id: result.metaMessageId || null,
-    status: result.success ? "sent" : "failed",
-    error_code: result.success ? null : result.code,
-    error_message: result.error || null,
-    template_name: result.usedTemplate ? mapped.templateName : null,
-    meta_payload: {
-      ...(typeof result.meta === "object" && result.meta ? result.meta : {}),
-      queue_notification_id: opts.notificationId || null,
-      used_template: !!result.usedTemplate,
-      user_id: opts.userId,
-    },
-  });
+  if (opts.notificationId) {
+    await completeWhatsAppChannel(opts.notificationId, {
+      status: mapUnifiedToChannelStatus(result),
+      provider: result.provider,
+      providerMessageId: result.providerMessageId || result.metaMessageId || null,
+      error: result.success ? null : result.error || result.code,
+    });
+  }
 
-  return { attempted: true, result };
+  return {
+    attempted: true,
+    result,
+    deliveryEvidence: whatsappDeliveryEvidence(result),
+  };
 }

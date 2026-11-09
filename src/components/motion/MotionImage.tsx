@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { useCallback, useState } from 'react';
+import { useCallback, useState, type ReactNode } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   blurUpImageUrl,
@@ -15,13 +15,16 @@ export type MotionImageProps = {
   alt: string;
   className?: string;
   imgClassName?: string;
-  /** Aspect ratio class on the frame, e.g. aspect-square */
+  /** Aspect ratio class on the frame, e.g. aspect-square or aspect-[4/3] */
   aspectClassName?: string;
   width?: number;
+  quality?: number;
   sizes?: string;
   /** Low-res blur preview URL (optional); falls back to tiny optimized src */
   blurSrc?: string | null;
   loading?: 'lazy' | 'eager';
+  /** Shown when src is missing or decode fails */
+  fallback?: ReactNode;
   onLoad?: () => void;
   onError?: (e: React.SyntheticEvent<HTMLImageElement>) => void;
 };
@@ -29,6 +32,7 @@ export type MotionImageProps = {
 /**
  * Aspect-locked image frame with branded shimmer while decoding,
  * optional blur-up, and opacity/scale reveal into the final photo.
+ * Cached images that already have naturalWidth skip the shimmer flash.
  * Never invents product copy - only visual loading chrome.
  */
 export function MotionImage({
@@ -38,20 +42,22 @@ export function MotionImage({
   imgClassName,
   aspectClassName = 'aspect-square',
   width = 400,
+  quality = 78,
   sizes = '(max-width: 640px) 50vw, 240px',
   blurSrc,
   loading = 'lazy',
+  fallback,
   onLoad,
   onError,
 }: MotionImageProps) {
   const [loaded, setLoaded] = useState(false);
   const [failed, setFailed] = useState(false);
 
-  const optimized = optimizedImageUrl(src, { width, quality: 78 });
-  const srcSet = imageSrcSet(src);
+  const optimized = optimizedImageUrl(src, { width, quality });
+  const srcSet = imageSrcSet(src, quality);
   const blur = blurSrc || blurUpImageUrl(src);
 
-  const handleLoad = useCallback(() => {
+  const markLoaded = useCallback(() => {
     setLoaded(true);
     onLoad?.();
   }, [onLoad]);
@@ -66,6 +72,8 @@ export function MotionImage({
     [onError],
   );
 
+  const showFallback = !optimized || failed;
+
   return (
     <div
       className={cn(
@@ -75,7 +83,7 @@ export function MotionImage({
       )}
     >
       <AnimatePresence>
-        {!loaded && !failed && (
+        {!loaded && !failed && optimized && (
           <motion.div
             key="shimmer"
             className="absolute inset-0 product-image-shimmer z-[1]"
@@ -86,7 +94,7 @@ export function MotionImage({
         )}
       </AnimatePresence>
 
-      {blur && !loaded && !failed && (
+      {blur && !loaded && !failed && optimized && (
         <img
           src={blur}
           alt=""
@@ -96,7 +104,11 @@ export function MotionImage({
         />
       )}
 
-      {optimized ? (
+      {showFallback ? (
+        fallback ?? (
+          <div className="absolute inset-0 product-image-shimmer" aria-hidden />
+        )
+      ) : (
         <motion.img
           src={optimized}
           srcSet={srcSet || undefined}
@@ -104,7 +116,13 @@ export function MotionImage({
           alt={alt}
           loading={loading}
           decoding="async"
-          onLoad={handleLoad}
+          ref={(el) => {
+            // Cached images often skip a meaningful onLoad; avoid shimmer flash.
+            if (el && el.complete && el.naturalWidth > 0 && !loaded) {
+              markLoaded();
+            }
+          }}
+          onLoad={markLoaded}
           onError={handleErr}
           variants={imageReveal}
           initial="hidden"
@@ -112,8 +130,6 @@ export function MotionImage({
           transition={{ duration: durations.normal, ease: easings.easeOut }}
           className={cn('h-full w-full object-cover', imgClassName)}
         />
-      ) : (
-        <div className="absolute inset-0 product-image-shimmer" aria-hidden />
       )}
     </div>
   );

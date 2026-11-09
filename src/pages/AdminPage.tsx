@@ -17,6 +17,7 @@ import { format } from 'date-fns';
 import { Textarea } from '@/components/ui/textarea';
 import { CredentialsManager } from '@/components/admin/CredentialsManager';
 import { WhatsAppTestPanel } from '@/components/admin/WhatsAppTestPanel';
+import { AdminCommunicationCentre } from '@/components/admin/communication/AdminCommunicationCentre';
 import { AppNavigator } from '@/components/admin/AppNavigator';
 import { AdminAIReviewLog } from '@/components/admin/AdminAIReviewLog';
 import { CampaignSender } from '@/components/admin/CampaignSender';
@@ -412,6 +413,7 @@ export default function AdminPage() {
           )}
 
           {admin.activeTab === 'credentials' && <CredentialsManager />}
+          {admin.activeTab === 'communication-centre' && <AdminCommunicationCentre />}
           {admin.activeTab === 'developer-tools' && (
             <div className="space-y-5 max-w-xl">
               <div>

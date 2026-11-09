@@ -12,8 +12,7 @@ import { GuidedDiscoveryProductRow } from '@/components/discovery/GuidedDiscover
 import { GuidedDiscoverySellerCard } from '@/components/discovery/GuidedDiscoverySellerCard';
 import { ProductListingCard, type ProductWithSeller } from '@/components/product/ProductListingCard';
 import { ProductGridSkeleton } from '@/components/placeholders/ProductGridSkeleton';
-import { staggerContainer } from '@/lib/motion-variants';
-import { motion } from 'framer-motion';
+import { MotionList } from '@/components/motion/MotionList';
 import { PreciseLocationRequiredCard } from '@/components/location/PreciseLocationRequiredCard';
 import { Button } from '@/components/ui/button';
 import { useBrowsingLocation } from '@/contexts/BrowsingLocationContext';
@@ -761,15 +760,13 @@ function CommerceModeView({ mode }: { mode: CommerceMode }) {
                   ))}
                 </div>
               ) : mode === 'shop' && catalogGrid.length > 0 ? (
-                <motion.div
+                <MotionList
                   className={cn(
                     'grid gap-2 sm:gap-3',
                     'grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4',
                   )}
                   data-testid="commerce-mode-grid"
-                  variants={staggerContainer}
-                  initial="hidden"
-                  animate="show"
+                  variant="list"
                 >
                   {catalogGrid.map((product) => (
                     <ProductListingCard
@@ -780,7 +777,7 @@ function CommerceModeView({ mode }: { mode: CommerceMode }) {
                       categoryConfigs={categoryConfigs}
                     />
                   ))}
-                </motion.div>
+                </MotionList>
               ) : hasListings && visible.length === 0 ? (
                 <div className="p-6 rounded-2xl bg-muted/40 text-center border border-dashed border-border">
                   <p className="text-sm font-medium text-foreground">No listings match these filters</p>

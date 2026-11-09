@@ -3,6 +3,21 @@
  * Cart is guest-ok; placing an order still requires OTP. Profile/orders/seller/admin stay gated.
  */
 
+/**
+ * Loopback-only host check for local QA / Playwright.
+ * Skips the marketing `/landing` redirect so guest browse can be exercised locally.
+ * Does NOT authenticate anyone, open protected routes, or weaken Supabase RLS.
+ * Always false for sociva.in and any non-loopback hostname (including LAN IPs).
+ */
+export function isLocalGuestBrowseHost(hostname?: string): boolean {
+  const h = String(
+    hostname ?? (typeof window !== 'undefined' ? window.location.hostname : ''),
+  )
+    .trim()
+    .toLowerCase();
+  return h === 'localhost' || h === '127.0.0.1' || h === '[::1]' || h === '::1';
+}
+
 const GUEST_BROWSE_EXACT = new Set([
   '/',
   '/search',

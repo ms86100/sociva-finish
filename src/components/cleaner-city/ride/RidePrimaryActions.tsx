@@ -1,4 +1,5 @@
 // @ts-nocheck
+import { useState, type ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import type { RideMission } from '@/hooks/queries/useCleanerCity';
@@ -25,6 +26,7 @@ type Props = {
   onScrollToMeeting?: () => void;
   onScrollToChat?: () => void;
   onOpenMaps?: (() => void) | null;
+  meetingPickerSlot?: ReactNode;
 };
 
 export function RidePrimaryActions({
@@ -49,7 +51,10 @@ export function RidePrimaryActions({
   onScrollToMeeting,
   onScrollToChat,
   onOpenMaps,
+  meetingPickerSlot,
 }: Props) {
+  const [confirmComplete, setConfirmComplete] = useState(false);
+
   if (ride.status === 'requested') {
     if (isHost) {
       return (
@@ -105,9 +110,18 @@ export function RidePrimaryActions({
       >
         <p className="text-sm font-semibold">Seat confirmed</p>
         {needsMeetingPoint ? (
-          <Button className="h-12 w-full font-semibold" onClick={onScrollToMeeting}>
-            Set meeting point
-          </Button>
+          <div className="space-y-2">
+            <p className="text-xs text-muted-foreground">
+              Set the meeting point here - no need to hunt elsewhere.
+            </p>
+            {meetingPickerSlot ? (
+              <div data-testid="cleaner-city-inline-meeting">{meetingPickerSlot}</div>
+            ) : (
+              <Button className="h-12 w-full font-semibold" onClick={onScrollToMeeting}>
+                Set meeting point
+              </Button>
+            )}
+          </div>
         ) : isHost ? (
           <p className="text-xs text-muted-foreground">
             Meet at the point below. Your passenger creates a 6-digit code when they arrive -
@@ -153,9 +167,18 @@ export function RidePrimaryActions({
               Ask your passenger for their 6-digit code at the meeting point, then start.
             </p>
             {needsMeetingPoint ? (
-              <p className="text-xs text-amber-700 dark:text-amber-300">
-                Start unlocks after a meeting point is set.
-              </p>
+              <div className="space-y-2">
+                <p className="text-xs text-amber-700 dark:text-amber-300">
+                  Start unlocks after a meeting point is set.
+                </p>
+                {meetingPickerSlot ? (
+                  <div data-testid="cleaner-city-inline-meeting">{meetingPickerSlot}</div>
+                ) : (
+                  <Button className="h-11 w-full font-semibold" variant="outline" onClick={onScrollToMeeting}>
+                    Set meeting point
+                  </Button>
+                )}
+              </div>
             ) : null}
             <div className="flex gap-2">
               <Input
@@ -187,14 +210,6 @@ export function RidePrimaryActions({
             <p className="text-xs text-muted-foreground">
               Show this code to your rider. They type it to start - you do not enter it.
             </p>
-            <Button
-              className="h-12 w-full font-semibold"
-              disabled={generatingOtp}
-              onClick={onGenerateOtp}
-              data-testid="cleaner-city-generate-otp"
-            >
-              {shownOtp ? 'New code' : 'Create pickup code'}
-            </Button>
             {shownOtp ? (
               <div
                 className="rounded-2xl border border-primary/30 bg-background/60 px-4 py-5 text-center"
@@ -207,6 +222,25 @@ export function RidePrimaryActions({
                   {shownOtp}
                 </p>
               </div>
+            ) : (
+              <Button
+                className="h-12 w-full font-semibold"
+                disabled={generatingOtp}
+                onClick={onGenerateOtp}
+                data-testid="cleaner-city-generate-otp"
+              >
+                Create pickup code
+              </Button>
+            )}
+            {shownOtp ? (
+              <Button
+                className="h-10 w-full font-semibold"
+                variant="ghost"
+                disabled={generatingOtp}
+                onClick={onGenerateOtp}
+              >
+                New code
+              </Button>
             ) : null}
             <p className="text-center text-xs text-muted-foreground">
               Waiting for your rider to enter the code…
@@ -224,9 +258,43 @@ export function RidePrimaryActions({
         data-testid="cleaner-city-ride-primary-actions"
       >
         <p className="text-sm font-semibold">On the road</p>
-        <Button className="h-12 w-full font-semibold" disabled={completing} onClick={onComplete}>
-          Complete ride
-        </Button>
+        {confirmComplete ? (
+          <div
+            className="space-y-2 rounded-xl border border-border bg-background/70 p-3"
+            data-testid="cleaner-city-complete-confirm"
+          >
+            <p className="text-sm font-semibold">Passengers dropped?</p>
+            <p className="text-xs text-muted-foreground">
+              Confirm seats are done before closing the ride.
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                className="h-11 font-semibold"
+                disabled={completing}
+                onClick={onComplete}
+                data-testid="cleaner-city-complete-confirm-yes"
+              >
+                Yes, complete
+              </Button>
+              <Button
+                className="h-11 font-semibold"
+                variant="outline"
+                onClick={() => setConfirmComplete(false)}
+              >
+                Not yet
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <Button
+            className="h-12 w-full font-semibold"
+            disabled={completing}
+            onClick={() => setConfirmComplete(true)}
+            data-testid="cleaner-city-complete-ride"
+          >
+            Complete ride
+          </Button>
+        )}
         {onOpenMaps ? (
           <Button className="h-11 w-full font-semibold" variant="outline" onClick={onOpenMaps}>
             Open in Google Maps
@@ -245,6 +313,31 @@ export function RidePrimaryActions({
         <p className="text-sm font-semibold">On the road</p>
         <Button className="h-12 w-full font-semibold" onClick={onScrollToChat}>
           Message host
+        </Button>
+      </section>
+    );
+  }
+
+  if (ride.status === 'completed') {
+    return (
+      <section
+        className="rounded-2xl border border-primary/40 bg-primary/10 p-4 space-y-3"
+        data-testid="cleaner-city-ride-primary-actions"
+      >
+        <p className="text-sm font-semibold">Ride complete</p>
+        <p className="text-xs text-muted-foreground">
+          Rate your partner below when you are ready - it helps the next commute.
+        </p>
+        <Button
+          className="h-12 w-full font-semibold"
+          onClick={() =>
+            document
+              .getElementById('cleaner-city-rate-section')
+              ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+          }
+          data-testid="cleaner-city-rate-prompt"
+        >
+          Rate partner
         </Button>
       </section>
     );

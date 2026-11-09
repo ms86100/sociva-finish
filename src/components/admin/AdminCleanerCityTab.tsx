@@ -21,10 +21,14 @@ export function AdminCleanerCityTab() {
   const [meetupLng, setMeetupLng] = useState('');
   const [meetupKind, setMeetupKind] = useState('gate');
 
+  const [statsSocietyId, setStatsSocietyId] = useState('');
+
   const { data: stats, isLoading: statsLoading } = useQuery({
-    queryKey: ['cleaner-city-admin-stats'],
+    queryKey: ['cleaner-city-admin-stats', statsSocietyId.trim() || 'all'],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc('cleaner_city_admin_stats');
+      const { data, error } = await supabase.rpc('cleaner_city_admin_stats', {
+        p_society_id: statsSocietyId.trim() || null,
+      });
       if (error) throw error;
       return data as Record<string, number | null>;
     },
@@ -242,27 +246,50 @@ export function AdminCleanerCityTab() {
         </CardContent>
       </Card>
 
-      {statsLoading ? (
-        <Skeleton className="h-24 w-full" />
-      ) : stats ? (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          {[
-            ['Profiles', stats.profiles],
-            ['Verified', stats.verified],
-            ['Vehicles', stats.active_vehicles],
-            ['Open pubs', stats.publications_open],
-            ['Rides today', stats.rides_today],
-            ['Active rides', stats.rides_active],
-            ['Open incidents', stats.incidents_open],
-            ['Avg rating', stats.avg_rating],
-          ].map(([label, value]) => (
-            <div key={String(label)} className="rounded-xl border border-border p-3">
-              <p className="text-[11px] text-muted-foreground">{label}</p>
-              <p className="text-lg font-bold">{value ?? 0}</p>
+      <Card data-testid="admin-cleaner-city-pilot-kpis">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm">Pilot KPIs</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <Input
+            placeholder="Society UUID (optional filter)"
+            value={statsSocietyId}
+            onChange={(e) => setStatsSocietyId(e.target.value)}
+            data-testid="admin-cleaner-city-stats-society"
+          />
+          {statsLoading ? (
+            <Skeleton className="h-24 w-full" />
+          ) : stats ? (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {[
+                ['Profiles', stats.profiles],
+                ['Verified', stats.verified],
+                ['Vehicles', stats.active_vehicles],
+                ['Open pubs', stats.publications_open],
+                ['Rides today', stats.rides_today],
+                ['Active rides', stats.rides_active],
+                ['Completed 7d', stats.rides_completed_7d],
+                ['Cancelled 7d', stats.rides_cancelled_7d],
+                ['No-show 7d', stats.rides_no_show_7d],
+                ['Completion % 7d', stats.completion_rate_7d],
+                ['Open incidents', stats.incidents_open],
+                ['Avg rating', stats.avg_rating],
+                ['Active share links', stats.share_links_active],
+                ['Meeting pins today', stats.meeting_pin_set_today],
+                ['Fuel proposed', stats.cost_shares_proposed],
+                ['Domains pending', stats.domains_pending],
+              ].map(([label, value]) => (
+                <div key={String(label)} className="rounded-xl border border-border p-3">
+                  <p className="text-[11px] text-muted-foreground">{label}</p>
+                  <p className="text-lg font-bold">
+                    {value == null ? '-' : value}
+                  </p>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-      ) : null}
+          ) : null}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader className="pb-2">

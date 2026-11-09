@@ -79,6 +79,33 @@ class LiveActivityPlugin : Plugin() {
     }
 
     @PluginMethod
+    fun updateCommuteTracking(call: PluginCall) {
+        val rideId = call.getString("ride_id")
+        val token = call.getString("access_token")
+        val url = call.getString("supabase_url")
+        val anon = call.getString("anon_key")
+        if (rideId.isNullOrBlank() || token.isNullOrBlank() || url.isNullOrBlank() || anon.isNullOrBlank()) {
+            call.reject("ride_id, access_token, supabase_url, and anon_key are required")
+            return
+        }
+        val intent = Intent(context, CommuteTrackingService::class.java).apply {
+            action = CommuteTrackingService.ACTION_UPDATE
+            putExtra("ride_id", rideId)
+            putExtra("access_token", token)
+            putExtra("supabase_url", url)
+            putExtra("anon_key", anon)
+        }
+        try {
+            context.startService(intent)
+        } catch (_: Exception) {
+            ContextCompat.startForegroundService(context, intent.apply {
+                action = CommuteTrackingService.ACTION_START
+            })
+        }
+        call.resolve()
+    }
+
+    @PluginMethod
     fun endLiveActivity(call: PluginCall) {
         // Prefer ACTION_STOP via startService so onStartCommand clears the FGS cleanly.
         // stopService() alone often skips ACTION_STOP and can leave OEMs in a bad state.

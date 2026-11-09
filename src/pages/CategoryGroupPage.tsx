@@ -10,8 +10,7 @@ import { SellerCard } from '@/components/seller/SellerCard';
 import { SearchAutocomplete } from '@/components/search/SearchAutocomplete';
 import { CategoryPageSkeleton } from '@/components/placeholders/MarketplaceShellSkeletons';
 import { ProductGridSkeleton } from '@/components/placeholders/ProductGridSkeleton';
-import { motion } from 'framer-motion';
-import { staggerContainer } from '@/lib/motion-variants';
+import { MotionList } from '@/components/motion/MotionList';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useCategoryConfigs } from '@/hooks/useCategoryBehavior';
@@ -427,11 +426,9 @@ export default function CategoryGroupPage() {
               {`${displayProducts.length} ${displayProducts.length === 1 ? 'item' : 'items'}`}
             </p>
             {closedStrip && <ListingClosedStrip model={closedStrip} />}
-            <motion.div
+            <MotionList
               className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-3.5"
-              variants={staggerContainer}
-              initial="hidden"
-              animate="show"
+              variant="list"
             >
               {displayProducts.map((product) => (
                 <ProductListingCard
@@ -442,7 +439,7 @@ export default function CategoryGroupPage() {
                   categoryConfigs={categoryConfigs as any}
                 />
               ))}
-            </motion.div>
+            </MotionList>
           </>
         ) : (
           <div className="text-center py-16">

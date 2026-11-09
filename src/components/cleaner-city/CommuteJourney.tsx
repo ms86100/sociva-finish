@@ -57,7 +57,7 @@ export function CommuteJourney({
   );
   const xp = done * 40 + completedRides * 30;
   const allDone = done >= total;
-  const [open, setOpen] = useState(!allDone && done < 3);
+  const [open, setOpen] = useState(false);
 
   return (
     <section

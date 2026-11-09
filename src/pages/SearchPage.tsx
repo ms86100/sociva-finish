@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { useEffect, useMemo, useRef, useState, lazy, Suspense } from 'react';
 import { motion } from 'framer-motion';
-import { staggerGrid } from '@/lib/motion-variants';
+import { MotionList } from '@/components/motion/MotionList';
 import { Link, useLocation, useNavigationType } from 'react-router-dom';
 import { Capacitor } from '@capacitor/core';
 import { useBackInterceptor } from '@/hooks/useBackInterceptor';
@@ -468,11 +468,9 @@ function ProductGridByCategory({ products, facetRows, sellersById, categoryMap, 
               <span className="text-xs text-muted-foreground">({items.length})</span>
               <span className="text-[11px] font-semibold text-accent ml-auto">From {formatPrice(Math.min(...items.map(p => p.price)))}</span>
             </div>
-            <motion.div
+            <MotionList
               className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-3.5"
-              variants={staggerGrid}
-              initial="hidden"
-              animate="show"
+              variant="grid"
               key={cat}
             >
               {items.map((p) => (
@@ -486,7 +484,7 @@ function ProductGridByCategory({ products, facetRows, sellersById, categoryMap, 
                   onTap={onProductTap}
                 />
               ))}
-            </motion.div>
+            </MotionList>
           </div>
         );
       })}

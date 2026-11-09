@@ -46,9 +46,9 @@ export default function CleanerCityRoutePage() {
             </div>
           ) : (
             <div>
-              <h1 className="text-xl font-bold tracking-tight">Choose your usual road</h1>
+              <h1 className="text-xl font-bold tracking-tight">Set up commute</h1>
               <p className="mt-1 text-sm text-muted-foreground">
-                Pin office and home gate, then tap the Google path you drive to office and back home.
+                Home gate first, then office, then pick the Google road you drive. Exact office stays owner-private.
               </p>
             </div>
           )}

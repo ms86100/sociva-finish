@@ -6,9 +6,9 @@ import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Store, Users, Building2, AlertCircle,   LayoutGrid, Flag,
-  CreditCard, Star, Megaphone, Layers, Settings2, Bot, Mic,
+  CreditCard, Star,   Megaphone, Layers, Settings2, Bot, Mic,
   Menu, ChevronRight, FileCode, Send, Package, Wrench, MessageSquare, KeyRound, Smartphone,
-  BarChart3, GitBranch,   FlaskConical, MessageCircle, Shield, Radar, Leaf,
+  BarChart3, GitBranch,   FlaskConical, MessageCircle, Shield, Radar, Leaf, Radio,
 } from 'lucide-react';
 import { useState } from 'react';
 import { Badge } from '@/components/ui/badge';
@@ -65,6 +65,7 @@ const NAV_GROUPS = [
       { value: 'ai-review', label: 'AI Review', icon: Bot },
       { value: 'feedback', label: 'Feedback', icon: MessageSquare },
       { value: 'credentials', label: 'Credentials', icon: KeyRound },
+      { value: 'communication-centre', label: 'Communication Centre', icon: Radio },
       { value: 'developer-tools', label: 'Developer Tools', icon: MessageCircle },
       { value: 'test-scenarios', label: 'Test Runner', icon: FlaskConical },
       { value: 'settings', label: 'Settings', icon: Settings2 },

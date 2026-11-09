@@ -22,6 +22,14 @@ verify_jwt = true
 [functions.receive-whatsapp-webhook]
 verify_jwt = false
 
+# Evolution Go webhook - shared secret validated in function code
+[functions.receive-evolution-go-webhook]
+verify_jwt = false
+
+# Evolution Go admin control plane - requires admin JWT inside the function
+[functions.evolution-go-admin]
+verify_jwt = true
+
 # Internal worker has its own service-role / cron-secret / admin-JWT gate.
 # Gateway JWT verification must remain off so pg_net can authenticate with the
 # current service key format; anonymous requests are still rejected in code.
@@ -38,6 +46,10 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.send-seller-status-reminders]
+verify_jwt = false
+
+# Cron worker. Auth is service-role or x-cron-secret inside the function.
+[functions.nudge-seller-accept-whatsapp]
 verify_jwt = false
 
 [functions.send-scheduled-order-reminders]

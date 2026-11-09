@@ -17,7 +17,8 @@ import { canScheduleWhileClosed, formatScheduleCta, scheduleHoursFromProduct, VA
 import { ScheduleCtaLabel } from '@/components/product/ScheduleCtaLabel';
 import { useCategoryConfig } from '@/hooks/queries/useCategoryConfig';
 import { listingPlaceholderGlyph } from '@/lib/category-chip-visual';
-import { optimizedImageUrl, imageSrcSet, blurUpImageUrl } from '@/utils/imageHelpers';
+import { MotionCard } from '@/components/motion/MotionCard';
+import { MotionImage } from '@/components/motion/MotionImage';
 import { useVariantProductIds } from '@/hooks/useProductVariants';
 import { openVariantPicker } from '@/lib/variant-picker-store';
 
@@ -45,8 +46,6 @@ export function ProductGridCard({ product, behavior, onTap, className, viewOnly 
   const navigate = useNavigate();
   const { items, addItem, updateQuantity } = useCart();
   const { formatPrice } = useCurrency();
-  const [imgLoaded, setImgLoaded] = useState(false);
-  const [imgFailed, setImgFailed] = useState(false);
   const [justAdded, setJustAdded] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
 
@@ -126,11 +125,13 @@ export function ProductGridCard({ product, behavior, onTap, className, viewOnly 
   const showAdd = !viewOnly && !isOutOfStock && (onVacation || !isStoreClosed || canScheduleClosed);
 
   return (
-    <div
+    <MotionCard
       onClick={handleCardClick}
+      pressable
+      asChildOfStagger
       className={cn(
         'group/grid bg-card rounded-2xl border border-border/60 shadow-card cursor-pointer flex flex-col h-full relative overflow-hidden',
-        'transition-[box-shadow,border-color,transform] duration-200 ease-out active:scale-[0.985]',
+        'transition-[box-shadow,border-color] duration-200 ease-out',
         'hover:shadow-elevated hover:border-border',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
         isOutOfStock && 'opacity-50 grayscale-[40%]',
@@ -143,41 +144,20 @@ export function ProductGridCard({ product, behavior, onTap, className, viewOnly 
     >
       <div className="relative p-2 pb-0">
         <div className="relative aspect-[4/3] rounded-xl overflow-hidden product-image-bg">
-          {product.image_url && !imgLoaded && !imgFailed && (
-            <>
-              <div className="absolute inset-0 product-image-shimmer z-[1]" aria-hidden />
-              {blurUpImageUrl(product.image_url) ? (
-                <img
-                  src={blurUpImageUrl(product.image_url)}
-                  alt=""
-                  aria-hidden
-                  className="absolute inset-0 w-full h-full object-cover scale-105 blur-md opacity-70"
-                  decoding="async"
-                />
-              ) : null}
-            </>
-          )}
-          {product.image_url && !imgFailed ? (
-            <img
-              src={optimizedImageUrl(product.image_url, { width: 400, quality: 78 })}
-              srcSet={imageSrcSet(product.image_url, 78) || undefined}
-              sizes="(max-width: 640px) 46vw, 220px"
-              alt={product.name}
-              className={cn(
-                'w-full h-full object-cover transition-[opacity,transform] duration-500',
-                'group-hover/grid:scale-[1.03]',
-                imgLoaded ? 'opacity-100' : 'opacity-0'
-              )}
-              loading="lazy"
-              decoding="async"
-              onLoad={() => setImgLoaded(true)}
-              onError={() => setImgFailed(true)}
-            />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center bg-muted">
-              <span className="text-3xl" aria-hidden>{placeholderEmoji}</span>
-            </div>
-          )}
+          <MotionImage
+            src={product.image_url}
+            alt={product.name}
+            aspectClassName="absolute inset-0"
+            width={400}
+            quality={78}
+            sizes="(max-width: 640px) 46vw, 220px"
+            imgClassName="transition-transform duration-500 group-hover/grid:scale-[1.03]"
+            fallback={
+              <div className="w-full h-full flex items-center justify-center bg-muted">
+                <span className="text-3xl" aria-hidden>{placeholderEmoji}</span>
+              </div>
+            }
+          />
 
           <div
             className="pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-card/70 via-card/15 to-transparent"
@@ -293,6 +273,6 @@ export function ProductGridCard({ product, behavior, onTap, className, viewOnly 
           )}
         </div>
       </div>
-    </div>
+    </MotionCard>
   );
 }

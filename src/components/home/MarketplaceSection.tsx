@@ -18,8 +18,7 @@ import { NearbySellersSection } from '@/components/marketplace/NearbySellersSect
 import { showFeedback } from '@/components/FeedbackPopupProvider';
 import { LazySection } from '@/components/home/LazySection';
 import { ProductListingCard, ProductWithSeller } from '@/components/product/ProductListingCard';
-import { motion } from 'framer-motion';
-import { staggerContainer } from '@/lib/motion-variants';
+import { MotionList } from '@/components/motion/MotionList';
 import { ProductGridSkeleton } from '@/components/placeholders/ProductGridSkeleton';
 import { GroupedSellerRow } from '@/components/home/GroupedSellerRow';
 import { IntentProductRail } from '@/components/discovery/IntentProductRail';
@@ -516,11 +515,9 @@ export function MarketplaceSection() {
           {searchFetching && visibleSearchProducts.length === 0 ? (
             <ProductGridSkeleton count={6} variant="food" />
           ) : visibleSearchProducts.length > 0 ? (
-            <motion.div
+            <MotionList
               className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-3"
-              variants={staggerContainer}
-              initial="hidden"
-              animate="show"
+              variant="list"
             >
               {visibleSearchProducts.map((product) => (
                 <ProductListingCard
@@ -531,7 +528,7 @@ export function MarketplaceSection() {
                   categoryConfigs={categoryConfigs as any}
                 />
               ))}
-            </motion.div>
+            </MotionList>
           ) : (
             <div className="p-6 rounded-2xl bg-muted/40 text-center border border-dashed border-border">
               <p className="text-sm font-medium text-foreground">
@@ -582,11 +579,9 @@ export function MarketplaceSection() {
             </button>
           </div>
           {facetFilteredProducts.length > 0 ? (
-            <motion.div
+            <MotionList
               className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-3"
-              variants={staggerContainer}
-              initial="hidden"
-              animate="show"
+              variant="list"
             >
               {facetFilteredProducts.map((product) => (
                 <ProductListingCard
@@ -597,7 +592,7 @@ export function MarketplaceSection() {
                   categoryConfigs={categoryConfigs as any}
                 />
               ))}
-            </motion.div>
+            </MotionList>
           ) : (
             <div className="p-6 rounded-2xl bg-muted/40 text-center border border-dashed border-border">
               <p className="text-sm font-medium text-foreground">No listings match these filters</p>

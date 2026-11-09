@@ -879,7 +879,11 @@ export type MatchResult = {
   shared_circle?: boolean;
   reason_labels?: string[];
   pickup_deviation_meters?: number | null;
+  destination_deviation_meters?: number | null;
   pickup_walk_meters?: number | null;
+  pickup_route_index?: number | null;
+  drop_route_index?: number | null;
+  on_route_drop?: boolean;
   host_no_show_count?: number | null;
   host_completed_rides?: number | null;
   host_vehicle_verified?: boolean;
