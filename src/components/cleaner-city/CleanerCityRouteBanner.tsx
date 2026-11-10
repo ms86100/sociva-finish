@@ -25,10 +25,10 @@ export function CleanerCityRouteBanner({ variant, hasPins, hasRoads, className }
   const detail =
     variant === 'guest'
       ? ready
-        ? 'Find matches hosts whose roads pass your gate - not just the same society name.'
-        : 'Without pins, Find cannot place you on a real road corridor.'
+        ? 'Find shows hosts whose roads pass your gate - not just the same society name.'
+        : 'Without pins, Find cannot match you on a real road route.'
       : ready
-        ? 'Guests only see you when their seat shares your published polyline.'
+        ? 'Guests only see you when their seat shares your published route.'
         : 'Offer seats only after you pick morning and evening roads on the map.';
 
   return (
@@ -59,7 +59,7 @@ export function CleanerCityRouteBanner({ variant, hasPins, hasRoads, className }
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold tracking-tight text-foreground">{title}</p>
           <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">{detail}</p>
-          <p className="mt-2 text-xs font-semibold text-emerald-900">
+          <p className="mt-2 text-xs font-semibold text-emerald-800 dark:text-emerald-300">
             {ready ? 'Review or change route →' : 'Open route setup →'}
           </p>
         </div>

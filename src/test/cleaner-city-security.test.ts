@@ -65,12 +65,14 @@ describe('A Cleaner City foundation migration contracts', () => {
 
 describe('A Cleaner City Unit 1 privacy copy', () => {
   it('hub does not claim live matching or employment verification', () => {
-    const hub = fs.readFileSync(
-      path.resolve(process.cwd(), 'src/pages/cleaner-city/CleanerCityPage.tsx'),
+    const home = fs.readFileSync(
+      path.resolve(process.cwd(), 'src/pages/cleaner-city/CleanerCityHomePage.tsx'),
       'utf8',
     );
-    expect(hub).not.toMatch(/employment independently verified/i);
-    expect(hub).not.toMatch(/live match/i);
-    expect(hub).toMatch(/Set up my commute|Verify work email first|Participation gate/);
+    expect(home).not.toMatch(/employment independently verified/i);
+    expect(home).not.toMatch(/live match/i);
+    expect(home).toContain('cleaner-city-home-find-seat');
+    expect(home).toContain('cleaner-city-home-offer-seat');
+    expect(home).not.toContain('buildHomeDemoGuests');
   });
 });

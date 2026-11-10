@@ -8,8 +8,8 @@ import { hapticSelection } from '@/lib/haptics';
 import { cn } from '@/lib/utils';
 
 /**
- * Home discovery entry for HelpHub - sits with "What are you looking for"
- * (not under search). Dual CTAs with a soft animated border.
+ * Account discovery entry for Help Recommendation.
+ * Dual CTAs with a soft animated border. No Society badge.
  */
 export function HelpHubTeaser({ className }: { className?: string }) {
   const { isFeatureEnabled, isLoading } = useEffectiveFeatures();
@@ -29,7 +29,7 @@ export function HelpHubTeaser({ className }: { className?: string }) {
     <section
       className={cn('px-4 pt-4 pb-2', className)}
       data-testid="helphub-home-entry"
-      aria-label="HelpHub - find and recommend help"
+      aria-label="Help Recommendation - find and recommend help"
     >
       <div className="helphub-entry-shell rounded-[22px] p-[1.5px]">
         <div className="relative overflow-hidden rounded-[20.5px] bg-card px-3.5 py-3.5 shadow-card">
@@ -42,16 +42,11 @@ export function HelpHubTeaser({ className }: { className?: string }) {
               <HandHelping className="text-primary" size={18} />
             </div>
             <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2">
-                <h3 className="text-sm font-extrabold tracking-tight text-foreground">
-                  HelpHub
-                </h3>
-                <span className="rounded-full bg-primary/12 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-primary">
-                  Society
-                </span>
-              </div>
+              <h3 className="text-sm font-extrabold tracking-tight text-foreground">
+                Help Recommendation
+              </h3>
               <p className="text-[11px] text-muted-foreground mt-0.5 leading-snug">
-                Cooks, maids, nannies, drivers - find or recommend in your society
+                Cooks, maids, nannies, drivers - find or recommend nearby help
               </p>
             </div>
           </div>

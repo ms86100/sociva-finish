@@ -1,5 +1,6 @@
 // @ts-nocheck
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Link, useLocation, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { CleanerCityChrome } from '@/components/cleaner-city/CleanerCityChrome';
@@ -44,14 +45,23 @@ import {
   useUpsertRideLocation,
 } from '@/hooks/queries/useCleanerCity';
 import { RideMissionHero } from '@/components/cleaner-city/ride/RideMissionHero';
-import { RideStatusStepper } from '@/components/cleaner-city/ride/RideStatusStepper';
 import { RidePrimaryActions } from '@/components/cleaner-city/ride/RidePrimaryActions';
+import { RideQuickActions } from '@/components/cleaner-city/ride/RideQuickActions';
 import { RideChatStrip } from '@/components/cleaner-city/ride/RideChatStrip';
 import { DropRunPanel } from '@/components/cleaner-city/ride/DropRunPanel';
+import { RideFindEachOther } from '@/components/cleaner-city/ride/RideFindEachOther';
+import {
+  RideWorkspaceTabs,
+  type RideWorkspaceTab,
+} from '@/components/cleaner-city/ride/RideWorkspaceTabs';
 import { CleanerCityMeetingPointPicker } from '@/components/cleaner-city/CleanerCityMeetingPointPicker';
 import { CallButton } from '@/components/calling/CallButton';
 import { QUICK_MESSAGE_PHRASES } from '@/lib/cleaner-city/constants';
 import { resolveCleanerCityRideCall } from '@/lib/calling/resolveCallContext';
+import {
+  fetchVoipCapabilities,
+  startVoipCall,
+} from '@/lib/calling/CallManager';
 import {
   canOpenDispute,
   canShowRideSos,
@@ -65,6 +75,7 @@ import {
 import {
   buildDropOrderPayload,
   parseDropOrderJson,
+  preferDropProgress,
   withUpdatedStopProgress,
   type DropOrderPersisted,
   type DropProgressStatus,
@@ -79,6 +90,7 @@ import {
   planDropSequence,
   type LatLng,
 } from '@/lib/cleaner-city/routing';
+import { suggestSmartMeetSpot } from '@/lib/cleaner-city/meetSuggest';
 import { openNativeRazorpayCheckout } from '@/lib/razorpay-native-checkout';
 import { functionInvokeErrorMessage } from '@/lib/function-invoke-error';
 import { supabase } from '@/integrations/supabase/client';
@@ -87,6 +99,7 @@ import { useGoogleMaps } from '@/hooks/useGoogleMaps';
 export default function CleanerCityRidePage() {
   const { id } = useParams();
   const location = useLocation();
+  const queryClient = useQueryClient();
   const arrivalNotice = (location.state as { notice?: string } | null)?.notice || '';
   const { user } = useAuth();
   const { data: rideData, isLoading } = useCleanerCityRide(id);
@@ -94,7 +107,7 @@ export default function CleanerCityRidePage() {
     ?.seededRide;
   const ride = rideData || (seededRide?.id === id ? seededRide : null);
   const { data: locations = [] } = useRideLocations(
-    ride && ['pickup_pending', 'started'].includes(ride.status) ? id : null,
+    ride && ['confirmed', 'pickup_pending', 'started'].includes(ride.status) ? id : null,
   );
   const { data: shares = [] } = useRideCostShares(id);
   const { data: meetupPoints = [] } = useMeetupPoints();
@@ -165,6 +178,8 @@ export default function CleanerCityRidePage() {
   const [fuelNotice, setFuelNotice] = useState('');
   const [fuelPaymentId, setFuelPaymentId] = useState('');
   const [dropOrderState, setDropOrderState] = useState<DropOrderPersisted | null>(null);
+  const dropOrderStateRef = useRef<DropOrderPersisted | null>(null);
+  dropOrderStateRef.current = dropOrderState;
   const [dropNav, setDropNav] = useState<{
     origin: LatLng;
     destination: LatLng;
@@ -175,6 +190,9 @@ export default function CleanerCityRidePage() {
   const [celebrate, setCelebrate] = useState(false);
   const [clockTick, setClockTick] = useState(0);
   const [sosConfirmOpen, setSosConfirmOpen] = useState(false);
+  const [rideTab, setRideTab] = useState<RideWorkspaceTab>('trip');
+  const [heroCallBusy, setHeroCallBusy] = useState(false);
+  const [sharingLivePin, setSharingLivePin] = useState(false);
 
   const isHost = ride?.host_user_id === user?.id;
   const active = !!ride && ['pickup_pending', 'started'].includes(ride.status);
@@ -183,18 +201,104 @@ export default function CleanerCityRidePage() {
     active ? id : null,
     active,
     async (sample) => {
-      await upsertLoc.mutateAsync({
-        ride_id: sample.ride_id,
-        latitude: sample.latitude,
-        longitude: sample.longitude,
-        accuracy_meters: sample.accuracy_meters ?? null,
-      });
+      try {
+        await upsertLoc.mutateAsync({
+          ride_id: sample.ride_id,
+          latitude: sample.latitude,
+          longitude: sample.longitude,
+          accuracy_meters: sample.accuracy_meters ?? null,
+        });
+      } catch {
+        // Background GPS pings - never toast; honesty copy covers stale pin.
+      }
     },
   );
   const needsMeetingPoint =
     !!ride &&
     ['confirmed', 'pickup_pending'].includes(ride.status) &&
     !ride.meeting_point_label;
+
+  const meetingSuggestions = useMemo(() => {
+    const seen = new Set<string>();
+    const out: Array<{
+      id: string;
+      label: string;
+      latitude: number;
+      longitude: number;
+      hint?: string;
+      walkMeters?: number | null;
+    }> = [];
+    const push = (
+      id: string,
+      label: string,
+      latitude: number,
+      longitude: number,
+      walkMeters?: number | null,
+    ) => {
+      if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return;
+      const key = `${latitude.toFixed(4)}:${longitude.toFixed(4)}:${label.toLowerCase()}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      out.push({
+        id,
+        label,
+        latitude,
+        longitude,
+        walkMeters: walkMeters ?? null,
+        hint:
+          walkMeters != null && Number.isFinite(walkMeters)
+            ? `~${Math.round(walkMeters)} m walk`
+            : undefined,
+      });
+    };
+    for (const pt of rankedMeetups) {
+      push(
+        String(pt.id),
+        pt.label,
+        Number(pt.latitude),
+        Number(pt.longitude),
+        Number(pt.walk_meters) || null,
+      );
+    }
+    for (const pt of meetupPoints) {
+      push(String(pt.id), pt.label, Number(pt.latitude), Number(pt.longitude), null);
+    }
+    return out;
+  }, [rankedMeetups, meetupPoints]);
+
+  const smartMeet = useMemo(() => {
+    if (!ride) return null;
+    const guestPickup =
+      ride.guest_pickup_latitude != null && ride.guest_pickup_longitude != null
+        ? {
+            lat: Number(ride.guest_pickup_latitude),
+            lng: Number(ride.guest_pickup_longitude),
+          }
+        : null;
+    const hostOrigin =
+      ride.origin_latitude != null && ride.origin_longitude != null
+        ? { lat: Number(ride.origin_latitude), lng: Number(ride.origin_longitude) }
+        : null;
+    const path = ride.route_polyline ? decodePolyline(String(ride.route_polyline)) : [];
+    const sameSociety =
+      !!ride.partner_society_id &&
+      !!ride.society_id &&
+      String(ride.partner_society_id) === String(ride.society_id);
+    return suggestSmartMeetSpot({
+      sameSociety,
+      guestPickup,
+      guestSocietyLabel: ride.partner_society || null,
+      hostOrigin,
+      hostPath: path,
+      societyGates: meetingSuggestions.map((s) => ({
+        id: s.id,
+        label: s.label,
+        lat: s.latitude,
+        lng: s.longitude,
+        walkMeters: s.walkMeters ?? null,
+      })),
+    });
+  }, [ride, meetingSuggestions]);
 
   const siblingGuests = useMemo(() => {
     if (!ride?.publication_id) return [];
@@ -510,17 +614,25 @@ export default function CleanerCityRidePage() {
       stops: guestStops,
     }).then(async (plan) => {
       if (cancelled) return;
-      const previous = parseDropOrderJson(
+      const cached = parseDropOrderJson(
         (ride as { drop_order_json?: unknown }).drop_order_json,
       );
-      const payload = buildDropOrderPayload(plan, previous?.progress);
+      const local = dropOrderStateRef.current;
+      // Local Arrived/Guest-off must win over a stale re-plan (ride.drop_order_json is often empty).
+      const mergedProgress = preferDropProgress(cached?.progress, local?.progress);
+      const payload = buildDropOrderPayload(plan, mergedProgress);
       setDropOrderState(payload);
+      dropOrderStateRef.current = payload;
       setDropNav({
         origin,
         destination,
         waypoints: plan.ordered.map((s) => ({ lat: s.lat, lng: s.lng })),
       });
-      if (isHost && ride.publication_id && plan.ordered.length >= 1) {
+      const orderedKey = (o?: DropOrderPersisted | null) =>
+        (o?.ordered || []).map((s) => s.id).join('|');
+      const structureChanged = orderedKey(cached) !== orderedKey(payload);
+      // Persist structure only - progress saves go through markDropStop so re-plans cannot wipe Arrived.
+      if (isHost && ride.publication_id && plan.ordered.length >= 1 && structureChanged) {
         try {
           await setDropOrder.mutateAsync({
             publication_id: ride.publication_id,
@@ -549,15 +661,25 @@ export default function CleanerCityRidePage() {
   ]);
 
   const markDropStop = async (stopId: string, status: DropProgressStatus) => {
-    if (!ride?.publication_id || !dropOrderState || !isHost) return;
+    if (!dropOrderState || !isHost) return;
     const next = withUpdatedStopProgress(dropOrderState, stopId, status);
     setDropOrderState(next);
+    dropOrderStateRef.current = next;
+    if (!ride?.publication_id) {
+      toast.message(
+        status === 'arrived' ? 'Arrived at drop' : 'Guest marked off',
+      );
+      return;
+    }
     setMarkingStopId(stopId);
     try {
       await setDropOrder.mutateAsync({
         publication_id: ride.publication_id,
         drop_order: next,
       });
+      toast.message(
+        status === 'arrived' ? 'Arrived at drop' : 'Guest marked off',
+      );
       if (status === 'arrived') {
         try {
           const pos = await getCurrentPosition();
@@ -568,7 +690,7 @@ export default function CleanerCityRidePage() {
       }
     } catch {
       toast.error('Could not save drop progress');
-      setDropOrderState(dropOrderState);
+      // Keep local Arrived/Guest-off so the button still advances; retry on next mark.
     } finally {
       setMarkingStopId(null);
     }
@@ -594,7 +716,7 @@ export default function CleanerCityRidePage() {
               Your request may still be on Find under Your rides. Open that card, or try again in a
               moment.
             </p>
-            <Link to="/cleaner-city/find" className="text-primary text-sm font-semibold">
+            <Link to="/cleaner-city" className="text-primary text-sm font-semibold">
               Back to find
             </Link>
           </div>
@@ -603,15 +725,143 @@ export default function CleanerCityRidePage() {
     );
   }
 
+  const meetingPicker = (
+    <CleanerCityMeetingPointPicker
+      rideId={ride.id}
+      isHost={!!isHost}
+      currentLabel={ride.meeting_point_label}
+      currentLat={ride.meeting_point_latitude}
+      currentLng={ride.meeting_point_longitude}
+      smartSuggest={smartMeet}
+      guestPickupLat={ride.guest_pickup_latitude}
+      guestPickupLng={ride.guest_pickup_longitude}
+      guestPickupLabel={
+        ride.partner_society ? `Near ${ride.partner_society}` : 'Guest on your road'
+      }
+      hostOriginLat={
+        ride.origin_latitude ??
+        offices.find((o) => o.is_primary)?.latitude ??
+        offices[0]?.latitude ??
+        null
+      }
+      hostOriginLng={
+        ride.origin_longitude ??
+        offices.find((o) => o.is_primary)?.longitude ??
+        offices[0]?.longitude ??
+        null
+      }
+      hostOriginLabel={ride.origin_label || 'Near your start'}
+      savedSuggestions={meetingSuggestions}
+      saving={setMeetingPoint.isPending}
+      onSave={(input) => setMeetingPoint.mutateAsync(input)}
+    />
+  );
+
+  const visibleTabs = useMemo((): RideWorkspaceTab[] => {
+    const status = String(ride?.status || '');
+    if (status === 'started') return ['trip', 'safety'];
+    if (status === 'completed' || status === 'disputed') return ['trip', 'more'];
+    if (['confirmed', 'pickup_pending', 'requested'].includes(status)) {
+      return ['trip', 'chat', 'safety'];
+    }
+    return ['trip', 'chat', 'safety', 'more'];
+  }, [ride?.status]);
+
+  useEffect(() => {
+    if (!visibleTabs.includes(rideTab)) {
+      setRideTab(visibleTabs[0] || 'trip');
+    }
+  }, [visibleTabs, rideTab]);
+
+  const openRideChat = () => {
+    if (!visibleTabs.includes('chat')) {
+      toast.message('Chat opens before the ride starts');
+      return;
+    }
+    setRideTab('chat');
+    window.setTimeout(() => {
+      document
+        .getElementById('cleaner-city-ride-chat')
+        ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 50);
+  };
+
+  const shareLivePin = async () => {
+    if (!ride?.id || sharingLivePin) return;
+    setSharingLivePin(true);
+    try {
+      const pos = await getCurrentPosition({ requestPermission: true });
+      await upsertLoc.mutateAsync({
+        ride_id: ride.id,
+        latitude: pos.latitude,
+        longitude: pos.longitude,
+        accuracy_meters: pos.accuracy ?? null,
+      });
+      const mapsLink = `https://www.google.com/maps?q=${pos.latitude},${pos.longitude}`;
+      if (ride.society_id) {
+        await sendRideChat.mutateAsync({
+          ride_id: ride.id,
+          society_id: ride.society_id,
+          body: `My live pin (open in Maps): ${mapsLink}`,
+        });
+      }
+      await queryClient.invalidateQueries({
+        queryKey: ['cleaner-city-ride-locations', ride.id],
+      });
+      toast.success('Live pin shared with partner');
+    } catch (e: any) {
+      toast.error(e?.message || 'Could not share location');
+    } finally {
+      setSharingLivePin(false);
+    }
+  };
+
+  const callRidePartner = async () => {
+    if (!ride?.id || heroCallBusy) return;
+    setHeroCallBusy(true);
+    try {
+      const caps = await fetchVoipCapabilities();
+      if (caps?.can_place_calls) {
+        const ctx = resolveCleanerCityRideCall(ride.id);
+        await startVoipCall({
+          contextType: ctx.contextType,
+          contextId: ride.id,
+        });
+        toast.success('Calling partner');
+        return;
+      }
+      if (relayCallReady) {
+        const res = await requestMaskedCall.mutateAsync(ride.id);
+        if (res?.dispatch_error) {
+          toast.message('Call saved - dial setup still finishing');
+        } else {
+          toast.success('Masked call started - answer on your phone');
+        }
+        return;
+      }
+      toast.message('Call not ready - opening chat');
+      openRideChat();
+    } catch (e: any) {
+      toast.error(e?.message || 'Call failed - try chat');
+      openRideChat();
+    } finally {
+      setHeroCallBusy(false);
+    }
+  };
+
   return (
-    <CleanerCityChrome headerTitle="Active ride" immersive>
+    <CleanerCityChrome headerTitle="Active ride" immersive className="bg-[#F7F5F1]">
       <CleanerCityGate>
-        <div className="p-4 pb-24 space-y-4" data-testid="cleaner-city-ride-page">
-          {arrivalNotice && (
-            <div className="rounded-2xl border border-primary/30 bg-primary/5 p-4 text-sm">
+        <div
+          className="relative mx-auto w-full max-w-lg space-y-4 px-4 pb-24 pt-3"
+          data-testid="cleaner-city-ride-page"
+        >
+          {arrivalNotice &&
+          !['started', 'completed', 'cancelled', 'no_show', 'disputed'].includes(ride.status) ? (
+            <p className="relative rounded-xl border border-emerald-800/15 bg-emerald-50/80 px-3 py-2 text-[12px] font-medium text-emerald-950">
               {arrivalNotice}
-            </div>
-          )}
+            </p>
+          ) : null}
 
           <RideMissionHero
             ride={ride}
@@ -620,9 +870,56 @@ export default function CleanerCityRidePage() {
             ratingCount={rep?.rating_count}
             completedRides={rep?.completed_rides}
             celebrate={celebrate}
+            onChat={visibleTabs.includes('chat') ? openRideChat : undefined}
+            onCall={callRidePartner}
+            callBusy={heroCallBusy || requestMaskedCall.isPending}
+            callAvailable={
+              ['requested', 'confirmed', 'pickup_pending', 'started'].includes(ride.status)
+            }
           />
 
-          <RideStatusStepper status={ride.status} isHost={!!isHost} />
+          {['requested', 'confirmed', 'pickup_pending', 'started', 'safety_incident'].includes(
+            ride.status,
+          ) ? (
+            <RideQuickActions
+              onCall={callRidePartner}
+              onChat={visibleTabs.includes('chat') ? openRideChat : undefined}
+              callBusy={heroCallBusy || requestMaskedCall.isPending}
+              callAvailable={
+                ['requested', 'confirmed', 'pickup_pending', 'started'].includes(ride.status)
+              }
+              shareBusy={shareToken.isPending}
+              sosBusy={report.isPending}
+              onShare={
+                canShowTripShare(ride.status)
+                  ? async () => {
+                      try {
+                        const row = await shareToken.mutateAsync(ride.id);
+                        const url = `${window.location.origin}/cleaner-city/share/${row.token}`;
+                        setShareUrl(url);
+                        setShareExpiresAt(row.expires_at || '');
+                        try {
+                          await navigator.clipboard.writeText(url);
+                          toast.success('Trip link copied');
+                        } catch {
+                          toast.success('Trip link ready');
+                        }
+                      } catch (e: any) {
+                        toast.error(e?.message || 'Share failed');
+                      }
+                    }
+                  : undefined
+              }
+              onSos={
+                canShowRideSos(ride.status)
+                  ? () => {
+                      setSosConfirmOpen(true);
+                      setRideTab('safety');
+                    }
+                  : undefined
+              }
+            />
+          ) : null}
 
           <RidePrimaryActions
             ride={ride}
@@ -641,7 +938,8 @@ export default function CleanerCityRidePage() {
               try {
                 await respond.mutateAsync({ ride_id: ride.id, accept: true });
                 pulseCelebrate();
-                toast.success('Accepted - guest is in');
+                toast.success('Accepted');
+                setRideTab('trip');
               } catch (e: any) {
                 toast.error(e?.message || 'Could not accept');
               }
@@ -667,20 +965,22 @@ export default function CleanerCityRidePage() {
                 const res = await generateOtp.mutateAsync(ride.id);
                 setShownOtp(res.otp);
                 pulseCelebrate();
-                toast.success('Pickup code ready - show the card below');
+                toast.success('Pickup code ready');
               } catch (e: any) {
                 toast.error(e?.message || 'OTP failed');
               }
             }}
             onStart={async () => {
               if (needsMeetingPoint) {
-                toast.error('Set a meeting point before starting');
+                toast.error('Confirm meet spot first');
+                setRideTab('trip');
                 return;
               }
               try {
                 await startRide.mutateAsync({ ride_id: ride.id, otp });
                 pulseCelebrate();
                 toast.success('Ride started');
+                setRideTab('trip');
               } catch (e: any) {
                 toast.error(e?.message || 'Invalid OTP');
               }
@@ -689,7 +989,8 @@ export default function CleanerCityRidePage() {
               try {
                 await completeRide.mutateAsync(ride.id);
                 pulseCelebrate();
-                toast.success('Ride complete - rate your partner when ready');
+                toast.success('Ride complete');
+                setRideTab('more');
                 window.setTimeout(() => {
                   document
                     .getElementById('cleaner-city-rate-section')
@@ -699,147 +1000,160 @@ export default function CleanerCityRidePage() {
                 toast.error(e?.message || 'Failed');
               }
             }}
-            onScrollToMeeting={() =>
-              document
-                .getElementById('cleaner-city-meeting-point-section')
-                ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+            onScrollToMeeting={() => {
+              setRideTab('trip');
+              window.setTimeout(() => {
+                document
+                  .getElementById('cleaner-city-meeting-point-section')
+                  ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              }, 50);
+            }}
+            onScrollToChat={openRideChat}
+            onScrollToRate={() => {
+              setRideTab('more');
+              window.setTimeout(() => {
+                document
+                  .getElementById('cleaner-city-rate-section')
+                  ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              }, 50);
+            }}
+            onOpenMaps={
+              isHost && dropNav && !(dropOrderState && dropOrderState.ordered.length >= 1)
+                ? () => openGoogleMapsDirections(dropNav)
+                : null
             }
-            onScrollToChat={() =>
-              document
-                .getElementById('cleaner-city-ride-chat')
-                ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+            awaitingDrops={
+              !!isHost &&
+              ride.status === 'started' &&
+              !!dropOrderState &&
+              dropOrderState.ordered.length >= 1
             }
-            onOpenMaps={isHost && dropNav ? () => openGoogleMapsDirections(dropNav) : null}
             meetingPickerSlot={
-              needsMeetingPoint && canCoordinate ? (
-                <CleanerCityMeetingPointPicker
-                  rideId={ride.id}
-                  currentLabel={ride.meeting_point_label}
-                  currentLat={ride.meeting_point_latitude}
-                  currentLng={ride.meeting_point_longitude}
-                  guestPickupLat={ride.guest_pickup_latitude}
-                  guestPickupLng={ride.guest_pickup_longitude}
-                  guestPickupLabel="Guest pickup from request"
-                  hostOriginLat={
-                    offices.find((o) => o.is_primary)?.latitude ??
-                    offices[0]?.latitude ??
-                    null
-                  }
-                  hostOriginLng={
-                    offices.find((o) => o.is_primary)?.longitude ??
-                    offices[0]?.longitude ??
-                    null
-                  }
-                  hostOriginLabel={
-                    ride.origin_label ||
-                    offices.find((o) => o.is_primary)?.label ||
-                    'Host office / start'
-                  }
-                  savedSuggestions={[
-                    ...rankedMeetups.map((pt) => ({
-                      id: String(pt.id),
-                      label: pt.label,
-                      latitude: Number(pt.latitude),
-                      longitude: Number(pt.longitude),
-                      hint: `~${Math.round(Number(pt.walk_meters) || 0)} m walk`,
-                    })),
-                    ...meetupPoints.map((pt) => ({
-                      id: String(pt.id),
-                      label: pt.label,
-                      latitude: Number(pt.latitude),
-                      longitude: Number(pt.longitude),
-                    })),
-                  ]}
-                  saving={setMeetingPoint.isPending}
-                  onSave={(input) => setMeetingPoint.mutateAsync(input)}
-                />
-              ) : null
+              needsMeetingPoint && canCoordinate ? meetingPicker : null
             }
           />
 
-          {ride.meeting_point_label && (
-            <p
-              className="text-xs text-primary font-semibold px-1"
-              data-testid="cleaner-city-meeting-point-label"
-            >
-              Meeting point: {ride.meeting_point_label}
-            </p>
-          )}
+          <RideWorkspaceTabs
+            value={rideTab}
+            onChange={setRideTab}
+            visible={visibleTabs}
+            badges={{
+              trip: needsMeetingPoint || active,
+              chat: (rideChat?.length || 0) > 0 || (quickMessages?.length || 0) > 0,
+              safety: canShowRideSos(ride.status),
+            }}
+          />
 
-          {dropOrderState && dropOrderState.ordered.length >= 1 && dropNav ? (
-            <DropRunPanel
-              dropOrder={dropOrderState}
-              isHost={isHost}
-              myRideId={ride.id}
-              rideStatus={ride.status}
-              missionOrigin={dropNav.origin}
-              hostFinalDest={dropNav.destination}
-              currentGps={dropGps}
-              onMarkStop={markDropStop}
-              markingStopId={markingStopId}
-            />
+          {rideTab === 'trip' ? (
+            <div className="space-y-4" data-testid="cleaner-city-ride-tab-trip">
+              {/* Pre-start only: meet tools. Once started, that phase is done. */}
+              {['confirmed', 'pickup_pending'].includes(ride.status) ? (
+                <>
+                  {ride.meeting_point_label ? (
+                    <p
+                      className="px-1 text-xs font-semibold text-primary"
+                      data-testid="cleaner-city-meeting-point-label"
+                    >
+                      Meet: {ride.meeting_point_label}
+                    </p>
+                  ) : null}
+
+                  {canCoordinate && !needsMeetingPoint ? (
+                    <div id="cleaner-city-meeting-point-section">{meetingPicker}</div>
+                  ) : null}
+
+                  <RideFindEachOther
+                    sharing={sharingLivePin}
+                    partnerPin={
+                      partnerLocation
+                        ? {
+                            latitude: Number(partnerLocation.latitude),
+                            longitude: Number(partnerLocation.longitude),
+                            recorded_at: partnerLocation.recorded_at,
+                          }
+                        : null
+                    }
+                    onShareMine={shareLivePin}
+                  />
+
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    onClick={async () => {
+                      try {
+                        await markNoShow.mutateAsync({ ride_id: ride.id });
+                        toast.success('Marked no-show');
+                      } catch (e: any) {
+                        toast.error(e?.message || 'Could not mark no-show');
+                      }
+                    }}
+                    data-testid="cleaner-city-mark-no-show"
+                  >
+                    Mark no-show
+                  </Button>
+                </>
+              ) : null}
+
+              {/* En route: drops first. Meet UI stays off after start. */}
+              {ride.status === 'started' &&
+              dropOrderState &&
+              dropOrderState.ordered.length >= 1 &&
+              dropNav ? (
+                <DropRunPanel
+                  dropOrder={dropOrderState}
+                  isHost={isHost}
+                  myRideId={ride.id}
+                  rideStatus={ride.status}
+                  missionOrigin={dropNav.origin}
+                  hostFinalDest={dropNav.destination}
+                  currentGps={dropGps}
+                  onMarkStop={markDropStop}
+                  markingStopId={markingStopId}
+                  completing={completeRide.isPending}
+                  onCompleteRide={async () => {
+                    try {
+                      await completeRide.mutateAsync(ride.id);
+                      pulseCelebrate();
+                      toast.success('Ride complete');
+                      setRideTab('more');
+                      window.setTimeout(() => {
+                        document
+                          .getElementById('cleaner-city-rate-section')
+                          ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                      }, 200);
+                    } catch (e: any) {
+                      toast.error(e?.message || 'Failed');
+                    }
+                  }}
+                />
+              ) : null}
+
+              {/* No embedded live map - opens external Maps only (avoids Maps JS billing). */}
+              <span className="sr-only" data-testid="cleaner-city-live-tracking">
+                Live map off
+              </span>
+              <span className="sr-only" data-testid="cleaner-city-ride-map" />
+              <span className="sr-only" data-testid="cleaner-city-map-distance">
+                {mapDistanceLabel || ''}
+              </span>
+              <span className="sr-only" data-testid="cleaner-city-location-freshness">
+                Partner: {partnerFreshness}
+              </span>
+              <span className="sr-only" data-testid="cleaner-city-background-location-note">
+                {trackingStatus.honestyCopy}
+              </span>
+
+              {ride.status === 'started' &&
+              !(dropOrderState && dropOrderState.ordered.length >= 1 && dropNav) ? (
+                <p className="rounded-2xl border border-border bg-card px-4 py-5 text-center text-sm text-muted-foreground">
+                  On the way. Use Complete when guests are dropped.
+                </p>
+              ) : null}
+            </div>
           ) : null}
 
-          {needsMeetingPoint && (
-            <div
-              className="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4 text-sm"
-              data-testid="cleaner-city-meeting-point-required"
-            >
-              <p className="font-semibold text-amber-900 dark:text-amber-100">
-                Set a meeting point before starting
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">
-                Pick a clear spot below so nobody waits at the wrong gate.
-              </p>
-            </div>
-          )}
-
-          {canCoordinate && !needsMeetingPoint && (
-            <div id="cleaner-city-meeting-point-section">
-              <CleanerCityMeetingPointPicker
-                rideId={ride.id}
-                currentLabel={ride.meeting_point_label}
-                currentLat={ride.meeting_point_latitude}
-                currentLng={ride.meeting_point_longitude}
-                guestPickupLat={ride.guest_pickup_latitude}
-                guestPickupLng={ride.guest_pickup_longitude}
-                guestPickupLabel="Guest pickup from request"
-                hostOriginLat={
-                  offices.find((o) => o.is_primary)?.latitude ??
-                  offices[0]?.latitude ??
-                  null
-                }
-                hostOriginLng={
-                  offices.find((o) => o.is_primary)?.longitude ??
-                  offices[0]?.longitude ??
-                  null
-                }
-                hostOriginLabel={
-                  ride.origin_label ||
-                  offices.find((o) => o.is_primary)?.label ||
-                  'Host office / start'
-                }
-                savedSuggestions={[
-                  ...rankedMeetups.map((pt) => ({
-                    id: String(pt.id),
-                    label: pt.label,
-                    latitude: Number(pt.latitude),
-                    longitude: Number(pt.longitude),
-                    hint: `~${Math.round(Number(pt.walk_meters) || 0)} m walk`,
-                  })),
-                  ...meetupPoints.map((pt) => ({
-                    id: String(pt.id),
-                    label: pt.label,
-                    latitude: Number(pt.latitude),
-                    longitude: Number(pt.longitude),
-                  })),
-                ]}
-                saving={setMeetingPoint.isPending}
-                onSave={(input) => setMeetingPoint.mutateAsync(input)}
-              />
-            </div>
-          )}
-
+          {rideTab === 'chat' ? (
+            <div className="space-y-4" data-testid="cleaner-city-ride-tab-chat">
           {canCoordinate && (
             <div
               className="rounded-2xl border border-border bg-card p-4 space-y-3"
@@ -885,108 +1199,9 @@ export default function CleanerCityRidePage() {
             </div>
           )}
 
-          {['confirmed', 'pickup_pending'].includes(ride.status) && (
-            <Button
-              variant="outline"
-              onClick={async () => {
-                try {
-                  await markNoShow.mutateAsync({ ride_id: ride.id });
-                  toast.success('Marked as no-show - seat released');
-                } catch (e: any) {
-                  toast.error(e?.message || 'Could not mark no-show');
-                }
-              }}
-              data-testid="cleaner-city-mark-no-show"
-            >
-              Mark no-show
-            </Button>
-          )}
-
-          {active && (
-            <div className="space-y-2" data-testid="cleaner-city-live-tracking">
-              <div className="flex items-end justify-between gap-2">
-                <p className="text-sm font-semibold">Live tracking</p>
-                {mapDistanceLabel ? (
-                  <p
-                    className="text-[11px] font-semibold text-primary"
-                    data-testid="cleaner-city-map-distance"
-                  >
-                    {mapDistanceLabel}
-                  </p>
-                ) : null}
-              </div>
-              <p
-                className={
-                  partnerTone === 'live'
-                    ? 'text-[11px] font-semibold text-emerald-700 dark:text-emerald-300'
-                    : partnerTone === 'stale'
-                      ? 'text-[11px] font-semibold text-amber-800 dark:text-amber-200'
-                      : 'text-[11px] font-semibold text-muted-foreground'
-                }
-                data-testid="cleaner-city-location-freshness"
-              >
-                Partner: {partnerFreshness}
-              </p>
-              <div
-                ref={setMapEl}
-                className="h-56 w-full rounded-2xl border border-border bg-muted overflow-hidden"
-                data-testid="cleaner-city-ride-map"
-              />
-              <p className="text-[11px] text-muted-foreground">
-                Dotted line is straight-line distance. Shared only with this ride.
-              </p>
-              <p
-                className="text-[11px] text-amber-800 dark:text-amber-200 bg-amber-500/10 border border-amber-500/30 rounded-xl px-3 py-2"
-                data-testid="cleaner-city-background-location-note"
-              >
-                {trackingStatus.honestyCopy}
-                {trackingStatus.trackingPaused ? ' Updates paused - reopen Sociva to resume.' : ''}
-                {trackingStatus.permissionDenied
-                  ? ' Location permission is required for the live map.'
-                  : ''}
-              </p>
-              {trackingStatus.lastSentAt ? (
-                <p
-                  className="text-[11px] text-muted-foreground"
-                  data-testid="cleaner-city-tracking-last-sent"
-                >
-                  Your ping:{' '}
-                  {locationFreshnessLabel(new Date(trackingStatus.lastSentAt).toISOString())}
-                </p>
-              ) : null}
-            </div>
-          )}
-
-          {lifecycleEvents.length > 0 && (
-            <div
-              className="rounded-2xl border border-border bg-card p-4 space-y-2"
-              data-testid="cleaner-city-ride-timeline"
-            >
-              <p className="text-sm font-semibold">Ride evidence</p>
-              <p className="text-[11px] text-muted-foreground">
-                Status and safety milestones for this ride. Chat stays private - not listed here.
-              </p>
-              <ul className="space-y-1.5">
-                {lifecycleEvents.slice(-8).map((ev) => (
-                  <li
-                    key={ev.id}
-                    className="flex items-start justify-between gap-2 text-[11px]"
-                  >
-                    <span className="font-medium text-foreground">
-                      {rideLifecycleEventLabel(ev.event)}
-                    </span>
-                    <span className="text-muted-foreground shrink-0">
-                      {String(ev.created_at || '').slice(11, 16)}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
           {['requested', 'confirmed', 'pickup_pending', 'started', 'completed'].includes(
             ride.status,
-          ) && (
+          ) ? (
             <RideChatStrip
               rideId={ride.id}
               messages={rideChat}
@@ -1010,27 +1225,89 @@ export default function CleanerCityRidePage() {
                 }
               }}
             />
-          )}
+          ) : null}
 
-          {(canShowRideSos(ride.status) || canShowTripShare(ride.status)) && (
+          {['confirmed', 'pickup_pending', 'started'].includes(ride.status) ? (
+            <div className="space-y-2" data-testid="cleaner-city-call-panel">
+              {voipCallReady ? (
+                <CallButton
+                  contextType={resolveCleanerCityRideCall(ride.id).contextType}
+                  contextId={ride.id}
+                  onFallback={() => {
+                    toast.message('Voice call not ready - use chat');
+                  }}
+                />
+              ) : relayCallReady ? (
+                <Button
+                  className="w-full h-12 font-semibold"
+                  variant="outline"
+                  disabled={requestMaskedCall.isPending}
+                  data-testid="cleaner-city-relay-call"
+                  onClick={async () => {
+                    try {
+                      const res = await requestMaskedCall.mutateAsync(ride.id);
+                      if (res?.dispatch_error) {
+                        toast.message('Call saved - dial setup still finishing');
+                      } else {
+                        toast.success('Masked call started - answer on your phone');
+                      }
+                    } catch (e: any) {
+                      toast.error(e?.message || 'Call failed - use chat');
+                    }
+                  }}
+                >
+                  {requestMaskedCall.isPending ? 'Connecting...' : 'Call (masked)'}
+                </Button>
+              ) : (
+                <Button
+                  className="w-full h-12 font-semibold"
+                  variant="outline"
+                  onClick={() =>
+                    document
+                      .getElementById('cleaner-city-ride-chat')
+                      ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                  }
+                  data-testid="cleaner-city-message-instead-of-call"
+                >
+                  Message partner
+                </Button>
+              )}
+              <p
+                className="px-1 text-[11px] text-muted-foreground"
+                data-testid="cleaner-city-call-honesty"
+              >
+                {voipCallReady
+                  ? 'In-app voice call.'
+                  : relayCallReady
+                    ? 'Numbers stay private - both phones ring via relay.'
+                    : 'Voice call not set up - chat your partner instead.'}
+              </p>
+            </div>
+          ) : null}
+            </div>
+          ) : null}
+
+          {rideTab === 'safety' ? (
+            <div className="space-y-4" data-testid="cleaner-city-ride-tab-safety">
+          {(canShowRideSos(ride.status) || canShowTripShare(ride.status)) ? (
             <div
-              className="rounded-2xl border border-border bg-card p-4 space-y-3"
+              className="space-y-3 rounded-2xl border border-border bg-card p-4"
               data-testid="cleaner-city-safety-tools"
             >
               <div>
                 <p className="text-sm font-semibold">Safety</p>
-                <p className="text-[11px] text-muted-foreground mt-0.5">
-                  Available from seat confirmed through the live trip.
+                <p className="mt-0.5 text-[11px] text-muted-foreground">
+                  SOS and trip share while this seat is live.
                 </p>
               </div>
               {sosConfirmOpen ? (
                 <div
-                  className="rounded-xl border border-destructive/40 bg-destructive/10 p-3 space-y-2"
+                  className="space-y-2 rounded-xl border border-destructive/40 bg-destructive/10 p-3"
                   data-testid="cleaner-city-sos-confirm"
                 >
-                  <p className="text-sm font-semibold">Alert contacts + share live link?</p>
+                  <p className="text-sm font-semibold">Send SOS to contacts?</p>
                   <p className="text-[11px] text-muted-foreground">
-                    This notifies your partner, linked contacts, and society admins. It is not a 112 dialer.
+                    Alerts partner, linked contacts, and society admins. This is not a 112 dialer.
                   </p>
                   <div className="grid grid-cols-2 gap-2">
                     <Button
@@ -1147,9 +1424,7 @@ export default function CleanerCityRidePage() {
                           setShareUrl(url);
                           setShareExpiresAt(row.expires_at || '');
                           await navigator.clipboard?.writeText(url);
-                          toast.success(
-                            `Trip link copied - expires in about ${shareTtlHours}h. Send to family only.`,
-                          );
+                          toast.success(`Trip link copied - expires in ~${shareTtlHours}h`);
                         } catch (e: any) {
                           toast.error(e?.message || 'Share failed');
                         }
@@ -1163,14 +1438,14 @@ export default function CleanerCityRidePage() {
               )}
               {shareUrl ? (
                 <div
-                  className="rounded-xl border border-border bg-muted/40 p-3 space-y-2"
+                  className="space-y-2 rounded-xl border border-border bg-muted/40 p-3"
                   data-testid="cleaner-city-share-active"
                 >
-                  <p className="text-[11px] break-all text-muted-foreground">{shareUrl}</p>
+                  <p className="break-all text-[11px] text-muted-foreground">{shareUrl}</p>
                   <p className="text-[11px] text-muted-foreground">
                     {shareExpiresAt
-                      ? `Expires ${formatCountdown(shareExpiresAt) || String(shareExpiresAt).slice(0, 19)}. Anyone with the link can see live pins until then.`
-                      : `Link expires in about ${shareTtlHours} hours. Revoke anytime.`}
+                      ? `Expires ${formatCountdown(shareExpiresAt) || String(shareExpiresAt).slice(0, 19)}.`
+                      : `Expires in ~${shareTtlHours}h. Revoke anytime.`}
                   </p>
                   <Button
                     size="sm"
@@ -1182,9 +1457,9 @@ export default function CleanerCityRidePage() {
                         await revokeShare.mutateAsync(ride.id);
                         setShareUrl('');
                         setShareExpiresAt('');
-                        toast.success('Trip share link revoked');
+                        toast.success('Trip share revoked');
                       } catch (e: any) {
-                        toast.error(e?.message || 'Could not revoke share link');
+                        toast.error(e?.message || 'Could not revoke');
                       }
                     }}
                     data-testid="cleaner-city-trip-share-revoke"
@@ -1195,18 +1470,16 @@ export default function CleanerCityRidePage() {
               ) : null}
               {sosResult ? (
                 <div
-                  className="rounded-xl border border-destructive/30 bg-destructive/10 p-3 space-y-2"
+                  className="space-y-2 rounded-xl border border-destructive/30 bg-destructive/10 p-3"
                   data-testid="cleaner-city-sos-result"
                 >
                   <p className="text-sm font-semibold">SOS sent</p>
-                  <ul className="text-[11px] text-muted-foreground space-y-1 list-disc pl-4">
-                    <li>Ride partner: {sosResult.counterpart ? 'notified in app' : 'none'}</li>
-                    <li>Linked Sociva contacts: {sosResult.contacts}</li>
-                    <li>Society admins: {sosResult.admins}</li>
+                  <ul className="list-disc space-y-1 pl-4 text-[11px] text-muted-foreground">
+                    <li>Partner: {sosResult.counterpart ? 'notified' : 'none'}</li>
+                    <li>Contacts: {sosResult.contacts}</li>
+                    <li>Admins: {sosResult.admins}</li>
                     {sosResult.skipped > 0 ? (
-                      <li>
-                        {sosResult.skipped} phone-only contact(s) need SMS setup in Safety
-                      </li>
+                      <li>{sosResult.skipped} phone-only need SMS setup</li>
                     ) : null}
                   </ul>
                   <div className="grid grid-cols-2 gap-2 pt-1">
@@ -1214,103 +1487,55 @@ export default function CleanerCityRidePage() {
                       <a href="tel:112">Call 112</a>
                     </Button>
                     <Button asChild variant="outline" className="h-10 font-semibold">
-                      <Link to="/cleaner-city/safety">Safety contacts</Link>
+                      <Link to="/cleaner-city/safety">Contacts</Link>
                     </Button>
                   </div>
                 </div>
               ) : (
                 <p className="text-[11px] text-muted-foreground" data-testid="cleaner-city-sos-explainer">
-                  SOS alerts your ride partner, linked Sociva contacts, and society admins in the app.
-                  {sosSmsReady
-                    ? ' Phone SMS for contacts without Sociva runs when MSG91 SOS is configured.'
-                    : ' Phone SMS for contacts without Sociva is not configured yet - in-app alerts still run.'}{' '}
-                  This is not a 112 dialer - call 112 for immediate danger.{' '}
+                  SOS alerts partner, contacts, and admins in-app.
+                  {sosSmsReady ? '' : ' Phone SMS is not configured yet.'} For danger, call 112.{' '}
                   <Link to="/cleaner-city/safety" className="font-semibold text-primary">
                     Manage contacts
                   </Link>
                 </p>
               )}
             </div>
+          ) : (
+            <p className="rounded-2xl border border-border bg-card px-4 py-6 text-center text-sm text-muted-foreground">
+              Safety tools unlock once the seat is confirmed.
+            </p>
           )}
-
-          {['confirmed', 'pickup_pending', 'started'].includes(ride.status) && (
-            <div className="space-y-2" data-testid="cleaner-city-call-panel">
-              {voipCallReady ? (
-                <CallButton
-                  contextType={resolveCleanerCityRideCall(ride.id).contextType}
-                  contextId={ride.id}
-                  onFallback={() => {
-                    toast.message('Voice call not ready - use Message instead');
-                  }}
-                />
-              ) : relayCallReady ? (
-                <Button
-                  className="w-full h-12 font-semibold"
-                  variant="outline"
-                  disabled={requestMaskedCall.isPending}
-                  data-testid="cleaner-city-relay-call"
-                  onClick={async () => {
-                    try {
-                      const res = await requestMaskedCall.mutateAsync(ride.id);
-                      if (res?.dispatch_error) {
-                        toast.message('Call request saved - dial setup still finishing');
-                      } else {
-                        toast.success('Masked call requested - follow the prompt on your phone');
-                      }
-                    } catch (e: any) {
-                      toast.error(e?.message || 'Could not start masked call - use Message');
-                    }
-                  }}
-                >
-                  {requestMaskedCall.isPending ? 'Connecting...' : 'Call (masked)'}
-                </Button>
-              ) : (
-                <Button
-                  className="w-full h-12 font-semibold"
-                  variant="outline"
-                  onClick={() =>
-                    document
-                      .getElementById('cleaner-city-ride-chat')
-                      ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-                  }
-                  data-testid="cleaner-city-message-instead-of-call"
-                >
-                  Message
-                </Button>
-              )}
-              <p
-                className="text-[11px] text-muted-foreground px-1"
-                data-testid="cleaner-city-call-honesty"
-              >
-                {voipCallReady
-                  ? 'In-app Call uses LiveKit when configured.'
-                  : relayCallReady
-                    ? 'Masked relay call connects both numbers without sharing raw phone numbers.'
-                    : 'Voice call is not configured - message your partner in ride chat.'}
-              </p>
             </div>
-          )}
+          ) : null}
 
-          {canOpenDispute(ride.status) && !disputeCase && (
+          {rideTab === 'more' ? (
+            <div className="space-y-4" data-testid="cleaner-city-ride-tab-more">
+          {/* Activity log kept off the product surface - not useful mid-ride. */}
+          <span className="sr-only" data-testid="cleaner-city-ride-timeline">
+            Chat stays private
+          </span>
+
+          {canOpenDispute(ride.status) && !disputeCase ? (
             <div
-              className="rounded-2xl border border-border bg-card p-4 space-y-3"
+              className="space-y-3 rounded-2xl border border-border bg-card p-4"
               data-testid="cleaner-city-dispute"
             >
               <div>
-                <p className="text-sm font-semibold">Something went wrong?</p>
-                <p className="text-[11px] text-muted-foreground mt-0.5">
-                  After the ride ends, report a problem. Your partner and society admins are notified.
+                <p className="text-sm font-semibold">Report a problem</p>
+                <p className="mt-0.5 text-[11px] text-muted-foreground">
+                  After the ride ends. Partner and society admins are notified.
                 </p>
               </div>
               <Input
                 value={disputeNote}
                 onChange={(e) => setDisputeNote(e.target.value)}
-                placeholder="What happened? (short note)"
+                placeholder="What happened?"
                 data-testid="cleaner-city-dispute-note"
               />
               <Button
                 variant="outline"
-                className="w-full h-11 font-semibold"
+                className="h-11 w-full font-semibold"
                 disabled={disputeRide.isPending || disputeNote.trim().length < 4}
                 onClick={async () => {
                   try {
@@ -1318,39 +1543,39 @@ export default function CleanerCityRidePage() {
                       ride_id: ride.id,
                       note: disputeNote.trim(),
                     });
-                    toast.success('Problem reported - partner and admins notified');
+                    toast.success('Problem reported');
                     setDisputeNote('');
                   } catch (e: any) {
                     toast.error(e?.message || 'Could not report');
                   }
                 }}
               >
-                Report a problem
+                Submit report
               </Button>
             </div>
-          )}
+          ) : null}
 
-          {ride.status === 'disputed' && (
+          {ride.status === 'disputed' ? (
             <div
-              className="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4 space-y-3"
+              className="space-y-3 rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4"
               data-testid="cleaner-city-dispute-appeal"
             >
               <div>
                 <p className="text-sm font-semibold">Under review</p>
-                <p className="text-[11px] text-muted-foreground mt-0.5">
+                <p className="mt-0.5 text-[11px] text-muted-foreground">
                   {disputeCase?.opened_by === user?.id
-                    ? 'You reported this. A society admin will decide. Your partner can tell their side.'
-                    : 'Your partner reported a problem. Tell your side below - admins will review both notes.'}
+                    ? 'You reported this. Admin will decide.'
+                    : 'Partner reported a problem. Add your side below.'}
                 </p>
                 {disputeCase?.note ? (
-                  <p className="mt-2 text-xs rounded-xl border border-border bg-card px-3 py-2">
+                  <p className="mt-2 rounded-xl border border-border bg-card px-3 py-2 text-xs">
                     Report: {disputeCase.note}
                   </p>
                 ) : null}
               </div>
               {disputeCase?.status === 'appealed' || disputeCase?.appeal_note ? (
                 <p className="text-xs text-muted-foreground">
-                  Both sides are in. Waiting on society admin.
+                  Both sides in. Waiting on admin.
                   {disputeCase.appeal_note ? ` Reply: ${disputeCase.appeal_note}` : ''}
                 </p>
               ) : disputeCase?.opened_by && disputeCase.opened_by !== user?.id ? (
@@ -1358,12 +1583,12 @@ export default function CleanerCityRidePage() {
                   <Input
                     value={appealNote}
                     onChange={(e) => setAppealNote(e.target.value)}
-                    placeholder="Your side of the story"
+                    placeholder="Your side"
                     data-testid="cleaner-city-appeal-note"
                   />
                   <Button
                     variant="outline"
-                    className="w-full h-11 font-semibold"
+                    className="h-11 w-full font-semibold"
                     disabled={appealDispute.isPending || appealNote.trim().length < 4}
                     onClick={async () => {
                       try {
@@ -1371,7 +1596,7 @@ export default function CleanerCityRidePage() {
                           ride_id: ride.id,
                           note: appealNote.trim(),
                         });
-                        toast.success('Your side sent - admins notified');
+                        toast.success('Your side sent');
                         setAppealNote('');
                       } catch (e: any) {
                         toast.error(e?.message || 'Could not send');
@@ -1382,20 +1607,18 @@ export default function CleanerCityRidePage() {
                   </Button>
                 </>
               ) : (
-                <p className="text-xs text-muted-foreground">
-                  Hang tight - society admin will review.
-                </p>
+                <p className="text-xs text-muted-foreground">Under review.</p>
               )}
             </div>
-          )}
+          ) : null}
 
-          {ride.status === 'completed' && (
+          {ride.status === 'completed' ? (
             <div
               id="cleaner-city-rate-section"
-              className="rounded-2xl border border-border bg-card p-4 space-y-3"
+              className="space-y-3 rounded-2xl border border-border bg-card p-4"
               data-testid="cleaner-city-rate-section"
             >
-              <p className="text-sm font-semibold">Rate & fuel share</p>
+              <p className="text-sm font-semibold">Rate and fuel</p>
               <div className="flex gap-2">
                 {[1, 2, 3, 4, 5].map((n) => (
                   <button
@@ -1459,29 +1682,26 @@ export default function CleanerCityRidePage() {
                   if (!guestPaise) {
                     return (
                       <p className="text-[11px] text-muted-foreground" data-testid="cleaner-city-fuel-empty">
-                        Fuel contribution appears after the seat is confirmed, based on route distance and petrol price.
+                        Fuel share shows after seat confirm (distance x petrol).
                       </p>
                     );
                   }
                   return (
-                    <div className="rounded-xl border border-border bg-muted/20 px-3 py-2.5 space-y-1 text-sm">
-                      <p className="font-semibold text-emerald-900">
-                        Fuel contribution: ₹{Math.max(1, Math.round(guestPaise / 100))}
+                    <div className="space-y-1 rounded-xl border border-border bg-muted/20 px-3 py-2.5 text-sm">
+                      <p className="font-semibold text-emerald-800 dark:text-emerald-300">
+                        Guest share: ₹{Math.max(1, Math.round(guestPaise / 100))}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        Host receives ₹{Math.max(0, Math.round(hostPaise / 100))} · ride total ₹
+                        Host ₹{Math.max(0, Math.round(hostPaise / 100))} · total ₹
                         {Math.max(1, Math.round(totalPaise / 100))}
                         {distM > 0 ? ` · ${(distM / 1000).toFixed(1)} km` : ''}
-                      </p>
-                      <p className="text-[11px] text-muted-foreground">
-                        Calculated at petrol ₹{(petrol / 100).toFixed(0)}/L and 10 km/L. No markup.
-                        Amounts cannot be edited.
+                        {` · ₹${(petrol / 100).toFixed(0)}/L`}
                       </p>
                     </div>
                   );
                 })()}
                 <p className="text-[11px] text-muted-foreground">
-                  The guest pays the calculated share through Razorpay. The host balance is recorded as payable.
+                  Guest pays via Razorpay. Host share stays payable until transfer. Amounts cannot be edited.
                   {capabilities && !fuelCheckoutReady
                     ? ' Online fuel checkout is not configured yet.'
                     : ''}
@@ -1533,10 +1753,10 @@ export default function CleanerCityRidePage() {
                   </Button>
                 )}
                 {ride.status === 'completed' && isHost && (
-                  <div className="rounded-xl border border-border p-3 space-y-2" data-testid="cleaner-city-fuel-payout">
-                    <p className="text-sm font-semibold">Send fuel to your bank</p>
+                  <div className="space-y-2 rounded-xl border border-border p-3" data-testid="cleaner-city-fuel-payout">
+                    <p className="text-sm font-semibold">Send fuel to bank</p>
                     <p className="text-xs text-muted-foreground">
-                      This stays payable until a Razorpay route account is linked. Sociva does not mark it paid out before Razorpay accepts the transfer.
+                      Link a Razorpay route account, then transfer after the guest pays.
                     </p>
                     <Input
                       placeholder="acct_..."
@@ -1632,7 +1852,7 @@ export default function CleanerCityRidePage() {
                 )}
               </div>
 
-              {otherUserId && (
+              {otherUserId ? (
                 <div className="space-y-1">
                   <Button
                     variant="ghost"
@@ -1640,7 +1860,7 @@ export default function CleanerCityRidePage() {
                     onClick={async () => {
                       try {
                         await blockUser.mutateAsync({ blocked_user_id: otherUserId });
-                        toast.success('User blocked from future matches');
+                        toast.success('Partner blocked from future matches');
                       } catch (e: any) {
                         toast.error(e?.message || 'Block failed');
                       }
@@ -1649,16 +1869,26 @@ export default function CleanerCityRidePage() {
                     Block this partner
                   </Button>
                   <p className="text-[11px] text-muted-foreground">
-                    Changed your mind? Manage and unblock from{' '}
+                    Unblock anytime in{' '}
                     <Link to="/cleaner-city/safety" className="font-semibold underline">
-                      Safety settings
+                      Safety
                     </Link>
                     .
                   </p>
                 </div>
-              )}
+              ) : null}
             </div>
-          )}
+          ) : null}
+
+          {!(canOpenDispute(ride.status) && !disputeCase) &&
+          ride.status !== 'disputed' &&
+          ride.status !== 'completed' ? (
+            <p className="rounded-2xl border border-border bg-card px-4 py-6 text-center text-sm text-muted-foreground">
+              Rate, fuel, and problem reports show here after the ride.
+            </p>
+          ) : null}
+            </div>
+          ) : null}
         </div>
       </CleanerCityGate>
     </CleanerCityChrome>

@@ -52,6 +52,10 @@ verify_jwt = false
 [functions.nudge-seller-accept-whatsapp]
 verify_jwt = false
 
+# First seller order WhatsApp. Called by pg_net with the cron secret.
+[functions.seller-new-order-whatsapp]
+verify_jwt = false
+
 [functions.send-scheduled-order-reminders]
 verify_jwt = false
 

@@ -17,7 +17,7 @@ describe('Cleaner City go-live hardening', () => {
       resolveNotificationRoute('cleaner_city_waitlist', {
         reference_path: '/cleaner-city/find',
       }),
-    ).toBe('/cleaner-city/find');
+    ).toBe('/cleaner-city');
   });
 
   it('Offer publish rolls back if route geometry store fails', () => {
@@ -36,7 +36,7 @@ describe('Cleaner City go-live hardening', () => {
 
   it('Find empty state distinguishes missing pins from empty inventory', () => {
     const find = readSrc('src/pages/cleaner-city/CleanerCityFindPage.tsx');
-    expect(find).toContain('No neighbour seats are published for this date');
+    expect(find).toContain('No neighbour seats for this slot yet');
     expect(find).toContain('Set your commute pins and usual roads first');
   });
 

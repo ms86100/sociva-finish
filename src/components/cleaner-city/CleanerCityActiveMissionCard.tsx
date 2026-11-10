@@ -92,7 +92,7 @@ export function CleanerCityActiveMissionCard({ ride, myUserId, todayIso, classNa
         <div className="min-w-0 flex-1">
           <div className="flex items-center justify-between gap-2">
             <p className="text-[11px] font-extrabold uppercase tracking-[0.16em] text-[#A3C9A8]">
-              Live mission
+              Active ride
             </p>
             <span className="inline-flex items-center gap-1 rounded-full bg-[#A3C9A8] px-2 py-0.5 text-[10px] font-extrabold text-[#0D3327]">
               Open

@@ -179,7 +179,7 @@ export function CleanerCityPinPicker({ title, hint, value, onChange, testId }: P
           {busy ? <Loader2 size={18} className="animate-spin" /> : <LocateFixed size={20} />}
         </button>
         <p className="pointer-events-none absolute left-1/2 top-3 z-10 -translate-x-1/2 rounded-full border border-border bg-background/90 px-3 py-1 text-[11px] text-muted-foreground shadow-sm backdrop-blur-sm">
-          Move the map to place the blue pin
+          Drag the map to place the pin
         </p>
       </div>
 

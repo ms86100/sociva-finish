@@ -65,6 +65,7 @@ import { IdentityContext as IdentityCtx, SellerContext as SellerCtx } from "@/co
 
 import { ThemeProvider, useTheme } from "next-themes";
 import { toast } from "sonner";
+import { friendlyError } from "@/lib/utils";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { ActionBlockedDialog } from "@/components/feedback/ActionBlockedDialog";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -238,9 +239,11 @@ const CleanerCitySetupPage = lazyWithRetry(() => import("./pages/cleaner-city/Cl
 const CleanerCitySchedulePage = lazyWithRetry(() => import("./pages/cleaner-city/CleanerCitySchedulePage"));
 const CleanerCityVehiclePage = lazyWithRetry(() => import("./pages/cleaner-city/CleanerCityVehiclePage"));
 const CleanerCityOfferPage = lazyWithRetry(() => import("./pages/cleaner-city/CleanerCityOfferPage"));
+const CleanerCityExtraTripPage = lazyWithRetry(() => import("./pages/cleaner-city/CleanerCityExtraTripPage"));
 const CleanerCityRoutePage = lazyWithRetry(() => import("./pages/cleaner-city/CleanerCityRoutePage"));
-const CleanerCityFindPage = lazyWithRetry(() => import("./pages/cleaner-city/CleanerCityFindPage"));
+const CleanerCityFindRedirect = lazyWithRetry(() => import("./pages/cleaner-city/CleanerCityFindRedirect"));
 const CleanerCityRidePage = lazyWithRetry(() => import("./pages/cleaner-city/CleanerCityRidePage"));
+const CleanerCityMatchDetailsPage = lazyWithRetry(() => import("./pages/cleaner-city/CleanerCityMatchDetailsPage"));
 const CleanerCitySharePage = lazyWithRetry(() => import("./pages/cleaner-city/CleanerCitySharePage"));
 const CleanerCityCirclesPage = lazyWithRetry(() => import("./pages/cleaner-city/CleanerCityCirclesPage"));
 const CleanerCitySafetyPage = lazyWithRetry(() => import("./pages/cleaner-city/CleanerCitySafetyPage"));
@@ -326,14 +329,9 @@ const queryClient = new QueryClient({
         ?.suppressGlobalErrorToast) {
         return;
       }
-      const anyErr = error as { message?: string; error_description?: string; details?: string } | null;
-      const message =
-        (error instanceof Error && error.message) ||
-        anyErr?.message ||
-        anyErr?.error_description ||
-        anyErr?.details ||
-        'Something went wrong';
-      toast.error(String(message));
+      // Log raw server text; show residents a friendly message only.
+      const friendly = friendlyError(error) || 'Something went wrong. Please try again.';
+      toast.error(friendly);
     },
   }),
   defaultOptions: {
@@ -419,6 +417,21 @@ function SocietyMemberRoute({ children }: { children: React.ReactNode }) {
 
 function AdminRoute({ children }: { children: React.ReactNode }) {
   const { isAdmin, isLoading } = useAuth();
+  if (isLoading) {
+    return (
+      <div className="min-h-[100dvh] flex items-center justify-center bg-background">
+        <Skeleton className="h-6 w-32 rounded-lg" />
+      </div>
+    );
+  }
+  if (!isAdmin) return <Navigate to="/" replace />;
+  return <>{children}</>;
+}
+
+/** Admin tools or local Vite DEV - never resident production UX. */
+function AdminOrDevRoute({ children }: { children: React.ReactNode }) {
+  const { isAdmin, isLoading } = useAuth();
+  if (import.meta.env.DEV) return <>{children}</>;
   if (isLoading) {
     return (
       <div className="min-h-[100dvh] flex items-center justify-center bg-background">
@@ -717,8 +730,8 @@ function AppRoutes() {
         <Route path="/help" element={<HelpPage />} />
         <Route path="/talk-to-sociva" element={<RouteErrorBoundary sectionName="Talk to Sociva"><TalkToSocivaPage /></RouteErrorBoundary>} />
         <Route path="/community-rules" element={<CommunityRulesPage />} />
-        {/* Isolated UX mockup - no AppShell / BottomNav, no auth, mock data only */}
-        <Route path="/cleaner-city/prototype/*" element={<RouteErrorBoundary sectionName="Cleaner City Prototype"><CleanerCityPrototypeApp /></RouteErrorBoundary>} />
+        {/* Isolated UX mockup - admin or local DEV only (not resident-facing) */}
+        <Route path="/cleaner-city/prototype/*" element={<AdminOrDevRoute><RouteErrorBoundary sectionName="Cleaner City Prototype"><CleanerCityPrototypeApp /></RouteErrorBoundary></AdminOrDevRoute>} />
 
         {/* Persistent chrome shell - Header/BottomNav stay mounted across these routes */}
         <Route element={<AppShellGate />}>
@@ -779,9 +792,11 @@ function AppRoutes() {
           <Route path="/cleaner-city/schedule" element={<ProtectedRoute><RouteErrorBoundary sectionName="A Cleaner City Schedule"><CleanerCitySchedulePage /></RouteErrorBoundary></ProtectedRoute>} />
           <Route path="/cleaner-city/vehicle" element={<ProtectedRoute><RouteErrorBoundary sectionName="A Cleaner City Vehicle"><CleanerCityVehiclePage /></RouteErrorBoundary></ProtectedRoute>} />
           <Route path="/cleaner-city/offer" element={<ProtectedRoute><RouteErrorBoundary sectionName="A Cleaner City Offer"><CleanerCityOfferPage /></RouteErrorBoundary></ProtectedRoute>} />
+          <Route path="/cleaner-city/extra" element={<ProtectedRoute><RouteErrorBoundary sectionName="A Cleaner City Extra Trip"><CleanerCityExtraTripPage /></RouteErrorBoundary></ProtectedRoute>} />
           <Route path="/cleaner-city/route" element={<ProtectedRoute><RouteErrorBoundary sectionName="A Cleaner City Route"><CleanerCityRoutePage /></RouteErrorBoundary></ProtectedRoute>} />
-          <Route path="/cleaner-city/find" element={<ProtectedRoute><RouteErrorBoundary sectionName="A Cleaner City Find"><CleanerCityFindPage /></RouteErrorBoundary></ProtectedRoute>} />
+          <Route path="/cleaner-city/find" element={<ProtectedRoute><RouteErrorBoundary sectionName="A Cleaner City Find"><CleanerCityFindRedirect /></RouteErrorBoundary></ProtectedRoute>} />
           <Route path="/cleaner-city/ride/:id" element={<ProtectedRoute><RouteErrorBoundary sectionName="A Cleaner City Ride"><CleanerCityRidePage /></RouteErrorBoundary></ProtectedRoute>} />
+          <Route path="/cleaner-city/match" element={<ProtectedRoute><RouteErrorBoundary sectionName="A Cleaner City Match Details"><CleanerCityMatchDetailsPage /></RouteErrorBoundary></ProtectedRoute>} />
           <Route path="/cleaner-city/share/:token" element={<RouteErrorBoundary sectionName="A Cleaner City Share"><CleanerCitySharePage /></RouteErrorBoundary>} />
           <Route path="/cleaner-city/circles" element={<ProtectedRoute><RouteErrorBoundary sectionName="A Cleaner City Circles"><CleanerCityCirclesPage /></RouteErrorBoundary></ProtectedRoute>} />
           <Route path="/cleaner-city/safety" element={<ProtectedRoute><RouteErrorBoundary sectionName="A Cleaner City Safety"><CleanerCitySafetyPage /></RouteErrorBoundary></ProtectedRoute>} />
@@ -828,7 +843,7 @@ function AppRoutes() {
           <Route path="/admin/financial-controls" element={<AdminRoute><RouteErrorBoundary sectionName="Financial Controls"><AdminFinancialControlsPage /></RouteErrorBoundary></AdminRoute>} />
           <Route path="/admin/refunds" element={<AdminRoute><RouteErrorBoundary sectionName="Refunds"><AdminRefundsPage /></RouteErrorBoundary></AdminRoute>} />
           <Route path="/admin/seller-payouts" element={<AdminRoute><RouteErrorBoundary sectionName="Seller Payouts"><AdminSellerPayoutsPage /></RouteErrorBoundary></AdminRoute>} />
-          <Route path="/admin/seller-credits" element={<AdminRoute><RouteErrorBoundary sectionName="Monetization"><AdminSellerCreditsPage /></RouteErrorBoundary></AdminRoute>} />
+          <Route path="/admin/seller-credits" element={<AdminRoute><RouteErrorBoundary sectionName="Seller Credits"><AdminSellerCreditsPage /></RouteErrorBoundary></AdminRoute>} />
           <Route path="/admin/command-center" element={<AdminRoute><RouteErrorBoundary sectionName="Command Center"><AdminCommandCenterPage /></RouteErrorBoundary></AdminRoute>} />
           <Route path="/admin/seller-interest" element={<AdminRoute><RouteErrorBoundary sectionName="Seller Interest"><AdminSellerInterestPage /></RouteErrorBoundary></AdminRoute>} />
           <Route path="/admin/stores" element={<AdminRoute><RouteErrorBoundary sectionName="Store Manager"><AdminStoreManagerPage /></RouteErrorBoundary></AdminRoute>} />
@@ -839,10 +854,10 @@ function AppRoutes() {
           <Route path="/admin/stores/:sellerId/settings" element={<AdminRoute><RouteErrorBoundary sectionName="Managed Settings"><AdminManagedSellerSettingsPage /></RouteErrorBoundary></AdminRoute>} />
           <Route path="/test-results" element={<AdminRoute><TestResultsPage /></AdminRoute>} />
           <Route path="/api-docs" element={<AdminRoute><ApiDocsPage /></AdminRoute>} />
-          <Route path="/docs" element={<DocumentationPage />} />
+          <Route path="/docs" element={<AdminRoute><DocumentationPage /></AdminRoute>} />
           <Route path="/notifications" element={<ProtectedRoute><RouteErrorBoundary sectionName="Notifications"><NotificationsPage /></RouteErrorBoundary></ProtectedRoute>} />
-          <Route path="/push-debug" element={<PushDebugPage />} />
-          <Route path="/la-debug" element={<LiveActivityDebugPage />} />
+          <Route path="/push-debug" element={<AdminRoute><PushDebugPage /></AdminRoute>} />
+          <Route path="/la-debug" element={<AdminRoute><LiveActivityDebugPage /></AdminRoute>} />
         </Route>
 
         <Route path="*" element={<NotFound />} />

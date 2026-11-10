@@ -19,7 +19,14 @@ describe('A Cleaner City Unit 5 maps/routing contracts', () => {
   it('stores office pins privately and caches route geometry', () => {
     expect(migration).toContain('cleaner_city_upsert_office_location');
     expect(migration).toContain('cleaner_city_store_route_geometry');
-    expect(routePage).toContain('Exact office stays owner-private');
+    // Route summary page uses private office locations; pin write lives in the setup panel.
+    expect(routePage).toContain('useOfficeLocations');
+    const panel = fs.readFileSync(
+      path.resolve(process.cwd(), 'src/components/cleaner-city/CleanerCityRouteSetupPanel.tsx'),
+      'utf8',
+    );
+    expect(panel).toContain('useUpsertOfficeLocation');
+    expect(panel).toContain('is_primary: true');
   });
 
   it('provides Google Directions abstraction with haversine fallback', () => {

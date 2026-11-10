@@ -329,18 +329,14 @@ export function CleanerCityRoutePreview({
     <div className={cn('space-y-1.5', className)}>
       <div
         ref={elRef}
-        className="h-64 w-full rounded-xl border border-border overflow-hidden shadow-sm"
+        className="h-64 w-full overflow-hidden rounded-2xl border border-black/5 shadow-sm"
         data-testid={testId || 'cleaner-city-route-preview'}
       />
-      {routes.length > 1 ? (
-        <p className="text-[11px] text-muted-foreground px-0.5">
-          {routes.length} Google roads shown in different colours. Tap a dotted path or its number to choose.
-        </p>
-      ) : (
-        <p className="text-[11px] text-muted-foreground px-0.5">
+      {routes.length <= 1 ? (
+        <p className="px-0.5 text-[11px] text-muted-foreground">
           Your suggested road is the moving dotted path on the map.
         </p>
-      )}
+      ) : null}
     </div>
   );
 }

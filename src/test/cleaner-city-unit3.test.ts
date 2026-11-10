@@ -19,13 +19,17 @@ describe('A Cleaner City Unit 3 schedule contracts', () => {
   it('upserts one weekday without rewriting other days', () => {
     expect(migration).toContain('ON CONFLICT (user_id, weekday) DO UPDATE');
     expect(migration).toContain('Never touches other weekdays');
-    expect(schedulePage).toContain('Save {wd.label} only');
+    // Leave times UI saves the week via per-weekday template upserts.
+    expect(schedulePage).toContain('Save commute');
+    expect(schedulePage).toContain('useSetCommuteTemplate');
+    expect(hooks).toContain('cleaner_city_set_commute_template');
   });
 
   it('date overrides never mutate weekly templates', () => {
     expect(migration).toContain('ON CONFLICT (user_id, override_date) DO UPDATE');
     expect(migration).toContain('Never rewrites other dates or weekly templates');
-    expect(schedulePage).toContain('Save override for {overrideDate} only');
+    expect(hooks).toContain('cleaner_city_set_commute_override');
+    expect(hooks).toContain('cleaner_city_mark_wfh');
   });
 
   it('effective schedule prefers pause then override then template', () => {

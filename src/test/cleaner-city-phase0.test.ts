@@ -12,7 +12,7 @@ const offerPage = fs.readFileSync(
   'utf8',
 );
 const hubPage = fs.readFileSync(
-  path.resolve(process.cwd(), 'src/pages/cleaner-city/CleanerCityPage.tsx'),
+  path.resolve(process.cwd(), 'src/pages/cleaner-city/CleanerCityFindPage.tsx'),
   'utf8',
 );
 const hookFile = fs.readFileSync(
@@ -23,7 +23,7 @@ const hookFile = fs.readFileSync(
 describe('A Cleaner City Phase 0 formatMatchReasons helper', () => {
   it('maps known reason codes to human copy', () => {
     expect(formatMatchReason('pickup_within_corridor')).toBe('Pickup nearby');
-    expect(formatMatchReason('overlap_proxy_ok')).toBe('Good corridor fit');
+    expect(formatMatchReason('overlap_proxy_ok')).toBe('Good route match');
   });
 
   it('humanizes unknown reason codes instead of throwing', () => {
@@ -32,7 +32,7 @@ describe('A Cleaner City Phase 0 formatMatchReasons helper', () => {
 
   it('joins multiple reasons into one readable string', () => {
     const result = formatMatchReasons(['pickup_within_corridor', 'overlap_proxy_ok']);
-    expect(result).toBe('Pickup nearby - Good corridor fit');
+    expect(result).toBe('Pickup nearby - Good route match');
   });
 
   it('falls back to placeholder copy for empty reasons', () => {
@@ -65,7 +65,7 @@ describe('A Cleaner City Phase 0 Find/Offer page fixes', () => {
   });
 
   it('Find page shows the improved empty state copy', () => {
-    expect(findPage).toContain('No seats yet - try another time or Offer a ride');
+    expect(findPage).toContain('No hosts on this leg yet');
   });
 
   it('Find match cards show vehicle, plate, stars, and chip reasons', () => {
@@ -77,7 +77,7 @@ describe('A Cleaner City Phase 0 Find/Offer page fixes', () => {
     expect(card).toContain('cleaner-city-match-stars');
     expect(card).toContain('matchReasonChips');
     expect(card).toContain('vehicleKindLabel');
-    expect(card).toContain('Match power');
+    expect(card).toContain('reasonChips');
     expect(findPage).toContain('CleanerCityMatchCard');
   });
 
@@ -101,7 +101,7 @@ describe('A Cleaner City Phase 0 hub active ride card', () => {
   it('hub shows an active ride card wired to useMyRides', () => {
     expect(hubPage).toContain('useMyRides');
     expect(hubPage).toContain('/cleaner-city/ride/');
-    expect(hubPage).toContain('activeRide');
+    expect(hubPage).toContain('activeGuestRide');
   });
 });
 

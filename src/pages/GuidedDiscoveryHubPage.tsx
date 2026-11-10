@@ -388,6 +388,8 @@ export default function GuidedDiscoveryHubPage() {
                   categoryConfigs={categoryConfigs}
                   testId="guided-room-bestsellers"
                   tone="warm"
+                  seeAllHref={seeAllHref}
+                  seeAllLabel={seeAllLabel}
                 />
                 <GuidedRoomSwipeRail
                   title={ROOM_VALUE_HEADING}
@@ -396,6 +398,8 @@ export default function GuidedDiscoveryHubPage() {
                   categoryConfigs={categoryConfigs}
                   testId="guided-room-value"
                   tone="plain"
+                  seeAllHref={seeAllHref}
+                  seeAllLabel={seeAllLabel}
                 />
                 <GuidedRoomSwipeRail
                   title={ROOM_READY_HEADING}
@@ -404,6 +408,8 @@ export default function GuidedDiscoveryHubPage() {
                   categoryConfigs={categoryConfigs}
                   testId="guided-room-ready"
                   tone="cool"
+                  seeAllHref={seeAllHref}
+                  seeAllLabel={seeAllLabel}
                 />
               </>
             )}

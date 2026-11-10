@@ -8,11 +8,21 @@ export const RIDE_MISSION_STEPS = [
 
 export type RideMissionStep = (typeof RIDE_MISSION_STEPS)[number];
 
+/** Active-ride strip omits Request - that step is already done once the ride opens. */
+export const RIDE_VISIBLE_STEPS = [
+  'confirmed',
+  'pickup_pending',
+  'started',
+  'completed',
+] as const;
+
+export type RideVisibleStep = (typeof RIDE_VISIBLE_STEPS)[number];
+
 const STATUS_LABEL: Record<string, string> = {
   requested: 'Waiting for host',
   confirmed: 'Seat confirmed',
   pickup_pending: 'Meet at the gate',
-  started: 'On the road',
+  started: 'On the way',
   completed: 'Ride done',
   rejected: 'Declined',
   cancelled: 'Cancelled',
@@ -62,40 +72,53 @@ export function rideStepTitle(status: RideMissionStep) {
   return STEP_TITLE[status];
 }
 
+export function rideVisibleStepTitle(status: RideVisibleStep) {
+  return STEP_TITLE[status];
+}
+
+/** Index into RIDE_VISIBLE_STEPS (Confirm → Done). Request maps to Confirm. */
+export function visibleStepIndex(status?: string | null) {
+  if (status === 'disputed' || status === 'safety_incident') {
+    return RIDE_VISIBLE_STEPS.length - 1;
+  }
+  if (status === 'no_show' || status === 'cancelled' || status === 'rejected') {
+    return RIDE_VISIBLE_STEPS.length - 1;
+  }
+  if (status === 'requested') return 0;
+  const i = RIDE_VISIBLE_STEPS.indexOf(status as RideVisibleStep);
+  return i >= 0 ? i : 0;
+}
+
 export function rideNextHint(status: string, isHost: boolean) {
   if (status === 'requested') {
-    return isHost
-      ? 'Accept to hold this seat, or decline if it does not fit.'
-      : 'Hang tight - the host will accept or decline soon.';
+    return isHost ? 'Accept or decline this seat.' : 'Waiting for the host.';
   }
   if (status === 'confirmed') {
     return isHost
-      ? 'Set a meeting point, then wait for your passenger pickup code.'
-      : 'Confirm the meeting point, then create your pickup code at the gate.';
+      ? 'Confirm meet spot, then wait for the guest code.'
+      : 'Go to the meet spot, then create your pickup code.';
   }
   if (status === 'pickup_pending') {
     return isHost
-      ? 'Ask your passenger for the 6-digit code, then start.'
-      : 'Show your code to the rider. They type it to start.';
+      ? "Enter the guest's 6-digit code to start."
+      : 'Show your code to the host.';
   }
   if (status === 'started') {
-    return isHost
-      ? 'When everyone is dropped, complete the ride.'
-      : 'Live map is on - message if you are late.';
+    return isHost ? 'Drop guests, then complete.' : 'On the way - message if delayed.';
   }
   if (status === 'completed') {
-    return 'Rate your partner and settle fuel if needed.';
+    return 'Rate and settle fuel if needed.';
   }
   if (status === 'disputed') {
-    return 'A society admin will review. Tell your side if you disagree.';
+    return 'Under review.';
   }
   if (status === 'safety_incident') {
-    return 'SOS is active. Call 112 if you are in danger.';
+    return 'SOS active. Call 112 if needed.';
   }
   if (status === 'no_show' || status === 'cancelled') {
-    return 'This ride ended early. You can report a problem if needed.';
+    return 'This ride ended early.';
   }
-  return 'Follow the next step below.';
+  return 'Continue below.';
 }
 
 export function firstName(name?: string | null) {
@@ -165,7 +188,7 @@ const LIFECYCLE_LABEL: Record<string, string> = {
   status_no_show: 'Marked no-show',
   status_disputed: 'Dispute opened',
   status_safety_incident: 'SOS recorded',
-  meeting_pin_set: 'Meeting pin set',
+  meeting_pin_set: 'Meet spot set',
   share_token_created: 'Trip share link created',
   share_token_revoked: 'Trip share link revoked',
 };

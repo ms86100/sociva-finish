@@ -17,7 +17,7 @@ describe('Cleaner City trust hardening', () => {
   const hooks = read('src/hooks/queries/useCleanerCity.ts');
   const admin = read('src/components/admin/AdminCleanerCityTab.tsx');
   const find = read('src/pages/cleaner-city/CleanerCityFindPage.tsx');
-  const hub = read('src/pages/cleaner-city/CleanerCityPage.tsx');
+  const hub = read('src/pages/cleaner-city/CleanerCityHomePage.tsx');
   const share = read('src/pages/cleaner-city/CleanerCitySharePage.tsx');
 
   it('shortens share TTL to 2h and exposes revoke RPC', () => {
@@ -46,8 +46,8 @@ describe('Cleaner City trust hardening', () => {
 
   it('polishes discovery empty states on Find and Hub', () => {
     expect(find).toContain('cleaner-city-find-empty');
-    expect(find).toContain('No neighbour seats for this slot yet');
-    expect(find).toContain('/cleaner-city/schedule');
+    expect(find).toContain('No hosts on this leg yet');
+    expect(find).toContain('/cleaner-city/route');
     expect(hub).toContain('cleaner-city-hub-discovery-empty');
   });
 
@@ -69,7 +69,7 @@ describe('Cleaner City trust hardening', () => {
     const now = new Date().toISOString();
     expect(locationFreshnessTone(now)).toBe('live');
     expect(locationFreshnessLabel(now)).toContain('just now');
-    expect(rideLifecycleEventLabel('meeting_pin_set')).toBe('Meeting pin set');
+    expect(rideLifecycleEventLabel('meeting_pin_set')).toBe('Meet spot set');
     expect(rideLifecycleEventLabel('share_token_revoked')).toBe('Trip share link revoked');
   });
 

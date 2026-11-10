@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   ArrowRight,
+  ArrowUpDown,
   Bike,
   Calendar,
   Car,
@@ -15,20 +16,29 @@ import {
   Plus,
   Shield,
   Sparkles,
+  Users,
 } from 'lucide-react';
+import type { ReactNode } from 'react';
 import { toast } from 'sonner';
 import { CleanerCityChrome } from '@/components/cleaner-city/CleanerCityChrome';
 import { CleanerCityGate } from '@/components/cleaner-city/CleanerCityGate';
 import { CleanerCityPinPicker } from '@/components/cleaner-city/CleanerCityPinPicker';
-import { CleanerCityPlaySwitch } from '@/components/cleaner-city/CleanerCityPlaySwitch';
 import { CleanerCityRoutePreview } from '@/components/cleaner-city/CleanerCityRoutePreview';
 import { CleanerCityRouteSetupPanel } from '@/components/cleaner-city/CleanerCityRouteSetupPanel';
 import { CleanerCityWeeklyPlanCard } from '@/components/cleaner-city/CleanerCityWeeklyPlanCard';
+import { cc } from '@/components/cleaner-city/ui/ccTheme';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent } from '@/components/ui/tabs';
+import { CleanerCityChangeRouteDrawer } from '@/components/cleaner-city/CleanerCityChangeRouteDrawer';
+import { CleanerCityEditRideDrawer } from '@/components/cleaner-city/CleanerCityEditRideDrawer';
+import {
+  CleanerCityOfferSetupDrawer,
+  type OfferSetupDrawerMode,
+} from '@/components/cleaner-city/CleanerCityOfferSetupDrawer';
+import { CleanerCityPlannedRidesDrawer } from '@/components/cleaner-city/CleanerCityPlannedRidesDrawer';
 import { HostOfferRideCard } from '@/components/cleaner-city/HostOfferRideCard';
 import {
   useCancelPublication,
@@ -38,6 +48,7 @@ import {
   useCommuteTemplates,
   useEffectiveSchedule,
   useEmergencyContacts,
+  useMeetupPoints,
   useMyPublications,
   useMyRides,
   useOfficeLocations,
@@ -48,13 +59,10 @@ import {
   useSetPublicationDropOrder,
   useSetPublicationStop,
   useStoreRouteGeometry,
+  useUpsertVehicle,
 } from '@/hooks/queries/useCleanerCity';
-import {
-  CLEANER_CITY_DIRECTIONS,
-  DEFAULT_COMMUTE_TIMEZONE,
-} from '@/lib/cleaner-city/constants';
+import { DEFAULT_COMMUTE_TIMEZONE } from '@/lib/cleaner-city/constants';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/integrations/supabase/client';
 import {
   fetchDrivingRoute,
   fetchDrivingRouteAlternatives,
@@ -68,13 +76,6 @@ import {
   type RouteAlternative,
 } from '@/lib/cleaner-city/routing';
 import { useGoogleMaps } from '@/hooks/useGoogleMaps';
-import {
-  equalRouteFuelShare,
-  estimateGuestSharePaise,
-  formatFuelRupeesFromPaise,
-  FUEL_DEFAULT_PETROL_PAISE_PER_LITRE,
-  FUEL_MILEAGE_KM_PER_LITRE,
-} from '@/lib/cleaner-city/fuelShare';
 import { cn } from '@/lib/utils';
 
 type OfferTab = 'vehicle' | 'route' | 'week' | 'publish' | 'rides' | 'stops';
@@ -83,8 +84,8 @@ const OFFER_TAB_ORDER: Array<{ id: OfferTab; label: string }> = [
   { id: 'vehicle', label: 'Vehicle' },
   { id: 'route', label: 'Route' },
   { id: 'week', label: 'My week' },
-  { id: 'publish', label: 'This ride' },
-  { id: 'rides', label: 'My rides' },
+  { id: 'publish', label: 'Publish seats' },
+  { id: 'rides', label: 'Published' },
 ];
 
 function formatLeaveLabel(hhmm: string) {
@@ -147,8 +148,10 @@ export default function CleanerCityOfferPage() {
   const { data: templates = [] } = useCommuteTemplates();
   const { data: myRides = [] } = useMyRides();
   const { data: emergencyContacts = [] } = useEmergencyContacts();
+  const { data: meetupPoints = [] } = useMeetupPoints();
   const hasVerifiedEmergency = emergencyContacts.some((c) => c.verified_at);
   const publish = usePublishCommute();
+  const upsertVehicle = useUpsertVehicle();
   const navigate = useNavigate();
   const location = useLocation();
   const arrivalState = (location.state as {
@@ -156,6 +159,9 @@ export default function CleanerCityOfferPage() {
     tab?: OfferTab;
     focusPublicationId?: string;
     justPublishedId?: string;
+    travelDate?: string;
+    direction?: string;
+    departTime?: string;
   } | null) || {};
   const arrivalNotice = arrivalState.notice || '';
   const setStop = useSetPublicationStop();
@@ -187,9 +193,21 @@ export default function CleanerCityOfferPage() {
   const [tabBootstrapped, setTabBootstrapped] = useState(!!arrivalState.tab);
   const [vehicleId, setVehicleId] = useState('');
   const [vehicleKind, setVehicleKind] = useState<'bike' | 'car'>('car');
-  const [travelDate, setTravelDate] = useState(defaultDate);
-  const [direction, setDirection] = useState('to_office');
-  const [departTime, setDepartTime] = useState('08:30');
+  const [travelDate, setTravelDate] = useState(
+    typeof arrivalState.travelDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(arrivalState.travelDate)
+      ? arrivalState.travelDate
+      : defaultDate,
+  );
+  const [direction, setDirection] = useState(
+    arrivalState.direction === 'to_home' || arrivalState.direction === 'to_office'
+      ? arrivalState.direction
+      : 'to_office',
+  );
+  const [departTime, setDepartTime] = useState(
+    typeof arrivalState.departTime === 'string' && /^\d{2}:\d{2}/.test(arrivalState.departTime)
+      ? String(arrivalState.departTime).slice(0, 5)
+      : '08:30',
+  );
   const [seats, setSeats] = useState(1);
   const [stopPubId, setStopPubId] = useState('');
   const [stopSeq, setStopSeq] = useState(1);
@@ -205,7 +223,11 @@ export default function CleanerCityOfferPage() {
   const [needRoutePick, setNeedRoutePick] = useState(false);
   const [dropPlan, setDropPlan] = useState<DropSequenceResult | null>(null);
   const [offlineConfirm, setOfflineConfirm] = useState(false);
-  const [petrolPaise, setPetrolPaise] = useState(FUEL_DEFAULT_PETROL_PAISE_PER_LITRE);
+  const [editRideOpen, setEditRideOpen] = useState(false);
+  const [changeRouteOpen, setChangeRouteOpen] = useState(false);
+  const [changeRouteDir, setChangeRouteDir] = useState<'to_office' | 'to_home'>('to_office');
+  const [setupDrawer, setSetupDrawer] = useState<OfferSetupDrawerMode>(null);
+  const [plannedOpen, setPlannedOpen] = useState(false);
 
   const activeVehicles = useMemo(() => vehicles.filter((v) => v.is_active), [vehicles]);
   const kindVehicles = useMemo(
@@ -269,24 +291,6 @@ export default function CleanerCityOfferPage() {
     (t) => t.weekday >= 1 && t.weekday <= 5 && !!t.depart_time,
   );
   const hasVehicle = !!vehicleId && activeVehicles.some((v) => v.id === vehicleId);
-  const fuelEstimate = useMemo(() => {
-    const meters = usualRoad?.distanceMeters || 12000;
-    const guestPaise = estimateGuestSharePaise({
-      distanceMeters: meters,
-      petrolPaisePerLitre: petrolPaise,
-      seatsTotal: Math.max(2, (seats || 1) + 1),
-    });
-    const equal = equalRouteFuelShare({
-      distanceMeters: meters,
-      petrolPaisePerLitre: petrolPaise,
-      guestIds: Array.from({ length: Math.max(1, seats) }, (_, i) => `g${i}`),
-    });
-    return {
-      guestRs: formatFuelRupeesFromPaise(guestPaise) ?? 0,
-      totalRs: formatFuelRupeesFromPaise(equal.totalFuelPaise) ?? 0,
-      perKmRs: formatFuelRupeesFromPaise(equal.fuelPaisePerKm) ?? 12,
-    };
-  }, [usualRoad?.distanceMeters, petrolPaise, seats]);
   const filledStopSlots = useMemo(() => {
     const set = new Set(savedStops.map((s) => s.seq));
     return set;
@@ -323,23 +327,6 @@ export default function CleanerCityOfferPage() {
     }
     setTabBootstrapped(true);
   }, [tabBootstrapped, hasVehicle, pinsReady, weekConfigured]);
-
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      try {
-        const { data, error } = await supabase.rpc('cleaner_city_get_fuel_public_config');
-        if (error || cancelled || !data) return;
-        const paise = Number((data as { petrol_paise_per_litre?: number }).petrol_paise_per_litre);
-        if (Number.isFinite(paise) && paise > 0) setPetrolPaise(paise);
-      } catch {
-        /* keep default */
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   useEffect(() => {
     if (!daySchedule?.is_working) return;
@@ -662,7 +649,7 @@ export default function CleanerCityOfferPage() {
       setPublishRouteId(null);
       setJustPublishedId(pub.id);
       toast.success('Seats are live');
-      navigate('/cleaner-city/find', {
+      navigate('/cleaner-city', {
         state: {
           openHosting: true,
           notice: 'Seats published. Accept requests from the Hosting card at the top.',
@@ -715,71 +702,441 @@ export default function CleanerCityOfferPage() {
   };
 
   const maxSeats = selected?.seat_capacity || (vehicleKind === 'bike' ? 1 : 3);
+  const setupComplete = hasVehicle && pinsReady && weekConfigured && hasRoads;
+  const visibleTabs = setupComplete
+    ? OFFER_TAB_ORDER.filter((t) => t.id === 'publish' || t.id === 'rides')
+    : OFFER_TAB_ORDER;
+
+  // Setup complete: stay on Publish / Published only - edits open drawers, not extra tabs.
+  useEffect(() => {
+    if (!setupComplete) return;
+    if (tab === 'vehicle' || tab === 'route' || tab === 'week') {
+      setTab('publish');
+    }
+  }, [setupComplete, tab]);
+
+  const vehicleTitle = selected
+    ? [selected.color, selected.make || selected.model, selected.registration_number]
+        .filter(Boolean)
+        .join(' ') || selected.registration_number || 'Vehicle'
+    : 'Add vehicle';
+  const meetingPoint =
+    String(selected?.preferred_pickup_label || '').trim() || 'Society gate';
+  const routeKm = usualRoad?.distanceMeters
+    ? (usualRoad.distanceMeters / 1000).toFixed(1)
+    : null;
+  const routeMins = usualRoad?.durationSeconds
+    ? Math.max(1, Math.round(usualRoad.durationSeconds / 60))
+    : null;
+
+  const offerRow = (
+    icon: ReactNode,
+    label: string,
+    value: string,
+    onClick?: () => void,
+    trailing?: ReactNode,
+    testId?: string,
+  ) => (
+    <button
+      type="button"
+      disabled={!onClick}
+      onClick={onClick}
+      data-testid={testId}
+      className={cn(
+        cc.card,
+        'flex w-full items-center gap-3 px-3.5 py-3.5 text-left',
+        onClick ? 'active:scale-[0.99]' : 'cursor-default',
+      )}
+    >
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#E8F2EC] text-[#0F3D2E]">
+        {icon}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-[11px] text-muted-foreground">{label}</span>
+        <span className="block truncate text-[15px] font-semibold text-foreground">{value}</span>
+      </span>
+      {trailing ||
+        (onClick ? (
+          <span className="text-[16px] font-semibold text-muted-foreground">&gt;</span>
+        ) : null)}
+    </button>
+  );
 
   return (
-    <CleanerCityChrome headerTitle="Play · Offer">
+    <CleanerCityChrome headerTitle="Offer" className={cc.bg} backTo="/cleaner-city" backLabel="Back">
       <CleanerCityGate>
-        <div
-          className="mx-auto flex w-full max-w-lg flex-col gap-5 px-4 pb-28 pt-4"
-          data-testid="cleaner-city-offer-page"
-        >
+        <div className={cn(cc.page, 'pb-8')} data-testid="cleaner-city-offer-page">
           {arrivalNotice ? (
-            <div className="rounded-2xl border border-primary/30 bg-primary/5 px-4 py-3 text-sm leading-relaxed">
+            <div className="rounded-2xl border border-[#0F3D2E]/20 bg-[#E8F2EC] px-4 py-3 text-sm leading-relaxed text-[#0F3D2E]">
               {arrivalNotice}
             </div>
           ) : null}
 
-          <CleanerCityPlaySwitch mode="offer" hasPins={pinsReady} hasRoads={hasRoads} />
-
-          <div>
-            <h1 className="text-2xl font-extrabold tracking-tight">Offer a ride</h1>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Share your everyday route and split the journey.
+          <div className="text-center">
+            <p className="text-[12px] font-semibold uppercase tracking-[0.16em] text-[#0F3D2E]">
+              Offer a seat
+            </p>
+            <p className="mt-1 text-[13px] text-muted-foreground">
+              {setupComplete
+                ? profile?.autopilot_enabled
+                  ? 'Weekday seats stay findable with Auto-offer. Use Offer to adjust today or publish this commute trip.'
+                  : 'Publish this commute trip, or turn on Auto-offer in Leave times.'
+                : 'Finish vehicle, path, and leave times, then publish.'}
             </p>
           </div>
 
+          {setupComplete ? (
+            <div
+              className={cn(cc.card, 'px-4 py-3')}
+              data-testid="cleaner-city-offer-today-seats"
+            >
+              <p className="text-[13px] font-semibold text-foreground">Your seats for this date</p>
+              <p className="mt-0.5 text-[12px] text-muted-foreground">
+                {publications.filter(
+                  (p) =>
+                    p.travel_date === travelDate &&
+                    ['draft', 'published', 'full'].includes(p.status) &&
+                    (p.trip_kind || 'commute') === 'commute',
+                ).length > 0
+                  ? 'Confirm drafts, tweak time or seats, or cancel if you are not going.'
+                  : profile?.autopilot_enabled
+                    ? 'No commute seat yet for this day - publish below or wait for Auto-offer.'
+                    : 'No commute seat yet - publish below when you drive.'}
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  className={cn(cc.secondaryBtn, 'px-3 text-[12px]')}
+                  onClick={() => setTab('rides')}
+                >
+                  Manage published
+                </button>
+                <Link
+                  to="/cleaner-city/extra"
+                  className={cn(cc.secondaryBtn, 'px-3 text-[12px]')}
+                  data-testid="cleaner-city-offer-extra-cta"
+                >
+                  Going somewhere else?
+                </Link>
+              </div>
+            </div>
+          ) : null}
+
           {!ready ? (
-            <div className="rounded-2xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm leading-relaxed">
-              Complete{' '}
-              <Link to="/cleaner-city/setup" className="font-semibold text-primary underline">
-                set up + work email
+            <div className={cn(cc.card, 'px-4 py-3 text-[13px] leading-relaxed')}>
+              Finish{' '}
+              <Link to="/cleaner-city/setup" className={cn('font-semibold', cc.forestText)}>
+                setup
               </Link>
-              , host role, and a{' '}
-              <Link to="/cleaner-city/vehicle" className="font-semibold text-primary underline">
+              , then add a{' '}
+              <Link to="/cleaner-city/vehicle" className={cn('font-semibold', cc.forestText)}>
                 vehicle
               </Link>{' '}
-              before publishing.
+              to publish.
             </div>
           ) : null}
 
           {ready && !hasVerifiedEmergency ? (
             <div
-              className="rounded-2xl border border-border bg-muted/30 px-4 py-3 text-sm leading-relaxed text-muted-foreground"
+              className={cn(cc.card, 'px-4 py-3 text-[13px] leading-relaxed text-muted-foreground')}
               data-testid="cleaner-city-offer-emergency-gate"
             >
               Optional:{' '}
-              <Link to="/cleaner-city/safety" className="font-semibold text-emerald-900 underline">
-                add an emergency contact
+              <Link to="/cleaner-city/safety" className={cn('font-semibold', cc.forestText)}>
+                emergency contact
               </Link>{' '}
-              in You - Safety for SOS. Not required to publish.
+              for SOS.
             </div>
           ) : null}
 
+          {setupComplete ? (
+            <div className="space-y-3" data-testid="cleaner-city-offer-setup-links">
+              <div className="relative space-y-3">
+                {offerRow(
+                  <MapPin className="h-4 w-4" />,
+                  'Pickup',
+                  direction === 'to_home' ? officeLabel : pickupLabel,
+                  () => setSetupDrawer('path'),
+                  undefined,
+                  'cleaner-city-offer-edit-path',
+                )}
+                <div className="pointer-events-none absolute left-1/2 top-1/2 z-[1] -translate-x-1/2 -translate-y-1/2">
+                  <button
+                    type="button"
+                    className="pointer-events-auto flex h-9 w-9 items-center justify-center rounded-full border border-[#0F3D2E]/20 bg-white text-[#0F3D2E] shadow-sm active:scale-95"
+                    aria-label="Switch pickup and destination"
+                    data-testid="cleaner-city-offer-swap-direction"
+                    onClick={() => {
+                      setDirection((d) => (d === 'to_home' ? 'to_office' : 'to_home'));
+                      toast.message(
+                        direction === 'to_office'
+                          ? 'Switched to homebound'
+                          : 'Switched to officebound',
+                      );
+                    }}
+                  >
+                    <ArrowUpDown className="h-4 w-4" />
+                  </button>
+                </div>
+                {offerRow(
+                  <Navigation className="h-4 w-4" />,
+                  'Destination',
+                  direction === 'to_home' ? pickupLabel : officeLabel,
+                  () => setSetupDrawer('path'),
+                )}
+              </div>
+              {offerRow(
+                <Calendar className="h-4 w-4" />,
+                'Date',
+                formatOfferDateLabel(travelDate),
+                () => setEditRideOpen(true),
+              )}
+              {offerRow(
+                <Clock className="h-4 w-4" />,
+                'Departure time',
+                formatLeaveLabel(departTime),
+                () => setEditRideOpen(true),
+                undefined,
+                'cleaner-city-offer-edit-ride',
+              )}
+              {offerRow(
+                <Car className="h-4 w-4" />,
+                'Vehicle',
+                vehicleTitle,
+                () => setSetupDrawer('vehicle'),
+                undefined,
+                'cleaner-city-offer-edit-vehicle',
+              )}
+              <div className={cn(cc.card, 'flex items-center gap-3 px-3.5 py-3.5')}>
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#E8F2EC] text-[#0F3D2E]">
+                  <Users className="h-4 w-4" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[11px] text-muted-foreground">Available seats</p>
+                </div>
+                <div
+                  className="flex items-center gap-1 rounded-full border border-black/10 bg-[#F7F5F1] px-1.5 py-1"
+                  data-testid="cleaner-city-offer-seats"
+                >
+                  <button
+                    type="button"
+                    className="flex h-8 w-8 items-center justify-center rounded-full bg-white"
+                    disabled={seats <= 1}
+                    onClick={() => setSeats((n) => Math.max(1, n - 1))}
+                    aria-label="Fewer seats"
+                  >
+                    <Minus className="h-4 w-4" />
+                  </button>
+                  <span className="w-6 text-center text-[15px] font-semibold">{seats}</span>
+                  <button
+                    type="button"
+                    className="flex h-8 w-8 items-center justify-center rounded-full bg-white"
+                    disabled={seats >= maxSeats}
+                    onClick={() => {
+                      if (seats + 1 > maxSeats) {
+                        toast.error('Capacity cannot exceed your vehicle');
+                        return;
+                      }
+                      setSeats((n) => Math.min(maxSeats, n + 1));
+                    }}
+                    aria-label="More seats"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+              {offerRow(
+                <MapPinned className="h-4 w-4" />,
+                'Meeting point',
+                meetingPoint,
+                () => {
+                  if (!selected) {
+                    toast.message('Choose a vehicle first');
+                    setSetupDrawer('vehicle');
+                    return;
+                  }
+                  setSetupDrawer('meeting');
+                },
+                undefined,
+                'cleaner-city-offer-edit-meeting',
+              )}
+
+              <div className={cn(cc.card, 'overflow-hidden')} data-testid="cleaner-city-offer-usual-route">
+                <div className="flex h-28 items-center justify-center bg-[#0F3D2E] px-4">
+                  <div className="flex w-full max-w-xs items-center gap-2 text-white/90">
+                    <MapPin className="h-4 w-4 shrink-0" />
+                    <div className="h-px flex-1 bg-white/40" />
+                    <Navigation className="h-4 w-4 shrink-0" />
+                  </div>
+                </div>
+                <div className="px-4 py-3">
+                  <p className="text-[13px] font-semibold text-foreground">
+                    {usualRoad?.summary || 'Your usual road'}
+                  </p>
+                  <p className="mt-0.5 text-[12px] text-muted-foreground">
+                    {[
+                      routeKm ? `≈ ${routeKm} km` : null,
+                      routeMins ? `${routeMins} min` : null,
+                    ]
+                      .filter(Boolean)
+                      .join(' - ') || 'Route preview uses your saved road'}
+                  </p>
+                  <button
+                    type="button"
+                    className={cn('mt-2 text-[12px] font-semibold', cc.forestText)}
+                    onClick={() => setSetupDrawer('path')}
+                    data-testid="cleaner-city-offer-set-route"
+                  >
+                    Change home, office, or road
+                  </button>
+                </div>
+              </div>
+
+              {needRoutePick && publishAlts.length > 1 ? (
+                <div
+                  className={cn(cc.card, 'space-y-2 p-4')}
+                  data-testid="cleaner-city-offer-route-pick"
+                >
+                  <p className="text-sm font-semibold">Which road will you take?</p>
+                  <p className="text-xs text-muted-foreground">
+                    More than one path found - tap a card to publish on that road.
+                  </p>
+                  {publishAlts.map((alt) => {
+                    const mins = Math.round(alt.durationSeconds / 60);
+                    const km = (alt.distanceMeters / 1000).toFixed(1);
+                    const selectedAlt = publishRouteId === alt.id;
+                    return (
+                      <button
+                        key={alt.id}
+                        type="button"
+                        disabled={publish.isPending}
+                        onClick={() => {
+                          setPublishRouteId(alt.id);
+                          void publishRide(alt);
+                        }}
+                        className={cn(
+                          'w-full rounded-xl border px-3 py-2.5 text-left',
+                          selectedAlt
+                            ? 'border-[#0F3D2E] bg-[#E8F2EC]'
+                            : 'border-black/10 bg-white',
+                        )}
+                        data-testid="cleaner-city-offer-route-alt"
+                      >
+                        <p className="flex items-center gap-1.5 text-sm font-semibold">
+                          {selectedAlt ? <Check size={14} className="text-[#0F3D2E]" /> : null}
+                          {alt.summary}
+                        </p>
+                        <p className="mt-0.5 text-xs text-muted-foreground">
+                          ~{mins} min - {km} km
+                        </p>
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : null}
+
+              {!isLoaded ? (
+                <label
+                  className={cn(cc.card, 'flex items-start gap-3 px-4 py-3')}
+                  data-testid="cleaner-city-offer-offline-confirm"
+                >
+                  <Checkbox
+                    checked={offlineConfirm}
+                    onCheckedChange={(v) => setOfflineConfirm(v === true)}
+                    className="mt-0.5"
+                  />
+                  <span className="text-xs leading-relaxed text-muted-foreground">
+                    Maps is still loading. I confirm publishing with an approximate path if Google
+                    is unavailable.
+                  </span>
+                </label>
+              ) : null}
+
+              {needRoutePick && publishAlts.length > 1 ? null : (
+                <button
+                  type="button"
+                  className={cn(cc.primaryBtn, 'w-full')}
+                  onClick={() => void publishRide()}
+                  disabled={
+                    publish.isPending ||
+                    !ready ||
+                    !pinsReady ||
+                    (!isLoaded && !offlineConfirm)
+                  }
+                  data-testid="cleaner-city-offer-publish"
+                >
+                  {!isLoaded && !offlineConfirm ? 'Waiting for Maps...' : 'Publish ride'}
+                </button>
+              )}
+
+              <div className="flex items-center justify-center gap-3 pt-1">
+                <button
+                  type="button"
+                  className={cn('text-[13px] font-semibold', cc.forestText)}
+                  onClick={() => setPlannedOpen(true)}
+                  data-testid="cleaner-city-offer-edit-week"
+                >
+                  Edit planned rides
+                </button>
+                <span className="text-muted-foreground">-</span>
+                <button
+                  type="button"
+                  className={cn('text-[13px] font-semibold', cc.forestText)}
+                  onClick={() => setTab('rides')}
+                >
+                  Published
+                </button>
+              </div>
+
+              {tab === 'rides' ? (
+                <div className="space-y-3" data-testid="cleaner-city-offer-rides-board">
+                  <p className="text-[15px] font-semibold">Your published seats</p>
+                  {publications.length === 0 ? (
+                    <div className={cn(cc.card, 'px-5 py-8 text-center')}>
+                      <p className="text-sm font-semibold">Nothing published yet</p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Publish a leave time, then track requests here.
+                      </p>
+                    </div>
+                  ) : (
+                    [...publications]
+                      .sort((a, b) => {
+                        const rank = (s: string) =>
+                          s === 'published' ? 0 : s === 'full' ? 1 : s === 'draft' ? 2 : 3;
+                        return rank(a.status) - rank(b.status);
+                      })
+                      .map((p) => (
+                        <HostOfferRideCard
+                          key={p.id}
+                          publication={p}
+                          vehicle={p.vehicle_id ? vehicleById[p.vehicle_id] : null}
+                          guests={hostGuestsByPublication[p.id] || []}
+                          todayIso={today}
+                          focused={focusPublicationId === p.id || justPublishedId === p.id}
+                          onCancel={() => cancel(p.id)}
+                          cancelPending={cancelPub.isPending}
+                        />
+                      ))
+                  )}
+                </div>
+              ) : null}
+            </div>
+          ) : (
           <Tabs value={tab} onValueChange={(v) => setTab(v as OfferTab)} className="w-full">
             <div className="overflow-x-auto">
               <nav
-                className="flex min-w-max gap-1 border-b border-border"
+                className="flex min-w-max gap-1 border-b border-black/5"
                 data-testid="cleaner-city-offer-tabs"
               >
-                {OFFER_TAB_ORDER.map((item) => (
+                {visibleTabs.map((item) => (
                   <button
                     key={item.id}
                     type="button"
                     onClick={() => setTab(item.id)}
                     className={cn(
-                      'shrink-0 border-b-2 px-3 py-2.5 text-sm font-semibold transition-colors',
+                      'shrink-0 border-b-2 px-3 py-2.5 text-[13px] font-semibold transition-colors',
                       tab === item.id
-                        ? 'border-emerald-600 text-emerald-800'
+                        ? 'border-[#0F3D2E] text-[#0F3D2E]'
                         : 'border-transparent text-muted-foreground hover:text-foreground',
                     )}
                   >
@@ -808,8 +1165,8 @@ export default function CleanerCityOfferPage() {
                       className={cn(
                         'flex items-center justify-center gap-2 rounded-xl border px-3 py-3 text-sm font-semibold',
                         vehicleKind === 'bike'
-                          ? 'border-emerald-600 bg-emerald-50 text-emerald-900'
-                          : 'border-border',
+                          ? 'border-emerald-600 bg-emerald-50 text-emerald-950 dark:border-emerald-400/70 dark:bg-emerald-500/20 dark:text-emerald-50'
+                          : 'border-border bg-background text-foreground',
                       )}
                     >
                       <Bike className="h-4 w-4" />
@@ -821,8 +1178,8 @@ export default function CleanerCityOfferPage() {
                       className={cn(
                         'flex items-center justify-center gap-2 rounded-xl border px-3 py-3 text-sm font-semibold',
                         vehicleKind === 'car'
-                          ? 'border-emerald-600 bg-emerald-50 text-emerald-900'
-                          : 'border-border',
+                          ? 'border-emerald-600 bg-emerald-50 text-emerald-950 dark:border-emerald-400/70 dark:bg-emerald-500/20 dark:text-emerald-50'
+                          : 'border-border bg-background text-foreground',
                       )}
                     >
                       <Car className="h-4 w-4" />
@@ -830,7 +1187,7 @@ export default function CleanerCityOfferPage() {
                     </button>
                   </div>
                   <select
-                    className="h-11 w-full rounded-xl border border-border bg-background px-3 text-sm"
+                    className="h-11 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground"
                     value={vehicleId}
                     onChange={(e) => setVehicleId(e.target.value)}
                     data-testid="cleaner-city-offer-vehicle"
@@ -877,7 +1234,7 @@ export default function CleanerCityOfferPage() {
                 />
                 <p className="mt-2 text-[11px] text-muted-foreground">
                   Full map on{' '}
-                  <Link to="/cleaner-city/route" className="font-semibold text-emerald-900">
+                  <Link to="/cleaner-city/route" className="font-semibold text-emerald-800 dark:text-emerald-300">
                     Route
                   </Link>
                   .
@@ -888,18 +1245,28 @@ export default function CleanerCityOfferPage() {
             <TabsContent value="publish" className="mt-5 focus-visible:outline-none">
               <div className="flex flex-col gap-4">
               {!hasVehicle ? (
-                <div className="rounded-2xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm">
+                <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2.5 text-[12px]">
                   Add a vehicle first.{' '}
-                  <button type="button" className="font-semibold text-emerald-900" onClick={() => setTab('vehicle')}>
-                    Open Vehicle
+                  <button
+                    type="button"
+                    className="font-semibold text-primary"
+                    onClick={() =>
+                      setupComplete ? setSetupDrawer('vehicle') : setTab('vehicle')
+                    }
+                  >
+                    Edit vehicle
                   </button>
                 </div>
               ) : null}
               {!pinsReady ? (
-                <div className="rounded-2xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm">
-                  Set home and office on Route first.{' '}
-                  <button type="button" className="font-semibold text-emerald-900" onClick={() => setTab('route')}>
-                    Open Route
+                <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2.5 text-[12px]">
+                  Set home and office first.{' '}
+                  <button
+                    type="button"
+                    className="font-semibold text-primary"
+                    onClick={() => (setupComplete ? setSetupDrawer('path') : setTab('route'))}
+                  >
+                    Edit path
                   </button>
                 </div>
               ) : null}
@@ -907,11 +1274,11 @@ export default function CleanerCityOfferPage() {
                 <div className="flex items-start justify-between gap-2">
                   <div>
                     <p className="flex items-center gap-2 text-base font-extrabold">
-                      <Sparkles size={16} className="text-emerald-700" />
-                      This ride
+                      <Sparkles size={16} className="text-emerald-700 dark:text-emerald-300" />
+                      Publish seats
                     </p>
                     <p className="mt-1 text-xs text-muted-foreground">
-                      One leave-time. Neighbours on your corridor can request a seat.
+                      Set one leave time. Neighbours on your road can request a seat.
                     </p>
                   </div>
                 </div>
@@ -937,8 +1304,8 @@ export default function CleanerCityOfferPage() {
                   </div>
                   <button
                     type="button"
-                    className="text-left text-xs font-semibold text-emerald-900"
-                    onClick={() => setTab('route')}
+                    className="text-left text-[11px] font-semibold text-primary"
+                    onClick={() => setSetupDrawer('path')}
                   >
                     Change home, office, or road
                   </button>
@@ -953,7 +1320,7 @@ export default function CleanerCityOfferPage() {
                   </p>
                   {usualRoad ? (
                     <p
-                      className="mt-2 inline-flex max-w-full items-center rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-900"
+                      className="mt-2 inline-flex max-w-full items-center rounded-full border border-emerald-500/40 bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-950 dark:border-emerald-400/50 dark:bg-emerald-500/20 dark:text-emerald-50"
                       data-testid="cleaner-city-offer-usual-route"
                     >
                       {usualRoad.summary || 'Usual road'}
@@ -967,29 +1334,29 @@ export default function CleanerCityOfferPage() {
                   ) : (
                     <button
                       type="button"
-                      className="mt-2 text-[11px] font-semibold text-emerald-900"
+                      className="mt-2 text-[11px] font-semibold text-primary"
                       data-testid="cleaner-city-offer-set-route"
-                      onClick={() => setTab('route')}
+                      onClick={() => setSetupDrawer('path')}
                     >
                       Pick your usual road
                     </button>
                   )}
                 </div>
 
-                <div className="rounded-xl border border-emerald-100 bg-emerald-50/50 px-3 py-2.5">
+                <div className="rounded-xl border border-primary/25 bg-primary/5 px-3 py-2.5">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-900/70">
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
                         Using your week
                       </p>
-                      <p className="mt-0.5 text-xs text-emerald-950">
-                        Defaults from My week · change date or leave time below for this ride only
+                      <p className="mt-0.5 text-[11px] text-foreground">
+                        Defaults from planned rides · change leave below for this ride only
                       </p>
                     </div>
                     <button
                       type="button"
-                      className="shrink-0 text-xs font-semibold text-emerald-900"
-                      onClick={() => setTab('week')}
+                      className="shrink-0 text-[11px] font-semibold text-primary"
+                      onClick={() => setPlannedOpen(true)}
                     >
                       Edit week
                     </button>
@@ -997,72 +1364,53 @@ export default function CleanerCityOfferPage() {
                 </div>
 
                 <div
-                  className="space-y-3 rounded-xl border border-border bg-background p-3"
+                  className="space-y-2.5 rounded-xl border border-border bg-background p-3"
                   data-testid="cleaner-city-offer-this-ride"
                 >
-                  <p className="text-sm font-extrabold">When are you leaving?</p>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1.5">
-                      <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                        Date
-                      </Label>
-                      <div className="relative">
-                        <Calendar className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                        <Input
-                          type="date"
-                          value={travelDate}
-                          min={today}
-                          onChange={(e) => setTravelDate(e.target.value)}
-                          className="h-11 pl-9"
-                        />
-                      </div>
-                      <p className="text-[11px] text-muted-foreground">
-                        {formatOfferDateLabel(travelDate)}
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-[13px] font-extrabold">When are you leaving?</p>
+                    <button
+                      type="button"
+                      className="text-[12px] font-semibold text-primary"
+                      onClick={() => setEditRideOpen(true)}
+                      data-testid="cleaner-city-offer-edit-ride"
+                    >
+                      Edit this ride
+                    </button>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                      Date
+                    </Label>
+                    <div className="relative">
+                      <Calendar className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        type="date"
+                        value={travelDate}
+                        min={today}
+                        onChange={(e) => setTravelDate(e.target.value)}
+                        className="h-10 pl-9 text-[13px]"
+                      />
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">
+                      {formatOfferDateLabel(travelDate)}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setEditRideOpen(true)}
+                    className="flex w-full items-center justify-between gap-2 rounded-xl border border-border bg-card px-3 py-2.5 text-left"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                        {direction === 'to_home' ? 'To home' : 'To office'}
+                      </p>
+                      <p className="mt-0.5 text-[15px] font-extrabold tabular-nums text-foreground">
+                        {formatLeaveLabel(departTime)}
                       </p>
                     </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                        Leave at
-                      </Label>
-                      <div className="relative">
-                        <Clock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                        <Input
-                          type="time"
-                          value={departTime}
-                          onChange={(e) => setDepartTime(e.target.value)}
-                          className="h-11 pl-9"
-                        />
-                      </div>
-                      <p className="text-[11px] text-muted-foreground">
-                        {formatLeaveLabel(departTime)} - this ride only
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    {CLEANER_CITY_DIRECTIONS.map((d) => (
-                      <button
-                        key={d.value}
-                        type="button"
-                        onClick={() => {
-                          setDirection(d.value);
-                          if (d.value === 'to_home' && daySchedule?.return_time) {
-                            setDepartTime(String(daySchedule.return_time).slice(0, 5));
-                          } else if (d.value === 'to_office' && daySchedule?.depart_time) {
-                            setDepartTime(String(daySchedule.depart_time).slice(0, 5));
-                          }
-                        }}
-                        className={cn(
-                          'rounded-xl border px-3 py-3 text-sm font-semibold',
-                          direction === d.value
-                            ? 'border-emerald-600 bg-emerald-50 text-emerald-900'
-                            : 'border-border bg-background',
-                        )}
-                      >
-                        {d.label}
-                      </button>
-                    ))}
-                  </div>
+                    <Clock size={15} className="shrink-0 text-muted-foreground" />
+                  </button>
                 </div>
 
                 <div className="space-y-2">
@@ -1111,22 +1459,7 @@ export default function CleanerCityOfferPage() {
                   ) : null}
                 </div>
 
-                <div className="space-y-1.5 rounded-xl border border-border bg-background px-3 py-3">
-                  <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                    Estimated fuel share / guest
-                  </Label>
-                  <p className="text-lg font-extrabold text-emerald-900">
-                    ₹{fuelEstimate.guestRs}
-                  </p>
-                  <p className="text-[11px] text-muted-foreground">
-                    Automatic share from road distance · petrol ₹
-                    {(petrolPaise / 100).toFixed(0)}/L · {FUEL_MILEAGE_KM_PER_LITRE} km/L · about ₹
-                    {fuelEstimate.perKmRs}/km. Journey total about ₹{fuelEstimate.totalRs} split with
-                    you. No markup. You cannot edit this amount.
-                  </p>
-                </div>
-
-                <div className="flex items-start gap-2 rounded-xl border border-emerald-200 bg-emerald-50/80 px-3 py-2.5 text-sm text-emerald-950">
+                <div className="flex items-start gap-2 rounded-xl border border-emerald-500/40 bg-emerald-50/80 px-3 py-2.5 text-sm text-emerald-950 dark:bg-emerald-500/15 dark:text-emerald-50">
                   <Shield className="mt-0.5 h-4 w-4 shrink-0" />
                   <p className="text-xs leading-relaxed">
                     Your phone number stays private until you accept a booking.
@@ -1235,54 +1568,84 @@ export default function CleanerCityOfferPage() {
 
             <TabsContent value="week" className="mt-5 focus-visible:outline-none">
               <div className="flex flex-col gap-5">
-                <div className="rounded-2xl border border-border bg-card px-5 py-5 shadow-sm">
-                  <p className="text-sm font-extrabold">3. My week</p>
-                  <p className="mt-1.5 text-xs text-muted-foreground leading-relaxed">
-                    Office days, leave home, and leave office. Tap a day off for WFH. This ride
-                    starts from these defaults - you can still change one leave-time there without
-                    rewriting your week.
-                  </p>
-                </div>
-                <CleanerCityWeeklyPlanCard
-                  onSaved={(info) => {
-                    if (direction === 'to_home') setDepartTime(info.returnTime);
-                    else setDepartTime(info.depart);
-                    toast.message('Week saved - open This ride to publish');
-                  }}
-                />
-                <Button
-                  type="button"
-                  className="h-11 w-full bg-emerald-800 font-semibold hover:bg-emerald-900"
-                  onClick={() => setTab('publish')}
-                >
-                  Continue to this ride
-                </Button>
+                {weekConfigured ? (
+                  <div className="rounded-2xl border border-border bg-card px-5 py-5 shadow-sm space-y-3">
+                    <p className="text-sm font-extrabold">Leave times</p>
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      Your week is already set. Change leave times anytime - Publish seats
+                      uses those defaults.
+                    </p>
+                    <Button
+                      type="button"
+                      className="h-11 w-full font-semibold"
+                      onClick={() => setPlannedOpen(true)}
+                    >
+                      Edit planned rides
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-11 w-full font-semibold"
+                      onClick={() => setTab('publish')}
+                    >
+                      Continue to Publish seats
+                    </Button>
+                  </div>
+                ) : (
+                  <>
+                    <div className="rounded-2xl border border-border bg-card px-5 py-5 shadow-sm">
+                      <p className="text-sm font-extrabold">Set planned rides</p>
+                      <p className="mt-1.5 text-xs text-muted-foreground leading-relaxed">
+                        Office days, leave home, and leave office. Tap a day off for WFH.
+                      </p>
+                    </div>
+                    <CleanerCityWeeklyPlanCard
+                      onSaved={(info) => {
+                        if (direction === 'to_home') setDepartTime(info.returnTime);
+                        else setDepartTime(info.depart);
+                        toast.message('Week saved - open Publish seats next');
+                      }}
+                    />
+                    <Button
+                      type="button"
+                      className="h-11 w-full bg-emerald-800 font-semibold hover:bg-emerald-900"
+                      onClick={() => setTab('publish')}
+                    >
+                      Continue to Publish seats
+                    </Button>
+                  </>
+                )}
               </div>
             </TabsContent>
 
             <TabsContent value="rides" className="mt-6 focus-visible:outline-none">
               <div className="flex flex-col gap-6">
-                <div className="rounded-2xl border border-primary/30 bg-primary/5 px-4 py-3 text-sm leading-relaxed">
-                  <p className="font-semibold text-foreground">My rides = your seat offers</p>
-                  <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
-                    Each card is one leave-time you published. Guests appear with name, flat,
-                    status, meeting point, and pickup/drop pins after they request or you accept.
+                <div>
+                  <h2 className="text-lg font-extrabold text-foreground">Your published seats</h2>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Leave times neighbours can request. Accept guests when they ask.
                   </p>
                 </div>
 
                 {publications.length === 0 ? (
                   <div className="rounded-2xl border border-dashed border-border bg-card px-5 py-10 text-center">
-                    <p className="text-sm font-semibold">No live rides yet</p>
+                    <p className="text-sm font-semibold">Nothing published yet</p>
                     <p className="mt-1.5 text-xs text-muted-foreground">
-                      Publish seats on the Publish tab first.
+                      Publish seats for a leave time, then track requests here.
                     </p>
                     <Button type="button" className="mt-4" onClick={() => setTab('publish')}>
-                      Go to publish
+                      Publish seats
                     </Button>
                   </div>
                 ) : (
                   <div className="flex flex-col gap-3" data-testid="cleaner-city-offer-rides-board">
-                    {publications.map((p) => (
+                    {[...publications]
+                      .sort((a, b) => {
+                        const rank = (s: string) =>
+                          s === 'published' ? 0 : s === 'full' ? 1 : s === 'draft' ? 2 : 3;
+                        return rank(a.status) - rank(b.status);
+                      })
+                      .map((p) => (
                       <HostOfferRideCard
                         key={p.id}
                         publication={p}
@@ -1475,6 +1838,111 @@ export default function CleanerCityOfferPage() {
               </div>
             </TabsContent>
           </Tabs>
+          )}
+
+          <CleanerCityEditRideDrawer
+            open={editRideOpen}
+            onOpenChange={setEditRideOpen}
+            date={travelDate}
+            direction={direction === 'to_home' ? 'to_home' : 'to_office'}
+            homeLabel={pickupLabel || 'Home'}
+            officeLabel={officeLabel || 'Office'}
+            departTime={String(daySchedule?.depart_time || departTime || '08:30').slice(0, 5)}
+            returnTime={String(daySchedule?.return_time || '18:30').slice(0, 5)}
+            isWorking={!!daySchedule?.is_working && !daySchedule?.is_paused}
+            note={daySchedule?.note}
+            onConfirmed={({ direction: nextDir, leaveTime }) => {
+              setDirection(nextDir);
+              setDepartTime(leaveTime);
+            }}
+            onRequestChangeRoute={(dir) => {
+              setEditRideOpen(false);
+              setChangeRouteDir(dir);
+              setChangeRouteOpen(true);
+            }}
+          />
+
+          <CleanerCityChangeRouteDrawer
+            open={changeRouteOpen}
+            onOpenChange={setChangeRouteOpen}
+            date={travelDate}
+            direction={changeRouteDir}
+            home={
+              pickupLat != null && pickupLng != null
+                ? { lat: Number(pickupLat), lng: Number(pickupLng), label: pickupLabel }
+                : null
+            }
+            office={
+              office?.latitude != null && office?.longitude != null
+                ? {
+                    lat: Number(office.latitude),
+                    lng: Number(office.longitude),
+                    label: officeLabel,
+                  }
+                : null
+            }
+            homeLabel={pickupLabel || 'Home'}
+            officeLabel={officeLabel || 'Office'}
+            publicationId={
+              publications.find(
+                (p) =>
+                  p.travel_date === travelDate &&
+                  p.direction === changeRouteDir &&
+                  (p.status === 'published' || p.status === 'full' || p.status === 'draft'),
+              )?.id || null
+            }
+            ensureIfGoing
+            onConfirmed={() => {
+              /* preferred + pub geometry refreshed via hooks */
+            }}
+          />
+
+          <CleanerCityOfferSetupDrawer
+            mode={setupDrawer}
+            onOpenChange={(open) => {
+              if (!open) setSetupDrawer(null);
+            }}
+            vehicleKind={vehicleKind}
+            onVehicleKind={setVehicleKind}
+            vehicleId={vehicleId}
+            onVehicleId={setVehicleId}
+            kindVehicles={kindVehicles}
+            meetupPoints={meetupPoints}
+            meetingPoint={meetingPoint}
+            onSelectMeetingPoint={async (label) => {
+              if (!selected) {
+                toast.error('Choose a vehicle first');
+                return;
+              }
+              try {
+                await upsertVehicle.mutateAsync({
+                  vehicle_id: selected.id,
+                  vehicle_type: selected.vehicle_type,
+                  make: selected.make,
+                  model: selected.model,
+                  color: selected.color,
+                  registration_number: selected.registration_number || '',
+                  seat_capacity: selected.seat_capacity,
+                  is_active: selected.is_active,
+                  notes: selected.notes,
+                  preferred_pickup_label: label,
+                  preferred_drop_label: selected.preferred_drop_label,
+                });
+                toast.success('Meeting point saved');
+              } catch (e: any) {
+                toast.error(e?.message || 'Could not save meeting point');
+              }
+            }}
+          />
+
+          <CleanerCityPlannedRidesDrawer
+            open={plannedOpen}
+            onOpenChange={setPlannedOpen}
+            onSaved={(info) => {
+              if (direction === 'to_home') setDepartTime(info.returnTime);
+              else setDepartTime(info.depart);
+            }}
+          />
         </div>
       </CleanerCityGate>
     </CleanerCityChrome>

@@ -6,10 +6,9 @@ const read = (rel: string) => readFileSync(resolve(process.cwd(), rel), 'utf8');
 
 describe('Cleaner City active mission discovery', () => {
   it('hub mounts mission card + floating dock', () => {
-    const hub = read('src/pages/cleaner-city/CleanerCityPage.tsx');
+    const hub = read('src/pages/cleaner-city/CleanerCityHomePage.tsx');
     expect(hub).toContain('CleanerCityActiveMissionCard');
     expect(hub).toContain('CleanerCityActiveMissionDock');
-    expect(hub).toContain('activeRide');
     expect(hub).toContain('/cleaner-city/ride/');
   });
 
@@ -17,7 +16,7 @@ describe('Cleaner City active mission discovery', () => {
     const card = read('src/components/cleaner-city/CleanerCityActiveMissionCard.tsx');
     expect(card).toContain('cleaner-city-active-ride-link');
     expect(card).toContain('cleaner-city-active-ride-dock');
-    expect(card).toContain('Live mission');
+    expect(card).toContain('Active ride');
     expect(card).toContain('/cleaner-city/ride/');
   });
 
@@ -26,7 +25,7 @@ describe('Cleaner City active mission discovery', () => {
     expect(find).toContain('useMyActiveGuestRide');
     expect(find).toContain('cleaner-city-find-active-ride');
     expect(find).toContain('cleaner-city-open-active-ride');
-    expect(find).toContain('Open active ride');
+    expect(find).toContain('Open ride for pickup code');
     expect(find).toContain('CleanerCityActiveMissionCard');
     expect(find).toContain('CleanerCityActiveMissionDock');
     expect(find).toContain('/cleaner-city/ride/');

@@ -43,7 +43,7 @@ describe('CleanerCityEntryCard', () => {
     expect(screen.queryByTestId('cleaner-city-entry-card')).toBeNull();
   });
 
-  it('shows branded entry when feature is enabled', () => {
+  it('shows simple dual-CTA entry when feature is enabled', () => {
     featureState.enabled = true;
     render(
       <MemoryRouter>
@@ -51,10 +51,11 @@ describe('CleanerCityEntryCard', () => {
       </MemoryRouter>,
     );
     const card = screen.getByTestId('cleaner-city-entry-card');
-    expect(card).toHaveAttribute('href', '/cleaner-city');
-    expect(card).toHaveTextContent('sociva cleaner city');
+    expect(card).toHaveTextContent('sociva Ride');
     expect(card).toHaveTextContent('Find a ride');
     expect(card).toHaveTextContent('Offer a seat');
+    expect(screen.getByTestId('sociva-ride-find')).toHaveAttribute('href', '/cleaner-city');
+    expect(screen.getByTestId('sociva-ride-offer')).toHaveAttribute('href', '/cleaner-city/offer');
   });
 
   it('entry card can deep-link into a live mission when rides are active', () => {
@@ -63,7 +64,7 @@ describe('CleanerCityEntryCard', () => {
       'utf8',
     );
     expect(src).toContain('useMyRides');
-    expect(src).toContain('Live mission');
+    expect(src).toContain('tap to continue');
     expect(src).toContain('/cleaner-city/ride/');
   });
 });

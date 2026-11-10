@@ -12,45 +12,79 @@ describe('Cleaner City UX P0 wiring', () => {
     expect(nav).toContain("to === '/book'");
   });
 
-  it('surfaces A Cleaner City from Account, not Home/Book', () => {
+  it('surfaces sociva Ride from Home carousel, not Account/Book cards', () => {
     expect(read('src/pages/HomePage.tsx')).not.toContain('CleanerCityEntryCard');
     expect(read('src/pages/CommerceModePage.tsx')).not.toContain('CleanerCityEntryCard');
-    expect(read('src/pages/ProfilePage.tsx')).toContain('CleanerCityEntryCard');
-    expect(read('src/pages/ProfilePage.tsx')).toContain('account-cleaner-city-entry');
+    expect(read('src/pages/ProfilePage.tsx')).not.toContain('CleanerCityEntryCard');
+    expect(read('src/pages/ProfilePage.tsx')).not.toContain('HelpHubTeaser');
+    expect(read('src/pages/ProfilePage.tsx')).not.toContain('account-cleaner-city-entry');
+    expect(read('src/components/home/MarketplaceSection.tsx')).toContain('HomeDiscoveryCarousel');
+    expect(read('src/components/home/MarketplaceSection.tsx')).not.toContain('HelpHubTeaser');
+    const carousel = read('src/components/home/HomeDiscoveryCarousel.tsx');
+    expect(carousel).toContain("href: '/cleaner-city'");
+    expect(carousel).toContain('Find a ride');
+    expect(carousel).toContain('cleaner_city');
     const card = read('src/components/cleaner-city/CleanerCityEntryCard.tsx');
     expect(card).toContain('to="/cleaner-city"');
-    expect(card).toContain('A Cleaner City');
-    expect(card).toContain('Find a ride');
+    expect(card).toContain('to="/cleaner-city/offer"');
+    expect(card).toContain('sociva Ride');
   });
 
-  it('hub is Find-first with search, Offer CTA, and honest example cards (no fake booking)', () => {
-    const hub = read('src/pages/cleaner-city/CleanerCityPage.tsx');
-    expect(hub).toContain('Where are you headed?');
-    expect(hub).toContain('CleanerCityActiveMissionCard');
-    expect(hub).toContain('cleaner-city-find-link');
-    expect(hub).toContain('cleaner-city-offer-link');
-    expect(hub).toContain('cleaner-city-hub-welcome');
-    expect(hub).toContain('HOME_DEMO_RIDES');
-    expect(hub).toContain('Find live seats');
-    expect(hub).toContain('These cards are examples only');
-    expect(hub).toContain('Request seat');
-    expect(hub).toContain('useRequestRide');
-    expect(hub).toContain('requestSeat');
-    expect(hub).toContain('upsertHomeSeatRequest');
+  it('Home is greeting-first with Find/Offer CTAs and real nearby matches', () => {
+    const home = read('src/pages/cleaner-city/CleanerCityHomePage.tsx');
+    expect(home).toContain('cleaner-city-home-find-seat');
+    expect(home).toContain('cleaner-city-home-offer-seat');
+    expect(home).toContain('CleanerCityActiveMissionCard');
+    expect(home).toContain('cleaner-city-hub-welcome');
+    expect(home).toContain('cleaner-city-offer-link');
+    expect(home).toContain('cleaner-city-home-empty-live');
+    expect(home).toContain('Waiting on live neighbour offers');
+    expect(home).toContain('useRequestRide');
+    expect(home).toContain('requestSeat');
+    expect(home).not.toContain('HOME_DEMO_RIDES');
+    expect(home).not.toContain('buildHomeDemoGuests');
+    expect(read('src/pages/cleaner-city/CleanerCityPage.tsx')).toContain(
+      "export { default } from './CleanerCityHomePage'",
+    );
+    expect(read('src/components/cleaner-city/CleanerCityChrome.tsx')).toContain(
+      'cleaner-city-back-to-sociva',
+    );
+    expect(read('src/components/cleaner-city/CleanerCityChrome.tsx')).toContain('Back to Sociva');
   });
 
-  it('Offer publish hands off to Find hosting', () => {
+  it('Offer publish hands off to Home hosting inbox', () => {
     const offer = read('src/pages/cleaner-city/CleanerCityOfferPage.tsx');
-    expect(offer).toContain("navigate('/cleaner-city/find'");
+    expect(offer).toContain("navigate('/cleaner-city'");
     expect(offer).toContain('openHosting: true');
+    const home = read('src/pages/cleaner-city/CleanerCityHomePage.tsx');
+    expect(home).toContain('openHosting');
+    expect(home).toContain('cleaner-city-sticky-hosting');
   });
 
-  it('Find keeps sticky Accept for incoming / openHosting', () => {
+  it('Home sticky Accept for incoming passenger requests', () => {
+    const home = read('src/pages/cleaner-city/CleanerCityHomePage.tsx');
+    expect(home).toContain('cleaner-city-sticky-hosting');
+    expect(home).toContain('CleanerCityGuestMatchCard');
+    expect(home).toContain('rideRequestToGuestCard');
+    expect(home).toContain('useRespondRideRequest');
+  });
+
+  it('bottom nav is Home · Find · My rides · Profile with live Find route', () => {
+    const nav = read('src/components/cleaner-city/CleanerCityBottomNav.tsx');
+    expect(nav).toContain("label: 'Home'");
+    expect(nav).toContain("label: 'Find'");
+    expect(nav).toContain("label: 'My rides'");
+    expect(nav).toContain("label: 'Profile'");
+    expect(nav).not.toContain("label: 'Trips'");
+    expect(nav).not.toContain("label: 'Route'");
+    expect(nav).toContain('grid-cols-4');
+    expect(read('src/pages/cleaner-city/CleanerCityFindRedirect.tsx')).toContain(
+      "export { default } from './CleanerCityFindPage'",
+    );
+    expect(read('src/App.tsx')).toContain('CleanerCityFindRedirect');
     const find = read('src/pages/cleaner-city/CleanerCityFindPage.tsx');
-    expect(find).toContain('cleaner-city-sticky-hosting');
-    expect(find).toContain('cleaner-city-sticky-accept');
-    expect(find).toContain('hostingFocus');
-    expect(find).toContain('openHosting');
-    expect(find).toContain('Seat requests stay pinned at the top for Accept.');
+    expect(find).toContain('useRequestRide');
+    expect(find).toContain('Request seat');
+    expect(find).toContain('cleaner-city-offer-link');
   });
 });

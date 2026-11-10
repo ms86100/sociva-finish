@@ -1,63 +1,32 @@
 // @ts-nocheck
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Check } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
 import { CleanerCityChrome } from '@/components/cleaner-city/CleanerCityChrome';
 import { CleanerCityGate } from '@/components/cleaner-city/CleanerCityGate';
-import { CleanerCityWeeklyPlanCard } from '@/components/cleaner-city/CleanerCityWeeklyPlanCard';
-import { Button } from '@/components/ui/button';
+import { cc } from '@/components/cleaner-city/ui/ccTheme';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
-  useClearCommuteOverride,
-  useCommuteOverrides,
-  useCommuteTemplates,
   useCleanerCityProfile,
-  useEffectiveSchedule,
-  usePauseCommute,
+  useCommuteTemplates,
+  useMaybeEnableDefaultAutopilot,
+  useOfficeLocations,
   useSetAutopilot,
-  useSetCommuteOverride,
   useSetCommuteTemplate,
 } from '@/hooks/queries/useCleanerCity';
 import {
-  CLEANER_CITY_AUTOPILOT_MODES,
-  CLEANER_CITY_OVERRIDE_KINDS,
   CLEANER_CITY_WEEKDAYS,
   DEFAULT_COMMUTE_TIMEZONE,
 } from '@/lib/cleaner-city/constants';
 import { cn } from '@/lib/utils';
 
-function todayInTz(tz = DEFAULT_COMMUTE_TIMEZONE) {
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: tz,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(new Date());
-}
+const WORK_WEEK = [1, 2, 3, 4, 5] as const;
 
-function addDays(isoDate: string, days: number) {
-  const d = new Date(`${isoDate}T12:00:00`);
-  d.setDate(d.getDate() + days);
-  return d.toISOString().slice(0, 10);
-}
-
-function timeToInput(value: string | null | undefined) {
-  if (!value) return '';
+function timeToInput(value: string | null | undefined, fallback = '08:30') {
+  if (!value) return fallback;
   return String(value).slice(0, 5);
-}
-
-function formatClock(value: string) {
-  const [hRaw, m] = (value || '08:30').split(':');
-  let h = Number(hRaw);
-  if (!Number.isFinite(h)) return value || '--:--';
-  const suffix = h >= 12 ? 'PM' : 'AM';
-  h = h % 12;
-  if (h === 0) h = 12;
-  return `${h}:${(m || '00').slice(0, 2)} ${suffix}`;
 }
 
 type DayDraft = {
@@ -66,43 +35,46 @@ type DayDraft = {
   return_time: string;
 };
 
-const WORK_WEEK = [1, 2, 3, 4, 5] as const;
-
 const emptyDay = (): DayDraft => ({
   is_working: true,
   depart_time: '08:30',
-  return_time: '17:00',
+  return_time: '19:00',
 });
 
 export default function CleanerCitySchedulePage() {
   const { data: profile } = useCleanerCityProfile();
   const location = useLocation();
   const navigate = useNavigate();
-  const arrivalNotice = (location.state as { notice?: string } | null)?.notice || '';
-  const { data: templates = [] } = useCommuteTemplates();
-  const tz = profile?.timezone || DEFAULT_COMMUTE_TIMEZONE;
-  const today = todayInTz(tz);
-  const weekEnd = addDays(today, 13);
-  const { data: overrides = [] } = useCommuteOverrides(today, weekEnd);
+  const arrivalState = (location.state as { notice?: string; from?: string } | null) || {};
+  const arrivalNotice = arrivalState.notice || '';
+  const backTo =
+    typeof arrivalState.from === 'string' && arrivalState.from.startsWith('/cleaner-city')
+      ? arrivalState.from
+      : '/cleaner-city/route';
 
+  const { data: templates = [] } = useCommuteTemplates();
+  const { data: offices = [] } = useOfficeLocations();
   const setTemplate = useSetCommuteTemplate();
-  const setOverride = useSetCommuteOverride();
-  const clearOverride = useClearCommuteOverride();
-  const pauseCommute = usePauseCommute();
   const setAutopilot = useSetAutopilot();
+  const maybeEnableAutopilot = useMaybeEnableDefaultAutopilot();
 
   const [days, setDays] = useState<Record<number, DayDraft>>({});
-  const [selectedDay, setSelectedDay] = useState(1);
-  const [savingWeek, setSavingWeek] = useState(false);
-  const [weekSaved, setWeekSaved] = useState(false);
-  const [overrideDate, setOverrideDate] = useState(addDays(today, 1));
-  const [overrideKind, setOverrideKind] = useState('time_change');
-  const [overrideWorking, setOverrideWorking] = useState(true);
-  const [overrideDepart, setOverrideDepart] = useState('09:15');
-  const [overrideReturn, setOverrideReturn] = useState('17:00');
-  const [overrideNote, setOverrideNote] = useState('');
+  const [depart, setDepart] = useState('08:30');
+  const [returnTime, setReturnTime] = useState('19:00');
+  const [editingLeg, setEditingLeg] = useState<'to_office' | 'to_home' | null>(null);
+  const [saving, setSaving] = useState(false);
 
-  const { data: effectiveTomorrow } = useEffectiveSchedule(overrideDate);
+  const primaryOffice = offices.find((o) => o.is_primary) || offices[0] || null;
+  const homeLabel = useMemo(() => {
+    const withPin = templates.find(
+      (t) =>
+        typeof t.pickup_latitude === 'number' &&
+        Number.isFinite(t.pickup_latitude),
+    );
+    return withPin?.pickup_label || 'Home';
+  }, [templates]);
+  const officeLabel =
+    primaryOffice?.label || primaryOffice?.address_text || 'Office';
 
   useEffect(() => {
     const next: Record<number, DayDraft> = {};
@@ -111,64 +83,38 @@ export default function CleanerCitySchedulePage() {
       next[wd.value] = row
         ? {
             is_working: row.is_working,
-            depart_time: timeToInput(row.depart_time) || '08:30',
-            return_time: timeToInput(row.return_time) || '17:00',
+            depart_time: timeToInput(row.depart_time, '08:30'),
+            return_time: timeToInput(row.return_time, '19:00'),
           }
         : {
             ...emptyDay(),
-            // Weekends default off - office reality
             is_working: wd.value >= 1 && wd.value <= 5,
           };
     }
     setDays(next);
+
+    const firstWorking =
+      WORK_WEEK.map((d) => templates.find((t) => t.weekday === d)).find((r) => r?.is_working) ||
+      templates.find((t) => WORK_WEEK.includes(t.weekday as (typeof WORK_WEEK)[number]));
+    setDepart(timeToInput(firstWorking?.depart_time, '08:30'));
+    setReturnTime(timeToInput(firstWorking?.return_time, '19:00'));
   }, [templates]);
 
-  useEffect(() => {
-    if (overrideKind === 'wfh' || overrideKind === 'leave' || overrideKind === 'holiday') {
-      setOverrideWorking(false);
-    } else {
-      setOverrideWorking(true);
-    }
-  }, [overrideKind]);
-
-  const previewDates = useMemo(
-    () => Array.from({ length: 7 }, (_, i) => addDays(today, i)),
-    [today],
+  const workingDays = useMemo(
+    () => CLEANER_CITY_WEEKDAYS.filter((wd) => days[wd.value]?.is_working),
+    [days],
   );
-
-  const weekAlreadyConfigured = useMemo(
-    () =>
-      templates.some(
-        (t) =>
-          WORK_WEEK.includes(t.weekday as (typeof WORK_WEEK)[number]) &&
-          t.is_working &&
-          !!t.depart_time,
-      ),
-    [templates],
-  );
-
-  const selectedDraft = days[selectedDay] || emptyDay();
-
-  const pickupHint = useMemo(() => {
-    const withPin = templates.find(
-      (t) =>
-        typeof t.pickup_latitude === 'number' &&
-        typeof t.pickup_longitude === 'number' &&
-        Number.isFinite(t.pickup_latitude),
-    );
-    return withPin?.pickup_label || null;
-  }, [templates]);
 
   if (!profile) {
     return (
-      <CleanerCityChrome headerTitle="My commute schedule">
+      <CleanerCityChrome headerTitle="Leave times" backTo={backTo} backLabel="Back">
         <CleanerCityGate>
-          <div className="p-4 pb-24 space-y-3" data-testid="cleaner-city-schedule-missing-profile">
+          <div className={cn(cc.page, 'pb-8')} data-testid="cleaner-city-schedule-missing-profile">
             <p className="text-sm text-muted-foreground">
-              Create your commute profile first, then set the weekly schedule.
+              Finish setup first, then set your leave times.
             </p>
-            <Link to="/cleaner-city/setup" className="text-sm font-semibold text-primary">
-              Go to set up
+            <Link to="/cleaner-city/setup" className={cn('text-sm font-semibold', cc.forestText)}>
+              Go to setup
             </Link>
           </div>
         </CleanerCityGate>
@@ -185,68 +131,6 @@ export default function CleanerCitySchedulePage() {
     };
   };
 
-  const saveDayTemplate = async (weekday: number, draft: DayDraft) => {
-    await setTemplate.mutateAsync({
-      weekday,
-      is_working: draft.is_working,
-      depart_time: draft.depart_time || null,
-      return_time: draft.return_time || null,
-      ...pickupFieldsFor(weekday),
-    });
-  };
-
-  const applyUsualTimesToWorkWeek = async () => {
-    const source = days[selectedDay] || emptyDay();
-    if (!source.depart_time || !source.return_time) {
-      toast.error('Set depart and return times first');
-      return;
-    }
-    setSavingWeek(true);
-    try {
-      for (const day of WORK_WEEK) {
-        const draft = days[day] || emptyDay();
-        await saveDayTemplate(day, {
-          is_working: draft.is_working,
-          depart_time: source.depart_time,
-          return_time: source.return_time,
-        });
-      }
-      // Keep weekends as currently set (usually off)
-      for (const day of [6, 0] as const) {
-        const draft = days[day] || { ...emptyDay(), is_working: false };
-        await saveDayTemplate(day, draft);
-      }
-      setDays((prev) => {
-        const next = { ...prev };
-        for (const day of WORK_WEEK) {
-          next[day] = {
-            ...(next[day] || emptyDay()),
-            depart_time: source.depart_time,
-            return_time: source.return_time,
-          };
-        }
-        return next;
-      });
-      setWeekSaved(true);
-      toast.success('Work week times saved');
-    } catch (e: any) {
-      toast.error(e?.message || 'Could not save week');
-    } finally {
-      setSavingWeek(false);
-    }
-  };
-
-  const saveSelectedDayOnly = async () => {
-    try {
-      await saveDayTemplate(selectedDay, selectedDraft);
-      const dayName = CLEANER_CITY_WEEKDAYS.find((w) => w.value === selectedDay)?.full || 'Day';
-      toast.success(`${dayName} updated`);
-      setWeekSaved(true);
-    } catch (e: any) {
-      toast.error(e?.message || 'Could not save day');
-    }
-  };
-
   const toggleDayWorking = (weekday: number) => {
     setDays((prev) => {
       const draft = prev[weekday] || emptyDay();
@@ -255,40 +139,42 @@ export default function CleanerCitySchedulePage() {
         [weekday]: { ...draft, is_working: !draft.is_working },
       };
     });
-    setSelectedDay(weekday);
   };
 
-  const saveOverride = async () => {
-    try {
-      await setOverride.mutateAsync({
-        override_date: overrideDate,
-        is_working: overrideWorking,
-        depart_time: overrideDepart || null,
-        return_time: overrideReturn || null,
-        override_kind: overrideKind,
-        note: overrideNote || null,
-      });
-      toast.success('Saved for that date only - rest of week untouched');
-    } catch (e: any) {
-      toast.error(e?.message || 'Could not save override');
+  const saveCommute = async () => {
+    if (!depart || !returnTime) {
+      toast.error('Set both leave times');
+      return;
     }
-  };
-
-  const removeOverride = async (date: string) => {
-    try {
-      await clearOverride.mutateAsync(date);
-      toast.success('Override cleared - weekly plan applies again');
-    } catch (e: any) {
-      toast.error(e?.message || 'Could not clear override');
+    const onDays = CLEANER_CITY_WEEKDAYS.filter((wd) => days[wd.value]?.is_working);
+    if (onDays.length === 0) {
+      toast.error('Keep at least one commute day');
+      return;
     }
-  };
-
-  const togglePause = async () => {
+    setSaving(true);
     try {
-      await pauseCommute.mutateAsync(!profile.is_paused);
-      toast.success(profile.is_paused ? 'Commute resumed' : 'Commute paused');
+      for (const wd of CLEANER_CITY_WEEKDAYS) {
+        const draft = days[wd.value] || emptyDay();
+        const isWorking = !!draft.is_working;
+        await setTemplate.mutateAsync({
+          weekday: wd.value,
+          is_working: isWorking,
+          depart_time: isWorking ? depart : null,
+          return_time: isWorking ? returnTime : null,
+          ...pickupFieldsFor(wd.value),
+        });
+      }
+      toast.success('Commute saved');
+      try {
+        await maybeEnableAutopilot.mutateAsync();
+      } catch {
+        // Non-blocking: leave times are saved even if Auto-offer default fails.
+      }
+      navigate('/cleaner-city', { replace: true });
     } catch (e: any) {
-      toast.error(e?.message || 'Could not update pause');
+      toast.error(e?.message || 'Could not save commute');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -296,504 +182,181 @@ export default function CleanerCitySchedulePage() {
     try {
       await setAutopilot.mutateAsync({
         enabled,
-        confirm_mode: profile.autopilot_confirm_mode || 'confirm',
+        confirm_mode: enabled
+          ? profile.autopilot_confirm_mode || 'auto'
+          : profile.autopilot_confirm_mode || 'auto',
       });
-      toast.success(enabled ? 'Autopilot enabled' : 'Autopilot disabled');
+      toast.success(enabled ? 'Auto-offer turned on' : 'Auto-offer turned off');
     } catch (e: any) {
-      toast.error(e?.message || 'Could not update autopilot');
+      toast.error(e?.message || 'Could not update auto-offer');
     }
   };
-
-  const setAutopilotMode = async (mode: 'confirm' | 'auto') => {
-    try {
-      await setAutopilot.mutateAsync({
-        enabled: profile.autopilot_enabled ?? false,
-        confirm_mode: mode,
-      });
-      toast.success('Autopilot mode saved');
-    } catch (e: any) {
-      toast.error(e?.message || 'Could not update autopilot mode');
-    }
-  };
-
-  const host = profile?.role === 'host' || profile?.role === 'both';
 
   return (
-    <CleanerCityChrome headerTitle="My commute schedule">
+    <CleanerCityChrome headerTitle="Leave times" backTo={backTo} backLabel="Back">
       <CleanerCityGate>
-        <div className="mx-auto flex w-full max-w-lg flex-col gap-6 px-4 pb-28 pt-4" data-testid="cleaner-city-schedule">
+        <div
+          className={cn(cc.page, 'pb-8')}
+          data-testid="cleaner-city-schedule"
+        >
+          <p className="text-[14px] text-muted-foreground">
+            Set when you usually leave. Auto-offer uses these times so neighbours can find you on your usual road.
+          </p>
+
           {arrivalNotice ? (
             <div
-              className="rounded-2xl border border-primary/30 bg-primary/5 px-4 py-3 text-sm leading-relaxed"
+              className="rounded-2xl border border-[#0F3D2E]/20 bg-[#E8F2EC] px-4 py-3 text-sm leading-relaxed text-[#0F3D2E]"
               data-testid="cleaner-city-schedule-notice"
             >
               {arrivalNotice}
             </div>
           ) : null}
 
-          {host && (weekSaved || weekAlreadyConfigured) ? (
-            <div
-              className="rounded-2xl border border-primary/40 bg-primary/10 p-4 space-y-3"
-              data-testid="cleaner-city-schedule-republish"
-            >
+          <section className={cn(cc.card, 'p-4')} data-testid="schedule-day-chips">
+            <p className={cc.sectionLabel}>Weekdays</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {CLEANER_CITY_WEEKDAYS.map((wd) => {
+                const draft = days[wd.value] || emptyDay();
+                const on = draft.is_working;
+                return (
+                  <button
+                    key={wd.value}
+                    type="button"
+                    onClick={() => toggleDayWorking(wd.value)}
+                    className={cn(
+                      'flex h-10 w-10 items-center justify-center rounded-full border text-[12px] font-semibold transition',
+                      on
+                        ? 'border-[#0F3D2E] bg-[#0F3D2E] text-white'
+                        : 'border-black/10 bg-white text-muted-foreground',
+                    )}
+                    data-testid={`schedule-weekday-${wd.value}`}
+                    aria-pressed={on}
+                  >
+                    {wd.label.slice(0, 1)}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="mt-2 text-[12px] text-muted-foreground">
+              {workingDays.length > 0
+                ? `Commuting ${workingDays.map((d) => d.label).join(', ')}`
+                : 'Tap days you commute'}
+            </p>
+          </section>
+
+          <section className={cn(cc.card, 'p-4')}>
+            <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="text-sm font-semibold">Offer seats with this schedule</p>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Your leave times are saved. Publish seats for neighbours in one step.
+                <p className="text-[15px] font-semibold text-foreground">To office</p>
+                <p className="mt-0.5 text-[12px] text-muted-foreground">Leave</p>
+                <p className="mt-1 text-[28px] font-bold tracking-tight text-foreground">
+                  {depart}
                 </p>
               </div>
-              <Button
-                className="w-full h-11 font-semibold"
+              <button
+                type="button"
+                className={cn('inline-flex items-center gap-0.5 text-[13px] font-semibold', cc.forestText)}
                 onClick={() =>
-                  navigate('/cleaner-city/offer', {
-                    state: {
-                      notice:
-                        'Schedule is ready. Pick today or tomorrow, seats, and publish - we will open hosting after.',
-                    },
-                  })
+                  setEditingLeg((prev) => (prev === 'to_office' ? null : 'to_office'))
                 }
+                data-testid="schedule-edit-to-office"
               >
-                Publish seats now
-              </Button>
+                Edit
+                <ChevronRight className="h-4 w-4" />
+              </button>
             </div>
-          ) : null}
-
-          <div className="flex items-center justify-between gap-3 rounded-2xl border border-border bg-card px-4 py-3">
-            {[
-              { label: 'Times', done: weekSaved || weekAlreadyConfigured },
-              { label: 'One date', done: overrides.length > 0 },
-              { label: 'Autopilot', done: !!profile.autopilot_enabled },
-            ].map((step, i, arr) => (
-              <div key={step.label} className="flex min-w-0 flex-1 items-center gap-2">
-                <span
-                  className={cn(
-                    'flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-bold',
-                    step.done ? 'bg-emerald-500/20 text-emerald-500' : 'bg-muted text-muted-foreground',
-                  )}
-                >
-                  {step.done ? <Check size={13} /> : i + 1}
-                </span>
-                <span
-                  className={cn(
-                    'truncate text-xs font-semibold',
-                    step.done ? 'text-foreground' : 'text-muted-foreground',
-                  )}
-                >
-                  {step.label}
-                </span>
-                {i < arr.length - 1 ? (
-                  <span className="ml-auto h-px w-3 shrink-0 bg-border sm:w-5" aria-hidden />
-                ) : null}
-              </div>
-            ))}
-          </div>
-
-          {pickupHint ? (
-            <p className="text-[11px] text-muted-foreground px-1">
-              Home gate on{' '}
-              <Link to="/cleaner-city/route" className="font-semibold text-primary">
-                Office & pickup
-              </Link>
-              : {pickupHint}
-            </p>
-          ) : null}
-
-          <Tabs defaultValue="week" className="w-full">
-            <TabsList className="grid w-full grid-cols-3 h-11">
-              <TabsTrigger value="week" data-testid="schedule-tab-week">
-                My week
-              </TabsTrigger>
-              <TabsTrigger value="exceptions" data-testid="schedule-tab-exceptions">
-                One date
-              </TabsTrigger>
-              <TabsTrigger value="settings" data-testid="schedule-tab-settings">
-                Settings
-              </TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="week" className="mt-6 focus-visible:outline-none">
-              <div className="flex flex-col gap-6">
-              <CleanerCityWeeklyPlanCard
-                onSaved={() => {
-                  setWeekSaved(true);
-                }}
+            {editingLeg === 'to_office' ? (
+              <Input
+                type="time"
+                value={depart}
+                onChange={(e) => setDepart(e.target.value)}
+                className="mt-3 h-11"
+                data-testid="schedule-depart-input"
               />
-              <section className="rounded-2xl border border-border bg-card p-5 space-y-5">
-                <div>
-                  <h2 className="text-sm font-semibold">Fine-tune one weekday</h2>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    Optional. Prefer the card above for the whole week. Use this only if one day needs different times.
-                  </p>
-                </div>
+            ) : null}
+            <p className="mt-2 text-[12px] text-muted-foreground">
+              {homeLabel} to {officeLabel}
+            </p>
+          </section>
 
-                <div className="flex flex-wrap gap-2" data-testid="schedule-day-chips">
-                  {CLEANER_CITY_WEEKDAYS.map((wd) => {
-                    const draft = days[wd.value] || emptyDay();
-                    const selected = selectedDay === wd.value;
-                    return (
-                      <button
-                        key={wd.value}
-                        type="button"
-                        onClick={() => setSelectedDay(wd.value)}
-                        onDoubleClick={() => toggleDayWorking(wd.value)}
-                        className={cn(
-                          'min-w-[2.6rem] rounded-full border px-2.5 py-1.5 text-[11px] font-semibold',
-                          selected && 'border-primary bg-primary/10 text-primary',
-                          !selected && draft.is_working && 'border-emerald-500/40 text-foreground',
-                          !selected && !draft.is_working && 'border-border text-muted-foreground opacity-70',
-                        )}
-                        data-testid={`schedule-weekday-${wd.value}`}
-                      >
-                        <span className="inline-flex items-center gap-1">
-                          {draft.is_working && <Check size={10} className="text-emerald-500" />}
-                          {wd.label}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-
-                <div className="rounded-xl border border-border/80 bg-muted/20 p-3 space-y-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-sm font-semibold">
-                      {CLEANER_CITY_WEEKDAYS.find((w) => w.value === selectedDay)?.full}
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => toggleDayWorking(selectedDay)}
-                      className={cn(
-                        'rounded-full border px-3 py-1 text-[11px] font-semibold',
-                        selectedDraft.is_working
-                          ? 'border-emerald-500/50 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
-                          : 'border-border text-muted-foreground',
-                      )}
-                    >
-                      {selectedDraft.is_working ? 'Commuting' : 'Off / WFH'}
-                    </button>
-                  </div>
-
-                  {selectedDraft.is_working ? (
-                    <div className="grid grid-cols-2 gap-2">
-                      <div className="space-y-1">
-                        <Label className="text-[11px]">Leave home</Label>
-                        <Input
-                          type="time"
-                          value={selectedDraft.depart_time}
-                          onChange={(e) =>
-                            setDays((prev) => ({
-                              ...prev,
-                              [selectedDay]: {
-                                ...selectedDraft,
-                                depart_time: e.target.value,
-                              },
-                            }))
-                          }
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-[11px]">Leave office</Label>
-                        <Input
-                          type="time"
-                          value={selectedDraft.return_time}
-                          onChange={(e) =>
-                            setDays((prev) => ({
-                              ...prev,
-                              [selectedDay]: {
-                                ...selectedDraft,
-                                return_time: e.target.value,
-                              },
-                            }))
-                          }
-                        />
-                      </div>
-                    </div>
-                  ) : (
-                    <p className="text-xs text-muted-foreground">
-                      No seats or matches for this weekday until you turn commuting back on.
-                    </p>
-                  )}
-                </div>
-
-                <div className="flex flex-col gap-3">
-                  <Button
-                    className="h-12 w-full font-semibold"
-                    onClick={applyUsualTimesToWorkWeek}
-                    disabled={setTemplate.isPending || savingWeek}
-                    data-testid="schedule-save-work-week"
-                  >
-                    {savingWeek
-                      ? 'Saving…'
-                      : `Save ${formatClock(selectedDraft.depart_time)} / ${formatClock(selectedDraft.return_time)} for Mon-Fri`}
-                  </Button>
-                  <button
-                    type="button"
-                    className="py-1 text-center text-sm font-semibold text-muted-foreground"
-                    onClick={saveSelectedDayOnly}
-                    disabled={setTemplate.isPending || savingWeek}
-                    data-testid="schedule-save-day-only"
-                  >
-                    Save this day only
-                  </button>
-                </div>
-              </section>
-
-              {weekSaved ? (
-                <div className="flex flex-col gap-2">
-                  {host ? (
-                    <Button
-                      className="h-11 font-semibold"
-                      data-testid="cleaner-city-schedule-republish-after-save"
-                      onClick={() =>
-                        navigate('/cleaner-city/offer', {
-                          state: {
-                            notice:
-                              'Week times saved. Publish seats for today or tomorrow when you are ready.',
-                          },
-                        })
-                      }
-                    >
-                      Publish seats now
-                    </Button>
-                  ) : null}
-                  <button
-                    type="button"
-                    className="py-1 text-center text-sm font-semibold text-primary"
-                    data-testid="cleaner-city-schedule-next"
-                    onClick={() =>
-                      navigate(host ? '/cleaner-city/vehicle' : '/cleaner-city/find', {
-                        state: {
-                          notice: host
-                            ? 'Add the car or bike you will use, then offer seats.'
-                            : 'Search for a seat near your leave time.',
-                        },
-                      })
-                    }
-                  >
-                    {host ? 'Or add vehicle first' : 'Next - find a ride'}
-                  </button>
-                </div>
-              ) : null}
+          <section className={cn(cc.card, 'p-4')}>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-[15px] font-semibold text-foreground">To home</p>
+                <p className="mt-0.5 text-[12px] text-muted-foreground">Leave</p>
+                <p className="mt-1 text-[28px] font-bold tracking-tight text-foreground">
+                  {returnTime}
+                </p>
               </div>
-            </TabsContent>
-
-            <TabsContent value="exceptions" className="mt-6 focus-visible:outline-none">
-              <div className="flex flex-col gap-6">
-              <section className="rounded-2xl border border-border bg-card p-5 space-y-4">
-                <div>
-                  <h2 className="text-sm font-semibold">One date only</h2>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    Tomorrow is WFH, or you leave late once - does not rewrite your week plan.
-                  </p>
-                </div>
-
-                <div className="flex flex-wrap gap-1.5">
-                  {previewDates.map((d) => (
-                    <button
-                      key={d}
-                      type="button"
-                      className={cn(
-                        'rounded-full border px-2.5 py-1 text-[11px] font-semibold',
-                        d === overrideDate ? 'border-primary bg-primary/10 text-primary' : 'border-border',
-                      )}
-                      onClick={() => setOverrideDate(d)}
-                    >
-                      {d.slice(5)}
-                    </button>
-                  ))}
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Date</Label>
-                  <Input
-                    type="date"
-                    value={overrideDate}
-                    onChange={(e) => setOverrideDate(e.target.value)}
-                  />
-                </div>
-
-                <div className="flex flex-wrap gap-2">
-                  {CLEANER_CITY_OVERRIDE_KINDS.map((kind) => (
-                    <button
-                      key={kind.value}
-                      type="button"
-                      onClick={() => setOverrideKind(kind.value)}
-                      className={cn(
-                        'rounded-full border px-3 py-1 text-[11px] font-semibold',
-                        overrideKind === kind.value
-                          ? 'border-primary bg-primary/10 text-primary'
-                          : 'border-border',
-                      )}
-                    >
-                      {kind.label}
-                    </button>
-                  ))}
-                </div>
-
-                {(overrideKind === 'time_change' || overrideKind === 'custom') && (
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="space-y-1">
-                      <Label className="text-[11px]">Leave home</Label>
-                      <Input
-                        type="time"
-                        value={overrideDepart}
-                        onChange={(e) => setOverrideDepart(e.target.value)}
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-[11px]">Leave office</Label>
-                      <Input
-                        type="time"
-                        value={overrideReturn}
-                        onChange={(e) => setOverrideReturn(e.target.value)}
-                      />
-                    </div>
-                  </div>
-                )}
-
-                <Input
-                  placeholder="Note (optional)"
-                  value={overrideNote}
-                  onChange={(e) => setOverrideNote(e.target.value)}
-                />
-
-                <Button onClick={saveOverride} disabled={setOverride.isPending} className="w-full">
-                  Save for {overrideDate} only
-                </Button>
-
-                {effectiveTomorrow && (
-                  <div
-                    className="rounded-xl bg-muted/60 p-3 text-xs space-y-1"
-                    data-testid="effective-schedule-preview"
-                  >
-                    <p className="font-semibold">Effective for {overrideDate}</p>
-                    <p>
-                      {effectiveTomorrow.is_paused
-                        ? 'Paused'
-                        : effectiveTomorrow.is_working
-                          ? `Leave ${timeToInput(effectiveTomorrow.depart_time) || '-'} / return ${timeToInput(effectiveTomorrow.return_time) || '-'}`
-                          : 'Not commuting'}
-                    </p>
-                  </div>
-                )}
-              </section>
-
-              <section className="rounded-2xl border border-border bg-card p-5 space-y-3">
-                <h2 className="text-sm font-semibold">Upcoming exceptions</h2>
-                {overrides.length === 0 && (
-                  <p className="text-xs text-muted-foreground">None in the next two weeks.</p>
-                )}
-                {overrides.map((row) => (
-                  <div
-                    key={row.id}
-                    className="flex items-center justify-between gap-2 text-sm border-b border-border py-2 last:border-0"
-                  >
-                    <div>
-                      <p className="font-medium">{row.override_date}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {row.override_kind}
-                        {row.is_working
-                          ? ` - ${timeToInput(row.depart_time)}`
-                          : ' - not commuting'}
-                      </p>
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => removeOverride(row.override_date)}
-                      disabled={clearOverride.isPending}
-                    >
-                      Clear
-                    </Button>
-                  </div>
-                ))}
-              </section>
-              </div>
-            </TabsContent>
-
-            <TabsContent value="settings" className="mt-6 focus-visible:outline-none">
-              <div className="flex flex-col gap-6">
-              <section className="rounded-2xl border border-border bg-card p-5 space-y-3">
-                <div className="flex items-center justify-between gap-2">
-                  <div>
-                    <h2 className="text-sm font-semibold">Pause matching</h2>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      {profile.is_paused
-                        ? 'Paused - no new matches until you resume.'
-                        : 'Active - matching can use your week plan.'}
-                    </p>
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={togglePause}
-                    disabled={pauseCommute.isPending}
-                  >
-                    {profile.is_paused ? 'Resume' : 'Pause'}
-                  </Button>
-                </div>
-              </section>
-
-              <section
-                className="rounded-2xl border border-border bg-card p-5 space-y-3"
-                data-testid="cleaner-city-autopilot-section"
+              <button
+                type="button"
+                className={cn('inline-flex items-center gap-0.5 text-[13px] font-semibold', cc.forestText)}
+                onClick={() =>
+                  setEditingLeg((prev) => (prev === 'to_home' ? null : 'to_home'))
+                }
+                data-testid="schedule-edit-to-home"
               >
-                <div className="flex items-center justify-between gap-2">
-                  <div>
-                    <h2 className="text-sm font-semibold">Autopilot</h2>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      Drafts tomorrow seats from your week, vehicle, and pins.
-                    </p>
-                  </div>
-                  <Switch
-                    checked={!!profile.autopilot_enabled}
-                    onCheckedChange={toggleAutopilot}
-                    disabled={setAutopilot.isPending}
-                    data-testid="cleaner-city-autopilot-toggle"
-                  />
-                </div>
-                {profile.autopilot_enabled && (
-                  <div className="grid grid-cols-2 gap-2">
-                    {CLEANER_CITY_AUTOPILOT_MODES.map((mode) => (
-                      <button
-                        key={mode.value}
-                        type="button"
-                        onClick={() => setAutopilotMode(mode.value)}
-                        disabled={setAutopilot.isPending}
-                        className={cn(
-                          'rounded-xl border px-3 py-2 text-left',
-                          profile.autopilot_confirm_mode === mode.value
-                            ? 'border-primary bg-primary/10'
-                            : 'border-border',
-                        )}
-                        data-testid={`cleaner-city-autopilot-mode-${mode.value}`}
-                      >
-                        <p className="text-xs font-semibold text-foreground">{mode.label}</p>
-                        <p className="text-[11px] text-muted-foreground mt-0.5">{mode.hint}</p>
-                      </button>
-                    ))}
-                  </div>
-                )}
-                {!profile.autopilot_enabled && (
-                  <p className="text-[11px] text-muted-foreground">
-                    Needs an active vehicle plus office and home-gate pins.
-                  </p>
-                )}
-              </section>
+                Edit
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+            {editingLeg === 'to_home' ? (
+              <Input
+                type="time"
+                value={returnTime}
+                onChange={(e) => setReturnTime(e.target.value)}
+                className="mt-3 h-11"
+                data-testid="schedule-return-input"
+              />
+            ) : null}
+            <p className="mt-2 text-[12px] text-muted-foreground">
+              Office to Home
+            </p>
+          </section>
 
-              <div className="flex flex-col gap-3 text-center pt-1">
-                <Link to="/cleaner-city/route" className="text-sm font-semibold text-primary">
-                  Edit office & home gate
-                </Link>
-                <Link to="/cleaner-city/setup" className="text-sm text-muted-foreground">
-                  Edit profile and work email
-                </Link>
-                <Link to="/cleaner-city" className="text-sm font-semibold text-primary">
-                  Back to A Cleaner City
-                </Link>
-              </div>
-              </div>
-            </TabsContent>
-          </Tabs>
+          <section
+            className={cn(cc.card, 'flex items-center justify-between gap-3 p-4')}
+            data-testid="cleaner-city-autopilot-section"
+          >
+            <div className="min-w-0">
+              <p className="text-[14px] font-semibold text-foreground">
+                Auto-offer seats on weekdays
+              </p>
+              <p className="mt-0.5 text-[12px] text-muted-foreground">
+                {profile.autopilot_enabled
+                  ? 'Neighbours can find you on your usual road. Pause commute or mark a day off to stop.'
+                  : 'Turn on so neighbours can find you on commute days without publishing each day.'}
+              </p>
+            </div>
+            <Switch
+              checked={!!profile.autopilot_enabled}
+              onCheckedChange={toggleAutopilot}
+              disabled={setAutopilot.isPending}
+              data-testid="cleaner-city-autopilot-toggle"
+            />
+          </section>
+
+          <button
+            type="button"
+            className={cn(cc.primaryBtn, 'w-full')}
+            onClick={saveCommute}
+            disabled={saving || setTemplate.isPending}
+            data-testid="schedule-save-work-week"
+          >
+            {saving || setTemplate.isPending ? 'Saving...' : 'Save commute'}
+          </button>
+
+          <div className="flex flex-col items-center gap-2 text-center">
+            <Link
+              to="/cleaner-city/route"
+              className={cn('text-[13px] font-semibold', cc.forestText)}
+            >
+              Edit home and office
+            </Link>
+            <p className="text-[11px] text-muted-foreground">
+              Timezone {profile.timezone || DEFAULT_COMMUTE_TIMEZONE}
+            </p>
+          </div>
         </div>
       </CleanerCityGate>
     </CleanerCityChrome>

@@ -35,7 +35,7 @@ function dayLabel(date: string, today: string) {
 }
 
 function directionLabel(direction?: string | null) {
-  if (direction === 'to_home') return 'Homebound';
+  if (direction === 'to_home') return 'To home';
   if (direction === 'to_office') return 'To office';
   return String(direction || 'Commute').replace('_', ' ');
 }
@@ -46,8 +46,27 @@ function hostGuestStatus(status?: string | null) {
 }
 
 function pinLine(kind: 'pickup' | 'drop', lat?: number | null, lng?: number | null) {
-  if (lat == null || lng == null) return `${kind === 'pickup' ? 'Pickup' : 'Drop'} pin not set`;
-  return `${kind === 'pickup' ? 'Pickup' : 'Drop'} pin · ${Number(lat).toFixed(4)}, ${Number(lng).toFixed(4)}`;
+  if (lat == null || lng == null) return `${kind === 'pickup' ? 'Pickup' : 'Drop'} point not set`;
+  return `${kind === 'pickup' ? 'Pickup' : 'Drop'} point set`;
+}
+
+function statusTone(status?: string | null) {
+  const s = String(status || '');
+  if (s === 'published') return 'text-emerald-700 dark:text-emerald-300';
+  if (s === 'full') return 'text-amber-700 dark:text-amber-300';
+  if (s === 'cancelled') return 'text-muted-foreground';
+  if (s === 'completed') return 'text-muted-foreground';
+  return 'text-primary';
+}
+
+function statusHeadline(status?: string | null) {
+  const s = String(status || 'draft');
+  if (s === 'published') return 'Seats open';
+  if (s === 'full') return 'All seats taken';
+  if (s === 'draft') return 'Not published yet';
+  if (s === 'cancelled') return 'Cancelled';
+  if (s === 'completed') return 'Finished';
+  return s.replace(/_/g, ' ');
 }
 
 export function HostOfferRideCard({
@@ -59,18 +78,41 @@ export function HostOfferRideCard({
   onCancel,
   cancelPending,
 }: Props) {
+  const live = p.status === 'published' || p.status === 'full';
+  const cancelled = p.status === 'cancelled';
   const vehicleLabel = vehicle
     ? [vehicle.color, vehicle.make, vehicle.model].filter(Boolean).join(' ') ||
       vehicle.vehicle_type ||
       'Vehicle'
     : null;
-  const seatsTaken = Math.max(0, Number(p.seats_total || 0) - Number(p.seats_available || 0));
+  const seatsOpen = Number(p.seats_available || 0);
+  const seatsTotal = Number(p.seats_total || 0);
   const pending = guests.filter((g) => g.status === 'requested');
   const onboard = guests.filter((g) =>
     ['confirmed', 'pickup_pending', 'started'].includes(g.status),
   );
   const when = `${dayLabel(p.travel_date, todayIso)} · leave ${String(p.depart_time || '').slice(0, 5) || '-'}`;
-  const where = `${p.origin_label || 'Pickup'} → ${p.destination_label || 'Office'}`;
+  const where = `${p.origin_label || 'Home'} → ${p.destination_label || 'Office'}`;
+
+  if (cancelled) {
+    return (
+      <article
+        className="rounded-2xl border border-border/70 bg-muted/15 px-4 py-3"
+        data-testid="cleaner-city-host-offer-card"
+        data-status="cancelled"
+      >
+        <p className="text-[11px] font-extrabold uppercase tracking-[0.14em] text-muted-foreground">
+          Cancelled
+        </p>
+        <p className="mt-1 text-sm font-semibold text-foreground/80">
+          {when} · {directionLabel(p.direction)}
+        </p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Neighbours can no longer request this leave time.
+        </p>
+      </article>
+    );
+  }
 
   return (
     <article
@@ -80,11 +122,17 @@ export function HostOfferRideCard({
       )}
       data-testid="cleaner-city-host-offer-card"
       data-focused={focused ? 'true' : undefined}
+      data-status={p.status}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-[11px] font-extrabold uppercase tracking-[0.14em] text-primary">
-            Your offer · {String(p.status || 'draft')}
+          <p
+            className={cn(
+              'text-[11px] font-extrabold uppercase tracking-[0.14em]',
+              statusTone(p.status),
+            )}
+          >
+            {statusHeadline(p.status)}
           </p>
           <p className="mt-1 text-base font-extrabold text-foreground">{when}</p>
           <p className="mt-0.5 text-sm font-semibold text-foreground/90">
@@ -99,47 +147,50 @@ export function HostOfferRideCard({
             disabled={cancelPending}
             onClick={onCancel}
           >
-            Cancel
+            Cancel offer
           </Button>
         ) : null}
       </div>
 
       <dl className="grid gap-2 rounded-xl border border-border/80 bg-muted/20 px-3.5 py-3 text-xs">
         <div className="flex gap-2">
-          <dt className="w-14 shrink-0 font-semibold text-foreground/80">When</dt>
-          <dd className="min-w-0 text-muted-foreground">{when}</dd>
-        </div>
-        <div className="flex gap-2">
-          <dt className="w-14 shrink-0 font-semibold text-foreground/80">Where</dt>
+          <dt className="w-14 shrink-0 font-semibold text-foreground/80">Route</dt>
           <dd className="min-w-0 break-words text-muted-foreground">{where}</dd>
         </div>
         <div className="flex gap-2">
-          <dt className="w-14 shrink-0 font-semibold text-foreground/80">What</dt>
+          <dt className="w-14 shrink-0 font-semibold text-foreground/80">Seats</dt>
           <dd className="min-w-0 text-muted-foreground">
-            {seatsTaken}/{p.seats_total} seats taken · {p.seats_available} open
+            {live
+              ? `${seatsOpen} of ${seatsTotal} still open`
+              : `${seatsOpen} of ${seatsTotal} open`}
             {vehicleLabel ? ` · ${vehicleLabel}` : ''}
             {vehicle?.registration_number ? ` · ${vehicle.registration_number}` : ''}
           </dd>
         </div>
         <div className="flex gap-2">
-          <dt className="w-14 shrink-0 font-semibold text-foreground/80">Who</dt>
+          <dt className="w-14 shrink-0 font-semibold text-foreground/80">Guests</dt>
           <dd className="min-w-0 text-muted-foreground">
             {guests.length === 0
-              ? 'No riders yet - neighbours request from Find'
-              : `${onboard.length} riding · ${pending.length} waiting for Accept`}
+              ? 'Waiting for neighbours to request a seat'
+              : pending.length > 0
+                ? `${pending.length} request${pending.length === 1 ? '' : 's'} need Accept`
+                : `${onboard.length} guest${onboard.length === 1 ? '' : 's'} booked`}
           </dd>
         </div>
       </dl>
 
       {guests.length === 0 ? (
         <p className="text-xs leading-relaxed text-muted-foreground">
-          Empty seats are live. When someone asks, Accept appears on Find. After you accept, their
-          name, flat, and pins show here.
+          {p.status === 'published'
+            ? 'Your empty seats are visible on Find. Tap Find Guests on Home to see neighbours on this road.'
+            : p.status === 'full'
+              ? 'All seats on this leave time are taken.'
+              : 'Publish this leave time so neighbours can request a seat.'}
         </p>
       ) : (
         <div className="space-y-2" data-testid="cleaner-city-host-offer-riders">
           <p className="text-[11px] font-extrabold uppercase tracking-[0.12em] text-muted-foreground">
-            Riders on this offer
+            Guests
           </p>
           {guests.map((g) => {
             const rank = guestDropRankFromOrder(p.drop_order_json, g.id);
@@ -186,10 +237,10 @@ export function HostOfferRideCard({
                   </li>
                   {g.status === 'requested' ? (
                     <li className="font-semibold text-amber-700 dark:text-amber-300">
-                      Action: open ride and Accept, or open Find hosting
+                      Tap to Accept or decline
                     </li>
                   ) : (
-                    <li>Tap to message, OTP, map, and drop run</li>
+                    <li>Tap for messages, OTP, and the trip map</li>
                   )}
                 </ul>
               </Link>
@@ -201,34 +252,42 @@ export function HostOfferRideCard({
       {pending.length > 0 ? (
         <Button asChild className="h-11 w-full font-semibold">
           <Link
-            to="/cleaner-city/find"
+            to="/cleaner-city"
             state={{
               openHosting: true,
               notice: `${pending.length} seat request${pending.length === 1 ? '' : 's'} waiting - Accept or decline.`,
             }}
           >
-            Accept {pending.length} request{pending.length === 1 ? '' : 's'} on Find
+            Review {pending.length} seat request{pending.length === 1 ? '' : 's'}
           </Link>
         </Button>
       ) : onboard.length > 0 ? (
         <Button asChild variant="outline" className="h-11 w-full font-semibold">
           <Link to={`/cleaner-city/ride/${onboard[0].id}`}>
-            Open mission with {firstName(onboard[0].guest_name) || 'guest'}
+            Open trip with {firstName(onboard[0].guest_name) || 'guest'}
           </Link>
         </Button>
-      ) : (
+      ) : p.status === 'published' ? (
         <Button asChild variant="outline" className="h-11 w-full font-semibold">
           <Link
-            to="/cleaner-city/find"
+            to="/cleaner-city"
             state={{
-              openHosting: true,
-              notice: 'Hosting is live. Seat requests show here when neighbours ask.',
+              openFindGuests: true,
+              travelDate: p.travel_date,
+              direction: p.direction,
+              departTime: p.depart_time,
+              notice:
+                'Browse guests on this road. Accept live requests, or Offer Ride to neighbours nearby.',
             }}
           >
-            Watch for seat requests
+            Find Guests on Home
           </Link>
         </Button>
-      )}
+      ) : p.status === 'full' ? (
+        <Button asChild variant="outline" className="h-11 w-full font-semibold">
+          <Link to="/cleaner-city">Back to Home</Link>
+        </Button>
+      ) : null}
     </article>
   );
 }

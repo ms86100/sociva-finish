@@ -8,17 +8,17 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
-  useApprovedCompanyDomains,
+  preferredRouteFromProfile,
   useCheckWorkEmailDomain,
   useCleanerCityProfile,
   useCleanerCityWorkVerification,
-  useRequestCompanyDomain,
+  useCommuteTemplates,
+  useOfficeLocations,
   useUpsertCommuteProfile,
   useWorkEmailOtp,
 } from '@/hooks/queries/useCleanerCity';
 import { CleanerCityRouteSetupPanel } from '@/components/cleaner-city/CleanerCityRouteSetupPanel';
 import {
-  CLEANER_CITY_ROLES,
   CLEANER_CITY_TRANSPORT,
   WORK_EMAIL_BADGE,
 } from '@/lib/cleaner-city/constants';
@@ -28,8 +28,38 @@ import {
   type CleanerCityIntent,
 } from '@/lib/cleaner-city/intent';
 import { cn } from '@/lib/utils';
+import { CheckCircle2 } from 'lucide-react';
 
 type Step = 1 | 2 | 3 | 4;
+
+/** Host choosers persist role=both so Find and Offer both work. */
+function persistedRoleForIntent(intent: CleanerCityIntent): 'guest' | 'both' {
+  return intent === 'guest' ? 'guest' : 'both';
+}
+
+const PATH_OPTIONS = [
+  {
+    intent: 'guest' as const,
+    role: 'guest' as const,
+    transport: 'looking',
+    title: 'I need a seat',
+    hint: 'Catch a ride with neighbours',
+  },
+  {
+    intent: 'host' as const,
+    role: 'both' as const,
+    transport: 'car',
+    title: 'I can offer seats',
+    hint: 'Share empty seats on your drive',
+  },
+  {
+    intent: 'both' as const,
+    role: 'both' as const,
+    transport: 'car',
+    title: 'Both',
+    hint: 'Find seats and offer them',
+  },
+] as const;
 
 export default function CleanerCitySetupPage() {
   const navigate = useNavigate();
@@ -37,35 +67,34 @@ export default function CleanerCitySetupPage() {
   const arrivalState = (location.state as {
     notice?: string;
     intent?: CleanerCityIntent;
+    step?: Step;
   } | null) || {};
-  const arrivalNotice = arrivalState.notice || '';
 
   const { data: profile } = useCleanerCityProfile();
   const { data: verification } = useCleanerCityWorkVerification();
-  const { data: approvedDomains = [] } = useApprovedCompanyDomains();
+  const { data: offices = [] } = useOfficeLocations();
+  const { data: templates = [] } = useCommuteTemplates();
   const upsert = useUpsertCommuteProfile();
-  const requestDomain = useRequestCompanyDomain();
   const { send, verify } = useWorkEmailOtp();
 
   const [intent, setIntent] = useState<CleanerCityIntent>(() => {
-    return arrivalState.intent || getCleanerCityIntent() || 'both';
+    return arrivalState.intent || getCleanerCityIntent() || 'guest';
   });
   const isGuestPath = intent === 'guest';
   const isHostPath = intent === 'host';
 
   const [step, setStep] = useState<Step>(1);
-  const [role, setRole] = useState(isGuestPath ? 'guest' : isHostPath ? 'host' : 'both');
+  const [role, setRole] = useState<'guest' | 'both'>(() =>
+    persistedRoleForIntent(intent),
+  );
   const [transport, setTransport] = useState(
-    isGuestPath ? 'looking' : isHostPath ? 'car' : 'looking',
+    isGuestPath ? 'looking' : 'car',
   );
   const [companyName, setCompanyName] = useState('');
   const [email, setEmail] = useState('');
   const [otp, setOtp] = useState('');
   const [otpSent, setOtpSent] = useState(false);
   const [resendIn, setResendIn] = useState(0);
-  const [requestDomainName, setRequestDomainName] = useState('');
-  const [requestCompany, setRequestCompany] = useState('');
-  const [showRequestForm, setShowRequestForm] = useState(false);
   const [paused, setPaused] = useState(false);
 
   const domainCheck = useCheckWorkEmailDomain(email);
@@ -76,30 +105,35 @@ export default function CleanerCitySetupPage() {
     if (!next) return;
     setIntent(next);
     setCleanerCityIntent(next);
+    setRole(persistedRoleForIntent(next));
     if (next === 'guest') {
-      setRole('guest');
       setTransport('looking');
-    } else if (next === 'host') {
-      setRole('host');
+    } else {
       setTransport((t) => (t === 'looking' ? 'car' : t));
     }
   }, [arrivalState.intent]);
 
   useEffect(() => {
+    if (arrivalState.step && [1, 2, 3, 4].includes(arrivalState.step)) {
+      setStep(arrivalState.step);
+    }
+  }, [arrivalState.step]);
+
+  useEffect(() => {
     if (!profile) return;
-    // Guest/host intent from hub wins over stale profile until they save.
     if (!arrivalState.intent && !getCleanerCityIntent()) {
-      setRole(profile.role);
+      const nextIntent: CleanerCityIntent =
+        profile.role === 'guest' ? 'guest' : profile.role === 'host' ? 'host' : 'both';
+      setIntent(nextIntent);
+      setRole(persistedRoleForIntent(nextIntent));
       setTransport(profile.transport_preference);
-      if (profile.role === 'guest') setIntent('guest');
-      else if (profile.role === 'host') setIntent('host');
-      else setIntent('both');
     }
     setCompanyName(profile.company_name || '');
     setPaused(!!profile.is_paused);
+    if (arrivalState.step) return;
     if (profile && !verified) setStep(2);
     if (profile && verified) setStep(3);
-  }, [profile, verified, arrivalState.intent]);
+  }, [profile, verified, arrivalState.intent, arrivalState.step]);
 
   useEffect(() => {
     if (verification?.email) setEmail(verification.email);
@@ -121,50 +155,66 @@ export default function CleanerCitySetupPage() {
 
   const stepLabels = isGuestPath
     ? [
-        { n: 1, label: 'Guest' },
+        { n: 1, label: 'Start' },
         { n: 2, label: 'Email' },
         { n: 3, label: 'Pins' },
-        { n: 4, label: 'Find' },
+        { n: 4, label: 'Go' },
       ]
     : isHostPath
       ? [
-          { n: 1, label: 'Host' },
+          { n: 1, label: 'Start' },
           { n: 2, label: 'Email' },
           { n: 3, label: 'Route' },
           { n: 4, label: 'Offer' },
         ]
       : [
-          { n: 1, label: 'Profile' },
-          { n: 2, label: 'Work email' },
+          { n: 1, label: 'Start' },
+          { n: 2, label: 'Email' },
           { n: 3, label: 'Route' },
-          { n: 4, label: 'Done' },
+          { n: 4, label: 'Go' },
         ];
+
+  const choosePath = (next: (typeof PATH_OPTIONS)[number]) => {
+    setIntent(next.intent);
+    setRole(next.role);
+    setTransport(next.transport);
+    setCleanerCityIntent(next.intent);
+  };
 
   const saveProfile = async () => {
     if (!role) {
-      toast.error('Choose how you want to use Cleaner City');
+      toast.error('Choose how you want to start');
       return;
     }
+    const persistRole = persistedRoleForIntent(intent);
     try {
       await upsert.mutateAsync({
-        role,
+        role: persistRole,
         transport_preference: transport,
         company_name: companyName.trim() || null,
         is_paused: paused,
       });
-      setCleanerCityIntent(
-        role === 'guest' ? 'guest' : role === 'host' ? 'host' : 'both',
-      );
-      toast.success(
-        role === 'guest'
-          ? 'Guest profile saved - next verify work email'
-          : 'Profile saved',
-      );
+      setRole(persistRole);
+      setCleanerCityIntent(intent);
+      toast.success(verified ? 'Saved' : 'Next - verify your work email');
       setStep(verified ? 3 : 2);
     } catch (e: any) {
       toast.error(e?.message || 'Could not save profile');
     }
   };
+
+  const detectedCompany =
+    domainCheck.data?.ok && domainCheck.data.company_name
+      ? (() => {
+          const raw = String(domainCheck.data.company_name).trim();
+          if (!raw) return '';
+          return raw.charAt(0).toUpperCase() + raw.slice(1);
+        })()
+      : '';
+
+  useEffect(() => {
+    if (detectedCompany) setCompanyName(detectedCompany);
+  }, [detectedCompany]);
 
   const sendOtp = async () => {
     if (!emailLooksValid) {
@@ -173,18 +223,15 @@ export default function CleanerCitySetupPage() {
     }
     if (domainCheck.data && domainCheck.data.ok === false) {
       toast.error(domainCheck.data.message);
-      if (domainCheck.data.code === 'domain_not_approved') setShowRequestForm(true);
       return;
     }
     try {
       await send.mutateAsync(email.trim().toLowerCase());
       setOtpSent(true);
       setResendIn(45);
-      toast.success('Code sent - check your work inbox (and spam)');
+      toast.success('Code sent to your work inbox');
     } catch (e: any) {
-      const msg = e?.message || 'Could not send code';
-      toast.error(msg);
-      if (/not approved|request approval/i.test(msg)) setShowRequestForm(true);
+      toast.error(e?.message || 'Could not send code');
     }
   };
 
@@ -195,6 +242,31 @@ export default function CleanerCitySetupPage() {
     }
     try {
       await verify.mutateAsync({ email: email.trim().toLowerCase(), code: otp });
+      const derived =
+        detectedCompany ||
+        companyName.trim() ||
+        (email.includes('@') ? email.split('@')[1]?.split('.')[0] : '') ||
+        null;
+      if (derived && profile) {
+        try {
+          const nextRole =
+            profile.role === 'guest' || role === 'guest'
+              ? persistedRoleForIntent(
+                  (profile.role === 'guest' ? 'guest' : intent) as CleanerCityIntent,
+                )
+              : 'both';
+          await upsert.mutateAsync({
+            role: nextRole,
+            transport_preference: profile.transport_preference || transport,
+            company_name: derived,
+            is_paused: paused,
+          });
+          setRole(nextRole);
+          setCompanyName(derived);
+        } catch {
+          // Verification succeeded; company label can be fixed later.
+        }
+      }
       toast.success(WORK_EMAIL_BADGE);
       setOtp('');
       setOtpSent(false);
@@ -206,188 +278,114 @@ export default function CleanerCitySetupPage() {
 
   const goFinish = () => setStep(4);
 
-  const submitDomainRequest = async () => {
-    const domain =
-      requestDomainName.trim().toLowerCase() ||
-      (email.includes('@') ? email.split('@')[1] : '');
-    if (!domain) {
-      toast.error('Enter your company domain (example.com)');
-      return;
-    }
-    try {
-      const row = await requestDomain.mutateAsync({
-        domain,
-        company_name: requestCompany.trim() || companyName.trim() || domain,
-      });
-      toast.success(
-        row?.status === 'approved'
-          ? 'Domain already approved - send a code now'
-          : 'Domain request sent to admin for approval',
-      );
-      setShowRequestForm(false);
-    } catch (e: any) {
-      toast.error(e?.message || 'Could not request domain');
-    }
-  };
+  const workWeekPickupDone = [1, 2, 3, 4, 5].every((day) => {
+    const t = templates.find((row) => row.weekday === day);
+    return typeof t?.pickup_latitude === 'number' && typeof t?.pickup_longitude === 'number';
+  });
+  const officeReady = offices.some(
+    (o) => typeof o.latitude === 'number' && typeof o.longitude === 'number',
+  );
+  const roadsReady =
+    !!preferredRouteFromProfile(profile, 'to_office') &&
+    !!preferredRouteFromProfile(profile, 'to_home');
+  const routeStepReady = isGuestPath
+    ? workWeekPickupDone && officeReady
+    : workWeekPickupDone && officeReady && roadsReady;
 
-  const openFind = () => {
-    setCleanerCityIntent('guest');
-    navigate('/cleaner-city/find', {
-      state: {
-        notice: 'Guest path ready - search seats on your commute pins.',
-      },
-    });
+  const openHome = () => {
+    setCleanerCityIntent(isGuestPath ? 'guest' : isHostPath ? 'host' : 'both');
+    navigate(isHostPath ? '/cleaner-city/offer' : '/cleaner-city');
   };
 
   return (
-    <CleanerCityChrome headerTitle={isGuestPath ? 'Find a seat setup' : isHostPath ? 'Offer seats setup' : 'Set up commute'}>
+    <CleanerCityChrome headerTitle="Get started">
       <CleanerCityGate>
         <div
           className="p-4 pb-24 space-y-5"
           data-testid="cleaner-city-setup"
           data-intent={intent}
         >
-          {arrivalNotice && (
-            <div className="rounded-2xl border border-primary/30 bg-primary/5 p-4 text-sm">
-              {arrivalNotice}
-            </div>
-          )}
           <div>
-            <h1 className="text-xl font-bold text-foreground">
-              {isGuestPath
-                ? 'Set up as a guest'
-                : isHostPath
-                  ? 'Set up as a host'
-                  : 'Get ready to commute'}
-            </h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              {isGuestPath
-                ? 'Four guest steps: profile, work email, office + pickup pins, then Find a seat. No vehicle or driving roads.'
-                : isHostPath
-                  ? 'Four host steps: profile, work email, home then office then your road, then schedule and vehicle to Offer.'
-                  : 'Four short steps. Work email must be on an approved company domain. Then pin your commute.'}
+            <h1 className="text-xl font-bold text-foreground">Start your commute</h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Empty seats. Shared roads. Neighbours going your way.
             </p>
-            {isGuestPath ? (
-              <div
-                className="mt-3 rounded-2xl border border-primary/30 bg-primary/10 px-3 py-2.5"
-                data-testid="cleaner-city-setup-guest-banner"
-              >
-                <p className="text-xs font-extrabold text-primary">Guest path</p>
-                <p className="mt-0.5 text-[11px] text-muted-foreground">
-                  You will request seats from neighbours. Host tools (vehicle, publish) stay hidden.
-                </p>
-              </div>
-            ) : null}
           </div>
 
-          <div className="flex gap-2" data-testid="cleaner-city-setup-steps">
-            {stepLabels.map((s) => (
-              <button
-                key={s.n}
-                type="button"
-                onClick={() => setStep(s.n as Step)}
-                className={cn(
-                  'flex-1 rounded-xl border px-2 py-2 text-center',
-                  step === s.n
-                    ? 'border-primary bg-primary/10 text-primary'
-                    : 'border-border text-muted-foreground',
-                )}
-              >
-                <p className="text-[10px] font-bold uppercase tracking-wide">Step {s.n}</p>
-                <p className="text-xs font-semibold">{s.label}</p>
-              </button>
-            ))}
+          <div className="overflow-x-auto" data-testid="cleaner-city-setup-steps">
+            <nav className="flex min-w-max gap-1 border-b border-border" aria-label="Setup steps">
+              {stepLabels.map((s) => (
+                <button
+                  key={s.n}
+                  type="button"
+                  onClick={() => setStep(s.n as Step)}
+                  className={cn(
+                    'shrink-0 border-b-2 px-3 py-2.5 text-sm font-semibold transition-colors',
+                    step === s.n
+                      ? 'border-primary text-primary'
+                      : 'border-transparent text-muted-foreground hover:text-foreground',
+                  )}
+                >
+                  {s.label}
+                </button>
+              ))}
+            </nav>
           </div>
 
           {step === 1 && (
-            <section className="rounded-2xl border border-border bg-card p-4 space-y-3">
-              <h2 className="text-sm font-semibold">
-                {isGuestPath
-                  ? '1. Confirm you need a seat'
-                  : isHostPath
-                    ? '1. Confirm you can offer seats'
-                    : '1. How will you use Cleaner City?'}
-              </h2>
+            <section className="rounded-2xl border border-border bg-card p-4 space-y-4">
+              <h2 className="text-sm font-semibold">How do you want to start?</h2>
 
-              {isGuestPath ? (
-                <div
-                  className="rounded-xl border border-primary/40 bg-primary/5 p-3 space-y-1"
-                  data-testid="cleaner-city-setup-guest-locked"
-                >
-                  <p className="text-sm font-extrabold text-foreground">Guest · I need a commute</p>
-                  <p className="text-[11px] text-muted-foreground">
-                    Looking for a ride - you will not be asked for a car or host roads.
-                  </p>
-                </div>
-              ) : (
+              <div className="grid gap-2" data-testid="cleaner-city-setup-path-choice">
+                {PATH_OPTIONS.map((option) => (
+                  <button
+                    key={option.intent}
+                    type="button"
+                    onClick={() => choosePath(option)}
+                    className={cn(
+                      'rounded-xl border px-3 py-3 text-left transition',
+                      intent === option.intent
+                        ? 'border-primary bg-primary/5'
+                        : 'border-border hover:border-primary/40',
+                    )}
+                    data-testid={
+                      option.intent === 'guest'
+                        ? 'cleaner-city-setup-guest-locked'
+                        : option.intent === 'host'
+                          ? 'cleaner-city-setup-host-choice'
+                          : 'cleaner-city-setup-both-choice'
+                    }
+                  >
+                    <p className="text-sm font-extrabold text-foreground">{option.title}</p>
+                    <p className="mt-0.5 text-[11px] text-muted-foreground">{option.hint}</p>
+                  </button>
+                ))}
+              </div>
+
+              {!isGuestPath ? (
                 <div className="space-y-2">
-                  <Label>Role</Label>
-                  <div className="grid grid-cols-3 gap-2">
-                    {CLEANER_CITY_ROLES.map((item) => (
+                  <Label>I drive a</Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {CLEANER_CITY_TRANSPORT.filter((t) => t.value !== 'looking').map((item) => (
                       <button
                         key={item.value}
                         type="button"
-                        onClick={() => {
-                          setRole(item.value);
-                          setIntent(
-                            item.value === 'guest'
-                              ? 'guest'
-                              : item.value === 'host'
-                                ? 'host'
-                                : 'both',
-                          );
-                          if (item.value === 'guest') setTransport('looking');
-                        }}
+                        onClick={() => setTransport(item.value)}
                         className={cn(
-                          'rounded-xl border px-2 py-2 text-left',
-                          role === item.value ? 'border-primary bg-primary/5' : 'border-border',
+                          'rounded-xl border px-2 py-2 text-xs font-semibold',
+                          transport === item.value
+                            ? 'border-primary bg-primary/5'
+                            : 'border-border',
                         )}
                       >
-                        <p className="text-xs font-semibold">{item.label}</p>
-                        <p className="text-[10px] text-muted-foreground">{item.hint}</p>
+                        {item.label}
                       </button>
                     ))}
                   </div>
                 </div>
-              )}
+              ) : null}
 
-              <div className="space-y-2">
-                <Label>Transport</Label>
-                <div className="grid grid-cols-3 gap-2">
-                  {(isGuestPath
-                    ? CLEANER_CITY_TRANSPORT.filter((t) => t.value === 'looking')
-                    : CLEANER_CITY_TRANSPORT
-                  ).map((item) => (
-                    <button
-                      key={item.value}
-                      type="button"
-                      onClick={() => setTransport(item.value)}
-                      className={cn(
-                        'rounded-xl border px-2 py-2 text-xs font-semibold',
-                        transport === item.value ? 'border-primary bg-primary/5' : 'border-border',
-                      )}
-                    >
-                      {item.label}
-                    </button>
-                  ))}
-                </div>
-                {isGuestPath ? (
-                  <p className="text-[11px] text-muted-foreground">
-                    You can still ride with a neighbour even if you own a car - this path is for requesting seats.
-                  </p>
-                ) : null}
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="cc-company">Company name (optional)</Label>
-                <Input
-                  id="cc-company"
-                  value={companyName}
-                  onChange={(e) => setCompanyName(e.target.value)}
-                  placeholder="e.g. Airbus"
-                />
-              </div>
-              {verified && (
+              {verified ? (
                 <label className="flex items-center gap-2 text-xs text-muted-foreground">
                   <input
                     type="checkbox"
@@ -396,20 +394,15 @@ export default function CleanerCitySetupPage() {
                   />
                   Pause commute visibility
                 </label>
-              )}
+              ) : null}
+
               <Button
                 onClick={saveProfile}
                 disabled={upsert.isPending}
-                className="w-full"
+                className="w-full h-12 font-semibold"
                 data-testid="cleaner-city-setup-save-profile"
               >
-                {upsert.isPending
-                  ? 'Saving...'
-                  : verified
-                    ? 'Save and continue'
-                    : isGuestPath
-                      ? 'Save guest profile and verify email'
-                      : 'Save and verify email'}
+                {upsert.isPending ? 'Saving...' : verified ? 'Continue' : 'Continue'}
               </Button>
             </section>
           )}
@@ -417,40 +410,22 @@ export default function CleanerCitySetupPage() {
           {step === 2 && (
             <section className="rounded-2xl border border-border bg-card p-4 space-y-3">
               <div className="flex items-center justify-between gap-2">
-                <h2 className="text-sm font-semibold">2. Verify work email</h2>
-                {verified && (
-                  <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-1 rounded-full">
+                <h2 className="text-sm font-semibold">Work email</h2>
+                {verified ? (
+                  <span className="text-[11px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-1 rounded-full">
                     {WORK_EMAIL_BADGE}
                   </span>
-                )}
+                ) : null}
               </div>
               <p className="text-xs text-muted-foreground">
-                {isGuestPath
-                  ? 'Guests and hosts both verify work email so Find only shows trusted society neighbours.'
-                  : 'Only approved corporate domains. Personal Gmail and similar addresses are rejected.'}
+                Use your company email. Gmail and personal inboxes are not allowed.
               </p>
 
-              {approvedDomains.length > 0 && (
-                <div className="rounded-xl bg-muted/50 p-3 space-y-2">
-                  <p className="text-[11px] font-semibold text-foreground">Approved companies</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {approvedDomains.map((d) => (
-                      <span
-                        key={d.domain}
-                        className="rounded-full bg-background border border-border px-2 py-0.5 text-[10px] font-medium"
-                      >
-                        {d.company_name} · @{d.domain}
-                      </span>
-                    ))}
-                  </div>
+              {!profile ? (
+                <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-950 dark:text-amber-100">
+                  Choose how you start in the first step, then come back here.
                 </div>
-              )}
-
-              {!profile && (
-                <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-950">
-                  Save your commute profile in Step 1 first, then verify email.
-                </div>
-              )}
+              ) : null}
 
               <div className="space-y-2">
                 <Label htmlFor="cc-email">Work email</Label>
@@ -468,27 +443,32 @@ export default function CleanerCitySetupPage() {
                   disabled={verified && !otpSent}
                   data-testid="cleaner-city-setup-email"
                 />
-                {emailLooksValid && domainCheck.data && (
-                  <p
-                    className={cn(
-                      'text-[11px]',
-                      domainCheck.data.ok ? 'text-emerald-700' : 'text-amber-800',
-                    )}
+                {emailLooksValid && domainCheck.data?.ok && detectedCompany ? (
+                  <div
+                    className="flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-50 dark:bg-emerald-950/40 px-3 py-2"
                     data-testid="cleaner-city-domain-check"
                   >
+                    <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-700 dark:text-emerald-300" />
+                    <p className="text-[12px] font-extrabold text-emerald-800 dark:text-emerald-300">
+                      {detectedCompany}
+                    </p>
+                  </div>
+                ) : null}
+                {emailLooksValid && domainCheck.data && !domainCheck.data.ok ? (
+                  <p className="text-[11px] text-amber-800 dark:text-amber-200" data-testid="cleaner-city-domain-check">
                     {domainCheck.data.message}
                   </p>
-                )}
+                ) : null}
               </div>
 
               {!otpSent ? (
                 <Button
                   onClick={sendOtp}
                   disabled={!canSendOtp || !profile}
-                  className="w-full"
+                  className="w-full h-12 font-semibold"
                   data-testid="cleaner-city-setup-send-otp"
                 >
-                  {send.isPending ? 'Sending...' : 'Send verification code'}
+                  {send.isPending ? 'Sending...' : 'Send code'}
                 </Button>
               ) : (
                 <div className="space-y-2">
@@ -506,9 +486,9 @@ export default function CleanerCitySetupPage() {
                     <Button
                       onClick={verifyOtp}
                       disabled={verify.isPending || otp.length !== 6}
-                      className="flex-1"
+                      className="flex-1 h-11 font-semibold"
                     >
-                      {verify.isPending ? 'Verifying...' : 'Verify code'}
+                      {verify.isPending ? 'Verifying...' : 'Verify'}
                     </Button>
                     <Button
                       variant="ghost"
@@ -521,84 +501,41 @@ export default function CleanerCitySetupPage() {
                 </div>
               )}
 
-              {(showRequestForm || domainCheck.data?.code === 'domain_not_approved') && (
-                <div className="rounded-xl border border-border p-3 space-y-2">
-                  <p className="text-xs font-semibold">Request your company domain</p>
-                  <p className="text-[11px] text-muted-foreground">
-                    Admin must approve before you can verify. You can keep browsing once approved.
-                  </p>
-                  <Input
-                    placeholder="company.com"
-                    value={
-                      requestDomainName ||
-                      (showRequestForm && email.includes('@') ? email.split('@')[1] : '')
-                    }
-                    onChange={(e) => setRequestDomainName(e.target.value)}
-                  />
-                  <Input
-                    placeholder="Company name"
-                    value={requestCompany || companyName}
-                    onChange={(e) => setRequestCompany(e.target.value)}
-                  />
-                  <Button
-                    variant="outline"
-                    className="w-full"
-                    disabled={requestDomain.isPending}
-                    onClick={submitDomainRequest}
-                  >
-                    {requestDomain.isPending ? 'Sending request...' : 'Request domain approval'}
-                  </Button>
-                </div>
-              )}
-
-              {!showRequestForm && domainCheck.data?.code !== 'domain_not_approved' && (
-                <button
-                  type="button"
-                  className="text-xs text-primary font-semibold"
-                  onClick={() => setShowRequestForm(true)}
-                >
-                  My company is not listed - request approval
-                </button>
-              )}
-
-              {verified && (
+              {verified ? (
                 <Button variant="link" className="px-0 h-auto text-xs" onClick={() => setStep(3)}>
-                  {isGuestPath ? 'Continue to office and pickup pins' : 'Continue to office and route'}
+                  Continue
                 </Button>
-              )}
+              ) : null}
             </section>
           )}
 
           {step === 3 && (
             <section className="space-y-3" data-testid="cleaner-city-setup-route-step">
-              <div className="rounded-2xl border border-border bg-card p-4">
-                <h2 className="text-sm font-semibold">
-                  {isGuestPath ? '3. Home, then office' : '3. Home, office, then your road'}
-                </h2>
-                {!verified ? (
-                  <p className="text-sm text-muted-foreground mt-2">
-                    Verify your work email in Step 2 before pinning your commute.
-                  </p>
-                ) : (
-                  <p className="text-sm text-muted-foreground mt-2">
-                    {isGuestPath
-                      ? 'One step at a time: home gate, then office. Find matches hosts whose roads pass near you - you do not pick driving roads.'
-                      : 'One step at a time: home gate, then office, then pick the Google road you drive.'}
-                  </p>
-                )}
-              </div>
-              {verified ? (
+              {!verified ? (
+                <div className="rounded-2xl border border-border bg-card p-4">
+                  <h2 className="text-sm font-semibold">Set your places</h2>
+                  <p className="mt-2 text-sm text-muted-foreground">Verify work email first.</p>
+                </div>
+              ) : (
                 <>
                   <CleanerCityRouteSetupPanel compact pinsOnly={isGuestPath} />
-                  <Button
-                    className="w-full h-12 font-extrabold"
-                    onClick={goFinish}
-                    data-testid="cleaner-city-setup-route-continue"
-                  >
-                    {isGuestPath ? 'Continue to guest tools' : 'Continue to finish'}
-                  </Button>
+                  {routeStepReady ? (
+                    <Button
+                      className="w-full h-12 font-semibold"
+                      onClick={goFinish}
+                      data-testid="cleaner-city-setup-route-continue"
+                    >
+                      Next
+                    </Button>
+                  ) : (
+                    <p className="text-center text-xs text-muted-foreground">
+                      {isGuestPath
+                        ? 'Save home and office to continue.'
+                        : 'Save home, office, and both roads to continue.'}
+                    </p>
+                  )}
                 </>
-              ) : null}
+              )}
             </section>
           )}
 
@@ -607,28 +544,22 @@ export default function CleanerCitySetupPage() {
               className="rounded-2xl border border-border bg-card p-4 space-y-3"
               data-testid="cleaner-city-setup-done"
             >
-              <h2 className="text-sm font-semibold">
-                {isGuestPath ? '4. Guest tools' : isHostPath ? '4. Host tools' : '4. Finish setup'}
-              </h2>
+              <h2 className="text-sm font-semibold">You are ready</h2>
               {!verified ? (
-                <p className="text-sm text-muted-foreground">
-                  Verify your work email in Step 2 before offering or finding rides.
-                </p>
+                <p className="text-sm text-muted-foreground">Verify work email to continue.</p>
               ) : isGuestPath ? (
                 <>
                   <p className="text-sm text-muted-foreground">
-                    These are the guest features you will use. No host publish or vehicle screens.
+                    Find seats on your corridor. Optional: set leave times or an emergency contact.
                   </p>
                   <div className="grid gap-2">
                     <Link
                       to="/cleaner-city/schedule"
+                      state={{ from: '/cleaner-city/setup' }}
                       className="rounded-xl border border-border px-3 py-3 text-sm font-semibold"
                       data-testid="cleaner-city-setup-guest-schedule"
                     >
                       Set leave times
-                      <span className="mt-0.5 block text-[11px] font-normal text-muted-foreground">
-                        So Find shows hosts leaving near your window
-                      </span>
                     </Link>
                     <Link
                       to="/cleaner-city/safety"
@@ -636,81 +567,68 @@ export default function CleanerCitySetupPage() {
                       data-testid="cleaner-city-setup-guest-safety"
                     >
                       Add emergency contact
-                      <span className="mt-0.5 block text-[11px] font-normal text-muted-foreground">
-                        Optional - also under You → Safety for SOS
-                      </span>
-                    </Link>
-                    <Link
-                      to="/cleaner-city/find"
-                      state={{
-                        notice: 'Search seats on your path. Join waitlist if nobody is live yet.',
-                      }}
-                      className="rounded-xl border border-border px-3 py-3 text-sm font-semibold"
-                      data-testid="cleaner-city-setup-guest-waitlist"
-                    >
-                      Find seats + waitlist
-                      <span className="mt-0.5 block text-[11px] font-normal text-muted-foreground">
-                        Request a seat, or get notified when a neighbour publishes
-                      </span>
                     </Link>
                     <Button
-                      className="h-12 w-full font-extrabold"
-                      onClick={openFind}
+                      className="h-12 w-full font-semibold"
+                      onClick={openHome}
                       data-testid="cleaner-city-setup-guest-find-cta"
                     >
-                      Open Find a seat
+                      Find a seat
                     </Button>
                   </div>
                 </>
               ) : (
                 <>
                   <p className="text-sm text-muted-foreground">
-                    Set leave times and, if you host, add a vehicle. Then open Find or Offer.
+                    {isHostPath
+                      ? 'Add a vehicle and leave times. You can offer seats and find seats.'
+                      : 'Find a seat or offer empty ones whenever you drive.'}
                   </p>
                   <div className="grid gap-2">
                     <Link
                       to="/cleaner-city/schedule"
+                      state={{ from: '/cleaner-city/setup' }}
                       className="rounded-xl border border-border px-3 py-3 text-sm font-semibold"
                     >
-                      Set weekly schedule
+                      Set leave times
                     </Link>
-                    {(role === 'host' || role === 'both') && (
+                    {role === 'both' && (
                       <Link
                         to="/cleaner-city/vehicle"
                         className="rounded-xl border border-border px-3 py-3 text-sm font-semibold"
+                        data-testid="cleaner-city-setup-host-vehicle"
                       >
                         Add vehicle
                       </Link>
                     )}
-                    <Link
-                      to="/cleaner-city/find"
-                      className="rounded-xl border border-border px-3 py-3 text-sm font-semibold"
-                    >
-                      Find a ride
-                    </Link>
-                    {(role === 'host' || role === 'both') && (
-                      <Link
-                        to="/cleaner-city/offer"
-                        className="rounded-xl border border-border px-3 py-3 text-sm font-semibold"
+                    {role === 'both' && (
+                      <Button
+                        className="h-12 w-full font-semibold"
+                        onClick={() => {
+                          setCleanerCityIntent(isHostPath ? 'host' : 'both');
+                          navigate('/cleaner-city/offer');
+                        }}
+                        data-testid="cleaner-city-setup-host-offer-cta"
                       >
                         Offer seats
-                      </Link>
+                      </Button>
                     )}
-                    <Link
-                      to="/cleaner-city"
-                      className="rounded-xl bg-primary px-3 py-3 text-sm font-semibold text-primary-foreground text-center"
+                    <Button
+                      variant={role === 'both' ? 'outline' : 'default'}
+                      className="h-12 w-full font-semibold"
+                      onClick={() => {
+                        setCleanerCityIntent('guest');
+                        navigate('/cleaner-city');
+                      }}
+                      data-testid="cleaner-city-setup-find-cta"
                     >
-                      Go to A Cleaner City home
-                    </Link>
+                      Find a seat
+                    </Button>
                   </div>
                 </>
               )}
             </section>
           )}
-
-          <Link to="/cleaner-city" className="block text-center text-sm text-primary font-semibold">
-            Back to A Cleaner City
-          </Link>
         </div>
       </CleanerCityGate>
     </CleanerCityChrome>

@@ -52,6 +52,9 @@ describe('guided room rails', () => {
     expect(read('src/components/discovery/GuidedRoomSwipeRail.tsx')).toContain('scroll-pl-4');
     expect(read('src/components/discovery/GuidedDiscoveryProductRow.tsx')).toContain('aspect-[4/5]');
     expect(read('src/components/discovery/GuidedRoomSwipeRail.tsx')).toContain('aspect-[3/4]');
+    expect(read('src/components/discovery/GuidedRoomSwipeRail.tsx')).toContain('seeAllHref');
+    expect(read('src/components/discovery/GuidedRoomSwipeRail.tsx')).toContain('See all');
+    expect(page).toContain('seeAllHref={seeAllHref}');
     expect(roomContinueHref('home_food')).toBe('/explore/restaurant_food');
     expect(roomContinueLabel('restaurant_food')).toMatch(/Home Food/);
   });

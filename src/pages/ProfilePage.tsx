@@ -39,8 +39,6 @@ import { useTheme } from 'next-themes';
 import { Moon, Sun, RefreshCw } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { actionableSellerProfiles } from '@/lib/seller-journey';
-import { CleanerCityEntryCard } from '@/components/cleaner-city/CleanerCityEntryCard';
-
 export default function ProfilePage() {
   const navigate = useNavigate();
   const {
@@ -270,11 +268,6 @@ export default function ProfilePage() {
           ))}
         </div>
 
-        {/* sociva cleaner city - easy to find on Account */}
-        <div className="mt-4" data-testid="account-cleaner-city-entry">
-          <CleanerCityEntryCard />
-        </div>
-
         {/* Quick Access Cards */}
         <div className="px-4 mt-4 space-y-2">
           {!hasSellerProfile && (
@@ -334,7 +327,7 @@ export default function ProfilePage() {
             </Link>
           ))}
           <PermissionCenter variant="card" attentionOnly className="my-3" />
-          <NotificationHealthCheck />
+          {isAdmin ? <NotificationHealthCheck /> : null}
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 mt-4 px-1">Legal & Support</p>
           {menuItems.slice(menuItems.findIndex(m => m.label === 'Privacy Policy')).map(({ icon: Icon, label, to }) => (
             <Link key={label} to={to}>

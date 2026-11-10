@@ -1134,20 +1134,20 @@ export function DraftProductManager({
                 <>
                   <ServiceFieldsSection data={serviceFields} onChange={setServiceFields} />
 
-                  {/* Feature Flags */}
+                  {/* Category capabilities (seller-facing, not feature-flag jargon) */}
                   <div className="space-y-1 px-3 py-2 bg-muted/50 rounded-lg">
-                    <p className="text-xs font-semibold text-primary">Enabled for this category</p>
+                    <p className="text-xs font-semibold text-primary">Available for this category</p>
                     <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
                       <Info size={10} />
-                      <span>Service Add-ons {supportsAddons ? 'enabled' : 'not enabled'}</span>
+                      <span>Service add-ons {supportsAddons ? 'available' : 'not available'}</span>
                     </div>
                     <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
                       <Info size={10} />
-                      <span>Recurring Bookings {supportsRecurring ? 'enabled' : 'not enabled'}</span>
+                      <span>Recurring bookings {supportsRecurring ? 'available' : 'not available'}</span>
                     </div>
                     <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
                       <Info size={10} />
-                      <span>Staff Assignment {supportsStaffAssignment ? 'enabled' : 'not enabled'}</span>
+                      <span>Staff assignment {supportsStaffAssignment ? 'available' : 'not available'}</span>
                     </div>
                   </div>
 

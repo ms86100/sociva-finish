@@ -17,7 +17,11 @@ export type CommuteProfile = {
   timezone?: string | null;
   autopilot_enabled?: boolean;
   autopilot_confirm_mode?: 'confirm' | 'auto';
+  /** True once default Auto-offer was applied or user toggled Auto-offer. */
+  autopilot_default_applied?: boolean;
   circle_only_matching?: boolean;
+  /** Ranking boost for circle mates; does not hide from society Find. */
+  prefer_circle_matching?: boolean;
   circle_visibility?: 'members' | 'private';
   show_on_circle_board?: boolean;
   require_circle_history?: boolean;
@@ -231,6 +235,7 @@ export function useSetPublicationDropOrder() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
   return useMutation({
+    meta: { suppressGlobalErrorToast: true },
     mutationFn: async (input: { publication_id: string; drop_order: unknown }) => {
       const { data, error } = await supabase.rpc('cleaner_city_set_publication_drop_order', {
         p_publication_id: input.publication_id,
@@ -240,11 +245,11 @@ export function useSetPublicationDropOrder() {
       return data as CommutePublication;
     },
     onSuccess: (_data, vars) => {
+      // Do not invalidate the open ride aggressively - re-plan races wipe Arrived progress.
       queryClient.invalidateQueries({ queryKey: ['cleaner-city-publications', user?.id] });
       queryClient.invalidateQueries({
         queryKey: ['cleaner-city-publication-rides', vars.publication_id],
       });
-      queryClient.invalidateQueries({ queryKey: ['cleaner-city-rides', user?.id] });
     },
   });
 }
@@ -561,6 +566,7 @@ export type CommutePublication = {
   id: string;
   travel_date: string;
   direction: string;
+  trip_kind?: 'commute' | 'extra' | string | null;
   depart_time: string;
   seats_available: number;
   seats_total: number;
@@ -707,7 +713,7 @@ export function useMyPublications(fromDate?: string) {
       let q = supabase
         .from('commute_publications')
         .select(
-          'id, travel_date, direction, depart_time, seats_available, seats_total, status, vehicle_id, route_polyline, origin_label, destination_label, drop_order_json',
+          'id, travel_date, direction, trip_kind, depart_time, seats_available, seats_total, status, vehicle_id, route_polyline, origin_label, destination_label, drop_order_json',
         )
         .eq('host_user_id', user!.id)
         .order('travel_date', { ascending: true });
@@ -748,6 +754,51 @@ export function usePublishCommute() {
   });
 }
 
+/** Publish a non-commute Extra trip (elsewhere), blocked if commute seat overlaps. */
+export function usePublishExtraTrip() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+  return useMutation({
+    mutationFn: async (input: {
+      vehicle_id: string;
+      travel_date: string;
+      depart_time: string;
+      seats_available: number;
+      route_polyline: string;
+      origin_lat: number;
+      origin_lng: number;
+      dest_lat: number;
+      dest_lng: number;
+      origin_label?: string | null;
+      dest_label?: string | null;
+      route_distance_meters?: number | null;
+      route_duration_seconds?: number | null;
+    }) => {
+      const { data, error } = await supabase.rpc('cleaner_city_publish_extra_trip', {
+        p_vehicle_id: input.vehicle_id,
+        p_travel_date: input.travel_date,
+        p_depart_time: input.depart_time,
+        p_seats_available: input.seats_available,
+        p_route_polyline: input.route_polyline,
+        p_origin_lat: input.origin_lat,
+        p_origin_lng: input.origin_lng,
+        p_dest_lat: input.dest_lat,
+        p_dest_lng: input.dest_lng,
+        p_origin_label: input.origin_label ?? 'Pickup',
+        p_dest_label: input.dest_label ?? 'Destination',
+        p_route_distance_meters: input.route_distance_meters ?? null,
+        p_route_duration_seconds: input.route_duration_seconds ?? null,
+      });
+      if (error) throw error;
+      return data as CommutePublication;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['cleaner-city-publications', user?.id] });
+      invalidateVehicles(queryClient, user?.id);
+    },
+  });
+}
+
 export function useCancelPublication() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -758,6 +809,157 @@ export function useCancelPublication() {
       });
       if (error) throw error;
       return data as CommutePublication;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['cleaner-city-publications', user?.id] });
+    },
+  });
+}
+
+const OPEN_PUB_STATUSES = new Set(['draft', 'published', 'full']);
+
+/**
+ * Going-driven seats: ensure a live publication for host/date/direction.
+ * Idempotent when published/full already exists. Uses vehicle capacity + preferred road.
+ */
+export function useEnsureHostPublication() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+  return useMutation({
+    mutationFn: async (input: {
+      travel_date: string;
+      direction: 'to_office' | 'to_home';
+      depart_time?: string | null;
+      vehicle_id?: string | null;
+      route_polyline?: string | null;
+      seats_available?: number | null;
+      /** Existing open pubs for this host (optional; skips a refetch when provided). */
+      existing?: CommutePublication[] | null;
+    }) => {
+      if (!user?.id) throw new Error('Sign in required');
+
+      let existing = input.existing || null;
+      if (!existing) {
+        const { data, error } = await supabase
+          .from('commute_publications')
+          .select(
+            'id, travel_date, direction, depart_time, seats_available, seats_total, status, vehicle_id, route_polyline, origin_label, destination_label, drop_order_json',
+          )
+          .eq('host_user_id', user.id)
+          .eq('travel_date', input.travel_date)
+          .eq('direction', input.direction);
+        if (error) throw error;
+        existing = (data || []) as CommutePublication[];
+      }
+
+      const open = existing.find(
+        (p) =>
+          p.travel_date === input.travel_date &&
+          p.direction === input.direction &&
+          OPEN_PUB_STATUSES.has(p.status),
+      );
+      if (open?.status === 'published' || open?.status === 'full') {
+        return { publication: open, created: false as const };
+      }
+
+      let vehicleId = input.vehicle_id || open?.vehicle_id || null;
+      let seats = input.seats_available ?? null;
+      if (!vehicleId || seats == null) {
+        const { data: vehicles, error: vErr } = await supabase
+          .from('vehicles')
+          .select('id, seat_capacity, is_active')
+          .eq('user_id', user.id)
+          .eq('is_active', true)
+          .order('updated_at', { ascending: false })
+          .limit(1);
+        if (vErr) throw vErr;
+        const vehicle = vehicles?.[0];
+        if (!vehicle?.id) throw new Error('Add an active vehicle before opening seats');
+        vehicleId = vehicleId || vehicle.id;
+        if (seats == null) seats = Number(vehicle.seat_capacity) || 1;
+      }
+
+      let polyline = input.route_polyline || open?.route_polyline || null;
+      if (!polyline || String(polyline).trim().length < 10) {
+        const { data: profile, error: pErr } = await supabase
+          .from('commute_profiles')
+          .select(
+            'preferred_route_polyline, preferred_return_route_polyline',
+          )
+          .eq('user_id', user.id)
+          .is('deleted_at', null)
+          .maybeSingle();
+        if (pErr) throw pErr;
+        polyline =
+          input.direction === 'to_home'
+            ? profile?.preferred_return_route_polyline || null
+            : profile?.preferred_route_polyline || null;
+      }
+      if (!polyline || String(polyline).trim().length < 10) {
+        throw new Error('Set your usual road on Route before seats can open for guests');
+      }
+
+      const { data, error } = await supabase.rpc('cleaner_city_publish_commute', {
+        p_vehicle_id: vehicleId,
+        p_travel_date: input.travel_date,
+        p_direction: input.direction,
+        p_depart_time: input.depart_time ?? null,
+        p_seats_available: seats,
+        p_route_polyline: polyline,
+        p_publication_id: open?.status === 'draft' ? open.id : null,
+      });
+      if (error) throw error;
+      return { publication: data as CommutePublication, created: true as const };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['cleaner-city-publications', user?.id] });
+    },
+  });
+}
+
+/**
+ * Going-driven seats: cancel open publications for one or both legs on a date.
+ */
+export function useCancelHostPublicationsForDate() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+  return useMutation({
+    mutationFn: async (input: {
+      travel_date: string;
+      directions: Array<'to_office' | 'to_home'>;
+      existing?: CommutePublication[] | null;
+    }) => {
+      if (!user?.id) throw new Error('Sign in required');
+      let existing = input.existing || null;
+      if (!existing) {
+        const { data, error } = await supabase
+          .from('commute_publications')
+          .select(
+            'id, travel_date, direction, depart_time, seats_available, seats_total, status, vehicle_id, route_polyline, origin_label, destination_label, drop_order_json',
+          )
+          .eq('host_user_id', user.id)
+          .eq('travel_date', input.travel_date);
+        if (error) throw error;
+        existing = (data || []) as CommutePublication[];
+      }
+
+      const cancelled: CommutePublication[] = [];
+      for (const dir of input.directions) {
+        const open = existing.filter(
+          (p) =>
+            p.direction === dir &&
+            (p.trip_kind || 'commute') === 'commute' &&
+            (p.status === 'draft' || p.status === 'published' || p.status === 'full'),
+        );
+        for (const pub of open) {
+          const { data, error } = await supabase.rpc('cleaner_city_cancel_publication', {
+            p_publication_id: pub.id,
+          });
+          if (error) throw error;
+          cancelled.push(data as CommutePublication);
+        }
+      }
+      return cancelled;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['cleaner-city-publications', user?.id] });
@@ -867,6 +1069,7 @@ export type MatchResult = {
   host_name?: string | null;
   host_avatar_url?: string | null;
   host_flat?: string | null;
+  host_society?: string | null;
   origin_label: string;
   destination_label: string;
   has_route: boolean;
@@ -877,6 +1080,7 @@ export type MatchResult = {
   host_rating_count?: number | null;
   estimated_fuel_paise?: number | null;
   shared_circle?: boolean;
+  trip_kind?: 'commute' | 'extra' | string | null;
   reason_labels?: string[];
   pickup_deviation_meters?: number | null;
   destination_deviation_meters?: number | null;
@@ -1064,7 +1268,9 @@ export function useFindMatches() {
 export type CleanerCityRideCard = CleanerCityRide & {
   guest_name?: string | null;
   guest_flat?: string | null;
+  guest_society?: string | null;
   guest_avatar_url?: string | null;
+  guest_company?: string | null;
   host_name?: string | null;
   host_flat?: string | null;
   host_avatar_url?: string | null;
@@ -1103,9 +1309,15 @@ export function useMyRides() {
       ];
       let byId: Record<
         string,
-        { name?: string | null; flat_number?: string | null; avatar_url?: string | null }
+        {
+          name?: string | null;
+          flat_number?: string | null;
+          avatar_url?: string | null;
+          society_id?: string | null;
+        }
       > = {};
       let companyById: Record<string, string | null> = {};
+      let societyById: Record<string, string | null> = {};
       let pubById: Record<
         string,
         {
@@ -1119,7 +1331,10 @@ export function useMyRides() {
       if (people.length || pubIds.length) {
         const [{ data: profiles }, { data: commute }, { data: pubs }] = await Promise.all([
           people.length
-            ? supabase.from('profiles').select('id, name, flat_number, avatar_url').in('id', people)
+            ? supabase
+                .from('profiles')
+                .select('id, name, flat_number, avatar_url, society_id')
+                .in('id', people)
             : Promise.resolve({ data: [] as any[] }),
           people.length
             ? supabase
@@ -1142,6 +1357,7 @@ export function useMyRides() {
             name: p.name,
             flat_number: p.flat_number,
             avatar_url: p.avatar_url,
+            society_id: p.society_id,
           };
         }
         for (const c of commute || []) {
@@ -1156,14 +1372,33 @@ export function useMyRides() {
             drop_order_json: p.drop_order_json,
           };
         }
+        const societyIds = [
+          ...new Set(
+            Object.values(byId)
+              .map((p) => p.society_id)
+              .filter(Boolean) as string[],
+          ),
+        ];
+        if (societyIds.length) {
+          const { data: societies } = await supabase
+            .from('societies')
+            .select('id, name')
+            .in('id', societyIds);
+          for (const s of societies || []) {
+            societyById[s.id] = s.name || null;
+          }
+        }
       }
       return rides.map((r) => {
         const pub = r.publication_id ? pubById[r.publication_id] : null;
+        const guestSocietyId = byId[r.guest_user_id]?.society_id || null;
         return {
           ...r,
           guest_name: byId[r.guest_user_id]?.name || null,
           guest_flat: byId[r.guest_user_id]?.flat_number || null,
+          guest_society: guestSocietyId ? societyById[guestSocietyId] || null : null,
           guest_avatar_url: byId[r.guest_user_id]?.avatar_url || null,
+          guest_company: companyById[r.guest_user_id] || null,
           host_name: byId[r.host_user_id]?.name || null,
           host_flat: byId[r.host_user_id]?.flat_number || null,
           host_avatar_url: byId[r.host_user_id]?.avatar_url || null,
@@ -1467,11 +1702,15 @@ export type RideMission = CleanerCityRide & {
   partner_name?: string | null;
   partner_avatar_url?: string | null;
   partner_flat?: string | null;
+  partner_society?: string | null;
+  partner_society_id?: string | null;
   partner_company?: string | null;
   direction?: string | null;
   depart_time?: string | null;
   origin_label?: string | null;
   destination_label?: string | null;
+  origin_latitude?: number | null;
+  origin_longitude?: number | null;
   route_polyline?: string | null;
   drop_order_json?: unknown;
 };
@@ -1485,11 +1724,15 @@ async function enrichRideMission(
   let partner_name: string | null = null;
   let partner_avatar_url: string | null = null;
   let partner_flat: string | null = null;
+  let partner_society: string | null = null;
+  let partner_society_id: string | null = null;
   let partner_company: string | null = null;
   let direction: string | null = null;
   let depart_time: string | null = null;
   let origin_label: string | null = null;
   let destination_label: string | null = null;
+  let origin_latitude: number | null = null;
+  let origin_longitude: number | null = null;
   let route_polyline: string | null = null;
   let drop_order_json: unknown = null;
 
@@ -1500,7 +1743,7 @@ async function enrichRideMission(
         const [{ data: profile }, { data: commute }] = await Promise.all([
           supabase
             .from('profiles')
-            .select('id, name, flat_number, avatar_url')
+            .select('id, name, flat_number, avatar_url, society_id')
             .eq('id', partnerId)
             .maybeSingle(),
           supabase
@@ -1514,6 +1757,15 @@ async function enrichRideMission(
         partner_avatar_url = profile?.avatar_url || null;
         partner_flat = profile?.flat_number || null;
         partner_company = commute?.company_name || null;
+        partner_society_id = profile?.society_id || null;
+        if (profile?.society_id) {
+          const { data: society } = await supabase
+            .from('societies')
+            .select('name')
+            .eq('id', profile.society_id)
+            .maybeSingle();
+          partner_society = society?.name || null;
+        }
       })(),
     );
   }
@@ -1523,7 +1775,7 @@ async function enrichRideMission(
         const { data: pub } = await supabase
           .from('commute_publications')
           .select(
-            'direction, depart_time, origin_label, destination_label, route_polyline, drop_order_json',
+            'direction, depart_time, origin_label, destination_label, origin_latitude, origin_longitude, route_polyline, drop_order_json',
           )
           .eq('id', ride.publication_id!)
           .maybeSingle();
@@ -1531,6 +1783,10 @@ async function enrichRideMission(
         depart_time = pub?.depart_time || null;
         origin_label = pub?.origin_label || null;
         destination_label = pub?.destination_label || null;
+        origin_latitude =
+          pub?.origin_latitude != null ? Number(pub.origin_latitude) : null;
+        origin_longitude =
+          pub?.origin_longitude != null ? Number(pub.origin_longitude) : null;
         route_polyline = pub?.route_polyline || null;
         drop_order_json = pub?.drop_order_json ?? null;
       })(),
@@ -1544,11 +1800,15 @@ async function enrichRideMission(
     partner_name,
     partner_avatar_url,
     partner_flat,
+    partner_society,
+    partner_society_id,
     partner_company,
     direction,
     depart_time,
     origin_label,
     destination_label,
+    origin_latitude,
+    origin_longitude,
     route_polyline,
     drop_order_json,
   };
@@ -1620,6 +1880,8 @@ export function useRideLocations(rideId?: string | null) {
 
 export function useUpsertRideLocation() {
   return useMutation({
+    // Background pings must not spam "check your internet" toasts on every tick.
+    meta: { suppressGlobalErrorToast: true },
     mutationFn: async (input: {
       ride_id: string;
       latitude: number;
@@ -1859,9 +2121,33 @@ export function useSetAutopilot() {
     mutationFn: async (input: { enabled: boolean; confirm_mode?: 'confirm' | 'auto' }) => {
       const { data, error } = await supabase.rpc('cleaner_city_set_autopilot', {
         p_enabled: input.enabled,
-        p_confirm_mode: input.confirm_mode ?? 'confirm',
+        p_confirm_mode: input.confirm_mode ?? 'auto',
       });
       if (error) throw error;
+      return data as CommuteProfile;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['cleaner-city-profile', user?.id] });
+    },
+  });
+}
+
+/** One-shot: turn Auto-offer on in auto mode when host setup is ready. */
+export function useMaybeEnableDefaultAutopilot() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+  return useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.rpc(
+        'cleaner_city_maybe_enable_default_autopilot',
+      );
+      if (error) {
+        // Older backends without the RPC: soft-fail so setup still works.
+        if (/could not find the function|schema cache|PGRST202/i.test(error.message || '')) {
+          return null;
+        }
+        throw error;
+      }
       return data as CommuteProfile;
     },
     onSuccess: () => {
@@ -2398,6 +2684,7 @@ export function useSetCirclePrefs() {
       show_on_board: boolean;
       require_circle_history?: boolean;
       open_city?: boolean;
+      prefer_circle?: boolean;
     }) => {
       const { data, error } = await supabase.rpc('cleaner_city_set_discovery_prefs', {
         p_circle_only: input.circle_only,
@@ -2405,6 +2692,7 @@ export function useSetCirclePrefs() {
         p_show_on_board: input.show_on_board,
         p_require_circle_history: !!input.require_circle_history,
         p_open_city: !!input.open_city,
+        p_prefer_circle: !!input.prefer_circle,
       });
       if (error) throw error;
       return data;

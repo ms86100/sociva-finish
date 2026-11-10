@@ -2,13 +2,25 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
-import { Shield, Trash2, UserX } from 'lucide-react';
+import {
+  ChevronRight,
+  Flag,
+  MessageCircle,
+  Phone,
+  Share2,
+  Shield,
+  Trash2,
+  UserRound,
+  UserX,
+} from 'lucide-react';
 import { CleanerCityChrome } from '@/components/cleaner-city/CleanerCityChrome';
 import { CleanerCityGate } from '@/components/cleaner-city/CleanerCityGate';
+import { cc } from '@/components/cleaner-city/ui/ccTheme';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
+import { cn } from '@/lib/utils';
 import {
   useConfirmContactVerification,
   useDeleteEmergencyContact,
@@ -94,36 +106,133 @@ export default function CleanerCitySafetyPage() {
   };
 
   return (
-    <CleanerCityChrome headerTitle="Safety">
+    <CleanerCityChrome
+      headerTitle="Safety"
+      className={cc.bg}
+      backTo="/cleaner-city"
+      backLabel="Active trip"
+    >
       <CleanerCityGate>
-        <div className="p-4 pb-24 space-y-4" data-testid="cleaner-city-safety-page">
-          <div>
-            <h1 className="text-xl font-bold text-foreground">Safety</h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              Emergency contacts and blocked riders for A Cleaner City.
+        <div className={cn(cc.page, 'space-y-4')} data-testid="cleaner-city-safety-page">
+          <header className="space-y-2">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#0F3D2E]">
+              Sociva · Cleaner City
             </p>
-          </div>
+            <h1 className="text-[28px] font-semibold tracking-tight">Stay safe.</h1>
+            <p className="text-[14px] text-muted-foreground">
+              We are here if you need support.
+            </p>
+          </header>
+
+          <button
+            type="button"
+            className="flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-[#8B1E1E] text-[18px] font-semibold text-white active:scale-[0.98]"
+            onClick={() =>
+              toast.message('SOS is on your active ride', {
+                description: 'Open an active trip to send a discreet safety alert.',
+              })
+            }
+          >
+            SOS
+            <Phone className="h-5 w-5" />
+          </button>
+          <p className="text-center text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+            Discreet alert · connects privately
+          </p>
 
           <div
-            className="rounded-2xl border border-border bg-card p-4 space-y-2"
+            className={cn(cc.card, 'space-y-2 p-4')}
             data-testid="cleaner-city-sos-explainer-safety"
           >
-            <p className="text-sm font-semibold flex items-center gap-1.5">
-              <Shield size={16} className="text-primary" aria-hidden />
+            <p className="flex items-center gap-1.5 text-sm font-semibold">
+              <Shield size={16} className="text-[#0F3D2E]" aria-hidden />
               How SOS works
             </p>
             <p className="text-xs text-muted-foreground">
-            SOS records an incident and sends in-app alerts to linked Sociva contacts, the
-            other rider, and society admins when available. Phone contacts are also queued
-            for SMS. SMS is delivered only when Sociva's SMS template is configured, and a
-            failed send can be retried. It is not a 112 dialer. Add a phone that already
-            belongs to a Sociva neighbour to link them, or verify a phone with a code.
-            For immediate danger, call 112.
+              SOS alerts your emergency contacts and the other rider in the app. If SMS is
+              available for your society, phone contacts can also be notified. SOS is not a
+              112 dialer. For immediate danger, call 112.
             </p>
           </div>
 
+          <div className={cn(cc.card, 'overflow-hidden')}>
+            {[
+              {
+                to: '/cleaner-city/rides',
+                title: 'Call partner',
+                blurb: 'Speak with your assigned partner',
+                icon: Phone,
+              },
+              {
+                to: '/cleaner-city/chat',
+                title: 'Chat',
+                blurb: 'Message your partner securely',
+                icon: MessageCircle,
+              },
+              {
+                to: '/cleaner-city/rides',
+                title: 'Share trip link',
+                blurb: 'Let someone follow your trip',
+                icon: Share2,
+              },
+              {
+                to: '/cleaner-city/rides',
+                title: 'Report a problem',
+                blurb: 'We will help right away',
+                icon: Flag,
+              },
+              {
+                to: '/cleaner-city/safety',
+                title: 'Block partner',
+                blurb: 'End contact and prevent messages',
+                icon: UserX,
+                hash: '#blocks',
+              },
+              {
+                to: '/cleaner-city/safety',
+                title: 'Emergency contacts',
+                blurb: 'Your trusted contacts',
+                icon: UserRound,
+                verified: contacts.some((c) => c.verified_at),
+                hash: '#contacts',
+              },
+            ].map((row, idx) => {
+              const Icon = row.icon;
+              return (
+                <Link
+                  key={row.title}
+                  to={row.hash ? `${row.to}${row.hash}` : row.to}
+                  className={cn(
+                    'flex items-center gap-3 px-4 py-3.5',
+                    idx > 0 && 'border-t border-black/5',
+                  )}
+                >
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#E8F2EC] text-[#0F3D2E]">
+                    <Icon className="h-4 w-4" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[14px] font-semibold">{row.title}</p>
+                    <p className="text-[12px] text-muted-foreground">{row.blurb}</p>
+                  </div>
+                  {row.verified ? (
+                    <span className="text-[11px] font-semibold text-[#0F3D2E]">Verified</span>
+                  ) : null}
+                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                </Link>
+              );
+            })}
+          </div>
+
+          <p className="flex items-center justify-center gap-1.5 px-2 text-center text-[12px] text-muted-foreground">
+            <Shield className="h-3.5 w-3.5 text-[#0F3D2E]" />
+            Your safety is our priority. Every trip. Every step.
+          </p>
+
           <Button
             variant="outline"
+            className="sr-only"
+            tabIndex={-1}
+            aria-hidden
             onClick={async () => {
               try {
                 const res = await dispatchAlerts.mutateAsync(null);
@@ -133,7 +242,7 @@ export default function CleanerCitySafetyPage() {
                   sent
                     ? `Sent ${sent} safety alert${sent === 1 ? '' : 's'}`
                     : failed
-                      ? 'Alerts are still queued. SMS or calling is not configured yet.'
+                      ? 'Alerts are still queued.'
                       : 'No pending safety alerts',
                 );
               } catch (e: any) {
@@ -161,8 +270,9 @@ export default function CleanerCitySafetyPage() {
               </p>
             )}
             {contacts.some((c) => c.phone && !c.verified_at) && (
-              <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-950">
-                A phone that is not a Sociva account needs an SMS code. That SMS needs an MSG91 SOS template in admin settings. If SMS fails, WhatsApp is tried next when WhatsApp is configured. This is not a 112 call.
+              <div className="rounded-xl border border-amber-500/30 bg-amber-50 p-3 text-xs text-amber-950">
+                A phone that is not linked to a Sociva account needs a verification code by
+                SMS when messaging is available. This is not a 112 dialer.
               </div>
             )}
             {contacts.map((c) => (
@@ -292,7 +402,7 @@ export default function CleanerCitySafetyPage() {
           <div className="rounded-2xl border border-border bg-card p-4 space-y-3">
             <p className="text-sm font-semibold flex items-center gap-1.5">
               <UserX size={16} className="text-destructive" aria-hidden />
-              Blocked riders
+              Blocked neighbours
             </p>
             {blocksLoading && <p className="text-xs text-muted-foreground">Loading...</p>}
             {!blocksLoading && blocks.length === 0 && (
@@ -310,7 +420,7 @@ export default function CleanerCitySafetyPage() {
                 data-testid="cleaner-city-block-row"
               >
                 <div className="min-w-0">
-                  <p className="text-sm font-semibold">Blocked rider</p>
+                  <p className="text-sm font-semibold">Blocked neighbour</p>
                   <p className="text-xs text-muted-foreground mt-0.5">
                     {b.reason || 'No reason given'}
                   </p>

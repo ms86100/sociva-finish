@@ -17,7 +17,7 @@ const hoprMig = read(
 );
 const offerPage = read('src/pages/cleaner-city/CleanerCityOfferPage.tsx');
 const findPage = read('src/pages/cleaner-city/CleanerCityFindPage.tsx');
-const hubPage = read('src/pages/cleaner-city/CleanerCityPage.tsx');
+const hubPage = read('src/pages/cleaner-city/CleanerCityHomePage.tsx');
 const ridePage = read('src/pages/cleaner-city/CleanerCityRidePage.tsx');
 const rideActions = read('src/components/cleaner-city/ride/RidePrimaryActions.tsx');
 const matchCard = read('src/components/cleaner-city/CleanerCityMatchCard.tsx');
@@ -74,7 +74,7 @@ describe('Cleaner City Hopr/QuickRide parity', () => {
     expect(rideActions).toContain('cleaner-city-rate-prompt');
     expect(rideActions).toContain('cleaner-city-inline-meeting');
     expect(ridePage).toContain('cleaner-city-rate-section');
-    expect(rideNextHint('pickup_pending', true)).toContain('Ask your passenger');
+    expect(rideNextHint('pickup_pending', true)).toContain("guest's 6-digit code");
     expect(rideNextHint('pickup_pending', false)).toContain('Show your code');
   });
 
@@ -83,7 +83,7 @@ describe('Cleaner City Hopr/QuickRide parity', () => {
     expect(canShowRideSos('requested')).toBe(false);
     expect(canShowTripShare('confirmed')).toBe(true);
     expect(ridePage).toContain('cleaner-city-sos-confirm');
-    expect(ridePage).toContain('Alert contacts + share live link?');
+    expect(ridePage).toContain('Send SOS to contacts?');
     expect(ridePage).toContain('cleaner-city-message-instead-of-call');
     expect(ridePage).not.toContain('PSTN relay not available');
   });
@@ -91,7 +91,8 @@ describe('Cleaner City Hopr/QuickRide parity', () => {
   it('emergency contact soft-gates publish and request', () => {
     expect(offerPage).toContain('hasVerifiedEmergency');
     expect(offerPage).toContain('cleaner-city-offer-emergency-gate');
-    expect(offerPage).toContain('Not required to publish');
+    expect(offerPage).toContain('emergency contact');
+    expect(offerPage).toContain('for SOS');
     expect(findPage).toContain('hasVerifiedEmergency');
     expect(findPage).toContain('Tip: add an emergency contact anytime in You → Safety');
     expect(findPage).not.toContain('Add a verified emergency contact before requesting');

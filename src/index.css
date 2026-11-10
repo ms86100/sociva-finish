@@ -2520,7 +2520,7 @@ body.razorpay-active.razorpay-ios iframe[src*="checkout.razorpay"] {
     linear-gradient(180deg, hsl(var(--background)) 0%, hsl(220 12% 9%) 100%);
 }
 
-/* Home HelpHub entry - rotating soft border */
+/* Home Help Recommendation entry - rotating soft border */
 .helphub-entry-shell {
   position: relative;
   overflow: hidden;
@@ -2549,6 +2549,34 @@ body.razorpay-active.razorpay-ios iframe[src*="checkout.razorpay"] {
 }
 @keyframes helphub-border-spin {
   to { transform: rotate(360deg); }
+}
+
+/* Account sociva Ride entry - forest-green soft spin */
+.sociva-ride-entry-shell {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+.sociva-ride-entry-shell::before {
+  content: '';
+  position: absolute;
+  inset: -55%;
+  z-index: 0;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0%,
+    transparent 55%,
+    rgba(163, 201, 168, 0.2) 68%,
+    rgba(163, 201, 168, 0.95) 78%,
+    rgba(123, 168, 138, 0.9) 86%,
+    rgba(163, 201, 168, 0.25) 94%,
+    transparent 100%
+  );
+  animation: helphub-border-spin 6.2s linear infinite;
+}
+.sociva-ride-entry-shell > * {
+  position: relative;
+  z-index: 1;
 }
 .dark .guided-listing-page {
   background:
@@ -2649,7 +2677,8 @@ body.razorpay-active.razorpay-ios iframe[src*="checkout.razorpay"] {
   .food-listing-card-enter,
   .food-listing-sheen,
   .food-open-dot,
-  .helphub-entry-shell::before {
+  .helphub-entry-shell::before,
+  .sociva-ride-entry-shell::before {
     animation: none !important;
   }
   .guided-room-ken-burns {

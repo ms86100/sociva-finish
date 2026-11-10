@@ -1,5 +1,5 @@
 import { NavLink, useLocation } from 'react-router-dom';
-import { Compass, Home, MapPinned, Swords, UserRound } from 'lucide-react';
+import { CarFront, Home, Search, UserRound } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const TABS = [
@@ -9,43 +9,36 @@ const TABS = [
     end: true,
     label: 'Home',
     icon: Home,
-    match: (path: string) => path === '/cleaner-city',
-  },
-  {
-    id: 'play',
-    to: '/cleaner-city/find',
-    label: 'Play',
-    icon: Compass,
     match: (path: string) =>
-      path.startsWith('/cleaner-city/find') ||
-      path.startsWith('/cleaner-city/offer') ||
-      path.startsWith('/cleaner-city/discover'),
+      path === '/cleaner-city' || path.startsWith('/cleaner-city/discover'),
   },
   {
-    id: 'missions',
+    id: 'find',
+    to: '/cleaner-city/find',
+    label: 'Find',
+    icon: Search,
+    match: (path: string) =>
+      path.startsWith('/cleaner-city/find') || path.startsWith('/cleaner-city/offer'),
+  },
+  {
+    id: 'rides',
     to: '/cleaner-city/rides',
-    label: 'Missions',
-    icon: Swords,
+    label: 'My rides',
+    icon: CarFront,
     match: (path: string) =>
       path.startsWith('/cleaner-city/rides') || path.startsWith('/cleaner-city/ride/'),
   },
   {
-    id: 'route',
-    to: '/cleaner-city/route',
-    label: 'Route',
-    icon: MapPinned,
-    match: (path: string) => path.startsWith('/cleaner-city/route'),
-  },
-  {
-    id: 'you',
+    id: 'profile',
     to: '/cleaner-city/profile',
-    label: 'You',
+    label: 'Profile',
     icon: UserRound,
     match: (path: string) =>
       path.startsWith('/cleaner-city/profile') ||
       path.startsWith('/cleaner-city/setup') ||
       path.startsWith('/cleaner-city/schedule') ||
       path.startsWith('/cleaner-city/vehicle') ||
+      path.startsWith('/cleaner-city/route') ||
       path.startsWith('/cleaner-city/circles') ||
       path.startsWith('/cleaner-city/safety') ||
       path.startsWith('/cleaner-city/chat'),
@@ -53,18 +46,18 @@ const TABS = [
 ] as const;
 
 /**
- * Cleaner City IA: Home · Play · Missions · Route · You.
- * Route stays first-class. Play opens real Find (Offer one switch away).
+ * Cleaner City IA: Home · Find · My rides · Profile.
+ * Offer a seat is reached from Home / Find empty states, not a fifth tab.
  */
 export function CleanerCityBottomNav() {
   const { pathname } = useLocation();
 
   return (
     <nav
-      className="fixed bottom-0 left-0 right-0 z-40 border-t border-emerald-900/10 bg-background/95 pb-[max(0.4rem,env(safe-area-inset-bottom))] backdrop-blur-md"
+      className="fixed bottom-0 left-0 right-0 z-40 border-t border-black/5 bg-[#F7F5F1]/95 pb-[max(0.4rem,env(safe-area-inset-bottom))] backdrop-blur-md"
       data-testid="cleaner-city-bottom-nav"
     >
-      <div className="mx-auto grid max-w-lg grid-cols-5 gap-0.5 px-1.5 pt-1.5">
+      <div className="mx-auto grid max-w-lg grid-cols-4 gap-0.5 px-1.5 pt-1.5">
         {TABS.map((tab) => {
           const Icon = tab.icon;
           const active = tab.match(pathname);
@@ -74,10 +67,8 @@ export function CleanerCityBottomNav() {
               to={tab.to}
               end={'end' in tab ? tab.end : undefined}
               className={cn(
-                'flex flex-col items-center gap-0.5 rounded-xl px-1 py-2 text-[10px] font-semibold transition',
-                active
-                  ? 'bg-emerald-50 text-emerald-900'
-                  : 'text-muted-foreground hover:text-foreground',
+                'flex flex-col items-center gap-0.5 rounded-xl px-1 py-2 text-[10px] font-semibold transition active:scale-[0.97]',
+                active ? 'text-[#0F3D2E]' : 'text-muted-foreground hover:text-foreground',
               )}
               aria-current={active ? 'page' : undefined}
             >

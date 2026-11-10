@@ -34,6 +34,10 @@ export function formatOrderCancellationHeroReason(
   if (owner === 'seller') {
     const who = view === 'seller' ? 'You rejected this order' : 'Rejected by seller';
     const detail = cleanedSeller || cleanedBuyer || raw;
+    // Channel name is internal. The buyer only sees that the seller cancelled.
+    if (/^whatsapp$/i.test(detail.trim()) || /^order cancelled by seller\.?$/i.test(raw.trim())) {
+      return view === 'seller' ? 'You rejected this order' : 'Order cancelled by seller';
+    }
     return detail ? `${who} - ${detail}` : who;
   }
 

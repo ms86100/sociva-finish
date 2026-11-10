@@ -38,6 +38,27 @@ describe('BUG-21 cancellation copy', () => {
       ),
     ).toBe('Rejected by seller - Kitchen closed');
   });
+
+  it('seller reject from WhatsApp hides the channel from the buyer', () => {
+    expect(
+      formatOrderCancellationHeroReason(
+        { failure_owner: 'seller', rejection_reason: 'Rejected by seller: WhatsApp' },
+        'buyer',
+      ),
+    ).toBe('Order cancelled by seller');
+    expect(
+      formatOrderCancellationHeroReason(
+        { failure_owner: 'seller', rejection_reason: 'Order cancelled by seller' },
+        'buyer',
+      ),
+    ).toBe('Order cancelled by seller');
+    expect(
+      formatOrderCancellationHeroReason(
+        { failure_owner: 'seller', rejection_reason: 'Order cancelled by seller' },
+        'seller',
+      ),
+    ).toBe('You rejected this order');
+  });
 });
 
 describe('BUG-21 scheduled timeline accepted step', () => {

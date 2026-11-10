@@ -8,12 +8,13 @@ import { CleanerCityGate } from '@/components/cleaner-city/CleanerCityGate';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsContent } from '@/components/ui/tabs';
 import {
   useCleanerCityProfile,
   useCleanerCityWorkVerification,
   useCleanerCityVehicles,
   useDeactivateVehicle,
+  useMaybeEnableDefaultAutopilot,
   useUpsertVehicle,
   useUpsertVehicleDocument,
   useVehicleDocuments,
@@ -35,6 +36,7 @@ export default function CleanerCityVehiclePage() {
   const { data: vehicles = [] } = useCleanerCityVehicles();
   const upsert = useUpsertVehicle();
   const deactivate = useDeactivateVehicle();
+  const maybeEnableAutopilot = useMaybeEnableDefaultAutopilot();
   const { user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -144,6 +146,11 @@ export default function CleanerCityVehiclePage() {
       setEditingId(null);
       setShowForm(false);
       toast.success(editingId ? 'Vehicle updated' : 'Vehicle saved');
+      try {
+        await maybeEnableAutopilot.mutateAsync();
+      } catch {
+        // Non-blocking.
+      }
     } catch (e: any) {
       toast.error(e?.message || 'Could not save vehicle');
     }
@@ -185,7 +192,7 @@ export default function CleanerCityVehiclePage() {
         notes: docNotes,
         storage_path: path,
       });
-      toast.success('Uploaded for review');
+      toast.success('Uploaded for review. Admin verification comes later');
       setDocLabel('');
       setDocNotes('');
       setDocFile(null);
@@ -251,16 +258,35 @@ export default function CleanerCityVehiclePage() {
           ) : null}
 
           <Tabs value={tab} onValueChange={(v) => setTab(v as VehicleTab)} className="w-full">
-            <TabsList className="grid h-12 w-full grid-cols-2 p-1">
-              <TabsTrigger value="vehicle" data-testid="vehicle-tab-details" className="gap-1.5">
-                {activeCount > 0 ? <Check size={12} className="text-emerald-500" /> : null}
-                Vehicle
-              </TabsTrigger>
-              <TabsTrigger value="docs" data-testid="vehicle-tab-docs" className="gap-1.5">
-                {hasDocs ? <Check size={12} className="text-emerald-500" /> : null}
-                Documents
-              </TabsTrigger>
-            </TabsList>
+            <div className="overflow-x-auto">
+              <nav
+                className="flex min-w-max gap-1 border-b border-border"
+                data-testid="cleaner-city-vehicle-tabs"
+              >
+                {(
+                  [
+                    { id: 'vehicle', label: 'Vehicle', ready: activeCount > 0, testId: 'vehicle-tab-details' },
+                    { id: 'docs', label: 'Documents', ready: hasDocs, testId: 'vehicle-tab-docs' },
+                  ] as const
+                ).map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => setTab(item.id)}
+                    data-testid={item.testId}
+                    className={cn(
+                      'inline-flex shrink-0 items-center gap-1.5 border-b-2 px-3 py-2.5 text-sm font-semibold transition-colors',
+                      tab === item.id
+                        ? 'border-primary text-primary'
+                        : 'border-transparent text-muted-foreground hover:text-foreground',
+                    )}
+                  >
+                    {item.ready ? <Check size={12} className="text-emerald-500" /> : null}
+                    {item.label}
+                  </button>
+                ))}
+              </nav>
+            </div>
 
             <TabsContent value="vehicle" className="mt-6 focus-visible:outline-none">
               <div className="flex flex-col gap-6">
@@ -414,6 +440,11 @@ export default function CleanerCityVehiclePage() {
                       </div>
                       <div className="flex flex-col gap-2">
                         <Label>Empty seats</Label>
+                        {vehicleType === 'bike' ? (
+                          <p className="text-[11px] text-muted-foreground">
+                            Bike passenger seats are capped at 1
+                          </p>
+                        ) : null}
                         <Input
                           type="number"
                           min={1}

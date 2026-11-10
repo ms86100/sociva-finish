@@ -52,6 +52,38 @@ export function guestDropRankFromOrder(
   return { n: mine.dropIndex, m: parsed.ordered.length };
 }
 
+const PROGRESS_RANK: Record<DropProgressStatus, number> = {
+  pending: 0,
+  arrived: 1,
+  dropped: 2,
+};
+
+/** Keep the furthest status when merging cached + local progress. */
+export function preferDropProgress(
+  a?: Record<string, DropProgressEntry>,
+  b?: Record<string, DropProgressEntry>,
+): Record<string, DropProgressEntry> {
+  const ids = new Set([...Object.keys(a || {}), ...Object.keys(b || {})]);
+  const next: Record<string, DropProgressEntry> = {};
+  for (const id of ids) {
+    const left = a?.[id];
+    const right = b?.[id];
+    if (!left && !right) continue;
+    if (!left) {
+      next[id] = right!;
+      continue;
+    }
+    if (!right) {
+      next[id] = left;
+      continue;
+    }
+    const leftRank = PROGRESS_RANK[left.status] ?? 0;
+    const rightRank = PROGRESS_RANK[right.status] ?? 0;
+    next[id] = rightRank >= leftRank ? right : left;
+  }
+  return next;
+}
+
 export function mergeDropProgress(
   previous: Record<string, DropProgressEntry> | undefined,
   orderedIds: string[],

@@ -1,24 +1,24 @@
 // @ts-nocheck
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Check, MapPinned, Route, Sparkles } from 'lucide-react';
+import { ArrowLeft, Check, Route } from 'lucide-react';
 import { toast } from 'sonner';
 import { CleanerCityPinPicker } from '@/components/cleaner-city/CleanerCityPinPicker';
 import {
   CleanerCityRoutePreview,
   ROUTE_COLORS,
 } from '@/components/cleaner-city/CleanerCityRoutePreview';
-import { Button } from '@/components/ui/button';
+import { cc } from '@/components/cleaner-city/ui/ccTheme';
 import {
   preferredRouteFromProfile,
   useCleanerCityProfile,
   useCommuteTemplates,
+  useMaybeEnableDefaultAutopilot,
   useOfficeLocations,
   useSetCommuteTemplate,
   useSetPreferredRoute,
   useUpsertOfficeLocation,
   type CommuteProfile,
 } from '@/hooks/queries/useCleanerCity';
-import { CLEANER_CITY_WEEKDAYS } from '@/lib/cleaner-city/constants';
 import { useAuth } from '@/contexts/AuthContext';
 import { useGoogleMaps } from '@/hooks/useGoogleMaps';
 import {
@@ -51,14 +51,14 @@ function pinFromTemplate(t: {
   return {
     lat: t.pickup_latitude,
     lng: t.pickup_longitude,
-    label: t.pickup_label || 'Home gate',
+    label: t.pickup_label || 'Home',
   };
 }
 
 function formatRouteMeta(alt: RouteAlternative) {
   const mins = Math.max(1, Math.round(alt.durationSeconds / 60));
   const km = (alt.distanceMeters / 1000).toFixed(1);
-  return `~${mins} min · ${km} km`;
+  return `~${mins} min - ${km} km`;
 }
 
 type Props = {
@@ -67,11 +67,26 @@ type Props = {
   pinsOnly?: boolean;
   /** Offer embed: short titles, no status essay chips. */
   quiet?: boolean;
-  onSaved?: (info: { officeDone: boolean; pickupDone: boolean; toOffice: boolean; toHome: boolean }) => void;
+  /** Open on a specific wizard step (Route page edit focus). */
+  initialStep?: WizardStep;
+  onSaved?: (info: {
+    officeDone: boolean;
+    pickupDone: boolean;
+    toOffice: boolean;
+    toHome: boolean;
+    roadSaved?: boolean;
+  }) => void;
   className?: string;
 };
 
-export function CleanerCityRouteSetupPanel({ compact, pinsOnly, quiet, onSaved, className }: Props) {
+export function CleanerCityRouteSetupPanel({
+  compact,
+  pinsOnly,
+  quiet,
+  initialStep,
+  onSaved,
+  className,
+}: Props) {
   const { user } = useAuth();
   const { data: profile } = useCleanerCityProfile();
   const { data: offices = [] } = useOfficeLocations();
@@ -79,6 +94,7 @@ export function CleanerCityRouteSetupPanel({ compact, pinsOnly, quiet, onSaved, 
   const upsertOffice = useUpsertOfficeLocation();
   const setTemplate = useSetCommuteTemplate();
   const setPreferredRoute = useSetPreferredRoute();
+  const maybeEnableAutopilot = useMaybeEnableDefaultAutopilot();
   const { isLoaded } = useGoogleMaps();
 
   const primary = offices.find((o) => o.is_primary) || offices[0] || null;
@@ -95,7 +111,9 @@ export function CleanerCityRouteSetupPanel({ compact, pinsOnly, quiet, onSaved, 
   const [savingPickup, setSavingPickup] = useState(false);
   const [savingRoute, setSavingRoute] = useState(false);
   const [routeRetryKey, setRouteRetryKey] = useState(0);
-  const [wizardStep, setWizardStep] = useState<WizardStep | null>(null);
+  const [wizardStep, setWizardStep] = useState<WizardStep | null>(
+    initialStep || null,
+  );
 
   const selectedRoute = useMemo(
     () => routeAlts.find((r) => r.id === selectedRouteId) || null,
@@ -136,10 +154,15 @@ export function CleanerCityRouteSetupPanel({ compact, pinsOnly, quiet, onSaved, 
     if (usualPickup) setPickup(usualPickup);
   }, [usualPickup?.lat, usualPickup?.lng, usualPickup?.label]);
 
-  // One focused step at a time: home → office → roads (hosts) / done (guests).
+  // One focused step at a time: home -> office -> roads (hosts) / done (guests).
   // Re-sync only while the user has not manually moved via Back / Save.
-  const [wizardTouched, setWizardTouched] = useState(false);
+  const [wizardTouched, setWizardTouched] = useState(!!initialStep);
   useEffect(() => {
+    if (initialStep) {
+      setWizardStep(pinsOnly && initialStep === 'roads' ? 'office' : initialStep);
+      setWizardTouched(true);
+      return;
+    }
     if (wizardTouched) return;
     if (!pickupDone) {
       setWizardStep('home');
@@ -150,7 +173,7 @@ export function CleanerCityRouteSetupPanel({ compact, pinsOnly, quiet, onSaved, 
       return;
     }
     setWizardStep(pinsOnly ? 'office' : 'roads');
-  }, [pickupDone, officeDone, pinsOnly, wizardTouched]);
+  }, [pickupDone, officeDone, pinsOnly, wizardTouched, initialStep]);
 
   const routeOrigin = direction === 'to_office' ? pickup : office;
   const routeDest = direction === 'to_office' ? office : pickup;
@@ -221,13 +244,17 @@ export function CleanerCityRouteSetupPanel({ compact, pinsOnly, quiet, onSaved, 
     routeRetryKey,
   ]);
 
-  const emitProgress = (nextProfile?: CommuteProfile | null) => {
+  const emitProgress = (
+    nextProfile?: CommuteProfile | null,
+    extras?: { roadSaved?: boolean },
+  ) => {
     const p = nextProfile || profile;
     onSaved?.({
       officeDone: !!primary || !!office,
       pickupDone: daysWithPickup.length >= 5,
       toOffice: !!preferredRouteFromProfile(p as CommuteProfile, 'to_office'),
       toHome: !!preferredRouteFromProfile(p as CommuteProfile, 'to_home'),
+      roadSaved: extras?.roadSaved,
     });
   };
 
@@ -267,7 +294,7 @@ export function CleanerCityRouteSetupPanel({ compact, pinsOnly, quiet, onSaved, 
       pickup.lng < -180 ||
       pickup.lng > 180
     ) {
-      toast.error('Pin your home / society gate on the map before saving');
+      toast.error('Place the pin on your home first');
       return;
     }
     setSavingPickup(true);
@@ -284,7 +311,7 @@ export function CleanerCityRouteSetupPanel({ compact, pinsOnly, quiet, onSaved, 
           pickup_longitude: pickup.lng,
         });
       }
-      toast.success('Home gate saved - next, pin your office');
+      toast.success('Home saved - now set your office');
       emitProgress();
       setWizardTouched(true);
       setWizardStep('office');
@@ -327,11 +354,14 @@ export function CleanerCityRouteSetupPanel({ compact, pinsOnly, quiet, onSaved, 
         direction,
       });
       toast.success(
-        direction === 'to_office'
-          ? 'Morning road saved (home to office)'
-          : 'Evening road saved (office to home)',
+        direction === 'to_office' ? 'Road to office saved' : 'Road home saved',
       );
-      emitProgress(updated);
+      emitProgress(updated, { roadSaved: true });
+      try {
+        await maybeEnableAutopilot.mutateAsync();
+      } catch {
+        // Non-blocking.
+      }
       if (direction === 'to_office' && !preferredRouteFromProfile(updated as CommuteProfile, 'to_home')) {
         setDirection('to_home');
       }
@@ -342,30 +372,71 @@ export function CleanerCityRouteSetupPanel({ compact, pinsOnly, quiet, onSaved, 
     }
   };
 
-  const stepIndex = wizardStep === 'home' ? 0 : wizardStep === 'office' ? 1 : 2;
-  const stepCount = pinsOnly ? 2 : 3;
-  const stepTitle = quiet
-    ? wizardStep === 'home'
-      ? 'Home gate'
+  const stepTitle =
+    wizardStep === 'home'
+      ? 'Set your home'
       : wizardStep === 'office'
-        ? 'Office'
-        : 'Usual road'
-    : wizardStep === 'home'
-      ? 'Where do mornings start?'
+        ? 'Set your office'
+        : 'Pick your road';
+  const stepBlurb =
+    wizardStep === 'home'
+      ? 'Put the pin where you leave from each day.'
       : wizardStep === 'office'
-        ? 'Where do you work?'
-        : 'Which road do you drive?';
-  const stepBlurb = quiet
-    ? wizardStep === 'home'
-      ? 'Pin your society gate.'
-      : wizardStep === 'office'
-        ? 'Pin your office building.'
-        : 'Pick morning, then evening.'
-    : wizardStep === 'home'
-      ? 'One society gate for Mon-Fri. Times come later - the gate usually stays the same.'
-      : wizardStep === 'office'
-        ? 'Drop the blue pin on your office building, then continue.'
-        : 'Home and office are set. Pick the road you actually take - morning, then evening.';
+        ? 'Put the pin on your office building.'
+        : 'Pick the road you take to office, then the road back home.';
+
+  const progressChips = [
+    {
+      key: 'home',
+      label: 'Home',
+      done: pickupDone,
+      active: wizardStep === 'home',
+      testId: undefined as string | undefined,
+      onClick: () => {
+        setWizardTouched(true);
+        setWizardStep('home');
+      },
+    },
+    {
+      key: 'office',
+      label: 'Office',
+      done: officeDone,
+      active: wizardStep === 'office',
+      testId: undefined as string | undefined,
+      onClick: () => {
+        setWizardTouched(true);
+        setWizardStep('office');
+      },
+    },
+    ...(!pinsOnly
+      ? [
+          {
+            key: 'to_office',
+            label: 'To office',
+            done: !!savedToOffice,
+            active: wizardStep === 'roads' && direction === 'to_office',
+            testId: 'cleaner-city-usual-route-to-office',
+            onClick: () => {
+              setWizardTouched(true);
+              setWizardStep('roads');
+              setDirection('to_office');
+            },
+          },
+          {
+            key: 'to_home',
+            label: 'To home',
+            done: !!savedToHome,
+            active: wizardStep === 'roads' && direction === 'to_home',
+            testId: 'cleaner-city-usual-route-to-home',
+            onClick: () => {
+              setWizardTouched(true);
+              setWizardStep('roads');
+              setDirection('to_home');
+            },
+          },
+        ]
+      : []),
+  ];
 
   return (
     <div
@@ -375,270 +446,146 @@ export function CleanerCityRouteSetupPanel({ compact, pinsOnly, quiet, onSaved, 
     >
       <div
         className={cn(
-          'space-y-3 overflow-hidden relative',
-          quiet
-            ? 'rounded-xl border border-border/70 bg-muted/20 p-3'
-            : 'rounded-2xl border border-border bg-card p-4',
+          'relative space-y-3 overflow-hidden',
+          quiet ? cn(cc.card, 'p-3') : cn(cc.card, 'p-4'),
         )}
       >
-        {!quiet ? (
-          <div
-            aria-hidden
-            className="pointer-events-none absolute inset-0 opacity-70"
-            style={{
-              background:
-                'radial-gradient(120% 80% at 10% 0%, hsl(var(--primary) / 0.12), transparent 55%), radial-gradient(90% 70% at 100% 100%, hsl(142 70% 40% / 0.08), transparent 50%)',
-            }}
-          />
-        ) : null}
         <div className="relative space-y-3">
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2 min-w-0">
-              {!quiet ? (
-                <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-primary/15 text-primary shrink-0">
-                  <Sparkles size={14} />
-                </span>
-              ) : null}
-              <div className="min-w-0">
-                <p className="text-sm font-semibold truncate">{stepTitle}</p>
-                <p className="text-[11px] text-muted-foreground">
-                  {Math.min(stepIndex + 1, stepCount)}/{stepCount}
-                  {pinsOnly ? ' · guest pins' : ''}
-                </p>
-              </div>
+          {!quiet ? (
+            <div className="overflow-x-auto" data-testid="cleaner-city-route-wizard-tabs">
+              <nav className="flex min-w-max gap-1 border-b border-black/5" aria-label="Route steps">
+                {(
+                  pinsOnly
+                    ? ([
+                        { id: 'home', label: 'Home' },
+                        { id: 'office', label: 'Office' },
+                      ] as const)
+                    : ([
+                        { id: 'home', label: 'Home' },
+                        { id: 'office', label: 'Office' },
+                        { id: 'roads', label: 'Roads' },
+                      ] as const)
+                ).map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => {
+                      setWizardTouched(true);
+                      setWizardStep(item.id);
+                    }}
+                    className={cn(
+                      'shrink-0 border-b-2 px-3 py-2.5 text-sm font-semibold transition-colors',
+                      wizardStep === item.id
+                        ? 'border-[#0F3D2E] text-[#0F3D2E]'
+                        : 'border-transparent text-muted-foreground hover:text-foreground',
+                    )}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </nav>
             </div>
-            {wizardStep !== 'home' ? (
-              <button
-                type="button"
-                className="inline-flex items-center gap-1 text-[11px] font-semibold text-muted-foreground hover:text-foreground"
-                onClick={() => {
-                  setWizardTouched(true);
-                  setWizardStep(wizardStep === 'roads' ? 'office' : 'home');
-                }}
-                data-testid="cleaner-city-route-wizard-back"
-              >
-                <ArrowLeft size={12} />
-                Back
-              </button>
-            ) : null}
-          </div>
-
-          <div className="flex gap-1.5" data-testid="cleaner-city-route-wizard-dots">
-            {Array.from({ length: stepCount }).map((_, i) => (
-              <span
-                key={i}
-                className={cn(
-                  'h-1.5 flex-1 rounded-full transition-colors',
-                  i <= stepIndex ? 'bg-primary' : 'bg-muted',
-                )}
-              />
-            ))}
-          </div>
-
-          <p className="text-xs text-muted-foreground leading-relaxed">{stepBlurb}</p>
+          ) : null}
 
           {!quiet ? (
-            <div className="flex flex-wrap gap-1.5">
-              <span
-                className={cn(
-                  'rounded-full border px-2.5 py-1 text-[10px] font-bold',
-                  pickupDone
-                    ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-600'
-                    : wizardStep === 'home'
-                      ? 'border-primary/40 bg-primary/10 text-primary'
-                      : 'border-border text-muted-foreground',
-                )}
-              >
-                {pickupDone ? 'Home gate set' : '1 · Home gate'}
-              </span>
-              <span
-                className={cn(
-                  'rounded-full border px-2.5 py-1 text-[10px] font-bold',
-                  officeDone
-                    ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-600'
-                    : wizardStep === 'office'
-                      ? 'border-primary/40 bg-primary/10 text-primary'
-                      : 'border-border text-muted-foreground',
-                )}
-              >
-                {officeDone ? 'Office set' : '2 · Office'}
-              </span>
-              {!pinsOnly ? (
-                <>
-                  <span
-                    className={cn(
-                      'rounded-full border px-2.5 py-1 text-[10px] font-bold',
-                      savedToOffice
-                        ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-600'
-                        : wizardStep === 'roads'
-                          ? 'border-primary/40 bg-primary/10 text-primary'
-                          : 'border-border text-muted-foreground',
-                    )}
-                    data-testid="cleaner-city-usual-route-to-office"
-                  >
-                    {savedToOffice ? `Morning · ${savedToOffice.summary}` : '3 · Morning road'}
-                  </span>
-                  <span
-                    className={cn(
-                      'rounded-full border px-2.5 py-1 text-[10px] font-bold',
-                      savedToHome
-                        ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-600'
-                        : 'border-border text-muted-foreground',
-                    )}
-                    data-testid="cleaner-city-usual-route-to-home"
-                  >
-                    {savedToHome ? `Evening · ${savedToHome.summary}` : 'Evening road'}
-                  </span>
-                </>
-              ) : (
-                <span className="rounded-full border border-primary/30 bg-primary/10 px-2.5 py-1 text-[10px] font-bold text-primary">
-                  Guest path - pins only
-                </span>
-              )}
-            </div>
-          ) : (
-            <div className="flex flex-wrap gap-1.5">
-              <span
-                className={cn(
-                  'rounded-full border px-2 py-0.5 text-[10px] font-bold',
-                  pickupDone
-                    ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-700'
-                    : 'border-border text-muted-foreground',
-                )}
-              >
-                Home
-              </span>
-              <span
-                className={cn(
-                  'rounded-full border px-2 py-0.5 text-[10px] font-bold',
-                  officeDone
-                    ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-700'
-                    : 'border-border text-muted-foreground',
-                )}
-              >
-                Office
-              </span>
-              {!pinsOnly ? (
-                <>
-                  <span
-                    className={cn(
-                      'rounded-full border px-2 py-0.5 text-[10px] font-bold',
-                      savedToOffice
-                        ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-700'
-                        : 'border-border text-muted-foreground',
-                    )}
-                    data-testid="cleaner-city-usual-route-to-office"
-                  >
-                    Morning
-                  </span>
-                  <span
-                    className={cn(
-                      'rounded-full border px-2 py-0.5 text-[10px] font-bold',
-                      savedToHome
-                        ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-700'
-                        : 'border-border text-muted-foreground',
-                    )}
-                    data-testid="cleaner-city-usual-route-to-home"
-                  >
-                    Evening
-                  </span>
-                </>
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold">{stepTitle}</p>
+                <p className="text-xs leading-relaxed text-muted-foreground">{stepBlurb}</p>
+              </div>
+              {wizardStep !== 'home' ? (
+                <button
+                  type="button"
+                  className="inline-flex shrink-0 items-center gap-1 text-[11px] font-semibold text-muted-foreground hover:text-foreground"
+                  onClick={() => {
+                    setWizardTouched(true);
+                    setWizardStep(wizardStep === 'roads' ? 'office' : 'home');
+                  }}
+                  data-testid="cleaner-city-route-wizard-back"
+                >
+                  <ArrowLeft size={12} />
+                  Back
+                </button>
               ) : null}
             </div>
-          )}
+          ) : null}
+
+          <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
+            {progressChips.map((chip) => (
+              <button
+                key={chip.key}
+                type="button"
+                data-testid={chip.testId}
+                onClick={chip.onClick}
+                className={cn(
+                  'rounded-full border px-2.5 py-1.5 text-center text-[11px] font-semibold transition',
+                  chip.active
+                    ? 'border-[#0F3D2E] bg-[#0F3D2E] text-white'
+                    : chip.done
+                      ? 'border-[#0F3D2E]/30 bg-[#E8F2EC] text-[#0F3D2E]'
+                      : 'border-black/10 bg-white text-muted-foreground',
+                )}
+              >
+                {chip.done && !chip.active ? `${chip.label} ✓` : chip.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
       {wizardStep === 'home' ? (
         <div className="space-y-3" data-testid="cleaner-city-route-step-home">
-          <div className="rounded-2xl border border-border bg-card p-4 space-y-2">
-            <div className="flex items-start gap-2">
-              <MapPinned size={16} className="mt-0.5 shrink-0 text-primary" />
-              <div>
-                <p className="text-sm font-semibold">Usual home / society gate</p>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  One pin for Mon-Fri mornings. Times change later - the gate usually does not.
-                </p>
-              </div>
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              {WORK_WEEK.map((d) => {
-                const covered = daysWithPickup.includes(d);
-                const label = CLEANER_CITY_WEEKDAYS.find((w) => w.value === d)?.label || String(d);
-                return (
-                  <span
-                    key={d}
-                    className={cn(
-                      'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold',
-                      covered
-                        ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-600'
-                        : 'border-border text-muted-foreground',
-                    )}
-                  >
-                    {covered ? <Check size={10} /> : null}
-                    {label}
-                  </span>
-                );
-              })}
-            </div>
-          </div>
-
           <CleanerCityPinPicker
-            title="Pickup near home / society"
-            hint="Move the map so the blue pin sits on your usual morning gate"
+            title="Home"
+            hint="Search or drag the map to your home"
             value={pickup}
             onChange={setPickup}
             testId="cleaner-city-pickup-pin"
           />
-          <Button
-            className="h-11 w-full font-semibold"
+          <button
+            type="button"
+            className={cn(cc.primaryBtn, 'w-full')}
             onClick={saveUsualWorkWeekPickup}
             disabled={savingPickup || setTemplate.isPending}
             data-testid="cleaner-city-pickup-save-week"
           >
-            {savingPickup || setTemplate.isPending
-              ? 'Saving Mon-Fri…'
-              : 'Save home gate, then office'}
-          </Button>
+            {savingPickup || setTemplate.isPending ? 'Saving...' : 'Save home'}
+          </button>
         </div>
       ) : null}
 
       {wizardStep === 'office' ? (
         <div className="space-y-3" data-testid="cleaner-city-route-step-office">
           {pickupDone && pickup ? (
-            <p className="text-xs text-muted-foreground px-1">
-              Home gate ready · {pickup.label}
-              {!pinsOnly ? ' · roads unlock after office' : ''}
+            <p className="truncate px-1 text-xs text-muted-foreground">
+              Home set - {pickup.label}
             </p>
           ) : null}
           <CleanerCityPinPicker
-            title="Office location"
-            hint="Search or move the map under the blue pin"
+            title="Office"
+            hint="Search or drag the map to your office"
             value={office}
             onChange={setOffice}
             testId="cleaner-city-office-pin"
           />
-          <Button
-            className="h-11 w-full font-semibold"
+          <button
+            type="button"
+            className={cn(cc.primaryBtn, 'w-full')}
             onClick={saveOffice}
             disabled={savingOffice || upsertOffice.isPending}
             data-testid="cleaner-city-office-save"
           >
             {savingOffice || upsertOffice.isPending
-              ? 'Saving…'
-              : pinsOnly
-                ? officeDone
-                  ? 'Update office pin'
-                  : 'Save office pin'
-                : officeDone
-                  ? 'Update office, then choose roads'
-                  : 'Save office, then choose roads'}
-          </Button>
+              ? 'Saving...'
+              : officeDone
+                ? 'Update office'
+                : 'Save office'}
+          </button>
           {pinsOnly ? (
-            <p className="text-xs text-muted-foreground px-1" data-testid="cleaner-city-guest-pins-hint">
+            <p className="px-1 text-xs text-muted-foreground" data-testid="cleaner-city-guest-pins-hint">
               {officeDone && pickupDone
-                ? 'Office and pickup are set - Find can match you on neighbours routes.'
-                : 'Save office after home - Find uses these pins to match corridor rides. No car or road pick needed.'}
+                ? 'Home and office are set.'
+                : 'Save office to finish your pins.'}
             </p>
           ) : null}
         </div>
@@ -646,56 +593,59 @@ export function CleanerCityRouteSetupPanel({ compact, pinsOnly, quiet, onSaved, 
 
       {wizardStep === 'roads' && !pinsOnly ? (
         <div
-          className="rounded-2xl border border-border bg-card p-4 space-y-3"
+          className={cn(cc.card, 'space-y-3 p-4')}
           data-testid="cleaner-city-route-choice"
         >
           <div className="flex items-start gap-2">
-            <Route size={16} className="mt-0.5 shrink-0 text-primary" />
+            <Route size={16} className={cn('mt-0.5 shrink-0', cc.forestText)} />
             <div>
-              <p className="text-sm font-semibold">Choose your usual road</p>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Google auto-suggests roads between your pins. Tap a dotted path on the map or a card.
+              <p className="text-sm font-semibold">Your usual road</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Tap a route on the map or a card below.
               </p>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-2">
-            {(
-              [
-                { id: 'to_office' as const, label: 'To office' },
-                { id: 'to_home' as const, label: 'To home' },
-              ] as const
-            ).map((d) => (
-              <button
-                key={d.id}
-                type="button"
-                onClick={() => setDirection(d.id)}
-                className={cn(
-                  'h-10 rounded-xl border text-xs font-extrabold',
-                  direction === d.id
-                    ? 'border-primary bg-primary/10 text-primary'
-                    : 'border-border text-muted-foreground',
-                )}
-                data-testid={`cleaner-city-route-dir-${d.id}`}
-              >
-                {d.label}
-                {(d.id === 'to_office' ? savedToOffice : savedToHome) ? (
-                  <span className="ml-1 text-[10px] font-bold text-emerald-600">✓</span>
-                ) : null}
-              </button>
-            ))}
+          <div className="overflow-x-auto">
+            <nav
+              className="flex min-w-max gap-1 border-b border-black/5"
+              data-testid="cleaner-city-route-dir-tabs"
+            >
+              {(
+                [
+                  { id: 'to_office' as const, label: 'To office', saved: !!savedToOffice },
+                  { id: 'to_home' as const, label: 'To home', saved: !!savedToHome },
+                ] as const
+              ).map((d) => (
+                <button
+                  key={d.id}
+                  type="button"
+                  onClick={() => setDirection(d.id)}
+                  className={cn(
+                    'inline-flex shrink-0 items-center gap-1.5 border-b-2 px-3 py-2.5 text-sm font-semibold transition-colors',
+                    direction === d.id
+                      ? 'border-[#0F3D2E] text-[#0F3D2E]'
+                      : 'border-transparent text-muted-foreground hover:text-foreground',
+                  )}
+                  data-testid={`cleaner-city-route-dir-${d.id}`}
+                >
+                  {d.label}
+                  {d.saved ? <Check size={12} className="text-[#0F3D2E]" /> : null}
+                </button>
+              ))}
+            </nav>
           </div>
 
           {loadingRoutes ? (
-            <p className="text-xs text-muted-foreground">Loading Google driving options…</p>
+            <p className="text-xs text-muted-foreground">Finding roads...</p>
           ) : null}
 
           {routeFetchError ? (
             <div
               className={cn(
-                'rounded-xl border px-3 py-2 space-y-2',
+                'space-y-2 rounded-xl border px-3 py-2',
                 routeAlts.some((a) => a.provider !== 'haversine_fallback')
-                  ? 'border-border bg-muted/40'
+                  ? 'border-black/10 bg-[#F7F5F1]'
                   : 'border-amber-500/40 bg-amber-500/10',
               )}
               data-testid="cleaner-city-route-offline-notice"
@@ -705,36 +655,40 @@ export function CleanerCityRouteSetupPanel({ compact, pinsOnly, quiet, onSaved, 
                   'text-xs',
                   routeAlts.some((a) => a.provider !== 'haversine_fallback')
                     ? 'text-muted-foreground'
-                    : 'text-amber-950 dark:text-amber-100',
+                    : 'text-amber-950',
                 )}
               >
                 {routeFetchError}
               </p>
               {routeStatus && !routeAlts.some((a) => a.provider !== 'haversine_fallback') ? (
-                <p className="text-[10px] font-mono text-amber-800/80 dark:text-amber-200/80">
+                <p className="font-mono text-[10px] text-amber-800/80">
                   Status: {routeStatus}
                 </p>
               ) : null}
-              <Button
+              <button
                 type="button"
-                variant="outline"
-                size="sm"
-                className="h-8"
+                className={cn(cc.secondaryBtn, 'h-9 px-3 text-[13px]')}
                 onClick={() => setRouteRetryKey((k) => k + 1)}
                 data-testid="cleaner-city-route-retry"
               >
-                Retry roads
-              </Button>
+                Retry
+              </button>
             </div>
           ) : null}
 
           {routeAlts.length > 0 ? (
-            <CleanerCityRoutePreview
-              alternatives={routeAlts}
-              selectedId={selectedRouteId}
-              onSelect={setSelectedRouteId}
-              testId="cleaner-city-route-choice-preview"
-            />
+            <>
+              <CleanerCityRoutePreview
+                alternatives={routeAlts}
+                selectedId={selectedRouteId}
+                onSelect={setSelectedRouteId}
+                testId="cleaner-city-route-choice-preview"
+              />
+              <p className="text-[12px] text-muted-foreground">
+                {routeAlts.length} Google road{routeAlts.length === 1 ? '' : 's'} shown. Tap a
+                path or its number to choose.
+              </p>
+            </>
           ) : null}
 
           <div className="flex flex-col gap-2">
@@ -747,32 +701,31 @@ export function CleanerCityRouteSetupPanel({ compact, pinsOnly, quiet, onSaved, 
                   type="button"
                   onClick={() => setSelectedRouteId(alt.id)}
                   className={cn(
-                    'rounded-xl border px-3.5 py-3 text-left transition-colors',
-                    selected ? 'bg-primary/10' : 'border-border hover:border-primary/40',
-                  )}
-                  style={
+                    'rounded-2xl border px-3.5 py-3 text-left transition-colors',
                     selected
-                      ? { borderColor: color, boxShadow: `inset 0 0 0 1px ${color}` }
-                      : { borderLeftWidth: 4, borderLeftColor: color }
-                  }
+                      ? 'border-[#0F3D2E] bg-[#E8F2EC]'
+                      : 'border-black/10 bg-white hover:border-[#0F3D2E]/35',
+                  )}
+                  style={{
+                    borderLeftWidth: 4,
+                    borderLeftColor: selected ? '#0F3D2E' : color,
+                  }}
                   data-testid={`cleaner-city-route-alt-${alt.id}`}
                 >
-                  <p className="text-sm font-semibold flex items-center gap-1.5">
+                  <p className="flex items-center gap-1.5 text-sm font-semibold">
                     <span
-                      className="inline-flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-extrabold text-white shrink-0"
-                      style={{ backgroundColor: color }}
+                      className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-extrabold text-white"
+                      style={{ backgroundColor: selected ? '#0F3D2E' : color }}
                     >
                       {index + 1}
                     </span>
-                    {selected ? <Check size={14} style={{ color }} /> : null}
+                    {selected ? <Check size={14} className="text-[#0F3D2E]" /> : null}
                     {alt.summary}
                     {alt.provider === 'haversine_fallback' ? (
                       <span className="text-[10px] font-bold uppercase text-amber-700">Approx</span>
-                    ) : alt.provider === 'osrm' ? (
-                      <span className="text-[10px] font-bold uppercase text-emerald-700">Road</span>
                     ) : null}
                   </p>
-                  <p className="text-xs text-muted-foreground mt-0.5">{formatRouteMeta(alt)}</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">{formatRouteMeta(alt)}</p>
                 </button>
               );
             })}
@@ -793,8 +746,9 @@ export function CleanerCityRouteSetupPanel({ compact, pinsOnly, quiet, onSaved, 
             </label>
           ) : null}
 
-          <Button
-            className="h-11 w-full font-semibold"
+          <button
+            type="button"
+            className={cn(cc.primaryBtn, 'w-full')}
             onClick={saveChosenRoad}
             disabled={
               savingRoute ||
@@ -805,19 +759,15 @@ export function CleanerCityRouteSetupPanel({ compact, pinsOnly, quiet, onSaved, 
             data-testid="cleaner-city-route-save-road"
           >
             {savingRoute || setPreferredRoute.isPending
-              ? 'Saving road…'
-              : direction === 'to_office'
-                ? 'Save morning road (to office)'
-                : 'Save evening road (to home)'}
-          </Button>
+              ? 'Saving...'
+              : 'Save this road'}
+          </button>
 
-          {roadsDone ? (
-            <p className="text-xs text-emerald-600 font-semibold px-1">
-              Morning and evening roads are saved.
-            </p>
-          ) : !compact ? (
+          {!roadsDone ? (
             <p className="text-[11px] text-muted-foreground">
-              Save morning first, then switch to To home and save the evening road too.
+              {!savedToOffice
+                ? 'First save the road to office.'
+                : 'Now save the road home.'}
             </p>
           ) : null}
         </div>

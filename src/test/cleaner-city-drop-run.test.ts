@@ -7,6 +7,7 @@ import {
   mapsOriginForStop,
   mergeDropProgress,
   parseDropOrderJson,
+  preferDropProgress,
   withUpdatedStopProgress,
 } from '@/lib/cleaner-city/dropRun';
 import { planDropSequence, type DropStop } from '@/lib/cleaner-city/routing';
@@ -130,6 +131,17 @@ describe('Greenfield → Whitefield auto drop run', () => {
     expect(merged[GUEST_A.id].status).toBe('dropped');
     expect(merged[GUEST_C.id].status).toBe('pending');
     expect(merged[GUEST_B.id]).toBeUndefined();
+  });
+
+  it('prefers arrived/dropped over stale pending on re-plan merge', () => {
+    const cached = {
+      [GUEST_A.id]: { status: 'pending' as const, updatedAt: 'old' },
+    };
+    const local = {
+      [GUEST_A.id]: { status: 'arrived' as const, updatedAt: 'new' },
+    };
+    const merged = preferDropProgress(cached, local);
+    expect(merged[GUEST_A.id].status).toBe('arrived');
   });
 
   it('parses drop_order_json with progress for mission chips', () => {

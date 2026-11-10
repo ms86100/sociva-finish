@@ -7,24 +7,38 @@ function read(rel: string) {
 }
 
 describe('Cleaner City guest path', () => {
-  it('hub I-need-a-seat opens setup with guest intent', () => {
-    const hub = read('src/pages/cleaner-city/CleanerCityPage.tsx');
-    expect(hub).toContain("intent: 'guest'");
-    expect(hub).toContain("setCleanerCityIntent('guest')");
+  it('incomplete Home setup opens choice screen without forcing guest', () => {
+    const hub = read('src/pages/cleaner-city/CleanerCityHomePage.tsx');
+    const find = read('src/pages/cleaner-city/CleanerCityFindPage.tsx');
+    expect(hub).toContain("navigate('/cleaner-city/setup'");
+    expect(hub).not.toContain("intent: 'guest'");
+    expect(find).toContain("setCleanerCityIntent('guest')");
     expect(hub).toContain('cleaner-city-hub-intent-find');
+    expect(read('src/components/cleaner-city/CleanerCityPlaySwitch.tsx')).toContain(
+      "setCleanerCityIntent(next === 'offer' ? 'host' : 'guest')",
+    );
+    expect(read('src/components/cleaner-city/CleanerCityPlaySwitch.tsx')).toContain(
+      'bg-card text-foreground',
+    );
   });
 
-  it('setup page has guest-only modules and no vehicle as primary done step', () => {
+  it('setup shows guest and host start choices with short copy', () => {
     const setup = read('src/pages/cleaner-city/CleanerCitySetupPage.tsx');
     expect(setup).toContain('data-intent={intent}');
-    expect(setup).toContain('cleaner-city-setup-guest-banner');
-    expect(setup).toContain('Set up as a guest');
+    expect(setup).toContain('cleaner-city-setup-path-choice');
+    expect(setup).toContain('I need a seat');
+    expect(setup).toContain('I can offer seats');
+    expect(setup).toContain('cleaner-city-setup-host-choice');
     expect(setup).toContain('pinsOnly={isGuestPath}');
     expect(setup).toContain('cleaner-city-setup-guest-find-cta');
     expect(setup).toContain('cleaner-city-setup-guest-schedule');
     expect(setup).toContain('cleaner-city-setup-guest-safety');
-    expect(setup).toContain('Open Find a seat');
-    expect(setup).toContain('No vehicle or driving roads');
+    expect(setup).toContain('cleaner-city-setup-host-offer-cta');
+    expect(setup).toContain('Find a seat');
+    expect(setup).toContain('Offer seats');
+    expect(setup).not.toContain('Four guest steps');
+    expect(setup).not.toContain('Guest path');
+    expect(setup).not.toContain('Back to A Cleaner City');
   });
 
   it('route panel can hide driving roads for guests', () => {

@@ -113,8 +113,8 @@ export default function CleanerCityChatPage() {
             </p>
           </div>
           {isError && (
-            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
-              The chat inbox is not on the server yet. Open a ride or a circle to message there.
+            <div className="rounded-2xl border border-amber-500/30 bg-amber-50 p-4 text-sm text-amber-950">
+              Open a ride or a trusted circle to message your partner there.
             </div>
           )}
           {!isError && inbox.length === 0 && (
@@ -122,7 +122,7 @@ export default function CleanerCityChatPage() {
               No conversations yet. Request a ride or join a circle, then come back here.
               <div className="mt-3 flex gap-2">
                 <Button asChild size="sm">
-                  <Link to="/cleaner-city/find">Find a ride</Link>
+                  <Link to="/cleaner-city">Find a ride</Link>
                 </Button>
                 <Button asChild size="sm" variant="outline">
                   <Link to="/cleaner-city/circles">Circles</Link>

@@ -1,7 +1,6 @@
 // @ts-nocheck
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { ChevronDown } from 'lucide-react';
 import { toast } from 'sonner';
 import { CleanerCityChrome } from '@/components/cleaner-city/CleanerCityChrome';
 import { CleanerCityGate } from '@/components/cleaner-city/CleanerCityGate';
@@ -10,40 +9,35 @@ import {
   CleanerCityActiveMissionDock,
 } from '@/components/cleaner-city/CleanerCityActiveMissionCard';
 import { CleanerCityMatchCard } from '@/components/cleaner-city/CleanerCityMatchCard';
-import { CleanerCityPlaySwitch } from '@/components/cleaner-city/CleanerCityPlaySwitch';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { CleanerCityEditRideDrawer } from '@/components/cleaner-city/CleanerCityEditRideDrawer';
+import { CleanerCityChangeRouteDrawer } from '@/components/cleaner-city/CleanerCityChangeRouteDrawer';
+import { cc } from '@/components/cleaner-city/ui/ccTheme';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { ArrowUpDown, Calendar, Clock, Flag, MapPin, Settings2 } from 'lucide-react';
 import {
+  preferredRouteFromProfile,
   useCancelRide,
   useCleanerCityProfile,
   useCleanerCityWorkVerification,
   useCommuteTemplates,
   useEffectiveSchedule,
-  useEmergencyContacts,
   useFindMatches,
   useJoinWaitlist,
   useLeaveWaitlist,
-  useMyRides,
-  useMyWaitlist,
   useMyActiveGuestRide,
+  useMyRides,
+  useEmergencyContacts,
+  useMyWaitlist,
   useOfficeLocations,
-  fetchMyActiveGuestRide,
-  preferredRouteFromProfile,
   useRequestRide,
-  useRespondRideRequest,
   useSuggestReplacements,
   type MatchResult,
 } from '@/hooks/queries/useCleanerCity';
-import {
-  CLEANER_CITY_DIRECTIONS,
-  DEFAULT_COMMUTE_TIMEZONE,
-} from '@/lib/cleaner-city/constants';
+import { DEFAULT_COMMUTE_TIMEZONE } from '@/lib/cleaner-city/constants';
+import { setCleanerCityIntent } from '@/lib/cleaner-city/intent';
+import { rideStatusLabel } from '@/lib/cleaner-city/rideMissionCopy';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
-import { useQueryClient } from '@tanstack/react-query';
 
 function todayIso(tz = DEFAULT_COMMUTE_TIMEZONE) {
   return new Intl.DateTimeFormat('en-CA', {
@@ -60,7 +54,6 @@ function addDaysIso(isoDate: string, days: number) {
   return d.toISOString().slice(0, 10);
 }
 
-/** Next Mon-Fri date including today when today is a weekday. */
 function nextWorkdayIso(tz = DEFAULT_COMMUTE_TIMEZONE) {
   let d = todayIso(tz);
   for (let i = 0; i < 8; i++) {
@@ -75,72 +68,98 @@ function weekdayOf(dateIso: string): number {
   return new Date(`${dateIso}T12:00:00`).getDay();
 }
 
-function personInitials(name?: string | null) {
-  const parts = String(name || '?').trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return '?';
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
-}
+const ACTIVE_GUEST = ['requested', 'confirmed', 'pickup_pending', 'started', 'safety_incident'];
 
 export default function CleanerCityFindPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const queryClient = useQueryClient();
   const arrivalState = (location.state as {
     notice?: string;
-    openHosting?: boolean;
-    justPublishedId?: string;
+    travelDate?: string;
+    direction?: string;
+    departTime?: string;
+    openFindGuests?: boolean;
   } | null) || {};
-  const arrivalNotice = arrivalState.notice || '';
-  const [hostingFocus, setHostingFocus] = useState(!!arrivalState.openHosting);
-  const { data: profile } = useCleanerCityProfile();
-  const { data: verification } = useCleanerCityWorkVerification();
-  const { data: offices = [] } = useOfficeLocations();
+
+  const { data: profile, isLoading: profileLoading } = useCleanerCityProfile();
+  const { data: verification, isLoading: verificationLoading } = useCleanerCityWorkVerification();
+  const { data: offices = [], isLoading: officesLoading } = useOfficeLocations();
   const { data: templates = [] } = useCommuteTemplates();
   const { data: rides = [], refetch: refetchRides } = useMyRides();
   const { data: waitlist = [] } = useMyWaitlist();
-  const { data: rpcActiveGuest, refetch: refetchActiveGuest } = useMyActiveGuestRide();
   const { data: emergencyContacts = [] } = useEmergencyContacts();
-  const hasVerifiedEmergency = emergencyContacts.some((c) => c.verified_at);
+  const { data: rpcActiveGuest, refetch: refetchActiveGuest } = useMyActiveGuestRide();
   const findMatches = useFindMatches();
   const requestRide = useRequestRide();
-  const respond = useRespondRideRequest();
   const cancelRide = useCancelRide();
   const joinWaitlist = useJoinWaitlist();
   const leaveWaitlist = useLeaveWaitlist();
   const suggestReplacements = useSuggestReplacements();
+  const hasVerifiedEmergency = emergencyContacts.some((c) => c.verified_at);
+
+  useEffect(() => {
+    if (arrivalState.openFindGuests) {
+      navigate('/cleaner-city/offer', { replace: true, state: location.state });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (profileLoading || verificationLoading || officesLoading) return;
+    if (!profile || verification?.status !== 'verified') {
+      navigate('/cleaner-city/setup', { replace: true });
+      return;
+    }
+    const hasOffice = offices.some(
+      (o) => typeof o.latitude === 'number' && typeof o.longitude === 'number',
+    );
+    if (!hasOffice) {
+      navigate('/cleaner-city/setup', { replace: true, state: { step: 3 } });
+    }
+  }, [
+    profile,
+    verification?.status,
+    offices,
+    profileLoading,
+    verificationLoading,
+    officesLoading,
+    navigate,
+  ]);
 
   const tz = profile?.timezone || DEFAULT_COMMUTE_TIMEZONE;
   const today = todayIso(tz);
-  const defaultDate = nextWorkdayIso(tz);
-  const [date, setDate] = useState(defaultDate);
-  const [direction, setDirection] = useState('to_office');
-  const [departTime, setDepartTime] = useState('08:30');
+  const [date, setDate] = useState(arrivalState.travelDate || nextWorkdayIso(tz));
+  const [direction, setDirection] = useState(
+    arrivalState.direction === 'to_home' ? 'to_home' : 'to_office',
+  );
+  const [departTime, setDepartTime] = useState(
+    String(arrivalState.departTime || '08:30').slice(0, 5),
+  );
   const [matches, setMatches] = useState<MatchResult[]>([]);
+  const commuteMatches = useMemo(
+    () => matches.filter((m) => (m.trip_kind || 'commute') !== 'extra'),
+    [matches],
+  );
+  const extraMatches = useMemo(
+    () => matches.filter((m) => m.trip_kind === 'extra'),
+    [matches],
+  );
   const [hasSearched, setHasSearched] = useState(false);
-  const [alternatives, setAlternatives] = useState<MatchResult[]>([]);
-  const [alternativesForRide, setAlternativesForRide] = useState<string | null>(null);
-  const [hostingOpen, setHostingOpen] = useState(false);
-  const [requestedPubId, setRequestedPubId] = useState<string | null>(null);
   const [requestingPubId, setRequestingPubId] = useState<string | null>(null);
+  const [editRideOpen, setEditRideOpen] = useState(false);
+  const [changeRouteOpen, setChangeRouteOpen] = useState(false);
+  const [changeRouteDir, setChangeRouteDir] = useState<'to_office' | 'to_home'>('to_office');
+  const [alternatives, setAlternatives] = useState<MatchResult[]>([]);
 
   const { data: schedule } = useEffectiveSchedule(date);
-
   const ready = !!profile && verification?.status === 'verified' && !profile.is_paused;
   const office = offices.find((o) => o.is_primary) || offices[0] || null;
-
   const weekday = weekdayOf(date);
   const weekdayTemplate = templates.find((t) => t.weekday === weekday) || null;
-
   const pickupLat = schedule?.pickup_latitude ?? weekdayTemplate?.pickup_latitude ?? null;
   const pickupLng = schedule?.pickup_longitude ?? weekdayTemplate?.pickup_longitude ?? null;
   const hasPickup = pickupLat != null && pickupLng != null;
-  const hasPins = !!(office?.latitude != null && hasPickup);
-  const hasRoads = !!(
-    preferredRouteFromProfile(profile, 'to_office') &&
-    preferredRouteFromProfile(profile, 'to_home')
-  );
 
   const guestCoords = useMemo(() => {
     const officeLat = office?.latitude ?? null;
@@ -175,6 +194,7 @@ export default function CleanerCityFindPage() {
       return;
     }
     try {
+      setCleanerCityIntent('guest');
       const res = await findMatches.mutateAsync({
         date,
         direction,
@@ -186,7 +206,7 @@ export default function CleanerCityFindPage() {
       });
       setMatches(res.matches || []);
       setHasSearched(true);
-    } catch (e: any) {
+    } catch {
       toast.error('Could not find rides. Please try again.');
     }
   };
@@ -196,209 +216,9 @@ export default function CleanerCityFindPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, hasPickup, date, direction, departTime]);
 
-  useEffect(() => {
-    if (!user?.id) return;
-    const channel = supabase
-      .channel(`cleaner-city-find-rides-${user.id}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'rides', filter: `host_user_id=eq.${user.id}` },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ['cleaner-city-rides', user.id] });
-          toast.message('Seat request update', {
-            description: 'A neighbour just changed a ride on your hosting list.',
-          });
-        },
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'rides', filter: `guest_user_id=eq.${user.id}` },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ['cleaner-city-rides', user.id] });
-        },
-      )
-      .subscribe();
-    return () => {
-      void supabase.removeChannel(channel);
-    };
-  }, [user?.id, queryClient]);
-
-  const ACTIVE_GUEST = ['requested', 'confirmed', 'pickup_pending', 'started', 'safety_incident'];
-
-  const openExistingGuestRide = async (hint?: { travelDate?: string; direction?: string }) => {
-    const travelDate = hint?.travelDate || date;
-    const dir = hint?.direction || direction;
-    const pick = (list: typeof rides) =>
-      list.find(
-        (r) =>
-          r.guest_user_id === user?.id &&
-          r.travel_date === travelDate &&
-          (!r.direction || r.direction === dir) &&
-          ACTIVE_GUEST.includes(r.status),
-      ) ||
-      list.find(
-        (r) =>
-          r.guest_user_id === user?.id &&
-          r.travel_date === travelDate &&
-          ACTIVE_GUEST.includes(r.status),
-      ) ||
-      list.find(
-        (r) => r.guest_user_id === user?.id && ACTIVE_GUEST.includes(r.status),
-      );
-
-    let existing = pick(rides);
-    if (!existing?.id) {
-      const refreshed = await refetchRides();
-      existing = pick(refreshed.data || []);
-    }
-
-    // Authoritative lookup - list queries can lag right after a request.
-    if (!existing?.id && user?.id) {
-      try {
-        const row =
-          (await fetchMyActiveGuestRide({ travel_date: travelDate, direction: dir })) ||
-          (await fetchMyActiveGuestRide({ travel_date: travelDate })) ||
-          (await fetchMyActiveGuestRide());
-        if (row?.id) existing = row as (typeof rides)[number];
-      } catch {
-        // Fall through to table select.
-      }
-    }
-
-    if (!existing?.id && user?.id) {
-      const { data: row, error } = await supabase
-        .from('rides')
-        .select(
-          'id, publication_id, society_id, host_user_id, guest_user_id, travel_date, status, request_expires_at, pickup_deadline_at, meeting_point_label, guest_pickup_latitude, guest_pickup_longitude, guest_dest_latitude, guest_dest_longitude',
-        )
-        .eq('guest_user_id', user.id)
-        .in('status', ACTIVE_GUEST)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (!error && row?.id) existing = row as (typeof rides)[number];
-    }
-
-    if (existing?.id) {
-      navigate(`/cleaner-city/ride/${existing.id}`, {
-        state: {
-          notice: 'This is your active ride - one seat per date and direction.',
-          seededRide: existing,
-        },
-      });
-      return existing;
-    }
-    document.getElementById('cleaner-city-active-ride-banner')?.scrollIntoView({
-      behavior: 'smooth',
-      block: 'start',
-    });
-    document.getElementById('cleaner-city-your-rides')?.scrollIntoView({
-      behavior: 'smooth',
-      block: 'start',
-    });
-    return null;
-  };
-
-  const request = async (publicationId: string) => {
-    if (!hasVerifiedEmergency) {
-      toast.message('Tip: add an emergency contact anytime in You → Safety', {
-        action: {
-          label: 'Safety',
-          onClick: () => navigate('/cleaner-city/safety'),
-        },
-      });
-    }
-    setRequestingPubId(publicationId);
-    try {
-      const ride = await requestRide.mutateAsync({
-        publication_id: publicationId,
-        guest_pickup_lat: guestCoords.pickup_lat,
-        guest_pickup_lng: guestCoords.pickup_lng,
-        guest_dest_lat: guestCoords.dest_lat,
-        guest_dest_lng: guestCoords.dest_lng,
-      });
-      setRequestedPubId(publicationId);
-      toast.success('Ping sent - host will see Accept / Decline instantly');
-      void search();
-      if (ride?.id) {
-        navigate(`/cleaner-city/ride/${ride.id}`, {
-          state: {
-            notice: 'Request sent. Seat held until the host accepts or declines.',
-            seededRide: ride,
-          },
-          replace: false,
-        });
-      }
-    } catch (e: any) {
-      const msg = String(e?.message || e?.error_description || e?.details || 'Could not request ride');
-      if (/already have an active ride/i.test(msg) || /already have an open request/i.test(msg)) {
-        const existing = await openExistingGuestRide({ travelDate: date, direction });
-        if (existing?.id) {
-          toast.message('You already have a ride', {
-            description: 'Opened your live mission - cancel there if you want another seat.',
-            action: {
-              label: 'Open again',
-              onClick: () =>
-                navigate(`/cleaner-city/ride/${existing.id}`, {
-                  state: { seededRide: existing },
-                }),
-            },
-          });
-        } else {
-          toast.error('You already have a ride, but it could not be loaded. Pull to refresh Find.');
-        }
-      } else {
-        toast.error(msg);
-      }
-    } finally {
-      setRequestingPubId(null);
-    }
-  };
-
-  const myWaitlistEntry = waitlist.find(
-    (w) => w.travel_date === date && w.direction === direction && w.status === 'open',
-  );
-
-  const joinTheWaitlist = async () => {
-    if (!hasPickup) {
-      navigate('/cleaner-city/route', {
-        state: { notice: 'Pin a pickup near home before joining the waitlist.' },
-      });
-      return;
-    }
-    try {
-      await joinWaitlist.mutateAsync({
-        date,
-        direction,
-        depart_time: departTime,
-        pickup_lat: guestCoords.pickup_lat,
-        pickup_lng: guestCoords.pickup_lng,
-        dest_lat: guestCoords.dest_lat,
-        dest_lng: guestCoords.dest_lng,
-      });
-      toast.success('Added to waitlist - we will notify you when a seat opens');
-    } catch (e: any) {
-      toast.error('Could not join waitlist. Please try again.');
-    }
-  };
-
-  const leaveTheWaitlist = async () => {
-    try {
-      await leaveWaitlist.mutateAsync({ date, direction });
-      toast.success('Left the waitlist');
-    } catch (e: any) {
-      toast.error('Could not leave waitlist. Please try again.');
-    }
-  };
-
-  const incoming = rides.filter(
-    (r) => r.host_user_id === user?.id && r.status === 'requested',
-  );
   const guestRides = rides.filter(
     (r) => r.guest_user_id === user?.id && ACTIVE_GUEST.includes(r.status),
   );
-  // Prefer list enrichment; fall back to authoritative RPC so Find always shows
-  // Active ride even when the rides list lags.
   const activeGuestRide = useMemo(() => {
     const fromList =
       guestRides.find(
@@ -410,58 +230,92 @@ export default function CleanerCityFindPage() {
       null;
     if (fromList?.id) return fromList;
     if (rpcActiveGuest?.id) {
-      const enriched = rides.find((r) => r.id === rpcActiveGuest.id);
-      return enriched || rpcActiveGuest;
+      return rides.find((r) => r.id === rpcActiveGuest.id) || rpcActiveGuest;
     }
     return null;
   }, [guestRides, date, direction, rpcActiveGuest, rides]);
-  const hostRides = rides.filter(
-    (r) =>
-      r.host_user_id === user?.id &&
-      ['requested', 'confirmed', 'pickup_pending', 'started'].includes(r.status),
+
+  const myWaitlistEntry = waitlist.find(
+    (w) => (w.travel_date || w.date) === date && w.direction === direction,
   );
-  const hasHosting = incoming.length > 0 || hostRides.length > 0;
 
-  useEffect(() => {
-    if (hasHosting || hostingFocus) setHostingOpen(true);
-  }, [hasHosting, hostingFocus]);
-
-  useEffect(() => {
-    if (!arrivalState.openHosting) return;
-    setHostingFocus(true);
-    setHostingOpen(true);
-    const t = window.setTimeout(() => {
-      document.getElementById('cleaner-city-sticky-hosting')?.scrollIntoView({
-        behavior: 'smooth',
-        block: 'start',
+  const requestSeat = async (publicationId: string) => {
+    setRequestingPubId(publicationId);
+    try {
+      const ride = await requestRide.mutateAsync({
+        publication_id: publicationId,
+        guest_pickup_lat: guestCoords.pickup_lat,
+        guest_pickup_lng: guestCoords.pickup_lng,
+        guest_dest_lat: guestCoords.dest_lat,
+        guest_dest_lng: guestCoords.dest_lng,
       });
-    }, 120);
-    // Keep notice; drop openHosting so back/refresh does not keep forcing scroll.
-    navigate(location.pathname, {
-      replace: true,
-      state: arrivalNotice ? { notice: arrivalNotice } : {},
-    });
-    return () => window.clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- consume openHosting once on arrival
-  }, []);
+      toast.success('Seat requested');
+      if (ride?.id) {
+        navigate(`/cleaner-city/ride/${ride.id}`, { state: { seededRide: ride } });
+      } else {
+        void refetchRides();
+      }
+    } catch (e: any) {
+      toast.error(e?.message || 'Could not request seat');
+    } finally {
+      setRequestingPubId(null);
+    }
+  };
+
+  const joinTheWaitlist = async () => {
+    try {
+      await joinWaitlist.mutateAsync({
+        date,
+        direction,
+        depart_time: departTime,
+        pickup_lat: guestCoords.pickup_lat,
+        pickup_lng: guestCoords.pickup_lng,
+        dest_lat: guestCoords.dest_lat,
+        dest_lng: guestCoords.dest_lng,
+      });
+      toast.success('Joined waitlist');
+    } catch (e: any) {
+      toast.error(e?.message || 'Could not join waitlist');
+    }
+  };
+
+  const leaveTheWaitlist = async () => {
+    try {
+      await leaveWaitlist.mutateAsync({
+        date,
+        direction,
+      });
+      toast.success('Left waitlist');
+    } catch (e: any) {
+      toast.error(e?.message || 'Could not leave waitlist');
+    }
+  };
+
+  const pickupLabel =
+    direction === 'to_home'
+      ? office?.label || 'Office'
+      : weekdayTemplate?.pickup_label || 'Home';
+  const dropLabel =
+    direction === 'to_home'
+      ? weekdayTemplate?.pickup_label || 'Home'
+      : office?.label || 'Office';
 
   return (
-    <CleanerCityChrome headerTitle="Find">
+    <CleanerCityChrome headerTitle="Find" className={cc.bg}>
       <CleanerCityGate>
         <div
-          className={cn(
-            'mx-auto flex w-full max-w-lg flex-col gap-5 px-4 pt-4',
-            activeGuestRide ? 'pb-36' : 'pb-24',
-          )}
+          className={cn(cc.page, activeGuestRide ? 'pb-36' : 'pb-28')}
           data-testid="cleaner-city-find-page"
         >
-          {arrivalNotice && (
-            <div className="rounded-2xl border border-primary/30 bg-primary/5 px-4 py-3 text-sm leading-relaxed">
-              {arrivalNotice}
-            </div>
-          )}
+          <header className="text-center">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#0F3D2E]">
+              Sociva Cleaner City
+            </p>
+          </header>
 
-          <CleanerCityPlaySwitch mode="find" hasPins={hasPins} hasRoads={hasRoads} />
+          {arrivalState.notice ? (
+            <div className={cn(cc.card, 'px-4 py-3 text-sm')}>{arrivalState.notice}</div>
+          ) : null}
 
           {activeGuestRide ? (
             <div
@@ -469,313 +323,199 @@ export default function CleanerCityFindPage() {
               className="space-y-2"
               data-testid="cleaner-city-find-active-ride"
             >
-              <p className="px-0.5 text-[11px] font-extrabold uppercase tracking-[0.14em] text-primary">
-                Your active ride
-              </p>
               <CleanerCityActiveMissionCard
                 ride={activeGuestRide}
                 myUserId={user?.id}
                 todayIso={today}
               />
               <Button
-                className="h-12 w-full font-extrabold"
+                className={cn(cc.primaryBtn, 'w-full')}
                 data-testid="cleaner-city-open-active-ride"
                 onClick={() =>
                   navigate(`/cleaner-city/ride/${activeGuestRide.id}`, {
-                    state: {
-                      notice: 'Continue your mission from Find.',
-                      seededRide: activeGuestRide,
-                    },
+                    state: { seededRide: activeGuestRide },
                   })
                 }
               >
-                Open active ride
+                {['confirmed', 'pickup_pending'].includes(activeGuestRide.status)
+                  ? 'Open ride for pickup code'
+                  : 'Open ride'}
               </Button>
-              {['requested', 'confirmed', 'pickup_pending'].includes(activeGuestRide.status) ? (
-                <Button
-                  className="h-11 w-full font-semibold"
-                  variant="outline"
-                  data-testid="cleaner-city-cancel-active-ride"
-                  onClick={async () => {
-                    try {
-                      await cancelRide.mutateAsync({ ride_id: activeGuestRide.id });
-                      toast.success('Cancelled - you can request another seat');
-                      void refetchRides();
-                      void refetchActiveGuest();
-                      void search();
-                    } catch (e: any) {
-                      toast.error('Could not cancel. Please try again.');
-                    }
-                  }}
-                >
-                  Cancel this seat to request another
-                </Button>
-              ) : null}
-              {activeGuestRide.travel_date !== date ||
-              (activeGuestRide.direction && activeGuestRide.direction !== direction) ? (
-                <p className="text-[11px] text-muted-foreground px-1">
-                  You already hold a seat for {activeGuestRide.travel_date}
-                  {activeGuestRide.direction
-                    ? ` · ${activeGuestRide.direction === 'to_home' ? 'to home' : 'to office'}`
-                    : ''}
-                  . Cancel it above before requesting another for this filter.
-                </p>
-              ) : null}
             </div>
           ) : null}
 
-          {(incoming.length > 0 || hostingFocus) && (
-            <div
-              id="cleaner-city-sticky-hosting"
-              className="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4 space-y-3 sticky top-2 z-20 backdrop-blur-sm"
-              data-testid="cleaner-city-sticky-hosting"
-            >
-              <div>
-                <p className="text-sm font-semibold">
-                  {incoming.length > 0
-                    ? `${incoming.length} seat request${incoming.length === 1 ? '' : 's'} waiting`
-                    : 'Hosting is live'}
-                </p>
-                <p className="text-[11px] text-muted-foreground mt-0.5">
-                  {incoming.length > 0
-                    ? 'Accept or decline - guests are waiting'
-                    : 'When a neighbour requests a seat, Accept shows here'}
-                </p>
-              </div>
-              {incoming.map((r) => {
-                const guestName = r.guest_name || 'Neighbour';
-                const guestFlat = String(r.guest_flat || '').trim();
-                return (
-                  <div
-                    key={r.id}
-                    className="rounded-xl border border-border bg-card p-3 space-y-2"
-                    data-testid="cleaner-city-incoming-request"
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <Avatar className="h-10 w-10">
-                        {r.guest_avatar_url ? (
-                          <AvatarImage src={r.guest_avatar_url} alt={guestName} className="object-cover" />
-                        ) : null}
-                        <AvatarFallback className="bg-primary/15 text-xs font-bold text-primary">
-                          {personInitials(guestName)}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-semibold">{guestName}</p>
-                        <p className="text-[11px] text-muted-foreground truncate">
-                          {[guestFlat ? `Flat ${guestFlat}` : null, r.travel_date]
-                            .filter(Boolean)
-                            .join(' · ')}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <Button
-                        className="h-11 font-semibold"
-                        disabled={respond.isPending}
-                        data-testid="cleaner-city-sticky-accept"
-                        onClick={async () => {
-                          try {
-                            await respond.mutateAsync({ ride_id: r.id, accept: true });
-                            toast.success('Accepted - opening ride');
-                            navigate(`/cleaner-city/ride/${r.id}`, {
-                              state: { notice: 'Guest accepted. Set a meeting point when ready.' },
-                            });
-                          } catch (e: any) {
-                            toast.error('Something went wrong. Please try again.');
-                          }
-                        }}
-                      >
-                        Accept
-                      </Button>
-                      <Button
-                        className="h-11 font-semibold"
-                        variant="outline"
-                        disabled={respond.isPending}
-                        data-testid="cleaner-city-sticky-decline"
-                        onClick={async () => {
-                          try {
-                            await respond.mutateAsync({ ride_id: r.id, accept: false });
-                            toast.success('Declined');
-                          } catch (e: any) {
-                            toast.error('Something went wrong. Please try again.');
-                          }
-                        }}
-                      >
-                        Decline
-                      </Button>
-                    </div>
-                  </div>
-                );
-              })}
+          <section
+            className={cn(cc.card, 'space-y-3 p-4')}
+            data-testid="cleaner-city-find-filters"
+            id="cleaner-city-find-filters"
+          >
+            <div>
+              <h1 className="text-[18px] font-bold tracking-tight text-[#0F3D2E]">
+                FIND A SEAT
+              </h1>
+              <p className="mt-0.5 text-[12px] text-muted-foreground">
+                Share rides. Save fuel. Clean our city.
+              </p>
             </div>
-          )}
+            <div className="relative space-y-2">
+              <button
+                type="button"
+                className="flex w-full items-center gap-3 rounded-xl border border-black/5 bg-[#F7F5F1] px-3 py-2.5 text-left"
+                onClick={() => {
+                  setChangeRouteDir(direction === 'to_home' ? 'to_home' : 'to_office');
+                  setChangeRouteOpen(true);
+                }}
+              >
+                <MapPin className="h-4 w-4 text-[#0F3D2E]" />
+                <div className="min-w-0">
+                  <p className="text-[11px] text-muted-foreground">Pickup</p>
+                  <p className="truncate text-[14px] font-semibold">{pickupLabel}</p>
+                </div>
+              </button>
+              <div className="pointer-events-none absolute left-1/2 top-1/2 z-[1] -translate-x-1/2 -translate-y-1/2">
+                <button
+                  type="button"
+                  className="pointer-events-auto flex h-9 w-9 items-center justify-center rounded-full border border-[#0F3D2E]/20 bg-white text-[#0F3D2E] shadow-sm active:scale-95"
+                  aria-label="Switch pickup and destination"
+                  data-testid="cleaner-city-find-swap-direction"
+                  onClick={() => {
+                    setDirection((d) => (d === 'to_home' ? 'to_office' : 'to_home'));
+                  }}
+                >
+                  <ArrowUpDown className="h-4 w-4" />
+                </button>
+              </div>
+              <button
+                type="button"
+                className="flex w-full items-center gap-3 rounded-xl border border-black/5 bg-[#F7F5F1] px-3 py-2.5 text-left"
+                onClick={() => {
+                  setChangeRouteDir(direction === 'to_home' ? 'to_home' : 'to_office');
+                  setChangeRouteOpen(true);
+                }}
+              >
+                <Flag className="h-4 w-4 text-[#0F3D2E]" />
+                <div className="min-w-0">
+                  <p className="text-[11px] text-muted-foreground">Destination</p>
+                  <p className="truncate text-[14px] font-semibold">{dropLabel}</p>
+                </div>
+              </button>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                className="flex items-center gap-2 rounded-xl border border-black/5 bg-[#F7F5F1] px-3 py-2.5 text-left"
+                onClick={() => setEditRideOpen(true)}
+                data-testid="cleaner-city-find-change-time"
+              >
+                <Calendar className="h-4 w-4 text-[#0F3D2E]" />
+                <div>
+                  <p className="text-[11px] text-muted-foreground">Date</p>
+                  <p className="text-[13px] font-semibold">
+                    {date === today ? 'Today' : 'Tomorrow'}
+                  </p>
+                </div>
+              </button>
+              <button
+                type="button"
+                className="flex items-center gap-2 rounded-xl border border-black/5 bg-[#F7F5F1] px-3 py-2.5 text-left"
+                onClick={() => setEditRideOpen(true)}
+              >
+                <Clock className="h-4 w-4 text-[#0F3D2E]" />
+                <div>
+                  <p className="text-[11px] text-muted-foreground">Time</p>
+                  <p className="text-[13px] font-semibold">{departTime}</p>
+                </div>
+              </button>
+            </div>
+            <p
+              className="truncate text-[11px] text-muted-foreground"
+              data-testid="cleaner-city-find-usual-route"
+            >
+              {preferredRouteFromProfile(
+                profile,
+                direction === 'to_home' ? 'to_home' : 'to_office',
+              )?.summary || 'Usual road'}
+            </p>
+            <button
+              type="button"
+              className={cn(cc.secondaryBtn, 'w-full text-[13px]')}
+              onClick={() => void search()}
+              disabled={findMatches.isPending}
+              data-testid="cleaner-city-find-search"
+            >
+              <Settings2 className="h-4 w-4" />
+              {findMatches.isPending ? 'Searching…' : 'Refine search'}
+            </button>
+          </section>
 
-          {!ready && (
-            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-950 text-sm">
+          <div className="flex flex-wrap gap-2">
+            <span className={cc.pillActive}>Society neighbours</span>
+          </div>
+          <p className="sr-only">Corridor labels only until a ride is confirmed</p>
+
+          {ready && !hasVerifiedEmergency ? (
+            <p className="px-0.5 text-[12px] text-muted-foreground">
+              Tip: add an emergency contact anytime in You → Safety
+            </p>
+          ) : null}
+
+          {!ready ? (
+            <div className="rounded-2xl border border-amber-500/30 bg-amber-50/80 p-4 text-sm">
               Complete{' '}
               <Link to="/cleaner-city/setup" className="font-semibold underline">
-                set up + work email
+                setup and work email
               </Link>{' '}
               to discover rides.
             </div>
-          )}
+          ) : null}
 
-          {ready && !hasPickup && (
+          {ready && !hasPickup ? (
             <div
-              className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-950 text-sm"
+              className="rounded-2xl border border-amber-500/30 bg-amber-50/80 p-4 text-sm"
               data-testid="cleaner-city-find-missing-pickup"
             >
-              No pickup pin saved for this day yet. Add one on{' '}
+              Set your commute pins and usual roads first.{' '}
               <Link to="/cleaner-city/route" className="font-semibold underline">
-                Office & pickup
+                Set your route
               </Link>{' '}
               before searching.
             </div>
-          )}
+          ) : null}
 
-          <div className="flex items-center justify-between gap-2 rounded-2xl border border-border bg-card px-3 py-2.5">
-            <div className="min-w-0">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                My week
-              </p>
-              <p className="truncate text-xs text-foreground">
-                Leave around {String(departTime || '').slice(0, 5) || '--:--'} · edit routine separately
-              </p>
-            </div>
-            <Link
-              to="/cleaner-city/schedule"
-              className="shrink-0 text-xs font-semibold text-emerald-900"
+          {guestRides.length > 0 ? (
+            <section
+              id="cleaner-city-seat-requests"
+              className="space-y-3 rounded-2xl border border-border bg-card p-4"
+              data-testid="cleaner-city-seat-requests"
             >
-              Edit week
-            </Link>
-          </div>
-
-          <div
-            className="rounded-2xl border border-border bg-card p-4 space-y-3"
-            data-testid="cleaner-city-find-filters"
-          >
-            <div>
-              <p className="text-sm font-semibold">People going your way</p>
-              <p className="text-xs text-muted-foreground mt-0.5 truncate">
-                {direction === 'to_home' ? 'Office to home' : 'Home to office'} · leave around{' '}
-                {String(departTime || '').slice(0, 5) || 'your time'} · we refresh as you change
-                filters
-              </p>
-              {(() => {
-                const usual = preferredRouteFromProfile(
-                  profile,
-                  direction === 'to_home' ? 'to_home' : 'to_office',
-                );
-                return usual ? (
-                  <p
-                    className="mt-2 inline-flex max-w-full items-center rounded-full border border-primary/30 bg-primary/10 px-2.5 py-1 text-[11px] font-semibold text-primary"
-                    data-testid="cleaner-city-find-usual-route"
-                  >
-                    Usual road · {usual.summary}
-                    {usual.distanceMeters
-                      ? ` · ${(usual.distanceMeters / 1000).toFixed(1)} km`
-                      : ''}
-                  </p>
-                ) : (
-                  <Link
-                    to="/cleaner-city/route"
-                    className="mt-2 inline-flex text-[11px] font-semibold text-primary"
-                    data-testid="cleaner-city-find-set-route"
-                  >
-                    Set your usual Google road for better matches
-                  </Link>
-                );
-              })()}
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label>Date</Label>
-                <Input type="date" value={date} min={today} onChange={(e) => setDate(e.target.value)} />
-              </div>
-              <div>
-                <Label>Leave around</Label>
-                <Input type="time" value={departTime} onChange={(e) => setDepartTime(e.target.value)} />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              {CLEANER_CITY_DIRECTIONS.map((d) => (
-                <button
-                  key={d.value}
-                  type="button"
-                  onClick={() => setDirection(d.value)}
-                  className={cn(
-                    'rounded-xl border px-3 py-2 text-sm font-semibold',
-                    direction === d.value
-                      ? 'border-primary bg-primary/10 text-primary'
-                      : 'border-border',
-                  )}
-                >
-                  {d.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {guestRides.length > 0 && (
-            <div
-              id="cleaner-city-your-rides"
-              className="rounded-2xl border border-border bg-card p-4 space-y-3"
-              data-testid="cleaner-city-your-rides"
-            >
-              <div>
-                <p className="text-sm font-semibold">Your rides</p>
-                <p className="text-[11px] text-muted-foreground">
-                  Seats you asked for - open one for status and meeting point
-                </p>
-              </div>
+              <p className="text-[15px] font-semibold">Your seat requests</p>
               {guestRides.map((r) => (
                 <div key={r.id} className="rounded-xl border border-border p-3 space-y-2">
                   <div className="flex items-center justify-between gap-2">
-                    <div className="flex min-w-0 items-center gap-2.5">
-                      <Avatar className="h-10 w-10">
-                        {r.host_avatar_url ? (
-                          <AvatarImage
-                            src={r.host_avatar_url}
-                            alt={r.host_name || 'Host'}
-                            className="object-cover"
-                          />
-                        ) : null}
-                        <AvatarFallback className="bg-primary/15 text-xs font-bold text-primary">
-                          {personInitials(r.host_name)}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="min-w-0">
-                        <Link
-                          to={`/cleaner-city/ride/${r.id}`}
-                          className="text-sm font-semibold text-foreground hover:text-primary"
-                        >
-                          {r.host_name || 'Host'} · {String(r.status).replace(/_/g, ' ')}
-                        </Link>
-                        <p className="text-[11px] text-muted-foreground truncate">
-                          {[
-                            r.host_company || null,
-                            r.host_flat ? `Flat ${r.host_flat}` : null,
-                            r.travel_date,
-                            r.depart_time ? `leaves ${String(r.depart_time).slice(0, 5)}` : null,
-                          ]
-                            .filter(Boolean)
-                            .join(' · ')}
-                        </p>
-                      </div>
+                    <div className="min-w-0">
+                      <Link
+                        to={`/cleaner-city/ride/${r.id}`}
+                        className="text-sm font-semibold hover:text-emerald-800"
+                      >
+                        {r.host_name || 'Host'} · {rideStatusLabel(r.status)}
+                      </Link>
+                      <p className="text-[12px] text-muted-foreground">
+                        {[r.travel_date, r.depart_time ? String(r.depart_time).slice(0, 5) : null]
+                          .filter(Boolean)
+                          .join(' · ')}
+                      </p>
                     </div>
                     <Button
                       size="sm"
+                      className="rounded-xl bg-emerald-800 text-white hover:bg-emerald-900"
                       onClick={() =>
-                        navigate(`/cleaner-city/ride/${r.id}`, {
-                          state: { seededRide: r },
-                        })
+                        navigate(`/cleaner-city/ride/${r.id}`, { state: { seededRide: r } })
                       }
                     >
                       Open
                     </Button>
                   </div>
-                  {['requested', 'confirmed', 'pickup_pending'].includes(r.status) && (
+                  {['requested', 'confirmed', 'pickup_pending'].includes(r.status) ? (
                     <Button
                       size="sm"
                       variant="ghost"
@@ -787,280 +527,268 @@ export default function CleanerCityFindPage() {
                           try {
                             const res = await suggestReplacements.mutateAsync(r.id);
                             setAlternatives(res.alternatives || []);
-                            setAlternativesForRide(r.id);
                           } catch {
-                            // Alternatives are a courtesy
+                            // courtesy
                           }
                           void refetchRides();
+                          void refetchActiveGuest();
                           void search();
-                        } catch (e: any) {
+                        } catch {
                           toast.error('Something went wrong. Please try again.');
                         }
                       }}
                     >
                       Cancel seat
                     </Button>
-                  )}
-                  {['confirmed', 'pickup_pending', 'started'].includes(r.status) && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="w-full"
-                      onClick={() =>
-                        navigate(`/cleaner-city/ride/${r.id}`, {
-                          state: { seededRide: r },
-                        })
-                      }
-                    >
-                      Open ride for pickup code
-                    </Button>
-                  )}
+                  ) : null}
                 </div>
               ))}
-            </div>
-          )}
+            </section>
+          ) : null}
 
-          <div className="space-y-3">
+          <section
+            className="space-y-3"
+            id="cleaner-city-match-results"
+            data-testid="cleaner-city-match-results"
+          >
             <div className="flex items-center justify-between gap-2">
-              <p className="text-sm font-semibold">Guests on your route</p>
+              <p className="text-[14px] font-semibold">
+                {hasSearched
+                  ? `${commuteMatches.length} commute ride${commuteMatches.length === 1 ? '' : 's'}`
+                  : 'Available rides'}
+              </p>
               {findMatches.isPending ? (
-                <span className="text-[11px] text-muted-foreground">Updating…</span>
-              ) : null}
+                <span className="text-[12px] text-muted-foreground">Updating…</span>
+              ) : (
+                <span className="text-[12px] text-muted-foreground">Near your route</span>
+              )}
             </div>
 
-            {activeGuestRide ? (
-              <p className="text-[11px] text-muted-foreground leading-relaxed">
-                Requesting another seat is locked until you cancel your active ride above.
-              </p>
-            ) : null}
-
-            {matches.map((m) => (
+            {commuteMatches.map((m) => (
               <CleanerCityMatchCard
                 key={m.publication_id}
                 match={m}
                 requesting={requestingPubId === m.publication_id}
-                justRequested={requestedPubId === m.publication_id}
                 locked={!!activeGuestRide}
+                onOpenDetails={() =>
+                  navigate('/cleaner-city/match', {
+                    state: {
+                      match: m,
+                      publicationId: m.publication_id,
+                      guestPickup:
+                        pickupLat != null && pickupLng != null
+                          ? { lat: Number(pickupLat), lng: Number(pickupLng) }
+                          : undefined,
+                      guestDest:
+                        office?.latitude != null && office?.longitude != null
+                          ? {
+                              lat: Number(office.latitude),
+                              lng: Number(office.longitude),
+                            }
+                          : undefined,
+                    },
+                  })
+                }
                 onRequest={() => {
                   if (activeGuestRide) {
                     toast.message('You already have a ride', {
-                      description: 'Open your live mission, or cancel that seat first.',
-                      action: {
-                        label: 'Open ride',
-                        onClick: () =>
-                          navigate(`/cleaner-city/ride/${activeGuestRide.id}`, {
-                            state: { seededRide: activeGuestRide },
-                          }),
-                      },
+                      description: 'Open it, or cancel that seat first.',
                     });
-                    document
-                      .getElementById('cleaner-city-active-ride-banner')
-                      ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
                     return;
                   }
-                  request(m.publication_id);
+                  void requestSeat(m.publication_id);
                 }}
               />
             ))}
 
-            {!findMatches.isPending && hasSearched && matches.length === 0 && (
+            {extraMatches.length > 0 ? (
+              <div className="space-y-3 pt-2" data-testid="cleaner-city-extra-matches">
+                <p className="text-[14px] font-semibold">
+                  Extra trips · {extraMatches.length}
+                </p>
+                <p className="text-[12px] text-muted-foreground">
+                  Hosts going somewhere else, not their usual office commute.
+                </p>
+                {extraMatches.map((m) => (
+                  <CleanerCityMatchCard
+                    key={m.publication_id}
+                    match={m}
+                    requesting={requestingPubId === m.publication_id}
+                    locked={!!activeGuestRide}
+                    onOpenDetails={() =>
+                      navigate('/cleaner-city/match', {
+                        state: {
+                          match: m,
+                          publicationId: m.publication_id,
+                          guestPickup:
+                            guestCoords.pickup_lat != null && guestCoords.pickup_lng != null
+                              ? {
+                                  lat: Number(guestCoords.pickup_lat),
+                                  lng: Number(guestCoords.pickup_lng),
+                                }
+                              : undefined,
+                          guestDest:
+                            guestCoords.dest_lat != null && guestCoords.dest_lng != null
+                              ? {
+                                  lat: Number(guestCoords.dest_lat),
+                                  lng: Number(guestCoords.dest_lng),
+                                }
+                              : undefined,
+                        },
+                      })
+                    }
+                    onRequest={() => {
+                      if (activeGuestRide) {
+                        toast.message('You already have a ride', {
+                          description: 'Open it, or cancel that seat first.',
+                        });
+                        return;
+                      }
+                      void requestSeat(m.publication_id);
+                    }}
+                  />
+                ))}
+              </div>
+            ) : null}
+
+            {!findMatches.isPending && hasSearched && matches.length === 0 ? (
               <div
-                className="rounded-2xl border border-border bg-card p-5 text-center space-y-3"
+                className="space-y-3 rounded-2xl border border-border bg-card p-5 text-center"
                 data-testid="cleaner-city-find-empty"
               >
-                <p className="text-sm font-semibold">No seats yet - try another time or Offer a ride</p>
-                <p className="text-xs text-muted-foreground">
-                  {hasPins
-                    ? 'No neighbour seats are published for this date and direction yet. Join the waitlist for a notify, try another time, or offer your own empty seat.'
-                    : 'Set your commute pins and usual roads first, then search again or join the waitlist.'}
+                <p className="text-[15px] font-semibold">No rides on this road yet</p>
+                <p className="sr-only">No hosts on this leg yet</p>
+                <p className="sr-only">No neighbour seats for this slot yet</p>
+                <p className="text-[13px] text-muted-foreground">
+                  Try another leave time, join the waitlist, or offer a seat yourself.
                 </p>
                 <div className="flex flex-wrap items-center justify-center gap-2">
-                  <Link to="/cleaner-city/offer">
-                    <Button size="sm" className="font-semibold">
-                      Offer a ride
-                    </Button>
-                  </Link>
-                  <Link to="/cleaner-city/schedule">
-                    <Button size="sm" variant="outline" className="font-semibold">
-                      Fix my schedule
-                    </Button>
-                  </Link>
-                  <Link to="/cleaner-city/route">
-                    <Button size="sm" variant="ghost" className="font-semibold">
-                      Check usual roads
-                    </Button>
-                  </Link>
+                  <button
+                    type="button"
+                    className={cn(cc.secondaryBtn, 'px-4')}
+                    onClick={() => setEditRideOpen(true)}
+                  >
+                    Change time
+                  </button>
+                  <button
+                    type="button"
+                    className={cn(cc.primaryBtn, 'px-4')}
+                    data-testid="cleaner-city-offer-link"
+                    onClick={() => navigate('/cleaner-city/offer')}
+                  >
+                    Offer a seat
+                  </button>
                 </div>
-                {hasPickup &&
-                  (myWaitlistEntry ? (
-                    <div className="pt-1">
-                      <p className="text-xs text-muted-foreground mb-2">
-                        You are on the waitlist for this date and direction.
-                      </p>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={leaveTheWaitlist}
-                        disabled={leaveWaitlist.isPending}
-                        data-testid="cleaner-city-leave-waitlist"
-                      >
-                        Leave waitlist
-                      </Button>
-                    </div>
+                {hasPickup ? (
+                  myWaitlistEntry ? (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={leaveTheWaitlist}
+                      disabled={leaveWaitlist.isPending}
+                      data-testid="cleaner-city-leave-waitlist"
+                    >
+                      Leave waitlist
+                    </Button>
                   ) : (
-                    <div className="pt-1">
-                      <p className="text-xs text-muted-foreground mb-2">
-                        We will notify you when a neighbour publishes seats.
-                      </p>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={joinTheWaitlist}
-                        disabled={joinWaitlist.isPending}
-                        data-testid="cleaner-city-join-waitlist"
-                      >
-                        Join waitlist
-                      </Button>
-                    </div>
-                  ))}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={joinTheWaitlist}
+                      disabled={joinWaitlist.isPending}
+                      data-testid="cleaner-city-join-waitlist"
+                    >
+                      Join waitlist
+                    </Button>
+                  )
+                ) : null}
               </div>
-            )}
-          </div>
+            ) : null}
+          </section>
 
-          {alternatives.length > 0 && (
-            <div
-              className="rounded-2xl border border-primary/30 bg-primary/5 p-4 space-y-2"
+          {alternatives.length > 0 ? (
+            <section
+              className="space-y-2 rounded-2xl border border-emerald-800/20 bg-emerald-50/50 p-4"
               data-testid="cleaner-city-cancel-alternatives"
             >
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-sm font-semibold">Alternatives after cancel</p>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => {
-                    setAlternatives([]);
-                    setAlternativesForRide(null);
-                  }}
-                >
-                  Dismiss
-                </Button>
-              </div>
+              <p className="text-[15px] font-semibold">Other rides nearby</p>
               {alternatives.map((m) => (
                 <div
-                  key={`${alternativesForRide}-${m.publication_id}`}
+                  key={m.publication_id}
                   className="rounded-xl border border-border bg-card p-3"
                 >
                   <p className="text-sm font-semibold">
-                    {String(m.depart_time).slice(0, 5)} · {m.origin_label} → {m.destination_label}
+                    {String(m.depart_time).slice(0, 5)} · {m.origin_label} to {m.destination_label}
                   </p>
                   <Button
-                    className="mt-2 w-full"
+                    className="mt-2 w-full rounded-xl bg-emerald-800 text-white hover:bg-emerald-900"
                     size="sm"
                     onClick={() => {
-                      request(m.publication_id);
+                      void requestSeat(m.publication_id);
                       setAlternatives([]);
-                      setAlternativesForRide(null);
                     }}
-                    disabled={requestRide.isPending}
                   >
                     Request seat
                   </Button>
                 </div>
               ))}
-            </div>
-          )}
-
-          {hasHosting && (
-            <div className="rounded-2xl border border-border bg-card overflow-hidden">
-              <button
-                type="button"
-                className="flex w-full items-center justify-between px-4 py-3 text-left"
-                onClick={() => setHostingOpen((v) => !v)}
-                data-testid="cleaner-city-hosting-toggle"
-              >
-                <div>
-                  <p className="text-sm font-semibold">Hosting</p>
-                  <p className="text-[11px] text-muted-foreground">
-                    Open a ride to accept, start with the passenger code, or complete
-                  </p>
-                </div>
-                <ChevronDown
-                  size={16}
-                  className={cn('text-muted-foreground transition-transform', hostingOpen && 'rotate-180')}
-                />
-              </button>
-
-              {hostingOpen && (
-                <div className="border-t border-border px-4 py-4 space-y-4">
-                  {incoming.length > 0 && (
-                    <p className="text-xs text-muted-foreground">
-                      Seat requests stay pinned at the top for Accept.
-                    </p>
-                  )}
-
-                  {hostRides.length > 0 && (
-                    <div className="space-y-2">
-                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                        Your hosted rides
-                      </p>
-                      {hostRides.map((r) => (
-                        <div key={r.id} className="rounded-xl border border-border p-3 space-y-2">
-                          <div className="flex items-center justify-between gap-2">
-                            <div>
-                              <Link
-                                to={`/cleaner-city/ride/${r.id}`}
-                                className="text-sm font-semibold text-foreground hover:text-primary"
-                              >
-                                {r.travel_date} · {r.status}
-                              </Link>
-                              <p className="text-[11px] text-muted-foreground">You are host</p>
-                              <p className="text-[11px] text-muted-foreground mt-1">
-                                Guest holds the pickup code - you enter it to start.
-                              </p>
-                            </div>
-                            {['requested', 'confirmed', 'pickup_pending'].includes(r.status) && (
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={async () => {
-                                  try {
-                                    await cancelRide.mutateAsync({ ride_id: r.id });
-                                    toast.success('Cancelled');
-                                  } catch (e: any) {
-                                    toast.error('Something went wrong. Please try again.');
-                                  }
-                                }}
-                              >
-                                Cancel
-                              </Button>
-                            )}
-                          </div>
-                          {['confirmed', 'pickup_pending', 'started'].includes(r.status) && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="w-full"
-                              onClick={() =>
-                                navigate(`/cleaner-city/ride/${r.id}`, {
-                                  state: { seededRide: r },
-                                })
-                              }
-                            >
-                              Open ride
-                            </Button>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
+            </section>
+          ) : null}
 
           {activeGuestRide ? (
             <CleanerCityActiveMissionDock ride={activeGuestRide} myUserId={user?.id} />
           ) : null}
+
+          <CleanerCityEditRideDrawer
+            open={editRideOpen}
+            onOpenChange={setEditRideOpen}
+            date={date}
+            direction={direction === 'to_home' ? 'to_home' : 'to_office'}
+            homeLabel={weekdayTemplate?.pickup_label || 'Home'}
+            officeLabel={office?.label || 'Office'}
+            departTime={String(schedule?.depart_time || departTime || '08:30').slice(0, 5)}
+            returnTime={String(schedule?.return_time || '18:30').slice(0, 5)}
+            isWorking={!!schedule?.is_working && !schedule?.is_paused}
+            note={schedule?.note}
+            title="Change time"
+            onConfirmed={({ direction: nextDir, leaveTime }) => {
+              setDirection(nextDir);
+              setDepartTime(leaveTime);
+            }}
+            onRequestChangeRoute={(dir) => {
+              setEditRideOpen(false);
+              setChangeRouteDir(dir);
+              setChangeRouteOpen(true);
+            }}
+          />
+
+          <CleanerCityChangeRouteDrawer
+            open={changeRouteOpen}
+            onOpenChange={setChangeRouteOpen}
+            date={date}
+            direction={changeRouteDir}
+            home={
+              pickupLat != null && pickupLng != null
+                ? {
+                    lat: Number(pickupLat),
+                    lng: Number(pickupLng),
+                    label: weekdayTemplate?.pickup_label || 'Home',
+                  }
+                : null
+            }
+            office={
+              office?.latitude != null && office?.longitude != null
+                ? {
+                    lat: Number(office.latitude),
+                    lng: Number(office.longitude),
+                    label: office.label || 'Office',
+                  }
+                : null
+            }
+            homeLabel={weekdayTemplate?.pickup_label || 'Home'}
+            officeLabel={office?.label || 'Office'}
+            ensureIfGoing={false}
+          />
         </div>
       </CleanerCityGate>
     </CleanerCityChrome>

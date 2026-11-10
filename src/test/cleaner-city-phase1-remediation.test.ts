@@ -21,7 +21,7 @@ const circlesPage = fs.readFileSync(
   'utf8',
 );
 const hubPage = fs.readFileSync(
-  path.resolve(root, 'src/pages/cleaner-city/CleanerCityPage.tsx'),
+  path.resolve(root, 'src/pages/cleaner-city/CleanerCityFindPage.tsx'),
   'utf8',
 );
 const ridePage = fs.readFileSync(
@@ -96,7 +96,12 @@ describe('Cleaner City Phase 1 remediation - UI honesty', () => {
   it('RoutePage never writes Bangalore fallback coordinates', () => {
     expect(routePage).not.toContain('12.9716');
     expect(routePage).not.toContain('77.5946');
-    expect(routePage).toContain('Pin a real pickup point on the map before saving');
+    const panel = fs.readFileSync(
+      path.resolve(process.cwd(), 'src/components/cleaner-city/CleanerCityRouteSetupPanel.tsx'),
+      'utf8',
+    );
+    expect(panel).toContain('Place the pin on your home first');
+    expect(panel).toContain('Pin your office on the map');
   });
 
   it('Safety page links Sociva contacts by phone and stays honest about SMS', () => {
@@ -115,8 +120,8 @@ describe('Cleaner City Phase 1 remediation - UI honesty', () => {
 
   it('Hub and match copy no longer claim real route overlap', () => {
     expect(hubPage).not.toContain('Match by route overlap');
-    expect(formatMatchReason('overlap_proxy_ok')).toContain('corridor fit');
-    expect(formatMatchReasons(['overlap_soft_below_target'])).toContain('Loose route fit');
+    expect(formatMatchReason('overlap_proxy_ok')).toContain('Good route match');
+    expect(formatMatchReasons(['overlap_soft_below_target'])).toContain('Partial route match');
   });
 
   it('Ride SOS gates tools, shows honest fan-out, and is not a 112 dialer', () => {

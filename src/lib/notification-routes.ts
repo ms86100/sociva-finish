@@ -228,7 +228,13 @@ export function resolveNotificationRoute(
       const rideId = payload?.ride_id || payload?.rideId;
       if (rideId) return `/cleaner-city/ride/${rideId}`;
       const path = payload?.reference_path || payload?.action_url || payload?.route;
-      if (typeof path === 'string' && path.startsWith('/cleaner-city')) return path;
+      if (typeof path === 'string' && path.startsWith('/cleaner-city')) {
+        // Old Find deep links land on Home (live Find).
+        if (path === '/cleaner-city/find' || path.startsWith('/cleaner-city/find?')) {
+          return '/cleaner-city';
+        }
+        return path;
+      }
       return '/cleaner-city';
     }
     case 'promotion':

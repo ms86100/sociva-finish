@@ -59,7 +59,7 @@ BEGIN
     v_result := public.seller_advance_order(
       p_order_id,
       'cancelled',
-      'Rejected by seller: WhatsApp'
+      'Order cancelled by seller'
     );
   END IF;
 

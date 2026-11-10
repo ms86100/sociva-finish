@@ -32,11 +32,11 @@ describe('Cleaner City ride safety + OTP product rules', () => {
 
   it('passenger holds OTP display; host enters code to start', () => {
     const actions = read('src/components/cleaner-city/ride/RidePrimaryActions.tsx');
-    expect(actions).toContain('Show this code to your rider');
+    expect(actions).toContain('Show this code to your host');
     expect(actions).toContain('cleaner-city-passenger-otp-display');
     expect(actions).toContain('cleaner-city-host-otp-input');
     expect(actions).not.toContain('cleaner-city-guest-otp-input');
-    expect(rideNextHint('pickup_pending', true)).toContain('Ask your passenger');
+    expect(rideNextHint('pickup_pending', true)).toContain("guest's 6-digit code");
     expect(rideNextHint('pickup_pending', false)).toContain('Show your code');
   });
 

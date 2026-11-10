@@ -95,8 +95,8 @@ describe('commerce mode tiles', () => {
     expect(home).not.toMatch(/CommerceModeTiles/);
     expect(home).toMatch(/filterByMode\(group\.products, 'shop', categoryConfigs\)/);
     expect(home).toMatch(/GuidedDiscoveryRail/);
-    expect(home).toMatch(/NeighborMakesBanner/);
-    expect(home.indexOf('<NeighborMakesBanner')).toBeLessThan(home.indexOf('<GuidedDiscoveryRail'));
+    expect(home).toMatch(/HomeDiscoveryCarousel/);
+    expect(home.indexOf('<HomeDiscoveryCarousel')).toBeLessThan(home.indexOf('<GuidedDiscoveryRail'));
     expect(home.indexOf('<GuidedDiscoveryRail')).toBeLessThan(home.indexOf('home-selling-well'));
     expect(home.indexOf('home-selling-well')).toBeLessThan(home.indexOf('<ShopByStoreDiscovery'));
     expect(home).not.toMatch(/<BuyAgainRow/);

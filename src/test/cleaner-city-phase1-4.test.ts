@@ -10,7 +10,7 @@ function readSrc(relPath: string): string {
 const hookFile = readSrc('src/hooks/queries/useCleanerCity.ts');
 const offerPage = readSrc('src/pages/cleaner-city/CleanerCityOfferPage.tsx');
 const findPage = readSrc('src/pages/cleaner-city/CleanerCityFindPage.tsx');
-const hubPage = readSrc('src/pages/cleaner-city/CleanerCityPage.tsx');
+const hubPage = readSrc('src/pages/cleaner-city/CleanerCityHomePage.tsx');
 const ridePage = readSrc('src/pages/cleaner-city/CleanerCityRidePage.tsx');
 const schedulePage = readSrc('src/pages/cleaner-city/CleanerCitySchedulePage.tsx');
 const circlesPage = readSrc('src/pages/cleaner-city/CleanerCityCirclesPage.tsx');
@@ -135,10 +135,11 @@ describe('A Cleaner City Phase 1-4 constants', () => {
 });
 
 describe('A Cleaner City Phase 1-4 schedule page: autopilot toggle', () => {
-  it('wires useSetAutopilot and shows a confirm/auto choice', () => {
+  it('wires useSetAutopilot via Leave times auto-offer toggle', () => {
     expect(schedulePage).toContain('useSetAutopilot');
-    expect(schedulePage).toContain('CLEANER_CITY_AUTOPILOT_MODES');
     expect(schedulePage).toContain('autopilot_enabled');
+    expect(schedulePage).toContain('Auto-offer seats on weekdays');
+    expect(schedulePage).toContain('cleaner-city-autopilot-toggle');
   });
 });
 
@@ -149,24 +150,38 @@ describe('A Cleaner City Phase 1-4 hub page', () => {
   });
 
   it('links to circles and safety pages', () => {
-    expect(hubPage).toContain('/cleaner-city/circles');
-    expect(hubPage).toContain('/cleaner-city/safety');
+    const profile = readSrc('src/pages/cleaner-city/CleanerCityProfileHubPage.tsx');
+    expect(profile).toContain('/cleaner-city/circles');
+    expect(profile).toContain('/cleaner-city/safety');
   });
 
-  it('Home is Find-first with demo corridor matches', () => {
-    expect(hubPage).toContain('Where are you headed?');
-    expect(hubPage).toContain('HOME_DEMO_RIDES');
-    expect(hubPage).toContain('Find your next ride');
-    expect(hubPage).toContain('Find live seats');
-    expect(hubPage).toContain('Request seat');
-    expect(hubPage).toContain('useRequestRide');
-    expect(hubPage).toContain('upsertHomeSeatRequest');
-    expect(hubPage).toContain('These cards are examples only');
+  it('Home is greeting-first with Find/Offer and live nearby matches', () => {
+    const home = fs.readFileSync(
+      path.resolve(process.cwd(), 'src/pages/cleaner-city/CleanerCityHomePage.tsx'),
+      'utf8',
+    );
+    expect(home).not.toContain('HOME_DEMO_RIDES');
+    expect(home).not.toContain('buildHomeDemoGuests');
+    expect(home).not.toContain('Find live seats');
+    expect(home).toContain('cleaner-city-home-empty-live');
+    expect(home).toContain('useRequestRide');
+    expect(home).toContain('requestSeat');
+    expect(home).toContain('cleaner-city-home-find-seat');
+    const find = fs.readFileSync(
+      path.resolve(process.cwd(), 'src/pages/cleaner-city/CleanerCityFindPage.tsx'),
+      'utf8',
+    );
+    expect(find).toContain('Available rides');
+    expect(find).toContain('useRequestRide');
   });
 
   it('still keeps the Phase 0 active ride card', () => {
-    expect(hubPage).toContain('useMyRides');
-    expect(hubPage).toContain('activeRide');
+    const home = fs.readFileSync(
+      path.resolve(process.cwd(), 'src/pages/cleaner-city/CleanerCityHomePage.tsx'),
+      'utf8',
+    );
+    expect(home).toContain('useMyRides');
+    expect(home).toContain('CleanerCityActiveMissionCard');
     expect(hubPage).toContain('/cleaner-city/ride/');
   });
 });

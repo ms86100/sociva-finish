@@ -39,7 +39,7 @@ describe('GC-01/02 corridor matching + passenger OTP', () => {
     expect(rideActions).toContain('cleaner-city-host-otp-input');
     expect(findPage).toContain('Open ride for pickup code');
     expect(findPage).not.toContain('Passenger code');
-    expect(missionCopy).toContain('Ask your passenger for the 6-digit code');
+    expect(missionCopy).toContain("Enter the guest's 6-digit code to start.");
   });
 
   it('keeps work-email test fixture service_role and @sociva.test only', () => {

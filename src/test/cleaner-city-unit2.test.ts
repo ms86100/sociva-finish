@@ -18,15 +18,15 @@ const setupPage = fs.readFileSync(
 );
 
 const hubPage = fs.readFileSync(
-  path.resolve(process.cwd(), 'src/pages/cleaner-city/CleanerCityPage.tsx'),
+  path.resolve(process.cwd(), 'src/pages/cleaner-city/CleanerCityHomePage.tsx'),
   'utf8',
 );
 
 describe('A Cleaner City Unit 2 verification contracts', () => {
-  it('blocks personal domains and requires approved company domains', () => {
+  it('blocks personal domains for work email verification', () => {
     expect(migration).toContain('cleaner_city_is_personal_or_disposable_domain');
     expect(migration).toContain('gmail.com');
-    expect(migration).toContain('Email domain is not an approved corporate domain');
+    expect(migration).toContain('Personal or disposable email domains are not eligible');
   });
 
   it('gates ride participation on verified work email + active profile', () => {

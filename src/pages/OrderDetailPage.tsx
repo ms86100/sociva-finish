@@ -915,7 +915,7 @@ export default function OrderDetailPage() {
                       )
                     ) : isFutureScheduledAccept ? (
                       <>
-                        Fulfilment on {formatScheduledDateTime(order as any)} · {getScheduledCountdownLabel(order as any)}.
+                        Fulfilled on {formatScheduledDateTime(order as any)} · {getScheduledCountdownLabel(order as any)}.
                         Confirming reserves the slot - you do not need to prepare until the prep window.
                       </>
                     ) : (

@@ -87,8 +87,30 @@ function TypeCursor() {
   return <span className="neighbor-type-cursor" aria-hidden />;
 }
 
+/** Shared typewriter headline used by the home discovery carousel. */
+export function NeighborTypewriterHeadline() {
+  const { line1, line2, cursor } = useNeighborTypewriter();
+
+  return (
+    <p
+      className="neighbor-banner-headline text-[17px] sm:text-[18px] font-extrabold leading-[1.2] text-white"
+      aria-label={NEIGHBOR_HEADLINE}
+    >
+      <span className="neighbor-banner-line">
+        {line1}
+        {cursor === 'line1' ? <TypeCursor /> : null}
+      </span>
+      <span className={cn('neighbor-banner-punch', cursor === 'done' && 'neighbor-banner-punch-ready')}>
+        {line2}
+        {cursor === 'line2' ? <TypeCursor /> : null}
+      </span>
+    </p>
+  );
+}
+
 /**
  * Home Lobby hero - local neighbor photo + typewriter headline + Order Now.
+ * Prefer HomeDiscoveryCarousel on Home; kept for reuse/tests.
  */
 export function NeighborMakesBanner({
   onOrderNow,
@@ -98,8 +120,6 @@ export function NeighborMakesBanner({
   onOrderNow: () => void;
   className?: string;
 }) {
-  const { line1, line2, cursor } = useNeighborTypewriter();
-
   return (
     <div className={cn('px-4 pt-2', className)}>
       <button
@@ -119,19 +139,7 @@ export function NeighborMakesBanner({
         <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/45 to-transparent" />
         <div className="neighbor-banner-sheen" aria-hidden />
         <div className="relative z-10 flex h-full max-w-[70%] flex-col justify-center pl-4 pr-2 py-3">
-          <p
-            className="neighbor-banner-headline text-[17px] sm:text-[18px] font-extrabold leading-[1.2] text-white"
-            aria-label={NEIGHBOR_HEADLINE}
-          >
-            <span className="neighbor-banner-line">
-              {line1}
-              {cursor === 'line1' ? <TypeCursor /> : null}
-            </span>
-            <span className={cn('neighbor-banner-punch', cursor === 'done' && 'neighbor-banner-punch-ready')}>
-              {line2}
-              {cursor === 'line2' ? <TypeCursor /> : null}
-            </span>
-          </p>
+          <NeighborTypewriterHeadline />
           <span className="mt-3 inline-flex w-fit items-center gap-1 rounded-full bg-[#F5C542] px-3.5 py-1.5 text-[12px] font-extrabold text-zinc-900">
             Order Now
             <ArrowRight size={13} strokeWidth={2.5} />

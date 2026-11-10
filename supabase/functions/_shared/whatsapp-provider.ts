@@ -5,7 +5,12 @@
  * Never silently falls through to the inactive provider.
  */
 import { createAdminClient } from "./credentials.ts";
-import { evolutionGoSendText, type EvolutionGoSendResult } from "./evolution-go.ts";
+import {
+  evolutionGoSendButtons,
+  evolutionGoSendText,
+  type EvolutionGoReplyButton,
+  type EvolutionGoSendResult,
+} from "./evolution-go.ts";
 import {
   normalizeWhatsAppPhone,
   sendWhatsAppTemplateOrText,
@@ -176,6 +181,15 @@ export async function sendViaActiveWhatsAppProvider(opts: {
   forceDryRun?: boolean;
   notificationQueueId?: string | null;
   createdBy?: string | null;
+  /** Evolution only. First seller order card: Accept and Reject. */
+  replyButtons?: {
+    title: string;
+    description: string;
+    footer?: string;
+    buttons: EvolutionGoReplyButton[];
+    orderId: string;
+    status: string;
+  } | null;
 }): Promise<UnifiedWhatsAppResult> {
   const phone = normalizeWhatsAppPhone(opts.phoneNumber);
   if (!phone) {
@@ -296,11 +310,32 @@ export async function sendViaActiveWhatsAppProvider(opts: {
     }
   }
 
-  const evo = await evolutionGoSendText({
-    number: phone,
-    text: opts.text,
-    dryRun,
-  });
+  let evo: EvolutionGoSendResult;
+  let sellerCard = false;
+  const buttons = opts.replyButtons;
+  if (!dryRun && buttons && buttons.buttons.length > 0 && buttons.buttons.length <= 3) {
+    evo = await evolutionGoSendButtons({
+      number: phone,
+      title: buttons.title,
+      description: buttons.description,
+      footer: buttons.footer || "Sociva",
+      buttons: buttons.buttons,
+    });
+    sellerCard = evo.success;
+    if (!evo.success) {
+      evo = await evolutionGoSendText({
+        number: phone,
+        text: opts.text,
+        dryRun,
+      });
+    }
+  } else {
+    evo = await evolutionGoSendText({
+      number: phone,
+      text: opts.text,
+      dryRun,
+    });
+  }
   const unified = mapEvolution(evo, dryRun);
 
   await logProviderWhatsAppMessage({
@@ -316,6 +351,14 @@ export async function sendViaActiveWhatsAppProvider(opts: {
       ...(typeof unified.meta === "object" && unified.meta ? unified.meta : {}),
       stamped_provider: provider,
       evolution_mode: evolutionMode,
+      ...(sellerCard && buttons
+        ? {
+          event: "seller_order_card",
+          order_id: buttons.orderId,
+          status: buttons.status,
+          reminder: false,
+        }
+        : {}),
       note: dryRun
         ? "dry_run_no_external_send"
         : "http_accept_is_not_delivery_proof",

@@ -5,7 +5,12 @@
 import {
   resolveQueueDisplayCopy,
 } from "./notification-display-copy.ts";
+import { createAdminClient } from "./credentials.ts";
 import { normalizeWhatsAppPhone } from "./whatsapp.ts";
+import {
+  buildSellerWhatsAppCard,
+  type SellerWaCard,
+} from "./whatsapp-seller-decision.ts";
 import {
   claimWhatsAppChannel,
   completeWhatsAppChannel,
@@ -281,6 +286,37 @@ function resolveTemplate(opts: {
   };
 }
 
+const WAITING_SELLER_STATUSES = new Set(["placed", "enquired", "requested", "quoted"]);
+
+/** First seller WhatsApp for a new order: Accept and Reject, not plain text. */
+async function sellerWaitingDecisionCard(
+  payload: Record<string, unknown>,
+): Promise<{ card: SellerWaCard; orderId: string; status: string } | null> {
+  if (String(payload.target_role || "") !== "seller") return null;
+  const status = String(payload.status || payload.new_status || "").toLowerCase();
+  if (!WAITING_SELLER_STATUSES.has(status)) return null;
+  const orderId = String(payload.orderId || payload.order_id || "");
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(orderId)) {
+    return null;
+  }
+  try {
+    const admin = createAdminClient();
+    const { data, error } = await admin.rpc("seller_whatsapp_order_context", {
+      p_order_id: orderId,
+    });
+    if (error || data == null) return null;
+    const ctx = typeof data === "string" ? JSON.parse(data) : data;
+    if (!ctx?.order_id || ctx.terminal === true) return null;
+    const card = buildSellerWhatsAppCard(ctx);
+    const hasDecision = card.buttons.some((b) => b.id.startsWith("sociva_seller_accept:"));
+    if (!hasDecision) return null;
+    return { card, orderId, status: String(ctx.status || status) };
+  } catch (err) {
+    console.warn("[whatsapp-notify] seller decision card skipped", err);
+    return null;
+  }
+}
+
 export async function deliverWhatsAppForQueueItem(opts: {
   userId: string;
   phone: string | null | undefined;
@@ -366,6 +402,8 @@ export async function deliverWhatsAppForQueueItem(opts: {
     userName: opts.userName || "there",
   });
 
+  const decisionCard = await sellerWaitingDecisionCard(opts.payload || {});
+
   // Resolve + stamp provider once per attempt (no silent cross-provider fallback)
   const cfg = await loadWhatsAppProviderConfig();
   const stampedFromPayload = opts.payload?.whatsapp_retry_to_provider;
@@ -377,15 +415,31 @@ export async function deliverWhatsAppForQueueItem(opts: {
       : cfg.active_provider);
   const stampedEvolutionMode = opts.stampedEvolutionMode || cfg.evolution_mode;
 
+  const cardSend = decisionCard &&
+      stampedProvider === "evolution_go" &&
+      stampedEvolutionMode !== "disabled"
+    ? decisionCard
+    : null;
+
   const result = await sendViaActiveWhatsAppProvider({
     phoneNumber: phone,
-    text: mapped.fallbackText,
+    text: cardSend ? cardSend.card.text : mapped.fallbackText,
     templateName: mapped.templateName,
     bodyParams: mapped.bodyParams,
     fallbackText: mapped.fallbackText,
     stampedProvider,
     stampedEvolutionMode,
     notificationQueueId: opts.notificationId || null,
+    replyButtons: cardSend
+      ? {
+        title: cardSend.card.title,
+        description: cardSend.card.description,
+        footer: "Sociva",
+        buttons: cardSend.card.buttons,
+        orderId: cardSend.orderId,
+        status: cardSend.status,
+      }
+      : null,
   });
 
   if (opts.notificationId) {

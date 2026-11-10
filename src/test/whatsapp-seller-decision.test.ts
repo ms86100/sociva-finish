@@ -57,7 +57,25 @@ describe('seller WhatsApp order actions', () => {
     expect(card.text).toContain('Flat 1204');
     expect(card.text).toContain('Block H');
     expect(card.buttons.map((b) => b.displayText)).toEqual(['Accept', 'Reject']);
+    expect(card.buttons.map((b) => b.id)).toEqual([
+      `sociva_seller_accept:${ORDER}`,
+      `sociva_seller_reject:${ORDER}`,
+    ]);
+    expect(card.text).toContain('Tap Accept or Reject');
     expect(card.text).not.toMatch(/\u2013|\u2014/);
+  });
+
+  it('keeps later steps on the step button', () => {
+    const card = buildSellerWhatsAppCard({
+      order_id: ORDER,
+      status: 'accepted',
+      buyer_name: 'Priya Sharma',
+      next_status: 'preparing',
+      can_reject: false,
+      needs_otp: false,
+    });
+    expect(card.buttons.map((b) => b.displayText)).toEqual(['Start preparing']);
+    expect(card.buttons[0].id).toBe(`sociva_seller_step:${ORDER}:preparing`);
   });
 
   it('asks for a code instead of a delivered button', () => {

@@ -17,11 +17,13 @@ const REASON_LABELS: Record<string, string> = {
   destination_along_route_candidate: 'Along the way',
   destination_coords_missing: 'Drop TBD',
   detour_within_limit: 'Small detour',
-  overlap_soft_below_target: 'Loose route fit',
-  overlap_proxy_ok: 'Good corridor fit',
+  overlap_soft_below_target: 'Partial route match',
+  overlap_proxy_ok: 'Good route match',
   road_polyline_overlap: 'Fits their route',
-  road_overlap_below_target: 'Weak route fit',
+  road_overlap_below_target: 'Weaker route match',
   shared_circle: 'Trusted circle',
+  host_prefers_circle: 'Prefers circle mates',
+  extra_trip: 'Extra trip',
   drop_near_extra_stop: 'Near an extra stop',
   circle_with_two_completed_rides: 'Circle + history',
   vehicle_documents_verified: 'Docs verified',
@@ -91,6 +93,18 @@ export function formatFuelShareRupees(paise?: number | null): number | null {
   const p = Number(paise);
   if (!Number.isFinite(p) || p <= 0) return null;
   return Math.max(1, Math.round(p / 100));
+}
+
+/** Friendly leave clock, e.g. 8:30 AM. */
+export function formatLeaveClock(departTime?: string | null): string | null {
+  const raw = String(departTime || '').slice(0, 5);
+  if (!/^\d{2}:\d{2}$/.test(raw)) return null;
+  const [hRaw, m] = raw.split(':');
+  let h = Number(hRaw);
+  const suffix = h >= 12 ? 'PM' : 'AM';
+  h = h % 12;
+  if (h === 0) h = 12;
+  return `${h}:${m} ${suffix}`;
 }
 
 /** Leave window around host depart time, e.g. 08:25 - 08:35. */

@@ -260,12 +260,12 @@ describe('guided discovery wiring', () => {
     expect(home).toMatch(/<GuidedDiscoveryRail/);
     expect(home).toMatch(/buildGuidedDiscoveryHubs/);
     expect(home).toMatch(/<DiscoveryChipRail/);
-    expect(home).toMatch(/<NeighborMakesBanner/);
+    expect(home).toMatch(/<HomeDiscoveryCarousel/);
     expect(home).toMatch(/<CookingNearbyRail/);
     expect(home).toMatch(/buildCookingNearbyKitchens/);
     expect(home.indexOf('<DiscoveryChipRail')).toBeLessThan(home.indexOf('<CommerceFacetRail'));
-    expect(home.indexOf('<CommerceFacetRail')).toBeLessThan(home.indexOf('<NeighborMakesBanner'));
-    expect(home.indexOf('<NeighborMakesBanner')).toBeLessThan(home.indexOf('<GuidedDiscoveryRail'));
+    expect(home.indexOf('<CommerceFacetRail')).toBeLessThan(home.indexOf('<HomeDiscoveryCarousel'));
+    expect(home.indexOf('<HomeDiscoveryCarousel')).toBeLessThan(home.indexOf('<GuidedDiscoveryRail'));
     expect(home.indexOf('<GuidedDiscoveryRail')).toBeLessThan(home.indexOf('home-selling-well'));
     expect(home.indexOf('home-selling-well')).toBeLessThan(home.indexOf('<CookingNearbyRail'));
     expect(home.indexOf('home-selling-well')).toBeLessThan(home.indexOf('<ShopByStoreDiscovery'));
@@ -381,7 +381,7 @@ describe('guided discovery wiring', () => {
     expect(page).toContain('GuidedRoomSwipeRail');
     expect(page).toContain('Keep exploring');
     expect(read('src/components/discovery/GuidedRoomHero.tsx')).toContain('Order Now');
-    expect(read('src/components/home/MarketplaceSection.tsx')).toContain('NeighborMakesBanner');
+    expect(read('src/components/home/MarketplaceSection.tsx')).toContain('HomeDiscoveryCarousel');
     const aisleTile = read('src/components/discovery/GuidedDiscoveryOverlayTile.tsx');
     expect(aisleTile).toContain('aspect-[4/5]');
     expect(aisleTile).toContain('w-[7.25rem]');
@@ -399,7 +399,15 @@ describe('guided discovery wiring', () => {
     expect(banner).toContain('neighbor-type-cursor');
     expect(banner).toContain('neighbor-banner-punch');
     expect(read('src/index.css')).toContain('neighbor-punch-shine');
-    expect(read('src/components/home/MarketplaceSection.tsx')).toContain('NeighborMakesBanner');
+    const carousel = read('src/components/home/HomeDiscoveryCarousel.tsx');
+    expect(carousel).toContain('Empty Seats Are Wasted Miles.');
+    expect(carousel).toContain('Share the Ride Home.');
+    expect(carousel).toContain('Good Help Lives Next Door.');
+    expect(carousel).toContain('/cleaner-city');
+    expect(carousel).toContain('/help-hub/find');
+    expect(carousel).toContain('sociva-ride-hero');
+    expect(carousel).toContain('sociva-help-hero');
+    expect(read('src/components/home/MarketplaceSection.tsx')).toContain('HomeDiscoveryCarousel');
     expect(read('src/components/search/TypewriterPlaceholder.tsx')).toContain(
       'Search neighbors, kitchens, dishes',
     );

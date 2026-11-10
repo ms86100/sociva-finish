@@ -198,8 +198,16 @@ export function buildSellerWhatsAppCard(
   const next = String(ctx.next_status || "");
   const needsOtp = ctx.needs_otp === true;
   const reminder = opts?.reminder === true;
+  const waitingDecision = !ctx.terminal && ctx.can_reject === true &&
+    ["placed", "enquired", "requested", "quoted"].includes(status);
   if (ctx.terminal) {
     lines.push(`${word}. The buyer can see this.`);
+  } else if (waitingDecision) {
+    lines.push(
+      reminder
+        ? "Still waiting. Tap Accept or Reject. The buyer sees it right away."
+        : "Tap Accept or Reject. The buyer sees it right away.",
+    );
   } else if (needsOtp) {
     lines.push(
       reminder
@@ -218,16 +226,14 @@ export function buildSellerWhatsAppCard(
   }
 
   const buttons: SellerWaButton[] = [];
-  if (!ctx.terminal && !needsOtp && next) {
+  if (waitingDecision) {
+    const ids = sellerDecisionButtonIds(ctx.order_id);
+    buttons.push({ id: ids.accept, displayText: "Accept" });
+    buttons.push({ id: ids.reject, displayText: "Reject" });
+  } else if (!ctx.terminal && !needsOtp && next) {
     buttons.push({
       id: sellerStepButtonId(ctx.order_id, next),
       displayText: sellerStepLabel(next),
-    });
-  }
-  if (!ctx.terminal && ctx.can_reject === true) {
-    buttons.push({
-      id: sellerDecisionButtonIds(ctx.order_id).reject,
-      displayText: "Reject",
     });
   }
 

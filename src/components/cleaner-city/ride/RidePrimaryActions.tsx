@@ -25,8 +25,11 @@ type Props = {
   onComplete: () => void;
   onScrollToMeeting?: () => void;
   onScrollToChat?: () => void;
+  onScrollToRate?: () => void;
   onOpenMaps?: (() => void) | null;
   meetingPickerSlot?: ReactNode;
+  /** Host has guest drops still pending - hide Complete; drop card owns the flow. */
+  awaitingDrops?: boolean;
 };
 
 export function RidePrimaryActions({
@@ -50,8 +53,10 @@ export function RidePrimaryActions({
   onComplete,
   onScrollToMeeting,
   onScrollToChat,
+  onScrollToRate,
   onOpenMaps,
   meetingPickerSlot,
+  awaitingDrops,
 }: Props) {
   const [confirmComplete, setConfirmComplete] = useState(false);
 
@@ -102,46 +107,116 @@ export function RidePrimaryActions({
     );
   }
 
-  if (ride.status === 'confirmed') {
+  if (ride.status === 'confirmed' || ride.status === 'pickup_pending') {
+    const atPickup = ride.status === 'pickup_pending';
     return (
       <section
-        className="rounded-2xl border border-primary/40 bg-primary/10 p-4 space-y-3"
+        className="space-y-3 rounded-2xl border border-emerald-800/20 bg-emerald-50/70 p-4 dark:bg-emerald-950/20"
         data-testid="cleaner-city-ride-primary-actions"
       >
-        <p className="text-sm font-semibold">Seat confirmed</p>
+        <p className="text-sm font-semibold">
+          {needsMeetingPoint ? 'Confirm meet spot' : atPickup ? 'Enter pickup code' : 'Pickup'}
+        </p>
+
         {needsMeetingPoint ? (
           <div className="space-y-2">
-            <p className="text-xs text-muted-foreground">
-              Set the meeting point here - no need to hunt elsewhere.
-            </p>
             {meetingPickerSlot ? (
               <div data-testid="cleaner-city-inline-meeting">{meetingPickerSlot}</div>
             ) : (
               <Button className="h-12 w-full font-semibold" onClick={onScrollToMeeting}>
-                Set meeting point
+                Open meet spot
               </Button>
             )}
           </div>
-        ) : isHost ? (
-          <p className="text-xs text-muted-foreground">
-            Meet at the point below. Your passenger creates a 6-digit code when they arrive -
-            you type it to start.
-          </p>
-        ) : (
-          <div className="space-y-2">
-            <p className="text-xs text-muted-foreground">
-              At the gate, tap once to create your pickup code. Show it only to your rider.
-            </p>
-            <Button
-              className="h-12 w-full font-semibold"
-              disabled={generatingOtp}
-              onClick={onGenerateOtp}
-              data-testid="cleaner-city-generate-otp"
-            >
-              Create pickup code
-            </Button>
+        ) : null}
+
+        {!needsMeetingPoint && isHost ? (
+          <div className="space-y-3" data-testid="cleaner-city-host-code-panel">
+            <div className="flex gap-2">
+              <Input
+                className="h-12 font-semibold tracking-[0.2em]"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                placeholder="Guest's 6-digit code"
+                value={otp}
+                onChange={(e) => onOtpChange(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                data-testid="cleaner-city-host-otp-input"
+              />
+              <Button
+                className="h-12 px-5 font-semibold"
+                disabled={!atPickup || starting || otp.length < 6}
+                onClick={onStart}
+                data-testid="cleaner-city-start-with-otp"
+              >
+                Start
+              </Button>
+            </div>
+            {!atPickup ? (
+              <p className="text-[11px] text-muted-foreground">
+                Waiting for guest code at the meet spot.
+              </p>
+            ) : null}
+            {onOpenMaps ? (
+              <Button className="h-11 w-full font-semibold" variant="outline" onClick={onOpenMaps}>
+                Open in Google Maps
+              </Button>
+            ) : null}
           </div>
-        )}
+        ) : null}
+
+        {!needsMeetingPoint && !isHost ? (
+          <div className="space-y-3">
+            {shownOtp ? (
+              <div
+                id="cleaner-city-passenger-otp-display"
+                className="rounded-2xl border border-[#0F3D2E]/15 bg-[#E8F2EC] px-4 py-6 text-center"
+                data-testid="cleaner-city-passenger-otp-display"
+              >
+                <p className="text-[12px] font-semibold text-[#0F3D2E]">
+                  Show this code to your host at pickup
+                </p>
+                <p className="mt-3 text-[36px] font-bold tracking-[0.28em] text-[#0F3D2E]">{shownOtp}</p>
+                <p className="mt-2 text-[11px] text-muted-foreground">Secure · One-time use</p>
+              </div>
+            ) : (
+              <Button
+                className="h-12 w-full rounded-2xl bg-[#0F3D2E] font-semibold text-white hover:bg-[#0C3226]"
+                disabled={generatingOtp}
+                onClick={onGenerateOtp}
+                data-testid="cleaner-city-generate-otp"
+              >
+                Create pickup code
+              </Button>
+            )}
+            {shownOtp ? (
+              <Button
+                className="h-12 w-full rounded-2xl bg-[#0F3D2E] font-semibold text-white hover:bg-[#0C3226]"
+                onClick={() => {
+                  document
+                    .getElementById('cleaner-city-passenger-otp-display')
+                    ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }}
+                data-testid="cleaner-city-show-code-cta"
+              >
+                Show code to host →
+              </Button>
+            ) : null}
+            {shownOtp ? (
+              <Button
+                className="h-10 w-full font-semibold"
+                variant="ghost"
+                disabled={generatingOtp}
+                onClick={onGenerateOtp}
+              >
+                New code
+              </Button>
+            ) : null}
+            <p className="flex items-center justify-center gap-1.5 text-center text-[11px] text-muted-foreground">
+              Your ride is safe, verified and community-backed.
+            </p>
+          </div>
+        ) : null}
+
         <Button
           className="h-10 w-full font-semibold"
           variant="ghost"
@@ -154,119 +229,22 @@ export function RidePrimaryActions({
     );
   }
 
-  if (ride.status === 'pickup_pending') {
-    return (
-      <section
-        className="rounded-2xl border border-primary/40 bg-primary/10 p-4 space-y-3"
-        data-testid="cleaner-city-ride-primary-actions"
-      >
-        <p className="text-sm font-semibold">Pickup code</p>
-        {isHost ? (
-          <div className="space-y-3">
-            <p className="text-xs text-muted-foreground">
-              Ask your passenger for their 6-digit code at the meeting point, then start.
-            </p>
-            {needsMeetingPoint ? (
-              <div className="space-y-2">
-                <p className="text-xs text-amber-700 dark:text-amber-300">
-                  Start unlocks after a meeting point is set.
-                </p>
-                {meetingPickerSlot ? (
-                  <div data-testid="cleaner-city-inline-meeting">{meetingPickerSlot}</div>
-                ) : (
-                  <Button className="h-11 w-full font-semibold" variant="outline" onClick={onScrollToMeeting}>
-                    Set meeting point
-                  </Button>
-                )}
-              </div>
-            ) : null}
-            <div className="flex gap-2">
-              <Input
-                className="h-12 tracking-[0.2em] font-semibold"
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                placeholder="6-digit code"
-                value={otp}
-                onChange={(e) => onOtpChange(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                data-testid="cleaner-city-host-otp-input"
-              />
-              <Button
-                className="h-12 px-5 font-semibold"
-                disabled={needsMeetingPoint || starting || otp.length < 6}
-                onClick={onStart}
-                data-testid="cleaner-city-start-with-otp"
-              >
-                Start
-              </Button>
-            </div>
-            {onOpenMaps ? (
-              <Button className="h-11 w-full font-semibold" variant="outline" onClick={onOpenMaps}>
-                Open in Google Maps
-              </Button>
-            ) : null}
-          </div>
-        ) : (
-          <div className="space-y-3">
-            <p className="text-xs text-muted-foreground">
-              Show this code to your rider. They type it to start - you do not enter it.
-            </p>
-            {shownOtp ? (
-              <div
-                className="rounded-2xl border border-primary/30 bg-background/60 px-4 py-5 text-center"
-                data-testid="cleaner-city-passenger-otp-display"
-              >
-                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                  Show to rider
-                </p>
-                <p className="mt-2 text-3xl font-extrabold tracking-[0.35em] text-primary">
-                  {shownOtp}
-                </p>
-              </div>
-            ) : (
-              <Button
-                className="h-12 w-full font-semibold"
-                disabled={generatingOtp}
-                onClick={onGenerateOtp}
-                data-testid="cleaner-city-generate-otp"
-              >
-                Create pickup code
-              </Button>
-            )}
-            {shownOtp ? (
-              <Button
-                className="h-10 w-full font-semibold"
-                variant="ghost"
-                disabled={generatingOtp}
-                onClick={onGenerateOtp}
-              >
-                New code
-              </Button>
-            ) : null}
-            <p className="text-center text-xs text-muted-foreground">
-              Waiting for your rider to enter the code…
-            </p>
-          </div>
-        )}
-      </section>
-    );
-  }
-
   if (ride.status === 'started' && isHost) {
+    // Drop card owns navigate / arrived / guest-off. Don't compete with it.
+    if (awaitingDrops) return null;
+
     return (
       <section
-        className="rounded-2xl border border-primary/40 bg-primary/10 p-4 space-y-3"
+        className="space-y-3 rounded-2xl border border-emerald-800/20 bg-emerald-50/80 p-4"
         data-testid="cleaner-city-ride-primary-actions"
       >
-        <p className="text-sm font-semibold">On the road</p>
+        <p className="text-sm font-semibold">Ready to finish</p>
         {confirmComplete ? (
           <div
             className="space-y-2 rounded-xl border border-border bg-background/70 p-3"
             data-testid="cleaner-city-complete-confirm"
           >
-            <p className="text-sm font-semibold">Passengers dropped?</p>
-            <p className="text-xs text-muted-foreground">
-              Confirm seats are done before closing the ride.
-            </p>
+            <p className="text-sm font-semibold">Close this ride?</p>
             <div className="grid grid-cols-2 gap-2">
               <Button
                 className="h-11 font-semibold"
@@ -287,7 +265,7 @@ export function RidePrimaryActions({
           </div>
         ) : (
           <Button
-            className="h-12 w-full font-semibold"
+            className="h-12 w-full font-extrabold bg-emerald-800 hover:bg-emerald-900"
             disabled={completing}
             onClick={() => setConfirmComplete(true)}
             data-testid="cleaner-city-complete-ride"
@@ -295,11 +273,6 @@ export function RidePrimaryActions({
             Complete ride
           </Button>
         )}
-        {onOpenMaps ? (
-          <Button className="h-11 w-full font-semibold" variant="outline" onClick={onOpenMaps}>
-            Open in Google Maps
-          </Button>
-        ) : null}
       </section>
     );
   }
@@ -310,7 +283,7 @@ export function RidePrimaryActions({
         className="rounded-2xl border border-primary/40 bg-primary/10 p-4 space-y-3"
         data-testid="cleaner-city-ride-primary-actions"
       >
-        <p className="text-sm font-semibold">On the road</p>
+        <p className="text-sm font-semibold">On the way</p>
         <Button className="h-12 w-full font-semibold" onClick={onScrollToChat}>
           Message host
         </Button>
@@ -325,16 +298,10 @@ export function RidePrimaryActions({
         data-testid="cleaner-city-ride-primary-actions"
       >
         <p className="text-sm font-semibold">Ride complete</p>
-        <p className="text-xs text-muted-foreground">
-          Rate your partner below when you are ready - it helps the next commute.
-        </p>
+        <p className="text-xs text-muted-foreground">Rate your partner in More.</p>
         <Button
           className="h-12 w-full font-semibold"
-          onClick={() =>
-            document
-              .getElementById('cleaner-city-rate-section')
-              ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-          }
+          onClick={() => onScrollToRate?.()}
           data-testid="cleaner-city-rate-prompt"
         >
           Rate partner

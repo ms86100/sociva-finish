@@ -67,10 +67,11 @@ describe('Cleaner City match card game UX helpers', () => {
     );
     expect(card).toContain('cleaner-city-request-seat');
     expect(card).toContain('Request seat');
-    expect(card).toContain('cleaner-city-match-trip-strip');
-    expect(card).toContain('Pickup by');
-    expect(card).toContain('Good route match');
-    expect(card).toContain('cleaner-city-match-fit');
+    expect(card).toContain('Fuel contribution');
+    expect(card).toContain('Leave');
+    expect(card).toContain('seat${seats === 1 ? \'\' : \'s\'} left');
+    expect(card).toContain('Detour');
+    expect(card).toContain('formatFuelShareRupees');
     const migration = readFileSync(
       resolve(
         process.cwd(),

@@ -4,13 +4,17 @@ import {
   Building2,
   CalendarClock,
   Car,
+  ChevronRight,
+  MapPinned,
   MessageCircle,
   Shield,
   ShieldCheck,
+  UserRound,
   Users,
 } from 'lucide-react';
 import { CleanerCityChrome } from '@/components/cleaner-city/CleanerCityChrome';
 import { CleanerCityGate } from '@/components/cleaner-city/CleanerCityGate';
+import { cc } from '@/components/cleaner-city/ui/ccTheme';
 import {
   preferredRouteFromProfile,
   useCleanerCityProfile,
@@ -21,59 +25,18 @@ import {
   useOfficeLocations,
 } from '@/hooks/queries/useCleanerCity';
 import { useAuth } from '@/contexts/AuthContext';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 
-const TRUST = [
-  { to: '/cleaner-city/setup', label: 'Work email & setup', blurb: 'Verify domain and finish basics', icon: Building2 },
-  { to: '/cleaner-city/safety', label: 'Safety & contacts', blurb: 'Optional emergency contacts for SOS', icon: Shield },
-  { to: '/cleaner-city/circles', label: 'Trusted circles', blurb: 'Invite codes and privacy', icon: Users },
-];
-
-const GEAR = [
-  { to: '/cleaner-city/schedule', label: 'Schedule & Autopilot', blurb: 'Leave times, pause, drafts', icon: CalendarClock },
-  { to: '/cleaner-city/vehicle', label: 'Vehicle & documents', blurb: 'Required before publishing seats', icon: Car },
-];
-
-const COMMS = [
-  { to: '/cleaner-city/chat', label: 'Commute chat', blurb: 'Messages for your rides', icon: MessageCircle },
-];
-
-function LoadoutGroup({
-  title,
-  items,
-}: {
-  title: string;
-  items: typeof TRUST;
-}) {
-  return (
-    <section className="space-y-2">
-      <p className="px-0.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-800/80">
-        {title}
-      </p>
-      {items.map((item) => {
-        const Icon = item.icon;
-        return (
-          <Link
-            key={item.to}
-            to={item.to}
-            className="flex items-start gap-3 rounded-2xl border border-border/70 bg-card p-4 shadow-sm"
-          >
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-900">
-              <Icon className="h-4 w-4" />
-            </div>
-            <div className="min-w-0">
-              <p className="font-semibold">{item.label}</p>
-              <p className="text-sm text-muted-foreground">{item.blurb}</p>
-            </div>
-          </Link>
-        );
-      })}
-    </section>
-  );
+function initials(name?: string | null) {
+  const parts = String(name || '?').trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return '?';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
 }
 
 export default function CleanerCityProfileHubPage() {
-  const { user } = useAuth();
+  const { user, profile: authProfile, society } = useAuth();
   const { data: profile } = useCleanerCityProfile();
   const { data: verification } = useCleanerCityWorkVerification();
   const { data: offices = [] } = useOfficeLocations();
@@ -81,89 +44,180 @@ export default function CleanerCityProfileHubPage() {
   const { data: vehicles = [] } = useCleanerCityVehicles();
   const { data: contacts = [] } = useEmergencyContacts();
 
-  const office = offices[0];
-  const tmpl = templates.find((t) => t.is_active) || templates[0];
-  const hasPins = !!(
-    office &&
-    typeof office.latitude === 'number' &&
-    tmpl &&
-    typeof tmpl.pickup_latitude === 'number'
+  const office = offices.find((o) => o.is_primary) || offices[0];
+  const homePin = templates.find(
+    (t) =>
+      typeof t.pickup_latitude === 'number' &&
+      Number.isFinite(t.pickup_latitude) &&
+      typeof t.pickup_longitude === 'number' &&
+      Number.isFinite(t.pickup_longitude),
   );
-  const hasRoads = !!(
-    preferredRouteFromProfile(profile, 'to_office') &&
-    preferredRouteFromProfile(profile, 'to_home')
-  );
+  const tmpl = templates.find((t) => t.is_working) || templates[0];
   const verified = verification?.status === 'verified';
-  const corridorLabel = hasPins && hasRoads
-    ? 'Corridor unlocked'
-    : hasPins
-      ? 'Pins set · roads open'
-      : 'Corridor locked';
+  const vehicle = vehicles[0];
+  const vehicleLabel = vehicle
+    ? [vehicle.color, vehicle.make, vehicle.model].filter(Boolean).join(' ') || 'Vehicle'
+    : 'Add vehicle';
+  const contact = contacts.find((c) => c.is_primary) || contacts[0];
+  const leave = String(tmpl?.depart_time || '08:30').slice(0, 5);
+  const displayName =
+    authProfile?.name || user?.email?.split('@')[0] || 'Your commute';
+  // Real Sociva society membership - never fall back to office pin label.
+  const societyLabel =
+    society?.name ||
+    authProfile?.society_name ||
+    'Your society';
+  const homeLabel = homePin?.pickup_label || 'Set home pin';
+  const officeLabel = office?.label || office?.address_text || 'Set office pin';
+  const workEmail =
+    verification?.work_email || verification?.email || user?.email || 'Add work email';
+
+  const rows = [
+    {
+      to: '/cleaner-city/setup',
+      icon: Building2,
+      label: 'Work email',
+      value: workEmail,
+      trailing: verified ? 'Verified' : 'Verify',
+    },
+    {
+      to: '/cleaner-city/route',
+      icon: MapPinned,
+      label: 'Home',
+      value: homeLabel,
+      state: { initialStep: 'home' },
+    },
+    {
+      to: '/cleaner-city/route',
+      icon: MapPinned,
+      label: 'Office',
+      value: officeLabel,
+      state: { initialStep: 'office' },
+    },
+    {
+      to: '/cleaner-city/safety',
+      icon: Shield,
+      label: 'Emergency contact',
+      value: contact
+        ? `${contact.contact_name}${contact.phone ? ` · ${contact.phone}` : ''}`
+        : 'Add contact',
+    },
+    {
+      to: '/cleaner-city/vehicle',
+      icon: Car,
+      label: 'Vehicle',
+      value: vehicleLabel,
+    },
+    {
+      to: '/cleaner-city/schedule',
+      icon: CalendarClock,
+      label: 'Regular commute',
+      value: 'Home → Office',
+      trailing: leave,
+      state: { from: '/cleaner-city/profile' },
+    },
+    {
+      to: '/cleaner-city/safety',
+      icon: ShieldCheck,
+      label: 'Safety settings',
+      value: 'SOS, blocks, and contacts',
+    },
+    {
+      to: '/cleaner-city/circles',
+      icon: Users,
+      label: 'Trusted circles',
+      value: 'Invite codes and privacy',
+    },
+    {
+      to: '/cleaner-city/chat',
+      icon: MessageCircle,
+      label: 'Messages',
+      value: 'Ride and circle chats',
+    },
+    {
+      to: '/profile',
+      icon: UserRound,
+      label: 'Account',
+      value: 'Sociva account settings',
+    },
+  ];
 
   return (
-    <CleanerCityChrome headerTitle="You">
+    <CleanerCityChrome headerTitle="Profile" className={cc.bg}>
       <CleanerCityGate>
-        <div className="mx-auto max-w-lg space-y-4 px-4 pb-6 pt-3">
-          <div className="rounded-3xl border border-emerald-900/10 bg-gradient-to-br from-emerald-950 via-emerald-900 to-teal-900 p-5 text-white shadow-md">
-            <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-emerald-100/80">
-              Your loadout
+        <div className={cc.page}>
+          <header className="text-center">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#0F3D2E]">
+              Sociva · Cleaner City
             </p>
-            <h1 className="mt-1 text-2xl font-semibold tracking-tight">
-              {profile?.display_name || user?.email?.split('@')[0] || 'Your commute'}
-            </h1>
-            <p className="mt-1 text-sm text-emerald-50/90">
-              Trust, gear, and safety. Route stays on its own tab.
-            </p>
-            <div className="mt-3 flex flex-wrap gap-2">
+          </header>
+
+          <section className={cn(cc.card, 'flex flex-col items-center px-4 py-5 text-center')}>
+            <div className="relative">
+              <Avatar className="h-20 w-20 border border-black/5">
+                {authProfile?.avatar_url ? (
+                  <AvatarImage src={authProfile.avatar_url} alt="" className="object-cover" />
+                ) : null}
+                <AvatarFallback className="bg-[#E8F2EC] text-lg font-semibold text-[#0F3D2E]">
+                  {initials(displayName)}
+                </AvatarFallback>
+              </Avatar>
               {verified ? (
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-xs font-semibold">
+                <span className="absolute bottom-0 right-0 flex h-6 w-6 items-center justify-center rounded-full bg-[#0F3D2E] text-white">
                   <ShieldCheck className="h-3.5 w-3.5" />
-                  Work email verified
-                </span>
-              ) : (
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-400/20 px-3 py-1 text-xs font-semibold text-amber-50">
-                  Verify work email
-                </span>
-              )}
-              {vehicles.length > 0 ? (
-                <span className="rounded-full bg-white/15 px-3 py-1 text-xs font-semibold">
-                  {vehicles.length} vehicle{vehicles.length === 1 ? '' : 's'}
                 </span>
               ) : null}
             </div>
-          </div>
+            <p className="mt-3 text-[18px] font-semibold text-[#0F3D2E]">{displayName}</p>
+            {verified ? (
+              <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-[#E8F2EC] px-2.5 py-0.5 text-[11px] font-semibold text-[#0F3D2E]">
+                Verified
+              </span>
+            ) : null}
+            <p className="mt-2 rounded-full bg-[#F7F5F1] px-3 py-1 text-[12px] text-muted-foreground">
+              {workEmail}
+            </p>
+            <p className="mt-2 flex items-center gap-1 text-[12px] text-muted-foreground">
+              <MapPinned className="h-3.5 w-3.5" />
+              Society {societyLabel}
+            </p>
+          </section>
 
-          <Link
-            to="/cleaner-city/route"
-            className={cn(
-              'flex items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-sm font-semibold shadow-sm',
-              hasPins && hasRoads
-                ? 'border-emerald-800/20 bg-emerald-50/70 text-emerald-950'
-                : 'border-amber-500/25 bg-amber-50/70 text-amber-950',
-            )}
-          >
-            <span>{corridorLabel}</span>
-            <span className="text-xs font-semibold opacity-70">Open Route tab →</span>
-          </Link>
+          <section className={cn(cc.card, 'overflow-hidden')}>
+            {rows.map((row, idx) => {
+              const Icon = row.icon;
+              return (
+                <Link
+                  key={`${row.label}-${row.to}`}
+                  to={row.to}
+                  state={row.state}
+                  className={cn(
+                    'flex items-center gap-3 px-4 py-3.5 active:bg-black/[0.02]',
+                    idx > 0 && 'border-t border-black/5',
+                  )}
+                >
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#E8F2EC] text-[#0F3D2E]">
+                    <Icon className="h-4 w-4" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[13px] font-semibold">{row.label}</p>
+                    <p className="truncate text-[12px] text-muted-foreground">{row.value}</p>
+                  </div>
+                  {row.trailing ? (
+                    <span className="text-[12px] font-semibold text-[#0F3D2E]">{row.trailing}</span>
+                  ) : null}
+                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                </Link>
+              );
+            })}
+          </section>
 
-          {verified ? (
-            <div className="flex items-start gap-3 rounded-2xl border border-border bg-card p-4 shadow-sm">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-900">
-                <ShieldCheck className="h-5 w-5" />
-              </div>
-              <div>
-                <p className="text-sm font-semibold">Your profile is verified</p>
-                <p className="mt-0.5 text-xs text-muted-foreground">
-                  Hosts see your trusted member badge when you request a seat.
-                  {contacts.length ? ` · ${contacts.length} emergency contact(s)` : ''}
-                </p>
-              </div>
-            </div>
-          ) : null}
-
-          <LoadoutGroup title="Trust" items={TRUST} />
-          <LoadoutGroup title="Gear" items={GEAR} />
-          <LoadoutGroup title="Comms" items={COMMS} />
+          {(preferredRouteFromProfile(profile, 'to_office') ||
+            preferredRouteFromProfile(profile, 'to_home')) && (
+            <p className="px-1 text-center text-[11px] text-muted-foreground">
+              Route roads are set. Edit anytime from Home, Office, or Regular commute.
+            </p>
+          )}
         </div>
       </CleanerCityGate>
     </CleanerCityChrome>

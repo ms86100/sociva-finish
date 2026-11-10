@@ -18,7 +18,7 @@ const edge = fs.readFileSync(
 );
 
 const hubPage = fs.readFileSync(
-  path.resolve(process.cwd(), 'src/pages/cleaner-city/CleanerCityPage.tsx'),
+  path.resolve(process.cwd(), 'src/pages/cleaner-city/CleanerCityHomePage.tsx'),
   'utf8',
 );
 
@@ -34,12 +34,15 @@ describe('A Cleaner City setup + work email OTP contracts', () => {
     expect(otpSection).toContain("supabase.functions.invoke('cleaner-city-work-email-otp'");
   });
 
-  it('CleanerCitySetupPage has steps, approved domains, domain check, and request domain', () => {
+  it('CleanerCitySetupPage detects company from any work email domain', () => {
     expect(setupPage).toContain('cleaner-city-setup-steps');
-    expect(setupPage).toContain('Approved companies');
+    expect(setupPage).not.toContain('Approved companies');
+    expect(setupPage).not.toContain('Request domain approval');
     expect(setupPage).toContain('cleaner-city-domain-check');
-    expect(setupPage).toContain('useRequestCompanyDomain');
-    expect(setupPage).toContain('Request domain approval');
+    expect(setupPage).toContain('detectedCompany');
+    expect(setupPage).toContain('useCheckWorkEmailDomain');
+    expect(setupPage).not.toContain('useRequestCompanyDomain');
+    expect(setupPage).not.toContain('useApprovedCompanyDomains');
   });
 
   it('Edge function source contains mapStoreError and mapResendError', () => {
@@ -51,6 +54,13 @@ describe('A Cleaner City setup + work email OTP contracts', () => {
   it('Hub page has one-step welcome setup', () => {
     expect(hubPage).toContain('cleaner-city-hub-welcome');
     expect(hubPage).toContain('cleaner-city-hub-next-step');
+  });
+
+  it('setup steps use underline tabs like Offer', () => {
+    expect(setupPage).toContain('cleaner-city-setup-steps');
+    expect(setupPage).toContain('border-b-2');
+    expect(setupPage).toContain('border-primary text-primary');
+    expect(setupPage).not.toContain('Step {s.n}');
   });
 });
 

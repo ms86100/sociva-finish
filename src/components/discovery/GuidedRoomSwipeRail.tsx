@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { ChevronRight, Plus, Star } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useCart } from '@/hooks/useCart';
@@ -13,6 +14,7 @@ import { optimizedImageUrl } from '@/utils/imageHelpers';
 import { openVariantPicker } from '@/lib/variant-picker-store';
 import { useVariantProductIds } from '@/hooks/useProductVariants';
 import { hasRailDensity } from '@/lib/discovery-density';
+import { hapticSelection } from '@/lib/haptics';
 import type { CategoryConfig } from '@/types/categories';
 import type { ProductActionType } from '@/types/Database';
 
@@ -24,6 +26,9 @@ interface GuidedRoomSwipeRailProps {
   testId?: string;
   /** Alternating soft panels so rails feel like scenes, not one flat list. */
   tone?: 'plain' | 'warm' | 'cool';
+  /** Full catalog destination for the rail header "See all" control. */
+  seeAllHref?: string;
+  seeAllLabel?: string;
 }
 
 /**
@@ -36,6 +41,8 @@ export function GuidedRoomSwipeRail({
   categoryConfigs = [],
   testId,
   tone = 'plain',
+  seeAllHref,
+  seeAllLabel = 'See all',
 }: GuidedRoomSwipeRailProps) {
   if (!hasRailDensity(products.length)) return null;
 
@@ -57,10 +64,17 @@ export function GuidedRoomSwipeRail({
             Swipe for more in your society
           </p>
         </div>
-        <span className="mb-0.5 inline-flex items-center gap-0.5 text-[11px] font-bold text-primary">
-          See
-          <ChevronRight size={13} className="guided-room-rail-nudge" />
-        </span>
+        {seeAllHref ? (
+          <Link
+            to={seeAllHref}
+            onClick={() => hapticSelection()}
+            data-testid={`${testId || 'guided-room-swipe-rail'}-see-all`}
+            className="mb-0.5 inline-flex items-center gap-0.5 text-[11px] font-bold text-primary hover:underline"
+          >
+            {seeAllLabel}
+            <ChevronRight size={13} className="guided-room-rail-nudge" />
+          </Link>
+        ) : null}
       </div>
       {/* scroll-padding keeps snap-start cards inset - without it mandatory snap
           aligns the first card to the viewport edge and eats the row's px-4. */}

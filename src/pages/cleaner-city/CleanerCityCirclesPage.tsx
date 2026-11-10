@@ -108,7 +108,7 @@ export default function CleanerCityCirclesPage() {
       <CleanerCityGate>
         <div className="p-4 pb-24 space-y-4" data-testid="cleaner-city-circles-page">
           {!ready && (
-            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-950 text-sm">
+            <div className="rounded-2xl border border-amber-500/30 bg-amber-50 p-4 text-amber-950 text-sm">
               Complete{' '}
               <Link to="/cleaner-city/setup" className="font-semibold underline">
                 set up + work email
@@ -210,6 +210,27 @@ export default function CleanerCityCirclesPage() {
           {profile && (
             <div className="rounded-2xl border border-border bg-card p-4 space-y-2" data-testid="cleaner-city-circle-prefs">
               <p className="text-sm font-semibold">Circle privacy</p>
+              <p className="text-[11px] text-muted-foreground">
+                Default Find is your society. Circles boost ranking. Circle-only is opt-in.
+              </p>
+              <label className="flex items-center gap-2 text-xs">
+                <input
+                  type="checkbox"
+                  checked={!!profile.prefer_circle_matching}
+                  onChange={(e) =>
+                    setPrefs.mutate({
+                      circle_only: !!profile.circle_only_matching,
+                      visibility: profile.circle_visibility || 'members',
+                      show_on_board: !!profile.show_on_circle_board,
+                      require_circle_history: !!profile.require_circle_history,
+                      open_city: !!profile.open_city_matching,
+                      prefer_circle: e.target.checked,
+                    })
+                  }
+                  data-testid="cleaner-city-prefer-circle"
+                />
+                Prefer my circles (rank circle mates higher - still visible to society)
+              </label>
               <label className="flex items-center gap-2 text-xs">
                 <input
                   type="checkbox"
@@ -221,6 +242,7 @@ export default function CleanerCityCirclesPage() {
                       show_on_board: !!profile.show_on_circle_board,
                       require_circle_history: !!profile.require_circle_history,
                       open_city: !!profile.open_city_matching,
+                      prefer_circle: !!profile.prefer_circle_matching,
                     })
                   }
                 />
@@ -237,6 +259,7 @@ export default function CleanerCityCirclesPage() {
                       show_on_board: !!profile.show_on_circle_board,
                       require_circle_history: !!profile.require_circle_history,
                       open_city: !!profile.open_city_matching,
+                      prefer_circle: !!profile.prefer_circle_matching,
                     })
                   }
                 />
@@ -253,6 +276,7 @@ export default function CleanerCityCirclesPage() {
                       show_on_board: e.target.checked,
                       require_circle_history: !!profile.require_circle_history,
                       open_city: !!profile.open_city_matching,
+                      prefer_circle: !!profile.prefer_circle_matching,
                     })
                   }
                 />
@@ -269,6 +293,7 @@ export default function CleanerCityCirclesPage() {
                       show_on_board: !!profile.show_on_circle_board,
                       require_circle_history: e.target.checked,
                       open_city: !!profile.open_city_matching,
+                      prefer_circle: !!profile.prefer_circle_matching,
                     })
                   }
                 />
@@ -285,6 +310,7 @@ export default function CleanerCityCirclesPage() {
                       show_on_board: !!profile.show_on_circle_board,
                       require_circle_history: !!profile.require_circle_history,
                       open_city: e.target.checked,
+                      prefer_circle: !!profile.prefer_circle_matching,
                     })
                   }
                 />

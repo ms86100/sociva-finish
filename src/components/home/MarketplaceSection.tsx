@@ -9,7 +9,7 @@ import { useProductFacets } from '@/hooks/queries/useProductFacets';
 import { useSocialProof } from '@/hooks/queries/useSocialProof';
 import { isFoodListingCategory, listingMatchesCategoryChip } from '@/lib/food-facets';
 import { FeaturedBanners } from '@/components/home/FeaturedBanners';
-import { NeighborMakesBanner } from '@/components/home/NeighborMakesBanner';
+import { HomeDiscoveryCarousel } from '@/components/home/HomeDiscoveryCarousel';
 import { FestivalBannerModule } from '@/components/home/FestivalBannerModule';
 import { FestivalHomeHero } from '@/components/home/FestivalHomeHero';
 import { useActiveFestivals, useFestivalTakeover } from '@/hooks/queries/useActiveFestivals';
@@ -35,7 +35,6 @@ import { useMarketplaceLabels } from '@/hooks/useMarketplaceLabels';
 import { cn } from '@/lib/utils';
 import { DiscoveryChipRail } from '@/components/home/DiscoveryChipRail';
 import { GuidedDiscoveryRail } from '@/components/home/GuidedDiscoveryRail';
-import { HelpHubTeaser } from '@/components/home/HelpHubTeaser';
 import { CookingNearbyRail } from '@/components/home/CookingNearbyRail';
 import { CommerceFacetRail } from '@/components/discovery/CommerceFacetRail';
 import { buildDiscoveryIntents } from '@/lib/discovery-intents';
@@ -610,16 +609,12 @@ export function MarketplaceSection() {
       )}
 
       {!festivalFocused && !searchActive && !isFacetFilterActive && (
-        <NeighborMakesBanner
-          onOrderNow={() => navigate('/explore/home_food')}
-        />
+        <HomeDiscoveryCarousel />
       )}
 
       {!festivalFocused && !searchActive && !isFacetFilterActive && guidedHubs.length > 0 && (
         <GuidedDiscoveryRail hubs={guidedHubs} />
       )}
-
-      {!festivalFocused && !searchActive && !isFacetFilterActive && <HelpHubTeaser />}
 
       {!activeCategory && !festivalFocused && !searchActive && !isFacetFilterActive && sellingWellProducts.length > 0 && (
         <div id="home-selling-well" data-testid="home-selling-well">
