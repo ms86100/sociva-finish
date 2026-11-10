@@ -1,8 +1,9 @@
 # Sociva Green City (A Cleaner City) - Complete Product Audit, Gap Closure & Readiness Verdict
 
 **Audit ID:** GC-AUDIT-20261110-E (CONDITIONAL GO for 2 pilot societies)  
-**Local SHA:** `7204fb50cdf2d7fc3c8253cdea232c7efa839251` (`main`) + go-live client hardening pending deploy  
-**Environments:** Sociva production DB `kkzkuyhgdvyecmxtmkpy` + local client tree for deploy  
+**Shipped SHA:** 1b3cd4e on main (go-live hardening 162c913)  
+**Deploy:** production READY - https://www.sociva.in / https://sociva.in (SW js-runtime-v3; live geometry guard + relay_call + demo honesty verified)  
+**Environments:** Sociva production DB kkzkuyhgdvyecmxtmkpy + live www client  
 **Safety:** CERT dual-role RPC dogfood only; no real SOS/payouts/resident blasts.
 
 ---
