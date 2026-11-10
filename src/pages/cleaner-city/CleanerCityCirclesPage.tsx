@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Copy } from 'lucide-react';
-import { AppLayout } from '@/components/layout/AppLayout';
+import { CleanerCityChrome } from '@/components/cleaner-city/CleanerCityChrome';
 import { CleanerCityGate } from '@/components/cleaner-city/CleanerCityGate';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -104,7 +104,7 @@ export default function CleanerCityCirclesPage() {
   };
 
   return (
-    <AppLayout headerTitle="Trusted circles">
+    <CleanerCityChrome headerTitle="Trusted circles">
       <CleanerCityGate>
         <div className="p-4 pb-24 space-y-4" data-testid="cleaner-city-circles-page">
           {!ready && (
@@ -362,7 +362,7 @@ export default function CleanerCityCirclesPage() {
           </Link>
         </div>
       </CleanerCityGate>
-    </AppLayout>
+    </CleanerCityChrome>
   );
 }
 

@@ -5,6 +5,7 @@ type CommuteTrackingBridge = {
   startCommuteTracking(options: {
     ride_id: string;
     access_token: string;
+    refresh_token?: string;
     supabase_url: string;
     anon_key: string;
   }): Promise<void>;
@@ -12,6 +13,7 @@ type CommuteTrackingBridge = {
   updateCommuteTracking?(options: {
     ride_id: string;
     access_token: string;
+    refresh_token?: string;
     supabase_url: string;
     anon_key: string;
   }): Promise<void>;
@@ -23,10 +25,12 @@ const LiveActivity = registerPlugin<CommuteTrackingBridge>('LiveActivity');
 async function authPayload(rideId: string) {
   const { data } = await supabase.auth.getSession();
   const token = data.session?.access_token;
+  const refresh = data.session?.refresh_token;
   if (!token || !SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) return null;
   return {
     ride_id: rideId,
     access_token: token,
+    refresh_token: refresh || undefined,
     supabase_url: SUPABASE_URL,
     anon_key: SUPABASE_PUBLISHABLE_KEY,
   };

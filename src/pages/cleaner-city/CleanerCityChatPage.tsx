@@ -2,7 +2,7 @@
 import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
-import { AppLayout } from '@/components/layout/AppLayout';
+import { CleanerCityChrome } from '@/components/cleaner-city/CleanerCityChrome';
 import { CleanerCityGate } from '@/components/cleaner-city/CleanerCityGate';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -103,7 +103,7 @@ export default function CleanerCityChatPage() {
   };
 
   return (
-    <AppLayout headerTitle="Commute chat">
+    <CleanerCityChrome headerTitle="Commute chat">
       <CleanerCityGate>
         <div className="p-4 pb-24 space-y-4" data-testid="cleaner-city-chat">
           <div>
@@ -263,6 +263,6 @@ export default function CleanerCityChatPage() {
           )}
         </div>
       </CleanerCityGate>
-    </AppLayout>
+    </CleanerCityChrome>
   );
 }

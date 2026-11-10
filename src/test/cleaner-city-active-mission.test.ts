@@ -9,9 +9,8 @@ describe('Cleaner City active mission discovery', () => {
     const hub = read('src/pages/cleaner-city/CleanerCityPage.tsx');
     expect(hub).toContain('CleanerCityActiveMissionCard');
     expect(hub).toContain('CleanerCityActiveMissionDock');
-    expect(hub).toContain('cleaner-city-upcoming-section');
-    expect(hub).toContain('cleaner-city-upcoming-ride');
-    expect(hub).toContain('cleaner-city-upcoming-hosting');
+    expect(hub).toContain('activeRide');
+    expect(hub).toContain('/cleaner-city/ride/');
   });
 
   it('mission card deep-links to the ride', () => {

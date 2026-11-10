@@ -1,9 +1,9 @@
 // @ts-nocheck
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Check, ChevronDown, FileCheck2, Pencil, Plus } from 'lucide-react';
+import { Check, FileCheck2, Pencil, Plus } from 'lucide-react';
 import { toast } from 'sonner';
-import { AppLayout } from '@/components/layout/AppLayout';
+import { CleanerCityChrome } from '@/components/cleaner-city/CleanerCityChrome';
 import { CleanerCityGate } from '@/components/cleaner-city/CleanerCityGate';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -50,10 +50,6 @@ export default function CleanerCityVehiclePage() {
   const [color, setColor] = useState('');
   const [registration, setRegistration] = useState('');
   const [seats, setSeats] = useState(3);
-  const [pickupPref, setPickupPref] = useState('');
-  const [dropPref, setDropPref] = useState('');
-  const [notes, setNotes] = useState('');
-  const [showExtras, setShowExtras] = useState(false);
   const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>(null);
   const [docType, setDocType] = useState('registration');
   const [docLabel, setDocLabel] = useState('');
@@ -90,10 +86,6 @@ export default function CleanerCityVehiclePage() {
     setColor('');
     setRegistration('');
     setSeats(3);
-    setPickupPref('');
-    setDropPref('');
-    setNotes('');
-    setShowExtras(false);
   };
 
   const startAdd = () => {
@@ -113,10 +105,6 @@ export default function CleanerCityVehiclePage() {
     setColor(v.color || '');
     setRegistration(v.registration_number || '');
     setSeats(v.seat_capacity);
-    setPickupPref(v.preferred_pickup_label || '');
-    setDropPref(v.preferred_drop_label || '');
-    setNotes(v.notes || '');
-    setShowExtras(!!(v.preferred_pickup_label || v.preferred_drop_label || v.notes));
     setShowForm(true);
     setTab('vehicle');
   };
@@ -148,9 +136,9 @@ export default function CleanerCityVehiclePage() {
         color,
         registration_number: registration,
         seat_capacity: seats,
-        preferred_pickup_label: pickupPref,
-        preferred_drop_label: dropPref,
-        notes,
+        preferred_pickup_label: null,
+        preferred_drop_label: null,
+        notes: null,
       });
       setSelectedVehicleId(row.id);
       setEditingId(null);
@@ -213,7 +201,7 @@ export default function CleanerCityVehiclePage() {
   };
 
   return (
-    <AppLayout headerTitle="My vehicle">
+    <CleanerCityChrome headerTitle="My vehicle">
       <CleanerCityGate>
         <div className="mx-auto flex w-full max-w-lg flex-col gap-6 px-4 pb-28 pt-4" data-testid="cleaner-city-vehicle-page">
           {arrivalNotice ? (
@@ -438,48 +426,6 @@ export default function CleanerCityVehiclePage() {
                       </div>
                     </div>
 
-                    <button
-                      type="button"
-                      className="flex w-full items-center justify-between rounded-xl border border-dashed border-border px-3 py-3 text-left text-xs text-muted-foreground"
-                      onClick={() => setShowExtras((v) => !v)}
-                    >
-                      <span>More options</span>
-                      <ChevronDown
-                        size={14}
-                        className={cn('transition-transform', showExtras && 'rotate-180')}
-                      />
-                    </button>
-
-                    {showExtras ? (
-                      <div className="flex flex-col gap-3 rounded-xl border border-border bg-muted/20 p-4">
-                        <p className="text-[11px] leading-relaxed text-muted-foreground">
-                          Map pins are on{' '}
-                          <Link to="/cleaner-city/route" className="font-semibold text-primary">
-                            Office & pickup
-                          </Link>
-                          .
-                        </p>
-                        <Input
-                          value={pickupPref}
-                          onChange={(e) => setPickupPref(e.target.value)}
-                          placeholder="Pickup label (optional)"
-                          className="h-11"
-                        />
-                        <Input
-                          value={dropPref}
-                          onChange={(e) => setDropPref(e.target.value)}
-                          placeholder="Drop label (optional)"
-                          className="h-11"
-                        />
-                        <Input
-                          value={notes}
-                          onChange={(e) => setNotes(e.target.value)}
-                          placeholder="Notes (optional)"
-                          className="h-11"
-                        />
-                      </div>
-                    ) : null}
-
                     <Button
                       className="h-12 w-full text-base font-semibold"
                       onClick={save}
@@ -639,6 +585,6 @@ export default function CleanerCityVehiclePage() {
           </Tabs>
         </div>
       </CleanerCityGate>
-    </AppLayout>
+    </CleanerCityChrome>
   );
 }

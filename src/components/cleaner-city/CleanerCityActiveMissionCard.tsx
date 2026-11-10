@@ -157,7 +157,10 @@ export function CleanerCityActiveMissionDock({
   return (
     <div
       className="pointer-events-none fixed inset-x-0 z-40 flex justify-center px-4"
-      style={{ bottom: 'calc(4.25rem + max(var(--app-safe-bottom, 0px), env(safe-area-inset-bottom, 0px)))' }}
+      style={{
+        bottom:
+          'calc(4.75rem + max(var(--app-safe-bottom, 0px), env(safe-area-inset-bottom, 0px)))',
+      }}
       data-testid="cleaner-city-active-ride-dock"
     >
       <Link

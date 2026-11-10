@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Shield, Trash2, UserX } from 'lucide-react';
-import { AppLayout } from '@/components/layout/AppLayout';
+import { CleanerCityChrome } from '@/components/cleaner-city/CleanerCityChrome';
 import { CleanerCityGate } from '@/components/cleaner-city/CleanerCityGate';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -94,7 +94,7 @@ export default function CleanerCitySafetyPage() {
   };
 
   return (
-    <AppLayout headerTitle="Safety">
+    <CleanerCityChrome headerTitle="Safety">
       <CleanerCityGate>
         <div className="p-4 pb-24 space-y-4" data-testid="cleaner-city-safety-page">
           <div>
@@ -333,6 +333,6 @@ export default function CleanerCitySafetyPage() {
           </Link>
         </div>
       </CleanerCityGate>
-    </AppLayout>
+    </CleanerCityChrome>
   );
 }

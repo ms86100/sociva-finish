@@ -914,6 +914,13 @@ export type CleanerCityRide = {
   meeting_point_latitude?: number | null;
   meeting_point_longitude?: number | null;
   estimated_fuel_paise?: number | null;
+  fuel_snapshot?: Record<string, unknown> | null;
+  fuel_petrol_paise_per_litre?: number | null;
+  fuel_mileage_km_per_litre?: number | null;
+  fuel_distance_meters?: number | null;
+  fuel_total_paise?: number | null;
+  fuel_host_share_paise?: number | null;
+  fuel_calc_version?: number | null;
   request_expires_at?: string | null;
   pickup_deadline_at?: string | null;
   society_id?: string;
@@ -1079,7 +1086,7 @@ export function useMyRides() {
       const { data, error } = await supabase
         .from('rides')
         .select(
-          'id, publication_id, society_id, host_user_id, guest_user_id, travel_date, status, guest_pickup_latitude, guest_pickup_longitude, guest_dest_latitude, guest_dest_longitude, meeting_point_label, meeting_point_latitude, meeting_point_longitude, estimated_fuel_paise, request_expires_at, pickup_deadline_at',
+          'id, publication_id, society_id, host_user_id, guest_user_id, travel_date, status, guest_pickup_latitude, guest_pickup_longitude, guest_dest_latitude, guest_dest_longitude, meeting_point_label, meeting_point_latitude, meeting_point_longitude, estimated_fuel_paise, fuel_snapshot, fuel_petrol_paise_per_litre, fuel_mileage_km_per_litre, fuel_distance_meters, fuel_total_paise, fuel_host_share_paise, fuel_calc_version, request_expires_at, pickup_deadline_at',
         )
         .or(`host_user_id.eq.${user!.id},guest_user_id.eq.${user!.id}`)
         .order('travel_date', { ascending: false })
@@ -1187,7 +1194,7 @@ export function usePublicationRides(publicationId: string | null | undefined) {
       const { data, error } = await supabase
         .from('rides')
         .select(
-          'id, publication_id, society_id, host_user_id, guest_user_id, travel_date, status, guest_pickup_latitude, guest_pickup_longitude, guest_dest_latitude, guest_dest_longitude, meeting_point_label, meeting_point_latitude, meeting_point_longitude, estimated_fuel_paise, request_expires_at, pickup_deadline_at',
+          'id, publication_id, society_id, host_user_id, guest_user_id, travel_date, status, guest_pickup_latitude, guest_pickup_longitude, guest_dest_latitude, guest_dest_longitude, meeting_point_label, meeting_point_latitude, meeting_point_longitude, estimated_fuel_paise, fuel_snapshot, fuel_petrol_paise_per_litre, fuel_mileage_km_per_litre, fuel_distance_meters, fuel_total_paise, fuel_host_share_paise, fuel_calc_version, request_expires_at, pickup_deadline_at',
         )
         .eq('publication_id', publicationId!)
         .in('status', ['confirmed', 'pickup_pending', 'started'])
@@ -1572,7 +1579,7 @@ export function useCleanerCityRide(rideId?: string | null) {
         const { data, error } = await supabase
           .from('rides')
           .select(
-            'id, publication_id, society_id, host_user_id, guest_user_id, travel_date, status, guest_pickup_latitude, guest_pickup_longitude, guest_dest_latitude, guest_dest_longitude, meeting_point_label, meeting_point_latitude, meeting_point_longitude, estimated_fuel_paise, request_expires_at, pickup_deadline_at',
+            'id, publication_id, society_id, host_user_id, guest_user_id, travel_date, status, guest_pickup_latitude, guest_pickup_longitude, guest_dest_latitude, guest_dest_longitude, meeting_point_label, meeting_point_latitude, meeting_point_longitude, estimated_fuel_paise, fuel_snapshot, fuel_petrol_paise_per_litre, fuel_mileage_km_per_litre, fuel_distance_meters, fuel_total_paise, fuel_host_share_paise, fuel_calc_version, request_expires_at, pickup_deadline_at',
           )
           .eq('id', rideId!)
           .maybeSingle();

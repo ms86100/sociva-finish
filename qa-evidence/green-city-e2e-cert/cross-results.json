@@ -1,0 +1,32 @@
+{
+  "run_at": "2026-11-10T07:53:00Z",
+  "project": "kkzkuyhgdvyecmxtmkpy",
+  "host": "fa42d0a5-95d3-441c-b6f3-28dfee15c1f8",
+  "guest": "c0ed5d4b-6f88-43a5-9684-8c83f637c271",
+  "guest2": "2fd8dbb0-ffb1-4d5e-bf99-24276847f277",
+  "cases": {
+    "CROSS01": "PASS",
+    "CROSS02": "PASS",
+    "CROSS03": "PASS",
+    "CROSS04": "PASS",
+    "CROSS05": "PASS",
+    "CROSS06": "PASS",
+    "CROSS07": "PASS",
+    "CROSS08": "PASS",
+    "CROSS09": "PASS",
+    "CROSS10": "PASS",
+    "CROSS11": "PASS",
+    "CROSS12": "PASS",
+    "CROSS13": "PASS",
+    "CROSS14": "PASS"
+  },
+  "notes": {
+    "CROSS04": "Parallel REST race: 1 win / 1 fail (Publication not open after full). Evidence in cross04-result.json",
+    "CROSS07": "start enqueue processed in notification_queue",
+    "CROSS11": "fuel_snapshot basis=segment_route on confirm/complete path",
+    "push": "cleaner_city_* rows enqueued and processed=true during harness",
+    "android_tracking": "CommuteTrackingService refreshes access_token via refresh_token on 401",
+    "autopilot_cron": "cleaner-city-autopilot 15 20 * * * active; cleaner-city-reminders */5 active",
+    "commute_reminders": "cleaner_city_send_commute_reminders + cron active"
+  }
+}

@@ -23,16 +23,18 @@ describe('Cleaner City UX P0 wiring', () => {
     expect(card).toContain('Find a ride');
   });
 
-  it('hub is Mission-first with Find/Offer primary and collapsed settings', () => {
+  it('hub is Find-first with search, Offer CTA, and active mission wiring', () => {
     const hub = read('src/pages/cleaner-city/CleanerCityPage.tsx');
+    expect(hub).toContain('Where are you headed?');
     expect(hub).toContain('CleanerCityActiveMissionCard');
-    expect(hub).toContain('cleaner-city-upcoming-section');
     expect(hub).toContain('cleaner-city-find-link');
     expect(hub).toContain('cleaner-city-offer-link');
-    expect(hub).toContain('cleaner-city-settings-toggle');
-    expect(hub).toContain('useState(false)');
     expect(hub).toContain('cleaner-city-hub-welcome');
-    expect(hub).toContain('openHosting: true');
+    expect(hub).toContain('HOME_DEMO_RIDES');
+    expect(hub).toContain('Request seat');
+    expect(hub).toContain('useRequestRide');
+    expect(hub).toContain('requestSeat');
+    expect(hub).toContain('upsertHomeSeatRequest');
   });
 
   it('Offer publish hands off to Find hosting', () => {

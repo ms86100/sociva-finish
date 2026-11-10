@@ -153,10 +153,13 @@ describe('A Cleaner City Phase 1-4 hub page', () => {
     expect(hubPage).toContain('/cleaner-city/safety');
   });
 
-  it('shows a draft publications confirm/skip section wired to useConfirmPublication', () => {
-    expect(hubPage).toContain('useConfirmPublication');
-    expect(hubPage).toContain('useMyPublications');
-    expect(hubPage).toContain("p.status === 'draft'");
+  it('Home is Find-first with demo corridor matches', () => {
+    expect(hubPage).toContain('Where are you headed?');
+    expect(hubPage).toContain('HOME_DEMO_RIDES');
+    expect(hubPage).toContain('Find your next ride');
+    expect(hubPage).toContain('Request seat');
+    expect(hubPage).toContain('useRequestRide');
+    expect(hubPage).toContain('upsertHomeSeatRequest');
   });
 
   it('still keeps the Phase 0 active ride card', () => {
@@ -276,7 +279,7 @@ describe('A Cleaner City Phase 1-4 new pages', () => {
     expect(circlesPage).toContain('invite_code');
     expect(circlesPage).toContain('@ts-nocheck');
     expect(circlesPage).toContain('CleanerCityGate');
-    expect(circlesPage).toContain('AppLayout');
+    expect(circlesPage).toContain('CleanerCityChrome');
   });
 
   it('CleanerCitySafetyPage manages emergency contacts and blocks', () => {

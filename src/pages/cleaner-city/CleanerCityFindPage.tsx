@@ -3,13 +3,14 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { ChevronDown } from 'lucide-react';
 import { toast } from 'sonner';
-import { AppLayout } from '@/components/layout/AppLayout';
+import { CleanerCityChrome } from '@/components/cleaner-city/CleanerCityChrome';
 import { CleanerCityGate } from '@/components/cleaner-city/CleanerCityGate';
 import {
   CleanerCityActiveMissionCard,
   CleanerCityActiveMissionDock,
 } from '@/components/cleaner-city/CleanerCityActiveMissionCard';
 import { CleanerCityMatchCard } from '@/components/cleaner-city/CleanerCityMatchCard';
+import { CleanerCityPlaySwitch } from '@/components/cleaner-city/CleanerCityPlaySwitch';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -135,6 +136,11 @@ export default function CleanerCityFindPage() {
   const pickupLat = schedule?.pickup_latitude ?? weekdayTemplate?.pickup_latitude ?? null;
   const pickupLng = schedule?.pickup_longitude ?? weekdayTemplate?.pickup_longitude ?? null;
   const hasPickup = pickupLat != null && pickupLng != null;
+  const hasPins = !!(office?.latitude != null && hasPickup);
+  const hasRoads = !!(
+    preferredRouteFromProfile(profile, 'to_office') &&
+    preferredRouteFromProfile(profile, 'to_home')
+  );
 
   const guestCoords = useMemo(() => {
     const officeLat = office?.latitude ?? null;
@@ -295,13 +301,12 @@ export default function CleanerCityFindPage() {
 
   const request = async (publicationId: string) => {
     if (!hasVerifiedEmergency) {
-      toast.error('Add a verified emergency contact before requesting a seat', {
+      toast.message('Tip: add an emergency contact anytime in You → Safety', {
         action: {
           label: 'Safety',
           onClick: () => navigate('/cleaner-city/safety'),
         },
       });
-      return;
     }
     setRequestingPubId(publicationId);
     try {
@@ -441,7 +446,7 @@ export default function CleanerCityFindPage() {
   }, []);
 
   return (
-    <AppLayout headerTitle="Find a ride">
+    <CleanerCityChrome headerTitle="Play · Find">
       <CleanerCityGate>
         <div
           className={cn(
@@ -455,6 +460,8 @@ export default function CleanerCityFindPage() {
               {arrivalNotice}
             </div>
           )}
+
+          <CleanerCityPlaySwitch mode="find" hasPins={hasPins} hasRoads={hasRoads} />
 
           {activeGuestRide ? (
             <div
@@ -627,6 +634,23 @@ export default function CleanerCityFindPage() {
             </div>
           )}
 
+          <div className="flex items-center justify-between gap-2 rounded-2xl border border-border bg-card px-3 py-2.5">
+            <div className="min-w-0">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                My week
+              </p>
+              <p className="truncate text-xs text-foreground">
+                Leave around {String(departTime || '').slice(0, 5) || '--:--'} · edit routine separately
+              </p>
+            </div>
+            <Link
+              to="/cleaner-city/schedule"
+              className="shrink-0 text-xs font-semibold text-emerald-900"
+            >
+              Edit week
+            </Link>
+          </div>
+
           <div
             className="rounded-2xl border border-border bg-card p-4 space-y-3"
             data-testid="cleaner-city-find-filters"
@@ -634,7 +658,7 @@ export default function CleanerCityFindPage() {
             <div>
               <p className="text-sm font-semibold">People going your way</p>
               <p className="text-xs text-muted-foreground mt-0.5 truncate">
-                {direction === 'to_home' ? 'Office → home' : 'Home → office'} · leave around{' '}
+                {direction === 'to_home' ? 'Office to home' : 'Home to office'} · leave around{' '}
                 {String(departTime || '').slice(0, 5) || 'your time'} · we refresh as you change
                 filters
               </p>
@@ -844,7 +868,7 @@ export default function CleanerCityFindPage() {
                 className="rounded-2xl border border-border bg-card p-5 text-center space-y-3"
                 data-testid="cleaner-city-find-empty"
               >
-                <p className="text-sm font-semibold">No rides on your path</p>
+                <p className="text-sm font-semibold">No seats yet - try another time or Offer a ride</p>
                 <p className="text-xs text-muted-foreground">
                   Set your commute pins and usual roads, join the waitlist for a notify, or publish an empty seat.
                 </p>
@@ -1037,6 +1061,6 @@ export default function CleanerCityFindPage() {
           ) : null}
         </div>
       </CleanerCityGate>
-    </AppLayout>
+    </CleanerCityChrome>
   );
 }

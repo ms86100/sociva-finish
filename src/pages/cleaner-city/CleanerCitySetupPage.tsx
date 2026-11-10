@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { AppLayout } from '@/components/layout/AppLayout';
+import { CleanerCityChrome } from '@/components/cleaner-city/CleanerCityChrome';
 import { CleanerCityGate } from '@/components/cleaner-city/CleanerCityGate';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -240,7 +240,7 @@ export default function CleanerCitySetupPage() {
   };
 
   return (
-    <AppLayout headerTitle={isGuestPath ? 'Find a seat setup' : isHostPath ? 'Offer seats setup' : 'Set up commute'}>
+    <CleanerCityChrome headerTitle={isGuestPath ? 'Find a seat setup' : isHostPath ? 'Offer seats setup' : 'Set up commute'}>
       <CleanerCityGate>
         <div
           className="p-4 pb-24 space-y-5"
@@ -637,7 +637,7 @@ export default function CleanerCitySetupPage() {
                     >
                       Add emergency contact
                       <span className="mt-0.5 block text-[11px] font-normal text-muted-foreground">
-                        Required before you can request a seat
+                        Optional - also under You → Safety for SOS
                       </span>
                     </Link>
                     <Link
@@ -713,6 +713,6 @@ export default function CleanerCitySetupPage() {
           </Link>
         </div>
       </CleanerCityGate>
-    </AppLayout>
+    </CleanerCityChrome>
   );
 }

@@ -66,7 +66,7 @@ describe('Cleaner City match card game UX helpers', () => {
       'utf8',
     );
     expect(card).toContain('cleaner-city-request-seat');
-    expect(card).toContain('Request ride');
+    expect(card).toContain('Request seat');
     expect(card).toContain('cleaner-city-match-trip-strip');
     expect(card).toContain('Pickup by');
     expect(card).toContain('% match');

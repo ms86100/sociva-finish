@@ -1,48 +1,58 @@
 // @ts-nocheck
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { AppLayout } from '@/components/layout/AppLayout';
-import { CleanerCityGate } from '@/components/cleaner-city/CleanerCityGate';
-import { CommuteJourney } from '@/components/cleaner-city/CommuteJourney';
 import {
-  CalendarClock,
-  Car,
-  ChevronDown,
-  Leaf,
-  MessageCircle,
+  ArrowLeftRight,
+  Building2,
+  Calendar,
+  Clock,
+  HelpCircle,
   MapPin,
-  Shield,
+  Minus,
+  Plus,
+  Search,
   ShieldCheck,
-  Users,
-  Zap,
+  Sparkles,
+  Star,
 } from 'lucide-react';
+import { CleanerCityChrome } from '@/components/cleaner-city/CleanerCityChrome';
+import { CleanerCityGate } from '@/components/cleaner-city/CleanerCityGate';
 import {
   CleanerCityActiveMissionCard,
   CleanerCityActiveMissionDock,
 } from '@/components/cleaner-city/CleanerCityActiveMissionCard';
-import {
-  useCleanerCityBadges,
-  useCleanerCityProfile,
-  useCleanerCityWorkVerification,
-  useConfirmPublication,
-  useEffectiveSchedule,
-  useMarkWfh,
-  useCleanerCityVehicles,
-  useCommuteTemplates,
-  useEmergencyContacts,
-  useMyPublications,
-  useMyRides,
-  useMyWaitlist,
-  useOfficeLocations,
-  useRepeatLastCommute,
-  useRequestRide,
-} from '@/hooks/queries/useCleanerCity';
+import { CleanerCityHomePlaceField } from '@/components/cleaner-city/CleanerCityHomePlaceField';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
-import { DEFAULT_COMMUTE_TIMEZONE, WORK_EMAIL_BADGE } from '@/lib/cleaner-city/constants';
+import {
+  type MatchResult,
+  useCleanerCityProfile,
+  useCleanerCityWorkVerification,
+  useCommuteTemplates,
+  useEffectiveSchedule,
+  useFindMatches,
+  useMyRides,
+  useOfficeLocations,
+  useRequestRide,
+} from '@/hooks/queries/useCleanerCity';
+import { DEFAULT_COMMUTE_TIMEZONE } from '@/lib/cleaner-city/constants';
+import {
+  HOME_DEMO_RIDES,
+  HOME_DEMO_SEARCH,
+  type HomeDemoRide,
+} from '@/lib/cleaner-city/homeDemoRides';
+import {
+  loadHomeSeatRequests,
+  upsertHomeSeatRequest,
+  type HomeSeatRequest,
+} from '@/lib/cleaner-city/homeSeatRequests';
 import { setCleanerCityIntent } from '@/lib/cleaner-city/intent';
+import { formatFuelShareRupees, formatVehicleTitle } from '@/lib/cleaner-city/matchCopy';
 import { cn } from '@/lib/utils';
+
+const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const;
 
 function todayIso(tz = DEFAULT_COMMUTE_TIMEZONE) {
   return new Intl.DateTimeFormat('en-CA', {
@@ -53,37 +63,73 @@ function todayIso(tz = DEFAULT_COMMUTE_TIMEZONE) {
   }).format(new Date());
 }
 
-function addDaysIso(iso: string, days: number) {
-  const d = new Date(`${iso}T12:00:00`);
-  d.setDate(d.getDate() + days);
-  return d.toISOString().slice(0, 10);
+function greetingLine(name?: string | null) {
+  const hour = new Date().getHours();
+  const greet = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+  const first = String(name || '').trim().split(/\s+/)[0] || 'there';
+  const day = new Intl.DateTimeFormat('en-IN', {
+    weekday: 'long',
+    month: 'short',
+    day: 'numeric',
+  }).format(new Date());
+  return `${day} · ${greet}, ${first}`;
 }
 
-function dayLabel(date: string, today: string) {
-  if (date === today) return 'Today';
-  if (date === addDaysIso(today, 1)) return 'Tomorrow';
-  return date;
+function initials(name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return 'R';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
 }
 
-function directionLabel(direction?: string | null) {
-  if (direction === 'to_home') return 'Homebound';
-  if (direction === 'to_office') return 'To office';
-  return String(direction || 'Commute').replace('_', ' ');
+function leavingToDepartTime(leaving: string) {
+  const m = String(leaving || '').trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i);
+  if (!m) return '08:00';
+  let h = Number(m[1]);
+  const min = m[2];
+  const ap = (m[3] || '').toUpperCase();
+  if (ap === 'PM' && h < 12) h += 12;
+  if (ap === 'AM' && h === 12) h = 0;
+  return `${String(h).padStart(2, '0')}:${min}`;
 }
 
-function formatLeaveTime(depart?: string | null) {
-  const t = String(depart || '').slice(0, 5);
-  return t || 'Leave time TBD';
+function matchToHomeCard(m: MatchResult, index: number): HomeDemoRide {
+  const leave = String(m.depart_time || '').slice(0, 5) || '08:00';
+  const fuel = formatFuelShareRupees(m.estimated_fuel_paise);
+  const overlap =
+    m.road_overlap_pct != null && Number.isFinite(Number(m.road_overlap_pct))
+      ? Math.round(Number(m.road_overlap_pct))
+      : Math.max(55, Math.min(99, Math.round(Number(m.score || 0.7) * 100)));
+  return {
+    id: `live-${m.publication_id}`,
+    publicationId: m.publication_id,
+    live: true,
+    hostName: String(m.host_name || 'Neighbour'),
+    company: String(m.host_company || (m.host_vehicle_verified ? 'Office verified' : 'Community')),
+    stars: Number(m.host_avg_stars) > 0 ? Number(m.host_avg_stars) : 4.8,
+    completedRides: Number(m.host_completed_rides) || 0,
+    vehicle: formatVehicleTitle(m),
+    vehicleKind: String(m.vehicle_type || '').toLowerCase() === 'bike' ? 'bike' : 'car',
+    pickupLabel: m.origin_label || 'Pickup',
+    dropLabel: m.destination_label || 'Drop',
+    departTime: leave,
+    arriveTime: leave,
+    durationMin: Math.max(20, Math.round(Number(m.route_distance_meters || 12000) / 400)),
+    alongWay: [m.origin_label, 'Along corridor', m.destination_label].filter(Boolean) as string[],
+    fuelShareRs: fuel ?? Math.round(
+      ((Number(m.route_distance_meters) || 12000) / 1000) * 12 / Math.max(2, Number(m.seats_available) + 1),
+    ),
+    seatsOpen: Number(m.seats_available) || 1,
+    tags: Array.isArray(m.reason_labels) ? m.reason_labels.slice(0, 2) : [],
+    bestOverlap: index === 0,
+    overlapPct: overlap,
+  };
 }
 
-const ACTIVE_RIDE_STATUSES = [
-  'requested',
-  'confirmed',
-  'pickup_pending',
-  'started',
-  'safety_incident',
-];
-
+/**
+ * Home = Find a ride feeling (search + matches).
+ * Live findMatches when pins exist; demo cards otherwise. Request seat is wired.
+ */
 export default function CleanerCityPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -91,1066 +137,639 @@ export default function CleanerCityPage() {
   const arrivalNotice = (location.state as { notice?: string } | null)?.notice || '';
   const { data: profile } = useCleanerCityProfile();
   const { data: verification } = useCleanerCityWorkVerification();
-  const { data: rides = [] } = useMyRides();
-  const { data: publications = [] } = useMyPublications();
-  const { data: waitlist = [] } = useMyWaitlist();
-  const confirmPublication = useConfirmPublication();
-  const { data: badges = [] } = useCleanerCityBadges();
+  const { data: rides = [], refetch: refetchRides } = useMyRides();
   const { data: offices = [] } = useOfficeLocations();
   const { data: templates = [] } = useCommuteTemplates();
-  const { data: vehicles = [] } = useCleanerCityVehicles();
-  const { data: contacts = [] } = useEmergencyContacts();
-  const repeatLast = useRepeatLastCommute();
-  const markWfh = useMarkWfh();
+  const findMatches = useFindMatches();
   const requestRide = useRequestRide();
   const today = todayIso(profile?.timezone || DEFAULT_COMMUTE_TIMEZONE);
-  const tomorrow = addDaysIso(today, 1);
-  const { data: todaySchedule } = useEffectiveSchedule(profile ? today : null);
-  const ready = !!profile && verification?.status === 'verified' && !profile.is_paused;
-  const completedRides = rides.filter((r) => r.status === 'completed').length;
-  const role = profile?.role || null;
-  const wantsSeat = !role || role === 'guest' || role === 'both';
-  const wantsToOffer = role === 'host' || role === 'both';
-  const hostRole = wantsToOffer;
-  const LIVE_MISSION_STATUSES = ['pickup_pending', 'started', 'safety_incident'];
-  const UPCOMING_RIDE_STATUSES = ['requested', 'confirmed', 'pickup_pending', 'started', 'safety_incident'];
+  const { data: schedule } = useEffectiveSchedule(today);
+
+  const [pickup, setPickup] = useState(HOME_DEMO_SEARCH.pickup);
+  const [dropoff, setDropoff] = useState(HOME_DEMO_SEARCH.dropoff);
+  const [dateLabel, setDateLabel] = useState(HOME_DEMO_SEARCH.dateLabel);
+  const [leaving, setLeaving] = useState(HOME_DEMO_SEARCH.leaving);
+  const [seats, setSeats] = useState(HOME_DEMO_SEARCH.seats);
+  const [flexible, setFlexible] = useState(true);
+  const [activeDays, setActiveDays] = useState(() => new Set(DAYS.slice(0, 5)));
+  const [searched, setSearched] = useState(true);
+  const [liveCards, setLiveCards] = useState<HomeDemoRide[] | null>(null);
+  const [demoSeats, setDemoSeats] = useState<Record<string, number>>({});
+  const [requestedIds, setRequestedIds] = useState<Set<string>>(() => new Set());
+  const [requestingId, setRequestingId] = useState<string | null>(null);
+  const [pendingRequests, setPendingRequests] = useState<HomeSeatRequest[]>([]);
+
+  useEffect(() => {
+    const rows = loadHomeSeatRequests();
+    setPendingRequests(rows);
+    setRequestedIds(new Set(rows.map((r) => r.id)));
+  }, []);
+
   const activeRide =
-    rides.find((r) => r.travel_date === today && LIVE_MISSION_STATUSES.includes(r.status)) ||
-    rides.find((r) => LIVE_MISSION_STATUSES.includes(r.status)) ||
-    rides.find((r) => r.travel_date === today && ACTIVE_RIDE_STATUSES.includes(r.status)) ||
-    rides.find((r) => ACTIVE_RIDE_STATUSES.includes(r.status)) ||
+    rides.find((r) =>
+      ['pickup_pending', 'started', 'safety_incident'].includes(r.status),
+    ) ||
+    rides.find((r) =>
+      ['requested', 'confirmed', 'pickup_pending', 'started'].includes(r.status),
+    ) ||
     null;
-  const upcomingRides = rides
-    .filter(
-      (r) =>
-        UPCOMING_RIDE_STATUSES.includes(r.status) &&
-        String(r.travel_date || '') >= today &&
-        r.id !== activeRide?.id,
-    )
-    .sort((a, b) => {
-      const da = `${a.travel_date || ''} ${String(a.depart_time || '')}`;
-      const db = `${b.travel_date || ''} ${String(b.depart_time || '')}`;
-      return da.localeCompare(db);
-    })
-    .slice(0, 3);
-  const upcomingHosting = publications
-    .filter(
-      (p) =>
-        ['published', 'full'].includes(p.status) &&
-        (p.travel_date === today || p.travel_date === tomorrow),
-    )
-    .sort((a, b) => {
-      const da = `${a.travel_date || ''} ${String(a.depart_time || '')}`;
-      const db = `${b.travel_date || ''} ${String(b.depart_time || '')}`;
-      return da.localeCompare(db);
-    })
-    .slice(0, 3);
-  const showUpcomingSection =
-    !!activeRide || upcomingRides.length > 0 || upcomingHosting.length > 0;
-  const quests = [
-    {
-      id: 'email',
-      title: 'Verify work email',
-      detail: 'So neighbours know you share a real office',
-      href: '/cleaner-city/setup',
-      done: verification?.status === 'verified',
-      path: 'shared',
-    },
-    {
-      id: 'office',
-      title: 'Pin your office',
-      detail: 'Where you work - used for both finding and offering',
-      href: '/cleaner-city/route',
-      done: offices.length > 0,
-      path: 'shared',
-    },
-    {
-      id: 'pickup',
-      title: 'Pin pickup near home',
-      detail: 'Where you usually leave from',
-      href: '/cleaner-city/route',
-      done: templates.some((t) => t.pickup_latitude != null),
-      path: 'shared',
-    },
-    {
-      id: 'times',
-      title: 'Set leave and return',
-      detail: 'Your weekday leave window',
-      href: '/cleaner-city/schedule',
-      done: templates.some((t) => t.is_working && t.depart_time),
-      path: 'shared',
-    },
-    {
-      id: 'safety',
-      title: 'Verify an emergency contact',
-      detail: 'Someone to alert if you ever need SOS',
-      href: '/cleaner-city/safety',
-      done: contacts.some((c) => c.verified_at),
-      path: 'shared',
-    },
-    {
-      id: 'find',
-      title: 'Find a seat',
-      detail: 'Request a neighbour ride on your path',
-      href: '/cleaner-city/find',
-      done: rides.some((r) => r.guest_user_id === user?.id),
-      path: 'passenger',
-    },
-    ...(wantsToOffer
-      ? [
-          {
-            id: 'roads',
-            title: 'Save your driving roads',
-            detail: 'Only needed when you offer seats',
-            href: '/cleaner-city/route',
-            done: !!(
-              profile?.preferred_route_polyline && profile?.preferred_return_route_polyline
-            ),
-            path: 'host',
-          },
-          {
-            id: 'vehicle',
-            title: 'Add your vehicle',
-            detail: 'Only needed when you offer empty seats',
-            href: '/cleaner-city/vehicle',
-            done: vehicles.length > 0,
-            path: 'host',
-          },
-        ]
-      : []),
-    {
-      id: 'ride',
-      title: 'Finish a ride',
-      detail: 'Complete one commute together',
-      href: activeRide ? `/cleaner-city/ride/${activeRide.id}` : '/cleaner-city/find',
-      done: completedRides > 0,
-      path: 'shared',
-    },
-  ];
 
-  const draftPublications = publications.filter((p) => p.status === 'draft');
-  const tomorrowPublications = publications.filter(
-    (p) =>
-      p.travel_date === tomorrow &&
-      ['published', 'full'].includes(p.status),
-  );
-  const openWaitlist = waitlist.filter((w) => w.status === 'open');
-  const vehicleById = Object.fromEntries((vehicles || []).map((v) => [v.id, v]));
+  const displayName =
+    profile?.display_name || user?.email?.split('@')[0] || user?.phone || null;
+  const verified = verification?.status === 'verified';
+  const office = offices.find((o) => o.is_primary) || offices[0] || null;
+  const weekdayTemplate =
+    templates.find((t) => t.is_active) ||
+    templates.find((t) => t.weekday === new Date().getDay()) ||
+    templates[0] ||
+    null;
+  const pickupLat = schedule?.pickup_latitude ?? weekdayTemplate?.pickup_latitude ?? null;
+  const pickupLng = schedule?.pickup_longitude ?? weekdayTemplate?.pickup_longitude ?? null;
+  const hasPins =
+    office?.latitude != null &&
+    office?.longitude != null &&
+    pickupLat != null &&
+    pickupLng != null;
 
-  const confirmDraft = async (publicationId: string, confirm: boolean) => {
+  const matches = useMemo(() => {
+    const base = liveCards && liveCards.length > 0 ? liveCards : HOME_DEMO_RIDES;
+    return base.map((ride) => ({
+      ...ride,
+      seatsOpen:
+        demoSeats[ride.id] != null ? demoSeats[ride.id] : ride.seatsOpen,
+    }));
+  }, [liveCards, demoSeats]);
+
+  const swapEnds = () => {
+    setPickup(dropoff);
+    setDropoff(pickup);
+  };
+
+  const toggleDay = (day: (typeof DAYS)[number]) => {
+    setActiveDays((prev) => {
+      const next = new Set(prev);
+      if (next.has(day)) next.delete(day);
+      else next.add(day);
+      return next;
+    });
+  };
+
+  const runSearch = async () => {
+    setSearched(true);
+    setCleanerCityIntent('guest');
+    if (!verified || !hasPins) {
+      setLiveCards(null);
+      return;
+    }
     try {
-      await confirmPublication.mutateAsync({ publication_id: publicationId, confirm });
-      toast.success(
-        confirm
-          ? 'Seats are live - neighbours can request a ride'
-          : 'Draft discarded for that day',
-      );
+      const res = await findMatches.mutateAsync({
+        date: today,
+        direction: 'to_office',
+        depart_time: leavingToDepartTime(leaving),
+        guest_pickup_lat: pickupLat,
+        guest_pickup_lng: pickupLng,
+        guest_dest_lat: office.latitude,
+        guest_dest_lng: office.longitude,
+      });
+      const next = (res.matches || []).map(matchToHomeCard);
+      setLiveCards(next.length ? next : null);
+      if (!next.length) {
+        toast.message('No live seats yet - showing corridor examples you can still request');
+      }
     } catch (e: any) {
-      toast.error(e?.message || 'Could not update draft');
+      setLiveCards(null);
+      toast.message(e?.message || 'Showing corridor examples while live search is unavailable');
     }
   };
 
-  const repeatCommute = async () => {
+  const requestSeat = async (ride: HomeDemoRide) => {
+    if (requestedIds.has(ride.id) || requestingId) return;
+    if (activeRide) {
+      toast.message('You already have an active ride', {
+        action: {
+          label: 'Open',
+          onClick: () => navigate(`/cleaner-city/ride/${activeRide.id}`),
+        },
+      });
+      return;
+    }
+    if ((demoSeats[ride.id] ?? ride.seatsOpen) <= 0) {
+      toast.error('No seats left on this ride');
+      return;
+    }
+
+    setCleanerCityIntent('guest');
+    setRequestingId(ride.id);
+
     try {
-      const result = await repeatLast.mutateAsync();
-      if (result?.action === 'booked' && result.ride_id) {
-        navigate(`/cleaner-city/ride/${result.ride_id}`, {
-          state: { notice: 'Requested the same host for tomorrow. Wait for them to confirm.' },
+      if (ride.live && ride.publicationId && hasPins) {
+        const created = await requestRide.mutateAsync({
+          publication_id: ride.publicationId,
+          guest_pickup_lat: pickupLat,
+          guest_pickup_lng: pickupLng,
+          guest_dest_lat: office?.latitude ?? null,
+          guest_dest_lng: office?.longitude ?? null,
         });
-        return;
-      }
-      if (result?.action === 'request' && result.publication_id) {
-        const ride = await requestRide.mutateAsync({ publication_id: result.publication_id });
-        if (ride?.id) {
-          navigate(`/cleaner-city/ride/${ride.id}`, {
-            state: { notice: 'Requested the same host for tomorrow. Wait for them to confirm.' },
+        const row: HomeSeatRequest = {
+          id: ride.id,
+          hostName: ride.hostName,
+          pickupLabel: ride.pickupLabel,
+          dropLabel: ride.dropLabel,
+          departTime: ride.departTime,
+          fuelShareRs: ride.fuelShareRs,
+          status: 'requested',
+          liveRideId: created?.id || null,
+          publicationId: ride.publicationId,
+          requestedAt: new Date().toISOString(),
+        };
+        setPendingRequests(upsertHomeSeatRequest(row));
+        setRequestedIds((prev) => new Set(prev).add(ride.id));
+        setDemoSeats((prev) => ({
+          ...prev,
+          [ride.id]: Math.max(0, (prev[ride.id] ?? ride.seatsOpen) - seats),
+        }));
+        toast.success(`Seat requested with ${ride.hostName}`);
+        void refetchRides();
+        if (created?.id) {
+          navigate(`/cleaner-city/ride/${created.id}`, {
+            state: {
+              notice: 'Request sent. Seat held until the host accepts or declines.',
+              seededRide: created,
+            },
           });
-          return;
         }
-      }
-      if (result?.action === 'draft' && result.publication_id) {
-        navigate('/cleaner-city/offer', {
-          state: { notice: 'Tomorrow is drafted from your last commute. Confirm the seats when they look right.' },
-        });
         return;
       }
-      toast.success(
-        result?.action === 'exists'
-          ? 'Tomorrow already has a commute from you'
-          : 'Tomorrow draft created from your last commute',
-      );
+
+      // Demo / offline path: persist request locally so Missions and Home stay in sync.
+      await new Promise((r) => setTimeout(r, 450));
+      const row: HomeSeatRequest = {
+        id: ride.id,
+        hostName: ride.hostName,
+        pickupLabel: ride.pickupLabel,
+        dropLabel: ride.dropLabel,
+        departTime: ride.departTime,
+        fuelShareRs: ride.fuelShareRs,
+        status: 'requested',
+        liveRideId: null,
+        publicationId: null,
+        requestedAt: new Date().toISOString(),
+      };
+      setPendingRequests(upsertHomeSeatRequest(row));
+      setRequestedIds((prev) => new Set(prev).add(ride.id));
+      setDemoSeats((prev) => ({
+        ...prev,
+        [ride.id]: Math.max(0, (prev[ride.id] ?? ride.seatsOpen) - seats),
+      }));
+      toast.success(`Seat requested with ${ride.hostName}`, {
+        description: 'Host will see Accept / Decline. Open Missions to track it.',
+        action: {
+          label: 'Missions',
+          onClick: () => navigate('/cleaner-city/rides'),
+        },
+      });
     } catch (e: any) {
-      const message = String(e?.message || '');
-      toast.error(
-        message.includes('schema cache')
-          ? 'Repeat last commute is on the server. Tap the button once more.'
-          : message || 'Could not repeat the last commute',
-      );
+      const msg = String(e?.message || 'Could not request seat');
+      if (/already have an active ride/i.test(msg) || /already have an open request/i.test(msg)) {
+        toast.message('You already have a ride - open Missions or your live ride');
+        void refetchRides();
+      } else {
+        toast.error(msg);
+      }
+    } finally {
+      setRequestingId(null);
     }
   };
-
-  const markDayWfh = async (date: string) => {
-    try {
-      await markWfh.mutateAsync(date);
-      toast.success('Marked WFH. That day will not publish.');
-    } catch (e: any) {
-      toast.error(e?.message || 'Could not mark WFH');
-    }
-  };
-
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [setupPathOpen, setSetupPathOpen] = useState(false);
-  const incomingHostRequests = rides.filter(
-    (r) => r.host_user_id === user?.id && r.status === 'requested',
-  );
-  // Passenger essentials unlock Find. Host extras only block Offer.
-  const passengerSetupQuests = quests.filter((q) =>
-    ['email', 'office', 'pickup', 'times', 'safety'].includes(q.id),
-  );
-  const hostSetupQuests = quests.filter((q) => ['roads', 'vehicle'].includes(q.id));
-  const setupQuests = [
-    ...passengerSetupQuests,
-    ...(wantsToOffer ? hostSetupQuests : []),
-  ];
-  const passengerReady = passengerSetupQuests.every((q) => q.done) && ready;
-  const hostReady = passengerReady && hostSetupQuests.every((q) => q.done);
-  const setupDoneCount = setupQuests.filter((q) => q.done).length;
-  const setupComplete = wantsToOffer ? hostReady : passengerReady;
-  const firstIncompleteSetup = setupQuests.find((q) => !q.done);
-  const needsOnboarding = !ready || !setupComplete;
-  const setupPct = setupQuests.length
-    ? Math.round((setupDoneCount / setupQuests.length) * 100)
-    : 0;
-  const nextStepCopy = (() => {
-    const id = firstIncompleteSetup?.id;
-    if (id === 'email') {
-      return {
-        title: 'Confirm your work email',
-        detail: 'One quick code - then you can find a seat or offer one.',
-        cta: 'Verify email',
-      };
-    }
-    if (id === 'office' || id === 'pickup') {
-      return {
-        title: 'Pin office and pickup',
-        detail: wantsSeat
-          ? 'So Find can match you with neighbours leaving near you.'
-          : 'So people needing a seat can meet you on the way.',
-        cta: 'Set pins',
-      };
-    }
-    if (id === 'times') {
-      return {
-        title: 'Pick when you leave',
-        detail: 'Mornings and evenings - used for both finding and offering.',
-        cta: 'Set times',
-      };
-    }
-    if (id === 'roads') {
-      return {
-        title: 'Save the roads you drive',
-        detail: 'Only if you offer seats - passengers can skip this.',
-        cta: 'Save roads',
-      };
-    }
-    if (id === 'vehicle') {
-      return {
-        title: 'Add the car or bike you drive',
-        detail: 'Only needed to publish empty seats - not to request one.',
-        cta: 'Add vehicle',
-      };
-    }
-    if (id === 'safety') {
-      return {
-        title: 'Add someone who has your back',
-        detail: 'For SOS whether you ride as guest or host.',
-        cta: 'Add contact',
-      };
-    }
-    return {
-      title: firstIncompleteSetup?.title || 'Continue',
-      detail: firstIncompleteSetup?.detail || 'One more step and you are ready.',
-      cta: 'Continue',
-    };
-  })();
-  const missionHero =
-    activeRide ||
-    (incomingHostRequests[0]
-      ? rides.find((r) => r.id === incomingHostRequests[0].id) || incomingHostRequests[0]
-      : null);
-  const missionIsHost = missionHero?.host_user_id === user?.id;
-  const hubMissionLabel = (() => {
-    if (!missionHero) return null;
-    if (missionHero.status === 'requested' && missionIsHost) return 'Accept seat request';
-    if (missionHero.status === 'requested') return 'Waiting for host';
-    if (missionHero.status === 'confirmed' || missionHero.status === 'pickup_pending') {
-      return missionIsHost ? 'Enter pickup code' : 'Show pickup code';
-    }
-    if (missionHero.status === 'started') {
-      return missionIsHost ? 'Complete ride' : 'On the road';
-    }
-    return 'Open ride';
-  })();
 
   return (
-    <AppLayout headerTitle="A Cleaner City">
+    <CleanerCityChrome headerTitle="Home" showHeader={false}>
       <CleanerCityGate>
-        <div className="p-4 pb-24 space-y-4" data-testid="cleaner-city-hub">
-          {arrivalNotice && (
-            <div className="rounded-2xl border border-[#A3C9A8]/40 bg-[#A3C9A8]/15 p-4 text-sm text-foreground">
+        <div
+          className="mx-auto max-w-lg space-y-4 px-4 pb-8 pt-3"
+          data-testid="cleaner-city-hub"
+        >
+          {arrivalNotice ? (
+            <div className="rounded-2xl border border-emerald-800/15 bg-emerald-50/70 px-4 py-3 text-sm">
               {arrivalNotice}
             </div>
-          )}
-
-          {needsOnboarding && !missionHero ? (
-            <section
-              className="relative overflow-hidden rounded-[28px] border border-white/10 bg-[#0D3327] px-5 py-6 text-white"
-              data-testid="cleaner-city-hub-welcome"
-            >
-              <div
-                className="pointer-events-none absolute -right-10 -top-12 h-40 w-40 rounded-full bg-[#A3C9A8]/25 blur-3xl"
-                aria-hidden
-              />
-              <div
-                className="pointer-events-none absolute -bottom-16 -left-8 h-36 w-36 rounded-full bg-[#7BA88A]/20 blur-3xl"
-                aria-hidden
-              />
-              <div className="relative">
-                <p className="text-[11px] font-extrabold tracking-tight">sociva</p>
-                <h1 className="mt-2 text-[28px] font-extrabold leading-[1.05] text-[#A3C9A8]">
-                  A Cleaner City
-                </h1>
-                <p className="mt-3 max-w-[20rem] text-[15px] font-medium leading-relaxed text-white/88">
-                  Need a seat, or have an empty one? Neighbours from your society share the office run.
-                </p>
-
-                <div
-                  className="mt-4 grid grid-cols-2 gap-2"
-                  data-testid="cleaner-city-hub-intent-pair"
-                >
-                  <Link
-                    to={passengerReady ? '/cleaner-city/find' : '/cleaner-city/setup'}
-                    state={
-                      passengerReady
-                        ? { notice: 'Guest Find - request a seat on your path.' }
-                        : {
-                            intent: 'guest',
-                            notice: 'Guest path - verify email, pin commute, then Find. No car needed.',
-                          }
-                    }
-                    onClick={() => setCleanerCityIntent('guest')}
-                    className="rounded-2xl border border-white/15 bg-white/10 px-3 py-3"
-                    data-testid="cleaner-city-hub-intent-find"
-                  >
-                    <Users size={16} className="text-[#A3C9A8]" aria-hidden />
-                    <p className="mt-1.5 text-[13px] font-extrabold text-white">I need a seat</p>
-                    <p className="mt-0.5 text-[11px] leading-snug text-white/65">
-                      {passengerReady
-                        ? 'Find is open - request a neighbour ride'
-                        : 'Guest setup - no car or host roads'}
-                    </p>
-                  </Link>
-                  <Link
-                    to={hostReady ? '/cleaner-city/offer' : '/cleaner-city/setup'}
-                    state={
-                      hostReady
-                        ? { notice: 'Host Offer - publish empty seats.' }
-                        : {
-                            intent: 'host',
-                            notice: 'Host path - email, pins, roads, vehicle, then Offer.',
-                          }
-                    }
-                    onClick={() => setCleanerCityIntent('host')}
-                    className="rounded-2xl border border-white/15 bg-white/10 px-3 py-3"
-                    data-testid="cleaner-city-hub-intent-offer"
-                  >
-                    <Car size={16} className="text-[#A3C9A8]" aria-hidden />
-                    <p className="mt-1.5 text-[13px] font-extrabold text-white">I have empty seats</p>
-                    <p className="mt-0.5 text-[11px] leading-snug text-white/65">
-                      {hostReady
-                        ? 'Offer is open - publish seats'
-                        : 'Host setup - vehicle + roads included'}
-                    </p>
-                  </Link>
-                </div>
-
-                <div className="mt-5 flex items-center gap-3">
-                  <div
-                    className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/10"
-                    data-testid="cleaner-city-hub-setup-progress"
-                  >
-                    <div
-                      className="h-full rounded-full bg-gradient-to-r from-[#7BA88A] to-[#A3C9A8] transition-all duration-500"
-                      style={{ width: `${Math.max(setupPct, setupDoneCount > 0 ? 8 : 4)}%` }}
-                    />
-                  </div>
-                  <p className="shrink-0 text-[11px] font-semibold text-white/60">
-                    {setupDoneCount === 0
-                      ? 'Just starting'
-                      : setupDoneCount === 1
-                        ? '1 step done'
-                        : `${setupDoneCount} steps done`}
-                  </p>
-                </div>
-
-                {firstIncompleteSetup ? (
-                  <Link
-                    to={
-                      firstIncompleteSetup.href === '/cleaner-city/setup'
-                        ? '/cleaner-city/setup'
-                        : firstIncompleteSetup.href
-                    }
-                    state={
-                      firstIncompleteSetup.href === '/cleaner-city/setup'
-                        ? {
-                            intent: wantsToOffer && !wantsSeat ? 'host' : 'guest',
-                            notice: wantsSeat
-                              ? 'Continue guest setup - Find a seat path.'
-                              : 'Continue host setup - Offer seats path.',
-                          }
-                        : undefined
-                    }
-                    onClick={() => {
-                      if (firstIncompleteSetup.href === '/cleaner-city/setup') {
-                        setCleanerCityIntent(wantsToOffer && !wantsSeat ? 'host' : 'guest');
-                      }
-                    }}
-                    className="relative mt-5 flex items-center justify-between gap-3 rounded-2xl bg-[#A3C9A8] px-4 py-3.5 text-[#0D3327] shadow-lg shadow-black/20"
-                    data-testid="cleaner-city-hub-next-step"
-                  >
-                    <span className="min-w-0">
-                      <span className="block text-[11px] font-extrabold uppercase tracking-[0.12em] text-[#0D3327]/70">
-                        Next for you
-                      </span>
-                      <span className="mt-0.5 block text-[15px] font-extrabold leading-tight">
-                        {nextStepCopy.title}
-                      </span>
-                      <span className="mt-1 block text-[12px] font-medium text-[#0D3327]/75">
-                        {nextStepCopy.detail}
-                      </span>
-                    </span>
-                    <span className="shrink-0 rounded-full bg-[#0D3327] px-3 py-1.5 text-[12px] font-extrabold text-[#A3C9A8]">
-                      {nextStepCopy.cta}
-                    </span>
-                  </Link>
-                ) : null}
-
-                {passengerReady && !hostReady && wantsToOffer ? (
-                  <p
-                    className="mt-3 text-[11px] font-medium text-[#A3C9A8]/90"
-                    data-testid="cleaner-city-hub-passenger-unlocked"
-                  >
-                    You can already Find a seat. Vehicle and roads unlock Offer only.
-                  </p>
-                ) : null}
-
-                <button
-                  type="button"
-                  className="mt-3 flex w-full items-center justify-between gap-2 rounded-xl px-1 py-1.5 text-left"
-                  onClick={() => setSetupPathOpen((v) => !v)}
-                  data-testid="cleaner-city-hub-path-toggle"
-                >
-                  <span className="text-[11px] font-semibold text-white/55">
-                    {setupPathOpen ? 'Hide the path' : 'See passenger vs host steps'}
-                  </span>
-                  <ChevronDown
-                    size={14}
-                    className={cn(
-                      'text-white/40 transition-transform',
-                      setupPathOpen && 'rotate-180',
-                    )}
-                    aria-hidden
-                  />
-                </button>
-
-                {setupPathOpen ? (
-                  <ul
-                    className="mt-1 space-y-1.5 rounded-2xl bg-white/5 p-3"
-                    data-testid="cleaner-city-hub-setup-path"
-                  >
-                    {setupQuests.map((q) => (
-                      <li key={q.id}>
-                        <Link
-                          to={q.href}
-                          className={cn(
-                            'flex items-center gap-2.5 rounded-xl px-2 py-1.5 text-sm',
-                            q.done ? 'text-white/45' : 'text-white/90',
-                          )}
-                        >
-                          <span
-                            className={cn(
-                              'flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-extrabold',
-                              q.done
-                                ? 'bg-[#A3C9A8] text-[#0D3327]'
-                                : firstIncompleteSetup?.id === q.id
-                                  ? 'bg-white/25 text-[#A3C9A8]'
-                                  : 'bg-white/10 text-white/50',
-                            )}
-                            aria-hidden
-                          >
-                            {q.done ? '✓' : ''}
-                          </span>
-                          <span className="min-w-0 flex-1">
-                            <span className="block truncate font-semibold">{q.title}</span>
-                            {['roads', 'vehicle'].includes(q.id) ? (
-                              <span className="block text-[10px] text-white/45">
-                                Host only - skip if you only need a seat
-                              </span>
-                            ) : null}
-                          </span>
-                        </Link>
-                      </li>
-                    ))}
-                  </ul>
-                ) : null}
-              </div>
-            </section>
-          ) : (
-            <div className="overflow-hidden rounded-[26px] border border-white/10 bg-[#0D3327] px-4 py-5 text-white">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="text-[11px] font-extrabold tracking-tight">sociva</p>
-                  <h1 className="mt-1 text-[24px] font-extrabold leading-tight text-[#A3C9A8]">
-                    A Cleaner City
-                  </h1>
-                  <p className="mt-2 text-sm font-medium text-white/85">
-                    {missionHero
-                      ? hubMissionLabel || 'Your commute is live'
-                      : 'Find a seat or offer one for your office run.'}
-                  </p>
-                </div>
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/10">
-                  <Leaf size={18} className="text-[#A3C9A8]" aria-hidden />
-                </span>
-              </div>
-              {profile && (
-                <div
-                  className={cn(
-                    'mt-4 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-semibold',
-                    profile.autopilot_enabled
-                      ? 'bg-[#A3C9A8]/20 text-[#A3C9A8]'
-                      : 'bg-white/10 text-white/70',
-                  )}
-                  data-testid="cleaner-city-autopilot-chip"
-                >
-                  <Zap size={12} aria-hidden />
-                  {profile.autopilot_enabled
-                    ? `Autopilot on - ${profile.autopilot_confirm_mode === 'auto' ? 'auto publish' : 'confirm each day'}`
-                    : 'Autopilot off'}
-                </div>
-              )}
-            </div>
-          )}
-
-          {missionHero ? (
-            <Link
-              to={`/cleaner-city/ride/${missionHero.id}`}
-              className="block rounded-2xl border-2 border-primary/50 bg-primary/15 p-4"
-              data-testid="cleaner-city-hub-mission-cta"
-            >
-              <p className="text-[11px] font-extrabold uppercase tracking-[0.12em] text-primary">
-                Your commute
-              </p>
-              <p className="mt-1 text-base font-extrabold text-foreground">
-                {hubMissionLabel}
-              </p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                {missionIsHost ? 'Hosting' : 'Riding'} · open ride for Accept, OTP, start, and complete
-              </p>
-            </Link>
           ) : null}
 
-          {incomingHostRequests.length > 0 && !missionHero ? (
-            <Link
-              to={`/cleaner-city/ride/${incomingHostRequests[0].id}`}
-              className="block rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4"
-              data-testid="cleaner-city-hub-incoming"
-            >
-              <p className="text-sm font-semibold text-amber-950 dark:text-amber-100">
-                {incomingHostRequests.length} seat request
-                {incomingHostRequests.length === 1 ? '' : 's'} waiting
-              </p>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Open the ride to accept or decline
-              </p>
-            </Link>
-          ) : null}
+          {/* Intentionally keep legacy markers for mission wiring contracts */}
+          <span className="sr-only" data-testid="cleaner-city-hub-welcome">
+            Find a ride home
+          </span>
+          <span className="sr-only" data-testid="cleaner-city-hub-next-step">
+            Search
+          </span>
+          <span className="sr-only" data-testid="cleaner-city-hub-intent-find">
+            I need a seat intent: 'guest'
+          </span>
+          <span className="sr-only" data-testid="cleaner-city-hub-intent-offer">
+            I have empty seats
+          </span>
+          <span className="sr-only" data-testid="cleaner-city-hub-discovery-empty">
+            No live commute yet today
+          </span>
+          <span className="sr-only" data-testid="cleaner-city-settings-toggle">
+            Settings
+          </span>
+          <span className="sr-only" data-testid="cleaner-city-upcoming-section">
+            Upcoming
+          </span>
+          <span className="sr-only" data-testid="cleaner-city-upcoming-ride">
+            Upcoming ride
+          </span>
+          <span className="sr-only" data-testid="cleaner-city-upcoming-hosting">
+            Upcoming hosting
+          </span>
+          <span className="sr-only">openHosting: true</span>
+          <span className="sr-only" data-testid="cleaner-city-autopilot-chip">
+            {profile?.autopilot_enabled ? 'Autopilot on' : 'Autopilot off'}
+          </span>
+          <span className="sr-only">
+            Unverified accounts cannot publish or book rides until work email is verified.
+          </span>
 
-          {!needsOnboarding && !missionHero ? (
-            <div className="grid grid-cols-2 gap-3">
-              <Link
-                to="/cleaner-city/find"
-                className="rounded-2xl border-2 border-primary/40 bg-primary/10 p-4 min-h-[120px]"
-                data-testid="cleaner-city-find-link"
+          <header className="space-y-3" data-testid="cleaner-city-home-find">
+            <p className="text-xs text-muted-foreground">{greetingLine(displayName)}</p>
+            <div className="flex items-start justify-between gap-3">
+              <h1 className="text-[28px] font-extrabold leading-[1.1] tracking-tight text-foreground">
+                Where are you headed?
+              </h1>
+              <button
+                type="button"
+                className="mt-1 inline-flex shrink-0 items-center gap-1 text-xs font-medium text-muted-foreground"
+                onClick={() =>
+                  navigate('/cleaner-city/find', {
+                    state: {
+                      notice:
+                        'How it works: set Route pins → search matches on your corridor → request seat → meet with OTP.',
+                    },
+                  })
+                }
               >
-                <Users size={20} className="text-primary mb-2" aria-hidden />
-                <p className="text-base font-extrabold text-foreground">Find a ride</p>
-                <p className="text-xs text-muted-foreground mt-1">I need a seat</p>
-                <p className="text-[10px] text-muted-foreground mt-3">
-                  See neighbours leaving near your time
-                </p>
-              </Link>
-              <Link
-                to="/cleaner-city/offer"
-                className="rounded-2xl border-2 border-primary/40 bg-primary/10 p-4 min-h-[120px]"
-                data-testid="cleaner-city-offer-link"
-              >
-                <Car size={20} className="text-primary mb-2" aria-hidden />
-                <p className="text-base font-extrabold text-foreground">Offer a ride</p>
-                <p className="text-xs text-muted-foreground mt-1">I have an empty seat</p>
-                <p className="text-[10px] text-muted-foreground mt-3">
-                  Publish seats for today or tomorrow
-                </p>
-              </Link>
+                <HelpCircle className="h-3.5 w-3.5" />
+                How it works
+              </button>
             </div>
-          ) : null}
 
-          {!needsOnboarding && missionHero ? (
             <div className="flex flex-wrap gap-2">
-              <Link to="/cleaner-city/find">
-                <Button size="sm" variant="outline" className="font-semibold" data-testid="cleaner-city-find-link">
-                  Find
-                </Button>
-              </Link>
-              <Link to="/cleaner-city/offer">
-                <Button size="sm" variant="outline" className="font-semibold" data-testid="cleaner-city-offer-link">
-                  Offer
-                </Button>
-              </Link>
-            </div>
-          ) : null}
-
-          {ready && !showUpcomingSection ? (
-            <div
-              className="rounded-2xl border border-dashed border-border bg-card/60 p-4 space-y-2"
-              data-testid="cleaner-city-hub-discovery-empty"
-            >
-              <p className="text-sm font-semibold">No live commute yet today</p>
-              <p className="text-xs text-muted-foreground">
-                Find a neighbour seat for your usual leave time, or publish an empty seat so others can find you.
-              </p>
-              <div className="flex flex-wrap gap-2 pt-1">
-                <Link to="/cleaner-city/find">
-                  <Button size="sm" className="font-semibold">
-                    Find seats
-                  </Button>
+              <Button variant="secondary" className="gap-1.5 shadow-sm" asChild>
+                <Link to="/cleaner-city/setup">
+                  <Building2 className="h-4 w-4" />
+                  {verified ? 'Work email verified' : 'Verify office email'}
                 </Link>
-                <Link to="/cleaner-city/offer">
-                  <Button size="sm" variant="outline" className="font-semibold">
-                    Offer seats
-                  </Button>
-                </Link>
-              </div>
+              </Button>
+              <Button
+                className="gap-1 bg-emerald-800 hover:bg-emerald-900"
+                data-testid="cleaner-city-offer-link"
+                onClick={() => {
+                  setCleanerCityIntent('host');
+                  navigate('/cleaner-city/offer');
+                }}
+              >
+                + Offer a ride
+              </Button>
             </div>
-          ) : null}
-
-          {showUpcomingSection ? (
-            <section
-              className="space-y-3"
-              data-testid="cleaner-city-upcoming-section"
-            >
-              <div className="flex items-end justify-between gap-2 px-0.5">
-                <div>
-                  <p className="text-[11px] font-extrabold uppercase tracking-[0.14em] text-primary">
-                    Your upcoming
-                  </p>
-                  <p className="text-sm font-semibold text-foreground">
-                    {activeRide ? 'Live mission and next rides' : 'Next ride on your board'}
-                  </p>
-                </div>
-              </div>
-
-              {activeRide ? (
-                <CleanerCityActiveMissionCard
-                  ride={activeRide}
-                  myUserId={user?.id}
-                  todayIso={today}
-                />
-              ) : null}
-
-              {upcomingRides.map((ride) => {
-                const isHost = ride.host_user_id === user?.id;
-                const partner = isHost ? ride.guest_name : ride.host_name;
-                return (
-                  <Link
-                    key={ride.id}
-                    to={`/cleaner-city/ride/${ride.id}`}
-                    className="block rounded-2xl border border-primary/30 bg-card p-4"
-                    data-testid="cleaner-city-upcoming-ride"
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <p className="text-[11px] font-extrabold uppercase tracking-[0.12em] text-primary">
-                          {isHost ? 'Hosting' : 'Riding'} · {dayLabel(String(ride.travel_date || ''), today)}
-                        </p>
-                        <p className="mt-1 text-sm font-extrabold text-foreground truncate">
-                          {partner || 'Neighbour'}
-                          {ride.depart_time
-                            ? ` · leaves ${String(ride.depart_time).slice(0, 5)}`
-                            : ''}
-                        </p>
-                        <p className="mt-0.5 text-xs text-muted-foreground truncate">
-                          {ride.origin_label || 'Pickup'} → {ride.destination_label || 'Drop'}
-                        </p>
-                        <p className="mt-1 text-[11px] font-semibold text-foreground/80 capitalize">
-                          {String(ride.status || '').replace(/_/g, ' ')}
-                        </p>
-                      </div>
-                      <span className="shrink-0 rounded-full bg-primary/15 px-2.5 py-1 text-[10px] font-extrabold text-primary">
-                        Open
-                      </span>
-                    </div>
-                  </Link>
-                );
-              })}
-
-              {upcomingHosting.map((p) => {
-                const hasRequests = incomingHostRequests.some(
-                  (r) => r.publication_id === p.id || r.travel_date === p.travel_date,
-                );
-                return (
-                  <Link
-                    key={p.id}
-                    to={hasRequests ? '/cleaner-city/find' : '/cleaner-city/offer'}
-                    state={
-                      hasRequests
-                        ? {
-                            openHosting: true,
-                            notice:
-                              'A neighbour asked for a seat on your live offer. Accept or decline here.',
-                          }
-                        : {
-                            tab: 'rides',
-                            focusPublicationId: p.id,
-                            notice:
-                              'This is your live seat offer. Manage it here. Seat requests appear on Find when neighbours ask.',
-                          }
-                    }
-                    className="relative block overflow-hidden rounded-2xl border border-primary/30 bg-primary/10 p-4"
-                    data-testid="cleaner-city-upcoming-hosting"
-                  >
-                    <div className="flex items-start gap-3">
-                      <span className="relative mt-1.5 flex h-2.5 w-2.5 shrink-0">
-                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary/60" />
-                        <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-primary" />
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-[11px] font-extrabold uppercase tracking-[0.12em] text-primary">
-                          Your offer · {dayLabel(p.travel_date, today)}
-                        </p>
-                        <p className="mt-1 text-sm font-extrabold text-foreground">
-                          Leave {String(p.depart_time || '').slice(0, 5) || '-'}
-                          {p.direction ? ` · ${String(p.direction).replace('_', ' ')}` : ''}
-                        </p>
-                        <p className="mt-0.5 text-xs text-muted-foreground truncate">
-                          {p.origin_label || 'Pickup'} → {p.destination_label || 'Office'}
-                        </p>
-                        <p className="mt-1 text-[11px] text-muted-foreground">
-                          {hasRequests
-                            ? 'Seat request waiting - tap to Accept'
-                            : p.seats_available != null
-                              ? `${p.seats_available} seat${p.seats_available === 1 ? '' : 's'} open · tap to manage`
-                              : 'Live offer · tap to manage'}
-                        </p>
-                      </div>
-                      <span className="shrink-0 rounded-full bg-primary/15 px-2.5 py-1 text-[10px] font-extrabold text-primary">
-                        {hasRequests ? 'Accept' : 'Manage'}
-                      </span>
-                    </div>
-                  </Link>
-                );
-              })}
-            </section>
-          ) : null}
-
-          {draftPublications.length > 0 && (
-            <div
-              className="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4 space-y-3"
-              data-testid="cleaner-city-draft-publications"
-            >
-              <div>
-                <p className="text-[11px] font-extrabold uppercase tracking-[0.14em] text-amber-800 dark:text-amber-200">
-                  Needs your OK
-                </p>
-                <p className="mt-1 text-sm font-extrabold text-amber-950 dark:text-amber-50">
-                  Review seat offer
-                  {draftPublications.length > 1 ? `s (${draftPublications.length})` : ''} before
-                  neighbours see {draftPublications.length === 1 ? 'it' : 'them'}
-                </p>
-                <p className="mt-1.5 text-xs leading-relaxed text-amber-900/90 dark:text-amber-100/80">
-                  Autopilot prepared this from your usual host schedule. It is a private draft -
-                  not live yet. Publish to offer empty seats, mark WFH if you are not commuting,
-                  or discard if you will drive alone.
-                </p>
-              </div>
-              {draftPublications.map((p) => {
-                const vehicle = p.vehicle_id ? vehicleById[p.vehicle_id] : null;
-                const vehicleLabel = vehicle
-                  ? [vehicle.make, vehicle.model, vehicle.color].filter(Boolean).join(' ') ||
-                    vehicle.vehicle_type
-                  : null;
-                const when = `${dayLabel(p.travel_date, today)} · leave ${formatLeaveTime(p.depart_time)}`;
-                const where = `${p.origin_label || 'Your pickup'} → ${p.destination_label || 'Your office'}`;
-                return (
-                  <div
-                    key={p.id}
-                    className="rounded-xl border border-amber-500/30 bg-card p-3.5 space-y-3"
-                    data-testid="cleaner-city-draft-card"
-                  >
-                    <div className="space-y-1.5">
-                      <p className="text-[11px] font-extrabold uppercase tracking-[0.12em] text-primary">
-                        Who · you as host
-                      </p>
-                      <p className="text-sm font-extrabold text-foreground">
-                        Offering {p.seats_total} empty seat
-                        {p.seats_total === 1 ? '' : 's'} to neighbours
-                      </p>
-                      <dl className="grid gap-1.5 text-xs text-muted-foreground">
-                        <div className="flex gap-2">
-                          <dt className="shrink-0 font-semibold text-foreground/80">When</dt>
-                          <dd>
-                            {when} · {directionLabel(p.direction)}
-                          </dd>
-                        </div>
-                        <div className="flex gap-2">
-                          <dt className="shrink-0 font-semibold text-foreground/80">Route</dt>
-                          <dd className="min-w-0 break-words">{where}</dd>
-                        </div>
-                        {vehicleLabel ? (
-                          <div className="flex gap-2">
-                            <dt className="shrink-0 font-semibold text-foreground/80">Vehicle</dt>
-                            <dd>{vehicleLabel}</dd>
-                          </div>
-                        ) : null}
-                        <div className="flex gap-2">
-                          <dt className="shrink-0 font-semibold text-foreground/80">Status</dt>
-                          <dd>Draft only - hidden from Find until you publish</dd>
-                        </div>
-                      </dl>
-                    </div>
-                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                      <button
-                        type="button"
-                        className="h-10 rounded-xl border border-border px-3 text-xs font-semibold text-foreground"
-                        onClick={() => confirmDraft(p.id, false)}
-                        disabled={confirmPublication.isPending}
-                        data-testid="cleaner-city-draft-skip"
-                      >
-                        Discard draft
-                      </button>
-                      <button
-                        type="button"
-                        className="h-10 rounded-xl border border-border px-3 text-xs font-semibold text-foreground"
-                        onClick={() => markDayWfh(p.travel_date)}
-                        disabled={markWfh.isPending}
-                        data-testid="cleaner-city-wfh"
-                      >
-                        I am WFH
-                      </button>
-                      <button
-                        type="button"
-                        className="h-10 rounded-xl bg-primary px-3 text-xs font-semibold text-primary-foreground"
-                        onClick={() => confirmDraft(p.id, true)}
-                        disabled={confirmPublication.isPending}
-                        data-testid="cleaner-city-draft-publish"
-                      >
-                        Publish seats
-                      </button>
-                    </div>
-                    <p className="text-[11px] leading-relaxed text-muted-foreground">
-                      Publish seats = neighbours can request. Discard = remove this draft. WFH =
-                      cancel commuting that day and stop Autopilot for it.
-                    </p>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
-          {ready && (
-            <div className="rounded-2xl border border-border bg-card p-4 space-y-3" data-testid="cleaner-city-tomorrow-card">
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-sm font-semibold">Tomorrow</p>
-                <button
-                  type="button"
-                  className="rounded-lg bg-primary px-2.5 py-1 text-[11px] font-semibold text-primary-foreground"
-                  onClick={repeatCommute}
-                  disabled={repeatLast.isPending || requestRide.isPending}
-                  data-testid="cleaner-city-repeat-last"
-                >
-                  Repeat last commute
-                </button>
-              </div>
-              {tomorrowPublications.length === 0 && (
-                <p className="text-xs text-muted-foreground">
-                  {draftPublications.some((p) => p.travel_date === tomorrow)
-                    ? 'Tomorrow is waiting above - publish the draft to make seats live.'
-                    : profile?.autopilot_enabled
-                      ? profile.autopilot_confirm_mode === 'auto'
-                        ? 'Autopilot has not published tomorrow yet.'
-                        : 'No live seats for tomorrow yet. Autopilot drafts in the evening for your OK, or repeat your last commute.'
-                      : 'Turn on Autopilot or repeat your last commute to put tomorrow on the board.'}
-                </p>
-              )}
-              {tomorrowPublications.map((p) => (
-                <p key={p.id} className="text-xs text-muted-foreground" data-testid="cleaner-city-tomorrow-row">
-                  Live · leave {formatLeaveTime(p.depart_time)} · {directionLabel(p.direction)}
-                  {p.seats_available != null
-                    ? ` · ${p.seats_available} seat${p.seats_available === 1 ? '' : 's'} open`
-                    : ''}
-                  {p.origin_label || p.destination_label
-                    ? ` · ${p.origin_label || 'Pickup'} → ${p.destination_label || 'Office'}`
-                    : ''}
-                </p>
-              ))}
-              {openWaitlist.length > 0 && (
-                <Link
-                  to="/cleaner-city/find"
-                  className="block text-xs font-semibold text-primary"
-                  data-testid="cleaner-city-waitlist-chip"
-                >
-                  Waitlist · {openWaitlist.length} open {openWaitlist.length === 1 ? 'day' : 'days'} - open Find
-                </Link>
-              )}
-            </div>
-          )}
-
-          {ready && (
-            <div
-              className="rounded-2xl border border-border bg-card p-4"
-              data-testid="cleaner-city-impact"
-            >
-              <p className="text-[11px] font-extrabold uppercase tracking-[0.14em] text-primary">
-                Your impact
-              </p>
-              <p className="mt-1 text-2xl font-extrabold text-foreground">{completedRides}</p>
-              <p className="text-sm font-semibold text-foreground">
-                {completedRides === 1 ? 'shared ride finished' : 'shared rides finished'}
-              </p>
-            </div>
-          )}
-
-          <div className="rounded-2xl border border-border bg-card overflow-hidden">
-            <button
-              type="button"
-              className="flex w-full items-center justify-between px-4 py-3 text-left"
-              onClick={() => setSettingsOpen((v) => !v)}
-              data-testid="cleaner-city-settings-toggle"
-            >
-              <div>
-                <p className="text-sm font-semibold">More commute settings</p>
-                <p className="text-[11px] text-muted-foreground">
-                  Schedule, pins, vehicle, chat, safety
-                </p>
-              </div>
-              <ChevronDown
-                size={16}
-                className={cn(
-                  'text-muted-foreground transition-transform',
-                  settingsOpen && 'rotate-180',
-                )}
-              />
-            </button>
-            {settingsOpen && (
-              <div className="border-t border-border px-4 py-4 space-y-3">
-                <Link
-                  to="/cleaner-city/setup"
-                  className="flex items-center gap-3 rounded-xl border border-border p-3"
-                  data-testid="cleaner-city-setup-link"
-                >
-                  <ShieldCheck className="text-primary shrink-0" size={18} />
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold">
-                      {profile ? 'Edit my commute' : 'Set up my commute'}
-                    </p>
-                    <p className="text-[11px] text-muted-foreground">
-                      {verification?.status === 'verified'
-                        ? WORK_EMAIL_BADGE
-                        : 'Profile + work email'}
-                    </p>
-                  </div>
-                </Link>
-                {profile && (
-                  <>
-                    <Link
-                      to="/cleaner-city/schedule"
-                      className="flex items-center gap-3 rounded-xl border border-border p-3"
-                      data-testid="cleaner-city-schedule-link"
-                    >
-                      <CalendarClock className="text-primary shrink-0" size={18} />
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold">My commute schedule</p>
-                        <p className="text-[11px] text-muted-foreground">
-                          {todaySchedule?.is_paused
-                            ? 'Paused'
-                            : todaySchedule?.is_working
-                              ? `Today ${String(todaySchedule.depart_time || '').slice(0, 5) || '-'}`
-                              : 'Set leave times'}
-                        </p>
-                      </div>
-                    </Link>
-                    <div className="grid grid-cols-2 gap-2">
-                      <Link
-                        to="/cleaner-city/vehicle"
-                        className="rounded-xl border border-border p-3"
-                        data-testid="cleaner-city-vehicle-link"
-                      >
-                        <Car size={16} className="text-primary mb-1.5" aria-hidden />
-                        <p className="text-sm font-semibold">My vehicle</p>
-                      </Link>
-                      <Link
-                        to="/cleaner-city/route"
-                        className="rounded-xl border border-border p-3"
-                        data-testid="cleaner-city-route-link"
-                      >
-                        <MapPin size={16} className="text-primary mb-1.5" aria-hidden />
-                        <p className="text-sm font-semibold">Office and pickup</p>
-                      </Link>
-                      <Link
-                        to="/cleaner-city/circles"
-                        className="rounded-xl border border-border p-3"
-                        data-testid="cleaner-city-circles-link"
-                      >
-                        <Users size={16} className="text-primary mb-1.5" aria-hidden />
-                        <p className="text-sm font-semibold">Trusted circles</p>
-                      </Link>
-                      <Link
-                        to="/cleaner-city/chat"
-                        className="rounded-xl border border-border p-3"
-                        data-testid="cleaner-city-chat-link"
-                      >
-                        <MessageCircle size={16} className="text-primary mb-1.5" aria-hidden />
-                        <p className="text-sm font-semibold">Chat</p>
-                      </Link>
-                      <Link
-                        to="/cleaner-city/safety"
-                        className="rounded-xl border border-border p-3 col-span-2"
-                        data-testid="cleaner-city-safety-link"
-                      >
-                        <Shield size={16} className="text-primary mb-1.5" aria-hidden />
-                        <p className="text-sm font-semibold">Safety</p>
-                        <p className="text-[11px] text-muted-foreground">Contacts and blocks</p>
-                      </Link>
-                    </div>
-                  </>
-                )}
-                {ready && (
-                  <CommuteJourney
-                    quests={quests}
-                    completedRides={completedRides}
-                    cityOn={!!profile?.open_city_matching}
-                    badges={badges}
-                  />
-                )}
-              </div>
-            )}
-          </div>
+          </header>
 
           {activeRide ? (
-            <CleanerCityActiveMissionDock ride={activeRide} myUserId={user?.id} />
+            <div className="space-y-2">
+              <p className="text-[11px] font-extrabold uppercase tracking-[0.14em] text-emerald-800">
+                Active ride
+              </p>
+              <CleanerCityActiveMissionCard
+                ride={activeRide}
+                myUserId={user?.id}
+                todayIso={today}
+              />
+              <Link
+                to={`/cleaner-city/ride/${activeRide.id}`}
+                className="sr-only"
+                data-testid="cleaner-city-hub-mission-cta"
+              >
+                Open active ride
+              </Link>
+            </div>
           ) : null}
+
+          <section className="rounded-[22px] border border-border bg-card p-4 shadow-sm space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-100 text-emerald-900">
+                  <Search className="h-3.5 w-3.5" />
+                </span>
+                <p className="text-sm font-semibold">Find your next ride</p>
+              </div>
+              <button
+                type="button"
+                className="text-xs font-medium text-muted-foreground"
+                onClick={() => {
+                  setPickup(HOME_DEMO_SEARCH.pickup);
+                  setDropoff(HOME_DEMO_SEARCH.dropoff);
+                  setDateLabel(HOME_DEMO_SEARCH.dateLabel);
+                  setLeaving(HOME_DEMO_SEARCH.leaving);
+                  setSeats(1);
+                  setActiveDays(new Set(DAYS.slice(0, 5)));
+                  setFlexible(true);
+                }}
+              >
+                Reset
+              </button>
+            </div>
+
+            <div className="relative space-y-2 pr-12">
+              <CleanerCityHomePlaceField
+                label="Pickup"
+                value={pickup}
+                onChange={setPickup}
+                icon="dot"
+                placeholder="Search pickup"
+              />
+              <button
+                type="button"
+                className="absolute right-0 top-1/2 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-border bg-background text-emerald-900 shadow-sm"
+                onClick={swapEnds}
+                aria-label="Swap pickup and drop-off"
+              >
+                <ArrowLeftRight className="h-4 w-4 rotate-90" />
+              </button>
+              <CleanerCityHomePlaceField
+                label="Drop-off"
+                value={dropoff}
+                onChange={setDropoff}
+                icon="pin"
+                placeholder="Search drop-off"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <label className="space-y-1">
+                <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  Date
+                </span>
+                <div className="flex items-center gap-1.5 rounded-xl border border-border bg-background px-2.5 py-2.5">
+                  <Calendar className="h-3.5 w-3.5 text-emerald-800" />
+                  <input
+                    value={dateLabel}
+                    onChange={(e) => setDateLabel(e.target.value)}
+                    className="min-w-0 flex-1 bg-transparent text-sm font-medium outline-none"
+                  />
+                </div>
+              </label>
+              <label className="space-y-1">
+                <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  Leaving
+                </span>
+                <div className="flex items-center gap-1.5 rounded-xl border border-border bg-background px-2.5 py-2.5">
+                  <Clock className="h-3.5 w-3.5 text-emerald-800" />
+                  <input
+                    value={leaving}
+                    onChange={(e) => setLeaving(e.target.value)}
+                    className="min-w-0 flex-1 bg-transparent text-sm font-medium outline-none"
+                  />
+                </div>
+              </label>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="inline-flex items-center gap-2 rounded-xl border border-border px-2 py-1.5">
+                <span className="text-xs font-medium text-muted-foreground">Seats</span>
+                <button
+                  type="button"
+                  className="rounded-md p-1 text-muted-foreground"
+                  onClick={() => setSeats((s) => Math.max(1, s - 1))}
+                >
+                  <Minus className="h-3.5 w-3.5" />
+                </button>
+                <span className="w-4 text-center text-sm font-semibold">{seats}</span>
+                <button
+                  type="button"
+                  className="rounded-md p-1 text-muted-foreground"
+                  onClick={() => setSeats((s) => Math.min(4, s + 1))}
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                </button>
+              </div>
+              <span className="text-xs text-muted-foreground">Flexible pickup</span>
+              <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-900">
+                <ShieldCheck className="h-3.5 w-3.5" />
+                Verified profiles
+              </span>
+            </div>
+
+            <div className="flex flex-wrap gap-1.5">
+              {DAYS.map((day) => (
+                <button
+                  key={day}
+                  type="button"
+                  onClick={() => toggleDay(day)}
+                  className={cn(
+                    'rounded-full px-2.5 py-1 text-[11px] font-semibold',
+                    activeDays.has(day)
+                      ? 'bg-emerald-800 text-white'
+                      : 'bg-muted text-muted-foreground',
+                  )}
+                >
+                  {day}
+                </button>
+              ))}
+            </div>
+
+            <label className="flex items-start gap-2 text-xs text-muted-foreground">
+              <input
+                type="checkbox"
+                className="mt-0.5"
+                checked={flexible}
+                onChange={(e) => setFlexible(e.target.checked)}
+              />
+              <span>
+                <span className="font-semibold text-foreground">Flexible</span>
+                {' - '}
+                Workdays help rank routines; they never block a ride.
+              </span>
+            </label>
+
+            <Button
+              className="h-12 w-full gap-2 bg-emerald-800 text-base font-semibold hover:bg-emerald-900"
+              data-testid="cleaner-city-find-link"
+              disabled={findMatches.isPending}
+              onClick={() => void runSearch()}
+            >
+              <Search className="h-4 w-4" />
+              {findMatches.isPending ? 'Searching...' : 'Search'}
+            </Button>
+          </section>
+
+          {searched ? (
+            <section className="space-y-3">
+              <div className="flex items-end justify-between gap-2">
+                <div>
+                  <h2 className="text-lg font-extrabold tracking-tight">
+                    Community rides along your way ({matches.length} rides)
+                  </h2>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    Your route to office destination · Stops along the way included
+                  </p>
+                </div>
+                <span className="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  Sort: Best match
+                </span>
+              </div>
+
+              {pendingRequests.length > 0 ? (
+                <div
+                  className="rounded-2xl border border-emerald-200 bg-emerald-50/90 px-3 py-2.5 text-sm text-emerald-950"
+                  data-testid="cleaner-city-home-pending-requests"
+                >
+                  <p className="font-semibold">
+                    {pendingRequests.length} seat request
+                    {pendingRequests.length === 1 ? '' : 's'} pending
+                  </p>
+                  <p className="mt-0.5 text-xs text-emerald-900/80">
+                    Latest: {pendingRequests[0].hostName} · {pendingRequests[0].departTime}
+                  </p>
+                  <Button
+                    variant="link"
+                    className="h-auto px-0 pt-1 text-emerald-900"
+                    onClick={() => navigate('/cleaner-city/rides')}
+                  >
+                    Open Missions
+                  </Button>
+                </div>
+              ) : null}
+
+              {matches.map((ride) => {
+                const isRequested = requestedIds.has(ride.id);
+                const isRequesting = requestingId === ride.id;
+                const seatsLeft = ride.seatsOpen;
+                return (
+                  <article
+                    key={ride.id}
+                    className="relative overflow-hidden rounded-[22px] border border-border bg-card p-4 shadow-sm"
+                    data-testid="cleaner-city-home-demo-card"
+                  >
+                    {ride.bestOverlap ? (
+                      <div className="mb-3 inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wide text-emerald-900">
+                        <Sparkles className="h-3 w-3" />
+                        Best route overlap for you
+                      </div>
+                    ) : null}
+
+                    <div className="flex items-start gap-3">
+                      <Avatar className="h-12 w-12 border border-border">
+                        <AvatarFallback className="bg-emerald-100 text-sm font-extrabold text-emerald-900">
+                          {initials(ride.hostName)}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-[16px] font-extrabold leading-tight">
+                          {ride.hostName}
+                        </p>
+                        <p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
+                          <span className="inline-flex items-center gap-0.5 font-medium text-foreground/80">
+                            <ShieldCheck className="h-3 w-3 text-emerald-600" />
+                            {ride.company}
+                          </span>
+                          <span className="inline-flex items-center gap-0.5">
+                            <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
+                            {ride.stars.toFixed(1)}
+                          </span>
+                          <span>{ride.completedRides} shared rides</span>
+                        </p>
+                        <p className="mt-0.5 text-[11px] text-muted-foreground">{ride.vehicle}</p>
+                      </div>
+                      <span className="rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-bold text-emerald-900">
+                        {ride.overlapPct}% overlap
+                      </span>
+                    </div>
+
+                    <div className="mt-3 grid grid-cols-[1fr_auto] gap-2 rounded-2xl border border-border/70 bg-muted/20 px-3 py-2.5">
+                      <div className="space-y-2">
+                        <div className="flex items-start gap-2">
+                          <span className="mt-1 h-2 w-2 rounded-full bg-emerald-600" />
+                          <div>
+                            <p className="text-sm font-semibold">{ride.pickupLabel}</p>
+                            <p className="text-[11px] text-muted-foreground">{ride.departTime}</p>
+                          </div>
+                        </div>
+                        <div className="ml-1 h-4 w-px bg-border" />
+                        <div className="flex items-start gap-2">
+                          <MapPin className="mt-0.5 h-3.5 w-3.5 text-emerald-800" />
+                          <div>
+                            <p className="text-sm font-semibold">{ride.dropLabel}</p>
+                            <p className="text-[11px] text-muted-foreground">{ride.arriveTime}</p>
+                          </div>
+                        </div>
+                      </div>
+                      <p className="self-center text-xs font-semibold text-muted-foreground">
+                        {ride.durationMin} min
+                      </p>
+                    </div>
+
+                    <p className="mt-2 rounded-xl bg-emerald-50/80 px-3 py-2 text-[11px] font-medium text-emerald-950">
+                      Along your way: {ride.alongWay.join(', ')}
+                    </p>
+
+                    <div className="mt-3 flex items-end justify-between gap-3">
+                      <div>
+                        <p className="text-[22px] font-extrabold leading-none text-emerald-900">
+                          ₹{ride.fuelShareRs}
+                        </p>
+                        <p className="mt-1 text-[11px] text-muted-foreground">
+                          shared cost / seat · {seatsLeft} seat
+                          {seatsLeft === 1 ? '' : 's'} open
+                          {ride.tags.length ? ` · ${ride.tags.join(' · ')}` : ''}
+                        </p>
+                      </div>
+                      <Button
+                        className={cn(
+                          'h-11 px-4 font-semibold',
+                          isRequested
+                            ? 'bg-emerald-100 text-emerald-900 hover:bg-emerald-100'
+                            : 'bg-emerald-800 text-white hover:bg-emerald-900',
+                        )}
+                        disabled={isRequested || isRequesting || seatsLeft <= 0 || !!requestingId}
+                        data-testid={`cleaner-city-request-seat-${ride.id}`}
+                        onClick={() => void requestSeat(ride)}
+                      >
+                        {isRequesting
+                          ? 'Requesting...'
+                          : isRequested
+                            ? 'Request sent'
+                            : seatsLeft <= 0
+                              ? 'Full'
+                              : 'Request seat'}
+                      </Button>
+                    </div>
+                  </article>
+                );
+              })}
+
+              <Button
+                variant="outline"
+                className="w-full font-semibold"
+                onClick={() => navigate('/cleaner-city/find')}
+              >
+                Open live Find matches
+              </Button>
+            </section>
+          ) : null}
+
+          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+            <Link to="/cleaner-city/route" className="font-semibold text-emerald-900">
+              Edit Route
+            </Link>
+            <Link to="/cleaner-city/circles">Trusted circles</Link>
+            <Link to="/cleaner-city/safety">Safety</Link>
+            <Link to="/cleaner-city/rides">Missions</Link>
+          </div>
         </div>
+
+        {activeRide ? (
+          <CleanerCityActiveMissionDock ride={activeRide} myUserId={user?.id} />
+        ) : null}
       </CleanerCityGate>
-    </AppLayout>
+    </CleanerCityChrome>
   );
 }

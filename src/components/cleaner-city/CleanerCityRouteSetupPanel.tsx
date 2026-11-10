@@ -65,11 +65,13 @@ type Props = {
   compact?: boolean;
   /** Guest path: office + pickup pins only - no Google driving-road picker. */
   pinsOnly?: boolean;
+  /** Offer embed: short titles, no status essay chips. */
+  quiet?: boolean;
   onSaved?: (info: { officeDone: boolean; pickupDone: boolean; toOffice: boolean; toHome: boolean }) => void;
   className?: string;
 };
 
-export function CleanerCityRouteSetupPanel({ compact, pinsOnly, onSaved, className }: Props) {
+export function CleanerCityRouteSetupPanel({ compact, pinsOnly, quiet, onSaved, className }: Props) {
   const { user } = useAuth();
   const { data: profile } = useCleanerCityProfile();
   const { data: offices = [] } = useOfficeLocations();
@@ -342,14 +344,24 @@ export function CleanerCityRouteSetupPanel({ compact, pinsOnly, onSaved, classNa
 
   const stepIndex = wizardStep === 'home' ? 0 : wizardStep === 'office' ? 1 : 2;
   const stepCount = pinsOnly ? 2 : 3;
-  const stepTitle =
-    wizardStep === 'home'
+  const stepTitle = quiet
+    ? wizardStep === 'home'
+      ? 'Home gate'
+      : wizardStep === 'office'
+        ? 'Office'
+        : 'Usual road'
+    : wizardStep === 'home'
       ? 'Where do mornings start?'
       : wizardStep === 'office'
         ? 'Where do you work?'
         : 'Which road do you drive?';
-  const stepBlurb =
-    wizardStep === 'home'
+  const stepBlurb = quiet
+    ? wizardStep === 'home'
+      ? 'Pin your society gate.'
+      : wizardStep === 'office'
+        ? 'Pin your office building.'
+        : 'Pick morning, then evening.'
+    : wizardStep === 'home'
       ? 'One society gate for Mon-Fri. Times come later - the gate usually stays the same.'
       : wizardStep === 'office'
         ? 'Drop the blue pin on your office building, then continue.'
@@ -357,29 +369,40 @@ export function CleanerCityRouteSetupPanel({ compact, pinsOnly, onSaved, classNa
 
   return (
     <div
-      className={cn('space-y-5', className)}
+      className={cn(quiet || compact ? 'space-y-3' : 'space-y-5', className)}
       data-testid="cleaner-city-route-setup-panel"
       data-wizard-step={wizardStep || 'boot'}
     >
-      <div className="rounded-2xl border border-border bg-card p-4 space-y-3 overflow-hidden relative">
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-0 opacity-70"
-          style={{
-            background:
-              'radial-gradient(120% 80% at 10% 0%, hsl(var(--primary) / 0.12), transparent 55%), radial-gradient(90% 70% at 100% 100%, hsl(142 70% 40% / 0.08), transparent 50%)',
-          }}
-        />
+      <div
+        className={cn(
+          'space-y-3 overflow-hidden relative',
+          quiet
+            ? 'rounded-xl border border-border/70 bg-muted/20 p-3'
+            : 'rounded-2xl border border-border bg-card p-4',
+        )}
+      >
+        {!quiet ? (
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-0 opacity-70"
+            style={{
+              background:
+                'radial-gradient(120% 80% at 10% 0%, hsl(var(--primary) / 0.12), transparent 55%), radial-gradient(90% 70% at 100% 100%, hsl(142 70% 40% / 0.08), transparent 50%)',
+            }}
+          />
+        ) : null}
         <div className="relative space-y-3">
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2 min-w-0">
-              <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-primary/15 text-primary shrink-0">
-                <Sparkles size={14} />
-              </span>
+              {!quiet ? (
+                <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-primary/15 text-primary shrink-0">
+                  <Sparkles size={14} />
+                </span>
+              ) : null}
               <div className="min-w-0">
                 <p className="text-sm font-semibold truncate">{stepTitle}</p>
                 <p className="text-[11px] text-muted-foreground">
-                  Step {Math.min(stepIndex + 1, stepCount)} of {stepCount}
+                  {Math.min(stepIndex + 1, stepCount)}/{stepCount}
                   {pinsOnly ? ' · guest pins' : ''}
                 </p>
               </div>
@@ -414,64 +437,115 @@ export function CleanerCityRouteSetupPanel({ compact, pinsOnly, onSaved, classNa
 
           <p className="text-xs text-muted-foreground leading-relaxed">{stepBlurb}</p>
 
-          <div className="flex flex-wrap gap-1.5">
-            <span
-              className={cn(
-                'rounded-full border px-2.5 py-1 text-[10px] font-bold',
-                pickupDone
-                  ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-600'
-                  : wizardStep === 'home'
-                    ? 'border-primary/40 bg-primary/10 text-primary'
-                    : 'border-border text-muted-foreground',
-              )}
-            >
-              {pickupDone ? 'Home gate set' : '1 · Home gate'}
-            </span>
-            <span
-              className={cn(
-                'rounded-full border px-2.5 py-1 text-[10px] font-bold',
-                officeDone
-                  ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-600'
-                  : wizardStep === 'office'
-                    ? 'border-primary/40 bg-primary/10 text-primary'
-                    : 'border-border text-muted-foreground',
-              )}
-            >
-              {officeDone ? 'Office set' : '2 · Office'}
-            </span>
-            {!pinsOnly ? (
-              <>
-                <span
-                  className={cn(
-                    'rounded-full border px-2.5 py-1 text-[10px] font-bold',
-                    savedToOffice
-                      ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-600'
-                      : wizardStep === 'roads'
-                        ? 'border-primary/40 bg-primary/10 text-primary'
-                        : 'border-border text-muted-foreground',
-                  )}
-                  data-testid="cleaner-city-usual-route-to-office"
-                >
-                  {savedToOffice ? `Morning · ${savedToOffice.summary}` : '3 · Morning road'}
-                </span>
-                <span
-                  className={cn(
-                    'rounded-full border px-2.5 py-1 text-[10px] font-bold',
-                    savedToHome
-                      ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-600'
+          {!quiet ? (
+            <div className="flex flex-wrap gap-1.5">
+              <span
+                className={cn(
+                  'rounded-full border px-2.5 py-1 text-[10px] font-bold',
+                  pickupDone
+                    ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-600'
+                    : wizardStep === 'home'
+                      ? 'border-primary/40 bg-primary/10 text-primary'
                       : 'border-border text-muted-foreground',
-                  )}
-                  data-testid="cleaner-city-usual-route-to-home"
-                >
-                  {savedToHome ? `Evening · ${savedToHome.summary}` : 'Evening road'}
-                </span>
-              </>
-            ) : (
-              <span className="rounded-full border border-primary/30 bg-primary/10 px-2.5 py-1 text-[10px] font-bold text-primary">
-                Guest path - pins only
+                )}
+              >
+                {pickupDone ? 'Home gate set' : '1 · Home gate'}
               </span>
-            )}
-          </div>
+              <span
+                className={cn(
+                  'rounded-full border px-2.5 py-1 text-[10px] font-bold',
+                  officeDone
+                    ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-600'
+                    : wizardStep === 'office'
+                      ? 'border-primary/40 bg-primary/10 text-primary'
+                      : 'border-border text-muted-foreground',
+                )}
+              >
+                {officeDone ? 'Office set' : '2 · Office'}
+              </span>
+              {!pinsOnly ? (
+                <>
+                  <span
+                    className={cn(
+                      'rounded-full border px-2.5 py-1 text-[10px] font-bold',
+                      savedToOffice
+                        ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-600'
+                        : wizardStep === 'roads'
+                          ? 'border-primary/40 bg-primary/10 text-primary'
+                          : 'border-border text-muted-foreground',
+                    )}
+                    data-testid="cleaner-city-usual-route-to-office"
+                  >
+                    {savedToOffice ? `Morning · ${savedToOffice.summary}` : '3 · Morning road'}
+                  </span>
+                  <span
+                    className={cn(
+                      'rounded-full border px-2.5 py-1 text-[10px] font-bold',
+                      savedToHome
+                        ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-600'
+                        : 'border-border text-muted-foreground',
+                    )}
+                    data-testid="cleaner-city-usual-route-to-home"
+                  >
+                    {savedToHome ? `Evening · ${savedToHome.summary}` : 'Evening road'}
+                  </span>
+                </>
+              ) : (
+                <span className="rounded-full border border-primary/30 bg-primary/10 px-2.5 py-1 text-[10px] font-bold text-primary">
+                  Guest path - pins only
+                </span>
+              )}
+            </div>
+          ) : (
+            <div className="flex flex-wrap gap-1.5">
+              <span
+                className={cn(
+                  'rounded-full border px-2 py-0.5 text-[10px] font-bold',
+                  pickupDone
+                    ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-700'
+                    : 'border-border text-muted-foreground',
+                )}
+              >
+                Home
+              </span>
+              <span
+                className={cn(
+                  'rounded-full border px-2 py-0.5 text-[10px] font-bold',
+                  officeDone
+                    ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-700'
+                    : 'border-border text-muted-foreground',
+                )}
+              >
+                Office
+              </span>
+              {!pinsOnly ? (
+                <>
+                  <span
+                    className={cn(
+                      'rounded-full border px-2 py-0.5 text-[10px] font-bold',
+                      savedToOffice
+                        ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-700'
+                        : 'border-border text-muted-foreground',
+                    )}
+                    data-testid="cleaner-city-usual-route-to-office"
+                  >
+                    Morning
+                  </span>
+                  <span
+                    className={cn(
+                      'rounded-full border px-2 py-0.5 text-[10px] font-bold',
+                      savedToHome
+                        ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-700'
+                        : 'border-border text-muted-foreground',
+                    )}
+                    data-testid="cleaner-city-usual-route-to-home"
+                  >
+                    Evening
+                  </span>
+                </>
+              ) : null}
+            </div>
+          )}
         </div>
       </div>
 

@@ -1,17 +1,34 @@
 // @ts-nocheck
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Check, MapPinned, Sparkles } from 'lucide-react';
+import {
+  ArrowRight,
+  Bike,
+  Calendar,
+  Car,
+  Check,
+  Clock,
+  MapPin,
+  MapPinned,
+  Minus,
+  Navigation,
+  Plus,
+  Shield,
+  Sparkles,
+} from 'lucide-react';
 import { toast } from 'sonner';
-import { AppLayout } from '@/components/layout/AppLayout';
+import { CleanerCityChrome } from '@/components/cleaner-city/CleanerCityChrome';
 import { CleanerCityGate } from '@/components/cleaner-city/CleanerCityGate';
 import { CleanerCityPinPicker } from '@/components/cleaner-city/CleanerCityPinPicker';
+import { CleanerCityPlaySwitch } from '@/components/cleaner-city/CleanerCityPlaySwitch';
 import { CleanerCityRoutePreview } from '@/components/cleaner-city/CleanerCityRoutePreview';
+import { CleanerCityRouteSetupPanel } from '@/components/cleaner-city/CleanerCityRouteSetupPanel';
+import { CleanerCityWeeklyPlanCard } from '@/components/cleaner-city/CleanerCityWeeklyPlanCard';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsContent } from '@/components/ui/tabs';
 import { HostOfferRideCard } from '@/components/cleaner-city/HostOfferRideCard';
 import {
   useCancelPublication,
@@ -37,6 +54,7 @@ import {
   DEFAULT_COMMUTE_TIMEZONE,
 } from '@/lib/cleaner-city/constants';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 import {
   fetchDrivingRoute,
   fetchDrivingRouteAlternatives,
@@ -49,7 +67,43 @@ import {
   type RouteAlternative,
 } from '@/lib/cleaner-city/routing';
 import { useGoogleMaps } from '@/hooks/useGoogleMaps';
+import {
+  equalRouteFuelShare,
+  estimateGuestSharePaise,
+  formatFuelRupeesFromPaise,
+  FUEL_DEFAULT_PETROL_PAISE_PER_LITRE,
+  FUEL_MILEAGE_KM_PER_LITRE,
+} from '@/lib/cleaner-city/fuelShare';
 import { cn } from '@/lib/utils';
+
+type OfferTab = 'vehicle' | 'route' | 'week' | 'publish' | 'rides' | 'stops';
+
+const OFFER_TAB_ORDER: Array<{ id: OfferTab; label: string }> = [
+  { id: 'vehicle', label: 'Vehicle' },
+  { id: 'route', label: 'Route' },
+  { id: 'week', label: 'My week' },
+  { id: 'publish', label: 'This ride' },
+  { id: 'rides', label: 'My rides' },
+];
+
+function formatLeaveLabel(hhmm: string) {
+  const m = String(hhmm || '').match(/^(\d{1,2}):(\d{2})$/);
+  if (!m) return hhmm;
+  let h = Number(m[1]);
+  const min = m[2];
+  const ap = h >= 12 ? 'PM' : 'AM';
+  if (h === 0) h = 12;
+  else if (h > 12) h -= 12;
+  return `${h}:${min} ${ap}`;
+}
+
+function formatOfferDateLabel(iso: string) {
+  const d = new Date(`${iso}T12:00:00`);
+  const today = new Date();
+  const todayIso = today.toISOString().slice(0, 10);
+  const label = d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+  return iso === todayIso ? `Today, ${label}` : label;
+}
 
 type StopPin = { lat: number; lng: number; label: string; address?: string };
 
@@ -98,7 +152,7 @@ export default function CleanerCityOfferPage() {
   const location = useLocation();
   const arrivalState = (location.state as {
     notice?: string;
-    tab?: 'publish' | 'rides' | 'stops';
+    tab?: OfferTab;
     focusPublicationId?: string;
     justPublishedId?: string;
   } | null) || {};
@@ -115,7 +169,48 @@ export default function CleanerCityOfferPage() {
   const defaultDate = nextWorkdayIso(tz);
   const { data: publications = [] } = useMyPublications(today);
 
+  const [tab, setTab] = useState<OfferTab>(() => {
+    const t = arrivalState.tab;
+    if (
+      t === 'rides' ||
+      t === 'stops' ||
+      t === 'publish' ||
+      t === 'week' ||
+      t === 'vehicle' ||
+      t === 'route'
+    ) {
+      return t;
+    }
+    return 'vehicle';
+  });
+  const [tabBootstrapped, setTabBootstrapped] = useState(!!arrivalState.tab);
+  const [vehicleId, setVehicleId] = useState('');
+  const [vehicleKind, setVehicleKind] = useState<'bike' | 'car'>('car');
+  const [travelDate, setTravelDate] = useState(defaultDate);
+  const [direction, setDirection] = useState('to_office');
+  const [departTime, setDepartTime] = useState('08:30');
+  const [seats, setSeats] = useState(1);
+  const [stopPubId, setStopPubId] = useState('');
+  const [stopSeq, setStopSeq] = useState(1);
+  const [stopPin, setStopPin] = useState<StopPin | null>(null);
+  const [justPublishedId, setJustPublishedId] = useState<string | null>(
+    arrivalState.justPublishedId || arrivalState.focusPublicationId || null,
+  );
+  const [focusPublicationId, setFocusPublicationId] = useState<string | null>(
+    arrivalState.focusPublicationId || null,
+  );
+  const [publishAlts, setPublishAlts] = useState<RouteAlternative[]>([]);
+  const [publishRouteId, setPublishRouteId] = useState<string | null>(null);
+  const [needRoutePick, setNeedRoutePick] = useState(false);
+  const [dropPlan, setDropPlan] = useState<DropSequenceResult | null>(null);
+  const [offlineConfirm, setOfflineConfirm] = useState(false);
+  const [petrolPaise, setPetrolPaise] = useState(FUEL_DEFAULT_PETROL_PAISE_PER_LITRE);
+
   const activeVehicles = useMemo(() => vehicles.filter((v) => v.is_active), [vehicles]);
+  const kindVehicles = useMemo(
+    () => activeVehicles.filter((v) => v.vehicle_type === vehicleKind),
+    [activeVehicles, vehicleKind],
+  );
   const vehicleById = useMemo(
     () => Object.fromEntries(vehicles.map((v) => [v.id, v])),
     [vehicles],
@@ -138,31 +233,6 @@ export default function CleanerCityOfferPage() {
     return map;
   }, [myRides, user?.id]);
 
-  const [tab, setTab] = useState<'publish' | 'rides' | 'stops'>(
-    arrivalState.tab === 'rides' || arrivalState.tab === 'stops' || arrivalState.tab === 'publish'
-      ? arrivalState.tab
-      : 'publish',
-  );
-  const [vehicleId, setVehicleId] = useState('');
-  const [travelDate, setTravelDate] = useState(defaultDate);
-  const [direction, setDirection] = useState('to_office');
-  const [departTime, setDepartTime] = useState('08:30');
-  const [seats, setSeats] = useState(1);
-  const [stopPubId, setStopPubId] = useState('');
-  const [stopSeq, setStopSeq] = useState(1);
-  const [stopPin, setStopPin] = useState<StopPin | null>(null);
-  const [justPublishedId, setJustPublishedId] = useState<string | null>(
-    arrivalState.justPublishedId || arrivalState.focusPublicationId || null,
-  );
-  const [focusPublicationId, setFocusPublicationId] = useState<string | null>(
-    arrivalState.focusPublicationId || null,
-  );
-  const [publishAlts, setPublishAlts] = useState<RouteAlternative[]>([]);
-  const [publishRouteId, setPublishRouteId] = useState<string | null>(null);
-  const [needRoutePick, setNeedRoutePick] = useState(false);
-  const [dropPlan, setDropPlan] = useState<DropSequenceResult | null>(null);
-  const [offlineConfirm, setOfflineConfirm] = useState(false);
-
   const { data: savedStops = [] } = usePublicationStops(stopPubId || null);
   const { data: daySchedule } = useEffectiveSchedule(travelDate);
   const selected = activeVehicles.find((v) => v.id === vehicleId) || null;
@@ -180,21 +250,95 @@ export default function CleanerCityOfferPage() {
   const hasOffice = office?.latitude != null && office?.longitude != null;
   const hasPickup = pickupLat != null && pickupLng != null;
   const pinsReady = hasOffice && hasPickup;
+  const hasRoads = !!(
+    preferredRouteFromProfile(profile, 'to_office') &&
+    preferredRouteFromProfile(profile, 'to_home')
+  );
   const canPublishDay = !!daySchedule?.is_working && !daySchedule?.is_paused;
-
+  const pickupLabel =
+    weekdayTemplate?.pickup_label ||
+    selected?.preferred_pickup_label ||
+    'Home gate';
+  const officeLabel = office?.label || 'Office';
+  const usualRoad = preferredRouteFromProfile(
+    profile,
+    direction === 'to_home' ? 'to_home' : 'to_office',
+  );
+  const weekConfigured = templates.some(
+    (t) => t.weekday >= 1 && t.weekday <= 5 && !!t.depart_time,
+  );
+  const hasVehicle = !!vehicleId && activeVehicles.some((v) => v.id === vehicleId);
+  const fuelEstimate = useMemo(() => {
+    const meters = usualRoad?.distanceMeters || 12000;
+    const guestPaise = estimateGuestSharePaise({
+      distanceMeters: meters,
+      petrolPaisePerLitre: petrolPaise,
+      seatsTotal: Math.max(2, (seats || 1) + 1),
+    });
+    const equal = equalRouteFuelShare({
+      distanceMeters: meters,
+      petrolPaisePerLitre: petrolPaise,
+      guestIds: Array.from({ length: Math.max(1, seats) }, (_, i) => `g${i}`),
+    });
+    return {
+      guestRs: formatFuelRupeesFromPaise(guestPaise) ?? 0,
+      totalRs: formatFuelRupeesFromPaise(equal.totalFuelPaise) ?? 0,
+      perKmRs: formatFuelRupeesFromPaise(equal.fuelPaisePerKm) ?? 12,
+    };
+  }, [usualRoad?.distanceMeters, petrolPaise, seats]);
   const filledStopSlots = useMemo(() => {
     const set = new Set(savedStops.map((s) => s.seq));
     return set;
   }, [savedStops]);
 
   useEffect(() => {
-    if (!vehicleId && activeVehicles[0]?.id) setVehicleId(activeVehicles[0].id);
-  }, [activeVehicles, vehicleId]);
+    if (activeVehicles.length === 0) return;
+    const preferBike = activeVehicles.some((v) => v.vehicle_type === 'bike');
+    const preferCar = activeVehicles.some((v) => v.vehicle_type === 'car');
+    if (vehicleKind === 'bike' && !preferBike && preferCar) setVehicleKind('car');
+    if (vehicleKind === 'car' && !preferCar && preferBike) setVehicleKind('bike');
+  }, [activeVehicles, vehicleKind]);
+
+  useEffect(() => {
+    if (kindVehicles.some((v) => v.id === vehicleId)) return;
+    setVehicleId(kindVehicles[0]?.id || '');
+  }, [kindVehicles, vehicleId]);
 
   useEffect(() => {
     if (!selected) return;
     setSeats(Math.min(seats, selected.seat_capacity) || selected.seat_capacity);
   }, [selected?.id]);
+
+  useEffect(() => {
+    if (tabBootstrapped) return;
+    if (!hasVehicle) {
+      setTab('vehicle');
+    } else if (!pinsReady) {
+      setTab('route');
+    } else if (!weekConfigured) {
+      setTab('week');
+    } else {
+      setTab('publish');
+    }
+    setTabBootstrapped(true);
+  }, [tabBootstrapped, hasVehicle, pinsReady, weekConfigured]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const { data, error } = await supabase.rpc('cleaner_city_get_fuel_public_config');
+        if (error || cancelled || !data) return;
+        const paise = Number((data as { petrol_paise_per_litre?: number }).petrol_paise_per_litre);
+        if (Number.isFinite(paise) && paise > 0) setPetrolPaise(paise);
+      } catch {
+        /* keep default */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (!daySchedule?.is_working) return;
@@ -422,26 +566,21 @@ export default function CleanerCityOfferPage() {
       toast.error('Verify work email and host role first');
       return;
     }
-    if (!hasVerifiedEmergency) {
-      toast.error('Add a verified emergency contact before publishing', {
-        action: {
-          label: 'Safety',
-          onClick: () => navigate('/cleaner-city/safety'),
-        },
-      });
-      return;
-    }
     if (!vehicleId) {
       toast.error('Add an active vehicle first');
       return;
     }
     if (!pinsReady) {
-      toast.error('Set your office and pickup pins first');
+      toast.error('Add home and office pins on Route, then publish');
+      setTab('route');
+      return;
+    }
+    if (selected && seats > selected.seat_capacity) {
+      toast.error('Capacity cannot exceed your vehicle');
       return;
     }
     if (!canPublishDay) {
-      toast.error('This date is off or paused - pick a commuting workday');
-      return;
+      toast.message('This date looks off on your week plan - publishing this one trip anyway');
     }
     try {
       const origin =
@@ -562,11 +701,13 @@ export default function CleanerCityOfferPage() {
     }
   };
 
+  const maxSeats = selected?.seat_capacity || (vehicleKind === 'bike' ? 1 : 3);
+
   return (
-    <AppLayout headerTitle="Offer a ride">
+    <CleanerCityChrome headerTitle="Play · Offer">
       <CleanerCityGate>
         <div
-          className="mx-auto flex w-full max-w-lg flex-col gap-6 px-4 pb-28 pt-4"
+          className="mx-auto flex w-full max-w-lg flex-col gap-5 px-4 pb-28 pt-4"
           data-testid="cleaner-city-offer-page"
         >
           {arrivalNotice ? (
@@ -575,34 +716,13 @@ export default function CleanerCityOfferPage() {
             </div>
           ) : null}
 
-          <div className="flex items-center justify-between gap-3 rounded-2xl border border-border bg-card px-4 py-3">
-            {[
-              { label: 'Publish', done: publications.length > 0 },
-              { label: 'Live seats', done: publications.some((p) => p.status === 'published') },
-              { label: 'Match pins', done: filledStopSlots.size > 0 },
-            ].map((step, i, arr) => (
-              <div key={step.label} className="flex min-w-0 flex-1 items-center gap-2">
-                <span
-                  className={cn(
-                    'flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-bold',
-                    step.done ? 'bg-emerald-500/20 text-emerald-500' : 'bg-muted text-muted-foreground',
-                  )}
-                >
-                  {step.done ? <Check size={13} /> : i + 1}
-                </span>
-                <span
-                  className={cn(
-                    'truncate text-xs font-semibold',
-                    step.done ? 'text-foreground' : 'text-muted-foreground',
-                  )}
-                >
-                  {step.label}
-                </span>
-                {i < arr.length - 1 ? (
-                  <span className="ml-auto h-px w-3 shrink-0 bg-border sm:w-5" aria-hidden />
-                ) : null}
-              </div>
-            ))}
+          <CleanerCityPlaySwitch mode="offer" hasPins={pinsReady} hasRoads={hasRoads} />
+
+          <div>
+            <h1 className="text-2xl font-extrabold tracking-tight">Offer a ride</h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Share your everyday route and split the journey.
+            </p>
           </div>
 
           {!ready ? (
@@ -621,170 +741,388 @@ export default function CleanerCityOfferPage() {
 
           {ready && !hasVerifiedEmergency ? (
             <div
-              className="rounded-2xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm leading-relaxed"
+              className="rounded-2xl border border-border bg-muted/30 px-4 py-3 text-sm leading-relaxed text-muted-foreground"
               data-testid="cleaner-city-offer-emergency-gate"
             >
-              Add a verified{' '}
-              <Link to="/cleaner-city/safety" className="font-semibold text-primary underline">
-                emergency contact
+              Optional:{' '}
+              <Link to="/cleaner-city/safety" className="font-semibold text-emerald-900 underline">
+                add an emergency contact
               </Link>{' '}
-              before publishing seats.
+              in You - Safety for SOS. Not required to publish.
             </div>
           ) : null}
 
-          {ready && !pinsReady ? (
-            <div
-              className="rounded-2xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm leading-relaxed"
-              data-testid="cleaner-city-offer-missing-pins"
-            >
-              Add pins on{' '}
-              <Link to="/cleaner-city/route" className="font-semibold text-primary underline">
-                Office & pickup
-              </Link>{' '}
-              before publishing.
+          <Tabs value={tab} onValueChange={(v) => setTab(v as OfferTab)} className="w-full">
+            <div className="overflow-x-auto">
+              <nav
+                className="flex min-w-max gap-1 border-b border-border"
+                data-testid="cleaner-city-offer-tabs"
+              >
+                {OFFER_TAB_ORDER.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => setTab(item.id)}
+                    className={cn(
+                      'shrink-0 border-b-2 px-3 py-2.5 text-sm font-semibold transition-colors',
+                      tab === item.id
+                        ? 'border-emerald-600 text-emerald-800'
+                        : 'border-transparent text-muted-foreground hover:text-foreground',
+                    )}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </nav>
             </div>
-          ) : null}
 
-          <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)} className="w-full">
-            <TabsList className="grid h-12 w-full grid-cols-3 p-1">
-              <TabsTrigger value="publish">Publish</TabsTrigger>
-              <TabsTrigger value="rides">My rides</TabsTrigger>
-              <TabsTrigger value="stops">Match pins</TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="publish" className="mt-6 focus-visible:outline-none">
-              <section className="flex flex-col gap-5 rounded-2xl border border-border bg-card p-5">
+            <TabsContent value="vehicle" className="mt-5 focus-visible:outline-none space-y-4">
+              <section className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-4 shadow-sm">
                 <div>
-                  <p className="text-base font-semibold flex items-center gap-2">
-                    <Sparkles size={16} className="text-primary" />
-                    Publish empty seats
-                  </p>
-                  <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
-                    Neighbours going your way can request a seat. Your exact office stays private
-                    until a booking is confirmed.
+                  <p className="text-sm font-extrabold">1. Vehicle</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Required before you can publish empty seats.
                   </p>
                 </div>
-
-                <div className="flex flex-col gap-2">
-                  <Label>Vehicle</Label>
+                <div className="space-y-2">
+                  <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                    Vehicle type
+                  </Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setVehicleKind('bike')}
+                      className={cn(
+                        'flex items-center justify-center gap-2 rounded-xl border px-3 py-3 text-sm font-semibold',
+                        vehicleKind === 'bike'
+                          ? 'border-emerald-600 bg-emerald-50 text-emerald-900'
+                          : 'border-border',
+                      )}
+                    >
+                      <Bike className="h-4 w-4" />
+                      Two-wheeler
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setVehicleKind('car')}
+                      className={cn(
+                        'flex items-center justify-center gap-2 rounded-xl border px-3 py-3 text-sm font-semibold',
+                        vehicleKind === 'car'
+                          ? 'border-emerald-600 bg-emerald-50 text-emerald-900'
+                          : 'border-border',
+                      )}
+                    >
+                      <Car className="h-4 w-4" />
+                      Four-wheeler
+                    </button>
+                  </div>
                   <select
                     className="h-11 w-full rounded-xl border border-border bg-background px-3 text-sm"
                     value={vehicleId}
                     onChange={(e) => setVehicleId(e.target.value)}
                     data-testid="cleaner-city-offer-vehicle"
                   >
-                    {activeVehicles.length === 0 && <option value="">No active vehicle</option>}
-                    {activeVehicles.map((v) => (
+                    {kindVehicles.length === 0 && <option value="">No active vehicle</option>}
+                    {kindVehicles.map((v) => (
                       <option key={v.id} value={v.id}>
                         {v.vehicle_type.toUpperCase()} · {v.registration_number} · {v.seat_capacity}{' '}
                         seats
                       </option>
                     ))}
                   </select>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="flex flex-col gap-2">
-                    <Label>Date</Label>
-                    <Input
-                      type="date"
-                      value={travelDate}
-                      min={today}
-                      onChange={(e) => setTravelDate(e.target.value)}
-                      className="h-11"
-                    />
-                  </div>
-                  <div className="flex flex-col gap-2">
-                    <Label>Leave at</Label>
-                    <Input
-                      type="time"
-                      value={departTime}
-                      onChange={(e) => setDepartTime(e.target.value)}
-                      className="h-11"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  {CLEANER_CITY_DIRECTIONS.map((d) => (
-                    <button
-                      key={d.value}
+                  {kindVehicles.length === 0 ? (
+                    <Button asChild className="h-11 bg-emerald-800 font-semibold hover:bg-emerald-900">
+                      <Link to="/cleaner-city/vehicle">Add a vehicle</Link>
+                    </Button>
+                  ) : (
+                    <Button
                       type="button"
-                      onClick={() => setDirection(d.value)}
-                      className={cn(
-                        'rounded-xl border px-3 py-3 text-sm font-semibold',
-                        direction === d.value
-                          ? 'border-primary bg-primary/10 text-primary'
-                          : 'border-border',
-                      )}
+                      className="h-11 bg-emerald-800 font-semibold hover:bg-emerald-900"
+                      onClick={() => setTab(pinsReady ? (weekConfigured ? 'publish' : 'week') : 'route')}
                     >
-                      {d.label}
-                    </button>
-                  ))}
+                      Continue
+                    </Button>
+                  )}
+                </div>
+              </section>
+            </TabsContent>
+
+            <TabsContent value="route" className="mt-5 focus-visible:outline-none space-y-4">
+              <section
+                className="rounded-2xl border border-border bg-card p-4 shadow-sm"
+                data-testid="cleaner-city-offer-missing-pins"
+              >
+                <p className="mb-3 text-sm font-extrabold">2. Home, office, usual road</p>
+                <CleanerCityRouteSetupPanel
+                  compact
+                  quiet
+                  onSaved={(info) => {
+                    if (info?.officeDone && info?.pickupDone) {
+                      setTab(weekConfigured ? 'publish' : 'week');
+                    }
+                  }}
+                />
+                <p className="mt-2 text-[11px] text-muted-foreground">
+                  Full map on{' '}
+                  <Link to="/cleaner-city/route" className="font-semibold text-emerald-900">
+                    Route
+                  </Link>
+                  .
+                </p>
+              </section>
+            </TabsContent>
+
+            <TabsContent value="publish" className="mt-5 focus-visible:outline-none">
+              <div className="flex flex-col gap-4">
+              {!hasVehicle ? (
+                <div className="rounded-2xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm">
+                  Add a vehicle first.{' '}
+                  <button type="button" className="font-semibold text-emerald-900" onClick={() => setTab('vehicle')}>
+                    Open Vehicle
+                  </button>
+                </div>
+              ) : null}
+              {!pinsReady ? (
+                <div className="rounded-2xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm">
+                  Set home and office on Route first.{' '}
+                  <button type="button" className="font-semibold text-emerald-900" onClick={() => setTab('route')}>
+                    Open Route
+                  </button>
+                </div>
+              ) : null}
+              <section className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-4 shadow-sm">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <p className="flex items-center gap-2 text-base font-extrabold">
+                      <Sparkles size={16} className="text-emerald-700" />
+                      This ride
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      One leave-time. Neighbours on your corridor can request a seat.
+                    </p>
+                  </div>
                 </div>
 
-                {(() => {
-                  const usual = preferredRouteFromProfile(
-                    profile,
-                    direction === 'to_home' ? 'to_home' : 'to_office',
-                  );
-                  return usual ? (
+                <div className="space-y-2">
+                  <div className="rounded-xl border border-border bg-background px-3 py-2.5">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      Pickup location
+                    </p>
+                    <div className="mt-1 flex items-center gap-2">
+                      <MapPin className="h-4 w-4 shrink-0 text-emerald-700" />
+                      <p className="min-w-0 flex-1 truncate text-sm font-semibold">{pickupLabel}</p>
+                    </div>
+                  </div>
+                  <div className="rounded-xl border border-border bg-background px-3 py-2.5">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      Office destination
+                    </p>
+                    <div className="mt-1 flex items-center gap-2">
+                      <Navigation className="h-4 w-4 shrink-0 text-emerald-700" />
+                      <p className="min-w-0 flex-1 truncate text-sm font-semibold">{officeLabel}</p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    className="text-left text-xs font-semibold text-emerald-900"
+                    onClick={() => setTab('route')}
+                  >
+                    Change home, office, or road
+                  </button>
+                </div>
+
+                <div className="rounded-xl border border-border bg-muted/20 p-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    Selected route
+                  </p>
+                  <p className="mt-2 text-sm font-medium leading-relaxed">
+                    {pickupLabel} to {officeLabel}
+                  </p>
+                  {usualRoad ? (
                     <p
-                      className="inline-flex max-w-full items-center rounded-full border border-primary/30 bg-primary/10 px-2.5 py-1 text-[11px] font-semibold text-primary"
+                      className="mt-2 inline-flex max-w-full items-center rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-900"
                       data-testid="cleaner-city-offer-usual-route"
                     >
-                      Publishing on usual road · {usual.summary}
-                      {usual.distanceMeters
-                        ? ` · ${(usual.distanceMeters / 1000).toFixed(1)} km`
+                      {usualRoad.summary || 'Usual road'}
+                      {usualRoad.distanceMeters
+                        ? ` · ${(usualRoad.distanceMeters / 1000).toFixed(1)} km`
+                        : ''}
+                      {usualRoad.durationSeconds
+                        ? ` · ~${Math.max(1, Math.round(usualRoad.durationSeconds / 60))} min`
                         : ''}
                     </p>
                   ) : (
-                    <Link
-                      to="/cleaner-city/route"
-                      className="text-[11px] font-semibold text-primary"
+                    <button
+                      type="button"
+                      className="mt-2 text-[11px] font-semibold text-emerald-900"
                       data-testid="cleaner-city-offer-set-route"
+                      onClick={() => setTab('route')}
                     >
-                      Save your usual Google road so publish reuses it
-                    </Link>
-                  );
-                })()}
+                      Pick your usual road
+                    </button>
+                  )}
+                </div>
 
-                <div className="flex flex-col gap-2">
-                  <Label>Empty seats</Label>
-                  <Input
-                    type="number"
-                    min={1}
-                    max={selected?.seat_capacity || 1}
-                    value={seats}
-                    onChange={(e) => setSeats(Number(e.target.value))}
+                <div className="rounded-xl border border-emerald-100 bg-emerald-50/50 px-3 py-2.5">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-900/70">
+                        Using your week
+                      </p>
+                      <p className="mt-0.5 text-xs text-emerald-950">
+                        Defaults from My week · change date or leave time below for this ride only
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      className="shrink-0 text-xs font-semibold text-emerald-900"
+                      onClick={() => setTab('week')}
+                    >
+                      Edit week
+                    </button>
+                  </div>
+                </div>
+
+                <div
+                  className="space-y-3 rounded-xl border border-border bg-background p-3"
+                  data-testid="cleaner-city-offer-this-ride"
+                >
+                  <p className="text-sm font-extrabold">When are you leaving?</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                        Date
+                      </Label>
+                      <div className="relative">
+                        <Calendar className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                        <Input
+                          type="date"
+                          value={travelDate}
+                          min={today}
+                          onChange={(e) => setTravelDate(e.target.value)}
+                          className="h-11 pl-9"
+                        />
+                      </div>
+                      <p className="text-[11px] text-muted-foreground">
+                        {formatOfferDateLabel(travelDate)}
+                      </p>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                        Leave at
+                      </Label>
+                      <div className="relative">
+                        <Clock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                        <Input
+                          type="time"
+                          value={departTime}
+                          onChange={(e) => setDepartTime(e.target.value)}
+                          className="h-11 pl-9"
+                        />
+                      </div>
+                      <p className="text-[11px] text-muted-foreground">
+                        {formatLeaveLabel(departTime)} - this ride only
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    {CLEANER_CITY_DIRECTIONS.map((d) => (
+                      <button
+                        key={d.value}
+                        type="button"
+                        onClick={() => {
+                          setDirection(d.value);
+                          if (d.value === 'to_home' && daySchedule?.return_time) {
+                            setDepartTime(String(daySchedule.return_time).slice(0, 5));
+                          } else if (d.value === 'to_office' && daySchedule?.depart_time) {
+                            setDepartTime(String(daySchedule.depart_time).slice(0, 5));
+                          }
+                        }}
+                        className={cn(
+                          'rounded-xl border px-3 py-3 text-sm font-semibold',
+                          direction === d.value
+                            ? 'border-emerald-600 bg-emerald-50 text-emerald-900'
+                            : 'border-border bg-background',
+                        )}
+                      >
+                        {d.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                    Available seats
+                  </Label>
+                  <div
+                    className="flex items-center justify-between rounded-xl border border-border bg-background px-3 py-2"
                     data-testid="cleaner-city-offer-seats"
-                    className="h-11"
-                  />
+                  >
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      className="h-9 w-9 rounded-full"
+                      disabled={seats <= 1}
+                      onClick={() => setSeats((n) => Math.max(1, n - 1))}
+                    >
+                      <Minus className="h-4 w-4" />
+                    </Button>
+                    <p className="text-sm font-semibold">
+                      {seats} seat{seats === 1 ? '' : 's'}
+                    </p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      className="h-9 w-9 rounded-full"
+                      disabled={seats >= maxSeats}
+                      onClick={() => {
+                        if (seats + 1 > maxSeats) {
+                          toast.error('Capacity cannot exceed your vehicle');
+                          return;
+                        }
+                        setSeats((n) => Math.min(maxSeats, n + 1));
+                      }}
+                    >
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  </div>
                   {selected ? (
                     <p className="text-[11px] text-muted-foreground">
-                      Max {selected.seat_capacity} for this {selected.vehicle_type}
+                      Max {selected.seat_capacity} for this {selected.vehicle_type}. Capacity cannot
+                      exceed your vehicle.
                     </p>
                   ) : null}
                 </div>
 
-                {daySchedule ? (
-                  <p
-                    className={cn(
-                      'text-xs',
-                      canPublishDay ? 'text-muted-foreground' : 'font-semibold text-amber-600 dark:text-amber-400',
-                    )}
-                  >
-                    {daySchedule.is_paused
-                      ? 'Commute is paused - resume in schedule first.'
-                      : daySchedule.is_working
-                        ? `Workday plan · ${direction === 'to_office' ? 'morning' : 'evening'} leave`
-                        : 'This date is off / WFH - pick a commuting day.'}
+                <div className="space-y-1.5 rounded-xl border border-border bg-background px-3 py-3">
+                  <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                    Estimated fuel share / guest
+                  </Label>
+                  <p className="text-lg font-extrabold text-emerald-900">
+                    ₹{fuelEstimate.guestRs}
                   </p>
-                ) : null}
+                  <p className="text-[11px] text-muted-foreground">
+                    Automatic share from road distance · petrol ₹
+                    {(petrolPaise / 100).toFixed(0)}/L · {FUEL_MILEAGE_KM_PER_LITRE} km/L · about ₹
+                    {fuelEstimate.perKmRs}/km. Journey total about ₹{fuelEstimate.totalRs} split with
+                    you. No markup. You cannot edit this amount.
+                  </p>
+                </div>
+
+                <div className="flex items-start gap-2 rounded-xl border border-emerald-200 bg-emerald-50/80 px-3 py-2.5 text-sm text-emerald-950">
+                  <Shield className="mt-0.5 h-4 w-4 shrink-0" />
+                  <p className="text-xs leading-relaxed">
+                    Your phone number stays private until you accept a booking.
+                  </p>
+                </div>
 
                 {needRoutePick && publishAlts.length > 1 ? (
                   <div
-                    className="rounded-xl border border-primary/30 bg-primary/5 p-3 space-y-2"
+                    className="space-y-2 rounded-xl border border-primary/30 bg-primary/5 p-3"
                     data-testid="cleaner-city-offer-route-pick"
                   >
                     <p className="text-sm font-semibold">Which road will you take?</p>
@@ -812,11 +1150,11 @@ export default function CleanerCityOfferPage() {
                           )}
                           data-testid="cleaner-city-offer-route-alt"
                         >
-                          <p className="text-sm font-semibold flex items-center gap-1.5">
+                          <p className="flex items-center gap-1.5 text-sm font-semibold">
                             {selectedAlt ? <Check size={14} className="text-primary" /> : null}
                             {alt.summary}
                           </p>
-                          <p className="text-xs text-muted-foreground mt-0.5">
+                          <p className="mt-0.5 text-xs text-muted-foreground">
                             ~{mins} min · {km} km · tap to publish
                           </p>
                         </button>
@@ -850,23 +1188,63 @@ export default function CleanerCityOfferPage() {
                 ) : null}
 
                 {needRoutePick && publishAlts.length > 1 ? null : (
-                  <Button
-                    className="h-12 w-full text-base font-semibold"
-                    onClick={() => void publishRide()}
-                    disabled={
-                      publish.isPending ||
-                      !ready ||
-                      !hasVerifiedEmergency ||
-                      !pinsReady ||
-                      !canPublishDay ||
-                      (!isLoaded && !offlineConfirm)
-                    }
-                    data-testid="cleaner-city-offer-publish"
-                  >
-                    {!isLoaded && !offlineConfirm ? 'Waiting for Maps…' : 'Publish ride'}
-                  </Button>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-12 font-semibold"
+                      onClick={() => {
+                        toast.message('Kept on Offer - come back when you are ready to publish');
+                        navigate('/cleaner-city');
+                      }}
+                    >
+                      Save for later
+                    </Button>
+                    <Button
+                      className="h-12 gap-1.5 bg-emerald-800 text-base font-semibold hover:bg-emerald-900"
+                      onClick={() => void publishRide()}
+                      disabled={
+                        publish.isPending ||
+                        !ready ||
+                        !pinsReady ||
+                        (!isLoaded && !offlineConfirm)
+                      }
+                      data-testid="cleaner-city-offer-publish"
+                    >
+                      {!isLoaded && !offlineConfirm ? 'Waiting for Maps...' : 'Publish ride'}
+                      <ArrowRight className="h-4 w-4" />
+                    </Button>
+                  </div>
                 )}
               </section>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="week" className="mt-5 focus-visible:outline-none">
+              <div className="flex flex-col gap-5">
+                <div className="rounded-2xl border border-border bg-card px-5 py-5 shadow-sm">
+                  <p className="text-sm font-extrabold">3. My week</p>
+                  <p className="mt-1.5 text-xs text-muted-foreground leading-relaxed">
+                    Office days, leave home, and leave office. Tap a day off for WFH. This ride
+                    starts from these defaults - you can still change one leave-time there without
+                    rewriting your week.
+                  </p>
+                </div>
+                <CleanerCityWeeklyPlanCard
+                  onSaved={(info) => {
+                    if (direction === 'to_home') setDepartTime(info.returnTime);
+                    else setDepartTime(info.depart);
+                    toast.message('Week saved - open This ride to publish');
+                  }}
+                />
+                <Button
+                  type="button"
+                  className="h-11 w-full bg-emerald-800 font-semibold hover:bg-emerald-900"
+                  onClick={() => setTab('publish')}
+                >
+                  Continue to this ride
+                </Button>
+              </div>
             </TabsContent>
 
             <TabsContent value="rides" className="mt-6 focus-visible:outline-none">
@@ -959,7 +1337,7 @@ export default function CleanerCityOfferPage() {
                         </select>
                         {selectedPub ? (
                           <p className="text-[11px] text-muted-foreground">
-                            Main route: {selectedPub.origin_label || 'Pickup'} →{' '}
+                            Main route: {selectedPub.origin_label || 'Pickup'} to{' '}
                             {selectedPub.destination_label || 'Office'}
                           </p>
                         ) : null}
@@ -1086,6 +1464,6 @@ export default function CleanerCityOfferPage() {
           </Tabs>
         </div>
       </CleanerCityGate>
-    </AppLayout>
+    </CleanerCityChrome>
   );
 }

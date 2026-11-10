@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { useState } from 'react';
-import { Bike, Car, ChevronDown, Footprints, Handshake, Info, ShieldCheck } from 'lucide-react';
+import { Bike, Car, ChevronDown, Footprints, Handshake, Info, Route, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
@@ -85,15 +85,45 @@ export function CleanerCityMatchCard({
     chips.some((c) => /nearby pickup|pickup nearby|pickup on route/i.test(c));
   const midRoute = !!match.on_route_drop || chips.some((c) => /mid-route/i.test(c));
 
+  const overlapPct =
+    match.road_overlap_pct != null && Number.isFinite(Number(match.road_overlap_pct))
+      ? Math.round(Number(match.road_overlap_pct))
+      : null;
+
   return (
     <article
       className={cn(
         'relative overflow-hidden rounded-[22px] border border-border bg-card p-4 shadow-sm transition-all duration-300',
-        justRequested && 'border-primary/50 bg-primary/5 scale-[1.01]',
+        justRequested && 'border-emerald-700/40 bg-emerald-50/40 scale-[1.01]',
       )}
       data-testid="cleaner-city-match-card"
     >
-      <div className="flex items-start gap-3">
+      <div
+        aria-hidden
+        className="pointer-events-none absolute -right-10 -top-12 h-36 w-36 rounded-full bg-emerald-600/10 blur-3xl"
+      />
+      {overlapPct != null ? (
+        <div
+          className="mb-3 flex items-center gap-2 rounded-2xl border border-emerald-800/15 bg-gradient-to-r from-emerald-50 via-white to-teal-50/50 px-3 py-2"
+          data-testid="cleaner-city-match-corridor"
+        >
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-emerald-800 text-white">
+            <Route className="h-4 w-4" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-emerald-900/80">
+              Shared corridor
+            </p>
+            <p className="text-sm font-semibold text-foreground">
+              {overlapPct}% road overlap
+              {match.estimated_detour_minutes != null
+                ? ` · ~${Math.round(Number(match.estimated_detour_minutes))} min detour`
+                : ''}
+            </p>
+          </div>
+        </div>
+      ) : null}
+      <div className="relative flex items-start gap-3">
         <Avatar className="h-14 w-14 shrink-0 border border-border shadow-sm">
           {match.host_avatar_url ? (
             <AvatarImage src={match.host_avatar_url} alt={name} className="object-cover" />
@@ -138,6 +168,18 @@ export function CleanerCityMatchCard({
             {vehicleTitle}
             {match.origin_label ? ` · ${match.origin_label}` : ''}
           </p>
+          {match.vehicle_registration ? (
+            <p
+              className="mt-0.5 text-[11px] font-semibold tracking-wide text-foreground/80"
+              data-testid="cleaner-city-match-plate"
+            >
+              {match.vehicle_registration}
+            </p>
+          ) : (
+            <span className="sr-only" data-testid="cleaner-city-match-plate">
+              Plate TBD
+            </span>
+          )}
         </div>
       </div>
 
@@ -185,7 +227,7 @@ export function CleanerCityMatchCard({
                 </span>
                 <span
                   className="inline-flex items-center text-muted-foreground"
-                  title="Estimated fuel share for this seat - not a fare"
+                  title="Automatic fuel share from petrol price and road distance - not a fare"
                 >
                   <Info size={13} aria-hidden />
                 </span>
@@ -194,7 +236,11 @@ export function CleanerCityMatchCard({
               <span className="text-[15px] font-extrabold text-foreground">Fuel share TBD</span>
             )}
           </div>
-          <p className="mt-1 text-[12px] font-medium text-muted-foreground">
+          <p
+            className="mt-1 text-[12px] font-medium text-muted-foreground"
+            data-testid="cleaner-city-match-stars"
+          >
+            {fuelRs != null ? 'Your estimated fuel contribution · ' : ''}
             {seats != null ? `${seats} seat${seats === 1 ? '' : 's'} left` : 'Seats open'}
             {starAvg > 0 ? ` · ${starAvg.toFixed(1)}★` : ''}
             {ratingCount > 0 ? ` (${ratingCount})` : ''}
@@ -207,7 +253,7 @@ export function CleanerCityMatchCard({
       </div>
 
       <Button
-        className="mt-3 h-12 w-full text-base font-extrabold shadow-md shadow-primary/15"
+        className="mt-3 h-12 w-full text-base font-extrabold bg-emerald-800 shadow-md shadow-emerald-900/20 hover:bg-emerald-900"
         onClick={onRequest}
         disabled={requesting || justRequested || locked}
         data-testid="cleaner-city-request-seat"
@@ -217,8 +263,8 @@ export function CleanerCityMatchCard({
           : justRequested
             ? 'Request sent · waiting'
             : requesting
-              ? 'Sending…'
-              : 'Request ride'}
+              ? 'Sending...'
+              : 'Request seat'}
       </Button>
 
       <div className="mt-3 flex flex-wrap gap-1.5">
@@ -227,7 +273,7 @@ export function CleanerCityMatchCard({
           data-testid="cleaner-city-match-fit"
         >
           <Handshake size={11} className="text-primary" aria-hidden />
-          {fit}% match
+          Match power {fit}%
         </span>
         {nearbyPickup ? (
           <span className="inline-flex items-center gap-1 rounded-full border border-border bg-muted/30 px-2.5 py-1 text-[10px] font-bold text-foreground">

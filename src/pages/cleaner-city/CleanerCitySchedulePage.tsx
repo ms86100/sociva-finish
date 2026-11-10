@@ -3,8 +3,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Check } from 'lucide-react';
 import { toast } from 'sonner';
-import { AppLayout } from '@/components/layout/AppLayout';
+import { CleanerCityChrome } from '@/components/cleaner-city/CleanerCityChrome';
 import { CleanerCityGate } from '@/components/cleaner-city/CleanerCityGate';
+import { CleanerCityWeeklyPlanCard } from '@/components/cleaner-city/CleanerCityWeeklyPlanCard';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -70,7 +71,7 @@ const WORK_WEEK = [1, 2, 3, 4, 5] as const;
 const emptyDay = (): DayDraft => ({
   is_working: true,
   depart_time: '08:30',
-  return_time: '18:30',
+  return_time: '17:00',
 });
 
 export default function CleanerCitySchedulePage() {
@@ -98,7 +99,7 @@ export default function CleanerCitySchedulePage() {
   const [overrideKind, setOverrideKind] = useState('time_change');
   const [overrideWorking, setOverrideWorking] = useState(true);
   const [overrideDepart, setOverrideDepart] = useState('09:15');
-  const [overrideReturn, setOverrideReturn] = useState('18:30');
+  const [overrideReturn, setOverrideReturn] = useState('17:00');
   const [overrideNote, setOverrideNote] = useState('');
 
   const { data: effectiveTomorrow } = useEffectiveSchedule(overrideDate);
@@ -111,7 +112,7 @@ export default function CleanerCitySchedulePage() {
         ? {
             is_working: row.is_working,
             depart_time: timeToInput(row.depart_time) || '08:30',
-            return_time: timeToInput(row.return_time) || '18:30',
+            return_time: timeToInput(row.return_time) || '17:00',
           }
         : {
             ...emptyDay(),
@@ -160,7 +161,7 @@ export default function CleanerCitySchedulePage() {
 
   if (!profile) {
     return (
-      <AppLayout headerTitle="My commute schedule">
+      <CleanerCityChrome headerTitle="My commute schedule">
         <CleanerCityGate>
           <div className="p-4 pb-24 space-y-3" data-testid="cleaner-city-schedule-missing-profile">
             <p className="text-sm text-muted-foreground">
@@ -171,7 +172,7 @@ export default function CleanerCitySchedulePage() {
             </Link>
           </div>
         </CleanerCityGate>
-      </AppLayout>
+      </CleanerCityChrome>
     );
   }
 
@@ -318,7 +319,7 @@ export default function CleanerCitySchedulePage() {
   const host = profile?.role === 'host' || profile?.role === 'both';
 
   return (
-    <AppLayout headerTitle="My commute schedule">
+    <CleanerCityChrome headerTitle="My commute schedule">
       <CleanerCityGate>
         <div className="mx-auto flex w-full max-w-lg flex-col gap-6 px-4 pb-28 pt-4" data-testid="cleaner-city-schedule">
           {arrivalNotice ? (
@@ -360,7 +361,7 @@ export default function CleanerCitySchedulePage() {
           <div className="flex items-center justify-between gap-3 rounded-2xl border border-border bg-card px-4 py-3">
             {[
               { label: 'Times', done: weekSaved || weekAlreadyConfigured },
-              { label: 'Exceptions', done: overrides.length > 0 },
+              { label: 'One date', done: overrides.length > 0 },
               { label: 'Autopilot', done: !!profile.autopilot_enabled },
             ].map((step, i, arr) => (
               <div key={step.label} className="flex min-w-0 flex-1 items-center gap-2">
@@ -403,7 +404,7 @@ export default function CleanerCitySchedulePage() {
                 My week
               </TabsTrigger>
               <TabsTrigger value="exceptions" data-testid="schedule-tab-exceptions">
-                Exceptions
+                One date
               </TabsTrigger>
               <TabsTrigger value="settings" data-testid="schedule-tab-settings">
                 Settings
@@ -412,11 +413,16 @@ export default function CleanerCitySchedulePage() {
 
             <TabsContent value="week" className="mt-6 focus-visible:outline-none">
               <div className="flex flex-col gap-6">
+              <CleanerCityWeeklyPlanCard
+                onSaved={() => {
+                  setWeekSaved(true);
+                }}
+              />
               <section className="rounded-2xl border border-border bg-card p-5 space-y-5">
                 <div>
-                  <h2 className="text-sm font-semibold">Usual leave & return</h2>
+                  <h2 className="text-sm font-semibold">Fine-tune one weekday</h2>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    Set once for Mon-Fri. Tap a day chip to mark WFH / off, or tweak that day only.
+                    Optional. Prefer the card above for the whole week. Use this only if one day needs different times.
                   </p>
                 </div>
 
@@ -574,7 +580,7 @@ export default function CleanerCitySchedulePage() {
               <div className="flex flex-col gap-6">
               <section className="rounded-2xl border border-border bg-card p-5 space-y-4">
                 <div>
-                  <h2 className="text-sm font-semibold">Change one date</h2>
+                  <h2 className="text-sm font-semibold">One date only</h2>
                   <p className="text-xs text-muted-foreground mt-0.5">
                     Tomorrow is WFH, or you leave late once - does not rewrite your week plan.
                   </p>
@@ -790,6 +796,6 @@ export default function CleanerCitySchedulePage() {
           </Tabs>
         </div>
       </CleanerCityGate>
-    </AppLayout>
+    </CleanerCityChrome>
   );
 }

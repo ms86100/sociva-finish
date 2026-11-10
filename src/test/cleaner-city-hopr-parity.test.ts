@@ -91,7 +91,9 @@ describe('Cleaner City Hopr/QuickRide parity', () => {
   it('emergency contact soft-gates publish and request', () => {
     expect(offerPage).toContain('hasVerifiedEmergency');
     expect(offerPage).toContain('cleaner-city-offer-emergency-gate');
+    expect(offerPage).toContain('Not required to publish');
     expect(findPage).toContain('hasVerifiedEmergency');
-    expect(findPage).toContain('Add a verified emergency contact before requesting');
+    expect(findPage).toContain('Tip: add an emergency contact anytime in You → Safety');
+    expect(findPage).not.toContain('Add a verified emergency contact before requesting');
   });
 });

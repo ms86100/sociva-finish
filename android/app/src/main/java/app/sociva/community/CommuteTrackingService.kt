@@ -40,6 +40,7 @@ class CommuteTrackingService : Service() {
         private const val PREFS = "sociva_commute_tracking"
         private const val KEY_RIDE = "ride_id"
         private const val KEY_TOKEN = "access_token"
+        private const val KEY_REFRESH = "refresh_token"
         private const val KEY_URL = "supabase_url"
         private const val KEY_ANON = "anon_key"
     }
@@ -49,8 +50,10 @@ class CommuteTrackingService : Service() {
     private var listener: LocationListener? = null
     private var rideId: String? = null
     private var accessToken: String? = null
+    private var refreshToken: String? = null
     private var supabaseUrl: String? = null
     private var anonKey: String? = null
+    private var refreshInFlight = false
     private val pendingBodies = ArrayDeque<String>()
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -93,10 +96,12 @@ class CommuteTrackingService : Service() {
     private fun applyExtras(intent: Intent?) {
         if (intent == null) return
         val token = intent.getStringExtra("access_token").orEmpty()
+        val refresh = intent.getStringExtra("refresh_token").orEmpty()
         val nextRide = intent.getStringExtra("ride_id").orEmpty()
         val url = intent.getStringExtra("supabase_url").orEmpty().trimEnd('/')
         val key = intent.getStringExtra("anon_key").orEmpty()
         if (token.isNotBlank()) accessToken = token
+        if (refresh.isNotBlank()) refreshToken = refresh
         if (nextRide.isNotBlank()) rideId = nextRide
         if (url.isNotBlank()) supabaseUrl = url
         if (key.isNotBlank()) anonKey = key
@@ -107,12 +112,16 @@ class CommuteTrackingService : Service() {
         val token = accessToken ?: return
         val url = supabaseUrl ?: return
         val key = anonKey ?: return
-        getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+        val editor = getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
             .putString(KEY_RIDE, ride)
             .putString(KEY_TOKEN, token)
             .putString(KEY_URL, url)
             .putString(KEY_ANON, key)
-            .apply()
+        val refresh = refreshToken
+        if (!refresh.isNullOrBlank()) {
+            editor.putString(KEY_REFRESH, refresh)
+        }
+        editor.apply()
     }
 
     private fun clearPersisted() {
@@ -123,6 +132,7 @@ class CommuteTrackingService : Service() {
         val prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val ride = prefs.getString(KEY_RIDE, null).orEmpty()
         val token = prefs.getString(KEY_TOKEN, null).orEmpty()
+        val refresh = prefs.getString(KEY_REFRESH, null).orEmpty()
         val url = prefs.getString(KEY_URL, null).orEmpty()
         val key = prefs.getString(KEY_ANON, null).orEmpty()
         if (ride.isBlank() || token.isBlank() || url.isBlank() || key.isBlank()) return null
@@ -130,6 +140,7 @@ class CommuteTrackingService : Service() {
             action = ACTION_START
             putExtra("ride_id", ride)
             putExtra("access_token", token)
+            putExtra("refresh_token", refresh)
             putExtra("supabase_url", url)
             putExtra("anon_key", key)
         }
@@ -138,6 +149,7 @@ class CommuteTrackingService : Service() {
     override fun onDestroy() {
         clearListener()
         accessToken = null
+        refreshToken = null
         worker?.quitSafely()
         worker = null
         super.onDestroy()
@@ -146,6 +158,7 @@ class CommuteTrackingService : Service() {
     private fun startTracking(intent: Intent) {
         val nextRide = intent.getStringExtra("ride_id").orEmpty()
         val token = intent.getStringExtra("access_token").orEmpty()
+        val refresh = intent.getStringExtra("refresh_token").orEmpty()
         val url = intent.getStringExtra("supabase_url").orEmpty().trimEnd('/')
         val key = intent.getStringExtra("anon_key").orEmpty()
         if (nextRide.isBlank() || token.isBlank() || url.isBlank() || key.isBlank()) {
@@ -160,6 +173,7 @@ class CommuteTrackingService : Service() {
         }
         rideId = nextRide
         accessToken = token
+        if (refresh.isNotBlank()) refreshToken = refresh
         supabaseUrl = url
         anonKey = key
         persistSession()
@@ -234,7 +248,14 @@ class CommuteTrackingService : Service() {
                     synchronized(pendingBodies) { if (pendingBodies.isNotEmpty()) pendingBodies.removeFirst() }
                     continue
                 }
-                if (code == 401 || errorText.contains("Live location only")) {
+                if (code == 401) {
+                    if (tryRefreshAccessToken(base, key)) {
+                        continue
+                    }
+                    stopTracking()
+                    return
+                }
+                if (errorText.contains("Live location only")) {
                     stopTracking()
                 }
                 return
@@ -244,10 +265,52 @@ class CommuteTrackingService : Service() {
         }
     }
 
+    /** Refresh JWT when FGS outlives the access token; keep GPS alive across expiry. */
+    private fun tryRefreshAccessToken(base: String, key: String): Boolean {
+        val refresh = refreshToken
+        if (refresh.isNullOrBlank() || refreshInFlight) return false
+        refreshInFlight = true
+        try {
+            val body = JSONObject()
+                .put("refresh_token", refresh)
+                .toString()
+            val connection = (URL("$base/auth/v1/token?grant_type=refresh_token").openConnection() as HttpURLConnection)
+            connection.requestMethod = "POST"
+            connection.connectTimeout = 8000
+            connection.readTimeout = 8000
+            connection.doOutput = true
+            connection.setRequestProperty("Content-Type", "application/json")
+            connection.setRequestProperty("apikey", key)
+            connection.setRequestProperty("Authorization", "Bearer $key")
+            connection.outputStream.use { it.write(body.toByteArray()) }
+            val code = connection.responseCode
+            val responseText = if (code in 200..299) {
+                connection.inputStream.bufferedReader().use { it.readText() }
+            } else {
+                connection.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
+            }
+            connection.disconnect()
+            if (code !in 200..299) return false
+            val json = JSONObject(responseText)
+            val nextAccess = json.optString("access_token", "")
+            val nextRefresh = json.optString("refresh_token", "")
+            if (nextAccess.isBlank()) return false
+            accessToken = nextAccess
+            if (nextRefresh.isNotBlank()) refreshToken = nextRefresh
+            persistSession()
+            return true
+        } catch (_: Exception) {
+            return false
+        } finally {
+            refreshInFlight = false
+        }
+    }
+
     private fun stopTracking() {
         clearListener()
         synchronized(pendingBodies) { pendingBodies.clear() }
         accessToken = null
+        refreshToken = null
         rideId = null
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
         stopSelf()

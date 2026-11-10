@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -22,6 +22,32 @@ export function AdminCleanerCityTab() {
   const [meetupKind, setMeetupKind] = useState('gate');
 
   const [statsSocietyId, setStatsSocietyId] = useState('');
+  const [petrolRupees, setPetrolRupees] = useState('120');
+  const [petrolNote, setPetrolNote] = useState('');
+
+  const { data: fuelConfig, isLoading: fuelLoading } = useQuery({
+    queryKey: ['cleaner-city-admin-fuel-config'],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('cleaner_city_admin_get_fuel_config');
+      if (error) throw error;
+      return data as {
+        petrol_paise_per_litre: number;
+        petrol_rupees_per_litre: number;
+        mileage_km_per_litre: number;
+        fuel_paise_per_km: number;
+        last_updated_at?: string | null;
+        last_updated_by?: string | null;
+        history?: Array<{
+          id: string;
+          petrol_paise_per_litre: number;
+          set_by: string | null;
+          note: string | null;
+          created_at: string;
+        }>;
+      };
+    },
+    retry: 1,
+  });
 
   const { data: stats, isLoading: statsLoading } = useQuery({
     queryKey: ['cleaner-city-admin-stats', statsSocietyId.trim() || 'all'],
@@ -199,6 +225,30 @@ export function AdminCleanerCityTab() {
     onError: (e: any) => toast.error(e?.message || 'Scope update failed'),
   });
 
+  const setPetrol = useMutation({
+    mutationFn: async () => {
+      const n = Number(petrolRupees);
+      const { data, error } = await supabase.rpc('cleaner_city_admin_set_petrol_price', {
+        p_petrol_rupees: n,
+        p_note: petrolNote.trim() || null,
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      toast.success('Petrol price saved');
+      setPetrolNote('');
+      queryClient.invalidateQueries({ queryKey: ['cleaner-city-admin-fuel-config'] });
+    },
+    onError: (e: any) => toast.error(e?.message || 'Could not save petrol price'),
+  });
+
+  useEffect(() => {
+    if (fuelConfig?.petrol_rupees_per_litre != null) {
+      setPetrolRupees(String(fuelConfig.petrol_rupees_per_litre));
+    }
+  }, [fuelConfig?.petrol_rupees_per_litre]);
+
   return (
     <div className="space-y-4" data-testid="admin-cleaner-city-tab">
       <div className="flex items-center gap-2">
@@ -208,6 +258,92 @@ export function AdminCleanerCityTab() {
       <p className="text-sm text-muted-foreground max-w-2xl">
         Domains, safety incidents, match scope, and pilot metrics. Fuel paid by a guest is recorded as payable to the host.
       </p>
+
+      <Card data-testid="admin-cleaner-city-fuel-config">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm">Fuel Configuration</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-xs text-muted-foreground">
+            Only petrol price per litre is admin-controlled. Mileage is fixed at 10 km/L. Hosts and
+            guests never enter fuel amounts.
+          </p>
+          {fuelLoading ? (
+            <Skeleton className="h-16 w-full" />
+          ) : (
+            <div className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm">
+              <p className="font-semibold">
+                Current: ₹{Number(fuelConfig?.petrol_rupees_per_litre ?? 120).toFixed(2)} / litre
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                ≈ ₹{((fuelConfig?.fuel_paise_per_km ?? 1200) / 100).toFixed(0)}/km · mileage{' '}
+                {fuelConfig?.mileage_km_per_litre ?? 10} km/L
+              </p>
+              {fuelConfig?.last_updated_at ? (
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  Last updated {new Date(fuelConfig.last_updated_at).toLocaleString('en-IN')}
+                  {fuelConfig.last_updated_by ? ` · by ${fuelConfig.last_updated_by.slice(0, 8)}…` : ''}
+                </p>
+              ) : null}
+            </div>
+          )}
+          <div className="flex flex-wrap items-end gap-2">
+            <div className="space-y-1">
+              <label className="text-[11px] font-medium text-muted-foreground">
+                Petrol price (INR / litre)
+              </label>
+              <Input
+                type="number"
+                min={1}
+                max={500}
+                step="0.01"
+                value={petrolRupees}
+                onChange={(e) => setPetrolRupees(e.target.value)}
+                className="h-9 w-36"
+                placeholder="120"
+              />
+            </div>
+            <div className="space-y-1 flex-1 min-w-[10rem]">
+              <label className="text-[11px] font-medium text-muted-foreground">Note (optional)</label>
+              <Input
+                value={petrolNote}
+                onChange={(e) => setPetrolNote(e.target.value)}
+                className="h-9"
+                placeholder="e.g. City average update"
+              />
+            </div>
+            <Button
+              size="sm"
+              className="h-9"
+              disabled={setPetrol.isPending}
+              onClick={() => {
+                if (fuelConfig?.petrol_rupees_per_litre != null && !petrolRupees) {
+                  setPetrolRupees(String(fuelConfig.petrol_rupees_per_litre));
+                }
+                void setPetrol.mutateAsync();
+              }}
+            >
+              Save petrol price
+            </Button>
+          </div>
+          {(fuelConfig?.history || []).length > 0 ? (
+            <div className="space-y-1">
+              <p className="text-[11px] font-semibold text-muted-foreground">Price history</p>
+              <ul className="max-h-36 overflow-y-auto space-y-1 text-xs">
+                {(fuelConfig?.history || []).slice(0, 8).map((h) => (
+                  <li key={h.id} className="flex justify-between gap-2 border-b border-border/60 py-1">
+                    <span>₹{(h.petrol_paise_per_litre / 100).toFixed(2)}/L</span>
+                    <span className="text-muted-foreground">
+                      {new Date(h.created_at).toLocaleString('en-IN')}
+                      {h.note ? ` · ${h.note}` : ''}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+        </CardContent>
+      </Card>
 
       <Card data-testid="admin-cleaner-city-meetup-points-note">
         <CardHeader className="pb-2">

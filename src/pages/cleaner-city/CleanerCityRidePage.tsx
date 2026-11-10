@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
-import { AppLayout } from '@/components/layout/AppLayout';
+import { CleanerCityChrome } from '@/components/cleaner-city/CleanerCityChrome';
 import { CleanerCityGate } from '@/components/cleaner-city/CleanerCityGate';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -22,7 +22,6 @@ import {
   useMarkNoShow,
   useMeetupPoints,
   useOfficeLocations,
-  useProposeCostShare,
   usePublicationRides,
   useSetPublicationDropOrder,
   useQuickMessages,
@@ -110,7 +109,6 @@ export default function CleanerCityRidePage() {
   const startRide = useStartRide();
   const completeRide = useCompleteRide();
   const submitRating = useSubmitRating();
-  const proposeShare = useProposeCostShare();
   const confirmShare = useConfirmCostShare();
   const blockUser = useBlockUser();
   const setMeetingPoint = useSetMeetingPoint();
@@ -143,8 +141,6 @@ export default function CleanerCityRidePage() {
   const [shownOtp, setShownOtp] = useState('');
   const [stars, setStars] = useState(5);
   const [comment, setComment] = useState('');
-  const [rupees, setRupees] = useState('50');
-  const [fuelPrefilled, setFuelPrefilled] = useState(false);
   const [shareUrl, setShareUrl] = useState('');
   const [shareExpiresAt, setShareExpiresAt] = useState('');
   const [mapEl, setMapEl] = useState<HTMLDivElement | null>(null);
@@ -203,7 +199,7 @@ export default function CleanerCityRidePage() {
     );
   }, [publicationRides, ride?.publication_id]);
 
-  // Prefill fuel proposal from the ride's own estimate once, when it becomes available.
+  // Load latest paid fuel payment for host payout controls when the ride is completed.
   useEffect(() => {
     if (!ride?.id || !isHost || ride.status !== 'completed') return;
     let cancelled = false;
@@ -222,14 +218,6 @@ export default function CleanerCityRidePage() {
       cancelled = true;
     };
   }, [ride?.id, ride?.status, isHost]);
-
-  useEffect(() => {
-    if (fuelPrefilled || !ride) return;
-    if (ride.estimated_fuel_paise != null) {
-      setRupees(String(Math.max(1, Math.round(ride.estimated_fuel_paise / 100))));
-      setFuelPrefilled(true);
-    }
-  }, [ride, ride?.estimated_fuel_paise, fuelPrefilled]);
 
   // Map: published route polyline + live H/G + meeting pin (Uber/Hopr style live layer)
   useEffect(() => {
@@ -582,17 +570,17 @@ export default function CleanerCityRidePage() {
 
   if (isLoading && !ride) {
     return (
-      <AppLayout headerTitle="Ride">
+      <CleanerCityChrome headerTitle="Ride" immersive>
         <CleanerCityGate>
           <p className="p-4 text-sm text-muted-foreground">Loading ride...</p>
         </CleanerCityGate>
-      </AppLayout>
+      </CleanerCityChrome>
     );
   }
 
   if (!ride) {
     return (
-      <AppLayout headerTitle="Ride">
+      <CleanerCityChrome headerTitle="Ride" immersive>
         <CleanerCityGate>
           <div className="p-4 space-y-3">
             <p className="text-sm font-semibold">Could not open this ride</p>
@@ -605,12 +593,12 @@ export default function CleanerCityRidePage() {
             </Link>
           </div>
         </CleanerCityGate>
-      </AppLayout>
+      </CleanerCityChrome>
     );
   }
 
   return (
-    <AppLayout headerTitle="Active ride">
+    <CleanerCityChrome headerTitle="Active ride" immersive>
       <CleanerCityGate>
         <div className="p-4 pb-24 space-y-4" data-testid="cleaner-city-ride-page">
           {arrivalNotice && (
@@ -1415,46 +1403,60 @@ export default function CleanerCityRidePage() {
                 Submit rating
               </Button>
 
-              <div className="pt-2 border-t border-border space-y-2">
-                <Label>Propose fuel share (INR)</Label>
-                {shares.length === 0 ? (
-                  <p className="text-[11px] text-muted-foreground" data-testid="cleaner-city-fuel-empty">
-                    No fuel share yet. Propose an amount below - this is voluntary, not a metered fare.
-                    {capabilities && !fuelCheckoutReady
-                      ? ' Online fuel checkout is not configured yet - you can still propose and settle offline.'
-                      : ''}
-                  </p>
-                ) : null}
-                <Input
-                  type="number"
-                  min={0}
-                  value={rupees}
-                  onChange={(e) => setRupees(e.target.value)}
-                />
+              <div className="pt-2 border-t border-border space-y-2" data-testid="cleaner-city-fuel-auto">
+                <Label>Fuel share (automatic)</Label>
+                {(() => {
+                  const snap = ride.fuel_snapshot || {};
+                  const guestPaise =
+                    Number(snap.guest_share_paise) ||
+                    ride.estimated_fuel_paise ||
+                    0;
+                  const hostPaise =
+                    Number(snap.host_share_paise) ||
+                    ride.fuel_host_share_paise ||
+                    0;
+                  const totalPaise =
+                    Number(snap.total_fuel_paise) ||
+                    ride.fuel_total_paise ||
+                    guestPaise + hostPaise;
+                  const petrol =
+                    Number(snap.petrol_paise_per_litre) ||
+                    ride.fuel_petrol_paise_per_litre ||
+                    12000;
+                  const distM =
+                    Number(snap.distance_meters) ||
+                    ride.fuel_distance_meters ||
+                    0;
+                  if (!guestPaise) {
+                    return (
+                      <p className="text-[11px] text-muted-foreground" data-testid="cleaner-city-fuel-empty">
+                        Fuel share will appear after the seat is confirmed using admin petrol price and road distance.
+                      </p>
+                    );
+                  }
+                  return (
+                    <div className="rounded-xl border border-border bg-muted/20 px-3 py-2.5 space-y-1 text-sm">
+                      <p className="font-semibold text-emerald-900">
+                        Guest contribution: ₹{Math.max(1, Math.round(guestPaise / 100))}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Host share ₹{Math.max(0, Math.round(hostPaise / 100))} · journey total ₹
+                        {Math.max(1, Math.round(totalPaise / 100))}
+                        {distM > 0 ? ` · ${(distM / 1000).toFixed(1)} km` : ''}
+                      </p>
+                      <p className="text-[11px] text-muted-foreground">
+                        Calculated at petrol ₹{(petrol / 100).toFixed(0)}/L and 10 km/L. No markup.
+                        Amounts cannot be edited.
+                      </p>
+                    </div>
+                  );
+                })()}
                 <p className="text-[11px] text-muted-foreground">
-                  The guest pays the agreed amount through Razorpay. The host balance is recorded as payable. A bank transfer waits until a Razorpay route account is linked.
+                  The guest pays the calculated share through Razorpay. The host balance is recorded as payable.
+                  {capabilities && !fuelCheckoutReady
+                    ? ' Online fuel checkout is not configured yet.'
+                    : ''}
                 </p>
-                <Button
-                  variant="outline"
-                  onClick={async () => {
-                    try {
-                      const paise = Math.round(Number(rupees) * 100);
-                      if (!Number.isFinite(paise) || paise <= 0) {
-                        toast.error('Enter a fuel share amount greater than zero');
-                        return;
-                      }
-                      await proposeShare.mutateAsync({
-                        ride_id: ride.id,
-                        amount_paise: paise,
-                      });
-                      toast.success('Cost share proposed');
-                    } catch (e: any) {
-                      toast.error(e?.message || 'Failed');
-                    }
-                  }}
-                >
-                  Propose cost share
-                </Button>
                 {ride.status === 'completed' && !isHost && (
                   <Button
                     variant="outline"
@@ -1630,6 +1632,6 @@ export default function CleanerCityRidePage() {
           )}
         </div>
       </CleanerCityGate>
-    </AppLayout>
+    </CleanerCityChrome>
   );
 }

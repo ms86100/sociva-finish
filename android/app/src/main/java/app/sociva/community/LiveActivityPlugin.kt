@@ -48,6 +48,7 @@ class LiveActivityPlugin : Plugin() {
     fun startCommuteTracking(call: PluginCall) {
         val rideId = call.getString("ride_id")
         val token = call.getString("access_token")
+        val refresh = call.getString("refresh_token")
         val url = call.getString("supabase_url")
         val anon = call.getString("anon_key")
         if (rideId.isNullOrBlank() || token.isNullOrBlank() || url.isNullOrBlank() || anon.isNullOrBlank()) {
@@ -58,6 +59,7 @@ class LiveActivityPlugin : Plugin() {
             action = CommuteTrackingService.ACTION_START
             putExtra("ride_id", rideId)
             putExtra("access_token", token)
+            putExtra("refresh_token", refresh)
             putExtra("supabase_url", url)
             putExtra("anon_key", anon)
         }
@@ -82,6 +84,7 @@ class LiveActivityPlugin : Plugin() {
     fun updateCommuteTracking(call: PluginCall) {
         val rideId = call.getString("ride_id")
         val token = call.getString("access_token")
+        val refresh = call.getString("refresh_token")
         val url = call.getString("supabase_url")
         val anon = call.getString("anon_key")
         if (rideId.isNullOrBlank() || token.isNullOrBlank() || url.isNullOrBlank() || anon.isNullOrBlank()) {
@@ -92,6 +95,7 @@ class LiveActivityPlugin : Plugin() {
             action = CommuteTrackingService.ACTION_UPDATE
             putExtra("ride_id", rideId)
             putExtra("access_token", token)
+            putExtra("refresh_token", refresh)
             putExtra("supabase_url", url)
             putExtra("anon_key", anon)
         }

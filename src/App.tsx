@@ -231,6 +231,9 @@ const HelpHubFindPage = lazyWithRetry(() => import("./pages/helphub/HelpHubFindP
 const HelpHubLookingForWorkPage = lazyWithRetry(() => import("./pages/helphub/HelpHubLookingForWorkPage"));
 const HelpHubListingPage = lazyWithRetry(() => import("./pages/helphub/HelpHubListingPage"));
 const CleanerCityPage = lazyWithRetry(() => import("./pages/cleaner-city/CleanerCityPage"));
+const CleanerCityDiscoverPage = lazyWithRetry(() => import("./pages/cleaner-city/CleanerCityDiscoverPage"));
+const CleanerCityRidesPage = lazyWithRetry(() => import("./pages/cleaner-city/CleanerCityRidesPage"));
+const CleanerCityProfileHubPage = lazyWithRetry(() => import("./pages/cleaner-city/CleanerCityProfileHubPage"));
 const CleanerCitySetupPage = lazyWithRetry(() => import("./pages/cleaner-city/CleanerCitySetupPage"));
 const CleanerCitySchedulePage = lazyWithRetry(() => import("./pages/cleaner-city/CleanerCitySchedulePage"));
 const CleanerCityVehiclePage = lazyWithRetry(() => import("./pages/cleaner-city/CleanerCityVehiclePage"));
@@ -242,6 +245,7 @@ const CleanerCitySharePage = lazyWithRetry(() => import("./pages/cleaner-city/Cl
 const CleanerCityCirclesPage = lazyWithRetry(() => import("./pages/cleaner-city/CleanerCityCirclesPage"));
 const CleanerCitySafetyPage = lazyWithRetry(() => import("./pages/cleaner-city/CleanerCitySafetyPage"));
 const CleanerCityChatPage = lazyWithRetry(() => import("./pages/cleaner-city/CleanerCityChatPage"));
+const CleanerCityPrototypeApp = lazyWithRetry(() => import("./pages/cleaner-city/prototype/PrototypeApp"));
 const CreateJobRequestPage = lazyWithRetry(() => import("./pages/CreateJobRequestPage"));
 const SocietyNoticesPage = lazyWithRetry(() => import("./pages/SocietyNoticesPage"));
 const SocietyDeliveriesPage = lazyWithRetry(() => import("./pages/SocietyDeliveriesPage"));
@@ -713,6 +717,8 @@ function AppRoutes() {
         <Route path="/help" element={<HelpPage />} />
         <Route path="/talk-to-sociva" element={<RouteErrorBoundary sectionName="Talk to Sociva"><TalkToSocivaPage /></RouteErrorBoundary>} />
         <Route path="/community-rules" element={<CommunityRulesPage />} />
+        {/* Isolated UX mockup - no AppShell / BottomNav, no auth, mock data only */}
+        <Route path="/cleaner-city/prototype/*" element={<RouteErrorBoundary sectionName="Cleaner City Prototype"><CleanerCityPrototypeApp /></RouteErrorBoundary>} />
 
         {/* Persistent chrome shell - Header/BottomNav stay mounted across these routes */}
         <Route element={<AppShellGate />}>
@@ -766,6 +772,9 @@ function AppRoutes() {
           <Route path="/help-hub/work" element={<ProtectedRoute><RouteErrorBoundary sectionName="HelpHub Work"><HelpHubLookingForWorkPage /></RouteErrorBoundary></ProtectedRoute>} />
           <Route path="/help-hub/listing/:id" element={<ProtectedRoute><RouteErrorBoundary sectionName="HelpHub Listing"><HelpHubListingPage /></RouteErrorBoundary></ProtectedRoute>} />
           <Route path="/cleaner-city" element={<ProtectedRoute><RouteErrorBoundary sectionName="A Cleaner City"><CleanerCityPage /></RouteErrorBoundary></ProtectedRoute>} />
+          <Route path="/cleaner-city/discover" element={<ProtectedRoute><RouteErrorBoundary sectionName="A Cleaner City Discover"><CleanerCityDiscoverPage /></RouteErrorBoundary></ProtectedRoute>} />
+          <Route path="/cleaner-city/rides" element={<ProtectedRoute><RouteErrorBoundary sectionName="A Cleaner City Rides"><CleanerCityRidesPage /></RouteErrorBoundary></ProtectedRoute>} />
+          <Route path="/cleaner-city/profile" element={<ProtectedRoute><RouteErrorBoundary sectionName="A Cleaner City Profile"><CleanerCityProfileHubPage /></RouteErrorBoundary></ProtectedRoute>} />
           <Route path="/cleaner-city/setup" element={<ProtectedRoute><RouteErrorBoundary sectionName="A Cleaner City Setup"><CleanerCitySetupPage /></RouteErrorBoundary></ProtectedRoute>} />
           <Route path="/cleaner-city/schedule" element={<ProtectedRoute><RouteErrorBoundary sectionName="A Cleaner City Schedule"><CleanerCitySchedulePage /></RouteErrorBoundary></ProtectedRoute>} />
           <Route path="/cleaner-city/vehicle" element={<ProtectedRoute><RouteErrorBoundary sectionName="A Cleaner City Vehicle"><CleanerCityVehiclePage /></RouteErrorBoundary></ProtectedRoute>} />

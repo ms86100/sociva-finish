@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { AppLayout } from '@/components/layout/AppLayout';
+import { CleanerCityChrome } from '@/components/cleaner-city/CleanerCityChrome';
 import { supabase } from '@/integrations/supabase/client';
 import { useGoogleMaps } from '@/hooks/useGoogleMaps';
 import {
@@ -79,7 +79,7 @@ export default function CleanerCitySharePage() {
   const tone = locationFreshnessTone(freshest?.recorded_at);
 
   return (
-    <AppLayout headerTitle="Trip share">
+    <CleanerCityChrome headerTitle="Trip share" immersive>
       <div className="p-4 space-y-3" data-testid="cleaner-city-share-page">
         {error && (
           <p className="text-sm text-destructive" data-testid="cleaner-city-share-error">
@@ -114,6 +114,6 @@ export default function CleanerCitySharePage() {
           </>
         )}
       </div>
-    </AppLayout>
+    </CleanerCityChrome>
   );
 }
