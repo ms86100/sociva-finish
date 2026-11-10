@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Phone, MessageCircle, User, Store, Loader2, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -12,6 +12,14 @@ import { sellerCreditCustomerMessage } from '@/lib/sellerCredits';
 import { track } from '@/lib/analytics';
 import { contactFailureCode } from '@/lib/analytics-marketplace';
 import { setPendingAuthAction } from '@/lib/pending-auth-action';
+import {
+  fetchVoipCapabilities,
+  startVoipCall,
+  type VoipCapabilities,
+} from '@/lib/calling/CallManager';
+import { resolveOrderCall } from '@/lib/calling/resolveCallContext';
+import { ORDER_CALL_HONESTY } from '@/lib/calling/orderCallPolicy';
+import { toast } from 'sonner';
 
 interface ContactSellerModalProps {
   open: boolean;
@@ -38,7 +46,32 @@ export function ContactSellerModal({
   const [phone, setPhone] = useState<string | null>(null);
   const [phase, setPhase] = useState<ContactPhase>('choose');
   const [busy, setBusy] = useState(false);
+  const [voipCaps, setVoipCaps] = useState<VoipCapabilities | null>(null);
   const actionLock = useRef(false);
+  const voipReady = voipCaps?.can_place_calls === true;
+
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    fetchVoipCapabilities()
+      .then((caps) => {
+        if (!cancelled) setVoipCaps(caps);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setVoipCaps({
+            enabled: false,
+            livekit_configured: false,
+            apple_voip_push_configured: false,
+            android_voip_push_configured: true,
+            can_place_calls: false,
+          });
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
 
   const resetState = useCallback(() => {
     setPhase('choose');
@@ -100,7 +133,8 @@ export function ContactSellerModal({
     const oid = (row?.order_id as string) ?? null;
     const revealedPhone = (row?.phone as string) ?? null;
 
-    if (!id || !revealedPhone) {
+    // Prefer order_id for in-app VoIP; phone is only needed as last-resort tel: fallback.
+    if (!id || (!oid && !revealedPhone)) {
       setPhase('choose');
       track('contact_failed', {
         seller_id: sellerId,
@@ -114,25 +148,71 @@ export function ContactSellerModal({
 
     setInteractionId(id);
     setOrderId(oid);
-    setPhone(revealedPhone);
+    // Only keep phone when VoIP is not ready - avoid leading with a number reveal.
+    setPhone(voipReady ? null : revealedPhone);
     setPhase('success');
     track('contact_started', {
       seller_id: sellerId,
       product_id: productId,
       channel: type,
       order_id: oid,
+      voip: voipReady,
     });
 
     supabase.functions.invoke('process-notification-queue').catch(() => {});
 
-    return { id, oid, phone: revealedPhone, conversationId: row?.conversation_id as string | undefined };
-  }, [buyerId, sellerId, productId, navigate, handleOpenChange]);
+    return {
+      id,
+      oid,
+      phone: revealedPhone,
+      conversationId: row?.conversation_id as string | undefined,
+    };
+  }, [buyerId, sellerId, productId, navigate, handleOpenChange, voipReady]);
 
   const handleCall = async () => {
     const result = await initiateContact('call');
-    if (!result?.phone) return;
-    window.location.href = `tel:${result.phone}`;
-    setTimeout(() => setFeedbackOpen(true), 5000);
+    if (!result) return;
+
+    if (voipReady && result.oid) {
+      try {
+        const ctx = resolveOrderCall(result.oid, false);
+        await startVoipCall({
+          contextType: ctx.contextType,
+          contextId: result.oid,
+          idempotencyKey: `contact:${result.oid}:${Date.now()}`,
+        });
+        toast.success('Calling seller in Sociva');
+        track('contact_voip_started', {
+          seller_id: sellerId,
+          product_id: productId,
+          order_id: result.oid,
+        });
+        setTimeout(() => setFeedbackOpen(true), 8000);
+        return;
+      } catch (e: any) {
+        const msg = e?.message || '';
+        if (msg.includes('call_rate_limited')) {
+          toast.message('Too many calls on this enquiry - try chat');
+          setChatOpen(true);
+          handleOpenChange(false);
+          return;
+        }
+        toast.message('Could not start in-app call - try Message');
+        // Fall through to tel: only when VoIP failed and phone exists.
+      }
+    }
+
+    if (result.phone && !voipReady) {
+      window.location.href = `tel:${result.phone}`;
+      setTimeout(() => setFeedbackOpen(true), 5000);
+      return;
+    }
+
+    if (result.oid) {
+      toast.message('Open the enquiry to message the seller');
+      navigate(`/orders/${result.oid}`);
+      handleOpenChange(false);
+    }
   };
 
   const handleMessage = async () => {
@@ -176,7 +256,7 @@ export function ContactSellerModal({
               <div>
                 <p className="font-semibold text-sm">{sellerName}</p>
                 <p className="text-xs text-muted-foreground">Re: {productName}</p>
-                {phone && phase === 'success' && (
+                {phone && phase === 'success' && !voipReady && (
                   <p className="text-sm text-muted-foreground mt-1">{phone}</p>
                 )}
               </div>
@@ -196,7 +276,9 @@ export function ContactSellerModal({
                   Contact request sent
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  The seller has been notified. You can call, message, or track this enquiry anytime.
+                  {voipReady
+                    ? `${ORDER_CALL_HONESTY}. You can call, message, or track this enquiry anytime.`
+                    : 'The seller has been notified. You can call, message, or track this enquiry anytime.'}
                 </p>
                 {orderId && (
                   <Button variant="outline" size="sm" className="w-full" onClick={handleViewEnquiry}>
@@ -209,15 +291,18 @@ export function ContactSellerModal({
             {phase === 'choose' && (
               <>
                 <p className="text-xs text-muted-foreground px-1">
-                  Your contact details will be shared with the seller when you proceed.
+                  {voipReady
+                    ? `${ORDER_CALL_HONESTY}. An enquiry is created so you can keep chatting after.`
+                    : 'Your contact details will be shared with the seller when you proceed.'}
                 </p>
                 <Button
                   onClick={handleCall}
                   disabled={busy}
                   className="w-full gap-2"
+                  data-testid="contact-seller-call"
                 >
                   {busy ? <Loader2 className="animate-spin" size={16} /> : <Phone size={16} />}
-                  Call Seller
+                  {voipReady ? 'Call in Sociva' : 'Call Seller'}
                 </Button>
                 <Button
                   variant="outline"
@@ -233,8 +318,14 @@ export function ContactSellerModal({
 
             {phase === 'success' && (
               <div className="flex gap-2">
-                <Button onClick={handleCall} variant="outline" className="flex-1 gap-2" disabled={busy}>
-                  <Phone size={16} /> Call again
+                <Button
+                  onClick={handleCall}
+                  variant="outline"
+                  className="flex-1 gap-2"
+                  disabled={busy}
+                  data-testid="contact-seller-call-again"
+                >
+                  <Phone size={16} /> {voipReady ? 'Call again in Sociva' : 'Call again'}
                 </Button>
                 <Button onClick={handleMessage} className="flex-1 gap-2" disabled={busy}>
                   <MessageCircle size={16} /> Message

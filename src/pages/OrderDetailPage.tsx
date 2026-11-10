@@ -98,6 +98,14 @@ import { parseProximityOverlayMessages } from '@/lib/proximity-overlay-messages'
 import { useAuth } from '@/contexts/AuthContext';
 import { ScheduledOrderBanner } from '@/components/orders/ScheduledOrderBanner';
 import { formatScheduledDateTime, getScheduledCountdownLabel, isScheduledOrder, isUpcomingScheduled } from '@/lib/scheduled-orders';
+import { CallButton } from '@/components/calling/CallButton';
+import { resolveOrderCall } from '@/lib/calling/resolveCallContext';
+import { fetchVoipCapabilities, type VoipCapabilities } from '@/lib/calling/CallManager';
+import {
+  canPlaceOrderCall,
+  isOrderStatusCallable,
+  ORDER_CALL_HONESTY,
+} from '@/lib/calling/orderCallPolicy';
 
 const DeliveryMapView = lazy(() => import('@/components/delivery/DeliveryMapView').then(m => ({ default: m.DeliveryMapView })));
 
@@ -376,6 +384,29 @@ export default function OrderDetailPage() {
   // Notification → Action deep-link continuity: scroll to + pulse the Accept Order hero.
   const acceptHeroRef = useRef<HTMLDivElement | null>(null);
   const [pulseAcceptHero, setPulseAcceptHero] = useState(false);
+  const [voipCaps, setVoipCaps] = useState<VoipCapabilities | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchVoipCapabilities()
+      .then((caps) => {
+        if (!cancelled) setVoipCaps(caps);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setVoipCaps({
+            enabled: false,
+            livekit_configured: false,
+            apple_voip_push_configured: false,
+            android_voip_push_configured: true,
+            can_place_calls: false,
+          });
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const siblingsQuery = useCheckoutSiblings({
     orderId: o.order?.id,
@@ -1180,11 +1211,30 @@ export default function OrderDetailPage() {
                 <p className="text-xs text-muted-foreground mt-0.5">
                   {(order as any).needs_attention_reason || 'There may be a delay with your order. Contact the seller if needed.'}
                 </p>
-                {sellerProfile?.phone && (
+                {canPlaceOrderCall(order.status, voipCaps) && order.id ? (
+                  <div className="mt-2" data-testid="order-attention-in-app-call">
+                    <CallButton
+                      contextType={resolveOrderCall(order.id, !!o.isSellerView).contextType}
+                      contextId={order.id}
+                      className="h-9 w-full text-xs font-semibold"
+                      onFallback={() => {
+                        if (o.canChat && o.chatRecipientId) o.setIsChatOpen(true);
+                      }}
+                    />
+                  </div>
+                ) : sellerProfile?.phone && !voipCaps?.can_place_calls ? (
                   <a href={`tel:${sellerProfile.phone}`} className="inline-flex items-center gap-1 text-xs font-medium text-primary mt-1.5">
                     <Phone size={12} /> Contact Seller
                   </a>
-                )}
+                ) : o.canChat && o.chatRecipientId ? (
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-1 text-xs font-medium text-primary mt-1.5"
+                    onClick={() => o.setIsChatOpen(true)}
+                  >
+                    <MessageCircle size={12} /> Message seller
+                  </button>
+                ) : null}
               </div>
             </div>
           )}
@@ -1602,7 +1652,22 @@ export default function OrderDetailPage() {
                 )}
               </div>
               <div className="flex items-center gap-2">
-                {o.isBuyerView && sellerProfile?.phone && ['contact_seller', 'request_service'].includes((order as any).action_type || '') && (
+                {o.canChat && o.chatRecipientId ? (
+                  <button
+                    type="button"
+                    className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center shrink-0"
+                    title="Message"
+                    data-testid="order-partner-message"
+                    onClick={() => o.setIsChatOpen(true)}
+                  >
+                    <MessageCircle size={16} className="text-primary" />
+                  </button>
+                ) : null}
+                {!canPlaceOrderCall(order.status, voipCaps) &&
+                  o.isBuyerView &&
+                  sellerProfile?.phone &&
+                  !voipCaps?.can_place_calls &&
+                  ['contact_seller', 'request_service'].includes((order as any).action_type || '') && (
                   <a
                     href={`https://wa.me/${sellerProfile.phone.replace(/[^0-9]/g, '')}`}
                     target="_blank"
@@ -1613,11 +1678,28 @@ export default function OrderDetailPage() {
                     <Phone size={16} className="text-green-600" />
                   </a>
                 )}
-                {(o.isSellerView ? buyer?.phone : sellerProfile?.phone) && (
-                  <a href={`tel:${o.isSellerView ? buyer?.phone : sellerProfile?.phone}`} className="w-9 h-9 rounded-full bg-accent/10 flex items-center justify-center shrink-0"><Phone size={16} className="text-accent" /></a>
+                {!canPlaceOrderCall(order.status, voipCaps) &&
+                  !voipCaps?.can_place_calls &&
+                  (o.isSellerView ? buyer?.phone : sellerProfile?.phone) && (
+                  <a href={`tel:${o.isSellerView ? buyer?.phone : sellerProfile?.phone}`} className="w-9 h-9 rounded-full bg-accent/10 flex items-center justify-center shrink-0" title="Call on phone"><Phone size={16} className="text-accent" /></a>
                 )}
               </div>
             </div>
+            {isOrderStatusCallable(order.status) && order.id ? (
+              <div className="mt-3 space-y-1" data-testid="order-in-app-call-panel">
+                <CallButton
+                  contextType={resolveOrderCall(order.id, !!o.isSellerView).contextType}
+                  contextId={order.id}
+                  onFallback={() => {
+                    if (o.canChat && o.chatRecipientId) o.setIsChatOpen(true);
+                    else toast.message('Message your partner from chat when available');
+                  }}
+                />
+                {!voipCaps?.can_place_calls ? (
+                  <p className="text-[11px] text-muted-foreground px-1">{ORDER_CALL_HONESTY}. Chat works anytime.</p>
+                ) : null}
+              </div>
+            ) : null}
           </motion.div>
 
           {/* Items */}

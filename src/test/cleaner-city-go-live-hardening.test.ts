@@ -27,8 +27,10 @@ describe('Cleaner City go-live hardening', () => {
     expect(offer).toContain('Could not save the driving road on this offer');
   });
 
-  it('Ride call panel uses relay_call capability instead of dead voip keys only', () => {
+  it('Ride call panel uses LiveKit voip caps then relay_call fallback', () => {
     const ride = readSrc('src/pages/cleaner-city/CleanerCityRidePage.tsx');
+    expect(ride).toContain('fetchVoipCapabilities');
+    expect(ride).toContain('can_place_calls');
     expect(ride).toContain('useRequestMaskedCall');
     expect(ride).toContain('relay_call');
     expect(ride).toContain('cleaner-city-relay-call');

@@ -108,11 +108,13 @@ export function CallButton({
               ? 'Call in Sociva'
               : 'In-app calling not live yet'}
       </Button>
-      {!canCall && caps ? (
+      {caps ? (
         <p className="text-[11px] text-muted-foreground px-1" data-testid="sociva-call-honesty">
-          In-app calling turns on when LiveKit and push are ready
-          {caps.enabled ? '' : ' (flag still off on server)'}
-          . Numbers stay private - use chat meanwhile.
+          {canCall
+            ? 'In-app call - numbers stay private'
+            : `In-app calling turns on when LiveKit and push are ready${
+                caps.enabled ? '' : ' (flag still off on server)'
+              }. Numbers stay private - use chat meanwhile.`}
         </p>
       ) : null}
     </div>

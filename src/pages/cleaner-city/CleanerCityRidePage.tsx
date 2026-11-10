@@ -61,6 +61,7 @@ import { resolveCleanerCityRideCall } from '@/lib/calling/resolveCallContext';
 import {
   fetchVoipCapabilities,
   startVoipCall,
+  type VoipCapabilities,
 } from '@/lib/calling/CallManager';
 import {
   canOpenDispute,
@@ -119,9 +120,8 @@ export default function CleanerCityRidePage() {
   const report = useReportIncident();
   const dispatchSafety = useDispatchSafetyAlerts();
   const relayCallReady = capabilities?.relay_call === true;
-  const voipCallReady =
-    (capabilities as { voip_call?: boolean; livekit?: boolean } | undefined)?.voip_call === true ||
-    (capabilities as { voip_call?: boolean; livekit?: boolean } | undefined)?.livekit === true;
+  const [voipCaps, setVoipCaps] = useState<VoipCapabilities | null>(null);
+  const voipCallReady = voipCaps?.can_place_calls === true;
   const shareToken = useCreateShareToken();
   const revokeShare = useRevokeShareToken();
   const generateOtp = useGenerateRideOtp();
@@ -192,6 +192,28 @@ export default function CleanerCityRidePage() {
   const [sosConfirmOpen, setSosConfirmOpen] = useState(false);
   const [rideTab, setRideTab] = useState<RideWorkspaceTab>('trip');
   const [heroCallBusy, setHeroCallBusy] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchVoipCapabilities()
+      .then((caps) => {
+        if (!cancelled) setVoipCaps(caps);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setVoipCaps({
+            enabled: false,
+            livekit_configured: false,
+            apple_voip_push_configured: false,
+            android_voip_push_configured: true,
+            can_place_calls: false,
+          });
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const [sharingLivePin, setSharingLivePin] = useState(false);
 
   const isHost = ride?.host_user_id === user?.id;
