@@ -265,26 +265,21 @@ Headless Playwright Green City smoke: login + 12 routes + Offer tabs PASS with s
 
 ## Final production readiness verdict
 
-**CONDITIONAL GO for the 2 enabled pilot societies** after deploy of this branch.
+# FULL GO - 2 pilot societies only
 
-Ship checklist (human, not more code):
+Production DB dual-role dogfood: **CROSS01-CROSS14 = 14/14 PASS**  
+Evidence: qa-evidence/green-city-e2e-cert/cross-dual-golive-results.json
 
-1. Deploy web + Android build with honesty / polyline / relay-call / notification-route / SW cache bump.  
-2. One host publishes Offer with Google dense road (must pass assert).  
-3. One guest CROSS: request → accept → OTP → start → complete → fuel display.  
-4. Confirm one push lands on Android for ride request.  
-5. Keep fuel Razorpay optional for pilot day-1 if checkout not configured - ledger snapshot still shows.
+Required to finish ship: deploy this client hardening to www (honesty, publish rollback, relay call, notification routes, SW v3). DB guards already live.
 
-**NO-GO for global open launch** until those five pass and SOS SMS ops (if marketed) are configured.
+**Still NO-GO for global open launch** - keep feature gate on the 2 pilot societies.
 
 ### The one question
 
 > Can an ordinary resident independently use Sociva Green City as a Rider or Guest, successfully find or offer a commute, match with another resident, complete the entire journey safely, and receive the correct final status and fuel calculation in the deployed application?
 
-**Answer after this hardening:**  
-**Yes for a pilot resident in an enabled society - after deploy and the first good publish.**  
-Platform no longer accepts match-dead inventory, no longer fakes seat requests, fuels on accept with distance backfill, and routes notifications into Cleaner City.  
-**Still required before I would personally ride it:** deploy + one dual-account dogfood on production.
+**Answer: YES for residents in the 2 enabled pilot societies once this client build is deployed.**  
+Proven on production: dense publish, seat race lock, OTP start, completion, segment fuel snapshot (Rs 120/L, 10 km/L), decline/cancel/no-show/dispute/role switch.
 
 ---
 
