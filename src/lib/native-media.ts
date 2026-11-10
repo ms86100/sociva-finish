@@ -46,6 +46,9 @@ function isGranted(status: string | undefined): boolean {
 /**
  * Ask the OS for camera and/or photo-library access before opening the picker.
  * Returns which capabilities are available after the prompt.
+ *
+ * Android gallery picks use the system Photo Picker and need no photos permission.
+ * Still request camera when capturing, and photos on iOS for library access.
  */
 async function ensureMediaPermissions(opts: {
   camera?: boolean;
@@ -53,13 +56,22 @@ async function ensureMediaPermissions(opts: {
 }): Promise<{ cameraOk: boolean; photosOk: boolean }> {
   const wantCamera = !!opts.camera;
   const wantPhotos = !!opts.photos;
+  const androidPhotoPicker = Capacitor.getPlatform() === 'android' && wantPhotos && !wantCamera;
   const { Camera } = await import('@capacitor/camera');
+
+  // Android Photo Picker path: skip broad photos permission entirely.
+  if (androidPhotoPicker) {
+    return { cameraOk: true, photosOk: true };
+  }
 
   let status = await Camera.checkPermissions();
 
   const toRequest: Array<'camera' | 'photos'> = [];
   if (wantCamera && !isGranted(status.camera)) toRequest.push('camera');
-  if (wantPhotos && !isGranted(status.photos)) toRequest.push('photos');
+  // On Android, gallery access uses the system picker - do not request READ_MEDIA_*.
+  if (wantPhotos && Capacitor.getPlatform() !== 'android' && !isGranted(status.photos)) {
+    toRequest.push('photos');
+  }
 
   if (toRequest.length > 0) {
     status = await Camera.requestPermissions({ permissions: toRequest });
@@ -69,7 +81,10 @@ async function ensureMediaPermissions(opts: {
 
   return {
     cameraOk: !wantCamera || isGranted(status.camera),
-    photosOk: !wantPhotos || isGranted(status.photos),
+    photosOk:
+      !wantPhotos ||
+      Capacitor.getPlatform() === 'android' ||
+      isGranted(status.photos),
   };
 }
 

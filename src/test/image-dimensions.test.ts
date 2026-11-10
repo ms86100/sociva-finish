@@ -79,7 +79,8 @@ describe('account profile photo picker', () => {
     expect(media).toMatch(/photosOk && !cameraOk/);
     expect(media).toMatch(/CameraSource\.Camera/);
     expect(manifest).toContain('android.permission.CAMERA');
-    expect(manifest).toContain('android.permission.READ_MEDIA_IMAGES');
-    expect(manifest).toContain('android.permission.READ_EXTERNAL_STORAGE');
+    // Play policy: use system Photo Picker; strip broad READ_MEDIA_* from the merge.
+    expect(manifest).toContain('android.permission.READ_MEDIA_IMAGES" tools:node="remove"');
+    expect(manifest).not.toMatch(/android:name="android\.permission\.READ_MEDIA_IMAGES"\s*\/>/);
   });
 });
