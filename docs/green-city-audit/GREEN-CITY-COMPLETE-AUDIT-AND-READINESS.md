@@ -270,7 +270,7 @@ Headless Playwright Green City smoke: login + 12 routes + Offer tabs PASS with s
 Production DB dual-role dogfood: **CROSS01-CROSS14 = 14/14 PASS**  
 Evidence: qa-evidence/green-city-e2e-cert/cross-dual-golive-results.json
 
-Client deploy: **DONE** on www.sociva.in / sociva.in (SHA 30bae7, SW js-runtime-v3).
+Client deploy: **DONE** on www.sociva.in / sociva.in (SHA 892e399, SW js-runtime-v3).
 
 **Still NO-GO for global open launch** - keep feature gate on the 2 pilot societies.
 
