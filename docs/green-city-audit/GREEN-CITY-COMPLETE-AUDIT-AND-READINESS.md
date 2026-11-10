@@ -11,13 +11,13 @@
 
 ### Is Green City usable by an ordinary resident today?
 
-**YES for the 2 enabled pilot societies - FULL GO on backend lifecycle.**  
+**YES for the 2 enabled pilot societies - backend lifecycle proven.**  
 Dual-host/guest CROSS01-CROSS14 all **PASS** on production DB (request→accept→meeting→OTP→start→route update→complete→ratings→fuel segment snapshot→decline→cancel/seat release→last-seat race→no-show→dispute→role switch). Evidence: `qa-evidence/green-city-e2e-cert/cross-dual-golive-results.json`.
 
 ### Would I trust Green City enough to put real money behind a controlled pilot?
 
-**YES - FULL GO for the 2 pilot societies after this client deploy lands on www.**  
-I still would **not** open every society yet. Remaining ops only: ship client build, keep feature gate on those 2 societies, optional Android push spot-check.
+**CONDITIONAL GO for the 2 pilot societies.** Client is live on www; CROSS01-14 dual-role dogfood is green.  
+I still would **not** open every society yet. Remaining before calling FULL GO: one physical dual-phone UI dogfood (host publish + guest request/OTP/complete) and one Android push landing check.
 
 ### What was non-functional - and what we fixed for go-live trust
 
@@ -265,21 +265,24 @@ Headless Playwright Green City smoke: login + 12 routes + Offer tabs PASS with s
 
 ## Final production readiness verdict
 
-# FULL GO - 2 pilot societies only
+# CONDITIONAL GO - 2 pilot societies only
 
 Production DB dual-role dogfood: **CROSS01-CROSS14 = 14/14 PASS**  
 Evidence: qa-evidence/green-city-e2e-cert/cross-dual-golive-results.json
 
-Required to finish ship: deploy this client hardening to www (honesty, publish rollback, relay call, notification routes, SW v3). DB guards already live.
+Client deploy: **DONE** on www.sociva.in / sociva.in (SHA 30bae7, SW js-runtime-v3).
 
 **Still NO-GO for global open launch** - keep feature gate on the 2 pilot societies.
+
+Upgrade to FULL GO after: one physical dual-phone Offer→Request→OTP→Complete pass + one Android ride-request push confirm.
 
 ### The one question
 
 > Can an ordinary resident independently use Sociva Green City as a Rider or Guest, successfully find or offer a commute, match with another resident, complete the entire journey safely, and receive the correct final status and fuel calculation in the deployed application?
 
-**Answer: YES for residents in the 2 enabled pilot societies once this client build is deployed.**  
-Proven on production: dense publish, seat race lock, OTP start, completion, segment fuel snapshot (Rs 120/L, 10 km/L), decline/cancel/no-show/dispute/role switch.
+**Answer: YES for residents in the 2 enabled pilot societies, with CONDITIONAL GO.**  
+Proven on production RPC: dense publish, seat race lock, OTP start, completion, segment fuel snapshot (Rs 120/L, 10 km/L), decline/cancel/no-show/dispute/role switch.  
+Client honesty / polyline rollback / relay call / notification routes are live. Physical dual-phone UI dogfood remains the last human gate.
 
 ---
 
