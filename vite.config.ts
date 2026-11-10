@@ -94,14 +94,18 @@ export default defineConfig(({ mode }) => {
                 urlPattern: /^https:\/\/kkzkuyhgdvyecmxtmkpy\.supabase\.co\/.*/i,
                 handler: "NetworkOnly",
               },
+              // Prefer network for hashed JS. StaleWhileRevalidate kept deleted
+              // chunk URLs alive across deploys and produced the embarrassing
+              // "old cached version" crash screen for returning web users.
               {
                 urlPattern: /\/assets\/.+\.js$/i,
-                handler: "StaleWhileRevalidate",
+                handler: "NetworkFirst",
                 options: {
-                  cacheName: "js-runtime-v1",
+                  cacheName: "js-runtime-v2",
+                  networkTimeoutSeconds: 4,
                   expiration: {
-                    maxEntries: 80,
-                    maxAgeSeconds: 60 * 60 * 24 * 7,
+                    maxEntries: 60,
+                    maxAgeSeconds: 60 * 60 * 24,
                   },
                   cacheableResponse: {
                     statuses: [200],

@@ -4,16 +4,28 @@ import { StagingBanner } from "@/components/dev/StagingBanner";
 import { MinVersionGate } from "@/components/system/MinVersionGate";
 import { MotionConfig } from "framer-motion";
 
-// Fallback component shown when a lazy page fails to resolve
+// Fallback when a lazy page cannot resolve after retries (usually a stale deploy).
 function LazyLoadFailed() {
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent('app:stale-deploy-recover', { detail: { source: 'lazy-page' } }));
+  }, []);
+
   return (
     <div className="min-h-[60vh] flex flex-col items-center justify-center p-6">
-      <div className="w-16 h-16 rounded-full bg-destructive/10 flex items-center justify-center mb-4">
-        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-destructive"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+      <div className="w-12 h-12 rounded-2xl bg-foreground text-background flex items-center justify-center mb-4 text-lg font-bold">
+        S
       </div>
-      <h2 className="text-lg font-semibold text-center mb-1">Page failed to load</h2>
-      <p className="text-sm text-muted-foreground text-center mb-6 max-w-xs">This page could not be loaded. Please reload to try again.</p>
-      <button onClick={() => window.location.reload()} className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium">Reload App</button>
+      <h2 className="text-lg font-semibold text-center mb-1">Updating Sociva</h2>
+      <p className="text-sm text-muted-foreground text-center mb-6 max-w-xs">
+        A newer version is ready. Continuing automatically.
+      </p>
+      <button
+        type="button"
+        onClick={() => window.dispatchEvent(new CustomEvent('app:stale-deploy-recover', { detail: { source: 'lazy-page-click' } }))}
+        className="px-4 py-2 rounded-lg bg-foreground text-background text-sm font-medium"
+      >
+        Continue
+      </button>
     </div>
   );
 }
@@ -894,6 +906,8 @@ function App() {
     window.addEventListener('app:clear-cache', handler);
     return () => window.removeEventListener('app:clear-cache', handler);
   }, []);
+
+  // Stale chunk / deploy recovery is owned by main.tsx (app:stale-deploy-recover).
 
   useEffect(() => {
     const handleRejection = (event: PromiseRejectionEvent) => {

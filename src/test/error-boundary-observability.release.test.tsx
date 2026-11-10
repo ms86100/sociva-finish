@@ -28,7 +28,7 @@ describe('release observability boundary', () => {
       </ErrorBoundary>,
     );
 
-    expect(screen.getByText('Something went wrong')).toBeInTheDocument();
+    expect(screen.getByText('Please try again')).toBeInTheDocument();
     expect(captureException).toHaveBeenCalledWith(
       expect.objectContaining({
         message: 'controlled release validation error',

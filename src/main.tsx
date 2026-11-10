@@ -2,6 +2,17 @@
 import "./index.css";
 import { initializeCapacitorPlugins } from "./lib/capacitor";
 import { captureException, initObservability } from "./lib/observability";
+import {
+  BUILD_CACHE_VERSION,
+  BUILD_CACHE_RELOADED_KEY,
+  BUILD_CACHE_VERSION_KEY,
+  canAutoRecoverStaleDeploy,
+  clearStaleDeployRecoveryMarks,
+  isChunkLoadError,
+  markStaleDeployRecoveryAttempt,
+  staleDeployRecoveryCopy,
+  withDeployRefreshParam,
+} from "./lib/stale-deploy-recovery";
 
 // Amplitude loads after first paint. captureException stays sync and queues
 // anything that happens before Sentry arrives. The Sentry SDK itself is still
@@ -21,17 +32,13 @@ function scheduleAnalyticsAndObservability() {
   }
 }
 
-// Bump when shipping bootstrap/critical-path fixes so returning users drop
-// stale Workbox caches that competed with first paint (e.g. splash-video / fat precache).
-const BUILD_CACHE_VERSION = "2026-10-10-order-bell";
-
 // Performance markers for landing page load analysis
 const perfMarks = {};
 function mark(name) {
   perfMarks[name] = performance.now();
   console.debug(`[Perf] ${name}: ${perfMarks[name].toFixed(0)}ms`);
 }
-mark('start');
+mark("start");
 
 async function clearAppCaches() {
   try {
@@ -48,52 +55,99 @@ async function clearAppCaches() {
   }
 }
 
+function paintRecoveryShell(copy: { title: string; body: string; primary: string; secondary?: string }, opts: {
+  busy?: boolean;
+  onPrimary?: () => void;
+  onSecondary?: () => void;
+}) {
+  const root = document.getElementById("root");
+  if (!root) return;
+
+  const secondaryHtml = copy.secondary
+    ? `<button id="recovery-secondary-btn" type="button" style="margin-top:10px;padding:12px 16px;border-radius:12px;border:1px solid #e5e5e5;background:#fff;color:#444;cursor:pointer;display:block;width:100%;font-size:14px">${copy.secondary}</button>`
+    : "";
+
+  root.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;min-height:100dvh;font-family:system-ui,-apple-system,sans-serif;padding:2rem;text-align:center;background:#fafafa;color:#111"><div style="max-width:22rem;width:100%"><div style="width:48px;height:48px;border-radius:14px;background:#111;margin:0 auto 18px;display:flex;align-items:center;justify-content:center"><span style="color:#fff;font-weight:700;font-size:18px;letter-spacing:-0.02em">S</span></div><h2 style="font-size:1.35rem;font-weight:700;margin:0;letter-spacing:-0.02em">${copy.title}</h2><p style="color:#666;margin:10px 0 0;line-height:1.45;font-size:0.95rem">${copy.body}</p><button id="recovery-primary-btn" type="button" ${opts.busy ? "disabled" : ""} style="margin-top:22px;padding:12px 16px;border-radius:12px;border:none;background:#111;color:#fff;cursor:${opts.busy ? "wait" : "pointer"};display:block;width:100%;font-size:14px;font-weight:600">${copy.primary}</button>${secondaryHtml}</div></div>`;
+
+  if (opts.onPrimary && !opts.busy) {
+    document.getElementById("recovery-primary-btn")?.addEventListener("click", opts.onPrimary);
+  }
+  if (opts.onSecondary && copy.secondary) {
+    document.getElementById("recovery-secondary-btn")?.addEventListener("click", opts.onSecondary);
+  }
+}
+
+function showUpdatingSplash() {
+  paintRecoveryShell(staleDeployRecoveryCopy({ mode: "updating" }), { busy: true });
+}
+
+async function recoverFromStaleDeploy(reason: string): Promise<boolean> {
+  if (!canAutoRecoverStaleDeploy()) return false;
+  markStaleDeployRecoveryAttempt();
+  console.warn("[Bootstrap] Recovering from stale deploy:", reason);
+  showUpdatingSplash();
+  await clearAppCaches();
+  // Keep auth. Only drop service-worker / Cache Storage, then hard-navigate.
+  window.location.replace(withDeployRefreshParam(window.location.href));
+  return true;
+}
+
 async function ensureFreshBuild() {
-  const appliedVersion = localStorage.getItem("app-build-cache-version");
+  const appliedVersion = localStorage.getItem(BUILD_CACHE_VERSION_KEY);
   if (appliedVersion === BUILD_CACHE_VERSION) return;
 
   // Mark version first so a failed clear cannot loop forever on every boot.
-  localStorage.setItem("app-build-cache-version", BUILD_CACHE_VERSION);
+  localStorage.setItem(BUILD_CACHE_VERSION_KEY, BUILD_CACHE_VERSION);
+  showUpdatingSplash();
   await clearAppCaches();
 
-  const reloadFlag = sessionStorage.getItem("build-cache-version-reloaded");
+  const reloadFlag = sessionStorage.getItem(BUILD_CACHE_RELOADED_KEY);
   if (!reloadFlag) {
-    sessionStorage.setItem("build-cache-version-reloaded", "true");
-    window.location.reload();
+    sessionStorage.setItem(BUILD_CACHE_RELOADED_KEY, "true");
+    window.location.replace(withDeployRefreshParam(window.location.href));
     throw new Error("[Bootstrap] Reloading after cache reset");
   }
 }
 
-function showFatalFallback() {
-  const fails = Number(sessionStorage.getItem('boot-fails') || '0') + 1;
-  sessionStorage.setItem('boot-fails', String(fails));
+function showRecoveryFallback() {
+  const fails = Number(sessionStorage.getItem("boot-fails") || "0") + 1;
+  sessionStorage.setItem("boot-fails", String(fails));
 
-  const root = document.getElementById("root");
-  if (!root) return;
-
-  const showClear = fails >= 2;
-  root.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100dvh;font-family:system-ui;padding:2rem;text-align:center"><div><h2>Something went wrong</h2><p style="color:#666;margin-top:8px">The app may still be using an old cached version. Please refresh.</p><button id="retry-boot-btn" style="margin-top:16px;padding:10px 14px;border-radius:10px;border:1px solid #ddd;background:white;cursor:pointer">Reload App</button>${showClear ? '<button id="clear-btn" style="margin-top:8px;padding:10px 14px;border-radius:10px;border:1px solid #e55;background:#fee;color:#c00;cursor:pointer;display:block;width:100%">Clear Cache &amp; Retry</button>' : ''}</div></div>`;
-
-  document.getElementById("retry-boot-btn")?.addEventListener("click", () => {
-    try {
-      Object.keys(localStorage)
-        .filter((k) => k.startsWith('sb-') && k.endsWith('-auth-token'))
-        .forEach((k) => localStorage.removeItem(k));
-    } catch {
-      // Storage cleanup is best-effort before the forced reload.
-    }
-    root.innerHTML = "";
-    window.location.reload();
+  const copy = staleDeployRecoveryCopy({
+    mode: fails >= 2 ? "manual" : "ready",
   });
 
-  if (showClear) {
-    document.getElementById("clear-btn")?.addEventListener("click", async () => {
-      sessionStorage.clear();
-      localStorage.clear();
+  paintRecoveryShell(copy, {
+    onPrimary: async () => {
+      showUpdatingSplash();
       await clearAppCaches();
-      window.location.reload();
-    });
-  }
+      clearStaleDeployRecoveryMarks();
+      window.location.replace(withDeployRefreshParam(window.location.href));
+    },
+    onSecondary:
+      fails >= 2
+        ? async () => {
+            showUpdatingSplash();
+            try {
+              sessionStorage.clear();
+              // Preserve auth tokens when possible - only clear non-auth local keys.
+              const keep: Record<string, string> = {};
+              for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key && key.startsWith("sb-") && key.endsWith("-auth-token")) {
+                  keep[key] = localStorage.getItem(key) || "";
+                }
+              }
+              localStorage.clear();
+              Object.entries(keep).forEach(([k, v]) => localStorage.setItem(k, v));
+            } catch {
+              // best-effort
+            }
+            await clearAppCaches();
+            window.location.replace(withDeployRefreshParam(window.location.href));
+          }
+        : undefined,
+  });
 }
 
 function appDidNotMount() {
@@ -101,30 +155,24 @@ function appDidNotMount() {
   return !!root && !root.hasAttribute("data-app-mounted");
 }
 
-function isChunkError(error: unknown): boolean {
-  const msg = String(error);
-  return msg.includes('Failed to fetch dynamically imported module') ||
-         msg.includes('Loading chunk') ||
-         msg.includes('Loading CSS chunk');
+async function handleChunkError(): Promise<boolean> {
+  return recoverFromStaleDeploy("chunk-load");
 }
 
-function handleChunkError(): boolean {
-  const lastReload = Number(sessionStorage.getItem('chunk-reload-ts') || '0');
-  const now = Date.now();
-  if (now - lastReload > 10_000) {
-    sessionStorage.setItem('chunk-reload-ts', String(now));
-    window.location.reload();
-    return true;
-  }
-  return false;
-}
+window.addEventListener("app:stale-deploy-recover", ((event: CustomEvent) => {
+  const source = String(event?.detail?.source || "event");
+  void recoverFromStaleDeploy(source).then((recovered) => {
+    if (!recovered) showRecoveryFallback();
+  });
+}) as EventListener);
 
 window.addEventListener("error", (event) => {
-  if (isChunkError(event.error || event.message)) {
-    if (handleChunkError()) return;
+  if (isChunkLoadError(event.error || event.message)) {
+    void handleChunkError();
+    return;
   }
   console.error("[Bootstrap] Unhandled error:", event.error || event.message);
-  captureException(event.error || new Error(event.message), { source: 'window.error' });
+  captureException(event.error || new Error(event.message), { source: "window.error" });
 });
 
 window.addEventListener("unhandledrejection", (event) => {
@@ -135,76 +183,88 @@ window.addEventListener("unhandledrejection", (event) => {
     event.preventDefault?.();
     return;
   }
-  if (isChunkError(reason)) {
-    if (handleChunkError()) return;
+  if (isChunkLoadError(reason)) {
+    event.preventDefault?.();
+    void handleChunkError();
+    return;
   }
   console.error("[Bootstrap] Unhandled rejection:", reason);
-  captureException(reason, { source: 'window.unhandledrejection' });
+  captureException(reason, { source: "window.unhandledrejection" });
 });
 
 async function bootstrap() {
-  mark('beforeEnsureFreshBuild');
+  mark("beforeEnsureFreshBuild");
   await ensureFreshBuild();
-  mark('afterEnsureFreshBuild');
+  mark("afterEnsureFreshBuild");
 
   try {
-    mark('beforeInitializeCapacitorPlugins');
+    mark("beforeInitializeCapacitorPlugins");
     await initializeCapacitorPlugins();
-    mark('afterInitializeCapacitorPlugins');
+    mark("afterInitializeCapacitorPlugins");
   } catch (e) {
-    console.error('[Bootstrap] Capacitor init failed, continuing without native plugins:', e);
+    console.error("[Bootstrap] Capacitor init failed, continuing without native plugins:", e);
   }
 
-  mark('beforeGetRootElement');
+  mark("beforeGetRootElement");
   const rootElement = document.getElementById("root");
   if (!rootElement) {
     throw new Error("[Bootstrap] Missing root element");
   }
-  mark('afterGetRootElement');
+  mark("afterGetRootElement");
 
-  mark('beforeImportReactDOMAndApp');
+  mark("beforeImportReactDOMAndApp");
   const [{ createRoot }, { default: App }] = await Promise.all([
     import("react-dom/client"),
     import("./App.tsx"),
   ]);
-  mark('afterImportReactDOMAndApp');
+  mark("afterImportReactDOMAndApp");
 
-  mark('beforeRenderApp');
+  mark("beforeRenderApp");
   createRoot(rootElement).render(<App />);
-  rootElement.setAttribute('data-app-mounted', 'true');
+  rootElement.setAttribute("data-app-mounted", "true");
   // Clear any leftover HTML bootstrap splash (React replaces children, this is belt-and-suspenders)
-  const bootSplash = document.getElementById('boot-splash');
+  const bootSplash = document.getElementById("boot-splash");
   bootSplash?.remove();
-  sessionStorage.removeItem('boot-fails');
+  clearStaleDeployRecoveryMarks();
   scheduleAnalyticsAndObservability();
-  mark('afterRenderApp');
+  mark("afterRenderApp");
 
   window.setTimeout(() => {
     if (appDidNotMount()) {
       console.error("[Bootstrap] App did not mount within 10 seconds");
-      showFatalFallback();
+      void (async () => {
+        if (await recoverFromStaleDeploy("mount-timeout")) return;
+        showRecoveryFallback();
+      })();
     }
   }, 10000);
-  mark('afterSetupTimeout');
+  mark("afterSetupTimeout");
 }
 
-bootstrap().then(() => {
-  mark('bootstrapFinished');
-  // Calculate and log intervals
-  const start = perfMarks['start'];
-  const finish = perfMarks['bootstrapFinished'];
-  if (start && finish) {
-    console.log('[Perf] Bootstrap total time:', (finish - start).toFixed(0), 'ms');
-    // Optionally log other intervals
-    console.log('[Perf] Timestamps:', JSON.stringify(Object.fromEntries(
-      Object.entries(perfMarks).map(([k, v]) => [k, v.toFixed(0)])
-    ), null, 2));
-  }
-}).catch((e) => {
-  if (String(e).includes("Reloading after cache reset")) return;
-  console.error('[Bootstrap] Fatal error:', e);
-  captureException(e, { source: 'bootstrap' });
-  // Flush the queued exception without blocking the on-screen fallback.
-  initObservability();
-  showFatalFallback();
-});
+bootstrap()
+  .then(() => {
+    mark("bootstrapFinished");
+    const start = perfMarks["start"];
+    const finish = perfMarks["bootstrapFinished"];
+    if (start && finish) {
+      console.log("[Perf] Bootstrap total time:", (finish - start).toFixed(0), "ms");
+      console.log(
+        "[Perf] Timestamps:",
+        JSON.stringify(
+          Object.fromEntries(Object.entries(perfMarks).map(([k, v]) => [k, v.toFixed(0)])),
+          null,
+          2,
+        ),
+      );
+    }
+  })
+  .catch(async (e) => {
+    if (String(e).includes("Reloading after cache reset")) return;
+    console.error("[Bootstrap] Fatal error:", e);
+    captureException(e, { source: "bootstrap" });
+    initObservability();
+    if (isChunkLoadError(e) || /Failed to fetch|Importing a module/i.test(String(e))) {
+      if (await recoverFromStaleDeploy("bootstrap-import")) return;
+    }
+    showRecoveryFallback();
+  });

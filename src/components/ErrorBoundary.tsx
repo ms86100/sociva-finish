@@ -23,6 +23,16 @@ function hashCode(str: string): string {
   return Math.abs(hash).toString(16).toUpperCase().slice(0, 8);
 }
 
+function looksLikeStaleDeployError(error: Error | null): boolean {
+  const msg = String(error?.message || error || '');
+  return (
+    msg.includes('Failed to fetch dynamically imported module') ||
+    msg.includes('Loading chunk') ||
+    msg.includes('Loading CSS chunk') ||
+    msg.includes('Importing a module script failed')
+  );
+}
+
 export class ErrorBoundary extends Component<Props, State> {
   public state: State = {
     hasError: false,
@@ -48,21 +58,20 @@ export class ErrorBoundary extends Component<Props, State> {
       boundary: 'root',
       componentStack: errorInfo.componentStack,
     });
+
+    if (looksLikeStaleDeployError(error)) {
+      window.dispatchEvent(
+        new CustomEvent('app:stale-deploy-recover', { detail: { source: 'error-boundary' } }),
+      );
+    }
   }
 
   private handleReload = () => {
-    // Only clear auth tokens after repeated crashes (3+), not on first reload
-    const fails = Number(sessionStorage.getItem('boot-fails') || '0');
-    if (fails >= 3) {
-      // Clear whatever Supabase auth token this project uses - the key is
-      // derived from the project ref, so never hardcode a single ref here.
-      try {
-        Object.keys(localStorage)
-          .filter((k) => k.startsWith('sb-') && k.endsWith('-auth-token'))
-          .forEach((k) => localStorage.removeItem(k));
-      } catch {
-        // Storage cleanup is best-effort before the forced reload.
-      }
+    if (looksLikeStaleDeployError(this.state.error)) {
+      window.dispatchEvent(
+        new CustomEvent('app:stale-deploy-recover', { detail: { source: 'error-boundary-reload' } }),
+      );
+      return;
     }
     window.location.reload();
   };
@@ -93,23 +102,30 @@ export class ErrorBoundary extends Component<Props, State> {
   public render() {
     if (this.state.hasError) {
       const errorCode = this.state.error ? hashCode(this.state.error.message) : '00000000';
+      const staleDeploy = looksLikeStaleDeployError(this.state.error);
 
       return (
         <div className="min-h-[100dvh] flex flex-col items-center justify-center p-6 bg-background">
-          <div className="w-20 h-20 rounded-full bg-destructive/10 flex items-center justify-center mb-6">
-            <AlertTriangle className="text-destructive" size={40} />
+          <div className={`w-20 h-20 rounded-full flex items-center justify-center mb-6 ${staleDeploy ? 'bg-foreground text-background' : 'bg-destructive/10'}`}>
+            {staleDeploy ? (
+              <span className="text-2xl font-bold">S</span>
+            ) : (
+              <AlertTriangle className="text-destructive" size={40} />
+            )}
           </div>
           
           <h1 className="text-xl font-bold text-center mb-2">
-            Something went wrong
+            {staleDeploy ? 'Update ready' : 'Please try again'}
           </h1>
           
           <p className="text-muted-foreground text-center mb-2 max-w-sm">
-            We're sorry, but something unexpected happened. Please try again.
+            {staleDeploy
+              ? 'Sociva has a newer version. Continue to load it - your account stays signed in.'
+              : 'Sociva hit an unexpected issue. Reloading usually fixes it.'}
           </p>
 
           <p className="text-xs text-muted-foreground/60 mb-6 font-mono">
-            Error code: {errorCode}
+            Ref: {errorCode}
           </p>
           
           <div className="flex gap-3 mb-4">
@@ -118,7 +134,7 @@ export class ErrorBoundary extends Component<Props, State> {
             </Button>
             <Button onClick={this.handleReload}>
               <RefreshCw size={16} className="mr-2" />
-              Reload App
+              {staleDeploy ? 'Continue' : 'Reload'}
             </Button>
           </div>
 
