@@ -300,7 +300,7 @@ export async function fetchDrivingRoute(
 
     const path = pathFromRoute(route);
     const { distanceMeters, durationSeconds } = totalsFromRoute(route);
-    const polyline = route.overview_polyline || encodePolyline(path);
+    const polyline = preferredStoragePolyline(route.overview_polyline, path);
     const waypointOrder =
       optimize && Array.isArray(route.waypoint_order)
         ? [...route.waypoint_order]
@@ -375,13 +375,91 @@ async function requestDirections(
   });
 }
 
+/**
+ * Prefer dense path encoding over sparse overview_polyline for corridor matching.
+ * A short overview can decode far from the real road and break guest match.
+ */
+export function preferredStoragePolyline(
+  overviewPolyline: string | undefined | null,
+  path: LatLng[],
+): string {
+  const fromPath = path.length >= 2 ? encodePolyline(path) : '';
+  const fromOverview = String(overviewPolyline || '').trim();
+  if (!fromPath) return fromOverview;
+  if (!fromOverview) return fromPath;
+  if (path.length >= 8) return fromPath;
+  const overviewPoints = decodePolyline(fromOverview).length;
+  if (overviewPoints < path.length) return fromPath;
+  return fromOverview;
+}
+
+/** Reject garbage / placeholder geometry before publish. */
+export function isPublishableRouteGeometry(input: {
+  polyline?: string | null;
+  path?: LatLng[] | null;
+  provider?: RouteProvider | string | null;
+  origin?: LatLng | null;
+  destination?: LatLng | null;
+  maxEndpointSnapMeters?: number;
+  minPoints?: number;
+}): { ok: true } | { ok: false; reason: string } {
+  if (String(input.provider || '') === 'haversine_fallback') {
+    return { ok: false, reason: 'A real driving road is required before publishing - retry route pick online' };
+  }
+  const poly = String(input.polyline || '').trim();
+  if (poly.length < 10) {
+    return { ok: false, reason: 'A real driving route is required before publishing' };
+  }
+  const path =
+    input.path && input.path.length >= 2 ? input.path : decodePolyline(poly);
+  const minPoints = input.minPoints ?? 8;
+  if (path.length < minPoints) {
+    return {
+      ok: false,
+      reason: 'Route geometry is too sparse - retry with Google Directions so the corridor can match guests',
+    };
+  }
+  const maxSnap = input.maxEndpointSnapMeters ?? 2500;
+  if (input.origin) {
+    const nearest = path.reduce(
+      (best, p) => {
+        const d = haversineMeters(input.origin!, p);
+        return d < best ? d : best;
+      },
+      Number.POSITIVE_INFINITY,
+    );
+    if (!Number.isFinite(nearest) || nearest > maxSnap) {
+      return {
+        ok: false,
+        reason: 'Saved route does not start near your pickup pin - rebuild the usual road, then publish',
+      };
+    }
+  }
+  if (input.destination) {
+    const nearest = path.reduce(
+      (best, p) => {
+        const d = haversineMeters(input.destination!, p);
+        return d < best ? d : best;
+      },
+      Number.POSITIVE_INFINITY,
+    );
+    if (!Number.isFinite(nearest) || nearest > maxSnap) {
+      return {
+        ok: false,
+        reason: 'Saved route does not end near your drop pin - rebuild the usual road, then publish',
+      };
+    }
+  }
+  return { ok: true };
+}
+
 function alternativesFromRoutes(routes: google.maps.DirectionsRoute[]): RouteAlternative[] {
   return routes.slice(0, 4).map((route, index) => {
     const path = pathFromRoute(route);
     const { distanceMeters, durationSeconds } = totalsFromRoute(route);
     return {
       id: `alt-${index}-${route.summary || index}`,
-      polyline: route.overview_polyline || encodePolyline(path),
+      polyline: preferredStoragePolyline(route.overview_polyline, path),
       distanceMeters,
       durationSeconds,
       summary: route.summary ? `via ${route.summary}` : `Route ${index + 1}`,
