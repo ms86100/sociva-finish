@@ -1,4 +1,4 @@
-/** Dummy corridor rides for Home Find feeling until live search is wired here. */
+/** Example-only corridor cards for Home empty state. Never treat as live requestable inventory. */
 
 export type HomeDemoRide = {
   id: string;

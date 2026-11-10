@@ -69,7 +69,8 @@ describe('Cleaner City match card game UX helpers', () => {
     expect(card).toContain('Request seat');
     expect(card).toContain('cleaner-city-match-trip-strip');
     expect(card).toContain('Pickup by');
-    expect(card).toContain('% match');
+    expect(card).toContain('Good route match');
+    expect(card).toContain('cleaner-city-match-fit');
     const migration = readFileSync(
       resolve(
         process.cwd(),

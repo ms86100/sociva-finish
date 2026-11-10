@@ -187,7 +187,7 @@ export default function CleanerCityFindPage() {
       setMatches(res.matches || []);
       setHasSearched(true);
     } catch (e: any) {
-      toast.error(e?.message || 'Could not find rides');
+      toast.error('Could not find rides. Please try again.');
     }
   };
 
@@ -378,7 +378,7 @@ export default function CleanerCityFindPage() {
       });
       toast.success('Added to waitlist - we will notify you when a seat opens');
     } catch (e: any) {
-      toast.error(e?.message || 'Could not join waitlist');
+      toast.error('Could not join waitlist. Please try again.');
     }
   };
 
@@ -387,7 +387,7 @@ export default function CleanerCityFindPage() {
       await leaveWaitlist.mutateAsync({ date, direction });
       toast.success('Left the waitlist');
     } catch (e: any) {
-      toast.error(e?.message || 'Could not leave waitlist');
+      toast.error('Could not leave waitlist. Please try again.');
     }
   };
 
@@ -446,7 +446,7 @@ export default function CleanerCityFindPage() {
   }, []);
 
   return (
-    <CleanerCityChrome headerTitle="Play · Find">
+    <CleanerCityChrome headerTitle="Find">
       <CleanerCityGate>
         <div
           className={cn(
@@ -504,7 +504,7 @@ export default function CleanerCityFindPage() {
                       void refetchActiveGuest();
                       void search();
                     } catch (e: any) {
-                      toast.error(e?.message || 'Could not cancel');
+                      toast.error('Could not cancel. Please try again.');
                     }
                   }}
                 >
@@ -582,7 +582,7 @@ export default function CleanerCityFindPage() {
                               state: { notice: 'Guest accepted. Set a meeting point when ready.' },
                             });
                           } catch (e: any) {
-                            toast.error(e?.message || 'Failed');
+                            toast.error('Something went wrong. Please try again.');
                           }
                         }}
                       >
@@ -598,7 +598,7 @@ export default function CleanerCityFindPage() {
                             await respond.mutateAsync({ ride_id: r.id, accept: false });
                             toast.success('Declined');
                           } catch (e: any) {
-                            toast.error(e?.message || 'Failed');
+                            toast.error('Something went wrong. Please try again.');
                           }
                         }}
                       >
@@ -794,7 +794,7 @@ export default function CleanerCityFindPage() {
                           void refetchRides();
                           void search();
                         } catch (e: any) {
-                          toast.error(e?.message || 'Failed');
+                          toast.error('Something went wrong. Please try again.');
                         }
                       }}
                     >
@@ -822,7 +822,7 @@ export default function CleanerCityFindPage() {
 
           <div className="space-y-3">
             <div className="flex items-center justify-between gap-2">
-              <p className="text-sm font-semibold">Riders on your route</p>
+              <p className="text-sm font-semibold">Guests on your route</p>
               {findMatches.isPending ? (
                 <span className="text-[11px] text-muted-foreground">Updating…</span>
               ) : null}
@@ -870,7 +870,9 @@ export default function CleanerCityFindPage() {
               >
                 <p className="text-sm font-semibold">No seats yet - try another time or Offer a ride</p>
                 <p className="text-xs text-muted-foreground">
-                  Set your commute pins and usual roads, join the waitlist for a notify, or publish an empty seat.
+                  {hasPins
+                    ? 'No neighbour seats are published for this date and direction yet. Join the waitlist for a notify, try another time, or offer your own empty seat.'
+                    : 'Set your commute pins and usual roads first, then search again or join the waitlist.'}
                 </p>
                 <div className="flex flex-wrap items-center justify-center gap-2">
                   <Link to="/cleaner-city/offer">
@@ -1013,7 +1015,7 @@ export default function CleanerCityFindPage() {
                               </Link>
                               <p className="text-[11px] text-muted-foreground">You are host</p>
                               <p className="text-[11px] text-muted-foreground mt-1">
-                                Passenger holds the pickup code - you enter it to start.
+                                Guest holds the pickup code - you enter it to start.
                               </p>
                             </div>
                             {['requested', 'confirmed', 'pickup_pending'].includes(r.status) && (
@@ -1025,7 +1027,7 @@ export default function CleanerCityFindPage() {
                                     await cancelRide.mutateAsync({ ride_id: r.id });
                                     toast.success('Cancelled');
                                   } catch (e: any) {
-                                    toast.error(e?.message || 'Failed');
+                                    toast.error('Something went wrong. Please try again.');
                                   }
                                 }}
                               >

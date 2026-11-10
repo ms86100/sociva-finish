@@ -12,18 +12,18 @@ describe('Cleaner City UX P0 wiring', () => {
     expect(nav).toContain("to === '/book'");
   });
 
-  it('surfaces sociva cleaner city from Account, not Home/Book', () => {
+  it('surfaces A Cleaner City from Account, not Home/Book', () => {
     expect(read('src/pages/HomePage.tsx')).not.toContain('CleanerCityEntryCard');
     expect(read('src/pages/CommerceModePage.tsx')).not.toContain('CleanerCityEntryCard');
     expect(read('src/pages/ProfilePage.tsx')).toContain('CleanerCityEntryCard');
     expect(read('src/pages/ProfilePage.tsx')).toContain('account-cleaner-city-entry');
     const card = read('src/components/cleaner-city/CleanerCityEntryCard.tsx');
     expect(card).toContain('to="/cleaner-city"');
-    expect(card).toContain('sociva cleaner city');
+    expect(card).toContain('A Cleaner City');
     expect(card).toContain('Find a ride');
   });
 
-  it('hub is Find-first with search, Offer CTA, and active mission wiring', () => {
+  it('hub is Find-first with search, Offer CTA, and honest example cards (no fake booking)', () => {
     const hub = read('src/pages/cleaner-city/CleanerCityPage.tsx');
     expect(hub).toContain('Where are you headed?');
     expect(hub).toContain('CleanerCityActiveMissionCard');
@@ -31,6 +31,8 @@ describe('Cleaner City UX P0 wiring', () => {
     expect(hub).toContain('cleaner-city-offer-link');
     expect(hub).toContain('cleaner-city-hub-welcome');
     expect(hub).toContain('HOME_DEMO_RIDES');
+    expect(hub).toContain('Find live seats');
+    expect(hub).toContain('These cards are examples only');
     expect(hub).toContain('Request seat');
     expect(hub).toContain('useRequestRide');
     expect(hub).toContain('requestSeat');

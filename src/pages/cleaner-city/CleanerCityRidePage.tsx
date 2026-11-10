@@ -28,6 +28,7 @@ import {
   useRankedMeetupPoints,
   useReportIncident,
   useReputation,
+  useRequestMaskedCall,
   useRespondRideRequest,
   useRevokeShareToken,
   useRideChat,
@@ -100,9 +101,14 @@ export default function CleanerCityRidePage() {
   const { data: quickMessages = [] } = useQuickMessages(id);
   const { data: lifecycleEvents = [] } = useRideLifecycleEvents(id);
   const { data: capabilities } = useCleanerCityCapabilities();
+  const requestMaskedCall = useRequestMaskedCall();
   const upsertLoc = useUpsertRideLocation();
   const report = useReportIncident();
   const dispatchSafety = useDispatchSafetyAlerts();
+  const relayCallReady = capabilities?.relay_call === true;
+  const voipCallReady =
+    (capabilities as { voip_call?: boolean; livekit?: boolean } | undefined)?.voip_call === true ||
+    (capabilities as { voip_call?: boolean; livekit?: boolean } | undefined)?.livekit === true;
   const shareToken = useCreateShareToken();
   const revokeShare = useRevokeShareToken();
   const generateOtp = useGenerateRideOtp();
@@ -1229,7 +1235,7 @@ export default function CleanerCityRidePage() {
 
           {['confirmed', 'pickup_pending', 'started'].includes(ride.status) && (
             <div className="space-y-2" data-testid="cleaner-city-call-panel">
-              {capabilities?.voip_call === true || capabilities?.livekit === true ? (
+              {voipCallReady ? (
                 <CallButton
                   contextType={resolveCleanerCityRideCall(ride.id).contextType}
                   contextId={ride.id}
@@ -1237,6 +1243,27 @@ export default function CleanerCityRidePage() {
                     toast.message('Voice call not ready - use Message instead');
                   }}
                 />
+              ) : relayCallReady ? (
+                <Button
+                  className="w-full h-12 font-semibold"
+                  variant="outline"
+                  disabled={requestMaskedCall.isPending}
+                  data-testid="cleaner-city-relay-call"
+                  onClick={async () => {
+                    try {
+                      const res = await requestMaskedCall.mutateAsync(ride.id);
+                      if (res?.dispatch_error) {
+                        toast.message('Call request saved - dial setup still finishing');
+                      } else {
+                        toast.success('Masked call requested - follow the prompt on your phone');
+                      }
+                    } catch (e: any) {
+                      toast.error(e?.message || 'Could not start masked call - use Message');
+                    }
+                  }}
+                >
+                  {requestMaskedCall.isPending ? 'Connecting...' : 'Call (masked)'}
+                </Button>
               ) : (
                 <Button
                   className="w-full h-12 font-semibold"
@@ -1255,9 +1282,11 @@ export default function CleanerCityRidePage() {
                 className="text-[11px] text-muted-foreground px-1"
                 data-testid="cleaner-city-call-honesty"
               >
-                {capabilities?.voip_call === true || capabilities?.livekit === true
+                {voipCallReady
                   ? 'In-app Call uses LiveKit when configured.'
-                  : 'Voice call is not configured - message your partner in ride chat.'}
+                  : relayCallReady
+                    ? 'Masked relay call connects both numbers without sharing raw phone numbers.'
+                    : 'Voice call is not configured - message your partner in ride chat.'}
               </p>
             </div>
           )}
@@ -1404,7 +1433,7 @@ export default function CleanerCityRidePage() {
               </Button>
 
               <div className="pt-2 border-t border-border space-y-2" data-testid="cleaner-city-fuel-auto">
-                <Label>Fuel share (automatic)</Label>
+                <Label>Fuel contribution</Label>
                 {(() => {
                   const snap = ride.fuel_snapshot || {};
                   const guestPaise =
@@ -1430,17 +1459,17 @@ export default function CleanerCityRidePage() {
                   if (!guestPaise) {
                     return (
                       <p className="text-[11px] text-muted-foreground" data-testid="cleaner-city-fuel-empty">
-                        Fuel share will appear after the seat is confirmed using admin petrol price and road distance.
+                        Fuel contribution appears after the seat is confirmed, based on route distance and petrol price.
                       </p>
                     );
                   }
                   return (
                     <div className="rounded-xl border border-border bg-muted/20 px-3 py-2.5 space-y-1 text-sm">
                       <p className="font-semibold text-emerald-900">
-                        Guest contribution: ₹{Math.max(1, Math.round(guestPaise / 100))}
+                        Fuel contribution: ₹{Math.max(1, Math.round(guestPaise / 100))}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        Host share ₹{Math.max(0, Math.round(hostPaise / 100))} · journey total ₹
+                        Host receives ₹{Math.max(0, Math.round(hostPaise / 100))} · ride total ₹
                         {Math.max(1, Math.round(totalPaise / 100))}
                         {distM > 0 ? ` · ${(distM / 1000).toFixed(1)} km` : ''}
                       </p>
@@ -1492,7 +1521,7 @@ export default function CleanerCityRidePage() {
                               toast.error(confirm.data?.error || 'Payment could not be confirmed');
                               return;
                             }
-                            toast.success('Fuel share paid. Host payout is recorded as payable.');
+                            toast.success('Fuel contribution paid.');
                           },
                         });
                       } catch (e: any) {

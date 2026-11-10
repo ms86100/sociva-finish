@@ -101,7 +101,7 @@ export default defineConfig(({ mode }) => {
                 urlPattern: /\/assets\/.+\.js$/i,
                 handler: "NetworkFirst",
                 options: {
-                  cacheName: "js-runtime-v2",
+                  cacheName: "js-runtime-v3",
                   networkTimeoutSeconds: 4,
                   expiration: {
                     maxEntries: 60,

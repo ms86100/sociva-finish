@@ -217,6 +217,20 @@ export function resolveNotificationRoute(
       if (typeof path === 'string' && path.startsWith('/') && !isVagueLandingPath(path)) return path;
       return '/category/food_beverages';
     }
+
+    // Green City / A Cleaner City lifecycle
+    case 'cleaner_city_ride_request':
+    case 'cleaner_city_ride_update':
+    case 'cleaner_city_otp':
+    case 'cleaner_city_sos':
+    case 'cleaner_city_waitlist':
+    case 'cleaner_city': {
+      const rideId = payload?.ride_id || payload?.rideId;
+      if (rideId) return `/cleaner-city/ride/${rideId}`;
+      const path = payload?.reference_path || payload?.action_url || payload?.route;
+      if (typeof path === 'string' && path.startsWith('/cleaner-city')) return path;
+      return '/cleaner-city';
+    }
     case 'promotion':
     case 'campaign': {
       const path = payload?.reference_path || payload?.action_url || payload?.route;

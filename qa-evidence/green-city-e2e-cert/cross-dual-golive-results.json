@@ -1,0 +1,38 @@
+{
+  "run_id": "GC-CROSS-GOLIVE-20261110",
+  "environment": "Sociva production DB kkzkuyhgdvyecmxtmkpy",
+  "method": "dual JWT claim.sub host/guest RPC harness (not physical phones)",
+  "host": "CERT apple-review phone user (fa42d0a5-...)",
+  "guests": ["cert-guest-gc@test.sociva.com", "cert-guest2-gc@test.sociva.com"],
+  "polyline": "dense 40-point encoded corridor origin 13.0713,77.7514 -> 13.0450,77.6200",
+  "results": {
+    "CROSS01": "PASS",
+    "CROSS02": "PASS",
+    "CROSS03": "PASS",
+    "CROSS04": "PASS",
+    "CROSS05": "PASS",
+    "CROSS06": "PASS",
+    "CROSS07": "PASS",
+    "CROSS08": "PASS",
+    "CROSS09": "PASS",
+    "CROSS10": "PASS",
+    "CROSS11": "PASS",
+    "CROSS12": "PASS",
+    "CROSS13": "PASS",
+    "CROSS14": "PASS"
+  },
+  "fuel_snapshot_sample": {
+    "basis": "segment_route",
+    "total_fuel_paise": 14399,
+    "guest_share_paise": 7086,
+    "host_share_paise": 7313,
+    "petrol_paise_per_litre": 12000,
+    "mileage_km_per_litre": 10,
+    "distance_meters": 12000
+  },
+  "notes": [
+    "CROSS04 second guest rejected with Publication not open after last seat taken",
+    "Physical Android/iOS push receipt still not device-proven in this run",
+    "Client deploy still required for www parity with honesty/polyline/SW fixes"
+  ]
+}

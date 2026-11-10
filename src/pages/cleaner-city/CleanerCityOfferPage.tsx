@@ -58,6 +58,7 @@ import { supabase } from '@/integrations/supabase/client';
 import {
   fetchDrivingRoute,
   fetchDrivingRouteAlternatives,
+  isPublishableRouteGeometry,
   loadPreferredRoute,
   openGoogleMapsDirections,
   planDropSequence,
@@ -596,12 +597,15 @@ export default function CleanerCityOfferPage() {
       if (!chosen) {
         return;
       }
-      if (!chosen.polyline || chosen.polyline.trim().length < 10) {
-        toast.error('A real driving route is required before publishing');
-        return;
-      }
-      if (chosen.provider === 'haversine_fallback') {
-        toast.error('A real driving road is required before publishing - retry route pick online');
+      const geometryOk = isPublishableRouteGeometry({
+        polyline: chosen.polyline,
+        path: chosen.path,
+        provider: chosen.provider,
+        origin,
+        destination,
+      });
+      if (!geometryOk.ok) {
+        toast.error(geometryOk.reason);
         return;
       }
 
@@ -640,8 +644,17 @@ export default function CleanerCityOfferPage() {
           destination,
           direction === 'to_home' ? 'to_home' : 'to_office',
         );
-      } catch {
-        // Route cache optional after publish
+      } catch (storeErr: any) {
+        // Geometry store is required for matching/fuel - roll back live inventory.
+        try {
+          await cancelPub.mutateAsync(pub.id);
+        } catch {
+          /* best-effort cancel */
+        }
+        throw new Error(
+          storeErr?.message ||
+            'Could not save the driving road on this offer - rebuild the usual road and publish again',
+        );
       }
 
       setNeedRoutePick(false);
@@ -1252,7 +1265,7 @@ export default function CleanerCityOfferPage() {
                 <div className="rounded-2xl border border-primary/30 bg-primary/5 px-4 py-3 text-sm leading-relaxed">
                   <p className="font-semibold text-foreground">My rides = your seat offers</p>
                   <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
-                    Each card is one leave-time you published. Riders appear with name, flat,
+                    Each card is one leave-time you published. Guests appear with name, flat,
                     status, meeting point, and pickup/drop pins after they request or you accept.
                   </p>
                 </div>

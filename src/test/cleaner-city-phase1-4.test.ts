@@ -157,9 +157,11 @@ describe('A Cleaner City Phase 1-4 hub page', () => {
     expect(hubPage).toContain('Where are you headed?');
     expect(hubPage).toContain('HOME_DEMO_RIDES');
     expect(hubPage).toContain('Find your next ride');
+    expect(hubPage).toContain('Find live seats');
     expect(hubPage).toContain('Request seat');
     expect(hubPage).toContain('useRequestRide');
     expect(hubPage).toContain('upsertHomeSeatRequest');
+    expect(hubPage).toContain('These cards are examples only');
   });
 
   it('still keeps the Phase 0 active ride card', () => {
@@ -242,9 +244,11 @@ describe('A Cleaner City Phase 1-4 ride page', () => {
     expect(ridePage).toContain('/cleaner-city/safety');
   });
 
-  it('prefills the fuel proposal from ride.estimated_fuel_paise', () => {
+  it('shows automatic admin-priced fuel share (no manual propose)', () => {
     expect(ridePage).toContain('ride.estimated_fuel_paise');
-    expect(ridePage).toContain('fuelPrefilled');
+    expect(ridePage).toContain('cleaner-city-fuel-auto');
+    expect(ridePage).toContain('Amounts cannot be edited');
+    expect(ridePage).not.toContain('fuelPrefilled');
   });
 
   it('points unblock to the safety settings page instead of handling it inline', () => {

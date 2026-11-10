@@ -191,6 +191,7 @@ export default function CleanerCityPage() {
     pickupLat != null &&
     pickupLng != null;
 
+  const showingExamples = !(liveCards && liveCards.length > 0);
   const matches = useMemo(() => {
     const base = liveCards && liveCards.length > 0 ? liveCards : HOME_DEMO_RIDES;
     return base.map((ride) => ({
@@ -234,16 +235,33 @@ export default function CleanerCityPage() {
       const next = (res.matches || []).map(matchToHomeCard);
       setLiveCards(next.length ? next : null);
       if (!next.length) {
-        toast.message('No live seats yet - showing corridor examples you can still request');
+        toast.message('No seats nearby yet. Open Find to join the waitlist.');
       }
     } catch (e: any) {
       setLiveCards(null);
-      toast.message(e?.message || 'Showing corridor examples while live search is unavailable');
+      toast.message('Could not search right now. Please try again.');
     }
   };
 
   const requestSeat = async (ride: HomeDemoRide) => {
     if (requestedIds.has(ride.id) || requestingId) return;
+
+    // Example cards are UX placeholders only - never fake a host request.
+    if (!ride.live || !ride.publicationId) {
+      toast.message('These cards are examples only - not live neighbour seats', {
+        description: verified && hasPins
+          ? 'Open Find for real matches on your corridor.'
+          : 'Verify work email and set home/office pins first.',
+        action: {
+          label: verified && hasPins ? 'Open Find' : 'Set up',
+          onClick: () =>
+            navigate(verified && hasPins ? '/cleaner-city/find' : '/cleaner-city/setup'),
+        },
+      });
+      navigate(verified && hasPins ? '/cleaner-city/find' : '/cleaner-city/setup');
+      return;
+    }
+
     if (activeRide) {
       toast.message('You already have an active ride', {
         action: {
@@ -257,52 +275,23 @@ export default function CleanerCityPage() {
       toast.error('No seats left on this ride');
       return;
     }
+    if (!hasPins) {
+      toast.message('Pin home and office before requesting a seat');
+      navigate('/cleaner-city/route');
+      return;
+    }
 
     setCleanerCityIntent('guest');
     setRequestingId(ride.id);
 
     try {
-      if (ride.live && ride.publicationId && hasPins) {
-        const created = await requestRide.mutateAsync({
-          publication_id: ride.publicationId,
-          guest_pickup_lat: pickupLat,
-          guest_pickup_lng: pickupLng,
-          guest_dest_lat: office?.latitude ?? null,
-          guest_dest_lng: office?.longitude ?? null,
-        });
-        const row: HomeSeatRequest = {
-          id: ride.id,
-          hostName: ride.hostName,
-          pickupLabel: ride.pickupLabel,
-          dropLabel: ride.dropLabel,
-          departTime: ride.departTime,
-          fuelShareRs: ride.fuelShareRs,
-          status: 'requested',
-          liveRideId: created?.id || null,
-          publicationId: ride.publicationId,
-          requestedAt: new Date().toISOString(),
-        };
-        setPendingRequests(upsertHomeSeatRequest(row));
-        setRequestedIds((prev) => new Set(prev).add(ride.id));
-        setDemoSeats((prev) => ({
-          ...prev,
-          [ride.id]: Math.max(0, (prev[ride.id] ?? ride.seatsOpen) - seats),
-        }));
-        toast.success(`Seat requested with ${ride.hostName}`);
-        void refetchRides();
-        if (created?.id) {
-          navigate(`/cleaner-city/ride/${created.id}`, {
-            state: {
-              notice: 'Request sent. Seat held until the host accepts or declines.',
-              seededRide: created,
-            },
-          });
-        }
-        return;
-      }
-
-      // Demo / offline path: persist request locally so Missions and Home stay in sync.
-      await new Promise((r) => setTimeout(r, 450));
+      const created = await requestRide.mutateAsync({
+        publication_id: ride.publicationId,
+        guest_pickup_lat: pickupLat,
+        guest_pickup_lng: pickupLng,
+        guest_dest_lat: office?.latitude ?? null,
+        guest_dest_lng: office?.longitude ?? null,
+      });
       const row: HomeSeatRequest = {
         id: ride.id,
         hostName: ride.hostName,
@@ -311,8 +300,8 @@ export default function CleanerCityPage() {
         departTime: ride.departTime,
         fuelShareRs: ride.fuelShareRs,
         status: 'requested',
-        liveRideId: null,
-        publicationId: null,
+        liveRideId: created?.id || null,
+        publicationId: ride.publicationId,
         requestedAt: new Date().toISOString(),
       };
       setPendingRequests(upsertHomeSeatRequest(row));
@@ -321,13 +310,16 @@ export default function CleanerCityPage() {
         ...prev,
         [ride.id]: Math.max(0, (prev[ride.id] ?? ride.seatsOpen) - seats),
       }));
-      toast.success(`Seat requested with ${ride.hostName}`, {
-        description: 'Host will see Accept / Decline. Open Missions to track it.',
-        action: {
-          label: 'Missions',
-          onClick: () => navigate('/cleaner-city/rides'),
-        },
-      });
+      toast.success(`Seat requested with ${ride.hostName}`);
+      void refetchRides();
+      if (created?.id) {
+        navigate(`/cleaner-city/ride/${created.id}`, {
+          state: {
+            notice: 'Request sent. Seat held until the host accepts or declines.',
+            seededRide: created,
+          },
+        });
+      }
     } catch (e: any) {
       const msg = String(e?.message || 'Could not request seat');
       if (/already have an active ride/i.test(msg) || /already have an open request/i.test(msg)) {
@@ -403,7 +395,7 @@ export default function CleanerCityPage() {
                   navigate('/cleaner-city/find', {
                     state: {
                       notice:
-                        'How it works: set Route pins → search matches on your corridor → request seat → meet with OTP.',
+                        'How it works: set your route pins, search for matches, request a seat, then meet with a pickup code.',
                     },
                   })
                 }
@@ -606,14 +598,18 @@ export default function CleanerCityPage() {
               <div className="flex items-end justify-between gap-2">
                 <div>
                   <h2 className="text-lg font-extrabold tracking-tight">
-                    Community rides along your way ({matches.length} rides)
+                    {showingExamples
+                      ? 'No rides yet'
+                      : `Rides along your way (${matches.length})`}
                   </h2>
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    Your route to office destination · Stops along the way included
+                    {showingExamples
+                      ? 'Set your route pins and search, or open Find for matches'
+                      : 'Your route to office · stops along the way included'}
                   </p>
                 </div>
                 <span className="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                  Sort: Best match
+                  {showingExamples ? '' : 'Sort: Best match'}
                 </span>
               </div>
 
@@ -634,7 +630,7 @@ export default function CleanerCityPage() {
                     className="h-auto px-0 pt-1 text-emerald-900"
                     onClick={() => navigate('/cleaner-city/rides')}
                   >
-                    Open Missions
+                    Open My rides
                   </Button>
                 </div>
               ) : null}
@@ -652,7 +648,7 @@ export default function CleanerCityPage() {
                     {ride.bestOverlap ? (
                       <div className="mb-3 inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wide text-emerald-900">
                         <Sparkles className="h-3 w-3" />
-                        Best route overlap for you
+                        Best match for you
                       </div>
                     ) : null}
 
@@ -680,7 +676,7 @@ export default function CleanerCityPage() {
                         <p className="mt-0.5 text-[11px] text-muted-foreground">{ride.vehicle}</p>
                       </div>
                       <span className="rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-bold text-emerald-900">
-                        {ride.overlapPct}% overlap
+                        Similar route
                       </span>
                     </div>
 
@@ -717,7 +713,7 @@ export default function CleanerCityPage() {
                           ₹{ride.fuelShareRs}
                         </p>
                         <p className="mt-1 text-[11px] text-muted-foreground">
-                          shared cost / seat · {seatsLeft} seat
+                          fuel contribution / seat · {seatsLeft} seat
                           {seatsLeft === 1 ? '' : 's'} open
                           {ride.tags.length ? ` · ${ride.tags.join(' · ')}` : ''}
                         </p>
@@ -729,17 +725,23 @@ export default function CleanerCityPage() {
                             ? 'bg-emerald-100 text-emerald-900 hover:bg-emerald-100'
                             : 'bg-emerald-800 text-white hover:bg-emerald-900',
                         )}
-                        disabled={isRequested || isRequesting || seatsLeft <= 0 || !!requestingId}
+                        disabled={
+                          ride.live
+                            ? isRequested || isRequesting || seatsLeft <= 0 || !!requestingId
+                            : false
+                        }
                         data-testid={`cleaner-city-request-seat-${ride.id}`}
                         onClick={() => void requestSeat(ride)}
                       >
-                        {isRequesting
-                          ? 'Requesting...'
-                          : isRequested
-                            ? 'Request sent'
-                            : seatsLeft <= 0
-                              ? 'Full'
-                              : 'Request seat'}
+                        {!ride.live
+                          ? 'Find live seats'
+                          : isRequesting
+                            ? 'Requesting...'
+                            : isRequested
+                              ? 'Request sent'
+                              : seatsLeft <= 0
+                                ? 'Full'
+                                : 'Request seat'}
                       </Button>
                     </div>
                   </article>
