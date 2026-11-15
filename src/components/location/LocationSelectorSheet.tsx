@@ -10,7 +10,7 @@ import { loadGoogleMapsScript } from '@/hooks/useGoogleMaps';
 import { GoogleMapConfirm } from '@/components/auth/GoogleMapConfirm';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
-import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
+import { showFeedback, getFeedbackPopup } from '@/components/FeedbackPopupProvider';
 
 interface LocationSelectorSheetProps {
   open: boolean;
@@ -25,7 +25,7 @@ export function LocationSelectorSheet({ open, onOpenChange }: LocationSelectorSh
   const { addresses } = useDeliveryAddresses();
   const { society } = useAuth();
   const { browsingLocation, setBrowsingLocation, clearOverride } = useBrowsingLocation();
-  const { showFeedback } = useFeedbackPopup();
+  const { showFeedback } = getFeedbackPopup();
   const navigate = useNavigate();
   const [detectingGps, setDetectingGps] = useState(false);
   const [step, setStep] = useState<'pick' | 'confirm'>('pick');

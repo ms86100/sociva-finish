@@ -60,10 +60,11 @@ export function getFeedbackState() {
   return memoryState;
 }
 
-/** Safe from callbacks and mutations — do not turn this back into a React hook. */
-export function useFeedbackPopup() {
+/** Safe from callbacks and mutations — not a React hook (name must not start with use). */
+export function getFeedbackPopup() {
   return { showFeedback };
 }
+
 
 export function FeedbackPopupProvider({ children }: { children: ReactNode }) {
   const [feedbackState, setFeedbackState] = useState<FeedbackState>(memoryState);

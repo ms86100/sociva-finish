@@ -94,8 +94,7 @@ Deno.serve(async (req) => {
     const isQaBypassPhone =
       phone === "0123456789" ||
       phone === "0987654321" ||
-      phone === "9876543201" ||
-      phone === "9535115316"; // TEMP E2E — remove after seller session
+      phone === "9876543201";
 
     if (resend && !reqId && !isQaBypassPhone) {
       return new Response(

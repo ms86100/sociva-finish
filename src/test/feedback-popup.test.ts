@@ -3,7 +3,7 @@ import {
   getFeedbackState,
   hideFeedback,
   showFeedback,
-  useFeedbackPopup,
+  getFeedbackPopup,
 } from '@/components/FeedbackPopupProvider';
 import { FEEDBACK_AUTO_DISMISS_MS } from '@/components/ui/FeedbackPopup';
 
@@ -21,9 +21,9 @@ describe('feedback popup API', () => {
     expect(getFeedbackState().title).toBe('Address saved');
   });
 
-  it('useFeedbackPopup works from mutation-style callbacks', () => {
+  it('getFeedbackPopup works from mutation-style callbacks', () => {
     const onSuccess = () => {
-      const { showFeedback: show } = useFeedbackPopup();
+      const { showFeedback: show } = getFeedbackPopup();
       show({ title: 'Profile updated! Redirecting…', variant: 'success' });
     };
 

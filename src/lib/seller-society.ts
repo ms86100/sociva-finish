@@ -126,7 +126,7 @@ export async function ensureSellerSocietyForSubmit(opts: {
 }): Promise<EnsureSocietyResult> {
   const { userId, sellerId, profileSocietyId, sellerSocietyId, latitude, longitude } = opts;
 
-  let societyId = profileSocietyId || sellerSocietyId || null;
+  const societyId = profileSocietyId || sellerSocietyId || null;
 
   if (!societyId) {
     const fromAddress = await findSocietyFromUserAddresses(userId);

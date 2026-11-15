@@ -5,6 +5,8 @@ import { usePushNotificationsInternal } from '@/hooks/usePushNotifications';
 import { PushNotificationContext } from '@/contexts/PushNotificationContext';
 import { IdentityContext } from '@/contexts/auth/contexts';
 import { supabase } from '@/integrations/supabase/client';
+import { useVoipRegistration } from '@/hooks/useVoipRegistration';
+import { ActiveCallOverlay } from '@/components/calling/ActiveCallOverlay';
 
 interface PushNotificationProviderProps {
   children: React.ReactNode;
@@ -23,6 +25,9 @@ export function PushNotificationProvider({ children }: PushNotificationProviderP
   const pushState = usePushNotificationsInternal();
   const { removeTokenFromDatabase } = pushState;
   const prevUserRef = useRef(user);
+
+  // PushKit / FCM VoIP token claim + CallKit accept bridge
+  useVoipRegistration(user?.id);
 
   // Remove token on explicit logout (user transitions non-null → null)
   useEffect(() => {
@@ -73,6 +78,7 @@ export function PushNotificationProvider({ children }: PushNotificationProviderP
   return (
     <PushNotificationContext.Provider value={pushState}>
       {children}
+      <ActiveCallOverlay userId={user?.id} />
     </PushNotificationContext.Provider>
   );
 }

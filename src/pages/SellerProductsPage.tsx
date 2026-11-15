@@ -19,7 +19,7 @@ import { useCurrency } from '@/hooks/useCurrency';
 import { useSellerProducts } from '@/hooks/useSellerProducts';
 import { ProductPerformanceBadge, getPerformanceLevel } from '@/components/seller/ProductPerformanceBadge';
 import { resolveProductAvailability } from '@/lib/product-availability';
-import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
+import { showFeedback, getFeedbackPopup } from '@/components/FeedbackPopupProvider';
 import { adminStorePaths, SELLER_STORE_PATHS } from '@/contexts/AdminManagedSellerContext';
 
 export default function SellerProductsPage({
@@ -127,7 +127,7 @@ export default function SellerProductsPage({
         {sp.products.some(p => (p as any).approval_status === 'draft') && (
           <div className="mb-4 p-3 bg-primary/5 border border-primary/20 rounded-xl flex items-center justify-between">
             <div><p className="text-sm font-medium">{sp.products.filter(p => (p as any).approval_status === 'draft').length} draft product(s) ready</p><p className="text-xs text-muted-foreground">Submit for admin review to make them visible to buyers</p></div>
-            <Button size="sm" onClick={async () => { const allDrafts = sp.products.filter(p => (p as any).approval_status === 'draft'); const readyDrafts = allDrafts.filter(p => p.image_url); const skipped = allDrafts.length - readyDrafts.length; if (readyDrafts.length === 0) { toast.error('All drafts are missing images. Add images before submitting.'); return; } const draftIds = readyDrafts.map(p => p.id); const { data: updated, error } = await supabase.from('products').update({ approval_status: 'pending' } as any).in('id', draftIds).eq('seller_id', sp.sellerProfile!.id).select('id'); if (error || !updated?.length) { toast.error('Could not submit these listings. Add photos if missing, then try again.'); return; } const { showFeedback } = useFeedbackPopup(); showFeedback({ title: `${updated.length} product(s) submitted for approval`, variant: 'success' }); if (skipped > 0) toast.warning(`${skipped} draft(s) skipped — add images first`); if (sp.sellerProfile) sp.fetchData(sp.sellerProfile.id); }}><Send size={14} className="mr-1" />Submit All for Approval</Button>
+            <Button size="sm" onClick={async () => { const allDrafts = sp.products.filter(p => (p as any).approval_status === 'draft'); const readyDrafts = allDrafts.filter(p => p.image_url); const skipped = allDrafts.length - readyDrafts.length; if (readyDrafts.length === 0) { toast.error('All drafts are missing images. Add images before submitting.'); return; } const draftIds = readyDrafts.map(p => p.id); const { data: updated, error } = await supabase.from('products').update({ approval_status: 'pending' } as any).in('id', draftIds).eq('seller_id', sp.sellerProfile!.id).select('id'); if (error || !updated?.length) { toast.error('Could not submit these listings. Add photos if missing, then try again.'); return; } const { showFeedback } = getFeedbackPopup(); showFeedback({ title: `${updated.length} product(s) submitted for approval`, variant: 'success' }); if (skipped > 0) toast.warning(`${skipped} draft(s) skipped — add images first`); if (sp.sellerProfile) sp.fetchData(sp.sellerProfile.id); }}><Send size={14} className="mr-1" />Submit All for Approval</Button>
           </div>
         )}
 
@@ -203,7 +203,7 @@ export default function SellerProductsPage({
                       <div className="flex items-center gap-2 mt-2 flex-wrap">
                         <Button size="sm" variant="outline" onClick={() => navigate(paths.productEdit(product.id))}><Edit size={14} className="mr-1" />Edit</Button>
                         <Button size="sm" variant="ghost" className="text-destructive" onClick={() => sp.setDeleteTarget(product)}><Trash2 size={14} /></Button>
-                        {approvalStatus === 'draft' && <Button size="sm" variant="secondary" onClick={async () => { if (!product.image_url) { toast.error('Add an image before submitting for approval'); return; } const { error } = await supabase.from('products').update({ approval_status: 'pending' } as any).eq('id', product.id); if (error) { toast.error(`Could not submit ${product.name}. Add a photo if it is missing, then try again.`); return; } const { showFeedback } = useFeedbackPopup(); showFeedback({ title: 'Submitted for approval', variant: 'success' }); if (sp.sellerProfile) sp.fetchData(sp.sellerProfile.id); }}><Send size={14} className="mr-1" />Submit</Button>}
+                        {approvalStatus === 'draft' && <Button size="sm" variant="secondary" onClick={async () => { if (!product.image_url) { toast.error('Add an image before submitting for approval'); return; } const { error } = await supabase.from('products').update({ approval_status: 'pending' } as any).eq('id', product.id); if (error) { toast.error(`Could not submit ${product.name}. Add a photo if it is missing, then try again.`); return; } const { showFeedback } = getFeedbackPopup(); showFeedback({ title: 'Submitted for approval', variant: 'success' }); if (sp.sellerProfile) sp.fetchData(sp.sellerProfile.id); }}><Send size={14} className="mr-1" />Submit</Button>}
                         {showPendingHint && <span className="text-xs text-muted-foreground italic">Under review — edits are still allowed</span>}
                       </div>
                     </div>

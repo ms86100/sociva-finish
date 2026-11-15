@@ -31,7 +31,8 @@ describe('contact enquiry robust fix', () => {
     const effectiveStoreClosed = isContactAction ? false : isStoreClosed;
     expect(effectiveStoreClosed).toBe(false);
 
-    const cartClosed = false ? false : isStoreClosed;
+    const isContactActionForCart = false;
+    const cartClosed = isContactActionForCart ? false : isStoreClosed;
     expect(cartClosed).toBe(true);
   });
 
@@ -42,7 +43,9 @@ describe('contact enquiry robust fix', () => {
     expect(hook).toMatch(/category/);
     expect(deriveActionType('contact_seller', null, null)).toBe('contact_seller');
     expect(deriveActionType(undefined, null, null)).toBe('add_to_cart'); // lossy path we must not hit
-    expect(sheet).toMatch(/Contact for price/);
-    expect(sheet).toMatch(/sp\.action_type === 'contact_seller'/);
+    expect(sheet).toMatch(/getCommercePriceLabel\(sp\.action_type/);
+    expect(sheet).toMatch(/ContactSellerModal/);
+    expect(sheet).toMatch(/sp\.action_type/);
+    expect(sheet).toMatch(/contact_seller/);
   });
 });

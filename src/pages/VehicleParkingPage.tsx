@@ -18,7 +18,7 @@ import { Car, Bike, AlertTriangle, Plus, ParkingSquare, Check, X } from 'lucide-
 import { toast } from 'sonner';
 import { friendlyError } from '@/lib/utils';
 import { ModuleSearchBar } from '@/components/search/ModuleSearchBar';
-import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
+import { showFeedback, getFeedbackPopup } from '@/components/FeedbackPopupProvider';
 
 interface ParkingSlot {
   id: string;
@@ -98,7 +98,7 @@ export default function VehicleParkingPage() {
         flat_number: slotFlatNumber.trim() || null,
       } as any);
       if (error) throw error;
-      const { showFeedback } = useFeedbackPopup();
+      const { showFeedback } = getFeedbackPopup();
       showFeedback({
         title: 'Parking slot added',
         variant: 'success'
@@ -124,7 +124,7 @@ export default function VehicleParkingPage() {
         description: violationDesc.trim() || null,
       });
       if (error) throw error;
-      const { showFeedback } = useFeedbackPopup();
+      const { showFeedback } = getFeedbackPopup();
       showFeedback({
         title: 'Violation reported',
         variant: 'success'
@@ -146,7 +146,7 @@ export default function VehicleParkingPage() {
         resolved_at: new Date().toISOString(),
         resolved_by: profile?.id
       }).eq('id', id).eq('society_id', effectiveSocietyId);
-      const { showFeedback } = useFeedbackPopup();
+      const { showFeedback } = getFeedbackPopup();
       showFeedback({
         title: `Violation ${status}`,
         variant: 'success'

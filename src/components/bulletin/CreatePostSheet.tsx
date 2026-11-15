@@ -13,7 +13,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { Loader2, Plus, X, ImagePlus } from 'lucide-react';
 import { notify } from '@/lib/notify';
-import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
+import { showFeedback, getFeedbackPopup } from '@/components/FeedbackPopupProvider';
 
 interface CreatePostSheetProps {
   open: boolean;
@@ -145,7 +145,7 @@ export function CreatePostSheet({ open, onOpenChange, onCreated }: CreatePostShe
       const { error } = await supabase.from('bulletin_posts').insert(postData);
       if (error) throw error;
 
-      const { showFeedback } = useFeedbackPopup();
+      const { showFeedback } = getFeedbackPopup();
       showFeedback({
         title: 'Post created!',
         variant: 'success'

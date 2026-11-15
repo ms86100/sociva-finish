@@ -11,7 +11,7 @@ import { PushNotifications } from '@capacitor/push-notifications';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
-import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
+import { showFeedback, getFeedbackPopup } from '@/components/FeedbackPopupProvider';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Capacitor } from '@capacitor/core';
 import { usePushNotifications } from '@/contexts/PushNotificationContext';
@@ -28,7 +28,7 @@ export default function NotificationsPage() {
   const queryClient = useQueryClient();
   const { requestFullPermission } = usePushNotifications();
   const [osPermission, setOsPermission] = useState<'granted' | 'denied' | 'prompt' | 'loading'>('loading');
-  const { showFeedback } = useFeedbackPopup();
+  const { showFeedback } = getFeedbackPopup();
 
   // Check OS-level notification permission on mount and on resume
   useEffect(() => {

@@ -21,7 +21,7 @@ import { Loader2, Plus, TrendingUp, TrendingDown, Wallet, Download, Flag, Target
 import { exportFinances } from '@/lib/csv-export';
 import { ModuleSearchBar } from '@/components/search/ModuleSearchBar';
 import { useCurrency } from '@/hooks/useCurrency';
-import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
+import { showFeedback, getFeedbackPopup } from '@/components/FeedbackPopupProvider';
 
 interface Expense {
   id: string;
@@ -90,7 +90,7 @@ export default function SocietyFinancesPage() {
         reason: flagReason.trim(),
       } as any);
       if (error) throw error;
-      const { showFeedback } = useFeedbackPopup();
+      const { showFeedback } = getFeedbackPopup();
       showFeedback({
         title: 'Expense flagged',
         description: 'The committee will review your concern.',

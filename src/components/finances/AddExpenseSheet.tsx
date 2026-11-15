@@ -9,7 +9,7 @@ import { ImageUpload } from '@/components/ui/image-upload';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
-import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
+import { showFeedback, getFeedbackPopup } from '@/components/FeedbackPopupProvider';
 import { friendlyError } from '@/lib/utils';
 import { Loader2 } from 'lucide-react';
 import { useCurrency } from '@/hooks/useCurrency';
@@ -78,7 +78,7 @@ export function AddExpenseSheet({ open, onOpenChange, onCreated, type }: Props) 
         } as any);
         if (error) throw error;
       }
-      const { showFeedback } = useFeedbackPopup();
+      const { showFeedback } = getFeedbackPopup();
       showFeedback({
         title: `${type === 'expense' ? 'Expense' : 'Income'} added!`,
         variant: 'success'

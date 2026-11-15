@@ -79,7 +79,7 @@ export default function TrustDirectoryPage() {
         availability: newAvail.trim() || null,
       });
       if (error) throw error;
-      const { showFeedback } = useFeedbackPopup();
+      const { showFeedback } = getFeedbackPopup();
       showFeedback({
         title: 'Skill added!',
         variant: 'success'

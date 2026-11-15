@@ -25,6 +25,16 @@ import { useDeliveryTracking } from '@/hooks/useDeliveryTracking';
 import { useSystemSettingsRaw } from '@/hooks/useSystemSettingsRaw';
 import { useTrackingConfig } from '@/hooks/useTrackingConfig';
 import { DeliveryCompletionOtpDialog } from '@/components/delivery/DeliveryCompletionOtpDialog';
+import { SellerManualCompleteDialog } from '@/components/order/SellerManualCompleteDialog';
+import { isSellerManualCompleteEligible, sellerManualCompleteButtonLabel } from '@/lib/seller-manual-complete';
+import { CallButton } from '@/components/calling/CallButton';
+import { resolveOrderCall } from '@/lib/calling/resolveCallContext';
+import { fetchVoipCapabilities, type VoipCapabilities } from '@/lib/calling/CallManager';
+import {
+  canPlaceOrderCall,
+  isOrderStatusCallable,
+  ORDER_CALL_HONESTY,
+} from '@/lib/calling/orderCallPolicy';
 import { DeliveryFeedbackForm } from '@/components/delivery/DeliveryFeedbackForm';
 import { GenericOtpDialog } from '@/components/order/GenericOtpDialog';
 import { GenericOtpCard } from '@/components/order/GenericOtpCard';
@@ -343,6 +353,8 @@ export default function OrderDetailPage() {
   const { dismissById } = useNewOrderAlertContext();
   const [deliveryAssignmentId, setDeliveryAssignmentId] = useState<string | null>(null);
   const [isOtpDialogOpen, setIsOtpDialogOpen] = useState(false);
+  const [isManualCompleteOpen, setIsManualCompleteOpen] = useState(false);
+  const [voipCaps, setVoipCaps] = useState<VoipCapabilities | null>(null);
   const [isGenericOtpDialogOpen, setIsGenericOtpDialogOpen] = useState(false);
   const [genericOtpTargetStatus, setGenericOtpTargetStatus] = useState<string | null>(null);
   const [hasDeliveryFeedback, setHasDeliveryFeedback] = useState(false);
@@ -1121,11 +1133,22 @@ export default function OrderDetailPage() {
                 <p className="text-xs text-muted-foreground mt-0.5">
                   {(order as any).needs_attention_reason || 'There may be a delay with your order. Contact the seller if needed.'}
                 </p>
-                {sellerProfile?.phone && (
+                {canPlaceOrderCall(order.status, voipCaps) && order.id ? (
+                  <div className="mt-2 max-w-xs">
+                    <CallButton
+                      contextType={resolveOrderCall(order.id, false).contextType}
+                      contextId={order.id}
+                      className="h-9 text-xs"
+                      onFallback={() => {
+                        if (o.canChat && o.chatRecipientId) o.setIsChatOpen(true);
+                      }}
+                    />
+                  </div>
+                ) : sellerProfile?.phone && !voipCaps?.can_place_calls ? (
                   <a href={`tel:${sellerProfile.phone}`} className="inline-flex items-center gap-1 text-xs font-medium text-primary mt-1.5">
                     <Phone size={12} /> Contact Seller
                   </a>
-                )}
+                ) : null}
               </div>
             </div>
           )}
@@ -1574,11 +1597,28 @@ export default function OrderDetailPage() {
                     <Phone size={16} className="text-green-600" />
                   </a>
                 )}
-                {(o.isSellerView ? buyer?.phone : sellerProfile?.phone) && (
-                  <a href={`tel:${o.isSellerView ? buyer?.phone : sellerProfile?.phone}`} className="w-9 h-9 rounded-full bg-accent/10 flex items-center justify-center shrink-0"><Phone size={16} className="text-accent" /></a>
+                {!canPlaceOrderCall(order.status, voipCaps) &&
+                  !voipCaps?.can_place_calls &&
+                  (o.isSellerView ? buyer?.phone : sellerProfile?.phone) && (
+                  <a href={`tel:${o.isSellerView ? buyer?.phone : sellerProfile?.phone}`} className="w-9 h-9 rounded-full bg-accent/10 flex items-center justify-center shrink-0" title="Call on phone"><Phone size={16} className="text-accent" /></a>
                 )}
               </div>
             </div>
+            {isOrderStatusCallable(order.status) && order.id ? (
+              <div className="mt-3 space-y-1" data-testid="order-in-app-call-panel">
+                <CallButton
+                  contextType={resolveOrderCall(order.id, !!o.isSellerView).contextType}
+                  contextId={order.id}
+                  onFallback={() => {
+                    if (o.canChat && o.chatRecipientId) o.setIsChatOpen(true);
+                    else toast.message('Message your partner from chat when available');
+                  }}
+                />
+                {!voipCaps?.can_place_calls ? (
+                  <p className="text-[11px] text-muted-foreground px-1">{ORDER_CALL_HONESTY}. Chat works anytime.</p>
+                ) : null}
+              </div>
+            ) : null}
           </motion.div>
 
           {/* Items */}
@@ -1737,20 +1777,35 @@ export default function OrderDetailPage() {
               // via verify_delivery_otp_and_complete — never GenericOtp (order_otp_codes).
               const needsDeliveryOtp = nextOtpType === 'delivery' && !!deliveryAssignmentId;
               const needsGenericOtp = nextOtpType === 'generic';
+              const showManualComplete = isSellerManualCompleteEligible(nextOtpType, !!deliveryAssignmentId);
               const ctaClass = `${WORKFLOW_BAR_BTN} bg-accent text-accent-foreground hover:bg-accent/90`;
 
-              return needsDeliveryOtp ? (
-                <Button className={ctaClass} onClick={() => setIsOtpDialogOpen(true)} disabled={o.isUpdating}>
-                  {o.isUpdating ? 'Updating...' : getActionLabel(o.nextStatus!, true)}
-                  <ChevronRight size={14} className="ml-1 shrink-0" />
-                </Button>
-              ) : needsGenericOtp ? (
-                <Button className={ctaClass} onClick={() => { setGenericOtpTargetStatus(o.nextStatus!); setIsGenericOtpDialogOpen(true); }} disabled={o.isUpdating}>
-                  {o.isUpdating ? 'Updating...' : getActionLabel(o.nextStatus!, true)}
-                  <ChevronRight size={14} className="ml-1 shrink-0" />
-                </Button>
-              ) : (
-                <Button className={ctaClass} onClick={() => o.updateOrderStatus(o.nextStatus!)} disabled={o.isUpdating}>{o.isUpdating ? 'Updating...' : getActionLabel(o.nextStatus!, false)}<ChevronRight size={14} className="ml-1 shrink-0" /></Button>
+              return (
+                <div className="w-full flex flex-col gap-2 min-w-0">
+                  {needsDeliveryOtp ? (
+                    <Button className={ctaClass} onClick={() => setIsOtpDialogOpen(true)} disabled={o.isUpdating}>
+                      {o.isUpdating ? 'Updating...' : getActionLabel(o.nextStatus!, true)}
+                      <ChevronRight size={14} className="ml-1 shrink-0" />
+                    </Button>
+                  ) : needsGenericOtp ? (
+                    <Button className={ctaClass} onClick={() => { setGenericOtpTargetStatus(o.nextStatus!); setIsGenericOtpDialogOpen(true); }} disabled={o.isUpdating}>
+                      {o.isUpdating ? 'Updating...' : getActionLabel(o.nextStatus!, true)}
+                      <ChevronRight size={14} className="ml-1 shrink-0" />
+                    </Button>
+                  ) : (
+                    <Button className={ctaClass} onClick={() => o.updateOrderStatus(o.nextStatus!)} disabled={o.isUpdating}>{o.isUpdating ? 'Updating...' : getActionLabel(o.nextStatus!, false)}<ChevronRight size={14} className="ml-1 shrink-0" /></Button>
+                  )}
+                  {showManualComplete && (
+                    <Button
+                      variant="ghost"
+                      className={`${WORKFLOW_BAR_BTN} text-muted-foreground`}
+                      onClick={() => setIsManualCompleteOpen(true)}
+                      disabled={o.isUpdating}
+                    >
+                      {sellerManualCompleteButtonLabel(nextOtpType)}
+                    </Button>
+                  )}
+                </div>
               );
             })()}
           </div>
@@ -1821,6 +1876,12 @@ export default function OrderDetailPage() {
         open={isOtpDialogOpen}
         onOpenChange={setIsOtpDialogOpen}
         onVerified={() => o.fetchOrder()}
+      />
+
+      <SellerManualCompleteDialog
+        open={isManualCompleteOpen}
+        onOpenChange={setIsManualCompleteOpen}
+        onConfirm={o.completeOrderWithoutOtp}
       />
 
       {genericOtpTargetStatus && (

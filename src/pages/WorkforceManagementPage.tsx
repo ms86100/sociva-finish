@@ -22,7 +22,7 @@ import { toast } from 'sonner';
 import { logAudit } from '@/lib/audit';
 import { UserPlus, Users, Shield, AlertTriangle, Settings } from 'lucide-react';
 import { ModuleSearchBar } from '@/components/search/ModuleSearchBar';
-import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
+import { showFeedback, getFeedbackPopup } from '@/components/FeedbackPopupProvider';
 
 export default function WorkforceManagementPage() {
   const { user, profile, effectiveSocietyId, isSocietyAdmin, isAdmin, isBuilderMember } = useAuth();
@@ -96,7 +96,7 @@ export default function WorkforceManagementPage() {
     if (!effectiveSocietyId) return;
     const { error } = await supabase.from('society_workers').update(update).eq('id', workerId).eq('society_id', effectiveSocietyId);
     if (!error) {
-      const { showFeedback } = useFeedbackPopup();
+      const { showFeedback } = getFeedbackPopup();
       showFeedback({
         title: `Worker ${status}`,
         variant: 'success'

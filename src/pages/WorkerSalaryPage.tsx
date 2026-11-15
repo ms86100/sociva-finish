@@ -16,7 +16,7 @@ import { FeatureGate } from '@/components/ui/FeatureGate';
 import { toast } from 'sonner';
 import { IndianRupee, Plus, Loader2, Wallet } from 'lucide-react';
 import { useCurrency } from '@/hooks/useCurrency';
-import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
+import { showFeedback, getFeedbackPopup } from '@/components/FeedbackPopupProvider';
 
 interface WorkerOption {
   id: string;
@@ -107,7 +107,7 @@ export default function WorkerSalaryPage() {
     });
     if (error) toast.error('Failed to record salary');
     else {
-      const { showFeedback } = useFeedbackPopup();
+      const { showFeedback } = getFeedbackPopup();
       showFeedback({
         title: 'Salary recorded',
         variant: 'success'
@@ -124,7 +124,7 @@ export default function WorkerSalaryPage() {
       .update({ status: 'paid', paid_date: new Date().toISOString() })
       .eq('id', id);
     if (!error) {
-      const { showFeedback } = useFeedbackPopup();
+      const { showFeedback } = getFeedbackPopup();
       showFeedback({
         title: 'Marked as paid',
         variant: 'success'

@@ -738,7 +738,7 @@ export function useSellerApplication(opts?: { forceNew?: boolean }) {
   const handleCategoryChange = (category: ServiceCategory, checked: boolean) => {
     setFormData((f) => {
       const newCategories = checked ? [...f.categories, category] : f.categories.filter((c) => c !== category);
-      let newPrefsData = { ...f.subcategory_preferences.data };
+      const newPrefsData = { ...f.subcategory_preferences.data };
       if (!checked) {
         const cfgId = categorySlugToConfigId[category];
         if (cfgId) delete newPrefsData[cfgId];

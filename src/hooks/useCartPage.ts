@@ -26,7 +26,7 @@ import { hasPreciseCoordinates } from '@/lib/buyerLocation';
 import { locationAlignsWithBrowse } from '@/lib/buyerOrderLocation';
 import { hapticImpact, hapticNotification, hapticSelection } from '@/lib/haptics';
 import { toast } from 'sonner';
-import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
+import { showFeedback, getFeedbackPopup } from '@/components/FeedbackPopupProvider';
 import { usePushNotifications } from '@/contexts/PushNotificationContext';
 import { notify } from '@/lib/notify';
 import { getString, setString, removeKey } from '@/lib/persistent-kv';
@@ -1213,7 +1213,7 @@ export function useCartPage() {
     setPendingOrderIds([]);
     clearPaymentSession();
     idempotencyKeyRef.current = null;
-    const { showFeedback } = useFeedbackPopup();
+    const { showFeedback } = getFeedbackPopup();
     showFeedback({
       title: 'Payment failed. Your cart is saved — tap Place Order to try again.',
       variant: 'error'
@@ -1274,7 +1274,7 @@ export function useCartPage() {
     if (!user?.id) { notify.block('Your session expired. Sign in again before continuing.', { id: 'checkout-session', title: 'Sign in required' }); setPendingOrderIds([]); clearPaymentSession(); return; }
     if (pendingOrderIds.length > 0) {
       if (await anyOrderPaidOrBuyerConfirmed(pendingOrderIds)) {
-        const { showFeedback } = useFeedbackPopup();
+        const { showFeedback } = getFeedbackPopup();
         showFeedback({
           title: 'Payment already submitted — waiting for seller confirmation',
           variant: 'error'
@@ -1294,7 +1294,7 @@ export function useCartPage() {
         }
         setPendingOrderIds([]);
         clearPaymentSession();
-        const { showFeedback } = useFeedbackPopup();
+        const { showFeedback } = getFeedbackPopup();
         showFeedback({
           title: 'Payment cancelled. Your cart is saved.',
           variant: 'error'

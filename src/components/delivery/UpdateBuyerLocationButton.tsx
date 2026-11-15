@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { getCurrentPosition } from '@/lib/native-location';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
+import { showFeedback, getFeedbackPopup } from '@/components/FeedbackPopupProvider';
 
 interface Props {
   orderId: string;
@@ -29,7 +29,7 @@ export function UpdateBuyerLocationButton({ orderId }: Props) {
       if (error) throw error;
 
       setStatus('done');
-      const { showFeedback } = useFeedbackPopup();
+      const { showFeedback } = getFeedbackPopup();
       showFeedback({
         title: 'Delivery location updated',
         description: 'ETA will recalculate on the next rider update.',

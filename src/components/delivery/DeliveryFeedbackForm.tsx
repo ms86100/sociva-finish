@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { notify } from '@/lib/notify';
-import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
+import { showFeedback, getFeedbackPopup } from '@/components/FeedbackPopupProvider';
 
 interface DeliveryFeedbackFormProps {
   orderId: string;
@@ -45,7 +45,7 @@ export function DeliveryFeedbackForm({ orderId, sellerId, trigger, onSuccess }: 
 
       if (error) throw error;
 
-      const { showFeedback } = useFeedbackPopup();
+      const { showFeedback } = getFeedbackPopup();
       showFeedback({
         title: 'Delivery feedback submitted',
         variant: 'success'

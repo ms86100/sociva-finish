@@ -24,7 +24,7 @@ import type { ServiceCategory } from '@/types/categories';
 import { notify } from '@/lib/notify';
 import { friendlyError } from '@/lib/utils';
 import { isSellerCreditInsufficientError, sellerCreditCustomerMessage } from '@/lib/sellerCredits';
-import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
+import { showFeedback, getFeedbackPopup } from '@/components/FeedbackPopupProvider';
 import { useBrowsingLocation } from '@/contexts/BrowsingLocationContext';
 import { buyerCanOrderFromSeller } from '@/lib/sellerDiscoverability';
 import { PRECISE_LOCATION_TITLE } from '@/lib/buyerLocation';
@@ -349,7 +349,7 @@ export function ServiceBookingFlow({
       queryClient.invalidateQueries({ queryKey: ['buyer-service-bookings'] });
       window.dispatchEvent(new Event('booking-changed'));
 
-      const { showFeedback } = useFeedbackPopup();
+      const { showFeedback } = getFeedbackPopup();
       showFeedback({
         title: 'Booking confirmed!',
         variant: 'success'

@@ -19,7 +19,7 @@ import {
 import { toast } from 'sonner';
 import { CalendarClock, Loader2 } from 'lucide-react';
 import { friendlyError } from '@/lib/utils';
-import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
+import { showFeedback, getFeedbackPopup } from '@/components/FeedbackPopupProvider';
 
 const RESCHEDULABLE_STATUSES = new Set(['booked', 'scheduled', 'rescheduled']);
 
@@ -115,7 +115,7 @@ export function BuyerRescheduleBooking({
       queryClient.invalidateQueries({ queryKey: ['order-detail'] });
       window.dispatchEvent(new Event('booking-changed'));
 
-      const { showFeedback } = useFeedbackPopup();
+      const { showFeedback } = getFeedbackPopup();
       showFeedback({
         title: 'Booking rescheduled',
         variant: 'success'

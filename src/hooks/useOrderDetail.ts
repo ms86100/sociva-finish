@@ -21,6 +21,7 @@ import { isOrderAcceptanceExpired } from '@/lib/expired-order-acks';
 import { Order, OrderStatus } from '@/types/Database';
 import { toast } from 'sonner';
 import { showFeedback } from '@/components/FeedbackPopupProvider';
+import { mapSellerManualCompleteError, shouldShowManualCompleteSuccess } from '@/lib/seller-manual-complete';
 
 async function fetchOrderData(id: string) {
   const { data, error } = await supabase
@@ -431,6 +432,49 @@ export function useOrderDetail(id: string | undefined) {
     }
   };
 
+
+  const completeOrderWithoutOtp = async (): Promise<{ ok: boolean; alreadyComplete?: boolean; error?: string }> => {
+    if (!order || !user) {
+      const mapped = mapSellerManualCompleteError('Authentication required');
+      toast.error(mapped.text, { id: 'order-manual-complete-session' });
+      return { ok: false, error: mapped.text };
+    }
+    if (isUpdating) return { ok: false, error: 'Please wait' };
+    setIsUpdating(true);
+    try {
+      const { data, error } = await supabase.rpc('seller_complete_order_without_otp', {
+        _order_id: order.id,
+      });
+      if (error) throw error;
+      const row = Array.isArray(data) ? data[0] : data;
+      const alreadyComplete = !!row?.already_complete;
+      const newStatus = (row?.new_status as OrderStatus) || 'completed';
+      queryClient.setQueryData(['order-detail', id], (old: any) =>
+        old ? { ...old, order: { ...old.order, status: newStatus } } : old
+      );
+      invalidateOrder();
+      if (isSellerView) invalidateSellerDashboardCaches(order.seller_id);
+      supabase.functions.invoke('process-notification-queue').catch(() => {});
+      if (shouldShowManualCompleteSuccess(true, alreadyComplete)) {
+        showFeedback({
+          title: 'Order completed',
+          description: 'Marked as delivered without OTP verification.',
+          variant: 'success',
+        });
+      } else if (alreadyComplete) {
+        toast.message('This order is already completed', { id: `order-${order.id}-already-complete` });
+      }
+      setIsUpdating(false);
+      return { ok: true, alreadyComplete };
+    } catch (error: any) {
+      const mapped = mapSellerManualCompleteError(error?.message || error?.details || '');
+      toast.error(mapped.text, { id: `order-${order.id}-manual-complete` });
+      invalidateOrder();
+      setIsUpdating(false);
+      return { ok: false, error: mapped.text };
+    }
+  };
+
   const handleReject = async (reason: string) => {
     const stamped = reason?.startsWith('Rejected by seller:')
       ? reason
@@ -565,7 +609,7 @@ export function useOrderDetail(id: string | undefined) {
     getOrderStatus, getPaymentStatus, getItemStatus,
     getFlowStepLabel, getBuyerHint, getSellerHint,
     formatPrice, user,
-    updateOrderStatus, buyerAdvanceOrder, handleReject, handleTimeout, copyOrderId, fetchOrder,
+    updateOrderStatus, completeOrderWithoutOtp, buyerAdvanceOrder, handleReject, handleTimeout, copyOrderId, fetchOrder,
     transitions,
   };
 }

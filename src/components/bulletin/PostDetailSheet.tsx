@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import { CATEGORY_CONFIG } from './CategoryFilter';
 import type { BulletinPost } from './PostCard';
-import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
+import { showFeedback, getFeedbackPopup } from '@/components/FeedbackPopupProvider';
 
 interface Comment {
   id: string;
@@ -88,7 +88,7 @@ export function PostDetailSheet({ post, open, onOpenChange, onVote }: PostDetail
       body: newComment.trim(),
     });
     if (error) {
-      const { showFeedback } = useFeedbackPopup();
+      const { showFeedback } = getFeedbackPopup();
       showFeedback({
         title: 'Failed to comment',
         variant: 'error'
@@ -128,7 +128,7 @@ export function PostDetailSheet({ post, open, onOpenChange, onVote }: PostDetail
     if (!post || !user) return;
     // Check if poll deadline has passed
     if (post.poll_deadline && new Date(post.poll_deadline) < new Date()) {
-      const { showFeedback } = useFeedbackPopup();
+      const { showFeedback } = getFeedbackPopup();
       showFeedback({
         title: 'Voting has ended',
         variant: 'error'
@@ -143,14 +143,14 @@ export function PostDetailSheet({ post, open, onOpenChange, onVote }: PostDetail
     });
     if (error) {
       if (error.code === '23505') {
-        const { showFeedback } = useFeedbackPopup();
+        const { showFeedback } = getFeedbackPopup();
         showFeedback({
           title: 'You already voted',
           variant: 'error'
         });
       }
     } else {
-      const { showFeedback } = useFeedbackPopup();
+      const { showFeedback } = getFeedbackPopup();
       showFeedback({
         title: 'Vote recorded!',
         variant: 'success'

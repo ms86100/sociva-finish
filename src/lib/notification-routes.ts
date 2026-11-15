@@ -58,7 +58,6 @@ export function resolveNotificationRoute(
     case 'seller_suspended':
       return '/seller';
     case 'seller_credit_failed':
-    case 'seller_credit_refunded':
       return '/seller/credits';
     case 'seller_daily_summary':
       return '/seller';
@@ -141,6 +140,16 @@ export function resolveNotificationRoute(
     case 'moderation':
     case 'new_store_application':
       return '/admin';
+
+    case 'voip_incoming':
+    case 'voip_call': {
+      const callId = payload?.call_id || payload?.callId;
+      if (callId) return `/call/${callId}`;
+      const path = payload?.reference_path || payload?.action_url || payload?.route;
+      if (typeof path === 'string' && path.startsWith('/call/')) return path;
+      const orderId = getOrderId(payload);
+      return orderId ? `/orders/${orderId}` : '/notifications/inbox';
+    }
 
     // Delivery lifecycle
     case 'delivery':

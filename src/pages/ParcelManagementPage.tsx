@@ -15,7 +15,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
-import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
+import { showFeedback, getFeedbackPopup } from '@/components/FeedbackPopupProvider';
 import { friendlyError } from '@/lib/utils';
 import { useActionLoading } from '@/hooks/useActionLoading';
 import { Package, Plus, CheckCircle, Clock, PackageOpen, Loader2, Search } from 'lucide-react';
@@ -155,7 +155,7 @@ export default function ParcelManagementPage() {
       toast.error(friendlyError(error));
       console.error(error);
     } else {
-      const { showFeedback } = useFeedbackPopup();
+      const { showFeedback } = getFeedbackPopup();
       showFeedback({
         title: canLogParcels ? `Parcel logged for Flat ${targetFlat}` : 'Parcel logged',
         variant: 'success'
@@ -183,7 +183,7 @@ export default function ParcelManagementPage() {
     }
     const { error } = await query;
     if (!error) {
-      const { showFeedback } = useFeedbackPopup();
+      const { showFeedback } = getFeedbackPopup();
       showFeedback({
         title: 'Parcel marked as collected',
         variant: 'success'
