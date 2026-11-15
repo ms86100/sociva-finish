@@ -1,16 +1,20 @@
 // @ts-nocheck
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Phone, PhoneOff, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
+import { endVoipCall, respondVoipCall } from '@/lib/calling/CallManager';
 import {
-  endVoipCall,
-  heartbeatVoipCall,
-  respondVoipCall,
-} from '@/lib/calling/CallManager';
-import { joinLiveKitCall, leaveLiveKitCall } from '@/lib/calling/livekitRoom';
+  ensureJoined,
+  leaveCallSession,
+  setCallPageOpen,
+  setRingingCall,
+  unlockRemoteAudio,
+  useCallSession,
+  retryCallMedia,
+} from '@/lib/calling/CallSessionController';
 import { supabase } from '@/integrations/supabase/client';
 
 type CallRow = {
@@ -28,21 +32,6 @@ const RINGING_STATUSES = new Set(['ringing', 'initiated']);
 const ENDED_STATUSES = new Set(['ended', 'missed', 'declined', 'rejected', 'cancelled']);
 const RING_POLL_MS = 1500;
 
-async function joinMedia(callId: string) {
-  const { data, error } = await supabase.functions.invoke('voip-call', {
-    body: { action: 'join', call_id: callId },
-  });
-  if (error) throw error;
-  if (!data?.livekit?.url || !data?.livekit?.token) {
-    throw new Error(data?.error || 'No LiveKit token');
-  }
-  await joinLiveKitCall({
-    url: data.livekit.url,
-    token: data.livekit.token,
-  });
-  void heartbeatVoipCall(callId, true);
-}
-
 function backPathForCall(call: CallRow | null): string {
   if (!call?.context_id) return '/orders';
   if (call.context_type === 'cleaner_city_ride') {
@@ -56,28 +45,20 @@ function backPathForCall(call: CallRow | null): string {
 
 /**
  * Deep-link landing for voip_incoming pushes (`/call/:callId`).
- * Callee accepts/declines here; both parties join LiveKit after accept.
+ * Media join is owned solely by CallSessionController (shared with ActiveCallOverlay).
  */
 export default function CallPage() {
   const { callId } = useParams<{ callId: string }>();
   const { user } = useAuth();
   const navigate = useNavigate();
+  const session = useCallSession();
   const [call, setCall] = useState<CallRow | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
-  const [statusLabel, setStatusLabel] = useState('Loading call…');
-  const [joined, setJoined] = useState(false);
-  const joinedRef = useRef(false);
-  const joiningRef = useRef(false);
 
   const isCallee = !!user?.id && call?.callee_id === user.id;
   const isCaller = !!user?.id && call?.caller_id === user.id;
   const isParticipant = isCallee || isCaller;
-
-  const markJoined = (value: boolean) => {
-    joinedRef.current = value;
-    setJoined(value);
-  };
 
   const refresh = useCallback(async () => {
     if (!callId) return;
@@ -94,50 +75,43 @@ export default function CallPage() {
   const tryJoinFromStatus = useCallback(
     async (row: CallRow) => {
       if (!row?.id || !LIVE_STATUSES.has(row.status)) return;
-      if (joinedRef.current || joiningRef.current) return;
-      joiningRef.current = true;
-      setStatusLabel('Connecting…');
-      try {
-        await joinMedia(row.id);
-        markJoined(true);
-        setStatusLabel('Connected');
-      } catch (e: any) {
-        setStatusLabel(e?.message || 'Could not join audio');
-      } finally {
-        joiningRef.current = false;
-      }
+      const role =
+        row.caller_id === user?.id ? 'caller' : row.callee_id === user?.id ? 'callee' : undefined;
+      await ensureJoined(row.id, { role });
+      await unlockRemoteAudio();
     },
-    [],
+    [user?.id],
   );
+
+  useEffect(() => {
+    setCallPageOpen(true, callId || null);
+    return () => setCallPageOpen(false);
+  }, [callId]);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       if (!callId) {
         setLoading(false);
-        setStatusLabel('Call not found');
         return;
       }
       try {
         const row = await refresh();
         if (cancelled) return;
-        if (!row) {
-          setStatusLabel('Call not found');
-          return;
-        }
-        if (ENDED_STATUSES.has(row.status)) {
-          setStatusLabel(`Call ${row.status}`);
-          return;
-        }
+        if (!row) return;
+        if (ENDED_STATUSES.has(row.status)) return;
         if (RINGING_STATUSES.has(row.status)) {
-          setStatusLabel(row.callee_id === user?.id ? 'Incoming call' : 'Calling…');
+          setRingingCall(
+            row.id,
+            row.callee_id === user?.id ? 'callee' : 'caller',
+          );
           return;
         }
         if (LIVE_STATUSES.has(row.status)) {
-          setStatusLabel('Connecting…');
+          await tryJoinFromStatus(row);
         }
       } catch (e: any) {
-        if (!cancelled) setStatusLabel(e?.message || 'Could not load call');
+        if (!cancelled) toast.error(e?.message || 'Could not load call');
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -145,7 +119,7 @@ export default function CallPage() {
     return () => {
       cancelled = true;
     };
-  }, [callId, refresh, user?.id]);
+  }, [callId, refresh, user?.id, tryJoinFromStatus]);
 
   useEffect(() => {
     if (!callId || !user?.id) return;
@@ -164,13 +138,14 @@ export default function CallPage() {
           if (!row?.id) return;
           setCall(row);
           if (ENDED_STATUSES.has(row.status)) {
-            await leaveLiveKitCall();
-            markJoined(false);
-            setStatusLabel(`Call ${row.status}`);
+            await leaveCallSession(row.id, row.status);
             return;
           }
           if (RINGING_STATUSES.has(row.status)) {
-            setStatusLabel(row.callee_id === user.id ? 'Incoming call' : 'Calling…');
+            setRingingCall(
+              row.id,
+              row.callee_id === user.id ? 'callee' : 'caller',
+            );
             return;
           }
           if (LIVE_STATUSES.has(row.status)) {
@@ -184,14 +159,12 @@ export default function CallPage() {
     };
   }, [callId, user?.id, tryJoinFromStatus]);
 
-  // Caller/callee who lands after accept should join once.
   useEffect(() => {
     if (!call || !isParticipant) return;
     if (!LIVE_STATUSES.has(call.status)) return;
     void tryJoinFromStatus(call);
   }, [call, isParticipant, tryJoinFromStatus]);
 
-  // While ringing, poll so accept is not lost if Realtime misses an update.
   useEffect(() => {
     if (!callId || !user?.id || !call) return;
     if (!RINGING_STATUSES.has(call.status)) return;
@@ -202,11 +175,14 @@ export default function CallPage() {
         const row = await refresh();
         if (cancelled || !row) return;
         if (ENDED_STATUSES.has(row.status)) {
-          setStatusLabel(`Call ${row.status}`);
+          await leaveCallSession(row.id, row.status);
           return;
         }
         if (RINGING_STATUSES.has(row.status)) {
-          setStatusLabel(row.callee_id === user.id ? 'Incoming call' : 'Calling…');
+          setRingingCall(
+            row.id,
+            row.callee_id === user.id ? 'callee' : 'caller',
+          );
           return;
         }
         if (LIVE_STATUSES.has(row.status)) {
@@ -228,26 +204,31 @@ export default function CallPage() {
     };
   }, [callId, user?.id, call?.status, refresh, tryJoinFromStatus]);
 
-  useEffect(() => {
-    return () => {
-      void leaveLiveKitCall();
-    };
-  }, []);
+  // Do not leave LiveKit on CallPage unmount - overlay may still own the call.
+  // Leave only on explicit end/decline.
+
+  const statusLabel = (() => {
+    if (loading) return 'Loading call...';
+    if (!call) return 'Call not found';
+    if (ENDED_STATUSES.has(call.status)) return `Call ${call.status}`;
+    if (session.callId === callId && session.statusLabel) return session.statusLabel;
+    if (RINGING_STATUSES.has(call.status)) {
+      return isCallee ? 'Incoming call' : 'Calling...';
+    }
+    if (LIVE_STATUSES.has(call.status)) return 'Connecting...';
+    return call.status;
+  })();
 
   const handleAccept = async () => {
     if (!callId || busy) return;
     setBusy(true);
-    setStatusLabel('Accepting…');
     try {
-      await respondVoipCall(callId, true);
-      await joinMedia(callId);
-      markJoined(true);
-      setStatusLabel('Connected');
+      await ensureJoined(callId, { asCalleeAccept: true, role: 'callee' });
+      await unlockRemoteAudio();
       const row = await refresh();
       if (row) setCall(row);
     } catch (e: any) {
       toast.error(e?.message || 'Could not accept call');
-      setStatusLabel(e?.message || 'Could not accept');
     } finally {
       setBusy(false);
     }
@@ -258,7 +239,7 @@ export default function CallPage() {
     setBusy(true);
     try {
       await respondVoipCall(callId, false);
-      await leaveLiveKitCall();
+      await leaveCallSession(callId, 'rejected');
       toast.message('Call declined');
       navigate(backPathForCall(call), { replace: true });
     } catch (e: any) {
@@ -272,7 +253,7 @@ export default function CallPage() {
     if (!callId || busy) return;
     setBusy(true);
     try {
-      await leaveLiveKitCall();
+      await leaveCallSession(callId, 'ended');
       await endVoipCall(callId, 'ended');
       navigate(backPathForCall(call), { replace: true });
     } catch (e: any) {
@@ -282,13 +263,31 @@ export default function CallPage() {
     }
   };
 
+  const handleRetry = async () => {
+    if (!callId || busy) return;
+    setBusy(true);
+    try {
+      await retryCallMedia();
+      await unlockRemoteAudio();
+    } catch (e: any) {
+      toast.error(e?.message || 'Could not retry audio');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const ringing = call && RINGING_STATUSES.has(call.status);
   const live = call && LIVE_STATUSES.has(call.status);
+  const mediaReady = session.callId === callId && session.mediaPhase === 'media_ready';
+  const mediaFailed = session.callId === callId && session.mediaPhase === 'failed';
 
   return (
     <div
       className="flex min-h-[100dvh] flex-col items-center justify-center bg-zinc-950 text-white p-6"
       data-testid="sociva-call-page"
+      onClick={() => {
+        void unlockRemoteAudio();
+      }}
     >
       <div className="w-full max-w-sm space-y-6 text-center">
         <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-white/10">
@@ -305,6 +304,11 @@ export default function CallPage() {
           </p>
           {!loading && call && !isParticipant ? (
             <p className="text-xs text-zinc-400 pt-2">You are not a participant on this call.</p>
+          ) : null}
+          {mediaFailed ? (
+            <p className="text-xs text-amber-300 pt-2">
+              {session.error || 'Audio did not connect. Retry or end the call.'}
+            </p>
           ) : null}
         </div>
 
@@ -332,7 +336,20 @@ export default function CallPage() {
           </div>
         ) : null}
 
-        {(isCaller && ringing) || live || joined ? (
+        {mediaFailed ? (
+          <Button
+            type="button"
+            variant="secondary"
+            className="w-full h-12"
+            disabled={busy}
+            onClick={handleRetry}
+            data-testid="sociva-call-retry-media"
+          >
+            Retry audio
+          </Button>
+        ) : null}
+
+        {(isCaller && ringing) || live || mediaReady || mediaFailed ? (
           <Button
             type="button"
             variant="destructive"

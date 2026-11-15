@@ -1,3 +1,4 @@
+import { FunctionsHttpError } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import type { VoipContextType } from '@/lib/calling/resolveCallContext';
 
@@ -19,16 +20,67 @@ export type CallSession = {
   livekit_room?: string | null;
 };
 
+function humanizeVoipError(code: string, raw?: string): string {
+  switch (code) {
+    case 'busy':
+      return 'They are already on a call. Try again in a moment.';
+    case 'rate_limited':
+    case 'call_rate_limited':
+      return 'Too many call attempts on this order. Wait a bit, then try again.';
+    case 'disabled':
+      return 'In-app calling is not enabled yet.';
+    case 'not_callable':
+    case 'order_not_callable':
+      return 'This order cannot be called right now.';
+    case 'not_authorized':
+      return 'You cannot place this call.';
+    default:
+      return raw || 'Could not start call';
+  }
+}
+
+async function readInvokeErrorPayload(error: unknown, data: unknown) {
+  if (data && typeof data === 'object') return data as Record<string, unknown>;
+  if (error instanceof FunctionsHttpError) {
+    try {
+      const body = await error.context.json();
+      if (body && typeof body === 'object') return body as Record<string, unknown>;
+    } catch {
+      // ignore parse failures
+    }
+  }
+  return null;
+}
+
 async function invoke(action: string, body: Record<string, unknown> = {}) {
   const { data, error } = await supabase.functions.invoke('voip-call', {
     body: { action, ...body },
   });
-  if (error) throw error;
-  if (data?.error && data?.success === false) {
-    const err = new Error(data.error);
-    (err as any).code = data.code;
+  const payload =
+    (data as Record<string, unknown> | null) ||
+    (await readInvokeErrorPayload(error, data));
+
+  if (payload?.success === false || (payload?.error && !payload?.call && action === 'start')) {
+    const code = String(payload.code || payload.error || 'start_failed');
+    const err = new Error(humanizeVoipError(code, String(payload.error || '')));
+    (err as any).code = code;
     throw err;
   }
+
+  if (error) {
+    const code = String(payload?.code || payload?.error || '');
+    if (code) {
+      const err = new Error(humanizeVoipError(code, String(payload?.error || error.message)));
+      (err as any).code = code;
+      throw err;
+    }
+    throw new Error(
+      /non-2xx/i.test(error.message)
+        ? 'Call could not start. Please try again.'
+        : error.message,
+    );
+  }
+
   return data;
 }
 

@@ -92,10 +92,16 @@ serve(async (req) => {
       const msg = error.message || "start failed";
       const code = /busy/i.test(msg)
         ? "busy"
+        : /call_rate_limited/i.test(msg)
+        ? "rate_limited"
+        : /order_not_callable|not_authorized|not_participant/i.test(msg)
+        ? "not_callable"
         : /not enabled/i.test(msg)
         ? "disabled"
         : "start_failed";
-      return json(400, { success: false, code, error: msg });
+      // Return 200 so the client can read {success:false,code} instead of a
+      // generic FunctionsHttpError "non-2xx" toast.
+      return json(200, { success: false, code, error: msg });
     }
 
     const call = (data as any)?.call;

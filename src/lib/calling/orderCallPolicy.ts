@@ -52,4 +52,4 @@ export const ORDER_CALL_HONESTY = 'In-app call - numbers stay private';
 
 /** Soft caps mirrored in voip_start_call / voip_heartbeat. */
 export const ORDER_CALL_MAX_DURATION_SECONDS = 10 * 60;
-export const ORDER_CALL_MAX_PER_HOUR = 3;
+export const ORDER_CALL_MAX_PER_HOUR = 30;

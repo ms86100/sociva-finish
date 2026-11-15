@@ -85,16 +85,27 @@ export function CallButton({
               idempotencyKey: `${contextType}:${contextId}:${Date.now()}`,
             });
             const id = res?.call?.id;
-            if (id) {
-              setActiveCallId(id);
-              navigate(`/call/${id}`);
+            if (!id) {
+              toast.error('Could not start call');
+              return;
             }
-            toast.success('Calling… waiting for partner to answer');
+            setActiveCallId(id);
+            navigate(`/call/${id}`);
+            toast.success('Calling - waiting for partner to answer');
           } catch (e: any) {
-            const code = e?.code || '';
-            if (code === 'busy') toast.error('Partner is already on a call');
-            else if (code === 'disabled') {
+            const code = String(e?.code || '');
+            if (code === 'busy') toast.error(e?.message || 'They are already on a call');
+            else if (code === 'rate_limited' || code === 'call_rate_limited') {
+              toast.message(e?.message || 'Too many call attempts', {
+                description: 'Wait a minute, then try Call in Sociva again.',
+              });
+            } else if (code === 'disabled') {
               toast.message('In-app calling is not enabled yet', {
+                description: fallbackLabel,
+              });
+              onFallback?.();
+            } else if (code === 'not_callable' || code === 'order_not_callable') {
+              toast.message(e?.message || 'This order cannot be called right now', {
                 description: fallbackLabel,
               });
               onFallback?.();

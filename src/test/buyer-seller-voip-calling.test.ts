@@ -48,7 +48,7 @@ describe('Buyer-seller in-app calling policy', () => {
     expect(migration).toContain('max_duration');
     expect(migration).toContain("interval '1 hour'");
     expect(migration).toContain("interval '10 minutes'");
-    expect(ORDER_CALL_MAX_PER_HOUR).toBe(3);
+    expect(ORDER_CALL_MAX_PER_HOUR).toBe(30);
     expect(ORDER_CALL_MAX_DURATION_SECONDS).toBe(600);
   });
 
@@ -94,18 +94,24 @@ describe('Buyer-seller in-app calling policy', () => {
     expect(routes).toContain('/call/${callId}');
     expect(callPage).toContain('sociva-call-accept');
     expect(callPage).toContain('respondVoipCall');
-    expect(callPage).toContain('joinLiveKitCall');
+    expect(callPage).toContain('ensureJoined');
+    expect(callPage).not.toContain('joinLiveKitCall');
     expect(callPage).toContain('RING_POLL_MS');
     expect(overlay).toContain('callee_id=eq.');
     expect(overlay).toContain('accepted');
     expect(overlay).toContain('RING_POLL_MS');
-    expect(overlay).toContain('joinedRef');
+    expect(overlay).toContain('ensureJoined');
+    expect(overlay).not.toContain('joinLiveKitCall');
     expect(overlay).toContain('audioRoute');
     expect(overlay).not.toMatch(/status === 'active'/);
     const livekitRoom = read('src/lib/calling/livekitRoom.ts');
+    const controller = read('src/lib/calling/CallSessionController.ts');
+    expect(controller).toContain('ensureJoined');
+    expect(controller).toContain('media_ready');
     expect(livekitRoom).toContain('prepareNativeCallAudio');
     expect(livekitRoom).toContain('playsinline');
     expect(livekitRoom).toContain('setSpeaker');
+    expect(livekitRoom).toContain('CALL_JOIN_IDEMPOTENT');
     expect(edge).toContain('notification_queue_fallback');
     expect(edge).toContain('process-notification-queue');
     const realtimeMig = read('supabase/migrations/20261115100000_call_sessions_realtime.sql');
