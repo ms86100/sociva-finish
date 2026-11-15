@@ -8,7 +8,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { useAuth } from '@/contexts/AuthContext';
 import { Clock, Users, Shield, Building2, ShieldCheck, Activity, HelpCircle, ChevronDown, CheckCircle2, LogOut } from 'lucide-react';
-import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
+import { showFeedback, getFeedbackPopup } from '@/components/FeedbackPopupProvider';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 
@@ -22,7 +22,7 @@ interface PreviewData {
 
 export function VerificationPendingScreen() {
   const { profile, refreshProfile, signOut } = useAuth();
-  const { showFeedback } = useFeedbackPopup();
+  const { showFeedback } = getFeedbackPopup();
   const [preview, setPreview] = useState<PreviewData | null>(null);
   const [loading, setLoading] = useState(true);
 

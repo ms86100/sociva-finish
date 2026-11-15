@@ -21,7 +21,7 @@ import { ProductAttributeBlocks } from './ProductAttributeBlocks';
 import { PriceStabilityBadge } from '@/components/trust/PriceStabilityBadge';
 import { RefundTierBadge } from '@/components/trust/RefundTierBadge';
 import { Plus, Minus, Store, Clock, Truck, Users, Zap, RotateCcw, ChevronRight, ChevronDown, Shield, Flag, X, Share2, Heart, Star } from 'lucide-react';
-import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
+import { showFeedback, getFeedbackPopup } from '@/components/FeedbackPopupProvider';
 import { ProductFavoriteButton } from '@/components/favorite/ProductFavoriteButton';
 import { useProductFavorites } from '@/hooks/useProductFavorites';
 import { useProductDetail, ProductDetail } from '@/hooks/useProductDetail';
@@ -403,7 +403,7 @@ export function ProductDetailSheet({ product, open, onOpenChange, onSelectProduc
                       await navigator.share(shareData);
                     } else {
                       await navigator.clipboard.writeText(shareUrl);
-                      const { showFeedback } = useFeedbackPopup();
+                      const { showFeedback } = getFeedbackPopup();
                       showFeedback({
                         title: 'Link copied to clipboard',
                         variant: 'success'

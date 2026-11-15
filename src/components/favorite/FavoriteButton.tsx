@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
-import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
+import { showFeedback, getFeedbackPopup } from '@/components/FeedbackPopupProvider';
 import { cn } from '@/lib/utils';
 import { notify } from '@/lib/notify';
 
@@ -68,7 +68,7 @@ export function FavoriteButton({
           .eq('seller_id', sellerId);
         if (error) throw error;
         setIsFavorite(false);
-        const { showFeedback } = useFeedbackPopup();
+        const { showFeedback } = getFeedbackPopup();
         showFeedback({
           title: 'Removed from favorites',
           variant: 'success'
@@ -81,7 +81,7 @@ export function FavoriteButton({
         });
         if (error) throw error;
         setIsFavorite(true);
-        const { showFeedback } = useFeedbackPopup();
+        const { showFeedback } = getFeedbackPopup();
         showFeedback({
           title: 'Added to favorites',
           variant: 'success'

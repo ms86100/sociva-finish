@@ -17,7 +17,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 import { XCircle, Loader2, AlertTriangle } from 'lucide-react';
-import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
+import { showFeedback, getFeedbackPopup } from '@/components/FeedbackPopupProvider';
 
 interface BuyerCancelBookingProps {
   bookingId: string;
@@ -155,7 +155,7 @@ export function BuyerCancelBooking({ bookingId, orderId, status }: BuyerCancelBo
 
       window.dispatchEvent(new Event('booking-changed'));
 
-      const { showFeedback } = useFeedbackPopup();
+      const { showFeedback } = getFeedbackPopup();
       showFeedback({
         title: 'Booking cancelled',
         variant: 'success'

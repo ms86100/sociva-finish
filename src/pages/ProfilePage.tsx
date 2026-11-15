@@ -31,7 +31,7 @@ import {
 import { FeedbackSheet } from '@/components/feedback/FeedbackSheet';
 import { NotificationHealthCheck } from '@/components/notifications/NotificationHealthCheck';
 import { toast } from 'sonner';
-import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
+import { showFeedback, getFeedbackPopup } from '@/components/FeedbackPopupProvider';
 import { useSystemSettings } from '@/hooks/useSystemSettings';
 import { getFlag, setFlag, getString, removeKey } from '@/lib/persistent-kv';
 import { useTheme } from 'next-themes';
@@ -47,7 +47,7 @@ export default function ProfilePage() {
   } = useAuth();
   const settings = useSystemSettings();
   const { theme, setTheme } = useTheme();
-  const { showFeedback } = useFeedbackPopup();
+  const { showFeedback } = getFeedbackPopup();
   const [largeFont, setLargeFont] = useState(() => getFlag('app_large_font'));
   const [isEditingAvatar, setIsEditingAvatar] = useState(false);
   const [showOnboardingFeedback, setShowOnboardingFeedback] = useState(false);

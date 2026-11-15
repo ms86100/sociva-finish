@@ -31,7 +31,8 @@ describe('contact enquiry robust fix', () => {
     const effectiveStoreClosed = isContactAction ? false : isStoreClosed;
     expect(effectiveStoreClosed).toBe(false);
 
-    const cartClosed = false ? false : isStoreClosed;
+    const isContactActionForCart = false;
+    const cartClosed = isContactActionForCart ? false : isStoreClosed;
     expect(cartClosed).toBe(true);
   });
 

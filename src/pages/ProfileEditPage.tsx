@@ -17,7 +17,7 @@ import {
   resolveOrCreateSocietyForProfile,
 } from '@/lib/resolve-profile-society';
 import { toast } from 'sonner';
-import { useFeedbackPopup } from '@/components/FeedbackPopupProvider';
+import { getFeedbackPopup } from '@/components/FeedbackPopupProvider';
 import { ArrowLeft, Plus, Loader2, Mail, MapPin, Phone, User, ChevronRight, KeyRound, LogOut } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 
@@ -25,7 +25,7 @@ export default function ProfileEditPage() {
   const navigate = useNavigate();
   const goBack = useSmartBack('/profile');
   const { user, profile, society, refreshProfile, signOut } = useAuth();
-  const { showFeedback } = useFeedbackPopup();
+  const { showFeedback } = getFeedbackPopup();
   const { addresses, isLoading: addressesLoading, saveAddress, deleteAddress, setDefault, isSaving } = useDeliveryAddresses();
 
   const [name, setName] = useState(

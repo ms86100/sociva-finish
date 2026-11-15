@@ -15,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '@/components/ui/drawer';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
-import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
+import { showFeedback, getFeedbackPopup } from '@/components/FeedbackPopupProvider';
 import { friendlyError } from '@/lib/utils';
 import {
   IndianRupee, Calendar, CheckCircle, Clock, AlertTriangle, Building2, Plus, Trash2, Edit2, Loader2
@@ -130,7 +130,7 @@ export default function PaymentMilestonesPage() {
       if (editing) {
         const { error } = await supabase.from('payment_milestones').update(payload).eq('id', editing.id);
         if (error) throw error;
-        const { showFeedback } = useFeedbackPopup();
+        const { showFeedback } = getFeedbackPopup();
         showFeedback({
           title: 'Milestone updated',
           variant: 'success'
@@ -138,7 +138,7 @@ export default function PaymentMilestonesPage() {
       } else {
         const { error } = await supabase.from('payment_milestones').insert(payload);
         if (error) throw error;
-        const { showFeedback } = useFeedbackPopup();
+        const { showFeedback } = getFeedbackPopup();
         showFeedback({
           title: 'Milestone created',
           variant: 'success'
@@ -158,7 +158,7 @@ export default function PaymentMilestonesPage() {
     const { error } = await supabase.from('payment_milestones').delete().eq('id', id);
     if (error) toast.error(friendlyError(error));
     else {
-      const { showFeedback } = useFeedbackPopup();
+      const { showFeedback } = getFeedbackPopup();
       showFeedback({
         title: 'Deleted',
         variant: 'success'

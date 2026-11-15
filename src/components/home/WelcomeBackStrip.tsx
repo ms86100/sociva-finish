@@ -7,7 +7,7 @@ import { Link } from 'react-router-dom';
 import { format } from 'date-fns';
 import { Package, RotateCcw } from 'lucide-react';
 import { useCart } from '@/hooks/useCart';
-import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
+import { showFeedback, getFeedbackPopup } from '@/components/FeedbackPopupProvider';
 import { toast } from 'sonner';
 import { jitteredStaleTime } from '@/lib/query-utils';
 import { slideFromLeft, pulseRing } from '@/lib/motion-variants';
@@ -16,7 +16,7 @@ import { displaySellerStoreName } from '@/lib/seller-journey';
 export function WelcomeBackStrip() {
   const { user } = useAuth();
   const { addItem } = useCart();
-  const { showFeedback } = useFeedbackPopup();
+  const { showFeedback } = getFeedbackPopup();
 
   const { data: lastOrder } = useQuery({
     queryKey: ['last-order-context', user?.id],

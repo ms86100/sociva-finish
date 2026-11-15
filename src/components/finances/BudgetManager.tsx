@@ -11,7 +11,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
-import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
+import { showFeedback, getFeedbackPopup } from '@/components/FeedbackPopupProvider';
 import { Plus, Target, Loader2 } from 'lucide-react';
 import { useCurrency } from '@/hooks/useCurrency';
 
@@ -80,7 +80,7 @@ export function BudgetManager({ expenses }: Props) {
     if (error) {
       toast.error('Failed to save budget');
     } else {
-      const { showFeedback } = useFeedbackPopup();
+      const { showFeedback } = getFeedbackPopup();
       showFeedback({
         title: 'Budget saved',
         variant: 'success'

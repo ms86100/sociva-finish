@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
-import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
+import { showFeedback, getFeedbackPopup } from '@/components/FeedbackPopupProvider';
 import { CheckCircle, XCircle, Clock, Shield } from 'lucide-react';
 
 interface ManualRequest {
@@ -57,7 +57,7 @@ export function ManualEntryApproval() {
     setIsLoading(false);
   };
 
-  const { showFeedback } = useFeedbackPopup();
+  const { showFeedback } = getFeedbackPopup();
 
 const respondToRequest = async (requestId: string, approved: boolean) => {
     if (!profile?.id) return;

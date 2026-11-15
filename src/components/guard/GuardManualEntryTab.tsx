@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
-import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
+import { showFeedback, getFeedbackPopup } from '@/components/FeedbackPopupProvider';
 import { AlertTriangle, Send, CheckCircle, XCircle, Clock, Loader2 } from 'lucide-react';
 import { notify } from '@/lib/notify';
 
@@ -22,7 +22,7 @@ export function GuardManualEntryTab({ societyId }: Props) {
   const [isSending, setIsSending] = useState(false);
   const manualRequestIdRef = useRef<string | null>(null);
 
-  const { showFeedback } = useFeedbackPopup();
+  const { showFeedback } = getFeedbackPopup();
 
 useEffect(() => {
     if (manualStatus !== 'sent' || !manualRequestIdRef.current) return;
@@ -77,7 +77,7 @@ useEffect(() => {
       if (error) throw error;
       manualRequestIdRef.current = insertData?.id || null;
       setManualStatus('sent');
-      const { showFeedback } = useFeedbackPopup();
+      const { showFeedback } = getFeedbackPopup();
       showFeedback({
         title: 'Verification request sent to resident',
         variant: 'success'

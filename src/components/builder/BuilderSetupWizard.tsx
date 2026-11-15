@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerTrigger } from '@/components/ui/drawer';
 import { toast } from 'sonner';
 import { Wand2, CheckCircle, Circle, Building2, Layers, CreditCard, ParkingCircle } from 'lucide-react';
-import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
+import { showFeedback, getFeedbackPopup } from '@/components/FeedbackPopupProvider';
 
 interface SetupStep {
   key: string;
@@ -58,7 +58,7 @@ export function BuilderSetupWizard({ societyId, societyName, enabledFeatures = [
     const { error } = await supabase.from('project_towers').insert(rows as any);
     if (error) { toast.error('Failed to add towers'); }
     else {
-      const { showFeedback } = useFeedbackPopup();
+      const { showFeedback } = getFeedbackPopup();
       showFeedback({
         title: `Added ${names.length} towers`,
         variant: 'success'
@@ -79,7 +79,7 @@ export function BuilderSetupWizard({ societyId, societyName, enabledFeatures = [
     const { error } = await supabase.from('parking_slots').insert(slots);
     if (error) { toast.error('Failed to create slots'); }
     else {
-      const { showFeedback } = useFeedbackPopup();
+      const { showFeedback } = getFeedbackPopup();
       showFeedback({
         title: `Created ${slots.length} parking slots`,
         variant: 'success'
@@ -102,7 +102,7 @@ export function BuilderSetupWizard({ societyId, societyName, enabledFeatures = [
     const { error } = await supabase.from('payment_milestones').insert(rows as any);
     if (error) { toast.error('Failed to add milestones'); }
     else {
-      const { showFeedback } = useFeedbackPopup();
+      const { showFeedback } = getFeedbackPopup();
       showFeedback({
         title: `Added ${names.length} milestones`,
         variant: 'success'

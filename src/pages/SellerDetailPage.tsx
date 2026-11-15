@@ -47,7 +47,7 @@ import { useCurrency } from '@/hooks/useCurrency';
 import { useBrowsingLocation } from '@/contexts/BrowsingLocationContext';
 import { useMarketplaceData } from '@/hooks/queries/useMarketplaceData';
 import { notify } from '@/lib/notify';
-import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
+import { showFeedback, getFeedbackPopup } from '@/components/FeedbackPopupProvider';
 import { PreciseLocationRequiredCard } from '@/components/location/PreciseLocationRequiredCard';
 import { buyerCanOrderFromSeller } from '@/lib/sellerDiscoverability';
 import { TasteRail } from '@/components/food/TasteRail';
@@ -356,7 +356,7 @@ export default function SellerDetailPage() {
 
       if (error) throw error;
 
-      const { showFeedback } = useFeedbackPopup();
+      const { showFeedback } = getFeedbackPopup();
       showFeedback({
         title: 'Report submitted',
         description: 'Our moderation team will review within 24 hours. You\'ll be notified of any action taken. Your identity is kept confidential.',

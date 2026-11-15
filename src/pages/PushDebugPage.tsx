@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Loader2, RefreshCw, CheckCircle2, XCircle, Trash2, Bell, Save, Settings, Zap } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { toast } from 'sonner';
-import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
+import { showFeedback, getFeedbackPopup } from '@/components/FeedbackPopupProvider';
 import { flushPushLogs } from '@/lib/pushLogger';
 import { Capacitor } from '@capacitor/core';
 
@@ -40,7 +40,7 @@ export default function PushDebugPage() {
   const handleRequestPermission = async () => {
     try {
       await requestFullPermission();
-      const { showFeedback } = useFeedbackPopup();
+      const { showFeedback } = getFeedbackPopup();
       showFeedback({
         title: 'Permission requested — check status above',
         variant: 'success'
@@ -72,7 +72,7 @@ export default function PushDebugPage() {
   const handleRegister = async () => {
     try {
       await registerPushNotifications();
-      const { showFeedback } = useFeedbackPopup();
+      const { showFeedback } = getFeedbackPopup();
       showFeedback({
         title: 'Registration triggered',
         variant: 'success'
@@ -94,7 +94,7 @@ export default function PushDebugPage() {
       await PushNotifications.addListener('registration', (regToken) => {
         const raw = regToken.value;
         setApnsToken(raw);
-        const { showFeedback } = useFeedbackPopup();
+        const { showFeedback } = getFeedbackPopup();
         showFeedback({
           title: `APNs token captured: ${raw.substring(0, 16)}…`,
           variant: 'success'
@@ -124,7 +124,7 @@ export default function PushDebugPage() {
       });
       if (error) throw error;
       setApnsResult(data);
-      const { showFeedback } = useFeedbackPopup();
+      const { showFeedback } = getFeedbackPopup();
       showFeedback({
         title: `APNs response: ${data?.status}`,
         variant: 'success'
@@ -153,7 +153,7 @@ export default function PushDebugPage() {
         const { PushNotifications } = await import('@capacitor/push-notifications');
         // On Android, register triggers the token event — but let's try to get existing
         await PushNotifications.register();
-        const { showFeedback } = useFeedbackPopup();
+        const { showFeedback } = getFeedbackPopup();
         showFeedback({
           title: 'Android register triggered — token will be saved by the hook',
           variant: 'info'
@@ -179,7 +179,7 @@ export default function PushDebugPage() {
         { onConflict: 'user_id,token' }
       );
       if (error) throw error;
-      const { showFeedback } = useFeedbackPopup();
+      const { showFeedback } = getFeedbackPopup();
       showFeedback({
         title: `Token saved! (${fcmToken.substring(0, 20)}…)`,
         variant: 'success'
@@ -234,7 +234,7 @@ export default function PushDebugPage() {
         .eq('user_id', user.id);
       if (error) throw error;
       setLogs([]);
-      const { showFeedback } = useFeedbackPopup();
+      const { showFeedback } = getFeedbackPopup();
       showFeedback({
         title: 'Logs cleared',
         variant: 'success'

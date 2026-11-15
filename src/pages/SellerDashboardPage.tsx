@@ -11,7 +11,7 @@ import { SellerProfile } from '@/types/Database';
 import { Package, Loader2, CalendarDays, Wrench, BarChart3, ShoppingBag, HeadphonesIcon, Receipt, MessageCircle, ChevronRight, LayoutGrid } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
+import { showFeedback, getFeedbackPopup } from '@/components/FeedbackPopupProvider';
 import { friendlyError, cn } from '@/lib/utils';
 import { logAudit } from '@/lib/audit';
 import { useSystemSettings } from '@/hooks/useSystemSettings';
@@ -306,7 +306,7 @@ export default function SellerDashboardPage() {
       setSellerProfile({ ...sellerProfile, is_available: newVal });
       fetchSellerProfile(sellerProfile.id);
 
-      const { showFeedback } = useFeedbackPopup();
+      const { showFeedback } = getFeedbackPopup();
       showFeedback({
         title: sellerProfile.is_available ? 'Store is now closed' : 'Store is now open',
         variant: 'success'

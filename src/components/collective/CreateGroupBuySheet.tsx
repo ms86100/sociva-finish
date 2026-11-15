@@ -12,7 +12,7 @@ import { toast } from 'sonner';
 import { addDays } from 'date-fns';
 import { notify } from '@/lib/notify';
 import { friendlyError } from '@/lib/utils';
-import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
+import { showFeedback, getFeedbackPopup } from '@/components/FeedbackPopupProvider';
 
 interface Props {
   onCreated: () => void;
@@ -39,7 +39,7 @@ export function CreateGroupBuySheet({ onCreated }: Props) {
         expires_at: addDays(new Date(), form.expires_days).toISOString(), status: 'active',
       });
       if (error) throw error;
-      const { showFeedback } = useFeedbackPopup();
+      const { showFeedback } = getFeedbackPopup();
       showFeedback({
         title: 'Group buy created! Share it with your neighbors.',
         variant: 'success'

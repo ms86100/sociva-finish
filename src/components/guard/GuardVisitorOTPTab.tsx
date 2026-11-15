@@ -9,7 +9,7 @@ import { ConfirmAction } from '@/components/ui/confirm-action';
 import { ImageUpload } from '@/components/ui/image-upload';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
-import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
+import { showFeedback, getFeedbackPopup } from '@/components/FeedbackPopupProvider';
 import { Shield, Search, CheckCircle, XCircle, User, Phone, Car, Clock, Loader2 } from 'lucide-react';
 
 interface VerifiedVisitor {
@@ -82,7 +82,7 @@ export function GuardVisitorOTPTab({ societyId }: Props) {
       .eq('id', verifiedVisitor.id);
 
     if (!error) {
-      const { showFeedback } = useFeedbackPopup();
+      const { showFeedback } = getFeedbackPopup();
       showFeedback({
         title: `${verifiedVisitor.visitor_name} checked in`,
         variant: 'success'

@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
-import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
+import { showFeedback, getFeedbackPopup } from '@/components/FeedbackPopupProvider';
 import { CheckCircle, XCircle, Clock, Shield, AlertTriangle } from 'lucide-react';
 
 interface PendingConfirmation {
@@ -93,7 +93,7 @@ export function ResidentConfirmation() {
     return () => clearInterval(interval);
   }, [pending]);
 
-  const { showFeedback } = useFeedbackPopup();
+  const { showFeedback } = getFeedbackPopup();
 
 const respond = async (entryId: string, approved: boolean) => {
     const now = new Date().toISOString();

@@ -11,7 +11,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { friendlyError } from '@/lib/utils';
 import { useRazorpay } from '@/hooks/useRazorpay';
-import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
+import { showFeedback, getFeedbackPopup } from '@/components/FeedbackPopupProvider';
 import { CheckCircle2, Clock, AlertTriangle, Plus, Download, Loader2 } from 'lucide-react';
 import { exportMaintenanceDues } from '@/lib/csv-export';
 import { FeatureGate } from '@/components/ui/FeatureGate';
@@ -69,7 +69,7 @@ export default function MaintenancePage() {
       .eq('id', id)
       .eq('society_id', effectiveSocietyId);
     if (error) { toast.error('Failed to update'); return; }
-    const { showFeedback } = useFeedbackPopup();
+    const { showFeedback } = getFeedbackPopup();
     showFeedback({
       title: 'Marked as paid',
       variant: 'success'
@@ -126,7 +126,7 @@ export default function MaintenancePage() {
 
       const { error } = await supabase.from('maintenance_dues').insert(rows as any);
       if (error) throw error;
-      const { showFeedback } = useFeedbackPopup();
+      const { showFeedback } = getFeedbackPopup();
       showFeedback({
         title: `Generated dues for ${rows.length} flats`,
         variant: 'success'
@@ -148,7 +148,7 @@ export default function MaintenancePage() {
     try {
       const { error } = await supabase.rpc('apply_maintenance_late_fees' as any);
       if (error) throw error;
-      const { showFeedback } = useFeedbackPopup();
+      const { showFeedback } = getFeedbackPopup();
       showFeedback({
         title: 'Late fees applied to overdue records',
         variant: 'success'
@@ -293,7 +293,7 @@ export default function MaintenancePage() {
                             await supabase.from('maintenance_dues')
                               .update({ status: 'paid', paid_date: new Date().toISOString().split('T')[0], receipt_url: paymentId })
                               .eq('id', d.id);
-                            const { showFeedback } = useFeedbackPopup();
+                            const { showFeedback } = getFeedbackPopup();
                             showFeedback({
                               title: 'Payment successful!',
                               variant: 'success'

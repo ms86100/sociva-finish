@@ -475,7 +475,7 @@ Deno.serve(async (req) => {
           approval_status: "approved",
           prep_time_minutes: 0,
           cuisine_type: "Western",
-          serving_size": "1 loaf (500g)",
+          serving_size: "1 loaf (500g)",
           spice_level: "none"
         },
         {
@@ -491,8 +491,8 @@ Deno.serve(async (req) => {
           action_type: "add_to_cart",
           approval_status: "approved",
           prep_time_minutes: 2,
-          cuisine_type": "Indian",
-          serving_size": "500g pouch",
+          cuisine_type: "Indian",
+          serving_size: "500g pouch",
           spice_level: "medium"
         },
         {
@@ -508,8 +508,8 @@ Deno.serve(async (req) => {
           action_type: "add_to_cart",
           approval_status: "approved",
           prep_time_minutes: 0,
-          cuisine_type": "Western",
-          serving_size": "500g jar",
+          cuisine_type: "Western",
+          serving_size: "500g jar",
           spice_level: "none"
         },
         {
@@ -525,8 +525,8 @@ Deno.serve(async (req) => {
           action_type: "add_to_cart",
           approval_status: "approved",
           prep_time_minutes: 5,
-          cuisine_type": "Indian",
-          serving_size": "500g pack",
+          cuisine_type: "Indian",
+          serving_size: "500g pack",
           spice_level: "none"
         }
       ];

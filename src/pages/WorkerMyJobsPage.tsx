@@ -15,7 +15,7 @@ import { format } from 'date-fns';
 import { friendlyError } from '@/lib/utils';
 import { FeatureGate } from '@/components/ui/FeatureGate';
 import { useCurrency } from '@/hooks/useCurrency';
-import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
+import { showFeedback, getFeedbackPopup } from '@/components/FeedbackPopupProvider';
 
 const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
   accepted: { label: 'Active', color: 'bg-info/20 text-info' },
@@ -58,7 +58,7 @@ export default function WorkerMyJobsPage() {
       return result;
     },
     onSuccess: () => {
-      const { showFeedback } = useFeedbackPopup();
+      const { showFeedback } = getFeedbackPopup();
       showFeedback({
         title: 'Job marked as completed!',
         variant: 'success'

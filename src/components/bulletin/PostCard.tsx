@@ -11,7 +11,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import toast from 'sonner';
 import { CATEGORY_CONFIG } from './CategoryFilter';
-import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
+import { showFeedback, getFeedbackPopup } from '@/components/FeedbackPopupProvider';
 
 export interface BulletinPost {
   id: string;
@@ -47,7 +47,7 @@ interface PostCardProps {
 export function PostCard({ post, onUpvote, onOpen, onRefresh }: PostCardProps) {
   const { isSocietyAdmin, isAdmin } = useAuth();
   const [reportOpen, setReportOpen] = useState(false);
-  const { showFeedback } = useFeedbackPopup();
+  const { showFeedback } = getFeedbackPopup();
   const canModerate = isSocietyAdmin || isAdmin;
   const cat = CATEGORY_CONFIG[post.category] || CATEGORY_CONFIG.alert;
   const CatIcon = cat.icon;
@@ -62,14 +62,14 @@ export function PostCard({ post, onUpvote, onOpen, onRefresh }: PostCardProps) {
       });
     } else if (action === 'archive') {
       await supabase.from('bulletin_posts').update({ is_archived: true }).eq('id', post.id);
-      const { showFeedback } = useFeedbackPopup();
+      const { showFeedback } = getFeedbackPopup();
       showFeedback({
         title: 'Post archived',
         variant: 'success'
       });
     } else if (action === 'delete') {
       await supabase.from('bulletin_posts').delete().eq('id', post.id);
-      const { showFeedback } = useFeedbackPopup();
+      const { showFeedback } = getFeedbackPopup();
       showFeedback({
         title: 'Post deleted',
         variant: 'success'
