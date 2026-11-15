@@ -140,6 +140,16 @@ export function resolveNotificationRoute(
       return orderId ? `/orders/${orderId}?chat=1` : '/notifications/inbox';
     }
 
+    case 'voip_incoming':
+    case 'voip_call': {
+      const callId = payload?.call_id || payload?.callId;
+      if (callId) return `/call/${callId}`;
+      const path = payload?.reference_path || payload?.action_url || payload?.route;
+      if (typeof path === 'string' && path.startsWith('/call/')) return path;
+      const orderId = getOrderId(payload);
+      return orderId ? `/orders/${orderId}` : '/notifications/inbox';
+    }
+
     // Product moderation
     case 'product_approved':
     case 'product_rejected':

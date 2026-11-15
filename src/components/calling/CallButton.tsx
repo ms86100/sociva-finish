@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import {
@@ -25,6 +26,7 @@ export function CallButton({
   fallbackLabel = 'Use chat instead',
   onFallback,
 }: Props) {
+  const navigate = useNavigate();
   const [caps, setCaps] = useState<VoipCapabilities | null>(null);
   const [busy, setBusy] = useState(false);
   const [activeCallId, setActiveCallId] = useState<string | null>(null);
@@ -83,7 +85,10 @@ export function CallButton({
               idempotencyKey: `${contextType}:${contextId}:${Date.now()}`,
             });
             const id = res?.call?.id;
-            if (id) setActiveCallId(id);
+            if (id) {
+              setActiveCallId(id);
+              navigate(`/call/${id}`);
+            }
             toast.success('Calling… waiting for partner to answer');
           } catch (e: any) {
             const code = e?.code || '';

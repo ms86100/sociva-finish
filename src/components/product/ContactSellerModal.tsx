@@ -176,7 +176,7 @@ export function ContactSellerModal({
     if (voipReady && result.oid) {
       try {
         const ctx = resolveOrderCall(result.oid, false);
-        await startVoipCall({
+        const voip = await startVoipCall({
           contextType: ctx.contextType,
           contextId: result.oid,
           idempotencyKey: `contact:${result.oid}:${Date.now()}`,
@@ -187,6 +187,12 @@ export function ContactSellerModal({
           product_id: productId,
           order_id: result.oid,
         });
+        const callId = voip?.call?.id;
+        if (callId) {
+          handleOpenChange(false);
+          navigate(`/call/${callId}`);
+          return;
+        }
         setTimeout(() => setFeedbackOpen(true), 8000);
         return;
       } catch (e: any) {

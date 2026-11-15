@@ -81,4 +81,27 @@ describe('Buyer-seller in-app calling policy', () => {
       expect(src).not.toMatch(/[\u2013\u2014]/);
     }
   });
+
+  it('lands voip_incoming pushes on /call/:id with a real route', () => {
+    const app = read('src/App.tsx');
+    const routes = read('src/lib/notification-routes.ts');
+    const callPage = read('src/pages/CallPage.tsx');
+    const overlay = read('src/components/calling/ActiveCallOverlay.tsx');
+    const edge = read('supabase/functions/voip-call/index.ts');
+    expect(app).toContain('/call/:callId');
+    expect(app).toContain('CallPage');
+    expect(routes).toContain("case 'voip_incoming'");
+    expect(routes).toContain('/call/${callId}');
+    expect(callPage).toContain('sociva-call-accept');
+    expect(callPage).toContain('respondVoipCall');
+    expect(callPage).toContain('joinLiveKitCall');
+    expect(overlay).toContain('callee_id=eq.');
+    expect(overlay).toContain('accepted');
+    expect(overlay).not.toMatch(/status === 'active'/);
+    expect(edge).toContain('notification_queue_fallback');
+    expect(edge).toContain('process-notification-queue');
+    for (const src of [callPage, overlay, routes]) {
+      expect(src).not.toMatch(/[\u2013\u2014]/);
+    }
+  });
 });

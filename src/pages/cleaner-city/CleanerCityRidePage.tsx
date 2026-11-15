@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Link, useLocation, useParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { CleanerCityChrome } from '@/components/cleaner-city/CleanerCityChrome';
 import { CleanerCityGate } from '@/components/cleaner-city/CleanerCityGate';
@@ -99,6 +99,7 @@ import { useGoogleMaps } from '@/hooks/useGoogleMaps';
 
 export default function CleanerCityRidePage() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const location = useLocation();
   const queryClient = useQueryClient();
   const arrivalNotice = (location.state as { notice?: string } | null)?.notice || '';
@@ -845,11 +846,15 @@ export default function CleanerCityRidePage() {
       const caps = await fetchVoipCapabilities();
       if (caps?.can_place_calls) {
         const ctx = resolveCleanerCityRideCall(ride.id);
-        await startVoipCall({
+        const voip = await startVoipCall({
           contextType: ctx.contextType,
           contextId: ride.id,
         });
+        const callId = voip?.call?.id;
         toast.success('Calling partner');
+        if (callId) {
+          navigate(`/call/${callId}`);
+        }
         return;
       }
       if (relayCallReady) {

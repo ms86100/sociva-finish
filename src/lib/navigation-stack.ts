@@ -272,6 +272,7 @@ export function resolveBackFallback(pathname: string): string {
   if (path === '/seller') return '/profile';
   if (/^\/seller\/[^/]+$/.test(path)) return '/';
 
+  if (/^\/call\/[^/]+$/.test(path)) return '/orders';
   if (/^\/orders\/[^/]+$/.test(path) || /^\/order\/[^/]+$/.test(path)) return '/orders';
   if (path.startsWith('/checkouts/')) return '/orders';
   if (path.startsWith('/profile/')) return '/profile';

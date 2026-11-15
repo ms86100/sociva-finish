@@ -98,6 +98,20 @@ serve(async (req) => {
         .from("call_sessions")
         .update({ dispatch_evidence: dispatch, updated_at: new Date().toISOString() })
         .eq("id", call.id);
+      // Kick the queue worker so the callee's /call/:id push is not waiting on cron.
+      try {
+        const queueUrl = `${supabaseUrl}/functions/v1/process-notification-queue`;
+        void fetch(queueUrl, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${service}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ source: "voip-call", call_id: call.id }),
+        });
+      } catch {
+        // Non-fatal - cron still drains the queue
+      }
     }
 
     return json(200, {
@@ -196,7 +210,7 @@ serve(async (req) => {
     if (call.caller_id !== userId && call.callee_id !== userId) {
       return json(403, { error: "Not a participant" });
     }
-    if (!["active", "ringing", "accepted"].includes(String(call.status))) {
+    if (!["active", "ringing", "accepted", "connecting", "connected"].includes(String(call.status))) {
       return json(400, { error: `Call not joinable (${call.status})` });
     }
     if (!call.livekit_room) {
@@ -298,37 +312,42 @@ async function dispatchIncoming(
     }
   }
 
-  for (const row of rows) {
-    if (row.platform === "android" && row.token) {
-      (evidence.channels as string[]).push("android_fcm_data");
-      try {
-        await admin.from("notification_queue").insert({
-          user_id: call.callee_id,
-          type: "voip_incoming",
-          title: "Incoming Sociva call",
-          body: `${callerName} is calling`,
-          reference_path: `/call/${call.id}`,
-          action_url: `/call/${call.id}`,
-          payload: {
-            type: "voip_incoming",
-            call_id: call.id,
-            caller_name: callerName,
-            context_type: call.context_type,
-            context_id: call.context_id,
-            livekit_room: call.livekit_room,
-          },
-          status: "pending",
-          idempotency_key: `voip_incoming:${call.id}`,
-        });
-      } catch {
-        // Non-fatal
-      }
-      break;
+  // Always enqueue a tap-through alert for every platform. PushKit may fail
+  // (InvalidProviderToken etc.); this still lands the callee on /call/:id.
+  (evidence.channels as string[]).push("notification_queue_fallback");
+  try {
+    const { error: queueErr } = await admin.from("notification_queue").insert({
+      user_id: call.callee_id,
+      type: "voip_incoming",
+      title: "Incoming Sociva call",
+      body: `${callerName} is calling`,
+      reference_path: `/call/${call.id}`,
+      action_url: `/call/${call.id}`,
+      payload: {
+        type: "voip_incoming",
+        call_id: call.id,
+        caller_name: callerName,
+        context_type: call.context_type,
+        context_id: call.context_id,
+        livekit_room: call.livekit_room,
+        order_id: call.context_type === "order" || call.context_type === "seller_order"
+          ? call.context_id
+          : null,
+      },
+      status: "pending",
+      idempotency_key: `voip_incoming:${call.id}`,
+    });
+    if (queueErr) {
+      evidence.queue_error = queueErr.message;
+    } else {
+      evidence.queue_enqueued = true;
     }
+  } catch (e) {
+    evidence.queue_error = (e as Error)?.message || "queue_insert_failed";
   }
 
   if ((evidence.voip_token_count as number) === 0) {
-    evidence.fallback = "in_app_or_tel";
+    evidence.fallback = "in_app_or_notification";
   }
   return evidence;
 }
