@@ -2151,9 +2151,18 @@ workflows:
           fi
           cd android
           chmod +x ./gradlew
+          set -e
           ./gradlew clean bundleRelease assembleRelease --warning-mode all
           AAB=$(ls -1 app/build/outputs/bundle/release/*.aab | head -1)
           APK=$(ls -1 app/build/outputs/apk/release/*.apk | head -1)
+          if [ -z "$AAB" ] || [ ! -f "$AAB" ]; then
+            echo "ERROR: release AAB missing"
+            exit 1
+          fi
+          if [ -z "$APK" ] || [ ! -f "$APK" ]; then
+            echo "ERROR: release APK missing"
+            exit 1
+          fi
           echo "=== Verifying AAB signature: $AAB ==="
           jarsigner -verify "$AAB"
           echo "=== AAB signature OK ==="

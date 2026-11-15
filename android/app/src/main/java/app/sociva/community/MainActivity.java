@@ -17,7 +17,6 @@ public class MainActivity extends BridgeActivity {
         OrderAlertChannels.ensure(this);
         registerPlugin(LiveActivityPlugin.class);
         registerPlugin(SocivaVoipPlugin.class);
-        registerPlugin(OrderAlertRingerPlugin.class);
         super.onCreate(savedInstanceState);
         disableWebViewOverscroll();
     }
