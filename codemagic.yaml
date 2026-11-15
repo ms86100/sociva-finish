@@ -1946,8 +1946,8 @@ workflows:
     instance_type: mac_mini_m2
 
     environment:
-      android_signing:
-        - sociva_keystore
+      # Codemagic code-signing identity "sociva_keystore" is not present on this
+      # personal account. Sign via CM_KEYSTORE_B64 (+ password/alias vars) instead.
       groups:
         - sociva_android_firebase
       vars:
@@ -1963,6 +1963,24 @@ workflows:
       java: 21
 
     scripts:
+      - name: Materialize upload keystore
+        script: |
+          set -e
+          if [ -z "${CM_KEYSTORE_B64:-}" ]; then
+            echo "ERROR: CM_KEYSTORE_B64 missing. Pass it as a workflow variable (or restore Codemagic android_signing identity)."
+            exit 1
+          fi
+          if [ -z "${CM_KEYSTORE_PASSWORD:-}" ] || [ -z "${CM_KEY_ALIAS:-}" ] || [ -z "${CM_KEY_PASSWORD:-}" ]; then
+            echo "ERROR: CM_KEYSTORE_PASSWORD / CM_KEY_ALIAS / CM_KEY_PASSWORD required for release signing"
+            exit 1
+          fi
+          echo "$CM_KEYSTORE_B64" | base64 --decode > "$CM_BUILD_DIR/sociva-upload.keystore"
+          export CM_KEYSTORE_PATH="$CM_BUILD_DIR/sociva-upload.keystore"
+          export CM_KEYSTORE="$CM_KEYSTORE_PATH"
+          echo "CM_KEYSTORE_PATH=$CM_KEYSTORE_PATH" >> "$CM_ENV"
+          echo "CM_KEYSTORE=$CM_KEYSTORE" >> "$CM_ENV"
+          echo "=== upload keystore materialized ==="
+
       - name: Install dependencies
         script: |
           npm install --legacy-peer-deps
@@ -2032,7 +2050,7 @@ workflows:
             export CM_KEYSTORE="$CM_KEYSTORE_PATH"
           fi
           if [ -z "${CM_KEYSTORE:-}" ] || [ ! -f "$CM_KEYSTORE" ]; then
-            echo "ERROR: Android upload keystore missing (expected CM_KEYSTORE_PATH from sociva_keystore)."
+            echo "ERROR: Android upload keystore missing (expected CM_KEYSTORE_PATH from Materialize upload keystore)."
             echo "CM_KEYSTORE_PATH is missing or empty"
             exit 1
           fi
@@ -2147,8 +2165,7 @@ workflows:
       ios_signing:
         distribution_type: app_store
         bundle_identifier: app.sociva.community
-      android_signing:
-        - sociva_keystore
+      # No android_signing identity on this account - use CM_KEYSTORE_B64 materialization.
       groups:
         - sociva_android_firebase
       vars:
@@ -2166,6 +2183,24 @@ workflows:
       java: 21
 
     scripts:
+      - name: Materialize upload keystore
+        script: |
+          set -e
+          if [ -z "${CM_KEYSTORE_B64:-}" ]; then
+            echo "ERROR: CM_KEYSTORE_B64 missing. Pass it as a workflow variable (or restore Codemagic android_signing identity)."
+            exit 1
+          fi
+          if [ -z "${CM_KEYSTORE_PASSWORD:-}" ] || [ -z "${CM_KEY_ALIAS:-}" ] || [ -z "${CM_KEY_PASSWORD:-}" ]; then
+            echo "ERROR: CM_KEYSTORE_PASSWORD / CM_KEY_ALIAS / CM_KEY_PASSWORD required for release signing"
+            exit 1
+          fi
+          echo "$CM_KEYSTORE_B64" | base64 --decode > "$CM_BUILD_DIR/sociva-upload.keystore"
+          export CM_KEYSTORE_PATH="$CM_BUILD_DIR/sociva-upload.keystore"
+          export CM_KEYSTORE="$CM_KEYSTORE_PATH"
+          echo "CM_KEYSTORE_PATH=$CM_KEYSTORE_PATH" >> "$CM_ENV"
+          echo "CM_KEYSTORE=$CM_KEYSTORE" >> "$CM_ENV"
+          echo "=== upload keystore materialized ==="
+
       - name: Install dependencies
         script: |
           npm install --legacy-peer-deps
@@ -3016,7 +3051,7 @@ workflows:
             export CM_KEYSTORE="$CM_KEYSTORE_PATH"
           fi
           if [ -z "${CM_KEYSTORE:-}" ] || [ ! -f "$CM_KEYSTORE" ]; then
-            echo "ERROR: Android upload keystore missing (expected CM_KEYSTORE_PATH from sociva_keystore)."
+            echo "ERROR: Android upload keystore missing (expected CM_KEYSTORE_PATH from Materialize upload keystore)."
             exit 1
           fi
           echo "=== Rewriting build.gradle to use Codemagic upload keystore ==="
