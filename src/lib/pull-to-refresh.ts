@@ -73,6 +73,15 @@ type ScreenRefreshFn = () => Promise<void> | void;
 
 const screenRefreshers = new Set<ScreenRefreshFn>();
 let blockCount = 0;
+let nativeKeyboardOpen = false;
+
+export function setNativeKeyboardOpen(open: boolean): void {
+  nativeKeyboardOpen = !!open;
+}
+
+export function isNativeKeyboardOpen(): boolean {
+  return nativeKeyboardOpen;
+}
 
 export function registerScreenRefresh(fn: ScreenRefreshFn): () => void {
   screenRefreshers.add(fn);
@@ -98,6 +107,7 @@ export function isPullToRefreshHardBlocked(): boolean {
 export function __resetPullToRefreshRegistryForTests(): void {
   screenRefreshers.clear();
   blockCount = 0;
+  nativeKeyboardOpen = false;
 }
 
 export function isPullToRefreshDisabledPath(pathname: string): boolean {
@@ -145,7 +155,8 @@ export function classifyPullMove(dx: number, dy: number): PullMoveKind {
 
 export function shouldBeginPull(input: BeginPullInput): boolean {
   if (input.routeDisabled || input.overlayOpen || input.blocked) return false;
-  if (input.keyboardOpen && input.startedOnEditable) return false;
+  // Keyboard open means the user is in a form/chat field — never steal the gesture.
+  if (input.keyboardOpen || input.startedOnEditable) return false;
   if (!input.atScrollTop) return false;
   return true;
 }
@@ -157,13 +168,17 @@ export function isEditableElement(el: EventTarget | null): boolean {
 }
 
 export function isKeyboardOpen(root: HTMLElement = document.documentElement): boolean {
+  if (nativeKeyboardOpen) return true;
   const inset = Number.parseFloat(root.style.getPropertyValue('--keyboard-inset') || '') ||
     Number.parseFloat(getComputedStyle(root).getPropertyValue('--keyboard-inset') || '') ||
     0;
-  if (inset > 40) return true;
-  const vv = typeof window !== 'undefined' ? window.visualViewport : null;
-  if (vv && window.innerHeight - vv.height > 80) return true;
-  return false;
+  // Capacitor Keyboard / KeyboardAwareInputs set this. Use a high threshold so
+  // Android URL-bar / gesture-nav chrome is not mistaken for a keyboard.
+  return inset > 120;
+}
+
+export function isRefreshNetworkUnavailable(): boolean {
+  return typeof navigator !== 'undefined' && navigator.onLine === false;
 }
 
 export function getScrollRoot(): HTMLElement | null {
@@ -198,9 +213,9 @@ export function isAtScrollTop(el: HTMLElement | null): boolean {
 const OVERLAY_SELECTORS = [
   '[data-ptr-block="true"]',
   '[data-checkout-in-progress="true"]',
-  '[role="dialog"][data-state="open"]',
+  '[role="dialog"][data-state="open"]:not([data-ptr-allow="true"])',
   '[role="alertdialog"][data-state="open"]',
-  '[data-vaul-drawer][data-state="open"]',
+  '[data-vaul-drawer][data-state="open"]:not([data-ptr-allow="true"])',
   '[data-radix-popper-content-wrapper]',
 ].join(',');
 
@@ -232,6 +247,10 @@ export async function refetchCurrentScreen(
   const started = Date.now();
   if (isPullToRefreshDisabledPath(pathname) || isPullToRefreshHardBlocked()) {
     return { ok: true, timedOut: false, hadError: false, durationMs: 0 };
+  }
+
+  if (isRefreshNetworkUnavailable()) {
+    return { ok: false, timedOut: false, hadError: true, durationMs: Date.now() - started };
   }
 
   const skipCart = queryClient.isMutating() > 0;

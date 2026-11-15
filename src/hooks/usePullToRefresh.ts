@@ -19,6 +19,7 @@ import {
   PULL_THRESHOLD_PX,
   refetchCurrentScreen,
   registerScreenRefresh,
+  setNativeKeyboardOpen,
   shouldBeginPull,
 } from '@/lib/pull-to-refresh';
 
@@ -91,6 +92,28 @@ export function usePullToRefresh(): PullToRefreshController {
       toast.error("Couldn't refresh right now. Pull down to try again.");
     }
   }, [location.pathname, queryClient]);
+
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    let remove: (() => void) | undefined;
+    void (async () => {
+      try {
+        const { Keyboard } = await import('@capacitor/keyboard');
+        const shown = await Keyboard.addListener('keyboardDidShow', () => setNativeKeyboardOpen(true));
+        const hidden = await Keyboard.addListener('keyboardDidHide', () => setNativeKeyboardOpen(false));
+        remove = () => {
+          shown.remove();
+          hidden.remove();
+        };
+      } catch {
+        /* web / plugin missing */
+      }
+    })();
+    return () => {
+      remove?.();
+      setNativeKeyboardOpen(false);
+    };
+  }, []);
 
   useEffect(() => {
     const root = getScrollRoot();

@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useSmartBack } from '@/hooks/useSmartBack';
 import { supabase } from '@/integrations/supabase/client';
@@ -12,6 +12,7 @@ import { PreciseLocationRequiredCard } from '@/components/location/PreciseLocati
 import { useBrowsingLocation } from '@/contexts/BrowsingLocationContext';
 import { buyerCanOrderFromSeller } from '@/lib/sellerDiscoverability';
 import { resolveMergedProductId } from '@/lib/product-merges';
+import { useRegisterScreenRefresh } from '@/hooks/usePullToRefresh';
 
 export default function ProductDeepLinkPage() {
   const { productId } = useParams<{ productId: string }>();
@@ -24,12 +25,16 @@ export default function ProductDeepLinkPage() {
   const [error, setError] = useState<string | null>(null);
   const [needsLocation, setNeedsLocation] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const productRef = useRef(product);
+  productRef.current = product;
 
-  useEffect(() => {
+  const loadProduct = useCallback(async (opts?: { silent?: boolean }) => {
     if (!productId) return;
-    (async () => {
+    const silent = !!opts?.silent && !!productRef.current;
+    if (!silent) {
       setIsLoading(true);
       setError(null);
+    }
       try {
         const productSelectWithGallery = `
             id, name, price, image_url, secondary_images, is_veg, category, description,
@@ -77,7 +82,7 @@ export default function ProductDeepLinkPage() {
             navigate(`/product/${mergedInto}`, { replace: true });
             return;
           }
-          setError('Product not found or no longer available');
+          if (!silent) setError('Product not found or no longer available');
           return;
         }
 
@@ -153,12 +158,17 @@ export default function ProductDeepLinkPage() {
         setSheetOpen(true);
       } catch (e) {
         console.error('[ProductDeepLink] Error:', e);
-        setError('Failed to load product');
+        if (!silent) setError('Failed to load product');
       } finally {
-        setIsLoading(false);
+        if (!silent) setIsLoading(false);
       }
-    })();
-  }, [productId, browsingLocation?.lat, browsingLocation?.lng]);
+  }, [productId, browsingLocation?.lat, browsingLocation?.lng, navigate]);
+
+  useEffect(() => {
+    void loadProduct();
+  }, [loadProduct]);
+
+  useRegisterScreenRefresh(() => loadProduct({ silent: true }));
 
   const handleSheetClose = useCallback((open: boolean) => {
     setSheetOpen(open);
@@ -208,6 +218,7 @@ export default function ProductDeepLinkPage() {
         product={product}
         open={sheetOpen}
         onOpenChange={handleSheetClose}
+        allowParentPullToRefresh
       />
     </>
   );

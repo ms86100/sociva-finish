@@ -11,6 +11,7 @@ import {
   isEditableElement,
   isPullToRefreshDisabledPath,
   isPullToRefreshHardBlocked,
+  isRefreshNetworkUnavailable,
   PULL_THRESHOLD_PX,
   queryKeyHead,
   refetchCurrentScreen,
@@ -117,7 +118,16 @@ describe('pull-to-refresh policy', () => {
       keyboardOpen: true,
       startedOnEditable: false,
       atScrollTop: true,
-    })).toBe(true);
+    })).toBe(false);
+
+    expect(shouldBeginPull({
+      overlayOpen: false,
+      routeDisabled: false,
+      blocked: false,
+      keyboardOpen: false,
+      startedOnEditable: true,
+      atScrollTop: true,
+    })).toBe(false);
   });
 
   it('does not hijack horizontal swipes or mid-list scrolling', () => {
@@ -129,6 +139,8 @@ describe('pull-to-refresh policy', () => {
     expect(applyPullResistance(40)).toBeLessThan(40);
     expect(applyPullResistance(400)).toBeLessThanOrEqual(112);
     expect(PULL_THRESHOLD_PX).toBe(72);
+    // ~131px finger travel is enough to arm (0.55 * 131 >= 72)
+    expect(applyPullResistance(131)).toBeGreaterThanOrEqual(PULL_THRESHOLD_PX);
   });
 
   it('detects dialogs, drawers, checkout, and Razorpay as blocking overlays', () => {
@@ -152,6 +164,14 @@ describe('pull-to-refresh policy', () => {
     razorpay.className = 'razorpay-container';
     root.appendChild(razorpay);
     expect(isBlockingOverlayOpen(root)).toBe(true);
+
+    root.innerHTML = '';
+    const allowed = document.createElement('div');
+    allowed.setAttribute('data-vaul-drawer', '');
+    allowed.setAttribute('data-state', 'open');
+    allowed.setAttribute('data-ptr-allow', 'true');
+    root.appendChild(allowed);
+    expect(isBlockingOverlayOpen(root)).toBe(false);
   });
 
   it('treats text inputs as editable targets', () => {
@@ -215,6 +235,20 @@ describe('pull-to-refresh policy', () => {
   it('keeps a search query path eligible so results can refresh without clearing the term', () => {
     expect(isPullToRefreshDisabledPath('/search')).toBe(false);
   });
+
+  it('fails refresh immediately when the device is offline', async () => {
+    const original = Object.getOwnPropertyDescriptor(navigator, 'onLine');
+    Object.defineProperty(navigator, 'onLine', { configurable: true, get: () => false });
+    expect(isRefreshNetworkUnavailable()).toBe(true);
+    const client = new QueryClient();
+    const refetchQueries = vi.spyOn(client, 'refetchQueries');
+    const outcome = await refetchCurrentScreen(client, '/');
+    expect(outcome.hadError).toBe(true);
+    expect(outcome.ok).toBe(false);
+    expect(refetchQueries).not.toHaveBeenCalled();
+    if (original) Object.defineProperty(navigator, 'onLine', original);
+    else Object.defineProperty(navigator, 'onLine', { configurable: true, get: () => true });
+  });
 });
 
 describe('pull-to-refresh wiring', () => {
@@ -245,5 +279,32 @@ describe('pull-to-refresh wiring', () => {
     expect(cartPage).toMatch(/showRazorpayCheckout/);
     const overlay = read('src/components/checkout/OrderProgressOverlay.tsx');
     expect(overlay).toMatch(/data-checkout-in-progress/);
+  });
+
+  it('listens for native keyboard and refetches product deep links without wiping the sheet', () => {
+    const hook = read('src/hooks/usePullToRefresh.ts');
+    expect(hook).toMatch(/keyboardDidShow/);
+    expect(hook).toMatch(/setNativeKeyboardOpen/);
+    const productPage = read('src/pages/ProductDeepLinkPage.tsx');
+    expect(productPage).toMatch(/useRegisterScreenRefresh/);
+    expect(productPage).toMatch(/allowParentPullToRefresh/);
+    expect(productPage).toMatch(/loadProduct\(\{ silent: true \}\)/);
+  });
+
+  it('clears competing native overscroll and keeps the spinner below the status bar', () => {
+    const css = read('src/index.css');
+    expect(css).toMatch(/overscroll-behavior-y:\s*none/);
+    expect(css).toMatch(/\.ptr-host\[data-ptr-live="true"\]/);
+    expect(css).toMatch(/\.ptr-host\[data-ptr-refreshing="true"\]/);
+    expect(css).toMatch(/--app-safe-top/);
+    expect(css).toMatch(/box-sizing:\s*content-box/);
+    const android = read('android/app/src/main/java/app/sociva/community/MainActivity.java');
+    expect(android).toMatch(/OVER_SCROLL_NEVER/);
+    expect(android).toMatch(/disableWebViewOverscroll/);
+  });
+
+  it('blocks pull while a product sheet booking or enquiry is open', () => {
+    const sheet = read('src/components/product/ProductDetailSheet.tsx');
+    expect(sheet).toMatch(/useBlockPullToRefresh\(bookingOpen/);
   });
 });

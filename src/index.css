@@ -333,7 +333,9 @@
     overflow-y: auto;
     overflow-x: hidden;
     -webkit-overflow-scrolling: touch;
-    overscroll-behavior-y: contain;
+    /* none: stop WKWebView / Android glow from fighting JS pull-to-refresh */
+    overscroll-behavior-y: none;
+    overscroll-behavior-x: none;
     background: hsl(var(--background));
     padding-bottom: var(--keyboard-inset, 0px);
   }
@@ -2262,8 +2264,15 @@ body.razorpay-active.razorpay-ios iframe[src*="checkout.razorpay"] {
   overflow: hidden;
   pointer-events: none;
   flex-shrink: 0;
+  /* content-box so safe-area padding does not clip the spinner */
+  box-sizing: content-box;
   transition: height 0.2s ease-out;
   z-index: 30;
+}
+
+.ptr-host[data-ptr-live="true"],
+.ptr-host[data-ptr-refreshing="true"] {
+  padding-top: var(--app-safe-top, env(safe-area-inset-top, 0px));
 }
 
 .ptr-host[data-ptr-live="true"] {
@@ -2275,6 +2284,8 @@ body.razorpay-active.razorpay-ios iframe[src*="checkout.razorpay"] {
   align-items: center;
   justify-content: center;
   height: 52px;
+  /* Sit just above page chrome, below notch / Dynamic Island / status bar. */
+  margin-bottom: 4px;
 }
 
 .ptr-ios {

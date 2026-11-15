@@ -47,6 +47,7 @@ import { buildProductShareText, productShareUrl, shareSocivaContent } from '@/li
 import { canShowRepeatRate } from '@/hooks/queries/useProductTrustMetrics';
 import { OfferingImageCarousel } from '@/components/product/OfferingImageCarousel';
 import { homeServiceBuyerLabel } from '@/lib/home-service-label';
+import { useBlockPullToRefresh } from '@/hooks/usePullToRefresh';
 
 const PriceHistoryChart = lazy(() =>
   import('./PriceHistoryChart').then((m) => ({ default: m.PriceHistoryChart })),
@@ -71,6 +72,8 @@ interface ProductDetailSheetProps {
   onSelectProduct?: (product: any) => void;
   categoryIcon?: string;
   categoryName?: string;
+  /** When this drawer IS the page (product deep link), parent pull-to-refresh may run. */
+  allowParentPullToRefresh?: boolean;
 }
 
 export { type ProductDetail };
@@ -80,7 +83,7 @@ export function usesServiceBookingFlow(actionType: string | null | undefined): b
   return actionType === 'book';
 }
 
-export function ProductDetailSheet({ product, open, onOpenChange, onSelectProduct, categoryIcon, categoryName }: ProductDetailSheetProps) {
+export function ProductDetailSheet({ product, open, onOpenChange, onSelectProduct, categoryIcon, categoryName, allowParentPullToRefresh }: ProductDetailSheetProps) {
   const { user } = useAuth();
   const navigate = useNavigate();
   const d = useProductDetail(product, open, onOpenChange);
@@ -100,6 +103,7 @@ export function ProductDetailSheet({ product, open, onOpenChange, onSelectProduc
   const ml = useMarketplaceLabels();
   const [bookingOpen, setBookingOpen] = useState(false);
   const [bookingDraft, setBookingDraft] = useState<PendingBookingDraft | null>(null);
+  useBlockPullToRefresh(bookingOpen || !!d.enquiryOpen || !!d.contactOpen);
   const [selectedExtras, setSelectedExtras] = useState<SelectedExtra[]>([]);
   const extraGroups = useProductExtraGroups(d.loadedSpecs ?? product?.specifications);
   useEffect(() => { setSelectedExtras([]); }, [product?.product_id]);
@@ -254,7 +258,10 @@ export function ProductDetailSheet({ product, open, onOpenChange, onSelectProduc
   return (
     <>
       <Drawer open={open} onOpenChange={onOpenChange}>
-        <DrawerContent className="max-h-[92vh] outline-none">
+        <DrawerContent
+          className="max-h-[92vh] outline-none"
+          data-ptr-allow={allowParentPullToRefresh ? 'true' : undefined}
+        >
           <div className="overflow-y-auto max-h-[calc(92vh-2rem)]">
             <DrawerHeader className="sr-only"><DrawerTitle>{product.product_name}</DrawerTitle></DrawerHeader>
             {/* Image with scale entrance */}
