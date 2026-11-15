@@ -2054,8 +2054,9 @@ workflows:
           release_type = (
               "    buildTypes {\n"
               "        release {\n"
-              "            minifyEnabled false\n"
-              "            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'\n"
+              "            minifyEnabled true\n"
+              "            shrinkResources true\n"
+              "            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'\n"
               "            signingConfig signingConfigs.release\n"
               "        }\n"
               "    }\n"
@@ -3036,8 +3037,9 @@ workflows:
           release_type = (
               "    buildTypes {\n"
               "        release {\n"
-              "            minifyEnabled false\n"
-              "            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'\n"
+              "            minifyEnabled true\n"
+              "            shrinkResources true\n"
+              "            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'\n"
               "            signingConfig signingConfigs.release\n"
               "        }\n"
               "    }\n"

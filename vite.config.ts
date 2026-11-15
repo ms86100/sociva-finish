@@ -13,17 +13,26 @@ const isNativeProdBuild =
   process.env.CAPACITOR_ENV === "staging" ||
   process.env.CAPACITOR_BUILD === "1";
 
-/** Keep website installer downloads out of Capacitor bundles (APK/EXE self-nesting blows size limits). */
-function omitDownloadsFromNativeDist(enabled: boolean): Plugin {
+/**
+ * Keep website-only marketing and installer trees out of Capacitor bundles.
+ * Web (`vite build`) still ships these under dist/ for sociva.in.
+ * Native (`build:native` / CAPACITOR_ENV=production|staging) removes them after bundle.
+ *
+ * - downloads/: APK/EXE self-nesting blows size limits
+ * - pamphlets/: print/marketing PNGs (~38 MB) - no React route deps
+ * - menu/: unused static food photos - no React route deps
+ */
+function omitWebOnlyFromNativeDist(enabled: boolean): Plugin {
   return {
-    name: "omit-downloads-from-native-dist",
+    name: "omit-web-only-from-native-dist",
     apply: "build",
     closeBundle() {
       if (!enabled) return;
-      const downloadsDir = path.resolve(__dirname, "dist/downloads");
-      if (!fs.existsSync(downloadsDir)) return;
-      for (const name of fs.readdirSync(downloadsDir)) {
-        fs.rmSync(path.join(downloadsDir, name), { force: true, recursive: true });
+      const distRoot = path.resolve(__dirname, "dist");
+      for (const dirName of ["downloads", "pamphlets", "menu"] as const) {
+        const target = path.join(distRoot, dirName);
+        if (!fs.existsSync(target)) continue;
+        fs.rmSync(target, { force: true, recursive: true });
       }
     },
   };
@@ -45,7 +54,7 @@ export default defineConfig(({ mode }) => {
     plugins: [
       react(),
       mode === "development" && componentTagger(),
-      omitDownloadsFromNativeDist(isCapacitorBuild),
+      omitWebOnlyFromNativeDist(isCapacitorBuild),
       ViteTsconfigPaths(),
       !skipPwa &&
         VitePWA({

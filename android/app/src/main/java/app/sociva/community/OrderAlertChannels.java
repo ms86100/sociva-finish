@@ -49,8 +49,11 @@ public final class OrderAlertChannels {
             NotificationManager.IMPORTANCE_HIGH
         );
         channel.setDescription("High-priority ringing alerts for new seller orders");
+        // Use R.raw so resource shrinker keeps gate_bell.mp3 (string URIs are invisible to it).
         channel.setSound(
-            Uri.parse("android.resource://" + context.getPackageName() + "/raw/gate_bell"),
+            Uri.parse(
+                "android.resource://" + context.getPackageName() + "/" + R.raw.gate_bell
+            ),
             attrs
         );
         channel.enableVibration(true);

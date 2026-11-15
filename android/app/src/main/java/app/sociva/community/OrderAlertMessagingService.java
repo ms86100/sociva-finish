@@ -20,10 +20,36 @@ public class OrderAlertMessagingService extends MessagingService {
     public void onMessageReceived(@NonNull RemoteMessage remoteMessage) {
         OrderAlertChannels.ensure(this);
         Map<String, String> data = remoteMessage.getData();
+        if (isTerminalAck(data)) {
+            cancelOrderAlert(data);
+            super.onMessageReceived(remoteMessage);
+            return;
+        }
         if (shouldPostOsAlert(data)) {
             postOrderAlert(data);
         }
         super.onMessageReceived(remoteMessage);
+    }
+
+    private static boolean isTerminalAck(Map<String, String> data) {
+        if (data == null || data.isEmpty()) return false;
+        if (!"true".equals(data.get("is_terminal"))) return false;
+        String orderId = data.get("orderId");
+        if (orderId == null || orderId.isEmpty()) orderId = data.get("order_id");
+        return orderId != null && !orderId.isEmpty();
+    }
+
+    private void cancelOrderAlert(Map<String, String> data) {
+        String orderId = data.get("orderId");
+        if (orderId == null || orderId.isEmpty()) orderId = data.get("order_id");
+        if (orderId == null || orderId.isEmpty()) return;
+        OrderAlertRinger.stop(orderId);
+        NotificationManager manager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+        if (manager != null) {
+            manager.cancel(notificationId(orderId, data.get("reminder_bucket")));
+            manager.cancel(notificationId(orderId, null));
+            manager.cancel(notificationId(orderId, "0"));
+        }
     }
 
     private boolean shouldPostOsAlert(Map<String, String> data) {
@@ -74,26 +100,35 @@ public class OrderAlertMessagingService extends MessagingService {
             open.setData(Uri.parse("sociva://orders/" + orderId));
             open.putExtra("orderId", orderId);
         }
+        int notifyId = notificationId(orderId, data.get("reminder_bucket"));
         int flags = PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE;
-        PendingIntent content = PendingIntent.getActivity(this, 0, open, flags);
+        // Unique request code per order so multi-order taps do not share extras.
+        PendingIntent content = PendingIntent.getActivity(this, notifyId, open, flags);
 
-        Uri sound = Uri.parse("android.resource://" + getPackageName() + "/raw/gate_bell");
+        Uri sound = Uri.parse(
+            "android.resource://" + getPackageName() + "/" + R.raw.gate_bell
+        );
         NotificationCompat.Builder builder = new NotificationCompat.Builder(this, OrderAlertChannels.CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_sociva)
             .setContentTitle(title)
             .setContentText(body)
             .setStyle(new NotificationCompat.BigTextStyle().bigText(body))
             .setPriority(NotificationCompat.PRIORITY_MAX)
-            .setCategory(NotificationCompat.CATEGORY_REMINDER)
+            .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setAutoCancel(true)
             .setOnlyAlertOnce(false)
             .setSound(sound)
             .setContentIntent(content);
 
+        // Foreground / unlocked: also start order-scoped Ringtone (not MediaSession).
+        if (orderId != null && !orderId.isEmpty() && MainActivity.isInForeground()) {
+            OrderAlertRinger.start(this, orderId);
+        }
+
         NotificationManager manager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
         if (manager != null) {
-            manager.notify(notificationId(orderId, data.get("reminder_bucket")), builder.build());
+            manager.notify(notifyId, builder.build());
         }
     }
 

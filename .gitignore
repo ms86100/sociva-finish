@@ -59,3 +59,7 @@ public/downloads/*.apk
 desktop/node_modules/
 desktop/dist/
 desktop/out/
+
+dist-web-verify/
+tmp-size-audit-apk/
+
