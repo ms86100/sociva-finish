@@ -248,6 +248,7 @@ workflows:
           class SocivaBridgeViewController: CAPBridgeViewController {
               override open func capacitorDidLoad() {
                   bridge?.registerPluginInstance(LiveActivityPlugin())
+                  bridge?.registerPluginInstance(SocivaVoipPlugin())
                   print("✅ SocivaBridgeViewController: LiveActivityPlugin registered with bridge")
               }
           }
@@ -416,6 +417,18 @@ workflows:
         script: |
           echo "=== Copying Live Activity Swift files ==="
           cp native/ios/LiveActivityPlugin.swift ios/App/App/
+          cp native/ios/SocivaVoipPlugin.swift ios/App/App/
+
+          # Ensure voip + audio modes exist (idempotent) for CallKit / LiveKit
+          /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes array" App/Info.plist 2>/dev/null || true
+          HAS_VOIP=0; HAS_AUDIO=0
+          for MODE in $(/usr/libexec/PlistBuddy -c "Print :UIBackgroundModes" App/Info.plist 2>/dev/null | sed -n 's/.*string //p' || true); do
+            [ "$MODE" = "voip" ] && HAS_VOIP=1
+            [ "$MODE" = "audio" ] && HAS_AUDIO=1
+          done
+          [ "$HAS_VOIP" = "0" ] && /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes: string voip" App/Info.plist 2>/dev/null || true
+          [ "$HAS_AUDIO" = "0" ] && /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes: string audio" App/Info.plist 2>/dev/null || true
+          echo "=== UIBackgroundModes include voip + audio for CallKit ==="
           cp native/ios/LiveDeliveryActivity.swift ios/App/App/
           # Copy Privacy Manifest (required since May 2024)
           cp native/ios/PrivacyInfo.xcprivacy ios/App/App/PrivacyInfo.xcprivacy
@@ -428,7 +441,7 @@ workflows:
           abort('App target not found') unless target
           group = project.main_group.find_subpath('App', true)
 
-          %w[LiveActivityPlugin.swift LiveDeliveryActivity.swift].each do |filename|
+          %w[LiveActivityPlugin.swift LiveDeliveryActivity.swift SocivaVoipPlugin.swift].each do |filename|
             ref = group.files.find { |f| f.path == filename } || group.new_file(filename)
             unless target.source_build_phase.files_references.any? { |f| f.path == filename }
               target.source_build_phase.add_file_reference(ref, true)
@@ -1276,6 +1289,7 @@ workflows:
           class SocivaBridgeViewController: CAPBridgeViewController {
               override open func capacitorDidLoad() {
                   bridge?.registerPluginInstance(LiveActivityPlugin())
+                  bridge?.registerPluginInstance(SocivaVoipPlugin())
                   print("✅ SocivaBridgeViewController: LiveActivityPlugin registered with bridge")
               }
           }
@@ -1425,6 +1439,18 @@ workflows:
         script: |
           echo "=== Copying Live Activity Swift files ==="
           cp native/ios/LiveActivityPlugin.swift ios/App/App/
+          cp native/ios/SocivaVoipPlugin.swift ios/App/App/
+
+          # Ensure voip + audio modes exist (idempotent) for CallKit / LiveKit
+          /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes array" App/Info.plist 2>/dev/null || true
+          HAS_VOIP=0; HAS_AUDIO=0
+          for MODE in $(/usr/libexec/PlistBuddy -c "Print :UIBackgroundModes" App/Info.plist 2>/dev/null | sed -n 's/.*string //p' || true); do
+            [ "$MODE" = "voip" ] && HAS_VOIP=1
+            [ "$MODE" = "audio" ] && HAS_AUDIO=1
+          done
+          [ "$HAS_VOIP" = "0" ] && /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes: string voip" App/Info.plist 2>/dev/null || true
+          [ "$HAS_AUDIO" = "0" ] && /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes: string audio" App/Info.plist 2>/dev/null || true
+          echo "=== UIBackgroundModes include voip + audio for CallKit ==="
           cp native/ios/LiveDeliveryActivity.swift ios/App/App/
           echo "=== Adding Swift files to App target ==="
           cd ios/App
@@ -1435,7 +1461,7 @@ workflows:
           abort('App target not found') unless target
           group = project.main_group.find_subpath('App', true)
 
-          %w[LiveActivityPlugin.swift LiveDeliveryActivity.swift].each do |filename|
+          %w[LiveActivityPlugin.swift LiveDeliveryActivity.swift SocivaVoipPlugin.swift].each do |filename|
             ref = group.files.find { |f| f.path == filename } || group.new_file(filename)
             unless target.source_build_phase.files_references.any? { |f| f.path == filename }
               target.source_build_phase.add_file_reference(ref, true)

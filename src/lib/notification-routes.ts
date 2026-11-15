@@ -142,6 +142,16 @@ export function resolveNotificationRoute(
     case 'new_store_application':
       return '/admin';
 
+    case 'voip_incoming':
+    case 'voip_call': {
+      const callId = payload?.call_id || payload?.callId;
+      if (callId) return `/call/${callId}`;
+      const path = payload?.reference_path || payload?.action_url || payload?.route;
+      if (typeof path === 'string' && path.startsWith('/call/')) return path;
+      const orderId = getOrderId(payload);
+      return orderId ? `/orders/${orderId}` : '/notifications/inbox';
+    }
+
     // Delivery lifecycle
     case 'delivery':
     case 'delivery_en_route':

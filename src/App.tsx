@@ -116,6 +116,7 @@ const RefundPolicyPage = lazyWithRetry(() => import("./pages/RefundPolicyPage"))
 
 const SellerDetailPage = lazyWithRetry(() => import("./pages/SellerDetailPage"));
 const OrderDetailPage = lazyWithRetry(() => import("./pages/OrderDetailPage"));
+const CallPage = lazyWithRetry(() => import("./pages/CallPage"));
 const CheckoutDetailPage = lazyWithRetry(() => import("./pages/CheckoutDetailPage"));
 import ProfileEditPage from "./pages/ProfileEditPage";
 const FavoritesPage = lazyWithRetry(() => import("./pages/FavoritesPage"));
@@ -606,6 +607,7 @@ function AppRoutes() {
           <Route path="/orders" element={<RouteErrorBoundary sectionName="Orders"><OrdersPage /></RouteErrorBoundary>} />
           <Route path="/checkouts/:groupId" element={<RouteErrorBoundary sectionName="Checkout Details"><CheckoutDetailPage /></RouteErrorBoundary>} />
           <Route path="/orders/:id" element={<RouteErrorBoundary sectionName="Order Details"><OrderDetailPage /></RouteErrorBoundary>} />
+          <Route path="/call/:callId" element={<ProtectedRoute><RouteErrorBoundary sectionName="Sociva Call"><CallPage /></RouteErrorBoundary></ProtectedRoute>} />
           <Route path="/seller/orders" element={<Navigate to="/orders" replace />} />
           <Route path="/seller/orders/:id" element={<RouteErrorBoundary sectionName="Order Details"><OrderDetailPage /></RouteErrorBoundary>} />
           <Route path="/seller/messages" element={<RouteErrorBoundary sectionName="Seller Messages"><SellerMessagesPage /></RouteErrorBoundary>} />
