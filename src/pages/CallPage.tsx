@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Phone, PhoneOff, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -26,6 +26,7 @@ type CallRow = {
 const LIVE_STATUSES = new Set(['accepted', 'connecting', 'connected', 'active']);
 const RINGING_STATUSES = new Set(['ringing', 'initiated']);
 const ENDED_STATUSES = new Set(['ended', 'missed', 'declined', 'rejected', 'cancelled']);
+const RING_POLL_MS = 1500;
 
 async function joinMedia(callId: string) {
   const { data, error } = await supabase.functions.invoke('voip-call', {
@@ -66,10 +67,17 @@ export default function CallPage() {
   const [busy, setBusy] = useState(false);
   const [statusLabel, setStatusLabel] = useState('Loading call…');
   const [joined, setJoined] = useState(false);
+  const joinedRef = useRef(false);
+  const joiningRef = useRef(false);
 
   const isCallee = !!user?.id && call?.callee_id === user.id;
   const isCaller = !!user?.id && call?.caller_id === user.id;
   const isParticipant = isCallee || isCaller;
+
+  const markJoined = (value: boolean) => {
+    joinedRef.current = value;
+    setJoined(value);
+  };
 
   const refresh = useCallback(async () => {
     if (!callId) return;
@@ -82,6 +90,25 @@ export default function CallPage() {
     setCall((data as CallRow) || null);
     return data as CallRow | null;
   }, [callId]);
+
+  const tryJoinFromStatus = useCallback(
+    async (row: CallRow) => {
+      if (!row?.id || !LIVE_STATUSES.has(row.status)) return;
+      if (joinedRef.current || joiningRef.current) return;
+      joiningRef.current = true;
+      setStatusLabel('Connecting…');
+      try {
+        await joinMedia(row.id);
+        markJoined(true);
+        setStatusLabel('Connected');
+      } catch (e: any) {
+        setStatusLabel(e?.message || 'Could not join audio');
+      } finally {
+        joiningRef.current = false;
+      }
+    },
+    [],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -138,7 +165,7 @@ export default function CallPage() {
           setCall(row);
           if (ENDED_STATUSES.has(row.status)) {
             await leaveLiveKitCall();
-            setJoined(false);
+            markJoined(false);
             setStatusLabel(`Call ${row.status}`);
             return;
           }
@@ -146,15 +173,8 @@ export default function CallPage() {
             setStatusLabel(row.callee_id === user.id ? 'Incoming call' : 'Calling…');
             return;
           }
-          if (LIVE_STATUSES.has(row.status) && !joined) {
-            setStatusLabel('Connecting…');
-            try {
-              await joinMedia(row.id);
-              setJoined(true);
-              setStatusLabel('Connected');
-            } catch (e: any) {
-              setStatusLabel(e?.message || 'Could not join audio');
-            }
+          if (LIVE_STATUSES.has(row.status)) {
+            await tryJoinFromStatus(row);
           }
         },
       )
@@ -162,32 +182,51 @@ export default function CallPage() {
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [callId, user?.id, joined]);
+  }, [callId, user?.id, tryJoinFromStatus]);
 
   // Caller/callee who lands after accept should join once.
   useEffect(() => {
-    if (!call || joined || busy || !isParticipant) return;
+    if (!call || !isParticipant) return;
     if (!LIVE_STATUSES.has(call.status)) return;
+    void tryJoinFromStatus(call);
+  }, [call, isParticipant, tryJoinFromStatus]);
+
+  // While ringing, poll so accept is not lost if Realtime misses an update.
+  useEffect(() => {
+    if (!callId || !user?.id || !call) return;
+    if (!RINGING_STATUSES.has(call.status)) return;
+
     let cancelled = false;
-    (async () => {
-      setBusy(true);
-      setStatusLabel('Connecting…');
+    const tick = async () => {
       try {
-        await joinMedia(call.id);
-        if (!cancelled) {
-          setJoined(true);
-          setStatusLabel('Connected');
+        const row = await refresh();
+        if (cancelled || !row) return;
+        if (ENDED_STATUSES.has(row.status)) {
+          setStatusLabel(`Call ${row.status}`);
+          return;
         }
-      } catch (e: any) {
-        if (!cancelled) setStatusLabel(e?.message || 'Could not join audio');
-      } finally {
-        if (!cancelled) setBusy(false);
+        if (RINGING_STATUSES.has(row.status)) {
+          setStatusLabel(row.callee_id === user.id ? 'Incoming call' : 'Calling…');
+          return;
+        }
+        if (LIVE_STATUSES.has(row.status)) {
+          await tryJoinFromStatus(row);
+        }
+      } catch {
+        // keep polling
       }
-    })();
+    };
+
+    void tick();
+    const timer = window.setInterval(() => {
+      void tick();
+    }, RING_POLL_MS);
+
     return () => {
       cancelled = true;
+      window.clearInterval(timer);
     };
-  }, [call, joined, busy, isParticipant]);
+  }, [callId, user?.id, call?.status, refresh, tryJoinFromStatus]);
 
   useEffect(() => {
     return () => {
@@ -202,7 +241,7 @@ export default function CallPage() {
     try {
       await respondVoipCall(callId, true);
       await joinMedia(callId);
-      setJoined(true);
+      markJoined(true);
       setStatusLabel('Connected');
       const row = await refresh();
       if (row) setCall(row);

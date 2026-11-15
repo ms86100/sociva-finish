@@ -95,13 +95,25 @@ describe('Buyer-seller in-app calling policy', () => {
     expect(callPage).toContain('sociva-call-accept');
     expect(callPage).toContain('respondVoipCall');
     expect(callPage).toContain('joinLiveKitCall');
+    expect(callPage).toContain('RING_POLL_MS');
     expect(overlay).toContain('callee_id=eq.');
     expect(overlay).toContain('accepted');
+    expect(overlay).toContain('RING_POLL_MS');
+    expect(overlay).toContain('joinedRef');
+    expect(overlay).toContain('audioRoute');
     expect(overlay).not.toMatch(/status === 'active'/);
+    const livekitRoom = read('src/lib/calling/livekitRoom.ts');
+    expect(livekitRoom).toContain('prepareNativeCallAudio');
+    expect(livekitRoom).toContain('playsinline');
+    expect(livekitRoom).toContain('setSpeaker');
     expect(edge).toContain('notification_queue_fallback');
     expect(edge).toContain('process-notification-queue');
-    for (const src of [callPage, overlay, routes]) {
+    const realtimeMig = read('supabase/migrations/20261115100000_call_sessions_realtime.sql');
+    expect(realtimeMig).toContain('REPLICA IDENTITY FULL');
+    expect(realtimeMig).toContain('ADD TABLE public.call_sessions');
+    for (const src of [callPage, overlay, routes, realtimeMig]) {
       expect(src).not.toMatch(/[\u2013\u2014]/);
     }
   });
 });
+

@@ -116,21 +116,15 @@ public class SocivaVoipPlugin: CAPPlugin, CAPBridgedPlugin, PKPushRegistryDelega
     }
 
     @objc func setMuted(_ call: CAPPluginCall) {
-        let muted = call.getBool("muted") ?? false
-        try? AVAudioSession.sharedInstance().setMode(muted ? .voiceChat : .voiceChat)
+        // Mic mute is applied in JS via LiveKit; keep session in voiceChat mode.
+        try? AVAudioSession.sharedInstance().setMode(.voiceChat)
         call.resolve()
     }
 
     @objc func setSpeaker(_ call: CAPPluginCall) {
-        let speaker = call.getBool("speaker") ?? false
-        let session = AVAudioSession.sharedInstance()
-        do {
-            try session.setCategory(.playAndRecord, mode: .voiceChat, options: speaker ? [.defaultToSpeaker] : [])
-            try session.overrideOutputAudioPort(speaker ? .speaker : .none)
-            call.resolve()
-        } catch {
-            call.resolve()
-        }
+        let speaker = call.getBool("speaker") ?? true
+        applyCallAudioSession(defaultToSpeaker: speaker)
+        call.resolve()
     }
 
     // MARK: - PushKit
@@ -205,11 +199,30 @@ public class SocivaVoipPlugin: CAPPlugin, CAPBridgedPlugin, PKPushRegistryDelega
         }
     }
 
+    /// Category only before CallKit activates; setActive belongs in didActivate.
     private func configureAudioSession() {
+        applyCallAudioSession(defaultToSpeaker: true, activate: false)
+    }
+
+    private func applyCallAudioSession(defaultToSpeaker: Bool, activate: Bool = true) {
         let session = AVAudioSession.sharedInstance()
+        var options: AVAudioSession.CategoryOptions = [
+            .allowBluetoothHFP,
+            .allowBluetoothA2DP,
+        ]
+        if defaultToSpeaker {
+            options.insert(.defaultToSpeaker)
+        }
         do {
-            try session.setCategory(.playAndRecord, mode: .voiceChat, options: [.allowBluetoothHFP])
-            try session.setActive(true)
+            try session.setCategory(.playAndRecord, mode: .voiceChat, options: options)
+            if defaultToSpeaker {
+                try session.overrideOutputAudioPort(.speaker)
+            } else {
+                try session.overrideOutputAudioPort(.none)
+            }
+            if activate {
+                try session.setActive(true)
+            }
         } catch {
             print("SocivaVoip audio session error: \(error)")
         }
@@ -224,6 +237,7 @@ public class SocivaVoipPlugin: CAPPlugin, CAPBridgedPlugin, PKPushRegistryDelega
     }
 
     public func provider(_ provider: CXProvider, perform action: CXAnswerCallAction) {
+        // Configure category before fulfill; CallKit calls didActivate next.
         configureAudioSession()
         let callId = uuidToCallId[action.callUUID] ?? action.callUUID.uuidString
         notifyListeners("accepted", data: [
@@ -243,6 +257,7 @@ public class SocivaVoipPlugin: CAPPlugin, CAPBridgedPlugin, PKPushRegistryDelega
     }
 
     public func provider(_ provider: CXProvider, didActivate audioSession: AVAudioSession) {
+        applyCallAudioSession(defaultToSpeaker: true, activate: true)
         notifyListeners("audioRoute", data: ["active": true])
     }
 

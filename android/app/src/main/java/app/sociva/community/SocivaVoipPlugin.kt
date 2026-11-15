@@ -1,7 +1,9 @@
 package app.sociva.community
 
 import android.Manifest
+import android.content.Context
 import android.content.pm.PackageManager
+import android.media.AudioManager
 import androidx.core.content.ContextCompat
 import com.getcapacitor.JSObject
 import com.getcapacitor.Plugin
@@ -107,11 +109,17 @@ class SocivaVoipPlugin : Plugin() {
 
     @PluginMethod
     fun setMuted(call: PluginCall) {
+        // Mic mute is applied in JS via LiveKit.
         call.resolve()
     }
 
     @PluginMethod
     fun setSpeaker(call: PluginCall) {
+        val speaker = call.getBoolean("speaker", true) ?: true
+        val am = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        am.mode = AudioManager.MODE_IN_COMMUNICATION
+        @Suppress("DEPRECATION")
+        am.isSpeakerphoneOn = speaker
         call.resolve()
     }
 }
