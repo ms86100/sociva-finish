@@ -7,7 +7,12 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.93.3";
 import { livekitConfigured, mintLiveKitParticipantToken } from "./livekit.ts";
-import { apnsVoipConfigured, sendApnsVoipPush } from "./apnsVoip.ts";
+import {
+  apnsVoipConfigured,
+  apnsVoipConfiguredFrom,
+  loadApnsVoipEnv,
+  sendApnsVoipPush,
+} from "./apnsVoip.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -63,11 +68,14 @@ serve(async (req) => {
   if (action === "capabilities") {
     const { data, error } = await userClient.rpc("voip_runtime_capabilities");
     if (error) return json(400, { error: error.message });
+    const apnsEnv = await loadApnsVoipEnv(admin);
     return json(200, {
       success: true,
       capabilities: data,
       livekit_env_present: livekitConfigured(),
-      apns_voip_env_present: apnsVoipConfigured(),
+      apns_voip_env_present: apnsVoipConfiguredFrom(apnsEnv) || apnsVoipConfigured(),
+      apns_key_id: apnsEnv.keyId || null,
+      apns_bundle_id: apnsEnv.bundleId || null,
     });
   }
 
@@ -265,6 +273,7 @@ async function dispatchIncoming(
 
   const rows = Array.isArray(tokens) ? tokens : [];
   const callerName = await resolveCallerName(admin, callerId || call.caller_id);
+  const apnsEnv = await loadApnsVoipEnv(admin);
   const evidence: Record<string, unknown> = {
     attempted: true,
     at: new Date().toISOString(),
@@ -272,8 +281,10 @@ async function dispatchIncoming(
     voip_token_count: rows.filter((t: any) => !!t.voip_token).length,
     channels: [] as string[],
     ios_voip_results: [] as unknown[],
-    apns_voip_configured: apnsVoipConfigured(),
-    note: "iOS PushKit via APNs .voip topic; Android FCM data via notification_queue",
+    apns_voip_configured: apnsVoipConfiguredFrom(apnsEnv),
+    apns_key_id: apnsEnv.keyId || null,
+    apns_bundle_id: apnsEnv.bundleId || null,
+    note: "iOS PushKit via APNs .voip topic; fallback alert via notification_queue to /call/:id",
   };
 
   const seenVoip = new Set<string>();
@@ -291,17 +302,22 @@ async function dispatchIncoming(
 
     if (isIos || (!platform && voipTok.length >= 64 && !voipTok.includes(":"))) {
       (evidence.channels as string[]).push("ios_pushkit");
-      const result = await sendApnsVoipPush(voipTok, {
-        call_id: call.id,
-        caller_name: callerName,
-        context_type: call.context_type,
-        context_id: call.context_id,
-        livekit_room: call.livekit_room,
-      });
+      const result = await sendApnsVoipPush(
+        voipTok,
+        {
+          call_id: call.id,
+          caller_name: callerName,
+          context_type: call.context_type,
+          context_id: call.context_id,
+          livekit_room: call.livekit_room,
+        },
+        admin,
+      );
       (evidence.ios_voip_results as unknown[]).push({
         ok: result.success,
         error: result.error || null,
         topic: result.topic || null,
+        key_id: result.key_id || null,
       });
       if (result.error === "INVALID_TOKEN") {
         await admin
