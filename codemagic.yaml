@@ -1974,7 +1974,27 @@ workflows:
             echo "ERROR: CM_KEYSTORE_PASSWORD / CM_KEY_ALIAS / CM_KEY_PASSWORD required for release signing"
             exit 1
           fi
-          echo "$CM_KEYSTORE_B64" | base64 --decode > "$CM_BUILD_DIR/sociva-upload.keystore"
+          # Prefer python decode: macOS base64 + echo can choke on '+' / whitespace from CI var transport.
+          python3 - <<'PY'
+          import base64, os, re, sys
+          raw = os.environ.get("CM_KEYSTORE_B64") or ""
+          cleaned = re.sub(r"\s+", "", raw).replace("-", "+").replace("_", "/")
+          pad = (-len(cleaned)) % 4
+          if pad:
+              cleaned += "=" * pad
+          try:
+              data = base64.b64decode(cleaned, validate=False)
+          except Exception as e:
+              print("ERROR: CM_KEYSTORE_B64 is not valid base64:", e)
+              sys.exit(1)
+          if len(data) < 100:
+              print("ERROR: decoded keystore too small:", len(data))
+              sys.exit(1)
+          out = os.path.join(os.environ["CM_BUILD_DIR"], "sociva-upload.keystore")
+          with open(out, "wb") as f:
+              f.write(data)
+          print("=== upload keystore materialized bytes=", len(data), "===")
+          PY
           export CM_KEYSTORE_PATH="$CM_BUILD_DIR/sociva-upload.keystore"
           export CM_KEYSTORE="$CM_KEYSTORE_PATH"
           echo "CM_KEYSTORE_PATH=$CM_KEYSTORE_PATH" >> "$CM_ENV"
@@ -2194,7 +2214,27 @@ workflows:
             echo "ERROR: CM_KEYSTORE_PASSWORD / CM_KEY_ALIAS / CM_KEY_PASSWORD required for release signing"
             exit 1
           fi
-          echo "$CM_KEYSTORE_B64" | base64 --decode > "$CM_BUILD_DIR/sociva-upload.keystore"
+          # Prefer python decode: macOS base64 + echo can choke on '+' / whitespace from CI var transport.
+          python3 - <<'PY'
+          import base64, os, re, sys
+          raw = os.environ.get("CM_KEYSTORE_B64") or ""
+          cleaned = re.sub(r"\s+", "", raw).replace("-", "+").replace("_", "/")
+          pad = (-len(cleaned)) % 4
+          if pad:
+              cleaned += "=" * pad
+          try:
+              data = base64.b64decode(cleaned, validate=False)
+          except Exception as e:
+              print("ERROR: CM_KEYSTORE_B64 is not valid base64:", e)
+              sys.exit(1)
+          if len(data) < 100:
+              print("ERROR: decoded keystore too small:", len(data))
+              sys.exit(1)
+          out = os.path.join(os.environ["CM_BUILD_DIR"], "sociva-upload.keystore")
+          with open(out, "wb") as f:
+              f.write(data)
+          print("=== upload keystore materialized bytes=", len(data), "===")
+          PY
           export CM_KEYSTORE_PATH="$CM_BUILD_DIR/sociva-upload.keystore"
           export CM_KEYSTORE="$CM_KEYSTORE_PATH"
           echo "CM_KEYSTORE_PATH=$CM_KEYSTORE_PATH" >> "$CM_ENV"
