@@ -3,6 +3,7 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { MapPin, Navigation, Loader2, Home, Briefcase, Tag, Search, X, Plus, Pencil, Trash2 } from 'lucide-react';
 import { getCurrentPosition, locationFailureCopy } from '@/lib/native-location';
 import { openLocationSettings } from '@/lib/location-settings';
@@ -11,6 +12,7 @@ import { useAutocomplete } from '@/hooks/useGoogleMaps';
 import { extractBestLabel, extractBestFormattedAddress } from '@/lib/location-label-resolver';
 import { toast } from 'sonner';
 import { notify } from '@/lib/notify';
+import { supabase } from '@/integrations/supabase/client';
 
 interface AddressData {
   id?: string;
@@ -27,6 +29,8 @@ interface AddressData {
   phase: string;
   is_default: boolean;
   google_place_id?: string | null;
+  tower_id?: string | null;
+  unit_id?: string | null;
 }
 
 interface AddressFormProps {
@@ -38,6 +42,8 @@ interface AddressFormProps {
   autoOpenMap?: boolean;
   /** Copy: this pin is the delivery door, not membership. */
   deliveryOnly?: boolean;
+  /** When set, load MyGate-style tower/unit registry for this society. */
+  societyId?: string | null;
 }
 
 const FIXED_LABELS = [
@@ -45,7 +51,7 @@ const FIXED_LABELS = [
   { value: 'Work', icon: Briefcase },
 ];
 
-export function AddressForm({ initial, onSave, onCancel, saving, autoOpenMap = false, deliveryOnly = false }: AddressFormProps) {
+export function AddressForm({ initial, onSave, onCancel, saving, autoOpenMap = false, deliveryOnly = false, societyId }: AddressFormProps) {
   const [form, setForm] = useState<AddressData>({
     id: initial?.id,
     label: initial?.label || 'Home',
@@ -61,7 +67,12 @@ export function AddressForm({ initial, onSave, onCancel, saving, autoOpenMap = f
     phase: initial?.phase || '',
     is_default: initial?.is_default ?? false,
     google_place_id: initial?.google_place_id ?? null,
+    tower_id: initial?.tower_id ?? null,
+    unit_id: initial?.unit_id ?? null,
   });
+  const [towers, setTowers] = useState<{ id: string; name: string }[]>([]);
+  const [units, setUnits] = useState<{ id: string; tower_id: string; unit_number: string; floor: string | null }[]>([]);
+  const [registryLoading, setRegistryLoading] = useState(false);
   const [detecting, setDetecting] = useState(false);
   const [showMap, setShowMap] = useState(false);
   const [customLabels, setCustomLabels] = useState<string[]>(() => {
@@ -85,6 +96,61 @@ export function AddressForm({ initial, onSave, onCancel, saving, autoOpenMap = f
   const promptedConfirmPinRef = useRef(false);
 
   const update = (key: keyof AddressData, value: any) => setForm(f => ({ ...f, [key]: value }));
+
+  useEffect(() => {
+    if (!societyId) {
+      setTowers([]);
+      setUnits([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      setRegistryLoading(true);
+      const [{ data: tData }, { data: uData }] = await Promise.all([
+        supabase.rpc('list_society_towers', { _society_id: societyId }),
+        supabase.rpc('list_society_units', { _society_id: societyId, _tower_id: null }),
+      ]);
+      if (cancelled) return;
+      setTowers(((tData as any[]) || []).map((t) => ({ id: t.id, name: t.name })));
+      setUnits(
+        ((uData as any[]) || []).map((u) => ({
+          id: u.id,
+          tower_id: u.tower_id,
+          unit_number: u.unit_number,
+          floor: u.floor,
+        })),
+      );
+      setRegistryLoading(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [societyId]);
+
+  const selectTower = (towerId: string) => {
+    const tower = towers.find((t) => t.id === towerId);
+    setForm((f) => ({
+      ...f,
+      tower_id: towerId,
+      unit_id: null,
+      block: tower?.name || f.block,
+      flat_number: '',
+      floor: '',
+    }));
+  };
+
+  const selectUnit = (unitId: string) => {
+    const unit = units.find((u) => u.id === unitId);
+    if (!unit) return;
+    setForm((f) => ({
+      ...f,
+      unit_id: unitId,
+      tower_id: unit.tower_id,
+      flat_number: unit.unit_number,
+      floor: unit.floor || f.floor,
+      block: towers.find((t) => t.id === unit.tower_id)?.name || f.block,
+    }));
+  };
 
   // New address seeded from browse GPS / discovery pin - confirm pin before flat entry.
   // Skip on first-time society join so Google Maps is not mistaken for membership.
@@ -451,28 +517,73 @@ export function AddressForm({ initial, onSave, onCancel, saving, autoOpenMap = f
         <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
           Your unit in the society
         </p>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <Label htmlFor="block" className="text-xs">Tower / Block *</Label>
-            <Input
-              id="block"
-              value={form.block}
-              onChange={e => update('block', e.target.value)}
-              placeholder="e.g. Tower H / Block B"
-              className="mt-1"
-            />
+        {societyId && towers.length > 0 ? (
+          <div className="space-y-3">
+            {registryLoading ? (
+              <p className="text-[11px] text-muted-foreground">Loading tower list...</p>
+            ) : (
+              <>
+                <div>
+                  <Label className="text-xs">Tower *</Label>
+                  <Select value={form.tower_id || undefined} onValueChange={selectTower}>
+                    <SelectTrigger className="mt-1 rounded-xl h-10">
+                      <SelectValue placeholder="Select tower" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {towers.map((t) => (
+                        <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-xs">Unit *</Label>
+                  <Select
+                    value={form.unit_id || undefined}
+                    onValueChange={selectUnit}
+                    disabled={!form.tower_id}
+                  >
+                    <SelectTrigger className="mt-1 rounded-xl h-10">
+                      <SelectValue placeholder={form.tower_id ? 'Select unit' : 'Pick tower first'} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {units
+                        .filter((u) => u.tower_id === form.tower_id)
+                        .map((u) => (
+                          <SelectItem key={u.id} value={u.id}>
+                            {u.unit_number}{u.floor ? ` (Floor ${u.floor})` : ''}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </>
+            )}
           </div>
-          <div>
-            <Label htmlFor="flat" className="text-xs">Flat / Unit No. *</Label>
-            <Input
-              id="flat"
-              value={form.flat_number}
-              onChange={e => update('flat_number', e.target.value)}
-              placeholder="e.g. 1204"
-              className="mt-1"
-            />
+        ) : (
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label htmlFor="block" className="text-xs">Tower / Block *</Label>
+              <Input
+                id="block"
+                value={form.block}
+                onChange={e => update('block', e.target.value)}
+                placeholder="e.g. Tower H / Block B"
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <Label htmlFor="flat" className="text-xs">Flat / Unit No. *</Label>
+              <Input
+                id="flat"
+                value={form.flat_number}
+                onChange={e => update('flat_number', e.target.value)}
+                placeholder="e.g. 1204"
+                className="mt-1"
+              />
+            </div>
           </div>
-        </div>
+        )}
         <div className="grid grid-cols-2 gap-3">
           <div>
             <Label htmlFor="floor" className="text-xs">Floor</Label>
@@ -484,7 +595,9 @@ export function AddressForm({ initial, onSave, onCancel, saving, autoOpenMap = f
           </div>
         </div>
         <p className="text-[11px] text-muted-foreground leading-relaxed">
-          Match the tower and flat on your society invite so the committee can approve you faster.
+          {towers.length > 0
+            ? 'Pick your tower and unit from the society registry so the committee can approve you faster.'
+            : 'Match the tower and flat on your society invite so the committee can approve you faster.'}
         </p>
       </div>
 

@@ -21,7 +21,8 @@ import { AdminDisputesTab } from '@/components/admin/AdminDisputesTab';
 import { AdminPaymentMilestones } from '@/components/admin/AdminPaymentMilestones';
 import { useSocietyAdmin } from '@/hooks/useSocietyAdmin';
 import { AdminUserDetailSheet } from '@/components/admin/AdminUserDetailSheet';
-import { Check, X, Users, Store, Settings, Shield, UserPlus, Trash2, ToggleLeft, Lock, IndianRupee, LayoutDashboard, AlertCircle, MoreHorizontal } from 'lucide-react';
+import { SocietyUnitRegistry } from '@/components/admin/SocietyUnitRegistry';
+import { Check, X, Users, Store, Settings, Shield, UserPlus, Trash2, ToggleLeft, Lock, IndianRupee, LayoutDashboard, AlertCircle, MoreHorizontal, Building2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
@@ -79,6 +80,7 @@ export default function SocietyAdminPage() {
   const TAB_CONFIG = [
     { value: 'overview', label: 'Overview', icon: LayoutDashboard },
     { value: 'users', label: 'Users', icon: Users },
+    { value: 'units', label: 'Units', icon: Building2 },
     { value: 'sellers', label: 'Sellers', icon: Store },
     { value: 'disputes', label: 'Disputes', icon: AlertCircle },
     { value: 'more', label: 'More', icon: MoreHorizontal },
@@ -181,6 +183,14 @@ export default function SocietyAdminPage() {
                 </CardContent>
               </Card>
               {sa.societyId && <CommitteeDashboard societyId={sa.societyId} />}
+            </TabsContent>
+
+            <TabsContent value="units" className="mt-5">
+              {sa.societyId ? (
+                <SocietyUnitRegistry societyId={sa.societyId} />
+              ) : (
+                <p className="text-sm text-muted-foreground text-center py-10">Select a society first</p>
+              )}
             </TabsContent>
 
             <TabsContent value="users" className="space-y-3 mt-5">

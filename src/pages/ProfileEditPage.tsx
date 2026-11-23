@@ -156,13 +156,27 @@ export default function ProfileEditPage() {
 
     await saveAddress(payload);
 
-    if (user && (data.flat_number || data.block)) {
+    if (user && (data.flat_number || data.block || (data.tower_id && data.unit_id))) {
       try {
-        await supabase.from('profiles').update({
-          flat_number: data.flat_number || '',
-          block: data.block || '',
-          phase: data.phase || null,
-        }).eq('id', user.id);
+        if (data.tower_id && data.unit_id) {
+          const { error: unitErr } = await supabase.rpc('set_resident_unit', {
+            _tower_id: data.tower_id,
+            _unit_id: data.unit_id,
+          });
+          if (unitErr) {
+            await supabase.from('profiles').update({
+              flat_number: data.flat_number || '',
+              block: data.block || '',
+              phase: data.phase || null,
+            }).eq('id', user.id);
+          }
+        } else {
+          await supabase.from('profiles').update({
+            flat_number: data.flat_number || '',
+            block: data.block || '',
+            phase: data.phase || null,
+          }).eq('id', user.id);
+        }
         await refreshProfile();
       } catch {
         // Non-critical - don't block address save
@@ -518,6 +532,7 @@ export default function ProfileEditPage() {
                 }
                 autoOpenMap={false}
                 deliveryOnly
+                societyId={profile?.society_id || membership?.societyId || pickedSociety?.id || society?.id || null}
                 onSave={handleSaveAddress}
                 onCancel={() => { setShowAddressForm(false); setEditingAddress(null); setDismissedAutoOpen(true); }}
                 saving={isSaving || resolvingSociety}

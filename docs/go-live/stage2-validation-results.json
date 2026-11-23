@@ -1,10 +1,10 @@
 {
-  "generated_at": "2026-11-23T16:16:07.432Z",
+  "generated_at": "2026-11-23T16:33:38.870Z",
   "target": "wwuanzbusxoyzixuprxs",
   "production_touched": false,
   "summary": {
-    "total": 38,
-    "passed": 38,
+    "total": 42,
+    "passed": 42,
     "failed": 0,
     "skipped": 0
   },
@@ -140,7 +140,7 @@
       "role": "resident",
       "society": "C",
       "expected": "no guard_kiosk (default package only)",
-      "actual": "guard=false enabled=11",
+      "actual": "guard=false enabled=10",
       "pass": true,
       "evidence": null
     },
@@ -149,7 +149,7 @@
       "role": "resident",
       "society": "A",
       "expected": "entry+otp from server",
-      "actual": "id=b802a495-af97-42ce-9814-44dacfa2fb7c otp=present",
+      "actual": "id=a1a21c00-1cc4-4dbf-9234-0527c0d5180f otp=present",
       "pass": true,
       "evidence": null
     },
@@ -158,7 +158,7 @@
       "role": "guard",
       "society": "A",
       "expected": "check-in success",
-      "actual": "{\"id\":\"b802a495-af97-42ce-9814-44dacfa2fb7c\",\"ok\":true,\"status\":\"checked_in\",\"society_id\":\"a1111111-0001-4000-8000-00000",
+      "actual": "{\"id\":\"a1a21c00-1cc4-4dbf-9234-0527c0d5180f\",\"ok\":true,\"status\":\"checked_in\",\"society_id\":\"a1111111-0001-4000-8000-00000",
       "pass": true,
       "evidence": null
     },
@@ -329,6 +329,42 @@
       "role": "resident",
       "society": "A->B",
       "expected": "empty list or denied",
+      "actual": "status=200 listed=0",
+      "pass": true,
+      "evidence": "[]"
+    },
+    {
+      "name": "rls_resident_a_cannot_list_towers_b",
+      "role": "resident",
+      "society": "A->B",
+      "expected": "rejected or 0",
+      "actual": "not authorized",
+      "pass": true,
+      "evidence": "not authorized"
+    },
+    {
+      "name": "rpc_resident_a_lists_own_towers",
+      "role": "resident",
+      "society": "A",
+      "expected": ">=1 tower",
+      "actual": "rows=2",
+      "pass": true,
+      "evidence": null
+    },
+    {
+      "name": "rls_resident_a_cannot_read_chat_by_society_b",
+      "role": "resident",
+      "society": "A->B",
+      "expected": "0 rows (unless A is participant)",
+      "actual": "status=200 rows=0",
+      "pass": true,
+      "evidence": "[]"
+    },
+    {
+      "name": "storage_app_images_no_cross_user_list",
+      "role": "resident",
+      "society": "A->B",
+      "expected": "empty or denied",
       "actual": "status=200 listed=0",
       "pass": true,
       "evidence": "[]"

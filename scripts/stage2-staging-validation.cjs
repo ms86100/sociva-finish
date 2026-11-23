@@ -604,6 +604,83 @@ async function main() {
         (storageB.status === 200 && listed === 0),
       storageText?.slice?.(0, 120) || null,
     );
+
+    // Tower registry isolation A cannot list B
+    const { data: towersB, error: towersBErr } = await resA.sb.rpc('list_society_towers', {
+      _society_id: SOCIETY_B,
+    });
+    record(
+      'rls_resident_a_cannot_list_towers_b',
+      'resident',
+      'A->B',
+      'rejected or 0',
+      towersBErr ? towersBErr.message : `rows=${(towersB || []).length}`,
+      !!towersBErr || (towersB || []).length === 0,
+      towersBErr?.message || null,
+    );
+
+    const { data: towersA, error: towersAErr } = await resA.sb.rpc('list_society_towers', {
+      _society_id: SOCIETY_A,
+    });
+    record(
+      'rpc_resident_a_lists_own_towers',
+      'resident',
+      'A',
+      '>=1 tower',
+      towersAErr ? towersAErr.message : `rows=${(towersA || []).length}`,
+      !towersAErr && (towersA || []).length >= 1,
+      null,
+    );
+
+    // chat_messages: A cannot read by society_id=B alone
+    const chatB = await rest(
+      'chat_messages',
+      `select=id,society_id&society_id=eq.${SOCIETY_B}`,
+      tokenA,
+    );
+    const leakedChat = Array.isArray(chatB.json)
+      ? chatB.json.filter((row) => row.society_id === SOCIETY_B).length
+      : -1;
+    record(
+      'rls_resident_a_cannot_read_chat_by_society_b',
+      'resident',
+      'A->B',
+      '0 rows (unless A is participant)',
+      `status=${chatB.status} rows=${leakedChat}`,
+      chatB.status === 200 && leakedChat === 0,
+      chatB.text?.slice?.(0, 120) || null,
+    );
+
+    // app-images cross-user list
+    const appImg = await fetch(`${url}/storage/v1/object/list/app-images`, {
+      method: 'POST',
+      headers: {
+        apikey: anon,
+        Authorization: `Bearer ${tokenA}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ prefix: `${resB.user.id}/`, limit: 10 }),
+    });
+    const appText = await appImg.text();
+    let appJson = null;
+    try {
+      appJson = appText ? JSON.parse(appText) : null;
+    } catch {
+      appJson = null;
+    }
+    const appListed = Array.isArray(appJson) ? appJson.length : -1;
+    record(
+      'storage_app_images_no_cross_user_list',
+      'resident',
+      'A->B',
+      'empty or denied',
+      `status=${appImg.status} listed=${appListed}`,
+      appImg.status === 400 ||
+        appImg.status === 403 ||
+        appImg.status === 404 ||
+        (appImg.status === 200 && appListed === 0),
+      appText?.slice?.(0, 100) || null,
+    );
   }
 
   // Maintenance dues read

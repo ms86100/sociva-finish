@@ -1,0 +1,61 @@
+{
+  "generated_at": "2026-11-23T16:34:11.699Z",
+  "target": "wwuanzbusxoyzixuprxs",
+  "production_touched": false,
+  "summary": {
+    "total": 7,
+    "passed": 7,
+    "failed": 0
+  },
+  "results": [
+    {
+      "name": "rpc_resident_a_cannot_list_towers_b",
+      "expected": "rejected or empty unauthorized",
+      "actual": "not authorized",
+      "pass": true,
+      "evidence": null
+    },
+    {
+      "name": "rpc_resident_a_lists_towers_a",
+      "expected": ">=1 tower",
+      "actual": "rows=2",
+      "pass": true,
+      "evidence": null
+    },
+    {
+      "name": "storage_a_cannot_upload_into_b_folder",
+      "expected": "denied (4xx)",
+      "actual": "status=400",
+      "pass": true,
+      "evidence": "{\"statusCode\":\"403\",\"error\":\"Unauthorized\",\"message\":\"new row violates row-level security policy\",\"code\":\"AccessDenied\"}"
+    },
+    {
+      "name": "storage_a_can_upload_own_folder",
+      "expected": "2xx",
+      "actual": "status=200",
+      "pass": true,
+      "evidence": "{\"Key\":\"payment-proofs/a2222222-0006-4000-8000-000000000006/soak-ok-1795451648214.png\",\"Id\":\"aa603f41-0076-49e6-83e5-1c7"
+    },
+    {
+      "name": "chat_insert_without_order_party_blocked_or_self_only",
+      "expected": "insert rejected OR self-only",
+      "actual": "null value in column \"order_id\" of relation \"chat_messages\" violates not-null constraint",
+      "pass": true,
+      "evidence": "null value in column \"order_id\" of relation \"chat_messages\" violates not-null constraint"
+    },
+    {
+      "name": "realtime_no_cross_party_chat_leak_to_a",
+      "expected": "no leak event",
+      "actual": "leaked=false ownHint=false",
+      "pass": true,
+      "evidence": null
+    },
+    {
+      "name": "chat_messages_society_id_selectable",
+      "expected": "query ok",
+      "actual": "rows=0",
+      "pass": true,
+      "evidence": null
+    }
+  ]
+}

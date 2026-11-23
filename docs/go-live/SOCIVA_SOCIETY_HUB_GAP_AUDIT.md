@@ -62,12 +62,12 @@ Lakeview has **32 enabled** features via Pilot Builder → `sociva_pilot_ops` (s
 1. Package assign was client writes - **fixed** via `admin_assign_society_package` (VOLATILE DEFINER + RL).
 2. FeatureGate UI-only - **fixed** server `can_access_feature` on notices/parcels/disputes/visitors.
 3. Production lacks membership + visitor OTP RPC parity - **deferred** (no prod writes this pass).
-4. No structured tower/unit registry - **partial** (clearer tower/flat UX; full MyGate registry deferred).
+4. Tower/unit master registry - **fixed on staging** (`society_towers` / `society_units` + admin Units tab + AddressForm picker).
 5. Documents/Q&A deep-links - **fixed** (`?tab=`).
 6. Bulletin votes/RSVP world-readable - **fixed**.
-7. Legacy `chat_messages` not society-scoped - **deferred** (new conversations RPC is membership-scoped).
+7. Legacy `chat_messages` society context - **fixed on staging** (`society_id` + order-party INSERT + admin SELECT); cross-society order chat still participant-safe (commerce).
 8. Profiles directory cross-society - **probe PASS** on staging (A cannot enumerate B); keep watching.
-9. Storage/Realtime - **probe PASS** for payment-proofs cross-user list; Realtime soak deferred.
+9. Storage/Realtime - **fixed on staging** (folder-bound INSERT harden + Stage2 probes + soak **7/7**).
 10. Hub grid orphans - **fixed**.
 11. Dense stats/search margins - **fixed**.
 12. Empty states inconsistent - **fixed** for Visitors/Parcels/Notices/Maintenance.
@@ -94,4 +94,4 @@ Users who expand discovery radius can see **marketplace sellers/products** from 
 | Stage2 isolation + Lakeview package sanity | Done - validation **36/36 pass** |
 | Lakeview pilot entitlements | Confirmed: 32 enabled, required ops keys present |
 
-Deferred (explicitly out of scope): production membership/visitor promotion; marketplace radius redesign; full MyGate unit registry.
+Deferred (explicitly out of scope): production membership/visitor promotion; marketplace radius redesign; promote tower/unit + chat/storage hardenings to production.
