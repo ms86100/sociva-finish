@@ -112,10 +112,7 @@ export default function ProfileEditPage() {
     setSavingProfile(true);
     try {
       const updates: Record<string, any> = { name: name.trim() };
-      const trimmedEmail = email.trim();
-      if (trimmedEmail && !trimmedEmail.endsWith('@phone.sociva.app')) {
-        updates.email = trimmedEmail;
-      }
+      // email is INSERT-once. authenticated cannot UPDATE it (SSV-001 column grants).
 
       const { data, error } = await supabase
         .from('profiles')

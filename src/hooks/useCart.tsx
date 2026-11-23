@@ -6,6 +6,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useBrowsingLocation } from '@/contexts/BrowsingLocationContext';
 import { buyerCanOrderFromSeller } from '@/lib/sellerDiscoverability';
+import { fetchMarketplaceStockQuantity } from '@/lib/marketplace-product';
 import { PRECISE_LOCATION_TITLE } from '@/lib/buyerLocation';
 import { CartItem, Product } from '@/types/Database';
 import { toast } from 'sonner';
@@ -622,8 +623,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
         if (pStock != null) {
           maxQty = pStock;
         } else {
-          const { data: stockCheck } = await supabase.from('products').select('stock_quantity').eq('id', product.id).maybeSingle();
-          if (stockCheck?.stock_quantity != null) maxQty = stockCheck.stock_quantity;
+          const stockQty = await fetchMarketplaceStockQuantity(product.id);
+          if (stockQty != null) maxQty = stockQty;
         }
       }
       const stampedProduct = stampProductSellerHours(product, hoursSnap);
@@ -926,8 +927,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
       const v = (await fetchVariantsByIds([variantId])).get(variantId);
       if (v?.stock_quantity != null) maxQty = v.stock_quantity;
     } else {
-      const { data: stockCheck } = await supabase.from('products').select('stock_quantity').eq('id', productId).maybeSingle();
-      if (stockCheck?.stock_quantity != null) maxQty = stockCheck.stock_quantity;
+      const stockQty = await fetchMarketplaceStockQuantity(productId);
+      if (stockQty != null) maxQty = stockQty;
     }
     if (quantity > maxQty) {
       // At stock ceiling - UI disables +; do not toast or show "Quantity updated"

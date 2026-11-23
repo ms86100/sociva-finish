@@ -69,18 +69,12 @@ export function useAuthState() {
         if (gen !== profileFetchGen.current) return;
         if (userData?.user) {
           const meta = userData.user.user_metadata || {};
-          const sanitizedSocietyId = meta.society_id && meta.society_id !== 'pending'
-            && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(meta.society_id)
-            ? meta.society_id : null;
           const { error: insertError } = await supabase.from('profiles').upsert({
             id: userId,
-            email: userData.user.email || '',
             name: meta.name || meta.full_name || 'User',
-            phone: meta.phone || null,
             flat_number: meta.flat_number || '',
             block: meta.block || '',
             phase: meta.phase || null,
-            society_id: sanitizedSocietyId,
             browse_beyond_community: true,
           }, { onConflict: 'id' });
           if (!insertError) {

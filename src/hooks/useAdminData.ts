@@ -315,8 +315,8 @@ export function useAdminData() {
         fetchData();
         return;
       }
-      if (IS_STAGING_SUPABASE && !decided.missing) {
-        adminNotify.error(decided.error);
+      if (IS_STAGING_SUPABASE) {
+        adminNotify.error(decided.missing ? 'No pending membership for this user' : decided.error);
         return;
       }
       await supabase.from('profiles').update({ verification_status: status }).eq('id', id);

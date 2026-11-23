@@ -13,6 +13,7 @@ import { hapticImpact } from '@/lib/haptics';
 import { toast } from 'sonner';
 import { useBrowsingLocation } from '@/contexts/BrowsingLocationContext';
 import { filterDiscoverableProductIds } from '@/lib/sellerDiscoverability';
+import { fetchMarketplaceProduct } from '@/lib/marketplace-product';
 import { resolveProductAvailability } from '@/lib/product-availability';
 import { track } from '@/lib/analytics';
 import { useVariantProductIds } from '@/hooks/useProductVariants';
@@ -92,17 +93,18 @@ export function useProductDetail(product: ProductDetail | null, open: boolean, o
     } catch { /* analytics optional */ }
 
     const fetchData = async () => {
-      const [productRes, similarRes] = await Promise.all([
-        supabase.from('products').select('specifications, stock_quantity, is_available, secondary_images, seller:seller_profiles!products_seller_id_fkey(store_location_label, latitude, longitude, profile_image_url, society:societies(name, address))').eq('id', product.product_id).maybeSingle(),
+      const [storefront, similarRes, sellerRes] = await Promise.all([
+        fetchMarketplaceProduct(product.product_id),
         supabase.from('products')
           // action_type + category required so similar tap keeps Contact Seller (not default add_to_cart)
           .select('id, name, price, image_url, is_veg, seller_id, stock_quantity, category, description, action_type, seller:seller_profiles!products_seller_id_fkey(business_name, society_id)')
           .eq('category', product.category as string)
           .eq('is_available', true).eq('approval_status', 'approved')
           .neq('id', product.product_id).limit(6),
+        supabase.from('seller_profiles').select('store_location_label, latitude, longitude, profile_image_url, society:societies(name, address)').eq('id', product.seller_id).maybeSingle(),
       ]);
-      setLoadedSpecs(productRes.data?.specifications as Record<string, any> | null);
-      const sellerJoin = (productRes.data as any)?.seller;
+      setLoadedSpecs((storefront?.specifications as Record<string, any> | null) ?? null);
+      const sellerJoin = sellerRes.data as any;
       setSellerLocationExtras({
         store_location_label: sellerJoin?.store_location_label ?? null,
         society_address: sellerJoin?.society?.address ?? null,
@@ -111,9 +113,9 @@ export function useProductDetail(product: ProductDetail | null, open: boolean, o
       if (sellerJoin?.profile_image_url) {
         setSellerProfileImageUrl(sellerJoin.profile_image_url);
       }
-      setCanonicalStockQty(productRes.data?.stock_quantity ?? null);
-      setCanonicalIsAvailable(productRes.data?.is_available ?? true);
-      const secondary = (productRes.data as any)?.secondary_images;
+      setCanonicalStockQty(storefront?.stock_quantity ?? null);
+      setCanonicalIsAvailable(storefront?.is_available ?? true);
+      const secondary = storefront?.secondary_images;
       setGallerySecondaryImages(Array.isArray(secondary) ? secondary.filter(Boolean) : []);
       const similar = similarRes.data || [];
       const allowed = await filterDiscoverableProductIds(

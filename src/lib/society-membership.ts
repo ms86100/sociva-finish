@@ -22,6 +22,7 @@ export async function requestSocietyMembership(
       _society_id: societyId,
       _invite_code: inviteCode?.trim() || null,
     } as never);
+    // Staging never PATCHes profiles.society_id from the client.
     if (error) {
       const msg = error.message || 'Could not request membership';
       if (/invite_required/i.test(msg)) {

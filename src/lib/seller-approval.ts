@@ -7,7 +7,7 @@
  *
  * Ensures consistent behavior: sets is_available, approves products/licenses, manages roles.
  */
-import { supabase } from '@/integrations/supabase/client';
+import { IS_STAGING_SUPABASE, supabase } from '@/integrations/supabase/client';
 import { logAudit } from '@/lib/audit';
 import { notifySellerStatusChange } from '@/lib/admin-notifications';
 import {
@@ -150,12 +150,19 @@ export async function approveSeller({ sellerId, userId, businessName, societyId 
   }
 
   try {
-  // 4. Ensure seller role exists (ignore duplicate)
-  const { error: roleErr } = await supabase
-    .from('user_roles')
-    .insert({ user_id: userId, role: 'seller' });
-  if (roleErr && !roleErr.message?.includes('duplicate') && !roleErr.message?.includes('unique')) {
-    throw new Error(`Failed to grant seller role: ${roleErr.message}`);
+  // 4. Ensure seller role exists (ignore duplicate). Staging: RPC only.
+  if (IS_STAGING_SUPABASE) {
+    const { error: roleErr } = await supabase.rpc('grant_seller_role' as never, {
+      _user_id: userId,
+    } as never);
+    if (roleErr) throw new Error(`Failed to grant seller role: ${roleErr.message}`);
+  } else {
+    const { error: roleErr } = await supabase
+      .from('user_roles')
+      .insert({ user_id: userId, role: 'seller' });
+    if (roleErr && !roleErr.message?.includes('duplicate') && !roleErr.message?.includes('unique')) {
+      throw new Error(`Failed to grant seller role: ${roleErr.message}`);
+    }
   }
 
   // 5. Club the opening catalog with this first-time approval.

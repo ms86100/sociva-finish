@@ -169,7 +169,11 @@ export function useSearchPage() {
 
   useEffect(() => { if (profile) { setBrowseBeyondLocal(profile.browse_beyond_community ?? true); setSearchRadiusLocal(profile.search_radius_km ?? MARKETPLACE_RADIUS_KM); } }, [profile]);
 
-  const persistPreference = useCallback(async (field: string, value: any) => { if (!user) return; await supabase.from('profiles').update({ [field]: value } as any).eq('id', user.id); }, [user]);
+  const persistPreference = useCallback(async (field: string, value: any) => {
+    if (!user) return;
+    if (field !== 'browse_beyond_community' && field !== 'search_radius_km') return;
+    await supabase.from('profiles').update({ [field]: value } as any).eq('id', user.id);
+  }, [user]);
   const setBrowseBeyond = useCallback((val: boolean) => { setBrowseBeyondLocal(val); persistPreference('browse_beyond_community', val); }, [persistPreference]);
   const setSearchRadius = useCallback((val: number) => { setSearchRadiusLocal(val); persistPreference('search_radius_km', val); }, [persistPreference]);
 

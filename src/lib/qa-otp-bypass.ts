@@ -9,6 +9,8 @@ export const QA_OTP_BYPASS_PHONES = [
   '8448802907',
   // Staging join E2E - approved registry / pending membership / no maps
   '8448802999',
+  // Staging first-login + join UI (non-member)
+  '8448802888',
 ] as const;
 
 export const QA_OTP_CODE = '1234';
