@@ -5,6 +5,7 @@ import { adminNotify } from '@/lib/admin-notify';
 import { logAudit } from '@/lib/audit';
 import { friendlyError } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
+import { assignPackageToSociety as linkPackageToSociety } from '@/lib/society-onboard';
 
 export interface PlatformFeature {
   id: string;
@@ -19,9 +20,11 @@ export interface PlatformFeature {
 
 export interface FeaturePackage {
   id: string;
+  name?: string;
   package_name: string;
   description: string | null;
   price_tier: string;
+  is_default?: boolean;
   items?: { feature_id: string; enabled: boolean }[];
 }
 
@@ -35,7 +38,11 @@ export interface BuilderAssignment {
   package?: { package_name: string };
 }
 
-export const CATEGORIES = ['governance', 'marketplace', 'finance', 'operations', 'construction'];
+export const CATEGORIES = ['governance', 'marketplace', 'finance', 'operations', 'construction', 'community'];
+
+export function packageLabel(pkg: Pick<FeaturePackage, 'package_name' | 'name'>): string {
+  return pkg.package_name || pkg.name || 'Package';
+}
 export const TIERS = ['free', 'basic', 'pro', 'enterprise'];
 
 export function useFeatureManagement() {
@@ -44,6 +51,8 @@ export function useFeatureManagement() {
   const [packages, setPackages] = useState<FeaturePackage[]>([]);
   const [assignments, setAssignments] = useState<BuilderAssignment[]>([]);
   const [builders, setBuilders] = useState<{ id: string; name: string }[]>([]);
+  const [societies, setSocieties] = useState<{ id: string; name: string }[]>([]);
+  const [assignSociety, setAssignSociety] = useState('');
   const [isLoading, setIsLoading] = useState(true);
 
   const [newFeatureOpen, setNewFeatureOpen] = useState(false);
@@ -61,16 +70,23 @@ export function useFeatureManagement() {
   const [manageBuilderName, setManageBuilderName] = useState('');
 
   const fetchAll = useCallback(async () => {
-    const [featRes, pkgRes, assignRes, builderRes] = await Promise.all([
+    const [featRes, pkgRes, assignRes, builderRes, societyRes] = await Promise.all([
       supabase.from('platform_features').select('*').order('category').order('feature_name'),
       supabase.from('feature_packages').select('*').order('price_tier'),
-      supabase.from('builder_feature_packages').select('*, builder:builders(name), package:feature_packages(package_name)').order('assigned_at', { ascending: false }),
+      supabase.from('builder_feature_packages').select('*, builder:builders(name), package:feature_packages(package_name, name)').order('assigned_at', { ascending: false }),
       supabase.from('builders').select('id, name').eq('is_active', true),
+      supabase.from('societies').select('id, name').eq('is_verified', true).order('name').limit(200),
     ]);
     setFeatures((featRes.data as PlatformFeature[]) || []);
     setPackages((pkgRes.data as FeaturePackage[]) || []);
-    setAssignments((assignRes.data as any) || []);
+    if (assignRes.error) {
+      const plain = await supabase.from('builder_feature_packages').select('*').order('assigned_at', { ascending: false });
+      setAssignments((plain.data as any) || []);
+    } else {
+      setAssignments((assignRes.data as any) || []);
+    }
     setBuilders((builderRes.data as any) || []);
+    setSocieties((societyRes.data as any) || []);
 
     const pkgIds = (pkgRes.data || []).map((p: any) => p.id);
     if (pkgIds.length > 0) {
@@ -106,7 +122,13 @@ export function useFeatureManagement() {
 
   const createPackage = async () => {
     if (!newPkg.package_name) return;
-    const { error } = await supabase.from('feature_packages').insert(newPkg);
+    const { error } = await supabase.from('feature_packages').insert({
+      ...newPkg,
+      name: newPkg.package_name,
+      package_name: newPkg.package_name,
+      is_default: false,
+      is_active: true,
+    });
     if (error) { adminNotify.error(friendlyError(error)); return; }
     await logAudit('package_created', 'feature_package', '', null, { name: newPkg.package_name });
     adminNotify.success('Package created');
@@ -126,6 +148,12 @@ export function useFeatureManagement() {
   const togglePkgItem = async (featureId: string, enabled: boolean) => {
     if (!editingPkg) return;
     setPkgItems(prev => ({ ...prev, [featureId]: enabled }));
+    setAllPkgItems((prev) => {
+      const next = { ...prev, [editingPkg]: { ...(prev[editingPkg] || {}) } };
+      if (enabled) next[editingPkg][featureId] = true;
+      else delete next[editingPkg][featureId];
+      return next;
+    });
     if (enabled) {
       await supabase.from('feature_package_items').upsert({ package_id: editingPkg, feature_id: featureId, enabled: true }, { onConflict: 'package_id,feature_id' });
     } else {
@@ -150,6 +178,24 @@ export function useFeatureManagement() {
     fetchAll();
   };
 
+  const assignPackageToSociety = async () => {
+    if (!assignSociety || !assignPackage) return;
+    const result = await linkPackageToSociety({
+      societyId: assignSociety,
+      packageId: assignPackage,
+      builderId: assignBuilder || null,
+      assignedBy: user?.id || null,
+    });
+    if (!result.ok) {
+      adminNotify.error(result.error);
+      return;
+    }
+    await logAudit('package_assigned_to_society', 'builder_feature_package', result.id, assignSociety, { package_id: assignPackage });
+    adminNotify.success('Package assigned to society via builder');
+    setAssignOpen(false); setAssignBuilder(''); setAssignPackage(''); setAssignSociety('');
+    fetchAll();
+  };
+
   const removeAssignment = async (id: string, builderId: string, packageId: string) => {
     await supabase.from('builder_feature_packages').delete().eq('id', id);
     await logAudit('package_removed_from_builder', 'builder_feature_package', builderId, null, { package_id: packageId });
@@ -161,15 +207,19 @@ export function useFeatureManagement() {
     acc[cat] = features.filter(f => f.category === cat);
     return acc;
   }, {} as Record<string, PlatformFeature[]>);
+  const known = new Set(CATEGORIES);
+  const other = features.filter(f => !known.has(f.category));
+  if (other.length) groupedFeatures.other = other;
 
   return {
-    features, packages, assignments, builders, isLoading, groupedFeatures,
+    features, packages, assignments, builders, societies, isLoading, groupedFeatures,
     newFeatureOpen, setNewFeatureOpen, newFeature, setNewFeature, createFeature,
     newPkgOpen, setNewPkgOpen, newPkg, setNewPkg, createPackage,
     editingPkg, setEditingPkg, pkgItems, openPackageEditor, togglePkgItem,
     showComparison, setShowComparison, allPkgItems,
     assignOpen, setAssignOpen, assignBuilder, setAssignBuilder, assignPackage, setAssignPackage,
+    assignSociety, setAssignSociety,
     manageBuilderId, setManageBuilderId, manageBuilderName, setManageBuilderName,
-    toggleFeatureField, assignPackageToBuilder, removeAssignment, fetchAll,
+    toggleFeatureField, assignPackageToBuilder, assignPackageToSociety, removeAssignment, fetchAll,
   };
 }

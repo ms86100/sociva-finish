@@ -69,7 +69,7 @@ export default function SocietyDashboardPage() {
       supabase.from('construction_milestones').select('id', { count: 'exact', head: true }).eq('society_id', sid).gte('created_at', new Date(Date.now() - 7 * 86400000).toISOString()),
       supabase.from('project_documents').select('id', { count: 'exact', head: true }).eq('society_id', sid),
       supabase.from('project_questions').select('id', { count: 'exact', head: true }).eq('society_id', sid).eq('is_answered', false),
-      supabase.from('maintenance_dues').select('id', { count: 'exact', head: true }).eq('society_id', sid).eq('status', 'pending'),
+      supabase.from('maintenance_dues').select('id', { count: 'exact', head: true }).eq('society_id', sid).eq('payment_status', 'pending'),
     ]);
 
     setStats({
@@ -152,8 +152,8 @@ export default function SocietyDashboardPage() {
           { icon: Building2, label: 'Construction', to: '/society/progress', stat: `${stats.recentMilestones} updates`, iconBg: 'bg-primary/10', iconColor: 'text-primary', featureKey: 'construction_progress', keywords: ['building', 'progress', 'milestone', 'tower', 'flat', 'handover'] },
           { icon: Bug, label: 'Snag Reports', to: '/society/snags', stat: `${stats.openSnags} open`, iconBg: 'bg-destructive/10', iconColor: 'text-destructive', featureKey: 'snag_management', keywords: ['defect', 'issue', 'complaint', 'repair', 'fix', 'damage', 'broken'] },
           { icon: ClipboardCheck, label: 'Inspection', to: '/inspection', stat: 'Pre-handover check', iconBg: 'bg-success/10', iconColor: 'text-success', featureKey: 'inspection', keywords: ['checklist', 'pre-handover', 'quality', 'check', 'verify'] },
-          { icon: FileText, label: 'Documents', to: '/society/progress', stat: `${stats.documents} uploaded`, iconBg: 'bg-info/10', iconColor: 'text-info', featureKey: 'construction_progress', keywords: ['file', 'pdf', 'agreement', 'plan', 'blueprint', 'approval', 'noc'] },
-          { icon: MessageCircle, label: 'Q&A', to: '/society/progress', stat: `${stats.unansweredQs} unanswered`, iconBg: 'bg-primary/10', iconColor: 'text-primary', featureKey: 'construction_progress', keywords: ['question', 'answer', 'ask', 'query', 'doubt'] },
+          { icon: FileText, label: 'Documents', to: '/society/progress?tab=documents', stat: `${stats.documents} uploaded`, iconBg: 'bg-info/10', iconColor: 'text-info', featureKey: 'construction_progress', keywords: ['file', 'pdf', 'agreement', 'plan', 'blueprint', 'approval', 'noc'] },
+          { icon: MessageCircle, label: 'Q&A', to: '/society/progress?tab=qa', stat: `${stats.unansweredQs} unanswered`, iconBg: 'bg-primary/10', iconColor: 'text-primary', featureKey: 'construction_progress', keywords: ['question', 'answer', 'ask', 'query', 'doubt'] },
         ],
       },
       {
@@ -173,9 +173,9 @@ export default function SocietyDashboardPage() {
         title: 'Admin Tools',
         emoji: '⚙️',
         items: [
-          { icon: CalendarDays, label: 'Worker Attendance', to: '/worker-attendance', stat: 'Track attendance', iconBg: 'bg-primary/10', iconColor: 'text-primary', featureKey: 'workforce_management', keywords: ['attendance', 'check-in', 'present', 'absent'] },
-          { icon: ClipboardList, label: 'Worker Leave', to: '/worker-leave', stat: 'Leave records', iconBg: 'bg-primary/10', iconColor: 'text-primary', featureKey: 'workforce_management', keywords: ['leave', 'off', 'holiday', 'absence'] },
-          { icon: Wallet, label: 'Worker Salary', to: '/worker-salary', stat: 'Salary records', iconBg: 'bg-success/10', iconColor: 'text-success', featureKey: 'workforce_management', keywords: ['salary', 'pay', 'wage', 'payment'] },
+          { icon: CalendarDays, label: 'Worker Attendance', to: '/worker-attendance', stat: 'Track attendance', iconBg: 'bg-primary/10', iconColor: 'text-primary', featureKey: 'worker_attendance', keywords: ['attendance', 'check-in', 'present', 'absent'] },
+          { icon: ClipboardList, label: 'Worker Leave', to: '/worker-leave', stat: 'Leave records', iconBg: 'bg-primary/10', iconColor: 'text-primary', featureKey: 'worker_leave', keywords: ['leave', 'off', 'holiday', 'absence'] },
+          { icon: Wallet, label: 'Worker Salary', to: '/worker-salary', stat: 'Salary records', iconBg: 'bg-success/10', iconColor: 'text-success', featureKey: 'worker_salary', keywords: ['salary', 'pay', 'wage', 'payment'] },
           { icon: Truck, label: 'Delivery Partners', to: '/delivery-partners', stat: 'Manage partners', iconBg: 'bg-warning/10', iconColor: 'text-warning', featureKey: 'delivery_management', keywords: ['delivery', 'partner', 'rider', 'logistics'] },
           { icon: ShieldCheck, label: 'Guard Kiosk', to: '/guard-kiosk', stat: 'Verify visitor OTPs', iconBg: 'bg-success/10', iconColor: 'text-success', featureKey: 'guard_kiosk', keywords: ['guard', 'security', 'otp', 'verify', 'gate', 'watchman'] },
           { icon: Shield, label: 'Society Admin', to: '/society/admin', stat: 'Manage society', iconBg: 'bg-info/10', iconColor: 'text-info', keywords: ['admin', 'settings', 'manage', 'configure', 'committee'] },
@@ -228,8 +228,8 @@ export default function SocietyDashboardPage() {
     <AppLayout showHeader={false} safeTop={false}>
       {/* Custom Society Header */}
       <SafeHeader zIndex="z-40">
-        <div className="px-3 pt-2.5 pb-2">
-          <div className="flex items-center gap-2 mb-2">
+        <div className="px-4 pt-3 pb-3">
+          <div className="flex items-center gap-2 mb-3">
             <BackButton fallback="/" />
             <h1 className="text-base font-bold text-foreground flex-1 truncate">
               {effectiveSociety?.name || 'Society'}
@@ -238,15 +238,15 @@ export default function SocietyDashboardPage() {
 
           {/* Society-contextual search */}
           <div className="relative">
-            <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <Input
               placeholder={societyPlaceholder}
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
-              className="pl-8 pr-7 h-9 bg-muted border-0 rounded-xl text-xs"
+              className="pl-9 pr-8 h-10 bg-muted border-0 rounded-xl text-xs"
             />
             {searchQuery && (
-              <button onClick={() => setSearchQuery('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground">
+              <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
                 <X size={12} />
               </button>
             )}
@@ -254,7 +254,40 @@ export default function SocietyDashboardPage() {
         </div>
       </SafeHeader>
 
-      <div className="px-4 py-3 space-y-4">
+      <div className="px-4 py-5 space-y-6">
+        {!searchQuery && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3 }}
+            className="relative overflow-hidden rounded-[1.75rem] border border-primary/15 bg-gradient-to-br from-primary via-primary/85 to-emerald-700 p-5 text-primary-foreground shadow-lg shadow-primary/20"
+          >
+            <div className="pointer-events-none absolute -right-8 -top-10 h-36 w-36 rounded-full bg-white/15 blur-2xl" />
+            <div className="pointer-events-none absolute -bottom-12 left-10 h-28 w-28 rounded-full bg-emerald-300/20 blur-2xl" />
+            <p className="relative text-[11px] font-semibold uppercase tracking-[0.18em] text-primary-foreground/80">
+              Live in your society
+            </p>
+            <h2 className="relative mt-1.5 text-xl font-bold tracking-tight truncate">
+              {effectiveSociety?.name || 'Your community'}
+            </h2>
+            <p className="relative mt-1 text-sm text-primary-foreground/85">
+              Gate, dues, and committee tools in one place
+            </p>
+            <div className="relative mt-4 grid grid-cols-3 gap-3">
+              {[
+                { label: 'Concerns', value: stats.openDisputes },
+                { label: 'Dues due', value: stats.pendingDues },
+                { label: 'Spends', value: stats.recentExpenses },
+              ].map((tile) => (
+                <div key={tile.label} className="rounded-2xl bg-white/12 px-3 py-3 backdrop-blur">
+                  <p className="text-lg font-bold tabular-nums leading-none">{tile.value}</p>
+                  <p className="mt-1.5 text-[10px] text-primary-foreground/75">{tile.label}</p>
+                </div>
+              ))}
+            </div>
+          </motion.div>
+        )}
+
         {/* Trust Badge - gated */}
         {!searchQuery && isFeatureEnabled('trust_score') && (
           <motion.div
@@ -272,9 +305,9 @@ export default function SocietyDashboardPage() {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.05, duration: 0.3 }}
-            className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-primary/5 border border-primary/15"
+            className="flex items-center gap-3 px-4 py-3.5 rounded-2xl bg-primary/5 border border-primary/15"
           >
-            <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
               <Clock size={18} className="text-primary" />
             </div>
             <div className="flex-1">
@@ -288,13 +321,13 @@ export default function SocietyDashboardPage() {
 
         {/* Grouped Sections */}
         {filteredSections.length === 0 && searchQuery ? (
-          <div className="text-center py-12">
+          <div className="text-center py-14">
             <Search size={32} className="mx-auto text-muted-foreground mb-3" />
             <p className="text-sm font-semibold text-foreground">No results for "{searchQuery}"</p>
             <p className="text-xs text-muted-foreground mt-1">Try a different keyword</p>
           </div>
         ) : filteredSections.length === 0 && !searchQuery ? (
-          <div className="text-center py-12">
+          <div className="text-center py-14">
             <Building2 size={32} className="mx-auto text-muted-foreground mb-3" />
             <p className="text-sm font-semibold text-foreground">No features enabled</p>
             <p className="text-xs text-muted-foreground mt-1 max-w-[240px] mx-auto">Society features haven't been configured yet. Contact your society admin to get started.</p>
@@ -308,32 +341,42 @@ export default function SocietyDashboardPage() {
               transition={{ delay: 0.08 + sIdx * 0.06, duration: 0.35 }}
             >
               {/* Section header */}
-              <div className="flex items-center gap-2 mb-2">
+              <div className="flex items-center gap-2 mb-3">
                 <span className="text-sm">{section.emoji}</span>
                 <h3 className="text-xs font-bold text-foreground uppercase tracking-wider">{section.title}</h3>
                 <div className="flex-1 h-px bg-border" />
               </div>
 
-              {/* Cards */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {/* Stable 2-col grid avoids orphan stretch on odd counts */}
+              <div className="grid grid-cols-2 gap-3">
                 {section.items.map((item, iIdx) => {
                   const Icon = item.icon;
+                  const isOrphan = section.items.length % 2 === 1 && iIdx === section.items.length - 1;
                   return (
                     <motion.div
                       key={item.label}
                       initial={{ opacity: 0, scale: 0.93 }}
                       animate={{ opacity: 1, scale: 1 }}
                       transition={{ delay: 0.08 + sIdx * 0.06 + iIdx * 0.03, duration: 0.25 }}
+                      className={isOrphan ? 'col-span-2' : undefined}
                     >
                       <Link
                         to={item.to}
-                        className="flex flex-col items-center gap-1.5 p-3 rounded-2xl bg-card border border-border active:scale-[0.97] transition-transform text-center"
+                        className={cn(
+                          'flex rounded-2xl bg-card border border-border/70 shadow-card active:scale-[0.97] transition-transform',
+                          isOrphan
+                            ? 'flex-row items-center gap-3 p-4 text-left'
+                            : 'flex-col items-center gap-2 p-4 text-center',
+                        )}
                       >
-                        <div className={cn('w-10 h-10 rounded-xl flex items-center justify-center', item.iconBg)}>
+                        <div className={cn('w-11 h-11 rounded-xl flex items-center justify-center shrink-0', item.iconBg)}>
                           <Icon size={20} className={item.iconColor} />
                         </div>
-                        <span className="text-[11px] font-semibold text-foreground leading-tight line-clamp-1">{item.label}</span>
-                        <span className="text-[9px] text-muted-foreground leading-tight line-clamp-1">{item.stat}</span>
+                        <div className={cn('min-w-0', isOrphan ? 'flex-1' : 'w-full')}>
+                          <span className="block text-[12px] font-semibold text-foreground leading-tight line-clamp-1">{item.label}</span>
+                          <span className="block text-[10px] text-muted-foreground leading-tight line-clamp-1 mt-0.5">{item.stat}</span>
+                        </div>
+                        {isOrphan && <ChevronRight size={16} className="text-muted-foreground shrink-0" />}
                       </Link>
                     </motion.div>
                   );

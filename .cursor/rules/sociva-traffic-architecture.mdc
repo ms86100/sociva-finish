@@ -1,0 +1,16 @@
+---
+description: Always enforce Sociva traffic, rate-limit, multi-tenant, and edge architecture at build time
+alwaysApply: true
+---
+
+# Sociva traffic architecture (always on)
+
+Before backend/feature work, read and follow `.cursor/skills/sociva-traffic-architecture/SKILL.md`.
+This is a **build-time** skill - do not open a full traffic audit unless the user asks.
+
+Non-negotiables:
+1. Any RPC that calls `sociva_assert_rate_limit` must be **VOLATILE**.
+2. Never weaken RLS, rate limits, upload caps, webhook auth, or payment controls to ship.
+3. Society ops stay membership-scoped; marketplace radius is a commerce exception, not an ops leak fix.
+4. Staging default: `wwuanzbusxoyzixuprxs`. Production `kkzkuyhgdvyecmxtmkpy` only with explicit authorization.
+5. Prefer existing Vercel + Supabase + Upstash patterns - do not invent nginx or new cache layers.

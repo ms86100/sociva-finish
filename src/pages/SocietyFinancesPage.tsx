@@ -21,7 +21,8 @@ import { Loader2, Plus, TrendingUp, TrendingDown, Wallet, Download, Flag, Target
 import { exportFinances } from '@/lib/csv-export';
 import { ModuleSearchBar } from '@/components/search/ModuleSearchBar';
 import { useCurrency } from '@/hooks/useCurrency';
-import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
+import { showFeedback } from '@/components/FeedbackPopupProvider';
+import { SocietyModuleHero } from '@/components/society/SocietyModuleHero';
 
 interface Expense {
   id: string;
@@ -90,7 +91,6 @@ export default function SocietyFinancesPage() {
         reason: flagReason.trim(),
       } as any);
       if (error) throw error;
-      const { showFeedback } = useFeedbackPopup();
       showFeedback({
         title: 'Expense flagged',
         description: 'The committee will review your concern.',
@@ -109,6 +109,13 @@ export default function SocietyFinancesPage() {
     <AppLayout headerTitle="Society Finances" showLocation={false}>
       <FeatureGate feature="finances">
       <div className="p-4 space-y-4">
+        <SocietyModuleHero
+          eyebrow="Society books"
+          title={formatPrice(balance)}
+          subtitle={`${formatPrice(totalIncome)} in · ${formatPrice(totalExpenses)} out this ledger`}
+          icon={Wallet}
+          tone="emerald"
+        />
         <ModuleSearchBar context="finances" value={searchQuery} onChange={setSearchQuery} />
         {loading ? (
           <div className="flex justify-center py-12"><Loader2 className="animate-spin text-muted-foreground" /></div>

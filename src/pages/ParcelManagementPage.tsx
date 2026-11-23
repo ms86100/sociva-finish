@@ -15,7 +15,8 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
-import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
+import { showFeedback } from '@/components/FeedbackPopupProvider';
+import { SocietyEmptyState, SocietyModuleHero } from '@/components/society/SocietyModuleHero';
 import { friendlyError } from '@/lib/utils';
 import { useActionLoading } from '@/hooks/useActionLoading';
 import { Package, Plus, CheckCircle, Clock, PackageOpen, Loader2, Search } from 'lucide-react';
@@ -155,7 +156,6 @@ export default function ParcelManagementPage() {
       toast.error(friendlyError(error));
       console.error(error);
     } else {
-      const { showFeedback } = useFeedbackPopup();
       showFeedback({
         title: canLogParcels ? `Parcel logged for Flat ${targetFlat}` : 'Parcel logged',
         variant: 'success'
@@ -183,7 +183,6 @@ export default function ParcelManagementPage() {
     }
     const { error } = await query;
     if (!error) {
-      const { showFeedback } = useFeedbackPopup();
       showFeedback({
         title: 'Parcel marked as collected',
         variant: 'success'
@@ -196,21 +195,18 @@ export default function ParcelManagementPage() {
     <AppLayout headerTitle="Parcels & Deliveries" showLocation={false}>
       <FeatureGate feature="parcel_management">
       <div className="p-4 space-y-4">
-        {/* Summary */}
-        <Card className="border-primary/20 bg-primary/5">
-          <CardContent className="p-4 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
-                <Package className="text-primary" size={24} />
-              </div>
-              <div>
-                <p className="font-semibold">{canLogParcels ? 'All Parcels' : 'My Parcels'}</p>
-                <p className="text-2xl font-bold text-primary tabular-nums">{parcels.length}</p>
-              </div>
-            </div>
+        <SocietyModuleHero
+          eyebrow={canLogParcels ? 'Gate desk' : 'Your deliveries'}
+          title={parcels.length}
+          subtitle={canLogParcels ? 'Parcels waiting at the gate this cycle' : 'Amazon, Flipkart, and home deliveries'}
+          icon={Package}
+          tone="amber"
+          action={
             <Drawer open={isAddOpen} onOpenChange={setIsAddOpen}>
               <DrawerTrigger asChild>
-                <Button size="sm"><Plus size={16} className="mr-1" /> Log</Button>
+                <Button size="sm" className="rounded-xl bg-white text-primary hover:bg-white/90">
+                  <Plus size={16} className="mr-1" /> Log parcel
+                </Button>
               </DrawerTrigger>
               <DrawerContent className="max-h-[80dvh] overflow-y-auto">
                 <DrawerHeader>
@@ -273,8 +269,8 @@ export default function ParcelManagementPage() {
                 </div>
               </DrawerContent>
             </Drawer>
-          </CardContent>
-        </Card>
+          }
+        />
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -287,10 +283,13 @@ export default function ParcelManagementPage() {
             {isLoading ? (
               Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-20 w-full rounded-xl" />)
             ) : parcels.length === 0 ? (
-              <div className="text-center py-12 text-muted-foreground">
-                <PackageOpen className="mx-auto mb-3" size={32} />
-                <p className="text-sm">{activeTab === 'pending' ? 'No pending parcels' : 'No collection history'}</p>
-              </div>
+              <SocietyEmptyState
+                icon={PackageOpen}
+                title={activeTab === 'pending' ? 'No pending parcels' : 'No collection history'}
+                description={activeTab === 'pending'
+                  ? 'When a courier drops a box at the gate, it will show here until you collect it. Ask security to log arrivals if nothing appears.'
+                  : 'Collected and returned parcels will archive here for your records.'}
+              />
             ) : (
               parcels.map(parcel => (
                 <Card key={parcel.id}>

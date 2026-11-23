@@ -18,7 +18,8 @@ import { Car, Bike, AlertTriangle, Plus, ParkingSquare, Check, X } from 'lucide-
 import { toast } from 'sonner';
 import { friendlyError } from '@/lib/utils';
 import { ModuleSearchBar } from '@/components/search/ModuleSearchBar';
-import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
+import { showFeedback } from '@/components/FeedbackPopupProvider';
+import { SocietyEmptyState, SocietyModuleHero } from '@/components/society/SocietyModuleHero';
 
 interface ParkingSlot {
   id: string;
@@ -98,7 +99,6 @@ export default function VehicleParkingPage() {
         flat_number: slotFlatNumber.trim() || null,
       } as any);
       if (error) throw error;
-      const { showFeedback } = useFeedbackPopup();
       showFeedback({
         title: 'Parking slot added',
         variant: 'success'
@@ -124,7 +124,6 @@ export default function VehicleParkingPage() {
         description: violationDesc.trim() || null,
       });
       if (error) throw error;
-      const { showFeedback } = useFeedbackPopup();
       showFeedback({
         title: 'Violation reported',
         variant: 'success'
@@ -146,7 +145,6 @@ export default function VehicleParkingPage() {
         resolved_at: new Date().toISOString(),
         resolved_by: profile?.id
       }).eq('id', id).eq('society_id', effectiveSocietyId);
-      const { showFeedback } = useFeedbackPopup();
       showFeedback({
         title: `Violation ${status}`,
         variant: 'success'
@@ -174,6 +172,13 @@ export default function VehicleParkingPage() {
     <AppLayout headerTitle="Vehicle Parking" showLocation={false}>
       <FeatureGate feature="vehicle_parking">
       <div className="p-4 space-y-4">
+        <SocietyModuleHero
+          eyebrow="Basement map"
+          title={`${occupiedCount}/${slots.length || 0}`}
+          subtitle={`${openViolations} open violation${openViolations === 1 ? '' : 's'} · slots occupied vs total`}
+          icon={ParkingSquare}
+          tone="slate"
+        />
         <ModuleSearchBar context="parking" value="" onChange={() => {}} />
         {/* Stats */}
         <div className="grid grid-cols-3 gap-3">
@@ -282,7 +287,11 @@ export default function VehicleParkingPage() {
               </Card>
             ))}
             {slots.length === 0 && (
-              <p className="text-center text-muted-foreground py-8 text-sm">No parking slots configured yet</p>
+              <SocietyEmptyState
+                icon={ParkingSquare}
+                title="No parking slots yet"
+                description="The committee can add numbered car and bike slots so residents know what is free."
+              />
             )}
           </TabsContent>
 
@@ -313,10 +322,11 @@ export default function VehicleParkingPage() {
               </Card>
             ))}
             {violations.length === 0 && (
-              <div className="text-center text-muted-foreground py-8">
-                <p className="text-sm">No violations reported</p>
-                <p className="text-xs mt-1">Report unauthorized parking or blocking issues for committee review.</p>
-              </div>
+              <SocietyEmptyState
+                icon={AlertTriangle}
+                title="No violations reported"
+                description="Flag unauthorized parking or a blocked exit and the committee will review it."
+              />
             )}
           </TabsContent>
         </Tabs>

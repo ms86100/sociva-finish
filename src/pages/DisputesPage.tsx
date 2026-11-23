@@ -12,6 +12,7 @@ import { Plus, ShieldAlert } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ModuleSearchBar } from '@/components/search/ModuleSearchBar';
+import { SocietyEmptyState, SocietyModuleHero } from '@/components/society/SocietyModuleHero';
 
 interface Ticket {
   id: string;
@@ -43,7 +44,7 @@ export default function DisputesPage() {
     setLoading(true);
     let query = supabase
       .from('dispute_tickets')
-      .select('*, submitter:profiles!dispute_tickets_submitted_by_fkey(name)')
+      .select('*, submitter:profiles!submitted_by(name)')
       .order('created_at', { ascending: false });
 
     if (viewMode === 'my') {
@@ -52,8 +53,22 @@ export default function DisputesPage() {
       query = query.eq('society_id', effectiveSocietyId);
     }
 
-    const { data } = await query;
-    setTickets((data as any) || []);
+    const { data, error } = await query;
+    if (error) {
+      const fallback = await supabase
+        .from('dispute_tickets')
+        .select('*')
+        .order('created_at', { ascending: false });
+      const rows = (fallback.data as any) || [];
+      const scoped = viewMode === 'my'
+        ? rows.filter((t: Ticket) => t.submitted_by === user.id || (t as any).raised_by === user.id)
+        : effectiveSocietyId
+          ? rows.filter((t: Ticket) => (t as any).society_id === effectiveSocietyId)
+          : rows;
+      setTickets(scoped);
+    } else {
+      setTickets((data as any) || []);
+    }
     setLoading(false);
   }, [user, viewMode, effectiveSocietyId]);
 
@@ -78,6 +93,13 @@ export default function DisputesPage() {
     <AppLayout headerTitle="My Concerns" showLocation={false}>
       <FeatureGate feature="disputes">
       <div className="p-4 space-y-4">
+        <SocietyModuleHero
+          eyebrow="Committee desk"
+          title={openTickets.length}
+          subtitle={openTickets.length === 1 ? 'open concern with the committee' : 'open concerns with the committee'}
+          icon={ShieldAlert}
+          tone="amber"
+        />
         {(isSocietyAdmin || isAdmin) && (
           <div className="flex gap-2">
             <Button size="sm" variant={viewMode === 'my' ? 'default' : 'outline'} onClick={() => setViewMode('my')} className="text-xs">My Concerns</Button>
@@ -97,17 +119,13 @@ export default function DisputesPage() {
             {[1, 2, 3].map(i => <Skeleton key={i} className="h-24 w-full rounded-xl" />)}
           </div>
         ) : display.length === 0 ? (
-          <div className="text-center py-12">
-            <ShieldAlert size={32} className="mx-auto text-muted-foreground mb-3" />
-            <p className="text-muted-foreground text-sm">
-              {tab === 'open' ? 'No open concerns' : 'No resolved concerns yet'}
-            </p>
-            <p className="text-xs text-muted-foreground mt-1 max-w-[240px] mx-auto">
-              {tab === 'open'
-                ? 'Use this to raise concerns about orders, payments, or community issues - privately to the committee'
-                : 'Resolved concerns will appear here'}
-            </p>
-          </div>
+          <SocietyEmptyState
+            icon={ShieldAlert}
+            title={tab === 'open' ? 'No open concerns' : 'No resolved concerns yet'}
+            description={tab === 'open'
+              ? 'Raise a private note to the committee about orders, payments, or community issues.'
+              : 'Resolved concerns will land here once the committee closes them.'}
+          />
         ) : (
           <div className="space-y-3">
             {display.map(ticket => (

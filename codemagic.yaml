@@ -2182,6 +2182,217 @@ workflows:
           success: true
           failure: true
 
+  # Staging Android sideload APK - embeds staging Supabase only.
+  # NEVER use this workflow for Play production uploads.
+  android-staging:
+    name: Android Staging (Sideload APK)
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+
+    environment:
+      groups:
+        - sociva_android_firebase
+      vars:
+        BUNDLE_ID: "app.sociva.community"
+        APP_NAME: "Sociva Staging"
+        CAPACITOR_ENV: "staging"
+        VITE_APP_ENV: "staging"
+        VITE_SUPABASE_URL: "https://wwuanzbusxoyzixuprxs.supabase.co"
+        VITE_SUPABASE_PUBLISHABLE_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind3dWFuemJ1c3hveXppeHVwcnhzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkzMTY2OTAsImV4cCI6MjEwNDg5MjY5MH0.TVZ3pwFUGpnnp4C4xhLgYZXljvAsM5V0GJziuz4hFqc"
+        VITE_AMPLITUDE_API_KEY: "60e5e396e842af3d740616a6eb25d626"
+        VITE_AMPLITUDE_DASHBOARD_URL: "https://app.amplitude.com/"
+      node: 22
+      java: 21
+
+    scripts:
+      - name: Materialize upload keystore
+        script: |
+          set -e
+          if [ -z "${CM_KEYSTORE_B64:-}" ]; then
+            echo "ERROR: CM_KEYSTORE_B64 missing. Pass it as a workflow variable (or restore Codemagic android_signing identity)."
+            exit 1
+          fi
+          if [ -z "${CM_KEYSTORE_PASSWORD:-}" ] || [ -z "${CM_KEY_ALIAS:-}" ] || [ -z "${CM_KEY_PASSWORD:-}" ]; then
+            echo "ERROR: CM_KEYSTORE_PASSWORD / CM_KEY_ALIAS / CM_KEY_PASSWORD required for signing"
+            exit 1
+          fi
+          python3 - <<'PY'
+          import base64, os, re, sys
+          raw = os.environ.get("CM_KEYSTORE_B64") or ""
+          cleaned = re.sub(r"\s+", "", raw).replace("-", "+").replace("_", "/")
+          pad = (-len(cleaned)) % 4
+          if pad:
+              cleaned += "=" * pad
+          try:
+              data = base64.b64decode(cleaned, validate=False)
+          except Exception as e:
+              print("ERROR: CM_KEYSTORE_B64 is not valid base64:", e)
+              sys.exit(1)
+          if len(data) < 100:
+              print("ERROR: decoded keystore too small:", len(data))
+              sys.exit(1)
+          out = os.path.join(os.environ["CM_BUILD_DIR"], "sociva-upload.keystore")
+          with open(out, "wb") as f:
+              f.write(data)
+          print("=== upload keystore materialized bytes=", len(data), "===")
+          PY
+          export CM_KEYSTORE_PATH="$CM_BUILD_DIR/sociva-upload.keystore"
+          export CM_KEYSTORE="$CM_KEYSTORE_PATH"
+          echo "CM_KEYSTORE_PATH=$CM_KEYSTORE_PATH" >> "$CM_ENV"
+          echo "CM_KEYSTORE=$CM_KEYSTORE" >> "$CM_ENV"
+          echo "=== upload keystore materialized ==="
+
+      - name: Install dependencies
+        script: |
+          npm install --legacy-peer-deps
+          node scripts/patch-android-builds.cjs
+
+      - name: Build web app against staging Supabase
+        script: |
+          # Fail closed: staging APK must NEVER embed production Supabase.
+          node scripts/assert-supabase-env.cjs --require-staging
+          npm run build:native:staging
+
+      - name: Add Android platform
+        script: |
+          npx cap add android || true
+          npx cap sync android
+          node scripts/patch-android-builds.cjs
+
+      - name: Verify native Android dependency patch
+        script: |
+          node scripts/patch-android-builds.cjs --verify
+          if grep -q "transistorsoft" android/capacitor.settings.gradle android/app/capacitor.build.gradle android/build.gradle; then
+            echo "ERROR: Transistorsoft must not be registered in native Android Gradle after patch"
+            exit 1
+          fi
+
+      - name: Copy custom notification sound (Android)
+        script: |
+          mkdir -p android/app/src/main/res/raw
+          if [ -f "public/sounds/new-order.wav" ]; then
+            cp public/sounds/new-order.wav android/app/src/main/res/raw/new_order.wav
+          fi
+
+      - name: Copy google-services.json
+        script: |
+          if [ -n "${GOOGLE_SERVICES_JSON:-}" ]; then
+            echo "$GOOGLE_SERVICES_JSON" > android/app/google-services.json
+          elif [ -f "$CM_BUILD_DIR/android/app/google-services.json" ]; then
+            echo "=== google-services.json already present ==="
+          else
+            echo "WARNING: google-services.json missing - push may be limited on staging APK"
+          fi
+
+      - name: Set Android SDK location
+        script: |
+          echo "sdk.dir=$ANDROID_SDK_ROOT" > android/local.properties
+
+      - name: Inject release signing config
+        script: |
+          GRADLE_FILE="android/app/build.gradle"
+          if [ -n "${CM_KEYSTORE_PATH:-}" ] && [ -f "$CM_KEYSTORE_PATH" ]; then
+            export CM_KEYSTORE="$CM_KEYSTORE_PATH"
+          fi
+          if [ -z "${CM_KEYSTORE:-}" ] || [ ! -f "$CM_KEYSTORE" ]; then
+            echo "ERROR: Android upload keystore missing for staging APK"
+            exit 1
+          fi
+          python3 - "$GRADLE_FILE" <<'PYEOF'
+          import os, re, sys
+          path = sys.argv[1]
+          content = open(path, encoding='utf-8').read()
+          signing = (
+              "    signingConfigs {\n"
+              "        release {\n"
+              "            storeFile file(System.getenv(\"CM_KEYSTORE_PATH\") ?: System.getenv(\"CM_KEYSTORE\"))\n"
+              "            storePassword System.getenv(\"CM_KEYSTORE_PASSWORD\")\n"
+              "            keyAlias System.getenv(\"CM_KEY_ALIAS\")\n"
+              "            keyPassword System.getenv(\"CM_KEY_PASSWORD\")\n"
+              "        }\n"
+              "    }\n"
+          )
+          release_type = (
+              "    buildTypes {\n"
+              "        release {\n"
+              "            minifyEnabled true\n"
+              "            shrinkResources true\n"
+              "            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'\n"
+              "            signingConfig signingConfigs.release\n"
+              "        }\n"
+              "    }\n"
+          )
+          content2, n1 = re.subn(
+              r"    signingConfigs \{.*?^    \}",
+              signing.rstrip(),
+              content,
+              count=1,
+              flags=re.M | re.S,
+          )
+          content3, n2 = re.subn(
+              r"    buildTypes \{.*?^    \}",
+              release_type.rstrip(),
+              content2,
+              count=1,
+              flags=re.M | re.S,
+          )
+          if n1 != 1 or n2 != 1:
+              raise SystemExit("Failed to rewrite signing blocks signing=%s buildTypes=%s" % (n1, n2))
+          open(path, "w", encoding="utf-8").write(content3)
+          print("=== Staging signing config rewritten successfully ===")
+          PYEOF
+
+      - name: Stamp staging version
+        script: |
+          export PLAY_VERSION_CODE="${PLAY_VERSION_CODE:-7201}"
+          export PLAY_VERSION_NAME="${PLAY_VERSION_NAME:-2.0.72-staging}"
+          python3 - <<'PY'
+          import os, re
+          code = os.environ["PLAY_VERSION_CODE"]
+          name = os.environ["PLAY_VERSION_NAME"]
+          path = "android/app/build.gradle"
+          t = open(path, encoding="utf-8").read()
+          t, n1 = re.subn(r'versionCode\s+\d+', f'versionCode {int(code)}', t, count=1)
+          t, n2 = re.subn(r'versionName\s+"[^"]+"', f'versionName "{name}"', t, count=1)
+          if n1 != 1 or n2 != 1:
+              raise SystemExit(f"Failed to stamp staging version versionCode={n1} versionName={n2}")
+          open(path, "w", encoding="utf-8").write(t)
+          print(f"=== Stamped staging versionCode {int(code)} versionName {name} ===")
+          PY
+
+      - name: Build Android staging APK
+        script: |
+          if [ -n "${CM_KEYSTORE_PATH:-}" ] && [ -f "$CM_KEYSTORE_PATH" ]; then
+            export CM_KEYSTORE="$CM_KEYSTORE_PATH"
+          fi
+          if [ -z "${CM_KEYSTORE_PATH:-}${CM_KEYSTORE:-}" ]; then
+            echo "ERROR: Refusing to build an unsigned staging APK"
+            exit 1
+          fi
+          cd android
+          chmod +x ./gradlew
+          set -e
+          ./gradlew clean assembleRelease --warning-mode all
+          APK=$(ls -1 app/build/outputs/apk/release/*.apk | head -1)
+          if [ -z "$APK" ] || [ ! -f "$APK" ]; then
+            echo "ERROR: staging APK missing"
+            exit 1
+          fi
+          echo "=== Verifying APK signature: $APK ==="
+          jarsigner -verify "$APK"
+          echo "=== staging APK signature OK ==="
+
+    artifacts:
+      - android/app/build/outputs/**/*.apk
+
+    publishing:
+      email:
+        recipients:
+          - support@sociva.in
+        notify:
+          success: true
+          failure: true
+
   release-all:
     name: Release All Platforms
     max_build_duration: 90

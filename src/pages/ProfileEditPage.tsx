@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useSmartBack } from '@/hooks/useSmartBack';
 import { useBackInterceptor } from '@/hooks/useBackInterceptor';
@@ -9,43 +9,34 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { AddressForm } from '@/components/profile/AddressForm';
 import { AddressCard } from '@/components/profile/AddressCard';
+import { ApprovedSocietyPicker } from '@/components/society/ApprovedSocietyPicker';
+import {
+  fetchApprovedSocieties,
+  filterApprovedSocieties,
+  submitSocietyRegistryRequest,
+  type ApprovedSociety,
+} from '@/lib/approved-societies';
 import { useAuth } from '@/contexts/AuthContext';
 import { useBrowsingLocation } from '@/contexts/BrowsingLocationContext';
 import { useDeliveryAddresses } from '@/hooks/useDeliveryAddresses';
-import { supabase } from '@/integrations/supabase/client';
-import {
-  assignSocietyIdToProfile,
-  ensureProfileSocietyFromAddress,
-  resolveOrCreateSocietyForProfile,
-} from '@/lib/resolve-profile-society';
+import { IS_STAGING_SUPABASE, supabase } from '@/integrations/supabase/client';
+import { assignSocietyIdToProfile } from '@/lib/resolve-profile-society';
+import { fetchOwnMembership } from '@/lib/society-membership';
+import { seedDeliveryAddress } from '@/lib/delivery-pin-seed';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { useFeedbackPopup } from '@/components/FeedbackPopupProvider';
-import { ArrowLeft, Plus, Loader2, Mail, MapPin, Phone, User, ChevronRight, KeyRound, LogOut } from 'lucide-react';
+import { ArrowLeft, Plus, Loader2, Mail, MapPin, Phone, User, ChevronRight, KeyRound, LogOut, Building2 } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 import { resolveAfterOnboardingPath, clearPendingAuthAction } from '@/lib/pending-auth-action';
 import { useCart } from '@/hooks/useCart';
-
-function seedFromBrowsingLocation(browsingLocation: {
-  lat?: number;
-  lng?: number;
-  label?: string;
-  fullAddress?: string;
-  secondaryLabel?: string;
-} | null) {
-  if (!browsingLocation?.lat || !browsingLocation?.lng) return null;
-  return {
-    latitude: browsingLocation.lat,
-    longitude: browsingLocation.lng,
-    full_address: browsingLocation.fullAddress || browsingLocation.secondaryLabel || browsingLocation.label || '',
-    building_name: browsingLocation.label || '',
-  };
-}
 
 export default function ProfileEditPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const goBack = useSmartBack('/profile');
   const { user, profile, society, refreshProfile, signOut } = useAuth();
+  const queryClient = useQueryClient();
   const { browsingLocation } = useBrowsingLocation();
   const { showFeedback } = useFeedbackPopup();
   const { addresses, isLoading: addressesLoading, saveAddress, deleteAddress, setDefault, isSaving } = useDeliveryAddresses();
@@ -72,29 +63,41 @@ export default function ProfileEditPage() {
   const [dismissedAutoOpen, setDismissedAutoOpen] = useState(false);
   const [resolvingSociety, setResolvingSociety] = useState(false);
   const [inviteCode, setInviteCode] = useState('');
+  const [societyQuery, setSocietyQuery] = useState('');
+  const [pickedSociety, setPickedSociety] = useState<ApprovedSociety | null>(null);
+  const [showRegistryForm, setShowRegistryForm] = useState(false);
+  const [registryForm, setRegistryForm] = useState({ name: '', city: '', pincode: '', address: '', contact: '' });
   const [pendingInvite, setPendingInvite] = useState<{
     societyId: string;
     societyName: string;
     addressData: any;
   } | null>(null);
   const detailsRef = useRef<HTMLDivElement>(null);
-  const needsSociety = !profile?.society_id;
+  const { data: membership } = useQuery({
+    queryKey: ['own-membership', user?.id],
+    queryFn: () => fetchOwnMembership(user!.id),
+    enabled: IS_STAGING_SUPABASE && !!user?.id,
+    staleTime: 15_000,
+    refetchOnWindowFocus: true,
+    refetchInterval: (query) => (query.state.data?.status === 'pending' ? 8_000 : false),
+  });
+  const needsSociety = IS_STAGING_SUPABASE
+    ? !(profile?.society_id || (membership && membership.status !== 'none'))
+    : !profile?.society_id;
+
+  const { data: approvedSocieties = [], isLoading: loadingApproved } = useQuery({
+    queryKey: ['approved-societies'],
+    queryFn: fetchApprovedSocieties,
+    enabled: needsSociety,
+    staleTime: 60_000,
+  });
+  const filteredApproved = useMemo(
+    () => filterApprovedSocieties(approvedSocieties, societyQuery),
+    [approvedSocieties, societyQuery],
+  );
 
   // Auto-open address form if no addresses exist (unless user dismissed it)
-  const shouldAutoOpen = !addressesLoading && addresses.length === 0 && !showAddressForm && !dismissedAutoOpen;
-
-  // If user already has delivery addresses but no society_id on profile, auto-link from default address
-  useEffect(() => {
-    if (!user || addressesLoading || addresses.length === 0 || profile?.society_id) return;
-    const defaultAddr = addresses.find(a => a.is_default) || addresses[0];
-    if (defaultAddr && (defaultAddr.society_id || defaultAddr.latitude || defaultAddr.building_name || defaultAddr.full_address)) {
-      ensureProfileSocietyFromAddress(user.id, defaultAddr).then(res => {
-        if (res.ok) {
-          refreshProfile();
-        }
-      }).catch(console.error);
-    }
-  }, [user, addressesLoading, addresses, profile?.society_id]);
+  const shouldAutoOpen = !needsSociety && !addressesLoading && addresses.length === 0 && !showAddressForm && !dismissedAutoOpen;
 
   const handleSaveProfile = async () => {
     if (!user || !name.trim()) {
@@ -102,38 +105,9 @@ export default function ProfileEditPage() {
       return;
     }
     if (needsSociety) {
-      if (addresses.length === 0) {
-        toast.error('Please save a delivery address first so we can link your society');
-        setStep(1);
-        return;
-      }
-      setSavingProfile(true);
-      try {
-        const defaultAddr = addresses.find(a => a.is_default) || addresses[0];
-        const resolved = await ensureProfileSocietyFromAddress(user.id, defaultAddr);
-        if (!resolved.ok) {
-          if (resolved.error === 'invite_required') {
-            setPendingInvite({
-              societyId: resolved.societyId,
-              societyName: resolved.societyName,
-              addressData: defaultAddr,
-            });
-            toast.info(`${resolved.societyName} requires an invite code`);
-          } else {
-            toast.error(resolved.error || 'Could not link your society');
-          }
-          setStep(1);
-          return;
-        }
-        await refreshProfile();
-      } catch (err) {
-        console.error('Failed to link society before saving profile', err);
-        toast.error('Could not link your society');
-        setStep(1);
-        return;
-      } finally {
-        setSavingProfile(false);
-      }
+      toast.error('Pick an approved society first. Maps cannot create a community.');
+      setStep(1);
+      return;
     }
     setSavingProfile(true);
     try {
@@ -221,57 +195,75 @@ export default function ProfileEditPage() {
     }, 300);
   };
 
-  const handleSaveAddress = async (data: any) => {
-    if (!user) return;
+  const handleJoinApprovedSociety = async () => {
+    if (!user || !pickedSociety) {
+      toast.error('Pick an approved society from the list');
+      return;
+    }
+    if (pickedSociety.invite_code && !inviteCode.trim()) {
+      toast.error('Enter the invite code for this society');
+      return;
+    }
     setResolvingSociety(true);
     try {
-      let societyId = profile?.society_id || null;
-
-      if (!societyId) {
-        const societyName = (data.building_name || data.full_address || '').trim();
-        if (!societyName && !(data.latitude && data.longitude)) {
-          toast.error('Pick your society or location on the map first');
-          return;
+      const assigned = await assignSocietyIdToProfile(user.id, pickedSociety.id, inviteCode);
+      if (!assigned.ok) {
+        if (assigned.inviteRequired) {
+          toast.info(`${pickedSociety.name} requires an invite code`);
+        } else {
+          toast.error(assigned.error || 'Could not request to join');
         }
-
-        const resolved = await resolveOrCreateSocietyForProfile(
-          {
-            name: societyName || 'My society',
-            address: data.full_address || '',
-            city: '',
-            state: '',
-            pincode: data.pincode || '',
-            latitude: data.latitude,
-            longitude: data.longitude,
-            google_place_id: data.google_place_id || null,
-          },
-          { inviteCode: inviteCode || undefined },
-        );
-
-        if (!resolved.ok && resolved.error === 'invite_required') {
-          setPendingInvite({
-            societyId: resolved.societyId,
-            societyName: resolved.societyName,
-            addressData: data,
-          });
-          toast.info(`${resolved.societyName} requires an invite code`);
-          return;
-        }
-
-        if (!resolved.ok) {
-          toast.error(resolved.error || 'Could not link your society');
-          return;
-        }
-
-        const assigned = await assignSocietyIdToProfile(user.id, resolved.societyId);
-        if (!assigned.ok) {
-          toast.error(assigned.error);
-          return;
-        }
-        societyId = resolved.societyId;
-        await refreshProfile();
+        return;
       }
+      await refreshProfile();
+      await queryClient.invalidateQueries({ queryKey: ['own-membership'] });
+      showFeedback({
+        title: 'Join request sent. Next, add your door details. The map pin is for delivery, not membership.',
+        variant: 'success',
+      });
+    } finally {
+      setResolvingSociety(false);
+    }
+  };
 
+  const handleRegistryRequest = async () => {
+    if (!registryForm.name.trim() || !registryForm.city.trim() || !registryForm.pincode.trim()) {
+      toast.error('Name, city, and pincode are required');
+      return;
+    }
+    setResolvingSociety(true);
+    try {
+      const submitted = await submitSocietyRegistryRequest({
+        name: registryForm.name,
+        city: registryForm.city,
+        pincode: registryForm.pincode,
+        address: registryForm.address,
+        contact: registryForm.contact || profile?.phone || '',
+      });
+      if (!submitted.ok) {
+        toast.error(submitted.error);
+        return;
+      }
+      showFeedback({
+        title: 'Request sent. Sociva admin will add this society if the RWA is verified.',
+        variant: 'success',
+      });
+      setShowRegistryForm(false);
+      setRegistryForm({ name: '', city: '', pincode: '', address: '', contact: '' });
+    } finally {
+      setResolvingSociety(false);
+    }
+  };
+
+  const handleSaveAddress = async (data: any) => {
+    if (!user) return;
+    const societyId = profile?.society_id || membership?.societyId || null;
+    if (!societyId) {
+      toast.error('Pick an approved society first. Maps cannot create or join a community.');
+      return;
+    }
+    setResolvingSociety(true);
+    try {
       await persistAddressWithSociety(data, societyId);
     } catch (err) {
       console.error('Failed to save address from profile edit', err);
@@ -289,35 +281,16 @@ export default function ProfileEditPage() {
     }
     setResolvingSociety(true);
     try {
-      const data = pendingInvite.addressData;
-      const resolved = await resolveOrCreateSocietyForProfile(
-        {
-          name: pendingInvite.societyName || data.building_name || 'My society',
-          address: data.full_address || '',
-          pincode: data.pincode || '',
-          latitude: data.latitude,
-          longitude: data.longitude,
-          google_place_id: data.google_place_id || null,
-        },
-        { inviteCode },
-      );
-
-      if (!resolved.ok) {
-        if (resolved.error === 'invite_required') {
-          toast.error('Invalid invite code for this society');
-        } else {
-          toast.error(resolved.error || 'Could not link your society');
-        }
-        return;
-      }
-
-      const assigned = await assignSocietyIdToProfile(user.id, resolved.societyId);
+      const assigned = await assignSocietyIdToProfile(user.id, pendingInvite.societyId, inviteCode);
       if (!assigned.ok) {
-        toast.error(assigned.error);
+        toast.error(assigned.inviteRequired ? 'Invalid invite code for this society' : assigned.error);
         return;
       }
       await refreshProfile();
-      await persistAddressWithSociety(data, resolved.societyId);
+      await queryClient.invalidateQueries({ queryKey: ['own-membership'] });
+      if (pendingInvite.addressData) {
+        await persistAddressWithSociety(pendingInvite.addressData, pendingInvite.societyId);
+      }
     } catch (err) {
       console.error('Invite society join failed', err);
       toast.error('Failed to join society');
@@ -332,60 +305,21 @@ export default function ProfileEditPage() {
   };
 
   const handleAddNew = () => {
-    const defaults: any = {};
-    // Prefer marketplace browse pin (checkout / discovery) over society HQ -
-    // Apple Review society may be Mountain View while buyer browses Shriram.
-    const fromBrowse = seedFromBrowsingLocation(browsingLocation);
-    if (fromBrowse) {
-      Object.assign(defaults, fromBrowse);
-    } else if (society) {
-      defaults.building_name = society.name;
-      if (society.latitude) defaults.latitude = society.latitude;
-      if (society.longitude) defaults.longitude = society.longitude;
-      if (society.pincode) defaults.pincode = society.pincode;
-    }
-    setEditingAddress(Object.keys(defaults).length > 0 ? defaults : null);
+    const firstAddress = addresses.length === 0;
+    const defaults = seedDeliveryAddress({
+      society,
+      browsingLocation: firstAddress ? undefined : browsingLocation,
+      preferSociety: firstAddress,
+    });
+    setEditingAddress(defaults);
     setShowAddressForm(true);
   };
 
   const handleContinueToDetails = async () => {
     if (!user) return;
     if (needsSociety) {
-      if (addresses.length === 0) {
-        toast.error('Please add a delivery address first so we can link your society');
-        setShowAddressForm(true);
-        return;
-      }
-      setResolvingSociety(true);
-      try {
-        const defaultAddr = addresses.find(a => a.is_default) || addresses[0];
-        const resolved = await ensureProfileSocietyFromAddress(user.id, defaultAddr, {
-          inviteCode: inviteCode || undefined,
-        });
-
-        if (!resolved.ok && resolved.error === 'invite_required') {
-          setPendingInvite({
-            societyId: resolved.societyId,
-            societyName: resolved.societyName,
-            addressData: defaultAddr,
-          });
-          toast.info(`${resolved.societyName} requires an invite code`);
-          return;
-        }
-
-        if (!resolved.ok) {
-          toast.error(resolved.error || 'Could not link your society');
-          return;
-        }
-
-        await refreshProfile();
-      } catch (err) {
-        console.error('Failed to link society from address', err);
-        toast.error('Could not link your society');
-        return;
-      } finally {
-        setResolvingSociety(false);
-      }
+      toast.error('Pick an approved society first. Maps cannot create a community.');
+      return;
     }
     setStep(2);
     setTimeout(() => {
@@ -429,7 +363,7 @@ export default function ProfileEditPage() {
           <div className="mx-4 mt-3 rounded-xl border border-border bg-muted/40 px-3 py-2.5">
             <p className="text-xs font-medium text-foreground">Almost there</p>
             <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">
-              Add your delivery address once - we&apos;ll link your society from that location. Then add your name.
+              Pick your approved Sociva society first. Google Maps is not how you join.
             </p>
           </div>
         )}
@@ -448,6 +382,79 @@ export default function ProfileEditPage() {
         {/* ═══ STEP 1: DELIVERY ADDRESS ═══ */}
         {step === 1 && (
           <div className="px-4 mt-4">
+            {needsSociety && (
+              <div className="mb-5 rounded-2xl border border-border bg-card p-4 space-y-3">
+                <div className="flex items-start gap-2">
+                  <Building2 size={16} className="mt-0.5 text-primary shrink-0" />
+                  <div>
+                    <p className="text-sm font-semibold">Choose your society</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Only admin-approved societies can be joined, like MyGate. A map pin later is for your door, not this join.
+                    </p>
+                  </div>
+                </div>
+                {showRegistryForm ? (
+                  <div className="space-y-2">
+                    <Input placeholder="Society name *" value={registryForm.name} onChange={(e) => setRegistryForm({ ...registryForm, name: e.target.value })} className="h-11 rounded-xl" />
+                    <Input placeholder="City *" value={registryForm.city} onChange={(e) => setRegistryForm({ ...registryForm, city: e.target.value })} className="h-11 rounded-xl" />
+                    <Input placeholder="Pincode *" inputMode="numeric" value={registryForm.pincode} onChange={(e) => setRegistryForm({ ...registryForm, pincode: e.target.value.replace(/\D/g, '').slice(0, 6) })} className="h-11 rounded-xl" />
+                    <Input placeholder="Address" value={registryForm.address} onChange={(e) => setRegistryForm({ ...registryForm, address: e.target.value })} className="h-11 rounded-xl" />
+                    <div className="flex gap-2">
+                      <Button variant="outline" className="flex-1 h-11 rounded-xl" onClick={() => setShowRegistryForm(false)}>Back</Button>
+                      <Button className="flex-1 h-11 rounded-xl" onClick={handleRegistryRequest} disabled={resolvingSociety}>
+                        {resolvingSociety ? <Loader2 size={16} className="animate-spin" /> : 'Submit request'}
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <ApprovedSocietyPicker
+                      societies={filteredApproved}
+                      query={societyQuery}
+                      onQueryChange={setSocietyQuery}
+                      selectedId={pickedSociety?.id}
+                      onSelect={setPickedSociety}
+                      loading={loadingApproved}
+                    />
+                    {pickedSociety?.invite_code && (
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Invite code</Label>
+                        <Input
+                          value={inviteCode}
+                          onChange={(e) => setInviteCode(e.target.value)}
+                          placeholder="Enter invite code"
+                          className="mt-1.5 h-11 rounded-xl"
+                        />
+                      </div>
+                    )}
+                    {pickedSociety && (
+                      <div className="rounded-xl border border-primary/15 bg-primary/5 px-3 py-2.5">
+                        <p className="text-xs font-semibold text-foreground">After you request to join</p>
+                        <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">
+                          Add your tower/block and flat in Delivery Address so the committee can match and approve you. Status stays pending until approved.
+                        </p>
+                      </div>
+                    )}
+                    <Button
+                      className="w-full h-11 rounded-xl font-semibold"
+                      onClick={handleJoinApprovedSociety}
+                      disabled={!pickedSociety || resolvingSociety}
+                    >
+                      {resolvingSociety ? <Loader2 size={16} className="animate-spin" /> : 'Request to join'}
+                    </Button>
+                    <button
+                      type="button"
+                      className="w-full text-center text-sm text-primary font-medium"
+                      onClick={() => setShowRegistryForm(true)}
+                    >
+                      Can&apos;t find your society? Request it
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
+            {!needsSociety && (
+            <>
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-sm font-semibold text-foreground">Delivery Address</h3>
               {!showAddressForm && !shouldAutoOpen && !pendingInvite && addresses.length > 0 && (
@@ -502,10 +509,15 @@ export default function ProfileEditPage() {
                 initial={
                   editingAddress
                   || (shouldAutoOpen || focusAddress
-                    ? seedFromBrowsingLocation(browsingLocation) || undefined
+                    ? seedDeliveryAddress({
+                        society,
+                        preferSociety: true,
+                      }) || undefined
                     : undefined)
                   || undefined
                 }
+                autoOpenMap={false}
+                deliveryOnly
                 onSave={handleSaveAddress}
                 onCancel={() => { setShowAddressForm(false); setEditingAddress(null); setDismissedAutoOpen(true); }}
                 saving={isSaving || resolvingSociety}
@@ -546,6 +558,8 @@ export default function ProfileEditPage() {
                 Save & Continue
                 <ChevronRight size={16} className="ml-1" />
               </Button>
+            )}
+            </>
             )}
           </div>
         )}

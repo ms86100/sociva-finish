@@ -6,8 +6,12 @@
 
 | Role | Codemagic workflow | Supabase | Who uses it |
 |------|--------------------|----------|-------------|
-| Production | `ios-release` | `https://kkzkuyhgdvyecmxtmkpy.supabase.co` | App Store / existing users |
-| Staging / TestFlight QA | `ios-testflight-staging` | `https://wwuanzbusxoyzixuprxs.supabase.co` (branch `onboarding-integration`) | You + small tester group |
+| Production iOS | `ios-release` | `https://kkzkuyhgdvyecmxtmkpy.supabase.co` | App Store / existing users |
+| Production Android | `android-release` | `https://kkzkuyhgdvyecmxtmkpy.supabase.co` | Play Store / existing users |
+| Staging / TestFlight QA | `ios-testflight-staging` | `https://wwuanzbusxoyzixuprxs.supabase.co` | You + small tester group |
+| Staging Android sideload | `android-staging` | `https://wwuanzbusxoyzixuprxs.supabase.co` | Phone QA APK (not Play prod) |
+
+**Architecture skill:** staging workflows must fail closed via `scripts/assert-supabase-env.cjs --require-staging`. Never use `android-release` / `ios-release` to validate society-hub staging work.
 
 Staging app markers:
 
@@ -24,19 +28,34 @@ Staging app markers:
 
 ## Local staging web / Capacitor
 
+Repo already includes gitignored `.env.staging` pointing at staging Supabase.
+Copy from the example if you need a personal override:
+
 ```bash
 cp .env.staging.example .env.staging.local
-# fill VITE_SUPABASE_PUBLISHABLE_KEY from staging dashboard (anon)
-# then:
-set -a && source .env.staging.local && set +a
-node scripts/assert-supabase-env.cjs --require-staging
-npm run build
 ```
+
+Run the app against staging (never production):
+
+```bash
+npm run assert:staging
+npm run dev:staging
+```
+
+Staging build / native sync:
+
+```bash
+npm run build:staging
+npm run cap:sync:android:staging
+```
+
+`scripts/assert-supabase-env.cjs --require-staging` refuses any URL/key for production project `kkzkuyhgdvyecmxtmkpy`.
 
 ## Database / RPC / RLS during testing
 
-- Apply migrations **only** to staging project `wwuanzbusxoyzixuprxs` (or Supabase branch `onboarding-integration`).
-- Never run `apply_migration` / `db push` against `kkzkuyhgdvyecmxtmkpy` while validating.
+- Apply migrations **only** to staging project `wwuanzbusxoyzixuprxs` (branch `onboarding-integration`).
+- Never run `apply_migration` / `db push` / `merge_branch` against `kkzkuyhgdvyecmxtmkpy` while validating.
+- Keep schema in sync with `rebase_branch` on staging, or replay prod migration statements onto staging only (see `scripts/sync-staging-from-prod-migrations.md`).
 - If staging breaks, production users are unaffected.
 
 ## Promote staging → production (after mobile OK)

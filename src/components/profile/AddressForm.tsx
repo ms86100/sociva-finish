@@ -34,6 +34,10 @@ interface AddressFormProps {
   onSave: (data: AddressData) => void;
   onCancel: () => void;
   saving?: boolean;
+  /** First-time join should not jump into a fullscreen map that looks like society pick. */
+  autoOpenMap?: boolean;
+  /** Copy: this pin is the delivery door, not membership. */
+  deliveryOnly?: boolean;
 }
 
 const FIXED_LABELS = [
@@ -41,7 +45,7 @@ const FIXED_LABELS = [
   { value: 'Work', icon: Briefcase },
 ];
 
-export function AddressForm({ initial, onSave, onCancel, saving }: AddressFormProps) {
+export function AddressForm({ initial, onSave, onCancel, saving, autoOpenMap = false, deliveryOnly = false }: AddressFormProps) {
   const [form, setForm] = useState<AddressData>({
     id: initial?.id,
     label: initial?.label || 'Home',
@@ -82,15 +86,17 @@ export function AddressForm({ initial, onSave, onCancel, saving }: AddressFormPr
 
   const update = (key: keyof AddressData, value: any) => setForm(f => ({ ...f, [key]: value }));
 
-  // New address seeded from browse GPS / discovery pin - confirm pin before flat entry
+  // New address seeded from browse GPS / discovery pin - confirm pin before flat entry.
+  // Skip on first-time society join so Google Maps is not mistaken for membership.
   useEffect(() => {
+    if (!autoOpenMap) return;
     if (promptedConfirmPinRef.current) return;
     if (initial?.id) return;
     if (initial?.latitude == null || initial?.longitude == null) return;
     if (initial?.flat_number) return;
     promptedConfirmPinRef.current = true;
     setShowMap(true);
-  }, [initial?.id, initial?.latitude, initial?.longitude, initial?.flat_number]);
+  }, [autoOpenMap, initial?.id, initial?.latitude, initial?.longitude, initial?.flat_number]);
 
   // Debounced search
   const handleSearchChange = useCallback((value: string) => {
@@ -201,6 +207,7 @@ export function AddressForm({ initial, onSave, onCancel, saving }: AddressFormPr
         latitude={form.latitude}
         longitude={form.longitude}
         name={form.full_address || form.building_name || 'Your location'}
+        hint={deliveryOnly ? 'This pin is for delivery to your door. It does not join or change your society.' : undefined}
         onConfirm={handleMapConfirm}
         onBack={() => setShowMap(false)}
       />
@@ -358,13 +365,15 @@ export function AddressForm({ initial, onSave, onCancel, saving }: AddressFormPr
 
       {/* Google Maps Autocomplete Search */}
       <div ref={searchRef} className="relative">
-        <Label className="text-xs text-muted-foreground uppercase tracking-wide">Search Society / Location</Label>
+        <Label className="text-xs text-muted-foreground uppercase tracking-wide">
+          {deliveryOnly ? 'Search delivery location' : 'Search location'}
+        </Label>
         <div className="relative mt-1.5">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={searchQuery}
             onChange={e => handleSearchChange(e.target.value)}
-            placeholder="Search your society, area, or landmark…"
+            placeholder={deliveryOnly ? 'Search your tower, street, or landmark' : 'Search area or landmark'}
             className="pl-9 pr-9 h-11"
             disabled={!isLoaded}
           />
@@ -437,27 +446,46 @@ export function AddressForm({ initial, onSave, onCancel, saving }: AddressFormPr
         </button>
       )}
 
-      {/* Structured Fields */}
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <Label htmlFor="flat" className="text-xs">Flat / House No. *</Label>
-          <Input id="flat" value={form.flat_number} onChange={e => update('flat_number', e.target.value)} placeholder="e.g. A-201" className="mt-1" />
+      {/* Structured unit fields (tower / flat - MyGate-like join clarity) */}
+      <div className="rounded-xl border border-border/70 bg-muted/30 p-3 space-y-3">
+        <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+          Your unit in the society
+        </p>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <Label htmlFor="block" className="text-xs">Tower / Block *</Label>
+            <Input
+              id="block"
+              value={form.block}
+              onChange={e => update('block', e.target.value)}
+              placeholder="e.g. Tower H / Block B"
+              className="mt-1"
+            />
+          </div>
+          <div>
+            <Label htmlFor="flat" className="text-xs">Flat / Unit No. *</Label>
+            <Input
+              id="flat"
+              value={form.flat_number}
+              onChange={e => update('flat_number', e.target.value)}
+              placeholder="e.g. 1204"
+              className="mt-1"
+            />
+          </div>
         </div>
-        <div>
-          <Label htmlFor="floor" className="text-xs">Floor</Label>
-          <Input id="floor" value={form.floor} onChange={e => update('floor', e.target.value)} placeholder="e.g. 2nd" className="mt-1" />
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <Label htmlFor="floor" className="text-xs">Floor</Label>
+            <Input id="floor" value={form.floor} onChange={e => update('floor', e.target.value)} placeholder="e.g. 12" className="mt-1" />
+          </div>
+          <div>
+            <Label htmlFor="phase" className="text-xs">Phase</Label>
+            <Input id="phase" value={form.phase} onChange={e => update('phase', e.target.value)} placeholder="e.g. Phase 2" className="mt-1" />
+          </div>
         </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <Label htmlFor="block" className="text-xs">Block / Tower</Label>
-          <Input id="block" value={form.block} onChange={e => update('block', e.target.value)} placeholder="e.g. B" className="mt-1" />
-        </div>
-        <div>
-          <Label htmlFor="phase" className="text-xs">Phase</Label>
-          <Input id="phase" value={form.phase} onChange={e => update('phase', e.target.value)} placeholder="e.g. Phase 2" className="mt-1" />
-        </div>
+        <p className="text-[11px] text-muted-foreground leading-relaxed">
+          Match the tower and flat on your society invite so the committee can approve you faster.
+        </p>
       </div>
 
       <div className="grid grid-cols-2 gap-3">

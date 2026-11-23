@@ -1,5 +1,6 @@
 // @ts-nocheck
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { FeatureGate } from '@/components/ui/FeatureGate';
@@ -15,6 +16,8 @@ import { TowerProgressCard } from '@/components/progress/TowerProgressCard';
 import { DocumentVaultTab } from '@/components/progress/DocumentVaultTab';
 import { ProjectQATab } from '@/components/progress/ProjectQATab';
 import { HardHat, Construction } from 'lucide-react';
+
+const PROGRESS_TABS = new Set(['timeline', 'documents', 'qa']);
 
 interface Tower {
   id: string;
@@ -44,10 +47,23 @@ interface Milestone {
 export default function SocietyProgressPage() {
   const { user, isAdmin, isSocietyAdmin, isBuilderMember, effectiveSocietyId, effectiveSociety } = useAuth();
   const canManageProgress = isAdmin || isSocietyAdmin || isBuilderMember;
+  const [searchParams, setSearchParams] = useSearchParams();
   const [milestones, setMilestones] = useState<Milestone[]>([]);
   const [towers, setTowers] = useState<Tower[]>([]);
   const [selectedTowerId, setSelectedTowerId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  const activeTab = useMemo(() => {
+    const raw = (searchParams.get('tab') || 'timeline').toLowerCase();
+    return PROGRESS_TABS.has(raw) ? raw : 'timeline';
+  }, [searchParams]);
+
+  const setActiveTab = (value: string) => {
+    const next = new URLSearchParams(searchParams);
+    if (value === 'timeline') next.delete('tab');
+    else next.set('tab', value);
+    setSearchParams(next, { replace: true });
+  };
 
   const fetchTowers = async () => {
     if (!effectiveSocietyId) return;
@@ -161,7 +177,7 @@ export default function SocietyProgressPage() {
           <TowerSelector towers={towers} selectedTowerId={selectedTowerId} onSelect={setSelectedTowerId} />
         </div>
 
-        <Tabs defaultValue="timeline">
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="w-full grid grid-cols-3">
             <TabsTrigger value="timeline" className="text-xs">Timeline</TabsTrigger>
             <TabsTrigger value="documents" className="text-xs">Documents</TabsTrigger>

@@ -51,6 +51,7 @@ export default function SocietyAdminPage() {
   const [rejectingSellerId, setRejectingSellerId] = useState<string | null>(null);
   const [sellerRejectionNote, setSellerRejectionNote] = useState('');
   const [selectedUser, setSelectedUser] = useState<AdminDirectoryUser | null>(null);
+  const [activeTab, setActiveTab] = useState('overview');
 
   if (!sa.isSocietyAdmin && !sa.isAdmin) {
     return (
@@ -100,7 +101,7 @@ export default function SocietyAdminPage() {
         </div>
 
         <div className="px-4">
-          <Tabs defaultValue="overview">
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
             <div className="overflow-x-auto scrollbar-hide -mx-4 px-4 pb-2">
               <TabsList className="inline-flex w-auto gap-0.5 bg-muted/60 p-1 rounded-2xl backdrop-blur-sm">
                 {TAB_CONFIG.map(tab => {
@@ -115,7 +116,70 @@ export default function SocietyAdminPage() {
               </TabsList>
             </div>
 
-            <TabsContent value="overview" className="mt-5">
+            <TabsContent value="overview" className="mt-5 space-y-4">
+              <Card className="border-0 shadow-[var(--shadow-card)] rounded-2xl">
+                <CardContent className="p-4 space-y-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-emerald-500/10 flex items-center justify-center">
+                      <Check size={15} className="text-emerald-600" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold">Ops checklist</h3>
+                      <p className="text-[11px] text-muted-foreground">MyGate-like minimum path for go-live</p>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <button
+                      type="button"
+                      className="w-full flex items-center justify-between gap-3 rounded-xl border border-border/70 bg-background px-3.5 py-3 text-left active:scale-[0.99] transition-transform"
+                      onClick={() => setActiveTab('users')}
+                    >
+                      <div>
+                        <p className="text-sm font-semibold">1. Approve residents</p>
+                        <p className="text-[11px] text-muted-foreground mt-0.5">
+                          {sa.pendingUsers.length > 0
+                            ? `${sa.pendingUsers.length} waiting with tower/flat details`
+                            : 'Queue clear - new joins land here'}
+                        </p>
+                      </div>
+                      <Badge variant={sa.pendingUsers.length > 0 ? 'default' : 'secondary'} className="rounded-md tabular-nums">
+                        {sa.pendingUsers.length}
+                      </Badge>
+                    </button>
+                    <div className="w-full flex items-center justify-between gap-3 rounded-xl border border-border/70 bg-background px-3.5 py-3">
+                      <div>
+                        <p className="text-sm font-semibold">2. Appoint guard / admin</p>
+                        <p className="text-[11px] text-muted-foreground mt-0.5">
+                          {sa.societyAdmins.length > 0
+                            ? `${sa.societyAdmins.length} committee roles active`
+                            : 'Add at least one admin, then security staff under More'}
+                        </p>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="rounded-xl shrink-0"
+                        onClick={() => sa.setAppointOpen(true)}
+                      >
+                        <UserPlus size={14} className="mr-1" /> Appoint
+                      </Button>
+                    </div>
+                    <div className="rounded-xl border border-dashed border-border/80 px-3.5 py-3">
+                      <p className="text-sm font-semibold">3. Invite code</p>
+                      <p className="text-[11px] text-muted-foreground mt-0.5 mb-2">
+                        Share with residents so tower/flat join requests route correctly
+                      </p>
+                      {sa.effectiveSociety?.invite_code ? (
+                        <p className="font-mono font-extrabold text-base tracking-[0.2em] tabular-nums">
+                          {sa.effectiveSociety.invite_code}
+                        </p>
+                      ) : (
+                        <p className="text-xs text-muted-foreground">Generate invite code under More → Settings</p>
+                      )}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
               {sa.societyId && <CommitteeDashboard societyId={sa.societyId} />}
             </TabsContent>
 

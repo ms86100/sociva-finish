@@ -3,7 +3,8 @@ import { Link } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { HelpHubGate } from '@/components/helphub/HelpHubGate';
 import { useHelpHubMode } from '@/hooks/queries/useHelpHub';
-import { Briefcase, Search, UserPlus, Users } from 'lucide-react';
+import { Briefcase, Search, UserPlus, Users, HandHelping } from 'lucide-react';
+import { SocietyModuleHero } from '@/components/society/SocietyModuleHero';
 
 const ACTIONS = [
   {
@@ -33,17 +34,17 @@ export default function HelpHubPage() {
     <AppLayout headerTitle="HelpHub">
       <HelpHubGate>
         <div className="p-4 pb-24 space-y-4">
-          <div>
-            <h1 className="text-xl font-bold text-foreground">HelpHub</h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              Find trusted help. Discover local opportunities.
+          <SocietyModuleHero
+            eyebrow="Trusted neighbours"
+            title="HelpHub"
+            subtitle="Find a cook, maid, nanny, or driver that people in your tower already trust"
+            icon={HandHelping}
+          />
+          {forcedDemo && (
+            <p className="text-[11px] text-warning">
+              Demo mode - listings are local only (add ?live=1 after migration).
             </p>
-            {forcedDemo && (
-              <p className="text-[11px] text-warning mt-2">
-                Demo mode - listings are local only (add ?live=1 after migration).
-              </p>
-            )}
-          </div>
+          )}
 
           <div className="space-y-3">
             {ACTIONS.map((action) => {
@@ -52,7 +53,7 @@ export default function HelpHubPage() {
                 <Link
                   key={action.to}
                   to={action.to}
-                  className="flex items-center gap-3 rounded-2xl border border-border bg-card p-4 shadow-card hover:border-primary/30 transition-colors"
+                  className="flex items-center gap-3 rounded-2xl border border-border/70 bg-card p-4 shadow-card hover:border-primary/30 transition-colors"
                 >
                   <div className="h-11 w-11 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
                     <Icon className="text-primary" size={20} />

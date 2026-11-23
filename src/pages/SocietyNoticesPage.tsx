@@ -17,7 +17,8 @@ import { toast } from 'sonner';
 import { friendlyError } from '@/lib/utils';
 import { Megaphone, Plus, Pin, Clock, User } from 'lucide-react';
 import { format } from 'date-fns';
-import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
+import { showFeedback } from '@/components/FeedbackPopupProvider';
+import { SocietyEmptyState, SocietyModuleHero } from '@/components/society/SocietyModuleHero';
 
 interface Notice {
   id: string;
@@ -80,7 +81,6 @@ export default function SocietyNoticesPage() {
     } as any);
     if (error) { toast.error(friendlyError(error)); }
     else {
-      const { showFeedback } = useFeedbackPopup();
       showFeedback({
         title: 'Notice posted & residents notified',
         variant: 'success'
@@ -107,6 +107,13 @@ export default function SocietyNoticesPage() {
     <AppLayout headerTitle="Notices" showLocation={false}>
       <FeatureGate feature="society_notices">
       <div className="p-4 space-y-4">
+        <SocietyModuleHero
+          eyebrow="Official circulars"
+          title={notices.length}
+          subtitle="Pinned notes from the committee, in one quiet list"
+          icon={Megaphone}
+          tone="amber"
+        />
         {canPost && (
           <Drawer open={sheetOpen} onOpenChange={setSheetOpen}>
             <DrawerTrigger asChild>
@@ -151,11 +158,16 @@ export default function SocietyNoticesPage() {
          {loading ? (
           [1, 2, 3].map(i => <Skeleton key={i} className="h-24 w-full rounded-xl" />)
         ) : notices.length === 0 ? (
-          <div className="text-center py-16 text-muted-foreground">
-            <Megaphone size={40} className="mx-auto mb-3 opacity-40" />
-            <p className="font-medium">No notices yet</p>
-            <p className="text-sm mt-1">Official notices from the committee will appear here</p>
-          </div>
+          <SocietyEmptyState
+            icon={Megaphone}
+            title="No notices yet"
+            description="Official circulars from the committee will appear here the moment they are posted. Admins can post from this screen."
+            action={canPost ? (
+              <Button size="sm" className="rounded-xl gap-1.5" onClick={() => setSheetOpen(true)}>
+                <Plus size={14} /> Post first notice
+              </Button>
+            ) : undefined}
+          />
         ) : (
           notices.map(notice => (
             <Card key={notice.id} className={notice.is_pinned ? 'border-primary/30 bg-primary/5' : ''}>

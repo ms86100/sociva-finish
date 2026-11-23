@@ -11,8 +11,9 @@ import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { friendlyError } from '@/lib/utils';
 import { useRazorpay } from '@/hooks/useRazorpay';
-import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
-import { CheckCircle2, Clock, AlertTriangle, Plus, Download, Loader2 } from 'lucide-react';
+import { showFeedback } from '@/components/FeedbackPopupProvider';
+import { CheckCircle2, Clock, AlertTriangle, Plus, Download, Loader2, CreditCard } from 'lucide-react';
+import { SocietyEmptyState, SocietyModuleHero } from '@/components/society/SocietyModuleHero';
 import { exportMaintenanceDues } from '@/lib/csv-export';
 import { FeatureGate } from '@/components/ui/FeatureGate';
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerTrigger } from '@/components/ui/drawer';
@@ -69,7 +70,6 @@ export default function MaintenancePage() {
       .eq('id', id)
       .eq('society_id', effectiveSocietyId);
     if (error) { toast.error('Failed to update'); return; }
-    const { showFeedback } = useFeedbackPopup();
     showFeedback({
       title: 'Marked as paid',
       variant: 'success'
@@ -126,7 +126,6 @@ export default function MaintenancePage() {
 
       const { error } = await supabase.from('maintenance_dues').insert(rows as any);
       if (error) throw error;
-      const { showFeedback } = useFeedbackPopup();
       showFeedback({
         title: `Generated dues for ${rows.length} flats`,
         variant: 'success'
@@ -148,7 +147,6 @@ export default function MaintenancePage() {
     try {
       const { error } = await supabase.rpc('apply_maintenance_late_fees' as any);
       if (error) throw error;
-      const { showFeedback } = useFeedbackPopup();
       showFeedback({
         title: 'Late fees applied to overdue records',
         variant: 'success'
@@ -179,6 +177,13 @@ export default function MaintenancePage() {
     <AppLayout headerTitle="Maintenance" showLocation={false}>
       <FeatureGate feature="maintenance">
       <div className="p-4 space-y-4">
+        <SocietyModuleHero
+          eyebrow="Monthly dues"
+          title={displayDues.filter(d => d.status !== 'paid').length}
+          subtitle={canManage ? 'Generate dues and mark flats paid' : 'Pay society maintenance from here'}
+          icon={CreditCard}
+          tone="emerald"
+        />
         {canManage && (
           <div className="flex gap-2">
           <Drawer open={sheetOpen} onOpenChange={setSheetOpen}>
@@ -249,10 +254,11 @@ export default function MaintenancePage() {
             {[1, 2, 3].map(i => <Skeleton key={i} className="h-16 w-full rounded-xl" />)}
           </div>
         ) : displayDues.length === 0 ? (
-          <div className="text-center py-16 text-muted-foreground">
-            <p className="font-medium">No maintenance records</p>
-            <p className="text-sm mt-1">Records will appear here once generated</p>
-          </div>
+          <SocietyEmptyState
+            icon={CreditCard}
+            title="No maintenance records"
+            description="Dues appear here once the committee generates the monthly cycle. Residents will see pending amounts and pay status for their flat."
+          />
         ) : (
           <div className="space-y-2">
             {displayDues.map(d => (
@@ -293,7 +299,6 @@ export default function MaintenancePage() {
                             await supabase.from('maintenance_dues')
                               .update({ status: 'paid', paid_date: new Date().toISOString().split('T')[0], receipt_url: paymentId })
                               .eq('id', d.id);
-                            const { showFeedback } = useFeedbackPopup();
                             showFeedback({
                               title: 'Payment successful!',
                               variant: 'success'

@@ -1,0 +1,355 @@
+{
+  "generated_at": "2026-11-23T16:16:07.432Z",
+  "target": "wwuanzbusxoyzixuprxs",
+  "production_touched": false,
+  "summary": {
+    "total": 38,
+    "passed": 38,
+    "failed": 0,
+    "skipped": 0
+  },
+  "results": [
+    {
+      "name": "auth_sign_in",
+      "role": "resident",
+      "society": "A",
+      "expected": "session issued",
+      "actual": "session issued",
+      "pass": true,
+      "evidence": "user=a2222222-0006-4000-8000-000000000006"
+    },
+    {
+      "name": "auth_sign_in",
+      "role": "society_admin",
+      "society": "A",
+      "expected": "session issued",
+      "actual": "session issued",
+      "pass": true,
+      "evidence": "user=a2222222-0002-4000-8000-000000000002"
+    },
+    {
+      "name": "auth_sign_in",
+      "role": "guard",
+      "society": "A",
+      "expected": "session issued",
+      "actual": "session issued",
+      "pass": true,
+      "evidence": "user=a2222222-0004-4000-8000-000000000004"
+    },
+    {
+      "name": "auth_sign_in",
+      "role": "security_supervisor",
+      "society": "A",
+      "expected": "session issued",
+      "actual": "session issued",
+      "pass": true,
+      "evidence": "user=a2222222-0005-4000-8000-000000000005"
+    },
+    {
+      "name": "auth_sign_in",
+      "role": "moderator",
+      "society": "A",
+      "expected": "session issued",
+      "actual": "session issued",
+      "pass": true,
+      "evidence": "user=a2222222-0003-4000-8000-000000000003"
+    },
+    {
+      "name": "auth_sign_in",
+      "role": "platform_admin",
+      "society": "platform",
+      "expected": "session issued",
+      "actual": "session issued",
+      "pass": true,
+      "evidence": "user=a2222222-0001-4000-8000-000000000001"
+    },
+    {
+      "name": "auth_sign_in",
+      "role": "resident",
+      "society": "B",
+      "expected": "session issued",
+      "actual": "session issued",
+      "pass": true,
+      "evidence": "user=a2222222-0012-4000-8000-000000000012"
+    },
+    {
+      "name": "auth_sign_in",
+      "role": "society_admin",
+      "society": "B",
+      "expected": "session issued",
+      "actual": "session issued",
+      "pass": true,
+      "evidence": "user=a2222222-0010-4000-8000-000000000010"
+    },
+    {
+      "name": "auth_sign_in",
+      "role": "guard",
+      "society": "B",
+      "expected": "session issued",
+      "actual": "session issued",
+      "pass": true,
+      "evidence": "user=a2222222-0011-4000-8000-000000000011"
+    },
+    {
+      "name": "auth_sign_in",
+      "role": "resident",
+      "society": "C",
+      "expected": "session issued",
+      "actual": "session issued",
+      "pass": true,
+      "evidence": "user=a2222222-0013-4000-8000-000000000013"
+    },
+    {
+      "name": "auth_sign_in",
+      "role": "seller",
+      "society": "A",
+      "expected": "session issued",
+      "actual": "session issued",
+      "pass": true,
+      "evidence": "user=a2222222-0008-4000-8000-000000000008"
+    },
+    {
+      "name": "auth_sign_in",
+      "role": "service_provider",
+      "society": "A",
+      "expected": "session issued",
+      "actual": "session issued",
+      "pass": true,
+      "evidence": "user=a2222222-0014-4000-8000-000000000014"
+    },
+    {
+      "name": "rpc_features_shape",
+      "role": "resident",
+      "society": "A",
+      "expected": "description,display_name,feature_key,icon_name,is_enabled,society_configurable,source",
+      "actual": "description,display_name,feature_key,icon_name,is_enabled,society_configurable,source",
+      "pass": true,
+      "evidence": "enabled=32"
+    },
+    {
+      "name": "rpc_features_pilot_guard_parcels",
+      "role": "resident",
+      "society": "A",
+      "expected": "guard_kiosk+parcel_management enabled",
+      "actual": "guard=true parcels=true enabled=32",
+      "pass": true,
+      "evidence": null
+    },
+    {
+      "name": "rpc_features_society_c_default",
+      "role": "resident",
+      "society": "C",
+      "expected": "no guard_kiosk (default package only)",
+      "actual": "guard=false enabled=11",
+      "pass": true,
+      "evidence": null
+    },
+    {
+      "name": "visitor_create_entry_rpc",
+      "role": "resident",
+      "society": "A",
+      "expected": "entry+otp from server",
+      "actual": "id=b802a495-af97-42ce-9814-44dacfa2fb7c otp=present",
+      "pass": true,
+      "evidence": null
+    },
+    {
+      "name": "visitor_guard_redeem_otp",
+      "role": "guard",
+      "society": "A",
+      "expected": "check-in success",
+      "actual": "{\"id\":\"b802a495-af97-42ce-9814-44dacfa2fb7c\",\"ok\":true,\"status\":\"checked_in\",\"society_id\":\"a1111111-0001-4000-8000-00000",
+      "pass": true,
+      "evidence": null
+    },
+    {
+      "name": "visitor_otp_single_use",
+      "role": "guard",
+      "society": "A",
+      "expected": "second redeem fails",
+      "actual": "OTP not valid for this society",
+      "pass": true,
+      "evidence": "OTP not valid for this society"
+    },
+    {
+      "name": "visitor_otp_cross_society_reject",
+      "role": "guard",
+      "society": "B->A",
+      "expected": "redeem rejected",
+      "actual": "OTP not valid for this society",
+      "pass": true,
+      "evidence": "OTP not valid for this society"
+    },
+    {
+      "name": "visitor_direct_insert_blocked_or_no_client_otp",
+      "role": "resident",
+      "society": "A",
+      "expected": "direct insert with client otp rejected OR no writable otp",
+      "actual": "permission denied for table visitor_entries",
+      "pass": true,
+      "evidence": "permission denied for table visitor_entries"
+    },
+    {
+      "name": "rls_resident_a_cannot_read_notices_b",
+      "role": "resident",
+      "society": "A->B",
+      "expected": "0 rows",
+      "actual": "status=200 rows=0",
+      "pass": true,
+      "evidence": "[]"
+    },
+    {
+      "name": "rls_resident_a_cannot_read_visitors_b",
+      "role": "resident",
+      "society": "A->B",
+      "expected": "0 rows",
+      "actual": "status=200 rows=0",
+      "pass": true,
+      "evidence": null
+    },
+    {
+      "name": "rls_resident_a_cannot_read_parcels_b",
+      "role": "resident",
+      "society": "A->B",
+      "expected": "0 rows or table missing handled",
+      "actual": "status=200 rows=0",
+      "pass": true,
+      "evidence": "[]"
+    },
+    {
+      "name": "privilege_admin_a_cannot_join_society_b_admins",
+      "role": "society_admin",
+      "society": "A->B",
+      "expected": "insert rejected",
+      "actual": "new row violates row-level security policy for table \"society_admins\"",
+      "pass": true,
+      "evidence": "new row violates row-level security policy for table \"society_admins\""
+    },
+    {
+      "name": "privilege_resident_cannot_self_promote_admin",
+      "role": "resident",
+      "society": "A",
+      "expected": "insert rejected",
+      "actual": "new row violates row-level security policy for table \"society_admins\"",
+      "pass": true,
+      "evidence": "new row violates row-level security policy for table \"society_admins\""
+    },
+    {
+      "name": "privilege_guard_cannot_approve_memberships",
+      "role": "guard",
+      "society": "A",
+      "expected": "update blocked or 0 rows affected without privilege",
+      "actual": "permission denied for table society_memberships",
+      "pass": true,
+      "evidence": "permission denied for table society_memberships"
+    },
+    {
+      "name": "unauthenticated_features_rpc",
+      "role": "anon",
+      "society": "A",
+      "expected": "documented behavior",
+      "actual": "rejected: permission denied for function get_effective_society_features",
+      "pass": true,
+      "evidence": "permission denied for function get_effective_society_features"
+    },
+    {
+      "name": "unauthenticated_visitor_create_rejected",
+      "role": "anon",
+      "society": "-",
+      "expected": "rejected",
+      "actual": "permission denied for function visitor_create_entry",
+      "pass": true,
+      "evidence": "permission denied for function visitor_create_entry"
+    },
+    {
+      "name": "notices_resident_a_can_read_own",
+      "role": "resident",
+      "society": "A",
+      "expected": ">=1 notice",
+      "actual": "count=1",
+      "pass": true,
+      "evidence": null
+    },
+    {
+      "name": "rls_resident_a_cannot_read_bulletin_posts_b",
+      "role": "resident",
+      "society": "A->B",
+      "expected": "0 posts",
+      "actual": "status=200 rows=0",
+      "pass": true,
+      "evidence": "[]"
+    },
+    {
+      "name": "rls_bulletin_rsvps_readable_only_own_society",
+      "role": "resident",
+      "society": "A",
+      "expected": "select ok (society-scoped)",
+      "actual": "status=200 rows=0 votes=0",
+      "pass": true,
+      "evidence": null
+    },
+    {
+      "name": "rls_resident_a_cannot_read_disputes_b",
+      "role": "resident",
+      "society": "A->B",
+      "expected": "0 rows",
+      "actual": "status=200 rows=0",
+      "pass": true,
+      "evidence": "[]"
+    },
+    {
+      "name": "conversations_inbox_no_society_b_leak",
+      "role": "resident",
+      "society": "A",
+      "expected": "no society B conversations",
+      "actual": "count=1 leakB=false",
+      "pass": true,
+      "evidence": null
+    },
+    {
+      "name": "lakeview_pilot_package_entitlements",
+      "role": "platform_admin",
+      "society": "Lakeview",
+      "expected": "pilot ops keys enabled",
+      "actual": "enabled=32 missing=none",
+      "pass": true,
+      "evidence": null
+    },
+    {
+      "name": "rls_resident_a_cannot_enumerate_profiles_b",
+      "role": "resident",
+      "society": "A->B",
+      "expected": "0 rows",
+      "actual": "status=200 rows=0",
+      "pass": true,
+      "evidence": "[]"
+    },
+    {
+      "name": "storage_payment_proofs_no_cross_user_list",
+      "role": "resident",
+      "society": "A->B",
+      "expected": "empty list or denied",
+      "actual": "status=200 listed=0",
+      "pass": true,
+      "evidence": "[]"
+    },
+    {
+      "name": "maintenance_dues_resident_a_read",
+      "role": "resident",
+      "society": "A",
+      "expected": "readable own society dues",
+      "actual": "count=1",
+      "pass": true,
+      "evidence": null
+    },
+    {
+      "name": "platform_admin_lists_stage2_societies",
+      "role": "platform_admin",
+      "society": "platform",
+      "expected": "3 societies",
+      "actual": "count=3",
+      "pass": true,
+      "evidence": null
+    }
+  ]
+}
